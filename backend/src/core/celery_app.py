@@ -1,0 +1,53 @@
+"""Celery application factory and configuration.
+
+The worker shares the exact same :mod:`src.core.config` settings object as the
+API, guaranteeing both processes speak to the same Redis broker and Postgres
+instance. Task modules are autodiscovered from each business module's
+``tasks`` submodule so domains own their own background jobs.
+"""
+
+from __future__ import annotations
+
+from celery import Celery
+from celery.schedules import crontab
+
+from src.core.config import settings
+from src.core.logging import configure_logging
+
+configure_logging()
+
+celery_app: Celery = Celery(
+    "marketplace",
+    broker=settings.redis_url,
+    backend=settings.redis_url,
+)
+
+celery_app.conf.update(
+    task_serializer="json",
+    result_serializer="json",
+    accept_content=["json"],
+    timezone="Europe/Moscow",  # WB API operates in Moscow Time (UTC+3).
+    enable_utc=True,
+    task_track_started=True,
+    task_acks_late=True,
+    worker_prefetch_multiplier=1,
+    result_expires=3600,
+)
+
+# Nightly refresh: because ``timezone`` is Europe/Moscow, this crontab fires at
+# 03:00 MSK. It harvests yesterday's funnel + stock for every SKU and the last
+# week of advertising for all active/paused campaigns.
+celery_app.conf.beat_schedule = {
+    "nightly-harvest-all": {
+        "task": "monitoring.harvest_all",
+        "schedule": crontab(hour=3, minute=0),
+        "kwargs": {"days": 7},
+    },
+}
+
+# Autodiscover ``tasks.py`` inside each registered business module.
+celery_app.autodiscover_tasks(
+    packages=[
+        "src.modules.monitoring",
+    ],
+)

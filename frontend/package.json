@@ -1,0 +1,41 @@
+{
+  "name": "marketplace-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src",
+    "types:api": "openapi-typescript http://localhost:8000/openapi.json -o src/core/api/schema.d.ts"
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "pinia": "^3.0.0",
+    "primevue": "^4.3.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.25.0",
+    "@vitejs/plugin-vue": "^5.2.0",
+    "@vue/test-utils": "^2.4.11",
+    "autoprefixer": "^10.4.20",
+    "axios-mock-adapter": "^2.1.0",
+    "eslint": "^9.25.0",
+    "eslint-plugin-vue": "^9.33.0",
+    "globals": "^16.0.0",
+    "jsdom": "^29.1.1",
+    "openapi-typescript": "^7.13.0",
+    "postcss": "^8.5.0",
+    "prettier": "^3.9.4",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.3.0",
+    "vitest": "^4.1.10"
+  }
+}

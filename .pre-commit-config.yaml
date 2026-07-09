@@ -1,0 +1,83 @@
+# Pre-commit hooks for the marketplace_service monorepo.
+#   backend/  -> Python 3.12 (ruff lint+format, mypy strict)
+#   frontend/ -> Vue 3 (eslint)
+#   commit-msg -> Conventional Commits (commitizen)
+#
+# Install once after cloning:
+#   pre-commit install                 # installs pre-commit + commit-msg hooks
+# Run against everything:
+#   pre-commit run --all-files
+
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+
+repos:
+  # ---------------------------------------------------------------- hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+      - id: check-added-large-files
+      - id: check-yaml
+      - id: check-toml
+      - id: detect-private-key
+
+  # -------------------------------------------------------- Python: ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.20
+    hooks:
+      - id: ruff
+        name: ruff (lint + autofix)
+        args: [--fix]
+        files: ^backend/.*\.py$
+      - id: ruff-format
+        name: ruff (format)
+        files: ^backend/.*\.py$
+
+  # -------------------------------------------------------- Python: mypy
+  # Runs from within backend/ so `src.*` absolute imports and the
+  # [tool.mypy] block in backend/pyproject.toml resolve correctly.
+  # pre-commit builds an isolated venv from additional_dependencies, so no
+  # local virtualenv is required.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (backend, strict)
+        language: python
+        entry: bash -c 'cd backend && exec mypy src'
+        pass_filenames: false
+        require_serial: true
+        files: ^backend/.*\.py$
+        additional_dependencies:
+          - mypy>=1.10
+          - pydantic[email]>=2.7
+          - pydantic-settings>=2.3
+          - sqlalchemy[asyncio]>=2.0.30
+          - fastapi>=0.111
+          - httpx>=0.27
+          - redis>=5.0
+          - pyjwt>=2.8
+          - orjson>=3.10
+          - types-passlib>=1.7
+
+  # ------------------------------------------------------ Frontend: eslint
+  # Uses the frontend's own flat config + node_modules via npx.
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint (frontend)
+        language: system
+        entry: bash -c 'cd frontend && exec npx --no-install eslint src'
+        pass_filenames: false
+        files: ^frontend/src/.*\.(vue|js|ts|jsx|tsx|cjs|mjs)$
+
+  # ------------------------------------------------ Conventional Commits
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.16.4
+    hooks:
+      - id: commitizen
+        name: conventional-commit check
+        stages: [commit-msg]

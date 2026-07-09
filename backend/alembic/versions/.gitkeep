@@ -1,0 +1,2 @@
+# Alembic revision scripts land here. Generate the first with:
+#   alembic revision --autogenerate -m "initial auth + monitoring schemas"
