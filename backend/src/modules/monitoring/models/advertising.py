@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import BigInteger, Date, Integer, Numeric
+from sqlalchemy import BigInteger, Date, Index, Integer, Numeric
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
@@ -35,7 +35,11 @@ class AdvertisingStatDaily(Base):
     """
 
     __tablename__ = "advertising_stat_daily"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = (
+        # nm_id is the FOURTH PK column, so per-SKU reads need this index.
+        Index("ix_advertising_stat_daily_nm_id_stat_date", "nm_id", "stat_date"),
+        {"schema": _SCHEMA},
+    )
 
     stat_date: Mapped[date] = mapped_column(Date, primary_key=True)
     campaign_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import BigInteger, Date, Integer, Numeric
+from sqlalchemy import BigInteger, Date, Index, Integer, Numeric
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
@@ -39,7 +39,13 @@ class SalesFunnelDaily(Base):
     """
 
     __tablename__ = "sales_funnel_daily"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = (
+        # The PK leads with stat_date, so per-SKU reads (detail/funnel views:
+        # nm_id + date range) need this dedicated index or they degrade to
+        # scanning the whole window across all SKUs.
+        Index("ix_sales_funnel_daily_nm_id_stat_date", "nm_id", "stat_date"),
+        {"schema": _SCHEMA},
+    )
 
     stat_date: Mapped[date] = mapped_column(Date, primary_key=True)
     nm_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)

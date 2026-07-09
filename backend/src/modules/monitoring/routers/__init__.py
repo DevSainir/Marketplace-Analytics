@@ -12,6 +12,7 @@ Every endpoint requires a valid access token (router-level dependency).
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, status
 
@@ -46,9 +47,13 @@ async def get_summary(
     service: AnalyticsServiceDep,
     date_from: date | None = Query(default=None, description="Inclusive start."),
     date_to: date | None = Query(default=None, description="Inclusive end."),
+    limit: int = Query(default=100, ge=1, le=500, description="Page size."),
+    offset: int = Query(default=0, ge=0, description="Page offset (by SKU order)."),
 ) -> SkuSummaryListResponse:
     """Return the compact per-SKU summary listing (dashboard view)."""
-    return await service.get_summary(date_from=date_from, date_to=date_to)
+    return await service.get_summary(
+        date_from=date_from, date_to=date_to, limit=limit, offset=offset
+    )
 
 
 @router.get(
@@ -95,9 +100,13 @@ async def get_sku_detail(
     campaign_id: int | None = Query(
         default=None, description="Filter advertising to one campaign."
     ),
-    campaign_status: str | None = Query(
+    # Literal instead of free text: a typo ("actve") should be a 422, not a
+    # silently empty advertising list.
+    campaign_status: (
+        Literal["active", "paused", "completed", "ready", "declined", "deleting", "unknown"] | None
+    ) = Query(
         default=None,
-        description="Filter to campaigns of this status (active/paused/completed/...).",
+        description="Filter to campaigns of this normalized status.",
     ),
 ) -> SkuDetailResponse:
     """Return the full detailed view for a single SKU across all metrics."""

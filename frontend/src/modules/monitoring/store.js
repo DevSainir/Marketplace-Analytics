@@ -16,6 +16,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   const loading = ref(false)
   const error = ref(null)
   const currentProduct = ref(null)
+  /** The searched query when the lookup legitimately matched nothing (not a failure). */
+  const notFound = ref(null)
   /** Ambiguous vendor-code search results awaiting the user's choice. */
   const lookupMatches = ref([])
 
@@ -26,6 +28,10 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   // Monotonic id per search; responses arriving for an older id are stale
   // (the user has already searched again) and must not overwrite state.
   let requestSeq = 0
+
+  // Controller of the in-flight search; each new search (and reset) aborts it
+  // so stale requests release the network instead of just being ignored.
+  let activeController = null
 
   // --- getters -----------------------------------------------------------
   // Funnel window totals come precomputed from the backend (`funnel_totals`).
@@ -48,27 +54,33 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   const isOutOfStock = computed(() => (currentProduct.value?.stock?.total_quantity ?? 0) === 0)
 
   // --- actions -----------------------------------------------------------
+  /** Axios abort rejections are silent: they only mean a newer search won. */
+  function isAbortError(err) {
+    return err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError'
+  }
+
   /**
    * Resolve a vendor code (or fragment) to a single nm ID.
    *
-   * Exact match wins; a single hit is used as-is; several hits are exposed via
-   * `lookupMatches` for the user to pick from (returns null in that case).
+   * Pure lookup — NO state writes here: the result is discriminated so that
+   * `fetchProductData` applies it only after re-checking the request sequence
+   * (a slow lookup must never clobber a newer search).
+   *
+   * @returns {Promise<
+   *   | {kind: 'resolved', nmId: number}
+   *   | {kind: 'not-found'}
+   *   | {kind: 'ambiguous', items: object[]}
+   * >}
    */
-  async function resolveVendorCode(query) {
-    const result = await lookupSkus(query)
-    if (!result.count) {
-      currentProduct.value = null
-      error.value = `По артикулу «${query}» ничего не найдено.`
-      return null
-    }
+  async function resolveVendorCode(query, signal) {
+    const result = await lookupSkus(query, signal)
+    if (!result.count) return { kind: 'not-found' }
     const exact = result.items.find(
       (item) => item.vendor_code.toLowerCase() === query.toLowerCase(),
     )
-    if (exact) return exact.nm_id
-    if (result.count === 1) return result.items[0].nm_id
-    lookupMatches.value = result.items
-    currentProduct.value = null
-    return null
+    if (exact) return { kind: 'resolved', nmId: exact.nm_id }
+    if (result.count === 1) return { kind: 'resolved', nmId: result.items[0].nm_id }
+    return { kind: 'ambiguous', items: result.items }
   }
 
   /**
@@ -83,24 +95,42 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     if (!query) return
 
     const seq = ++requestSeq
+    activeController?.abort()
+    const controller = new AbortController()
+    activeController = controller
+
     lastParams = params
     loading.value = true
     error.value = null
+    notFound.value = null
     lookupMatches.value = []
     try {
-      const nmId = /^\d+$/.test(query) ? Number(query) : await resolveVendorCode(query)
-      if (seq !== requestSeq) return // a newer search superseded this one
-      if (nmId !== null) {
-        const detail = await fetchSkuDetail(nmId, params)
-        if (seq !== requestSeq) return
-        currentProduct.value = detail
+      let nmId = /^\d+$/.test(query) ? Number(query) : null
+      if (nmId === null) {
+        const resolution = await resolveVendorCode(query, controller.signal)
+        if (seq !== requestSeq) return // a newer search superseded this one
+        if (resolution.kind === 'not-found') {
+          currentProduct.value = null
+          notFound.value = query
+          return
+        }
+        if (resolution.kind === 'ambiguous') {
+          currentProduct.value = null
+          lookupMatches.value = resolution.items
+          return
+        }
+        nmId = resolution.nmId
       }
-    } catch (err) {
+      const detail = await fetchSkuDetail(nmId, params, controller.signal)
       if (seq !== requestSeq) return
+      currentProduct.value = detail
+    } catch (err) {
+      if (seq !== requestSeq || isAbortError(err)) return
       currentProduct.value = null
       error.value = extractErrorMessage(err)
     } finally {
       if (seq === requestSeq) loading.value = false
+      if (activeController === controller) activeController = null
     }
   }
 
@@ -109,9 +139,23 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     return fetchProductData(nmId)
   }
 
+  /** Back to the pristine state (e.g. the URL query was cleared); aborts any in-flight search. */
+  function reset() {
+    requestSeq += 1 // in-flight responses become stale
+    activeController?.abort()
+    activeController = null
+    lastParams = {}
+    loading.value = false
+    error.value = null
+    notFound.value = null
+    currentProduct.value = null
+    lookupMatches.value = []
+  }
+
   return {
     loading,
     error,
+    notFound,
     currentProduct,
     lookupMatches,
     selectSku,
@@ -121,5 +165,6 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     totalAdSpend,
     isOutOfStock,
     fetchProductData,
+    reset,
   }
 })

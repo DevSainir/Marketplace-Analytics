@@ -18,6 +18,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import AsyncSessionLocal
+from src.core.redis import sessions_revoked_after
 from src.core.security import TokenType, decode_token
 
 
@@ -60,8 +61,9 @@ async def get_current_user_id(
         The authenticated user's UUID primary key.
 
     Raises:
-        HTTPException: ``401`` when the token is missing, malformed, expired, or
-            is not an access token.
+        HTTPException: ``401`` when the token is missing, malformed, expired,
+            is not an access token, or was issued before the user's sessions
+            were force-revoked (breach detection / global logout).
     """
     unauthorized = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -76,9 +78,19 @@ async def get_current_user_id(
         raise unauthorized
 
     try:
-        return uuid.UUID(payload.subject)
+        user_id = uuid.UUID(payload.subject)
     except (ValueError, AttributeError) as exc:
         raise unauthorized from exc
+
+    # Statelessly valid is not enough: a breach response ("revoke all
+    # sessions") must also kill outstanding access tokens, not only refresh
+    # rows. The Redis watermark makes revocation effective immediately instead
+    # of after the 15-minute access TTL.
+    revoked_after = await sessions_revoked_after(user_id)
+    if revoked_after is not None and payload.issued_at < revoked_after:
+        raise unauthorized
+
+    return user_id
 
 
 #: Injectable authenticated user id for protected routes.

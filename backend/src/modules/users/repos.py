@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, select, update
+from sqlalchemy import CursorResult, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.users.models import RefreshToken, User
@@ -106,10 +106,54 @@ class RefreshTokenRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def mark_used(self, token_id: uuid.UUID) -> None:
-        """Flag a single token as consumed (rotated)."""
-        stmt = update(RefreshToken).where(RefreshToken.id == token_id).values(is_used=True)
-        await self._session.execute(stmt)
+    async def consume(self, token_id: uuid.UUID) -> bool:
+        """Atomically flag a token as consumed (rotated), exactly once.
+
+        The conditional UPDATE is the linchpin of breach detection: two
+        concurrent requests presenting the same secret race on this statement,
+        and exactly one wins. A plain read-then-write would let both rotations
+        succeed and a replayed stolen token go unnoticed.
+
+        Args:
+            token_id: The token row to consume.
+
+        Returns:
+            ``True`` if this call consumed the token; ``False`` if it was
+            already consumed (reuse — the caller must treat it as a breach).
+        """
+        stmt = (
+            update(RefreshToken)
+            .where(RefreshToken.id == token_id, RefreshToken.is_used.is_(False))
+            .values(is_used=True)
+        )
+        result = cast("CursorResult[Any]", await self._session.execute(stmt))
+        return int(result.rowcount or 0) == 1
+
+    async def family_started_at(self, family_id: uuid.UUID) -> datetime | None:
+        """Return the issuance instant of a family's first token, or ``None``.
+
+        Used to enforce the absolute session-lifetime ceiling across rotations.
+        """
+        stmt = select(func.min(RefreshToken.created_at)).where(RefreshToken.family_id == family_id)
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def delete_expired(self, *, before: datetime) -> int:
+        """Hard-delete token rows whose expiry predates ``before``.
+
+        Keeps ``auth.refresh_tokens`` from growing unboundedly; invoked by the
+        periodic cleanup task with a retention grace so recently expired rows
+        remain available for incident forensics.
+
+        Args:
+            before: Delete rows with ``expires_at`` strictly earlier than this.
+
+        Returns:
+            The number of rows deleted.
+        """
+        stmt = delete(RefreshToken).where(RefreshToken.expires_at < before)
+        result = cast("CursorResult[Any]", await self._session.execute(stmt))
+        return int(result.rowcount or 0)
 
     async def revoke_all_for_user(self, user_id: uuid.UUID) -> int:
         """Revoke every non-revoked refresh token owned by a user.

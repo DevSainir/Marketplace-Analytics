@@ -36,8 +36,21 @@ export function setUnauthorizedHandler(handler) {
   unauthorizedHandler = handler
 }
 
+// `baseURL` comes strictly from the environment. A production build without
+// it would silently call the frontend origin, so we fail fast at load time;
+// in dev (and vitest) we fall back to relative URLs for the local proxy.
+const baseURL = import.meta.env.VITE_API_URL
+if (!baseURL) {
+  if (!import.meta.env.DEV) {
+    throw new Error('VITE_API_URL is not set: production builds require an explicit API base URL.')
+  }
+  if (!import.meta.env.TEST) {
+    console.warn('VITE_API_URL is not set; falling back to relative API URLs (dev only).')
+  }
+}
+
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: baseURL || '',
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 })

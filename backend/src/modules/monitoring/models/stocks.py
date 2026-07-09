@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import BigInteger, Date, Integer, String
+from sqlalchemy import BigInteger, Date, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
@@ -35,7 +35,11 @@ class StockSnapshot(Base):
     """
 
     __tablename__ = "stock_snapshot"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = (
+        # Per-SKU reads (nm_id + date range) cannot use the stat_date-led PK.
+        Index("ix_stock_snapshot_nm_id_stat_date", "nm_id", "stat_date"),
+        {"schema": _SCHEMA},
+    )
 
     stat_date: Mapped[date] = mapped_column(Date, primary_key=True)
     nm_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)

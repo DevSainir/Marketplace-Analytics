@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import date
 
 from src.core.config import Settings
+from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.base import BaseWBClient
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
@@ -18,6 +19,11 @@ from src.integrations.wildberries.schemas import (
     WBFunnelHistoryRow,
     WBStockRow,
 )
+
+# NOTE on shape validation: a 200 response whose body does not match the
+# verified live shape (WB error envelope, silent contract change) must raise
+# IntegrationError — defaulting to an empty list would let the harvest report
+# "success" with zero rows, silently punching holes in the time series.
 
 
 class WBAnalyticsClient(BaseWBClient):
@@ -82,8 +88,12 @@ class WBAnalyticsClient(BaseWBClient):
                 "/api/analytics/v3/sales-funnel/products/history",
                 json_body=body,
             )
-            rows = payload if isinstance(payload, list) else []
-            results.extend(WBFunnelHistoryRow.model_validate(item) for item in rows)
+            if not isinstance(payload, list):
+                raise IntegrationError(
+                    "Unexpected sales-funnel response shape (expected a top-level "
+                    f"list, got {type(payload).__name__})."
+                )
+            results.extend(WBFunnelHistoryRow.model_validate(item) for item in payload)
         return results
 
     async def fetch_warehouse_stocks(
@@ -109,8 +119,12 @@ class WBAnalyticsClient(BaseWBClient):
         )
         # Verified live shape: {"data": {"items": [ {nmId, warehouseName,
         # quantity, ...}, ... ]}}.
-        data = payload.get("data", {}) if isinstance(payload, dict) else {}
-        rows = data.get("items", []) if isinstance(data, dict) else []
+        data = payload.get("data") if isinstance(payload, dict) else None
+        rows = data.get("items") if isinstance(data, dict) else None
+        if not isinstance(rows, list):
+            raise IntegrationError(
+                "Unexpected stocks-report response shape (expected data.items list)."
+            )
         return [WBStockRow.model_validate(item) for item in rows]
 
 
@@ -171,8 +185,16 @@ class WBAdvertisingClient(BaseWBClient):
                 "endDate": date_to.isoformat(),
             }
             payload = await self._request("GET", "/adv/v3/fullstats", params=params)
-            records = payload if isinstance(payload, list) else [payload]
-            results.extend(WBAdvCampaignStats.model_validate(rec) for rec in records if rec)
+            # WB returns null (decoded as None) when no campaign in the batch
+            # had activity in the window — a legitimately empty result.
+            if payload is None:
+                continue
+            if not isinstance(payload, list):
+                raise IntegrationError(
+                    "Unexpected fullstats response shape (expected a top-level "
+                    f"list, got {type(payload).__name__})."
+                )
+            results.extend(WBAdvCampaignStats.model_validate(rec) for rec in payload if rec)
         return results
 
     async def list_campaigns(self) -> list[WBCampaign]:
@@ -186,7 +208,13 @@ class WBAdvertisingClient(BaseWBClient):
             A flat list of :class:`WBCampaign` descriptors.
         """
         payload = await self._request("GET", "/adv/v1/promotion/count")
-        raw_groups = payload.get("adverts") if isinstance(payload, dict) else None
+        if not isinstance(payload, dict):
+            raise IntegrationError(
+                "Unexpected promotion/count response shape (expected an object, "
+                f"got {type(payload).__name__})."
+            )
+        # "adverts" is null when the account has no campaigns — legitimate.
+        raw_groups = payload.get("adverts")
         groups = [WBCampaignGroup.model_validate(g) for g in raw_groups or []]
         return [
             WBCampaign(campaign_id=ref.advert_id, type=group.type, status=group.status)

@@ -9,7 +9,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+from src.core.security import PASSWORD_MAX_BYTES
 
 
 class UserRegisterRequest(BaseModel):
@@ -17,6 +19,24 @@ class UserRegisterRequest(BaseModel):
 
     email: EmailStr = Field(description="Unique account email / login.")
     password: str = Field(min_length=8, max_length=128, description="Plaintext password.")
+    invite_code: str = Field(
+        min_length=1,
+        max_length=128,
+        description="Operator-issued registration invite code.",
+    )
+
+    @field_validator("password")
+    @classmethod
+    def _password_within_bcrypt_limit(cls, value: str) -> str:
+        """Reject passwords bcrypt would silently truncate.
+
+        bcrypt only reads the first 72 bytes; accepting longer input would give
+        users a false sense of extra entropy (multi-byte alphabets hit the
+        limit well below 72 *characters*, hence a byte-level check).
+        """
+        if len(value.encode("utf-8")) > PASSWORD_MAX_BYTES:
+            raise ValueError(f"Password must not exceed {PASSWORD_MAX_BYTES} bytes (UTF-8).")
+        return value
 
 
 class UserLoginRequest(BaseModel):

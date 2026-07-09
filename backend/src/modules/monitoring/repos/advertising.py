@@ -2,13 +2,26 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import date
+from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import CursorResult, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import AdvertisingStatDaily
 from src.modules.monitoring.repos.base import BaseRepository
+
+
+@dataclass(frozen=True, slots=True)
+class AdAggregate:
+    """Window advertising totals for one SKU, computed by the database."""
+
+    nm_id: int
+    spend: float
+    clicks: int
+
 
 _CONFLICT = ("stat_date", "campaign_id", "app_type", "nm_id")
 _UPDATE = ("views", "clicks", "add_to_cart", "spend", "orders")
@@ -68,15 +81,60 @@ class AdvertisingRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def list_window(self, *, date_from: date, date_to: date) -> list[AdvertisingStatDaily]:
-        """Return advertising rows across every SKU within a window."""
+    async def aggregate_window(self, *, date_from: date, date_to: date) -> list[AdAggregate]:
+        """Return per-SKU advertising totals, aggregated by the database.
+
+        Args:
+            date_from: Inclusive window start.
+            date_to: Inclusive window end.
+
+        Returns:
+            One :class:`AdAggregate` per SKU with advertising in the window.
+        """
         stmt = (
-            select(AdvertisingStatDaily)
+            select(
+                AdvertisingStatDaily.nm_id,
+                func.sum(AdvertisingStatDaily.spend).label("spend"),
+                func.sum(AdvertisingStatDaily.clicks).label("clicks"),
+            )
             .where(
                 AdvertisingStatDaily.stat_date >= date_from,
                 AdvertisingStatDaily.stat_date <= date_to,
             )
-            .order_by(AdvertisingStatDaily.nm_id, AdvertisingStatDaily.stat_date)
+            .group_by(AdvertisingStatDaily.nm_id)
+            .order_by(AdvertisingStatDaily.nm_id)
         )
         result = await self._session.execute(stmt)
-        return list(result.scalars().all())
+        return [
+            AdAggregate(nm_id=row.nm_id, spend=float(row.spend), clicks=int(row.clicks))
+            for row in result.all()
+        ]
+
+    async def delete_window_for_campaigns(
+        self, *, date_from: date, date_to: date, campaign_ids: Iterable[int]
+    ) -> int:
+        """Delete a window's rows for the given campaigns (pre-refresh sweep).
+
+        Ingestion skips WB's all-zero placeholder rows, so an upsert alone can
+        never bring a previously nonzero row back DOWN to zero when WB corrects
+        it. Deleting the harvested window first (in the same transaction as the
+        re-insert) makes the harvest a faithful mirror of WB's current data.
+
+        Args:
+            date_from: Inclusive window start.
+            date_to: Inclusive window end.
+            campaign_ids: The campaigns whose window is being re-harvested.
+
+        Returns:
+            The number of rows deleted.
+        """
+        ids = list(campaign_ids)
+        if not ids:
+            return 0
+        stmt = delete(AdvertisingStatDaily).where(
+            AdvertisingStatDaily.campaign_id.in_(ids),
+            AdvertisingStatDaily.stat_date >= date_from,
+            AdvertisingStatDaily.stat_date <= date_to,
+        )
+        result = cast("CursorResult[Any]", await self._session.execute(stmt))
+        return int(result.rowcount or 0)

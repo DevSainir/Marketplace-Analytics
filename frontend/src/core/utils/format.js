@@ -18,7 +18,18 @@ export function formatCurrency(value) {
   return currencyFormat.format(value)
 }
 
-/** 12.3456 -> "12.35%" */
+const percentFormat = new Intl.NumberFormat('ru-RU', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+/**
+ * 12.3456 -> "12,35%" (the value is already 0–100, not a 0–1 ratio).
+ *
+ * Non-finite input (null, undefined, NaN, ±Infinity) renders as an em dash
+ * so a missing metric never crashes the view.
+ */
 export function formatPercent(value) {
-  return `${value.toFixed(2)}%`
+  if (!Number.isFinite(value)) return '—'
+  return `${percentFormat.format(value)}%`
 }

@@ -2,6 +2,10 @@
 # Base multi-container topology: FastAPI (api) + Celery (worker) + PostgreSQL +
 # Redis. The api and worker build from separate Dockerfiles but share the same
 # source tree and environment file.
+#
+# Security posture: Postgres/Redis are published on the LOOPBACK interface only
+# (host tooling can still reach them; the network cannot), and Redis requires a
+# password — an open Redis is remote code execution via the Celery broker.
 # ---------------------------------------------------------------------------
 
 name: marketplace-service
@@ -17,7 +21,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-marketplace}"]
       interval: 10s
@@ -27,16 +31,39 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis-dev-password}
+    command:
+      - sh
+      - -c
+      - 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"'
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", 'redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG']
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # One-shot migration job: api/worker wait for it to finish successfully.
+  # Running migrations here (instead of in every api container's entrypoint)
+  # means multiple api replicas can never race each other on DDL.
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   api:
     build:
@@ -48,13 +75,10 @@ services:
     environment:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
-    # Apply DB migrations on startup so `docker compose up` is self-contained,
-    # then launch the ASGI server. Postgres is guaranteed ready via depends_on.
-    command:
-      - sh
-      - -c
-      - "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000"
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -73,6 +97,8 @@ services:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:

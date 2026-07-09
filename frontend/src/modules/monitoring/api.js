@@ -12,11 +12,13 @@ import apiClient from '@/core/api/axios'
  * matching SKUs.
  *
  * @param {string} vendorCode Seller article code, e.g. "M-TRX01-BLK" or "M-TRX".
+ * @param {AbortSignal} [signal] Cancels the request when a newer search starts.
  * @returns {Promise<import('@/core/api/types').SkuLookupResponse>}
  */
-export async function lookupSkus(vendorCode) {
+export async function lookupSkus(vendorCode, signal) {
   const { data } = await apiClient.get('/v1/monitoring/skus/lookup', {
     params: { vendor_code: vendorCode },
+    signal,
   })
   return data
 }
@@ -27,9 +29,10 @@ export async function lookupSkus(vendorCode) {
  *
  * @param {number|string} nmId WB SKU identifier.
  * @param {{date_from?: string, date_to?: string, campaign_id?: number, campaign_status?: string}} [params]
+ * @param {AbortSignal} [signal] Cancels the request when a newer search starts.
  * @returns {Promise<import('@/core/api/types').SkuDetailResponse>}
  */
-export async function fetchSkuDetail(nmId, params = {}) {
-  const { data } = await apiClient.get(`/v1/monitoring/skus/${nmId}`, { params })
+export async function fetchSkuDetail(nmId, params = {}, signal) {
+  const { data } = await apiClient.get(`/v1/monitoring/skus/${nmId}`, { params, signal })
   return data
 }

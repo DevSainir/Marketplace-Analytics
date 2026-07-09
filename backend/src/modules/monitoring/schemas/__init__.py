@@ -11,6 +11,7 @@ from src.modules.monitoring.schemas.advertising import (
     compute_ad_metrics,
 )
 from src.modules.monitoring.schemas.funnel import (
+    BaselineDemandRead,
     FunnelDetailRead,
     FunnelResponseSchema,
     FunnelTotals,
@@ -36,6 +37,7 @@ from src.modules.monitoring.schemas.summary import (
 
 __all__ = [
     "AdMetrics",
+    "BaselineDemandRead",
     "CampaignAdvertising",
     "CampaignDailyStat",
     "CatalogIngestionResult",

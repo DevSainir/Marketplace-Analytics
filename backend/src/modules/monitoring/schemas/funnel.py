@@ -103,11 +103,28 @@ def compute_funnel_totals(rows: Sequence[_FunnelRow]) -> FunnelTotals:
     )
 
 
+class BaselineDemandRead(BaseModel):
+    """Cleansed baseline organic demand for one SKU over a window.
+
+    Produced by the normalization pipeline
+    (:mod:`src.modules.monitoring.services.normalization`): out-of-stock days
+    are masked out, the remainder cleansed for promo lift / seasonality, and
+    the result averaged per in-stock day.
+    """
+
+    baseline_organic_demand: float = Field(
+        description="Mean cleansed daily demand over in-stock days."
+    )
+    oos_days_excluded: int = Field(description="Days masked out as out-of-stock.")
+    considered_days: int = Field(description="Days that contributed to the average.")
+
+
 class FunnelResponseSchema(BaseModel):
     """Raw organic sales-funnel response for a single SKU.
 
     Exposes the per-day funnel metrics, window totals, and a raw order total.
-    (Baseline-demand normalization was removed for now and will return later.)
+    (The cleansed baseline lives on the detail endpoint, which has the stock
+    context required for OOS masking.)
     """
 
     nm_id: int = Field(description="WB SKU identifier.")

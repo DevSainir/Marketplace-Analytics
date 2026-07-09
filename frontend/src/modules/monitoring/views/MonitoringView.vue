@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { formatCurrency, formatNumber, formatPercent } from '@/core/utils/format'
 
+import { CAMPAIGN_STATUS_TEXT } from '@/modules/monitoring/campaignStatus'
 import CampaignAttributionTable from '@/modules/monitoring/components/CampaignAttributionTable.vue'
 import MetricCard from '@/modules/monitoring/components/MetricCard.vue'
 import SkuSearchBar from '@/modules/monitoring/components/SkuSearchBar.vue'
@@ -14,22 +15,58 @@ const store = useMonitoringStore()
 const route = useRoute()
 const router = useRouter()
 
-// The search is deep-linkable: /monitoring?sku=…&date_from=…&date_to=…
-// survives refresh, back/forward, and can be shared between managers.
-const initialSearch = {
-  sku: typeof route.query.sku === 'string' ? route.query.sku : '',
-  date_from: typeof route.query.date_from === 'string' ? route.query.date_from : '',
-  date_to: typeof route.query.date_to === 'string' ? route.query.date_to : '',
+/** Pick the search-relevant params out of a route query (arrays/absent → ''). */
+function readSearchQuery(query) {
+  const pick = (key) => (typeof query[key] === 'string' ? query[key] : '')
+  return {
+    sku: pick('sku'),
+    date_from: pick('date_from'),
+    date_to: pick('date_to'),
+    campaign_status: pick('campaign_status'),
+  }
 }
 
-onMounted(() => {
-  if (initialSearch.sku) {
-    store.fetchProductData(initialSearch.sku, {
-      ...(initialSearch.date_from && { date_from: initialSearch.date_from }),
-      ...(initialSearch.date_to && { date_to: initialSearch.date_to }),
+// Search-bar defaults for the first render only; afterwards the bar owns its
+// own inputs and the URL owns the executed search.
+const initialSearch = readSearchQuery(route.query)
+
+// The search is deep-linkable: /monitoring?sku=…&date_from=…&date_to=…
+// survives refresh, back/forward, and can be shared between managers.
+// The URL is the single source of truth: handlers only push a new query and
+// this watcher drives ALL fetching, so nav clicks and back/forward stay in
+// sync and a handler + watcher pair never double-fetches one navigation.
+watch(
+  () => route.query,
+  (query, oldQuery) => {
+    if (route.name !== 'monitoring') return // navigating away, not a new search
+    const search = readSearchQuery(query)
+    if (oldQuery && JSON.stringify(search) === JSON.stringify(readSearchQuery(oldQuery))) return
+    if (!search.sku) {
+      store.reset()
+      return
+    }
+    store.fetchProductData(search.sku, {
+      ...(search.date_from && { date_from: search.date_from }),
+      ...(search.date_to && { date_to: search.date_to }),
+      ...(search.campaign_status && { campaign_status: search.campaign_status }),
     })
-  }
+  },
+  { immediate: true },
+)
+
+// Campaign-status filter (`campaign_status` API param) lives in the URL like
+// the rest of the search, so the watcher above re-fetches on change.
+const campaignStatusFilter = computed({
+  get: () => (typeof route.query.campaign_status === 'string' ? route.query.campaign_status : ''),
+  set: (value) => {
+    router.push({ query: { ...route.query, campaign_status: value || undefined } })
+  },
 })
+
+const campaignStatusOptions = [
+  { value: '', label: 'Все статусы' },
+  ...Object.entries(CAMPAIGN_STATUS_TEXT).map(([value, label]) => ({ value, label })),
+]
 
 const product = computed(() => store.currentProduct)
 
@@ -79,9 +116,17 @@ const funnelConversions = computed(() => {
   ]
 })
 
+// Only push the route: the `route.query` watcher performs the fetch. `push`
+// (not `replace`) keeps every search reachable via the Back button.
 function handleSearch({ sku, date_from, date_to }) {
-  router.replace({ query: { sku, date_from, date_to } })
-  store.fetchProductData(sku, { date_from, date_to })
+  router.push({
+    query: {
+      sku,
+      date_from,
+      date_to,
+      ...(campaignStatusFilter.value && { campaign_status: campaignStatusFilter.value }),
+    },
+  })
 }
 </script>
 
@@ -129,6 +174,34 @@ function handleSearch({ sku, date_from, date_to }) {
           <span class="truncate text-xs text-slate-400">{{ match.title }}</span>
         </button>
       </div>
+    </section>
+
+    <!-- Empty result (a valid answer, not a failure) -->
+    <section
+      v-if="store.notFound"
+      class="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center"
+    >
+      <span
+        class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400"
+      >
+        <svg
+          class="h-6 w-6"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="M8 11h6" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+      </span>
+      <h2 class="mt-4 text-base font-semibold text-slate-900">По запросу ничего не найдено</h2>
+      <p class="mt-1 max-w-sm text-sm text-slate-500">
+        По артикулу «{{ store.notFound }}» нет ни одного SKU. Проверьте написание или попробуйте
+        другой фрагмент артикула.
+      </p>
     </section>
 
     <!-- Error state -->
@@ -202,12 +275,29 @@ function handleSearch({ sku, date_from, date_to }) {
 
       <!-- Data layer: cross-attribution -->
       <section class="space-y-3">
-        <div>
-          <h2 class="text-base font-semibold text-slate-900">Кросс-атрибуция кампаний</h2>
-          <p class="mt-0.5 text-sm text-slate-500">
-            Кампании продвигают всю группу вариантов (все цвета); в каждой строке — заказы, которые
-            кампания принесла именно артикулу {{ skuLabel }}.
-          </p>
+        <div class="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 class="text-base font-semibold text-slate-900">Кросс-атрибуция кампаний</h2>
+            <p class="mt-0.5 text-sm text-slate-500">
+              Кампании продвигают всю группу вариантов (все цвета); в каждой строке — заказы,
+              которые кампания принесла именно артикулу {{ skuLabel }}.
+            </p>
+          </div>
+          <label class="flex items-center gap-2 text-sm text-slate-500">
+            Статус
+            <select
+              v-model="campaignStatusFilter"
+              class="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-700 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
+            >
+              <option
+                v-for="option in campaignStatusOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
         </div>
         <CampaignAttributionTable :campaigns="product.advertising" :sku-label="skuLabel" />
       </section>
@@ -234,7 +324,7 @@ function handleSearch({ sku, date_from, date_to }) {
 
     <!-- Empty state -->
     <section
-      v-else-if="!store.loading && !store.error"
+      v-else-if="!store.loading && !store.error && !store.notFound"
       class="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center"
     >
       <span

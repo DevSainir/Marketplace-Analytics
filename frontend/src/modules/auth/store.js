@@ -29,14 +29,44 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => status.value === 'authenticated')
 
   // --- internal helpers ----------------------------------------------------
+  // Proactive refresh: rotate the access token ~60s before it expires so
+  // requests never race the 401 interceptor. One timer per session.
+  const REFRESH_LEEWAY_MS = 60_000
+
+  let refreshTimer = null
+
+  function clearRefreshTimer() {
+    if (refreshTimer !== null) {
+      clearTimeout(refreshTimer)
+      refreshTimer = null
+    }
+  }
+
+  function scheduleProactiveRefresh(expiresAt) {
+    clearRefreshTimer()
+    const expiryMs = Date.parse(expiresAt)
+    if (!Number.isFinite(expiryMs)) return // unknown expiry: 401 interceptor covers us
+    const delay = Math.max(expiryMs - Date.now() - REFRESH_LEEWAY_MS, 1_000)
+    refreshTimer = setTimeout(async () => {
+      refreshTimer = null
+      try {
+        applySession(await refreshSession())
+      } catch {
+        markGuest() // dead refresh cookie: the session is over
+      }
+    }, delay)
+  }
+
   function applySession(tokens) {
     setAccessToken(tokens.access_token)
     accessExpiresAt.value = tokens.expires_at
     status.value = 'authenticated'
+    scheduleProactiveRefresh(tokens.expires_at)
   }
 
   /** Drop the local session (no server call) — e.g. after a failed refresh. */
   function markGuest() {
+    clearRefreshTimer()
     clearAccessToken()
     accessExpiresAt.value = null
     status.value = 'guest'
@@ -76,18 +106,23 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** Register a new account, then log straight into it. */
-  async function register(email, password) {
+  /** Register a new account (invite-only), then log straight into it. */
+  async function register(email, password, inviteCode) {
     loading.value = true
     error.value = null
     try {
-      await registerUser({ email, password })
+      await registerUser({ email, password, inviteCode })
     } catch (err) {
       error.value = extractErrorMessage(err)
       loading.value = false
       return false
     }
     return login(email, password)
+  }
+
+  /** Dismiss the last auth error (e.g. when the user switches login/register). */
+  function clearError() {
+    error.value = null
   }
 
   async function logout() {
@@ -113,5 +148,6 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     markGuest,
+    clearError,
   }
 })

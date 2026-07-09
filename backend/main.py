@@ -9,10 +9,11 @@ and manages the async engine lifecycle. Run with::
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+import time
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
 
@@ -20,6 +21,7 @@ from src.core.config import settings
 from src.core.database import dispose_engine
 from src.core.exceptions import AppError
 from src.core.logging import configure_logging, get_logger
+from src.core.redis import close_redis
 from src.modules.monitoring.routers import router as monitoring_router
 from src.modules.users.routers import router as users_router
 
@@ -30,14 +32,15 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application startup and shutdown.
 
-    Configures logging on startup and disposes of the async engine's connection
-    pool on shutdown so the process exits cleanly.
+    Configures logging on startup; disposes of the async engine's connection
+    pool and the shared Redis client on shutdown so the process exits cleanly.
     """
     configure_logging()
     logger.info("Starting %s (env=%s).", settings.app_name, settings.environment)
     yield
     await dispose_engine()
-    logger.info("Shutdown complete; database engine disposed.")
+    await close_redis()
+    logger.info("Shutdown complete; database engine and Redis client disposed.")
 
 
 app = FastAPI(
@@ -58,6 +61,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_requests(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Emit one structured line per request (method, path, status, duration).
+
+    Uvicorn's access log is silenced by :mod:`src.core.logging`; without this
+    middleware the API would have no audit trail of who called what. The
+    liveness probe is skipped to keep orchestrator polling out of the logs.
+    """
+    if request.url.path == "/health":
+        return await call_next(request)
+    started = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - started) * 1000
+    logger.info(
+        "%s %s -> %d (%.1f ms, client=%s)",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+        request.client.host if request.client else "unknown",
+    )
+    return response
 
 
 @app.exception_handler(AppError)
@@ -81,7 +110,13 @@ async def handle_app_error(request: Request, exc: AppError) -> ORJSONResponse:
     )
 
 
-@app.get("/health", tags=["System"], summary="Liveness probe")
+@app.get(
+    "/health",
+    tags=["System"],
+    summary="Liveness probe",
+    status_code=status.HTTP_200_OK,
+    responses={200: {"description": "Service is alive."}},
+)
 async def health() -> dict[str, str]:
     """Return a static liveness payload for container/orchestrator probes."""
     return {"status": "ok", "service": settings.app_name}

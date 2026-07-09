@@ -100,6 +100,93 @@ describe('bootstrap', () => {
   })
 })
 
+describe('proactive refresh', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Tokens expiring `minutes` from the (fake) current time. */
+  function tokensExpiringIn(minutes) {
+    return {
+      access_token: 'jwt',
+      expires_at: new Date(Date.now() + minutes * 60_000).toISOString(),
+    }
+  }
+
+  it('rotates the token ~60s before expiry', async () => {
+    vi.useFakeTimers()
+    loginUser.mockResolvedValue(tokensExpiringIn(5))
+    refreshSession.mockResolvedValue(tokensExpiringIn(10))
+
+    await store.login('manager@example.com', 'secret-password')
+
+    // One second before the refresh point: nothing yet.
+    await vi.advanceTimersByTimeAsync(4 * 60_000 - 1_000)
+    expect(refreshSession).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(refreshSession).toHaveBeenCalledTimes(1)
+    expect(store.isAuthenticated).toBe(true)
+  })
+
+  it('reschedules after each rotation', async () => {
+    vi.useFakeTimers()
+    loginUser.mockResolvedValue(tokensExpiringIn(5))
+    refreshSession.mockImplementation(async () => tokensExpiringIn(5))
+
+    await store.login('manager@example.com', 'secret-password')
+    await vi.advanceTimersByTimeAsync(8 * 60_000)
+
+    expect(refreshSession).toHaveBeenCalledTimes(2)
+  })
+
+  it('drops the session when the proactive refresh fails', async () => {
+    vi.useFakeTimers()
+    loginUser.mockResolvedValue(tokensExpiringIn(5))
+    refreshSession.mockRejectedValue(new Error('401'))
+
+    await store.login('manager@example.com', 'secret-password')
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+
+    expect(store.status).toBe('guest')
+  })
+
+  it('cancels the timer on logout', async () => {
+    vi.useFakeTimers()
+    loginUser.mockResolvedValue(tokensExpiringIn(5))
+    logoutUser.mockResolvedValue()
+
+    await store.login('manager@example.com', 'secret-password')
+    await store.logout()
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+
+    expect(refreshSession).not.toHaveBeenCalled()
+  })
+
+  it('schedules nothing for a non-parsable expiry', async () => {
+    vi.useFakeTimers()
+    loginUser.mockResolvedValue({ access_token: 'jwt', expires_at: 'not-a-date' })
+
+    await store.login('manager@example.com', 'secret-password')
+    await vi.advanceTimersByTimeAsync(60 * 60_000)
+
+    expect(store.isAuthenticated).toBe(true)
+    expect(refreshSession).not.toHaveBeenCalled()
+  })
+})
+
+describe('clearError', () => {
+  it('dismisses the last error without touching the session', async () => {
+    loginUser.mockRejectedValue({ response: { data: { detail: 'Invalid credentials.' } } })
+    await store.login('manager@example.com', 'wrong')
+
+    store.clearError()
+
+    expect(store.error).toBeNull()
+    expect(store.status).toBe('unknown')
+  })
+})
+
 describe('logout', () => {
   it('drops the session locally even if the server call fails', async () => {
     loginUser.mockResolvedValue(TOKENS)

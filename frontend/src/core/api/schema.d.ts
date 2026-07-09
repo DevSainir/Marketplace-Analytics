@@ -35,7 +35,7 @@ export interface paths {
     put?: never
     /**
      * Register
-     * @description Register a new user account.
+     * @description Register a new user account (requires a valid invite code).
      */
     post: operations['register_api_v1_auth_register_post']
     delete?: never
@@ -223,6 +223,32 @@ export interface components {
       order_conversion: number
     }
     /**
+     * BaselineDemandRead
+     * @description Cleansed baseline organic demand for one SKU over a window.
+     *
+     *     Produced by the normalization pipeline
+     *     (:mod:`src.modules.monitoring.services.normalization`): out-of-stock days
+     *     are masked out, the remainder cleansed for promo lift / seasonality, and
+     *     the result averaged per in-stock day.
+     */
+    BaselineDemandRead: {
+      /**
+       * Baseline Organic Demand
+       * @description Mean cleansed daily demand over in-stock days.
+       */
+      baseline_organic_demand: number
+      /**
+       * Oos Days Excluded
+       * @description Days masked out as out-of-stock.
+       */
+      oos_days_excluded: number
+      /**
+       * Considered Days
+       * @description Days that contributed to the average.
+       */
+      considered_days: number
+    }
+    /**
      * CampaignAdvertising
      * @description A SKU's advertising for one campaign: totals plus a daily breakdown.
      *
@@ -360,7 +386,8 @@ export interface components {
      * @description Raw organic sales-funnel response for a single SKU.
      *
      *     Exposes the per-day funnel metrics, window totals, and a raw order total.
-     *     (Baseline-demand normalization was removed for now and will return later.)
+     *     (The cleansed baseline lives on the detail endpoint, which has the stock
+     *     context required for OOS masking.)
      */
     FunnelResponseSchema: {
       /**
@@ -505,6 +532,8 @@ export interface components {
       funnel?: components['schemas']['FunnelDetailRead'][]
       /** @description Window-total funnel metrics summed across the daily rows. */
       funnel_totals: components['schemas']['FunnelTotals']
+      /** @description Cleansed baseline organic demand (OOS days masked out). */
+      baseline_demand: components['schemas']['BaselineDemandRead']
       /** Advertising */
       advertising?: components['schemas']['CampaignAdvertising'][]
       stock: components['schemas']['StockDetail']
@@ -645,15 +674,30 @@ export interface components {
     }
     /**
      * SkuSummaryListResponse
-     * @description Paginated-style envelope for the summary listing.
+     * @description Paginated envelope for the summary listing.
      */
     SkuSummaryListResponse: {
       window: components['schemas']['MetricWindow']
       /**
        * Count
-       * @description Number of SKU items returned.
+       * @description Number of SKU items returned on this page.
        */
       count: number
+      /**
+       * Total
+       * @description Total SKUs with data in the window (all pages).
+       */
+      total: number
+      /**
+       * Limit
+       * @description Requested page size.
+       */
+      limit: number
+      /**
+       * Offset
+       * @description Requested page offset.
+       */
+      offset: number
       /** Items */
       items?: components['schemas']['SkuSummaryItem'][]
     }
@@ -809,6 +853,11 @@ export interface components {
        * @description Plaintext password.
        */
       password: string
+      /**
+       * Invite Code
+       * @description Operator-issued registration invite code.
+       */
+      invite_code: string
     }
     /** ValidationError */
     ValidationError: {
@@ -841,7 +890,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Successful Response */
+      /** @description Service is alive. */
       200: {
         headers: {
           [name: string]: unknown
@@ -876,6 +925,13 @@ export interface operations {
           'application/json': components['schemas']['UserRead']
         }
       }
+      /** @description Registration disabled or invalid invite code. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
       /** @description Email already registered. */
       409: {
         headers: {
@@ -891,6 +947,13 @@ export interface operations {
         content: {
           'application/json': components['schemas']['HTTPValidationError']
         }
+      }
+      /** @description Too many attempts; retry later. */
+      429: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
       }
     }
   }
@@ -932,6 +995,13 @@ export interface operations {
           'application/json': components['schemas']['HTTPValidationError']
         }
       }
+      /** @description Too many attempts; retry later. */
+      429: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
     }
   }
   refresh_api_v1_auth_refresh_post: {
@@ -969,6 +1039,13 @@ export interface operations {
         content: {
           'application/json': components['schemas']['HTTPValidationError']
         }
+      }
+      /** @description Too many attempts; retry later. */
+      429: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
       }
     }
   }
@@ -1008,6 +1085,10 @@ export interface operations {
         date_from?: string | null
         /** @description Inclusive end. */
         date_to?: string | null
+        /** @description Page size. */
+        limit?: number
+        /** @description Page offset (by SKU order). */
+        offset?: number
       }
       header?: never
       path?: never
@@ -1086,8 +1167,9 @@ export interface operations {
         date_to?: string | null
         /** @description Filter advertising to one campaign. */
         campaign_id?: number | null
-        /** @description Filter to campaigns of this status (active/paused/completed/...). */
-        campaign_status?: string | null
+        /** @description Filter to campaigns of this normalized status. */
+        campaign_status?:
+          ('active' | 'paused' | 'completed' | 'ready' | 'declined' | 'deleting' | 'unknown') | null
       }
       header?: never
       path: {

@@ -8,13 +8,17 @@
 import apiClient from '@/core/api/axios'
 
 /**
- * POST /v1/auth/register — create a new account.
+ * POST /v1/auth/register — create a new account (invite-only).
  *
- * @param {{email: string, password: string}} credentials
+ * @param {{email: string, password: string, inviteCode: string}} credentials
  * @returns {Promise<import('@/core/api/types').UserRead>}
  */
-export async function registerUser({ email, password }) {
-  const { data } = await apiClient.post('/v1/auth/register', { email, password })
+export async function registerUser({ email, password, inviteCode }) {
+  const { data } = await apiClient.post('/v1/auth/register', {
+    email,
+    password,
+    invite_code: inviteCode,
+  })
   return data
 }
 

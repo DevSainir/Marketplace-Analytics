@@ -90,19 +90,39 @@ class IngestionService:
         logger.info("Ingested %d daily sales-funnel rows.", count)
         return count
 
-    async def ingest_advertising(self, stats: list[WBAdvCampaignStats]) -> int:
-        """Flatten the nested advertising trees and upsert the records.
+    async def ingest_advertising(
+        self,
+        stats: list[WBAdvCampaignStats],
+        *,
+        window: tuple[date, date] | None = None,
+    ) -> int:
+        """Flatten the nested advertising trees and persist the records.
 
         Descends each campaign's ``days -> apps (platform) -> nms (SKU)`` into
         one flat record per ``(date, campaign_id, app_type, nm_id)`` and upserts
         all campaigns in a single batch.
 
+        When ``window`` is supplied, each harvested campaign's rows inside that
+        window are deleted first (same transaction). All-zero placeholder rows
+        are skipped on insert, so without the sweep a WB correction from
+        nonzero down to zero could never overwrite the stale value.
+
         Args:
             stats: Raw per-campaign full-stats trees from the advertising client.
+            window: Optional inclusive ``(date_from, date_to)`` harvest window
+                to sweep before inserting.
 
         Returns:
             The number of advertising rows persisted.
         """
+        if window is not None and stats:
+            deleted = await self._advertising.delete_window_for_campaigns(
+                date_from=window[0],
+                date_to=window[1],
+                campaign_ids=[c.campaign_id for c in stats],
+            )
+            logger.info("Swept %d stale advertising rows before refresh.", deleted)
+
         flattened: list[dict[str, object]] = []
         for campaign in stats:
             for day in campaign.days:
@@ -136,22 +156,45 @@ class IngestionService:
         logger.info("Ingested %d advertising rows across %d campaigns.", count, len(stats))
         return count
 
-    async def ingest_stocks(self, rows: list[WBStockRow], *, snapshot_date: date) -> int:
-        """Flatten and upsert per-warehouse stock snapshots for a given day.
+    async def ingest_stocks(
+        self,
+        rows: list[WBStockRow],
+        *,
+        snapshot_date: date,
+        harvested_nm_ids: list[int] | None = None,
+    ) -> int:
+        """Persist per-warehouse stock snapshots for a given day.
 
         Stored at the **size** grain ``(date, nm_id, warehouse, chrt_id)`` so the
         detail view can show which size sits in which warehouse. Rows are
         de-duplicated on that key (last one wins) to avoid an
         ``ON CONFLICT``-target cardinality violation should WB repeat a key.
 
+        WB's report *omits* rows that dropped to zero, so the harvested SKUs'
+        rows for the snapshot day are deleted first (same transaction) — a bare
+        upsert would leave a stale "5 units" row behind on a same-day
+        re-harvest after a sell-out, corrupting the out-of-stock signal.
+
         Args:
             rows: Raw per-size/per-warehouse stock rows from the analytics
                 client.
             snapshot_date: The Moscow-time calendar day the snapshot represents.
+            harvested_nm_ids: Every SKU this harvest covered (a superset of the
+                SKUs present in ``rows``); defaults to the SKUs in ``rows`` —
+                sufficient only when absence-means-zero cleanup is not needed.
 
         Returns:
             The number of size x warehouse rows persisted.
         """
+        swept_ids = (
+            harvested_nm_ids if harvested_nm_ids is not None else [row.nm_id for row in rows]
+        )
+        deleted = await self._stocks.delete_snapshot_day(
+            snapshot_date=snapshot_date, nm_ids=swept_ids
+        )
+        if deleted:
+            logger.info("Swept %d prior stock rows for %s before refresh.", deleted, snapshot_date)
+
         deduped: dict[tuple[int, str, int], WBStockRow] = {}
         for row in rows:
             deduped[(row.nm_id, row.warehouse_name, row.chrt_id)] = row
@@ -247,6 +290,8 @@ class IngestionService:
         advertising: list[WBAdvCampaignStats],
         stocks: list[WBStockRow],
         snapshot_date: date,
+        harvested_nm_ids: list[int] | None = None,
+        advertising_window: tuple[date, date] | None = None,
     ) -> IngestionResult:
         """Run a full harvest ingestion in one unit of work.
 
@@ -255,13 +300,19 @@ class IngestionService:
             advertising: Raw per-campaign stats trees to persist.
             stocks: Raw stock rows to persist.
             snapshot_date: Moscow-time day for the stock snapshot.
+            harvested_nm_ids: Every SKU this harvest covered (enables the
+                absence-means-zero stock sweep for sold-out SKUs).
+            advertising_window: The harvested advertising window (enables the
+                stale-row sweep before re-insert).
 
         Returns:
             An :class:`IngestionResult` tallying rows persisted per family.
         """
         funnel_count = await self.ingest_sales_funnel(funnel)
-        ad_count = await self.ingest_advertising(advertising)
-        stock_count = await self.ingest_stocks(stocks, snapshot_date=snapshot_date)
+        ad_count = await self.ingest_advertising(advertising, window=advertising_window)
+        stock_count = await self.ingest_stocks(
+            stocks, snapshot_date=snapshot_date, harvested_nm_ids=harvested_nm_ids
+        )
         return IngestionResult(
             funnel_rows=funnel_count,
             advertising_rows=ad_count,

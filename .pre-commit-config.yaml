@@ -61,7 +61,7 @@ repos:
           - redis>=5.0
           - pyjwt>=2.8
           - orjson>=3.10
-          - types-passlib>=1.7
+          - bcrypt>=4.0.1
 
   # ------------------------------------------------------ Frontend: eslint
   # Uses the frontend's own flat config + node_modules via npx.

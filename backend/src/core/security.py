@@ -2,50 +2,63 @@
 
 This module owns every cryptographic operation in the platform:
 
-* **Password hashing** via ``passlib[bcrypt]`` with a pre-computed
-  ``DUMMY_HASH`` used to keep authentication timing constant for unknown users
-  (timing-attack mitigation).
+* **Password hashing** via ``bcrypt`` (used directly — passlib is unmaintained)
+  with a pre-computed ``DUMMY_HASH`` used to keep authentication timing
+  constant for unknown users (timing-attack mitigation).
 * **JWT issuance / verification** for short-lived access tokens.
-* **Opaque refresh-token secret** generation and constant-time hashing for
-  database-backed rotation.
+* **Opaque refresh-token secret** generation and hashing for database-backed
+  rotation.
 
 It is transport-agnostic: it neither reads HTTP requests nor raises
 ``HTTPException``. Callers translate failures into responses.
+
+.. warning::
+   ``hash_password`` / ``verify_password`` burn ~100-300 ms of CPU by design.
+   Async callers MUST offload them to a thread (``asyncio.to_thread``) —
+   calling them inline blocks the entire event loop for every concurrent
+   request.
 """
 
 from __future__ import annotations
 
 import enum
 import hashlib
-import hmac
 import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 from src.core.config import settings
 from src.core.ids import uuid7
 
-# bcrypt work factor is intentionally the passlib default (12); tune per-env if
-# hardware profiling demands it. ``deprecated="auto"`` enables transparent
-# re-hashing when the scheme list evolves.
-_pwd_context: CryptContext = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt truncates input at 72 bytes; request schemas enforce this limit so no
+# password is ever silently weakened past it.
+PASSWORD_MAX_BYTES: int = 72
+
+#: bcrypt work factor (2**12 iterations); tune per-env if profiling demands it.
+_BCRYPT_ROUNDS: int = 12
 
 # A real bcrypt digest of a throwaway password. When a login targets a
 # non-existent user we still run ``verify_password`` against this hash so the
 # CPU cost — and therefore the response latency — is indistinguishable from the
 # valid-user path. Computed once at import time.
-DUMMY_HASH: str = _pwd_context.hash("dummy-password-for-constant-time-checks")
+DUMMY_HASH: str = bcrypt.hashpw(
+    b"dummy-password-for-constant-time-checks", bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)
+).decode("ascii")
 
 
 class TokenType(enum.StrEnum):
-    """Discriminates the JWTs the platform mints."""
+    """Discriminates the JWTs the platform mints.
+
+    Only ACCESS exists: refresh credentials are deliberately *opaque* random
+    secrets (never JWTs), so a leaked signing key cannot mint long-lived
+    sessions.
+    """
 
     ACCESS = "access"
-    REFRESH = "refresh"
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,33 +67,49 @@ class TokenPayload:
 
     Attributes:
         subject: The ``sub`` claim — the user's UUID as a string.
-        token_type: The custom ``type`` claim distinguishing access/refresh.
+        token_type: The custom ``type`` claim distinguishing token kinds.
         jti: The unique token id (``jti`` claim), used to bind an access token
             to its refresh-token family row.
+        issued_at: The ``iat`` claim as a timezone-aware datetime; compared
+            against the per-user revocation watermark on every request.
         expires_at: The ``exp`` claim as a timezone-aware datetime.
     """
 
     subject: str
     token_type: TokenType
     jti: str
+    issued_at: datetime
     expires_at: datetime
 
 
 def hash_password(plain_password: str) -> str:
     """Hash a plaintext password with bcrypt.
 
+    CPU-bound (~100-300 ms): async callers must run this via
+    ``asyncio.to_thread``.
+
     Args:
-        plain_password: The user-supplied cleartext password.
+        plain_password: The user-supplied cleartext password (≤ 72 UTF-8
+            bytes, enforced by the request schema).
 
     Returns:
         A salted bcrypt digest safe to persist.
+
+    Raises:
+        ValueError: If the encoded password exceeds bcrypt's 72-byte limit —
+            hashing a silently truncated password would weaken it.
     """
-    # passlib is untyped (mypy treats returns as Any); coerce explicitly.
-    return str(_pwd_context.hash(plain_password))
+    encoded = plain_password.encode("utf-8")
+    if len(encoded) > PASSWORD_MAX_BYTES:
+        raise ValueError(f"Password exceeds the bcrypt limit of {PASSWORD_MAX_BYTES} bytes.")
+    return bcrypt.hashpw(encoded, bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode("ascii")
 
 
 def verify_password(plain_password: str, password_hash: str) -> bool:
     """Verify a plaintext password against a stored bcrypt digest.
+
+    CPU-bound (~100-300 ms): async callers must run this via
+    ``asyncio.to_thread``.
 
     Args:
         plain_password: The candidate cleartext password.
@@ -90,8 +119,13 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
     Returns:
         ``True`` if the password matches, otherwise ``False``.
     """
-    # passlib is untyped (mypy treats returns as Any); coerce explicitly.
-    return bool(_pwd_context.verify(plain_password, password_hash))
+    encoded = plain_password.encode("utf-8")[:PASSWORD_MAX_BYTES]
+    try:
+        return bcrypt.checkpw(encoded, password_hash.encode("ascii"))
+    except ValueError:
+        # Malformed/legacy digest in storage — treat as a failed match rather
+        # than a 500; the caller surfaces a normal authentication error.
+        return False
 
 
 def generate_refresh_secret() -> str:
@@ -116,11 +150,6 @@ def hash_refresh_secret(secret: str) -> str:
         Hex-encoded SHA-256 digest.
     """
     return hashlib.sha256(secret.encode("utf-8")).hexdigest()
-
-
-def verify_refresh_secret(secret: str, secret_hash: str) -> bool:
-    """Constant-time compare a presented refresh secret against its digest."""
-    return hmac.compare_digest(hash_refresh_secret(secret), secret_hash)
 
 
 def create_access_token(
@@ -189,13 +218,15 @@ def decode_token(
 
     subject = raw.get("sub")
     jti = raw.get("jti")
+    iat = raw.get("iat")
     exp = raw.get("exp")
-    if not isinstance(subject, str) or not isinstance(jti, str) or exp is None:
+    if not isinstance(subject, str) or not isinstance(jti, str) or exp is None or iat is None:
         return None
 
     return TokenPayload(
         subject=subject,
         token_type=expected_type,
         jti=jti,
+        issued_at=datetime.fromtimestamp(int(iat), tz=UTC),
         expires_at=datetime.fromtimestamp(int(exp), tz=UTC),
     )

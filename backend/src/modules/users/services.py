@@ -17,18 +17,24 @@ Key security behaviours implemented here:
 
 from __future__ import annotations
 
+import asyncio
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
+
+from sqlalchemy.exc import IntegrityError
 
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 from src.core.exceptions import (
     AuthenticationError,
     ConflictError,
+    PermissionDeniedError,
     TokenReuseError,
 )
 from src.core.ids import uuid7
 from src.core.logging import get_logger
+from src.core.redis import mark_user_sessions_revoked
 from src.core.security import (
     DUMMY_HASH,
     create_access_token,
@@ -41,6 +47,18 @@ from src.modules.users.repos import RefreshTokenRepository, UserRepository
 from src.modules.users.schemas import IssuedTokens, UserRead
 
 logger = get_logger(__name__)
+
+
+def _normalize_email(email: str) -> str:
+    """Canonicalize an email for storage and lookup.
+
+    Lowercasing the whole address means ``User@X.com`` and ``user@x.com`` are
+    one account: without it, case-variant duplicates register freely and users
+    who typed mixed case at signup fail later logins. (RFC 5321 technically
+    allows a case-sensitive local part; in practice no mainstream provider is,
+    and login ergonomics win.)
+    """
+    return email.strip().lower()
 
 
 class AuthService:
@@ -64,24 +82,46 @@ class AuthService:
     # ------------------------------------------------------------------ #
     # Registration
     # ------------------------------------------------------------------ #
-    async def register(self, *, email: str, password: str) -> UserRead:
-        """Register a new user account.
+    async def register(self, *, email: str, password: str, invite_code: str) -> UserRead:
+        """Register a new user account (invite-gated).
+
+        The platform is single-tenant: every authenticated account can read the
+        seller's business data, so open registration would hand that data to
+        anyone on the internet. A valid invite code (operator-configured) is
+        therefore required; an empty configured code disables registration.
 
         Args:
-            email: Desired unique login email.
+            email: Desired unique login email (normalized to lowercase).
             password: Plaintext password (hashed before persistence).
+            invite_code: The registration invite code presented by the client.
 
         Returns:
             The newly created account as a :class:`UserRead` DTO (the router
             returns it verbatim — no presentation-layer mapping needed).
 
         Raises:
+            PermissionDeniedError: If registration is disabled or the invite
+                code does not match.
             ConflictError: If the email is already registered.
         """
+        configured = settings.registration_invite_code
+        # compare_digest keeps the check constant-time so the code cannot be
+        # guessed byte-by-byte via response latency.
+        if not configured or not secrets.compare_digest(invite_code, configured):
+            raise PermissionDeniedError("Registration is by invitation only.")
+
+        email = _normalize_email(email)
         existing = await self._users.get_by_email(email)
         if existing is not None:
             raise ConflictError("A user with this email already exists.")
-        user = await self._users.create(email=email, hashed_password=hash_password(password))
+        hashed = await asyncio.to_thread(hash_password, password)
+        try:
+            user = await self._users.create(email=email, hashed_password=hashed)
+        except IntegrityError as exc:
+            # Two concurrent registrations for the same email both pass the
+            # pre-check; the unique index catches the loser here. Map it to the
+            # same 409 as the fast path instead of leaking a raw 500.
+            raise ConflictError("A user with this email already exists.") from exc
         return UserRead.model_validate(user)
 
     # ------------------------------------------------------------------ #
@@ -104,20 +144,24 @@ class AuthService:
 
         Raises:
             AuthenticationError: On unknown user, wrong password, or inactive
-                account.
+                account (deliberately the same message for all three, so the
+                response is not an account-existence oracle).
         """
-        user = await self._users.get_by_email(email)
+        user = await self._users.get_by_email(_normalize_email(email))
 
+        # bcrypt is CPU-bound (~100-300 ms); to_thread keeps the event loop
+        # serving other requests instead of stalling the whole process.
         if user is None:
             # Burn an equivalent bcrypt cycle to equalise timing, then fail.
-            verify_password(password, DUMMY_HASH)
+            await asyncio.to_thread(verify_password, password, DUMMY_HASH)
             raise AuthenticationError("Invalid email or password.")
 
-        if not verify_password(password, user.hashed_password):
+        if not await asyncio.to_thread(verify_password, password, user.hashed_password):
             raise AuthenticationError("Invalid email or password.")
 
         if not user.is_active:
-            raise AuthenticationError("This account is disabled.")
+            logger.info("Login attempt for disabled account %s.", user.id)
+            raise AuthenticationError("Invalid email or password.")
 
         # A fresh login opens a new token family/lineage.
         return await self._issue_pair(user_id=user.id, family_id=uuid7(), parent_id=None)
@@ -141,7 +185,8 @@ class AuthService:
 
         Raises:
             AuthenticationError: If the token is missing, unknown, revoked, or
-                expired.
+                expired, the account is no longer active, or the session's
+                absolute lifetime is exhausted.
             TokenReuseError: If a consumed token is replayed (breach).
         """
         if not refresh_secret:
@@ -150,35 +195,69 @@ class AuthService:
         if token is None:
             raise AuthenticationError("Invalid refresh token.")
 
-        # --- Breach: a consumed token is being replayed. ---
+        # --- Breach (fast path): a consumed token is being replayed. ---
         if token.is_used:
-            logger.warning(
-                "Refresh-token reuse detected for user %s (family %s); revoking all sessions.",
-                token.user_id,
-                token.family_id,
-            )
-            # Revoke in a DEDICATED committed transaction: this request returns
-            # 401 (an exception), which rolls back the request-scoped session —
-            # so the revocation must persist independently or the "log out all
-            # devices" guarantee would be silently undone.
-            async with AsyncSessionLocal() as breach_session:
-                await RefreshTokenRepository(breach_session).revoke_all_for_user(token.user_id)
-                await breach_session.commit()
+            await self._revoke_breached_user(user_id=token.user_id, family_id=token.family_id)
             raise TokenReuseError("Refresh token reuse detected. All sessions have been revoked.")
 
         if token.is_revoked:
             raise AuthenticationError("This session has been revoked.")
 
-        if token.expires_at <= datetime.now(UTC):
+        now = datetime.now(UTC)
+        if token.expires_at <= now:
             raise AuthenticationError("Refresh token has expired.")
 
-        # Consume the current token, then mint its child in the same family.
-        await self._tokens.mark_used(token.id)
+        # Rotation must re-check the account, not just the token row: a
+        # disabled user holding a valid refresh cookie would otherwise keep
+        # renewing 7-day sessions forever.
+        user = await self._users.get_by_id(token.user_id)
+        if user is None or not user.is_active:
+            raise AuthenticationError("This account is disabled.")
+
+        # Absolute ceiling per login lineage: rotation slides the refresh
+        # window, but a family may not outlive the configured session lifetime.
+        family_started = await self._tokens.family_started_at(token.family_id) or now
+        session_deadline = family_started + timedelta(
+            seconds=settings.session_absolute_lifetime_seconds
+        )
+        if session_deadline <= now:
+            raise AuthenticationError("Session lifetime exceeded. Please log in again.")
+
+        # --- Breach (race path): consume the token atomically. If another
+        # request already consumed it between our read and this UPDATE, this is
+        # the same replay situation as the fast path above — without the
+        # conditional consume, two concurrent presentations of a stolen secret
+        # would BOTH rotate successfully and the theft would go undetected.
+        if not await self._tokens.consume(token.id):
+            await self._revoke_breached_user(user_id=token.user_id, family_id=token.family_id)
+            raise TokenReuseError("Refresh token reuse detected. All sessions have been revoked.")
+
         return await self._issue_pair(
             user_id=token.user_id,
             family_id=token.family_id,
             parent_id=token.id,
+            not_after=session_deadline,
         )
+
+    async def _revoke_breached_user(self, *, user_id: uuid.UUID, family_id: uuid.UUID) -> None:
+        """Kill every session of a user whose refresh token was replayed.
+
+        Revokes all refresh rows in a DEDICATED committed transaction: the
+        calling request ends in a 401 (an exception), which rolls back the
+        request-scoped session — so the revocation must persist independently
+        or the "log out all devices" guarantee would be silently undone. Also
+        stamps the Redis watermark so outstanding *access* tokens die
+        immediately instead of surviving until natural expiry.
+        """
+        logger.warning(
+            "Refresh-token reuse detected for user %s (family %s); revoking all sessions.",
+            user_id,
+            family_id,
+        )
+        async with AsyncSessionLocal() as breach_session:
+            await RefreshTokenRepository(breach_session).revoke_all_for_user(user_id)
+            await breach_session.commit()
+        await mark_user_sessions_revoked(user_id)
 
     # ------------------------------------------------------------------ #
     # Logout
@@ -208,6 +287,7 @@ class AuthService:
         user_id: uuid.UUID,
         family_id: uuid.UUID,
         parent_id: uuid.UUID | None,
+        not_after: datetime | None = None,
     ) -> IssuedTokens:
         """Create and persist a new access+refresh pair for one user.
 
@@ -215,6 +295,9 @@ class AuthService:
             user_id: The subject user's id.
             family_id: The login-lineage identifier to attach the token to.
             parent_id: The superseded token id, or ``None`` for a fresh login.
+            not_after: Optional absolute ceiling for the refresh expiry (the
+                family's session-lifetime deadline); the sliding TTL is
+                clamped to it so rotation cannot extend a session forever.
 
         Returns:
             The issued token bundle including cookie-ready expiry metadata.
@@ -226,6 +309,8 @@ class AuthService:
         refresh_expires_at = datetime.now(UTC) + timedelta(
             seconds=settings.refresh_token_ttl_seconds
         )
+        if not_after is not None:
+            refresh_expires_at = min(refresh_expires_at, not_after)
 
         await self._tokens.create(
             token_id=token_id,

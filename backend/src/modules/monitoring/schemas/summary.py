@@ -14,7 +14,11 @@ from datetime import date
 from pydantic import BaseModel, Field
 
 from src.modules.monitoring.schemas.advertising import CampaignAdvertising
-from src.modules.monitoring.schemas.funnel import FunnelDetailRead, FunnelTotals
+from src.modules.monitoring.schemas.funnel import (
+    BaselineDemandRead,
+    FunnelDetailRead,
+    FunnelTotals,
+)
 from src.modules.monitoring.schemas.stocks import StockDetail
 
 
@@ -57,10 +61,13 @@ class SkuSummaryItem(BaseModel):
 
 
 class SkuSummaryListResponse(BaseModel):
-    """Paginated-style envelope for the summary listing."""
+    """Paginated envelope for the summary listing."""
 
     window: MetricWindow
-    count: int = Field(description="Number of SKU items returned.")
+    count: int = Field(description="Number of SKU items returned on this page.")
+    total: int = Field(description="Total SKUs with data in the window (all pages).")
+    limit: int = Field(description="Requested page size.")
+    offset: int = Field(description="Requested page offset.")
     items: list[SkuSummaryItem] = Field(default_factory=list)
 
 
@@ -81,6 +88,9 @@ class SkuDetailResponse(BaseModel):
     funnel: list[FunnelDetailRead] = Field(default_factory=list)
     funnel_totals: FunnelTotals = Field(
         description="Window-total funnel metrics summed across the daily rows."
+    )
+    baseline_demand: BaselineDemandRead = Field(
+        description="Cleansed baseline organic demand (OOS days masked out)."
     )
     advertising: list[CampaignAdvertising] = Field(default_factory=list)
     stock: StockDetail

@@ -66,6 +66,13 @@ class PermissionDeniedError(AppError):
     http_status = 403
 
 
+class RateLimitError(AppError):
+    """Client exceeded the request budget for a protected surface."""
+
+    code = "rate_limited"
+    http_status = 429
+
+
 class IntegrationError(AppError):
     """An upstream/external service (e.g. WildBerries) failed."""
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.core.config import Settings
+from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.base import BaseWBClient
 from src.integrations.wildberries.schemas import WBCard
 
@@ -48,12 +49,30 @@ class WBContentClient(BaseWBClient):
         while True:
             body: dict[str, Any] = {"settings": {"cursor": cursor, "filter": {"withPhoto": -1}}}
             payload = await self._request("POST", "/content/v2/get/cards/list", json_body=body)
-            raw_cards = payload.get("cards", []) if isinstance(payload, dict) else []
+            # A malformed 200 must raise, not default to an empty page: the
+            # harvest discovers its SKU list from this call, so a silent empty
+            # result would skip the entire account without any error signal.
+            if not isinstance(payload, dict) or not isinstance(payload.get("cards"), list):
+                raise IntegrationError(
+                    "Unexpected cards/list response shape (expected an object with a 'cards' list)."
+                )
+            raw_cards = payload["cards"]
             cards.extend(WBCard.model_validate(card) for card in raw_cards)
 
-            cur = payload.get("cursor", {}) if isinstance(payload, dict) else {}
+            cur = payload.get("cursor")
+            if not isinstance(cur, dict):
+                raise IntegrationError(
+                    "Unexpected cards/list response shape (missing 'cursor' object)."
+                )
             if int(cur.get("total", 0)) < _CARDS_PAGE:
                 break
+            if "updatedAt" not in cur or "nmID" not in cur:
+                # A full page with no continuation keys would otherwise be an
+                # opaque KeyError killing the whole harvest mid-pagination.
+                raise IntegrationError(
+                    "cards/list cursor lacks 'updatedAt'/'nmID' on a full page; "
+                    "cannot continue pagination."
+                )
             cursor = {
                 "limit": _CARDS_PAGE,
                 "updatedAt": cur["updatedAt"],

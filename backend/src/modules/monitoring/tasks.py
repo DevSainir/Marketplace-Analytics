@@ -10,14 +10,18 @@ repository/service graph manually.
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import date, timedelta
+
+from redis import Redis as SyncRedis
+from redis.exceptions import LockError
+from sqlalchemy.exc import OperationalError
 
 from src.core.celery_app import celery_app
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal, engine
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
+from src.core.timeutils import moscow_today
 from src.integrations.wildberries import (
     WBAdvertisingClient,
     WBAnalyticsClient,
@@ -36,8 +40,25 @@ from src.modules.monitoring.services import IngestionService
 
 logger = get_logger(__name__)
 
-#: WB operates strictly in Moscow Time (UTC+3).
-_MOSCOW_TZ = ZoneInfo("Europe/Moscow")
+#: Distributed-lock name preventing overlapping full harvests (the WB
+#: advertising surface allows ~1 req/min — two concurrent harvests starve
+#: each other into retry exhaustion).
+_HARVEST_LOCK_NAME = "monitoring:harvest_all:lock"
+
+#: Generous ceiling on one harvest run; the lock auto-expires after this so a
+#: crashed worker can never wedge the nightly schedule permanently.
+_HARVEST_LOCK_TIMEOUT_SECONDS = 2 * 60 * 60
+
+#: Shared retry policy for the harvest tasks: transient WB/DB failures are
+#: retried with exponential backoff instead of silently producing a
+#: zero-row "success".
+_TASK_RETRY_KWARGS: dict[str, object] = {
+    "autoretry_for": (IntegrationError, OperationalError),
+    "max_retries": 3,
+    "retry_backoff": 120,  # 2 min, 4 min, 8 min
+    "retry_backoff_max": 900,
+    "retry_jitter": True,
+}
 
 
 def _unwrap[T](result: T | BaseException | None, label: str) -> T | None:
@@ -58,11 +79,6 @@ def _unwrap[T](result: T | BaseException | None, label: str) -> T | None:
         logger.warning("Harvest source '%s' failed and was skipped: %s", label, result)
         return None
     return result
-
-
-def _moscow_today() -> date:
-    """Return the current calendar date in Moscow time (UTC+3)."""
-    return datetime.now(tz=_MOSCOW_TZ).date()
 
 
 #: WB campaign statuses that can have activity in a recent window: active (9)
@@ -112,9 +128,19 @@ async def _harvest_sku_window(
             advertising_client.list_campaigns(),
             return_exceptions=True,
         )
+        # Partial failure is tolerated (a 429 on one source must not void the
+        # others), but ALL sources failing means the harvest did nothing —
+        # raising marks the task FAILED and triggers the retry policy instead
+        # of recording a deceptive zero-row "success" (e.g. a revoked token).
+        if all(isinstance(r, BaseException) for r in (funnel_res, stock_res, camp_res)):
+            raise IntegrationError(
+                f"Every WB source failed for the harvest window {date_from}..{date_to}: "
+                f"{funnel_res}; {stock_res}; {camp_res}"
+            )
         funnel_rows = _unwrap(funnel_res, "sales-funnel") or []
         stock_rows = _unwrap(stock_res, "stocks") or []
         campaigns = _unwrap(camp_res, "campaigns") or []
+        stocks_succeeded = not isinstance(stock_res, BaseException)
 
         # Advertising fullstats for every campaign that could have window data.
         # Depends on the campaign list, so it runs after the gather above.
@@ -149,11 +175,17 @@ async def _harvest_sku_window(
         # by its capture day — not the funnel/advertising window end, which lags
         # a day because WB has no current-day funnel/ad data. Running the harvest
         # daily is what accumulates a per-day stock series over time.
+        #
+        # The stock sweep (absence-means-zero) only runs when the stocks source
+        # actually SUCCEEDED — sweeping on a failed fetch would delete the
+        # day's valid rows and re-insert nothing.
         result = await service.ingest_all(
             funnel=funnel_rows,
             advertising=advertising_stats,
             stocks=stock_rows,
-            snapshot_date=_moscow_today(),
+            snapshot_date=moscow_today(),
+            harvested_nm_ids=nm_ids if stocks_succeeded else [],
+            advertising_window=(date_from, date_to),
         )
         await session.commit()
 
@@ -167,7 +199,9 @@ async def _harvest_sku_window(
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
-    name="monitoring.harvest_sku_window", bind=False
+    name="monitoring.harvest_sku_window",
+    bind=False,
+    **_TASK_RETRY_KWARGS,
 )
 def harvest_sku_window(
     nm_ids: list[int],
@@ -192,7 +226,7 @@ def harvest_sku_window(
     """
     # WB rejects the current date, so the default window ends yesterday; the
     # funnel-history endpoint caps the window at 7 inclusive days.
-    end = date.fromisoformat(date_to) if date_to else _moscow_today() - timedelta(days=1)
+    end = date.fromisoformat(date_to) if date_to else moscow_today() - timedelta(days=1)
     start = date.fromisoformat(date_from) if date_from else end - timedelta(days=6)
     logger.info("Harvesting SKUs %s for %s..%s", nm_ids, start, end)
 
@@ -223,13 +257,15 @@ async def _discover_and_harvest(days: int) -> dict[str, int]:
     nm_ids = [card.nm_id for card in cards]
     logger.info("Discovered %d SKUs from the content API", len(nm_ids))
 
-    end = _moscow_today() - timedelta(days=1)  # WB serves no current-day data
+    end = moscow_today() - timedelta(days=1)  # WB serves no current-day data
     start = end - timedelta(days=days - 1)
     return await _harvest_sku_window(nm_ids=nm_ids, date_from=start, date_to=end, cards=cards)
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
-    name="monitoring.harvest_all", bind=False
+    name="monitoring.harvest_all",
+    bind=False,
+    **_TASK_RETRY_KWARGS,
 )
 def harvest_all(days: int = 7) -> dict[str, int]:
     """Scheduled entrypoint: harvest ALL account SKUs over the last ``days``.
@@ -238,12 +274,27 @@ def harvest_all(days: int = 7) -> dict[str, int]:
     stock for every SKU and advertising for all active/paused campaigns across a
     rolling window ending yesterday. This is the task Celery Beat runs nightly.
 
+    Guarded by a Redis lock so a manual run cannot overlap the nightly one —
+    two concurrent harvests would compete for WB's ~1 req/min advertising
+    budget and starve each other into retry exhaustion.
+
     Args:
         days: Rolling window length (default 7 — the funnel-history cap).
 
     Returns:
-        A mapping of persisted row counts per metric family.
+        A mapping of persisted row counts per metric family, or
+        ``{"skipped_already_running": 1}`` when another harvest holds the lock.
     """
+    # A dedicated SYNC client: the shared async client would bind its
+    # connection pool to this task's short-lived event loop (the same
+    # cross-loop pitfall the engine.dispose() below works around).
+    redis = SyncRedis.from_url(settings.redis_url)
+    lock = redis.lock(_HARVEST_LOCK_NAME, timeout=_HARVEST_LOCK_TIMEOUT_SECONDS, blocking=False)
+    if not lock.acquire(blocking=False):
+        logger.warning("harvest_all skipped: another harvest already holds the lock.")
+        redis.close()
+        return {"skipped_already_running": 1}
+
     logger.info("Nightly harvest_all starting (last %d days).", days)
 
     async def _run() -> dict[str, int]:
@@ -252,4 +303,12 @@ def harvest_all(days: int = 7) -> dict[str, int]:
         finally:
             await engine.dispose()
 
-    return asyncio.run(_run())
+    try:
+        return asyncio.run(_run())
+    finally:
+        try:
+            lock.release()
+        except LockError:
+            # The lock timed out and was re-acquired elsewhere; nothing to do.
+            logger.warning("harvest_all lock already expired at release time.")
+        redis.close()

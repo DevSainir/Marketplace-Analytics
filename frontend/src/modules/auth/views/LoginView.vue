@@ -12,18 +12,21 @@ const router = useRouter()
 const mode = ref('login') // 'login' | 'register'
 const email = ref('')
 const password = ref('')
+// Registration is invite-only: the backend rejects /register without a valid
+// operator-issued code (the platform exposes the whole seller account's data).
+const inviteCode = ref('')
 
 const isLogin = computed(() => mode.value === 'login')
 
 function switchMode(next) {
   mode.value = next
-  auth.error = null
+  auth.clearError()
 }
 
 async function submit() {
   const ok = isLogin.value
     ? await auth.login(email.value, password.value)
-    : await auth.register(email.value, password.value)
+    : await auth.register(email.value, password.value, inviteCode.value)
 
   if (ok) {
     router.push(safeRedirect(route.query.redirect))
@@ -97,6 +100,18 @@ async function submit() {
           minlength="8"
           :autocomplete="isLogin ? 'current-password' : 'new-password'"
           placeholder="••••••••"
+          class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
+        />
+      </label>
+
+      <label v-if="!isLogin" class="block">
+        <span class="mb-1.5 block text-sm font-medium text-slate-700">Код приглашения</span>
+        <input
+          v-model="inviteCode"
+          type="text"
+          required
+          autocomplete="off"
+          placeholder="Выдаётся администратором"
           class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
         />
       </label>

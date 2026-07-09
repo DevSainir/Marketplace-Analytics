@@ -25,6 +25,27 @@ from src.core.database import Base
 # All logical schemas that must exist before migrations run.
 _SCHEMAS: tuple[str, ...] = ("auth", "monitoring")
 
+
+def _include_name(name: str | None, type_: str, parent_names: dict[str, object]) -> bool:
+    """Restrict autogenerate to the schemas this application owns.
+
+    With ``include_schemas=True`` and no filter, autogenerate diffs EVERY
+    schema in the target database — and proposes dropping any table it finds
+    that the models don't declare (e.g. an unrelated app sharing the cluster).
+
+    Args:
+        name: The reflected object's name (``None`` for the default schema).
+        type_: The object type Alembic is considering (``"schema"``, ...).
+        parent_names: Naming context for nested objects (unused).
+
+    Returns:
+        ``True`` when the object belongs to an application-owned schema.
+    """
+    if type_ == "schema":
+        return name in _SCHEMAS
+    return True
+
+
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.sync_database_url)
 
@@ -67,6 +88,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             include_schemas=True,
+            include_name=_include_name,
             compare_type=True,
         )
         with context.begin_transaction():

@@ -43,11 +43,18 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=3, minute=0),
         "kwargs": {"days": 7},
     },
+    # Housekeeping: auth.refresh_tokens gains a row per login/refresh forever;
+    # purge rows long past expiry so the table stays bounded.
+    "daily-purge-expired-refresh-tokens": {
+        "task": "auth.purge_expired_refresh_tokens",
+        "schedule": crontab(hour=4, minute=30),
+    },
 }
 
 # Autodiscover ``tasks.py`` inside each registered business module.
 celery_app.autodiscover_tasks(
     packages=[
         "src.modules.monitoring",
+        "src.modules.users",
     ],
 )

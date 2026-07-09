@@ -34,10 +34,11 @@ describe('fetchProductData with a numeric SKU', () => {
     await store.fetchProductData('953770957', { date_from: '2026-07-01', date_to: '2026-07-07' })
 
     expect(lookupSkus).not.toHaveBeenCalled()
-    expect(fetchSkuDetail).toHaveBeenCalledWith(953770957, {
-      date_from: '2026-07-01',
-      date_to: '2026-07-07',
-    })
+    expect(fetchSkuDetail).toHaveBeenCalledWith(
+      953770957,
+      { date_from: '2026-07-01', date_to: '2026-07-07' },
+      expect.any(AbortSignal),
+    )
     expect(store.currentProduct).toEqual(DETAIL)
     expect(store.loading).toBe(false)
     expect(store.error).toBeNull()
@@ -79,7 +80,7 @@ describe('fetchProductData with a vendor code', () => {
 
     await store.fetchProductData('m-trx01-blk')
 
-    expect(fetchSkuDetail).toHaveBeenCalledWith(2, expect.anything())
+    expect(fetchSkuDetail).toHaveBeenCalledWith(2, expect.anything(), expect.any(AbortSignal))
     expect(store.lookupMatches).toEqual([])
   })
 
@@ -89,7 +90,7 @@ describe('fetchProductData with a vendor code', () => {
 
     await store.fetchProductData('M-LNX')
 
-    expect(fetchSkuDetail).toHaveBeenCalledWith(7, expect.anything())
+    expect(fetchSkuDetail).toHaveBeenCalledWith(7, expect.anything(), expect.any(AbortSignal))
   })
 
   it('exposes ambiguous matches for the user instead of guessing', async () => {
@@ -108,13 +109,15 @@ describe('fetchProductData with a vendor code', () => {
     expect(store.error).toBeNull()
   })
 
-  it('reports when nothing matches', async () => {
+  it('reports an empty result as notFound, not as an error', async () => {
     lookupSkus.mockResolvedValue({ count: 0, items: [] })
 
     await store.fetchProductData('NOPE')
 
     expect(fetchSkuDetail).not.toHaveBeenCalled()
-    expect(store.error).toContain('NOPE')
+    expect(store.notFound).toBe('NOPE')
+    expect(store.error).toBeNull()
+    expect(store.currentProduct).toBeNull()
   })
 
   it('selectSku loads a chosen match with the searched window', async () => {
@@ -130,10 +133,11 @@ describe('fetchProductData with a vendor code', () => {
     fetchSkuDetail.mockResolvedValue(DETAIL)
     await store.selectSku(2)
 
-    expect(fetchSkuDetail).toHaveBeenCalledWith(2, {
-      date_from: '2026-07-01',
-      date_to: '2026-07-07',
-    })
+    expect(fetchSkuDetail).toHaveBeenCalledWith(
+      2,
+      { date_from: '2026-07-01', date_to: '2026-07-07' },
+      expect.any(AbortSignal),
+    )
     expect(store.lookupMatches).toEqual([])
   })
 })
@@ -171,5 +175,101 @@ describe('race protection', () => {
 
     expect(store.currentProduct.nm_id).toBe(222)
     expect(store.error).toBeNull()
+  })
+
+  it('discards a slow vendor-code lookup that resolves empty after a newer search', async () => {
+    let resolveLookup
+    lookupSkus.mockImplementationOnce(() => new Promise((resolve) => (resolveLookup = resolve)))
+    fetchSkuDetail.mockResolvedValueOnce({ ...DETAIL, nm_id: 222 })
+
+    const first = store.fetchProductData('M-GONE')
+    const second = store.fetchProductData('222')
+    await second
+
+    resolveLookup({ count: 0, items: [] }) // stale «ничего не найдено»
+    await first
+
+    expect(store.currentProduct.nm_id).toBe(222)
+    expect(store.notFound).toBeNull()
+    expect(store.error).toBeNull()
+  })
+
+  it('discards stale ambiguous lookup matches so they cannot clobber newer data', async () => {
+    let resolveLookup
+    lookupSkus.mockImplementationOnce(() => new Promise((resolve) => (resolveLookup = resolve)))
+    fetchSkuDetail.mockResolvedValueOnce({ ...DETAIL, nm_id: 222 })
+
+    const first = store.fetchProductData('M-TRX')
+    const second = store.fetchProductData('222')
+    await second
+
+    resolveLookup({
+      count: 2,
+      items: [
+        { nm_id: 1, vendor_code: 'M-TRX01-BEJ' },
+        { nm_id: 2, vendor_code: 'M-TRX01-BLK' },
+      ],
+    })
+    await first
+
+    expect(store.currentProduct.nm_id).toBe(222)
+    expect(store.lookupMatches).toEqual([])
+  })
+})
+
+describe('request cancellation', () => {
+  it('aborts the in-flight request when a new search starts', async () => {
+    let firstSignal
+    fetchSkuDetail
+      .mockImplementationOnce((nmId, params, signal) => {
+        firstSignal = signal
+        return new Promise(() => {}) // never settles: the abort is what ends it
+      })
+      .mockResolvedValueOnce({ ...DETAIL, nm_id: 222 })
+
+    store.fetchProductData('111')
+    await store.fetchProductData('222')
+
+    expect(firstSignal.aborted).toBe(true)
+    expect(store.currentProduct.nm_id).toBe(222)
+  })
+
+  it('treats an axios cancellation as silence, not an error', async () => {
+    const canceled = new Error('canceled')
+    canceled.code = 'ERR_CANCELED'
+    canceled.name = 'CanceledError'
+    fetchSkuDetail.mockRejectedValue(canceled)
+
+    await store.fetchProductData('111')
+
+    expect(store.error).toBeNull()
+    expect(store.loading).toBe(false)
+  })
+
+  it('reset aborts the in-flight search and clears all state', async () => {
+    let signal
+    fetchSkuDetail.mockImplementationOnce((nmId, params, s) => {
+      signal = s
+      // Mimic axios: the request rejects with a CanceledError on abort.
+      return new Promise((_, reject) => {
+        s.addEventListener('abort', () => {
+          const err = new Error('canceled')
+          err.code = 'ERR_CANCELED'
+          err.name = 'CanceledError'
+          reject(err)
+        })
+      })
+    })
+
+    const pending = store.fetchProductData('111')
+    store.reset()
+    await pending
+
+    expect(signal.aborted).toBe(true)
+    expect(store.loading).toBe(false)
+    expect(store.currentProduct).toBeNull()
+    expect(store.error).toBeNull()
+    expect(store.notFound).toBeNull()
+    expect(store.lookupMatches).toEqual([])
   })
 })

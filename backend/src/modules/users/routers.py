@@ -9,9 +9,10 @@ error-to-HTTP mapping — domain errors (``ConflictError``, ``AuthenticationErro
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Cookie, Response, status
+from fastapi import APIRouter, Cookie, Depends, Response, status
 
 from src.core.config import settings
+from src.core.ratelimit import RateLimiter
 from src.modules.users.deps import AuthServiceDep
 from src.modules.users.schemas import (
     IssuedTokens,
@@ -22,6 +23,17 @@ from src.modules.users.schemas import (
 )
 
 router = APIRouter(prefix="/v1/auth", tags=["Authentication"])
+
+# One shared per-IP budget across the unauthenticated auth surface: it damps
+# credential stuffing on /login, invite guessing on /register, and cookie
+# guessing on /refresh (each of which also burns a bcrypt cycle server-side).
+_auth_rate_limit = Depends(
+    RateLimiter(
+        scope="auth",
+        limit=settings.auth_rate_limit_attempts,
+        window_seconds=settings.auth_rate_limit_window_seconds,
+    )
+)
 
 
 def _set_refresh_cookie(response: Response, tokens: IssuedTokens) -> None:
@@ -41,26 +53,35 @@ def _set_refresh_cookie(response: Response, tokens: IssuedTokens) -> None:
     "/register",
     response_model=UserRead,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[_auth_rate_limit],
     responses={
         201: {"description": "User account created."},
+        403: {"description": "Registration disabled or invalid invite code."},
         409: {"description": "Email already registered."},
+        429: {"description": "Too many attempts; retry later."},
     },
 )
 async def register(
     payload: UserRegisterRequest,
     service: AuthServiceDep,
 ) -> UserRead:
-    """Register a new user account."""
-    return await service.register(email=payload.email, password=payload.password)
+    """Register a new user account (requires a valid invite code)."""
+    return await service.register(
+        email=payload.email,
+        password=payload.password,
+        invite_code=payload.invite_code,
+    )
 
 
 @router.post(
     "/login",
     response_model=TokenPairResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[_auth_rate_limit],
     responses={
         200: {"description": "Authenticated; access token issued."},
         401: {"description": "Invalid credentials or disabled account."},
+        429: {"description": "Too many attempts; retry later."},
     },
 )
 async def login(
@@ -81,15 +102,20 @@ async def login(
     "/refresh",
     response_model=TokenPairResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[_auth_rate_limit],
     responses={
         200: {"description": "Rotated; new token pair issued."},
         401: {"description": "Invalid, expired, revoked, or replayed token."},
+        429: {"description": "Too many attempts; retry later."},
     },
 )
 async def refresh(
     service: AuthServiceDep,
     response: Response,
-    refresh_token: str | None = Cookie(default=None),
+    # The alias keeps the *read* side in lockstep with the configurable name
+    # the cookie is *written* under; a hard-coded parameter name would silently
+    # break /refresh the day REFRESH_COOKIE_NAME is changed.
+    refresh_token: str | None = Cookie(default=None, alias=settings.refresh_cookie_name),
 ) -> TokenPairResponse:
     """Rotate a refresh token into a brand-new access + refresh pair."""
     tokens = await service.rotate_refresh_token(refresh_secret=refresh_token)
@@ -108,7 +134,7 @@ async def refresh(
 async def logout(
     service: AuthServiceDep,
     response: Response,
-    refresh_token: str | None = Cookie(default=None),
+    refresh_token: str | None = Cookie(default=None, alias=settings.refresh_cookie_name),
 ) -> Response:
     """Revoke the caller's refresh-token family and clear the cookie."""
     await service.logout(refresh_secret=refresh_token)

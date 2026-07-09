@@ -8,6 +8,8 @@ handling, and uniform error translation into :class:`IntegrationError`.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from types import TracebackType
 from typing import Any, Self
 
@@ -20,6 +22,36 @@ logger = get_logger(__name__)
 
 # HTTP statuses worth retrying: 429 (rate limited) and transient 5xx.
 _RETRIABLE_STATUSES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
+
+# Absolute ceiling on honouring a server-provided Retry-After. The server's
+# demand is respected even beyond the exponential-backoff cap (WB's
+# advertising limiter regularly asks for 60s+), but a pathological header
+# must not park a task for hours.
+_RETRY_AFTER_CEILING_SECONDS: float = 900.0
+
+
+def _parse_retry_after(value: str) -> float | None:
+    """Parse a ``Retry-After`` header into seconds.
+
+    Supports both RFC 9110 forms: delta-seconds (``"120"``) and HTTP-date
+    (``"Wed, 21 Oct 2026 07:28:00 GMT"``).
+
+    Args:
+        value: The raw header value.
+
+    Returns:
+        Seconds to wait (>= 0), or ``None`` when the value is unparseable.
+    """
+    stripped = value.strip()
+    if stripped.isdigit():
+        return float(stripped)
+    try:
+        target = parsedate_to_datetime(stripped)
+    except (TypeError, ValueError):
+        return None
+    if target.tzinfo is None:
+        target = target.replace(tzinfo=UTC)
+    return max(0.0, (target - datetime.now(UTC)).total_seconds())
 
 
 class BaseWBClient:
@@ -159,9 +191,11 @@ class BaseWBClient:
     def _retry_delay(self, attempt: int, response: httpx.Response | None) -> float:
         """Compute the backoff delay before the next retry.
 
-        Prefers the server's ``Retry-After`` header (seconds) when present,
-        otherwise uses exponential backoff ``base * 2**attempt``, capped at
-        ``backoff_max_seconds``.
+        Prefers the server's ``Retry-After`` header when present (both
+        delta-seconds and HTTP-date forms), honouring it even beyond the
+        exponential-backoff cap — retrying before the server's stated window
+        just burns an attempt against the same limiter. Otherwise falls back
+        to exponential backoff ``base * 2**attempt``.
 
         Args:
             attempt: Zero-based index of the attempt that just failed.
@@ -171,7 +205,9 @@ class BaseWBClient:
             The number of seconds to wait before retrying.
         """
         if response is not None:
-            retry_after = response.headers.get("Retry-After")
-            if retry_after and retry_after.isdigit():
-                return min(float(retry_after), self._backoff_max)
+            header = response.headers.get("Retry-After")
+            if header:
+                parsed = _parse_retry_after(header)
+                if parsed is not None:
+                    return min(parsed, _RETRY_AFTER_CEILING_SECONDS)
         return min(self._backoff_base * (2.0**attempt), self._backoff_max)
