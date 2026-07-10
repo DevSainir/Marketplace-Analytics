@@ -1,72 +1,86 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { formatCurrency, formatNumber, formatPercent } from '@/core/utils/format'
+import { isoDaysAgo } from '@/core/utils/dates'
 
-import { CAMPAIGN_STATUS_TEXT } from '@/modules/monitoring/campaignStatus'
-import CampaignAttributionTable from '@/modules/monitoring/components/CampaignAttributionTable.vue'
-import MetricCard from '@/modules/monitoring/components/MetricCard.vue'
-import SkuSearchBar from '@/modules/monitoring/components/SkuSearchBar.vue'
-import StockBreakdownTable from '@/modules/monitoring/components/StockBreakdownTable.vue'
+import MetricsTable from '@/modules/monitoring/components/MetricsTable.vue'
+import PeriodSelector from '@/modules/monitoring/components/PeriodSelector.vue'
+import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
+import { buildMetricsMatrix } from '@/modules/monitoring/metricsMatrix'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 
 const store = useMonitoringStore()
 const route = useRoute()
 const router = useRouter()
 
-/** Pick the search-relevant params out of a route query (arrays/absent → ''). */
+// Default inclusive window: the last 30 full days, current day excluded.
+const DEFAULT_FROM = isoDaysAgo(30)
+const DEFAULT_TO = isoDaysAgo(1)
+
+/** Pick the search-relevant params out of a route query (arrays/absent → defaults). */
 function readSearchQuery(query) {
   const pick = (key) => (typeof query[key] === 'string' ? query[key] : '')
   return {
     sku: pick('sku'),
-    date_from: pick('date_from'),
-    date_to: pick('date_to'),
-    campaign_status: pick('campaign_status'),
+    date_from: pick('date_from') || DEFAULT_FROM,
+    date_to: pick('date_to') || DEFAULT_TO,
   }
 }
 
-// Search-bar defaults for the first render only; afterwards the bar owns its
-// own inputs and the URL owns the executed search.
-const initialSearch = readSearchQuery(route.query)
+// Draft period: edited freely, takes effect on «Применить» or on picking a SKU.
+const initial = readSearchQuery(route.query)
+const dateFrom = ref(initial.date_from)
+const dateTo = ref(initial.date_to)
 
-// The search is deep-linkable: /monitoring?sku=…&date_from=…&date_to=…
-// survives refresh, back/forward, and can be shared between managers.
-// The URL is the single source of truth: handlers only push a new query and
-// this watcher drives ALL fetching, so nav clicks and back/forward stay in
-// sync and a handler + watcher pair never double-fetches one navigation.
+// The URL is the single source of truth (deep-linkable, survives refresh and
+// back/forward): handlers only push a new query, this watcher does ALL
+// fetching — the SKU list follows the window, the detail follows sku + window.
 watch(
   () => route.query,
   (query, oldQuery) => {
     if (route.name !== 'monitoring') return // navigating away, not a new search
     const search = readSearchQuery(query)
-    if (oldQuery && JSON.stringify(search) === JSON.stringify(readSearchQuery(oldQuery))) return
+    const old = oldQuery ? readSearchQuery(oldQuery) : null
+
+    // Back/forward must also rewind the period selector.
+    dateFrom.value = search.date_from
+    dateTo.value = search.date_to
+
+    if (!old || old.date_from !== search.date_from || old.date_to !== search.date_to) {
+      store.fetchSkuList({ date_from: search.date_from, date_to: search.date_to })
+    }
+
     if (!search.sku) {
       store.reset()
       return
     }
-    store.fetchProductData(search.sku, {
-      ...(search.date_from && { date_from: search.date_from }),
-      ...(search.date_to && { date_to: search.date_to }),
-      ...(search.campaign_status && { campaign_status: search.campaign_status }),
-    })
+    if (old && JSON.stringify(search) === JSON.stringify(old)) return
+    store.fetchProductData(search.sku, { date_from: search.date_from, date_to: search.date_to })
   },
   { immediate: true },
 )
 
-// Campaign-status filter (`campaign_status` API param) lives in the URL like
-// the rest of the search, so the watcher above re-fetches on change.
-const campaignStatusFilter = computed({
-  get: () => (typeof route.query.campaign_status === 'string' ? route.query.campaign_status : ''),
-  set: (value) => {
-    router.push({ query: { ...route.query, campaign_status: value || undefined } })
-  },
-})
+/** Dropdown pick: analyze this SKU over the drafted window. */
+function handleSelect(item) {
+  pushSearch(String(item.nm_id))
+}
 
-const campaignStatusOptions = [
-  { value: '', label: 'Все статусы' },
-  ...Object.entries(CAMPAIGN_STATUS_TEXT).map(([value, label]) => ({ value, label })),
-]
+/**
+ * «Применить»: apply the drafted period. A raw nm ID in the input is treated
+ * as a direct pick; otherwise the currently analyzed SKU (if any) is kept.
+ */
+function handleApply(query) {
+  const sku = /^\d+$/.test(query) ? query : readSearchQuery(route.query).sku
+  pushSearch(sku)
+}
+
+// `push` (not `replace`) keeps every search reachable via the Back button.
+function pushSearch(sku) {
+  router.push({
+    query: { ...(sku && { sku }), date_from: dateFrom.value, date_to: dateTo.value },
+  })
+}
 
 const product = computed(() => store.currentProduct)
 
@@ -78,275 +92,127 @@ const windowLabel = computed(() => {
   return window ? `${window.start} → ${window.end}` : ''
 })
 
-const metricCards = computed(() => [
-  {
-    label: 'Корзины',
-    value: formatNumber(store.totalCarts),
-    hint: 'Добавления в корзину за период',
-    tone: 'neutral',
-  },
-  {
-    label: 'Клики по рекламе',
-    value: formatNumber(store.totalAdClicks),
-    hint: 'По всем кампаниям',
-    tone: 'neutral',
-  },
-  {
-    label: 'Заказы',
-    value: formatNumber(store.totalOrders),
-    hint: 'Заказы из воронки за период',
-    tone: 'success',
-  },
-  {
-    label: 'Расходы на рекламу',
-    value: formatCurrency(store.totalAdSpend),
-    hint: 'Суммарные затраты кампаний',
-    tone: 'danger',
-  },
-])
+// Metric rows × day columns for the daily table (workbook replica).
+const metricsMatrix = computed(() => buildMetricsMatrix(product.value))
 
-// Organic funnel conversions, precomputed by the backend from window totals.
-const funnelConversions = computed(() => {
-  const totals = product.value?.funnel_totals
-  if (!totals) return []
-  return [
-    { label: 'Просмотр → корзина', value: totals.cart_conversion },
-    { label: 'Корзина → заказ', value: totals.order_conversion },
-    { label: 'Заказ → выкуп', value: totals.buyout_conversion },
-  ]
-})
-
-// Only push the route: the `route.query` watcher performs the fetch. `push`
-// (not `replace`) keeps every search reachable via the Back button.
-function handleSearch({ sku, date_from, date_to }) {
-  router.push({
-    query: {
-      sku,
-      date_from,
-      date_to,
-      ...(campaignStatusFilter.value && { campaign_status: campaignStatusFilter.value }),
-    },
+/** «Обновить»: re-fetch the current search with the same window. */
+function refresh() {
+  const search = readSearchQuery(route.query)
+  if (!search.sku) return
+  store.fetchProductData(search.sku, {
+    date_from: search.date_from,
+    date_to: search.date_to,
   })
 }
+
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-    <!-- Heading -->
-    <header class="flex flex-wrap items-end justify-between gap-2">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-slate-900">Мониторинг SKU</h1>
-        <p class="mt-1 text-sm text-slate-500">
-          Воронка продаж, реклама и остатки по каждому SKU Wildberries.
+  <div class="mx-auto w-full max-w-7xl px-md py-lg sm:px-lg">
+    <div class="w-full">
+      <h1 class="sr-only">Мониторинг SKU</h1>
+
+      <!-- Period selector, slightly above the search bar -->
+      <PeriodSelector v-model:from="dateFrom" v-model:to="dateTo" class="mb-sm" />
+
+      <!-- Search bar: apply on the left, dropdown with all SKUs below -->
+      <SkuSearchSelect
+        :items="store.skuList"
+        :loading="store.skuListLoading"
+        :selected-id="product?.nm_id ?? null"
+        @select="handleSelect"
+        @apply="handleApply"
+      />
+
+      <p v-if="store.skuListError" class="mt-sm text-tiny text-status-negative">
+        Не удалось загрузить список SKU: {{ store.skuListError }}
+      </p>
+
+      <!-- Ambiguous vendor-code deep link: let the user pick the exact SKU -->
+      <section
+        v-if="store.lookupMatches.length"
+        class="mt-lg rounded-card bg-surface/75 p-md shadow-card backdrop-blur-md"
+      >
+        <p class="text-base font-medium text-primary">
+          Найдено артикулов: {{ store.lookupMatches.length }} — выберите нужный:
+        </p>
+        <div class="mt-sm flex flex-wrap gap-sm">
+          <button
+            v-for="match in store.lookupMatches"
+            :key="match.nm_id"
+            type="button"
+            class="inline-flex max-w-full items-center gap-sm rounded-btn border border-border-subtle bg-surface px-sm py-xs text-base shadow-soft transition hover:border-action hover:bg-action/10"
+            @click="handleSelect(match)"
+          >
+            <span class="font-semibold text-primary">{{ match.vendor_code }}</span>
+            <span class="truncate text-tiny text-muted">{{ match.title }}</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Detail states -->
+      <p v-if="store.loading" class="mt-lg text-center text-base text-muted">
+        Загружаем статистику {{ skuLabel }}…
+      </p>
+
+      <div
+        v-else-if="store.error"
+        class="mt-lg rounded-card bg-status-negative/10 p-md text-base text-status-negative"
+      >
+        <p class="font-semibold">Не удалось загрузить данные</p>
+        <p class="mt-xs">{{ store.error }}</p>
+      </div>
+
+      <p v-else-if="store.notFound" class="mt-lg text-center text-base text-muted">
+        По артикулу «{{ store.notFound }}» ничего не найдено.
+      </p>
+
+      <!-- Product identity + daily metrics table after a SKU is submitted -->
+      <template v-else-if="product">
+        <div class="mt-lg flex flex-wrap items-baseline gap-x-sm gap-y-xs">
+          <h2 class="text-h2 font-bold text-primary">{{ product.title ?? skuLabel }}</h2>
+          <span v-if="product.vendor_code" class="text-base font-semibold text-status-positive">
+            {{ product.vendor_code }}
+          </span>
+          <span class="text-tiny text-muted">SKU {{ product.nm_id }}</span>
+          <span class="ml-auto text-base font-medium text-muted">{{ windowLabel }}</span>
+        </div>
+
+        <section class="mt-lg" aria-label="Ежедневные метрики">
+          <h2 class="text-h3 font-semibold text-primary">Метрики по дням</h2>
+
+          <MetricsTable class="mt-sm" :days="metricsMatrix.days" :rows="metricsMatrix.rows" />
+
+          <div class="mt-sm flex justify-end gap-sm">
+            <button
+              type="button"
+              disabled
+              title="Скоро: сохранение ручных корректировок"
+              class="inline-flex h-9 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-muted shadow-soft disabled:cursor-not-allowed"
+            >
+              Сохранить
+            </button>
+            <button
+              type="button"
+              :disabled="store.loading"
+              class="inline-flex h-9 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+              @click="refresh"
+            >
+              Обновить
+            </button>
+          </div>
+        </section>
+      </template>
+
+      <!-- Initial state: an inviting hint until the first SKU is submitted -->
+      <div v-else-if="!store.lookupMatches.length" class="mt-20 text-center">
+        <p class="text-h2 font-semibold text-primary">Введите артикул товара</p>
+        <p class="mx-auto mt-sm max-w-xl text-base text-muted">
+          Начните вводить артикул продавца, nm ID или название — либо просто кликните по строке
+          поиска и выберите SKU из списка. После этого здесь появится короткая сводка по заказам,
+          рекламе и остаткам.
         </p>
       </div>
-      <p v-if="product" class="text-sm text-slate-400">
-        Период <span class="font-medium text-slate-600">{{ windowLabel }}</span>
-      </p>
-    </header>
-
-    <!-- Top layer: search & period filter -->
-    <SkuSearchBar
-      :loading="store.loading"
-      :initial-query="initialSearch.sku"
-      :initial-date-from="initialSearch.date_from"
-      :initial-date-to="initialSearch.date_to"
-      @search="handleSearch"
-    />
-
-    <!-- Ambiguous vendor-code search: let the user pick the exact SKU -->
-    <section
-      v-if="store.lookupMatches.length"
-      class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-    >
-      <p class="text-sm font-medium text-slate-900">
-        Найдено артикулов: {{ store.lookupMatches.length }} — выберите нужный:
-      </p>
-      <div class="mt-3 flex flex-wrap gap-2">
-        <button
-          v-for="match in store.lookupMatches"
-          :key="match.nm_id"
-          type="button"
-          class="inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm shadow-sm transition hover:border-indigo-600 hover:bg-indigo-50"
-          @click="store.selectSku(match.nm_id)"
-        >
-          <span class="font-semibold text-slate-900">{{ match.vendor_code }}</span>
-          <span class="truncate text-xs text-slate-400">{{ match.title }}</span>
-        </button>
-      </div>
-    </section>
-
-    <!-- Empty result (a valid answer, not a failure) -->
-    <section
-      v-if="store.notFound"
-      class="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center"
-    >
-      <span
-        class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400"
-      >
-        <svg
-          class="h-6 w-6"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-        >
-          <circle cx="11" cy="11" r="7" />
-          <path d="M8 11h6" />
-          <path d="m20 20-3.5-3.5" />
-        </svg>
-      </span>
-      <h2 class="mt-4 text-base font-semibold text-slate-900">По запросу ничего не найдено</h2>
-      <p class="mt-1 max-w-sm text-sm text-slate-500">
-        По артикулу «{{ store.notFound }}» нет ни одного SKU. Проверьте написание или попробуйте
-        другой фрагмент артикула.
-      </p>
-    </section>
-
-    <!-- Error state -->
-    <div
-      v-if="store.error"
-      class="flex items-start gap-3 rounded-xl border border-rose-500/20 bg-rose-50 p-4 text-sm text-rose-500"
-    >
-      <span
-        class="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white"
-        >!</span
-      >
-      <div>
-        <p class="font-semibold">Не удалось загрузить данные</p>
-        <p class="mt-0.5">{{ store.error }}</p>
-      </div>
     </div>
-
-    <template v-if="product">
-      <!-- Product identity -->
-      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 class="text-lg font-semibold text-slate-900">{{ product.title ?? skuLabel }}</h2>
-        <span
-          v-if="product.vendor_code"
-          class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-600"
-        >
-          {{ product.vendor_code }}
-        </span>
-        <span class="text-sm text-slate-400">nm {{ product.nm_id }}</span>
-      </div>
-
-      <!-- Metric layer -->
-      <section
-        class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-        aria-label="Сводные метрики"
-      >
-        <MetricCard
-          v-for="card in metricCards"
-          :key="card.label"
-          :label="card.label"
-          :value="card.value"
-          :hint="card.hint"
-          :tone="card.tone"
-        />
-      </section>
-
-      <!-- Funnel conversions strip -->
-      <div
-        class="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
-      >
-        <span class="text-sm font-medium text-slate-500">Конверсии воронки</span>
-        <span
-          v-for="conversion in funnelConversions"
-          :key="conversion.label"
-          class="flex items-baseline gap-1.5 text-sm text-slate-500"
-        >
-          {{ conversion.label }}
-          <span class="font-semibold tabular-nums text-slate-900">
-            {{ formatPercent(conversion.value) }}
-          </span>
-        </span>
-      </div>
-
-      <!-- OOS warning ribbon -->
-      <div
-        v-if="store.isOutOfStock"
-        class="rounded-xl border border-amber-500/20 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-600"
-      >
-        Товар сейчас отсутствует на складах — метрики спроса за этот период маскируются при
-        нормализации.
-      </div>
-
-      <!-- Data layer: cross-attribution -->
-      <section class="space-y-3">
-        <div class="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 class="text-base font-semibold text-slate-900">Кросс-атрибуция кампаний</h2>
-            <p class="mt-0.5 text-sm text-slate-500">
-              Кампании продвигают всю группу вариантов (все цвета); в каждой строке — заказы,
-              которые кампания принесла именно артикулу {{ skuLabel }}.
-            </p>
-          </div>
-          <label class="flex items-center gap-2 text-sm text-slate-500">
-            Статус
-            <select
-              v-model="campaignStatusFilter"
-              class="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-700 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20"
-            >
-              <option
-                v-for="option in campaignStatusOptions"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
-        </div>
-        <CampaignAttributionTable :campaigns="product.advertising" :sku-label="skuLabel" />
-      </section>
-
-      <!-- Data layer: multi-size stock -->
-      <section class="space-y-3">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <div>
-            <h2 class="text-base font-semibold text-slate-900">Остатки — размер × склад</h2>
-            <p class="mt-0.5 text-sm text-slate-500">Остатки по каждому размеру на всех складах.</p>
-          </div>
-          <p class="text-sm text-slate-500">
-            Всего
-            <span class="font-semibold text-slate-900">
-              {{ formatNumber(product.stock.total_quantity) }}
-            </span>
-            · к клиенту {{ formatNumber(product.stock.total_in_way_to_client) }} · возвраты
-            {{ formatNumber(product.stock.total_in_way_from_client) }}
-          </p>
-        </div>
-        <StockBreakdownTable :cells="product.stock.cells" :by-size="product.stock.by_size" />
-      </section>
-    </template>
-
-    <!-- Empty state -->
-    <section
-      v-else-if="!store.loading && !store.error && !store.notFound"
-      class="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center"
-    >
-      <span
-        class="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"
-      >
-        <svg
-          class="h-6 w-6"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-        >
-          <circle cx="11" cy="11" r="7" />
-          <path d="m20 20-3.5-3.5" />
-        </svg>
-      </span>
-      <h2 class="mt-4 text-base font-semibold text-slate-900">Начните с SKU</h2>
-      <p class="mt-1 max-w-sm text-sm text-slate-500">
-        Введите nm ID Wildberries, чтобы загрузить воронку продаж, атрибуцию кампаний и остатки по
-        складам.
-      </p>
-    </section>
   </div>
 </template>

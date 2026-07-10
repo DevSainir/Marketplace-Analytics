@@ -1,10 +1,11 @@
 import { createPinia, setActivePinia } from 'pinia'
 
-import { fetchSkuDetail, lookupSkus } from '@/modules/monitoring/api'
+import { fetchSkuDetail, fetchSkuSummary, lookupSkus } from '@/modules/monitoring/api'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 
 vi.mock('@/modules/monitoring/api', () => ({
   fetchSkuDetail: vi.fn(),
+  fetchSkuSummary: vi.fn(),
   lookupSkus: vi.fn(),
 }))
 
@@ -139,6 +140,69 @@ describe('fetchProductData with a vendor code', () => {
       expect.any(AbortSignal),
     )
     expect(store.lookupMatches).toEqual([])
+  })
+})
+
+describe('fetchSkuList', () => {
+  const SUMMARY = {
+    count: 2,
+    total: 2,
+    items: [
+      { nm_id: 1, vendor_code: 'M-TRX01-BEJ' },
+      { nm_id: 2, vendor_code: 'M-TRX01-BLK' },
+    ],
+  }
+
+  it('loads the window summary into skuList (one 500-item page)', async () => {
+    fetchSkuSummary.mockResolvedValue(SUMMARY)
+
+    await store.fetchSkuList({ date_from: '2026-07-01', date_to: '2026-07-07' })
+
+    expect(fetchSkuSummary).toHaveBeenCalledWith(
+      { date_from: '2026-07-01', date_to: '2026-07-07', limit: 500 },
+      expect.any(AbortSignal),
+    )
+    expect(store.skuList).toEqual(SUMMARY.items)
+    expect(store.skuListLoading).toBe(false)
+    expect(store.skuListError).toBeNull()
+  })
+
+  it('maps list failures onto skuListError without touching the detail state', async () => {
+    fetchSkuDetail.mockResolvedValue(DETAIL)
+    await store.fetchProductData('953770957')
+
+    fetchSkuSummary.mockRejectedValue(new Error('boom'))
+    await store.fetchSkuList()
+
+    expect(store.skuList).toEqual([])
+    expect(store.skuListError).toBe('boom')
+    expect(store.currentProduct).toEqual(DETAIL) // detail search untouched
+    expect(store.error).toBeNull()
+  })
+
+  it('aborts the in-flight list fetch when a new one starts', async () => {
+    let firstSignal
+    fetchSkuSummary
+      .mockImplementationOnce((params, signal) => {
+        firstSignal = signal
+        return new Promise(() => {}) // never settles: the abort is what ends it
+      })
+      .mockResolvedValueOnce(SUMMARY)
+
+    store.fetchSkuList()
+    await store.fetchSkuList()
+
+    expect(firstSignal.aborted).toBe(true)
+    expect(store.skuList).toEqual(SUMMARY.items)
+  })
+
+  it('reset leaves the loaded list intact (it is window-, not search-scoped)', async () => {
+    fetchSkuSummary.mockResolvedValue(SUMMARY)
+    await store.fetchSkuList()
+
+    store.reset()
+
+    expect(store.skuList).toEqual(SUMMARY.items)
   })
 })
 

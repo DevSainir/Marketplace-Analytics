@@ -4,7 +4,19 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-canvas text-primary antialiased;
+  }
+
+  /* Top-right lighting overlay: a soft white radial that gives the canvas
+     depth so glass cards read as elevated. The colored decorative blobs the
+     backdrop-blur refracts live in App.vue (they are DOM elements). */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(64rem 42rem at 100% 0%, rgba(255, 255, 255, 0.6), transparent 65%);
   }
 }
 
@@ -12,10 +24,11 @@
   /*
    * Design tokens for the unstyled PrimeVue DataTable.
    * PrimeVue renders semantic <table> markup plus data-pc-* styling hooks,
-   * so the Vercel/Tailwind UI table skin lives here in one place.
+   * so the design-system table skin lives here in one place (see design_system.md).
    */
+  /* Glass card: translucent surface + backdrop blur. */
   .app-datatable {
-    @apply overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm;
+    @apply overflow-hidden rounded-card border border-border-subtle bg-surface/50 shadow-card backdrop-blur-xl;
   }
 
   .app-datatable [data-pc-section='tablecontainer'] {
@@ -23,19 +36,19 @@
   }
 
   .app-datatable table {
-    @apply w-full border-collapse text-sm;
+    @apply w-full border-collapse text-base;
   }
 
   .app-datatable thead th {
-    @apply sticky top-0 z-10 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500;
+    @apply sticky top-0 z-10 whitespace-nowrap border-b border-border-subtle bg-surface px-md py-sm text-left text-tiny font-medium uppercase tracking-wider text-muted;
   }
 
   .app-datatable thead th svg {
-    @apply ml-1 inline-block h-3 w-3 text-slate-400;
+    @apply ml-1 inline-block h-3 w-3 text-muted;
   }
 
   .app-datatable tbody td {
-    @apply whitespace-nowrap border-b border-slate-100 px-4 py-3 text-slate-700;
+    @apply whitespace-nowrap border-b border-border-subtle px-md py-sm text-primary;
   }
 
   .app-datatable tbody tr:last-child td {
@@ -43,17 +56,17 @@
   }
 
   .app-datatable tbody tr:hover {
-    @apply bg-slate-50;
+    @apply bg-canvas/40;
   }
 
   .app-datatable [data-pc-name='pcpaginator'],
   .app-datatable [data-pc-name='paginator'] {
-    @apply flex items-center justify-end gap-1 border-t border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-500;
+    @apply flex items-center justify-end gap-1 border-t border-border-subtle bg-surface px-md py-sm text-base text-muted;
   }
 
   .app-datatable [data-pc-name='pcpaginator'] button,
   .app-datatable [data-pc-name='paginator'] button {
-    @apply inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-sm text-slate-600 transition hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-40;
+    @apply inline-flex h-8 min-w-8 items-center justify-center rounded-btn px-2 text-base text-primary transition hover:bg-canvas/50 disabled:pointer-events-none disabled:opacity-40;
   }
 
   .app-datatable [data-pc-name='pcpaginator'] button svg,
@@ -63,6 +76,121 @@
 
   .app-datatable [data-pc-name='pcpaginator'] button[data-p-active='true'],
   .app-datatable [data-pc-name='paginator'] button[data-p-highlight='true'] {
-    @apply bg-indigo-600 text-white hover:bg-indigo-600;
+    @apply bg-action text-white hover:bg-action;
+  }
+
+  /*
+   * Matrix variant: the daily metrics table — a horizontal ribbon of day
+   * sections (7 «тип × зона» columns each) with a 3-row header (дата → тип
+   * получения трафика → зоны показов). Day values are right-aligned numbers;
+   * the metric-name column is frozen on the left while the ribbon scrolls.
+   */
+  /* Glass system (the enforced recipe): translucent surface + blur/saturate,
+     a white glass edge and the transparent-card elevation shadow. rounded-card,
+     shadow-card and overflow-hidden come from the .app-datatable base. Text
+     inside stays text-primary — never white on this light glass. p-3 keeps
+     air between the card edge and the grid. */
+  .app-datatable--matrix {
+    @apply border border-white/40 bg-surface p-3 backdrop-blur-md backdrop-saturate-150;
+  }
+
+  .app-datatable--matrix [data-pc-section='tablecontainer'] {
+    @apply max-h-none;
+  }
+
+  /* Exactly two day sections in the viewport, never a sliver of a third:
+     fixed layout spreads each date's colspan evenly, and the table width is
+     sized so one day section is half of the visible area (minus the 12rem
+     frozen metric column). `--matrix-days` is set by MetricsTable.vue. */
+  .app-datatable--matrix table {
+    table-layout: fixed;
+    width: calc((100% - 12rem) / 2 * var(--matrix-days, 30) + 12rem);
+    /* Collapsed borders detach from sticky cells while scrolling, leaving a
+       see-through strip between header rows — separate borders stick. */
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .app-datatable--matrix thead tr:first-child th:first-child {
+    @apply w-48;
+  }
+
+  /* 3 stacked header rows cannot all stick to top-0 — disable vertical
+     stickiness, keep only the horizontal (first-column) freeze. Header cells
+     go translucent for the glass look (the frozen ones stay solid). */
+  .app-datatable--matrix thead th {
+    @apply static bg-surface/60 text-center;
+  }
+
+  /* Frozen cells need a SOLID background (bg-surface is now translucent):
+     they must mask the columns scrolling underneath. */
+  .app-datatable--matrix thead th:first-child {
+    @apply sticky left-0 z-30 border-r-3 border-border-subtle bg-zebra text-left;
+  }
+
+  /* Compact cells (the ribbon is wide); headers drop to the micro size so
+     2 full day sections fit on one screen. */
+  .app-datatable--matrix thead th,
+  .app-datatable--matrix tbody td {
+    @apply px-sm py-xs text-micro;
+  }
+
+  .app-datatable--matrix tbody td {
+    @apply text-tiny;
+  }
+
+  .app-datatable--matrix tbody td:not(:first-child) {
+    @apply text-right;
+  }
+
+  /* Zebra stripes (odd = white, even = surface gray), translucent so the
+     glass card shows through; the frozen first cell stays SOLID because it
+     must mask the columns scrolling underneath it. */
+  .app-datatable--matrix tbody tr:nth-child(odd) td {
+    @apply bg-white/50;
+  }
+
+  .app-datatable--matrix tbody tr:nth-child(odd) td:first-child {
+    @apply bg-white;
+  }
+
+  .app-datatable--matrix tbody tr:nth-child(even) td {
+    @apply bg-zebra/50;
+  }
+
+  .app-datatable--matrix tbody tr:nth-child(even) td:first-child {
+    @apply bg-zebra;
+  }
+
+  .app-datatable--matrix tbody td:first-child {
+    @apply sticky left-0 z-20 border-r-3 border-border-subtle;
+  }
+
+  /* Hovering any cell highlights the whole row. The tint is a solid color
+     (action-default over white) so the frozen first cell stays opaque while
+     the ribbon scrolls underneath it. */
+  .app-datatable--matrix tbody tr:hover td {
+    @apply bg-hover/60;
+  }
+
+  .app-datatable--matrix tbody tr:hover td:first-child {
+    @apply bg-hover;
+  }
+
+  /* Date row: the day's label spans its whole section. */
+  .app-datatable--matrix thead tr:first-child th:not(:first-child) {
+    @apply normal-case tracking-normal text-primary;
+  }
+
+  /* Day-section boundaries: 5 group cells per day in the type row, 5 zone
+     cells per day in the zones row («Общая»/«Органика» span from the type
+     row), 7 leaf cells per day in every body row. The very first section
+     (nth-child(2)) is excluded — the frozen column's 3px right border
+     already draws that line (borders no longer collapse). */
+  .app-datatable--matrix thead tr:first-child th:not(:first-child):not(:nth-child(2)),
+  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(5n + 2):not(:nth-child(2)),
+  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(5n + 2):not(:nth-child(2)),
+  .app-datatable--matrix tbody td:nth-child(7n + 2):not(:nth-child(2)) {
+    @apply border-l-3 border-border-subtle;
   }
 }

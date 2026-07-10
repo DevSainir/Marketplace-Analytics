@@ -8,6 +8,19 @@
 import apiClient from '@/core/api/axios'
 
 /**
+ * GET /v1/monitoring/summary — compact per-SKU rollup listing for the window
+ * (feeds the search dropdown and dashboards).
+ *
+ * @param {{date_from?: string, date_to?: string, limit?: number, offset?: number}} [params]
+ * @param {AbortSignal} [signal] Cancels the request when a newer fetch starts.
+ * @returns {Promise<import('@/core/api/types').SkuSummaryListResponse>}
+ */
+export async function fetchSkuSummary(params = {}, signal) {
+  const { data } = await apiClient.get('/v1/monitoring/summary', { params, signal })
+  return data
+}
+
+/**
  * GET /v1/monitoring/skus/lookup — resolve a vendor code (or fragment) to
  * matching SKUs.
  *

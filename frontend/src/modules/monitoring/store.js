@@ -9,7 +9,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
-import { fetchSkuDetail, lookupSkus } from '@/modules/monitoring/api'
+import { fetchSkuDetail, fetchSkuSummary, lookupSkus } from '@/modules/monitoring/api'
 
 export const useMonitoringStore = defineStore('monitoring', () => {
   // --- state -------------------------------------------------------------
@@ -20,6 +20,12 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   const notFound = ref(null)
   /** Ambiguous vendor-code search results awaiting the user's choice. */
   const lookupMatches = ref([])
+
+  // The per-SKU summary listing that feeds the search dropdown. Scoped to the
+  // selected window, NOT to the detail search — reset() leaves it intact.
+  const skuList = ref([])
+  const skuListLoading = ref(false)
+  const skuListError = ref(null)
 
   // Window/filter params of the latest search, reused when the user picks one
   // of several vendor-code matches.
@@ -134,6 +140,39 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     }
   }
 
+  // Controller of the in-flight list fetch; independent from the detail search
+  // so refreshing the dropdown never cancels a running SKU analysis.
+  let listController = null
+
+  /**
+   * Load the per-SKU summary listing for the window into `skuList`.
+   *
+   * @param {{date_from?: string, date_to?: string}} [params]
+   */
+  async function fetchSkuList(params = {}) {
+    listController?.abort()
+    const controller = new AbortController()
+    listController = controller
+
+    skuListLoading.value = true
+    skuListError.value = null
+    try {
+      // One page of 500 covers the whole catalogue for now; pagination can
+      // come back when the assortment outgrows it.
+      const result = await fetchSkuSummary({ ...params, limit: 500 }, controller.signal)
+      skuList.value = result.items
+    } catch (err) {
+      if (isAbortError(err)) return
+      skuList.value = []
+      skuListError.value = extractErrorMessage(err)
+    } finally {
+      if (listController === controller) {
+        skuListLoading.value = false
+        listController = null
+      }
+    }
+  }
+
   /** Load one of several vendor-code matches, keeping the searched window. */
   function selectSku(nmId) {
     return fetchProductData(nmId)
@@ -158,6 +197,10 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     notFound,
     currentProduct,
     lookupMatches,
+    skuList,
+    skuListLoading,
+    skuListError,
+    fetchSkuList,
     selectSku,
     totalCarts,
     totalAdClicks,

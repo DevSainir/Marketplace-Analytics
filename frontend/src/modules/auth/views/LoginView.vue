@@ -9,7 +9,8 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
-const mode = ref('login') // 'login' | 'register'
+// Initial tab can be deep-linked from the header (`/login?mode=register`).
+const mode = ref(route.query.mode === 'register' ? 'register' : 'login') // 'login' | 'register'
 const email = ref('')
 const password = ref('')
 // Registration is invite-only: the backend rejects /register without a valid
