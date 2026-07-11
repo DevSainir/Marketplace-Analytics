@@ -10,19 +10,23 @@ This service is invoked by Celery tasks; it holds no HTTP/session logic itself.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 
 from src.core.logging import get_logger
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
+    WBAdvertV2,
     WBCampaign,
     WBCard,
     WBFunnelHistoryRow,
+    WBNormQueryItem,
     WBStockRow,
 )
 from src.modules.monitoring.models import normalize_status
 from src.modules.monitoring.repos import (
     AdvertisingRepository,
+    AdvertisingSearchRepository,
     CampaignRepository,
     FunnelRepository,
     ProductCardRepository,
@@ -32,6 +36,17 @@ from src.modules.monitoring.repos import (
 from src.modules.monitoring.schemas import CatalogIngestionResult, IngestionResult
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class _SearchZoneAcc:
+    """Mutable per-(date, campaign, SKU) accumulator over search clusters."""
+
+    views: int = 0
+    clicks: int = 0
+    add_to_cart: int = 0
+    spend: float = 0.0
+    orders: int = 0
 
 
 class IngestionService:
@@ -46,6 +61,7 @@ class IngestionService:
         campaign_repo: CampaignRepository,
         product_card_repo: ProductCardRepository,
         product_size_repo: ProductSizeRepository,
+        advertising_search_repo: AdvertisingSearchRepository,
     ) -> None:
         """Inject the write repositories used for persistence."""
         self._funnel = funnel_repo
@@ -54,6 +70,7 @@ class IngestionService:
         self._campaigns = campaign_repo
         self._product_cards = product_card_repo
         self._product_sizes = product_size_repo
+        self._advertising_search = advertising_search_repo
 
     async def ingest_sales_funnel(self, rows: list[WBFunnelHistoryRow]) -> int:
         """Flatten and upsert the daily organic sales-funnel history.
@@ -137,6 +154,7 @@ class IngestionService:
                             and nm.atbs == 0
                             and nm.sum == 0
                             and nm.orders == 0
+                            and nm.sum_price == 0
                         ):
                             continue
                         flattened.append(
@@ -150,6 +168,7 @@ class IngestionService:
                                 "add_to_cart": nm.atbs,
                                 "spend": nm.sum,
                                 "orders": nm.orders,
+                                "order_sum": nm.sum_price,
                             }
                         )
         count = await self._advertising.upsert_many(flattened)
@@ -216,27 +235,121 @@ class IngestionService:
         logger.info("Ingested %d stock rows for %s.", count, snapshot_date)
         return count
 
-    async def ingest_campaigns(self, campaigns: list[WBCampaign]) -> int:
-        """Upsert advertising-campaign metadata (type + normalized status).
+    async def ingest_campaigns(
+        self,
+        campaigns: list[WBCampaign],
+        adverts: list[WBAdvertV2] | None = None,
+    ) -> int:
+        """Upsert advertising-campaign metadata, enriched with v2 settings.
+
+        ``promotion/count`` supplies the type/status backbone; ``adverts``
+        (from ``/api/advert/v2/adverts``) decorates each campaign with its bid
+        type, display-zone placements, name, and payment model — the fields the
+        monitoring matrix classifies campaigns by. When ``adverts`` is ``None``
+        (source failed or not requested) the settings columns are left
+        untouched so a degraded harvest never wipes previously synced values.
 
         Args:
-            campaigns: Flattened campaign descriptors from the advertising
-                client's ``list_campaigns``.
+            campaigns: Flattened campaign descriptors from ``list_campaigns``.
+            adverts: Optional campaign settings from ``list_adverts``.
 
         Returns:
             The number of campaign rows persisted.
         """
-        rows: list[dict[str, object]] = [
-            {
+        adverts_by_id = {a.campaign_id: a for a in adverts or []}
+        rows: list[dict[str, object]] = []
+        for c in campaigns:
+            row: dict[str, object] = {
                 "campaign_id": c.campaign_id,
                 "type": c.type,
                 "status": c.status,
                 "status_label": normalize_status(c.status),
             }
-            for c in campaigns
+            if adverts is not None:
+                advert = adverts_by_id.get(c.campaign_id)
+                row["bid_type"] = advert.bid_type if advert else None
+                row["placement_search"] = advert.settings.placements.search if advert else None
+                row["placement_recommendations"] = (
+                    advert.settings.placements.recommendations if advert else None
+                )
+                row["name"] = advert.settings.name if advert else None
+                row["payment_type"] = advert.settings.payment_type if advert else None
+            rows.append(row)
+        count = await self._campaigns.upsert_many(rows, with_settings=adverts is not None)
+        logger.info("Ingested %d campaign rows (%d with v2 settings).", count, len(adverts_by_id))
+        return count
+
+    async def ingest_search_stats(
+        self,
+        items: list[WBNormQueryItem],
+        *,
+        window: tuple[date, date] | None = None,
+        requested_campaign_ids: list[int] | None = None,
+    ) -> int:
+        """Flatten and persist daily SEARCH-zone advertising slices.
+
+        Each normquery item carries one ``dailyStats`` entry per day x search
+        cluster; clusters are summed into one record per
+        ``(date, campaign_id, nm_id)`` — the grain the analytics layer joins
+        against the fullstats facts to split unified campaigns by zone.
+
+        When ``window`` is supplied, the requested campaigns' rows inside it are
+        deleted first (same transaction), mirroring the advertising sweep: a
+        campaign whose search traffic dropped to zero would otherwise keep its
+        stale slice forever.
+
+        Args:
+            items: Raw per-(campaign, SKU) search-cluster stats.
+            window: Optional inclusive ``(date_from, date_to)`` harvest window
+                to sweep before inserting.
+            requested_campaign_ids: Every campaign the harvest asked stats for
+                (a superset of the campaigns present in ``items``); defaults to
+                the campaigns in ``items``.
+
+        Returns:
+            The number of search-zone rows persisted.
+        """
+        if window is not None:
+            swept_ids = (
+                requested_campaign_ids
+                if requested_campaign_ids is not None
+                else [item.campaign_id for item in items]
+            )
+            deleted = await self._advertising_search.delete_window_for_campaigns(
+                date_from=window[0], date_to=window[1], campaign_ids=swept_ids
+            )
+            if deleted:
+                logger.info("Swept %d stale search-zone rows before refresh.", deleted)
+
+        accumulated: dict[tuple[date, int, int], _SearchZoneAcc] = {}
+        for item in items:
+            for daily in item.daily_stats:
+                key = (daily.stat_date, item.campaign_id, item.nm_id)
+                acc = accumulated.setdefault(key, _SearchZoneAcc())
+                stat = daily.stat
+                acc.views += stat.views
+                acc.clicks += stat.clicks
+                acc.add_to_cart += stat.atbs
+                acc.spend += stat.spend
+                acc.orders += stat.orders
+
+        # All-zero day rows carry no signal — mirror the advertising skip.
+        flattened: list[dict[str, object]] = [
+            {
+                "stat_date": stat_date,
+                "campaign_id": campaign_id,
+                "nm_id": nm_id,
+                "views": acc.views,
+                "clicks": acc.clicks,
+                "add_to_cart": acc.add_to_cart,
+                "spend": acc.spend,
+                "orders": acc.orders,
+            }
+            for (stat_date, campaign_id, nm_id), acc in accumulated.items()
+            if acc.views or acc.clicks or acc.add_to_cart or acc.spend or acc.orders
         ]
-        count = await self._campaigns.upsert_many(rows)
-        logger.info("Ingested %d campaign rows.", count)
+        count = await self._advertising_search.upsert_many(flattened)
+        logger.info("Ingested %d search-zone rows from %d normquery items.", count, len(items))
         return count
 
     async def ingest_catalog(self, cards: list[WBCard]) -> CatalogIngestionResult:
@@ -292,6 +405,8 @@ class IngestionService:
         snapshot_date: date,
         harvested_nm_ids: list[int] | None = None,
         advertising_window: tuple[date, date] | None = None,
+        search_stats: list[WBNormQueryItem] | None = None,
+        search_requested_campaign_ids: list[int] | None = None,
     ) -> IngestionResult:
         """Run a full harvest ingestion in one unit of work.
 
@@ -304,17 +419,29 @@ class IngestionService:
                 absence-means-zero stock sweep for sold-out SKUs).
             advertising_window: The harvested advertising window (enables the
                 stale-row sweep before re-insert).
+            search_stats: Raw normquery search-zone stats to persist; ``None``
+                when the source failed (its rows are then left untouched).
+            search_requested_campaign_ids: Every campaign the search-zone
+                harvest asked for (enables its stale-row sweep).
 
         Returns:
             An :class:`IngestionResult` tallying rows persisted per family.
         """
         funnel_count = await self.ingest_sales_funnel(funnel)
         ad_count = await self.ingest_advertising(advertising, window=advertising_window)
+        search_count = 0
+        if search_stats is not None:
+            search_count = await self.ingest_search_stats(
+                search_stats,
+                window=advertising_window,
+                requested_campaign_ids=search_requested_campaign_ids,
+            )
         stock_count = await self.ingest_stocks(
             stocks, snapshot_date=snapshot_date, harvested_nm_ids=harvested_nm_ids
         )
         return IngestionResult(
             funnel_rows=funnel_count,
             advertising_rows=ad_count,
+            search_zone_rows=search_count,
             stock_rows=stock_count,
         )

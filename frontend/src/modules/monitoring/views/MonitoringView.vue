@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { isoDaysAgo } from '@/core/utils/dates'
@@ -7,7 +7,6 @@ import { isoDaysAgo } from '@/core/utils/dates'
 import MetricsTable from '@/modules/monitoring/components/MetricsTable.vue'
 import PeriodSelector from '@/modules/monitoring/components/PeriodSelector.vue'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
-import { buildMetricsMatrix } from '@/modules/monitoring/metricsMatrix'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 
 const store = useMonitoringStore()
@@ -92,19 +91,46 @@ const windowLabel = computed(() => {
   return window ? `${window.start} → ${window.end}` : ''
 })
 
-// Metric rows × day columns for the daily table (workbook replica).
-const metricsMatrix = computed(() => buildMetricsMatrix(product.value))
+// Metric rows × day columns for the daily table (workbook replica). The store
+// owns this reactive structure and patches cells in place on edit/undo/redo so
+// the table doesn't fully re-render.
+const metricsMatrix = computed(() => store.matrixView)
 
 /** «Обновить»: re-fetch the current search with the same window. */
 function refresh() {
-  const search = readSearchQuery(route.query)
-  if (!search.sku) return
-  store.fetchProductData(search.sku, {
-    date_from: search.date_from,
-    date_to: search.date_to,
-  })
+  store.refreshFromWb()
 }
 
+// Editing is locked while a save or WB refresh is in flight.
+const editingLocked = computed(() => store.matrixSaving || store.matrixRefreshing)
+
+/** A cell edit: hand the raw value to the store (backend recomputes dependents). */
+function handleCellEdit(edit) {
+  store.applyCellEdit(edit)
+}
+
+// History keys: Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) redoes.
+// Ignored while typing in an input and while a save/refresh is running.
+function handleHistoryKey(event) {
+  if (!(event.ctrlKey || event.metaKey)) return
+  const key = event.key.toLowerCase()
+  const isUndo = key === 'z' && !event.shiftKey
+  const isRedo = (key === 'z' && event.shiftKey) || key === 'y'
+  if (!isUndo && !isRedo) return
+  const tag = event.target?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return
+  if (editingLocked.value) return
+  if (isRedo && store.canRedoMatrix) {
+    event.preventDefault()
+    store.redoMatrixEdit()
+  } else if (isUndo && store.canUndoMatrix) {
+    event.preventDefault()
+    store.undoMatrixEdit()
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', handleHistoryKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
 </script>
 
 <template>
@@ -181,24 +207,54 @@ function refresh() {
         <section class="mt-lg" aria-label="Ежедневные метрики">
           <h2 class="text-h3 font-semibold text-primary">Метрики по дням</h2>
 
-          <MetricsTable class="mt-sm" :days="metricsMatrix.days" :rows="metricsMatrix.rows" />
+          <MetricsTable
+            class="mt-sm"
+            :days="metricsMatrix.days"
+            :rows="metricsMatrix.rows"
+            :editing-disabled="editingLocked"
+            @edit="handleCellEdit"
+          />
 
-          <div class="mt-sm flex justify-end gap-sm">
+          <p class="mt-sm text-tiny text-muted">
+            Кликните по значению, чтобы изменить его — зависимые ячейки пересчитаются.
+            <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
+              class="rounded border border-border-subtle px-1"
+              >Z</kbd
+            >
+            — отменить,
+            <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
+              class="rounded border border-border-subtle px-1"
+              >Shift</kbd
+            >+<kbd class="rounded border border-border-subtle px-1">Z</kbd> — повторить.
+          </p>
+
+          <p
+            v-if="store.matrixEditError"
+            class="mt-xs text-tiny text-status-negative"
+            role="alert"
+          >
+            {{ store.matrixEditError }}
+          </p>
+
+          <div class="mt-sm flex items-center justify-end gap-sm">
+            <span v-if="store.matrixDirty" class="mr-auto text-tiny text-status-warning">
+              Есть несохранённые изменения
+            </span>
             <button
               type="button"
-              disabled
-              title="Скоро: сохранение ручных корректировок"
-              class="inline-flex h-9 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-muted shadow-soft disabled:cursor-not-allowed"
+              :disabled="!store.matrixDirty || store.matrixSaving || store.matrixRefreshing"
+              class="inline-flex h-9 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:text-muted disabled:opacity-60"
+              @click="store.saveMatrixEdits()"
             >
-              Сохранить
+              {{ store.matrixSaving ? 'Сохраняем…' : 'Сохранить' }}
             </button>
             <button
               type="button"
-              :disabled="store.loading"
+              :disabled="store.loading || store.matrixRefreshing || store.matrixSaving"
               class="inline-flex h-9 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
               @click="refresh"
             >
-              Обновить
+              {{ store.matrixRefreshing ? 'Обновляем из Wildberries…' : 'Обновить' }}
             </button>
           </div>
         </section>

@@ -1,23 +1,20 @@
 """Advertising campaign dimension model.
 
-A slowly-changing dimension describing each WB advertising campaign (its type
-and lifecycle status), sourced from ``GET /adv/v1/promotion/count``. The
+A slowly-changing dimension describing each WB advertising campaign (its type,
+lifecycle status, bid model, and display-zone placements), sourced from
+``GET /adv/v1/promotion/count`` (type + status) enriched with
+``GET /api/advert/v2/adverts`` (bid type, placements, name, payment model). The
 advertising fact table (:class:`AdvertisingStatDaily`) references campaigns by
 ``campaign_id``; joining this dimension lets the API filter/group by campaign
-status (active / paused / completed / ...).
-
-Note:
-    WB's ``promotion/count`` endpoint exposes ``type`` and ``status`` codes but
-    not campaign names. A human-readable ``name`` would require the content /
-    campaign-detail API and can be added to this table later without schema
-    churn elsewhere.
+status and classify campaigns into the monitoring matrix's traffic buckets
+(«Единая ставка» / «Руч. поиск» / «Руч. полки»).
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Integer, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
@@ -26,7 +23,7 @@ _SCHEMA: str = "monitoring"
 
 
 class Campaign(Base):
-    """WB advertising campaign metadata (type + lifecycle status).
+    """WB advertising campaign metadata (type, status, bid model, placements).
 
     Attributes:
         campaign_id: WB campaign identifier (``advertId``); primary key.
@@ -35,6 +32,14 @@ class Campaign(Base):
         status_label: Normalized status string for filtering (see
             :data:`WB_STATUS_LABELS`): ``active`` / ``paused`` / ``completed`` /
             ``ready`` / ``declined`` / ``deleting`` / ``unknown``.
+        bid_type: WB bid model — ``unified`` (единая ставка) or ``manual``
+            (ручная ставка); ``None`` until the adverts-v2 sync has run.
+        placement_search: Whether the campaign shows in the search zone
+            («Поиск»); ``None`` until synced.
+        placement_recommendations: Whether the campaign shows in the
+            recommendations zone («Полки»); ``None`` until synced.
+        name: Human-readable campaign name from campaign settings.
+        payment_type: WB payment model (``cpm`` / ``cpc``).
         synced_at: Timestamp of the last sync from WB.
     """
 
@@ -45,6 +50,11 @@ class Campaign(Base):
     type: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[int] = mapped_column(Integer, nullable=False)
     status_label: Mapped[str] = mapped_column(String(32), nullable=False)
+    bid_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    placement_search: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    placement_recommendations: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    name: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    payment_type: Mapped[str | None] = mapped_column(String(8), nullable=True)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

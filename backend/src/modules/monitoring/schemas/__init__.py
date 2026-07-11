@@ -17,6 +17,19 @@ from src.modules.monitoring.schemas.funnel import (
     FunnelTotals,
     compute_funnel_totals,
 )
+from src.modules.monitoring.schemas.matrix import (
+    MATRIX_BUCKETS,
+    MATRIX_METRIC_KEYS,
+    MatrixBaseState,
+    MatrixCellEdit,
+    MatrixMetricRow,
+    MatrixPreviewRequest,
+    MatrixPreviewResponse,
+    MatrixSaveRequest,
+    MetricsMatrixRead,
+    RefreshEnqueuedResponse,
+    RefreshStatusResponse,
+)
 from src.modules.monitoring.schemas.products import (
     SkuLookupItem,
     SkuLookupResponse,
@@ -36,6 +49,8 @@ from src.modules.monitoring.schemas.summary import (
 )
 
 __all__ = [
+    "MATRIX_BUCKETS",
+    "MATRIX_METRIC_KEYS",
     "AdMetrics",
     "BaselineDemandRead",
     "CampaignAdvertising",
@@ -45,7 +60,16 @@ __all__ = [
     "FunnelResponseSchema",
     "FunnelTotals",
     "IngestionResult",
+    "MatrixBaseState",
+    "MatrixCellEdit",
+    "MatrixMetricRow",
+    "MatrixPreviewRequest",
+    "MatrixPreviewResponse",
+    "MatrixSaveRequest",
     "MetricWindow",
+    "MetricsMatrixRead",
+    "RefreshEnqueuedResponse",
+    "RefreshStatusResponse",
     "SkuDetailResponse",
     "SkuLookupItem",
     "SkuLookupResponse",

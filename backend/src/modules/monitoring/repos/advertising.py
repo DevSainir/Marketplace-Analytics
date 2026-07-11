@@ -24,7 +24,7 @@ class AdAggregate:
 
 
 _CONFLICT = ("stat_date", "campaign_id", "app_type", "nm_id")
-_UPDATE = ("views", "clicks", "add_to_cart", "spend", "orders")
+_UPDATE = ("views", "clicks", "add_to_cart", "spend", "orders", "order_sum")
 
 
 class AdvertisingRepository(BaseRepository):

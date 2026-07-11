@@ -5,7 +5,10 @@ clean import ``from src.modules.monitoring.models import SalesFunnelDaily``
 regardless of the underlying file split.
 """
 
-from src.modules.monitoring.models.advertising import AdvertisingStatDaily
+from src.modules.monitoring.models.advertising import (
+    AdvertisingSearchStatDaily,
+    AdvertisingStatDaily,
+)
 from src.modules.monitoring.models.campaigns import (
     WB_STATUS_LABELS,
     WB_TYPE_LABELS,
@@ -13,6 +16,7 @@ from src.modules.monitoring.models.campaigns import (
     normalize_status,
     normalize_type,
 )
+from src.modules.monitoring.models.matrix_override import MatrixOverride
 from src.modules.monitoring.models.products import ProductCard, ProductSize
 from src.modules.monitoring.models.sales_funnel import SalesFunnelDaily
 from src.modules.monitoring.models.stocks import StockSnapshot
@@ -20,8 +24,10 @@ from src.modules.monitoring.models.stocks import StockSnapshot
 __all__ = [
     "WB_STATUS_LABELS",
     "WB_TYPE_LABELS",
+    "AdvertisingSearchStatDaily",
     "AdvertisingStatDaily",
     "Campaign",
+    "MatrixOverride",
     "ProductCard",
     "ProductSize",
     "SalesFunnelDaily",

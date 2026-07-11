@@ -11,7 +11,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import PydanticUseDefault
 
 
 class _RawBase(BaseModel):
@@ -118,6 +119,7 @@ class WBAdvNm(_RawBase):
     atbs: int = Field(default=0)  # add-to-basket (add-to-cart) count
     sum: float = Field(default=0.0)
     orders: int = Field(default=0)
+    sum_price: float = Field(default=0.0)  # ad-attributed order revenue (₽)
 
 
 class WBAdvApp(_RawBase):
@@ -186,3 +188,94 @@ class WBCampaign(_RawBase):
     campaign_id: int
     type: int
     status: int
+
+
+# --------------------------------------------------------------------------- #
+# Campaign settings — GET /api/advert/v2/adverts
+#
+# Verified live shape (2026-07): {"adverts": [{"id": .., "bid_type": ..,
+# "status": .., "nm_settings": [{"nm_id": .., ...}], "settings": {"name": ..,
+# "payment_type": .., "placements": {"search": bool, "recommendations": bool}},
+# "timestamps": {...}}]}. ``bid_type`` is ``"unified"`` (единая ставка, always
+# both placements) or ``"manual"`` (ручная ставка, per-placement toggles).
+# --------------------------------------------------------------------------- #
+class WBAdvertPlacements(_RawBase):
+    """Display-zone toggles of a campaign (search / recommendations)."""
+
+    search: bool = False
+    recommendations: bool = False
+
+
+class WBAdvertSettings(_RawBase):
+    """The ``settings`` block of an advert: name, payment model, placements."""
+
+    name: str = ""
+    payment_type: str = ""
+    placements: WBAdvertPlacements = Field(default_factory=WBAdvertPlacements)
+
+
+class WBAdvertNmSetting(_RawBase):
+    """A per-SKU settings node of an advert (only the identity is consumed)."""
+
+    nm_id: int
+
+
+class WBAdvertV2(_RawBase):
+    """One advert (campaign) descriptor from the v2 adverts listing."""
+
+    campaign_id: int = Field(alias="id")
+    bid_type: str = ""
+    status: int = 0
+    settings: WBAdvertSettings = Field(default_factory=WBAdvertSettings)
+    nm_settings: list[WBAdvertNmSetting] = Field(default_factory=list)
+
+    @field_validator("nm_settings", "settings", mode="before")
+    @classmethod
+    def _null_to_default(cls, value: object) -> object:
+        """WB sends ``null`` (not ``[]``/``{}``) on e.g. deleted campaigns."""
+        if value is None:
+            raise PydanticUseDefault
+        return value
+
+
+# --------------------------------------------------------------------------- #
+# Search-cluster statistics — POST /adv/v1/normquery/stats
+#
+# Verified live shape (2026-07): {"items": [{"advertId": .., "nmId": ..,
+# "dailyStats": [{"date": "YYYY-MM-DD", "stat": {"normQuery": .., "views": ..,
+# "clicks": .., "atbs": .., "orders": .., "shks": .., "spend": ..,
+# "avgPos": .., ...}}, ...one entry per day x cluster...]}]}.
+# This is the SEARCH display zone only (no order revenue field), which lets the
+# analytics layer split unified-bid campaigns: полки = fullstats - search.
+# --------------------------------------------------------------------------- #
+class WBNormQueryStat(_RawBase):
+    """Metrics of one search cluster on one day (search zone only)."""
+
+    views: int = Field(default=0)
+    clicks: int = Field(default=0)
+    atbs: int = Field(default=0)
+    orders: int = Field(default=0)
+    spend: float = Field(default=0.0)
+
+
+class WBNormQueryDaily(_RawBase):
+    """One ``dailyStats`` entry: a calendar day of one search cluster."""
+
+    stat_date: date = Field(alias="date")
+    stat: WBNormQueryStat = Field(default_factory=WBNormQueryStat)
+
+
+class WBNormQueryItem(_RawBase):
+    """Search-cluster stats for one ``(campaign, SKU)`` pair."""
+
+    campaign_id: int = Field(alias="advertId")
+    nm_id: int = Field(alias="nmId")
+    daily_stats: list[WBNormQueryDaily] = Field(default_factory=list, alias="dailyStats")
+
+    @field_validator("daily_stats", mode="before")
+    @classmethod
+    def _null_to_default(cls, value: object) -> object:
+        """WB sends ``null`` (not ``[]``) for pairs without search traffic."""
+        if value is None:
+            raise PydanticUseDefault
+        return value

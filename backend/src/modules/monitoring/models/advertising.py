@@ -32,6 +32,7 @@ class AdvertisingStatDaily(Base):
         clicks: Clicks received.
         spend: Advertising expenses (WB ``sum``).
         orders: Attributed orders.
+        order_sum: Ad-attributed order revenue in rubles (WB ``sum_price``).
     """
 
     __tablename__ = "advertising_stat_daily"
@@ -44,6 +45,45 @@ class AdvertisingStatDaily(Base):
     stat_date: Mapped[date] = mapped_column(Date, primary_key=True)
     campaign_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     app_type: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nm_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+
+    views: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    clicks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    add_to_cart: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    spend: Mapped[float] = mapped_column(Numeric(14, 2), default=0, nullable=False)
+    orders: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    order_sum: Mapped[float] = mapped_column(Numeric(14, 2), default=0, nullable=False)
+
+
+class AdvertisingSearchStatDaily(Base):
+    """Daily SEARCH-zone slice of a campaign's advertising for one SKU.
+
+    Sourced from ``POST /adv/v1/normquery/stats`` (search clusters summed per
+    day). Covers only the «Поиск» display zone; the recommendations («Полки»)
+    slice is derived at read time as ``fullstats total - search``. There is no
+    platform split on this endpoint, so the grain is one row per
+    ``(date, campaign_id, nm_id)``.
+
+    Attributes:
+        stat_date: Calendar day (Moscow time).
+        campaign_id: WB advertising campaign identifier.
+        nm_id: WB SKU identifier.
+        views: Search-zone impressions.
+        clicks: Search-zone clicks.
+        add_to_cart: Search-zone add-to-cart events (WB ``atbs``).
+        spend: Search-zone advertising expenses.
+        orders: Search-zone attributed orders.
+    """
+
+    __tablename__ = "advertising_search_stat_daily"
+    __table_args__ = (
+        # nm_id is the THIRD PK column, so per-SKU reads need this index.
+        Index("ix_advertising_search_stat_daily_nm_id_stat_date", "nm_id", "stat_date"),
+        {"schema": _SCHEMA},
+    )
+
+    stat_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     nm_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
 
     views: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

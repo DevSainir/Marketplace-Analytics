@@ -14,9 +14,11 @@ from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.base import BaseWBClient
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
+    WBAdvertV2,
     WBCampaign,
     WBCampaignGroup,
     WBFunnelHistoryRow,
+    WBNormQueryItem,
     WBStockRow,
 )
 
@@ -221,3 +223,77 @@ class WBAdvertisingClient(BaseWBClient):
             for group in groups
             for ref in group.advert_list
         ]
+
+    async def list_adverts(self) -> list[WBAdvertV2]:
+        """List every campaign with its bid type and display-zone placements.
+
+        Endpoint: ``GET /api/advert/v2/adverts`` (no params).
+
+        Verified against the live WB API (2026-07): the response is
+        ``{"adverts": [...]}`` with one descriptor per campaign carrying
+        ``bid_type`` (``unified``/``manual``), a human-readable name, the
+        payment model, and the ``placements`` zone toggles the monitoring
+        matrix classifies campaigns by.
+
+        Returns:
+            One :class:`WBAdvertV2` per campaign on the account.
+        """
+        payload = await self._request("GET", "/api/advert/v2/adverts")
+        if not isinstance(payload, dict):
+            raise IntegrationError(
+                "Unexpected adverts-v2 response shape (expected an object, "
+                f"got {type(payload).__name__})."
+            )
+        # "adverts" is null when the account has no campaigns — legitimate.
+        return [WBAdvertV2.model_validate(a) for a in payload.get("adverts") or []]
+
+    #: Max (campaign, SKU) pairs per normquery-stats request (WB caps ``items``).
+    _NORMQUERY_BATCH = 100
+
+    async def fetch_search_zone_stats(
+        self,
+        *,
+        pairs: list[tuple[int, int]],
+        date_from: date,
+        date_to: date,
+    ) -> list[WBNormQueryItem]:
+        """Fetch daily SEARCH-zone advertising stats per (campaign, SKU) pair.
+
+        Endpoint: ``POST /adv/v1/normquery/stats``.
+
+        Verified against the live WB API (2026-07): the body is ``{"from", "to",
+        "items": [{"advertId", "nmId"}, ...]}`` with at most
+        :attr:`_NORMQUERY_BATCH` items per request (transparently chunked here);
+        the limiter allows ~10 requests/min. Each response item carries one
+        ``dailyStats`` entry per day x search cluster; summing clusters per day
+        yields the campaign's search-zone slice, which the analytics layer
+        subtracts from fullstats totals to derive the recommendations («полки»)
+        zone for unified-bid campaigns.
+
+        Args:
+            pairs: ``(campaign_id, nm_id)`` pairs to request.
+            date_from: Inclusive period start (Moscow time).
+            date_to: Inclusive period end (Moscow time).
+
+        Returns:
+            One :class:`WBNormQueryItem` per pair that returned data.
+        """
+        results: list[WBNormQueryItem] = []
+        for offset in range(0, len(pairs), self._NORMQUERY_BATCH):
+            batch = pairs[offset : offset + self._NORMQUERY_BATCH]
+            body: dict[str, object] = {
+                "from": date_from.isoformat(),
+                "to": date_to.isoformat(),
+                "items": [{"advertId": campaign_id, "nmId": nm_id} for campaign_id, nm_id in batch],
+            }
+            payload = await self._request("POST", "/adv/v1/normquery/stats", json_body=body)
+            if payload is None:
+                continue
+            if not isinstance(payload, dict):
+                raise IntegrationError(
+                    "Unexpected normquery-stats response shape (expected an object, "
+                    f"got {type(payload).__name__})."
+                )
+            # "items" is null when no pair had search traffic — legitimate.
+            results.extend(WBNormQueryItem.model_validate(i) for i in payload.get("items") or [])
+        return results

@@ -19,6 +19,7 @@ from src.modules.monitoring.schemas.funnel import (
     FunnelDetailRead,
     FunnelTotals,
 )
+from src.modules.monitoring.schemas.matrix import MatrixBaseState, MetricsMatrixRead
 from src.modules.monitoring.schemas.stocks import StockDetail
 
 
@@ -93,6 +94,14 @@ class SkuDetailResponse(BaseModel):
         description="Cleansed baseline organic demand (OOS days masked out)."
     )
     advertising: list[CampaignAdvertising] = Field(default_factory=list)
+    matrix: MetricsMatrixRead = Field(
+        description="Precomputed day x traffic-bucket metrics matrix (the "
+        "monitoring table renders it verbatim — no frontend math)."
+    )
+    matrix_base: MatrixBaseState = Field(
+        description="Editable input working copy behind the matrix (with any "
+        "saved manual overrides applied) — the frontend edits this."
+    )
     stock: StockDetail
 
 
@@ -101,6 +110,7 @@ class IngestionResult(BaseModel):
 
     funnel_rows: int = Field(default=0, description="Funnel rows upserted.")
     advertising_rows: int = Field(default=0, description="Advertising rows upserted.")
+    search_zone_rows: int = Field(default=0, description="Search-zone advertising rows upserted.")
     stock_rows: int = Field(default=0, description="Stock rows upserted.")
 
 

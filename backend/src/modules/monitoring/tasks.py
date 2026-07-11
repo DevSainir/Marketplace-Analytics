@@ -27,11 +27,19 @@ from src.integrations.wildberries import (
     WBAnalyticsClient,
     WBContentClient,
 )
-from src.integrations.wildberries.schemas import WBAdvCampaignStats, WBCard
+from src.integrations.wildberries.schemas import (
+    WBAdvCampaignStats,
+    WBAdvertV2,
+    WBCampaign,
+    WBCard,
+    WBNormQueryItem,
+)
 from src.modules.monitoring.repos import (
     AdvertisingRepository,
+    AdvertisingSearchRepository,
     CampaignRepository,
     FunnelRepository,
+    MatrixOverrideRepository,
     ProductCardRepository,
     ProductSizeRepository,
     StockRepository,
@@ -86,6 +94,87 @@ def _unwrap[T](result: T | BaseException | None, label: str) -> T | None:
 _HARVESTABLE_STATUSES: frozenset[int] = frozenset({9, 11})
 
 
+def _advertising_harvest_ids(
+    campaigns: list[WBCampaign],
+    adverts: list[WBAdvertV2] | None,
+    nm_ids: list[int],
+) -> list[int]:
+    """Pick the campaigns to pull fullstats for, scoped to the harvested SKUs.
+
+    Only active/paused campaigns can have recent-window data. When the
+    adverts-v2 settings are available, further restrict to campaigns whose
+    ``nm_settings`` include one of ``nm_ids`` — so a single-SKU refresh pulls
+    only that SKU's campaigns instead of the whole account's. A full harvest
+    (``nm_ids`` spanning the catalogue) keeps essentially every campaign, so the
+    nightly run is unaffected. Falls back to all active/paused campaigns when
+    the settings source failed.
+
+    Args:
+        campaigns: Campaign descriptors from ``promotion/count``.
+        adverts: Campaign settings from ``adverts-v2`` (``None`` if it failed).
+        nm_ids: The SKUs being harvested.
+
+    Returns:
+        The campaign ids to request fullstats for.
+    """
+    active = [c.campaign_id for c in campaigns if c.status in _HARVESTABLE_STATUSES]
+    if adverts is None:
+        return active
+    wanted = set(nm_ids)
+    campaigns_for_sku = {
+        advert.campaign_id
+        for advert in adverts
+        if any(setting.nm_id in wanted for setting in advert.nm_settings)
+    }
+    return [cid for cid in active if cid in campaigns_for_sku]
+
+
+def _candidate_search_pairs(
+    adverts: list[WBAdvertV2] | None,
+    nm_ids: list[int],
+    harvest_ids: list[int],
+) -> list[tuple[int, int]]:
+    """Candidate ``(campaign_id, nm_id)`` pairs for the search-zone slice.
+
+    Only campaigns enabled in BOTH display zones (every unified-bid campaign,
+    plus dual-placement manual ones) need the normquery slice — a single-zone
+    campaign's fullstats already belong wholly to its one zone. Pairs are the
+    dual-zone campaigns among the scoped harvest set, crossed with the harvested
+    SKUs they advertise (from ``nm_settings``).
+
+    Deriving these from campaign SETTINGS (not fullstats results) is what lets
+    the normquery call run **concurrently** with fullstats instead of waiting on
+    it — the two are the harvest's slowest, formerly-sequential WB round-trips.
+    Pairs that turn out not to have delivered simply return empty stats and are
+    dropped on ingest, so the persisted result is unchanged.
+
+    Args:
+        adverts: Campaign settings from adverts-v2; ``None`` when that source
+            failed — no placement flags means no split is possible.
+        nm_ids: The SKUs being harvested.
+        harvest_ids: The scoped advertising campaign ids (see
+            :func:`_advertising_harvest_ids`).
+
+    Returns:
+        Sorted, de-duplicated ``(campaign_id, nm_id)`` pairs.
+    """
+    if adverts is None:
+        return []
+    wanted = set(nm_ids)
+    scoped = set(harvest_ids)
+    pairs: set[tuple[int, int]] = set()
+    for advert in adverts:
+        placements = advert.settings.placements
+        if advert.campaign_id not in scoped or not (
+            placements.search and placements.recommendations
+        ):
+            continue
+        for setting in advert.nm_settings:
+            if setting.nm_id in wanted:
+                pairs.add((advert.campaign_id, setting.nm_id))
+    return sorted(pairs)
+
+
 async def _harvest_sku_window(
     *,
     nm_ids: list[int],
@@ -120,39 +209,66 @@ async def _harvest_sku_window(
         # Fire the independent WB calls concurrently and RESILIENTLY:
         # ``return_exceptions`` keeps one failing source (e.g. a stale funnel
         # window or a 429) from aborting the whole harvest.
-        funnel_res, stock_res, camp_res = await asyncio.gather(
+        funnel_res, stock_res, camp_res, adverts_res = await asyncio.gather(
             analytics_client.fetch_sales_funnel(
                 nm_ids=nm_ids, date_from=date_from, date_to=date_to
             ),
             analytics_client.fetch_warehouse_stocks(nm_ids=nm_ids),
             advertising_client.list_campaigns(),
+            advertising_client.list_adverts(),
             return_exceptions=True,
         )
         # Partial failure is tolerated (a 429 on one source must not void the
         # others), but ALL sources failing means the harvest did nothing —
         # raising marks the task FAILED and triggers the retry policy instead
         # of recording a deceptive zero-row "success" (e.g. a revoked token).
-        if all(isinstance(r, BaseException) for r in (funnel_res, stock_res, camp_res)):
+        if all(
+            isinstance(r, BaseException) for r in (funnel_res, stock_res, camp_res, adverts_res)
+        ):
             raise IntegrationError(
                 f"Every WB source failed for the harvest window {date_from}..{date_to}: "
-                f"{funnel_res}; {stock_res}; {camp_res}"
+                f"{funnel_res}; {stock_res}; {camp_res}; {adverts_res}"
             )
         funnel_rows = _unwrap(funnel_res, "sales-funnel") or []
         stock_rows = _unwrap(stock_res, "stocks") or []
         campaigns = _unwrap(camp_res, "campaigns") or []
+        adverts = _unwrap(adverts_res, "adverts-v2")
         stocks_succeeded = not isinstance(stock_res, BaseException)
 
-        # Advertising fullstats for every campaign that could have window data.
-        # Depends on the campaign list, so it runs after the gather above.
-        harvest_ids = [c.campaign_id for c in campaigns if c.status in _HARVESTABLE_STATUSES]
-        advertising_stats: list[WBAdvCampaignStats] = []
-        if harvest_ids:
-            try:
-                advertising_stats = await advertising_client.fetch_full_stats(
-                    campaign_ids=harvest_ids, date_from=date_from, date_to=date_to
-                )
-            except IntegrationError as exc:
-                logger.warning("Harvest source 'advertising' failed and was skipped: %s", exc)
+        # Advertising fullstats + search-zone (normquery) stats. Both depend
+        # only on the campaign list / settings from the gather above (the
+        # normquery pairs come from campaign SETTINGS, not fullstats results),
+        # so they run CONCURRENTLY — the two slowest WB round-trips no longer
+        # queue behind each other.
+        #
+        # Fullstats is scoped to campaigns that actually advertise the harvested
+        # SKUs: a full (all-SKU) harvest keeps every active campaign, but a
+        # targeted single-SKU refresh drops the account's other campaigns —
+        # turning a ~all-campaigns pull into a handful, the bulk of the latency.
+        harvest_ids = _advertising_harvest_ids(campaigns, adverts, nm_ids)
+        search_pairs = _candidate_search_pairs(adverts, nm_ids, harvest_ids)
+
+        async def _fetch_fullstats() -> list[WBAdvCampaignStats]:
+            if not harvest_ids:
+                return []
+            return await advertising_client.fetch_full_stats(
+                campaign_ids=harvest_ids, date_from=date_from, date_to=date_to
+            )
+
+        async def _fetch_search() -> list[WBNormQueryItem] | None:
+            if not search_pairs:
+                return None
+            return await advertising_client.fetch_search_zone_stats(
+                pairs=search_pairs, date_from=date_from, date_to=date_to
+            )
+
+        adv_res, search_res = await asyncio.gather(
+            _fetch_fullstats(), _fetch_search(), return_exceptions=True
+        )
+        advertising_stats = _unwrap(adv_res, "advertising") or []
+        # ``None`` (source failed OR no pairs) leaves the search facts untouched;
+        # a real list drives the ingest + stale-row sweep.
+        search_stats = _unwrap(search_res, "search-zone")
 
     async with AsyncSessionLocal() as session:
         service = IngestionService(
@@ -162,8 +278,9 @@ async def _harvest_sku_window(
             campaign_repo=CampaignRepository(session),
             product_card_repo=ProductCardRepository(session),
             product_size_repo=ProductSizeRepository(session),
+            advertising_search_repo=AdvertisingSearchRepository(session),
         )
-        await service.ingest_campaigns(campaigns)
+        await service.ingest_campaigns(campaigns, adverts)
         # Refresh the product catalogue (vendor codes + size labels) so the
         # label-less funnel/stock facts can be decorated with human identifiers.
         card_count = size_count = 0
@@ -186,12 +303,21 @@ async def _harvest_sku_window(
             snapshot_date=moscow_today(),
             harvested_nm_ids=nm_ids if stocks_succeeded else [],
             advertising_window=(date_from, date_to),
+            search_stats=search_stats,
+            search_requested_campaign_ids=sorted({cid for cid, _ in search_pairs}),
         )
+        # Fresh WB data supersedes any manual matrix edits for these SKUs — the
+        # product rule is that any refresh (nightly or a manual «Обновить»)
+        # clears saved overrides. Run in the same transaction as the ingest.
+        cleared = await MatrixOverrideRepository(session).delete_for_skus(nm_ids)
+        if cleared:
+            logger.info("Cleared %d manual matrix overrides after refresh.", cleared)
         await session.commit()
 
     return {
         "funnel_rows": result.funnel_rows,
         "advertising_rows": result.advertising_rows,
+        "search_zone_rows": result.search_zone_rows,
         "stock_rows": result.stock_rows,
         "product_card_rows": card_count,
         "product_size_rows": size_count,

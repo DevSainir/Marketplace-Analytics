@@ -11,7 +11,16 @@ from src.modules.monitoring.models import Campaign
 from src.modules.monitoring.repos.base import BaseRepository
 
 _CONFLICT = ("campaign_id",)
-_UPDATE = ("type", "status", "status_label", "synced_at")
+#: Columns refreshed by a bare promotion/count sync (no adverts-v2 data).
+_UPDATE_META = ("type", "status", "status_label", "synced_at")
+#: Additional columns refreshed when the adverts-v2 settings are available.
+_UPDATE_SETTINGS = (
+    "bid_type",
+    "placement_search",
+    "placement_recommendations",
+    "name",
+    "payment_type",
+)
 
 
 class CampaignRepository(BaseRepository):
@@ -23,16 +32,25 @@ class CampaignRepository(BaseRepository):
         """Bind the repository to the request-scoped session."""
         super().__init__(session)
 
-    async def upsert_many(self, rows: list[dict[str, object]]) -> int:
+    async def upsert_many(
+        self, rows: list[dict[str, object]], *, with_settings: bool = False
+    ) -> int:
         """Idempotently upsert campaign descriptors keyed by ``campaign_id``.
 
         Args:
             rows: Column->value mappings for each campaign.
+            with_settings: Also overwrite the adverts-v2 settings columns
+                (bid type, placements, name, payment type). Keep ``False``
+                when the rows carry no settings — ``ON CONFLICT`` would
+                otherwise wipe previously synced values back to ``NULL``.
 
         Returns:
             The number of rows submitted.
         """
-        return await self.bulk_upsert(rows, conflict_columns=_CONFLICT, update_columns=_UPDATE)
+        update_columns = _UPDATE_META + (_UPDATE_SETTINGS if with_settings else ())
+        return await self.bulk_upsert(
+            rows, conflict_columns=_CONFLICT, update_columns=update_columns
+        )
 
     async def get_by_ids(self, campaign_ids: Iterable[int]) -> dict[int, Campaign]:
         """Return campaign metadata for the given ids, keyed by ``campaign_id``.

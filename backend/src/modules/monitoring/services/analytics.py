@@ -14,6 +14,7 @@ from datetime import date, timedelta
 from src.core.exceptions import NotFoundError, ValidationError
 from src.core.timeutils import moscow_today
 from src.modules.monitoring.models import (
+    AdvertisingSearchStatDaily,
     AdvertisingStatDaily,
     Campaign,
     SalesFunnelDaily,
@@ -22,8 +23,10 @@ from src.modules.monitoring.models import (
 )
 from src.modules.monitoring.repos import (
     AdvertisingRepository,
+    AdvertisingSearchRepository,
     CampaignRepository,
     FunnelRepository,
+    MatrixOverrideRepository,
     ProductCardRepository,
     ProductSizeRepository,
     StockRepository,
@@ -45,6 +48,21 @@ from src.modules.monitoring.schemas import (
     StockSizeTotal,
     compute_ad_metrics,
     compute_funnel_totals,
+)
+from src.modules.monitoring.schemas.matrix import (
+    MatrixBaseState,
+    MatrixCellEdit,
+    MatrixPreviewResponse,
+)
+from src.modules.monitoring.services.matrix import (
+    BUYOUT_LAG_START_DAYS,
+    build_matrix_from_base,
+    derive_base_state,
+)
+from src.modules.monitoring.services.matrix_edit import apply_edit
+from src.modules.monitoring.services.matrix_overrides import (
+    diff_to_overrides,
+    overlay_overrides,
 )
 from src.modules.monitoring.services.normalization import (
     DailyDemandPoint,
@@ -100,18 +118,22 @@ class AnalyticsService:
         *,
         funnel_repo: FunnelRepository,
         advertising_repo: AdvertisingRepository,
+        advertising_search_repo: AdvertisingSearchRepository,
         stock_repo: StockRepository,
         campaign_repo: CampaignRepository,
         product_card_repo: ProductCardRepository,
         product_size_repo: ProductSizeRepository,
+        matrix_override_repo: MatrixOverrideRepository,
     ) -> None:
         """Inject the read repositories the service composes over."""
         self._funnel = funnel_repo
         self._advertising = advertising_repo
+        self._advertising_search = advertising_search_repo
         self._stocks = stock_repo
         self._campaigns = campaign_repo
         self._product_cards = product_card_repo
         self._product_sizes = product_size_repo
+        self._matrix_overrides = matrix_override_repo
 
     # ------------------------------------------------------------------ #
     # Summary listing
@@ -239,15 +261,13 @@ class AnalyticsService:
             NotFoundError: If the SKU has no data of any kind in the window.
         """
         date_from, date_to = resolve_window(date_from, date_to)
-        funnel_rows = await self._funnel.list_for_sku(
-            nm_id=nm_id, date_from=date_from, date_to=date_to
+        # The funnel is fetched over an EXTENDED window: the matrix's lagged
+        # «Процент выкупа» reads up to BUYOUT_LAG_START_DAYS before the first
+        # displayed day. Everything else uses the requested window's slice.
+        extended_funnel_rows, ad_rows, search_rows, campaigns = await self._fetch_matrix_inputs(
+            nm_id=nm_id, date_from=date_from, date_to=date_to, campaign_id=campaign_id
         )
-        ad_rows = await self._advertising.list_for_sku(
-            nm_id=nm_id,
-            date_from=date_from,
-            date_to=date_to,
-            campaign_id=campaign_id,
-        )
+        funnel_rows = [row for row in extended_funnel_rows if row.stat_date >= date_from]
         # Stock is split into the per-day totals (feeds OOS masking) and the
         # latest snapshot's size x warehouse rows (feeds the breakdown table) —
         # both filtered in SQL instead of hydrating the whole window's rows.
@@ -261,12 +281,25 @@ class AnalyticsService:
         if not funnel_rows and not ad_rows and not stock_daily_totals:
             raise NotFoundError(f"No monitoring data found for SKU {nm_id}.")
 
-        # Resolve campaign metadata for the SKU's campaigns, then group + filter.
-        campaign_ids = {row.campaign_id for row in ad_rows}
-        campaigns = await self._campaigns.get_by_ids(campaign_ids)
+        # Group + filter the per-campaign advertising view.
         advertising = _build_campaign_advertising(ad_rows, campaigns)
         if campaign_status is not None:
             advertising = [c for c in advertising if c.status_label == campaign_status]
+
+        # Derive the matrix input working copy, then overlay any manual edits
+        # so the served matrix (and the editable base) reflect saved overrides.
+        base = derive_base_state(
+            date_from=date_from,
+            date_to=date_to,
+            funnel_rows=extended_funnel_rows,
+            ad_rows=ad_rows,
+            search_rows=search_rows,
+            campaigns=campaigns,
+        )
+        overrides = await self._matrix_overrides.list_for_sku(
+            nm_id=nm_id, date_from=date_from, date_to=date_to
+        )
+        overlay_overrides(base, overrides)
 
         # Decorate identity + sizes from the catalogue dimensions (nullable —
         # a SKU with stock but no synced card still renders, just label-less).
@@ -284,8 +317,110 @@ class AnalyticsService:
             funnel_totals=compute_funnel_totals(funnel_rows),
             baseline_demand=_compute_baseline(funnel_rows, stock_daily_totals),
             advertising=advertising,
+            matrix=build_matrix_from_base(base),
+            matrix_base=base,
             stock=_build_stock_detail(latest_stock_rows, size_labels),
         )
+
+    async def _fetch_matrix_inputs(
+        self,
+        *,
+        nm_id: int,
+        date_from: date,
+        date_to: date,
+        campaign_id: int | None = None,
+    ) -> tuple[
+        list[SalesFunnelDaily],
+        list[AdvertisingStatDaily],
+        list[AdvertisingSearchStatDaily],
+        dict[int, Campaign],
+    ]:
+        """Fetch the fact rows the matrix is derived from (extended funnel window).
+
+        Shared by the detail read and the save path so both derive an identical
+        fact-base. The funnel spans ``[date_from - BUYOUT_LAG_START_DAYS, date_to]``
+        for the lagged «Процент выкупа».
+        """
+        extended_funnel_rows = await self._funnel.list_for_sku(
+            nm_id=nm_id,
+            date_from=date_from - timedelta(days=BUYOUT_LAG_START_DAYS),
+            date_to=date_to,
+        )
+        ad_rows = await self._advertising.list_for_sku(
+            nm_id=nm_id, date_from=date_from, date_to=date_to, campaign_id=campaign_id
+        )
+        search_rows = await self._advertising_search.list_for_sku(
+            nm_id=nm_id, date_from=date_from, date_to=date_to, campaign_id=campaign_id
+        )
+        campaigns = await self._campaigns.get_by_ids({row.campaign_id for row in ad_rows})
+        return extended_funnel_rows, ad_rows, search_rows, campaigns
+
+    # ------------------------------------------------------------------ #
+    # Matrix editing (preview + save)
+    # ------------------------------------------------------------------ #
+    def preview_matrix_edit(
+        self, base: MatrixBaseState, edit: MatrixCellEdit
+    ) -> MatrixPreviewResponse:
+        """Apply one pending cell-edit to a working copy and recompute (no I/O).
+
+        Pure recomputation: the client holds the working copy, this resolves the
+        edit into its inputs and re-derives the display matrix. Nothing is
+        persisted — that is what :meth:`save_matrix` does.
+
+        Args:
+            base: The client's current input working copy.
+            edit: The cell the user just changed.
+
+        Returns:
+            The recomputed working copy and display matrix.
+
+        Raises:
+            ValidationError: If the edit targets a read-only / non-invertible cell.
+        """
+        new_base = apply_edit(base, edit)
+        return MatrixPreviewResponse(base=new_base, matrix=build_matrix_from_base(new_base))
+
+    async def save_matrix(
+        self,
+        *,
+        nm_id: int,
+        base: MatrixBaseState,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> SkuDetailResponse:
+        """Persist a working copy as overrides, then return the refreshed detail.
+
+        The working copy is diffed against a freshly fact-derived base; only the
+        input cells that actually changed are stored (a cell edited back to its
+        harvested value drops its override). Existing overrides for the window
+        are replaced in one transaction.
+
+        Args:
+            nm_id: WB SKU identifier.
+            base: The working copy to persist.
+            date_from: Optional inclusive window start (defaults applied here).
+            date_to: Optional inclusive window end (defaults applied here).
+
+        Returns:
+            The detail view rebuilt with the saved overrides applied.
+        """
+        date_from, date_to = resolve_window(date_from, date_to)
+        extended_funnel_rows, ad_rows, search_rows, campaigns = await self._fetch_matrix_inputs(
+            nm_id=nm_id, date_from=date_from, date_to=date_to
+        )
+        fact_base = derive_base_state(
+            date_from=date_from,
+            date_to=date_to,
+            funnel_rows=extended_funnel_rows,
+            ad_rows=ad_rows,
+            search_rows=search_rows,
+            campaigns=campaigns,
+        )
+        rows = diff_to_overrides(nm_id=nm_id, working=base, fact=fact_base)
+        await self._matrix_overrides.replace_window(
+            nm_id=nm_id, date_from=date_from, date_to=date_to, rows=rows
+        )
+        return await self.get_detail(nm_id=nm_id, date_from=date_from, date_to=date_to)
 
     # ------------------------------------------------------------------ #
     # Raw funnel

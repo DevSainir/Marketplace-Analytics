@@ -49,3 +49,59 @@ export async function fetchSkuDetail(nmId, params = {}, signal) {
   const { data } = await apiClient.get(`/v1/monitoring/skus/${nmId}`, { params, signal })
   return data
 }
+
+/**
+ * POST /v1/monitoring/skus/{nm_id}/matrix/preview — apply one pending cell edit
+ * to the working copy and get the recomputed matrix back (nothing persisted).
+ *
+ * @param {number} nmId WB SKU identifier.
+ * @param {object} base The current editable working copy (`matrix_base`).
+ * @param {{day: string, bucket: string, metric: string, value: number}} edit
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<{base: object, matrix: object}>}
+ */
+export async function previewMatrixEdit(nmId, base, edit, signal) {
+  const { data } = await apiClient.post(
+    `/v1/monitoring/skus/${nmId}/matrix/preview`,
+    { base, edit },
+    { signal },
+  )
+  return data
+}
+
+/**
+ * PUT /v1/monitoring/skus/{nm_id}/matrix — persist the working copy as manual
+ * overrides; returns the refreshed SkuDetailResponse.
+ *
+ * @param {number} nmId WB SKU identifier.
+ * @param {object} base The working copy to persist.
+ * @param {{date_from?: string, date_to?: string}} [params] The saved window.
+ * @returns {Promise<import('@/core/api/types').SkuDetailResponse>}
+ */
+export async function saveMatrix(nmId, base, params = {}) {
+  const { data } = await apiClient.put(`/v1/monitoring/skus/${nmId}/matrix`, { base }, { params })
+  return data
+}
+
+/**
+ * POST /v1/monitoring/skus/{nm_id}/refresh — enqueue a fresh WB harvest for one
+ * SKU (discards its manual edits). Returns the Celery task id to poll.
+ *
+ * @param {number} nmId WB SKU identifier.
+ * @returns {Promise<{task_id: string}>}
+ */
+export async function refreshSku(nmId) {
+  const { data } = await apiClient.post(`/v1/monitoring/skus/${nmId}/refresh`)
+  return data
+}
+
+/**
+ * GET /v1/monitoring/refresh/{task_id} — poll a refresh task's state.
+ *
+ * @param {string} taskId Celery task id from {@link refreshSku}.
+ * @returns {Promise<{task_id: string, status: string, ready: boolean, successful: boolean}>}
+ */
+export async function getRefreshStatus(taskId) {
+  const { data } = await apiClient.get(`/v1/monitoring/refresh/${taskId}`)
+  return data
+}
