@@ -7,6 +7,7 @@ import { isoDaysAgo } from '@/core/utils/dates'
 import MetricsTable from '@/modules/monitoring/components/MetricsTable.vue'
 import PeriodSelector from '@/modules/monitoring/components/PeriodSelector.vue'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
+import StockBreakdownTable from '@/modules/monitoring/components/StockBreakdownTable.vue'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 
 const store = useMonitoringStore()
@@ -162,7 +163,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
       <!-- Ambiguous vendor-code deep link: let the user pick the exact SKU -->
       <section
         v-if="store.lookupMatches.length"
-        class="mt-lg rounded-card bg-surface/75 p-md shadow-card backdrop-blur-md"
+        class="mt-lg rounded-card bg-surface p-md shadow-card"
       >
         <p class="text-base font-medium text-primary">
           Найдено артикулов: {{ store.lookupMatches.length }} — выберите нужный:
@@ -218,6 +219,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
             :rows="metricsMatrix.rows"
             :price-rows="metricsMatrix.priceRows"
             :stock-rows="metricsMatrix.stockRows"
+            :stock-total-rows="metricsMatrix.stockTotalRows"
             :editing-disabled="editingLocked"
             @edit="handleCellEdit"
           />
@@ -271,6 +273,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
           >
             {{ store.matrixEditError }}
           </p>
+        </section>
+
+        <!-- Warehouses × sizes stock matrix (latest snapshot day) -->
+        <section v-if="product.stock" class="mt-lg" aria-label="Остатки по складам">
+          <h2 class="text-h3 font-semibold text-primary">Остатки по складам</h2>
+          <StockBreakdownTable
+            class="mt-sm"
+            :cells="product.stock.cells"
+            :marked-warehouses="store.markedWarehouses"
+            @toggle-mark="store.toggleWarehouseMark"
+          />
         </section>
       </template>
 

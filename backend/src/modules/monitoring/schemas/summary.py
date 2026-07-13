@@ -113,6 +113,7 @@ class IngestionResult(BaseModel):
     search_zone_rows: int = Field(default=0, description="Search-zone advertising rows upserted.")
     stock_rows: int = Field(default=0, description="Stock rows upserted.")
     price_rows: int = Field(default=0, description="Price snapshot rows upserted.")
+    sales_rows: int = Field(default=0, description="Per-item sale/return records upserted.")
 
 
 class CatalogIngestionResult(BaseModel):

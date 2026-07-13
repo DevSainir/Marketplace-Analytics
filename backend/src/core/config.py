@@ -97,10 +97,14 @@ class Settings(BaseSettings):
     # Prices & Discounts surface — seller (discounted) prices. Category-scoped
     # token ("Цены и скидки"), separate from the analytics/advertising tokens.
     wb_prices_token: str = Field(default="")
+    # Statistics surface — per-sale records (sale-date attributed buyouts and
+    # returns). Category-scoped token ("Статистика").
+    wb_statistics_token: str = Field(default="")
     wb_analytics_base_url: str = Field(default="https://seller-analytics-api.wildberries.ru")
     wb_advertising_base_url: str = Field(default="https://advert-api.wildberries.ru")
     wb_content_base_url: str = Field(default="https://content-api.wildberries.ru")
     wb_prices_base_url: str = Field(default="https://discounts-prices-api.wildberries.ru")
+    wb_statistics_base_url: str = Field(default="https://statistics-api.wildberries.ru")
     # Public storefront card endpoint (card.wb.ru) — the final customer price
     # after ALL discounts incl. WB loyalty (СПП). Unauthenticated. ``dest`` is a
     # region/delivery code and ``spp`` the loyalty tier the storefront prices

@@ -36,7 +36,6 @@ def _fact_base() -> MatrixBaseState:
                     open_count=200,
                     cart_count=20,
                     order_count=10,
-                    buyout_count=6,
                     seller_price=500.0,
                     customer_price=350.0,
                 ),

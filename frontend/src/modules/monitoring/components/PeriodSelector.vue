@@ -212,7 +212,7 @@ onBeforeUnmount(() => {
     <transition name="cal">
       <div
         v-if="open"
-        class="calendar-pop absolute left-0 top-[calc(100%+6px)] z-40 rounded-card border border-border-subtle bg-surface p-md shadow-card backdrop-blur-xl"
+        class="calendar-pop absolute left-0 top-[calc(100%+6px)] z-40 rounded-card border border-border-subtle bg-surface p-md shadow-card"
         role="dialog"
         aria-label="Выбор периода"
       >

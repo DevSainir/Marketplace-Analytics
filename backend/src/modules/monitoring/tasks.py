@@ -28,6 +28,7 @@ from src.integrations.wildberries import (
     WBCardClient,
     WBContentClient,
     WBPricesClient,
+    WBStatisticsClient,
 )
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
@@ -45,6 +46,7 @@ from src.modules.monitoring.repos import (
     PriceRepository,
     ProductCardRepository,
     ProductSizeRepository,
+    SaleRepository,
     StockRepository,
 )
 from src.modules.monitoring.services import IngestionService
@@ -210,6 +212,7 @@ async def _harvest_sku_window(
         WBAdvertisingClient(settings) as advertising_client,
         WBPricesClient(settings) as prices_client,
         WBCardClient(settings) as card_client,
+        WBStatisticsClient(settings) as statistics_client,
     ):
         # Fire the independent WB calls concurrently and RESILIENTLY:
         # ``return_exceptions`` keeps one failing source (e.g. a stale funnel
@@ -282,13 +285,22 @@ async def _harvest_sku_window(
                 pairs=search_pairs, date_from=date_from, date_to=date_to
             )
 
-        adv_res, search_res = await asyncio.gather(
-            _fetch_fullstats(), _fetch_search(), return_exceptions=True
+        # The statistics sales feed rides this second wave: sale-date
+        # buyout/return records, incremental by lastChangeDate — the window
+        # start suffices, since a late return of an old sale carries a fresh
+        # change stamp.
+        adv_res, search_res, sales_res = await asyncio.gather(
+            _fetch_fullstats(),
+            _fetch_search(),
+            statistics_client.fetch_sales(changed_since=date_from),
+            return_exceptions=True,
         )
         advertising_stats = _unwrap(adv_res, "advertising") or []
         # ``None`` (source failed OR no pairs) leaves the search facts untouched;
         # a real list drives the ingest + stale-row sweep.
         search_stats = _unwrap(search_res, "search-zone")
+        # ``None`` (source failed) leaves the sale/return records untouched.
+        sales = _unwrap(sales_res, "sales")
 
     async with AsyncSessionLocal() as session:
         service = IngestionService(
@@ -300,6 +312,7 @@ async def _harvest_sku_window(
             product_size_repo=ProductSizeRepository(session),
             advertising_search_repo=AdvertisingSearchRepository(session),
             price_repo=PriceRepository(session),
+            sale_repo=SaleRepository(session),
         )
         await service.ingest_campaigns(campaigns, adverts)
         # Refresh the product catalogue (vendor codes + size labels) so the
@@ -329,6 +342,7 @@ async def _harvest_sku_window(
             prices=prices,
             customer_prices=customer_prices,
             price_nm_ids=nm_ids,
+            sales=sales,
         )
         # Fresh WB data supersedes any manual matrix edits for these SKUs — the
         # product rule is that any refresh (nightly or a manual «Обновить»)
@@ -344,6 +358,7 @@ async def _harvest_sku_window(
         "search_zone_rows": result.search_zone_rows,
         "stock_rows": result.stock_rows,
         "price_rows": result.price_rows,
+        "sales_rows": result.sales_rows,
         "product_card_rows": card_count,
         "product_size_rows": size_count,
     }

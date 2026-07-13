@@ -17,6 +17,7 @@ import {
   previewMatrixEdit,
   refreshSku,
   saveMatrix,
+  setWarehouseMark,
 } from '@/modules/monitoring/api'
 import { buildMetricsMatrix, patchMetricsMatrix } from '@/modules/monitoring/metricsMatrix'
 
@@ -43,7 +44,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
    * cells in place (see `patchMetricsMatrix`) instead of rebuilding it, so Vue
    * updates a handful of DOM nodes rather than re-rendering the whole table.
    */
-  const matrixView = ref({ days: [], rows: [], priceRows: [], stockRows: [] })
+  const matrixView = ref({ days: [], rows: [], priceRows: [], stockRows: [], stockTotalRows: [] })
   // The current editable working copy + its display matrix. Held as plain refs
   // (not the reactive table) so swapping them is cheap; snapshots reference
   // these immutable server payloads directly (no deep clone needed).
@@ -94,6 +95,36 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   )
 
   const isOutOfStock = computed(() => (currentProduct.value?.stock?.total_quantity ?? 0) === 0)
+
+  // --- warehouse marks -----------------------------------------------------
+  // Warehouses «на отгрузку» for the CURRENT SKU: persisted on the backend
+  // (monitoring.warehouse_mark), scoped per nm_id — marking «Тула» on one SKU
+  // says nothing about «Тула» on another. Seeded from the detail response
+  // (`stock.marked_warehouses`); a toggle applies optimistically and then
+  // reconciles with the server's answer (or rolls back on failure).
+  const markedWarehouses = ref([])
+
+  /** Mark an unmarked warehouse («Отгрузить») or unmark a marked one («Разгрузить»). */
+  async function toggleWarehouseMark(name) {
+    const nmId = currentProduct.value?.nm_id
+    if (!nmId) return
+    const previous = markedWarehouses.value
+    const marked = !previous.includes(name)
+    markedWarehouses.value = marked
+      ? [...previous, name]
+      : previous.filter((warehouse) => warehouse !== name)
+    try {
+      const result = await setWarehouseMark(nmId, name, marked)
+      // Reconcile only while the same SKU is displayed (guards the race with
+      // a SKU switch while the request was in flight).
+      if (currentProduct.value?.nm_id === nmId) {
+        markedWarehouses.value = result.marked_warehouses
+      }
+    } catch (err) {
+      if (currentProduct.value?.nm_id === nmId) markedWarehouses.value = previous
+      matrixEditError.value = extractErrorMessage(err)
+    }
+  }
 
   // --- actions -----------------------------------------------------------
   /** Axios abort rejections are silent: they only mean a newer search won. */
@@ -222,6 +253,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   /** Load a detail response: seed the product, working copy, and display view. */
   function loadMatrix(detail) {
     currentProduct.value = detail
+    markedWarehouses.value = detail.stock?.marked_warehouses ?? []
     workingBase.value = detail.matrix_base
     currentMatrix = detail.matrix
     // Same window (save / refresh) → patch the existing table in place so only
@@ -244,7 +276,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   function clearMatrixEditState() {
     workingBase.value = null
     currentMatrix = null
-    matrixView.value = { days: [], rows: [], priceRows: [], stockRows: [] }
+    matrixView.value = { days: [], rows: [], priceRows: [], stockRows: [], stockTotalRows: [] }
     undoStack.value = []
     redoStack.value = []
     matrixDirty.value = false
@@ -370,6 +402,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     notFound.value = null
     currentProduct.value = null
     lookupMatches.value = []
+    markedWarehouses.value = []
     clearMatrixEditState()
   }
 
@@ -389,6 +422,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     totalOrders,
     totalAdSpend,
     isOutOfStock,
+    markedWarehouses,
+    toggleWarehouseMark,
     fetchProductData,
     reset,
     // matrix editing

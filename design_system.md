@@ -33,6 +33,10 @@ Do not invent complex components from scratch. Follow this strict distribution:
 ## 3. Component Guidelines
 * **Semantic Styling:** Always use semantic class names (e.g., text-primary, bg-surface, border-border-subtle).
 
+* **Page Chrome & Canvas (the monitoring-page look):** Every page sits directly on `bg-canvas` (#E8E8E8) — the `<body>` owns the background; views must NOT paint their own full-page backgrounds. The app header (and its dropdown menu) uses the SAME `bg-canvas` with a `border-b border-border-subtle`, so chrome and page read as one plane. Elevated blocks (cards, tables, popovers, dropdowns) are the only "surfaces" and use solid `bg-surface` (#F1F1F1). Header nav and page content share ONE container width: `mx-auto w-full max-w-[calc(26.667rem_+_66.667vw)] px-md sm:px-lg` (80rem plus 2/3 of the spare viewport beyond it), so side margins line up on every page. Table/card internals that use z-index (frozen columns) must be contained by their card (`isolation: isolate` on `.app-datatable`) and never stack above page chrome.
+
+* **No Glassmorphism:** `backdrop-blur`/`backdrop-saturate` and translucent surface backgrounds (`bg-surface/NN`, `bg-white/NN`, rgba surface tokens) are FORBIDDEN — every surface is a solid color. (A glass UI was tried and removed; if it ever comes back it will be redesigned from scratch, not resurrected from leftovers.)
+
 * **Typography Hierarchy:**
 
 * * **KPI & Main Titles:** text-h2 font-bold text-primary

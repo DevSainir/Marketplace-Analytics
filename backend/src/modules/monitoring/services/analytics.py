@@ -31,8 +31,11 @@ from src.modules.monitoring.repos import (
     PriceRepository,
     ProductCardRepository,
     ProductSizeRepository,
+    SaleRepository,
     StockRepository,
+    WarehouseMarkRepository,
 )
+from src.modules.monitoring.repos.sales import SaleDailyTotal
 from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas import (
     BaselineDemandRead,
@@ -49,6 +52,7 @@ from src.modules.monitoring.schemas import (
     StockCell,
     StockDetail,
     StockSizeTotal,
+    WarehouseMarksResponse,
     compute_ad_metrics,
     compute_funnel_totals,
 )
@@ -129,6 +133,8 @@ class AnalyticsService:
         product_size_repo: ProductSizeRepository,
         matrix_override_repo: MatrixOverrideRepository,
         price_repo: PriceRepository,
+        sale_repo: SaleRepository,
+        warehouse_mark_repo: WarehouseMarkRepository,
     ) -> None:
         """Inject the read repositories the service composes over."""
         self._funnel = funnel_repo
@@ -140,6 +146,8 @@ class AnalyticsService:
         self._product_sizes = product_size_repo
         self._matrix_overrides = matrix_override_repo
         self._prices = price_repo
+        self._sales = sale_repo
+        self._warehouse_marks = warehouse_mark_repo
 
     # ------------------------------------------------------------------ #
     # Summary listing
@@ -172,9 +180,10 @@ class AnalyticsService:
         funnel_aggs = await self._funnel.aggregate_window(date_from=date_from, date_to=date_to)
         ad_aggs = await self._advertising.aggregate_window(date_from=date_from, date_to=date_to)
         stock_totals = await self._stocks.latest_totals_by_sku(date_from=date_from, date_to=date_to)
-        # Summary ₽ volumes price window-total counts against each SKU's LATEST
-        # known seller price (the per-day matrix carries prices forward per day).
+        # «Заказы, ₽» prices window-total counts against each SKU's LATEST known
+        # seller price; buyouts come from the sale-date records (real revenue).
         latest_prices = await self._prices.latest_by_sku(date_to=max(date_to, moscow_today()))
+        sale_totals = await self._sales.window_totals_by_sku(date_from=date_from, date_to=date_to)
 
         funnel_by_sku = {agg.nm_id: agg for agg in funnel_aggs}
         ads_by_sku = {agg.nm_id: agg for agg in ad_aggs}
@@ -194,11 +203,14 @@ class AnalyticsService:
             open_count = funnel.open_count if funnel else 0
             cart_count = funnel.cart_count if funnel else 0
             order_count = funnel.order_count if funnel else 0
-            buyout_count = funnel.buyout_count if funnel else 0
-            # Derived ₽ volumes: window-total count x latest seller price.
+            # «Заказы, ₽»: window-total count x latest seller price. Buyouts are
+            # sale-date attributed facts from the Statistics records.
             seller_price = latest_prices.get(nm_id, (None, None))[0]
             order_sum = round(order_count * seller_price, 2) if seller_price is not None else 0.0
-            buyout_sum = round(buyout_count * seller_price, 2) if seller_price is not None else 0.0
+            sale = sale_totals.get(nm_id)
+            buyout_count = sale.buyout_count if sale else 0
+            buyout_sum = sale.buyout_sum if sale else 0.0
+            decided = buyout_count + (sale.return_count if sale else 0)
 
             items.append(
                 SkuSummaryItem(
@@ -220,9 +232,9 @@ class AnalyticsService:
                     order_conversion=(
                         round(order_count / cart_count * 100, 2) if cart_count else 0.0
                     ),
-                    buyout_conversion=(
-                        round(buyout_count / order_count * 100, 2) if order_count else 0.0
-                    ),
+                    # WB's definition: buyouts over DECIDED deliveries
+                    # (accepted + returned) inside the window.
+                    buyout_conversion=(round(buyout_count / decided * 100, 2) if decided else 0.0),
                     total_ad_spend=ads.spend if ads else 0.0,
                     total_ad_clicks=ads.clicks if ads else 0,
                     latest_stock=latest_stock,
@@ -284,6 +296,7 @@ class AnalyticsService:
             campaigns,
             price_snapshots,
             stock_daily,
+            sales_daily,
         ) = await self._fetch_matrix_inputs(
             nm_id=nm_id, date_from=date_from, date_to=date_to, campaign_id=campaign_id
         )
@@ -315,6 +328,7 @@ class AnalyticsService:
             campaigns=campaigns,
             price_snapshots=price_snapshots,
             stock_daily=stock_daily,
+            sales_daily=sales_daily,
         )
         overrides = await self._matrix_overrides.list_for_sku(
             nm_id=nm_id, date_from=date_from, date_to=date_to
@@ -333,6 +347,7 @@ class AnalyticsService:
         size_labels = await self._product_sizes.get_labels_by_chrt_ids(
             {row.chrt_id for row in latest_stock_rows}
         )
+        marked_warehouses = await self._warehouse_marks.list_names(nm_id=nm_id)
 
         return SkuDetailResponse(
             nm_id=nm_id,
@@ -347,7 +362,31 @@ class AnalyticsService:
             advertising=advertising,
             matrix=build_matrix_from_base(base),
             matrix_base=base,
-            stock=_build_stock_detail(latest_stock_rows, size_labels),
+            stock=_build_stock_detail(latest_stock_rows, size_labels, marked_warehouses),
+        )
+
+    async def set_warehouse_mark(
+        self, *, nm_id: int, warehouse_name: str, marked: bool
+    ) -> WarehouseMarksResponse:
+        """Set or clear the «Отгрузить» mark on one warehouse of one SKU.
+
+        Marks are per-SKU: marking a warehouse for one nm_id never affects any
+        other SKU. Both directions are idempotent.
+
+        Args:
+            nm_id: WB SKU identifier.
+            warehouse_name: WB warehouse name as reported by the stocks report.
+            marked: ``True`` to mark, ``False`` to unmark.
+
+        Returns:
+            The SKU's marked warehouse names after the update.
+        """
+        if marked:
+            await self._warehouse_marks.add(nm_id=nm_id, warehouse_name=warehouse_name)
+        else:
+            await self._warehouse_marks.remove(nm_id=nm_id, warehouse_name=warehouse_name)
+        return WarehouseMarksResponse(
+            marked_warehouses=await self._warehouse_marks.list_names(nm_id=nm_id)
         )
 
     async def _fetch_matrix_inputs(
@@ -364,6 +403,7 @@ class AnalyticsService:
         dict[int, Campaign],
         list[PriceSnapshot],
         list[StockDailyTotal],
+        list[SaleDailyTotal],
     ]:
         """Fetch the fact rows the matrix is derived from (extended funnel window).
 
@@ -396,7 +436,20 @@ class AnalyticsService:
         stock_daily = await self._stocks.daily_totals_for_sku(
             nm_id=nm_id, date_from=date_from, date_to=snapshot_end
         )
-        return extended_funnel_rows, ad_rows, search_rows, campaigns, price_snapshots, stock_daily
+        # Sale-date buyout/return totals: unlike the funnel, sales for the
+        # current day already exist — reach up to today like the snapshots.
+        sales_daily = await self._sales.daily_totals_for_sku(
+            nm_id=nm_id, date_from=date_from, date_to=snapshot_end
+        )
+        return (
+            extended_funnel_rows,
+            ad_rows,
+            search_rows,
+            campaigns,
+            price_snapshots,
+            stock_daily,
+            sales_daily,
+        )
 
     # ------------------------------------------------------------------ #
     # Matrix editing (preview + save)
@@ -455,6 +508,7 @@ class AnalyticsService:
             campaigns,
             price_snapshots,
             stock_daily,
+            sales_daily,
         ) = await self._fetch_matrix_inputs(nm_id=nm_id, date_from=date_from, date_to=date_to)
         fact_base = derive_base_state(
             date_from=date_from,
@@ -465,6 +519,7 @@ class AnalyticsService:
             campaigns=campaigns,
             price_snapshots=price_snapshots,
             stock_daily=stock_daily,
+            sales_daily=sales_daily,
         )
         rows = diff_to_overrides(nm_id=nm_id, working=base, fact=fact_base)
         await self._matrix_overrides.replace_window(
@@ -701,7 +756,11 @@ def _build_campaign_advertising(
     return result
 
 
-def _build_stock_detail(latest: list[StockSnapshot], size_labels: dict[int, str]) -> StockDetail:
+def _build_stock_detail(
+    latest: list[StockSnapshot],
+    size_labels: dict[int, str],
+    marked_warehouses: list[str],
+) -> StockDetail:
     """Build the stock summary + size x warehouse breakdown for a SKU.
 
     Receives only the most recent snapshot day's rows (the repository filters
@@ -713,6 +772,7 @@ def _build_stock_detail(latest: list[StockSnapshot], size_labels: dict[int, str]
     Args:
         latest: The SKU's rows for its latest snapshot day in the window.
         size_labels: Map of ``chrt_id -> tech_size`` for the SKU's sizes.
+        marked_warehouses: The SKU's «Отгрузить»-marked warehouse names.
 
     Returns:
         A populated :class:`StockDetail` (all zeros/empty when no stock exists).
@@ -722,6 +782,7 @@ def _build_stock_detail(latest: list[StockSnapshot], size_labels: dict[int, str]
             total_quantity=0,
             total_in_way_to_client=0,
             total_in_way_from_client=0,
+            marked_warehouses=marked_warehouses,
         )
 
     by_size: dict[int, int] = defaultdict(int)
@@ -752,4 +813,5 @@ def _build_stock_detail(latest: list[StockSnapshot], size_labels: dict[int, str]
             )
             for r in latest
         ],
+        marked_warehouses=marked_warehouses,
     )

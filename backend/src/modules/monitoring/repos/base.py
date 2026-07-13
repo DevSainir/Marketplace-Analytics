@@ -15,6 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import Base
 
+#: PostgreSQL's wire protocol caps a single statement at 65535 bind parameters.
+#: A batch of N rows with C columns sends N*C params, so a big harvest (e.g.
+#: ~10k daily sale records x 9 columns) overflows one INSERT. Chunk so each
+#: statement stays under the limit; 60000 leaves headroom below the hard cap.
+_MAX_BIND_PARAMS = 60000
+
 
 class BaseRepository:
     """Common async persistence helpers shared by monitoring repositories."""
@@ -35,6 +41,10 @@ class BaseRepository:
     ) -> int:
         """Insert rows, updating the given columns on primary-key conflict.
 
+        Large batches are split into multiple statements so the per-statement
+        bind-parameter cap (65535) is never exceeded — a single harvest can
+        carry tens of thousands of rows.
+
         Args:
             rows: Column->value mappings to persist. An empty sequence is a
                 no-op that returns ``0``.
@@ -49,11 +59,19 @@ class BaseRepository:
         if not rows:
             return 0
 
-        stmt = pg_insert(self.model).values(list(rows))
-        excluded = stmt.excluded
-        stmt = stmt.on_conflict_do_update(
-            index_elements=list(conflict_columns),
-            set_={column: excluded[column] for column in update_columns},
-        )
-        await self._session.execute(stmt)
-        return len(rows)
+        # Chunk by row count so each statement stays under the param cap
+        # (columns-per-row = len of the widest row mapping; >= 1).
+        columns_per_row = max((len(row) for row in rows), default=1)
+        chunk_size = max(1, _MAX_BIND_PARAMS // columns_per_row)
+
+        rows_list = list(rows)
+        for start in range(0, len(rows_list), chunk_size):
+            chunk = rows_list[start : start + chunk_size]
+            stmt = pg_insert(self.model).values(chunk)
+            excluded = stmt.excluded
+            stmt = stmt.on_conflict_do_update(
+                index_elements=list(conflict_columns),
+                set_={column: excluded[column] for column in update_columns},
+            )
+            await self._session.execute(stmt)
+        return len(rows_list)

@@ -6,18 +6,6 @@
   body {
     @apply bg-canvas text-primary antialiased;
   }
-
-  /* Top-right lighting overlay: a soft white radial that gives the canvas
-     depth so glass cards read as elevated. The colored decorative blobs the
-     backdrop-blur refracts live in App.vue (they are DOM elements). */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background: radial-gradient(64rem 42rem at 100% 0%, rgba(255, 255, 255, 0.6), transparent 65%);
-  }
 }
 
 @layer components {
@@ -26,9 +14,11 @@
    * PrimeVue renders semantic <table> markup plus data-pc-* styling hooks,
    * so the design-system table skin lives here in one place (see design_system.md).
    */
-  /* Glass card: translucent surface + backdrop blur. */
+  /* `isolate` gives the card its own stacking context so the frozen-cell
+     z-indexes inside never rise above page chrome (header, dropdowns) — the
+     old backdrop-blur used to create this context implicitly. */
   .app-datatable {
-    @apply overflow-hidden rounded-card border border-border-subtle bg-surface/50 shadow-card backdrop-blur-xl;
+    @apply isolate overflow-hidden rounded-card border border-border-subtle bg-surface shadow-card;
   }
 
   .app-datatable [data-pc-section='tablecontainer'] {
@@ -56,7 +46,7 @@
   }
 
   .app-datatable tbody tr:hover {
-    @apply bg-canvas/40;
+    @apply bg-canvas;
   }
 
   .app-datatable [data-pc-name='pcpaginator'],
@@ -66,7 +56,7 @@
 
   .app-datatable [data-pc-name='pcpaginator'] button,
   .app-datatable [data-pc-name='paginator'] button {
-    @apply inline-flex h-8 min-w-8 items-center justify-center rounded-btn px-2 text-base text-primary transition hover:bg-canvas/50 disabled:pointer-events-none disabled:opacity-40;
+    @apply inline-flex h-8 min-w-8 items-center justify-center rounded-btn px-2 text-base text-primary transition hover:bg-canvas disabled:pointer-events-none disabled:opacity-40;
   }
 
   .app-datatable [data-pc-name='pcpaginator'] button svg,
@@ -85,13 +75,10 @@
    * получения трафика → зоны показов). Day values are right-aligned numbers;
    * the metric-name column is frozen on the left while the ribbon scrolls.
    */
-  /* Glass system (the enforced recipe): translucent surface + blur/saturate,
-     a white glass edge and the transparent-card elevation shadow. rounded-card,
-     shadow-card and overflow-hidden come from the .app-datatable base. Text
-     inside stays text-primary — never white on this light glass. p-3 keeps
-     air between the card edge and the grid. */
+  /* rounded-card, shadow-card, bg-surface and overflow-hidden come from the
+     .app-datatable base. p-3 keeps air between the card edge and the grid. */
   .app-datatable--matrix {
-    @apply border border-white/40 bg-surface p-3 backdrop-blur-md backdrop-saturate-150;
+    @apply p-3;
   }
 
   .app-datatable--matrix [data-pc-section='tablecontainer'] {
@@ -116,16 +103,13 @@
   }
 
   /* 3 stacked header rows cannot all stick to top-0 — disable vertical
-     stickiness, keep only the horizontal (first-column) freeze. Header cells
-     go translucent for the glass look (the frozen ones stay solid). */
+     stickiness, keep only the horizontal (first-column) freeze. */
   .app-datatable--matrix thead th {
-    @apply static bg-surface/60 text-center;
+    @apply static text-center;
   }
 
-  /* Frozen cells need a SOLID background (bg-surface is now translucent):
-     they must mask the columns scrolling underneath. */
   .app-datatable--matrix thead th:first-child {
-    @apply sticky left-0 z-30 border-r-3 border-border-subtle bg-zebra text-left;
+    @apply sticky left-0 z-30 border-r-3 border-border-subtle text-left;
   }
 
   /* Compact cells (the ribbon is wide); headers drop to the micro size so
@@ -143,22 +127,12 @@
     @apply text-right;
   }
 
-  /* Zebra stripes (odd = white, even = surface gray), translucent so the
-     glass card shows through; the frozen first cell stays SOLID because it
-     must mask the columns scrolling underneath it. */
+  /* Zebra stripes: odd = white, even = surface gray. */
   .app-datatable--matrix tbody tr:nth-child(odd) td {
-    @apply bg-white/50;
-  }
-
-  .app-datatable--matrix tbody tr:nth-child(odd) td:first-child {
     @apply bg-white;
   }
 
   .app-datatable--matrix tbody tr:nth-child(even) td {
-    @apply bg-zebra/50;
-  }
-
-  .app-datatable--matrix tbody tr:nth-child(even) td:first-child {
     @apply bg-zebra;
   }
 
@@ -166,14 +140,9 @@
     @apply sticky left-0 z-20 border-r-3 border-border-subtle;
   }
 
-  /* Hovering any cell highlights the whole row. The tint is a solid color
-     (action-default over white) so the frozen first cell stays opaque while
-     the ribbon scrolls underneath it. */
+  /* Hovering any cell highlights the whole row (solid action-over-white
+     tint, so frozen cells keep masking the ribbon scrolling underneath). */
   .app-datatable--matrix tbody tr:hover td {
-    @apply bg-hover/60;
-  }
-
-  .app-datatable--matrix tbody tr:hover td:first-child {
     @apply bg-hover;
   }
 
@@ -181,7 +150,7 @@
      the header (bigger, bolder, on a brighter strip) so the eye can anchor on
      the day while scanning the ribbon. */
   .app-datatable--matrix thead tr:first-child th:not(:first-child) {
-    @apply bg-white/80 text-[13px] font-bold normal-case tracking-wide text-primary;
+    @apply bg-white text-[13px] font-bold normal-case tracking-wide text-primary;
   }
 
   /* Day-section boundaries: 5 group cells per day in the type row, 5 zone

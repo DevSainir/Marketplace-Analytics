@@ -42,8 +42,14 @@ const navLinks = [
 </script>
 
 <template>
-  <header class="sticky top-0 z-30 border-b border-border-subtle bg-surface/90 backdrop-blur">
-    <nav class="mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-md sm:px-lg">
+  <!-- Chrome sits on the SAME canvas as the page (see design_system.md
+       «Page Chrome & Canvas») — one plane, only cards are surfaces. -->
+  <header class="sticky top-0 z-30 border-b border-border-subtle bg-canvas">
+    <!-- Same container width as the monitoring canvas (80rem + 2/3 of the
+         spare viewport beyond it) so chrome and page share their side margins. -->
+    <nav
+      class="mx-auto flex h-14 w-full max-w-[calc(26.667rem_+_66.667vw)] items-center justify-between px-md sm:px-lg"
+    >
       <!-- Logo (stub) -->
       <RouterLink to="/" class="flex items-center gap-sm" @click="closeMenu">
         <span
@@ -89,7 +95,7 @@ const navLinks = [
 
         <button
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-btn text-primary transition hover:bg-canvas"
+          class="flex h-8 w-8 items-center justify-center rounded-btn text-primary transition hover:bg-surface"
           :aria-expanded="menuOpen"
           aria-label="Меню"
           @click="toggleMenu"
@@ -117,16 +123,16 @@ const navLinks = [
       leave-active-class="transition duration-100 ease-in"
       leave-to-class="-translate-y-2 opacity-0"
     >
-      <div v-if="menuOpen" class="border-t border-border-subtle bg-surface">
-        <div class="mx-auto w-full max-w-7xl px-md py-md sm:px-lg">
+      <div v-if="menuOpen" class="border-t border-border-subtle bg-canvas">
+        <div class="mx-auto w-full max-w-[calc(26.667rem_+_66.667vw)] px-md py-md sm:px-lg">
           <div class="flex flex-col gap-xs">
             <RouterLink
               v-for="link in navLinks"
               :key="link.to"
               :to="link.to"
-              class="rounded-btn px-md py-sm text-base font-medium text-muted transition hover:bg-canvas hover:text-primary"
-              :active-class="link.exact ? '' : 'bg-canvas text-primary'"
-              :exact-active-class="link.exact ? 'bg-canvas text-primary' : ''"
+              class="rounded-btn px-md py-sm text-base font-medium text-muted transition hover:bg-surface hover:text-primary"
+              :active-class="link.exact ? '' : 'bg-surface text-primary'"
+              :exact-active-class="link.exact ? 'bg-surface text-primary' : ''"
               @click="closeMenu"
             >
               {{ link.label }}
@@ -156,7 +162,7 @@ const navLinks = [
               </RouterLink>
               <RouterLink
                 to="/login?mode=register"
-                class="rounded-btn border border-border-subtle px-md py-sm text-center text-base font-medium text-primary transition hover:bg-canvas"
+                class="rounded-btn border border-border-subtle px-md py-sm text-center text-base font-medium text-primary transition hover:bg-surface"
                 @click="closeMenu"
               >
                 Регистрация

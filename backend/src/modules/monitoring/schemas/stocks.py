@@ -47,3 +47,26 @@ class StockDetail(BaseModel):
     cells: list[StockCell] = Field(
         default_factory=list, description="Per-size, per-warehouse detail."
     )
+    marked_warehouses: list[str] = Field(
+        default_factory=list,
+        description="Warehouses marked «Отгрузить» for THIS SKU (per-SKU scope).",
+    )
+
+
+class WarehouseMarkUpdateRequest(BaseModel):
+    """Set or clear the «Отгрузить» mark on one warehouse of one SKU."""
+
+    warehouse_name: str = Field(
+        min_length=1,
+        max_length=128,
+        description="WB warehouse name as reported by the stocks report.",
+    )
+    marked: bool = Field(description="True to mark («Отгрузить»), False to unmark.")
+
+
+class WarehouseMarksResponse(BaseModel):
+    """The SKU's marked warehouses after an update."""
+
+    marked_warehouses: list[str] = Field(
+        default_factory=list, description="Marked warehouse names, alphabetically."
+    )

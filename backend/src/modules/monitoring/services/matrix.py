@@ -43,6 +43,7 @@ from src.modules.monitoring.models import (
     PriceSnapshot,
     SalesFunnelDaily,
 )
+from src.modules.monitoring.repos.sales import SaleDailyTotal
 from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas.matrix import (
     MATRIX_BUCKETS,
@@ -52,13 +53,15 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixDayBase,
     MatrixFunnelBase,
     MatrixMetricRow,
+    MatrixSalesBase,
     MatrixStockBase,
     MetricsMatrixRead,
 )
 
-#: «Процент выкупа» is computed over a lagged window because buyouts trail
-#: orders by roughly the delivery time: for a day D the window is
-#: ``[D - 21, D - 7]`` (e.g. for 10 July: 19 June .. 03 July).
+#: «Процент выкупа» is WB's definition (buyouts / DECIDED deliveries) averaged
+#: over a lagged cohort window: recent order cohorts are still maturing (their
+#: deliveries take 1-3 weeks to be accepted or refused), so for a day D the
+#: window is ``[D - 21, D - 7]`` (e.g. for 10 July: 19 June .. 03 July).
 BUYOUT_LAG_START_DAYS = 21
 BUYOUT_LAG_END_DAYS = 7
 
@@ -295,11 +298,9 @@ def _funnel_order_sum(funnel: MatrixFunnelBase | None) -> float | None:
     return round(funnel.order_count * funnel.seller_price, 2)
 
 
-def _funnel_buyout_sum(funnel: MatrixFunnelBase | None) -> float | None:
-    """«Выкупы, ₽» = buyout_count x seller_price (``None`` when unpriced)."""
-    if funnel is None or funnel.seller_price is None:
-        return None
-    return round(funnel.buyout_count * funnel.seller_price, 2)
+def _sales_buyout_sum(sales: MatrixSalesBase | None) -> float | None:
+    """«Выкупы, ₽» = Σ ``finished_price`` of the day's sale-date buyouts."""
+    return None if sales is None else round(sales.buyout_sum, 2)
 
 
 def _funnel_spp(funnel: MatrixFunnelBase | None) -> float | None:
@@ -314,6 +315,7 @@ def _total_cell(
     funnel: MatrixFunnelBase | None,
     day_ad: _BucketAcc | None,
     lagged_buyout_percent: float | None,
+    sales: MatrixSalesBase | None,
     stock: MatrixStockBase | None,
 ) -> float | None:
     """Compute one metric for the «Общая» column (funnel + cross-campaign ads)."""
@@ -336,8 +338,8 @@ def _total_cell(
             return None if funnel is None else _percent(funnel.order_count, funnel.cart_count)
         case "order_sum":  # order_count x seller_price
             return _funnel_order_sum(funnel)
-        case "buyout_sum":  # buyout_count x seller_price
-            return _funnel_buyout_sum(funnel)
+        case "buyout_sum":  # sale-date buyouts, what customers actually paid
+            return _sales_buyout_sum(sales)
         case "seller_price":
             return None if funnel is None else funnel.seller_price
         case "customer_price":
@@ -357,9 +359,9 @@ def _total_cell(
                 return None
             return _percent(day_ad.spend, _funnel_order_sum(funnel))
         case "drr_sales":
-            if day_ad is None or funnel is None:
+            if day_ad is None:
                 return None
-            return _percent(day_ad.spend, _funnel_buyout_sum(funnel))
+            return _percent(day_ad.spend, _sales_buyout_sum(sales))
         case "buyout_percent":
             return lagged_buyout_percent
         case "stock_quantity":
@@ -368,6 +370,10 @@ def _total_cell(
             return None if stock is None else float(stock.in_way_to_client)
         case "stock_from_client":
             return None if stock is None else float(stock.in_way_from_client)
+        case "stock_total":  # остаток + в пути к клиенту + в пути от клиента
+            if stock is None:
+                return None
+            return float(stock.quantity + stock.in_way_to_client + stock.in_way_from_client)
         case _:
             # traffic_share is defined across ad buckets only; CTR/CPM have no
             # meaning for the mixed «Общая» column.
@@ -471,6 +477,7 @@ def derive_base_state(
     campaigns: dict[int, Campaign],
     price_snapshots: list[PriceSnapshot] | None = None,
     stock_daily: list[StockDailyTotal] | None = None,
+    sales_daily: list[SaleDailyTotal] | None = None,
 ) -> MatrixBaseState:
     """Aggregate raw facts into the editable input working copy.
 
@@ -491,10 +498,12 @@ def derive_base_state(
         search_rows: The SKU's search-zone slices within the window.
         campaigns: Campaign metadata keyed by ``campaign_id`` (may be partial).
         price_snapshots: The SKU's seller/customer price snapshots; applied
-            only to their exact snapshot days (pricing «Заказы/Выкупы ₽» and
-            «СПП» there; other days stay unpriced).
+            only to their exact snapshot days (pricing «Заказы, ₽» and «СПП»
+            there; other days stay unpriced).
         stock_daily: The SKU's per-day stock totals; applied only to their
             exact snapshot days for the read-only stock/in-transit rows.
+        sales_daily: The SKU's per-day sale-date buyout/return totals (from
+            the Statistics records) — «Выкупы, ₽» and «ДРР от продаж».
 
     Returns:
         The :class:`MatrixBaseState` working copy for the window.
@@ -503,6 +512,7 @@ def derive_base_state(
     funnel_by_date = {row.stat_date: row for row in funnel_rows}
     ordered_prices = sorted(price_snapshots or [], key=lambda s: s.stat_date)
     ordered_stock = sorted(stock_daily or [], key=lambda s: s.stat_date)
+    sales_by_date = {total.stat_date: total for total in sales_daily or []}
 
     # One slice per (campaign, day), aggregated across platforms.
     campaign_day: dict[tuple[int, date], _AdSlice] = {}
@@ -544,7 +554,6 @@ def derive_base_state(
                 open_count=funnel_row.open_count,
                 cart_count=funnel_row.cart_count,
                 order_count=funnel_row.order_count,
-                buyout_count=funnel_row.buyout_count,
                 seller_price=seller_price,
                 customer_price=customer_price,
             )
@@ -552,14 +561,35 @@ def derive_base_state(
             else None
         )
 
-        # «Процент выкупа»: buyouts/orders over the lagged [D-21, D-7] window.
+        sale_total = sales_by_date.get(day)
+        sales_base = (
+            MatrixSalesBase(
+                buyout_count=sale_total.buyout_count,
+                buyout_sum=sale_total.buyout_sum,
+                return_count=sale_total.return_count,
+                return_sum=sale_total.return_sum,
+            )
+            if sale_total is not None
+            else None
+        )
+
+        # «Процент выкупа»: WB's definition — buyouts / DECIDED deliveries —
+        # averaged over the lagged [D-21, D-7] cohort window (recent cohorts
+        # are still maturing). Each funnel day stores WB's own cohort percent
+        # (`buyout_conversion`); deliveries are recovered per cohort as
+        # `buyout_count / percent`, then the window is aggregated weighted.
         window_start = day - timedelta(days=BUYOUT_LAG_START_DAYS)
         window_end = day - timedelta(days=BUYOUT_LAG_END_DAYS)
-        buyouts = orders = 0
+        buyouts = 0.0
+        delivered = 0.0
         for funnel_row in funnel_rows:
-            if window_start <= funnel_row.stat_date <= window_end:
-                buyouts += funnel_row.buyout_count
-                orders += funnel_row.order_count
+            if not (window_start <= funnel_row.stat_date <= window_end):
+                continue
+            count = funnel_row.buyout_count
+            wb_percent = float(funnel_row.buyout_conversion or 0)
+            if count > 0 and wb_percent > 0:
+                buyouts += count
+                delivered += count * 100.0 / wb_percent
 
         day_bases.append(
             MatrixDayBase(
@@ -568,7 +598,8 @@ def derive_base_state(
                 buckets=buckets,
                 unclassified=MatrixAdBucketBase(),  # cut campaigns are excluded
                 funnel=funnel_base,
-                lagged_buyout_percent=_percent(buyouts, orders),
+                lagged_buyout_percent=_percent(buyouts, delivered),
+                sales=sales_base,
                 stock=_stock_for_day(ordered_stock, day),
             )
         )
@@ -636,7 +667,14 @@ def build_matrix_from_base(base: MatrixBaseState) -> MetricsMatrixRead:
             for bucket in MATRIX_BUCKETS:
                 if bucket == "total":
                     values.append(
-                        _total_cell(key, day.funnel, day_ad, day.lagged_buyout_percent, day.stock)
+                        _total_cell(
+                            key,
+                            day.funnel,
+                            day_ad,
+                            day.lagged_buyout_percent,
+                            day.sales,
+                            day.stock,
+                        )
                     )
                 elif bucket == "organic":
                     values.append(_organic_cell(key, day.funnel, day_ad))
@@ -658,6 +696,7 @@ def build_metrics_matrix(
     campaigns: dict[int, Campaign],
     price_snapshots: list[PriceSnapshot] | None = None,
     stock_daily: list[StockDailyTotal] | None = None,
+    sales_daily: list[SaleDailyTotal] | None = None,
 ) -> MetricsMatrixRead:
     """Build the complete day x bucket metrics matrix for one SKU.
 
@@ -675,6 +714,7 @@ def build_metrics_matrix(
         campaigns: Campaign metadata keyed by ``campaign_id`` (may be partial).
         price_snapshots: The SKU's seller/customer price snapshots.
         stock_daily: The SKU's per-day stock totals.
+        sales_daily: The SKU's per-day sale-date buyout/return totals.
 
     Returns:
         A fully computed :class:`MetricsMatrixRead`.
@@ -689,5 +729,6 @@ def build_metrics_matrix(
             campaigns=campaigns,
             price_snapshots=price_snapshots,
             stock_daily=stock_daily,
+            sales_daily=sales_daily,
         )
     )

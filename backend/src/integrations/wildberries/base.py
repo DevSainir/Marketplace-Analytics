@@ -30,6 +30,29 @@ _RETRIABLE_STATUSES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
 _RETRY_AFTER_CEILING_SECONDS: float = 900.0
 
 
+def _server_demanded_wait(response: httpx.Response) -> float | None:
+    """The wait the server demands before the next request, in seconds.
+
+    Checks the standard ``Retry-After`` first, then WB's own
+    ``X-Ratelimit-Retry`` (used by the statistics surface, in delta-seconds).
+
+    Args:
+        response: The failed (429/5xx) response.
+
+    Returns:
+        Seconds to wait, or ``None`` when the server named no wait.
+    """
+    header = response.headers.get("Retry-After")
+    if header:
+        parsed = _parse_retry_after(header)
+        if parsed is not None:
+            return parsed
+    wb_retry = response.headers.get("X-Ratelimit-Retry")
+    if wb_retry and wb_retry.strip().isdigit():
+        return float(wb_retry.strip())
+    return None
+
+
 def _parse_retry_after(value: str) -> float | None:
     """Parse a ``Retry-After`` header into seconds.
 
@@ -160,6 +183,22 @@ class BaseWBClient:
                 if status not in _RETRIABLE_STATUSES or attempt == self._max_retries:
                     logger.warning("WB API returned %s for %s %s", status, method, path)
                     raise IntegrationError(f"WildBerries API error {status} on {path}.") from exc
+                # A server-demanded wait beyond the ceiling is a PENALTY BLOCK
+                # (e.g. the statistics limiter answers with X-Ratelimit-Retry
+                # in the thousands of seconds). Retrying inside the block only
+                # extends it — fail fast and let the next scheduled run try.
+                demanded = _server_demanded_wait(exc.response)
+                if demanded is not None and demanded > _RETRY_AFTER_CEILING_SECONDS:
+                    logger.warning(
+                        "WB API %s on %s %s demands a %.0fs wait (penalty block); not retrying.",
+                        status,
+                        method,
+                        path,
+                        demanded,
+                    )
+                    raise IntegrationError(
+                        f"WildBerries rate-limit block on {path} (retry in {demanded:.0f}s)."
+                    ) from exc
                 delay = self._retry_delay(attempt, exc.response)
                 logger.warning(
                     "WB API %s on %s %s; retry %d/%d in %.1fs",
@@ -193,23 +232,21 @@ class BaseWBClient:
     def _retry_delay(self, attempt: int, response: httpx.Response | None) -> float:
         """Compute the backoff delay before the next retry.
 
-        Prefers the server's ``Retry-After`` header when present (both
-        delta-seconds and HTTP-date forms), honouring it even beyond the
-        exponential-backoff cap — retrying before the server's stated window
-        just burns an attempt against the same limiter. Otherwise falls back
-        to exponential backoff ``base * 2**attempt``.
+        Prefers the server's demanded wait when present (``Retry-After`` or
+        WB's ``X-Ratelimit-Retry``), honouring it even beyond the exponential-
+        backoff cap — retrying before the server's stated window just burns an
+        attempt against the same limiter. Otherwise falls back to exponential
+        backoff ``base * 2**attempt``.
 
         Args:
             attempt: Zero-based index of the attempt that just failed.
-            response: The failed response, if any (for ``Retry-After``).
+            response: The failed response, if any (for the wait headers).
 
         Returns:
             The number of seconds to wait before retrying.
         """
         if response is not None:
-            header = response.headers.get("Retry-After")
-            if header:
-                parsed = _parse_retry_after(header)
-                if parsed is not None:
-                    return min(parsed, _RETRY_AFTER_CEILING_SECONDS)
+            demanded = _server_demanded_wait(response)
+            if demanded is not None:
+                return min(demanded, _RETRY_AFTER_CEILING_SECONDS)
         return min(self._backoff_base * (2.0**attempt), self._backoff_max)

@@ -23,6 +23,7 @@ from src.integrations.wildberries.schemas import (
     WBFunnelHistoryRow,
     WBNormQueryItem,
     WBPriceGood,
+    WBSaleRecord,
     WBStockRow,
 )
 from src.modules.monitoring.models import normalize_status
@@ -34,6 +35,7 @@ from src.modules.monitoring.repos import (
     PriceRepository,
     ProductCardRepository,
     ProductSizeRepository,
+    SaleRepository,
     StockRepository,
 )
 from src.modules.monitoring.schemas import CatalogIngestionResult, IngestionResult
@@ -66,6 +68,7 @@ class IngestionService:
         product_size_repo: ProductSizeRepository,
         advertising_search_repo: AdvertisingSearchRepository,
         price_repo: PriceRepository,
+        sale_repo: SaleRepository,
     ) -> None:
         """Inject the write repositories used for persistence."""
         self._funnel = funnel_repo
@@ -76,6 +79,7 @@ class IngestionService:
         self._product_sizes = product_size_repo
         self._advertising_search = advertising_search_repo
         self._prices = price_repo
+        self._sales = sale_repo
 
     async def ingest_sales_funnel(self, rows: list[WBFunnelHistoryRow]) -> int:
         """Flatten and upsert the daily organic sales-funnel history.
@@ -295,6 +299,41 @@ class IngestionService:
         logger.info("Ingested %d price snapshot rows for %s.", count, snapshot_date)
         return count
 
+    async def ingest_sales(self, records: list[WBSaleRecord]) -> int:
+        """Persist per-item sale/return records (sale-date buyout facts).
+
+        Records are account-wide (the Statistics feed has no SKU filter) and
+        keyed by ``sale_id``, so re-ingesting an overlapping increment is
+        idempotent; a batch may repeat an id when WB re-emits a changed record —
+        the LAST occurrence (highest ``lastChangeDate``) wins.
+
+        Args:
+            records: Raw sale/return operations from the statistics client.
+
+        Returns:
+            The number of sale rows persisted.
+        """
+        deduped: dict[str, WBSaleRecord] = {}
+        for record in sorted(records, key=lambda r: r.last_change_date):
+            deduped[record.sale_id] = record
+        rows: list[dict[str, object]] = [
+            {
+                "sale_id": record.sale_id,
+                "srid": record.srid,
+                "nm_id": record.nm_id,
+                "sale_date": record.sold_at.date(),
+                "is_return": record.is_return,
+                "finished_price": record.finished_price,
+                "price_with_disc": record.price_with_disc,
+                "for_pay": record.for_pay,
+                "last_change_date": record.last_change_date,
+            }
+            for record in deduped.values()
+        ]
+        count = await self._sales.upsert_many(rows)
+        logger.info("Ingested %d sale/return records.", count)
+        return count
+
     async def ingest_campaigns(
         self,
         campaigns: list[WBCampaign],
@@ -470,6 +509,7 @@ class IngestionService:
         prices: list[WBPriceGood] | None = None,
         customer_prices: list[WBCardProduct] | None = None,
         price_nm_ids: list[int] | None = None,
+        sales: list[WBSaleRecord] | None = None,
     ) -> IngestionResult:
         """Run a full harvest ingestion in one unit of work.
 
@@ -491,6 +531,8 @@ class IngestionService:
                 source failed (the customer side is then left ``NULL``).
             price_nm_ids: The harvested SKUs to snapshot prices for (scopes the
                 account-wide seller feed to this harvest); ``None`` writes all.
+            sales: Raw per-item sale/return records; ``None`` when the source
+                failed (existing rows are then left untouched).
 
         Returns:
             An :class:`IngestionResult` tallying rows persisted per family.
@@ -514,10 +556,14 @@ class IngestionService:
             price_count = await self.ingest_prices(
                 prices, customer_prices or [], snapshot_date=snapshot_date, nm_ids=price_nm_ids
             )
+        sales_count = 0
+        if sales is not None:
+            sales_count = await self.ingest_sales(sales)
         return IngestionResult(
             funnel_rows=funnel_count,
             advertising_rows=ad_count,
             search_zone_rows=search_count,
             stock_rows=stock_count,
             price_rows=price_count,
+            sales_rows=sales_count,
         )

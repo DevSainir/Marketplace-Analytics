@@ -65,6 +65,8 @@ MATRIX_METRIC_KEYS: tuple[str, ...] = (
     "stock_quantity",
     "stock_to_client",
     "stock_from_client",
+    # Total stock = quantity + both in-transit legs (derived here, NOT in the frontend).
+    "stock_total",
 )
 
 
@@ -123,19 +125,31 @@ class MatrixAdBucketBase(BaseModel):
 class MatrixFunnelBase(BaseModel):
     """The editable organic-funnel inputs for one day (the «Общая» column).
 
-    ``seller_price``/``customer_price`` are the day's carry-forward prices and
-    are editable; the ₽ volumes «Заказы, ₽»/«Выкупы, ₽» and «СПП» derive from
-    them (read-only). ``buyout_count`` is a hidden read-only input needed to
-    derive «Выкупы, ₽» (``buyout_count x seller_price``). Prices are ``None``
-    (rendered «—», not editable) when no snapshot is available for the SKU.
+    ``seller_price``/``customer_price`` are the day's snapshot prices and are
+    editable; «Заказы, ₽» and «СПП» derive from them (read-only). Prices are
+    ``None`` (rendered «—», not editable) when no snapshot exists for the day.
     """
 
     open_count: int = 0
     cart_count: int = 0
     order_count: int = 0
-    buyout_count: int = 0
     seller_price: float | None = None
     customer_price: float | None = None
+
+
+class MatrixSalesBase(BaseModel):
+    """The day's sale-date buyout/return totals (read-only facts, «Общая»).
+
+    Aggregated from the per-item Statistics records: ``buyout_*`` are the items
+    customers ACCEPTED that calendar day (with the ₽ they actually paid) —
+    the real «Выкупы» attribution, unlike the funnel's order-date cohort.
+    Never editable — harvested facts, not derivable inputs.
+    """
+
+    buyout_count: int = 0
+    buyout_sum: float = 0.0
+    return_count: int = 0
+    return_sum: float = 0.0
 
 
 class MatrixStockBase(BaseModel):
@@ -156,8 +170,9 @@ class MatrixDayBase(BaseModel):
     ``buckets`` holds only the ad buckets that delivered that day; missing ones
     render «—». ``unclassified`` is the ad remainder (campaigns whose settings
     are unsynced) — hidden and read-only, but summed into «Общая»/«Органика» and
-    the traffic-share denominator so those stay faithful. ``lagged_buyout_percent``
-    and ``stock`` are precomputed facts and read-only.
+    the traffic-share denominator so those stay faithful.
+    ``lagged_buyout_percent``, ``sales``, and ``stock`` are precomputed facts
+    and read-only.
     """
 
     day: date
@@ -166,6 +181,7 @@ class MatrixDayBase(BaseModel):
     unclassified: MatrixAdBucketBase = Field(default_factory=MatrixAdBucketBase)
     funnel: MatrixFunnelBase | None = None
     lagged_buyout_percent: float | None = None
+    sales: MatrixSalesBase | None = None
     stock: MatrixStockBase | None = None
 
 

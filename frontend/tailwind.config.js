@@ -26,8 +26,8 @@ export default {
       },
       boxShadow: {
         'soft': '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
-        // Elevation tuned for translucent (glass) cards: a wide soft ambient
-        // layer plus a tight contact layer, both low-alpha.
+        // Card elevation: a wide soft ambient layer plus a tight contact
+        // layer, both low-alpha.
         'card': '0 8px 32px 0 rgba(16, 16, 16, 0.1), 0 2px 8px 0 rgba(16, 16, 16, 0.05)',
       },
       fontSize: {
@@ -69,11 +69,10 @@ export default {
       },
       backgroundColor: {
         canvas: '#E8E8E8',
-        // Glass surface: semi-transparent so backdrop-blur has something to
-        // refract. Opaque #F1F1F1 lives on `zebra` for frozen/sticky cells.
-        surface: 'rgba(241, 241, 241, 0.61)',
-        // Solid surface gray: zebra stripes + sticky cells that must mask
-        // content scrolling underneath them.
+        surface: '#F1F1F1',
+        // Same surface gray under its historical name: zebra stripes + sticky
+        // cells picked it up back when `surface` was translucent (glass UI,
+        // since removed).
         zebra: '#F1F1F1',
         // Row hover in the daily table: action-default at ~12% over white
         // (solid, so the frozen first column stays opaque while scrolling).

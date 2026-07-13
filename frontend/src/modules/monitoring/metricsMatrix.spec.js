@@ -201,7 +201,7 @@ describe('buildMetricsMatrix', () => {
   })
 
   it('returns an empty matrix without a backend matrix payload', () => {
-    const empty = { days: [], rows: [], priceRows: [], stockRows: [] }
+    const empty = { days: [], rows: [], priceRows: [], stockRows: [], stockTotalRows: [] }
     expect(buildMetricsMatrix(null)).toEqual(empty)
     expect(buildMetricsMatrix({ nm_id: 1 })).toEqual(empty)
   })

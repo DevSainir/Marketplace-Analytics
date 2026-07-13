@@ -19,8 +19,10 @@ from src.modules.monitoring.models.campaigns import (
 from src.modules.monitoring.models.matrix_override import MatrixOverride
 from src.modules.monitoring.models.prices import PriceSnapshot
 from src.modules.monitoring.models.products import ProductCard, ProductSize
+from src.modules.monitoring.models.sales import SaleRecord
 from src.modules.monitoring.models.sales_funnel import SalesFunnelDaily
 from src.modules.monitoring.models.stocks import StockSnapshot
+from src.modules.monitoring.models.warehouse_marks import WarehouseMark
 
 __all__ = [
     "WB_STATUS_LABELS",
@@ -32,8 +34,10 @@ __all__ = [
     "PriceSnapshot",
     "ProductCard",
     "ProductSize",
+    "SaleRecord",
     "SalesFunnelDaily",
     "StockSnapshot",
+    "WarehouseMark",
     "normalize_status",
     "normalize_type",
 ]

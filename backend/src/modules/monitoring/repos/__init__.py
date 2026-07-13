@@ -15,7 +15,9 @@ from src.modules.monitoring.repos.products import (
     ProductCardRepository,
     ProductSizeRepository,
 )
+from src.modules.monitoring.repos.sales import SaleRepository
 from src.modules.monitoring.repos.stocks import StockRepository
+from src.modules.monitoring.repos.warehouse_marks import WarehouseMarkRepository
 
 __all__ = [
     "AdvertisingRepository",
@@ -26,5 +28,7 @@ __all__ = [
     "PriceRepository",
     "ProductCardRepository",
     "ProductSizeRepository",
+    "SaleRepository",
     "StockRepository",
+    "WarehouseMarkRepository",
 ]

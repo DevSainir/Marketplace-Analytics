@@ -7,6 +7,7 @@ from src.integrations.wildberries.client import (
 )
 from src.integrations.wildberries.content import WBContentClient
 from src.integrations.wildberries.prices import WBPricesClient
+from src.integrations.wildberries.statistics import WBStatisticsClient
 
 __all__ = [
     "WBAdvertisingClient",
@@ -14,4 +15,5 @@ __all__ = [
     "WBCardClient",
     "WBContentClient",
     "WBPricesClient",
+    "WBStatisticsClient",
 ]

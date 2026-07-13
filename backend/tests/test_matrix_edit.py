@@ -20,6 +20,7 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixCellEdit,
     MatrixDayBase,
     MatrixFunnelBase,
+    MatrixSalesBase,
 )
 from src.modules.monitoring.services.matrix import build_matrix_from_base
 from src.modules.monitoring.services.matrix_edit import apply_edit
@@ -47,11 +48,13 @@ def _base() -> MatrixBaseState:
                     open_count=200,
                     cart_count=20,
                     order_count=10,
-                    buyout_count=6,
                     seller_price=500.0,
                     customer_price=350.0,
                 ),
                 lagged_buyout_percent=50.0,
+                sales=MatrixSalesBase(
+                    buyout_count=6, buyout_sum=6000.0, return_count=2, return_sum=1000.0
+                ),
             )
         ]
     )
@@ -186,12 +189,13 @@ def test_total_cart_conversion_solves_funnel_cart_count() -> None:
 
 
 def test_total_seller_price_edit_recomputes_volumes_and_spp() -> None:
-    """Editing «Цена продавца» sets the input and recomputes ₽ volumes + СПП."""
+    """Editing «Цена продавца» recomputes «Заказы, ₽» + «СПП» (buyouts hold)."""
     base = _edit("total", "seller_price", 1000)
     assert base.days[0].funnel is not None
     assert base.days[0].funnel.seller_price == 1000.0
-    # order_count 10 x 1000 = 10000; buyout_count 6 x 1000 = 6000.
+    # order_count 10 x 1000 = 10000.
     assert _cell(base, "order_sum", "total") == 10000.0
+    # «Выкупы, ₽» is a sale-date FACT — independent of the seller price.
     assert _cell(base, "buyout_sum", "total") == 6000.0
     # СПП = (1000 - 350) / 1000 x 100.
     assert _cell(base, "spp", "total") == 65.0
@@ -229,7 +233,7 @@ def test_organic_clicks_solves_open_count_holding_ads() -> None:
         ("total", "drr_orders"),  # cross-bucket roll-up
         ("total", "buyout_percent"),  # lagged window
         ("total", "order_sum"),  # derived from price (read-only)
-        ("total", "buyout_sum"),  # derived from price (read-only)
+        ("total", "buyout_sum"),  # sale-date fact (read-only)
         ("total", "spp"),  # derived from prices (read-only)
         ("organic", "spend"),  # difference has no such input
     ],

@@ -35,12 +35,12 @@ celery_app.conf.update(
 )
 
 # Nightly refresh: because ``timezone`` is Europe/Moscow, this crontab fires at
-# 03:00 MSK. It harvests yesterday's funnel + stock for every SKU and the last
+# 06:00 MSK. It harvests yesterday's funnel + stock for every SKU and the last
 # week of advertising for all active/paused campaigns.
 celery_app.conf.beat_schedule = {
     "nightly-harvest-all": {
         "task": "monitoring.harvest_all",
-        "schedule": crontab(hour=3, minute=0),
+        "schedule": crontab(hour=6, minute=0),
         "kwargs": {"days": 7},
     },
     # Housekeeping: auth.refresh_tokens gains a row per login/refresh forever;

@@ -25,7 +25,9 @@ from src.modules.monitoring.repos import (
     PriceRepository,
     ProductCardRepository,
     ProductSizeRepository,
+    SaleRepository,
     StockRepository,
+    WarehouseMarkRepository,
 )
 from src.modules.monitoring.services import AnalyticsService, IngestionService
 
@@ -78,6 +80,16 @@ def get_price_repo(session: DbSession) -> PriceRepository:
     return PriceRepository(session)
 
 
+def get_sale_repo(session: DbSession) -> SaleRepository:
+    """Provide a :class:`SaleRepository` bound to the request session."""
+    return SaleRepository(session)
+
+
+def get_warehouse_mark_repo(session: DbSession) -> WarehouseMarkRepository:
+    """Provide a :class:`WarehouseMarkRepository` bound to the request session."""
+    return WarehouseMarkRepository(session)
+
+
 FunnelRepoDep = Annotated[FunnelRepository, Depends(get_funnel_repo)]
 AdvertisingRepoDep = Annotated[AdvertisingRepository, Depends(get_advertising_repo)]
 AdvertisingSearchRepoDep = Annotated[
@@ -89,6 +101,8 @@ ProductCardRepoDep = Annotated[ProductCardRepository, Depends(get_product_card_r
 ProductSizeRepoDep = Annotated[ProductSizeRepository, Depends(get_product_size_repo)]
 MatrixOverrideRepoDep = Annotated[MatrixOverrideRepository, Depends(get_matrix_override_repo)]
 PriceRepoDep = Annotated[PriceRepository, Depends(get_price_repo)]
+SaleRepoDep = Annotated[SaleRepository, Depends(get_sale_repo)]
+WarehouseMarkRepoDep = Annotated[WarehouseMarkRepository, Depends(get_warehouse_mark_repo)]
 
 
 # --------------------------------------------------------------------------- #
@@ -104,6 +118,8 @@ def get_analytics_service(
     product_size_repo: ProductSizeRepoDep,
     matrix_override_repo: MatrixOverrideRepoDep,
     price_repo: PriceRepoDep,
+    sale_repo: SaleRepoDep,
+    warehouse_mark_repo: WarehouseMarkRepoDep,
 ) -> AnalyticsService:
     """Compose the read-side :class:`AnalyticsService` from its repositories."""
     return AnalyticsService(
@@ -116,6 +132,8 @@ def get_analytics_service(
         product_size_repo=product_size_repo,
         matrix_override_repo=matrix_override_repo,
         price_repo=price_repo,
+        sale_repo=sale_repo,
+        warehouse_mark_repo=warehouse_mark_repo,
     )
 
 
@@ -128,6 +146,7 @@ def get_ingestion_service(
     product_card_repo: ProductCardRepoDep,
     product_size_repo: ProductSizeRepoDep,
     price_repo: PriceRepoDep,
+    sale_repo: SaleRepoDep,
 ) -> IngestionService:
     """Compose the write-side :class:`IngestionService` from its repositories."""
     return IngestionService(
@@ -139,6 +158,7 @@ def get_ingestion_service(
         product_card_repo=product_card_repo,
         product_size_repo=product_size_repo,
         price_repo=price_repo,
+        sale_repo=sale_repo,
     )
 
 
@@ -157,5 +177,7 @@ __all__ = [
     "PriceRepoDep",
     "ProductCardRepoDep",
     "ProductSizeRepoDep",
+    "SaleRepoDep",
     "StockRepoDep",
+    "WarehouseMarkRepoDep",
 ]

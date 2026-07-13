@@ -30,6 +30,8 @@ from src.modules.monitoring.schemas import (
     SkuDetailResponse,
     SkuLookupResponse,
     SkuSummaryListResponse,
+    WarehouseMarksResponse,
+    WarehouseMarkUpdateRequest,
 )
 from src.modules.monitoring.tasks import harvest_sku_window
 
@@ -124,6 +126,27 @@ async def get_sku_detail(
         date_to=date_to,
         campaign_id=campaign_id,
         campaign_status=campaign_status,
+    )
+
+
+@router.put(
+    "/skus/{nm_id}/warehouse-marks",
+    response_model=WarehouseMarksResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "Mark updated; the SKU's marked warehouses are returned."},
+        401: {"description": "Unauthorized access token."},
+        422: {"description": "Invalid payload."},
+    },
+)
+async def set_warehouse_mark(
+    nm_id: int,
+    body: WarehouseMarkUpdateRequest,
+    service: AnalyticsServiceDep,
+) -> WarehouseMarksResponse:
+    """Mark («Отгрузить») or unmark («Разгрузить») a warehouse for this SKU only."""
+    return await service.set_warehouse_mark(
+        nm_id=nm_id, warehouse_name=body.warehouse_name, marked=body.marked
     )
 
 

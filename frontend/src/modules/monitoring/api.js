@@ -84,6 +84,23 @@ export async function saveMatrix(nmId, base, params = {}) {
 }
 
 /**
+ * PUT /v1/monitoring/skus/{nm_id}/warehouse-marks — mark («Отгрузить») or
+ * unmark («Разгрузить») one warehouse for THIS SKU only.
+ *
+ * @param {number} nmId WB SKU identifier.
+ * @param {string} warehouseName WB warehouse name from the stock breakdown.
+ * @param {boolean} marked True to mark, false to unmark.
+ * @returns {Promise<{marked_warehouses: string[]}>} The SKU's marks after the update.
+ */
+export async function setWarehouseMark(nmId, warehouseName, marked) {
+  const { data } = await apiClient.put(`/v1/monitoring/skus/${nmId}/warehouse-marks`, {
+    warehouse_name: warehouseName,
+    marked,
+  })
+  return data
+}
+
+/**
  * POST /v1/monitoring/skus/{nm_id}/refresh — enqueue a fresh WB harvest for one
  * SKU (discards its manual edits). Returns the Celery task id to poll.
  *

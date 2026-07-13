@@ -76,7 +76,7 @@ function onApply() {
           role="combobox"
           :aria-expanded="open"
           placeholder="Выберите SKU из списка или начните вводить артикул…"
-          class="h-12 w-full rounded-input border border-border-subtle bg-surface/50 pl-9 pr-sm text-base text-primary shadow-soft backdrop-blur-xl placeholder:text-muted focus:border-action focus:outline-none focus:ring-2 focus:ring-action/20"
+          class="h-12 w-full rounded-input border border-border-subtle bg-surface pl-9 pr-sm text-base text-primary shadow-soft placeholder:text-muted focus:border-action focus:outline-none focus:ring-2 focus:ring-action/20"
           @focus="open = true"
           @input="open = true"
         />
@@ -99,7 +99,7 @@ function onApply() {
     >
       <div
         v-if="open"
-        class="absolute inset-x-0 top-full z-20 mt-sm max-h-96 overflow-y-auto rounded-card bg-surface/50 shadow-card backdrop-blur-xl"
+        class="absolute inset-x-0 top-full z-20 mt-sm max-h-96 overflow-y-auto rounded-card bg-surface shadow-card"
         role="listbox"
       >
         <p v-if="loading" class="px-md py-md text-base text-muted">Загружаем список SKU…</p>

@@ -39,6 +39,8 @@ const props = defineProps({
   priceRows: { type: Array, default: () => [] },
   /** «Остатки» block rows — one «Общая» cell per day (read-only). */
   stockRows: { type: Array, default: () => [] },
+  /** «Всего» card row — per-day total stock (остаток + оба «в пути»), read-only. */
+  stockTotalRows: { type: Array, default: () => [] },
   /** Disable editing while a save/refresh is in flight. */
   editingDisabled: { type: Boolean, default: false },
 })
@@ -286,6 +288,15 @@ watch(
                     </template>
                   </div>
                 </div>
+
+                <!-- Compact «Всего» card: total stock (остаток + оба «в пути»)
+                     for the day. Same tint as «Остатки» — it belongs to it. -->
+                <div v-if="stockTotalRows.length" class="day-block day-block--stock day-block--total">
+                  <span class="day-block-name">Всего, шт</span>
+                  <span class="day-block-total-value tabular-nums">
+                    {{ stockTotalRows[0].cells[dayIndex]?.display ?? '—' }}
+                  </span>
+                </div>
               </div>
             </td>
           </tr>
@@ -296,10 +307,17 @@ watch(
 </template>
 
 <style scoped>
-/* The native scroll container (replaces PrimeVue's tablecontainer). */
+/* The native scroll container (replaces PrimeVue's tablecontainer). The
+   scrollbar is hidden entirely — macOS overlay scrollbars otherwise pin a
+   white track over the table once hovered; scrolling still works via
+   trackpad/wheel. */
 .matrix-scroll {
   max-height: none;
   overflow: auto;
+  scrollbar-width: none;
+}
+.matrix-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 /* An editable cell reads as plain text but hints affordance on hover/focus. */
@@ -415,6 +433,19 @@ watch(
 }
 .day-block--stock {
   background: rgba(79, 70, 229, 0.07);
+}
+/* The «Всего» card: shares the «Остатки» tint (it IS stock data), but only
+   takes the width its number needs — the two main cards shrink around it. */
+.day-block--total {
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+.day-block-total-value {
+  color: #101010;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .day-block-line {

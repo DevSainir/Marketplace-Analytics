@@ -48,8 +48,9 @@ const TOTAL_EDITABLE = new Set([
   'clicks',
   'carts',
   'orders',
-  // order_sum / buyout_sum / spp are derived from the prices (read-only); the
-  // prices themselves are the editable inputs.
+  // order_sum / spp derive from the prices (read-only) — the prices themselves
+  // are the editable inputs; buyout_sum / buyout_percent are harvested
+  // sale-date facts (read-only).
   'seller_price',
   'customer_price',
   'cart_conversion',
@@ -151,6 +152,10 @@ const STOCK_METRIC_DEFS = [
   { key: 'stock_to_client', label: 'В пути к клиенту, шт', format: fmtNumber },
   { key: 'stock_from_client', label: 'В пути от клиента, шт', format: fmtNumber },
 ]
+// The compact «Всего» card next to «Остатки»: остаток + оба «в пути»,
+// COMPUTED BY THE BACKEND (`stock_total` matrix row) — mapped here like any
+// other metric, label/formatting only.
+const STOCK_TOTAL_METRIC_DEFS = [{ key: 'stock_total', label: 'Всего, шт', format: fmtNumber }]
 
 /**
  * Lay out the backend matrix of one `SkuDetailResponse` for the table.
@@ -210,7 +215,8 @@ function buildTotalRows(defs, matrix, backendValues) {
 
 export function buildMetricsMatrix(product) {
   const matrix = product?.matrix
-  if (!matrix?.days?.length) return { days: [], rows: [], priceRows: [], stockRows: [] }
+  if (!matrix?.days?.length)
+    return { days: [], rows: [], priceRows: [], stockRows: [], stockTotalRows: [] }
 
   const { backendValues, bucketCount, bucketIndexByColumn } = matrixLookups(matrix)
 
@@ -242,6 +248,7 @@ export function buildMetricsMatrix(product) {
     rows,
     priceRows: buildTotalRows(PRICE_METRIC_DEFS, matrix, backendValues),
     stockRows: buildTotalRows(STOCK_METRIC_DEFS, matrix, backendValues),
+    stockTotalRows: buildTotalRows(STOCK_TOTAL_METRIC_DEFS, matrix, backendValues),
   }
 }
 
@@ -261,6 +268,7 @@ export function patchMetricsMatrix(view, product) {
   if (view.rows.length !== METRIC_DEFS.length) return false
   if (view.priceRows?.length !== PRICE_METRIC_DEFS.length) return false
   if (view.stockRows?.length !== STOCK_METRIC_DEFS.length) return false
+  if (view.stockTotalRows?.length !== STOCK_TOTAL_METRIC_DEFS.length) return false
 
   const { backendValues, bucketCount, bucketIndexByColumn } = matrixLookups(matrix)
   const defByKey = new Map(METRIC_DEFS.map((def) => [def.key, def]))
@@ -289,6 +297,7 @@ export function patchMetricsMatrix(view, product) {
   for (const [defs, rows] of [
     [PRICE_METRIC_DEFS, view.priceRows],
     [STOCK_METRIC_DEFS, view.stockRows],
+    [STOCK_TOTAL_METRIC_DEFS, view.stockTotalRows],
   ]) {
     const miniDefByKey = new Map(defs.map((def) => [def.key, def]))
     for (const row of rows) {
@@ -306,5 +315,6 @@ export function patchMetricsMatrix(view, product) {
       }
     }
   }
+
   return true
 }

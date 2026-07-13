@@ -33,7 +33,9 @@ const toneChip = {
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-7xl px-md py-16 sm:px-lg sm:py-24">
+  <!-- Same container width as the monitoring canvas — see design_system.md
+       «Page Chrome & Canvas». -->
+  <div class="mx-auto w-full max-w-[calc(26.667rem_+_66.667vw)] px-md py-16 sm:px-lg sm:py-24">
     <!-- Hero -->
     <section class="mx-auto max-w-3xl text-center">
       <span
@@ -62,7 +64,7 @@ const toneChip = {
         </RouterLink>
         <a
           href="#features"
-          class="inline-flex w-full items-center justify-center rounded-btn border border-border-subtle bg-surface px-lg py-sm text-base font-semibold text-primary shadow-soft transition hover:bg-surface/60 sm:w-auto"
+          class="inline-flex w-full items-center justify-center rounded-btn border border-border-subtle bg-surface px-lg py-sm text-base font-semibold text-primary shadow-soft transition hover:bg-canvas sm:w-auto"
         >
           Что внутри
         </a>

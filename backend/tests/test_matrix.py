@@ -18,6 +18,7 @@ from src.modules.monitoring.models import (
     PriceSnapshot,
     SalesFunnelDaily,
 )
+from src.modules.monitoring.repos.sales import SaleDailyTotal
 from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas.matrix import MATRIX_BUCKETS
 from src.modules.monitoring.services.matrix import build_metrics_matrix
@@ -98,6 +99,7 @@ def _funnel_row(
     cart_count: int = 0,
     order_count: int = 0,
     buyout_count: int = 0,
+    buyout_conversion: float = 0,
 ) -> SalesFunnelDaily:
     """Construct an in-memory funnel row (₽ volumes are no longer stored)."""
     return SalesFunnelDaily(
@@ -110,7 +112,7 @@ def _funnel_row(
         add_to_wishlist=0,
         cart_conversion=0,
         order_conversion=0,
-        buyout_conversion=0,
+        buyout_conversion=buyout_conversion,
     )
 
 
@@ -131,6 +133,7 @@ def _matrix(
     funnel_rows: list[SalesFunnelDaily] | None = None,
     price_snapshots: list[PriceSnapshot] | None = None,
     stock_daily: list[StockDailyTotal] | None = None,
+    sales_daily: list[SaleDailyTotal] | None = None,
     date_from: date = DAY1,
     date_to: date = DAY1,
 ) -> dict[str, list[float | None]]:
@@ -144,6 +147,7 @@ def _matrix(
         campaigns=campaigns,
         price_snapshots=price_snapshots or [],
         stock_daily=stock_daily or [],
+        sales_daily=sales_daily or [],
     )
     return {row.key: row.values for row in matrix.rows}
 
@@ -199,15 +203,24 @@ def _two_campaign_rows() -> dict[str, list[float | None]]:
     search_rows = [_search_row(1, DAY1, views=30, clicks=3, add_to_cart=1, spend=15, orders=1)]
     funnel_rows = [
         _funnel_row(DAY1, open_count=200, cart_count=20, order_count=10, buyout_count=6),
-        _funnel_row(DAY1 - timedelta(days=10), order_count=8, buyout_count=4),
+        # Matured cohort inside the lagged window: WB says 40% of its decided
+        # deliveries were bought out (4 buyouts -> 10 delivered).
+        _funnel_row(DAY1 - timedelta(days=10), order_count=8, buyout_count=4, buyout_conversion=40),
     ]
     price_snapshots = [_price_row(DAY1, seller=500, customer=350)]
+    # Sale-date facts for DAY1: 6 items accepted for 3000 rub, 2 returned.
+    sales_daily = [
+        SaleDailyTotal(
+            stat_date=DAY1, buyout_count=6, buyout_sum=3000.0, return_count=2, return_sum=1000.0
+        )
+    ]
     return _matrix(
         campaigns=campaigns,
         ad_rows=ad_rows,
         search_rows=search_rows,
         funnel_rows=funnel_rows,
         price_snapshots=price_snapshots,
+        sales_daily=sales_daily,
         date_to=DAY2,
     )
 
@@ -263,10 +276,15 @@ def test_catalog_column_stays_empty() -> None:
 
 
 def test_buyout_percent_uses_lagged_window() -> None:
-    """«Процент выкупа» for day D reads funnel [D-21, D-7], not D itself."""
+    """«Процент выкупа» for day D averages WB's cohort percent over [D-21, D-7].
+
+    The matured cohort in the window says 40%: 4 buyouts over 4/0.40 = 10
+    decided deliveries. DAY1's own cohort is OUTSIDE its lagged window (too
+    recent) and must not contribute.
+    """
     rows = _two_campaign_rows()
-    assert _cell(rows, "buyout_percent", 0, "total") == 50.0  # 4 buyouts / 8 orders
-    assert _cell(rows, "buyout_percent", 1, "total") == 50.0
+    assert _cell(rows, "buyout_percent", 0, "total") == 40.0
+    assert _cell(rows, "buyout_percent", 1, "total") == 40.0
     assert _cell(rows, "buyout_percent", 0, "manual_search") is None
 
 
@@ -342,9 +360,9 @@ def test_zero_delivery_campaign_is_cut() -> None:
 
 
 def test_total_volumes_and_spp_derive_from_seller_price() -> None:
-    """«Заказы/Выкупы ₽» = count x seller_price; «СПП» = (seller-customer)/seller."""
+    """«Заказы, ₽» = count x seller_price; «Выкупы, ₽» = sale-date fact; СПП ratio."""
     rows = _two_campaign_rows()
-    # DAY1: order_count 10 x 500 = 5000; buyout_count 6 x 500 = 3000.
+    # DAY1: order_count 10 x 500 = 5000; buyouts = the day's sale records.
     assert _cell(rows, "order_sum", 0, "total") == 5000.0
     assert _cell(rows, "buyout_sum", 0, "total") == 3000.0
     assert _cell(rows, "seller_price", 0, "total") == 500.0
@@ -414,11 +432,14 @@ def test_stock_rows_show_in_total_on_snapshot_days_only() -> None:
     assert _cell(rows, "stock_quantity", 0, "total") == 42.0
     assert _cell(rows, "stock_to_client", 0, "total") == 5.0
     assert _cell(rows, "stock_from_client", 0, "total") == 2.0
-    for key in ("stock_quantity", "stock_to_client", "stock_from_client"):
+    # Total = quantity + both in-transit legs, derived server-side.
+    assert _cell(rows, "stock_total", 0, "total") == 49.0
+    for key in ("stock_quantity", "stock_to_client", "stock_from_client", "stock_total"):
         assert _cell(rows, key, 1, "total") is None
     # Stock is «Общая»-only; ad buckets and «Органика» stay empty.
     for bucket in ("uni_search", "manual_search", "organic"):
         assert _cell(rows, "stock_quantity", 0, bucket) is None
+        assert _cell(rows, "stock_total", 0, bucket) is None
 
 
 def test_stock_rows_empty_without_snapshots() -> None:
@@ -427,6 +448,7 @@ def test_stock_rows_empty_without_snapshots() -> None:
     rows = _matrix(campaigns={}, ad_rows=[], funnel_rows=funnel_rows)
     assert _cell(rows, "stock_quantity", 0, "total") is None
     assert _cell(rows, "stock_to_client", 0, "total") is None
+    assert _cell(rows, "stock_total", 0, "total") is None
 
 
 def test_search_slice_clamped_to_campaign_totals() -> None:
