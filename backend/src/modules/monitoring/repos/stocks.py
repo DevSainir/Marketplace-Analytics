@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import date
 from typing import Any, cast
 
@@ -11,6 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import StockSnapshot
 from src.modules.monitoring.repos.base import BaseRepository
+
+
+@dataclass(frozen=True, slots=True)
+class StockDailyTotal:
+    """One snapshot day's stock totals for a SKU (summed across sizes/warehouses)."""
+
+    stat_date: date
+    quantity: int
+    in_way_to_client: int
+    in_way_from_client: int
+
 
 _CONFLICT = ("stat_date", "nm_id", "warehouse_name", "chrt_id")
 _UPDATE = ("region_name", "quantity", "in_way_to_client", "in_way_from_client")
@@ -65,26 +77,40 @@ class StockRepository(BaseRepository):
 
     async def daily_totals_for_sku(
         self, *, nm_id: int, date_from: date, date_to: date
-    ) -> dict[date, int]:
-        """Return one SKU's total stock per snapshot day (all sizes/warehouses).
+    ) -> list[StockDailyTotal]:
+        """Return one SKU's per-day stock totals (all sizes/warehouses summed).
 
-        Feeds the OOS-masking step of the baseline-demand pipeline, which needs
-        to know on which days the SKU had zero sellable stock.
+        Feeds the OOS-masking step of the baseline-demand pipeline (quantity)
+        and the matrix's per-day stock/in-transit rows (all three sums).
 
         Returns:
-            ``{snapshot_day: total_quantity}`` for each day with a snapshot.
+            One :class:`StockDailyTotal` per snapshot day, ascending by date.
         """
         stmt = (
-            select(StockSnapshot.stat_date, func.sum(StockSnapshot.quantity).label("quantity"))
+            select(
+                StockSnapshot.stat_date,
+                func.sum(StockSnapshot.quantity).label("quantity"),
+                func.sum(StockSnapshot.in_way_to_client).label("in_way_to_client"),
+                func.sum(StockSnapshot.in_way_from_client).label("in_way_from_client"),
+            )
             .where(
                 StockSnapshot.nm_id == nm_id,
                 StockSnapshot.stat_date >= date_from,
                 StockSnapshot.stat_date <= date_to,
             )
             .group_by(StockSnapshot.stat_date)
+            .order_by(StockSnapshot.stat_date)
         )
         result = await self._session.execute(stmt)
-        return {row.stat_date: int(row.quantity) for row in result.all()}
+        return [
+            StockDailyTotal(
+                stat_date=row.stat_date,
+                quantity=int(row.quantity),
+                in_way_to_client=int(row.in_way_to_client),
+                in_way_from_client=int(row.in_way_from_client),
+            )
+            for row in result.all()
+        ]
 
     async def latest_totals_by_sku(self, *, date_from: date, date_to: date) -> dict[int, int]:
         """Return each SKU's total stock on its most recent snapshot day.

@@ -25,7 +25,9 @@ from src.core.timeutils import moscow_today
 from src.integrations.wildberries import (
     WBAdvertisingClient,
     WBAnalyticsClient,
+    WBCardClient,
     WBContentClient,
+    WBPricesClient,
 )
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
@@ -40,6 +42,7 @@ from src.modules.monitoring.repos import (
     CampaignRepository,
     FunnelRepository,
     MatrixOverrideRepository,
+    PriceRepository,
     ProductCardRepository,
     ProductSizeRepository,
     StockRepository,
@@ -205,17 +208,30 @@ async def _harvest_sku_window(
     async with (
         WBAnalyticsClient(settings) as analytics_client,
         WBAdvertisingClient(settings) as advertising_client,
+        WBPricesClient(settings) as prices_client,
+        WBCardClient(settings) as card_client,
     ):
         # Fire the independent WB calls concurrently and RESILIENTLY:
         # ``return_exceptions`` keeps one failing source (e.g. a stale funnel
-        # window or a 429) from aborting the whole harvest.
-        funnel_res, stock_res, camp_res, adverts_res = await asyncio.gather(
+        # window or a 429) from aborting the whole harvest. Prices (seller) and
+        # the storefront card (customer) join the fan-out for the daily price
+        # snapshot.
+        (
+            funnel_res,
+            stock_res,
+            camp_res,
+            adverts_res,
+            prices_res,
+            card_res,
+        ) = await asyncio.gather(
             analytics_client.fetch_sales_funnel(
                 nm_ids=nm_ids, date_from=date_from, date_to=date_to
             ),
             analytics_client.fetch_warehouse_stocks(nm_ids=nm_ids),
             advertising_client.list_campaigns(),
             advertising_client.list_adverts(),
+            prices_client.fetch_prices(),
+            card_client.fetch_customer_prices(nm_ids),
             return_exceptions=True,
         )
         # Partial failure is tolerated (a 429 on one source must not void the
@@ -234,6 +250,10 @@ async def _harvest_sku_window(
         campaigns = _unwrap(camp_res, "campaigns") or []
         adverts = _unwrap(adverts_res, "adverts-v2")
         stocks_succeeded = not isinstance(stock_res, BaseException)
+        # ``None`` (source failed) leaves the price snapshot unwritten; a failed
+        # card fetch still lets a seller-only snapshot through.
+        prices = _unwrap(prices_res, "prices")
+        customer_prices = _unwrap(card_res, "card-prices")
 
         # Advertising fullstats + search-zone (normquery) stats. Both depend
         # only on the campaign list / settings from the gather above (the
@@ -279,6 +299,7 @@ async def _harvest_sku_window(
             product_card_repo=ProductCardRepository(session),
             product_size_repo=ProductSizeRepository(session),
             advertising_search_repo=AdvertisingSearchRepository(session),
+            price_repo=PriceRepository(session),
         )
         await service.ingest_campaigns(campaigns, adverts)
         # Refresh the product catalogue (vendor codes + size labels) so the
@@ -305,6 +326,9 @@ async def _harvest_sku_window(
             advertising_window=(date_from, date_to),
             search_stats=search_stats,
             search_requested_campaign_ids=sorted({cid for cid, _ in search_pairs}),
+            prices=prices,
+            customer_prices=customer_prices,
+            price_nm_ids=nm_ids,
         )
         # Fresh WB data supersedes any manual matrix edits for these SKUs — the
         # product rule is that any refresh (nightly or a manual «Обновить»)
@@ -319,6 +343,7 @@ async def _harvest_sku_window(
         "advertising_rows": result.advertising_rows,
         "search_zone_rows": result.search_zone_rows,
         "stock_rows": result.stock_rows,
+        "price_rows": result.price_rows,
         "product_card_rows": card_count,
         "product_size_rows": size_count,
     }

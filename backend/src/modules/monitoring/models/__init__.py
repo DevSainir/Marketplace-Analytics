@@ -17,6 +17,7 @@ from src.modules.monitoring.models.campaigns import (
     normalize_type,
 )
 from src.modules.monitoring.models.matrix_override import MatrixOverride
+from src.modules.monitoring.models.prices import PriceSnapshot
 from src.modules.monitoring.models.products import ProductCard, ProductSize
 from src.modules.monitoring.models.sales_funnel import SalesFunnelDaily
 from src.modules.monitoring.models.stocks import StockSnapshot
@@ -28,6 +29,7 @@ __all__ = [
     "AdvertisingStatDaily",
     "Campaign",
     "MatrixOverride",
+    "PriceSnapshot",
     "ProductCard",
     "ProductSize",
     "SalesFunnelDaily",

@@ -120,11 +120,13 @@ function handleHistoryKey(event) {
   const tag = event.target?.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA') return
   if (editingLocked.value) return
+  // Always swallow the undo/redo combo while the table is focused — otherwise a
+  // second Ctrl+Z with an empty history falls through to the browser's own undo,
+  // which moves focus into the search input.
+  event.preventDefault()
   if (isRedo && store.canRedoMatrix) {
-    event.preventDefault()
     store.redoMatrixEdit()
   } else if (isUndo && store.canUndoMatrix) {
-    event.preventDefault()
     store.undoMatrixEdit()
   }
 }
@@ -134,7 +136,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-7xl px-md py-lg sm:px-lg">
+  <!-- Canvas: the old max-w-7xl (80rem) plus 2/3 of the spare viewport width
+       beyond it — calc(80rem + (100vw - 80rem) * 2/3). Below 80rem viewports
+       the calc exceeds 100vw, so w-full keeps behaving as before. -->
+  <div class="mx-auto w-full max-w-[calc(26.667rem_+_66.667vw)] px-md py-lg sm:px-lg">
     <div class="w-full">
       <h1 class="sr-only">Мониторинг SKU</h1>
 
@@ -196,12 +201,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
       <!-- Product identity + daily metrics table after a SKU is submitted -->
       <template v-else-if="product">
         <div class="mt-lg flex flex-wrap items-baseline gap-x-sm gap-y-xs">
-          <h2 class="text-h2 font-bold text-primary">{{ product.title ?? skuLabel }}</h2>
-          <span v-if="product.vendor_code" class="text-base font-semibold text-status-positive">
-            {{ product.vendor_code }}
-          </span>
-          <span class="text-tiny text-muted">SKU {{ product.nm_id }}</span>
-          <span class="ml-auto text-base font-medium text-muted">{{ windowLabel }}</span>
+          <!-- Vendor code is the big black heading; the nm ID follows in the
+               action accent; title small grey; the window label at the right. -->
+          <h2 class="text-h2 font-bold text-primary">{{ product.vendor_code ?? skuLabel }}</h2>
+          <span class="text-tiny font-semibold text-action">SKU {{ product.nm_id }}</span>
+          <span v-if="product.title" class="text-tiny text-muted">{{ product.title }}</span>
+          <span class="ml-auto text-tiny font-medium text-muted">{{ windowLabel }}</span>
         </div>
 
         <section class="mt-lg" aria-label="Ежедневные метрики">
@@ -211,22 +216,53 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
             class="mt-sm"
             :days="metricsMatrix.days"
             :rows="metricsMatrix.rows"
+            :price-rows="metricsMatrix.priceRows"
+            :stock-rows="metricsMatrix.stockRows"
             :editing-disabled="editingLocked"
             @edit="handleCellEdit"
           />
 
-          <p class="mt-sm text-tiny text-muted">
-            Кликните по значению, чтобы изменить его — зависимые ячейки пересчитаются.
-            <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
-              class="rounded border border-border-subtle px-1"
-              >Z</kbd
-            >
-            — отменить,
-            <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
-              class="rounded border border-border-subtle px-1"
-              >Shift</kbd
-            >+<kbd class="rounded border border-border-subtle px-1">Z</kbd> — повторить.
-          </p>
+          <!-- Hint on the left, actions on the right. The dirty caption sits
+               UNDER the buttons so its appearance moves nothing. -->
+          <div class="mt-sm flex flex-wrap items-start gap-md">
+            <p class="min-w-0 text-tiny text-muted">
+              Кликните по значению, чтобы изменить его — зависимые ячейки пересчитаются.
+              <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
+                class="rounded border border-border-subtle px-1"
+                >Z</kbd
+              >
+              — отменить,
+              <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
+                class="rounded border border-border-subtle px-1"
+                >Shift</kbd
+              >+<kbd class="rounded border border-border-subtle px-1">Z</kbd> — повторить.
+            </p>
+
+            <div class="ml-auto flex items-center gap-sm">
+              <span
+                v-if="store.matrixDirty"
+                class="text-base font-bold text-status-warning"
+              >
+                Есть несохранённые изменения
+              </span>
+              <button
+                type="button"
+                :disabled="!store.matrixDirty || store.matrixSaving || store.matrixRefreshing"
+                class="inline-flex h-9 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:text-muted disabled:opacity-60"
+                @click="store.saveMatrixEdits()"
+              >
+                {{ store.matrixSaving ? 'Сохраняем…' : 'Сохранить' }}
+              </button>
+              <button
+                type="button"
+                :disabled="store.loading || store.matrixRefreshing || store.matrixSaving"
+                class="inline-flex h-9 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+                @click="refresh"
+              >
+                {{ store.matrixRefreshing ? 'Обновляем из Wildberries…' : 'Обновить' }}
+              </button>
+            </div>
+          </div>
 
           <p
             v-if="store.matrixEditError"
@@ -235,28 +271,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
           >
             {{ store.matrixEditError }}
           </p>
-
-          <div class="mt-sm flex items-center justify-end gap-sm">
-            <span v-if="store.matrixDirty" class="mr-auto text-tiny text-status-warning">
-              Есть несохранённые изменения
-            </span>
-            <button
-              type="button"
-              :disabled="!store.matrixDirty || store.matrixSaving || store.matrixRefreshing"
-              class="inline-flex h-9 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:text-muted disabled:opacity-60"
-              @click="store.saveMatrixEdits()"
-            >
-              {{ store.matrixSaving ? 'Сохраняем…' : 'Сохранить' }}
-            </button>
-            <button
-              type="button"
-              :disabled="store.loading || store.matrixRefreshing || store.matrixSaving"
-              class="inline-flex h-9 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
-              @click="refresh"
-            >
-              {{ store.matrixRefreshing ? 'Обновляем из Wildberries…' : 'Обновить' }}
-            </button>
-          </div>
         </section>
       </template>
 

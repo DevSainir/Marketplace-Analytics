@@ -57,6 +57,14 @@ MATRIX_METRIC_KEYS: tuple[str, ...] = (
     "drr_orders",
     "drr_sales",
     "buyout_percent",
+    # Prices & СПП — «Общая»-column only, derived from the price snapshot.
+    "seller_price",
+    "customer_price",
+    "spp",
+    # Stock — «Общая»-column only, read-only facts from the stock snapshot.
+    "stock_quantity",
+    "stock_to_client",
+    "stock_from_client",
 )
 
 
@@ -113,13 +121,33 @@ class MatrixAdBucketBase(BaseModel):
 
 
 class MatrixFunnelBase(BaseModel):
-    """The editable organic-funnel inputs for one day (the «Общая» column)."""
+    """The editable organic-funnel inputs for one day (the «Общая» column).
+
+    ``seller_price``/``customer_price`` are the day's carry-forward prices and
+    are editable; the ₽ volumes «Заказы, ₽»/«Выкупы, ₽» and «СПП» derive from
+    them (read-only). ``buyout_count`` is a hidden read-only input needed to
+    derive «Выкупы, ₽» (``buyout_count x seller_price``). Prices are ``None``
+    (rendered «—», not editable) when no snapshot is available for the SKU.
+    """
 
     open_count: int = 0
     cart_count: int = 0
     order_count: int = 0
-    order_sum: float = 0.0
-    buyout_sum: float = 0.0
+    buyout_count: int = 0
+    seller_price: float | None = None
+    customer_price: float | None = None
+
+
+class MatrixStockBase(BaseModel):
+    """The day's stock totals (read-only facts, «Общая» column).
+
+    Carried from the nearest stock snapshot (see the matrix builder); never
+    editable — stock is a harvested fact, not a derivable input.
+    """
+
+    quantity: int = 0
+    in_way_to_client: int = 0
+    in_way_from_client: int = 0
 
 
 class MatrixDayBase(BaseModel):
@@ -129,7 +157,7 @@ class MatrixDayBase(BaseModel):
     render «—». ``unclassified`` is the ad remainder (campaigns whose settings
     are unsynced) — hidden and read-only, but summed into «Общая»/«Органика» and
     the traffic-share denominator so those stay faithful. ``lagged_buyout_percent``
-    is precomputed (it reads a window outside these days) and is read-only.
+    and ``stock`` are precomputed facts and read-only.
     """
 
     day: date
@@ -138,6 +166,7 @@ class MatrixDayBase(BaseModel):
     unclassified: MatrixAdBucketBase = Field(default_factory=MatrixAdBucketBase)
     funnel: MatrixFunnelBase | None = None
     lagged_buyout_percent: float | None = None
+    stock: MatrixStockBase | None = None
 
 
 class MatrixBaseState(BaseModel):

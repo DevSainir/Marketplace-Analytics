@@ -51,6 +51,9 @@ const PRODUCT = {
       backendRow('clicks', [{ uni_search: 3, total: 200, organic: 185 }, {}]),
       backendRow('order_sum', [{ manual_search: 500, total: 5000 }, {}]),
       backendRow('buyout_percent', [{ total: 50 }, { total: 50 }]),
+      backendRow('seller_price', [{ total: 1000 }, {}]),
+      backendRow('customer_price', [{ total: 700 }, {}]),
+      backendRow('spp', [{ total: 30 }, {}]),
     ],
   },
 }
@@ -66,6 +69,11 @@ function cellObj(matrix, rowKey, d, colKey) {
 /** Formatted display string of that cell. */
 function cell(matrix, rowKey, d, colKey) {
   return cellObj(matrix, rowKey, d, colKey).display
+}
+
+/** Cell of a day-bound block row (priceRows/stockRows): one cell per day. */
+function blockCell(rows, rowKey, d) {
+  return rows.find((r) => r.key === rowKey).cells[d]
 }
 
 describe('buildMetricsMatrix', () => {
@@ -90,13 +98,32 @@ describe('buildMetricsMatrix', () => {
     expect(cellObj(matrix, 'views', 0, 'manual_shelves').editable).toBe(false)
   })
 
+  it('makes block prices editable but the derived СПП read-only', () => {
+    // Prices live in the day-bound «Цены» block (one «Общая» cell per day).
+    const matrix = buildMetricsMatrix(PRODUCT)
+    expect(blockCell(matrix.priceRows, 'seller_price', 0).editable).toBe(true)
+    expect(blockCell(matrix.priceRows, 'customer_price', 0).editable).toBe(true)
+    expect(blockCell(matrix.priceRows, 'spp', 0).editable).toBe(false)
+    expect(blockCell(matrix.priceRows, 'spp', 0).display).toBe('30,00%')
+    // Block cells address the backend «total» bucket for edits.
+    expect(blockCell(matrix.priceRows, 'seller_price', 0)).toMatchObject({
+      raw: 1000,
+      day: '2026-07-01',
+      bucket: 'total',
+      metric: 'seller_price',
+    })
+    // A gap day renders «—» and is not editable.
+    expect(blockCell(matrix.priceRows, 'seller_price', 1).display).toBe('—')
+    expect(blockCell(matrix.priceRows, 'seller_price', 1).editable).toBe(false)
+  })
+
   it('carries the raw numeric value and addressing for editing', () => {
     const matrix = buildMetricsMatrix(PRODUCT)
     const c = cellObj(matrix, 'views', 0, 'uni_search')
     expect(c).toMatchObject({ raw: 30, day: '2026-07-01', bucket: 'uni_search', metric: 'views' })
   })
 
-  it('keeps the workbook row order', () => {
+  it('keeps the workbook row order (prices/stock split into blocks)', () => {
     const matrix = buildMetricsMatrix(PRODUCT)
     expect(matrix.rows.map((r) => r.key)).toEqual([
       'traffic_share',
@@ -118,6 +145,25 @@ describe('buildMetricsMatrix', () => {
       'drr_sales',
       'buyout_percent',
     ])
+    expect(matrix.priceRows.map((r) => r.key)).toEqual([
+      'seller_price',
+      'customer_price',
+      'spp',
+    ])
+    expect(matrix.stockRows.map((r) => r.key)).toEqual([
+      'stock_quantity',
+      'stock_to_client',
+      'stock_from_client',
+    ])
+  })
+
+  it('renders stock block rows read-only', () => {
+    const stocked = structuredClone(PRODUCT)
+    stocked.matrix.rows.push(backendRow('stock_quantity', [{ total: 42 }, { total: 42 }]))
+    const matrix = buildMetricsMatrix(stocked)
+    const c = blockCell(matrix.stockRows, 'stock_quantity', 0)
+    expect(c.display).toBe(formatNumber(42))
+    expect(c.editable).toBe(false)
   })
 
   it('formats backend numbers per metric kind (currency/number/percent)', () => {
@@ -155,8 +201,9 @@ describe('buildMetricsMatrix', () => {
   })
 
   it('returns an empty matrix without a backend matrix payload', () => {
-    expect(buildMetricsMatrix(null)).toEqual({ days: [], rows: [] })
-    expect(buildMetricsMatrix({ nm_id: 1 })).toEqual({ days: [], rows: [] })
+    const empty = { days: [], rows: [], priceRows: [], stockRows: [] }
+    expect(buildMetricsMatrix(null)).toEqual(empty)
+    expect(buildMetricsMatrix({ nm_id: 1 })).toEqual(empty)
   })
 })
 

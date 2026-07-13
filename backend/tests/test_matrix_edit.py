@@ -47,8 +47,9 @@ def _base() -> MatrixBaseState:
                     open_count=200,
                     cart_count=20,
                     order_count=10,
-                    order_sum=5000.0,
-                    buyout_sum=2500.0,
+                    buyout_count=6,
+                    seller_price=500.0,
+                    customer_price=350.0,
                 ),
                 lagged_buyout_percent=50.0,
             )
@@ -184,6 +185,26 @@ def test_total_cart_conversion_solves_funnel_cart_count() -> None:
     assert _cell(base, "carts", "total") == 30
 
 
+def test_total_seller_price_edit_recomputes_volumes_and_spp() -> None:
+    """Editing «Цена продавца» sets the input and recomputes ₽ volumes + СПП."""
+    base = _edit("total", "seller_price", 1000)
+    assert base.days[0].funnel is not None
+    assert base.days[0].funnel.seller_price == 1000.0
+    # order_count 10 x 1000 = 10000; buyout_count 6 x 1000 = 6000.
+    assert _cell(base, "order_sum", "total") == 10000.0
+    assert _cell(base, "buyout_sum", "total") == 6000.0
+    # СПП = (1000 - 350) / 1000 x 100.
+    assert _cell(base, "spp", "total") == 65.0
+
+
+def test_total_customer_price_edit_recomputes_spp() -> None:
+    """Editing «Цена покупателя» recomputes «СПП» (seller held)."""
+    base = _edit("total", "customer_price", 250)
+    assert base.days[0].funnel is not None
+    assert base.days[0].funnel.customer_price == 250.0
+    assert _cell(base, "spp", "total") == 50.0  # (500 - 250) / 500 x 100
+
+
 def test_organic_clicks_solves_open_count_holding_ads() -> None:
     """«Органика» клики = open - ad_clicks → solve open_count (hold ads)."""
     # ad clicks = 3 + 4 + 1 (unclassified) = 8. organic set to 300 → open = 308.
@@ -207,6 +228,9 @@ def test_organic_clicks_solves_open_count_holding_ads() -> None:
         ("total", "spend"),  # cross-bucket roll-up
         ("total", "drr_orders"),  # cross-bucket roll-up
         ("total", "buyout_percent"),  # lagged window
+        ("total", "order_sum"),  # derived from price (read-only)
+        ("total", "buyout_sum"),  # derived from price (read-only)
+        ("total", "spp"),  # derived from prices (read-only)
         ("organic", "spend"),  # difference has no such input
     ],
 )

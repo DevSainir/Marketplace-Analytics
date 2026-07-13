@@ -40,8 +40,10 @@ from src.modules.monitoring.models import (
     AdvertisingSearchStatDaily,
     AdvertisingStatDaily,
     Campaign,
+    PriceSnapshot,
     SalesFunnelDaily,
 )
+from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas.matrix import (
     MATRIX_BUCKETS,
     MATRIX_METRIC_KEYS,
@@ -50,6 +52,7 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixDayBase,
     MatrixFunnelBase,
     MatrixMetricRow,
+    MatrixStockBase,
     MetricsMatrixRead,
 )
 
@@ -237,11 +240,81 @@ def _ad_cell(key: str, acc: _BucketAcc | None, bid_type_views: int) -> float | N
             return None
 
 
+def price_for_day(ordered: list[PriceSnapshot], day: date) -> tuple[float | None, float | None]:
+    """``(seller, customer)`` price for ``day`` — actual snapshots only.
+
+    A day is priced ONLY when a snapshot was captured on that exact date;
+    other days return ``(None, None)`` and render as «—». Snapshots are
+    deliberately NOT carried onto neighbouring days: a price shown for a day
+    we never observed would be fabricated data (and it silently skews the
+    derived «Заказы/Выкупы, ₽»).
+
+    Args:
+        ordered: The SKU's price snapshots, ascending by date.
+        day: The display day to price.
+
+    Returns:
+        The ``(seller_price, customer_price)`` for the day (either may be
+        ``None`` when that side was not captured on the day's snapshot).
+    """
+    chosen = next((s for s in ordered if s.stat_date == day), None)
+    if chosen is None:
+        return None, None
+    seller = float(chosen.seller_price) if chosen.seller_price is not None else None
+    customer = float(chosen.customer_price) if chosen.customer_price is not None else None
+    return seller, customer
+
+
+def _stock_for_day(ordered: list[StockDailyTotal], day: date) -> MatrixStockBase | None:
+    """Stock totals for ``day`` — actual snapshots only (same rule as prices).
+
+    ``None`` (rendered «—») unless a stock snapshot was captured on that exact
+    date; totals are never carried onto days we did not observe.
+
+    Args:
+        ordered: The SKU's per-day stock totals, ascending by date.
+        day: The display day to resolve.
+
+    Returns:
+        The day's :class:`MatrixStockBase`, or ``None`` without a snapshot.
+    """
+    chosen = next((t for t in ordered if t.stat_date == day), None)
+    if chosen is None:
+        return None
+    return MatrixStockBase(
+        quantity=chosen.quantity,
+        in_way_to_client=chosen.in_way_to_client,
+        in_way_from_client=chosen.in_way_from_client,
+    )
+
+
+def _funnel_order_sum(funnel: MatrixFunnelBase | None) -> float | None:
+    """«Заказы, ₽» = order_count x seller_price (``None`` when unpriced)."""
+    if funnel is None or funnel.seller_price is None:
+        return None
+    return round(funnel.order_count * funnel.seller_price, 2)
+
+
+def _funnel_buyout_sum(funnel: MatrixFunnelBase | None) -> float | None:
+    """«Выкупы, ₽» = buyout_count x seller_price (``None`` when unpriced)."""
+    if funnel is None or funnel.seller_price is None:
+        return None
+    return round(funnel.buyout_count * funnel.seller_price, 2)
+
+
+def _funnel_spp(funnel: MatrixFunnelBase | None) -> float | None:
+    """«СПП, %» = (seller - customer) / seller x 100 (``None`` when incomplete)."""
+    if funnel is None or not funnel.seller_price or funnel.customer_price is None:
+        return None
+    return round((funnel.seller_price - funnel.customer_price) / funnel.seller_price * 100, 2)
+
+
 def _total_cell(
     key: str,
     funnel: MatrixFunnelBase | None,
     day_ad: _BucketAcc | None,
     lagged_buyout_percent: float | None,
+    stock: MatrixStockBase | None,
 ) -> float | None:
     """Compute one metric for the «Общая» column (funnel + cross-campaign ads)."""
     match key:
@@ -261,10 +334,16 @@ def _total_cell(
             return None if funnel is None else float(funnel.order_count)
         case "order_conversion":
             return None if funnel is None else _percent(funnel.order_count, funnel.cart_count)
-        case "order_sum":
-            return None if funnel is None else round(float(funnel.order_sum), 2)
-        case "buyout_sum":
-            return None if funnel is None else round(float(funnel.buyout_sum), 2)
+        case "order_sum":  # order_count x seller_price
+            return _funnel_order_sum(funnel)
+        case "buyout_sum":  # buyout_count x seller_price
+            return _funnel_buyout_sum(funnel)
+        case "seller_price":
+            return None if funnel is None else funnel.seller_price
+        case "customer_price":
+            return None if funnel is None else funnel.customer_price
+        case "spp":  # (seller - customer) / seller x 100
+            return _funnel_spp(funnel)
         case "cost_per_order":
             if day_ad is None or funnel is None:
                 return None
@@ -276,13 +355,19 @@ def _total_cell(
         case "drr_orders":
             if day_ad is None or funnel is None:
                 return None
-            return _percent(day_ad.spend, float(funnel.order_sum))
+            return _percent(day_ad.spend, _funnel_order_sum(funnel))
         case "drr_sales":
             if day_ad is None or funnel is None:
                 return None
-            return _percent(day_ad.spend, float(funnel.buyout_sum))
+            return _percent(day_ad.spend, _funnel_buyout_sum(funnel))
         case "buyout_percent":
             return lagged_buyout_percent
+        case "stock_quantity":
+            return None if stock is None else float(stock.quantity)
+        case "stock_to_client":
+            return None if stock is None else float(stock.in_way_to_client)
+        case "stock_from_client":
+            return None if stock is None else float(stock.in_way_from_client)
         case _:
             # traffic_share is defined across ad buckets only; CTR/CPM have no
             # meaning for the mixed «Общая» column.
@@ -384,6 +469,8 @@ def derive_base_state(
     ad_rows: list[AdvertisingStatDaily],
     search_rows: list[AdvertisingSearchStatDaily],
     campaigns: dict[int, Campaign],
+    price_snapshots: list[PriceSnapshot] | None = None,
+    stock_daily: list[StockDailyTotal] | None = None,
 ) -> MatrixBaseState:
     """Aggregate raw facts into the editable input working copy.
 
@@ -403,12 +490,19 @@ def derive_base_state(
         ad_rows: The SKU's advertising fact rows within the window.
         search_rows: The SKU's search-zone slices within the window.
         campaigns: Campaign metadata keyed by ``campaign_id`` (may be partial).
+        price_snapshots: The SKU's seller/customer price snapshots; applied
+            only to their exact snapshot days (pricing «Заказы/Выкупы ₽» and
+            «СПП» there; other days stay unpriced).
+        stock_daily: The SKU's per-day stock totals; applied only to their
+            exact snapshot days for the read-only stock/in-transit rows.
 
     Returns:
         The :class:`MatrixBaseState` working copy for the window.
     """
     days = _day_range(date_from, date_to)
     funnel_by_date = {row.stat_date: row for row in funnel_rows}
+    ordered_prices = sorted(price_snapshots or [], key=lambda s: s.stat_date)
+    ordered_stock = sorted(stock_daily or [], key=lambda s: s.stat_date)
 
     # One slice per (campaign, day), aggregated across platforms.
     campaign_day: dict[tuple[int, date], _AdSlice] = {}
@@ -444,13 +538,15 @@ def derive_base_state(
         buckets = _select_day_buckets(day_campaigns.get(day, []))
 
         funnel_row = funnel_by_date.get(day)
+        seller_price, customer_price = price_for_day(ordered_prices, day)
         funnel_base = (
             MatrixFunnelBase(
                 open_count=funnel_row.open_count,
                 cart_count=funnel_row.cart_count,
                 order_count=funnel_row.order_count,
-                order_sum=round(float(funnel_row.order_sum), 2),
-                buyout_sum=round(float(funnel_row.buyout_sum), 2),
+                buyout_count=funnel_row.buyout_count,
+                seller_price=seller_price,
+                customer_price=customer_price,
             )
             if funnel_row is not None
             else None
@@ -473,6 +569,7 @@ def derive_base_state(
                 unclassified=MatrixAdBucketBase(),  # cut campaigns are excluded
                 funnel=funnel_base,
                 lagged_buyout_percent=_percent(buyouts, orders),
+                stock=_stock_for_day(ordered_stock, day),
             )
         )
 
@@ -538,7 +635,9 @@ def build_matrix_from_base(base: MatrixBaseState) -> MetricsMatrixRead:
             }
             for bucket in MATRIX_BUCKETS:
                 if bucket == "total":
-                    values.append(_total_cell(key, day.funnel, day_ad, day.lagged_buyout_percent))
+                    values.append(
+                        _total_cell(key, day.funnel, day_ad, day.lagged_buyout_percent, day.stock)
+                    )
                 elif bucket == "organic":
                     values.append(_organic_cell(key, day.funnel, day_ad))
                 else:
@@ -557,6 +656,8 @@ def build_metrics_matrix(
     ad_rows: list[AdvertisingStatDaily],
     search_rows: list[AdvertisingSearchStatDaily],
     campaigns: dict[int, Campaign],
+    price_snapshots: list[PriceSnapshot] | None = None,
+    stock_daily: list[StockDailyTotal] | None = None,
 ) -> MetricsMatrixRead:
     """Build the complete day x bucket metrics matrix for one SKU.
 
@@ -572,6 +673,8 @@ def build_metrics_matrix(
         ad_rows: The SKU's advertising fact rows within the window.
         search_rows: The SKU's search-zone slices within the window.
         campaigns: Campaign metadata keyed by ``campaign_id`` (may be partial).
+        price_snapshots: The SKU's seller/customer price snapshots.
+        stock_daily: The SKU's per-day stock totals.
 
     Returns:
         A fully computed :class:`MetricsMatrixRead`.
@@ -584,5 +687,7 @@ def build_metrics_matrix(
             ad_rows=ad_rows,
             search_rows=search_rows,
             campaigns=campaigns,
+            price_snapshots=price_snapshots,
+            stock_daily=stock_daily,
         )
     )

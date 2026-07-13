@@ -79,7 +79,10 @@ class BaseWBClient:
 
         Args:
             base_url: Root URL for this WB API surface.
-            token: Bearer token authorising requests to this surface.
+            token: Bearer token authorising requests to this surface. Pass an
+                empty string for unauthenticated surfaces (e.g. the public
+                ``card.wb.ru`` storefront), which omits the header entirely — WB
+                rejects a blank ``Authorization`` header with 401.
             timeout: Per-request timeout in seconds.
             max_retries: Additional attempts after the first on a retriable
                 failure (429 / transient 5xx / transport error).
@@ -90,14 +93,13 @@ class BaseWBClient:
         self._max_retries = max_retries
         self._backoff_base = backoff_base_seconds
         self._backoff_max = backoff_max_seconds
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = token
         self._client = httpx.AsyncClient(
             base_url=base_url,
             timeout=httpx.Timeout(timeout),
-            headers={
-                "Authorization": token,
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            },
+            headers=headers,
         )
 
     async def __aenter__(self) -> Self:

@@ -10,6 +10,7 @@ from src.modules.monitoring.repos.advertising_search import AdvertisingSearchRep
 from src.modules.monitoring.repos.campaigns import CampaignRepository
 from src.modules.monitoring.repos.funnel import FunnelRepository
 from src.modules.monitoring.repos.matrix_override import MatrixOverrideRepository
+from src.modules.monitoring.repos.prices import PriceRepository
 from src.modules.monitoring.repos.products import (
     ProductCardRepository,
     ProductSizeRepository,
@@ -22,6 +23,7 @@ __all__ = [
     "CampaignRepository",
     "FunnelRepository",
     "MatrixOverrideRepository",
+    "PriceRepository",
     "ProductCardRepository",
     "ProductSizeRepository",
     "StockRepository",

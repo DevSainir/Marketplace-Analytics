@@ -43,7 +43,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
    * cells in place (see `patchMetricsMatrix`) instead of rebuilding it, so Vue
    * updates a handful of DOM nodes rather than re-rendering the whole table.
    */
-  const matrixView = ref({ days: [], rows: [] })
+  const matrixView = ref({ days: [], rows: [], priceRows: [], stockRows: [] })
   // The current editable working copy + its display matrix. Held as plain refs
   // (not the reactive table) so swapping them is cheap; snapshots reference
   // these immutable server payloads directly (no deep clone needed).
@@ -244,7 +244,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   function clearMatrixEditState() {
     workingBase.value = null
     currentMatrix = null
-    matrixView.value = { days: [], rows: [] }
+    matrixView.value = { days: [], rows: [], priceRows: [], stockRows: [] }
     undoStack.value = []
     redoStack.value = []
     matrixDirty.value = false

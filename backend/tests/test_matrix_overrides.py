@@ -36,8 +36,9 @@ def _fact_base() -> MatrixBaseState:
                     open_count=200,
                     cart_count=20,
                     order_count=10,
-                    order_sum=5000.0,
-                    buyout_sum=2500.0,
+                    buyout_count=6,
+                    seller_price=500.0,
+                    customer_price=350.0,
                 ),
             )
         ]
@@ -52,14 +53,14 @@ def test_overlay_applies_stored_edits_with_type_coercion() -> None:
         [
             MatrixOverride(nm_id=1, stat_date=DAY, bucket="manual_search", field="views", value=99),
             MatrixOverride(
-                nm_id=1, stat_date=DAY, bucket="funnel", field="order_sum", value=1234.5
+                nm_id=1, stat_date=DAY, bucket="funnel", field="seller_price", value=1234.5
             ),
         ],
     )
     bucket = base.days[0].buckets["manual_search"]
     assert bucket.views == 99 and isinstance(bucket.views, int)
     assert base.days[0].funnel is not None
-    assert base.days[0].funnel.order_sum == 1234.5
+    assert base.days[0].funnel.seller_price == 1234.5
 
 
 def test_overlay_skips_unknown_targets() -> None:

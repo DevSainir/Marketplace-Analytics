@@ -15,8 +15,10 @@ from src.modules.monitoring.models import (
     AdvertisingSearchStatDaily,
     AdvertisingStatDaily,
     Campaign,
+    PriceSnapshot,
     SalesFunnelDaily,
 )
+from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas.matrix import MATRIX_BUCKETS
 from src.modules.monitoring.services.matrix import build_metrics_matrix
 
@@ -95,24 +97,29 @@ def _funnel_row(
     open_count: int = 0,
     cart_count: int = 0,
     order_count: int = 0,
-    order_sum: float = 0.0,
     buyout_count: int = 0,
-    buyout_sum: float = 0.0,
 ) -> SalesFunnelDaily:
-    """Construct an in-memory funnel row."""
+    """Construct an in-memory funnel row (₽ volumes are no longer stored)."""
     return SalesFunnelDaily(
         stat_date=stat_date,
         nm_id=111,
         open_count=open_count,
         cart_count=cart_count,
         order_count=order_count,
-        order_sum=order_sum,
         buyout_count=buyout_count,
-        buyout_sum=buyout_sum,
         add_to_wishlist=0,
         cart_conversion=0,
         order_conversion=0,
         buyout_conversion=0,
+    )
+
+
+def _price_row(
+    stat_date: date, *, seller: float | None = None, customer: float | None = None
+) -> PriceSnapshot:
+    """Construct an in-memory price snapshot row."""
+    return PriceSnapshot(
+        stat_date=stat_date, nm_id=111, seller_price=seller, customer_price=customer
     )
 
 
@@ -122,6 +129,8 @@ def _matrix(
     ad_rows: list[AdvertisingStatDaily],
     search_rows: list[AdvertisingSearchStatDaily] | None = None,
     funnel_rows: list[SalesFunnelDaily] | None = None,
+    price_snapshots: list[PriceSnapshot] | None = None,
+    stock_daily: list[StockDailyTotal] | None = None,
     date_from: date = DAY1,
     date_to: date = DAY1,
 ) -> dict[str, list[float | None]]:
@@ -133,6 +142,8 @@ def _matrix(
         ad_rows=ad_rows,
         search_rows=search_rows or [],
         campaigns=campaigns,
+        price_snapshots=price_snapshots or [],
+        stock_daily=stock_daily or [],
     )
     return {row.key: row.values for row in matrix.rows}
 
@@ -187,16 +198,16 @@ def _two_campaign_rows() -> dict[str, list[float | None]]:
     ]
     search_rows = [_search_row(1, DAY1, views=30, clicks=3, add_to_cart=1, spend=15, orders=1)]
     funnel_rows = [
-        _funnel_row(
-            DAY1, open_count=200, cart_count=20, order_count=10, order_sum=5000, buyout_sum=2500
-        ),
+        _funnel_row(DAY1, open_count=200, cart_count=20, order_count=10, buyout_count=6),
         _funnel_row(DAY1 - timedelta(days=10), order_count=8, buyout_count=4),
     ]
+    price_snapshots = [_price_row(DAY1, seller=500, customer=350)]
     return _matrix(
         campaigns=campaigns,
         ad_rows=ad_rows,
         search_rows=search_rows,
         funnel_rows=funnel_rows,
+        price_snapshots=price_snapshots,
         date_to=DAY2,
     )
 
@@ -328,6 +339,94 @@ def test_zero_delivery_campaign_is_cut() -> None:
     assert _cell(rows, "views", 0, "total") is None  # no significant ads
     # With no surviving ads, all funnel traffic is organic.
     assert _cell(rows, "clicks", 0, "organic") == 100
+
+
+def test_total_volumes_and_spp_derive_from_seller_price() -> None:
+    """«Заказы/Выкупы ₽» = count x seller_price; «СПП» = (seller-customer)/seller."""
+    rows = _two_campaign_rows()
+    # DAY1: order_count 10 x 500 = 5000; buyout_count 6 x 500 = 3000.
+    assert _cell(rows, "order_sum", 0, "total") == 5000.0
+    assert _cell(rows, "buyout_sum", 0, "total") == 3000.0
+    assert _cell(rows, "seller_price", 0, "total") == 500.0
+    assert _cell(rows, "customer_price", 0, "total") == 350.0
+    assert _cell(rows, "spp", 0, "total") == 30.0  # (500-350)/500 x 100
+    # DRR over the derived ₽: spend 70 / 5000 and / 3000.
+    assert _cell(rows, "drr_orders", 0, "total") == 1.4
+    assert _cell(rows, "drr_sales", 0, "total") == 2.33
+    # Prices/СПП are «Общая»-only (never on ad buckets or «Органика»).
+    for bucket in ("uni_search", "manual_search", "organic"):
+        assert _cell(rows, "seller_price", 0, bucket) is None
+        assert _cell(rows, "spp", 0, bucket) is None
+
+
+def test_unpriced_day_leaves_volumes_and_spp_empty() -> None:
+    """With no price snapshot, «Заказы/Выкупы ₽» and «СПП» render «—»."""
+    campaigns = {1: _campaign(1, "manual", search=True, shelves=False)}
+    ad_rows = [_ad_row(1, DAY1, views=100, clicks=10, spend=50, orders=5)]
+    funnel_rows = [_funnel_row(DAY1, open_count=100, order_count=6, buyout_count=3)]
+    rows = _matrix(campaigns=campaigns, ad_rows=ad_rows, funnel_rows=funnel_rows)
+    assert _cell(rows, "order_sum", 0, "total") is None
+    assert _cell(rows, "buyout_sum", 0, "total") is None
+    assert _cell(rows, "seller_price", 0, "total") is None
+    assert _cell(rows, "spp", 0, "total") is None
+
+
+def test_price_applies_only_to_its_snapshot_day() -> None:
+    """A day without its own snapshot stays unpriced — no carry-forward."""
+    campaigns: dict[int, Campaign] = {}
+    funnel_rows = [
+        _funnel_row(DAY1, order_count=2),
+        _funnel_row(DAY2, order_count=3),
+    ]
+    # Only DAY1 has a snapshot; DAY2 was never observed and must render «—».
+    price_snapshots = [_price_row(DAY1, seller=100, customer=80)]
+    rows = _matrix(
+        campaigns=campaigns,
+        ad_rows=[],
+        funnel_rows=funnel_rows,
+        price_snapshots=price_snapshots,
+        date_to=DAY2,
+    )
+    assert _cell(rows, "order_sum", 0, "total") == 200.0  # 2 x 100
+    assert _cell(rows, "seller_price", 0, "total") == 100.0
+    assert _cell(rows, "spp", 0, "total") == 20.0
+    # The unobserved day: prices and the price-derived volumes are all empty.
+    assert _cell(rows, "order_sum", 1, "total") is None
+    assert _cell(rows, "seller_price", 1, "total") is None
+    assert _cell(rows, "spp", 1, "total") is None
+
+
+def test_stock_rows_show_in_total_on_snapshot_days_only() -> None:
+    """Stock rows live in «Общая» only and only on actual snapshot days."""
+    campaigns: dict[int, Campaign] = {}
+    funnel_rows = [_funnel_row(DAY1, order_count=1), _funnel_row(DAY2, order_count=1)]
+    # Only DAY1 has a snapshot; DAY2 was never observed and must render «—».
+    stock_daily = [
+        StockDailyTotal(stat_date=DAY1, quantity=42, in_way_to_client=5, in_way_from_client=2)
+    ]
+    rows = _matrix(
+        campaigns=campaigns,
+        ad_rows=[],
+        funnel_rows=funnel_rows,
+        stock_daily=stock_daily,
+        date_to=DAY2,
+    )
+    assert _cell(rows, "stock_quantity", 0, "total") == 42.0
+    assert _cell(rows, "stock_to_client", 0, "total") == 5.0
+    assert _cell(rows, "stock_from_client", 0, "total") == 2.0
+    for key in ("stock_quantity", "stock_to_client", "stock_from_client"):
+        assert _cell(rows, key, 1, "total") is None
+    # Stock is «Общая»-only; ad buckets and «Органика» stay empty.
+    for bucket in ("uni_search", "manual_search", "organic"):
+        assert _cell(rows, "stock_quantity", 0, bucket) is None
+
+
+def test_stock_rows_empty_without_snapshots() -> None:
+    """A SKU with no stock snapshots renders «—» in the stock rows."""
+    funnel_rows = [_funnel_row(DAY1, order_count=1)]
+    rows = _matrix(campaigns={}, ad_rows=[], funnel_rows=funnel_rows)
+    assert _cell(rows, "stock_quantity", 0, "total") is None
+    assert _cell(rows, "stock_to_client", 0, "total") is None
 
 
 def test_search_slice_clamped_to_campaign_totals() -> None:

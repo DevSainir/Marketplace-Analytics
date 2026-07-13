@@ -155,7 +155,11 @@ def _solve_traffic_share(day: MatrixDayBase, bucket: str, value: float) -> None:
 
 
 def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
-    """Resolve an edit in the «Общая» column (funnel-backed cells only)."""
+    """Resolve an edit in the «Общая» column (funnel-backed cells only).
+
+    Prices are editable inputs; «Заказы, ₽»/«Выкупы, ₽»/«СПП» are now DERIVED
+    (``count x seller_price`` and the СПП ratio) and therefore read-only.
+    """
     f = day.funnel
     if f is None:
         raise ValidationError(f"No funnel data on {day.day.isoformat()} to edit.")
@@ -166,15 +170,16 @@ def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
             f.cart_count = _count(value)
         case "orders":
             f.order_count = _count(value)
-        case "order_sum":
-            f.order_sum = _money(value)
-        case "buyout_sum":
-            f.buyout_sum = _money(value)
+        case "seller_price":
+            f.seller_price = _money(value)
+        case "customer_price":
+            f.customer_price = _money(value)
         case "cart_conversion":  # cart_count / open_count * 100
             f.cart_count = _count(value / 100 * f.open_count)
         case "order_conversion":  # order_count / cart_count * 100
             f.order_count = _count(value / 100 * f.cart_count)
         case _:
+            # order_sum/buyout_sum/spp derive from the prices (read-only);
             # spend/views/cpc/cost_*/drr_* are cross-bucket ad roll-ups with no
             # unique back-distribution; buyout_percent is a lagged window.
             raise _readonly("total", metric)

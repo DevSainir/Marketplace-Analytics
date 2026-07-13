@@ -17,6 +17,7 @@ from src.modules.monitoring.models import (
     AdvertisingSearchStatDaily,
     AdvertisingStatDaily,
     Campaign,
+    PriceSnapshot,
     SalesFunnelDaily,
     StockSnapshot,
     normalize_type,
@@ -27,10 +28,12 @@ from src.modules.monitoring.repos import (
     CampaignRepository,
     FunnelRepository,
     MatrixOverrideRepository,
+    PriceRepository,
     ProductCardRepository,
     ProductSizeRepository,
     StockRepository,
 )
+from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas import (
     BaselineDemandRead,
     CampaignAdvertising,
@@ -58,6 +61,7 @@ from src.modules.monitoring.services.matrix import (
     BUYOUT_LAG_START_DAYS,
     build_matrix_from_base,
     derive_base_state,
+    price_for_day,
 )
 from src.modules.monitoring.services.matrix_edit import apply_edit
 from src.modules.monitoring.services.matrix_overrides import (
@@ -124,6 +128,7 @@ class AnalyticsService:
         product_card_repo: ProductCardRepository,
         product_size_repo: ProductSizeRepository,
         matrix_override_repo: MatrixOverrideRepository,
+        price_repo: PriceRepository,
     ) -> None:
         """Inject the read repositories the service composes over."""
         self._funnel = funnel_repo
@@ -134,6 +139,7 @@ class AnalyticsService:
         self._product_cards = product_card_repo
         self._product_sizes = product_size_repo
         self._matrix_overrides = matrix_override_repo
+        self._prices = price_repo
 
     # ------------------------------------------------------------------ #
     # Summary listing
@@ -166,6 +172,9 @@ class AnalyticsService:
         funnel_aggs = await self._funnel.aggregate_window(date_from=date_from, date_to=date_to)
         ad_aggs = await self._advertising.aggregate_window(date_from=date_from, date_to=date_to)
         stock_totals = await self._stocks.latest_totals_by_sku(date_from=date_from, date_to=date_to)
+        # Summary ₽ volumes price window-total counts against each SKU's LATEST
+        # known seller price (the per-day matrix carries prices forward per day).
+        latest_prices = await self._prices.latest_by_sku(date_to=max(date_to, moscow_today()))
 
         funnel_by_sku = {agg.nm_id: agg for agg in funnel_aggs}
         ads_by_sku = {agg.nm_id: agg for agg in ad_aggs}
@@ -186,6 +195,10 @@ class AnalyticsService:
             cart_count = funnel.cart_count if funnel else 0
             order_count = funnel.order_count if funnel else 0
             buyout_count = funnel.buyout_count if funnel else 0
+            # Derived ₽ volumes: window-total count x latest seller price.
+            seller_price = latest_prices.get(nm_id, (None, None))[0]
+            order_sum = round(order_count * seller_price, 2) if seller_price is not None else 0.0
+            buyout_sum = round(buyout_count * seller_price, 2) if seller_price is not None else 0.0
 
             items.append(
                 SkuSummaryItem(
@@ -195,9 +208,9 @@ class AnalyticsService:
                     total_open_count=open_count,
                     total_cart_count=cart_count,
                     total_orders=order_count,
-                    total_order_sum=funnel.order_sum if funnel else 0.0,
+                    total_order_sum=order_sum,
                     total_buyout_count=buyout_count,
-                    total_buyout_sum=funnel.buyout_sum if funnel else 0.0,
+                    total_buyout_sum=buyout_sum,
                     total_add_to_wishlist=funnel.add_to_wishlist if funnel else 0,
                     # Conversions are recomputed from window totals (never
                     # averaged across days), matching compute_funnel_totals.
@@ -264,21 +277,26 @@ class AnalyticsService:
         # The funnel is fetched over an EXTENDED window: the matrix's lagged
         # «Процент выкупа» reads up to BUYOUT_LAG_START_DAYS before the first
         # displayed day. Everything else uses the requested window's slice.
-        extended_funnel_rows, ad_rows, search_rows, campaigns = await self._fetch_matrix_inputs(
+        (
+            extended_funnel_rows,
+            ad_rows,
+            search_rows,
+            campaigns,
+            price_snapshots,
+            stock_daily,
+        ) = await self._fetch_matrix_inputs(
             nm_id=nm_id, date_from=date_from, date_to=date_to, campaign_id=campaign_id
         )
         funnel_rows = [row for row in extended_funnel_rows if row.stat_date >= date_from]
-        # Stock is split into the per-day totals (feeds OOS masking) and the
-        # latest snapshot's size x warehouse rows (feeds the breakdown table) —
-        # both filtered in SQL instead of hydrating the whole window's rows.
-        stock_daily_totals = await self._stocks.daily_totals_for_sku(
-            nm_id=nm_id, date_from=date_from, date_to=date_to
-        )
+        # The per-day stock totals feed both the matrix stock/in-transit rows
+        # and OOS masking; the latest snapshot's size x warehouse rows feed the
+        # breakdown table (filtered in SQL, not hydrated wholesale).
+        stock_daily_totals = {total.stat_date: total.quantity for total in stock_daily}
         latest_stock_rows = await self._stocks.list_latest_for_sku(
             nm_id=nm_id, date_from=date_from, date_to=date_to
         )
 
-        if not funnel_rows and not ad_rows and not stock_daily_totals:
+        if not funnel_rows and not ad_rows and not stock_daily:
             raise NotFoundError(f"No monitoring data found for SKU {nm_id}.")
 
         # Group + filter the per-campaign advertising view.
@@ -295,11 +313,19 @@ class AnalyticsService:
             ad_rows=ad_rows,
             search_rows=search_rows,
             campaigns=campaigns,
+            price_snapshots=price_snapshots,
+            stock_daily=stock_daily,
         )
         overrides = await self._matrix_overrides.list_for_sku(
             nm_id=nm_id, date_from=date_from, date_to=date_to
         )
         overlay_overrides(base, overrides)
+
+        # The raw funnel list/totals carry the same price-derived ₽ volumes
+        # (count x carry-forward seller price) the matrix «Общая» column shows.
+        funnel_details, window_order_sum, window_buyout_sum = _price_funnel_details(
+            funnel_rows, price_snapshots
+        )
 
         # Decorate identity + sizes from the catalogue dimensions (nullable —
         # a SKU with stock but no synced card still renders, just label-less).
@@ -313,8 +339,10 @@ class AnalyticsService:
             vendor_code=card.vendor_code if card else None,
             title=card.title if card else None,
             window=MetricWindow(start=date_from, end=date_to),
-            funnel=[FunnelDetailRead.model_validate(r) for r in funnel_rows],
-            funnel_totals=compute_funnel_totals(funnel_rows),
+            funnel=funnel_details,
+            funnel_totals=compute_funnel_totals(
+                funnel_rows, order_sum=window_order_sum, buyout_sum=window_buyout_sum
+            ),
             baseline_demand=_compute_baseline(funnel_rows, stock_daily_totals),
             advertising=advertising,
             matrix=build_matrix_from_base(base),
@@ -334,16 +362,20 @@ class AnalyticsService:
         list[AdvertisingStatDaily],
         list[AdvertisingSearchStatDaily],
         dict[int, Campaign],
+        list[PriceSnapshot],
+        list[StockDailyTotal],
     ]:
         """Fetch the fact rows the matrix is derived from (extended funnel window).
 
         Shared by the detail read and the save path so both derive an identical
         fact-base. The funnel spans ``[date_from - BUYOUT_LAG_START_DAYS, date_to]``
-        for the lagged «Процент выкупа».
+        for the lagged «Процент выкупа»; price snapshots share that extended
+        window so early display days can carry an earlier price forward.
         """
+        extended_start = date_from - timedelta(days=BUYOUT_LAG_START_DAYS)
         extended_funnel_rows = await self._funnel.list_for_sku(
             nm_id=nm_id,
-            date_from=date_from - timedelta(days=BUYOUT_LAG_START_DAYS),
+            date_from=extended_start,
             date_to=date_to,
         )
         ad_rows = await self._advertising.list_for_sku(
@@ -353,7 +385,18 @@ class AnalyticsService:
             nm_id=nm_id, date_from=date_from, date_to=date_to, campaign_id=campaign_id
         )
         campaigns = await self._campaigns.get_by_ids({row.campaign_id for row in ad_rows})
-        return extended_funnel_rows, ad_rows, search_rows, campaigns
+        # Prices/stock are snapshotted on the harvest day (Moscow *today*), but
+        # the analysis window ends *yesterday* (WB serves no current-day
+        # funnel), so the latest snapshot sits just outside [.., date_to]. Reach
+        # up to today so carry-forward can apply it to the recent display days.
+        snapshot_end = max(date_to, moscow_today())
+        price_snapshots = await self._prices.list_for_sku(
+            nm_id=nm_id, date_from=extended_start, date_to=snapshot_end
+        )
+        stock_daily = await self._stocks.daily_totals_for_sku(
+            nm_id=nm_id, date_from=date_from, date_to=snapshot_end
+        )
+        return extended_funnel_rows, ad_rows, search_rows, campaigns, price_snapshots, stock_daily
 
     # ------------------------------------------------------------------ #
     # Matrix editing (preview + save)
@@ -405,9 +448,14 @@ class AnalyticsService:
             The detail view rebuilt with the saved overrides applied.
         """
         date_from, date_to = resolve_window(date_from, date_to)
-        extended_funnel_rows, ad_rows, search_rows, campaigns = await self._fetch_matrix_inputs(
-            nm_id=nm_id, date_from=date_from, date_to=date_to
-        )
+        (
+            extended_funnel_rows,
+            ad_rows,
+            search_rows,
+            campaigns,
+            price_snapshots,
+            stock_daily,
+        ) = await self._fetch_matrix_inputs(nm_id=nm_id, date_from=date_from, date_to=date_to)
         fact_base = derive_base_state(
             date_from=date_from,
             date_to=date_to,
@@ -415,6 +463,8 @@ class AnalyticsService:
             ad_rows=ad_rows,
             search_rows=search_rows,
             campaigns=campaigns,
+            price_snapshots=price_snapshots,
+            stock_daily=stock_daily,
         )
         rows = diff_to_overrides(nm_id=nm_id, working=base, fact=fact_base)
         await self._matrix_overrides.replace_window(
@@ -452,13 +502,21 @@ class AnalyticsService:
         if not funnel_rows:
             raise NotFoundError(f"No funnel metrics found for SKU {sku}.")
 
+        price_snapshots = await self._prices.list_for_sku(
+            nm_id=sku, date_from=date_from, date_to=max(date_to, moscow_today())
+        )
+        funnel_details, window_order_sum, window_buyout_sum = _price_funnel_details(
+            funnel_rows, price_snapshots
+        )
         return FunnelResponseSchema(
             nm_id=sku,
             window_start=date_from,
             window_end=date_to,
             raw_orders=sum(r.order_count for r in funnel_rows),
-            totals=compute_funnel_totals(funnel_rows),
-            days=[FunnelDetailRead.model_validate(r) for r in funnel_rows],
+            totals=compute_funnel_totals(
+                funnel_rows, order_sum=window_order_sum, buyout_sum=window_buyout_sum
+            ),
+            days=funnel_details,
         )
 
     # ------------------------------------------------------------------ #
@@ -500,6 +558,38 @@ class AnalyticsService:
                 for card in cards
             ],
         )
+
+
+def _price_funnel_details(
+    funnel_rows: list[SalesFunnelDaily],
+    price_snapshots: list[PriceSnapshot],
+) -> tuple[list[FunnelDetailRead], float, float]:
+    """Build per-day funnel DTOs with price-derived ₽ volumes + their window totals.
+
+    The stored funnel row no longer carries ₽ volumes; each day's «Заказы, ₽» /
+    «Выкупы, ₽» are ``count x carry-forward seller price`` (``0.0`` when the SKU
+    is unpriced), matching the matrix «Общая» column.
+
+    Args:
+        funnel_rows: The SKU's daily funnel rows for the display window.
+        price_snapshots: The SKU's price snapshots (any order).
+
+    Returns:
+        ``(day_dtos, window_order_sum, window_buyout_sum)``.
+    """
+    ordered = sorted(price_snapshots, key=lambda s: s.stat_date)
+    details: list[FunnelDetailRead] = []
+    total_order_sum = total_buyout_sum = 0.0
+    for row in funnel_rows:
+        seller, _customer = price_for_day(ordered, row.stat_date)
+        detail = FunnelDetailRead.model_validate(row)
+        if seller is not None:
+            detail.order_sum = round(row.order_count * seller, 2)
+            detail.buyout_sum = round(row.buyout_count * seller, 2)
+        total_order_sum += detail.order_sum
+        total_buyout_sum += detail.buyout_sum
+        details.append(detail)
+    return details, round(total_order_sum, 2), round(total_buyout_sum, 2)
 
 
 def _compute_baseline(

@@ -25,9 +25,7 @@ class FunnelAggregate:
     open_count: int
     cart_count: int
     order_count: int
-    order_sum: float
     buyout_count: int
-    buyout_sum: float
     add_to_wishlist: int
 
 
@@ -36,9 +34,7 @@ _UPDATE = (
     "open_count",
     "cart_count",
     "order_count",
-    "order_sum",
     "buyout_count",
-    "buyout_sum",
     "add_to_wishlist",
     "cart_conversion",
     "order_conversion",
@@ -113,9 +109,7 @@ class FunnelRepository(BaseRepository):
                 func.sum(SalesFunnelDaily.open_count).label("open_count"),
                 func.sum(SalesFunnelDaily.cart_count).label("cart_count"),
                 func.sum(SalesFunnelDaily.order_count).label("order_count"),
-                func.sum(SalesFunnelDaily.order_sum).label("order_sum"),
                 func.sum(SalesFunnelDaily.buyout_count).label("buyout_count"),
-                func.sum(SalesFunnelDaily.buyout_sum).label("buyout_sum"),
                 func.sum(SalesFunnelDaily.add_to_wishlist).label("add_to_wishlist"),
             )
             .where(
@@ -133,9 +127,7 @@ class FunnelRepository(BaseRepository):
                 open_count=int(row.open_count),
                 cart_count=int(row.cart_count),
                 order_count=int(row.order_count),
-                order_sum=float(row.order_sum),
                 buyout_count=int(row.buyout_count),
-                buyout_sum=float(row.buyout_sum),
                 add_to_wishlist=int(row.add_to_wishlist),
             )
             for row in result.all()

@@ -94,9 +94,20 @@ class Settings(BaseSettings):
     # --- WildBerries integration ---
     wb_analytics_token: str = Field(default="")
     wb_advertising_token: str = Field(default="")
+    # Prices & Discounts surface — seller (discounted) prices. Category-scoped
+    # token ("Цены и скидки"), separate from the analytics/advertising tokens.
+    wb_prices_token: str = Field(default="")
     wb_analytics_base_url: str = Field(default="https://seller-analytics-api.wildberries.ru")
     wb_advertising_base_url: str = Field(default="https://advert-api.wildberries.ru")
     wb_content_base_url: str = Field(default="https://content-api.wildberries.ru")
+    wb_prices_base_url: str = Field(default="https://discounts-prices-api.wildberries.ru")
+    # Public storefront card endpoint (card.wb.ru) — the final customer price
+    # after ALL discounts incl. WB loyalty (СПП). Unauthenticated. ``dest`` is a
+    # region/delivery code and ``spp`` the loyalty tier the storefront prices
+    # against; both are fixed inputs the СПП is computed relative to.
+    wb_card_base_url: str = Field(default="https://card.wb.ru")
+    wb_card_dest: int = Field(default=-1255563)
+    wb_card_spp: int = Field(default=30)
     wb_http_timeout_seconds: float = Field(default=30.0)
     # WB (esp. the advertising surface) is aggressively rate-limited (~1 req/min
     # -> HTTP 429). Requests retry with exponential backoff, honouring any

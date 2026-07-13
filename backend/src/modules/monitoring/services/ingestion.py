@@ -19,8 +19,10 @@ from src.integrations.wildberries.schemas import (
     WBAdvertV2,
     WBCampaign,
     WBCard,
+    WBCardProduct,
     WBFunnelHistoryRow,
     WBNormQueryItem,
+    WBPriceGood,
     WBStockRow,
 )
 from src.modules.monitoring.models import normalize_status
@@ -29,6 +31,7 @@ from src.modules.monitoring.repos import (
     AdvertisingSearchRepository,
     CampaignRepository,
     FunnelRepository,
+    PriceRepository,
     ProductCardRepository,
     ProductSizeRepository,
     StockRepository,
@@ -62,6 +65,7 @@ class IngestionService:
         product_card_repo: ProductCardRepository,
         product_size_repo: ProductSizeRepository,
         advertising_search_repo: AdvertisingSearchRepository,
+        price_repo: PriceRepository,
     ) -> None:
         """Inject the write repositories used for persistence."""
         self._funnel = funnel_repo
@@ -71,6 +75,7 @@ class IngestionService:
         self._product_cards = product_card_repo
         self._product_sizes = product_size_repo
         self._advertising_search = advertising_search_repo
+        self._prices = price_repo
 
     async def ingest_sales_funnel(self, rows: list[WBFunnelHistoryRow]) -> int:
         """Flatten and upsert the daily organic sales-funnel history.
@@ -85,6 +90,9 @@ class IngestionService:
         Returns:
             The number of daily funnel rows persisted.
         """
+        # NOTE: ``orderSum``/``buyoutSum`` from WB are intentionally dropped —
+        # the ₽ volumes are now derived from ``count x seller_price`` (see the
+        # matrix and price snapshot), not stored on the funnel row.
         flattened: list[dict[str, object]] = [
             {
                 "stat_date": day.stat_date,
@@ -92,9 +100,7 @@ class IngestionService:
                 "open_count": day.open_count,
                 "cart_count": day.cart_count,
                 "order_count": day.order_count,
-                "order_sum": day.order_sum,
                 "buyout_count": day.buyout_count,
-                "buyout_sum": day.buyout_sum,
                 "add_to_wishlist": day.add_to_wishlist,
                 "cart_conversion": day.cart_conversion,
                 "order_conversion": day.order_conversion,
@@ -233,6 +239,60 @@ class IngestionService:
         ]
         count = await self._stocks.upsert_many(flattened)
         logger.info("Ingested %d stock rows for %s.", count, snapshot_date)
+        return count
+
+    async def ingest_prices(
+        self,
+        goods: list[WBPriceGood],
+        customer: list[WBCardProduct],
+        *,
+        snapshot_date: date,
+        nm_ids: list[int] | None = None,
+    ) -> int:
+        """Persist a daily seller/customer price snapshot per SKU.
+
+        Joins the seller ``discountedPrice`` (Prices & Discounts API) with the
+        final customer price (``card.wb.ru``) by ``nm_id`` into one row per SKU
+        for ``snapshot_date``. A SKU present in only one source still yields a
+        row (the missing side is ``NULL``); the matrix prices only these exact
+        snapshot days — days without a snapshot stay unpriced.
+
+        Snapshots are written ONLY for ``nm_ids`` — the SKUs this harvest
+        covered. This matters for a single-SKU refresh: the seller ``goods`` feed
+        returns the whole account, but the customer feed is fetched only for the
+        harvested SKUs, so writing every good would stamp ``NULL`` customer
+        prices over the other SKUs' snapshots. When ``nm_ids`` is ``None`` (a
+        full harvest that did not scope), every good is written.
+
+        Args:
+            goods: Raw seller pricing records from the prices client.
+            customer: Raw storefront card products from the card client.
+            snapshot_date: The Moscow-time calendar day the snapshot represents.
+            nm_ids: The harvested SKUs to snapshot; ``None`` writes all goods.
+
+        Returns:
+            The number of price snapshot rows persisted.
+        """
+        seller_by_sku = {good.nm_id: good.seller_price for good in goods}
+        customer_by_sku = {product.nm_id: product.customer_price for product in customer}
+
+        target_ids = (
+            sorted(nm_ids)
+            if nm_ids is not None
+            else sorted(seller_by_sku.keys() | customer_by_sku.keys())
+        )
+        rows: list[dict[str, object]] = [
+            {
+                "stat_date": snapshot_date,
+                "nm_id": nm_id,
+                "seller_price": seller_by_sku.get(nm_id),
+                "customer_price": customer_by_sku.get(nm_id),
+            }
+            for nm_id in target_ids
+            if seller_by_sku.get(nm_id) is not None or customer_by_sku.get(nm_id) is not None
+        ]
+        count = await self._prices.upsert_many(rows)
+        logger.info("Ingested %d price snapshot rows for %s.", count, snapshot_date)
         return count
 
     async def ingest_campaigns(
@@ -407,6 +467,9 @@ class IngestionService:
         advertising_window: tuple[date, date] | None = None,
         search_stats: list[WBNormQueryItem] | None = None,
         search_requested_campaign_ids: list[int] | None = None,
+        prices: list[WBPriceGood] | None = None,
+        customer_prices: list[WBCardProduct] | None = None,
+        price_nm_ids: list[int] | None = None,
     ) -> IngestionResult:
         """Run a full harvest ingestion in one unit of work.
 
@@ -414,7 +477,7 @@ class IngestionService:
             funnel: Raw per-product daily funnel-history rows to persist.
             advertising: Raw per-campaign stats trees to persist.
             stocks: Raw stock rows to persist.
-            snapshot_date: Moscow-time day for the stock snapshot.
+            snapshot_date: Moscow-time day for the stock/price snapshot.
             harvested_nm_ids: Every SKU this harvest covered (enables the
                 absence-means-zero stock sweep for sold-out SKUs).
             advertising_window: The harvested advertising window (enables the
@@ -423,6 +486,11 @@ class IngestionService:
                 when the source failed (its rows are then left untouched).
             search_requested_campaign_ids: Every campaign the search-zone
                 harvest asked for (enables its stale-row sweep).
+            prices: Raw seller pricing records; ``None`` when the source failed.
+            customer_prices: Raw storefront card products; ``None`` when that
+                source failed (the customer side is then left ``NULL``).
+            price_nm_ids: The harvested SKUs to snapshot prices for (scopes the
+                account-wide seller feed to this harvest); ``None`` writes all.
 
         Returns:
             An :class:`IngestionResult` tallying rows persisted per family.
@@ -439,9 +507,17 @@ class IngestionService:
         stock_count = await self.ingest_stocks(
             stocks, snapshot_date=snapshot_date, harvested_nm_ids=harvested_nm_ids
         )
+        # Prices snapshot: only written when the seller source succeeded (an
+        # absent prices fetch must not stamp a NULL-price snapshot for the day).
+        price_count = 0
+        if prices is not None:
+            price_count = await self.ingest_prices(
+                prices, customer_prices or [], snapshot_date=snapshot_date, nm_ids=price_nm_ids
+            )
         return IngestionResult(
             funnel_rows=funnel_count,
             advertising_rows=ad_count,
             search_zone_rows=search_count,
             stock_rows=stock_count,
+            price_rows=price_count,
         )

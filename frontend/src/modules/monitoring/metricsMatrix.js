@@ -48,8 +48,10 @@ const TOTAL_EDITABLE = new Set([
   'clicks',
   'carts',
   'orders',
-  'order_sum',
-  'buyout_sum',
+  // order_sum / buyout_sum / spp are derived from the prices (read-only); the
+  // prices themselves are the editable inputs.
+  'seller_price',
+  'customer_price',
   'cart_conversion',
   'order_conversion',
 ])
@@ -101,10 +103,13 @@ const fmtPercent = (v) => (v == null ? EM_DASH : formatPercent(v))
 /**
  * Metric rows in the workbook's order — presentation only (label, accent
  * tone, formatter). `key` matches the backend's `MATRIX_METRIC_KEYS`.
+ *
+ * `group` clusters rows between thick horizontal dividers (money economics
+ * vs ДРР/выкуп efficiency) — separation only, no tinting.
  */
 const METRIC_DEFS = [
   { key: 'traffic_share', label: 'Доля трафика, %', format: fmtPercent },
-  { key: 'spend', label: 'Затраты, ₽', tone: 'warning', format: fmtCurrency },
+  { key: 'spend', label: 'Затраты, ₽', tone: 'negative', format: fmtCurrency },
   { key: 'views', label: 'Показы', format: fmtNumber },
   { key: 'ctr', label: 'CTR, %', format: fmtPercent },
   { key: 'cpm', label: 'CPM, ₽', format: fmtCurrency },
@@ -113,14 +118,38 @@ const METRIC_DEFS = [
   { key: 'carts', label: 'Корзины', tone: 'carts', format: fmtNumber },
   { key: 'cart_conversion', label: 'Конверсия в корзину, %', tone: 'carts', format: fmtPercent },
   { key: 'orders', label: 'Заказы', tone: 'positive', format: fmtNumber },
-  { key: 'order_conversion', label: 'Конверсия в заказ, %', tone: 'positive', format: fmtPercent },
-  { key: 'order_sum', label: 'Заказы, ₽', format: fmtCurrency },
-  { key: 'buyout_sum', label: 'Выкупы, ₽', format: fmtCurrency },
-  { key: 'cost_per_order', label: 'Стоимость заказа, ₽', format: fmtCurrency },
-  { key: 'cost_per_cart', label: 'Стоимость корзины, ₽', format: fmtCurrency },
-  { key: 'drr_orders', label: 'ДРР от заказов, %', format: fmtPercent },
-  { key: 'drr_sales', label: 'ДРР от продаж, %', format: fmtPercent },
-  { key: 'buyout_percent', label: 'Процент выкупа, %', format: fmtPercent },
+  {
+    key: 'order_conversion',
+    label: 'Конверсия в заказ, %',
+    tone: 'positive',
+    format: fmtPercent,
+  },
+  { key: 'order_sum', label: 'Заказы, ₽', group: 'orders', format: fmtCurrency },
+  { key: 'buyout_sum', label: 'Выкупы, ₽', group: 'orders', format: fmtCurrency },
+  { key: 'cost_per_order', label: 'Стоимость заказа, ₽', group: 'orders', format: fmtCurrency },
+  { key: 'cost_per_cart', label: 'Стоимость корзины, ₽', group: 'orders', format: fmtCurrency },
+  { key: 'drr_orders', label: 'ДРР от заказов, %', group: 'drr', format: fmtPercent },
+  { key: 'drr_sales', label: 'ДРР от продаж, %', group: 'drr', format: fmtPercent },
+  { key: 'buyout_percent', label: 'Процент выкупа, %', group: 'drr', format: fmtPercent },
+]
+
+/**
+ * Prices & stock render as compact DAY-BOUND blocks under the metric rows
+ * («Цены» / «Остатки» cards inside each day section of the same table).
+ * These metrics only ever have «Общая»-bucket values, so each block row
+ * carries one cell per day (bucket fixed to `total`). Prices are editable
+ * inputs («Заказы/Выкупы ₽» and «СПП» derive from them); stock rows are
+ * read-only snapshot facts.
+ */
+const PRICE_METRIC_DEFS = [
+  { key: 'seller_price', label: 'Цена продавца, ₽', format: fmtCurrency },
+  { key: 'customer_price', label: 'Цена покупателя, ₽', format: fmtCurrency },
+  { key: 'spp', label: 'СПП, %', tone: 'positive', format: fmtPercent },
+]
+const STOCK_METRIC_DEFS = [
+  { key: 'stock_quantity', label: 'Остаток, шт', format: fmtNumber },
+  { key: 'stock_to_client', label: 'В пути к клиенту, шт', format: fmtNumber },
+  { key: 'stock_from_client', label: 'В пути от клиента, шт', format: fmtNumber },
 ]
 
 /**
@@ -155,9 +184,33 @@ function matrixLookups(matrix) {
   }
 }
 
+/** Build the «Общая»-only rows of one mini block (one cell per day). */
+function buildTotalRows(defs, matrix, backendValues) {
+  const totalIndex = matrix.buckets.indexOf('total')
+  return defs.map((def) => {
+    const values = backendValues.get(def.key)
+    return {
+      key: def.key,
+      label: def.label,
+      tone: def.tone ?? null,
+      cells: matrix.days.map((iso, dayIndex) => {
+        const raw = resolveRaw(values, matrix.buckets.length, totalIndex, dayIndex)
+        return {
+          display: def.format(raw),
+          raw,
+          day: iso,
+          bucket: 'total',
+          metric: def.key,
+          editable: raw != null && isEditable('total', def.key),
+        }
+      }),
+    }
+  })
+}
+
 export function buildMetricsMatrix(product) {
   const matrix = product?.matrix
-  if (!matrix?.days?.length) return { days: [], rows: [] }
+  if (!matrix?.days?.length) return { days: [], rows: [], priceRows: [], stockRows: [] }
 
   const { backendValues, bucketCount, bucketIndexByColumn } = matrixLookups(matrix)
 
@@ -167,6 +220,7 @@ export function buildMetricsMatrix(product) {
       key: def.key,
       label: def.label,
       tone: def.tone ?? null,
+      group: def.group ?? null,
       cells: matrix.days.flatMap((iso, dayIndex) =>
         TRAFFIC_COLUMNS.map((column, columnIndex) => {
           const raw = resolveRaw(values, bucketCount, bucketIndexByColumn[columnIndex], dayIndex)
@@ -183,7 +237,12 @@ export function buildMetricsMatrix(product) {
     }
   })
 
-  return { days: matrix.days.map((iso) => ({ iso, label: dayLabel(iso) })), rows }
+  return {
+    days: matrix.days.map((iso) => ({ iso, label: dayLabel(iso) })),
+    rows,
+    priceRows: buildTotalRows(PRICE_METRIC_DEFS, matrix, backendValues),
+    stockRows: buildTotalRows(STOCK_METRIC_DEFS, matrix, backendValues),
+  }
 }
 
 /**
@@ -200,6 +259,8 @@ export function patchMetricsMatrix(view, product) {
   const matrix = product?.matrix
   if (!matrix?.days?.length || view?.days?.length !== matrix.days.length) return false
   if (view.rows.length !== METRIC_DEFS.length) return false
+  if (view.priceRows?.length !== PRICE_METRIC_DEFS.length) return false
+  if (view.stockRows?.length !== STOCK_METRIC_DEFS.length) return false
 
   const { backendValues, bucketCount, bucketIndexByColumn } = matrixLookups(matrix)
   const defByKey = new Map(METRIC_DEFS.map((def) => [def.key, def]))
@@ -216,6 +277,29 @@ export function patchMetricsMatrix(view, product) {
         const display = def.format(raw)
         const editable = raw != null && isEditable(TRAFFIC_COLUMNS[columnIndex].key, def.key)
         // Assign only on change so untouched cells trigger no reactivity.
+        if (cell.raw !== raw) cell.raw = raw
+        if (cell.display !== display) cell.display = display
+        if (cell.editable !== editable) cell.editable = editable
+      }
+    }
+  }
+
+  // Mini blocks: one «Общая» cell per day.
+  const totalIndex = matrix.buckets.indexOf('total')
+  for (const [defs, rows] of [
+    [PRICE_METRIC_DEFS, view.priceRows],
+    [STOCK_METRIC_DEFS, view.stockRows],
+  ]) {
+    const miniDefByKey = new Map(defs.map((def) => [def.key, def]))
+    for (const row of rows) {
+      const def = miniDefByKey.get(row.key)
+      if (!def) continue
+      const values = backendValues.get(row.key)
+      for (let dayIndex = 0; dayIndex < matrix.days.length; dayIndex += 1) {
+        const cell = row.cells[dayIndex]
+        const raw = resolveRaw(values, bucketCount, totalIndex, dayIndex)
+        const display = def.format(raw)
+        const editable = raw != null && isEditable('total', def.key)
         if (cell.raw !== raw) cell.raw = raw
         if (cell.display !== display) cell.display = display
         if (cell.editable !== editable) cell.editable = editable

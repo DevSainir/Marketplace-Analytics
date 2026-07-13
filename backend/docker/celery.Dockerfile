@@ -37,8 +37,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# libpq5 runtime for asyncpg/psycopg; curl for the storefront customer-price
+# fetch (WB's card.wb.ru anti-bot edge blocks Python's TLS fingerprint but
+# admits a real curl — see integrations/wildberries/card.py).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq5 \
+    && apt-get install -y --no-install-recommends libpq5 curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv

@@ -22,6 +22,7 @@ from src.modules.monitoring.repos import (
     CampaignRepository,
     FunnelRepository,
     MatrixOverrideRepository,
+    PriceRepository,
     ProductCardRepository,
     ProductSizeRepository,
     StockRepository,
@@ -72,6 +73,11 @@ def get_matrix_override_repo(session: DbSession) -> MatrixOverrideRepository:
     return MatrixOverrideRepository(session)
 
 
+def get_price_repo(session: DbSession) -> PriceRepository:
+    """Provide a :class:`PriceRepository` bound to the request session."""
+    return PriceRepository(session)
+
+
 FunnelRepoDep = Annotated[FunnelRepository, Depends(get_funnel_repo)]
 AdvertisingRepoDep = Annotated[AdvertisingRepository, Depends(get_advertising_repo)]
 AdvertisingSearchRepoDep = Annotated[
@@ -82,6 +88,7 @@ CampaignRepoDep = Annotated[CampaignRepository, Depends(get_campaign_repo)]
 ProductCardRepoDep = Annotated[ProductCardRepository, Depends(get_product_card_repo)]
 ProductSizeRepoDep = Annotated[ProductSizeRepository, Depends(get_product_size_repo)]
 MatrixOverrideRepoDep = Annotated[MatrixOverrideRepository, Depends(get_matrix_override_repo)]
+PriceRepoDep = Annotated[PriceRepository, Depends(get_price_repo)]
 
 
 # --------------------------------------------------------------------------- #
@@ -96,6 +103,7 @@ def get_analytics_service(
     product_card_repo: ProductCardRepoDep,
     product_size_repo: ProductSizeRepoDep,
     matrix_override_repo: MatrixOverrideRepoDep,
+    price_repo: PriceRepoDep,
 ) -> AnalyticsService:
     """Compose the read-side :class:`AnalyticsService` from its repositories."""
     return AnalyticsService(
@@ -107,6 +115,7 @@ def get_analytics_service(
         product_card_repo=product_card_repo,
         product_size_repo=product_size_repo,
         matrix_override_repo=matrix_override_repo,
+        price_repo=price_repo,
     )
 
 
@@ -118,6 +127,7 @@ def get_ingestion_service(
     campaign_repo: CampaignRepoDep,
     product_card_repo: ProductCardRepoDep,
     product_size_repo: ProductSizeRepoDep,
+    price_repo: PriceRepoDep,
 ) -> IngestionService:
     """Compose the write-side :class:`IngestionService` from its repositories."""
     return IngestionService(
@@ -128,6 +138,7 @@ def get_ingestion_service(
         campaign_repo=campaign_repo,
         product_card_repo=product_card_repo,
         product_size_repo=product_size_repo,
+        price_repo=price_repo,
     )
 
 
@@ -143,6 +154,7 @@ __all__ = [
     "FunnelRepoDep",
     "IngestionServiceDep",
     "MatrixOverrideRepoDep",
+    "PriceRepoDep",
     "ProductCardRepoDep",
     "ProductSizeRepoDep",
     "StockRepoDep",

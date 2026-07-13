@@ -108,6 +108,85 @@ class WBCard(_RawBase):
 
 
 # --------------------------------------------------------------------------- #
+# Prices & Discounts — GET /api/v2/list/goods/filter
+#
+# Verified doc shape (2026-07): {"data": {"listGoods": [ {"nmID": ..,
+# "vendorCode": .., "sizes": [ {"sizeID": .., "price": .., "discountedPrice": ..,
+# "clubDiscountedPrice": .., "techSizeName": ..} ], "discount": ..,
+# "clubDiscount": ..} ]}}. ``discountedPrice`` is the price AFTER the seller's
+# own discount — the value the СПП and order/buyout ₽ volumes are computed from.
+# Sizes normally share one price; we take a representative size.
+# --------------------------------------------------------------------------- #
+class WBPriceSize(_RawBase):
+    """One size variant's pricing on a goods-filter record (rubles)."""
+
+    price: float = Field(default=0.0)
+    discounted_price: float = Field(default=0.0, alias="discountedPrice")
+
+
+class WBPriceGood(_RawBase):
+    """A SKU's pricing record: identity + per-size prices and the discount."""
+
+    nm_id: int = Field(alias="nmID")
+    discount: int = Field(default=0)
+    sizes: list[WBPriceSize] = Field(default_factory=list)
+
+    @property
+    def seller_price(self) -> float | None:
+        """Representative discounted seller price, or ``None`` if unavailable.
+
+        All sizes of a card normally carry the same price, so the first size
+        with a positive ``discountedPrice`` represents the SKU.
+        """
+        for size in self.sizes:
+            if size.discounted_price > 0:
+                return size.discounted_price
+        return None
+
+
+# --------------------------------------------------------------------------- #
+# Storefront card detail — GET https://card.wb.ru/cards/v4/detail
+#
+# Verified doc/community shape (2026-07): {"data": {"products": [ {"id": nmId,
+# "sizes": [ {"price": {"basic": .., "product": .., "total": ..}} ]} ]}}. Prices
+# are in KOPECKS. ``product`` is the final customer price after ALL discounts
+# (incl. WB loyalty / СПП); ``basic`` is before them. Unauthenticated endpoint.
+# --------------------------------------------------------------------------- #
+class WBCardPrice(_RawBase):
+    """The nested ``price`` object of a storefront size (kopecks)."""
+
+    basic: int = Field(default=0)
+    product: int = Field(default=0)
+    total: int = Field(default=0)
+
+
+class WBCardSizePrice(_RawBase):
+    """One storefront size carrying its ``price`` block."""
+
+    price: WBCardPrice = Field(default_factory=WBCardPrice)
+
+
+class WBCardProduct(_RawBase):
+    """A storefront product node: nmId identity + per-size prices."""
+
+    nm_id: int = Field(alias="id")
+    sizes: list[WBCardSizePrice] = Field(default_factory=list)
+
+    @property
+    def customer_price(self) -> float | None:
+        """Final customer price in rubles (kopecks/100), or ``None``.
+
+        Uses the first size's ``product`` price (falling back to ``total``);
+        storefront sizes of one card share the shown price.
+        """
+        for size in self.sizes:
+            kopecks = size.price.product or size.price.total
+            if kopecks > 0:
+                return round(kopecks / 100, 2)
+        return None
+
+
+# --------------------------------------------------------------------------- #
 # Advertising Full Stats — GET /adv/v3/fullstats
 # --------------------------------------------------------------------------- #
 class WBAdvNm(_RawBase):

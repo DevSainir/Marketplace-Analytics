@@ -18,17 +18,14 @@ class _FunnelRow(Protocol):
     buyout_count: int
     add_to_wishlist: int
 
-    # Read-only (property) members so concrete numeric attributes — int, float,
-    # or ORM Numeric/Decimal — satisfy the protocol. A plain `x: object` member
-    # is mutable and therefore invariant, which no concrete type can match.
-    @property
-    def order_sum(self) -> object: ...
-    @property
-    def buyout_sum(self) -> object: ...
-
 
 class FunnelDetailRead(BaseModel):
-    """A single day of organic funnel metrics for one SKU."""
+    """A single day of organic funnel metrics for one SKU.
+
+    ``order_sum``/``buyout_sum`` are no longer stored on the funnel row — they
+    are DERIVED (``count x seller_price``) and filled in by the analytics
+    service, defaulting to ``0.0`` when no price snapshot is available.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -37,9 +34,9 @@ class FunnelDetailRead(BaseModel):
     open_count: int = Field(description="Card views/opens (WB `openCount`).")
     cart_count: int
     order_count: int
-    order_sum: float = Field(description="Ordered value in rubles.")
+    order_sum: float = Field(default=0.0, description="Ordered ₽ = order_count x seller_price.")
     buyout_count: int
-    buyout_sum: float = Field(description="Buyout value in rubles (WB `buyoutSum`).")
+    buyout_sum: float = Field(default=0.0, description="Buyout ₽ = buyout_count x seller_price.")
     add_to_wishlist: int
     cart_conversion: float
     order_conversion: float
@@ -71,11 +68,22 @@ class FunnelTotals(BaseModel):
     )
 
 
-def compute_funnel_totals(rows: Sequence[_FunnelRow]) -> FunnelTotals:
+def compute_funnel_totals(
+    rows: Sequence[_FunnelRow],
+    *,
+    order_sum: float = 0.0,
+    buyout_sum: float = 0.0,
+) -> FunnelTotals:
     """Roll a window's daily funnel rows up into window totals (zero-safe).
+
+    Counts are summed from ``rows``; the ₽ volumes are no longer stored on the
+    funnel row, so the caller passes the precomputed window ₽ totals
+    (``Σ count x seller_price``) — defaulting to ``0.0`` when unpriced.
 
     Args:
         rows: The SKU's daily funnel rows (ORM rows or DTOs) for the window.
+        order_sum: Precomputed window ordered ₽ (order_count x seller_price).
+        buyout_sum: Precomputed window buyout ₽ (buyout_count x seller_price).
 
     Returns:
         A :class:`FunnelTotals` with summed counts and conversions recomputed
@@ -84,9 +92,7 @@ def compute_funnel_totals(rows: Sequence[_FunnelRow]) -> FunnelTotals:
     open_count = sum(r.open_count for r in rows)
     cart_count = sum(r.cart_count for r in rows)
     order_count = sum(r.order_count for r in rows)
-    order_sum = float(sum(r.order_sum for r in rows))  # type: ignore[misc]
     buyout_count = sum(r.buyout_count for r in rows)
-    buyout_sum = float(sum(r.buyout_sum for r in rows))  # type: ignore[misc]
     add_to_wishlist = sum(r.add_to_wishlist for r in rows)
     return FunnelTotals(
         days_count=len(rows),

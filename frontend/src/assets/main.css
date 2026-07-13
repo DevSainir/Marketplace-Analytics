@@ -177,9 +177,11 @@
     @apply bg-hover;
   }
 
-  /* Date row: the day's label spans its whole section. */
+  /* Date row: the day's label spans its whole section — the strongest cell of
+     the header (bigger, bolder, on a brighter strip) so the eye can anchor on
+     the day while scanning the ribbon. */
   .app-datatable--matrix thead tr:first-child th:not(:first-child) {
-    @apply normal-case tracking-normal text-primary;
+    @apply bg-white/80 text-[13px] font-bold normal-case tracking-wide text-primary;
   }
 
   /* Day-section boundaries: 5 group cells per day in the type row, 5 zone
@@ -187,10 +189,11 @@
      row), 7 leaf cells per day in every body row. The very first section
      (nth-child(2)) is excluded — the frozen column's 3px right border
      already draws that line (borders no longer collapse). */
+  /* Darker than border-subtle so neighbouring days read as separate panels. */
   .app-datatable--matrix thead tr:first-child th:not(:first-child):not(:nth-child(2)),
   .app-datatable--matrix thead tr:nth-child(2) th:nth-child(5n + 2):not(:nth-child(2)),
   .app-datatable--matrix thead tr:nth-child(3) th:nth-child(5n + 2):not(:nth-child(2)),
   .app-datatable--matrix tbody td:nth-child(7n + 2):not(:nth-child(2)) {
-    @apply border-l-3 border-border-subtle;
+    @apply border-l-3 border-[#bcbcbc];
   }
 }

@@ -17,13 +17,14 @@ from src.modules.monitoring.schemas.matrix import (
 
 #: Editable input fields of an advertising bucket.
 _AD_FIELDS: tuple[str, ...] = ("views", "clicks", "add_to_cart", "spend", "orders", "order_sum")
-#: Editable input fields of the organic funnel (behind «Общая»).
+#: Editable input fields of the organic funnel (behind «Общая»). The ₽ volumes
+#: and СПП are derived from ``seller_price``/``customer_price`` (not stored).
 _FUNNEL_FIELDS: tuple[str, ...] = (
     "open_count",
     "cart_count",
     "order_count",
-    "order_sum",
-    "buyout_sum",
+    "seller_price",
+    "customer_price",
 )
 #: The synthetic bucket name under which funnel inputs are stored.
 _FUNNEL_BUCKET = "funnel"
