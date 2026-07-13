@@ -53,14 +53,17 @@ app = FastAPI(
 
 # CORS for the browser frontend. ``allow_credentials`` is required so the
 # HttpOnly refresh cookie is accepted; it forbids the ``*`` origin wildcard, so
-# explicit origins are configured via settings.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# explicit origins are configured via settings. In production the nginx
+# reverse proxy serves the SPA and the API from one origin, so the middleware
+# is switched off entirely via CORS_ENABLED=false.
+if settings.cors_enabled:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 @app.middleware("http")

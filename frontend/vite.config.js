@@ -14,6 +14,15 @@ export default defineConfig({
     port: 5173,
     // Bind on all interfaces so the container is reachable on the Docker network.
     host: true,
+    // Mirror the production nginx reverse proxy: /api/* is forwarded to the
+    // local backend, so axios can use the same relative `/api` base URL in
+    // both dev and prod. Override the target when the backend runs elsewhere.
+    proxy: {
+      '/api': {
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
   },
   test: {
     environment: 'jsdom',

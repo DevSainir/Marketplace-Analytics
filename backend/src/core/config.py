@@ -88,6 +88,11 @@ class Settings(BaseSettings):
     auth_rate_limit_window_seconds: int = Field(default=60)
 
     # --- CORS (browser frontend) ---
+    # In production the SPA is served by nginx on the SAME origin as the API
+    # (/api/ reverse proxy), so cross-origin requests never happen and the
+    # middleware is disabled (CORS_ENABLED=false). Locally the Vite dev server
+    # may still call the API cross-origin, so it stays enabled by default.
+    cors_enabled: bool = Field(default=True)
     # Comma-separated origins allowed to call the API with credentials.
     cors_origins: list[str] = Field(default=["http://localhost:5173", "http://localhost:3000"])
 

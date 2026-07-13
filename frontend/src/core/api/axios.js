@@ -36,21 +36,15 @@ export function setUnauthorizedHandler(handler) {
   unauthorizedHandler = handler
 }
 
-// `baseURL` comes strictly from the environment. A production build without
-// it would silently call the frontend origin, so we fail fast at load time;
-// in dev (and vitest) we fall back to relative URLs for the local proxy.
-const baseURL = import.meta.env.VITE_API_URL
-if (!baseURL) {
-  if (!import.meta.env.DEV) {
-    throw new Error('VITE_API_URL is not set: production builds require an explicit API base URL.')
-  }
-  if (!import.meta.env.TEST) {
-    console.warn('VITE_API_URL is not set; falling back to relative API URLs (dev only).')
-  }
-}
+// `baseURL` defaults to the relative `/api`, which works identically in both
+// environments: the Vite dev server proxies /api/* to the local backend, and
+// in production nginx reverse-proxies it to the api container (same origin,
+// no CORS). VITE_API_URL remains available as an escape hatch for pointing a
+// build at a remote backend.
+const baseURL = import.meta.env.VITE_API_URL || '/api'
 
 const apiClient = axios.create({
-  baseURL: baseURL || '',
+  baseURL,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 })

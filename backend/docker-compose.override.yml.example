@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------------------
+# LOCAL DEVELOPMENT overrides — template.
+# Copy to `docker-compose.override.yml` (gitignored) on your dev machine:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#
+# `docker compose up` then merges it into docker-compose.yml automatically,
+# publishing internal services on the LOOPBACK interface so host tooling
+# (Vite dev proxy, psql, redis-cli, pytest) can reach them.
+#
+# NEVER create this file on the VPS: without it the same plain
+# `docker compose up -d --build` runs the closed base topology where nothing
+# but the nginx frontend on port 80 is exposed.
+# ---------------------------------------------------------------------------
+
+services:
+  api:
+    # The Vite dev-server proxy forwards /api/* here (see frontend/vite.config.js).
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"

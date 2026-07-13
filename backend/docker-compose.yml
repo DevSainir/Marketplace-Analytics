@@ -1,11 +1,22 @@
 # ---------------------------------------------------------------------------
-# Base multi-container topology: FastAPI (api) + Celery (worker) + PostgreSQL +
-# Redis. The api and worker build from separate Dockerfiles but share the same
-# source tree and environment file.
+# Base multi-container topology: nginx SPA (frontend, the single entry point)
+# + FastAPI (api) + Celery (worker) + PostgreSQL + Redis. The api and worker
+# build from separate Dockerfiles but share the same source tree and
+# environment file.
 #
-# Security posture: Postgres/Redis are published on the LOOPBACK interface only
-# (host tooling can still reach them; the network cannot), and Redis requires a
+# Security posture: this base file publishes ONE host port — frontend:80.
+# The api, Postgres and Redis are reachable only on the internal Docker
+# network; nginx reverse-proxies /api/ to the api container. Redis requires a
 # password — an open Redis is remote code execution via the Celery broker.
+#
+# Local development: docker-compose.override.yml (gitignored; copy it from
+# docker-compose.override.yml.example, applied automatically by `docker
+# compose up`) additionally publishes api/Postgres/Redis on loopback for host
+# tooling and the Vite dev server.
+#
+# Production (VPS): the override file does not exist there, so the SAME
+# command runs the closed topology with nothing but port 80 exposed —
+#   docker compose up -d --build
 # ---------------------------------------------------------------------------
 
 name: marketplace-service
@@ -20,8 +31,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-in-prod}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-marketplace}"]
       interval: 10s
@@ -39,8 +48,6 @@ services:
       - 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"'
     volumes:
       - redis_data:/data
-    ports:
-      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD-SHELL", 'redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG']
       interval: 10s
@@ -83,8 +90,20 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  # Single entry point: nginx serves the built SPA and reverse-proxies /api/
+  # to the api container over the internal Docker network (see
+  # ../frontend/docker/nginx.conf). Only port published in the base topology.
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
 
   worker:
     build:

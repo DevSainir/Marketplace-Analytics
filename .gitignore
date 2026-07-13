@@ -11,6 +11,11 @@
 !.env.example
 *.local
 
+# ---- Docker (local-only overrides) ----
+# The override publishes dev ports on loopback and must never reach the VPS:
+# a plain `docker compose up -d --build` there runs the closed base topology.
+docker-compose.override.yml
+
 # ---- Python (backend) ----
 __pycache__/
 *.py[cod]
