@@ -13,6 +13,15 @@ binary — verified live: identical headers, same egress IP, curl → 200, httpx
 fingerprint clears the filter. So this one endpoint is fetched via a ``curl``
 subprocess. ``curl`` is installed in the app + worker images.
 
+**Why an optional proxy.** The edge ALSO IP-blocks datacenter egress: prod's VPS
+IP began getting 403 on 2026-07-14 (verified: byte-identical curl → 403 from the
+VPS IP, 200 from a residential IP). :attr:`Settings.wb_card_proxy` (empty by
+default) routes this endpoint through a residential/mobile proxy so the egress
+IP is clean; curl still supplies the TLS fingerprint. The proxy is slow and can
+drop connections, so requests run with a strict connect timeout, a tight retry
+cap, and bounded fan-out — a failure must never spin (which would drain the
+proxy balance). Proxy credentials are scrubbed from any logged error.
+
 > Unofficial endpoint, used deliberately as the sole source of the post-loyalty
 > customer price. Failures are tolerated by the harvest (the customer price /
 > СПП just stay empty for the day).
@@ -22,8 +31,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from types import TracebackType
 from typing import Any, ClassVar, Self
+
+from pydantic import ValidationError
 
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
@@ -32,12 +44,25 @@ from src.integrations.wildberries.schemas import WBCardProduct
 
 logger = get_logger(__name__)
 
+#: Redacts ``user:password@`` credentials from a proxy URL before logging.
+_CREDENTIALS_RE = re.compile(r"//[^/@\s]+@")
+
+
+def _scrub(text: str) -> str:
+    """Strip any ``user:pass@`` credentials from a string before it is logged."""
+    return _CREDENTIALS_RE.sub("//***@", text)
+
 
 class WBCardClient:
     """Fetches final customer prices from card.wb.ru via a ``curl`` subprocess."""
 
-    #: Max SKUs per detail request (the ``nm`` list is semicolon-separated).
+    #: Max SKUs per detail request (the ``nm`` list is semicolon-separated). One
+    #: large request beats many small ones over a slow proxy tunnel.
     _DETAIL_BATCH = 100
+
+    #: Bounded fan-out over batches: fetch several concurrently (the proxy adds
+    #: latency), but never flood a fragile tunnel.
+    _MAX_CONCURRENCY = 4
 
     #: Browser-like request headers. These do NOT clear the anti-bot filter on
     #: their own (the TLS fingerprint does — see the module docstring); they are
@@ -56,8 +81,11 @@ class WBCardClient:
         self._base_url = settings.wb_card_base_url.rstrip("/")
         self._dest = settings.wb_card_dest
         self._spp = settings.wb_card_spp
+        self._proxy = settings.wb_card_proxy.strip()
         self._timeout = settings.wb_http_timeout_seconds
-        self._max_retries = settings.wb_max_retries
+        self._connect_timeout = settings.wb_card_connect_timeout_seconds
+        # Strict, dedicated retry cap for the proxy path (see module docstring).
+        self._max_retries = settings.wb_card_max_retries
         self._backoff_base = settings.wb_retry_backoff_seconds
         self._backoff_max = settings.wb_retry_max_backoff_seconds
 
@@ -88,40 +116,104 @@ class WBCardClient:
         with prices in kopecks (``product`` = final price after all discounts;
         there is no ``total`` in v4). SKUs are batched at :attr:`_DETAIL_BATCH`.
 
+        Batches run concurrently (bounded by :attr:`_MAX_CONCURRENCY`) so the
+        proxy's latency does not serialize. Resilience is per-batch: a batch
+        that fails after its retries is dropped and logged, so a single dropped
+        SKU-group never voids the whole harvest — BUT if EVERY batch fails
+        (edge block, proxy down, or an API shape change caught by Pydantic),
+        the error is raised so the harvest records the ``card-prices`` source as
+        failed instead of silently writing zero customer prices.
+
         Args:
             nm_ids: SKU identifiers to fetch storefront prices for.
 
         Returns:
-            One :class:`WBCardProduct` per SKU the storefront returned.
+            One :class:`WBCardProduct` per SKU the storefront returned (only the
+            successful batches when some batches failed).
+
+        Raises:
+            IntegrationError: When every batch failed.
         """
+        if not nm_ids:
+            return []
+
+        batches = [
+            nm_ids[offset : offset + self._DETAIL_BATCH]
+            for offset in range(0, len(nm_ids), self._DETAIL_BATCH)
+        ]
+        semaphore = asyncio.Semaphore(self._MAX_CONCURRENCY)
+
+        async def run(batch: list[int]) -> list[WBCardProduct]:
+            async with semaphore:
+                return await self._fetch_batch(batch)
+
+        # ``return_exceptions`` isolates a flaky batch: gather never raises here,
+        # so one dead tunnel does not abort the others.
+        results = await asyncio.gather(*(run(batch) for batch in batches), return_exceptions=True)
+
         products: list[WBCardProduct] = []
-        for offset in range(0, len(nm_ids), self._DETAIL_BATCH):
-            batch = nm_ids[offset : offset + self._DETAIL_BATCH]
-            nm_param = ";".join(str(nm) for nm in batch)
-            url = (
-                f"{self._base_url}/cards/v4/detail"
-                f"?curr=rub&dest={self._dest}&spp={self._spp}&nm={nm_param}"
+        failures: list[BaseException] = []
+        for result in results:
+            if isinstance(result, BaseException):
+                failures.append(result)
+            else:
+                products.extend(result)
+
+        if failures and len(failures) == len(batches):
+            # Total failure — surface it so the harvest skips the source loudly.
+            raise IntegrationError(
+                f"card.wb.ru: all {len(batches)} batch(es) failed: {_scrub(str(failures[0]))}"
             )
-            payload = await self._curl_get_json(url)
-            container = payload.get("data") if isinstance(payload, dict) else None
-            rows = None
-            if isinstance(container, dict):
-                rows = container.get("products")
-            elif isinstance(payload, dict):
-                rows = payload.get("products")
-            if not isinstance(rows, list):
-                raise IntegrationError(
-                    "Unexpected card detail response shape (expected a products list)."
-                )
-            products.extend(WBCardProduct.model_validate(row) for row in rows)
+        if failures:
+            logger.warning(
+                "card.wb.ru: %d/%d batches failed and were dropped (%d products kept).",
+                len(failures),
+                len(batches),
+                len(products),
+            )
         return products
+
+    async def _fetch_batch(self, batch: list[int]) -> list[WBCardProduct]:
+        """Fetch and validate one SKU batch (``nm`` semicolon-joined).
+
+        Raises:
+            IntegrationError: On transport/retry exhaustion, an unexpected
+                response envelope, or a Pydantic validation failure (an API
+                shape change must surface, not corrupt the snapshot).
+        """
+        nm_param = ";".join(str(nm) for nm in batch)
+        url = (
+            f"{self._base_url}/cards/v4/detail"
+            f"?curr=rub&dest={self._dest}&spp={self._spp}&nm={nm_param}"
+        )
+        payload = await self._curl_get_json(url)
+
+        container = payload.get("data") if isinstance(payload, dict) else None
+        rows = None
+        if isinstance(container, dict):
+            rows = container.get("products")
+        elif isinstance(payload, dict):
+            rows = payload.get("products")
+        if not isinstance(rows, list):
+            raise IntegrationError(
+                "Unexpected card detail response shape (expected a products list)."
+            )
+        try:
+            return [WBCardProduct.model_validate(row) for row in rows]
+        except ValidationError as exc:
+            # A storefront schema change: fail this batch (do NOT write partial
+            # / wrong prices). If it changed for everyone, fetch_customer_prices
+            # sees all batches fail and raises.
+            raise IntegrationError(f"card detail row failed validation: {exc}") from exc
 
     async def _curl_get_json(self, url: str) -> Any:
         """GET ``url`` via a ``curl`` subprocess and return the decoded JSON.
 
         Retries transport failures / non-200 responses with exponential backoff,
-        mirroring the httpx clients' resilience. ``curl``'s TLS fingerprint is
-        what clears the anti-bot edge (see the module docstring).
+        capped by the strict :attr:`_max_retries`. ``curl``'s TLS fingerprint is
+        what clears the anti-bot edge; the optional ``--proxy`` swaps the egress
+        IP (see the module docstring). Timeouts are strict so a dead proxy tunnel
+        fails fast instead of burning the balance.
 
         Args:
             url: The fully-built card-detail URL.
@@ -136,12 +228,17 @@ class WBCardClient:
         header_args: list[str] = []
         for header in self._HEADERS:
             header_args += ["-H", header]
+        proxy_args = ["-x", self._proxy] if self._proxy else []
         # ``-w '\n%{http_code}'`` appends the status after the body so we can
         # distinguish a 403 HTML page from a real JSON 200 without --fail
-        # swallowing the body.
+        # swallowing the body. ``--connect-timeout`` bounds the tunnel setup
+        # separately from ``--max-time`` (the whole-request cap).
         args = [
             "curl",
             "-sS",
+            *proxy_args,
+            "--connect-timeout",
+            str(int(self._connect_timeout)),
             "--max-time",
             str(int(self._timeout)),
             *header_args,
@@ -173,7 +270,11 @@ class WBCardClient:
                 else:
                     last_error = f"HTTP {status.strip() or '???'}"
             else:
-                last_error = stderr.decode("utf-8", "replace").strip() or "curl exited non-zero"
+                # curl exit codes: proxy/connect/SSL/timeout failures land here
+                # and are retried (bounded). Scrub any credentials curl echoed.
+                last_error = _scrub(
+                    stderr.decode("utf-8", "replace").strip() or "curl exited non-zero"
+                )
 
             if attempt < self._max_retries:
                 delay = min(self._backoff_base * (2.0**attempt), self._backoff_max)

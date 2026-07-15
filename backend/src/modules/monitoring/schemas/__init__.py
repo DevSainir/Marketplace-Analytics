@@ -10,6 +10,11 @@ from src.modules.monitoring.schemas.advertising import (
     CampaignDailyStat,
     compute_ad_metrics,
 )
+from src.modules.monitoring.schemas.comment import (
+    COMMENT_MAX_LENGTH,
+    CommentUpdateRequest,
+    SkuCommentResponse,
+)
 from src.modules.monitoring.schemas.funnel import (
     BaselineDemandRead,
     FunnelDetailRead,
@@ -30,12 +35,18 @@ from src.modules.monitoring.schemas.matrix import (
     RefreshEnqueuedResponse,
     RefreshStatusResponse,
 )
+from src.modules.monitoring.schemas.pins import (
+    PinnedSkuItem,
+    PinnedSkusResponse,
+    PinUpdateRequest,
+)
 from src.modules.monitoring.schemas.products import (
     SkuLookupItem,
     SkuLookupResponse,
 )
 from src.modules.monitoring.schemas.stocks import (
     StockCell,
+    StockDayResponse,
     StockDetail,
     StockSizeTotal,
     WarehouseMarksResponse,
@@ -51,6 +62,7 @@ from src.modules.monitoring.schemas.summary import (
 )
 
 __all__ = [
+    "COMMENT_MAX_LENGTH",
     "MATRIX_BUCKETS",
     "MATRIX_METRIC_KEYS",
     "AdMetrics",
@@ -58,6 +70,7 @@ __all__ = [
     "CampaignAdvertising",
     "CampaignDailyStat",
     "CatalogIngestionResult",
+    "CommentUpdateRequest",
     "FunnelDetailRead",
     "FunnelResponseSchema",
     "FunnelTotals",
@@ -70,14 +83,19 @@ __all__ = [
     "MatrixSaveRequest",
     "MetricWindow",
     "MetricsMatrixRead",
+    "PinUpdateRequest",
+    "PinnedSkuItem",
+    "PinnedSkusResponse",
     "RefreshEnqueuedResponse",
     "RefreshStatusResponse",
+    "SkuCommentResponse",
     "SkuDetailResponse",
     "SkuLookupItem",
     "SkuLookupResponse",
     "SkuSummaryItem",
     "SkuSummaryListResponse",
     "StockCell",
+    "StockDayResponse",
     "StockDetail",
     "StockSizeTotal",
     "WarehouseMarkUpdateRequest",

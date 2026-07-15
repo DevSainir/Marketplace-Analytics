@@ -108,8 +108,19 @@
     @apply static text-center;
   }
 
+  /* Traffic-type group labels («Руч. полки» over a single zone column) can
+     run wider than their cell in the fixed layout — wrap onto a second line
+     (with clipping as the safety net) so they never overlap the neighbouring
+     group's border. */
+  .app-datatable--matrix thead tr:nth-child(2) th:not(:first-child) {
+    overflow: hidden;
+    white-space: normal;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+  }
+
   .app-datatable--matrix thead th:first-child {
-    @apply sticky left-0 z-30 border-r-3 border-border-subtle text-left;
+    @apply sticky left-0 z-30 border-r-2 border-[#d9d9d9] text-left;
   }
 
   /* Compact cells (the ribbon is wide); headers drop to the micro size so
@@ -127,22 +138,25 @@
     @apply text-right;
   }
 
-  /* Zebra stripes: odd = white, even = surface gray. */
+  /* Zebra stripes: odd = white, even = surface gray. Solid colors — the
+     frozen first column must stay opaque to mask the ribbon scrolling
+     underneath. */
   .app-datatable--matrix tbody tr:nth-child(odd) td {
     @apply bg-white;
   }
-
   .app-datatable--matrix tbody tr:nth-child(even) td {
     @apply bg-zebra;
   }
 
   .app-datatable--matrix tbody td:first-child {
-    @apply sticky left-0 z-20 border-r-3 border-border-subtle;
+    @apply sticky left-0 z-20 border-r-2 border-[#d9d9d9];
   }
 
   /* Hovering any cell highlights the whole row (solid action-over-white
-     tint, so frozen cells keep masking the ribbon scrolling underneath). */
-  .app-datatable--matrix tbody tr:hover td {
+     tint, so frozen cells keep masking the ribbon scrolling underneath).
+     The tbody.matrix-metrics prefix out-ranks the group tints above. */
+  .app-datatable--matrix tbody tr:hover td,
+  .app-datatable--matrix tbody.matrix-metrics tr:hover td {
     @apply bg-hover;
   }
 
@@ -153,16 +167,34 @@
     @apply bg-white text-[13px] font-bold normal-case tracking-wide text-primary;
   }
 
-  /* Day-section boundaries: 5 group cells per day in the type row, 5 zone
-     cells per day in the zones row («Общая»/«Органика» span from the type
-     row), 7 leaf cells per day in every body row. The very first section
-     (nth-child(2)) is excluded — the frozen column's 3px right border
-     already draws that line (borders no longer collapse). */
-  /* Darker than border-subtle so neighbouring days read as separate panels. */
+  /* Day-section boundaries — BLACK, so adjacent days read as separate panels.
+     Type row (2): 5 group cells per day; zones row (3): 6 zoned cells per day
+     («Общая»/«Органика» span from the type row); body rows: 8 leaf cells per
+     day. The very first section (nth-child(2)) is excluded — the frozen
+     column's right border draws that line (borders no longer collapse). */
   .app-datatable--matrix thead tr:first-child th:not(:first-child):not(:nth-child(2)),
   .app-datatable--matrix thead tr:nth-child(2) th:nth-child(5n + 2):not(:nth-child(2)),
-  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(5n + 2):not(:nth-child(2)),
-  .app-datatable--matrix tbody td:nth-child(7n + 2):not(:nth-child(2)) {
-    @apply border-l-3 border-[#bcbcbc];
+  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(6n + 2):not(:nth-child(2)),
+  .app-datatable--matrix tbody td:nth-child(8n + 2):not(:nth-child(2)) {
+    @apply border-l-2 border-l-[#101010];
+  }
+
+  /* Promotion-type boundaries WITHIN a day — light, subordinate to the black
+     day dividers: Единая ставка | Руч. поиск (+ Каталог) | Руч. полки | Общая
+     + Органика read as four parts. Type row: before «Руч. поиск» (5n+3), «Руч.
+     полки» (5n+4), «Общая» (5n). Zones row: before the manual search zone
+     (6n+5) and the manual shelves zone (6n+1, excluding the frozen label
+     cell); Общая/Органика span from row 2, their border extends down with the
+     rowspan. Body rows: before manual_search (8n+5), manual_shelves (8n+7),
+     and total (8n). */
+  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(5n + 3),
+  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(5n + 4),
+  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(5n),
+  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(6n + 5),
+  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(6n + 1):not(:first-child),
+  .app-datatable--matrix tbody td:nth-child(8n + 5),
+  .app-datatable--matrix tbody td:nth-child(8n + 7),
+  .app-datatable--matrix tbody td:nth-child(8n) {
+    @apply border-l-2 border-l-[#d9d9d9];
   }
 }

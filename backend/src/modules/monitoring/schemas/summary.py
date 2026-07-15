@@ -85,6 +85,9 @@ class SkuDetailResponse(BaseModel):
         default=None, description="Seller article code (WB 'Артикул продавца')."
     )
     title: str | None = Field(default=None, description="Product card title.")
+    comment: str | None = Field(
+        default=None, description="Free-text note attached to the SKU (null when none)."
+    )
     window: MetricWindow
     funnel: list[FunnelDetailRead] = Field(default_factory=list)
     funnel_totals: FunnelTotals = Field(

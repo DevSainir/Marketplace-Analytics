@@ -14,25 +14,30 @@ from pydantic import BaseModel, Field
 
 #: Traffic buckets, in column order. ``uni_*`` are the unified-bid campaign
 #: («Единая ставка») zones — split from search-cluster stats; ``manual_*`` are
-#: manual-bid campaigns by their enabled zone; ``uni_catalog`` is a legacy WB
-#: zone that no longer exists in the v2 API and stays empty; ``total`` is the
-#: funnel-wide «Общая» column and ``organic`` is «Органика» (общая - реклама).
+#: manual-bid campaigns by their enabled zone (``manual_catalog`` is the
+#: CATALOG slice of a search-only campaign: WB «поисковые» campaigns also
+#: deliver in каталог, derived as fullstats - normquery); ``uni_catalog`` is a
+#: legacy WB zone that no longer exists in the v2 API and stays empty;
+#: ``total`` is the funnel-wide «Общая» column and ``organic`` is «Органика»
+#: (общая - реклама).
 MATRIX_BUCKETS: tuple[str, ...] = (
     "uni_search",
     "uni_shelves",
     "uni_catalog",
     "manual_search",
+    "manual_catalog",
     "manual_shelves",
     "total",
     "organic",
 )
 
-#: The four advertising buckets that carry editable input facts (``total`` is a
+#: The advertising buckets that carry editable input facts (``total`` is a
 #: funnel/ad roll-up, ``organic`` a difference, ``uni_catalog`` always empty).
 MATRIX_AD_BUCKETS: tuple[str, ...] = (
     "uni_search",
     "uni_shelves",
     "manual_search",
+    "manual_catalog",
     "manual_shelves",
 )
 
@@ -47,8 +52,13 @@ MATRIX_METRIC_KEYS: tuple[str, ...] = (
     "cpc",
     "clicks",
     "carts",
+    # Associative-conversion totals — campaign-level carts/orders including
+    # associated size/colour variants; the frontend renders them as the
+    # parenthesised «100(71)» decoration of the carts/orders cells (read-only).
+    "carts_assoc",
     "cart_conversion",
     "orders",
+    "orders_assoc",
     "order_conversion",
     "order_sum",
     "buyout_sum",
@@ -112,6 +122,11 @@ class MatrixAdBucketBase(BaseModel):
     ``order_sum`` is ``None`` for split (unified / dual-placement) campaigns
     whose order revenue cannot be attributed to a single zone — that cell
     renders «—» and is not editable.
+
+    ``assoc_add_to_cart``/``assoc_orders`` are the campaign-level conversion
+    totals INCLUDING associated size/colour variants («ассоциированные
+    конверсии») — read-only harvested facts decorating the carts/orders cells;
+    they are never editable and never diffed into overrides.
     """
 
     views: int = 0
@@ -120,6 +135,8 @@ class MatrixAdBucketBase(BaseModel):
     spend: float = 0.0
     orders: int = 0
     order_sum: float | None = 0.0
+    assoc_add_to_cart: int = 0
+    assoc_orders: int = 0
 
 
 class MatrixFunnelBase(BaseModel):
@@ -128,6 +145,11 @@ class MatrixFunnelBase(BaseModel):
     ``seller_price``/``customer_price`` are the day's snapshot prices and are
     editable; «Заказы, ₽» and «СПП» derive from them (read-only). Prices are
     ``None`` (rendered «—», not editable) when no snapshot exists for the day.
+
+    ``has_funnel`` is ``False`` on days WB has not served a funnel row for yet
+    (the CURRENT day — prices/stock are snapshotted at harvest time, but the
+    funnel always lags a day): the price cells render, while the count cells
+    stay blank and read-only (zero counts are not facts there).
     """
 
     open_count: int = 0
@@ -135,21 +157,7 @@ class MatrixFunnelBase(BaseModel):
     order_count: int = 0
     seller_price: float | None = None
     customer_price: float | None = None
-
-
-class MatrixSalesBase(BaseModel):
-    """The day's sale-date buyout/return totals (read-only facts, «Общая»).
-
-    Aggregated from the per-item Statistics records: ``buyout_*`` are the items
-    customers ACCEPTED that calendar day (with the ₽ they actually paid) —
-    the real «Выкупы» attribution, unlike the funnel's order-date cohort.
-    Never editable — harvested facts, not derivable inputs.
-    """
-
-    buyout_count: int = 0
-    buyout_sum: float = 0.0
-    return_count: int = 0
-    return_sum: float = 0.0
+    has_funnel: bool = True
 
 
 class MatrixStockBase(BaseModel):
@@ -171,8 +179,13 @@ class MatrixDayBase(BaseModel):
     render «—». ``unclassified`` is the ad remainder (campaigns whose settings
     are unsynced) — hidden and read-only, but summed into «Общая»/«Органика» and
     the traffic-share denominator so those stay faithful.
-    ``lagged_buyout_percent``, ``sales``, and ``stock`` are precomputed facts
-    and read-only.
+    ``lagged_buyout_percent`` and ``stock`` are precomputed facts and read-only;
+    «Выкупы, ₽» is derived order-date («Заказы, ₽» x «Процент выкупа»).
+
+    ``cell_overrides`` holds DISPLAY overrides for non-invertible cells (a
+    derived rollup, the empty «Каталог» zone, a tainted split) keyed by
+    ``"<bucket>:<metric>"`` — applied verbatim AFTER the formulas run, so every
+    cell is editable without disturbing the dynamic recompute of input cells.
     """
 
     day: date
@@ -181,8 +194,8 @@ class MatrixDayBase(BaseModel):
     unclassified: MatrixAdBucketBase = Field(default_factory=MatrixAdBucketBase)
     funnel: MatrixFunnelBase | None = None
     lagged_buyout_percent: float | None = None
-    sales: MatrixSalesBase | None = None
     stock: MatrixStockBase | None = None
+    cell_overrides: dict[str, float] = Field(default_factory=dict)
 
 
 class MatrixBaseState(BaseModel):

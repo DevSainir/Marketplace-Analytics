@@ -3,7 +3,7 @@
 Covers the editability contract: direct input sets, numerator reverse-solves
 (incl. the user's order_conversion→orders example), the traffic-share
 cross-bucket redistribution, the funnel-backed «Общая»/«Органика» solves, and
-rejection of every read-only cell.
+a verbatim display override for every non-invertible cell (all cells editable).
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixCellEdit,
     MatrixDayBase,
     MatrixFunnelBase,
-    MatrixSalesBase,
 )
 from src.modules.monitoring.services.matrix import build_matrix_from_base
 from src.modules.monitoring.services.matrix_edit import apply_edit
@@ -52,9 +51,6 @@ def _base() -> MatrixBaseState:
                     customer_price=350.0,
                 ),
                 lagged_buyout_percent=50.0,
-                sales=MatrixSalesBase(
-                    buyout_count=6, buyout_sum=6000.0, return_count=2, return_sum=1000.0
-                ),
             )
         ]
     )
@@ -164,17 +160,16 @@ def test_traffic_share_redistributes_within_bid_type() -> None:
     assert share.values[MATRIX_BUCKETS.index("uni_shelves")] == 50.0
 
 
-def test_traffic_share_unreachable_target_rejected() -> None:
-    """0%/100% targets — and a type with a single bucket — are rejected."""
-    for bad in (0, 100, 150):
-        with pytest.raises(ValidationError):
-            apply_edit(
-                _dual_zone_base(),
-                MatrixCellEdit(day=DAY, bucket="uni_search", metric="traffic_share", value=bad),
-            )
+def test_traffic_share_unreachable_target_becomes_override() -> None:
+    """An unreachable «Доля трафика» target can't redistribute, so it is shown
+    verbatim as a display override (0/100%, or a single-bucket type)."""
+    base = apply_edit(
+        _dual_zone_base(),
+        MatrixCellEdit(day=DAY, bucket="uni_search", metric="traffic_share", value=100),
+    )
+    assert _cell(base, "traffic_share", "uni_search") == 100.0
     # uni_search is the ONLY unified bucket in _base() -> always 100%, no solve.
-    with pytest.raises(ValidationError):
-        _edit("uni_search", "traffic_share", 50)
+    assert _cell(_edit("uni_search", "traffic_share", 42), "traffic_share", "uni_search") == 42.0
 
 
 # --------------------------------------------------------------------------- #
@@ -189,14 +184,14 @@ def test_total_cart_conversion_solves_funnel_cart_count() -> None:
 
 
 def test_total_seller_price_edit_recomputes_volumes_and_spp() -> None:
-    """Editing «Цена продавца» recomputes «Заказы, ₽» + «СПП» (buyouts hold)."""
+    """Editing «Цена продавца» recomputes «Заказы, ₽», «Выкупы, ₽», «СПП»."""
     base = _edit("total", "seller_price", 1000)
     assert base.days[0].funnel is not None
     assert base.days[0].funnel.seller_price == 1000.0
     # order_count 10 x 1000 = 10000.
     assert _cell(base, "order_sum", "total") == 10000.0
-    # «Выкупы, ₽» is a sale-date FACT — independent of the seller price.
-    assert _cell(base, "buyout_sum", "total") == 6000.0
+    # «Выкупы, ₽» is order-date: «Заказы, ₽» 10000 x «Процент выкупа» 50% = 5000.
+    assert _cell(base, "buyout_sum", "total") == 5000.0
     # СПП = (1000 - 350) / 1000 x 100.
     assert _cell(base, "spp", "total") == 65.0
 
@@ -220,7 +215,7 @@ def test_organic_clicks_solves_open_count_holding_ads() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Read-only rejections
+# Non-invertible cells → display overrides (EVERY cell is editable)
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize(
     ("bucket", "metric"),
@@ -232,22 +227,32 @@ def test_organic_clicks_solves_open_count_holding_ads() -> None:
         ("total", "spend"),  # cross-bucket roll-up
         ("total", "drr_orders"),  # cross-bucket roll-up
         ("total", "buyout_percent"),  # lagged window
-        ("total", "order_sum"),  # derived from price (read-only)
-        ("total", "buyout_sum"),  # sale-date fact (read-only)
-        ("total", "spp"),  # derived from prices (read-only)
+        ("total", "order_sum"),  # derived from price
+        ("total", "buyout_sum"),  # sale-date fact
+        ("total", "spp"),  # derived from prices
         ("organic", "spend"),  # difference has no such input
     ],
 )
-def test_readonly_cells_are_rejected(bucket: str, metric: str) -> None:
-    """Editing a non-invertible cell raises ValidationError."""
-    with pytest.raises(ValidationError):
-        _edit(bucket, metric, 1)
+def test_noninvertible_cell_becomes_display_override(bucket: str, metric: str) -> None:
+    """A non-invertible cell is still editable — stored + shown verbatim."""
+    base = _edit(bucket, metric, 123)
+    assert base.days[0].cell_overrides[f"{bucket}:{metric}"] == 123.0
+    assert _cell(base, metric, bucket) == 123.0
 
 
-def test_edit_on_absent_bucket_rejected() -> None:
-    """A bucket that delivered nothing that day («—») is not editable."""
-    with pytest.raises(ValidationError):
-        _edit("uni_shelves", "views", 5)  # uni_shelves absent from the base
+def test_absent_bucket_edit_becomes_display_override() -> None:
+    """A bucket that delivered nothing that day («—») is editable via override."""
+    base = _edit("uni_shelves", "views", 5)  # uni_shelves absent from the base
+    assert _cell(base, "views", "uni_shelves") == 5.0
+
+
+def test_invertible_edit_supersedes_stale_override() -> None:
+    """A successful dynamic edit drops any stale display override on the cell."""
+    seed = _base()
+    seed.days[0].cell_overrides["total:orders"] = 999.0
+    base = apply_edit(seed, MatrixCellEdit(day=DAY, bucket="total", metric="orders", value=7))
+    assert "total:orders" not in base.days[0].cell_overrides
+    assert _cell(base, "orders", "total") == 7  # the back-solved funnel value shows
 
 
 def test_edit_on_unknown_day_rejected() -> None:

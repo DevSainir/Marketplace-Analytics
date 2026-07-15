@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from pydantic import BaseModel, Field
 
 
@@ -51,6 +53,17 @@ class StockDetail(BaseModel):
         default_factory=list,
         description="Warehouses marked «Отгрузить» for THIS SKU (per-SKU scope).",
     )
+
+
+class StockDayResponse(BaseModel):
+    """One exact snapshot day's stock breakdown (the two-day comparison view).
+
+    ``stock`` is empty (all zeros, no cells) when no snapshot was captured on
+    the requested day — snapshots are never carried onto other days.
+    """
+
+    stat_date: date = Field(description="The requested snapshot day.")
+    stock: StockDetail
 
 
 class WarehouseMarkUpdateRequest(BaseModel):

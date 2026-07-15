@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import { vDragScroll } from '@/core/utils/dragScroll'
 import { formatNumber } from '@/core/utils/format'
 
 /**
@@ -26,6 +27,21 @@ const props = defineProps({
    * always sorted ahead of unmarked ones (by stock among themselves).
    */
   markedWarehouses: { type: Array, default: () => [] },
+  /**
+   * Externally imposed row set/order (`[{chrt_id, tech_size}]`) — the two-day
+   * comparison passes the UNION of both days' sizes so the side-by-side
+   * tables share identical rows. A size absent from this day renders as an
+   * all-blank row. `null` = derive rows from own cells (standalone mode).
+   */
+  sizeOrder: { type: Array, default: null },
+  /**
+   * Drop the own «Размер» column — the two-day comparison renders ONE shared
+   * sizes panel (see StockSizesPanel.vue) to the left of both tables, so each
+   * table only carries its day's «Всего» + warehouse columns.
+   */
+  hideSizeColumn: { type: Boolean, default: false },
+  /** Message when the day has no cells at all. */
+  emptyMessage: { type: String, default: 'Нет складских остатков по этому SKU.' },
 })
 
 const emit = defineEmits(['toggle-mark'])
@@ -41,6 +57,15 @@ function sizeLabel(row) {
 }
 
 /**
+ * Compact warehouse header: the first 8 letters (WB names like
+ * «Электросталь» blow the columns up); the full name shows on hover via
+ * the `title` attribute.
+ */
+function shortWarehouseName(name) {
+  return name.length > 8 ? `${name.slice(0, 8)}…` : name
+}
+
+/**
  * Warehouses ordered by total remaining stock, fullest first (leftmost) —
  * except marked ones, which always come before every unmarked one and are
  * sorted by stock only among themselves.
@@ -52,10 +77,7 @@ const warehouses = computed(() => {
   }
   return [...totals]
     .map(([name, total]) => ({ name, total, marked: markedSet.value.has(name) }))
-    .sort(
-      (a, b) =>
-        b.marked - a.marked || b.total - a.total || a.name.localeCompare(b.name, 'ru'),
-    )
+    .sort((a, b) => b.marked - a.marked || b.total - a.total || a.name.localeCompare(b.name, 'ru'))
 })
 
 // --- warehouse mark menu --------------------------------------------------
@@ -86,6 +108,23 @@ function onDocumentKeydown(event) {
 }
 function onAnyScroll() {
   menu.value = null
+  hoverTip.value = null
+}
+
+// --- warehouse name tooltip -------------------------------------------------
+// Headers show only the first 8 letters; hovering a truncated header pops the
+// full name. Teleported with FIXED coordinates (like the ⋮ menu) — an
+// absolutely-positioned tip would be clipped by the scroll container.
+const hoverTip = ref(null) // { name: string, x: number, y: number } | null
+
+function showNameTip(event, name) {
+  if (name.length <= 8) return // nothing truncated — nothing to reveal
+  const rect = event.currentTarget.getBoundingClientRect()
+  hoverTip.value = { name, x: rect.left, y: rect.bottom + 4 }
+}
+
+function hideNameTip() {
+  hoverTip.value = null
 }
 
 onMounted(() => {
@@ -108,9 +147,21 @@ const rows = computed(() => {
       row = { chrt_id: cell.chrt_id, tech_size: cell.tech_size, total: 0, quantities: {} }
       byChrt.set(cell.chrt_id, row)
     }
-    row.quantities[cell.warehouse_name] =
-      (row.quantities[cell.warehouse_name] ?? 0) + cell.quantity
+    row.quantities[cell.warehouse_name] = (row.quantities[cell.warehouse_name] ?? 0) + cell.quantity
     row.total += cell.quantity
+  }
+  // Imposed row set (comparison mode): identical rows on both sides, a size
+  // this day never stocked renders blank.
+  if (props.sizeOrder) {
+    return props.sizeOrder.map(
+      (size) =>
+        byChrt.get(size.chrt_id) ?? {
+          chrt_id: size.chrt_id,
+          tech_size: size.tech_size,
+          total: 0,
+          quantities: {},
+        },
+    )
   }
   // `numeric` keeps clothing sizes in wear order (42 < 44 < 122).
   return [...byChrt.values()].sort((a, b) =>
@@ -131,18 +182,18 @@ function isGroupBoundary(index) {
 </script>
 
 <template>
-  <div class="app-datatable">
+  <div class="app-datatable" :class="{ 'stock-table--no-sizes': hideSizeColumn }">
     <div v-if="!cells.length" class="px-md py-xl text-center text-base text-muted">
-      Нет складских остатков по этому SKU.
+      {{ emptyMessage }}
     </div>
 
-    <div v-else class="stock-scroll">
+    <div v-else v-drag-scroll class="stock-scroll">
       <table>
         <thead>
           <!-- Group titles: marked warehouses («Отгружено») first, the rest
                under «Неотгружено», with a vertical rule between the groups. -->
           <tr>
-            <th rowspan="2" class="col-size">Размер</th>
+            <th v-if="!hideSizeColumn" rowspan="2" class="col-size">Размер</th>
             <th rowspan="2" class="col-total">Всего</th>
             <th v-if="markedCount" :colspan="markedCount" class="wh-group wh-group--marked">
               <span class="wh-group-label">Отгружено</span>
@@ -162,9 +213,11 @@ function isGroupBoundary(index) {
               :key="wh.name"
               class="col-wh"
               :class="{ 'wh-divide': isGroupBoundary(whIndex) }"
+              @mouseenter="showNameTip($event, wh.name)"
+              @mouseleave="hideNameTip"
             >
               <span class="wh-header">
-                <span :class="{ 'wh-marked': wh.marked }">{{ wh.name }}</span>
+                <span :class="{ 'wh-marked': wh.marked }">{{ shortWarehouseName(wh.name) }}</span>
                 <button
                   type="button"
                   class="wh-menu-btn"
@@ -180,38 +233,54 @@ function isGroupBoundary(index) {
 
         <tbody>
           <tr v-for="row in rows" :key="row.chrt_id">
-            <td class="font-medium">{{ sizeLabel(row) }}</td>
-            <td class="font-semibold tabular-nums">{{ formatNumber(row.total) }}</td>
+            <td v-if="!hideSizeColumn" class="cell-size font-medium">{{ sizeLabel(row) }}</td>
+            <td class="cell-total font-semibold tabular-nums">
+              {{ row.total ? formatNumber(row.total) : '' }}
+            </td>
             <td
               v-for="(wh, whIndex) in warehouses"
               :key="wh.name"
               class="tabular-nums"
               :class="{ 'wh-divide': isGroupBoundary(whIndex) }"
             >
-              <span v-if="row.quantities[wh.name] === undefined" class="text-muted">—</span>
-              <span v-else :class="row.quantities[wh.name] === 0 ? 'text-muted' : ''">
-                {{ formatNumber(row.quantities[wh.name]) }}
-              </span>
+              <!-- Zeros read as blanks — only real remainders carry a number. -->
+              <span v-if="row.quantities[wh.name]">{{
+                formatNumber(row.quantities[wh.name])
+              }}</span>
             </td>
           </tr>
         </tbody>
 
         <tfoot>
           <tr>
-            <td class="font-medium">Всего</td>
-            <td class="font-bold tabular-nums">{{ formatNumber(grandTotal) }}</td>
+            <td v-if="!hideSizeColumn" class="cell-size font-medium">Всего</td>
+            <td class="cell-total font-bold tabular-nums">
+              {{ grandTotal ? formatNumber(grandTotal) : '' }}
+            </td>
             <td
               v-for="(wh, whIndex) in warehouses"
               :key="wh.name"
               class="font-semibold tabular-nums"
               :class="{ 'wh-divide': isGroupBoundary(whIndex) }"
             >
-              {{ formatNumber(wh.total) }}
+              {{ wh.total ? formatNumber(wh.total) : '' }}
             </td>
           </tr>
         </tfoot>
       </table>
     </div>
+
+    <!-- Full warehouse name on hover: teleported so the scroll container
+         can't clip it (shown only for truncated headers). -->
+    <Teleport to="body">
+      <div
+        v-if="hoverTip"
+        class="fixed z-50 rounded-card border border-border-subtle bg-surface px-sm py-xs text-tiny text-primary shadow-card"
+        :style="{ left: `${hoverTip.x}px`, top: `${hoverTip.y}px` }"
+      >
+        {{ hoverTip.name }}
+      </div>
+    </Teleport>
 
     <!-- The ⋮ mark menu: teleported so the scroll container can't clip it. -->
     <Teleport to="body">
@@ -221,12 +290,7 @@ function isGroupBoundary(index) {
         :style="{ left: `${menu.x}px`, top: `${menu.y}px` }"
       >
         <label class="flex cursor-pointer select-none items-center gap-sm text-base text-primary">
-          <input
-            type="checkbox"
-            class="wh-menu-checkbox"
-            :checked="false"
-            @change="toggleMark"
-          />
+          <input type="checkbox" class="wh-menu-checkbox" :checked="false" @change="toggleMark" />
           {{ markedSet.has(menu.name) ? 'Разгрузить' : 'Отгрузить' }}
         </label>
       </div>
@@ -246,6 +310,41 @@ function isGroupBoundary(index) {
 }
 .stock-scroll::-webkit-scrollbar {
   display: none;
+}
+/* While LMB-dragging the ribbon: pan cursor, and no accidental text selection. */
+.stock-scroll.drag-scrolling {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* Compact grid: WB warehouse lists run to dozens of columns — smaller type
+   and tighter cells than the generic skin. Heights are EXPLICIT so the
+   side-by-side day tables and the shared sizes panel stay row-aligned
+   (StockSizesPanel.vue declares the same heights). */
+thead th {
+  height: 26px;
+  padding: 4px 8px;
+  font-size: 10px;
+}
+tbody td {
+  height: 24px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+tfoot td {
+  height: 26px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+/* Zebra stripes; the frozen pane keeps its own solid backgrounds (declared
+   later, so they win over the stripe). */
+tbody tr:nth-child(even) td {
+  background: #f7f7f7;
+}
+/* Striped cells would otherwise mask the skin's transparent row hover. */
+tbody tr:hover td {
+  background: #e8e8e8;
 }
 
 /* Collapsed borders detach from sticky cells while scrolling — the frozen
@@ -291,8 +390,9 @@ table {
    `thead th` is left-aligned). */
 thead th.col-total,
 thead th.col-wh,
-tbody td:not(:first-child),
-tfoot td:not(:first-child) {
+td.cell-total,
+tbody td:not(.cell-size),
+tfoot td:not(.cell-size) {
   text-align: right;
 }
 
@@ -305,7 +405,7 @@ thead th.wh-group {
 }
 thead th.wh-group .wh-group-label {
   position: sticky;
-  left: calc(16rem + 12px);
+  left: calc(11rem + 12px);
   display: inline-block;
 }
 thead th.wh-group--marked {
@@ -324,10 +424,10 @@ thead th.wh-group--marked {
    keep the skin's `sticky top-0` and additionally pin left. The size column
    is fixed-width so the totals column knows its offset. */
 th.col-size,
-td:first-child {
-  width: 8rem;
-  min-width: 8rem;
-  max-width: 8rem;
+td.cell-size {
+  width: 6rem;
+  min-width: 6rem;
+  max-width: 6rem;
 }
 thead th.col-size,
 thead th.col-total {
@@ -335,26 +435,36 @@ thead th.col-total {
   z-index: 30;
   background: #f1f1f1;
 }
-tbody td:first-child,
-tbody td:nth-child(2),
-tfoot td:first-child,
-tfoot td:nth-child(2) {
+td.cell-size,
+td.cell-total {
   position: sticky;
   left: 0;
   z-index: 20;
   background: #f1f1f1;
 }
 thead th.col-total,
-tbody td:nth-child(2),
-tfoot td:nth-child(2) {
-  left: 8rem;
+td.cell-total {
+  left: 6rem;
   border-right: 3px solid #e0e0e0;
+}
+/* No-sizes variant (the two-day comparison: ONE shared sizes panel lives
+   OUTSIDE the tables): «Всего» becomes the frozen first column at a fixed
+   width so the group labels know their offset. */
+.stock-table--no-sizes thead th.col-total,
+.stock-table--no-sizes td.cell-total {
+  left: 0;
+  width: 4.5rem;
+  min-width: 4.5rem;
+  max-width: 4.5rem;
+}
+.stock-table--no-sizes thead th.wh-group .wh-group-label {
+  left: calc(4.5rem + 12px);
 }
 /* The skin's row-hover tint sits on the transparent `<tr>`; the solid frozen
    cells would ignore it, so tint them explicitly (matching the skin's
    bg-canvas row hover). */
-tbody tr:hover td:first-child,
-tbody tr:hover td:nth-child(2) {
+tbody tr:hover td.cell-size,
+tbody tr:hover td.cell-total {
   background: #e8e8e8;
 }
 
@@ -365,6 +475,5 @@ tfoot td {
   border-top: 2px solid #e0e0e0;
   background: #f1f1f1;
   white-space: nowrap;
-  padding: 8px 16px;
 }
 </style>

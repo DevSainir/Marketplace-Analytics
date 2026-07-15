@@ -28,6 +28,9 @@ _FUNNEL_FIELDS: tuple[str, ...] = (
 )
 #: The synthetic bucket name under which funnel inputs are stored.
 _FUNNEL_BUCKET = "funnel"
+#: The synthetic bucket name under which DISPLAY overrides are stored; the
+#: ``field`` is then the ``"<bucket>:<metric>"`` cell key.
+_CELL_BUCKET = "cell"
 #: Fields that are integer counts (stored as numeric, coerced back on overlay).
 _INT_FIELDS: frozenset[str] = frozenset(
     {"views", "clicks", "add_to_cart", "orders", "open_count", "cart_count", "order_count"}
@@ -54,6 +57,10 @@ def overlay_overrides(base: MatrixBaseState, overrides: list[MatrixOverride]) ->
     for override in overrides:
         day = by_day.get(override.stat_date)
         if day is None:
+            continue
+        if override.bucket == _CELL_BUCKET:
+            # Display override: applied to the computed cell, not an input.
+            day.cell_overrides[override.field] = round(float(override.value), 2)
             continue
         value = _coerce(override.field, float(override.value))
         if override.bucket == _FUNNEL_BUCKET:
@@ -124,4 +131,16 @@ def diff_to_overrides(
                             "value": w_val,
                         }
                     )
+        # Display overrides: the fact base has none, so every working entry is a
+        # deliberate manual edit — persist each as a ``cell`` row.
+        for cell_key, w_val in w_day.cell_overrides.items():
+            rows.append(
+                {
+                    "nm_id": nm_id,
+                    "stat_date": w_day.day,
+                    "bucket": _CELL_BUCKET,
+                    "field": cell_key,
+                    "value": w_val,
+                }
+            )
     return rows

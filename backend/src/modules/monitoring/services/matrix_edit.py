@@ -51,31 +51,52 @@ def _readonly(bucket: str, metric: str) -> ValidationError:
 
 
 def apply_edit(base: MatrixBaseState, edit: MatrixCellEdit) -> MatrixBaseState:
-    """Return a copy of ``base`` with one cell-edit applied to its inputs.
+    """Return a copy of ``base`` with one cell-edit applied.
+
+    EVERY cell is editable. An **invertible input** cell (e.g. «Показы»,
+    «Конверсия в заказ») back-solves an input fact so dependent cells recompute
+    (dynamic). Any other cell — a cross-bucket rollup, a derived ratio, the
+    empty «Каталог» zone, a tainted split — records a **display override**
+    (:attr:`MatrixDayBase.cell_overrides`) shown verbatim after the formulas.
 
     Args:
         base: The current input working copy.
         edit: The cell the user changed (day, bucket, metric, new value).
 
     Returns:
-        A new :class:`MatrixBaseState` with the edit resolved into its inputs;
-        pass it to :func:`build_matrix_from_base` to get the recomputed matrix.
+        A new :class:`MatrixBaseState` with the edit applied; pass it to
+        :func:`build_matrix_from_base` to get the recomputed matrix.
 
     Raises:
-        ValidationError: If the day is unknown, or the cell is read-only /
-            cannot be uniquely inverted.
+        ValidationError: If the day is not in the current window.
     """
     new = base.model_copy(deep=True)
     day = _find_day(new, edit.day)
+    key = f"{edit.bucket}:{edit.metric}"
+    try:
+        _apply_input_edit(day, edit)
+    except ValidationError:
+        # Non-invertible cell (read-only formula, tainted zone, empty «Каталог»,
+        # a count with no funnel row) → store a direct display override so the
+        # cell is still editable. Shown verbatim in build_matrix_from_base.
+        day.cell_overrides[key] = round(float(edit.value), 2)
+    else:
+        # A successful dynamic edit supersedes any stale display override on the
+        # same cell (e.g. a count edited on a day that later gained a funnel row).
+        day.cell_overrides.pop(key, None)
+    return new
+
+
+def _apply_input_edit(day: MatrixDayBase, edit: MatrixCellEdit) -> None:
+    """Resolve the edit as an invertible input, or raise for a non-invertible cell."""
     if edit.bucket in MATRIX_AD_BUCKETS:
         _edit_ad_bucket(day, edit.bucket, edit.metric, edit.value)
     elif edit.bucket == "total":
         _edit_total(day, edit.metric, edit.value)
     elif edit.bucket == "organic":
         _edit_organic(day, edit.metric, edit.value)
-    else:  # uni_catalog or an unknown bucket
+    else:  # uni_catalog or an unknown bucket — no unique inverse
         raise _readonly(edit.bucket, edit.metric)
-    return new
 
 
 def _find_day(base: MatrixBaseState, day: date) -> MatrixDayBase:
@@ -163,20 +184,23 @@ def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
     f = day.funnel
     if f is None:
         raise ValidationError(f"No funnel data on {day.day.isoformat()} to edit.")
+    # A price-only day (funnel not served yet): counts are not facts there —
+    # only the prices are editable.
+    counts_editable = f.has_funnel
     match metric:
-        case "clicks":
+        case "clicks" if counts_editable:
             f.open_count = _count(value)
-        case "carts":
+        case "carts" if counts_editable:
             f.cart_count = _count(value)
-        case "orders":
+        case "orders" if counts_editable:
             f.order_count = _count(value)
         case "seller_price":
             f.seller_price = _money(value)
         case "customer_price":
             f.customer_price = _money(value)
-        case "cart_conversion":  # cart_count / open_count * 100
+        case "cart_conversion" if counts_editable:  # cart_count / open_count * 100
             f.cart_count = _count(value / 100 * f.open_count)
-        case "order_conversion":  # order_count / cart_count * 100
+        case "order_conversion" if counts_editable:  # order_count / cart_count * 100
             f.order_count = _count(value / 100 * f.cart_count)
         case _:
             # order_sum/buyout_sum/spp derive from the prices (read-only);
@@ -192,7 +216,7 @@ def _edit_organic(day: MatrixDayBase, metric: str, value: float) -> None:
     solves the funnel input: ``funnel = organic + ad``.
     """
     f = day.funnel
-    if f is None:
+    if f is None or not f.has_funnel:
         raise ValidationError(f"No funnel data on {day.day.isoformat()} to edit.")
     day_ad = _day_ad_from_base(day)
     match metric:

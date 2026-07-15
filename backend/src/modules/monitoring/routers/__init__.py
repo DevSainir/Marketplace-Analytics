@@ -21,15 +21,20 @@ from src.core.celery_app import celery_app
 from src.core.deps import get_current_user_id
 from src.modules.monitoring.deps import AnalyticsServiceDep
 from src.modules.monitoring.schemas import (
+    CommentUpdateRequest,
     FunnelResponseSchema,
     MatrixPreviewRequest,
     MatrixPreviewResponse,
     MatrixSaveRequest,
+    PinnedSkusResponse,
+    PinUpdateRequest,
     RefreshEnqueuedResponse,
     RefreshStatusResponse,
+    SkuCommentResponse,
     SkuDetailResponse,
     SkuLookupResponse,
     SkuSummaryListResponse,
+    StockDayResponse,
     WarehouseMarksResponse,
     WarehouseMarkUpdateRequest,
 )
@@ -64,6 +69,39 @@ async def get_summary(
     return await service.get_summary(
         date_from=date_from, date_to=date_to, limit=limit, offset=offset
     )
+
+
+@router.get(
+    "/pins",
+    response_model=PinnedSkusResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "The global pinned-SKU list, in pin order."},
+        401: {"description": "Unauthorized access token."},
+    },
+)
+async def list_pins(service: AnalyticsServiceDep) -> PinnedSkusResponse:
+    """Return the global pinned-SKU chip row (shared by every account)."""
+    return await service.list_pinned_skus()
+
+
+@router.put(
+    "/skus/{nm_id}/pin",
+    response_model=PinnedSkusResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "Pin updated; the full pinned list is returned."},
+        401: {"description": "Unauthorized access token."},
+        422: {"description": "Invalid payload."},
+    },
+)
+async def set_pin(
+    nm_id: int,
+    body: PinUpdateRequest,
+    service: AnalyticsServiceDep,
+) -> PinnedSkusResponse:
+    """Pin («Закрепить») or unpin («Закреплено» click) a SKU for everyone."""
+    return await service.set_sku_pin(nm_id=nm_id, pinned=body.pinned)
 
 
 @router.get(
@@ -129,6 +167,25 @@ async def get_sku_detail(
     )
 
 
+@router.get(
+    "/skus/{nm_id}/stock",
+    response_model=StockDayResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "The day's size x warehouse stock breakdown."},
+        401: {"description": "Unauthorized access token."},
+        422: {"description": "Invalid date."},
+    },
+)
+async def get_stock_day(
+    nm_id: int,
+    service: AnalyticsServiceDep,
+    on_date: date = Query(description="Exact snapshot day (empty breakdown when unobserved)."),
+) -> StockDayResponse:
+    """Return one snapshot day's stock breakdown (two-day comparison view)."""
+    return await service.get_stock_day(nm_id=nm_id, on_date=on_date)
+
+
 @router.put(
     "/skus/{nm_id}/warehouse-marks",
     response_model=WarehouseMarksResponse,
@@ -148,6 +205,25 @@ async def set_warehouse_mark(
     return await service.set_warehouse_mark(
         nm_id=nm_id, warehouse_name=body.warehouse_name, marked=body.marked
     )
+
+
+@router.put(
+    "/skus/{nm_id}/comment",
+    response_model=SkuCommentResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "Comment saved (or cleared); the stored note is returned."},
+        401: {"description": "Unauthorized access token."},
+        422: {"description": "Invalid payload (e.g. body too long)."},
+    },
+)
+async def set_sku_comment(
+    nm_id: int,
+    body: CommentUpdateRequest,
+    service: AnalyticsServiceDep,
+) -> SkuCommentResponse:
+    """Save («Сохранить») or clear a SKU's free-text comment (shared by everyone)."""
+    return await service.set_sku_comment(nm_id=nm_id, body=body.body)
 
 
 @router.post(

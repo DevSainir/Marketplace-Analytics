@@ -84,6 +84,23 @@ export async function saveMatrix(nmId, base, params = {}) {
 }
 
 /**
+ * GET /v1/monitoring/skus/{nm_id}/stock — one exact snapshot day's
+ * size × warehouse stock breakdown (a side of the two-day comparison).
+ *
+ * @param {number} nmId WB SKU identifier.
+ * @param {string} onDate ISO date of the snapshot day.
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<{stat_date: string, stock: object}>}
+ */
+export async function fetchStockDay(nmId, onDate, signal) {
+  const { data } = await apiClient.get(`/v1/monitoring/skus/${nmId}/stock`, {
+    params: { on_date: onDate },
+    signal,
+  })
+  return data
+}
+
+/**
  * PUT /v1/monitoring/skus/{nm_id}/warehouse-marks — mark («Отгрузить») or
  * unmark («Разгрузить») one warehouse for THIS SKU only.
  *
@@ -97,6 +114,44 @@ export async function setWarehouseMark(nmId, warehouseName, marked) {
     warehouse_name: warehouseName,
     marked,
   })
+  return data
+}
+
+/**
+ * GET /v1/monitoring/pins — the global pinned-SKU list (shared by everyone),
+ * in pin order.
+ *
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<{items: Array<{nm_id: number, vendor_code: string|null, title: string|null}>}>}
+ */
+export async function fetchPinnedSkus(signal) {
+  const { data } = await apiClient.get('/v1/monitoring/pins', { signal })
+  return data
+}
+
+/**
+ * PUT /v1/monitoring/skus/{nm_id}/pin — pin («Закрепить») or unpin a SKU for
+ * every account; returns the full updated pinned list.
+ *
+ * @param {number} nmId WB SKU identifier.
+ * @param {boolean} pinned True to pin, false to unpin.
+ * @returns {Promise<{items: Array<{nm_id: number, vendor_code: string|null, title: string|null}>}>}
+ */
+export async function setSkuPin(nmId, pinned) {
+  const { data } = await apiClient.put(`/v1/monitoring/skus/${nmId}/pin`, { pinned })
+  return data
+}
+
+/**
+ * PUT /v1/monitoring/skus/{nm_id}/comment — save («Сохранить») or clear the
+ * SKU's free-text note (shared by every account). A blank body clears it.
+ *
+ * @param {number} nmId WB SKU identifier.
+ * @param {string} body The note text; blank/whitespace-only clears the comment.
+ * @returns {Promise<{nm_id: number, body: string|null}>} The stored note.
+ */
+export async function setSkuComment(nmId, body) {
+  const { data } = await apiClient.put(`/v1/monitoring/skus/${nmId}/comment`, { body })
   return data
 }
 

@@ -7,12 +7,13 @@ import {
 } from '@/modules/monitoring/metricsMatrix'
 
 describe('traffic column structure', () => {
-  it('has 7 leaf columns matching the workbook zones', () => {
+  it('has 8 leaf columns matching the workbook zones', () => {
     expect(TRAFFIC_COLUMNS.map((c) => c.zone)).toEqual([
       'Поиск',
       'Полки',
       'Каталог',
       'Поиск',
+      'Каталог',
       'Полки',
       'Общая',
       'Органика',
@@ -26,7 +27,7 @@ describe('traffic column structure', () => {
 })
 
 // The backend matrix uses the same bucket order as TRAFFIC_COLUMNS; cells are
-// raw numbers (or null -> «—»). Day-major flat: values[day * buckets + bucket].
+// raw numbers (or null -> blank). Day-major flat: values[day * buckets + bucket].
 const BUCKETS = TRAFFIC_COLUMNS.map((c) => c.key)
 
 /** Build one backend row from per-day bucket maps ({} = all-null day). */
@@ -44,7 +45,10 @@ const PRODUCT = {
     days: ['2026-07-01', '2026-07-02'],
     buckets: BUCKETS,
     rows: [
-      backendRow('traffic_share', [{ uni_search: 20, uni_shelves: 46.67, manual_search: 26.67 }, {}]),
+      backendRow('traffic_share', [
+        { uni_search: 20, uni_shelves: 46.67, manual_search: 26.67 },
+        {},
+      ]),
       backendRow('spend', [{ uni_search: 15, uni_shelves: 35, manual_search: 20, total: 75 }, {}]),
       backendRow('views', [{ uni_search: 30, uni_shelves: 70, manual_search: 40, total: 150 }, {}]),
       backendRow('ctr', [{ uni_search: 10, manual_search: 10 }, {}]),
@@ -83,27 +87,27 @@ describe('buildMetricsMatrix', () => {
     for (const row of matrix.rows) expect(row.cells).toHaveLength(2 * COLS)
   })
 
-  it('marks input/derived ad cells editable but read-only cells not', () => {
+  it('marks EVERY cell editable (invertible inputs + display-override cells)', () => {
     const matrix = buildMetricsMatrix(PRODUCT)
-    // Ad bucket with a value: input (views) and derived (traffic_share) editable.
+    // Invertible inputs and derived cells alike are clickable…
     expect(cellObj(matrix, 'views', 0, 'uni_search').editable).toBe(true)
     expect(cellObj(matrix, 'traffic_share', 0, 'uni_search').editable).toBe(true)
-    // «Общая» funnel input editable; its ad-rollup cell (spend) is not.
     expect(cellObj(matrix, 'clicks', 0, 'total').editable).toBe(true)
-    expect(cellObj(matrix, 'spend', 0, 'total').editable).toBe(false)
-    // «Органика» counts editable; «Каталог» and «—» cells never.
+    // …including the former read-only cells: a rollup, the empty «Каталог», organic.
+    expect(cellObj(matrix, 'spend', 0, 'total').editable).toBe(true)
     expect(cellObj(matrix, 'clicks', 0, 'organic').editable).toBe(true)
-    expect(cellObj(matrix, 'views', 0, 'uni_catalog').editable).toBe(false)
-    // A null/«—» cell is not editable even where the map allows it.
-    expect(cellObj(matrix, 'views', 0, 'manual_shelves').editable).toBe(false)
+    expect(cellObj(matrix, 'views', 0, 'uni_catalog').editable).toBe(true)
+    // …and blank cells too (fill-in).
+    expect(cellObj(matrix, 'views', 0, 'manual_shelves').editable).toBe(true)
   })
 
-  it('makes block prices editable but the derived СПП read-only', () => {
+  it('makes every block cell editable (prices, СПП, and stock)', () => {
     // Prices live in the day-bound «Цены» block (one «Общая» cell per day).
     const matrix = buildMetricsMatrix(PRODUCT)
     expect(blockCell(matrix.priceRows, 'seller_price', 0).editable).toBe(true)
     expect(blockCell(matrix.priceRows, 'customer_price', 0).editable).toBe(true)
-    expect(blockCell(matrix.priceRows, 'spp', 0).editable).toBe(false)
+    // СПП is derived but still editable (display override); its value still shows.
+    expect(blockCell(matrix.priceRows, 'spp', 0).editable).toBe(true)
     expect(blockCell(matrix.priceRows, 'spp', 0).display).toBe('30,00%')
     // Block cells address the backend «total» bucket for edits.
     expect(blockCell(matrix.priceRows, 'seller_price', 0)).toMatchObject({
@@ -112,9 +116,9 @@ describe('buildMetricsMatrix', () => {
       bucket: 'total',
       metric: 'seller_price',
     })
-    // A gap day renders «—» and is not editable.
-    expect(blockCell(matrix.priceRows, 'seller_price', 1).display).toBe('—')
-    expect(blockCell(matrix.priceRows, 'seller_price', 1).editable).toBe(false)
+    // A gap day renders blank but is clickable (fill in a missing price).
+    expect(blockCell(matrix.priceRows, 'seller_price', 1).display).toBe('')
+    expect(blockCell(matrix.priceRows, 'seller_price', 1).editable).toBe(true)
   })
 
   it('carries the raw numeric value and addressing for editing', () => {
@@ -145,11 +149,7 @@ describe('buildMetricsMatrix', () => {
       'drr_sales',
       'buyout_percent',
     ])
-    expect(matrix.priceRows.map((r) => r.key)).toEqual([
-      'seller_price',
-      'customer_price',
-      'spp',
-    ])
+    expect(matrix.priceRows.map((r) => r.key)).toEqual(['seller_price', 'customer_price', 'spp'])
     expect(matrix.stockRows.map((r) => r.key)).toEqual([
       'stock_quantity',
       'stock_to_client',
@@ -157,13 +157,13 @@ describe('buildMetricsMatrix', () => {
     ])
   })
 
-  it('renders stock block rows read-only', () => {
+  it('renders stock block rows with their value (now editable via override)', () => {
     const stocked = structuredClone(PRODUCT)
     stocked.matrix.rows.push(backendRow('stock_quantity', [{ total: 42 }, { total: 42 }]))
     const matrix = buildMetricsMatrix(stocked)
     const c = blockCell(matrix.stockRows, 'stock_quantity', 0)
     expect(c.display).toBe(formatNumber(42))
-    expect(c.editable).toBe(false)
+    expect(c.editable).toBe(true)
   })
 
   it('formats backend numbers per metric kind (currency/number/percent)', () => {
@@ -184,20 +184,20 @@ describe('buildMetricsMatrix', () => {
     expect(cell(matrix, 'clicks', 0, 'organic')).toBe(formatNumber(185))
   })
 
-  it('renders «—» for null cells, absent rows, and the legacy «Каталог» zone', () => {
+  it('renders blank for null cells, absent rows, and the legacy «Каталог» zone', () => {
     const matrix = buildMetricsMatrix(PRODUCT)
-    expect(cell(matrix, 'views', 0, 'uni_catalog')).toBe('—')
-    expect(cell(matrix, 'views', 0, 'manual_shelves')).toBe('—')
-    expect(cell(matrix, 'traffic_share', 0, 'total')).toBe('—')
+    expect(cell(matrix, 'views', 0, 'uni_catalog')).toBe('')
+    expect(cell(matrix, 'views', 0, 'manual_shelves')).toBe('')
+    expect(cell(matrix, 'traffic_share', 0, 'total')).toBe('')
     // Metric row missing from the payload entirely -> a full row of dashes.
-    expect(cell(matrix, 'cpm', 0, 'total')).toBe('—')
+    expect(cell(matrix, 'cpm', 0, 'total')).toBe('')
   })
 
-  it('renders «—» for gap days instead of errors', () => {
+  it('renders blank for gap days instead of errors', () => {
     const matrix = buildMetricsMatrix(PRODUCT)
-    expect(cell(matrix, 'spend', 1, 'total')).toBe('—')
-    expect(cell(matrix, 'clicks', 1, 'total')).toBe('—')
-    expect(cell(matrix, 'clicks', 1, 'organic')).toBe('—')
+    expect(cell(matrix, 'spend', 1, 'total')).toBe('')
+    expect(cell(matrix, 'clicks', 1, 'total')).toBe('')
+    expect(cell(matrix, 'clicks', 1, 'organic')).toBe('')
   })
 
   it('returns an empty matrix without a backend matrix payload', () => {

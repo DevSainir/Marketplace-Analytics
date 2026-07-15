@@ -14,9 +14,16 @@
  * applies ru-RU display formatting; `null` cells render as «—».
  * «Каталог» is a legacy WB zone kept for workbook parity; it is always empty.
  */
-import { formatCurrency, formatNumber, formatPercent } from '@/core/utils/format'
+import {
+  formatCurrency,
+  formatCurrencyTenths,
+  formatNumber,
+  formatPercent,
+} from '@/core/utils/format'
 
-const EM_DASH = '—'
+// Missing values render as BLANK cells (was an em dash — the dashes read as
+// noise across a mostly-empty ribbon).
+const EMPTY = ''
 
 /**
  * Which (bucket, metric) cells the manager may edit — presentation config, not
@@ -24,47 +31,22 @@ const EM_DASH = '—'
  * Mirrors the backend editability map: input cells are set directly; derived
  * cells back-solve one input server-side. Cells absent here are read-only.
  *
- * A cell is only actually editable when its map entry is true AND its value is
- * a real number (an «—» cell has nothing to edit).
+ * A cell is editable whenever its map entry is true — INCLUDING blank cells:
+ * clicking a blank input cell lets the manager fill in a value the harvest
+ * lacked (e.g. a missing price, or a count on a day WB has not served yet).
+ * The backend still validates on commit — a blank cell with no input to attach
+ * to (an ad bucket that never delivered) is rejected there, not hidden here.
  */
-const AD_EDITABLE = new Set([
-  'views',
-  'clicks',
-  'carts',
-  'spend',
-  'orders',
-  'order_sum',
-  'ctr',
-  'cpm',
-  'cpc',
-  'cart_conversion',
-  'order_conversion',
-  'cost_per_order',
-  'cost_per_cart',
-  'drr_orders',
-  'traffic_share',
-])
-const TOTAL_EDITABLE = new Set([
-  'clicks',
-  'carts',
-  'orders',
-  // order_sum / spp derive from the prices (read-only) — the prices themselves
-  // are the editable inputs; buyout_sum / buyout_percent are harvested
-  // sale-date facts (read-only).
-  'seller_price',
-  'customer_price',
-  'cart_conversion',
-  'order_conversion',
-])
-const ORGANIC_EDITABLE = new Set(['clicks', 'carts', 'orders'])
-const AD_BUCKETS = new Set(['uni_search', 'uni_shelves', 'manual_search', 'manual_shelves'])
-
-/** Whether a (bucket, metric) pair is editable in principle (ignores value). */
+/**
+ * Whether a (bucket, metric) cell is editable — EVERY cell is. Invertible
+ * input cells back-solve their fact server-side (dynamic recompute); every
+ * other cell (a derived rollup, the empty «Каталог» zone, a tainted split)
+ * takes a display override there. The backend owns the routing; the frontend
+ * just lets the manager click any cell. `bucket`/`metric` are kept for a
+ * future per-cell lock and to mirror the call sites.
+ */
 function isEditable(bucket, metric) {
-  if (AD_BUCKETS.has(bucket)) return AD_EDITABLE.has(metric)
-  if (bucket === 'total') return TOTAL_EDITABLE.has(metric)
-  if (bucket === 'organic') return ORGANIC_EDITABLE.has(metric)
-  return false // uni_catalog and anything else
+  return Boolean(bucket && metric)
 }
 
 /** Leaf columns of one day section, left to right. `key` = backend bucket. */
@@ -73,6 +55,7 @@ export const TRAFFIC_COLUMNS = [
   { key: 'uni_shelves', zone: 'Полки' },
   { key: 'uni_catalog', zone: 'Каталог' },
   { key: 'manual_search', zone: 'Поиск' },
+  { key: 'manual_catalog', zone: 'Каталог' },
   { key: 'manual_shelves', zone: 'Полки' },
   { key: 'total', zone: 'Общая' },
   { key: 'organic', zone: 'Органика' },
@@ -81,11 +64,12 @@ export const TRAFFIC_COLUMNS = [
 /**
  * «Тип получения трафика» header groups (spans over TRAFFIC_COLUMNS).
  * `spansZones` groups have no zone split — their header cell spans the zones
- * row too instead of repeating the same word twice.
+ * row too instead of repeating the same word twice. «Руч. поиск» spans two
+ * zones: WB search campaigns also deliver in каталог (backend-split).
  */
 export const TRAFFIC_GROUPS = [
   { label: 'Единая ставка', span: 3 },
-  { label: 'Руч. поиск', span: 1 },
+  { label: 'Руч. поиск', span: 2 },
   { label: 'Руч. полки', span: 1 },
   { label: 'Общая', span: 1, spansZones: true },
   { label: 'Органика', span: 1, spansZones: true },
@@ -97,41 +81,77 @@ function dayLabel(iso) {
   return `${day}.${month}.${year}`
 }
 
-const fmtNumber = (v) => (v == null ? EM_DASH : formatNumber(Math.round(v)))
-const fmtCurrency = (v) => (v == null ? EM_DASH : formatCurrency(v))
-const fmtPercent = (v) => (v == null ? EM_DASH : formatPercent(v))
+const fmtNumber = (v) => (v == null ? EMPTY : formatNumber(Math.round(v)))
+const fmtCurrency = (v) => (v == null ? EMPTY : formatCurrency(v))
+const fmtCurrencyTenths = (v) => (v == null ? EMPTY : formatCurrencyTenths(v))
+const fmtPercent = (v) => (v == null ? EMPTY : formatPercent(v))
 
 /**
  * Metric rows in the workbook's order — presentation only (label, accent
  * tone, formatter). `key` matches the backend's `MATRIX_METRIC_KEYS`.
  *
- * `group` clusters rows between thick horizontal dividers (money economics
- * vs ДРР/выкуп efficiency) — separation only, no tinting.
+ * `group` assigns each row to one of the four data blocks; every block gets
+ * its own subtle row tint (see the `matrix-group--*` rules in main.css):
+ * traffic (Доля трафика..Клики), funnel (Корзины..Конверсия в заказ),
+ * money (Заказы, ₽..Стоимость корзины), efficiency (the ДРР/выкуп trio).
+ *
+ * `emphasis` renders the row bigger and bolder («ДРР от продаж» is the
+ * headline efficiency number).
  */
 const METRIC_DEFS = [
-  { key: 'traffic_share', label: 'Доля трафика, %', format: fmtPercent },
-  { key: 'spend', label: 'Затраты, ₽', tone: 'negative', format: fmtCurrency },
-  { key: 'views', label: 'Показы', format: fmtNumber },
-  { key: 'ctr', label: 'CTR, %', format: fmtPercent },
-  { key: 'cpm', label: 'CPM, ₽', format: fmtCurrency },
-  { key: 'cpc', label: 'CPC, ₽', format: fmtCurrency },
-  { key: 'clicks', label: 'Клики', format: fmtNumber },
-  { key: 'carts', label: 'Корзины', tone: 'carts', format: fmtNumber },
-  { key: 'cart_conversion', label: 'Конверсия в корзину, %', tone: 'carts', format: fmtPercent },
-  { key: 'orders', label: 'Заказы', tone: 'positive', format: fmtNumber },
+  { key: 'traffic_share', label: 'Доля трафика, %', group: 'traffic', format: fmtPercent },
+  { key: 'spend', label: 'Затраты, ₽', tone: 'positive', group: 'traffic', format: fmtCurrency },
+  { key: 'views', label: 'Показы', group: 'traffic', format: fmtNumber },
+  { key: 'ctr', label: 'CTR, %', group: 'traffic', format: fmtPercent },
+  { key: 'cpm', label: 'CPM, ₽', group: 'traffic', format: fmtCurrency },
+  { key: 'cpc', label: 'CPC, ₽', group: 'traffic', format: fmtCurrencyTenths },
+  { key: 'clicks', label: 'Клики', group: 'traffic', format: fmtNumber },
+  // `assocKey` points at the backend's associative-conversion row (campaign
+  // totals including associated size/colour variants). When that row has a
+  // value for the cell, the cell renders as «100(71)» — total(this SKU).
+  {
+    key: 'carts',
+    label: 'Корзины',
+    tone: 'carts',
+    group: 'funnel',
+    format: fmtNumber,
+    assocKey: 'carts_assoc',
+  },
+  {
+    key: 'cart_conversion',
+    label: 'Конверсия в корзину, %',
+    tone: 'carts',
+    group: 'funnel',
+    format: fmtPercent,
+  },
+  {
+    key: 'orders',
+    label: 'Заказы',
+    tone: 'warning',
+    group: 'funnel',
+    format: fmtNumber,
+    assocKey: 'orders_assoc',
+  },
   {
     key: 'order_conversion',
     label: 'Конверсия в заказ, %',
-    tone: 'positive',
+    tone: 'warning',
+    group: 'funnel',
     format: fmtPercent,
   },
-  { key: 'order_sum', label: 'Заказы, ₽', group: 'orders', format: fmtCurrency },
-  { key: 'buyout_sum', label: 'Выкупы, ₽', group: 'orders', format: fmtCurrency },
-  { key: 'cost_per_order', label: 'Стоимость заказа, ₽', group: 'orders', format: fmtCurrency },
-  { key: 'cost_per_cart', label: 'Стоимость корзины, ₽', group: 'orders', format: fmtCurrency },
-  { key: 'drr_orders', label: 'ДРР от заказов, %', group: 'drr', format: fmtPercent },
-  { key: 'drr_sales', label: 'ДРР от продаж, %', group: 'drr', format: fmtPercent },
-  { key: 'buyout_percent', label: 'Процент выкупа, %', group: 'drr', format: fmtPercent },
+  { key: 'order_sum', label: 'Заказы, ₽', group: 'money', format: fmtCurrency },
+  { key: 'buyout_sum', label: 'Выкупы, ₽', group: 'money', format: fmtCurrency },
+  { key: 'cost_per_order', label: 'Стоимость заказа, ₽', group: 'money', format: fmtCurrency },
+  { key: 'cost_per_cart', label: 'Стоимость корзины, ₽', group: 'money', format: fmtCurrency },
+  { key: 'drr_orders', label: 'ДРР от заказов, %', group: 'efficiency', format: fmtPercent },
+  {
+    key: 'drr_sales',
+    label: 'ДРР от продаж, %',
+    group: 'efficiency',
+    emphasis: true,
+    format: fmtPercent,
+  },
+  { key: 'buyout_percent', label: 'Процент выкупа, %', group: 'efficiency', format: fmtPercent },
 ]
 
 /**
@@ -178,6 +198,17 @@ function resolveRaw(values, bucketCount, bucketIndex, dayIndex) {
   return values[dayIndex * bucketCount + bucketIndex] ?? null
 }
 
+/**
+ * Cell display string: the associative decoration «100(71)» when the backend
+ * emitted an all-variant total for the cell, the plain formatted value
+ * otherwise. Both numbers come precomputed from the backend — this is
+ * formatting only.
+ */
+function cellDisplay(def, raw, assocRaw) {
+  if (assocRaw == null) return def.format(raw)
+  return `${def.format(assocRaw)}(${def.format(raw)})`
+}
+
 /** Per-matrix lookups shared by build + patch (bucket index per column, etc.). */
 function matrixLookups(matrix) {
   return {
@@ -206,7 +237,7 @@ function buildTotalRows(defs, matrix, backendValues) {
           day: iso,
           bucket: 'total',
           metric: def.key,
-          editable: raw != null && isEditable('total', def.key),
+          editable: isEditable('total', def.key),
         }
       }),
     }
@@ -222,21 +253,27 @@ export function buildMetricsMatrix(product) {
 
   const rows = METRIC_DEFS.map((def) => {
     const values = backendValues.get(def.key)
+    const assocValues = def.assocKey ? backendValues.get(def.assocKey) : null
     return {
       key: def.key,
       label: def.label,
       tone: def.tone ?? null,
       group: def.group ?? null,
+      emphasis: def.emphasis ?? false,
       cells: matrix.days.flatMap((iso, dayIndex) =>
         TRAFFIC_COLUMNS.map((column, columnIndex) => {
-          const raw = resolveRaw(values, bucketCount, bucketIndexByColumn[columnIndex], dayIndex)
+          const bucketIndex = bucketIndexByColumn[columnIndex]
+          const raw = resolveRaw(values, bucketCount, bucketIndex, dayIndex)
+          const assocRaw = assocValues
+            ? resolveRaw(assocValues, bucketCount, bucketIndex, dayIndex)
+            : null
           return {
-            display: def.format(raw),
+            display: cellDisplay(def, raw, assocRaw),
             raw,
             day: iso,
             bucket: column.key,
             metric: def.key,
-            editable: raw != null && isEditable(column.key, def.key),
+            editable: isEditable(column.key, def.key),
           }
         }),
       ),
@@ -278,12 +315,17 @@ export function patchMetricsMatrix(view, product) {
     const def = defByKey.get(row.key)
     if (!def) continue
     const values = backendValues.get(row.key)
+    const assocValues = def.assocKey ? backendValues.get(def.assocKey) : null
     for (let dayIndex = 0; dayIndex < matrix.days.length; dayIndex += 1) {
       for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
         const cell = row.cells[dayIndex * columnCount + columnIndex]
-        const raw = resolveRaw(values, bucketCount, bucketIndexByColumn[columnIndex], dayIndex)
-        const display = def.format(raw)
-        const editable = raw != null && isEditable(TRAFFIC_COLUMNS[columnIndex].key, def.key)
+        const bucketIndex = bucketIndexByColumn[columnIndex]
+        const raw = resolveRaw(values, bucketCount, bucketIndex, dayIndex)
+        const assocRaw = assocValues
+          ? resolveRaw(assocValues, bucketCount, bucketIndex, dayIndex)
+          : null
+        const display = cellDisplay(def, raw, assocRaw)
+        const editable = isEditable(TRAFFIC_COLUMNS[columnIndex].key, def.key)
         // Assign only on change so untouched cells trigger no reactivity.
         if (cell.raw !== raw) cell.raw = raw
         if (cell.display !== display) cell.display = display
@@ -308,7 +350,7 @@ export function patchMetricsMatrix(view, product) {
         const cell = row.cells[dayIndex]
         const raw = resolveRaw(values, bucketCount, totalIndex, dayIndex)
         const display = def.format(raw)
-        const editable = raw != null && isEditable('total', def.key)
+        const editable = isEditable('total', def.key)
         if (cell.raw !== raw) cell.raw = raw
         if (cell.display !== display) cell.display = display
         if (cell.editable !== editable) cell.editable = editable

@@ -117,6 +117,21 @@ class Settings(BaseSettings):
     wb_card_base_url: str = Field(default="https://card.wb.ru")
     wb_card_dest: int = Field(default=-1255563)
     wb_card_spp: int = Field(default=30)
+    # Optional forward proxy for card.wb.ru ONLY (the other WB surfaces are
+    # authenticated seller APIs reached directly). The public storefront edge
+    # IP-blocks datacenter egress (prod started getting HTTP 403 on 2026-07-14);
+    # a residential/mobile proxy restores the clean egress IP. curl still
+    # supplies the TLS fingerprint that clears the anti-bot filter — the proxy
+    # only swaps the IP. EMPTY = direct connection (correct for a clean local
+    # IP). Holds credentials → lives in .env, never committed.
+    wb_card_proxy: str = Field(default="")
+    # Strict connect timeout for the (slow, fragile) proxy tunnel — separate
+    # from the whole-request cap so a dead tunnel fails fast instead of burning
+    # the full timeout budget (bounds proxy traffic/cost on failure).
+    wb_card_connect_timeout_seconds: float = Field(default=15.0)
+    # Tighter retry cap than the rate-limited seller APIs: a broken proxy must
+    # give up quickly instead of spinning (protects the proxy balance).
+    wb_card_max_retries: int = Field(default=3)
     wb_http_timeout_seconds: float = Field(default=30.0)
     # WB (esp. the advertising surface) is aggressively rate-limited (~1 req/min
     # -> HTTP 429). Requests retry with exponential backoff, honouring any

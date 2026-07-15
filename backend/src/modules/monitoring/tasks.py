@@ -141,11 +141,18 @@ def _candidate_search_pairs(
 ) -> list[tuple[int, int]]:
     """Candidate ``(campaign_id, nm_id)`` pairs for the search-zone slice.
 
-    Only campaigns enabled in BOTH display zones (every unified-bid campaign,
-    plus dual-placement manual ones) need the normquery slice — a single-zone
-    campaign's fullstats already belong wholly to its one zone. Pairs are the
-    dual-zone campaigns among the scoped harvest set, crossed with the harvested
-    SKUs they advertise (from ``nm_settings``).
+    Every campaign with the SEARCH placement needs the normquery slice:
+
+    * dual-zone campaigns (every unified-bid one, plus dual-placement manual
+      ones) — the slice splits «Поиск» from «Полки»;
+    * search-only manual campaigns — WB «поисковые» campaigns also deliver in
+      the CATALOG zone (verified live: fullstats runs ~10-13% above the
+      normquery sum day after day), so the slice splits «Поиск» from
+      «Каталог».
+
+    A shelves-only campaign's fullstats already belong wholly to its one zone.
+    Pairs are the search-placement campaigns among the scoped harvest set,
+    crossed with the harvested SKUs they advertise (from ``nm_settings``).
 
     Deriving these from campaign SETTINGS (not fullstats results) is what lets
     the normquery call run **concurrently** with fullstats instead of waiting on
@@ -170,9 +177,7 @@ def _candidate_search_pairs(
     pairs: set[tuple[int, int]] = set()
     for advert in adverts:
         placements = advert.settings.placements
-        if advert.campaign_id not in scoped or not (
-            placements.search and placements.recommendations
-        ):
+        if advert.campaign_id not in scoped or not placements.search:
             continue
         for setting in advert.nm_settings:
             if setting.nm_id in wanted:

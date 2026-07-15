@@ -9,14 +9,19 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
+import { isoDaysAgo } from '@/core/utils/dates'
 import {
+  fetchPinnedSkus,
   fetchSkuDetail,
   fetchSkuSummary,
+  fetchStockDay,
   getRefreshStatus,
   lookupSkus,
   previewMatrixEdit,
   refreshSku,
   saveMatrix,
+  setSkuComment,
+  setSkuPin,
   setWarehouseMark,
 } from '@/modules/monitoring/api'
 import { buildMetricsMatrix, patchMetricsMatrix } from '@/modules/monitoring/metricsMatrix'
@@ -96,6 +101,76 @@ export const useMonitoringStore = defineStore('monitoring', () => {
 
   const isOutOfStock = computed(() => (currentProduct.value?.stock?.total_quantity ?? 0) === 0)
 
+  // --- pinned SKUs ---------------------------------------------------------
+  // The GLOBAL pinned list («Закрепить»): shared by every account, rendered as
+  // the chip row under the search bar. A toggle applies optimistically and then
+  // reconciles with the server's full list (or rolls back on failure).
+  const pinnedSkus = ref([])
+
+  /** Whether one SKU is currently pinned. */
+  const pinnedIds = computed(() => new Set(pinnedSkus.value.map((item) => item.nm_id)))
+
+  /** Load the global pinned-SKU chip row (once on mount; toggles keep it fresh). */
+  async function fetchPins() {
+    try {
+      pinnedSkus.value = (await fetchPinnedSkus()).items
+    } catch {
+      // The chip row is decoration — a failed load must not block the page.
+      pinnedSkus.value = []
+    }
+  }
+
+  /** Pin an unpinned SKU («Закрепить») or unpin a pinned one («Закреплено»). */
+  async function toggleSkuPin(nmId, label = null) {
+    const previous = pinnedSkus.value
+    const pinned = !pinnedIds.value.has(nmId)
+    pinnedSkus.value = pinned
+      ? [...previous, { nm_id: nmId, vendor_code: label, title: null }]
+      : previous.filter((item) => item.nm_id !== nmId)
+    try {
+      const result = await setSkuPin(nmId, pinned)
+      pinnedSkus.value = result.items
+    } catch (err) {
+      pinnedSkus.value = previous
+      matrixEditError.value = extractErrorMessage(err)
+    }
+  }
+
+  // --- two-day stock comparison --------------------------------------------
+  // The «Остатки по складам» section shows TWO snapshot days side by side for
+  // visual dynamics: right = today, left = yesterday by default; each side has
+  // its own day picker. Sides are fetched independently per picked day.
+  const stockCompare = ref({
+    left: { date: isoDaysAgo(1), loading: false, stock: null },
+    right: { date: isoDaysAgo(0), loading: false, stock: null },
+  })
+
+  /** Fetch one side's snapshot; optionally repointing it to a new day first. */
+  async function fetchStockCompareSide(side, newDate = null) {
+    const nmId = currentProduct.value?.nm_id
+    if (!nmId) return
+    const entry = stockCompare.value[side]
+    if (newDate) entry.date = newDate
+    entry.loading = true
+    try {
+      const result = await fetchStockDay(nmId, entry.date)
+      // Apply only while the same SKU is displayed (SKU-switch race guard).
+      if (currentProduct.value?.nm_id === nmId) entry.stock = result.stock
+    } catch (err) {
+      if (currentProduct.value?.nm_id === nmId) {
+        entry.stock = null
+        matrixEditError.value = extractErrorMessage(err)
+      }
+    } finally {
+      entry.loading = false
+    }
+  }
+
+  /** (Re)load both comparison sides for the current SKU. */
+  function fetchStockCompare() {
+    return Promise.all([fetchStockCompareSide('left'), fetchStockCompareSide('right')])
+  }
+
   // --- warehouse marks -----------------------------------------------------
   // Warehouses «на отгрузку» for the CURRENT SKU: persisted on the backend
   // (monitoring.warehouse_mark), scoped per nm_id — marking «Тула» on one SKU
@@ -123,6 +198,30 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     } catch (err) {
       if (currentProduct.value?.nm_id === nmId) markedWarehouses.value = previous
       matrixEditError.value = extractErrorMessage(err)
+    }
+  }
+
+  // --- SKU comment («Комментарий») -----------------------------------------
+  // A free-text note attached to the CURRENT SKU: persisted on the backend
+  // (monitoring.sku_comment), global per nm_id (shared by every account). The
+  // persisted value rides on `currentProduct.comment`; the view owns the draft.
+  /** A comment save (PUT) is in flight. */
+  const commentSaving = ref(false)
+
+  /** Persist the current SKU's comment (blank clears it); updates the product. */
+  async function saveComment(body) {
+    const nmId = currentProduct.value?.nm_id
+    if (!nmId || commentSaving.value) return
+    commentSaving.value = true
+    matrixEditError.value = null
+    try {
+      const result = await setSkuComment(nmId, body)
+      // Apply only while the same SKU is displayed (SKU-switch race guard).
+      if (currentProduct.value?.nm_id === nmId) currentProduct.value.comment = result.body
+    } catch (err) {
+      matrixEditError.value = extractErrorMessage(err)
+    } finally {
+      commentSaving.value = false
     }
   }
 
@@ -254,6 +353,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   function loadMatrix(detail) {
     currentProduct.value = detail
     markedWarehouses.value = detail.stock?.marked_warehouses ?? []
+    fetchStockCompare()
     workingBase.value = detail.matrix_base
     currentMatrix = detail.matrix
     // Same window (save / refresh) → patch the existing table in place so only
@@ -403,6 +503,10 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     currentProduct.value = null
     lookupMatches.value = []
     markedWarehouses.value = []
+    stockCompare.value = {
+      left: { date: isoDaysAgo(1), loading: false, stock: null },
+      right: { date: isoDaysAgo(0), loading: false, stock: null },
+    }
     clearMatrixEditState()
   }
 
@@ -422,8 +526,16 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     totalOrders,
     totalAdSpend,
     isOutOfStock,
+    pinnedSkus,
+    pinnedIds,
+    fetchPins,
+    toggleSkuPin,
     markedWarehouses,
     toggleWarehouseMark,
+    commentSaving,
+    saveComment,
+    stockCompare,
+    fetchStockCompareSide,
     fetchProductData,
     reset,
     // matrix editing

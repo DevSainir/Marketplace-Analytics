@@ -23,6 +23,21 @@ class AdAggregate:
     clicks: int
 
 
+@dataclass(frozen=True, slots=True)
+class CampaignDayTotal:
+    """One campaign-day's conversion totals across ALL its nm_ids.
+
+    WB attributes a campaign's conversions to every size/colour variant the
+    buyer actually converted on («ассоциированные конверсии»), so these totals
+    exceed any single SKU's slice whenever associated variants converted.
+    """
+
+    campaign_id: int
+    stat_date: date
+    add_to_cart: int
+    orders: int
+
+
 _CONFLICT = ("stat_date", "campaign_id", "app_type", "nm_id")
 _UPDATE = ("views", "clicks", "add_to_cart", "spend", "orders", "order_sum")
 
@@ -80,6 +95,53 @@ class AdvertisingRepository(BaseRepository):
         )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def campaign_day_totals(
+        self, *, campaign_ids: Iterable[int], date_from: date, date_to: date
+    ) -> list[CampaignDayTotal]:
+        """Return per-(campaign, day) conversion totals across ALL nm_ids.
+
+        Feeds the matrix's associative-conversion display: the campaign-level
+        «carts/orders including associated variants» shown next to the viewed
+        SKU's own slice.
+
+        Args:
+            campaign_ids: Campaigns to aggregate (typically the ones that
+                delivered for the viewed SKU in the window).
+            date_from: Inclusive window start.
+            date_to: Inclusive window end.
+
+        Returns:
+            One :class:`CampaignDayTotal` per campaign-day with any rows.
+        """
+        ids = list(campaign_ids)
+        if not ids:
+            return []
+        stmt = (
+            select(
+                AdvertisingStatDaily.campaign_id,
+                AdvertisingStatDaily.stat_date,
+                func.sum(AdvertisingStatDaily.add_to_cart).label("add_to_cart"),
+                func.sum(AdvertisingStatDaily.orders).label("orders"),
+            )
+            .where(
+                AdvertisingStatDaily.campaign_id.in_(ids),
+                AdvertisingStatDaily.stat_date >= date_from,
+                AdvertisingStatDaily.stat_date <= date_to,
+            )
+            .group_by(AdvertisingStatDaily.campaign_id, AdvertisingStatDaily.stat_date)
+            .order_by(AdvertisingStatDaily.campaign_id, AdvertisingStatDaily.stat_date)
+        )
+        result = await self._session.execute(stmt)
+        return [
+            CampaignDayTotal(
+                campaign_id=row.campaign_id,
+                stat_date=row.stat_date,
+                add_to_cart=int(row.add_to_cart),
+                orders=int(row.orders),
+            )
+            for row in result.all()
+        ]
 
     async def aggregate_window(self, *, date_from: date, date_to: date) -> list[AdAggregate]:
         """Return per-SKU advertising totals, aggregated by the database.

@@ -21,6 +21,14 @@ const emit = defineEmits(['select', 'apply'])
 const query = ref('')
 const open = ref(false)
 const root = ref(null)
+const input = ref(null)
+
+/** The ✕ button: clear the query and put the caret back in the input. */
+function clearQuery() {
+  query.value = ''
+  input.value?.focus()
+  open.value = true
+}
 
 // Case-insensitive match over everything a manager may paste: seller article,
 // card title or the raw nm ID.
@@ -71,15 +79,34 @@ function onApply() {
           <path d="m20 20-3.5-3.5" />
         </svg>
         <input
+          ref="input"
           v-model="query"
           type="text"
           role="combobox"
           :aria-expanded="open"
           placeholder="Выберите SKU из списка или начните вводить артикул…"
-          class="h-12 w-full rounded-input border border-border-subtle bg-surface pl-9 pr-sm text-base text-primary shadow-soft placeholder:text-muted focus:border-action focus:outline-none focus:ring-2 focus:ring-action/20"
+          class="h-12 w-full rounded-input border border-border-subtle bg-surface pl-9 pr-10 text-base text-primary shadow-soft placeholder:text-muted focus:border-action focus:outline-none focus:ring-2 focus:ring-action/20"
           @focus="open = true"
           @input="open = true"
         />
+        <button
+          v-if="query"
+          type="button"
+          aria-label="Очистить поиск"
+          class="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-primary"
+          @click="clearQuery"
+        >
+          <svg
+            class="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
       </div>
 
       <button

@@ -18,6 +18,18 @@ export function formatCurrency(value) {
   return currencyFormat.format(value)
 }
 
+const currencyTenthsFormat = new Intl.NumberFormat('ru-RU', {
+  style: 'currency',
+  currency: 'RUB',
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+})
+
+/** 10.26 -> "10,3 ₽" — one decimal for small per-click money (CPC). */
+export function formatCurrencyTenths(value) {
+  return currencyTenthsFormat.format(value)
+}
+
 const percentFormat = new Intl.NumberFormat('ru-RU', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,

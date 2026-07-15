@@ -28,14 +28,16 @@ from src.modules.monitoring.repos import (
     CampaignRepository,
     FunnelRepository,
     MatrixOverrideRepository,
+    PinnedSkuRepository,
     PriceRepository,
     ProductCardRepository,
     ProductSizeRepository,
     SaleRepository,
+    SkuCommentRepository,
     StockRepository,
     WarehouseMarkRepository,
 )
-from src.modules.monitoring.repos.sales import SaleDailyTotal
+from src.modules.monitoring.repos.advertising import CampaignDayTotal
 from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas import (
     BaselineDemandRead,
@@ -44,12 +46,16 @@ from src.modules.monitoring.schemas import (
     FunnelDetailRead,
     FunnelResponseSchema,
     MetricWindow,
+    PinnedSkuItem,
+    PinnedSkusResponse,
+    SkuCommentResponse,
     SkuDetailResponse,
     SkuLookupItem,
     SkuLookupResponse,
     SkuSummaryItem,
     SkuSummaryListResponse,
     StockCell,
+    StockDayResponse,
     StockDetail,
     StockSizeTotal,
     WarehouseMarksResponse,
@@ -135,6 +141,8 @@ class AnalyticsService:
         price_repo: PriceRepository,
         sale_repo: SaleRepository,
         warehouse_mark_repo: WarehouseMarkRepository,
+        pinned_sku_repo: PinnedSkuRepository,
+        sku_comment_repo: SkuCommentRepository,
     ) -> None:
         """Inject the read repositories the service composes over."""
         self._funnel = funnel_repo
@@ -148,6 +156,8 @@ class AnalyticsService:
         self._prices = price_repo
         self._sales = sale_repo
         self._warehouse_marks = warehouse_mark_repo
+        self._pinned_skus = pinned_sku_repo
+        self._sku_comments = sku_comment_repo
 
     # ------------------------------------------------------------------ #
     # Summary listing
@@ -170,7 +180,8 @@ class AnalyticsService:
             date_from: Optional inclusive window start (defaults applied here).
             date_to: Optional inclusive window end (defaults applied here).
             limit: Page size (bounded by the router).
-            offset: Page offset into the SKU list (ordered by ``nm_id``).
+            offset: Page offset into the SKU list (in-stock SKUs first, then by
+                window orders descending, then ``nm_id``).
 
         Returns:
             A :class:`SkuSummaryListResponse` with one item per SKU that has any
@@ -188,7 +199,16 @@ class AnalyticsService:
         funnel_by_sku = {agg.nm_id: agg for agg in funnel_aggs}
         ads_by_sku = {agg.nm_id: agg for agg in ad_aggs}
 
-        all_skus = sorted(set(funnel_by_sku) | set(ads_by_sku) | set(stock_totals))
+        def _sku_order(nm_id: int) -> tuple[bool, int, int]:
+            """In-stock SKUs first, most window orders next, ``nm_id`` as the tiebreak."""
+            funnel = funnel_by_sku.get(nm_id)
+            return (
+                stock_totals.get(nm_id, 0) <= 0,
+                -(funnel.order_count if funnel else 0),
+                nm_id,
+            )
+
+        all_skus = sorted(set(funnel_by_sku) | set(ads_by_sku) | set(stock_totals), key=_sku_order)
         total = len(all_skus)
         page_skus = all_skus[offset : offset + limit]
         cards = await self._product_cards.get_by_ids(page_skus)
@@ -296,7 +316,7 @@ class AnalyticsService:
             campaigns,
             price_snapshots,
             stock_daily,
-            sales_daily,
+            campaign_totals,
         ) = await self._fetch_matrix_inputs(
             nm_id=nm_id, date_from=date_from, date_to=date_to, campaign_id=campaign_id
         )
@@ -328,7 +348,7 @@ class AnalyticsService:
             campaigns=campaigns,
             price_snapshots=price_snapshots,
             stock_daily=stock_daily,
-            sales_daily=sales_daily,
+            campaign_totals=campaign_totals,
         )
         overrides = await self._matrix_overrides.list_for_sku(
             nm_id=nm_id, date_from=date_from, date_to=date_to
@@ -348,11 +368,13 @@ class AnalyticsService:
             {row.chrt_id for row in latest_stock_rows}
         )
         marked_warehouses = await self._warehouse_marks.list_names(nm_id=nm_id)
+        comment = await self._sku_comments.get(nm_id=nm_id)
 
         return SkuDetailResponse(
             nm_id=nm_id,
             vendor_code=card.vendor_code if card else None,
             title=card.title if card else None,
+            comment=comment,
             window=MetricWindow(start=date_from, end=date_to),
             funnel=funnel_details,
             funnel_totals=compute_funnel_totals(
@@ -363,6 +385,97 @@ class AnalyticsService:
             matrix=build_matrix_from_base(base),
             matrix_base=base,
             stock=_build_stock_detail(latest_stock_rows, size_labels, marked_warehouses),
+        )
+
+    # ------------------------------------------------------------------ #
+    # Pinned SKUs (global «Закрепить» chips)
+    # ------------------------------------------------------------------ #
+    async def list_pinned_skus(self) -> PinnedSkusResponse:
+        """Return the global pinned-SKU list, decorated with catalogue identity.
+
+        Pins are shared by every account (a team watchlist, not a personal
+        one); order is pin order (oldest first). A pinned SKU whose catalogue
+        card is not synced yet still renders — the chip falls back to ``nm_id``.
+
+        Returns:
+            The :class:`PinnedSkusResponse` chip-row payload.
+        """
+        nm_ids = await self._pinned_skus.list_ids()
+        cards = await self._product_cards.get_by_ids(nm_ids)
+        return PinnedSkusResponse(
+            items=[
+                PinnedSkuItem(
+                    nm_id=nm_id,
+                    vendor_code=cards[nm_id].vendor_code if nm_id in cards else None,
+                    title=cards[nm_id].title if nm_id in cards else None,
+                )
+                for nm_id in nm_ids
+            ]
+        )
+
+    async def set_sku_pin(self, *, nm_id: int, pinned: bool) -> PinnedSkusResponse:
+        """Pin or unpin one SKU globally (idempotent both ways).
+
+        Args:
+            nm_id: WB SKU identifier.
+            pinned: ``True`` to pin, ``False`` to unpin.
+
+        Returns:
+            The full pinned list after the update (the chip row re-renders
+            from it, so concurrent pins by teammates surface immediately).
+        """
+        if pinned:
+            await self._pinned_skus.add(nm_id=nm_id)
+        else:
+            await self._pinned_skus.remove(nm_id=nm_id)
+        return await self.list_pinned_skus()
+
+    # ------------------------------------------------------------------ #
+    # SKU comment (free-text «Комментарий» note)
+    # ------------------------------------------------------------------ #
+    async def set_sku_comment(self, *, nm_id: int, body: str) -> SkuCommentResponse:
+        """Save («Сохранить») or clear a SKU's free-text comment.
+
+        The body is stripped; a blank body deletes the note (clearing the
+        comment). Comments are global — shared by every account, keyed by
+        ``nm_id`` (same convention as pins/warehouse marks).
+
+        Args:
+            nm_id: WB SKU identifier.
+            body: The note text; blank/whitespace-only clears the comment.
+
+        Returns:
+            The stored comment (``body`` is ``None`` after a clear).
+        """
+        stripped = body.strip()
+        if stripped:
+            await self._sku_comments.set(nm_id=nm_id, body=stripped)
+        else:
+            await self._sku_comments.clear(nm_id=nm_id)
+        return SkuCommentResponse(nm_id=nm_id, body=stripped or None)
+
+    async def get_stock_day(self, *, nm_id: int, on_date: date) -> StockDayResponse:
+        """Return one exact snapshot day's size x warehouse stock breakdown.
+
+        Feeds one side of the two-day stock comparison. A day without a
+        snapshot returns an empty breakdown (snapshots are never carried onto
+        neighbouring days — an unobserved day must not fake data).
+
+        Args:
+            nm_id: WB SKU identifier.
+            on_date: The exact snapshot day to fetch.
+
+        Returns:
+            The day's :class:`StockDayResponse`.
+        """
+        rows = await self._stocks.list_for_sku_day(nm_id=nm_id, stat_date=on_date)
+        size_labels = await self._product_sizes.get_labels_by_chrt_ids(
+            {row.chrt_id for row in rows}
+        )
+        marked_warehouses = await self._warehouse_marks.list_names(nm_id=nm_id)
+        return StockDayResponse(
+            stat_date=on_date,
+            stock=_build_stock_detail(rows, size_labels, marked_warehouses),
         )
 
     async def set_warehouse_mark(
@@ -403,7 +516,7 @@ class AnalyticsService:
         dict[int, Campaign],
         list[PriceSnapshot],
         list[StockDailyTotal],
-        list[SaleDailyTotal],
+        list[CampaignDayTotal],
     ]:
         """Fetch the fact rows the matrix is derived from (extended funnel window).
 
@@ -425,6 +538,13 @@ class AnalyticsService:
             nm_id=nm_id, date_from=date_from, date_to=date_to, campaign_id=campaign_id
         )
         campaigns = await self._campaigns.get_by_ids({row.campaign_id for row in ad_rows})
+        # All-variant conversion totals of the same campaigns — the associative
+        # «100» decorating the SKU's own «71» in the matrix carts/orders cells.
+        campaign_totals = await self._advertising.campaign_day_totals(
+            campaign_ids={row.campaign_id for row in ad_rows},
+            date_from=date_from,
+            date_to=date_to,
+        )
         # Prices/stock are snapshotted on the harvest day (Moscow *today*), but
         # the analysis window ends *yesterday* (WB serves no current-day
         # funnel), so the latest snapshot sits just outside [.., date_to]. Reach
@@ -436,11 +556,6 @@ class AnalyticsService:
         stock_daily = await self._stocks.daily_totals_for_sku(
             nm_id=nm_id, date_from=date_from, date_to=snapshot_end
         )
-        # Sale-date buyout/return totals: unlike the funnel, sales for the
-        # current day already exist — reach up to today like the snapshots.
-        sales_daily = await self._sales.daily_totals_for_sku(
-            nm_id=nm_id, date_from=date_from, date_to=snapshot_end
-        )
         return (
             extended_funnel_rows,
             ad_rows,
@@ -448,7 +563,7 @@ class AnalyticsService:
             campaigns,
             price_snapshots,
             stock_daily,
-            sales_daily,
+            campaign_totals,
         )
 
     # ------------------------------------------------------------------ #
@@ -508,7 +623,7 @@ class AnalyticsService:
             campaigns,
             price_snapshots,
             stock_daily,
-            sales_daily,
+            campaign_totals,
         ) = await self._fetch_matrix_inputs(nm_id=nm_id, date_from=date_from, date_to=date_to)
         fact_base = derive_base_state(
             date_from=date_from,
@@ -519,7 +634,7 @@ class AnalyticsService:
             campaigns=campaigns,
             price_snapshots=price_snapshots,
             stock_daily=stock_daily,
-            sales_daily=sales_daily,
+            campaign_totals=campaign_totals,
         )
         rows = diff_to_overrides(nm_id=nm_id, working=base, fact=fact_base)
         await self._matrix_overrides.replace_window(

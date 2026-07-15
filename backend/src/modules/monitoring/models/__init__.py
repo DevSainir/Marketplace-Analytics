@@ -17,10 +17,12 @@ from src.modules.monitoring.models.campaigns import (
     normalize_type,
 )
 from src.modules.monitoring.models.matrix_override import MatrixOverride
+from src.modules.monitoring.models.pinned_skus import PinnedSku
 from src.modules.monitoring.models.prices import PriceSnapshot
 from src.modules.monitoring.models.products import ProductCard, ProductSize
 from src.modules.monitoring.models.sales import SaleRecord
 from src.modules.monitoring.models.sales_funnel import SalesFunnelDaily
+from src.modules.monitoring.models.sku_comment import SkuComment
 from src.modules.monitoring.models.stocks import StockSnapshot
 from src.modules.monitoring.models.warehouse_marks import WarehouseMark
 
@@ -31,11 +33,13 @@ __all__ = [
     "AdvertisingStatDaily",
     "Campaign",
     "MatrixOverride",
+    "PinnedSku",
     "PriceSnapshot",
     "ProductCard",
     "ProductSize",
     "SaleRecord",
     "SalesFunnelDaily",
+    "SkuComment",
     "StockSnapshot",
     "WarehouseMark",
     "normalize_status",

@@ -10,8 +10,14 @@ by the SKU detail endpoint:
 
 Campaign classification (via the ``Campaign`` dimension's adverts-v2 fields):
 
-* ``manual`` bid + a single enabled placement -> the campaign's whole totals go
-  to «Руч. поиск» or «Руч. полки».
+* ``manual`` bid + only the SHELVES placement -> the campaign's whole totals
+  go to «Руч. полки».
+* ``manual`` bid + only the SEARCH placement -> WB «поисковые» campaigns also
+  deliver in the CATALOG zone (verified live: fullstats runs ~10-13% above the
+  normquery sum), so the search slice goes to «Руч. поиск» and the remainder
+  to «Руч. каталог». Without a harvested search slice (legacy rows) the whole
+  day stays in «Руч. поиск» — misattributing ~90% of a search campaign to
+  catalog would be worse than the old single-zone view.
 * ``unified`` bid (always both zones) or a dual-placement manual campaign ->
   split: the search slice goes to the «Поиск» column, the remainder
   (``fullstats - search``, clamped at zero) to «Полки». WB exposes no
@@ -43,7 +49,7 @@ from src.modules.monitoring.models import (
     PriceSnapshot,
     SalesFunnelDaily,
 )
-from src.modules.monitoring.repos.sales import SaleDailyTotal
+from src.modules.monitoring.repos.advertising import CampaignDayTotal
 from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas.matrix import (
     MATRIX_BUCKETS,
@@ -53,7 +59,6 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixDayBase,
     MatrixFunnelBase,
     MatrixMetricRow,
-    MatrixSalesBase,
     MatrixStockBase,
     MetricsMatrixRead,
 )
@@ -72,6 +77,12 @@ class _AdSlice:
 
     ``order_sum`` is ``None`` when the slice's revenue cannot be attributed to
     its zone (a split campaign) — the taint propagates to the bucket.
+
+    ``assoc_add_to_cart``/``assoc_orders`` are the campaign-level conversion
+    totals INCLUDING associated size/colour variants («ассоциированные
+    конверсии» — WB books a conversion on whichever variant the buyer picked,
+    so only part of a campaign's carts/orders land on the advertised SKU).
+    They always satisfy ``assoc_x >= x`` for a whole campaign-day slice.
     """
 
     views: int = 0
@@ -80,6 +91,8 @@ class _AdSlice:
     spend: float = 0.0
     orders: int = 0
     order_sum: float | None = 0.0
+    assoc_add_to_cart: int = 0
+    assoc_orders: int = 0
 
 
 @dataclass
@@ -92,6 +105,8 @@ class _BucketAcc:
     spend: float = 0.0
     orders: int = 0
     order_sum: float | None = 0.0
+    assoc_add_to_cart: int = 0
+    assoc_orders: int = 0
 
     def add(self, piece: _AdSlice) -> None:
         """Fold a campaign slice into the bucket (revenue taint propagates)."""
@@ -100,6 +115,8 @@ class _BucketAcc:
         self.add_to_cart += piece.add_to_cart
         self.spend += piece.spend
         self.orders += piece.orders
+        self.assoc_add_to_cart += piece.assoc_add_to_cart
+        self.assoc_orders += piece.assoc_orders
         if piece.order_sum is None:
             self.order_sum = None
         elif self.order_sum is not None:
@@ -125,6 +142,22 @@ def _day_range(date_from: date, date_to: date) -> list[date]:
     return [date_from + timedelta(days=offset) for offset in range((date_to - date_from).days + 1)]
 
 
+def _allocate_assoc(extra: int, s_metric: int, total_metric: int, view_share: float) -> int:
+    """Portion of the associative EXTRA conversions allocated to the search leg.
+
+    WB reports associated-variant conversions only at campaign level (the
+    normquery search slice tracks the advertised SKU's own conversions — see
+    the live data: search carts never exceed the SKU's), so a split
+    campaign-day's extra has no exact zone attribution. It is apportioned by
+    the SKU's own zone split of the same metric — the best available estimator
+    of where the delivering clicks were — falling back to the view share when
+    the SKU itself had none of the metric. Leg sums stay exact by construction
+    (shelves takes the remainder).
+    """
+    share = s_metric / total_metric if total_metric > 0 else view_share
+    return min(extra, max(0, round(extra * share)))
+
+
 def _split_search(
     total: _AdSlice, search: AdvertisingSearchStatDaily | None
 ) -> tuple[_AdSlice, _AdSlice]:
@@ -134,7 +167,8 @@ def _split_search(
     sources are collected at different times, so tiny attribution drifts can
     put a click in one report before the other); the shelves slice is the
     remainder. Zone-attributed order revenue does not exist: both slices carry
-    ``order_sum=None`` unless the campaign-day had no revenue at all.
+    ``order_sum=None`` unless the campaign-day had no revenue at all. The
+    associative totals ride the same split (see :func:`_allocate_assoc`).
     """
     s_views = min(search.views, total.views) if search else 0
     s_clicks = min(search.clicks, total.clicks) if search else 0
@@ -142,6 +176,11 @@ def _split_search(
     s_spend = min(float(search.spend), total.spend) if search else 0.0
     s_orders = min(search.orders, total.orders) if search else 0
     revenue: float | None = 0.0 if not total.order_sum else None
+    view_share = s_views / total.views if total.views > 0 else 0.0
+    extra_carts = max(0, total.assoc_add_to_cart - total.add_to_cart)
+    extra_orders = max(0, total.assoc_orders - total.orders)
+    s_extra_carts = _allocate_assoc(extra_carts, s_atbs, total.add_to_cart, view_share)
+    s_extra_orders = _allocate_assoc(extra_orders, s_orders, total.orders, view_share)
     search_slice = _AdSlice(
         views=s_views,
         clicks=s_clicks,
@@ -149,6 +188,8 @@ def _split_search(
         spend=s_spend,
         orders=s_orders,
         order_sum=revenue,
+        assoc_add_to_cart=s_atbs + s_extra_carts,
+        assoc_orders=s_orders + s_extra_orders,
     )
     shelves_slice = _AdSlice(
         views=total.views - s_views,
@@ -157,6 +198,8 @@ def _split_search(
         spend=round(total.spend - s_spend, 2),
         orders=total.orders - s_orders,
         order_sum=revenue,
+        assoc_add_to_cart=(total.add_to_cart - s_atbs) + (extra_carts - s_extra_carts),
+        assoc_orders=(total.orders - s_orders) + (extra_orders - s_extra_orders),
     )
     return search_slice, shelves_slice
 
@@ -186,7 +229,15 @@ def _classify(
         # the flags if WB ever ships a single-zone unified campaign.
         return [("uni_search" if in_search else "uni_shelves", total)]
     if in_search:
-        return [("manual_search", total)]
+        # WB «поисковые» campaigns also deliver in the CATALOG zone: the
+        # normquery slice is «Поиск», the remainder «Каталог». Without a
+        # harvested slice for this campaign-day (legacy rows), keep the whole
+        # day in «Руч. поиск» — a missing slice must not shove ~90% of a
+        # search campaign into catalog.
+        if search is None:
+            return [("manual_search", total)]
+        search_slice, catalog_slice = _split_search(total, search)
+        return [("manual_search", search_slice), ("manual_catalog", catalog_slice)]
     if in_shelves:
         return [("manual_shelves", total)]
     return []
@@ -223,10 +274,16 @@ def _ad_cell(key: str, acc: _BucketAcc | None, bid_type_views: int) -> float | N
             return float(acc.clicks)
         case "carts":
             return float(acc.add_to_cart)
+        case "carts_assoc":
+            # Emitted only when associated variants actually converted — the
+            # frontend then decorates the carts cell as «assoc(sku)».
+            return float(acc.assoc_add_to_cart) if acc.assoc_add_to_cart > acc.add_to_cart else None
         case "cart_conversion":
             return _percent(acc.add_to_cart, acc.clicks)
         case "orders":
             return float(acc.orders)
+        case "orders_assoc":
+            return float(acc.assoc_orders) if acc.assoc_orders > acc.orders else None
         case "order_conversion":
             return _percent(acc.orders, acc.add_to_cart)
         case "order_sum":
@@ -292,15 +349,30 @@ def _stock_for_day(ordered: list[StockDailyTotal], day: date) -> MatrixStockBase
 
 
 def _funnel_order_sum(funnel: MatrixFunnelBase | None) -> float | None:
-    """«Заказы, ₽» = order_count x seller_price (``None`` when unpriced)."""
-    if funnel is None or funnel.seller_price is None:
+    """«Заказы, ₽» = order_count x seller_price (``None`` when unpriced).
+
+    ``None`` too on a price-only day (no funnel row yet): the zero count is
+    not a fact, so ``0 x price = 0 ₽`` would be fabricated.
+    """
+    if funnel is None or not funnel.has_funnel or funnel.seller_price is None:
         return None
     return round(funnel.order_count * funnel.seller_price, 2)
 
 
-def _sales_buyout_sum(sales: MatrixSalesBase | None) -> float | None:
-    """«Выкупы, ₽» = Σ ``finished_price`` of the day's sale-date buyouts."""
-    return None if sales is None else round(sales.buyout_sum, 2)
+def _buyout_sum(
+    funnel: MatrixFunnelBase | None, lagged_buyout_percent: float | None
+) -> float | None:
+    """«Выкупы, ₽» = «Заказы, ₽» x «Процент выкупа» — the order-date buyout value.
+
+    Attributed to the ORDER date (like «Заказы, ₽») so the row is congruent:
+    ``order_count x seller_price x buyout% = «Заказы, ₽» x «Процент выкупа»``.
+    ``None`` when the day is unpriced / has no funnel row, or the lagged buyout
+    percent could not be computed.
+    """
+    order_sum = _funnel_order_sum(funnel)
+    if order_sum is None or lagged_buyout_percent is None:
+        return None
+    return round(order_sum * lagged_buyout_percent / 100, 2)
 
 
 def _funnel_spp(funnel: MatrixFunnelBase | None) -> float | None:
@@ -315,10 +387,15 @@ def _total_cell(
     funnel: MatrixFunnelBase | None,
     day_ad: _BucketAcc | None,
     lagged_buyout_percent: float | None,
-    sales: MatrixSalesBase | None,
     stock: MatrixStockBase | None,
 ) -> float | None:
-    """Compute one metric for the «Общая» column (funnel + cross-campaign ads)."""
+    """Compute one metric for the «Общая» column (funnel + cross-campaign ads).
+
+    Count cells require a REAL funnel row (``has_funnel``) — a price-only day
+    (the current day, funnel not served yet) renders its prices/СПП while the
+    counts stay blank.
+    """
+    counts = funnel if funnel is not None and funnel.has_funnel else None
     match key:
         case "spend":
             return None if day_ad is None else round(day_ad.spend, 2)
@@ -327,19 +404,19 @@ def _total_cell(
         case "cpc":
             return None if day_ad is None else _ratio(day_ad.spend, day_ad.clicks)
         case "clicks":
-            return None if funnel is None else float(funnel.open_count)
+            return None if counts is None else float(counts.open_count)
         case "carts":
-            return None if funnel is None else float(funnel.cart_count)
+            return None if counts is None else float(counts.cart_count)
         case "cart_conversion":
-            return None if funnel is None else _percent(funnel.cart_count, funnel.open_count)
+            return None if counts is None else _percent(counts.cart_count, counts.open_count)
         case "orders":
-            return None if funnel is None else float(funnel.order_count)
+            return None if counts is None else float(counts.order_count)
         case "order_conversion":
-            return None if funnel is None else _percent(funnel.order_count, funnel.cart_count)
+            return None if counts is None else _percent(counts.order_count, counts.cart_count)
         case "order_sum":  # order_count x seller_price
             return _funnel_order_sum(funnel)
-        case "buyout_sum":  # sale-date buyouts, what customers actually paid
-            return _sales_buyout_sum(sales)
+        case "buyout_sum":  # order-date: «Заказы, ₽» x «Процент выкупа»
+            return _buyout_sum(funnel, lagged_buyout_percent)
         case "seller_price":
             return None if funnel is None else funnel.seller_price
         case "customer_price":
@@ -361,7 +438,7 @@ def _total_cell(
         case "drr_sales":
             if day_ad is None:
                 return None
-            return _percent(day_ad.spend, _sales_buyout_sum(sales))
+            return _percent(day_ad.spend, _buyout_sum(funnel, lagged_buyout_percent))
         case "buyout_percent":
             return lagged_buyout_percent
         case "stock_quantity":
@@ -384,7 +461,8 @@ def _organic_cell(
     key: str, funnel: MatrixFunnelBase | None, day_ad: _BucketAcc | None
 ) -> float | None:
     """Compute one metric for the «Органика» column (общая - реклама)."""
-    if funnel is None:
+    if funnel is None or not funnel.has_funnel:
+        # No funnel counts (price-only day): «funnel - ads» would go negative.
         return None
     ad_clicks = day_ad.clicks if day_ad else 0
     ad_carts = day_ad.add_to_cart if day_ad else 0
@@ -409,6 +487,8 @@ def _bucket_base(acc: _AdSlice | _BucketAcc) -> MatrixAdBucketBase:
         spend=round(acc.spend, 2),
         orders=acc.orders,
         order_sum=None if acc.order_sum is None else round(acc.order_sum, 2),
+        assoc_add_to_cart=acc.assoc_add_to_cart,
+        assoc_orders=acc.assoc_orders,
     )
 
 
@@ -477,7 +557,7 @@ def derive_base_state(
     campaigns: dict[int, Campaign],
     price_snapshots: list[PriceSnapshot] | None = None,
     stock_daily: list[StockDailyTotal] | None = None,
-    sales_daily: list[SaleDailyTotal] | None = None,
+    campaign_totals: list[CampaignDayTotal] | None = None,
 ) -> MatrixBaseState:
     """Aggregate raw facts into the editable input working copy.
 
@@ -502,8 +582,9 @@ def derive_base_state(
             there; other days stay unpriced).
         stock_daily: The SKU's per-day stock totals; applied only to their
             exact snapshot days for the read-only stock/in-transit rows.
-        sales_daily: The SKU's per-day sale-date buyout/return totals (from
-            the Statistics records) — «Выкупы, ₽» and «ДРР от продаж».
+        campaign_totals: Per-(campaign, day) conversion totals across ALL
+            nm_ids — the associative-conversion «100» shown next to the SKU's
+            own «71». Missing entries mean no associative gap for that slice.
 
     Returns:
         The :class:`MatrixBaseState` working copy for the window.
@@ -512,7 +593,6 @@ def derive_base_state(
     funnel_by_date = {row.stat_date: row for row in funnel_rows}
     ordered_prices = sorted(price_snapshots or [], key=lambda s: s.stat_date)
     ordered_stock = sorted(stock_daily or [], key=lambda s: s.stat_date)
-    sales_by_date = {total.stat_date: total for total in sales_daily or []}
 
     # One slice per (campaign, day), aggregated across platforms.
     campaign_day: dict[tuple[int, date], _AdSlice] = {}
@@ -525,6 +605,17 @@ def derive_base_state(
         total.orders += row.orders
         if total.order_sum is not None:
             total.order_sum += float(row.order_sum)
+
+    # Stamp the associative (all-variant) conversion totals onto each slice.
+    # Clamped from below at the SKU's own counts so a partial totals fetch can
+    # never show an associative total smaller than the SKU slice itself.
+    totals_by_key = {(t.campaign_id, t.stat_date): t for t in campaign_totals or []}
+    for key, total in campaign_day.items():
+        campaign_total = totals_by_key.get(key)
+        total.assoc_add_to_cart = max(
+            campaign_total.add_to_cart if campaign_total else 0, total.add_to_cart
+        )
+        total.assoc_orders = max(campaign_total.orders if campaign_total else 0, total.orders)
 
     search_by_key = {(row.campaign_id, row.stat_date): row for row in search_rows}
 
@@ -549,29 +640,26 @@ def derive_base_state(
 
         funnel_row = funnel_by_date.get(day)
         seller_price, customer_price = price_for_day(ordered_prices, day)
-        funnel_base = (
-            MatrixFunnelBase(
+        if funnel_row is not None:
+            funnel_base = MatrixFunnelBase(
                 open_count=funnel_row.open_count,
                 cart_count=funnel_row.cart_count,
                 order_count=funnel_row.order_count,
                 seller_price=seller_price,
                 customer_price=customer_price,
             )
-            if funnel_row is not None
-            else None
-        )
-
-        sale_total = sales_by_date.get(day)
-        sales_base = (
-            MatrixSalesBase(
-                buyout_count=sale_total.buyout_count,
-                buyout_sum=sale_total.buyout_sum,
-                return_count=sale_total.return_count,
-                return_sum=sale_total.return_sum,
+        elif seller_price is not None or customer_price is not None:
+            # No funnel row yet (the CURRENT day — WB serves the funnel a day
+            # late) but the day's prices were snapshotted at harvest: carry a
+            # price-only base so «Цены»/«СПП» render while the count cells
+            # stay blank and read-only.
+            funnel_base = MatrixFunnelBase(
+                seller_price=seller_price,
+                customer_price=customer_price,
+                has_funnel=False,
             )
-            if sale_total is not None
-            else None
-        )
+        else:
+            funnel_base = None
 
         # «Процент выкупа»: WB's definition — buyouts / DECIDED deliveries —
         # averaged over the lagged [D-21, D-7] cohort window (recent cohorts
@@ -599,7 +687,6 @@ def derive_base_state(
                 unclassified=MatrixAdBucketBase(),  # cut campaigns are excluded
                 funnel=funnel_base,
                 lagged_buyout_percent=_percent(buyouts, delivered),
-                sales=sales_base,
                 stock=_stock_for_day(ordered_stock, day),
             )
         )
@@ -616,6 +703,8 @@ def _acc_from_base(base: MatrixAdBucketBase) -> _BucketAcc:
         spend=base.spend,
         orders=base.orders,
         order_sum=base.order_sum,
+        assoc_add_to_cart=base.assoc_add_to_cart,
+        assoc_orders=base.assoc_orders,
     )
 
 
@@ -666,21 +755,22 @@ def build_matrix_from_base(base: MatrixBaseState) -> MetricsMatrixRead:
             }
             for bucket in MATRIX_BUCKETS:
                 if bucket == "total":
-                    values.append(
-                        _total_cell(
-                            key,
-                            day.funnel,
-                            day_ad,
-                            day.lagged_buyout_percent,
-                            day.sales,
-                            day.stock,
-                        )
+                    value = _total_cell(
+                        key,
+                        day.funnel,
+                        day_ad,
+                        day.lagged_buyout_percent,
+                        day.stock,
                     )
                 elif bucket == "organic":
-                    values.append(_organic_cell(key, day.funnel, day_ad))
+                    value = _organic_cell(key, day.funnel, day_ad)
                 else:
                     bid_views = type_views["uni" if bucket.startswith("uni_") else "manual"]
-                    values.append(_ad_cell(key, bucket_accs.get(bucket), bid_views))
+                    value = _ad_cell(key, bucket_accs.get(bucket), bid_views)
+                # A manual display override wins over the computed value, so any
+                # non-invertible cell can still be edited (shown verbatim).
+                override = day.cell_overrides.get(f"{bucket}:{key}")
+                values.append(value if override is None else override)
         rows.append(MatrixMetricRow(key=key, values=values))
 
     return MetricsMatrixRead(days=days, buckets=list(MATRIX_BUCKETS), rows=rows)
@@ -696,7 +786,7 @@ def build_metrics_matrix(
     campaigns: dict[int, Campaign],
     price_snapshots: list[PriceSnapshot] | None = None,
     stock_daily: list[StockDailyTotal] | None = None,
-    sales_daily: list[SaleDailyTotal] | None = None,
+    campaign_totals: list[CampaignDayTotal] | None = None,
 ) -> MetricsMatrixRead:
     """Build the complete day x bucket metrics matrix for one SKU.
 
@@ -714,7 +804,8 @@ def build_metrics_matrix(
         campaigns: Campaign metadata keyed by ``campaign_id`` (may be partial).
         price_snapshots: The SKU's seller/customer price snapshots.
         stock_daily: The SKU's per-day stock totals.
-        sales_daily: The SKU's per-day sale-date buyout/return totals.
+        campaign_totals: Per-(campaign, day) all-variant conversion totals
+            (the associative-conversion display).
 
     Returns:
         A fully computed :class:`MetricsMatrixRead`.
@@ -729,6 +820,6 @@ def build_metrics_matrix(
             campaigns=campaigns,
             price_snapshots=price_snapshots,
             stock_daily=stock_daily,
-            sales_daily=sales_daily,
+            campaign_totals=campaign_totals,
         )
     )

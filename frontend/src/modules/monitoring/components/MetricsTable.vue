@@ -26,8 +26,9 @@
  * Header (3 rows, as in the workbook):
  *   Дата · Тип получения трафика (groups) · Зоны показов (leaf columns).
  */
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import { vDragScroll } from '@/core/utils/dragScroll'
 import { TRAFFIC_COLUMNS, TRAFFIC_GROUPS } from '@/modules/monitoring/metricsMatrix'
 
 const props = defineProps({
@@ -66,13 +67,14 @@ const zonedGroupKeys = new Set([
   'uni_shelves',
   'uni_catalog',
   'manual_search',
+  'manual_catalog',
   'manual_shelves',
 ])
 const zoneHeaderColumns = computed(() =>
   leafColumns.value.filter((leaf) => zonedGroupKeys.has(leaf.key)),
 )
 
-// Metric accents: «Затраты» negative, «Заказы»/«Конверсия в заказ» positive,
+// Metric accents: «Затраты» green, «Заказы»/«Конверсия в заказ» amber,
 // «Корзины»/«Конверсия в корзину» indigo. Labels always; cells only when filled.
 const TONE_CLASSES = {
   warning: 'text-status-warning',
@@ -82,18 +84,15 @@ const TONE_CLASSES = {
 }
 
 function cellToneClass(row, cell) {
-  if (!row.tone || cell.display === '—') return 'text-primary'
+  if (!row.tone || cell.raw == null) return 'text-primary'
   return TONE_CLASSES[row.tone]
 }
 
-// Metric groups («Заказы, ₽»..«Стоимость корзины», «ДРР»..«Процент выкупа»)
-// are separated by a thick divider above their first row — separation only.
-function rowClasses(row, index) {
-  if (!row.group) return null
-  return [
-    'matrix-group-row',
-    props.rows[index - 1]?.group !== row.group && 'matrix-group-start',
-  ]
+// Each metric row belongs to one of four data blocks (traffic / funnel /
+// money / efficiency); the block reads through a subtle row tint (see the
+// `matrix-group--*` rules in main.css). «ДРР от продаж» is emphasized.
+function rowClasses(row) {
+  return [row.group && `matrix-group--${row.group}`, row.emphasis && 'matrix-row-emphasis']
 }
 
 // The two day-bound blocks under the metric rows.
@@ -149,7 +148,52 @@ function scrollToNewestDay() {
   if (container) container.scrollLeft = container.scrollWidth
 }
 
-onMounted(scrollToNewestDay)
+// --- associative-conversion hint -----------------------------------------
+// Hovering a decorated «100(71)» cell pops a teleported explanation (an
+// always-visible «?» would clutter thousands of cells). Delegated: ONE
+// mouseover listener on the scroll container, cells carry `data-assoc`.
+const ASSOC_NOUNS = { carts: 'корзины', orders: 'заказы' }
+const assocTip = ref(null) // { x, y, text } | null
+
+/** `data-assoc` value for a cell: its metric key, or null (attr omitted). */
+function assocData(row, cell) {
+  return row.key in ASSOC_NOUNS && cell.display.includes('(') ? row.key : null
+}
+
+function onMatrixOver(event) {
+  const el = event.target.closest('[data-assoc]')
+  if (!el) {
+    assocTip.value = null
+    return
+  }
+  // \u00A0 / \u202F: ru-RU thousands separators inside the formatted numbers.
+  const match = el.textContent.trim().match(/^([\d\s\u00A0\u202F]+)\(([\d\s\u00A0\u202F]+)\)$/u)
+  if (!match) {
+    assocTip.value = null
+    return
+  }
+  const noun = ASSOC_NOUNS[el.dataset.assoc]
+  const rect = el.getBoundingClientRect()
+  assocTip.value = {
+    x: rect.left,
+    y: rect.bottom + 6,
+    text:
+      `Ассоциированные конверсии: ${match[1].trim()} — ${noun} по кампании со всеми ` +
+      `размерами и цветами товара, из них ${match[2].trim()} — именно этот артикул.`,
+  }
+}
+
+function hideAssocTip() {
+  assocTip.value = null
+}
+
+onMounted(() => {
+  scrollToNewestDay()
+  // Any scroll strands the fixed-position tip — close it (capture catches the
+  // ribbon's own scroll container too).
+  document.addEventListener('scroll', hideAssocTip, true)
+})
+onBeforeUnmount(() => document.removeEventListener('scroll', hideAssocTip, true))
 watch(
   () => props.days,
   () => nextTick(scrollToNewestDay),
@@ -164,13 +208,20 @@ watch(
       Нет данных за выбранный период.
     </div>
 
-    <div v-else ref="scroll" class="matrix-scroll">
+    <div
+      v-else
+      ref="scroll"
+      v-drag-scroll
+      class="matrix-scroll"
+      @mouseover="onMatrixOver"
+      @mouseleave="hideAssocTip"
+    >
       <table>
         <thead>
-          <!-- Row 1: date, one label spanning each day's 7 columns. -->
+          <!-- Row 1: date, one label spanning each day's 8 columns. -->
           <tr>
             <th>Дата</th>
-            <th v-for="day in days" :key="day.iso" :colspan="7">{{ day.label }}</th>
+            <th v-for="day in days" :key="day.iso" :colspan="8">{{ day.label }}</th>
           </tr>
           <!-- Row 2: «Тип получения трафика» groups (Общая/Органика span row 3). -->
           <tr>
@@ -194,7 +245,7 @@ watch(
         </thead>
 
         <tbody class="matrix-metrics">
-          <tr v-for="(row, rowIndex) in rows" :key="row.key" :class="rowClasses(row, rowIndex)">
+          <tr v-for="row in rows" :key="row.key" :class="rowClasses(row)">
             <td>
               <span
                 class="matrix-row-label"
@@ -221,6 +272,7 @@ watch(
                   type="button"
                   class="matrix-cell-btn tabular-nums font-medium"
                   :class="cellToneClass(row, row.cells[leaf.index])"
+                  :data-assoc="assocData(row, row.cells[leaf.index])"
                   @click="startEdit(row, row.cells[leaf.index])"
                 >
                   {{ row.cells[leaf.index].display }}
@@ -229,6 +281,7 @@ watch(
                   v-else
                   class="tabular-nums font-medium"
                   :class="cellToneClass(row, row.cells[leaf.index])"
+                  :data-assoc="assocData(row, row.cells[leaf.index])"
                 >
                   {{ row.cells[leaf.index].display }}
                 </span>
@@ -242,17 +295,16 @@ watch(
              scroll with their day. -->
         <tbody v-if="priceRows.length || stockRows.length" class="matrix-blocks">
           <tr class="matrix-gap" aria-hidden="true">
-            <td :colspan="1 + days.length * 7"></td>
+            <td :colspan="1 + days.length * 8"></td>
           </tr>
           <tr>
             <td>
               <span class="text-micro font-semibold uppercase tracking-wide">
-                <span class="text-action">Цены</span
-                ><span class="text-muted">/</span
+                <span class="text-action">Цены</span><span class="text-muted">/</span
                 ><span class="text-accent-indigo">Остатки</span>
               </span>
             </td>
-            <td v-for="(day, dayIndex) in days" :key="day.iso" :colspan="7">
+            <td v-for="(day, dayIndex) in days" :key="day.iso" :colspan="8">
               <div class="day-block-pair">
                 <div
                   v-for="block in blocks"
@@ -291,10 +343,13 @@ watch(
 
                 <!-- Compact «Всего» card: total stock (остаток + оба «в пути»)
                      for the day. Same tint as «Остатки» — it belongs to it. -->
-                <div v-if="stockTotalRows.length" class="day-block day-block--stock day-block--total">
+                <div
+                  v-if="stockTotalRows.length"
+                  class="day-block day-block--stock day-block--total"
+                >
                   <span class="day-block-name">Всего, шт</span>
                   <span class="day-block-total-value tabular-nums">
-                    {{ stockTotalRows[0].cells[dayIndex]?.display ?? '—' }}
+                    {{ stockTotalRows[0].cells[dayIndex]?.display ?? '' }}
                   </span>
                 </div>
               </div>
@@ -303,6 +358,19 @@ watch(
         </tbody>
       </table>
     </div>
+
+    <!-- The associative-conversion hint: teleported with fixed coordinates so
+         the scroll container can't clip it. -->
+    <Teleport to="body">
+      <div
+        v-if="assocTip"
+        class="fixed z-50 max-w-72 rounded-card border border-border-subtle bg-surface px-sm py-xs text-tiny leading-snug text-primary shadow-card"
+        :style="{ left: `${assocTip.x}px`, top: `${assocTip.y}px` }"
+        role="tooltip"
+      >
+        {{ assocTip.text }}
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -319,11 +387,18 @@ watch(
 .matrix-scroll::-webkit-scrollbar {
   display: none;
 }
+/* While LMB-dragging the ribbon: pan cursor, and no accidental text selection. */
+.matrix-scroll.drag-scrolling {
+  cursor: grabbing;
+  user-select: none;
+}
 
-/* An editable cell reads as plain text but hints affordance on hover/focus. */
+/* An editable cell reads as plain text but hints affordance on hover/focus.
+   min-height keeps a BLANK editable cell (empty content) a real click target. */
 .matrix-cell-btn {
   display: inline-block;
   width: 100%;
+  min-height: 1.1em;
   padding: 0;
   border: none;
   background: transparent;
@@ -370,14 +445,24 @@ watch(
   font-weight: 600;
 }
 
-/* Metric groups: a thick divider above the group, roomier rows inside —
-   the option-1 block feel without the tinting. */
-.app-datatable--matrix tbody.matrix-metrics tr.matrix-group-row td {
-  padding-top: 6px;
-  padding-bottom: 6px;
+/* «ДРР от продаж»: the headline efficiency number — a step bigger and bold,
+   both the frozen label and every value cell (the cell button/span carry an
+   explicit font-weight, so target them directly, not just the td). */
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-emphasis td {
+  font-size: 13px;
 }
-.app-datatable--matrix tbody.matrix-metrics tr.matrix-group-start td {
-  border-top: 3px solid #e0e0e0;
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-emphasis td .matrix-cell-btn,
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-emphasis td span {
+  font-size: 13px;
+  font-weight: 700;
+}
+.app-datatable--matrix
+  tbody.matrix-metrics
+  tr.matrix-row-emphasis
+  td:first-child
+  .matrix-row-label {
+  font-size: 14px;
+  font-weight: 700;
 }
 
 /* --- day-bound «Цены»/«Остатки» blocks ------------------------------------

@@ -10,12 +10,14 @@ from src.modules.monitoring.repos.advertising_search import AdvertisingSearchRep
 from src.modules.monitoring.repos.campaigns import CampaignRepository
 from src.modules.monitoring.repos.funnel import FunnelRepository
 from src.modules.monitoring.repos.matrix_override import MatrixOverrideRepository
+from src.modules.monitoring.repos.pinned_skus import PinnedSkuRepository
 from src.modules.monitoring.repos.prices import PriceRepository
 from src.modules.monitoring.repos.products import (
     ProductCardRepository,
     ProductSizeRepository,
 )
 from src.modules.monitoring.repos.sales import SaleRepository
+from src.modules.monitoring.repos.sku_comment import SkuCommentRepository
 from src.modules.monitoring.repos.stocks import StockRepository
 from src.modules.monitoring.repos.warehouse_marks import WarehouseMarkRepository
 
@@ -25,10 +27,12 @@ __all__ = [
     "CampaignRepository",
     "FunnelRepository",
     "MatrixOverrideRepository",
+    "PinnedSkuRepository",
     "PriceRepository",
     "ProductCardRepository",
     "ProductSizeRepository",
     "SaleRepository",
+    "SkuCommentRepository",
     "StockRepository",
     "WarehouseMarkRepository",
 ]

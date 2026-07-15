@@ -22,10 +22,12 @@ from src.modules.monitoring.repos import (
     CampaignRepository,
     FunnelRepository,
     MatrixOverrideRepository,
+    PinnedSkuRepository,
     PriceRepository,
     ProductCardRepository,
     ProductSizeRepository,
     SaleRepository,
+    SkuCommentRepository,
     StockRepository,
     WarehouseMarkRepository,
 )
@@ -90,6 +92,16 @@ def get_warehouse_mark_repo(session: DbSession) -> WarehouseMarkRepository:
     return WarehouseMarkRepository(session)
 
 
+def get_pinned_sku_repo(session: DbSession) -> PinnedSkuRepository:
+    """Provide a :class:`PinnedSkuRepository` bound to the request session."""
+    return PinnedSkuRepository(session)
+
+
+def get_sku_comment_repo(session: DbSession) -> SkuCommentRepository:
+    """Provide a :class:`SkuCommentRepository` bound to the request session."""
+    return SkuCommentRepository(session)
+
+
 FunnelRepoDep = Annotated[FunnelRepository, Depends(get_funnel_repo)]
 AdvertisingRepoDep = Annotated[AdvertisingRepository, Depends(get_advertising_repo)]
 AdvertisingSearchRepoDep = Annotated[
@@ -103,6 +115,8 @@ MatrixOverrideRepoDep = Annotated[MatrixOverrideRepository, Depends(get_matrix_o
 PriceRepoDep = Annotated[PriceRepository, Depends(get_price_repo)]
 SaleRepoDep = Annotated[SaleRepository, Depends(get_sale_repo)]
 WarehouseMarkRepoDep = Annotated[WarehouseMarkRepository, Depends(get_warehouse_mark_repo)]
+PinnedSkuRepoDep = Annotated[PinnedSkuRepository, Depends(get_pinned_sku_repo)]
+SkuCommentRepoDep = Annotated[SkuCommentRepository, Depends(get_sku_comment_repo)]
 
 
 # --------------------------------------------------------------------------- #
@@ -120,6 +134,8 @@ def get_analytics_service(
     price_repo: PriceRepoDep,
     sale_repo: SaleRepoDep,
     warehouse_mark_repo: WarehouseMarkRepoDep,
+    pinned_sku_repo: PinnedSkuRepoDep,
+    sku_comment_repo: SkuCommentRepoDep,
 ) -> AnalyticsService:
     """Compose the read-side :class:`AnalyticsService` from its repositories."""
     return AnalyticsService(
@@ -134,6 +150,8 @@ def get_analytics_service(
         price_repo=price_repo,
         sale_repo=sale_repo,
         warehouse_mark_repo=warehouse_mark_repo,
+        pinned_sku_repo=pinned_sku_repo,
+        sku_comment_repo=sku_comment_repo,
     )
 
 
@@ -174,10 +192,12 @@ __all__ = [
     "FunnelRepoDep",
     "IngestionServiceDep",
     "MatrixOverrideRepoDep",
+    "PinnedSkuRepoDep",
     "PriceRepoDep",
     "ProductCardRepoDep",
     "ProductSizeRepoDep",
     "SaleRepoDep",
+    "SkuCommentRepoDep",
     "StockRepoDep",
     "WarehouseMarkRepoDep",
 ]

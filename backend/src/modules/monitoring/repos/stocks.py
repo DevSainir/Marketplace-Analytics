@@ -75,6 +75,28 @@ class StockRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_for_sku_day(self, *, nm_id: int, stat_date: date) -> list[StockSnapshot]:
+        """Return one SKU's size x warehouse rows for one exact snapshot day.
+
+        Feeds the two-day stock comparison view: each side of the comparison
+        shows the snapshot of its picked day (empty when no snapshot was
+        captured that day — days are never carried over).
+
+        Args:
+            nm_id: WB SKU identifier.
+            stat_date: The exact snapshot day.
+
+        Returns:
+            The day's rows, ordered by warehouse then size.
+        """
+        stmt = (
+            select(StockSnapshot)
+            .where(StockSnapshot.nm_id == nm_id, StockSnapshot.stat_date == stat_date)
+            .order_by(StockSnapshot.warehouse_name, StockSnapshot.chrt_id)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
     async def daily_totals_for_sku(
         self, *, nm_id: int, date_from: date, date_to: date
     ) -> list[StockDailyTotal]:
