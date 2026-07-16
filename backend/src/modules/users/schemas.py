@@ -54,6 +54,7 @@ class UserRead(BaseModel):
     id: uuid.UUID
     email: EmailStr
     is_active: bool
+    role: str
     created_at: datetime
 
 

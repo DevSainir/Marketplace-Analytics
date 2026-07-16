@@ -99,9 +99,15 @@ def _funnel_row(
     cart_count: int = 0,
     order_count: int = 0,
     buyout_count: int = 0,
+    cancel_count: int | None = None,
     buyout_conversion: float = 0,
 ) -> SalesFunnelDaily:
-    """Construct an in-memory funnel row (₽ volumes are no longer stored)."""
+    """Construct an in-memory funnel row (₽ volumes are no longer stored).
+
+    ``cancel_count`` defaults to ``None`` — "the cohort pass has not refreshed
+    this day", which is what a day outside the aggregate's refresh window looks
+    like in the database.
+    """
     return SalesFunnelDaily(
         stat_date=stat_date,
         nm_id=111,
@@ -109,6 +115,7 @@ def _funnel_row(
         cart_count=cart_count,
         order_count=order_count,
         buyout_count=buyout_count,
+        cancel_count=cancel_count,
         add_to_wishlist=0,
         cart_conversion=0,
         order_conversion=0,
@@ -203,9 +210,9 @@ def _two_campaign_rows() -> dict[str, list[float | None]]:
     search_rows = [_search_row(1, DAY1, views=30, clicks=3, add_to_cart=1, spend=15, orders=1)]
     funnel_rows = [
         _funnel_row(DAY1, open_count=200, cart_count=20, order_count=10, buyout_count=6),
-        # Matured cohort inside the lagged window: WB says 40% of its decided
-        # deliveries were bought out (4 buyouts -> 10 delivered).
-        _funnel_row(DAY1 - timedelta(days=10), order_count=8, buyout_count=4, buyout_conversion=40),
+        # Matured cohort inside the lagged window: 4 buyouts + 6 refusals = 10
+        # decided deliveries -> 40%.
+        _funnel_row(DAY1 - timedelta(days=10), order_count=8, buyout_count=4, cancel_count=6),
     ]
     price_snapshots = [_price_row(DAY1, seller=500, customer=350)]
     return _matrix(
@@ -269,16 +276,51 @@ def test_catalog_column_stays_empty() -> None:
 
 
 def test_buyout_percent_uses_lagged_window() -> None:
-    """«Процент выкупа» for day D averages WB's cohort percent over [D-21, D-7].
+    """«Процент выкупа» for day D aggregates the cohorts of [D-21, D-7].
 
-    The matured cohort in the window says 40%: 4 buyouts over 4/0.40 = 10
-    decided deliveries. DAY1's own cohort is OUTSIDE its lagged window (too
+    The matured cohort in the window has 4 buyouts and 6 refusals -> 40% of its
+    10 decided deliveries. DAY1's own cohort is OUTSIDE its lagged window (too
     recent) and must not contribute.
     """
     rows = _two_campaign_rows()
     assert _cell(rows, "buyout_percent", 0, "total") == 40.0
     assert _cell(rows, "buyout_percent", 1, "total") == 40.0
     assert _cell(rows, "buyout_percent", 0, "manual_search") is None
+
+
+def test_buyout_percent_counts_refusals_of_zero_buyout_cohorts() -> None:
+    """A cohort with zero buyouts still contributes its refusals.
+
+    Regression: the metric used to reconstruct the denominator from WB's own
+    whole-number cohort percent (``buyout_count / buyoutPercent``). A cohort
+    that bought out nothing reports ``buyoutPercent = 0``, so it was skipped
+    entirely and its refusals never reached the denominator — which printed 41%
+    for SKU 914394276 where WB said 16%.
+
+    Here: 2 buyouts + 2 refusals, plus a cohort of 6 pure refusals -> 2 of 10
+    decided deliveries = 20%. Skipping the zero-buyout cohort would give 50%.
+    """
+    funnel_rows = [
+        _funnel_row(DAY1, order_count=10, buyout_count=5),
+        _funnel_row(DAY1 - timedelta(days=10), order_count=4, buyout_count=2, cancel_count=2),
+        _funnel_row(DAY1 - timedelta(days=11), order_count=7, buyout_count=0, cancel_count=6),
+    ]
+    rows = _matrix(campaigns={}, ad_rows=[], funnel_rows=funnel_rows)
+    assert _cell(rows, "buyout_percent", 0, "total") == 20.0
+
+
+def test_buyout_percent_is_blank_until_the_cohort_pass_refreshes() -> None:
+    """An unrefreshed cohort (``cancel_count`` NULL) is excluded, not read as 0.
+
+    Treating NULL as "no refusals" would invent a 100% cohort out of a day the
+    aggregate has simply never been asked about.
+    """
+    funnel_rows = [
+        _funnel_row(DAY1, order_count=10, buyout_count=5),
+        _funnel_row(DAY1 - timedelta(days=10), order_count=4, buyout_count=2, cancel_count=None),
+    ]
+    rows = _matrix(campaigns={}, ad_rows=[], funnel_rows=funnel_rows)
+    assert _cell(rows, "buyout_percent", 0, "total") is None
 
 
 def test_day_without_any_data_renders_empty() -> None:

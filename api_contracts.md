@@ -66,18 +66,70 @@
   `addToWishlistCount`→`add_to_wishlist`, `addToCartConversion`→
   `cart_conversion`, `cartToOrderConversion`→`order_conversion`,
   `buyoutPercent`→`buyout_conversion`.
+* **No cancel count.** Verified live (2026-07-16): the daily feed serves
+  `buyoutCount` and a whole-number `buyoutPercent`, but **no** `cancelCount` —
+  so a day's DECIDED deliveries are not obtainable here. Combined with the
+  7-day cap this makes the daily feed unusable as the «Процент выкупа» source:
+  its `buyoutCount` freezes ≤7 days after the order date while the real cohort
+  keeps maturing for ~3 weeks. `buyout_count` is therefore only SEEDED from
+  this feed on insert; §3's cohort pass owns it (and `cancel_count`) after that.
 
-## 3. API: Sales Funnel — period aggregate (reference, not currently ingested)
+## 3. API: Sales Funnel — period aggregate (the buyout/cancel cohort source)
 * **Endpoint:** `POST /api/analytics/v3/sales-funnel/products`
-* **Body:** `{"nmIDs": [...], "selectedPeriod": {"start", "end"}}` (uppercase
-  `nmIDs` here).
+* **Body:** `{"selectedPeriod": {"start", "end"}}`.
+* **The `nmIDs` filter is IGNORED** (verified live 2026-07-16): passing a single
+  nmID still returns the seller's whole catalogue (40 products, one page — an
+  `offset=50` probe returns 0). Filter client-side; do not assume the request
+  narrows the response.
+* **Arbitrary history, unlike §2.** `start = today - 21` returns HTTP 200 here
+  where the daily feed 400s ("invalid start day: excess limit on days"). Called
+  with `start == end` it yields ONE matured per-day cohort — the only way to
+  re-read an order-date cohort as its deliveries are accepted/refused.
 * **Response:** `data.products[].statistic.{selected, past, comparison}` — each a
   period aggregate carrying `openCount/cartCount/orderCount/buyoutCount/
-  addToWishlist` and a nested `conversions` object
-  (`addToCartPercent/cartToOrderPercent/buyoutPercent`). Returns ~50 products
-  per page (paginates via `isNextPage`/`offset`).
-* Useful for at-a-glance period rollups; the daily endpoint (§2) is preferred
-  because baseline-demand normalization needs per-day granularity.
+  cancelCount/addToWishlist` and a nested `conversions` object
+  (`addToCartPercent/cartToOrderPercent/buyoutPercent`).
+* **«Процент выкупа» is defined by the two counts**, not by the percent field:
+  `buyoutPercent == buyoutCount / (buyoutCount + cancelCount)` exactly (verified
+  live: `567 / (567 + 965) = 37%`, WB reports 37). `cancelCount` is the buyer's
+  refusal at pickup — a DECIDED delivery. Store the counts; never round-trip
+  through `buyoutPercent`, which is an integer and reads 0 for a zero-buyout
+  cohort (whose refusals then vanish from any average).
+* **Ingestion** → `monitoring.sales_funnel_daily.{buyout_count, cancel_count}`,
+  by the `monitoring.refresh_buyout_cohorts` task (nightly, 07:00 MSK). It walks
+  the last `COHORT_REFRESH_DAYS` = 22 days one call per day. It is an UPDATE
+  only: a `(date, nm_id)` with no funnel row is skipped, since this endpoint
+  answers for every date the seller ever traded and inserting blind would
+  fabricate zero-order funnel days.
+* **Rate limit:** ~1 request/20s (HTTP 429 otherwise); the client honours
+  `Retry-After`. A 22-day pass therefore takes ~7 min — which is why it is a
+  scheduled catalogue-wide task and NOT part of the interactive «Обновить»
+  refresh (`monitoring.harvest_sku_window`).
+
+### 3a. Refusals (`cancelCount`) vs returns — NOT the same event
+A **refusal** (`cancelCount`) is the buyer declining the parcel at pickup: it
+kills the delivery, so it never becomes a sale and **never appears in the
+Statistics `supplier/sales` feed**. A **return** is the buyer sending an item
+back *after* buying it, which does appear there (`saleID` prefix `R`).
+
+«Процент выкупа» divides by DECIDED DELIVERIES — `buyoutCount + cancelCount` —
+so it is obtainable **only** from §3. It cannot be reconstructed from
+`supplier/sales`, whose denominator (buyouts + returns) is a different, much
+smaller population. Measured live 2026-07-16 on nm 953770957: `sale_record` held
+274 buyouts / 30 returns (a 90% "buyout share") while WB's own «Процент выкупа»
+for the same SKU was ~30%. The two are not reconcilable and must not be
+conflated:
+* «Процент выкупа» → `sales_funnel_daily.{buyout_count, cancel_count}` → the
+  matrix's `buyout_percent` (lagged cohort window). This is the ONLY place it
+  exists.
+* Sale-date buyout/return VOLUMES → `sale_record` →
+  `SkuSummaryItem.{total_buyout_count, total_buyout_sum, total_return_count}`.
+  Counts only — the listing deliberately serves **no buyout ratio**. It cannot
+  serve «Процент выкупа» (its window is arbitrary: default 30d, max 366d, while
+  the cohort pass refreshes `cancel_count` for only the last 22 days), and any
+  ratio built from `sale_record` instead would answer a different question while
+  looking like an answer to this one. A caller wanting a return rate divides the
+  two counts itself.
 
 ## 4. API: Advertising Full Stats
 * **Endpoint:** `GET /adv/v3/fullstats` (GET only — POST returns 405).

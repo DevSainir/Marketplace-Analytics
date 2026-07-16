@@ -75,6 +75,89 @@ class WBFunnelHistoryRow(_RawBase):
 
 
 # --------------------------------------------------------------------------- #
+# Sales Funnel — period AGGREGATE (the buyout/cancel cohort source)
+# POST /api/analytics/v3/sales-funnel/products
+#
+# Why this endpoint exists in the pipeline alongside the daily history above:
+#
+#  * The daily history (§2) is the only per-day series, but it is capped at the
+#    last 7 days AND serves no cancel count. A cohort's deliveries keep being
+#    accepted/refused for ~3 weeks, so a day harvested through the history feed
+#    freezes at <=7 days of maturity and can never be refreshed.
+#  * This aggregate accepts an ARBITRARY period (verified live 2026-07-16:
+#    start = today-21 returns 200 where the history feed 400s) and serves the
+#    real ``cancelCount``. Called with ``start == end`` it yields one matured
+#    per-day cohort.
+#
+# Verified live shape::
+#   {"data": {"products": [
+#      {"product": {"nmId": .., "title": .., ...},
+#       "statistic": {"selected": {"period": {...}, "orderCount": ..,
+#                                  "buyoutCount": .., "cancelCount": ..,
+#                                  "conversions": {"buyoutPercent": ..}},
+#                     "past": {...}, "comparison": {...}}}, ...]}}
+#
+# NOTE: the ``nmIDs`` body filter is IGNORED by WB — the response always carries
+# the seller's whole catalogue (40 products, single page for this account). The
+# caller filters client-side; do not rely on the request narrowing the result.
+# --------------------------------------------------------------------------- #
+class WBFunnelAggregateSelected(_RawBase):
+    """The ``selected`` period block of an aggregate node.
+
+    ``buyoutPercent`` is WB's own figure and satisfies
+    ``buyout_count / (buyout_count + cancel_count)`` exactly (verified live:
+    567 / (567 + 965) = 37% = WB's reported 37) — the two counts ARE the
+    definition of «Процент выкупа», so we store them and never round-trip
+    through the percent.
+
+    The funnel counts (``openCount``/``cartCount``/``orderCount``) mirror the
+    daily history feed's fields. The nightly cohort pass ignores them, but the
+    historical backfill (``scripts/backfill_history.py``) relies on them: this
+    aggregate is the ONLY funnel surface serving periods older than 7 days, so
+    called with ``start == end`` per day it reconstructs the full daily series.
+    NB the wishlist alias differs from the daily feed's (``addToWishlist``
+    here vs ``addToWishlistCount`` there) — both verified live 2026-07-16.
+    """
+
+    open_count: int = Field(default=0, alias="openCount")
+    cart_count: int = Field(default=0, alias="cartCount")
+    order_count: int = Field(default=0, alias="orderCount")
+    buyout_count: int = Field(default=0, alias="buyoutCount")
+    cancel_count: int = Field(default=0, alias="cancelCount")
+    add_to_wishlist: int = Field(default=0, alias="addToWishlist")
+
+    @property
+    def has_activity(self) -> bool:
+        """Whether the period saw any funnel event at all."""
+        return bool(
+            self.open_count
+            or self.cart_count
+            or self.order_count
+            or self.buyout_count
+            or self.cancel_count
+            or self.add_to_wishlist
+        )
+
+
+class WBFunnelAggregateStatistic(_RawBase):
+    """The ``statistic`` block; only ``selected`` (our requested period) is used."""
+
+    selected: WBFunnelAggregateSelected
+
+
+class WBFunnelAggregateRow(_RawBase):
+    """One product node of the period-aggregate response."""
+
+    product: WBFunnelHistoryProduct
+    statistic: WBFunnelAggregateStatistic
+
+    @property
+    def nm_id(self) -> int:
+        """SKU identifier of this product."""
+        return self.product.nm_id
+
+
+# --------------------------------------------------------------------------- #
 # Content — product cards
 # POST /content/v2/get/cards/list
 #

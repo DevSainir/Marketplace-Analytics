@@ -30,10 +30,19 @@ class SalesFunnelDaily(Base):
         cart_count: Add-to-cart events (``cartCount``).
         order_count: Orders generated (``orderCount``).
         buyout_count: Buyouts / redeemed orders (``buyoutCount``).
+        cancel_count: Deliveries the buyer refused (``cancelCount``). Together
+            with ``buyout_count`` this is the cohort's DECIDED deliveries — the
+            denominator of «Процент выкупа». Only the period-aggregate endpoint
+            serves it, so it is refreshed by the cohort pass, not the daily
+            history feed; ``None`` means "not refreshed yet" (excluded from the
+            average rather than counted as zero refusals).
         add_to_wishlist: Add-to-favourites events (``addToWishlist``).
         cart_conversion: Flattened ``conversions.addToCartPercent``.
         order_conversion: Flattened ``conversions.cartToOrderPercent``.
-        buyout_conversion: Flattened ``conversions.buyoutsPercent``.
+        buyout_conversion: Flattened ``conversions.buyoutsPercent`` — WB's own
+            whole-number cohort percent. Kept as a raw WB fact; the matrix does
+            NOT derive «Процент выкупа» from it (it is rounded to an integer and
+            is 0 for a zero-buyout cohort, which loses that cohort's refusals).
     """
 
     __tablename__ = "sales_funnel_daily"
@@ -52,6 +61,8 @@ class SalesFunnelDaily(Base):
     cart_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     order_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     buyout_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Nullable: NULL = "no aggregate refresh has landed for this cohort yet".
+    cancel_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     add_to_wishlist: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # NOTE: order_sum / buyout_sum are intentionally NOT stored — the ₽ volumes

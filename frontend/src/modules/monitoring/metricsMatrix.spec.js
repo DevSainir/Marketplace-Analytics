@@ -241,3 +241,95 @@ describe('patchMetricsMatrix', () => {
     expect(patchMetricsMatrix(view, oneDay)).toBe(false)
   })
 })
+
+// The carts/orders cells show the campaign's ALL-VARIANT total («ассоциированные
+// конверсии»); the per-variant rows behind the hover ride the editable base.
+describe('associative conversions', () => {
+  /**
+   * PRODUCT + a carts row, the all-variant carts_assoc total, and the
+   * per-variant breakdown on day 0: 56 of the campaign's 57 carts are the
+   * viewed SKU's, the 57th went to a sibling variant.
+   */
+  function assocProduct({ exact = true } = {}) {
+    const clone = structuredClone(PRODUCT)
+    clone.matrix.rows.push(backendRow('carts', [{ uni_shelves: 82, manual_search: 8 }, {}]))
+    clone.matrix.rows.push(backendRow('carts_assoc', [{ uni_shelves: 120 }, {}]))
+    clone.matrix_base = {
+      days: [
+        {
+          day: '2026-07-01',
+          buckets: {
+            uni_shelves: {
+              assoc_exact: exact,
+              assoc_skus: [
+                // nm_id 1 is PRODUCT.nm_id — the SKU on screen.
+                { nm_id: 1, vendor_code: 'M-VIEWED', add_to_cart: 82, orders: 9 },
+                { nm_id: 2, vendor_code: 'M-SIBLING', add_to_cart: 30, orders: 4 },
+                { nm_id: 3, vendor_code: 'M-OTHER', add_to_cart: 8, orders: 1 },
+              ],
+            },
+          },
+        },
+        { day: '2026-07-02', buckets: {} },
+      ],
+    }
+    return clone
+  }
+
+  it('shows the all-variant total alone — no «120(82)» parenthesis', () => {
+    const matrix = buildMetricsMatrix(assocProduct())
+    expect(cell(matrix, 'carts', 0, 'uni_shelves')).toBe(formatNumber(120))
+  })
+
+  it('reports the associated share, not the cell total again', () => {
+    const { assoc } = cellObj(buildMetricsMatrix(assocProduct()), 'carts', 0, 'uni_shelves')
+
+    // The cell shows 120, of which 82 are this SKU's own -> 38 are associated.
+    expect(assoc.associated).toBe(38)
+    expect(assoc.exact).toBe(true)
+  })
+
+  it('lists every variant, flagging the one on screen', () => {
+    const { assoc } = cellObj(buildMetricsMatrix(assocProduct()), 'carts', 0, 'uni_shelves')
+
+    expect(assoc.skus).toEqual([
+      { nm_id: 1, vendor_code: 'M-VIEWED', count: 82, isViewed: true },
+      { nm_id: 2, vendor_code: 'M-SIBLING', count: 30, isViewed: false },
+      { nm_id: 3, vendor_code: 'M-OTHER', count: 8, isViewed: false },
+    ])
+    // All the rows account for the cell; the unflagged ones for the associated
+    // share the hover reports above them.
+    expect(assoc.skus.reduce((sum, s) => sum + s.count, 0)).toBe(120)
+    const others = assoc.skus.filter((s) => !s.isViewed)
+    expect(others.reduce((sum, s) => sum + s.count, 0)).toBe(assoc.associated)
+  })
+
+  it('picks each metric its own counts out of the shared variant rows', () => {
+    const matrix = buildMetricsMatrix(assocProduct())
+    // No orders_assoc row -> the orders cell has no gap to break down.
+    expect(cellObj(matrix, 'orders', 0, 'uni_shelves').assoc).toBeNull()
+    expect(cellObj(matrix, 'carts', 0, 'uni_shelves').assoc.skus.map((s) => s.count)).toEqual([
+      82, 30, 8,
+    ])
+  })
+
+  it('flags an apportioned breakdown so the hover can caption it', () => {
+    const matrix = buildMetricsMatrix(assocProduct({ exact: false }))
+    expect(cellObj(matrix, 'carts', 0, 'uni_shelves').assoc.exact).toBe(false)
+  })
+
+  it('leaves cells without an associative gap unhoverable', () => {
+    const matrix = buildMetricsMatrix(assocProduct())
+    expect(cellObj(matrix, 'carts', 0, 'manual_search').assoc).toBeNull()
+    expect(cellObj(matrix, 'clicks', 0, 'uni_shelves').assoc).toBeNull()
+  })
+
+  it('moves the associated share when the SKU’s own slice is edited', () => {
+    const view = buildMetricsMatrix(assocProduct())
+    const edited = assocProduct()
+    edited.matrix.rows.find((r) => r.key === 'carts').values[col('uni_shelves')] = 100
+
+    expect(patchMetricsMatrix(view, edited)).toBe(true)
+    expect(cellObj(view, 'carts', 0, 'uni_shelves').assoc.associated).toBe(20)
+  })
+})

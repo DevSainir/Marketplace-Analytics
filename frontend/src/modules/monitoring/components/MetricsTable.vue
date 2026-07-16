@@ -28,6 +28,7 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import { formatNumber } from '@/core/utils/format'
 import { vDragScroll } from '@/core/utils/dragScroll'
 import { TRAFFIC_COLUMNS, TRAFFIC_GROUPS } from '@/modules/monitoring/metricsMatrix'
 
@@ -149,37 +150,57 @@ function scrollToNewestDay() {
 }
 
 // --- associative-conversion hint -----------------------------------------
-// Hovering a decorated «100(71)» cell pops a teleported explanation (an
-// always-visible «?» would clutter thousands of cells). Delegated: ONE
-// mouseover listener on the scroll container, cells carry `data-assoc`.
-const ASSOC_NOUNS = { carts: 'корзины', orders: 'заказы' }
-const assocTip = ref(null) // { x, y, text } | null
+// A carts/orders cell shows the campaign's ALL-VARIANT total. Hovering it
+// reports the ASSOCIATED share of that total — what the campaign delivered onto
+// other size/colour variants — and names them (an always-visible breakdown
+// would clutter thousands of cells). Delegated: ONE mouseover listener on the
+// scroll container, cells carry their index key in `data-assoc`.
+const ASSOC_METRICS = new Set(['carts', 'orders'])
+const assocTip = ref(null) // { x, y, above, associated, exact, skus } | null
 
-/** `data-assoc` value for a cell: its metric key, or null (attr omitted). */
+// Cell -> hover payload, keyed by the `data-assoc` attribute. Follows the rows,
+// so an edit to the SKU's own slice keeps the associated remainder in step.
+const assocIndex = computed(() => {
+  const index = new Map()
+  for (const row of props.rows) {
+    if (!ASSOC_METRICS.has(row.key)) continue
+    for (const cell of row.cells) {
+      if (cell?.assoc) index.set(`${row.key}|${cell.day}|${cell.bucket}`, cell)
+    }
+  }
+  return index
+})
+
+/** `data-assoc` key for a cell, or null (attribute omitted → no hover). */
 function assocData(row, cell) {
-  return row.key in ASSOC_NOUNS && cell.display.includes('(') ? row.key : null
+  if (!ASSOC_METRICS.has(row.key) || !cell.assoc) return null
+  return `${row.key}|${cell.day}|${cell.bucket}`
 }
+
+// Room for the tallest breakdown; nearer the viewport floor the tip flips above.
+const ASSOC_TIP_MAX_HEIGHT_PX = 260
 
 function onMatrixOver(event) {
   const el = event.target.closest('[data-assoc]')
-  if (!el) {
+  const cell = el ? assocIndex.value.get(el.dataset.assoc) : null
+  if (!cell) {
     assocTip.value = null
     return
   }
-  // \u00A0 / \u202F: ru-RU thousands separators inside the formatted numbers.
-  const match = el.textContent.trim().match(/^([\d\s\u00A0\u202F]+)\(([\d\s\u00A0\u202F]+)\)$/u)
-  if (!match) {
-    assocTip.value = null
-    return
-  }
-  const noun = ASSOC_NOUNS[el.dataset.assoc]
   const rect = el.getBoundingClientRect()
+  const above = rect.bottom + ASSOC_TIP_MAX_HEIGHT_PX > window.innerHeight
   assocTip.value = {
     x: rect.left,
-    y: rect.bottom + 6,
-    text:
-      `Ассоциированные конверсии: ${match[1].trim()} — ${noun} по кампании со всеми ` +
-      `размерами и цветами товара, из них ${match[2].trim()} — именно этот артикул.`,
+    y: above ? rect.top - 6 : rect.bottom + 6,
+    above,
+    associated: formatNumber(cell.assoc.associated),
+    exact: cell.assoc.exact,
+    skus: cell.assoc.skus.map((sku) => ({
+      key: sku.nm_id,
+      label: sku.vendor_code || `nm ${sku.nm_id}`,
+      count: formatNumber(sku.count),
+      isViewed: sku.isViewed,
+    })),
   }
 }
 
@@ -359,16 +380,47 @@ watch(
       </table>
     </div>
 
-    <!-- The associative-conversion hint: teleported with fixed coordinates so
-         the scroll container can't clip it. -->
+    <!-- The associative-conversion breakdown: teleported with fixed coordinates
+         so the scroll container can't clip it. Flips above the cell near the
+         viewport floor, where a list would otherwise run off-screen. -->
     <Teleport to="body">
       <div
         v-if="assocTip"
-        class="fixed z-50 max-w-72 rounded-card border border-border-subtle bg-surface px-sm py-xs text-tiny leading-snug text-primary shadow-card"
-        :style="{ left: `${assocTip.x}px`, top: `${assocTip.y}px` }"
+        class="fixed z-50 w-72 rounded-card border border-border-subtle bg-surface px-sm py-xs text-tiny leading-snug text-primary shadow-card"
+        :style="{
+          left: `${assocTip.x}px`,
+          top: `${assocTip.y}px`,
+          transform: assocTip.above ? 'translateY(-100%)' : null,
+        }"
         role="tooltip"
       >
-        {{ assocTip.text }}
+        <!-- The count never wraps away from its dash onto a line of its own. -->
+        <p class="text-muted">
+          Общее количество ассоциативных конверсий<span class="whitespace-nowrap">
+            — <span class="font-semibold text-primary">{{ assocTip.associated }}</span></span
+          >
+        </p>
+
+        <!-- Every variant behind the cell. The viewed SKU carries the action
+             accent, so its own row reads apart from the associated ones — which
+             are the rows that sum to the count above. -->
+        <ul v-if="assocTip.skus.length" class="mt-xs space-y-0.5">
+          <li
+            v-for="sku in assocTip.skus"
+            :key="sku.key"
+            class="flex items-baseline justify-between gap-sm"
+            :class="sku.isViewed ? 'font-semibold text-action' : 'text-primary'"
+          >
+            <span class="truncate">{{ sku.label }}</span>
+            <span class="flex-none tabular-nums">{{ sku.count }}</span>
+          </li>
+        </ul>
+
+        <!-- A two-zone campaign's associated variants are apportioned between
+             the zones — WB attributes them per campaign, never per zone. -->
+        <p v-if="assocTip.skus.length && !assocTip.exact" class="mt-xs text-muted">
+          Разбивка по артикулам в этой зоне показов — оценочная.
+        </p>
       </div>
     </Teleport>
   </div>

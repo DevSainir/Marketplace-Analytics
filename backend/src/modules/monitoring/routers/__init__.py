@@ -6,7 +6,11 @@ and **no** error-to-HTTP mapping — domain errors raised by the service
 (``NotFoundError``, ``ValidationError``, ...) propagate to the global
 ``AppError`` handler in ``main.py``, which maps them to HTTP responses.
 
-Every endpoint requires a valid access token (router-level dependency).
+Every endpoint requires a valid access token (router-level dependency), and
+every data endpoint additionally requires the ``X-Workspace-Id`` header: the
+listing/lookup routes scope their queries by it, while the per-SKU routes pass
+their path ``nm_id`` through the :data:`WorkspaceSku` ownership guard so a SKU
+belonging to another workspace is indistinguishable from a nonexistent one.
 """
 
 from __future__ import annotations
@@ -19,14 +23,16 @@ from fastapi import APIRouter, Depends, Query, status
 
 from src.core.celery_app import celery_app
 from src.core.deps import get_current_user_id
-from src.modules.monitoring.deps import AnalyticsServiceDep
+from src.modules.monitoring.deps import AnalyticsServiceDep, CurrentWorkspaceId, WorkspaceSku
 from src.modules.monitoring.schemas import (
     CommentUpdateRequest,
     FunnelResponseSchema,
     MatrixPreviewRequest,
     MatrixPreviewResponse,
     MatrixSaveRequest,
+    PinColorUpdateRequest,
     PinnedSkusResponse,
+    PinReorderRequest,
     PinUpdateRequest,
     RefreshEnqueuedResponse,
     RefreshStatusResponse,
@@ -60,6 +66,7 @@ router = APIRouter(
 )
 async def get_summary(
     service: AnalyticsServiceDep,
+    workspace_id: CurrentWorkspaceId,
     date_from: date | None = Query(default=None, description="Inclusive start."),
     date_to: date | None = Query(default=None, description="Inclusive end."),
     limit: int = Query(default=100, ge=1, le=500, description="Page size."),
@@ -67,7 +74,11 @@ async def get_summary(
 ) -> SkuSummaryListResponse:
     """Return the compact per-SKU summary listing (dashboard view)."""
     return await service.get_summary(
-        date_from=date_from, date_to=date_to, limit=limit, offset=offset
+        workspace_id=workspace_id,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -76,13 +87,41 @@ async def get_summary(
     response_model=PinnedSkusResponse,
     status_code=status.HTTP_200_OK,
     responses={
-        200: {"description": "The global pinned-SKU list, in pin order."},
+        200: {"description": "The global pinned-SKU list, in chip-row order."},
         401: {"description": "Unauthorized access token."},
     },
 )
-async def list_pins(service: AnalyticsServiceDep) -> PinnedSkusResponse:
-    """Return the global pinned-SKU chip row (shared by every account)."""
-    return await service.list_pinned_skus()
+async def list_pins(
+    service: AnalyticsServiceDep,
+    workspace_id: CurrentWorkspaceId,
+) -> PinnedSkusResponse:
+    """Return the workspace's pinned-SKU chip row (shared by every account)."""
+    return await service.list_pinned_skus(workspace_id=workspace_id)
+
+
+@router.put(
+    "/pins/order",
+    response_model=PinnedSkusResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "Order saved; the reordered pinned list is returned."},
+        401: {"description": "Unauthorized access token."},
+        422: {"description": "The list is not exactly the current pinned set."},
+    },
+)
+async def reorder_pins(
+    body: PinReorderRequest,
+    service: AnalyticsServiceDep,
+    workspace_id: CurrentWorkspaceId,
+) -> PinnedSkusResponse:
+    """Persist the chip row's order after a drag-and-drop (shared by everyone).
+
+    The body carries every pinned SKU, so the service can reject a reorder
+    computed against a list a teammate has since changed. No ``WorkspaceSku``
+    guard here — the identifiers are in the body, not the path, so the service
+    validates them against the workspace's own pins instead.
+    """
+    return await service.reorder_pins(workspace_id=workspace_id, nm_ids=body.nm_ids)
 
 
 @router.put(
@@ -96,12 +135,33 @@ async def list_pins(service: AnalyticsServiceDep) -> PinnedSkusResponse:
     },
 )
 async def set_pin(
-    nm_id: int,
+    nm_id: WorkspaceSku,
     body: PinUpdateRequest,
     service: AnalyticsServiceDep,
+    workspace_id: CurrentWorkspaceId,
 ) -> PinnedSkusResponse:
     """Pin («Закрепить») or unpin («Закреплено» click) a SKU for everyone."""
-    return await service.set_sku_pin(nm_id=nm_id, pinned=body.pinned)
+    return await service.set_sku_pin(workspace_id=workspace_id, nm_id=nm_id, pinned=body.pinned)
+
+
+@router.put(
+    "/skus/{nm_id}/pin-color",
+    response_model=PinnedSkusResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "Chip painted; the full pinned list is returned."},
+        401: {"description": "Unauthorized access token."},
+        422: {"description": "Invalid payload (colour is not #rrggbb)."},
+    },
+)
+async def set_pin_color(
+    nm_id: WorkspaceSku,
+    body: PinColorUpdateRequest,
+    service: AnalyticsServiceDep,
+    workspace_id: CurrentWorkspaceId,
+) -> PinnedSkusResponse:
+    """Paint a pinned chip's background, or clear its tint, for everyone."""
+    return await service.set_sku_color(workspace_id=workspace_id, nm_id=nm_id, color=body.color)
 
 
 @router.get(
@@ -116,6 +176,7 @@ async def set_pin(
 )
 async def lookup_skus(
     service: AnalyticsServiceDep,
+    workspace_id: CurrentWorkspaceId,
     vendor_code: str = Query(
         min_length=1,
         description="Seller article code or fragment (e.g. 'M-TRX01' or 'M-TRX01-BLK').",
@@ -126,7 +187,7 @@ async def lookup_skus(
     Declared before ``/skus/{nm_id}`` so the static ``lookup`` path is not
     swallowed by the typed integer path parameter.
     """
-    return await service.lookup_skus_by_vendor_code(vendor_code)
+    return await service.lookup_skus_by_vendor_code(vendor_code, workspace_id=workspace_id)
 
 
 @router.get(
@@ -141,7 +202,7 @@ async def lookup_skus(
     },
 )
 async def get_sku_detail(
-    nm_id: int,
+    nm_id: WorkspaceSku,
     service: AnalyticsServiceDep,
     date_from: date | None = Query(default=None, description="Inclusive start."),
     date_to: date | None = Query(default=None, description="Inclusive end."),
@@ -178,7 +239,7 @@ async def get_sku_detail(
     },
 )
 async def get_stock_day(
-    nm_id: int,
+    nm_id: WorkspaceSku,
     service: AnalyticsServiceDep,
     on_date: date = Query(description="Exact snapshot day (empty breakdown when unobserved)."),
 ) -> StockDayResponse:
@@ -197,7 +258,7 @@ async def get_stock_day(
     },
 )
 async def set_warehouse_mark(
-    nm_id: int,
+    nm_id: WorkspaceSku,
     body: WarehouseMarkUpdateRequest,
     service: AnalyticsServiceDep,
 ) -> WarehouseMarksResponse:
@@ -218,7 +279,7 @@ async def set_warehouse_mark(
     },
 )
 async def set_sku_comment(
-    nm_id: int,
+    nm_id: WorkspaceSku,
     body: CommentUpdateRequest,
     service: AnalyticsServiceDep,
 ) -> SkuCommentResponse:
@@ -237,7 +298,7 @@ async def set_sku_comment(
     },
 )
 async def preview_matrix_edit(
-    nm_id: int,
+    nm_id: WorkspaceSku,
     body: MatrixPreviewRequest,
     service: AnalyticsServiceDep,
 ) -> MatrixPreviewResponse:
@@ -261,7 +322,7 @@ async def preview_matrix_edit(
     },
 )
 async def save_matrix(
-    nm_id: int,
+    nm_id: WorkspaceSku,
     body: MatrixSaveRequest,
     service: AnalyticsServiceDep,
     date_from: date | None = Query(default=None, description="Inclusive start."),
@@ -280,9 +341,10 @@ async def save_matrix(
     responses={
         202: {"description": "A WB refresh for this SKU was enqueued."},
         401: {"description": "Unauthorized access token."},
+        404: {"description": "SKU not found in this workspace."},
     },
 )
-async def refresh_sku(nm_id: int) -> RefreshEnqueuedResponse:
+async def refresh_sku(nm_id: WorkspaceSku) -> RefreshEnqueuedResponse:
     """Enqueue a fresh WB harvest for one SKU (discards its manual edits).
 
     Runs the harvest over WB's serviceable recent window (the funnel-history
@@ -327,7 +389,7 @@ async def get_refresh_status(task_id: str) -> RefreshStatusResponse:
     },
 )
 async def get_sku_funnel(
-    nm_id: int,
+    nm_id: WorkspaceSku,
     service: AnalyticsServiceDep,
     date_from: date | None = Query(default=None, description="Inclusive start."),
     date_to: date | None = Query(default=None, description="Inclusive end."),

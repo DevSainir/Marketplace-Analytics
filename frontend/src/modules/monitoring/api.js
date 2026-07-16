@@ -118,11 +118,19 @@ export async function setWarehouseMark(nmId, warehouseName, marked) {
 }
 
 /**
+ * @typedef {object} PinnedSku
+ * @property {number} nm_id
+ * @property {string|null} vendor_code
+ * @property {string|null} title
+ * @property {string|null} color Chip tint as #rrggbb, or null when unpainted.
+ */
+
+/**
  * GET /v1/monitoring/pins — the global pinned-SKU list (shared by everyone),
- * in pin order.
+ * in chip-row order.
  *
  * @param {AbortSignal} [signal]
- * @returns {Promise<{items: Array<{nm_id: number, vendor_code: string|null, title: string|null}>}>}
+ * @returns {Promise<{items: PinnedSku[]}>}
  */
 export async function fetchPinnedSkus(signal) {
   const { data } = await apiClient.get('/v1/monitoring/pins', { signal })
@@ -135,10 +143,38 @@ export async function fetchPinnedSkus(signal) {
  *
  * @param {number} nmId WB SKU identifier.
  * @param {boolean} pinned True to pin, false to unpin.
- * @returns {Promise<{items: Array<{nm_id: number, vendor_code: string|null, title: string|null}>}>}
+ * @returns {Promise<{items: PinnedSku[]}>}
  */
 export async function setSkuPin(nmId, pinned) {
   const { data } = await apiClient.put(`/v1/monitoring/skus/${nmId}/pin`, { pinned })
+  return data
+}
+
+/**
+ * PUT /v1/monitoring/pins/order — persist the chip row's order after a
+ * drag-and-drop, for every account.
+ *
+ * The full pinned list must be sent: the backend rejects an order that no
+ * longer matches the pinned set (a teammate pinned or unpinned meanwhile).
+ *
+ * @param {number[]} nmIds Every pinned nm_id, in the new left-to-right order.
+ * @returns {Promise<{items: PinnedSku[]}>}
+ */
+export async function reorderPinnedSkus(nmIds) {
+  const { data } = await apiClient.put('/v1/monitoring/pins/order', { nm_ids: nmIds })
+  return data
+}
+
+/**
+ * PUT /v1/monitoring/skus/{nm_id}/pin-color — paint a pinned chip, or clear
+ * its tint, for every account.
+ *
+ * @param {number} nmId WB SKU identifier.
+ * @param {string|null} color Tint as #rrggbb, or null to clear it.
+ * @returns {Promise<{items: PinnedSku[]}>}
+ */
+export async function setSkuPinColor(nmId, color) {
+  const { data } = await apiClient.put(`/v1/monitoring/skus/${nmId}/pin-color`, { color })
   return data
 }
 

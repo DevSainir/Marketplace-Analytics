@@ -15,6 +15,7 @@ from datetime import date, timedelta
 from redis import Redis as SyncRedis
 from redis.exceptions import LockError
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.celery_app import celery_app
 from src.core.config import settings
@@ -50,6 +51,11 @@ from src.modules.monitoring.repos import (
     StockRepository,
 )
 from src.modules.monitoring.services import IngestionService
+from src.modules.workspaces.contract import (
+    WorkspaceTokenBundle,
+    load_workspace_token_bundle,
+    load_workspace_token_bundles,
+)
 
 logger = get_logger(__name__)
 
@@ -187,12 +193,13 @@ def _candidate_search_pairs(
 
 async def _harvest_sku_window(
     *,
+    tokens: WorkspaceTokenBundle,
     nm_ids: list[int],
     date_from: date,
     date_to: date,
     cards: list[WBCard] | None = None,
 ) -> dict[str, int]:
-    """Fetch, flatten, and persist a full harvest for the given SKUs.
+    """Fetch, flatten, and persist a full harvest for one workspace's SKUs.
 
     Opens a dedicated async DB session and transaction, calls the WB clients
     resiliently, delegates flattening/persistence to :class:`IngestionService`,
@@ -201,6 +208,9 @@ async def _harvest_sku_window(
     that spent on it during the window.
 
     Args:
+        tokens: The owning workspace's decrypted WB credentials. A surface
+            with an empty token simply fails auth and is skipped like any
+            other failed source (partial harvests are already tolerated).
         nm_ids: SKU identifiers to harvest funnel + stock for.
         date_from: Inclusive window start (Moscow time).
         date_to: Inclusive window end (Moscow time).
@@ -213,11 +223,11 @@ async def _harvest_sku_window(
         counts when ``cards`` is supplied).
     """
     async with (
-        WBAnalyticsClient(settings) as analytics_client,
-        WBAdvertisingClient(settings) as advertising_client,
-        WBPricesClient(settings) as prices_client,
+        WBAnalyticsClient(settings, token=tokens.analytics) as analytics_client,
+        WBAdvertisingClient(settings, token=tokens.advertising) as advertising_client,
+        WBPricesClient(settings, token=tokens.prices) as prices_client,
         WBCardClient(settings) as card_client,
-        WBStatisticsClient(settings) as statistics_client,
+        WBStatisticsClient(settings, token=tokens.statistics) as statistics_client,
     ):
         # Fire the independent WB calls concurrently and RESILIENTLY:
         # ``return_exceptions`` keeps one failing source (e.g. a stale funnel
@@ -322,9 +332,11 @@ async def _harvest_sku_window(
         await service.ingest_campaigns(campaigns, adverts)
         # Refresh the product catalogue (vendor codes + size labels) so the
         # label-less funnel/stock facts can be decorated with human identifiers.
+        # Cards are stamped with the harvesting workspace — the SKU -> workspace
+        # registry every tenant-scoped read is built on.
         card_count = size_count = 0
         if cards is not None:
-            catalog = await service.ingest_catalog(cards)
+            catalog = await service.ingest_catalog(cards, workspace_id=tokens.workspace_id)
             card_count = catalog.product_card_rows
             size_count = catalog.product_size_rows
         # Stock is a LIVE snapshot (WB exposes no stock history), so it is dated
@@ -382,11 +394,13 @@ def harvest_sku_window(
     """Celery entrypoint: harvest and persist WB stats for a SKU window.
 
     Harvests funnel + stock for ``nm_ids`` and advertising for all active/paused
-    campaigns. Args are JSON-serializable (dates as ISO strings) to satisfy
-    Celery's JSON task serializer.
+    campaigns, using the credentials of the workspace that **owns** the SKUs
+    (resolved via the ``product_card`` registry). Args are JSON-serializable
+    (dates as ISO strings) to satisfy Celery's JSON task serializer.
 
     Args:
-        nm_ids: SKU identifiers to harvest funnel + stock for.
+        nm_ids: SKU identifiers to harvest funnel + stock for. All must belong
+            to one workspace (in practice the refresh endpoint passes one SKU).
         date_from: Optional ISO start date; defaults to a 7-day window (the WB
             funnel-history endpoint rejects windows longer than 7 days).
         date_to: Optional ISO end date; defaults to Moscow *yesterday* (WB does
@@ -394,6 +408,10 @@ def harvest_sku_window(
 
     Returns:
         A mapping of persisted row counts per metric family.
+
+    Raises:
+        IntegrationError: If the SKUs are not registered to any workspace, or
+            the workspace no longer exists (no credentials to harvest with).
     """
     # WB rejects the current date, so the default window ends yesterday; the
     # funnel-history endpoint caps the window at 7 inclusive days.
@@ -403,7 +421,21 @@ def harvest_sku_window(
 
     async def _run() -> dict[str, int]:
         try:
-            return await _harvest_sku_window(nm_ids=nm_ids, date_from=start, date_to=end)
+            async with AsyncSessionLocal() as session:
+                workspace_id = await ProductCardRepository(session).get_workspace_of_sku(nm_ids[0])
+                if workspace_id is None:
+                    raise IntegrationError(
+                        f"SKU {nm_ids[0]} is not registered to any workspace; "
+                        "cannot pick WB credentials for the refresh."
+                    )
+                tokens = await load_workspace_token_bundle(session, workspace_id)
+            if tokens is None:
+                raise IntegrationError(
+                    f"Workspace {workspace_id} no longer exists; refresh aborted."
+                )
+            return await _harvest_sku_window(
+                tokens=tokens, nm_ids=nm_ids, date_from=start, date_to=end
+            )
         finally:
             # Each Celery task runs its own asyncio.run (a fresh event loop).
             # Dispose the shared engine's pool so its connections aren't left
@@ -414,23 +446,91 @@ def harvest_sku_window(
     return asyncio.run(_run())
 
 
+async def _discover_and_harvest_workspace(
+    tokens: WorkspaceTokenBundle, days: int
+) -> dict[str, int]:
+    """Discover one workspace's SKUs and harvest a rolling ``days``-day window.
+
+    Discovery runs with the workspace's own Analytics token against the
+    Content API, so the resulting cards — and everything harvested for them —
+    are provably that workspace's SKUs.
+
+    Args:
+        tokens: The workspace's decrypted WB credentials.
+        days: Length of the inclusive window ending yesterday (Moscow time).
+
+    Returns:
+        A mapping of persisted row counts per metric family.
+
+    Raises:
+        IntegrationError: If the workspace has no analytics token (discovery
+            is impossible without it) or discovery itself fails.
+    """
+    if not tokens.content:
+        raise IntegrationError(
+            f"Workspace '{tokens.name}' has no content/analytics token; cannot discover its SKUs."
+        )
+    async with WBContentClient(settings, token=tokens.content) as content:
+        cards = await content.fetch_all_cards()
+    nm_ids = [card.nm_id for card in cards]
+    logger.info(
+        "Discovered %d SKUs from the content API for workspace '%s'.",
+        len(nm_ids),
+        tokens.name,
+    )
+    if not nm_ids:
+        return {}
+
+    end = moscow_today() - timedelta(days=1)  # WB serves no current-day data
+    start = end - timedelta(days=days - 1)
+    return await _harvest_sku_window(
+        tokens=tokens, nm_ids=nm_ids, date_from=start, date_to=end, cards=cards
+    )
+
+
 async def _discover_and_harvest(days: int) -> dict[str, int]:
-    """Discover every account SKU and harvest a rolling ``days``-day window.
+    """Harvest every workspace with stored WB tokens, sequentially.
+
+    Sequential (not gathered) on purpose: WB rate-limits per seller account,
+    but the process shares one event loop, DB pool, and card-proxy budget —
+    and a failed workspace must not poison the others' harvests. Failures are
+    logged per workspace and skipped; the run fails only when *every*
+    workspace failed (so a single revoked token cannot mask a systemic
+    outage into a "success").
 
     Args:
         days: Length of the inclusive window ending yesterday (Moscow time).
 
     Returns:
-        A mapping of persisted row counts per metric family.
-    """
-    async with WBContentClient(settings) as content:
-        cards = await content.fetch_all_cards()
-    nm_ids = [card.nm_id for card in cards]
-    logger.info("Discovered %d SKUs from the content API", len(nm_ids))
+        A mapping of persisted row counts per metric family, summed across
+        workspaces, plus ``workspaces_harvested`` / ``workspaces_failed``.
 
-    end = moscow_today() - timedelta(days=1)  # WB serves no current-day data
-    start = end - timedelta(days=days - 1)
-    return await _harvest_sku_window(nm_ids=nm_ids, date_from=start, date_to=end, cards=cards)
+    Raises:
+        IntegrationError: When workspaces exist but every one failed.
+    """
+    async with AsyncSessionLocal() as session:
+        bundles = await load_workspace_token_bundles(session)
+    if not bundles:
+        logger.warning("No workspaces configured; nothing to harvest.")
+        return {"workspaces_harvested": 0, "workspaces_failed": 0}
+
+    totals: dict[str, int] = {"workspaces_harvested": 0, "workspaces_failed": 0}
+    failures: list[str] = []
+    for bundle in bundles:
+        try:
+            result = await _discover_and_harvest_workspace(bundle, days)
+        except Exception as exc:  # isolate workspaces from each other
+            logger.warning("Harvest failed for workspace '%s': %s", bundle.name, exc)
+            failures.append(bundle.name)
+            totals["workspaces_failed"] += 1
+            continue
+        totals["workspaces_harvested"] += 1
+        for key, value in result.items():
+            totals[key] = totals.get(key, 0) + value
+
+    if totals["workspaces_harvested"] == 0:
+        raise IntegrationError(f"Every workspace harvest failed ({', '.join(failures)}); see logs.")
+    return totals
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -439,11 +539,13 @@ async def _discover_and_harvest(days: int) -> dict[str, int]:
     **_TASK_RETRY_KWARGS,
 )
 def harvest_all(days: int = 7) -> dict[str, int]:
-    """Scheduled entrypoint: harvest ALL account SKUs over the last ``days``.
+    """Scheduled entrypoint: harvest every workspace's SKUs over the last ``days``.
 
-    Discovers the full SKU list from the content API, then harvests funnel +
-    stock for every SKU and advertising for all active/paused campaigns across a
-    rolling window ending yesterday. This is the task Celery Beat runs nightly.
+    Iterates all workspaces with WB tokens stored (encrypted) in the database;
+    for each, discovers its full SKU list from the content API with its own
+    credentials, then harvests funnel + stock for every SKU and advertising
+    for all active/paused campaigns across a rolling window ending yesterday.
+    This is the task Celery Beat runs nightly.
 
     Guarded by a Redis lock so a manual run cannot overlap the nightly one —
     two concurrent harvests would compete for WB's ~1 req/min advertising
@@ -482,4 +584,136 @@ def harvest_all(days: int = 7) -> dict[str, int]:
         except LockError:
             # The lock timed out and was re-acquired elsewhere; nothing to do.
             logger.warning("harvest_all lock already expired at release time.")
+        redis.close()
+
+
+#: How far back the cohort pass re-reads order-date cohorts. «Процент выкупа»
+#: for display day D averages the cohorts of ``[D-21, D-7]``, and a cohort's
+#: deliveries keep being accepted/refused for ~3 weeks, so every cohort that a
+#: current display day can still reach must be re-read until it settles.
+#:
+#: This CANNOT be folded into the funnel harvest: the daily history endpoint
+#: only serves the last 7 days (HTTP 400 beyond that), so it can never revisit
+#: a maturing cohort, and it carries no cancel count at all.
+COHORT_REFRESH_DAYS = 22
+
+#: Distributed-lock name preventing overlapping cohort passes.
+_COHORT_LOCK_NAME = "monitoring:refresh_buyout_cohorts:lock"
+_COHORT_LOCK_TIMEOUT_SECONDS = 2 * 60 * 60
+
+
+async def _refresh_workspace_cohorts(tokens: WorkspaceTokenBundle, days: int) -> int:
+    """Re-read one workspace's maturing buyout/cancel cohorts, day by day.
+
+    The aggregate endpoint takes a period, not a series, so one call per cohort
+    day is unavoidable — but each call answers for the seller's WHOLE catalogue
+    (WB ignores the ``nmIDs`` filter), so this is ``days`` requests per
+    workspace regardless of SKU count, not ``days x SKUs``.
+
+    Days are fetched sequentially and failures are isolated per day: this
+    surface is rate-limited, and a 429 on one cohort must not cost the others
+    (the client already honours ``Retry-After`` internally).
+
+    Args:
+        tokens: The workspace's decrypted WB credentials.
+        days: How many days back from yesterday to re-read.
+
+    Returns:
+        The number of cohort days refreshed across the window.
+    """
+    if not tokens.analytics:
+        logger.warning("Workspace '%s' has no analytics token; skipping cohorts.", tokens.name)
+        return 0
+
+    end = moscow_today() - timedelta(days=1)  # WB serves no current-day data
+    refreshed = 0
+    async with WBAnalyticsClient(settings, token=tokens.analytics) as analytics_client:
+        for offset in range(days):
+            day = end - timedelta(days=offset)
+            try:
+                rows = await analytics_client.fetch_funnel_cohort_day(day=day)
+            except Exception as exc:  # isolate one cohort day from the rest
+                logger.warning("Cohort refresh failed for %s: %s", day, exc)
+                continue
+            async with AsyncSessionLocal() as session:
+                service = _cohort_ingestion_service(session)
+                refreshed += await service.ingest_funnel_cohorts(day, rows)
+                await session.commit()
+    logger.info(
+        "Refreshed %d cohort days for workspace '%s' (%d-day window).",
+        refreshed,
+        tokens.name,
+        days,
+    )
+    return refreshed
+
+
+def _cohort_ingestion_service(session: AsyncSession) -> IngestionService:
+    """Build an IngestionService for the cohort pass.
+
+    Only ``funnel_repo`` is exercised, but the service wires its full
+    repository graph — the others are constructed and left unused.
+    """
+    return IngestionService(
+        funnel_repo=FunnelRepository(session),
+        advertising_repo=AdvertisingRepository(session),
+        stock_repo=StockRepository(session),
+        campaign_repo=CampaignRepository(session),
+        product_card_repo=ProductCardRepository(session),
+        product_size_repo=ProductSizeRepository(session),
+        advertising_search_repo=AdvertisingSearchRepository(session),
+        price_repo=PriceRepository(session),
+        sale_repo=SaleRepository(session),
+    )
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="monitoring.refresh_buyout_cohorts",
+    bind=False,
+    **_TASK_RETRY_KWARGS,
+)
+def refresh_buyout_cohorts(days: int = COHORT_REFRESH_DAYS) -> dict[str, int]:
+    """Scheduled entrypoint: re-read every workspace's maturing buyout cohorts.
+
+    Separate from ``harvest_all`` on purpose. The pass is catalogue-wide by
+    construction (one call answers for every SKU), so running it per harvested
+    SKU would repeat identical work; and it costs ``days`` sequential
+    rate-limited requests, which would add minutes to the interactive
+    «Обновить» refresh that ``harvest_sku_window`` serves.
+
+    Args:
+        days: How many days back from yesterday to re-read.
+
+    Returns:
+        ``{"cohort_rows": n}``, or ``{"skipped_already_running": 1}`` when
+        another pass holds the lock.
+    """
+    redis = SyncRedis.from_url(settings.redis_url)
+    lock = redis.lock(_COHORT_LOCK_NAME, timeout=_COHORT_LOCK_TIMEOUT_SECONDS, blocking=False)
+    if not lock.acquire(blocking=False):
+        logger.warning("refresh_buyout_cohorts skipped: another pass holds the lock.")
+        redis.close()
+        return {"skipped_already_running": 1}
+
+    async def _run() -> dict[str, int]:
+        try:
+            async with AsyncSessionLocal() as session:
+                bundles = await load_workspace_token_bundles(session)
+            total = 0
+            for bundle in bundles:
+                try:
+                    total += await _refresh_workspace_cohorts(bundle, days)
+                except Exception as exc:  # isolate workspaces from each other
+                    logger.warning("Cohort refresh failed for '%s': %s", bundle.name, exc)
+            return {"cohort_rows": total}
+        finally:
+            await engine.dispose()
+
+    try:
+        return asyncio.run(_run())
+    finally:
+        try:
+            lock.release()
+        except LockError:
+            logger.warning("refresh_buyout_cohorts lock already expired at release time.")
         redis.close()

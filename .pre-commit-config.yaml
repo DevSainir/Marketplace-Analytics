@@ -62,6 +62,7 @@ repos:
           - pyjwt>=2.8
           - orjson>=3.10
           - bcrypt>=4.0.1
+          - cryptography>=42.0
 
   # ------------------------------------------------------ Frontend: eslint
   # Uses the frontend's own flat config + node_modules via npx.

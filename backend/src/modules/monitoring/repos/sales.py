@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from datetime import date
 
@@ -9,7 +10,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import SaleRecord
-from src.modules.monitoring.repos.base import BaseRepository
+from src.modules.monitoring.repos.base import BaseRepository, workspace_sku_select
 
 # Sale records feed the SUMMARY listing's window buyout/return totals. The
 # matrix's «Выкупы, ₽» is now order-date derived («Заказы, ₽» x «Процент
@@ -57,11 +58,12 @@ class SaleRepository(BaseRepository):
         return await self.bulk_upsert(rows, conflict_columns=_CONFLICT, update_columns=_UPDATE)
 
     async def window_totals_by_sku(
-        self, *, date_from: date, date_to: date
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
     ) -> dict[int, SaleWindowTotal]:
         """Return every SKU's buyout/return window totals (summary listing).
 
         Args:
+            workspace_id: Restrict to SKUs owned by this workspace.
             date_from: Inclusive window start.
             date_to: Inclusive window end.
 
@@ -80,7 +82,11 @@ class SaleRepository(BaseRepository):
                 ).label("buyout_sum"),
                 func.coalesce(func.sum(case((is_return, 1), else_=0)), 0).label("return_count"),
             )
-            .where(SaleRecord.sale_date >= date_from, SaleRecord.sale_date <= date_to)
+            .where(
+                SaleRecord.sale_date >= date_from,
+                SaleRecord.sale_date <= date_to,
+                SaleRecord.nm_id.in_(workspace_sku_select(workspace_id)),
+            )
             .group_by(SaleRecord.nm_id)
         )
         result = await self._session.execute(stmt)

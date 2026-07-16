@@ -82,7 +82,22 @@ services:
     environment:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    # --proxy-headers makes request.client reflect X-Forwarded-For from nginx,
+    # so the per-IP auth rate limiter keys on the real client instead of the
+    # proxy (without it, every user shares ONE auth budget). Trusting any peer
+    # is safe here: the port is never published — nginx is the only ingress.
+    command:
+      [
+        "uvicorn",
+        "main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--proxy-headers",
+        "--forwarded-allow-ips",
+        "*",
+      ]
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -126,7 +141,7 @@ services:
       redis:
         condition: service_healthy
 
-  # Celery Beat scheduler: enqueues the nightly harvest (03:00 MSK). Kept as a
+  # Celery Beat scheduler: enqueues the nightly harvest (06:00 MSK). Kept as a
   # single replica so schedules fire exactly once.
   beat:
     build:

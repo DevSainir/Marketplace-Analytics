@@ -7,8 +7,10 @@
  * to their scroll container. Behavior details:
  *
  * - Wheel: only plain vertical wheel input is translated (trackpads emit real
- *   deltaX and keep native behavior). At either horizontal edge the event is
- *   NOT consumed, so the page keeps scrolling vertically past the table.
+ *   deltaX and keep native behavior). While the cursor is over a ribbon that
+ *   CAN scroll sideways the gesture is always consumed — including at either
+ *   edge, so reading to the end of a table never hands the wheel back to the
+ *   page and yanks it out from under the reader.
  * - Drag: starts only after a small threshold so cell clicks (inline editing)
  *   stay clicks; a real drag suppresses the click that would otherwise fire on
  *   release. Dragging from an input/textarea is ignored (text selection).
@@ -20,12 +22,12 @@ function onWheel(event) {
   const el = event.currentTarget
   if (event.deltaX !== 0 || event.deltaY === 0 || event.ctrlKey) return // native
   const max = el.scrollWidth - el.clientWidth
-  if (max <= 0) return
-  const before = el.scrollLeft
-  el.scrollLeft = Math.max(0, Math.min(max, before + event.deltaY))
-  // Consume the wheel only when the container actually moved — at the edges
-  // the page scrolls vertically as usual.
-  if (el.scrollLeft !== before) event.preventDefault()
+  if (max <= 0) return // nothing to scroll sideways: leave the page alone
+  el.scrollLeft = Math.max(0, Math.min(max, el.scrollLeft + event.deltaY))
+  // Always consume it: the ribbon owns vertical wheel input for as long as the
+  // cursor is over it. Releasing the gesture at the edges would scroll the page
+  // mid-read, which is exactly what a reader panning a wide table does not want.
+  event.preventDefault()
 }
 
 function onPointerDown(event) {

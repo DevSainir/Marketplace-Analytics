@@ -33,6 +33,20 @@ export const useAuthStore = defineStore('auth', () => {
   // requests never race the 401 interceptor. One timer per session.
   const REFRESH_LEEWAY_MS = 60_000
 
+  // Only an explicit rejection of the refresh cookie means the session is
+  // over. Anything else (network blip, 429, 5xx, backend restarting during a
+  // deploy) is TRANSIENT — treating it as "logged out" was bouncing users to
+  // /login when a plain reload would have succeeded.
+  const isSessionRejected = (err) => [401, 403].includes(err?.response?.status)
+
+  // Bootstrap retry delays for transient refresh failures.
+  const BOOTSTRAP_RETRY_DELAYS_MS = [1_000, 3_000]
+  // Proactive-refresh retry delay: the current token is still valid, so a
+  // transient failure just tries again shortly instead of dropping the session.
+  const PROACTIVE_RETRY_MS = 20_000
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
   let refreshTimer = null
 
   function clearRefreshTimer() {
@@ -46,13 +60,22 @@ export const useAuthStore = defineStore('auth', () => {
     clearRefreshTimer()
     const expiryMs = Date.parse(expiresAt)
     if (!Number.isFinite(expiryMs)) return // unknown expiry: 401 interceptor covers us
-    const delay = Math.max(expiryMs - Date.now() - REFRESH_LEEWAY_MS, 1_000)
+    scheduleRefreshAttempt(Math.max(expiryMs - Date.now() - REFRESH_LEEWAY_MS, 1_000))
+  }
+
+  function scheduleRefreshAttempt(delay) {
     refreshTimer = setTimeout(async () => {
       refreshTimer = null
       try {
         applySession(await refreshSession())
-      } catch {
-        markGuest() // dead refresh cookie: the session is over
+      } catch (err) {
+        if (isSessionRejected(err)) {
+          markGuest() // dead refresh cookie: the session is over
+        } else {
+          // Transient: keep the session and retry; even past expiry the 401
+          // interceptor still refreshes on demand.
+          scheduleRefreshAttempt(PROACTIVE_RETRY_MS)
+        }
       }
     }, delay)
   }
@@ -80,12 +103,25 @@ export const useAuthStore = defineStore('auth', () => {
    */
   function bootstrap() {
     if (status.value !== 'unknown') return Promise.resolve()
-    bootstrapPromise ??= refreshSession()
-      .then(applySession)
-      .catch(markGuest)
-      .finally(() => {
-        bootstrapPromise = null
-      })
+    bootstrapPromise ??= (async () => {
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          applySession(await refreshSession())
+          return
+        } catch (err) {
+          // A rejected cookie means guest; a transient failure gets a couple
+          // of quick retries before giving up (the guard awaits this, so the
+          // total stall is bounded to a few seconds).
+          if (isSessionRejected(err) || attempt >= BOOTSTRAP_RETRY_DELAYS_MS.length) {
+            markGuest()
+            return
+          }
+          await sleep(BOOTSTRAP_RETRY_DELAYS_MS[attempt])
+        }
+      }
+    })().finally(() => {
+      bootstrapPromise = null
+    })
     return bootstrapPromise
   }
 

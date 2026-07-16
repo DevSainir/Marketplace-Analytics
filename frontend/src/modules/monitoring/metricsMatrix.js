@@ -108,7 +108,9 @@ const METRIC_DEFS = [
   { key: 'clicks', label: 'Клики', group: 'traffic', format: fmtNumber },
   // `assocKey` points at the backend's associative-conversion row (campaign
   // totals including associated size/colour variants). When that row has a
-  // value for the cell, the cell renders as «100(71)» — total(this SKU).
+  // value for the cell, the cell shows that TOTAL and hovering it breaks the
+  // total down per variant — `assocCountField` picks this metric's count out
+  // of the shared per-variant rows.
   {
     key: 'carts',
     label: 'Корзины',
@@ -116,6 +118,7 @@ const METRIC_DEFS = [
     group: 'funnel',
     format: fmtNumber,
     assocKey: 'carts_assoc',
+    assocCountField: 'add_to_cart',
   },
   {
     key: 'cart_conversion',
@@ -131,6 +134,7 @@ const METRIC_DEFS = [
     group: 'funnel',
     format: fmtNumber,
     assocKey: 'orders_assoc',
+    assocCountField: 'orders',
   },
   {
     key: 'order_conversion',
@@ -199,14 +203,63 @@ function resolveRaw(values, bucketCount, bucketIndex, dayIndex) {
 }
 
 /**
- * Cell display string: the associative decoration «100(71)» when the backend
- * emitted an all-variant total for the cell, the plain formatted value
- * otherwise. Both numbers come precomputed from the backend — this is
- * formatting only.
+ * Cell display string: the all-variant TOTAL when the backend emitted one for
+ * the cell, the plain formatted value otherwise. The viewed SKU's own slice is
+ * not shown inline — it is a row of the hover breakdown (see `cellAssoc`).
+ * Both numbers come precomputed from the backend — this is formatting only.
  */
 function cellDisplay(def, raw, assocRaw) {
-  if (assocRaw == null) return def.format(raw)
-  return `${def.format(assocRaw)}(${def.format(raw)})`
+  return def.format(assocRaw ?? raw)
+}
+
+/**
+ * The hover payload of a carts/orders cell, or null when the cell has no
+ * associative gap (nothing to break down — the whole total is the viewed SKU's).
+ *
+ * `associated` is the ASSOCIATED share of the cell: the conversions the campaign
+ * delivered that were booked on OTHER size/colour variants (cell total minus the
+ * viewed SKU's own). `skus` names every variant behind the cell — the viewed one
+ * included and flagged, so the row it contributes is visible next to the ones it
+ * did not; those rows sum to the cell total, of which the unflagged ones sum to
+ * `associated`. `exact` says whether the counts are harvested fact or the
+ * backend's apportionment of a two-zone campaign (the tooltip captions it).
+ */
+function cellAssoc(def, raw, assocRaw, breakdown, viewedNmId) {
+  if (assocRaw == null) return null
+  const skus = (breakdown?.skus ?? [])
+    .map((sku) => ({
+      nm_id: sku.nm_id,
+      vendor_code: sku.vendor_code,
+      count: sku[def.assocCountField],
+      // Which variant is the one on screen is a property of this page, not of
+      // the harvested facts — so it is stamped here, not by the backend.
+      isViewed: sku.nm_id === viewedNmId,
+    }))
+    // A variant that took orders but no carts belongs in the orders list only.
+    .filter((sku) => sku.count > 0)
+  return {
+    associated: assocRaw - (raw ?? 0),
+    skus,
+    exact: breakdown?.exact ?? true,
+  }
+}
+
+/**
+ * Index the base state's per-variant breakdowns by `"<day>:<bucket>"`.
+ *
+ * The display matrix carries numbers only, so the breakdown rides the editable
+ * base (where it is a read-only fact, like the associative totals themselves).
+ */
+function breakdownIndex(product) {
+  const index = new Map()
+  for (const day of product?.matrix_base?.days ?? []) {
+    for (const [bucket, base] of Object.entries(day.buckets ?? {})) {
+      if (base.assoc_skus?.length) {
+        index.set(`${day.day}:${bucket}`, { skus: base.assoc_skus, exact: base.assoc_exact })
+      }
+    }
+  }
+  return index
 }
 
 /** Per-matrix lookups shared by build + patch (bucket index per column, etc.). */
@@ -250,6 +303,7 @@ export function buildMetricsMatrix(product) {
     return { days: [], rows: [], priceRows: [], stockRows: [], stockTotalRows: [] }
 
   const { backendValues, bucketCount, bucketIndexByColumn } = matrixLookups(matrix)
+  const breakdowns = breakdownIndex(product)
 
   const rows = METRIC_DEFS.map((def) => {
     const values = backendValues.get(def.key)
@@ -270,6 +324,13 @@ export function buildMetricsMatrix(product) {
           return {
             display: cellDisplay(def, raw, assocRaw),
             raw,
+            assoc: cellAssoc(
+              def,
+              raw,
+              assocRaw,
+              breakdowns.get(`${iso}:${column.key}`),
+              product.nm_id,
+            ),
             day: iso,
             bucket: column.key,
             metric: def.key,
@@ -310,6 +371,7 @@ export function patchMetricsMatrix(view, product) {
   const { backendValues, bucketCount, bucketIndexByColumn } = matrixLookups(matrix)
   const defByKey = new Map(METRIC_DEFS.map((def) => [def.key, def]))
   const columnCount = TRAFFIC_COLUMNS.length
+  const breakdowns = breakdownIndex(product)
 
   for (const row of view.rows) {
     const def = defByKey.get(row.key)
@@ -326,10 +388,20 @@ export function patchMetricsMatrix(view, product) {
           : null
         const display = cellDisplay(def, raw, assocRaw)
         const editable = isEditable(TRAFFIC_COLUMNS[columnIndex].key, def.key)
+        const assoc = cellAssoc(
+          def,
+          raw,
+          assocRaw,
+          breakdowns.get(`${cell.day}:${TRAFFIC_COLUMNS[columnIndex].key}`),
+          product.nm_id,
+        )
         // Assign only on change so untouched cells trigger no reactivity.
         if (cell.raw !== raw) cell.raw = raw
         if (cell.display !== display) cell.display = display
         if (cell.editable !== editable) cell.editable = editable
+        // An edit to the SKU's own slice moves the associated remainder with
+        // it; compare by value, the object is rebuilt each patch.
+        if (JSON.stringify(cell.assoc) !== JSON.stringify(assoc)) cell.assoc = assoc
       }
     }
   }

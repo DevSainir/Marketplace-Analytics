@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
@@ -11,7 +12,7 @@ from sqlalchemy import CursorResult, and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import StockSnapshot
-from src.modules.monitoring.repos.base import BaseRepository
+from src.modules.monitoring.repos.base import BaseRepository, workspace_sku_select
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,10 +135,17 @@ class StockRepository(BaseRepository):
             for row in result.all()
         ]
 
-    async def latest_totals_by_sku(self, *, date_from: date, date_to: date) -> dict[int, int]:
+    async def latest_totals_by_sku(
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+    ) -> dict[int, int]:
         """Return each SKU's total stock on its most recent snapshot day.
 
         Aggregated fully in SQL for the summary listing.
+
+        Args:
+            workspace_id: Restrict to SKUs owned by this workspace.
+            date_from: Inclusive window start.
+            date_to: Inclusive window end.
 
         Returns:
             ``{nm_id: latest_total_quantity}`` for every SKU with a snapshot in
@@ -151,6 +159,7 @@ class StockRepository(BaseRepository):
             .where(
                 StockSnapshot.stat_date >= date_from,
                 StockSnapshot.stat_date <= date_to,
+                StockSnapshot.nm_id.in_(workspace_sku_select(workspace_id)),
             )
             .group_by(StockSnapshot.nm_id)
             .subquery()

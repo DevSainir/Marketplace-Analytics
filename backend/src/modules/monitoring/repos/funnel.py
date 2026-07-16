@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from datetime import date
 
@@ -9,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import SalesFunnelDaily
-from src.modules.monitoring.repos.base import BaseRepository
+from src.modules.monitoring.repos.base import BaseRepository, workspace_sku_select
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,16 +31,23 @@ class FunnelAggregate:
 
 
 _CONFLICT = ("stat_date", "nm_id")
+#: Columns the DAILY HISTORY feed owns. ``buyout_count`` is deliberately absent:
+#: the history feed still seeds it when it INSERTs a new day, but the cohort
+#: pass (:meth:`FunnelRepository.upsert_cohorts`) owns it from then on. Letting
+#: history overwrite it would walk the matured value back to the <=7-day-old
+#: figure on every harvest — the history endpoint only serves the last 7 days,
+#: so its buyout counts are always the immature ones.
 _UPDATE = (
     "open_count",
     "cart_count",
     "order_count",
-    "buyout_count",
     "add_to_wishlist",
     "cart_conversion",
     "order_conversion",
     "buyout_conversion",
 )
+#: Columns the period-aggregate cohort pass owns — the «Процент выкупа» inputs.
+_COHORT_UPDATE = ("buyout_count", "cancel_count")
 
 
 class FunnelRepository(BaseRepository):
@@ -61,6 +69,40 @@ class FunnelRepository(BaseRepository):
             The number of rows submitted.
         """
         return await self.bulk_upsert(rows, conflict_columns=_CONFLICT, update_columns=_UPDATE)
+
+    async def update_cohorts(self, rows: list[dict[str, object]]) -> int:
+        """Refresh the matured buyout/cancel counts of existing cohort days.
+
+        Separate from :meth:`upsert_many` because the two feeds own different
+        columns of the same row: the daily history endpoint owns the funnel
+        counts, while the period aggregate owns ``buyout_count``/``cancel_count``
+        (it is the only source of the latter, and the only one that can re-read
+        a cohort older than 7 days as it matures).
+
+        Strictly an UPDATE: rows whose ``(stat_date, nm_id)`` has no funnel day
+        are dropped. The aggregate returns the whole catalogue for any date the
+        seller ever traded, so inserting blind would fabricate zero-order funnel
+        days for SKUs/dates we never harvested — days the matrix currently (and
+        correctly) renders as «—».
+
+        Args:
+            rows: ``{stat_date, nm_id, buyout_count, cancel_count}`` mappings.
+
+        Returns:
+            The number of cohort days actually refreshed.
+        """
+        if not rows:
+            return 0
+        dates = {row["stat_date"] for row in rows}
+        stmt = select(SalesFunnelDaily.stat_date, SalesFunnelDaily.nm_id).where(
+            SalesFunnelDaily.stat_date.in_(dates)
+        )
+        result = await self._session.execute(stmt)
+        existing = {(row.stat_date, row.nm_id) for row in result.all()}
+        known = [row for row in rows if (row["stat_date"], row["nm_id"]) in existing]
+        return await self.bulk_upsert(
+            known, conflict_columns=_CONFLICT, update_columns=_COHORT_UPDATE
+        )
 
     async def list_for_sku(
         self, *, nm_id: int, date_from: date, date_to: date
@@ -87,7 +129,9 @@ class FunnelRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def aggregate_window(self, *, date_from: date, date_to: date) -> list[FunnelAggregate]:
+    async def aggregate_window(
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+    ) -> list[FunnelAggregate]:
         """Return per-SKU window totals, aggregated by the database.
 
         Used by the summary listing: SUM/GROUP BY in SQL returns one row per
@@ -95,6 +139,7 @@ class FunnelRepository(BaseRepository):
         fact row in the window (an OOM risk on wide windows).
 
         Args:
+            workspace_id: Restrict to SKUs owned by this workspace.
             date_from: Inclusive window start.
             date_to: Inclusive window end.
 
@@ -115,6 +160,7 @@ class FunnelRepository(BaseRepository):
             .where(
                 SalesFunnelDaily.stat_date >= date_from,
                 SalesFunnelDaily.stat_date <= date_to,
+                SalesFunnelDaily.nm_id.in_(workspace_sku_select(workspace_id)),
             )
             .group_by(SalesFunnelDaily.nm_id)
             .order_by(SalesFunnelDaily.nm_id)

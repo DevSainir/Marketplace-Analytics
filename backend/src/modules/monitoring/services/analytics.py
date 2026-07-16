@@ -8,6 +8,7 @@ listing, detailed view, and cleansed funnel DTOs. It performs **no** SQL and
 
 from __future__ import annotations
 
+import uuid
 from collections import defaultdict
 from datetime import date, timedelta
 
@@ -37,7 +38,7 @@ from src.modules.monitoring.repos import (
     StockRepository,
     WarehouseMarkRepository,
 )
-from src.modules.monitoring.repos.advertising import CampaignDayTotal
+from src.modules.monitoring.repos.advertising import CampaignDaySkuTotal, CampaignDayTotal
 from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas import (
     BaselineDemandRead,
@@ -165,6 +166,7 @@ class AnalyticsService:
     async def get_summary(
         self,
         *,
+        workspace_id: uuid.UUID,
         date_from: date | None = None,
         date_to: date | None = None,
         limit: int = 100,
@@ -177,6 +179,8 @@ class AnalyticsService:
         the window).
 
         Args:
+            workspace_id: The caller's active workspace; every aggregate is
+                restricted to its SKUs, so other workspaces' SKUs never appear.
             date_from: Optional inclusive window start (defaults applied here).
             date_to: Optional inclusive window end (defaults applied here).
             limit: Page size (bounded by the router).
@@ -188,13 +192,23 @@ class AnalyticsService:
             funnel, advertising, or stock data in the window.
         """
         date_from, date_to = resolve_window(date_from, date_to)
-        funnel_aggs = await self._funnel.aggregate_window(date_from=date_from, date_to=date_to)
-        ad_aggs = await self._advertising.aggregate_window(date_from=date_from, date_to=date_to)
-        stock_totals = await self._stocks.latest_totals_by_sku(date_from=date_from, date_to=date_to)
+        funnel_aggs = await self._funnel.aggregate_window(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
+        ad_aggs = await self._advertising.aggregate_window(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
+        stock_totals = await self._stocks.latest_totals_by_sku(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
         # «Заказы, ₽» prices window-total counts against each SKU's LATEST known
         # seller price; buyouts come from the sale-date records (real revenue).
-        latest_prices = await self._prices.latest_by_sku(date_to=max(date_to, moscow_today()))
-        sale_totals = await self._sales.window_totals_by_sku(date_from=date_from, date_to=date_to)
+        latest_prices = await self._prices.latest_by_sku(
+            workspace_id=workspace_id, date_to=max(date_to, moscow_today())
+        )
+        sale_totals = await self._sales.window_totals_by_sku(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
 
         funnel_by_sku = {agg.nm_id: agg for agg in funnel_aggs}
         ads_by_sku = {agg.nm_id: agg for agg in ad_aggs}
@@ -230,7 +244,7 @@ class AnalyticsService:
             sale = sale_totals.get(nm_id)
             buyout_count = sale.buyout_count if sale else 0
             buyout_sum = sale.buyout_sum if sale else 0.0
-            decided = buyout_count + (sale.return_count if sale else 0)
+            return_count = sale.return_count if sale else 0
 
             items.append(
                 SkuSummaryItem(
@@ -243,6 +257,7 @@ class AnalyticsService:
                     total_order_sum=order_sum,
                     total_buyout_count=buyout_count,
                     total_buyout_sum=buyout_sum,
+                    total_return_count=return_count,
                     total_add_to_wishlist=funnel.add_to_wishlist if funnel else 0,
                     # Conversions are recomputed from window totals (never
                     # averaged across days), matching compute_funnel_totals.
@@ -252,9 +267,12 @@ class AnalyticsService:
                     order_conversion=(
                         round(order_count / cart_count * 100, 2) if cart_count else 0.0
                     ),
-                    # WB's definition: buyouts over DECIDED deliveries
-                    # (accepted + returned) inside the window.
-                    buyout_conversion=(round(buyout_count / decided * 100, 2) if decided else 0.0),
+                    # No buyout ratio here on purpose. This feed sees returns, not
+                    # refusals at pickup, so any ratio built from it answers a
+                    # different question than «Процент выкупа» — the old
+                    # `buyout_conversion` divided by returns and read 90% where WB
+                    # said ~30% (nm 953770957, live 2026-07-16). «Процент выкупа»
+                    # is the matrix's `buyout_percent`; see SkuSummaryItem.
                     total_ad_spend=ads.spend if ads else 0.0,
                     total_ad_clicks=ads.clicks if ads else 0,
                     latest_stock=latest_stock,
@@ -317,6 +335,8 @@ class AnalyticsService:
             price_snapshots,
             stock_daily,
             campaign_totals,
+            campaign_sku_totals,
+            sku_labels,
         ) = await self._fetch_matrix_inputs(
             nm_id=nm_id, date_from=date_from, date_to=date_to, campaign_id=campaign_id
         )
@@ -349,6 +369,9 @@ class AnalyticsService:
             price_snapshots=price_snapshots,
             stock_daily=stock_daily,
             campaign_totals=campaign_totals,
+            campaign_sku_totals=campaign_sku_totals,
+            sku_labels=sku_labels,
+            nm_id=nm_id,
         )
         overrides = await self._matrix_overrides.list_for_sku(
             nm_id=nm_id, date_from=date_from, date_to=date_to
@@ -390,33 +413,41 @@ class AnalyticsService:
     # ------------------------------------------------------------------ #
     # Pinned SKUs (global «Закрепить» chips)
     # ------------------------------------------------------------------ #
-    async def list_pinned_skus(self) -> PinnedSkusResponse:
-        """Return the global pinned-SKU list, decorated with catalogue identity.
+    async def list_pinned_skus(self, *, workspace_id: uuid.UUID) -> PinnedSkusResponse:
+        """Return the workspace's pinned-SKU list, decorated with catalogue identity.
 
         Pins are shared by every account (a team watchlist, not a personal
-        one); order is pin order (oldest first). A pinned SKU whose catalogue
-        card is not synced yet still renders — the chip falls back to ``nm_id``.
+        one) but scoped to the active workspace's SKUs; order is the manual
+        drag-and-drop order, falling back to pin order (oldest first).
+
+        Args:
+            workspace_id: The caller's active workspace.
 
         Returns:
             The :class:`PinnedSkusResponse` chip-row payload.
         """
-        nm_ids = await self._pinned_skus.list_ids()
-        cards = await self._product_cards.get_by_ids(nm_ids)
+        rows = await self._pinned_skus.list_rows(workspace_id=workspace_id)
+        cards = await self._product_cards.get_by_ids([row.nm_id for row in rows])
         return PinnedSkusResponse(
             items=[
                 PinnedSkuItem(
-                    nm_id=nm_id,
-                    vendor_code=cards[nm_id].vendor_code if nm_id in cards else None,
-                    title=cards[nm_id].title if nm_id in cards else None,
+                    nm_id=row.nm_id,
+                    vendor_code=cards[row.nm_id].vendor_code if row.nm_id in cards else None,
+                    title=cards[row.nm_id].title if row.nm_id in cards else None,
+                    color=row.color,
                 )
-                for nm_id in nm_ids
+                for row in rows
             ]
         )
 
-    async def set_sku_pin(self, *, nm_id: int, pinned: bool) -> PinnedSkusResponse:
-        """Pin or unpin one SKU globally (idempotent both ways).
+    async def set_sku_pin(
+        self, *, workspace_id: uuid.UUID, nm_id: int, pinned: bool
+    ) -> PinnedSkusResponse:
+        """Pin or unpin one SKU (idempotent both ways).
 
         Args:
+            workspace_id: The caller's active workspace (scopes the returned
+                list; the ``nm_id`` itself is ownership-guarded by the router).
             nm_id: WB SKU identifier.
             pinned: ``True`` to pin, ``False`` to unpin.
 
@@ -428,7 +459,57 @@ class AnalyticsService:
             await self._pinned_skus.add(nm_id=nm_id)
         else:
             await self._pinned_skus.remove(nm_id=nm_id)
-        return await self.list_pinned_skus()
+        return await self.list_pinned_skus(workspace_id=workspace_id)
+
+    async def reorder_pins(
+        self, *, workspace_id: uuid.UUID, nm_ids: list[int]
+    ) -> PinnedSkusResponse:
+        """Rewrite the chip row's order after a drag-and-drop.
+
+        The submitted list must be exactly the workspace's current pins. That
+        is both the tenancy guard (a foreign or unpinned ``nm_id`` cannot be
+        positioned) and a staleness guard: if a teammate pinned or unpinned
+        while this row was being dragged, the reorder is rejected rather than
+        silently applied to an order that no longer describes the row.
+
+        Args:
+            workspace_id: The caller's active workspace.
+            nm_ids: The workspace's pinned SKUs in their new order.
+
+        Returns:
+            The full pinned list in its new order.
+
+        Raises:
+            ValidationError: The list is not exactly the current pinned set.
+        """
+        rows = await self._pinned_skus.list_rows(workspace_id=workspace_id)
+        current = {row.nm_id for row in rows}
+        if set(nm_ids) != current:
+            raise ValidationError(
+                "The pinned SKU list changed — refresh the page and reorder again."
+            )
+        await self._pinned_skus.reorder(nm_ids=nm_ids)
+        return await self.list_pinned_skus(workspace_id=workspace_id)
+
+    async def set_sku_color(
+        self, *, workspace_id: uuid.UUID, nm_id: int, color: str | None
+    ) -> PinnedSkusResponse:
+        """Paint one pinned chip, or clear its tint (idempotent both ways).
+
+        A no-op when the SKU is not pinned: there is no chip to paint, and the
+        returned list says so.
+
+        Args:
+            workspace_id: The caller's active workspace (scopes the returned
+                list; the ``nm_id`` itself is ownership-guarded by the router).
+            nm_id: WB SKU identifier.
+            color: ``#rrggbb`` tint, or ``None`` to reset to the default chip.
+
+        Returns:
+            The full pinned list after the update.
+        """
+        await self._pinned_skus.set_color(nm_id=nm_id, color=color)
+        return await self.list_pinned_skus(workspace_id=workspace_id)
 
     # ------------------------------------------------------------------ #
     # SKU comment (free-text «Комментарий» note)
@@ -517,6 +598,8 @@ class AnalyticsService:
         list[PriceSnapshot],
         list[StockDailyTotal],
         list[CampaignDayTotal],
+        list[CampaignDaySkuTotal],
+        dict[int, str | None],
     ]:
         """Fetch the fact rows the matrix is derived from (extended funnel window).
 
@@ -540,11 +623,26 @@ class AnalyticsService:
         campaigns = await self._campaigns.get_by_ids({row.campaign_id for row in ad_rows})
         # All-variant conversion totals of the same campaigns — the associative
         # «100» decorating the SKU's own «71» in the matrix carts/orders cells.
+        campaign_ids = {row.campaign_id for row in ad_rows}
         campaign_totals = await self._advertising.campaign_day_totals(
-            campaign_ids={row.campaign_id for row in ad_rows},
+            campaign_ids=campaign_ids,
             date_from=date_from,
             date_to=date_to,
         )
+        # ...and the same totals per variant, naming who they were booked on
+        # (the carts/orders hover). Labelled from the catalogue so the hover can
+        # say «M-TRX01-BLK» rather than a bare nm_id.
+        campaign_sku_totals = await self._advertising.campaign_day_sku_totals(
+            campaign_ids=campaign_ids,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        assoc_cards = await self._product_cards.get_by_ids(
+            [total.nm_id for total in campaign_sku_totals]
+        )
+        sku_labels: dict[int, str | None] = {
+            nm_id: card.vendor_code for nm_id, card in assoc_cards.items()
+        }
         # Prices/stock are snapshotted on the harvest day (Moscow *today*), but
         # the analysis window ends *yesterday* (WB serves no current-day
         # funnel), so the latest snapshot sits just outside [.., date_to]. Reach
@@ -564,6 +662,8 @@ class AnalyticsService:
             price_snapshots,
             stock_daily,
             campaign_totals,
+            campaign_sku_totals,
+            sku_labels,
         )
 
     # ------------------------------------------------------------------ #
@@ -624,6 +724,8 @@ class AnalyticsService:
             price_snapshots,
             stock_daily,
             campaign_totals,
+            campaign_sku_totals,
+            sku_labels,
         ) = await self._fetch_matrix_inputs(nm_id=nm_id, date_from=date_from, date_to=date_to)
         fact_base = derive_base_state(
             date_from=date_from,
@@ -635,6 +737,9 @@ class AnalyticsService:
             price_snapshots=price_snapshots,
             stock_daily=stock_daily,
             campaign_totals=campaign_totals,
+            campaign_sku_totals=campaign_sku_totals,
+            sku_labels=sku_labels,
+            nm_id=nm_id,
         )
         rows = diff_to_overrides(nm_id=nm_id, working=base, fact=fact_base)
         await self._matrix_overrides.replace_window(
@@ -692,7 +797,9 @@ class AnalyticsService:
     # ------------------------------------------------------------------ #
     # Vendor-code lookup
     # ------------------------------------------------------------------ #
-    async def lookup_skus_by_vendor_code(self, vendor_code: str) -> SkuLookupResponse:
+    async def lookup_skus_by_vendor_code(
+        self, vendor_code: str, *, workspace_id: uuid.UUID
+    ) -> SkuLookupResponse:
         """Resolve a seller vendor code (or fragment) to matching SKUs.
 
         Backs the frontend's "или артикулу продавца" search: it turns a code
@@ -703,6 +810,7 @@ class AnalyticsService:
 
         Args:
             vendor_code: The vendor code or fragment to search for.
+            workspace_id: The caller's active workspace (only its SKUs match).
 
         Returns:
             A :class:`SkuLookupResponse` of matching SKUs, ordered by vendor code
@@ -715,7 +823,9 @@ class AnalyticsService:
         if not fragment:
             raise ValidationError("`vendor_code` must not be blank.")
 
-        cards = await self._product_cards.search_by_vendor_code(fragment, limit=_LOOKUP_LIMIT)
+        cards = await self._product_cards.search_by_vendor_code(
+            fragment, workspace_id=workspace_id, limit=_LOOKUP_LIMIT
+        )
         return SkuLookupResponse(
             query=fragment,
             count=len(cards),

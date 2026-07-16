@@ -21,11 +21,17 @@ _CARDS_PAGE = 100
 class WBContentClient(BaseWBClient):
     """Client for the WB Content surface (product cards)."""
 
-    def __init__(self, settings: Settings) -> None:
-        """Build the content client from application settings."""
+    def __init__(self, settings: Settings, *, token: str) -> None:
+        """Build the content client.
+
+        Args:
+            settings: Transport configuration (base URL, timeouts, retries).
+            token: The workspace's Analytics-scope bearer token (the Content
+                surface accepts it; no separate content token exists).
+        """
         super().__init__(
             base_url=settings.wb_content_base_url,
-            token=settings.wb_analytics_token,
+            token=token,
             timeout=settings.wb_http_timeout_seconds,
             max_retries=settings.wb_max_retries,
             backoff_base_seconds=settings.wb_retry_backoff_seconds,

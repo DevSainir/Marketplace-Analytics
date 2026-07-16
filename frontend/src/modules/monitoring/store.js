@@ -19,9 +19,11 @@ import {
   lookupSkus,
   previewMatrixEdit,
   refreshSku,
+  reorderPinnedSkus,
   saveMatrix,
   setSkuComment,
   setSkuPin,
+  setSkuPinColor,
   setWarehouseMark,
 } from '@/modules/monitoring/api'
 import { buildMetricsMatrix, patchMetricsMatrix } from '@/modules/monitoring/metricsMatrix'
@@ -125,10 +127,39 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     const previous = pinnedSkus.value
     const pinned = !pinnedIds.value.has(nmId)
     pinnedSkus.value = pinned
-      ? [...previous, { nm_id: nmId, vendor_code: label, title: null }]
+      ? [...previous, { nm_id: nmId, vendor_code: label, title: null, color: null }]
       : previous.filter((item) => item.nm_id !== nmId)
     try {
       const result = await setSkuPin(nmId, pinned)
+      pinnedSkus.value = result.items
+    } catch (err) {
+      pinnedSkus.value = previous
+      matrixEditError.value = extractErrorMessage(err)
+    }
+  }
+
+  /** Persist the chip row's order after a drag-and-drop (shared by everyone). */
+  async function reorderPins(nmIds) {
+    const previous = pinnedSkus.value
+    const byId = new Map(previous.map((item) => [item.nm_id, item]))
+    pinnedSkus.value = nmIds.map((nmId) => byId.get(nmId)).filter(Boolean)
+    try {
+      const result = await reorderPinnedSkus(nmIds)
+      pinnedSkus.value = result.items
+    } catch (err) {
+      // The backend rejects an order computed against a list a teammate has
+      // since changed — the rollback puts the real one back on screen.
+      pinnedSkus.value = previous
+      matrixEditError.value = extractErrorMessage(err)
+    }
+  }
+
+  /** Paint a pinned chip's background, or clear its tint (color = null). */
+  async function setPinColor(nmId, color) {
+    const previous = pinnedSkus.value
+    pinnedSkus.value = previous.map((item) => (item.nm_id === nmId ? { ...item, color } : item))
+    try {
+      const result = await setSkuPinColor(nmId, color)
       pinnedSkus.value = result.items
     } catch (err) {
       pinnedSkus.value = previous
@@ -530,6 +561,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     pinnedIds,
     fetchPins,
     toggleSkuPin,
+    reorderPins,
+    setPinColor,
     markedWarehouses,
     toggleWarehouseMark,
     commentSaving,

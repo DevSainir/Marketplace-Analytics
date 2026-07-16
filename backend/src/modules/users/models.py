@@ -18,6 +18,11 @@ from src.core.ids import uuid7
 #: Every table in this module lives in the ``auth`` logical schema.
 _SCHEMA: str = "auth"
 
+#: Default role: regular platform user.
+ROLE_USER: str = "user"
+#: Developer role: may create/delete workspaces and manage their WB tokens.
+ROLE_DEV: str = "dev"
+
 
 class User(Base):
     """A platform user / seller account.
@@ -27,6 +32,10 @@ class User(Base):
         email: Unique login identifier.
         hashed_password: bcrypt digest of the account password.
         is_active: Soft-disable flag; inactive users cannot authenticate.
+        role: Coarse authorization role (:data:`ROLE_USER` default;
+            :data:`ROLE_DEV` unlocks workspace administration). A full
+            role/permission system is planned — until then this single column
+            is the entire authorization model.
         created_at: Server-assigned creation timestamp (UTC).
         refresh_tokens: All refresh-token rows ever issued to this user.
     """
@@ -38,6 +47,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(128))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    role: Mapped[str] = mapped_column(String(32), default=ROLE_USER, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

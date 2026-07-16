@@ -7,6 +7,7 @@ import { isoDaysAgo } from '@/core/utils/dates'
 import DayPicker from '@/modules/monitoring/components/DayPicker.vue'
 import MetricsTable from '@/modules/monitoring/components/MetricsTable.vue'
 import PeriodSelector from '@/modules/monitoring/components/PeriodSelector.vue'
+import PinnedSkuRow from '@/modules/monitoring/components/PinnedSkuRow.vue'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
 import StockBreakdownTable from '@/modules/monitoring/components/StockBreakdownTable.vue'
 import StockSizesPanel from '@/modules/monitoring/components/StockSizesPanel.vue'
@@ -97,11 +98,6 @@ const isPinned = computed(() => product.value != null && store.pinnedIds.has(pro
 function togglePin() {
   if (!product.value) return
   store.toggleSkuPin(product.value.nm_id, product.value.vendor_code ?? null)
-}
-
-/** A pin chip shows the vendor code when the catalogue is synced, nm ID otherwise. */
-function pinLabel(item) {
-  return item.vendor_code || `nm ${item.nm_id}`
 }
 
 // --- per-SKU comment («Комментарий») --------------------------------------
@@ -210,29 +206,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
         @apply="handleApply"
       />
 
-      <!-- Global pinned SKUs: one narrow chip row, horizontally scrollable
-           when wider than the canvas (scrollbar hidden, wheel/drag scrolls). -->
-      <div
+      <!-- Global pinned SKUs: chips to jump between watched SKUs, draggable to
+           reorder, paintable via the palette at the row's right edge. -->
+      <PinnedSkuRow
         v-if="store.pinnedSkus.length"
-        class="pins-row mt-sm flex items-center gap-sm overflow-x-auto whitespace-nowrap"
-      >
-        <button
-          v-for="item in store.pinnedSkus"
-          :key="item.nm_id"
-          type="button"
-          :title="item.title ?? ''"
-          class="inline-flex flex-none items-center gap-xs rounded-full border border-border-subtle bg-surface px-sm py-xs text-tiny font-medium text-primary shadow-soft transition hover:border-action hover:bg-action/10"
-          :class="item.nm_id === product?.nm_id ? 'border-action bg-action/10' : ''"
-          @click="handleSelect(item)"
-        >
-          <svg class="h-3 w-3 flex-none text-action" viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M16 3a1 1 0 0 1 .95 1.32L15.6 8.4l3.3 3.3a1 1 0 0 1-.4 1.66l-4.75 1.58-1.04 5.2a1 1 0 0 1-1.69.51L7.3 16.93l-3.6 3.6a.75.75 0 0 1-1.06-1.06l3.6-3.6-3.72-3.72a1 1 0 0 1 .51-1.69l5.2-1.04L9.8 4.67A1 1 0 0 1 11.46 4.27l3.3 3.3 4.08-1.36A1 1 0 0 1 16 3Z"
-            />
-          </svg>
-          {{ pinLabel(item) }}
-        </button>
-      </div>
+        :items="store.pinnedSkus"
+        :selected-id="product?.nm_id ?? null"
+        @select="handleSelect"
+        @reorder="store.reorderPins"
+        @recolor="store.setPinColor"
+      />
 
       <p v-if="store.skuListError" class="mt-sm text-tiny text-status-negative">
         Не удалось загрузить список SKU: {{ store.skuListError }}
@@ -456,14 +439,3 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
     </div>
   </div>
 </template>
-
-<style scoped>
-/* The pin chip row scrolls horizontally without a visible scrollbar (same
-   convention as the matrix/stock scroll containers). */
-.pins-row {
-  scrollbar-width: none;
-}
-.pins-row::-webkit-scrollbar {
-  display: none;
-}
-</style>

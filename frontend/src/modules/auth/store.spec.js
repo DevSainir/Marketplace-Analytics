@@ -82,12 +82,41 @@ describe('bootstrap', () => {
   })
 
   it('falls back to guest when the cookie is absent or dead', async () => {
-    refreshSession.mockRejectedValue(new Error('401'))
+    refreshSession.mockRejectedValue({ response: { status: 401 } })
 
     await store.bootstrap()
 
     expect(store.status).toBe('guest')
     expect(store.isAuthenticated).toBe(false)
+    expect(refreshSession).toHaveBeenCalledTimes(1) // an explicit 401 is final: no retries
+  })
+
+  it('retries a transient failure instead of dropping to guest', async () => {
+    vi.useFakeTimers()
+    refreshSession
+      .mockRejectedValueOnce({ response: { status: 429 } })
+      .mockResolvedValueOnce(TOKENS)
+
+    const pending = store.bootstrap()
+    await vi.advanceTimersByTimeAsync(1_000)
+    await pending
+
+    expect(store.isAuthenticated).toBe(true)
+    expect(refreshSession).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
+  })
+
+  it('gives up on a persistent transient failure after bounded retries', async () => {
+    vi.useFakeTimers()
+    refreshSession.mockRejectedValue(new Error('network down'))
+
+    const pending = store.bootstrap()
+    await vi.advanceTimersByTimeAsync(10_000)
+    await pending
+
+    expect(store.status).toBe('guest')
+    expect(refreshSession).toHaveBeenCalledTimes(3) // initial try + two retries
+    vi.useRealTimers()
   })
 
   it('resolves the session only once', async () => {
@@ -140,15 +169,34 @@ describe('proactive refresh', () => {
     expect(refreshSession).toHaveBeenCalledTimes(2)
   })
 
-  it('drops the session when the proactive refresh fails', async () => {
+  it('drops the session when the refresh cookie is rejected', async () => {
     vi.useFakeTimers()
     loginUser.mockResolvedValue(tokensExpiringIn(5))
-    refreshSession.mockRejectedValue(new Error('401'))
+    refreshSession.mockRejectedValue({ response: { status: 401 } })
 
     await store.login('manager@example.com', 'secret-password')
     await vi.advanceTimersByTimeAsync(5 * 60_000)
 
     expect(store.status).toBe('guest')
+  })
+
+  it('keeps the session and retries on a transient refresh failure', async () => {
+    vi.useFakeTimers()
+    loginUser.mockResolvedValue(tokensExpiringIn(5))
+    refreshSession
+      .mockRejectedValueOnce({ response: { status: 429 } })
+      .mockResolvedValueOnce(tokensExpiringIn(15))
+
+    await store.login('manager@example.com', 'secret-password')
+    // First attempt fires ~60s before expiry and fails transiently...
+    await vi.advanceTimersByTimeAsync(4 * 60_000)
+    expect(store.isAuthenticated).toBe(true)
+    expect(refreshSession).toHaveBeenCalledTimes(1)
+
+    // ...the retry ~20s later succeeds and the session survives.
+    await vi.advanceTimersByTimeAsync(21_000)
+    expect(refreshSession).toHaveBeenCalledTimes(2)
+    expect(store.isAuthenticated).toBe(true)
   })
 
   it('cancels the timer on logout', async () => {

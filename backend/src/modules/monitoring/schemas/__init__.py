@@ -36,8 +36,11 @@ from src.modules.monitoring.schemas.matrix import (
     RefreshStatusResponse,
 )
 from src.modules.monitoring.schemas.pins import (
+    COLOR_PATTERN,
+    PinColorUpdateRequest,
     PinnedSkuItem,
     PinnedSkusResponse,
+    PinReorderRequest,
     PinUpdateRequest,
 )
 from src.modules.monitoring.schemas.products import (
@@ -62,6 +65,7 @@ from src.modules.monitoring.schemas.summary import (
 )
 
 __all__ = [
+    "COLOR_PATTERN",
     "COMMENT_MAX_LENGTH",
     "MATRIX_BUCKETS",
     "MATRIX_METRIC_KEYS",
@@ -83,6 +87,8 @@ __all__ = [
     "MatrixSaveRequest",
     "MetricWindow",
     "MetricsMatrixRead",
+    "PinColorUpdateRequest",
+    "PinReorderRequest",
     "PinUpdateRequest",
     "PinnedSkuItem",
     "PinnedSkusResponse",

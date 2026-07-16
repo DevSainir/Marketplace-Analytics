@@ -8,6 +8,8 @@ This module owns every cryptographic operation in the platform:
 * **JWT issuance / verification** for short-lived access tokens.
 * **Opaque refresh-token secret** generation and hashing for database-backed
   rotation.
+* **Symmetric secret encryption** (Fernet) for third-party credentials stored
+  at rest (per-workspace WildBerries API tokens).
 
 It is transport-agnostic: it neither reads HTTP requests nor raises
 ``HTTPException``. Callers translate failures into responses.
@@ -30,6 +32,7 @@ from datetime import UTC, datetime, timedelta
 
 import bcrypt
 import jwt
+from cryptography.fernet import Fernet, InvalidToken
 
 from src.core.config import settings
 from src.core.ids import uuid7
@@ -150,6 +153,70 @@ def hash_refresh_secret(secret: str) -> str:
         Hex-encoded SHA-256 digest.
     """
     return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+
+class SecretDecryptionError(Exception):
+    """A stored ciphertext could not be decrypted with the configured key.
+
+    Raised when ``FERNET_SECRET_KEY`` is missing, malformed, or differs from
+    the key the secret was encrypted with (e.g. after an uncoordinated key
+    rotation). Deliberately loud: silently returning an empty token would let a
+    harvest run "successfully" with no credentials.
+    """
+
+
+def _fernet() -> Fernet:
+    """Build the :class:`Fernet` cipher from the configured secret key.
+
+    Constructed per call (cheap — key parsing only) so a process never caches a
+    stale key object; the settings singleton is already immutable per process.
+
+    Raises:
+        SecretDecryptionError: If ``FERNET_SECRET_KEY`` is unset or not a valid
+            urlsafe-base64 32-byte Fernet key.
+    """
+    if not settings.fernet_secret_key:
+        raise SecretDecryptionError("FERNET_SECRET_KEY is not configured.")
+    try:
+        return Fernet(settings.fernet_secret_key.encode("ascii"))
+    except (ValueError, TypeError) as exc:
+        raise SecretDecryptionError("FERNET_SECRET_KEY is not a valid Fernet key.") from exc
+
+
+def encrypt_secret(plaintext: str) -> str:
+    """Encrypt a sensitive string for at-rest storage.
+
+    Args:
+        plaintext: The raw secret (e.g. a WB API bearer token).
+
+    Returns:
+        A urlsafe-base64 Fernet ciphertext (embeds timestamp + HMAC).
+
+    Raises:
+        SecretDecryptionError: If the encryption key is missing or malformed.
+    """
+    return _fernet().encrypt(plaintext.encode("utf-8")).decode("ascii")
+
+
+def decrypt_secret(ciphertext: str) -> str:
+    """Decrypt a stored Fernet ciphertext back into the raw secret.
+
+    Args:
+        ciphertext: The value produced by :func:`encrypt_secret`.
+
+    Returns:
+        The original plaintext secret.
+
+    Raises:
+        SecretDecryptionError: If the key is missing/malformed or does not
+            match the key the ciphertext was produced with.
+    """
+    try:
+        return _fernet().decrypt(ciphertext.encode("ascii")).decode("utf-8")
+    except InvalidToken as exc:
+        raise SecretDecryptionError(
+            "Stored secret cannot be decrypted with the configured FERNET_SECRET_KEY."
+        ) from exc
 
 
 def create_access_token(

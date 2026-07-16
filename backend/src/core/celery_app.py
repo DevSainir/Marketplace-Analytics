@@ -43,6 +43,15 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=6, minute=0),
         "kwargs": {"days": 7},
     },
+    # «Процент выкупа» inputs: re-read the order-date cohorts that are still
+    # maturing (deliveries keep being accepted/refused for ~3 weeks). Runs an
+    # hour after the harvest so it never competes with it for the same
+    # rate-limited analytics surface, and stays out of harvest_all because it
+    # is catalogue-wide and costs ~22 sequential requests per workspace.
+    "nightly-refresh-buyout-cohorts": {
+        "task": "monitoring.refresh_buyout_cohorts",
+        "schedule": crontab(hour=7, minute=0),
+    },
     # Housekeeping: auth.refresh_tokens gains a row per login/refresh forever;
     # purge rows long past expiry so the table stays bounded.
     "daily-purge-expired-refresh-tokens": {

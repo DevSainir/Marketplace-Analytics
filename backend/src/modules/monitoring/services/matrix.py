@@ -39,7 +39,7 @@ Everything here is pure computation over already-fetched rows: no SQL, no I/O.
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from src.modules.monitoring.models import (
@@ -49,11 +49,12 @@ from src.modules.monitoring.models import (
     PriceSnapshot,
     SalesFunnelDaily,
 )
-from src.modules.monitoring.repos.advertising import CampaignDayTotal
+from src.modules.monitoring.repos.advertising import CampaignDaySkuTotal, CampaignDayTotal
 from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas.matrix import (
     MATRIX_BUCKETS,
     MATRIX_METRIC_KEYS,
+    AssocSkuCount,
     MatrixAdBucketBase,
     MatrixBaseState,
     MatrixDayBase,
@@ -63,10 +64,12 @@ from src.modules.monitoring.schemas.matrix import (
     MetricsMatrixRead,
 )
 
-#: «Процент выкупа» is WB's definition (buyouts / DECIDED deliveries) averaged
-#: over a lagged cohort window: recent order cohorts are still maturing (their
-#: deliveries take 1-3 weeks to be accepted or refused), so for a day D the
-#: window is ``[D - 21, D - 7]`` (e.g. for 10 July: 19 June .. 03 July).
+#: «Процент выкупа» is WB's definition — ``buyouts / DECIDED deliveries``, where
+#: a decided delivery is one the buyer either bought out or refused
+#: (``buyout_count + cancel_count``) — aggregated over a lagged cohort window:
+#: recent order cohorts are still maturing (their deliveries take 1-3 weeks to
+#: be accepted or refused), so for a day D the window is ``[D - 21, D - 7]``
+#: (e.g. for 10 July: 19 June .. 03 July).
 BUYOUT_LAG_START_DAYS = 21
 BUYOUT_LAG_END_DAYS = 7
 
@@ -83,6 +86,13 @@ class _AdSlice:
     конверсии» — WB books a conversion on whichever variant the buyer picked,
     so only part of a campaign's carts/orders land on the advertised SKU).
     They always satisfy ``assoc_x >= x`` for a whole campaign-day slice.
+
+    ``assoc_skus`` names the variants behind those totals (``nm_id`` →
+    ``(carts, orders)``), always summing to them. ``assoc_exact`` says whether
+    those per-variant counts are harvested fact or apportionment: splitting a
+    campaign-day across zones divides the associated variants' counts by
+    estimate (see :func:`_split_assoc_skus`), except where a zone took none of
+    the extra — or all of it — and the division is forced.
     """
 
     views: int = 0
@@ -93,6 +103,8 @@ class _AdSlice:
     order_sum: float | None = 0.0
     assoc_add_to_cart: int = 0
     assoc_orders: int = 0
+    assoc_skus: dict[int, tuple[int, int]] = field(default_factory=dict)
+    assoc_exact: bool = True
 
 
 @dataclass
@@ -107,6 +119,8 @@ class _BucketAcc:
     order_sum: float | None = 0.0
     assoc_add_to_cart: int = 0
     assoc_orders: int = 0
+    assoc_skus: dict[int, tuple[int, int]] = field(default_factory=dict)
+    assoc_exact: bool = True
 
     def add(self, piece: _AdSlice) -> None:
         """Fold a campaign slice into the bucket (revenue taint propagates)."""
@@ -117,6 +131,12 @@ class _BucketAcc:
         self.orders += piece.orders
         self.assoc_add_to_cart += piece.assoc_add_to_cart
         self.assoc_orders += piece.assoc_orders
+        # One estimated slice taints the whole cell's breakdown: the listed
+        # variants would no longer sum to the number the cell shows.
+        self.assoc_exact = self.assoc_exact and piece.assoc_exact
+        for nm_id, (carts, orders) in piece.assoc_skus.items():
+            prior_carts, prior_orders = self.assoc_skus.get(nm_id, (0, 0))
+            self.assoc_skus[nm_id] = (prior_carts + carts, prior_orders + orders)
         if piece.order_sum is None:
             self.order_sum = None
         elif self.order_sum is not None:
@@ -158,8 +178,70 @@ def _allocate_assoc(extra: int, s_metric: int, total_metric: int, view_share: fl
     return min(extra, max(0, round(extra * share)))
 
 
+def _allocate_counts(counts: dict[int, int], target: int) -> dict[int, int]:
+    """Distribute ``target`` across ``counts`` in proportion, summing exactly.
+
+    Largest-remainder: floor every share, then hand the rounding slack to the
+    variants that lost the most to the floor. Summing exactly is what lets the
+    hover's rows add up to the number in the cell.
+    """
+    pool = sum(counts.values())
+    if pool <= 0 or target <= 0:
+        return {}
+    shares = {nm: target * count / pool for nm, count in counts.items()}
+    allocated = {nm: int(share) for nm, share in shares.items()}
+    slack = target - sum(allocated.values())
+    ranked = sorted(counts, key=lambda nm: (-(shares[nm] - allocated[nm]), -counts[nm], nm))
+    for nm in ranked[:slack]:
+        allocated[nm] += 1
+    return {nm: count for nm, count in allocated.items() if count > 0}
+
+
+def _split_assoc_skus(
+    skus: dict[int, tuple[int, int]],
+    *,
+    viewed_nm: int,
+    search_own: tuple[int, int],
+    search_extra: tuple[int, int],
+) -> tuple[dict[int, tuple[int, int]], dict[int, tuple[int, int]]]:
+    """Split a campaign-day's per-variant counts into (search, remainder) legs.
+
+    The viewed SKU's own counts split exactly — WB's normquery slice states how
+    many of ITS conversions came from search. Only the associated variants'
+    counts are apportioned, by the same share the aggregate extra uses, so both
+    legs' rows sum to the leg totals :func:`_split_search` computed.
+
+    Args:
+        skus: The campaign-day's counts per variant, ``nm -> (carts, orders)``.
+        viewed_nm: The SKU being analyzed.
+        search_own: The viewed SKU's ``(carts, orders)`` in the search zone.
+        search_extra: The associated variants' ``(carts, orders)`` allocated to
+            the search zone.
+
+    Returns:
+        The ``(search, remainder)`` per-variant maps.
+    """
+    search: dict[int, list[int]] = defaultdict(lambda: [0, 0])
+    for index in (0, 1):
+        others = {nm: c[index] for nm, c in skus.items() if nm != viewed_nm and c[index] > 0}
+        for nm, count in _allocate_counts(others, search_extra[index]).items():
+            search[nm][index] = count
+    for index in (0, 1):
+        if search_own[index] > 0:
+            search[viewed_nm][index] = search_own[index]
+
+    search_map = {nm: (c[0], c[1]) for nm, c in search.items() if c[0] > 0 or c[1] > 0}
+    remainder: dict[int, tuple[int, int]] = {}
+    for nm, (carts, orders) in skus.items():
+        taken_carts, taken_orders = search_map.get(nm, (0, 0))
+        left = (carts - taken_carts, orders - taken_orders)
+        if left[0] > 0 or left[1] > 0:
+            remainder[nm] = left
+    return search_map, remainder
+
+
 def _split_search(
-    total: _AdSlice, search: AdvertisingSearchStatDaily | None
+    total: _AdSlice, search: AdvertisingSearchStatDaily | None, viewed_nm: int | None = None
 ) -> tuple[_AdSlice, _AdSlice]:
     """Split a dual-zone campaign-day into (search, shelves) slices.
 
@@ -181,6 +263,20 @@ def _split_search(
     extra_orders = max(0, total.assoc_orders - total.orders)
     s_extra_carts = _allocate_assoc(extra_carts, s_atbs, total.add_to_cart, view_share)
     s_extra_orders = _allocate_assoc(extra_orders, s_orders, total.orders, view_share)
+    # The associated variants' counts are apportioned — EXCEPT when a zone took
+    # none of the extra (or all of it), where the division is forced and the
+    # per-variant rows are as exact as the campaign-day's own.
+    exact = s_extra_carts in (0, extra_carts) and s_extra_orders in (0, extra_orders)
+    if viewed_nm is None:
+        search_skus: dict[int, tuple[int, int]] = {}
+        rest_skus: dict[int, tuple[int, int]] = {}
+    else:
+        search_skus, rest_skus = _split_assoc_skus(
+            total.assoc_skus,
+            viewed_nm=viewed_nm,
+            search_own=(s_atbs, s_orders),
+            search_extra=(s_extra_carts, s_extra_orders),
+        )
     search_slice = _AdSlice(
         views=s_views,
         clicks=s_clicks,
@@ -190,6 +286,8 @@ def _split_search(
         order_sum=revenue,
         assoc_add_to_cart=s_atbs + s_extra_carts,
         assoc_orders=s_orders + s_extra_orders,
+        assoc_skus=search_skus,
+        assoc_exact=exact,
     )
     shelves_slice = _AdSlice(
         views=total.views - s_views,
@@ -200,6 +298,8 @@ def _split_search(
         order_sum=revenue,
         assoc_add_to_cart=(total.add_to_cart - s_atbs) + (extra_carts - s_extra_carts),
         assoc_orders=(total.orders - s_orders) + (extra_orders - s_extra_orders),
+        assoc_skus=rest_skus,
+        assoc_exact=exact,
     )
     return search_slice, shelves_slice
 
@@ -208,6 +308,7 @@ def _classify(
     meta: Campaign | None,
     total: _AdSlice,
     search: AdvertisingSearchStatDaily | None,
+    viewed_nm: int | None = None,
 ) -> list[tuple[str, _AdSlice]]:
     """Assign a campaign-day's metrics to matrix buckets.
 
@@ -220,7 +321,7 @@ def _classify(
     in_shelves = bool(meta.placement_recommendations)
     unified = meta.bid_type == "unified"
     if in_search and in_shelves:
-        search_slice, shelves_slice = _split_search(total, search)
+        search_slice, shelves_slice = _split_search(total, search, viewed_nm)
         if unified:
             return [("uni_search", search_slice), ("uni_shelves", shelves_slice)]
         return [("manual_search", search_slice), ("manual_shelves", shelves_slice)]
@@ -236,7 +337,7 @@ def _classify(
         # search campaign into catalog.
         if search is None:
             return [("manual_search", total)]
-        search_slice, catalog_slice = _split_search(total, search)
+        search_slice, catalog_slice = _split_search(total, search, viewed_nm)
         return [("manual_search", search_slice), ("manual_catalog", catalog_slice)]
     if in_shelves:
         return [("manual_shelves", total)]
@@ -478,7 +579,24 @@ def _organic_cell(
             return None
 
 
-def _bucket_base(acc: _AdSlice | _BucketAcc) -> MatrixAdBucketBase:
+def _assoc_sku_counts(
+    acc: _AdSlice | _BucketAcc, sku_labels: dict[int, str | None] | None
+) -> list[AssocSkuCount]:
+    """Freeze a cell's per-variant breakdown, biggest contributor first."""
+    labels = sku_labels or {}
+    counts = [
+        AssocSkuCount(nm_id=nm_id, vendor_code=labels.get(nm_id), add_to_cart=carts, orders=orders)
+        for nm_id, (carts, orders) in acc.assoc_skus.items()
+    ]
+    # Carts first, then orders, then nm_id: a stable order that puts the rows
+    # a reader cares about at the top and never reshuffles between renders.
+    counts.sort(key=lambda c: (-c.add_to_cart, -c.orders, c.nm_id))
+    return counts
+
+
+def _bucket_base(
+    acc: _AdSlice | _BucketAcc, sku_labels: dict[int, str | None] | None = None
+) -> MatrixAdBucketBase:
     """Freeze an ad slice / bucket accumulator into a serializable input DTO."""
     return MatrixAdBucketBase(
         views=acc.views,
@@ -489,6 +607,8 @@ def _bucket_base(acc: _AdSlice | _BucketAcc) -> MatrixAdBucketBase:
         order_sum=None if acc.order_sum is None else round(acc.order_sum, 2),
         assoc_add_to_cart=acc.assoc_add_to_cart,
         assoc_orders=acc.assoc_orders,
+        assoc_skus=_assoc_sku_counts(acc, sku_labels),
+        assoc_exact=acc.assoc_exact,
     )
 
 
@@ -502,6 +622,7 @@ _SECONDARY_MIN_CAMPAIGN_VIEW_RATIO = 0.10
 
 def _select_day_buckets(
     campaigns_today: list[tuple[_AdSlice, list[tuple[str, _AdSlice]]]],
+    sku_labels: dict[int, str | None] | None = None,
 ) -> dict[str, MatrixAdBucketBase]:
     """Keep only the significant campaign(s) for a day, cutting the noise.
 
@@ -520,6 +641,7 @@ def _select_day_buckets(
         campaigns_today: One ``(campaign total, zone legs)`` entry per delivering
             campaign that day. A unified campaign's legs are its search + shelves
             slices; a manual campaign's is its single zone.
+        sku_labels: Vendor codes for the associative-breakdown rows.
 
     Returns:
         The surviving ``bucket_key -> input DTO`` map.
@@ -544,7 +666,7 @@ def _select_day_buckets(
             if slice_.views <= 0:
                 continue  # no impressions in this zone -> nothing to show
             bucket_acc.setdefault(bucket_key, _BucketAcc()).add(slice_)
-    return {name: _bucket_base(acc) for name, acc in bucket_acc.items()}
+    return {name: _bucket_base(acc, sku_labels) for name, acc in bucket_acc.items()}
 
 
 def derive_base_state(
@@ -558,6 +680,9 @@ def derive_base_state(
     price_snapshots: list[PriceSnapshot] | None = None,
     stock_daily: list[StockDailyTotal] | None = None,
     campaign_totals: list[CampaignDayTotal] | None = None,
+    campaign_sku_totals: list[CampaignDaySkuTotal] | None = None,
+    sku_labels: dict[int, str | None] | None = None,
+    nm_id: int | None = None,
 ) -> MatrixBaseState:
     """Aggregate raw facts into the editable input working copy.
 
@@ -583,8 +708,16 @@ def derive_base_state(
         stock_daily: The SKU's per-day stock totals; applied only to their
             exact snapshot days for the read-only stock/in-transit rows.
         campaign_totals: Per-(campaign, day) conversion totals across ALL
-            nm_ids — the associative-conversion «100» shown next to the SKU's
-            own «71». Missing entries mean no associative gap for that slice.
+            nm_ids — the associative-conversion total shown in the carts/orders
+            cells. Missing entries mean no associative gap for that slice.
+        campaign_sku_totals: Those same totals broken down per nm_id — the
+            hover naming which variants they were booked on. Survives to the
+            cell only for campaign-days that were not split across zones.
+        sku_labels: Vendor codes keyed by ``nm_id``, for labelling the hover
+            rows; an unsynced variant falls back to its raw ``nm_id``.
+        nm_id: The SKU being analyzed. Splitting a campaign-day across zones
+            needs it to keep the viewed SKU's own counts exact; without it a
+            split cell ships no breakdown.
 
     Returns:
         The :class:`MatrixBaseState` working copy for the window.
@@ -610,12 +743,19 @@ def derive_base_state(
     # Clamped from below at the SKU's own counts so a partial totals fetch can
     # never show an associative total smaller than the SKU slice itself.
     totals_by_key = {(t.campaign_id, t.stat_date): t for t in campaign_totals or []}
+    skus_by_key: dict[tuple[int, date], dict[int, tuple[int, int]]] = defaultdict(dict)
+    for sku_total in campaign_sku_totals or []:
+        skus_by_key[(sku_total.campaign_id, sku_total.stat_date)][sku_total.nm_id] = (
+            sku_total.add_to_cart,
+            sku_total.orders,
+        )
     for key, total in campaign_day.items():
         campaign_total = totals_by_key.get(key)
         total.assoc_add_to_cart = max(
             campaign_total.add_to_cart if campaign_total else 0, total.add_to_cart
         )
         total.assoc_orders = max(campaign_total.orders if campaign_total else 0, total.orders)
+        total.assoc_skus = skus_by_key.get(key, {})
 
     search_by_key = {(row.campaign_id, row.stat_date): row for row in search_rows}
 
@@ -626,7 +766,10 @@ def derive_base_state(
     day_campaigns: dict[date, list[tuple[_AdSlice, list[tuple[str, _AdSlice]]]]] = defaultdict(list)
     for (campaign_id, stat_date), total in campaign_day.items():
         legs = _classify(
-            campaigns.get(campaign_id), total, search_by_key.get((campaign_id, stat_date))
+            campaigns.get(campaign_id),
+            total,
+            search_by_key.get((campaign_id, stat_date)),
+            nm_id,
         )
         if legs:  # unclassifiable campaigns (no settings) are excluded entirely
             day_campaigns[stat_date].append((total, legs))
@@ -636,7 +779,7 @@ def derive_base_state(
         # Keep only the significant campaign(s) (cut insignificant traffic). Cut
         # campaigns are excluded from «Общая»/«Органика» too, so the unclassified
         # remainder is empty and each bid type's «Доля трафика» sums to 100%.
-        buckets = _select_day_buckets(day_campaigns.get(day, []))
+        buckets = _select_day_buckets(day_campaigns.get(day, []), sku_labels)
 
         funnel_row = funnel_by_date.get(day)
         seller_price, customer_price = price_for_day(ordered_prices, day)
@@ -662,22 +805,33 @@ def derive_base_state(
             funnel_base = None
 
         # «Процент выкупа»: WB's definition — buyouts / DECIDED deliveries —
-        # averaged over the lagged [D-21, D-7] cohort window (recent cohorts
-        # are still maturing). Each funnel day stores WB's own cohort percent
-        # (`buyout_conversion`); deliveries are recovered per cohort as
-        # `buyout_count / percent`, then the window is aggregated weighted.
+        # over the lagged [D-21, D-7] cohort window (recent cohorts are still
+        # maturing). Both inputs are stored facts from the period-aggregate
+        # feed, so the window is a plain sum of counts:
+        #
+        #     Σ buyout_count / Σ (buyout_count + cancel_count)
+        #
+        # A cohort with ZERO buyouts still contributes its refusals to the
+        # denominator — dropping it (as the earlier `buyout_count / WB percent`
+        # reconstruction had to, since WB reports percent 0 for such a day and
+        # the denominator was unrecoverable) is what made the metric read far
+        # too high: SKU 914394276's 15.07 window held four zero-buyout days
+        # worth of refusals, and skipping them printed 41% against WB's 16%.
+        #
+        # `cancel_count is None` = the cohort pass has not refreshed that day
+        # yet; it is skipped rather than read as "no refusals", which would
+        # invent a 100% cohort.
         window_start = day - timedelta(days=BUYOUT_LAG_START_DAYS)
         window_end = day - timedelta(days=BUYOUT_LAG_END_DAYS)
-        buyouts = 0.0
-        delivered = 0.0
+        buyouts = 0
+        decided = 0
         for funnel_row in funnel_rows:
             if not (window_start <= funnel_row.stat_date <= window_end):
                 continue
-            count = funnel_row.buyout_count
-            wb_percent = float(funnel_row.buyout_conversion or 0)
-            if count > 0 and wb_percent > 0:
-                buyouts += count
-                delivered += count * 100.0 / wb_percent
+            if funnel_row.cancel_count is None:
+                continue
+            buyouts += funnel_row.buyout_count
+            decided += funnel_row.buyout_count + funnel_row.cancel_count
 
         day_bases.append(
             MatrixDayBase(
@@ -686,7 +840,7 @@ def derive_base_state(
                 buckets=buckets,
                 unclassified=MatrixAdBucketBase(),  # cut campaigns are excluded
                 funnel=funnel_base,
-                lagged_buyout_percent=_percent(buyouts, delivered),
+                lagged_buyout_percent=_percent(buyouts, decided),
                 stock=_stock_for_day(ordered_stock, day),
             )
         )
@@ -705,6 +859,8 @@ def _acc_from_base(base: MatrixAdBucketBase) -> _BucketAcc:
         order_sum=base.order_sum,
         assoc_add_to_cart=base.assoc_add_to_cart,
         assoc_orders=base.assoc_orders,
+        assoc_skus={c.nm_id: (c.add_to_cart, c.orders) for c in base.assoc_skus},
+        assoc_exact=base.assoc_exact,
     )
 
 

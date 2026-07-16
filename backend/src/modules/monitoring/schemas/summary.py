@@ -36,6 +36,22 @@ class SkuSummaryItem(BaseModel):
     Funnel metrics are window totals (summed across days); the conversion ratios
     are recomputed from those totals, not averaged. Advertising and stock keep
     their existing rollups.
+
+    **Two attribution bases meet here, on purpose.** The funnel counts
+    (``total_open_count`` … ``total_orders``) are ORDER-date facts from WB's
+    analytics feed. The buyout/return figures are SALE-date facts from the
+    Statistics ``supplier/sales`` records — real per-item money, which is what
+    makes ``total_buyout_sum`` match the manager's Excel «Выкупы, ₽».
+
+    Consequently there is deliberately **no «Процент выкупа» here**. That metric
+    is ``buyouts / (buyouts + refusals-at-pickup)`` over a LAGGED cohort window
+    and lives on the SKU matrix (``buyout_percent``). It cannot be answered for
+    this endpoint's arbitrary window: refusals never become sale records, and
+    ``sales_funnel_daily.cancel_count`` only covers the last 22 days while this
+    window defaults to 30 and allows 366. Do not add a buyout-flavoured ratio
+    here from ``sale_record`` — its denominator (buyouts + RETURNS) is a
+    different, far smaller population, which is exactly how the old
+    ``buyout_conversion`` came to report 90% against WB's 30%.
     """
 
     nm_id: int = Field(description="WB SKU identifier.")
@@ -43,17 +59,26 @@ class SkuSummaryItem(BaseModel):
         default=None, description="Seller article code (WB 'Артикул продавца')."
     )
     title: str | None = Field(default=None, description="Product card title.")
-    # --- Organic funnel totals over the window ---
+    # --- Organic funnel totals over the window (ORDER-date) ---
     total_open_count: int = Field(description="Total card opens over the window.")
     total_cart_count: int = Field(description="Total add-to-cart events.")
     total_orders: int = Field(description="Total orders over the window.")
     total_order_sum: float = Field(description="Total ordered value in rubles.")
-    total_buyout_count: int = Field(description="Total buyouts over the window.")
-    total_buyout_sum: float = Field(description="Total buyout value in rubles.")
+    # --- Sale/return records over the window (SALE-date) ---
+    total_buyout_count: int = Field(
+        description="Buyouts RECORDED in the window (sale-date, not the window's orders)."
+    )
+    total_buyout_sum: float = Field(description="Total buyout value in rubles (sale-date).")
+    total_return_count: int = Field(
+        description=(
+            "Post-purchase returns recorded in the window (sale-date) — a buyer sending "
+            "an item back AFTER buying it. NOT a refusal at pickup (WB `cancelCount`), "
+            "which never becomes a sale record and drives «Процент выкупа» instead."
+        )
+    )
     total_add_to_wishlist: int = Field(description="Total add-to-favourites events.")
     cart_conversion: float = Field(description="open -> cart (%), from totals.")
     order_conversion: float = Field(description="cart -> order (%), from totals.")
-    buyout_conversion: float = Field(description="order -> buyout (%), from totals.")
     # --- Advertising + stock rollups ---
     total_ad_spend: float = Field(description="Advertising expenses over the window.")
     total_ad_clicks: int = Field(description="Advertising clicks over the window.")

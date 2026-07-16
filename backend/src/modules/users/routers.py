@@ -13,7 +13,7 @@ from fastapi import APIRouter, Cookie, Depends, Response, status
 
 from src.core.config import settings
 from src.core.ratelimit import RateLimiter
-from src.modules.users.deps import AuthServiceDep
+from src.modules.users.deps import AuthServiceDep, CurrentUser
 from src.modules.users.schemas import (
     IssuedTokens,
     TokenPairResponse,
@@ -24,13 +24,25 @@ from src.modules.users.schemas import (
 
 router = APIRouter(prefix="/v1/auth", tags=["Authentication"])
 
-# One shared per-IP budget across the unauthenticated auth surface: it damps
-# credential stuffing on /login, invite guessing on /register, and cookie
-# guessing on /refresh (each of which also burns a bcrypt cycle server-side).
+# One shared per-IP budget across /login + /register: it damps credential
+# stuffing and invite guessing (each of which also burns a bcrypt cycle
+# server-side).
 _auth_rate_limit = Depends(
     RateLimiter(
         scope="auth",
         limit=settings.auth_rate_limit_attempts,
+        window_seconds=settings.auth_rate_limit_window_seconds,
+    )
+)
+
+# /refresh has its own, looser budget: its secret is an unguessable random
+# cookie (not a password), and the SPA calls it silently on every page load
+# and ~every 14 minutes per tab — sharing the login budget starved legitimate
+# sessions into 429s, which the frontend read as "logged out".
+_refresh_rate_limit = Depends(
+    RateLimiter(
+        scope="auth-refresh",
+        limit=settings.refresh_rate_limit_attempts,
         window_seconds=settings.auth_rate_limit_window_seconds,
     )
 )
@@ -102,7 +114,7 @@ async def login(
     "/refresh",
     response_model=TokenPairResponse,
     status_code=status.HTTP_200_OK,
-    dependencies=[_auth_rate_limit],
+    dependencies=[_refresh_rate_limit],
     responses={
         200: {"description": "Rotated; new token pair issued."},
         401: {"description": "Invalid, expired, revoked, or replayed token."},
@@ -124,6 +136,20 @@ async def refresh(
         access_token=tokens.access_token,
         expires_at=tokens.access_expires_at,
     )
+
+
+@router.get(
+    "/me",
+    response_model=UserRead,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "The authenticated user's account."},
+        401: {"description": "Missing or invalid access token."},
+    },
+)
+async def me(user: CurrentUser) -> UserRead:
+    """Return the authenticated caller's account (email + role for the UI)."""
+    return UserRead.model_validate(user)
 
 
 @router.post(

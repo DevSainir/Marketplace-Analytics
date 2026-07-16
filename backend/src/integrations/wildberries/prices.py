@@ -22,11 +22,16 @@ class WBPricesClient(BaseWBClient):
     #: WB caps the goods-filter page at 1000 records; paginate by offset.
     _GOODS_PAGE = 1000
 
-    def __init__(self, settings: Settings) -> None:
-        """Build the prices client from application settings."""
+    def __init__(self, settings: Settings, *, token: str) -> None:
+        """Build the prices client.
+
+        Args:
+            settings: Transport configuration (base URL, timeouts, retries).
+            token: The workspace's "Цены и скидки"-scope bearer token.
+        """
         super().__init__(
             base_url=settings.wb_prices_base_url,
-            token=settings.wb_prices_token,
+            token=token,
             timeout=settings.wb_http_timeout_seconds,
             max_retries=settings.wb_max_retries,
             backoff_base_seconds=settings.wb_retry_backoff_seconds,

@@ -116,6 +116,20 @@ class MetricsMatrixRead(BaseModel):
 # carries exactly those inputs so the frontend can edit them (and derived cells
 # recompute server-side). It is the unit of the preview/save flow.
 # --------------------------------------------------------------------------- #
+class AssocSkuCount(BaseModel):
+    """One variant's share of a cell's associative conversions.
+
+    The rows behind the carts/orders hover: ``nm_id`` is the size/colour
+    variant WB booked the conversion on — the viewed SKU included, which is
+    what makes the listed counts sum to the cell's number.
+    """
+
+    nm_id: int = Field(description="WB SKU identifier of the variant.")
+    vendor_code: str | None = Field(default=None, description="Seller article code.")
+    add_to_cart: int = Field(default=0, description="Carts booked on this variant.")
+    orders: int = Field(default=0, description="Orders booked on this variant.")
+
+
 class MatrixAdBucketBase(BaseModel):
     """The editable input facts of one ``(day, ad-bucket)`` cell.
 
@@ -127,6 +141,14 @@ class MatrixAdBucketBase(BaseModel):
     totals INCLUDING associated size/colour variants («ассоциированные
     конверсии») — read-only harvested facts decorating the carts/orders cells;
     they are never editable and never diffed into overrides.
+
+    ``assoc_skus`` decomposes those totals per variant for the hover, and always
+    sums to them. ``assoc_exact`` reports whether that decomposition is fact or
+    estimate: the viewed SKU's own counts always split exactly, but a campaign
+    running in two zones has its ASSOCIATED variants' counts apportioned between
+    them (WB attributes associated conversions per campaign, never per zone) —
+    unless one zone took none of them, where the division is forced and the
+    counts are exact again.
     """
 
     views: int = 0
@@ -137,6 +159,8 @@ class MatrixAdBucketBase(BaseModel):
     order_sum: float | None = 0.0
     assoc_add_to_cart: int = 0
     assoc_orders: int = 0
+    assoc_skus: list[AssocSkuCount] = Field(default_factory=list)
+    assoc_exact: bool = True
 
 
 class MatrixFunnelBase(BaseModel):

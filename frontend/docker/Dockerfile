@@ -34,6 +34,7 @@ EXPOSE 80 443
 
 # Probe the plain-HTTP /healthz endpoint: it returns 200 without redirecting,
 # so the check never chases a 301 into TLS (the cert is for example.com,
-# not localhost).
+# not localhost). 127.0.0.1, not localhost: busybox wget prefers ::1 while
+# nginx binds IPv4 only, so "localhost" is a guaranteed connection-refused.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -q -O /dev/null http://localhost/healthz || exit 1
+    CMD wget -q -O /dev/null http://127.0.0.1/healthz || exit 1

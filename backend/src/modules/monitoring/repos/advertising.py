@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, delete, func, select
+from sqlalchemy import CursorResult, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import AdvertisingStatDaily
-from src.modules.monitoring.repos.base import BaseRepository
+from src.modules.monitoring.repos.base import BaseRepository, workspace_sku_select
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +35,23 @@ class CampaignDayTotal:
 
     campaign_id: int
     stat_date: date
+    add_to_cart: int
+    orders: int
+
+
+@dataclass(frozen=True, slots=True)
+class CampaignDaySkuTotal:
+    """One campaign-day's conversions booked on ONE nm_id.
+
+    The per-variant decomposition of :class:`CampaignDayTotal`: summing these
+    over a campaign-day reproduces it exactly. WB books an associated variant's
+    conversions with ``views=clicks=0`` (all the traffic is credited to the
+    advertised card), so a row here can carry carts/orders and no traffic.
+    """
+
+    campaign_id: int
+    stat_date: date
+    nm_id: int
     add_to_cart: int
     orders: int
 
@@ -143,10 +161,71 @@ class AdvertisingRepository(BaseRepository):
             for row in result.all()
         ]
 
-    async def aggregate_window(self, *, date_from: date, date_to: date) -> list[AdAggregate]:
+    async def campaign_day_sku_totals(
+        self, *, campaign_ids: Iterable[int], date_from: date, date_to: date
+    ) -> list[CampaignDaySkuTotal]:
+        """Return per-(campaign, day, nm_id) conversion totals.
+
+        The breakdown behind :meth:`campaign_day_totals` — same rows, one
+        ``GROUP BY`` finer — feeding the associative-conversion hover, which
+        names the variants a campaign-day's carts/orders were booked on.
+
+        Args:
+            campaign_ids: Campaigns to aggregate (typically the ones that
+                delivered for the viewed SKU in the window).
+            date_from: Inclusive window start.
+            date_to: Inclusive window end.
+
+        Returns:
+            One :class:`CampaignDaySkuTotal` per campaign-day-nm_id that
+            converted; rows with neither carts nor orders are dropped, since
+            they would only pad the hover with empty variants.
+        """
+        ids = list(campaign_ids)
+        if not ids:
+            return []
+        carts = func.sum(AdvertisingStatDaily.add_to_cart).label("add_to_cart")
+        orders = func.sum(AdvertisingStatDaily.orders).label("orders")
+        stmt = (
+            select(
+                AdvertisingStatDaily.campaign_id,
+                AdvertisingStatDaily.stat_date,
+                AdvertisingStatDaily.nm_id,
+                carts,
+                orders,
+            )
+            .where(
+                AdvertisingStatDaily.campaign_id.in_(ids),
+                AdvertisingStatDaily.stat_date >= date_from,
+                AdvertisingStatDaily.stat_date <= date_to,
+            )
+            .group_by(
+                AdvertisingStatDaily.campaign_id,
+                AdvertisingStatDaily.stat_date,
+                AdvertisingStatDaily.nm_id,
+            )
+            .having(or_(carts > 0, orders > 0))
+            .order_by(AdvertisingStatDaily.campaign_id, AdvertisingStatDaily.stat_date)
+        )
+        result = await self._session.execute(stmt)
+        return [
+            CampaignDaySkuTotal(
+                campaign_id=row.campaign_id,
+                stat_date=row.stat_date,
+                nm_id=row.nm_id,
+                add_to_cart=int(row.add_to_cart),
+                orders=int(row.orders),
+            )
+            for row in result.all()
+        ]
+
+    async def aggregate_window(
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+    ) -> list[AdAggregate]:
         """Return per-SKU advertising totals, aggregated by the database.
 
         Args:
+            workspace_id: Restrict to SKUs owned by this workspace.
             date_from: Inclusive window start.
             date_to: Inclusive window end.
 
@@ -162,6 +241,7 @@ class AdvertisingRepository(BaseRepository):
             .where(
                 AdvertisingStatDaily.stat_date >= date_from,
                 AdvertisingStatDaily.stat_date <= date_to,
+                AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id)),
             )
             .group_by(AdvertisingStatDaily.nm_id)
             .order_by(AdvertisingStatDaily.nm_id)

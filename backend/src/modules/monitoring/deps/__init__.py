@@ -16,6 +16,7 @@ from typing import Annotated
 from fastapi import Depends
 
 from src.core.deps import DbSession
+from src.core.exceptions import NotFoundError
 from src.modules.monitoring.repos import (
     AdvertisingRepository,
     AdvertisingSearchRepository,
@@ -32,6 +33,7 @@ from src.modules.monitoring.repos import (
     WarehouseMarkRepository,
 )
 from src.modules.monitoring.services import AnalyticsService, IngestionService
+from src.modules.workspaces.contract import CurrentWorkspaceId
 
 
 # --------------------------------------------------------------------------- #
@@ -184,11 +186,48 @@ def get_ingestion_service(
 AnalyticsServiceDep = Annotated[AnalyticsService, Depends(get_analytics_service)]
 IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
 
+
+# --------------------------------------------------------------------------- #
+# Tenancy guard
+# --------------------------------------------------------------------------- #
+async def require_workspace_sku(
+    nm_id: int,
+    workspace_id: CurrentWorkspaceId,
+    product_card_repo: ProductCardRepoDep,
+) -> int:
+    """Ownership guard for every ``/skus/{nm_id}*`` and ``/funnel/{nm_id}`` route.
+
+    All per-SKU repositories filter by ``nm_id`` alone (WB ids are globally
+    unique), so this single choke point is what makes a foreign workspace's
+    SKU behave exactly like a nonexistent one — a 404, indistinguishable from
+    "no such SKU", so tenancy leaks nothing.
+
+    Args:
+        nm_id: The SKU id from the request path.
+        workspace_id: The caller's validated active workspace.
+        product_card_repo: The SKU -> workspace registry accessor.
+
+    Returns:
+        The same ``nm_id``, now proven to belong to the active workspace.
+
+    Raises:
+        NotFoundError: When the SKU is unregistered or owned by another
+            workspace.
+    """
+    if not await product_card_repo.is_in_workspace(nm_id=nm_id, workspace_id=workspace_id):
+        raise NotFoundError(f"SKU {nm_id} not found.")
+    return nm_id
+
+
+#: Path ``nm_id`` validated to belong to the caller's active workspace.
+WorkspaceSku = Annotated[int, Depends(require_workspace_sku)]
+
 __all__ = [
     "AdvertisingRepoDep",
     "AdvertisingSearchRepoDep",
     "AnalyticsServiceDep",
     "CampaignRepoDep",
+    "CurrentWorkspaceId",
     "FunnelRepoDep",
     "IngestionServiceDep",
     "MatrixOverrideRepoDep",
@@ -200,4 +239,5 @@ __all__ = [
     "SkuCommentRepoDep",
     "StockRepoDep",
     "WarehouseMarkRepoDep",
+    "WorkspaceSku",
 ]

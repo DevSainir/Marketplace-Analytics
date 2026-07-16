@@ -7,19 +7,42 @@ overwrites prior values instead of raising primary-key violations.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Sequence
 from typing import Any
 
+from sqlalchemy import Select, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import Base
+from src.modules.monitoring.models import ProductCard
 
-#: PostgreSQL's wire protocol caps a single statement at 65535 bind parameters.
-#: A batch of N rows with C columns sends N*C params, so a big harvest (e.g.
-#: ~10k daily sale records x 9 columns) overflows one INSERT. Chunk so each
-#: statement stays under the limit; 60000 leaves headroom below the hard cap.
-_MAX_BIND_PARAMS = 60000
+#: The binding-count ceiling for ONE statement is asyncpg's 32767 (the wire
+#: protocol's Bind message counts parameters in an int16), NOT PostgreSQL's
+#: often-quoted 65535. A batch of N rows with C columns sends N*C params, so a
+#: big ingest (a ~10k-record sales pull, or a 31-day advertising backfill
+#: window — observed live: 51520 params → asyncpg error) overflows one INSERT.
+#: Chunk so each statement stays under the limit, with headroom.
+_MAX_BIND_PARAMS = 30000
+
+
+def workspace_sku_select(workspace_id: uuid.UUID) -> Select[tuple[int]]:
+    """Build the ``nm_id`` semijoin restricting a query to one workspace's SKUs.
+
+    ``product_card`` is the authoritative SKU -> workspace registry (see
+    :class:`~src.modules.monitoring.models.products.ProductCard`). Every
+    cross-SKU aggregate uses this as an ``IN`` subquery so SKUs of other
+    workspaces — or unclaimed legacy rows — never surface.
+
+    Args:
+        workspace_id: The active workspace.
+
+    Returns:
+        A ``SELECT nm_id FROM product_card WHERE workspace_id = :ws`` statement
+        suitable for ``Column.in_()``.
+    """
+    return select(ProductCard.nm_id).where(ProductCard.workspace_id == workspace_id)
 
 
 class BaseRepository:

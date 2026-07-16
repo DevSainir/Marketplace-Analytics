@@ -17,6 +17,7 @@ from src.integrations.wildberries.schemas import (
     WBAdvertV2,
     WBCampaign,
     WBCampaignGroup,
+    WBFunnelAggregateRow,
     WBFunnelHistoryRow,
     WBNormQueryItem,
     WBStockRow,
@@ -34,11 +35,17 @@ class WBAnalyticsClient(BaseWBClient):
     #: WB caps the funnel-history endpoint at 20 nmIDs per request.
     _FUNNEL_BATCH = 20
 
-    def __init__(self, settings: Settings) -> None:
-        """Build the analytics client from application settings."""
+    def __init__(self, settings: Settings, *, token: str) -> None:
+        """Build the analytics client.
+
+        Args:
+            settings: Transport configuration (base URL, timeouts, retries).
+            token: The workspace's Analytics-scope bearer token (tokens are
+                per-workspace, stored encrypted in the database).
+        """
         super().__init__(
             base_url=settings.wb_analytics_base_url,
-            token=settings.wb_analytics_token,
+            token=token,
             timeout=settings.wb_http_timeout_seconds,
             max_retries=settings.wb_max_retries,
             backoff_base_seconds=settings.wb_retry_backoff_seconds,
@@ -98,6 +105,52 @@ class WBAnalyticsClient(BaseWBClient):
             results.extend(WBFunnelHistoryRow.model_validate(item) for item in payload)
         return results
 
+    async def fetch_funnel_cohort_day(self, *, day: date) -> list[WBFunnelAggregateRow]:
+        """Fetch every SKU's matured buyout/cancel cohort for a single day.
+
+        Endpoint: ``POST /api/analytics/v3/sales-funnel/products`` (the period
+        aggregate), called with ``start == end == day``.
+
+        This is the ONLY source of ``cancelCount``, and the only funnel surface
+        that serves a period older than 7 days — the daily history feed rejects
+        it (HTTP 400 "invalid start day: excess limit on days"). Since a
+        cohort's deliveries keep maturing for ~3 weeks, re-reading an old day
+        here is what keeps «Процент выкупа» converging on WB's own figure
+        instead of freezing at the value it had 7 days after the order.
+
+        Verified live (2026-07-16): the ``nmIDs`` body filter is IGNORED — WB
+        returns the seller's whole catalogue in one page regardless — so no
+        SKU list is sent and the caller filters the rows it cares about.
+
+        Args:
+            day: The order-date cohort to read (Moscow time).
+
+        Returns:
+            One row per product in the seller's catalogue.
+
+        Raises:
+            IntegrationError: If the response does not match the verified shape.
+        """
+        # ``limit`` defaults to 50 per the official spec (max 1000): without it
+        # a catalogue past 50 SKUs would silently truncate — and a truncated
+        # cohort pass reads as "no orders that day" for the missing SKUs.
+        body: dict[str, object] = {
+            "selectedPeriod": {"start": day.isoformat(), "end": day.isoformat()},
+            "limit": 1000,
+        }
+        payload = await self._request(
+            "POST",
+            "/api/analytics/v3/sales-funnel/products",
+            json_body=body,
+        )
+        data = payload.get("data") if isinstance(payload, dict) else None
+        rows = data.get("products") if isinstance(data, dict) else None
+        if not isinstance(rows, list):
+            raise IntegrationError(
+                "Unexpected sales-funnel aggregate response shape (expected data.products list)."
+            )
+        return [WBFunnelAggregateRow.model_validate(item) for item in rows]
+
     async def fetch_warehouse_stocks(
         self,
         *,
@@ -133,11 +186,16 @@ class WBAnalyticsClient(BaseWBClient):
 class WBAdvertisingClient(BaseWBClient):
     """Client for the WB Advertising surface (campaign full stats)."""
 
-    def __init__(self, settings: Settings) -> None:
-        """Build the advertising client from application settings."""
+    def __init__(self, settings: Settings, *, token: str) -> None:
+        """Build the advertising client.
+
+        Args:
+            settings: Transport configuration (base URL, timeouts, retries).
+            token: The workspace's Promotion-scope bearer token.
+        """
         super().__init__(
             base_url=settings.wb_advertising_base_url,
-            token=settings.wb_advertising_token,
+            token=token,
             timeout=settings.wb_http_timeout_seconds,
             max_retries=settings.wb_max_retries,
             backoff_base_seconds=settings.wb_retry_backoff_seconds,

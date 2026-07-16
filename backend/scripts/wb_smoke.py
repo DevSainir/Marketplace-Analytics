@@ -13,9 +13,14 @@ Every step prints the HTTP status and a raw JSON preview and never aborts the
 whole run on a single failure — the point is to observe reality and reconcile
 the contracts in ``client.py`` / ``schemas.py``.
 
+WB tokens live encrypted in the database per workspace, so the script needs a
+reachable Postgres with migrations applied. By default it uses the first
+(oldest) workspace's tokens; pass ``--workspace`` to pick one by name.
+
 Usage (from the ``backend`` directory, with ``.env`` populated)::
 
     python -m scripts.wb_smoke                          # ping + campaign list
+    python -m scripts.wb_smoke --workspace "<workspace name>"
     python -m scripts.wb_smoke --nm-ids 123456,234567   # + funnel + stocks
     python -m scripts.wb_smoke --nm-ids 123456 --campaign-id 987654
 """
@@ -31,8 +36,39 @@ from typing import Any
 import httpx
 
 from src.core.config import settings
+from src.core.database import AsyncSessionLocal, engine
+from src.modules.workspaces.contract import (
+    WorkspaceTokenBundle,
+    load_workspace_token_bundles,
+)
 
 _PREVIEW_CHARS = 1200
+
+
+async def _pick_bundle(workspace_name: str | None) -> WorkspaceTokenBundle:
+    """Load the decrypted token bundle to smoke-test with.
+
+    Args:
+        workspace_name: Optional exact workspace name; defaults to the first
+            (oldest) workspace.
+
+    Returns:
+        The chosen workspace's decrypted tokens.
+
+    Raises:
+        SystemExit: When no workspaces exist or the name does not match.
+    """
+    async with AsyncSessionLocal() as session:
+        bundles = await load_workspace_token_bundles(session)
+    if not bundles:
+        raise SystemExit("No workspaces in the database — run migrations / create one first.")
+    if workspace_name is None:
+        return bundles[0]
+    for bundle in bundles:
+        if bundle.name == workspace_name:
+            return bundle
+    known = ", ".join(b.name for b in bundles)
+    raise SystemExit(f"Workspace {workspace_name!r} not found. Known: {known}")
 
 
 def _preview(payload: Any) -> str:
@@ -68,14 +104,17 @@ async def _ping(name: str, base_url: str, token: str) -> None:
         print(f"  TRANSPORT ERROR: {exc!r}")
 
 
-async def _list_campaigns() -> int | None:
+async def _list_campaigns(advertising_token: str) -> int | None:
     """List advertising campaigns; return the first campaign id if any.
 
     Endpoint: ``GET /adv/v1/promotion/count`` (no params, lists everything).
+
+    Args:
+        advertising_token: The workspace's Promotion-scope token.
     """
     _banner("[2] ADVERTISING campaigns: GET /adv/v1/promotion/count")
-    if not settings.wb_advertising_token:
-        print("  SKIP: WB_ADVERTISING_TOKEN is empty")
+    if not advertising_token:
+        print("  SKIP: workspace has no advertising token")
         return None
     try:
         async with httpx.AsyncClient(
@@ -83,7 +122,7 @@ async def _list_campaigns() -> int | None:
         ) as client:
             resp = await client.get(
                 "/adv/v1/promotion/count",
-                headers={"Authorization": settings.wb_advertising_token},
+                headers={"Authorization": advertising_token},
             )
         print(f"  HTTP {resp.status_code}")
         if resp.status_code != 200:
@@ -105,7 +144,7 @@ async def _list_campaigns() -> int | None:
         return None
 
 
-async def _test_funnel_and_stocks(nm_ids: list[int]) -> None:
+async def _test_funnel_and_stocks(nm_ids: list[int], analytics_token: str) -> None:
     """Exercise our WBAnalyticsClient against the real API."""
     from src.integrations.wildberries import WBAnalyticsClient
 
@@ -114,7 +153,7 @@ async def _test_funnel_and_stocks(nm_ids: list[int]) -> None:
 
     _banner(f"[3a] FUNNEL via WBAnalyticsClient (nm_ids={nm_ids}, {start}..{end})")
     try:
-        async with WBAnalyticsClient(settings) as client:
+        async with WBAnalyticsClient(settings, token=analytics_token) as client:
             rows = await client.fetch_sales_funnel(nm_ids=nm_ids, date_from=start, date_to=end)
         print(f"  OK: parsed {len(rows)} funnel rows")
         if rows:
@@ -124,16 +163,16 @@ async def _test_funnel_and_stocks(nm_ids: list[int]) -> None:
 
     _banner(f"[3b] STOCKS via WBAnalyticsClient (nm_ids={nm_ids})")
     try:
-        async with WBAnalyticsClient(settings) as client:
-            rows = await client.fetch_warehouse_stocks(nm_ids=nm_ids)
-        print(f"  OK: parsed {len(rows)} stock rows")
-        if rows:
-            print(_preview(rows[0].model_dump()))
+        async with WBAnalyticsClient(settings, token=analytics_token) as client:
+            stock_rows = await client.fetch_warehouse_stocks(nm_ids=nm_ids)
+        print(f"  OK: parsed {len(stock_rows)} stock rows")
+        if stock_rows:
+            print(_preview(stock_rows[0].model_dump()))
     except Exception as exc:
         print(f"  FAILED: {type(exc).__name__}: {exc}")
 
 
-async def _test_fullstats(campaign_id: int) -> None:
+async def _test_fullstats(campaign_id: int, advertising_token: str) -> None:
     """Exercise our WBAdvertisingClient against the real API."""
     from src.integrations.wildberries import WBAdvertisingClient
 
@@ -141,7 +180,7 @@ async def _test_fullstats(campaign_id: int) -> None:
     start = end - timedelta(days=7)
     _banner(f"[4] FULLSTATS via WBAdvertisingClient (campaign_id={campaign_id})")
     try:
-        async with WBAdvertisingClient(settings) as client:
+        async with WBAdvertisingClient(settings, token=advertising_token) as client:
             stats_list = await client.fetch_full_stats(
                 campaign_ids=[campaign_id], date_from=start, date_to=end
             )
@@ -155,29 +194,32 @@ async def _test_fullstats(campaign_id: int) -> None:
         print(f"  FAILED: {type(exc).__name__}: {exc}")
 
 
-async def main(nm_ids: list[int], campaign_id: int | None) -> None:
+async def main(nm_ids: list[int], campaign_id: int | None, workspace: str | None) -> None:
     """Run the smoke-test pipeline end to end."""
-    await _ping("analytics", settings.wb_analytics_base_url, settings.wb_analytics_token)
-    await _ping(
-        "advertising",
-        settings.wb_advertising_base_url,
-        settings.wb_advertising_token,
-    )
+    try:
+        bundle = await _pick_bundle(workspace)
+        print(f"Using workspace: {bundle.name} ({bundle.workspace_id})")
 
-    discovered = await _list_campaigns()
+        await _ping("analytics", settings.wb_analytics_base_url, bundle.analytics)
+        await _ping("advertising", settings.wb_advertising_base_url, bundle.advertising)
 
-    if nm_ids:
-        await _test_funnel_and_stocks(nm_ids)
-    else:
-        _banner("[3] FUNNEL + STOCKS skipped")
-        print("  pass --nm-ids 123456,234567 to test these (needs real SKUs)")
+        discovered = await _list_campaigns(bundle.advertising)
 
-    target_campaign = campaign_id or discovered
-    if target_campaign is not None:
-        await _test_fullstats(target_campaign)
-    else:
-        _banner("[4] FULLSTATS skipped")
-        print("  no campaign id (none discovered, none passed via --campaign-id)")
+        if nm_ids:
+            await _test_funnel_and_stocks(nm_ids, bundle.analytics)
+        else:
+            _banner("[3] FUNNEL + STOCKS skipped")
+            print("  pass --nm-ids 123456,234567 to test these (needs real SKUs)")
+
+        target_campaign = campaign_id or discovered
+        if target_campaign is not None:
+            await _test_fullstats(target_campaign, bundle.advertising)
+        else:
+            _banner("[4] FULLSTATS skipped")
+            print("  no campaign id (none discovered, none passed via --campaign-id)")
+    finally:
+        # The script owns its event loop; drop the pool before the loop dies.
+        await engine.dispose()
 
 
 def _parse_args() -> argparse.Namespace:
@@ -194,10 +236,15 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Explicit advertising campaign id for fullstats.",
     )
+    parser.add_argument(
+        "--workspace",
+        default=None,
+        help="Workspace name whose tokens to use (default: the first workspace).",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = _parse_args()
     parsed_nm_ids = [int(x) for x in args.nm_ids.split(",") if x.strip()]
-    asyncio.run(main(parsed_nm_ids, args.campaign_id))
+    asyncio.run(main(parsed_nm_ids, args.campaign_id, args.workspace))

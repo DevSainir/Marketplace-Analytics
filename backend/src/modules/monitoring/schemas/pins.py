@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Chip tints are stored and exchanged as ``#rrggbb``. The palette itself lives
+# in the frontend — the API only guarantees the shape, so the palette can be
+# retuned without a migration.
+COLOR_PATTERN: str = r"^#[0-9a-fA-F]{6}$"
 
 
 class PinnedSkuItem(BaseModel):
@@ -15,10 +20,13 @@ class PinnedSkuItem(BaseModel):
     nm_id: int = Field(description="WB SKU identifier.")
     vendor_code: str | None = Field(default=None, description="Seller article code.")
     title: str | None = Field(default=None, description="Product card title.")
+    color: str | None = Field(
+        default=None, description="Chip tint as #rrggbb, or null when unpainted."
+    )
 
 
 class PinnedSkusResponse(BaseModel):
-    """The global pinned-SKU list, in pin order (oldest pin first)."""
+    """The global pinned-SKU list, in chip-row order."""
 
     items: list[PinnedSkuItem] = Field(default_factory=list)
 
@@ -27,3 +35,27 @@ class PinUpdateRequest(BaseModel):
     """Body of the pin endpoint: the desired pinned state."""
 
     pinned: bool = Field(description="True to pin the SKU, false to unpin.")
+
+
+class PinColorUpdateRequest(BaseModel):
+    """Body of the chip-colour endpoint: the desired tint."""
+
+    color: str | None = Field(
+        default=None,
+        pattern=COLOR_PATTERN,
+        description="Chip tint as #rrggbb, or null to clear it.",
+    )
+
+
+class PinReorderRequest(BaseModel):
+    """Body of the reorder endpoint: the chip row's new left-to-right order."""
+
+    nm_ids: list[int] = Field(description="Pinned SKU identifiers in their new order.")
+
+    @field_validator("nm_ids")
+    @classmethod
+    def _reject_duplicates(cls, value: list[int]) -> list[int]:
+        """Reject a repeated ``nm_id``, which has no single position."""
+        if len(set(value)) != len(value):
+            raise ValueError("nm_ids must not contain duplicates.")
+        return value

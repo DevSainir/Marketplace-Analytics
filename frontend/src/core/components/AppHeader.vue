@@ -63,15 +63,16 @@ const navLinks = [
         </span>
       </RouterLink>
 
-      <!-- Right cluster: profile-icon stub (auth) / login link (guest) + burger -->
+      <!-- Right cluster: profile link (auth) / login link (guest) + burger -->
       <div class="flex items-center gap-sm">
-        <span
+        <RouterLink
           v-if="isAuthenticated"
-          class="flex h-8 w-8 items-center justify-center rounded-full border border-border-subtle bg-canvas text-muted"
+          to="/profile"
+          class="flex h-8 w-8 items-center justify-center rounded-full border border-border-subtle bg-canvas text-muted transition hover:border-action hover:text-action"
           :title="userEmail || 'Профиль'"
-          aria-hidden="true"
+          aria-label="Профиль"
+          @click="closeMenu"
         >
-          <!-- profile icon (stub) -->
           <svg
             class="h-4 w-4"
             viewBox="0 0 24 24"
@@ -83,7 +84,7 @@ const navLinks = [
           >
             <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 20a7 7 0 0 1 14 0" />
           </svg>
-        </span>
+        </RouterLink>
         <RouterLink
           v-else
           to="/login"
@@ -144,6 +145,14 @@ const navLinks = [
               <p v-if="userEmail" class="truncate px-md text-tiny font-medium text-muted">
                 {{ userEmail }}
               </p>
+              <RouterLink
+                to="/profile"
+                class="mt-xs block rounded-btn px-md py-sm text-base font-medium text-muted transition hover:bg-surface hover:text-primary"
+                active-class="bg-surface text-primary"
+                @click="closeMenu"
+              >
+                Профиль
+              </RouterLink>
               <button
                 type="button"
                 class="mt-xs w-full rounded-btn px-md py-sm text-left text-base font-medium text-status-negative transition hover:bg-status-negative/10"

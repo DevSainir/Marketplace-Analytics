@@ -83,9 +83,15 @@ class Settings(BaseSettings):
     # Monitoring data is single-tenant (one seller account), so registration is
     # gated: empty code == registration disabled entirely.
     registration_invite_code: str = Field(default="")
-    # Fixed-window per-IP throttle applied to /register, /login and /refresh.
+    # Fixed-window per-IP throttle applied to /register and /login (guessable
+    # secrets: passwords, invite codes).
     auth_rate_limit_attempts: int = Field(default=10)
     auth_rate_limit_window_seconds: int = Field(default=60)
+    # /refresh gets its OWN budget: its secret is an unguessable 256-bit cookie
+    # (throttling is abuse damping, not brute-force defense), and every page
+    # load fires a silent refresh — sharing the tight login budget bounced
+    # legitimate sessions to /login whenever the window was exhausted.
+    refresh_rate_limit_attempts: int = Field(default=60)
 
     # --- CORS (browser frontend) ---
     # In production the SPA is served by nginx on the SAME origin as the API
@@ -96,15 +102,15 @@ class Settings(BaseSettings):
     # Comma-separated origins allowed to call the API with credentials.
     cors_origins: list[str] = Field(default=["http://localhost:5173", "http://localhost:3000"])
 
+    # --- Workspace token encryption ---
+    # Fernet key encrypting per-workspace WB API tokens at rest
+    # (workspaces.workspace_tokens). WB tokens no longer live in the
+    # environment — they are stored encrypted in the database, one set per
+    # workspace. Generate with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    fernet_secret_key: str = Field(default="")
+
     # --- WildBerries integration ---
-    wb_analytics_token: str = Field(default="")
-    wb_advertising_token: str = Field(default="")
-    # Prices & Discounts surface — seller (discounted) prices. Category-scoped
-    # token ("Цены и скидки"), separate from the analytics/advertising tokens.
-    wb_prices_token: str = Field(default="")
-    # Statistics surface — per-sale records (sale-date attributed buyouts and
-    # returns). Category-scoped token ("Статистика").
-    wb_statistics_token: str = Field(default="")
     wb_analytics_base_url: str = Field(default="https://seller-analytics-api.wildberries.ru")
     wb_advertising_base_url: str = Field(default="https://advert-api.wildberries.ru")
     wb_content_base_url: str = Field(default="https://content-api.wildberries.ru")
@@ -206,6 +212,8 @@ class Settings(BaseSettings):
             problems.append("JWT_SECRET_KEY must be at least 32 characters")
         if self.postgres_password in _PLACEHOLDER_SECRETS:
             problems.append("POSTGRES_PASSWORD is unset or a known placeholder")
+        if self.fernet_secret_key in _PLACEHOLDER_SECRETS:
+            problems.append("FERNET_SECRET_KEY is unset (required to decrypt workspace WB tokens)")
         if self.redis_password in _PLACEHOLDER_SECRETS:
             problems.append("REDIS_PASSWORD is unset or a known placeholder")
         if self.debug:

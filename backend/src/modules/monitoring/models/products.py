@@ -18,6 +18,7 @@ keep working before the catalogue is first synced.
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 
 from sqlalchemy import BigInteger, DateTime, String, func
@@ -29,12 +30,22 @@ _SCHEMA: str = "monitoring"
 
 
 class ProductCard(Base):
-    """A SKU's catalogue identity: vendor code + title.
+    """A SKU's catalogue identity: vendor code + title + owning workspace.
 
     Sourced from the Content API ``cards/list`` ``{nmID, vendorCode, title}``.
 
+    Doubles as the **SKU -> workspace registry** for multi-tenancy: WB assigns
+    ``nmID`` globally (two seller accounts never share one), so this dimension
+    is the single authoritative place recording which workspace a SKU belongs
+    to. Every tenant-scoped read either semijoins this table or guards a path
+    ``nm_id`` against it.
+
     Attributes:
         nm_id: WB SKU identifier (``nmID``); primary key.
+        workspace_id: Owning workspace (soft reference into the ``workspaces``
+            schema — no FK, keeping the modules decoupled; ``None`` only for
+            legacy rows never claimed by a harvest, which are invisible to
+            every workspace).
         vendor_code: Seller article code (the "Артикул продавца", e.g.
             ``"M-TRX01-BLK"``).
         title: Card title (may be blank if the seller left it empty).
@@ -45,6 +56,7 @@ class ProductCard(Base):
     __table_args__ = {"schema": _SCHEMA}
 
     nm_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(index=True, nullable=True)
     vendor_code: Mapped[str] = mapped_column(String(256), default="", nullable=False)
     title: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     synced_at: Mapped[datetime] = mapped_column(

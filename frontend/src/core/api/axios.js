@@ -24,6 +24,28 @@ export function clearAccessToken() {
   accessToken = null
 }
 
+// Active workspace id, sent as the X-Workspace-Id header on every request.
+// Persisted in localStorage so a reload keeps the user's workspace; the
+// backend re-validates it on each request (an authenticated caller + an
+// existing workspace), so a stale stored id degrades to a 404 the workspace
+// store recovers from by re-selecting the first available workspace.
+const WORKSPACE_STORAGE_KEY = 'workspace:id'
+
+let workspaceId = localStorage.getItem(WORKSPACE_STORAGE_KEY)
+
+export function getWorkspaceId() {
+  return workspaceId
+}
+
+export function setWorkspaceId(id) {
+  workspaceId = id
+  if (id) {
+    localStorage.setItem(WORKSPACE_STORAGE_KEY, id)
+  } else {
+    localStorage.removeItem(WORKSPACE_STORAGE_KEY)
+  }
+}
+
 // Called when the session is unrecoverable (401 + failed refresh). The auth
 // module registers a router-aware handler; the fallback is a hard redirect.
 let unauthorizedHandler = () => {
@@ -52,6 +74,9 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use((config) => {
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`
+  }
+  if (workspaceId) {
+    config.headers['X-Workspace-Id'] = workspaceId
   }
   return config
 })

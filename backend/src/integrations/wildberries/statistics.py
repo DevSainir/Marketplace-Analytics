@@ -24,17 +24,21 @@ class WBStatisticsClient(BaseWBClient):
     #: the last row's lastChangeDate".
     _PAGE_LIMIT = 80_000
 
-    def __init__(self, settings: Settings) -> None:
-        """Build the statistics client from application settings.
+    def __init__(self, settings: Settings, *, token: str) -> None:
+        """Build the statistics client.
 
         The backoff base/max are raised above the shared defaults: this
         surface enforces ~1 request/minute and its 429s carry NO Retry-After
         header, so the default 2/4/8/16s ladder (30s total) would exhaust all
         retries inside a single limiter window.
+
+        Args:
+            settings: Transport configuration (base URL, timeouts, retries).
+            token: The workspace's "Статистика"-scope bearer token.
         """
         super().__init__(
             base_url=settings.wb_statistics_base_url,
-            token=settings.wb_statistics_token,
+            token=token,
             timeout=settings.wb_http_timeout_seconds,
             max_retries=settings.wb_max_retries,
             backoff_base_seconds=20.0,

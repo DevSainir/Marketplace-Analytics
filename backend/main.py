@@ -24,6 +24,7 @@ from src.core.logging import configure_logging, get_logger
 from src.core.redis import close_redis
 from src.modules.monitoring.routers import router as monitoring_router
 from src.modules.users.routers import router as users_router
+from src.modules.workspaces.routers import router as workspaces_router
 
 logger = get_logger(__name__)
 
@@ -127,4 +128,5 @@ async def health() -> dict[str, str]:
 
 # Register module routers under the shared /api prefix.
 app.include_router(users_router, prefix="/api")
+app.include_router(workspaces_router, prefix="/api")
 app.include_router(monitoring_router, prefix="/api")

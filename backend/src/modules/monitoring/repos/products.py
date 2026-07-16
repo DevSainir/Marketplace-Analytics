@@ -8,6 +8,7 @@ summary/detail/stock DTOs with human vendor codes and size labels.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterable
 
 from sqlalchemy import select
@@ -17,7 +18,7 @@ from src.modules.monitoring.models import ProductCard, ProductSize
 from src.modules.monitoring.repos.base import BaseRepository
 
 _CARD_CONFLICT = ("nm_id",)
-_CARD_UPDATE = ("vendor_code", "title", "synced_at")
+_CARD_UPDATE = ("workspace_id", "vendor_code", "title", "synced_at")
 
 _SIZE_CONFLICT = ("chrt_id",)
 _SIZE_UPDATE = ("nm_id", "tech_size", "wb_size", "synced_at")
@@ -61,7 +62,9 @@ class ProductCardRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return {c.nm_id: c for c in result.scalars().all()}
 
-    async def search_by_vendor_code(self, fragment: str, *, limit: int) -> list[ProductCard]:
+    async def search_by_vendor_code(
+        self, fragment: str, *, workspace_id: uuid.UUID, limit: int
+    ) -> list[ProductCard]:
         """Return cards whose vendor code contains ``fragment`` (case-insensitive).
 
         Resolves the seller-facing "Артикул продавца" search: a partial code like
@@ -70,6 +73,7 @@ class ProductCardRepository(BaseRepository):
 
         Args:
             fragment: Vendor-code substring to match (already stripped/non-empty).
+            workspace_id: Restrict to SKUs owned by this workspace.
             limit: Maximum number of cards to return.
 
         Returns:
@@ -78,12 +82,52 @@ class ProductCardRepository(BaseRepository):
         pattern = f"%{fragment}%"
         stmt = (
             select(ProductCard)
-            .where(ProductCard.vendor_code.ilike(pattern))
+            .where(
+                ProductCard.vendor_code.ilike(pattern),
+                ProductCard.workspace_id == workspace_id,
+            )
             .order_by(ProductCard.vendor_code)
             .limit(limit)
         )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def is_in_workspace(self, *, nm_id: int, workspace_id: uuid.UUID) -> bool:
+        """Report whether a SKU is registered to the given workspace.
+
+        The single ownership check backing the per-SKU route guard: a SKU that
+        belongs to another workspace (or is unregistered) must behave exactly
+        like a SKU that does not exist.
+
+        Args:
+            nm_id: WB SKU identifier from the request path.
+            workspace_id: The caller's active workspace.
+
+        Returns:
+            ``True`` when ``product_card`` records this SKU under the workspace.
+        """
+        stmt = select(ProductCard.nm_id).where(
+            ProductCard.nm_id == nm_id,
+            ProductCard.workspace_id == workspace_id,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def get_workspace_of_sku(self, nm_id: int) -> uuid.UUID | None:
+        """Return the owning workspace of a SKU, or ``None`` if unregistered.
+
+        Used by the single-SKU refresh task to pick the WB credentials the
+        harvest must run with.
+
+        Args:
+            nm_id: WB SKU identifier.
+
+        Returns:
+            The workspace id recorded in ``product_card``, if any.
+        """
+        stmt = select(ProductCard.workspace_id).where(ProductCard.nm_id == nm_id)
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
 
 
 class ProductSizeRepository(BaseRepository):
