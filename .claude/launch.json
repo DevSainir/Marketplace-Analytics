@@ -20,6 +20,13 @@
       "runtimeArgs": ["run", "dev", "--prefix", "frontend", "--", "--port", "4173"],
       "port": 4173,
       "autoPort": false
+    },
+    {
+      "name": "frontend-preview-2",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "frontend", "--", "--port", "4180"],
+      "port": 4180,
+      "autoPort": false
     }
   ]
 }

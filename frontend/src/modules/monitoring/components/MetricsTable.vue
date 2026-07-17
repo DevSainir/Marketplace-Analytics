@@ -533,6 +533,13 @@ watch(
 .matrix-scroll::-webkit-scrollbar {
   display: none;
 }
+/* While a vertical trackpad gesture is in flight (see v-drag-scroll): the page
+   scrolls, the ribbon holds still instead of twitching sideways on the swipe's
+   stray deltaX. Programmatic scrollLeft still works, so it never fights the
+   auto-scroll to the newest day. */
+.matrix-scroll.wheel-axis-locked {
+  overflow-x: hidden;
+}
 /* While LMB-dragging the ribbon: pan cursor, and no accidental text selection. */
 .matrix-scroll.drag-scrolling {
   cursor: grabbing;

@@ -311,6 +311,12 @@ function isGroupBoundary(index) {
 .stock-scroll::-webkit-scrollbar {
   display: none;
 }
+/* While a vertical trackpad gesture is in flight (see v-drag-scroll): the page
+   scrolls, the ribbon holds still instead of twitching sideways on the swipe's
+   stray deltaX. */
+.stock-scroll.wheel-axis-locked {
+  overflow-x: hidden;
+}
 /* While LMB-dragging the ribbon: pan cursor, and no accidental text selection. */
 .stock-scroll.drag-scrolling {
   cursor: grabbing;

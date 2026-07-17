@@ -66,3 +66,49 @@ describe('v-drag-scroll wheel handling', () => {
     expect(el.scrollLeft).toBe(0)
   })
 })
+
+// A two-finger vertical swipe leaks a little deltaX and also emits frames with
+// no deltaX at all. Both used to move the ribbon sideways — the twitch.
+describe('v-drag-scroll trackpad axis lock', () => {
+  it('pins the ribbon once a swipe reads as vertical', () => {
+    const el = ribbon()
+    wheel(el, { deltaY: 12, deltaX: 1 })
+    expect(el.classList.contains('wheel-axis-locked')).toBe(true)
+  })
+
+  it('does not translate the deltaX-free frames of a vertical swipe', () => {
+    const el = ribbon()
+    wheel(el, { deltaY: 12, deltaX: 1 }) // marks the gesture as trackpad
+    expect(wheel(el, { deltaY: 40 })).toBe(false) // a wheel click would be consumed
+    expect(el.scrollLeft).toBe(0)
+  })
+
+  it('undoes the pixel that leaks past the lock before it takes effect', () => {
+    const el = ribbon({ scrollLeft: 300 })
+    wheel(el, { deltaY: 12, deltaX: 1 })
+    el.scrollLeft = 302 // the browser applied that first frame's deltaX natively
+    wheel(el, { deltaY: 14, deltaX: 1 })
+    expect(el.scrollLeft).toBe(300)
+  })
+
+  it('leaves a sideways swipe alone', () => {
+    const el = ribbon()
+    wheel(el, { deltaY: 1, deltaX: 20 })
+    expect(el.classList.contains('wheel-axis-locked')).toBe(false)
+    // Still vertical-ish frames later in the gesture must not flip the lock on.
+    wheel(el, { deltaY: 12, deltaX: 1 })
+    expect(el.classList.contains('wheel-axis-locked')).toBe(false)
+  })
+
+  it('releases the lock once the gesture goes quiet', async () => {
+    vi.useFakeTimers()
+    const el = ribbon()
+    wheel(el, { deltaY: 12, deltaX: 1 })
+    vi.advanceTimersByTime(500)
+    expect(el.classList.contains('wheel-axis-locked')).toBe(false)
+    // A wheel click after the gesture pans the ribbon again.
+    expect(wheel(el, { deltaY: 120 })).toBe(true)
+    expect(el.scrollLeft).toBe(120)
+    vi.useRealTimers()
+  })
+})
