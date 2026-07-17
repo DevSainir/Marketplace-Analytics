@@ -10,7 +10,6 @@ import PeriodSelector from '@/modules/monitoring/components/PeriodSelector.vue'
 import PinnedSkuRow from '@/modules/monitoring/components/PinnedSkuRow.vue'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
 import StockBreakdownTable from '@/modules/monitoring/components/StockBreakdownTable.vue'
-import StockSizesPanel from '@/modules/monitoring/components/StockSizesPanel.vue'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 
 const store = useMonitoringStore()
@@ -109,7 +108,9 @@ function handleCommentEdit({ day, body }) {
 
 // --- two-day stock comparison ----------------------------------------------
 // Both side-by-side tables render the UNION of the two days' sizes so their
-// rows align 1:1 (a size absent on one day shows blank there).
+// rows align 1:1 (a size absent on one day shows blank there) — each table
+// carries its own «Размер» column, so the labels repeat by design: it keeps
+// each day readable on its own, and the pair still compares row by row.
 const sharedStockSizes = computed(() => {
   const byChrt = new Map()
   for (const side of ['left', 'right']) {
@@ -345,15 +346,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
 
         <!-- Warehouses × sizes stock: TWO snapshot days side by side for
              visual dynamics (right = today, left = yesterday by default);
-             each side has its own day picker, rows (sizes) are shared. -->
+             each side has its own day picker and its own size column, and
+             both render the same rows (see `sharedStockSizes`). -->
         <section v-if="product.stock" class="mt-lg" aria-label="Остатки по складам">
           <h2 class="text-h3 font-semibold text-primary">Остатки по складам</h2>
           <div class="mt-sm flex gap-md">
-            <!-- ONE shared sizes panel for both day tables (rows align 1:1). -->
-            <div v-if="sharedStockSizes.length" class="w-28 flex-none">
-              <div class="mb-xs h-8" aria-hidden="true"></div>
-              <StockSizesPanel :sizes="sharedStockSizes" />
-            </div>
             <div v-for="side in ['left', 'right']" :key="side" class="min-w-0 flex-1">
               <DayPicker
                 class="mb-xs"
@@ -367,7 +364,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
                 :cells="store.stockCompare[side].stock?.cells ?? []"
                 :marked-warehouses="store.markedWarehouses"
                 :size-order="sharedStockSizes"
-                hide-size-column
                 empty-message="Нет снимка остатков за выбранный день."
                 @toggle-mark="store.toggleWarehouseMark"
               />

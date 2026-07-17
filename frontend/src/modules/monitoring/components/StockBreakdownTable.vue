@@ -34,12 +34,6 @@ const props = defineProps({
    * all-blank row. `null` = derive rows from own cells (standalone mode).
    */
   sizeOrder: { type: Array, default: null },
-  /**
-   * Drop the own «Размер» column — the two-day comparison renders ONE shared
-   * sizes panel (see StockSizesPanel.vue) to the left of both tables, so each
-   * table only carries its day's «Всего» + warehouse columns.
-   */
-  hideSizeColumn: { type: Boolean, default: false },
   /** Message when the day has no cells at all. */
   emptyMessage: { type: String, default: 'Нет складских остатков по этому SKU.' },
 })
@@ -182,7 +176,7 @@ function isGroupBoundary(index) {
 </script>
 
 <template>
-  <div class="app-datatable" :class="{ 'stock-table--no-sizes': hideSizeColumn }">
+  <div class="app-datatable">
     <div v-if="!cells.length" class="px-md py-xl text-center text-base text-muted">
       {{ emptyMessage }}
     </div>
@@ -193,7 +187,7 @@ function isGroupBoundary(index) {
           <!-- Group titles: marked warehouses («Отгружено») first, the rest
                under «Неотгружено», with a vertical rule between the groups. -->
           <tr>
-            <th v-if="!hideSizeColumn" rowspan="2" class="col-size">Размер</th>
+            <th rowspan="2" class="col-size">Размер</th>
             <th rowspan="2" class="col-total">Всего</th>
             <th v-if="markedCount" :colspan="markedCount" class="wh-group wh-group--marked">
               <span class="wh-group-label">Отгружено</span>
@@ -233,7 +227,7 @@ function isGroupBoundary(index) {
 
         <tbody>
           <tr v-for="row in rows" :key="row.chrt_id">
-            <td v-if="!hideSizeColumn" class="cell-size font-medium">{{ sizeLabel(row) }}</td>
+            <td class="cell-size font-medium" :title="sizeLabel(row)">{{ sizeLabel(row) }}</td>
             <td class="cell-total font-semibold tabular-nums">
               {{ row.total ? formatNumber(row.total) : '' }}
             </td>
@@ -253,7 +247,7 @@ function isGroupBoundary(index) {
 
         <tfoot>
           <tr>
-            <td v-if="!hideSizeColumn" class="cell-size font-medium">Всего</td>
+            <td class="cell-size font-medium">Всего</td>
             <td class="cell-total font-bold tabular-nums">
               {{ grandTotal ? formatNumber(grandTotal) : '' }}
             </td>
@@ -323,23 +317,35 @@ function isGroupBoundary(index) {
   user-select: none;
 }
 
+/* The frozen pane's two columns. Every left-offset below derives from these,
+   so the pane can be re-tuned in one place — the group-label offset used to
+   be a hand-copied constant and drifted out of sync with the real width.
+   `--col-size-w` fits a full composite WB size («42/170-177», the widest
+   shape in practice — plain «XL» sellers just leave slack); `--col-total-w`
+   fits its own «Всего» header, which outruns the 4-digit totals below it. */
+.app-datatable {
+  --col-size-w: 4.25rem;
+  --col-total-w: 3rem;
+}
+
 /* Compact grid: WB warehouse lists run to dozens of columns — smaller type
-   and tighter cells than the generic skin. Heights are EXPLICIT so the
-   side-by-side day tables and the shared sizes panel stay row-aligned
-   (StockSizesPanel.vue declares the same heights). */
+   and tighter cells than the generic skin, and the horizontal padding is
+   trimmed to the minimum that still separates adjacent numbers, since every
+   pixel saved here buys another warehouse column on screen. Heights are
+   EXPLICIT so the two side-by-side day tables stay row-aligned. */
 thead th {
   height: 26px;
-  padding: 4px 8px;
+  padding: 4px 5px;
   font-size: 10px;
 }
 tbody td {
   height: 24px;
-  padding: 3px 8px;
+  padding: 3px 5px;
   font-size: 11px;
 }
 tfoot td {
   height: 26px;
-  padding: 3px 8px;
+  padding: 3px 5px;
   font-size: 11px;
 }
 
@@ -404,14 +410,14 @@ tfoot td:not(.cell-size) {
 
 /* Group titles («Отгружено» / «Неотгружено»). A group can span dozens of
    columns — far wider than the viewport — so the label sticks just right of
-   the 16rem frozen pane and stays readable while the group scrolls by. The
-   marked group carries the action color, echoing the name underline. */
+   the frozen pane and stays readable while the group scrolls by. The marked
+   group carries the action color, echoing the name underline. */
 thead th.wh-group {
   text-align: left;
 }
 thead th.wh-group .wh-group-label {
   position: sticky;
-  left: calc(11rem + 12px);
+  left: calc(var(--col-size-w) + var(--col-total-w) + 12px);
   display: inline-block;
 }
 thead th.wh-group--marked {
@@ -427,13 +433,27 @@ thead th.wh-group--marked {
 /* Frozen pane — the size label and its «Всего» total: sticky on the left
    with explicit backgrounds so they mask the warehouse columns scrolling
    underneath. The corner header cells span both header rows (rowspan=2),
-   keep the skin's `sticky top-0` and additionally pin left. The size column
-   is fixed-width so the totals column knows its offset. */
+   keep the skin's `sticky top-0` and additionally pin left. Both columns are
+   fixed-width so each knows the next one's offset. */
 th.col-size,
 td.cell-size {
-  width: 6rem;
-  min-width: 6rem;
-  max-width: 6rem;
+  width: var(--col-size-w);
+  min-width: var(--col-size-w);
+  max-width: var(--col-size-w);
+}
+th.col-total,
+td.cell-total {
+  width: var(--col-total-w);
+  min-width: var(--col-total-w);
+  max-width: var(--col-total-w);
+}
+/* Sizes past the common shape — a longer composite, or the `chrt 123456`
+   fallback for a size the content catalogue hasn't synced — would overrun
+   the fixed column, so clip them and leave the full text to the cell's
+   `title` (the warehouse headers use the same truncate-plus-reveal rule). */
+td.cell-size {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 thead th.col-size,
 thead th.col-total {
@@ -450,21 +470,8 @@ td.cell-total {
 }
 thead th.col-total,
 td.cell-total {
-  left: 6rem;
+  left: var(--col-size-w);
   border-right: 3px solid #e0e0e0;
-}
-/* No-sizes variant (the two-day comparison: ONE shared sizes panel lives
-   OUTSIDE the tables): «Всего» becomes the frozen first column at a fixed
-   width so the group labels know their offset. */
-.stock-table--no-sizes thead th.col-total,
-.stock-table--no-sizes td.cell-total {
-  left: 0;
-  width: 4.5rem;
-  min-width: 4.5rem;
-  max-width: 4.5rem;
-}
-.stock-table--no-sizes thead th.wh-group .wh-group-label {
-  left: calc(4.5rem + 12px);
 }
 /* The skin's row-hover tint sits on the transparent `<tr>`; the solid frozen
    cells would ignore it, so tint them explicitly (matching the skin's
