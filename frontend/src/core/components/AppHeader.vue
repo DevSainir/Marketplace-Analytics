@@ -6,19 +6,23 @@
  * and emits intent upward — App.vue wires it to the auth store. The only local
  * state is the burger-menu open flag (pure UI concern).
  *
- * Layout: logo stub on the left; on the right a burger menu that reveals the
- * navigation plus the auth zone — login/register for guests, a profile-icon
- * stub for signed-in users.
+ * Layout: logo stub on the left; on the right the workspace switcher, a
+ * profile-icon stub for signed-in users (login/register for guests) and a
+ * burger menu that reveals the navigation plus the auth zone.
  */
 import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
+import WorkspaceMenu from '@/core/components/WorkspaceMenu.vue'
+
 defineProps({
   isAuthenticated: { type: Boolean, default: false },
   userEmail: { type: String, default: null },
+  workspaces: { type: Array, default: () => [] },
+  currentWorkspaceId: { type: String, default: null },
 })
 
-const emit = defineEmits(['logout'])
+const emit = defineEmits(['logout', 'select-workspace'])
 
 const menuOpen = ref(false)
 
@@ -63,8 +67,16 @@ const navLinks = [
         </span>
       </RouterLink>
 
-      <!-- Right cluster: profile link (auth) / login link (guest) + burger -->
+      <!-- Right cluster: workspace switcher + profile link (auth) / login link
+           (guest) + burger -->
       <div class="flex items-center gap-sm">
+        <WorkspaceMenu
+          v-if="isAuthenticated"
+          :workspaces="workspaces"
+          :current-id="currentWorkspaceId"
+          @select="emit('select-workspace', $event)"
+        />
+
         <RouterLink
           v-if="isAuthenticated"
           to="/profile"
