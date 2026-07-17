@@ -191,14 +191,14 @@ function pinLabel(item) {
         type="button"
         draggable="true"
         :title="item.title ?? ''"
-        class="inline-flex flex-none cursor-grab items-center gap-xs rounded-full border border-border-subtle bg-surface px-sm py-xs text-tiny font-medium text-primary shadow-soft transition hover:border-action hover:bg-action/10 active:cursor-grabbing"
+        class="pin-chip inline-flex flex-none cursor-grab items-center gap-xs rounded-full border border-border-subtle px-sm py-xs text-tiny font-medium text-primary shadow-soft transition active:cursor-grabbing"
         :class="[
-          item.nm_id === selectedId ? 'border-action bg-action/10' : '',
+          item.nm_id === selectedId ? 'pin-chip--active' : '',
           dragIndex === index ? 'opacity-50' : '',
           dropIndex === index && dragIndex !== index ? 'ring-2 ring-action' : '',
           paletteOpen ? 'cursor-copy active:cursor-copy' : '',
         ]"
-        :style="item.color ? { backgroundColor: item.color } : null"
+        :style="item.color ? { '--pin-tint': item.color } : null"
         @click="handleChipClick(item)"
         @dragstart="handleDragStart(index, $event)"
         @dragover="handleDragOver(index, $event)"
@@ -301,6 +301,23 @@ function pinLabel(item) {
 </template>
 
 <style scoped>
+/* The paint tint rides a custom property rather than `background-color`
+   directly: as an inline `background-color` it outranked every state layer,
+   so a painted chip could never show hover or selection. Keeping the slot
+   free lets the rules below own the chip's background outright. */
+.pin-chip {
+  background-color: var(--pin-tint, #f1f1f1); /* bg-surface */
+}
+
+/* Hover and selection are the SAME treatment, and both are OPAQUE — a
+   translucent layer would read differently over each of the 13 paint tints,
+   whereas this masks the tint entirely, so every chip highlights alike. */
+.pin-chip:hover,
+.pin-chip.pin-chip--active {
+  border-color: var(--color-action, #007e76);
+  background-color: #e0efee; /* bg-hover: action at ~12% over white */
+}
+
 /* The pin chip row scrolls horizontally without a visible scrollbar (same
    convention as the matrix/stock scroll containers). */
 .pins-row {
