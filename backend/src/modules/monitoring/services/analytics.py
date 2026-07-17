@@ -34,7 +34,7 @@ from src.modules.monitoring.repos import (
     ProductCardRepository,
     ProductSizeRepository,
     SaleRepository,
-    SkuCommentRepository,
+    SkuDayCommentRepository,
     StockRepository,
     WarehouseMarkRepository,
 )
@@ -44,12 +44,12 @@ from src.modules.monitoring.schemas import (
     BaselineDemandRead,
     CampaignAdvertising,
     CampaignDailyStat,
+    DayCommentResponse,
     FunnelDetailRead,
     FunnelResponseSchema,
     MetricWindow,
     PinnedSkuItem,
     PinnedSkusResponse,
-    SkuCommentResponse,
     SkuDetailResponse,
     SkuLookupItem,
     SkuLookupResponse,
@@ -143,7 +143,7 @@ class AnalyticsService:
         sale_repo: SaleRepository,
         warehouse_mark_repo: WarehouseMarkRepository,
         pinned_sku_repo: PinnedSkuRepository,
-        sku_comment_repo: SkuCommentRepository,
+        day_comment_repo: SkuDayCommentRepository,
     ) -> None:
         """Inject the read repositories the service composes over."""
         self._funnel = funnel_repo
@@ -158,7 +158,7 @@ class AnalyticsService:
         self._sales = sale_repo
         self._warehouse_marks = warehouse_mark_repo
         self._pinned_skus = pinned_sku_repo
-        self._sku_comments = sku_comment_repo
+        self._day_comments = day_comment_repo
 
     # ------------------------------------------------------------------ #
     # Summary listing
@@ -391,13 +391,15 @@ class AnalyticsService:
             {row.chrt_id for row in latest_stock_rows}
         )
         marked_warehouses = await self._warehouse_marks.list_names(nm_id=nm_id)
-        comment = await self._sku_comments.get(nm_id=nm_id)
+        comments = await self._day_comments.map_for_window(
+            nm_id=nm_id, date_from=date_from, date_to=date_to
+        )
 
         return SkuDetailResponse(
             nm_id=nm_id,
             vendor_code=card.vendor_code if card else None,
             title=card.title if card else None,
-            comment=comment,
+            comments=comments,
             window=MetricWindow(start=date_from, end=date_to),
             funnel=funnel_details,
             funnel_totals=compute_funnel_totals(
@@ -512,17 +514,20 @@ class AnalyticsService:
         return await self.list_pinned_skus(workspace_id=workspace_id)
 
     # ------------------------------------------------------------------ #
-    # SKU comment (free-text «Комментарий» note)
+    # Day comment (free-text «Комментарий» note on one matrix day)
     # ------------------------------------------------------------------ #
-    async def set_sku_comment(self, *, nm_id: int, body: str) -> SkuCommentResponse:
-        """Save («Сохранить») or clear a SKU's free-text comment.
+    async def set_day_comment(
+        self, *, nm_id: int, comment_date: date, body: str
+    ) -> DayCommentResponse:
+        """Save or clear one SKU-day's free-text comment.
 
         The body is stripped; a blank body deletes the note (clearing the
         comment). Comments are global — shared by every account, keyed by
-        ``nm_id`` (same convention as pins/warehouse marks).
+        ``(nm_id, comment_date)`` (same convention as pins/warehouse marks).
 
         Args:
             nm_id: WB SKU identifier.
+            comment_date: The day the note describes.
             body: The note text; blank/whitespace-only clears the comment.
 
         Returns:
@@ -530,10 +535,10 @@ class AnalyticsService:
         """
         stripped = body.strip()
         if stripped:
-            await self._sku_comments.set(nm_id=nm_id, body=stripped)
+            await self._day_comments.set(nm_id=nm_id, comment_date=comment_date, body=stripped)
         else:
-            await self._sku_comments.clear(nm_id=nm_id)
-        return SkuCommentResponse(nm_id=nm_id, body=stripped or None)
+            await self._day_comments.clear(nm_id=nm_id, comment_date=comment_date)
+        return DayCommentResponse(nm_id=nm_id, comment_date=comment_date, body=stripped or None)
 
     async def get_stock_day(self, *, nm_id: int, on_date: date) -> StockDayResponse:
         """Return one exact snapshot day's size x warehouse stock breakdown.

@@ -26,6 +26,7 @@ from src.core.deps import get_current_user_id
 from src.modules.monitoring.deps import AnalyticsServiceDep, CurrentWorkspaceId, WorkspaceSku
 from src.modules.monitoring.schemas import (
     CommentUpdateRequest,
+    DayCommentResponse,
     FunnelResponseSchema,
     MatrixPreviewRequest,
     MatrixPreviewResponse,
@@ -36,7 +37,6 @@ from src.modules.monitoring.schemas import (
     PinUpdateRequest,
     RefreshEnqueuedResponse,
     RefreshStatusResponse,
-    SkuCommentResponse,
     SkuDetailResponse,
     SkuLookupResponse,
     SkuSummaryListResponse,
@@ -269,22 +269,23 @@ async def set_warehouse_mark(
 
 
 @router.put(
-    "/skus/{nm_id}/comment",
-    response_model=SkuCommentResponse,
+    "/skus/{nm_id}/comments/{comment_date}",
+    response_model=DayCommentResponse,
     status_code=status.HTTP_200_OK,
     responses={
         200: {"description": "Comment saved (or cleared); the stored note is returned."},
         401: {"description": "Unauthorized access token."},
-        422: {"description": "Invalid payload (e.g. body too long)."},
+        422: {"description": "Invalid payload (e.g. body too long) or date."},
     },
 )
-async def set_sku_comment(
+async def set_day_comment(
     nm_id: WorkspaceSku,
+    comment_date: date,
     body: CommentUpdateRequest,
     service: AnalyticsServiceDep,
-) -> SkuCommentResponse:
-    """Save («Сохранить») or clear a SKU's free-text comment (shared by everyone)."""
-    return await service.set_sku_comment(nm_id=nm_id, body=body.body)
+) -> DayCommentResponse:
+    """Save or clear one day's free-text comment on a SKU (shared by everyone)."""
+    return await service.set_day_comment(nm_id=nm_id, comment_date=comment_date, body=body.body)
 
 
 @router.post(

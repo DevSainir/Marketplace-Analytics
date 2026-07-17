@@ -21,7 +21,7 @@ import {
   refreshSku,
   reorderPinnedSkus,
   saveMatrix,
-  setSkuComment,
+  setDayComment,
   setSkuPin,
   setSkuPinColor,
   setWarehouseMark,
@@ -232,27 +232,38 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     }
   }
 
-  // --- SKU comment («Комментарий») -----------------------------------------
-  // A free-text note attached to the CURRENT SKU: persisted on the backend
-  // (monitoring.sku_comment), global per nm_id (shared by every account). The
-  // persisted value rides on `currentProduct.comment`; the view owns the draft.
-  /** A comment save (PUT) is in flight. */
-  const commentSaving = ref(false)
+  // --- day comments («Комментарий») -----------------------------------------
+  // Free-text notes attached to the CURRENT SKU's days: persisted on the backend
+  // (monitoring.sku_day_comment), global per (nm_id, day) — shared by every
+  // account. The persisted map rides on `currentProduct.comments` (keyed by ISO
+  // day, commented days only); the table owns the drafts.
+  /** ISO days with a save (PUT) in flight — the row disables just those inputs. */
+  const commentSavingDays = ref(new Set())
 
-  /** Persist the current SKU's comment (blank clears it); updates the product. */
-  async function saveComment(body) {
+  /** Persist one day's comment (blank clears it); updates the product's map. */
+  async function saveDayComment(iso, body) {
     const nmId = currentProduct.value?.nm_id
-    if (!nmId || commentSaving.value) return
-    commentSaving.value = true
+    if (!nmId || commentSavingDays.value.has(iso)) return
+    // A new Set per mutation: Vue tracks the ref's value, not the Set's writes.
+    commentSavingDays.value = new Set(commentSavingDays.value).add(iso)
     matrixEditError.value = null
     try {
-      const result = await setSkuComment(nmId, body)
+      const result = await setDayComment(nmId, iso, body)
       // Apply only while the same SKU is displayed (SKU-switch race guard).
-      if (currentProduct.value?.nm_id === nmId) currentProduct.value.comment = result.body
+      if (currentProduct.value?.nm_id !== nmId) return
+      const comments = { ...(currentProduct.value.comments ?? {}) }
+      if (result.body == null) {
+        delete comments[iso]
+      } else {
+        comments[iso] = result.body
+      }
+      currentProduct.value.comments = comments
     } catch (err) {
       matrixEditError.value = extractErrorMessage(err)
     } finally {
-      commentSaving.value = false
+      const pending = new Set(commentSavingDays.value)
+      pending.delete(iso)
+      commentSavingDays.value = pending
     }
   }
 
@@ -565,8 +576,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     setPinColor,
     markedWarehouses,
     toggleWarehouseMark,
-    commentSaving,
-    saveComment,
+    commentSavingDays,
+    saveDayComment,
     stockCompare,
     fetchStockCompareSide,
     fetchProductData,

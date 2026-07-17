@@ -1,6 +1,8 @@
-"""DTOs for the per-SKU comment note («Комментарий»)."""
+"""DTOs for the per-day comment note («Комментарий»)."""
 
 from __future__ import annotations
+
+from datetime import date
 
 from pydantic import BaseModel, Field
 
@@ -9,10 +11,11 @@ from pydantic import BaseModel, Field
 COMMENT_MAX_LENGTH: int = 2000
 
 
-class SkuCommentResponse(BaseModel):
-    """One SKU's comment. ``body`` is ``None`` when the SKU has no note."""
+class DayCommentResponse(BaseModel):
+    """One SKU-day's comment. ``body`` is ``None`` when the day has no note."""
 
     nm_id: int = Field(description="WB SKU identifier.")
+    comment_date: date = Field(description="The day the note describes.")
     body: str | None = Field(default=None, description="The note text, or null when empty.")
 
 

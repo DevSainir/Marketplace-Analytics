@@ -81,7 +81,7 @@ def _service(*, buyouts: int, returns: int) -> AnalyticsService:
         sale_repo=_SaleRepo(buyouts, returns),  # type: ignore[arg-type]
         warehouse_mark_repo=None,  # type: ignore[arg-type]
         pinned_sku_repo=None,  # type: ignore[arg-type]
-        sku_comment_repo=None,  # type: ignore[arg-type]
+        day_comment_repo=None,  # type: ignore[arg-type]
     )
 
 

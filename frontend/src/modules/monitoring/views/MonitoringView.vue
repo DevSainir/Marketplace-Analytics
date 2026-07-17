@@ -100,23 +100,11 @@ function togglePin() {
   store.toggleSkuPin(product.value.nm_id, product.value.vendor_code ?? null)
 }
 
-// --- per-SKU comment («Комментарий») --------------------------------------
-// A free-text note saved on the SKU (global, shared by everyone). The draft is
-// local; it re-seeds whenever the analyzed SKU (or its persisted note) changes.
-const commentDraft = ref(product.value?.comment ?? '')
-watch(
-  () => [product.value?.nm_id, product.value?.comment],
-  () => {
-    commentDraft.value = product.value?.comment ?? ''
-  },
-)
-
-/** True while the draft differs from the persisted note (enables «Сохранить»). */
-const commentDirty = computed(() => commentDraft.value.trim() !== (product.value?.comment ?? ''))
-
-function saveComment() {
-  if (!commentDirty.value) return
-  store.saveComment(commentDraft.value)
+// --- day comments («Комментарий») ------------------------------------------
+// Notes live per DAY inside the metrics table (its collapsible «Комментарии»
+// row), so the view only forwards the commit to the store.
+function handleCommentEdit({ day, body }) {
+  store.saveDayComment(day, body)
 }
 
 // --- two-day stock comparison ----------------------------------------------
@@ -304,8 +292,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
             :price-rows="metricsMatrix.priceRows"
             :stock-rows="metricsMatrix.stockRows"
             :stock-total-rows="metricsMatrix.stockTotalRows"
+            :comments="product.comments ?? {}"
+            :comment-saving-days="store.commentSavingDays"
             :editing-disabled="editingLocked"
             @edit="handleCellEdit"
+            @comment="handleCommentEdit"
           />
 
           <!-- Hint on the left, actions on the right. The dirty caption sits
@@ -350,48 +341,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
           <p v-if="store.matrixEditError" class="mt-xs text-tiny text-status-negative" role="alert">
             {{ store.matrixEditError }}
           </p>
-        </section>
-
-        <!-- Per-SKU comment: a compact, wide note card under the daily table.
-             The note is saved on the SKU (shared by everyone). -->
-        <section class="comment-card mt-md" aria-label="Комментарий">
-          <div class="rounded-card bg-surface px-md py-sm shadow-card">
-            <div class="flex items-center gap-xs">
-              <svg
-                class="h-3.5 w-3.5 flex-none text-action"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z" />
-              </svg>
-              <h3 class="text-micro font-semibold uppercase tracking-wide text-muted">
-                Комментарий
-              </h3>
-            </div>
-            <div class="mt-xs flex items-end gap-sm">
-              <textarea
-                v-model="commentDraft"
-                rows="2"
-                maxlength="2000"
-                placeholder="Заметка по этому SKU — видна всей команде. Ctrl+Enter — сохранить."
-                class="min-w-0 flex-1 resize-y rounded-btn border border-border-subtle bg-canvas px-sm py-xs text-base leading-snug text-primary shadow-soft transition placeholder:text-muted focus:border-action focus:outline-none focus:ring-2 focus:ring-action/30"
-                @keydown.enter.ctrl.prevent="saveComment"
-                @keydown.enter.meta.prevent="saveComment"
-              ></textarea>
-              <button
-                type="button"
-                :disabled="!commentDirty || store.commentSaving"
-                class="inline-flex h-9 flex-none items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:text-muted disabled:opacity-60"
-                @click="saveComment"
-              >
-                {{ store.commentSaving ? 'Сохраняем…' : 'Сохранить' }}
-              </button>
-            </div>
-          </div>
         </section>
 
         <!-- Warehouses × sizes stock: TWO snapshot days side by side for

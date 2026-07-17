@@ -28,7 +28,7 @@ from src.modules.monitoring.repos import (
     ProductCardRepository,
     ProductSizeRepository,
     SaleRepository,
-    SkuCommentRepository,
+    SkuDayCommentRepository,
     StockRepository,
     WarehouseMarkRepository,
 )
@@ -99,9 +99,9 @@ def get_pinned_sku_repo(session: DbSession) -> PinnedSkuRepository:
     return PinnedSkuRepository(session)
 
 
-def get_sku_comment_repo(session: DbSession) -> SkuCommentRepository:
-    """Provide a :class:`SkuCommentRepository` bound to the request session."""
-    return SkuCommentRepository(session)
+def get_day_comment_repo(session: DbSession) -> SkuDayCommentRepository:
+    """Provide a :class:`SkuDayCommentRepository` bound to the request session."""
+    return SkuDayCommentRepository(session)
 
 
 FunnelRepoDep = Annotated[FunnelRepository, Depends(get_funnel_repo)]
@@ -118,7 +118,7 @@ PriceRepoDep = Annotated[PriceRepository, Depends(get_price_repo)]
 SaleRepoDep = Annotated[SaleRepository, Depends(get_sale_repo)]
 WarehouseMarkRepoDep = Annotated[WarehouseMarkRepository, Depends(get_warehouse_mark_repo)]
 PinnedSkuRepoDep = Annotated[PinnedSkuRepository, Depends(get_pinned_sku_repo)]
-SkuCommentRepoDep = Annotated[SkuCommentRepository, Depends(get_sku_comment_repo)]
+SkuDayCommentRepoDep = Annotated[SkuDayCommentRepository, Depends(get_day_comment_repo)]
 
 
 # --------------------------------------------------------------------------- #
@@ -137,7 +137,7 @@ def get_analytics_service(
     sale_repo: SaleRepoDep,
     warehouse_mark_repo: WarehouseMarkRepoDep,
     pinned_sku_repo: PinnedSkuRepoDep,
-    sku_comment_repo: SkuCommentRepoDep,
+    day_comment_repo: SkuDayCommentRepoDep,
 ) -> AnalyticsService:
     """Compose the read-side :class:`AnalyticsService` from its repositories."""
     return AnalyticsService(
@@ -153,7 +153,7 @@ def get_analytics_service(
         sale_repo=sale_repo,
         warehouse_mark_repo=warehouse_mark_repo,
         pinned_sku_repo=pinned_sku_repo,
-        sku_comment_repo=sku_comment_repo,
+        day_comment_repo=day_comment_repo,
     )
 
 
@@ -236,7 +236,7 @@ __all__ = [
     "ProductCardRepoDep",
     "ProductSizeRepoDep",
     "SaleRepoDep",
-    "SkuCommentRepoDep",
+    "SkuDayCommentRepoDep",
     "StockRepoDep",
     "WarehouseMarkRepoDep",
     "WorkspaceSku",

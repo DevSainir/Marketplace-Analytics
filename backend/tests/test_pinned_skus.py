@@ -66,7 +66,7 @@ def _service(pins: Any) -> AnalyticsService:
         sale_repo=unused,
         warehouse_mark_repo=unused,
         pinned_sku_repo=pins,
-        sku_comment_repo=unused,
+        day_comment_repo=unused,
     )
 
 

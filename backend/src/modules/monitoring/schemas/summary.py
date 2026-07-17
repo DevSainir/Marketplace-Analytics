@@ -110,8 +110,10 @@ class SkuDetailResponse(BaseModel):
         default=None, description="Seller article code (WB 'Артикул продавца')."
     )
     title: str | None = Field(default=None, description="Product card title.")
-    comment: str | None = Field(
-        default=None, description="Free-text note attached to the SKU (null when none)."
+    comments: dict[date, str] = Field(
+        default_factory=dict,
+        description="Free-text notes attached to the SKU's days, keyed by day "
+        "(only commented days appear; the matrix table renders one input per day).",
     )
     window: MetricWindow
     funnel: list[FunnelDetailRead] = Field(default_factory=list)

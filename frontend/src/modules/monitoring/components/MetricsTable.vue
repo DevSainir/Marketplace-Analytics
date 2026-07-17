@@ -43,11 +43,15 @@ const props = defineProps({
   stockRows: { type: Array, default: () => [] },
   /** «Всего» card row — per-day total stock (остаток + оба «в пути»), read-only. */
   stockTotalRows: { type: Array, default: () => [] },
+  /** Persisted day notes, keyed by ISO day (commented days only). */
+  comments: { type: Object, default: () => ({}) },
+  /** ISO days whose note save is in flight (their input is disabled). */
+  commentSavingDays: { type: Set, default: () => new Set() },
   /** Disable editing while a save/refresh is in flight. */
   editingDisabled: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['edit'])
+const emit = defineEmits(['edit', 'comment'])
 
 // One leaf column per day × traffic column; `index` addresses row.cells.
 const leafColumns = computed(() =>
@@ -139,6 +143,42 @@ const vFocus = {
     el.focus()
     el.select()
   },
+}
+
+// --- day comments («Комментарий») ----------------------------------------
+// One note per day, in a row of its own under the blocks: collapsed to just its
+// label (the chevron in the frozen label cell opens it), so the table opens on
+// numbers and the notes are there when wanted. Each input is a draft that
+// commits on blur — same as an inline cell edit, no per-day save button.
+const commentsExpanded = ref(false)
+
+// Drafts by ISO day. Seeded from the persisted notes and re-seeded whenever they
+// change (a SKU switch, a window change, a save) — except for the day being
+// typed in, whose draft must survive a save landing on another day.
+const commentDrafts = ref({})
+const focusedCommentDay = ref(null)
+
+watch(
+  [() => props.comments, () => props.days],
+  () => {
+    const drafts = {}
+    for (const day of props.days) {
+      drafts[day.iso] =
+        day.iso === focusedCommentDay.value
+          ? (commentDrafts.value[day.iso] ?? '')
+          : (props.comments[day.iso] ?? '')
+    }
+    commentDrafts.value = drafts
+  },
+  { immediate: true },
+)
+
+/** Commit a note on blur, but only when it actually differs from the stored one. */
+function commitComment(iso) {
+  if (focusedCommentDay.value === iso) focusedCommentDay.value = null
+  const body = (commentDrafts.value[iso] ?? '').trim()
+  if (body === (props.comments[iso] ?? '')) return
+  emit('comment', { day: iso, body })
 }
 
 const scroll = ref(null)
@@ -377,6 +417,60 @@ watch(
             </td>
           </tr>
         </tbody>
+
+        <!-- Day comments: ONE note per day, collapsed to its label until the
+             chevron opens it. Same table, same scroll container — each input
+             sits in its own day section and scrolls with it. -->
+        <tbody class="matrix-comments">
+          <tr class="matrix-gap" aria-hidden="true">
+            <td :colspan="1 + days.length * 8"></td>
+          </tr>
+          <tr>
+            <td>
+              <button
+                type="button"
+                class="comment-toggle"
+                :aria-expanded="commentsExpanded"
+                @click="commentsExpanded = !commentsExpanded"
+              >
+                <svg
+                  class="comment-chevron h-3 w-3 flex-none"
+                  :class="commentsExpanded && 'comment-chevron--open'"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+                <span class="text-micro font-semibold uppercase tracking-wide">Комментарии</span>
+              </button>
+            </td>
+            <td v-for="day in days" :key="day.iso" :colspan="8">
+              <textarea
+                v-if="commentsExpanded"
+                v-model="commentDrafts[day.iso]"
+                rows="2"
+                maxlength="2000"
+                class="comment-input"
+                :disabled="commentSavingDays.has(day.iso)"
+                :placeholder="`Заметка за ${day.label}`"
+                :aria-label="`Комментарий за ${day.label}`"
+                @focus="focusedCommentDay = day.iso"
+                @blur="commitComment(day.iso)"
+                @keydown.esc.prevent="$event.target.blur()"
+              ></textarea>
+              <!-- Collapsed: a dot marks the days that DO carry a note, so the
+                   row still says where to look before it is opened. -->
+              <span v-else-if="comments[day.iso]" class="comment-dot" :title="comments[day.iso]">
+                <span class="comment-dot-mark" aria-hidden="true"></span>
+                <span class="comment-dot-text">{{ comments[day.iso] }}</span>
+              </span>
+            </td>
+          </tr>
+        </tbody>
       </table>
     </div>
 
@@ -602,12 +696,108 @@ watch(
   text-align: right;
 }
 /* The generic cell button stretches to 100%; inside a block line it must only
-   take its content so the label keeps the left edge. */
+   take its content so the label keeps the left edge. min-width keeps a BLANK
+   cell clickable — content-sized, it would collapse to zero width. */
 .day-block-line .matrix-cell-btn {
   width: auto;
+  min-width: 2.5rem;
 }
 .day-block-input {
   width: 6rem;
   text-align: right;
+}
+
+/* --- day comments row ------------------------------------------------------
+   Same open-card treatment as the blocks above (the heavy prefixes out-rank the
+   skin's zebra/hover/day-border rules), so the notes read as a strip of inputs
+   rather than another grid of cells. */
+.app-datatable--matrix tbody.matrix-comments tr td,
+.app-datatable--matrix tbody.matrix-comments tr:hover td {
+  background: transparent;
+  border-left: none;
+  padding: 3px 6px;
+  vertical-align: top;
+}
+/* Frozen label cell: SOLID so the inputs scroll underneath it, not through it. */
+.app-datatable--matrix tbody.matrix-comments tr td:first-child,
+.app-datatable--matrix tbody.matrix-comments tr:hover td:first-child {
+  background: #f1f1f1;
+  padding: 9px 8px;
+}
+.app-datatable--matrix tbody.matrix-comments tr.matrix-gap td,
+.app-datatable--matrix tbody.matrix-comments tr.matrix-gap:hover td {
+  background: transparent;
+  border: none;
+  height: 10px;
+  padding: 0;
+}
+
+/* The disclosure control IS the row label: chevron + name, one click target. */
+.comment-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+}
+.comment-toggle:hover,
+.comment-toggle:focus-visible {
+  color: #101010;
+  outline: none;
+}
+.comment-chevron {
+  transition: transform 150ms ease;
+}
+.comment-chevron--open {
+  transform: rotate(180deg);
+}
+
+.comment-input {
+  width: 100%;
+  resize: vertical;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border-subtle, #e4e4e7);
+  border-radius: 8px;
+  background: var(--color-canvas, #fafafa);
+  color: #101010;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.comment-input::placeholder {
+  color: #98a2b3;
+}
+.comment-input:focus {
+  border-color: var(--color-action, #2f7d68);
+  outline: 2px solid color-mix(in srgb, var(--color-action, #2f7d68) 30%, transparent);
+  outline-offset: 0;
+}
+.comment-input:disabled {
+  opacity: 0.6;
+}
+
+/* Collapsed row: a one-line trace of the days that carry a note. */
+.comment-dot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #667085;
+  font-size: 11px;
+}
+.comment-dot-mark {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-action, #2f7d68);
+}
+.comment-dot-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

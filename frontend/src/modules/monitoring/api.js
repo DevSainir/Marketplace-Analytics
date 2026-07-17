@@ -179,15 +179,16 @@ export async function setSkuPinColor(nmId, color) {
 }
 
 /**
- * PUT /v1/monitoring/skus/{nm_id}/comment — save («Сохранить») or clear the
- * SKU's free-text note (shared by every account). A blank body clears it.
+ * PUT /v1/monitoring/skus/{nm_id}/comments/{date} — save or clear one day's
+ * free-text note on a SKU (shared by every account). A blank body clears it.
  *
  * @param {number} nmId WB SKU identifier.
+ * @param {string} iso The commented day, as YYYY-MM-DD.
  * @param {string} body The note text; blank/whitespace-only clears the comment.
- * @returns {Promise<{nm_id: number, body: string|null}>} The stored note.
+ * @returns {Promise<{nm_id: number, comment_date: string, body: string|null}>} The stored note.
  */
-export async function setSkuComment(nmId, body) {
-  const { data } = await apiClient.put(`/v1/monitoring/skus/${nmId}/comment`, { body })
+export async function setDayComment(nmId, iso, body) {
+  const { data } = await apiClient.put(`/v1/monitoring/skus/${nmId}/comments/${iso}`, { body })
   return data
 }
 

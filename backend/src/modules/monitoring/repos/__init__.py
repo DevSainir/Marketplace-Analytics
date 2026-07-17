@@ -17,7 +17,7 @@ from src.modules.monitoring.repos.products import (
     ProductSizeRepository,
 )
 from src.modules.monitoring.repos.sales import SaleRepository
-from src.modules.monitoring.repos.sku_comment import SkuCommentRepository
+from src.modules.monitoring.repos.sku_day_comment import SkuDayCommentRepository
 from src.modules.monitoring.repos.stocks import StockRepository
 from src.modules.monitoring.repos.warehouse_marks import WarehouseMarkRepository
 
@@ -32,7 +32,7 @@ __all__ = [
     "ProductCardRepository",
     "ProductSizeRepository",
     "SaleRepository",
-    "SkuCommentRepository",
+    "SkuDayCommentRepository",
     "StockRepository",
     "WarehouseMarkRepository",
 ]

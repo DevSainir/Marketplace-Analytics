@@ -13,7 +13,7 @@ from src.modules.monitoring.schemas.advertising import (
 from src.modules.monitoring.schemas.comment import (
     COMMENT_MAX_LENGTH,
     CommentUpdateRequest,
-    SkuCommentResponse,
+    DayCommentResponse,
 )
 from src.modules.monitoring.schemas.funnel import (
     BaselineDemandRead,
@@ -75,6 +75,7 @@ __all__ = [
     "CampaignDailyStat",
     "CatalogIngestionResult",
     "CommentUpdateRequest",
+    "DayCommentResponse",
     "FunnelDetailRead",
     "FunnelResponseSchema",
     "FunnelTotals",
@@ -94,7 +95,6 @@ __all__ = [
     "PinnedSkusResponse",
     "RefreshEnqueuedResponse",
     "RefreshStatusResponse",
-    "SkuCommentResponse",
     "SkuDetailResponse",
     "SkuLookupItem",
     "SkuLookupResponse",
