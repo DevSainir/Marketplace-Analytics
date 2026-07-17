@@ -25,13 +25,14 @@ Campaign classification (via the ``Campaign`` dimension's adverts-v2 fields):
   buckets' revenue cells to ``None`` («—») instead of guessing.
 
 Significant-campaign selection (see :func:`_select_day_buckets`): a SKU
-realistically has one — at most two — campaigns actually bringing traffic, so per
-day only the leading campaign (by Показы) is kept, plus a second campaign when
-its Показы clear :data:`_SECONDARY_MIN_CAMPAIGN_VIEW_RATIO` of the leader's. A
-surviving campaign keeps ALL its zones (a unified campaign's WB search/shelves
-split is shown even at 99/1). Cut campaigns are excluded from «Общая»/«Органика»
-too. «Доля трафика» is normalized WITHIN each bid type, so Единая and Ручной each
-sum to 100%.
+realistically has one — at most two — campaigns actually bringing traffic. A
+campaign-day must first spend at least :data:`_MIN_CAMPAIGN_DAY_SPEND` to count
+as delivering; of those, only the leading campaign (by Показы) is kept, plus a
+second campaign when its Показы clear
+:data:`_SECONDARY_MIN_CAMPAIGN_VIEW_RATIO` of the leader's. A surviving campaign
+keeps ALL its zones (a unified campaign's WB search/shelves split is shown even
+at 99/1). Cut campaigns are excluded from «Общая»/«Органика» too. «Доля трафика»
+is normalized WITHIN each bid type, so Единая and Ручной each sum to 100%.
 
 Everything here is pure computation over already-fetched rows: no SQL, no I/O.
 """
@@ -619,6 +620,28 @@ def _bucket_base(
 #: so 0.10 separates them robustly. Tunable.
 _SECONDARY_MIN_CAMPAIGN_VIEW_RATIO = 0.10
 
+#: Minimum Затраты for a campaign-DAY to count as delivering at all; below it
+#: the day is cut («—»). Per DAY, not per campaign: the live data shows a real
+#: campaign is idle on most of its days (one spending 206 157 ₽ over 63 days,
+#: peaking at 10 118 ₽/day, still trickled 3-16 ₽/day for a whole week) — so
+#: "is this campaign real?" cannot answer "did it deliver on this day?".
+#:
+#: Chosen from the live spend distribution of campaign-days (Затраты per
+#: campaign x SKU x day, all zones):
+#:
+#:     <25 ₽      502 days, avg 4-22 Показы    <- residual trickle
+#:     25-100 ₽    71 days, avg ~190 Показы
+#:     100-200 ₽   19 days, avg ~520 Показы
+#:     >=200 ₽    637 days, avg 16 390 Показы  <- real delivery
+#:
+#: Every noise campaign (one that never delivers on any day) peaks below 200 ₽,
+#: so this floor excludes them entirely, while a real campaign's genuinely
+#: active days sit far above it — the median active day spends 1 223 ₽, i.e.
+#: 10x the floor. WB's own CPM floor (~150-300 ₽ per 1000 Показы) puts 200 ₽ at
+#: roughly 700-1300 Показы: about the least a campaign can spend in a day and
+#: still be meaningfully in the auction. Tunable.
+_MIN_CAMPAIGN_DAY_SPEND = 200.0
+
 
 def _select_day_buckets(
     campaigns_today: list[tuple[_AdSlice, list[tuple[str, _AdSlice]]]],
@@ -628,8 +651,12 @@ def _select_day_buckets(
 
     A SKU realistically has one — at most two — campaigns actually bringing
     traffic (a paused campaign can still deliver, so status is ignored; only real
-    paid delivery counts). Campaigns are ranked by Показы; the leader is kept,
-    and a second is kept only when its Показы are at least
+    paid delivery counts). A campaign-day must first clear
+    :data:`_MIN_CAMPAIGN_DAY_SPEND` to count as delivering at all — a real
+    campaign spends thousands of ₽ on the days it runs, so a few ₽ of residual
+    trickle is not a campaign the SKU's traffic should be attributed to.
+    Survivors are ranked by Показы; the leader is kept, and a second is kept
+    only when its Показы are at least
     :data:`_SECONDARY_MIN_CAMPAIGN_VIEW_RATIO` of the leader's. Everything else is
     dropped («—»).
 
@@ -647,7 +674,9 @@ def _select_day_buckets(
         The surviving ``bucket_key -> input DTO`` map.
     """
     candidates = [
-        (total, legs) for total, legs in campaigns_today if total.views > 0 and total.spend > 0
+        (total, legs)
+        for total, legs in campaigns_today
+        if total.views > 0 and total.spend >= _MIN_CAMPAIGN_DAY_SPEND
     ]
     candidates.sort(key=lambda entry: entry[0].views, reverse=True)
     if not candidates:

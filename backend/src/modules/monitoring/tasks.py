@@ -37,6 +37,7 @@ from src.integrations.wildberries.schemas import (
     WBCampaign,
     WBCard,
     WBNormQueryItem,
+    WBSaleRecord,
 )
 from src.modules.monitoring.repos import (
     AdvertisingRepository,
@@ -198,14 +199,16 @@ async def _harvest_sku_window(
     date_from: date,
     date_to: date,
     cards: list[WBCard] | None = None,
+    include_sales: bool = True,
 ) -> dict[str, int]:
     """Fetch, flatten, and persist a full harvest for one workspace's SKUs.
 
     Opens a dedicated async DB session and transaction, calls the WB clients
     resiliently, delegates flattening/persistence to :class:`IngestionService`,
-    and commits atomically. Advertising is pulled for **all active + paused
-    campaigns** (not a single id), so a SKU's detail view shows every campaign
-    that spent on it during the window.
+    and commits atomically. Advertising is pulled for the active/paused
+    campaigns that advertise ``nm_ids`` (see :func:`_advertising_harvest_ids`),
+    so a SKU's detail view shows every campaign that spent on it during the
+    window, without dragging in the rest of the account's.
 
     Args:
         tokens: The owning workspace's decrypted WB credentials. A surface
@@ -217,6 +220,13 @@ async def _harvest_sku_window(
         cards: Optional Content API cards to refresh the catalogue dimensions
             (vendor codes + size labels) in the same transaction. Passed by the
             discover flow, which already fetched them to derive ``nm_ids``.
+        include_sales: Whether to pull the sale/return feed. It is the one
+            source WB serves ONLY account-wide (``supplier/sales`` takes a
+            ``dateFrom`` and no SKU filter), so a single-SKU refresh would
+            re-fetch and re-ingest every SKU's sales to update one — on the
+            harshest limiter WB has. The nightly harvest keeps it ``True``;
+            the manual «Обновить» passes ``False``. See
+            :func:`harvest_sku_window`.
 
     Returns:
         A mapping of persisted row counts per metric family (plus catalogue
@@ -303,11 +313,19 @@ async def _harvest_sku_window(
         # The statistics sales feed rides this second wave: sale-date
         # buyout/return records, incremental by lastChangeDate — the window
         # start suffices, since a late return of an old sale carries a fresh
-        # change stamp.
+        # change stamp. Skipped entirely when the caller did not ask for it
+        # (a single-SKU refresh): the feed is account-wide, so it cannot be
+        # narrowed to this SKU, and it is rate-limited hard enough that
+        # fetching it dominates the refresh.
+        async def _fetch_sales() -> list[WBSaleRecord] | None:
+            if not include_sales:
+                return None
+            return await statistics_client.fetch_sales(changed_since=date_from)
+
         adv_res, search_res, sales_res = await asyncio.gather(
             _fetch_fullstats(),
             _fetch_search(),
-            statistics_client.fetch_sales(changed_since=date_from),
+            _fetch_sales(),
             return_exceptions=True,
         )
         advertising_stats = _unwrap(adv_res, "advertising") or []
@@ -393,10 +411,19 @@ def harvest_sku_window(
 ) -> dict[str, int]:
     """Celery entrypoint: harvest and persist WB stats for a SKU window.
 
-    Harvests funnel + stock for ``nm_ids`` and advertising for all active/paused
-    campaigns, using the credentials of the workspace that **owns** the SKUs
-    (resolved via the ``product_card`` registry). Args are JSON-serializable
-    (dates as ISO strings) to satisfy Celery's JSON task serializer.
+    Harvests funnel + stock for ``nm_ids`` and advertising for the campaigns
+    that advertise them, using the credentials of the workspace that **owns**
+    the SKUs (resolved via the ``product_card`` registry). Args are
+    JSON-serializable (dates as ISO strings) to satisfy Celery's JSON task
+    serializer.
+
+    This is the interactive «Обновить» path, so it fetches ONLY what is scoped
+    to ``nm_ids``. The sale/return feed is therefore skipped: WB serves it
+    account-wide only, so refreshing one SKU would re-pull every SKU's sales
+    across the harshest limiter WB exposes — observed live as a 39-second 429
+    backoff that made a ~2-second refresh take 45-70 seconds. Sale-date facts
+    («Выкупы, ₽», «Процент выкупа») are account-wide by nature and stay on the
+    nightly harvest.
 
     Args:
         nm_ids: SKU identifiers to harvest funnel + stock for. All must belong
@@ -407,7 +434,8 @@ def harvest_sku_window(
             not serve current-day statistics).
 
     Returns:
-        A mapping of persisted row counts per metric family.
+        A mapping of persisted row counts per metric family (``sales_rows`` is
+        always 0 — the feed is not part of a scoped refresh).
 
     Raises:
         IntegrationError: If the SKUs are not registered to any workspace, or
@@ -434,7 +462,11 @@ def harvest_sku_window(
                     f"Workspace {workspace_id} no longer exists; refresh aborted."
                 )
             return await _harvest_sku_window(
-                tokens=tokens, nm_ids=nm_ids, date_from=start, date_to=end
+                tokens=tokens,
+                nm_ids=nm_ids,
+                date_from=start,
+                date_to=end,
+                include_sales=False,
             )
         finally:
             # Each Celery task runs its own asyncio.run (a fresh event loop).

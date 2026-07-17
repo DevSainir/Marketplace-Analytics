@@ -52,7 +52,9 @@ def _ad_row(
         views=views,
         clicks=clicks,
         add_to_cart=add_to_cart,
-        spend=100.0,
+        # Above _MIN_CAMPAIGN_DAY_SPEND: these fixtures exercise the associative
+        # breakdown, so their campaign-days must count as real delivery.
+        spend=10000.0,
         orders=orders,
         order_sum=0.0,
     )
@@ -69,7 +71,7 @@ def _search_row(
         views=views,
         clicks=clicks,
         add_to_cart=add_to_cart,
-        spend=50.0,
+        spend=5000.0,
         orders=orders,
     )
 

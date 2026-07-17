@@ -170,6 +170,12 @@ def _cell(
 # --------------------------------------------------------------------------- #
 # Reference scenario: two real campaigns — a unified one (shown in BOTH its WB
 # search/shelves zones) and a manual search one. Plus a noise campaign, cut.
+#
+# Every ₽ figure here is scaled so the two real campaigns clear
+# ``_MIN_CAMPAIGN_DAY_SPEND`` (a campaign-day below it is residual trickle, not
+# delivery — see matrix.py) while the noise campaign stays under it. Spend,
+# ad revenue and the price snapshot are scaled TOGETHER, so every ratio the
+# tests assert (ДРР, СПП, «Доля трафика») is unchanged by the scaling.
 # --------------------------------------------------------------------------- #
 def _two_campaign_rows() -> dict[str, list[float | None]]:
     campaigns = {
@@ -187,9 +193,9 @@ def _two_campaign_rows() -> dict[str, list[float | None]]:
             views=60,
             clicks=6,
             add_to_cart=3,
-            spend=30,
+            spend=3000,
             orders=1,
-            order_sum=600,
+            order_sum=60000,
         ),
         _ad_row(
             1,
@@ -198,23 +204,23 @@ def _two_campaign_rows() -> dict[str, list[float | None]]:
             views=40,
             clicks=4,
             add_to_cart=2,
-            spend=20,
+            spend=2000,
             orders=1,
-            order_sum=400,
+            order_sum=40000,
         ),
         # Manual search campaign (40 views = 40% of the leader -> kept).
-        _ad_row(2, DAY1, views=40, clicks=4, add_to_cart=2, spend=20, orders=1, order_sum=500),
+        _ad_row(2, DAY1, views=40, clicks=4, add_to_cart=2, spend=2000, orders=1, order_sum=50000),
         # Unclassifiable noise campaign: excluded entirely.
         _ad_row(4, DAY1, views=10, clicks=1, spend=5),
     ]
-    search_rows = [_search_row(1, DAY1, views=30, clicks=3, add_to_cart=1, spend=15, orders=1)]
+    search_rows = [_search_row(1, DAY1, views=30, clicks=3, add_to_cart=1, spend=1500, orders=1)]
     funnel_rows = [
         _funnel_row(DAY1, open_count=200, cart_count=20, order_count=10, buyout_count=6),
         # Matured cohort inside the lagged window: 4 buyouts + 6 refusals = 10
         # decided deliveries -> 40%.
         _funnel_row(DAY1 - timedelta(days=10), order_count=8, buyout_count=4, cancel_count=6),
     ]
-    price_snapshots = [_price_row(DAY1, seller=500, customer=350)]
+    price_snapshots = [_price_row(DAY1, seller=50000, customer=35000)]
     return _matrix(
         campaigns=campaigns,
         ad_rows=ad_rows,
@@ -250,17 +256,17 @@ def test_split_revenue_is_tainted_not_guessed() -> None:
     assert _cell(rows, "order_sum", 0, "uni_search") is None
     assert _cell(rows, "order_sum", 0, "uni_shelves") is None
     # The single-zone manual campaign keeps its real revenue.
-    assert _cell(rows, "order_sum", 0, "manual_search") == 500
-    assert _cell(rows, "drr_orders", 0, "manual_search") == 4.0  # 20 / 500
+    assert _cell(rows, "order_sum", 0, "manual_search") == 50000
+    assert _cell(rows, "drr_orders", 0, "manual_search") == 4.0  # 2000 / 50000
 
 
 def test_total_and_organic_use_survivors_only() -> None:
     """«Общая»/«Органика» count only the surviving campaigns (noise excluded)."""
     rows = _two_campaign_rows()
-    # Ad roll-up = both survivors: 100 (unified) + 40 (manual) = 140 views, 70₽
+    # Ad roll-up = both survivors: 100 (unified) + 40 (manual) = 140 views, 7000₽
     # spend, 14 clicks. The unclassifiable noise (10 views / 5₽) is NOT counted.
     assert _cell(rows, "views", 0, "total") == 140
-    assert _cell(rows, "spend", 0, "total") == 70
+    assert _cell(rows, "spend", 0, "total") == 7000
     assert _cell(rows, "clicks", 0, "total") == 200  # funnel card opens
     # Organic = funnel - surviving ad. Ad clicks = 14 -> organic 200-14 = 186.
     assert _cell(rows, "clicks", 0, "organic") == 186
@@ -372,8 +378,8 @@ def test_significant_second_zone_is_kept() -> None:
         2: _campaign(2, "manual", search=False, shelves=True),
     }
     ad_rows = [
-        _ad_row(1, DAY1, views=100, clicks=10, spend=50, orders=5),
-        _ad_row(2, DAY1, views=40, clicks=5, spend=20, orders=2),  # 40% of leader
+        _ad_row(1, DAY1, views=100, clicks=10, spend=5000, orders=5),
+        _ad_row(2, DAY1, views=40, clicks=5, spend=2000, orders=2),  # 40% of leader
     ]
     rows = _matrix(campaigns=campaigns, ad_rows=ad_rows)
     assert _cell(rows, "views", 0, "manual_search") == 100
@@ -394,18 +400,47 @@ def test_zero_delivery_campaign_is_cut() -> None:
     assert _cell(rows, "clicks", 0, "organic") == 100
 
 
+def test_trickling_campaign_day_is_cut() -> None:
+    """A campaign-day spending a few ₽ is trickle, not delivery, and is cut.
+
+    Mirrors SKU 944212835 over 10-14.07: campaign 63813921 is a REAL campaign
+    (206 157 ₽ across 63 days, peaking at 10 118 ₽/day) that spent 3-16 ₽/day
+    for a week — a handful of Показы and no clicks. The day must read «—», not
+    present the SKU as advertised. The cut is per DAY, so the same campaign's
+    real days are unaffected (see the DAY2 column).
+    """
+    campaigns = {1: _campaign(1, "manual", search=True, shelves=False)}
+    ad_rows = [
+        # DAY1: the trickle — the exact shape complained about.
+        _ad_row(1, DAY1, views=75, clicks=0, add_to_cart=1, spend=16.20, orders=1),
+        # DAY2: the same campaign genuinely running.
+        _ad_row(1, DAY2, views=16326, clicks=955, add_to_cart=120, spend=4189, orders=36),
+    ]
+    funnel_rows = [_funnel_row(DAY1, open_count=100, cart_count=10, order_count=6)]
+    rows = _matrix(campaigns=campaigns, ad_rows=ad_rows, funnel_rows=funnel_rows, date_to=DAY2)
+    # DAY1: cut entirely — and its 75 views do not leak into «Общая».
+    assert _cell(rows, "views", 0, "manual_search") is None
+    assert _cell(rows, "spend", 0, "manual_search") is None
+    assert _cell(rows, "views", 0, "total") is None
+    # …so that day's traffic is all organic.
+    assert _cell(rows, "clicks", 0, "organic") == 100
+    # DAY2: the same campaign, actually delivering -> shown.
+    assert _cell(rows, "views", 1, "manual_search") == 16326
+    assert _cell(rows, "spend", 1, "manual_search") == 4189
+
+
 def test_total_volumes_and_spp_derive_from_seller_price() -> None:
     """«Заказы, ₽» = count x price; «Выкупы, ₽» = «Заказы, ₽» x «Процент выкупа»."""
     rows = _two_campaign_rows()
-    # DAY1: order_count 10 x 500 = 5000; buyout% = 40% (matured cohort) →
-    # «Выкупы, ₽» = 5000 x 0.40 = 2000 (order-date, congruent with «Заказы, ₽»).
-    assert _cell(rows, "order_sum", 0, "total") == 5000.0
+    # DAY1: order_count 10 x 50000 = 500000; buyout% = 40% (matured cohort) →
+    # «Выкупы, ₽» = 500000 x 0.40 = 200000 (order-date, congruent with «Заказы, ₽»).
+    assert _cell(rows, "order_sum", 0, "total") == 500000.0
     assert _cell(rows, "buyout_percent", 0, "total") == 40.0
-    assert _cell(rows, "buyout_sum", 0, "total") == 2000.0
-    assert _cell(rows, "seller_price", 0, "total") == 500.0
-    assert _cell(rows, "customer_price", 0, "total") == 350.0
-    assert _cell(rows, "spp", 0, "total") == 30.0  # (500-350)/500 x 100
-    # DRR over the derived ₽: spend 70 / 5000 and / 2000.
+    assert _cell(rows, "buyout_sum", 0, "total") == 200000.0
+    assert _cell(rows, "seller_price", 0, "total") == 50000.0
+    assert _cell(rows, "customer_price", 0, "total") == 35000.0
+    assert _cell(rows, "spp", 0, "total") == 30.0  # (50000-35000)/50000 x 100
+    # DRR over the derived ₽: spend 7000 / 500000 and / 200000.
     assert _cell(rows, "drr_orders", 0, "total") == 1.4
     assert _cell(rows, "drr_sales", 0, "total") == 3.5
     # Prices/СПП are «Общая»-only (never on ad buckets or «Органика»).
@@ -527,7 +562,7 @@ def test_stock_rows_empty_without_snapshots() -> None:
 def test_assoc_totals_shown_on_single_zone_campaign() -> None:
     """A single-zone campaign carries its all-variant totals exactly."""
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False)}
-    ad_rows = [_ad_row(1, DAY1, views=100, clicks=10, add_to_cart=71, spend=50, orders=30)]
+    ad_rows = [_ad_row(1, DAY1, views=100, clicks=10, add_to_cart=71, spend=5000, orders=30)]
     campaign_totals = [CampaignDayTotal(campaign_id=1, stat_date=DAY1, add_to_cart=100, orders=48)]
     rows = _matrix(campaigns=campaigns, ad_rows=ad_rows, campaign_totals=campaign_totals)
     # The SKU's own counts stay the cells' primary facts…
@@ -544,8 +579,8 @@ def test_assoc_totals_shown_on_single_zone_campaign() -> None:
 def test_assoc_extra_split_by_sku_zone_share() -> None:
     """A split campaign apportions the associative extra by the SKU's own split."""
     campaigns = {1: _campaign(1, "unified", search=True, shelves=True)}
-    ad_rows = [_ad_row(1, DAY1, views=100, clicks=10, add_to_cart=10, spend=50, orders=5)]
-    search_rows = [_search_row(1, DAY1, views=30, clicks=3, add_to_cart=4, spend=15, orders=2)]
+    ad_rows = [_ad_row(1, DAY1, views=100, clicks=10, add_to_cart=10, spend=5000, orders=5)]
+    search_rows = [_search_row(1, DAY1, views=30, clicks=3, add_to_cart=4, spend=1500, orders=2)]
     campaign_totals = [CampaignDayTotal(campaign_id=1, stat_date=DAY1, add_to_cart=20, orders=9)]
     rows = _matrix(
         campaigns=campaigns,
@@ -566,7 +601,7 @@ def test_assoc_extra_split_by_sku_zone_share() -> None:
 def test_assoc_hidden_without_a_gap() -> None:
     """No associated-variant conversions -> the assoc rows stay «—»."""
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False)}
-    ad_rows = [_ad_row(1, DAY1, views=100, clicks=10, add_to_cart=7, spend=50, orders=3)]
+    ad_rows = [_ad_row(1, DAY1, views=100, clicks=10, add_to_cart=7, spend=5000, orders=3)]
     campaign_totals = [CampaignDayTotal(campaign_id=1, stat_date=DAY1, add_to_cart=7, orders=3)]
     rows = _matrix(campaigns=campaigns, ad_rows=ad_rows, campaign_totals=campaign_totals)
     assert _cell(rows, "carts", 0, "manual_search") == 7
@@ -613,19 +648,19 @@ def test_search_campaign_splits_into_search_and_catalog() -> None:
 def test_search_campaign_without_slice_stays_in_search() -> None:
     """No harvested normquery slice (legacy rows) -> the whole day is «Поиск»."""
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False)}
-    ad_rows = [_ad_row(1, DAY1, views=100, clicks=10, spend=50, orders=5, order_sum=500)]
+    ad_rows = [_ad_row(1, DAY1, views=100, clicks=10, spend=5000, orders=5, order_sum=50000)]
     rows = _matrix(campaigns=campaigns, ad_rows=ad_rows)
     assert _cell(rows, "views", 0, "manual_search") == 100
     assert _cell(rows, "views", 0, "manual_catalog") is None
     # Unsplit -> the campaign revenue stays visible.
-    assert _cell(rows, "order_sum", 0, "manual_search") == 500
+    assert _cell(rows, "order_sum", 0, "manual_search") == 50000
 
 
 def test_search_slice_clamped_to_campaign_totals() -> None:
     """Attribution drift (search > fullstats) never yields negative shelves."""
     campaigns = {1: _campaign(1, "unified", search=True, shelves=True)}
-    ad_rows = [_ad_row(1, DAY1, views=10, clicks=1, spend=5)]
-    search_rows = [_search_row(1, DAY1, views=12, clicks=2, spend=6)]
+    ad_rows = [_ad_row(1, DAY1, views=10, clicks=1, spend=500)]
+    search_rows = [_search_row(1, DAY1, views=12, clicks=2, spend=600)]
     rows = _matrix(campaigns=campaigns, ad_rows=ad_rows, search_rows=search_rows)
     # Search clamps to the campaign total (10); shelves = 0 -> not a candidate.
     assert _cell(rows, "views", 0, "uni_search") == 10
