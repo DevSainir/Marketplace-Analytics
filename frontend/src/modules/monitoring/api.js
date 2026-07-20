@@ -179,16 +179,51 @@ export async function setSkuPinColor(nmId, color) {
 }
 
 /**
- * PUT /v1/monitoring/skus/{nm_id}/comments/{date} — save or clear one day's
- * free-text note on a SKU (shared by every account). A blank body clears it.
+ * @typedef {object} DayNote
+ * @property {string} body The free-text comment ('' when absent).
+ * @property {string} header The note's title ('' when absent).
+ */
+
+/**
+ * PUT /v1/monitoring/skus/{nm_id}/comments/{date} — save one day's note on a
+ * SKU (shared by every account): its comment, its header, or both.
+ *
+ * Only the edited field is sent; an omitted field keeps its stored value, so
+ * the header and the comment never clobber each other. Blanking both clears
+ * the day.
  *
  * @param {number} nmId WB SKU identifier.
- * @param {string} iso The commented day, as YYYY-MM-DD.
- * @param {string} body The note text; blank/whitespace-only clears the comment.
- * @returns {Promise<{nm_id: number, comment_date: string, body: string|null}>} The stored note.
+ * @param {string} iso The day, as YYYY-MM-DD.
+ * @param {{body?: string, header?: string}} patch The field(s) just edited.
+ * @returns {Promise<{nm_id: number, comment_date: string, note: DayNote|null}>} The stored note.
  */
-export async function setDayComment(nmId, iso, body) {
-  const { data } = await apiClient.put(`/v1/monitoring/skus/${nmId}/comments/${iso}`, { body })
+export async function setDayComment(nmId, iso, patch) {
+  const { data } = await apiClient.put(`/v1/monitoring/skus/${nmId}/comments/${iso}`, patch)
+  return data
+}
+
+/**
+ * @typedef {object} DayAction
+ * @property {boolean|null} uni_rk_enabled «Включали РК единая?» (null = unanswered).
+ * @property {number|null} uni_rk_budget Unified campaign «Бюджет рекламы», ₽.
+ * @property {boolean|null} manual_rk_enabled «Включали РК ручная?».
+ * @property {number|null} manual_rk_budget Manual campaign «Бюджет рекламы», ₽.
+ * @property {'up'|'down'|'none'|null} price_change «Меняли цену?».
+ * @property {number|null} price_change_amount «На сколько», ₽.
+ */
+
+/**
+ * PUT /v1/monitoring/skus/{nm_id}/actions/{date} — save one day's «Действия»
+ * row on a SKU (shared by every account). The WHOLE day state is sent (last
+ * write wins); all-null clears the day's row.
+ *
+ * @param {number} nmId WB SKU identifier.
+ * @param {string} iso The day, as YYYY-MM-DD.
+ * @param {DayAction} action The full desired state of the day's answers.
+ * @returns {Promise<{nm_id: number, action_date: string, action: DayAction|null}>}
+ */
+export async function setDayAction(nmId, iso, action) {
+  const { data } = await apiClient.put(`/v1/monitoring/skus/${nmId}/actions/${iso}`, action)
   return data
 }
 

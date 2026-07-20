@@ -28,6 +28,7 @@ from src.modules.monitoring.repos import (
     ProductCardRepository,
     ProductSizeRepository,
     SaleRepository,
+    SkuDayActionRepository,
     SkuDayCommentRepository,
     StockRepository,
     WarehouseMarkRepository,
@@ -104,6 +105,11 @@ def get_day_comment_repo(session: DbSession) -> SkuDayCommentRepository:
     return SkuDayCommentRepository(session)
 
 
+def get_day_action_repo(session: DbSession) -> SkuDayActionRepository:
+    """Provide a :class:`SkuDayActionRepository` bound to the request session."""
+    return SkuDayActionRepository(session)
+
+
 FunnelRepoDep = Annotated[FunnelRepository, Depends(get_funnel_repo)]
 AdvertisingRepoDep = Annotated[AdvertisingRepository, Depends(get_advertising_repo)]
 AdvertisingSearchRepoDep = Annotated[
@@ -119,6 +125,7 @@ SaleRepoDep = Annotated[SaleRepository, Depends(get_sale_repo)]
 WarehouseMarkRepoDep = Annotated[WarehouseMarkRepository, Depends(get_warehouse_mark_repo)]
 PinnedSkuRepoDep = Annotated[PinnedSkuRepository, Depends(get_pinned_sku_repo)]
 SkuDayCommentRepoDep = Annotated[SkuDayCommentRepository, Depends(get_day_comment_repo)]
+SkuDayActionRepoDep = Annotated[SkuDayActionRepository, Depends(get_day_action_repo)]
 
 
 # --------------------------------------------------------------------------- #
@@ -138,6 +145,7 @@ def get_analytics_service(
     warehouse_mark_repo: WarehouseMarkRepoDep,
     pinned_sku_repo: PinnedSkuRepoDep,
     day_comment_repo: SkuDayCommentRepoDep,
+    day_action_repo: SkuDayActionRepoDep,
 ) -> AnalyticsService:
     """Compose the read-side :class:`AnalyticsService` from its repositories."""
     return AnalyticsService(
@@ -154,6 +162,7 @@ def get_analytics_service(
         warehouse_mark_repo=warehouse_mark_repo,
         pinned_sku_repo=pinned_sku_repo,
         day_comment_repo=day_comment_repo,
+        day_action_repo=day_action_repo,
     )
 
 
@@ -236,6 +245,7 @@ __all__ = [
     "ProductCardRepoDep",
     "ProductSizeRepoDep",
     "SaleRepoDep",
+    "SkuDayActionRepoDep",
     "SkuDayCommentRepoDep",
     "StockRepoDep",
     "WarehouseMarkRepoDep",

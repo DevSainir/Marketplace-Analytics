@@ -10,6 +10,7 @@ import PeriodSelector from '@/modules/monitoring/components/PeriodSelector.vue'
 import PinnedSkuRow from '@/modules/monitoring/components/PinnedSkuRow.vue'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
 import StockBreakdownTable from '@/modules/monitoring/components/StockBreakdownTable.vue'
+import StockHeatLegend from '@/modules/monitoring/components/StockHeatLegend.vue'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 
 const store = useMonitoringStore()
@@ -99,11 +100,19 @@ function togglePin() {
   store.toggleSkuPin(product.value.nm_id, product.value.vendor_code ?? null)
 }
 
-// --- day comments («Комментарий») ------------------------------------------
+// --- day notes («Комментарий» + its header) ---------------------------------
 // Notes live per DAY inside the metrics table (its collapsible «Комментарии»
-// row), so the view only forwards the commit to the store.
-function handleCommentEdit({ day, body }) {
-  store.saveDayComment(day, body)
+// row), so the view only forwards the commit to the store. The patch carries
+// just the edited field — header and comment save independently.
+function handleCommentEdit({ day, patch }) {
+  store.saveDayComment(day, patch)
+}
+
+// --- day actions («Действия») ----------------------------------------------
+// The per-day РК/price answers live in their own row of the metrics table; the
+// view only forwards each partial change to the store, which merges + saves.
+function handleActionEdit({ day, patch }) {
+  store.saveDayAction(day, patch)
 }
 
 // --- two-day stock comparison ----------------------------------------------
@@ -295,9 +304,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
             :stock-total-rows="metricsMatrix.stockTotalRows"
             :comments="product.comments ?? {}"
             :comment-saving-days="store.commentSavingDays"
+            :day-actions="product.day_actions ?? {}"
+            :action-saving-days="store.actionSavingDays"
             :editing-disabled="editingLocked"
             @edit="handleCellEdit"
             @comment="handleCommentEdit"
+            @action="handleActionEdit"
           />
 
           <!-- Hint on the left, actions on the right. The dirty caption sits
@@ -349,7 +361,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
              each side has its own day picker and its own size column, and
              both render the same rows (see `sharedStockSizes`). -->
         <section v-if="product.stock" class="mt-lg" aria-label="Остатки по складам">
-          <h2 class="text-h3 font-semibold text-primary">Остатки по складам</h2>
+          <div class="flex items-center justify-between gap-md">
+            <h2 class="text-h3 font-semibold text-primary">Остатки по складам</h2>
+            <!-- One key for both tables: the heat scale is global, so a tint
+                 means the same count on either side (see stockHeat.js). -->
+            <StockHeatLegend />
+          </div>
           <div class="mt-sm flex gap-md">
             <div v-for="side in ['left', 'right']" :key="side" class="min-w-0 flex-1">
               <DayPicker

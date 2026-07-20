@@ -16,6 +16,7 @@ from src.modules.monitoring.models.campaigns import (
     normalize_status,
     normalize_type,
 )
+from src.modules.monitoring.models.day_actions import SkuDayAction
 from src.modules.monitoring.models.matrix_override import MatrixOverride
 from src.modules.monitoring.models.pinned_skus import PinnedSku
 from src.modules.monitoring.models.prices import PriceSnapshot
@@ -39,6 +40,7 @@ __all__ = [
     "ProductSize",
     "SaleRecord",
     "SalesFunnelDaily",
+    "SkuDayAction",
     "SkuDayComment",
     "StockSnapshot",
     "WarehouseMark",

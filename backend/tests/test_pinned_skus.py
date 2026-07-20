@@ -67,6 +67,7 @@ def _service(pins: Any) -> AnalyticsService:
         warehouse_mark_repo=unused,
         pinned_sku_repo=pins,
         day_comment_repo=unused,
+        day_action_repo=unused,
     )
 
 
@@ -82,6 +83,7 @@ def _rows() -> list[PinnedSku]:
 async def test_reorder_writes_the_new_order() -> None:
     """A reorder of exactly the pinned set is persisted and echoed back."""
     pins = _FakePinnedRepo(_rows())
+
     result = await _service(pins).reorder_pins(workspace_id=WORKSPACE, nm_ids=[30, 10, 20])
 
     assert pins.reorder_calls == [[30, 10, 20]]
@@ -96,6 +98,7 @@ async def test_reorder_rejects_a_sku_outside_the_workspace_pins() -> None:
     workspace's pin: the guard is the pinned set, not the path.
     """
     pins = _FakePinnedRepo(_rows())
+
     with pytest.raises(ValidationError):
         await _service(pins).reorder_pins(workspace_id=WORKSPACE, nm_ids=[10, 20, 30, 999])
 
@@ -106,6 +109,7 @@ async def test_reorder_rejects_a_sku_outside_the_workspace_pins() -> None:
 async def test_reorder_rejects_a_stale_list() -> None:
     """A list missing a pin (a teammate pinned meanwhile) is rejected whole."""
     pins = _FakePinnedRepo(_rows())
+
     with pytest.raises(ValidationError):
         await _service(pins).reorder_pins(workspace_id=WORKSPACE, nm_ids=[10, 20])
 

@@ -52,6 +52,15 @@ celery_app.conf.beat_schedule = {
         "task": "monitoring.refresh_buyout_cohorts",
         "schedule": crontab(hour=7, minute=0),
     },
+    # The matrix notes' running title: at the day boundary, each SKU's header
+    # continues onto the new day as a real row (the comment does not — it is
+    # per-day). 21:00 MSK is 00:00 in Bishkek, where the team works: that is the
+    # moment their new day starts, so its column carries the title from the
+    # first time anyone opens the table.
+    "daily-carry-note-headers": {
+        "task": "monitoring.carry_day_headers",
+        "schedule": crontab(hour=21, minute=0),
+    },
     # Housekeeping: auth.refresh_tokens gains a row per login/refresh forever;
     # purge rows long past expiry so the table stays bounded.
     "daily-purge-expired-refresh-tokens": {

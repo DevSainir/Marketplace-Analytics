@@ -14,6 +14,8 @@ from datetime import date
 from pydantic import BaseModel, Field
 
 from src.modules.monitoring.schemas.advertising import CampaignAdvertising
+from src.modules.monitoring.schemas.comment import DayNote
+from src.modules.monitoring.schemas.day_actions import DayActionState
 from src.modules.monitoring.schemas.funnel import (
     BaselineDemandRead,
     FunnelDetailRead,
@@ -110,10 +112,17 @@ class SkuDetailResponse(BaseModel):
         default=None, description="Seller article code (WB 'Артикул продавца')."
     )
     title: str | None = Field(default=None, description="Product card title.")
-    comments: dict[date, str] = Field(
+    comments: dict[date, DayNote] = Field(
         default_factory=dict,
-        description="Free-text notes attached to the SKU's days, keyed by day "
-        "(only commented days appear; the matrix table renders one input per day).",
+        description="Per-day notes (comment + header), keyed by day; days "
+        "without a note are absent. Values are stored facts — the header's "
+        "day-to-day carry is materialized at the day boundary, not derived "
+        "here.",
+    )
+    day_actions: dict[date, DayActionState] = Field(
+        default_factory=dict,
+        description="Per-day manager action rows («Действия»: РК toggles + "
+        "budgets, price change), keyed by day; untouched days are absent.",
     )
     window: MetricWindow
     funnel: list[FunnelDetailRead] = Field(default_factory=list)

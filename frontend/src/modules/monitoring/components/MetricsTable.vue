@@ -30,7 +30,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { formatNumber } from '@/core/utils/format'
 import { vDragScroll } from '@/core/utils/dragScroll'
-import { TRAFFIC_COLUMNS, TRAFFIC_GROUPS } from '@/modules/monitoring/metricsMatrix'
+import {
+  DAY_SPAN_COLUMNS,
+  DRR_SALES_COLUMNS,
+  TRAFFIC_COLUMNS,
+  TRAFFIC_GROUPS,
+} from '@/modules/monitoring/metricsMatrix'
 
 const props = defineProps({
   /** @type {Array<{iso: string, label: string}>} oldest → newest */
@@ -43,15 +48,19 @@ const props = defineProps({
   stockRows: { type: Array, default: () => [] },
   /** «Всего» card row — per-day total stock (остаток + оба «в пути»), read-only. */
   stockTotalRows: { type: Array, default: () => [] },
-  /** Persisted day notes, keyed by ISO day (commented days only). */
+  /** Persisted day notes, keyed by ISO day: `{body, header}` per commented day. */
   comments: { type: Object, default: () => ({}) },
   /** ISO days whose note save is in flight (their input is disabled). */
   commentSavingDays: { type: Set, default: () => new Set() },
+  /** Persisted «Действия» rows, keyed by ISO day (touched days only). */
+  dayActions: { type: Object, default: () => ({}) },
+  /** ISO days whose action save is in flight (their controls are disabled). */
+  actionSavingDays: { type: Set, default: () => new Set() },
   /** Disable editing while a save/refresh is in flight. */
   editingDisabled: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['edit', 'comment'])
+const emit = defineEmits(['edit', 'comment', 'action'])
 
 // One leaf column per day × traffic column; `index` addresses row.cells.
 const leafColumns = computed(() =>
@@ -64,6 +73,37 @@ const leafColumns = computed(() =>
     })),
   ),
 )
+
+// Two rows merge cells Excel-style instead of rendering all 8 leaf columns,
+// because their value is not per-zone: «ДРР от продаж» belongs to a CAMPAIGN
+// (all its view zones), «Процент выкупа» to the whole DAY. Each iterates its
+// own wider columns; `index` still addresses `row.cells`, pointing at the cell
+// that carries the value.
+const MERGED_ROW_COLUMNS = {
+  drr_sales: DRR_SALES_COLUMNS,
+  buyout_percent: DAY_SPAN_COLUMNS,
+}
+
+const mergedColumns = computed(() =>
+  Object.fromEntries(
+    Object.entries(MERGED_ROW_COLUMNS).map(([rowKey, columns]) => [
+      rowKey,
+      props.days.flatMap((day, dayIndex) =>
+        columns.map((column) => ({
+          id: `${day.iso}:${column.key}`,
+          key: column.key,
+          span: column.span,
+          index: dayIndex * TRAFFIC_COLUMNS.length + column.offset,
+        })),
+      ),
+    ]),
+  ),
+)
+
+/** The column set a metric row renders over (merged for the two rows above). */
+function rowColumns(row) {
+  return mergedColumns.value[row.key] ?? leafColumns.value
+}
 
 // «Общая»/«Органика» cells span the zones row (rowspan=2 in the type row),
 // so the zones row only lists the columns that actually have a zone split.
@@ -97,7 +137,15 @@ function cellToneClass(row, cell) {
 // money / efficiency); the block reads through a subtle row tint (see the
 // `matrix-group--*` rules in main.css). «ДРР от продаж» is emphasized.
 function rowClasses(row) {
-  return [row.group && `matrix-group--${row.group}`, row.emphasis && 'matrix-row-emphasis']
+  return [
+    row.group && `matrix-group--${row.group}`,
+    row.emphasis && 'matrix-row-emphasis',
+    // A merged row lays out fewer cells per day than the skin's 8-cell border
+    // cadence in main.css assumes, so each restates its own boundaries below:
+    // «ДРР от продаж» has 5 per day, «Процент выкупа» exactly 1.
+    row.key === 'drr_sales' && 'matrix-row-merged matrix-row-merged--campaign',
+    row.key === 'buyout_percent' && 'matrix-row-merged matrix-row-merged--day',
+  ]
 }
 
 // The two day-bound blocks under the metric rows.
@@ -145,40 +193,117 @@ const vFocus = {
   },
 }
 
-// --- day comments («Комментарий») ----------------------------------------
+// --- day notes («Комментарий» + its header) -------------------------------
 // One note per day, in a row of its own under the blocks: collapsed to just its
-// label (the chevron in the frozen label cell opens it), so the table opens on
-// numbers and the notes are there when wanted. Each input is a draft that
-// commits on blur — same as an inline cell edit, no per-day save button.
+// label (the chevron — or a click anywhere on the row — opens it), so the table
+// opens on numbers and the notes are there when wanted.
+//
+// Each day has TWO independent fields: a one-line HEADER on top and the
+// free-text comment under it. Both are plain per-day values here — the header's
+// continuation onto a new day is done server-side at the day boundary and
+// arrives already stored, so nothing is inherited across columns on screen and
+// editing one day never touches another. Each input is a draft that commits on
+// blur — same as an inline cell edit, no per-day save button.
 const commentsExpanded = ref(false)
 
-// Drafts by ISO day. Seeded from the persisted notes and re-seeded whenever they
-// change (a SKU switch, a window change, a save) — except for the day being
-// typed in, whose draft must survive a save landing on another day.
+/** The stored note of a day, or a blank one. */
+function noteOf(iso) {
+  return props.comments[iso] ?? { body: '', header: '' }
+}
+
+// Drafts by ISO day, one per field. Re-seeded from the persisted notes whenever
+// they change (a SKU switch, a window change, a save) — except for the field
+// being typed in, whose draft must survive a save landing elsewhere.
 const commentDrafts = ref({})
-const focusedCommentDay = ref(null)
+const headerDrafts = ref({})
+const focusedNote = ref(null) // `${iso}:body` | `${iso}:header` | null
 
 watch(
   [() => props.comments, () => props.days],
   () => {
-    const drafts = {}
+    const bodies = {}
+    const headers = {}
     for (const day of props.days) {
-      drafts[day.iso] =
-        day.iso === focusedCommentDay.value
+      const note = noteOf(day.iso)
+      bodies[day.iso] =
+        focusedNote.value === `${day.iso}:body`
           ? (commentDrafts.value[day.iso] ?? '')
-          : (props.comments[day.iso] ?? '')
+          : note.body
+      headers[day.iso] =
+        focusedNote.value === `${day.iso}:header`
+          ? (headerDrafts.value[day.iso] ?? '')
+          : note.header
     }
-    commentDrafts.value = drafts
+    commentDrafts.value = bodies
+    headerDrafts.value = headers
   },
-  { immediate: true },
+  { immediate: true, deep: true },
 )
 
-/** Commit a note on blur, but only when it actually differs from the stored one. */
-function commitComment(iso) {
-  if (focusedCommentDay.value === iso) focusedCommentDay.value = null
-  const body = (commentDrafts.value[iso] ?? '').trim()
-  if (body === (props.comments[iso] ?? '')) return
-  emit('comment', { day: iso, body })
+/** Commit one field on blur, but only when it differs from the stored value. */
+function commitNote(iso, field) {
+  if (focusedNote.value === `${iso}:${field}`) focusedNote.value = null
+  const drafts = field === 'header' ? headerDrafts.value : commentDrafts.value
+  const value = (drafts[iso] ?? '').trim()
+  if (value === noteOf(iso)[field]) return
+  // Only the edited field travels: the other keeps its stored value server-side.
+  emit('comment', { day: iso, patch: { [field]: value } })
+}
+
+// --- day actions («Действия») ---------------------------------------------
+// One always-visible row under the comments: per day, three answered blocks —
+// «Включали РК единая/ручная?» (Да/Нет + «Бюджет рекламы») and «Меняли цену?»
+// (Повысили/Понизили/Нет + «На сколько»). Every change emits `action` with a
+// partial patch; the store merges it into the day's stored state and saves.
+const PRICE_CHANGE_OPTIONS = [
+  { value: 'up', label: 'Повысили' },
+  { value: 'down', label: 'Понизили' },
+  { value: 'none', label: 'Нет' },
+]
+
+// The two РК question blocks share one markup (v-for over this config).
+const RK_BLOCKS = [
+  { field: 'uni_rk_enabled', budgetField: 'uni_rk_budget', question: 'Включали РК единая?' },
+  { field: 'manual_rk_enabled', budgetField: 'manual_rk_budget', question: 'Включали РК ручная?' },
+]
+
+/** The day's stored answers (or an all-null blank). */
+function dayAction(iso) {
+  return props.dayActions[iso] ?? {}
+}
+
+/** Toggle a Да/Нет answer; clicking the selected option un-answers it. */
+function toggleRkAnswer(iso, field, value) {
+  if (props.actionSavingDays.has(iso)) return
+  const current = dayAction(iso)[field] ?? null
+  emit('action', { day: iso, patch: { [field]: current === value ? null : value } })
+}
+
+/** «Меняли цену?» select: '' un-answers, otherwise up/down/none. */
+function commitPriceChange(iso, event) {
+  emit('action', { day: iso, patch: { price_change: event.target.value || null } })
+}
+
+/** Commit a ₽ input (budget / «На сколько») on blur or Enter; blank clears. */
+function commitActionAmount(iso, field, event) {
+  const raw = event.target.value.trim().replace(',', '.')
+  const stored = dayAction(iso)[field] ?? null
+  const value = raw === '' ? null : Number(raw)
+  if (raw !== '' && (Number.isNaN(value) || value < 0)) {
+    event.target.value = stored == null ? '' : String(stored)
+    return
+  }
+  if (value === stored) return
+  emit('action', { day: iso, patch: { [field]: value } })
+}
+
+/** The tri-state select's tint follows the picked answer. */
+function priceChangeClass(iso) {
+  const value = dayAction(iso).price_change
+  if (value === 'up') return 'day-action-select--positive'
+  if (value === 'down') return 'day-action-select--negative'
+  if (value === 'none') return 'day-action-select--warning'
+  return ''
 }
 
 const scroll = ref(null)
@@ -315,7 +440,12 @@ watch(
                 {{ row.label }}
               </span>
             </td>
-            <td v-for="leaf in leafColumns" :key="leaf.id">
+            <td
+              v-for="leaf in rowColumns(row)"
+              :key="leaf.id"
+              :colspan="leaf.span ?? 1"
+              :class="(leaf.span ?? 1) > 1 && 'matrix-cell--merged'"
+            >
               <template v-if="row.cells[leaf.index]">
                 <input
                   v-if="editingId === `${row.cells[leaf.index].day}:${leaf.key}:${row.key}`"
@@ -448,26 +578,145 @@ watch(
                 <span class="text-micro font-semibold uppercase tracking-wide">Комментарии</span>
               </button>
             </td>
-            <td v-for="day in days" :key="day.iso" :colspan="8">
-              <textarea
-                v-if="commentsExpanded"
-                v-model="commentDrafts[day.iso]"
-                rows="2"
-                maxlength="2000"
-                class="comment-input"
-                :disabled="commentSavingDays.has(day.iso)"
-                :placeholder="`Заметка за ${day.label}`"
-                :aria-label="`Комментарий за ${day.label}`"
-                @focus="focusedCommentDay = day.iso"
-                @blur="commitComment(day.iso)"
-                @keydown.esc.prevent="$event.target.blur()"
-              ></textarea>
+            <!-- Collapsed, ANY day cell (with or without a note) is a click
+                 target that opens the row — same as the chevron. -->
+            <td
+              v-for="day in days"
+              :key="day.iso"
+              :colspan="8"
+              :class="!commentsExpanded && 'comment-cell--collapsed'"
+              @click="commentsExpanded || (commentsExpanded = true)"
+            >
+              <!-- Header on top, comment under it: the title is what carries
+                   onto the next day, the comment stays on its own. -->
+              <template v-if="commentsExpanded">
+                <input
+                  v-model="headerDrafts[day.iso]"
+                  type="text"
+                  maxlength="200"
+                  class="comment-header-input"
+                  :disabled="commentSavingDays.has(day.iso)"
+                  :placeholder="`Заголовок за ${day.label}`"
+                  :aria-label="`Заголовок за ${day.label}`"
+                  @focus="focusedNote = `${day.iso}:header`"
+                  @blur="commitNote(day.iso, 'header')"
+                  @keydown.enter.prevent="$event.target.blur()"
+                  @keydown.esc.prevent="$event.target.blur()"
+                />
+                <textarea
+                  v-model="commentDrafts[day.iso]"
+                  rows="2"
+                  maxlength="2000"
+                  class="comment-input"
+                  :disabled="commentSavingDays.has(day.iso)"
+                  :placeholder="`Заметка за ${day.label}`"
+                  :aria-label="`Комментарий за ${day.label}`"
+                  @focus="focusedNote = `${day.iso}:body`"
+                  @blur="commitNote(day.iso, 'body')"
+                  @keydown.esc.prevent="$event.target.blur()"
+                ></textarea>
+              </template>
               <!-- Collapsed: a dot marks the days that DO carry a note, so the
-                   row still says where to look before it is opened. -->
-              <span v-else-if="comments[day.iso]" class="comment-dot" :title="comments[day.iso]">
+                   row still says where to look before it is opened. The header
+                   leads, since it is the day's title. -->
+              <span
+                v-else-if="noteOf(day.iso).header || noteOf(day.iso).body"
+                class="comment-dot"
+                :title="[noteOf(day.iso).header, noteOf(day.iso).body].filter(Boolean).join(' — ')"
+              >
                 <span class="comment-dot-mark" aria-hidden="true"></span>
-                <span class="comment-dot-text">{{ comments[day.iso] }}</span>
+                <span v-if="noteOf(day.iso).header" class="comment-dot-header">
+                  {{ noteOf(day.iso).header }}
+                </span>
+                <span class="comment-dot-text">{{ noteOf(day.iso).body }}</span>
               </span>
+            </td>
+          </tr>
+        </tbody>
+
+        <!-- Day actions («Действия»): per day, three answered blocks — the two
+             РК questions (Да/Нет + «Бюджет рекламы») and the price question
+             (Повысили/Понизили/Нет + «На сколько»). Same table, same scroll
+             container — each day's cards sit in its day section. -->
+        <tbody class="matrix-actions">
+          <tr class="matrix-gap" aria-hidden="true">
+            <td :colspan="1 + days.length * 8"></td>
+          </tr>
+          <tr>
+            <td>
+              <span class="text-micro font-semibold uppercase tracking-wide text-muted">
+                Действия
+              </span>
+            </td>
+            <td v-for="day in days" :key="day.iso" :colspan="8">
+              <div class="day-action-cards">
+                <div v-for="block in RK_BLOCKS" :key="block.field" class="day-action-card">
+                  <span class="day-action-question">{{ block.question }}</span>
+                  <div class="day-action-toggle" role="group" :aria-label="block.question">
+                    <button
+                      type="button"
+                      class="day-action-btn day-action-btn--yes"
+                      :class="dayAction(day.iso)[block.field] === true && 'is-active'"
+                      :disabled="actionSavingDays.has(day.iso)"
+                      @click="toggleRkAnswer(day.iso, block.field, true)"
+                    >
+                      Да
+                    </button>
+                    <button
+                      type="button"
+                      class="day-action-btn day-action-btn--no"
+                      :class="dayAction(day.iso)[block.field] === false && 'is-active'"
+                      :disabled="actionSavingDays.has(day.iso)"
+                      @click="toggleRkAnswer(day.iso, block.field, false)"
+                    >
+                      Нет
+                    </button>
+                  </div>
+                  <label class="day-action-amount">
+                    <span>Бюджет рекламы</span>
+                    <input
+                      type="text"
+                      inputmode="decimal"
+                      :value="dayAction(day.iso)[block.budgetField] ?? ''"
+                      :disabled="actionSavingDays.has(day.iso)"
+                      @keydown.enter.prevent="$event.target.blur()"
+                      @blur="commitActionAmount(day.iso, block.budgetField, $event)"
+                    />
+                  </label>
+                </div>
+
+                <div class="day-action-card">
+                  <span class="day-action-question">Меняли цену?</span>
+                  <select
+                    class="day-action-select"
+                    :class="priceChangeClass(day.iso)"
+                    :value="dayAction(day.iso).price_change ?? ''"
+                    :disabled="actionSavingDays.has(day.iso)"
+                    :aria-label="`Меняли цену? (${day.label})`"
+                    @change="commitPriceChange(day.iso, $event)"
+                  >
+                    <option value="">—</option>
+                    <option
+                      v-for="option in PRICE_CHANGE_OPTIONS"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
+                  <label class="day-action-amount">
+                    <span>На сколько</span>
+                    <input
+                      type="text"
+                      inputmode="decimal"
+                      :value="dayAction(day.iso).price_change_amount ?? ''"
+                      :disabled="actionSavingDays.has(day.iso)"
+                      @keydown.enter.prevent="$event.target.blur()"
+                      @blur="commitActionAmount(day.iso, 'price_change_amount', $event)"
+                    />
+                  </label>
+                </div>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -544,6 +793,43 @@ watch(
 .matrix-scroll.drag-scrolling {
   cursor: grabbing;
   user-select: none;
+}
+
+/* A merged (multi-zone) cell — «ДРР от продаж» per campaign: the one number
+   sits centered across the campaign's zone columns, Excel-merge style. */
+.app-datatable--matrix tbody.matrix-metrics td.matrix-cell--merged {
+  text-align: center;
+}
+
+/* A merged row lays out fewer cells per day than the skin's 8-cell border
+   cadence in main.css assumes, so it misfires — reset every divider, then
+   restate them on the row's own cadence. */
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged td:not(:first-child) {
+  border-left: none;
+}
+
+/* «ДРР от продаж»: 5 cells per day (uni | руч.поиск | руч.полки | общая |
+   органика). Black day boundary before each day's first cell (except the
+   first day), light boundaries between the campaign groups within a day. */
+.app-datatable--matrix
+  tbody.matrix-metrics
+  tr.matrix-row-merged--campaign
+  td:nth-child(5n + 2):not(:nth-child(2)) {
+  border-left: 2px solid #101010;
+}
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(5n + 3),
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(5n + 4),
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(5n) {
+  border-left: 2px solid #d9d9d9;
+}
+
+/* «Процент выкупа»: ONE cell per day, so every cell after the frozen label
+   starts a new day and takes the black boundary (bar the first day). */
+.app-datatable--matrix
+  tbody.matrix-metrics
+  tr.matrix-row-merged--day
+  td:not(:first-child):not(:nth-child(2)) {
+  border-left: 2px solid #101010;
 }
 
 /* An editable cell reads as plain text but hints affordance on hover/focus.
@@ -763,6 +1049,10 @@ watch(
 }
 
 .comment-input {
+  /* Block, so the header above it does not sit BESIDE it: the skin makes table
+     cells `white-space: nowrap`, which keeps two inline-blocks on one line and
+     spills the second into the next day's column. */
+  display: block;
   width: 100%;
   resize: vertical;
   padding: 5px 8px;
@@ -786,6 +1076,198 @@ watch(
   opacity: 0.6;
 }
 
+/* The header sits above its comment and reads as a title: bolder, tighter, and
+   borderless until hovered/focused, so a row of them scans as headings rather
+   than as a second bank of inputs. */
+.comment-header-input {
+  display: block; /* see .comment-input — cells are nowrap */
+  width: 100%;
+  margin-bottom: 3px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #101010;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.comment-header-input::placeholder {
+  color: #b4bcc8;
+  font-weight: 500;
+}
+.comment-header-input:hover:not(:disabled) {
+  border-color: var(--color-border-subtle, #e4e4e7);
+}
+.comment-header-input:focus {
+  border-color: var(--color-action, #2f7d68);
+  background: var(--color-canvas, #fafafa);
+  outline: 2px solid color-mix(in srgb, var(--color-action, #2f7d68) 30%, transparent);
+  outline-offset: 0;
+}
+.comment-header-input:disabled {
+  opacity: 0.6;
+}
+
+/* Collapsed row: the whole day cell invites the click that opens the notes. */
+.comment-cell--collapsed {
+  cursor: pointer;
+}
+
+/* --- day actions row -------------------------------------------------------
+   Same open-card treatment as the blocks/comments above: the heavy prefixes
+   out-rank the skin's zebra/hover/day-border rules, so the three answer cards
+   read as cards, not grid cells. */
+.app-datatable--matrix tbody.matrix-actions tr td,
+.app-datatable--matrix tbody.matrix-actions tr:hover td {
+  background: transparent;
+  border-left: none;
+  padding: 3px 6px;
+  vertical-align: top;
+}
+/* Frozen label cell: SOLID so the cards scroll underneath it. */
+.app-datatable--matrix tbody.matrix-actions tr td:first-child,
+.app-datatable--matrix tbody.matrix-actions tr:hover td:first-child {
+  background: #f1f1f1;
+  padding: 9px 8px;
+}
+.app-datatable--matrix tbody.matrix-actions tr.matrix-gap td,
+.app-datatable--matrix tbody.matrix-actions tr.matrix-gap:hover td {
+  background: transparent;
+  border: none;
+  height: 10px;
+  padding: 0;
+}
+
+/* Three answer cards share the day: side by side, equal widths. */
+.day-action-cards {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.day-action-card {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(16, 16, 16, 0.045);
+}
+.day-action-question {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Да/Нет: outline chips; the picked answer tints solid (positive/negative). */
+.day-action-toggle {
+  display: flex;
+  gap: 6px;
+}
+.day-action-btn {
+  padding: 2px 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+.day-action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.day-action-btn--yes:hover:not(:disabled),
+.day-action-btn--yes.is-active {
+  color: #179e60; /* status-positive */
+  border-color: #179e60;
+}
+.day-action-btn--yes.is-active {
+  background: rgba(23, 158, 96, 0.12);
+}
+.day-action-btn--no:hover:not(:disabled),
+.day-action-btn--no.is-active {
+  color: #ee522b; /* status-negative */
+  border-color: #ee522b;
+}
+.day-action-btn--no.is-active {
+  background: rgba(238, 82, 43, 0.12);
+}
+
+/* «Меняли цену?»: the select tints by its answer — Повысили positive,
+   Понизили negative, Нет warning. */
+.day-action-select {
+  width: 100%;
+  padding: 2px 6px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 600;
+}
+.day-action-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.day-action-select--positive {
+  color: #179e60;
+  border-color: #179e60;
+  background: rgba(23, 158, 96, 0.12);
+}
+.day-action-select--negative {
+  color: #ee522b;
+  border-color: #ee522b;
+  background: rgba(238, 82, 43, 0.12);
+}
+.day-action-select--warning {
+  color: #e8814f; /* status-warning */
+  border-color: #e8814f;
+  background: rgba(232, 129, 79, 0.12);
+}
+
+/* «Бюджет рекламы» / «На сколько»: label left, ₽ input right. */
+.day-action-amount {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.day-action-amount span {
+  color: #667085;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.day-action-amount input {
+  width: 5.5rem;
+  min-width: 3rem;
+  padding: 2px 6px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+  color: #101010;
+  font-size: 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.day-action-amount input:focus {
+  border-color: var(--color-action, #2f7d68);
+  outline: 2px solid color-mix(in srgb, var(--color-action, #2f7d68) 30%, transparent);
+  outline-offset: 0;
+}
+.day-action-amount input:disabled {
+  opacity: 0.6;
+}
+
 /* Collapsed row: a one-line trace of the days that carry a note. */
 .comment-dot {
   display: flex;
@@ -801,6 +1283,15 @@ watch(
   height: 5px;
   border-radius: 50%;
   background: var(--color-action, #2f7d68);
+}
+.comment-dot-header {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #101010;
+  font-weight: 600;
 }
 .comment-dot-text {
   overflow: hidden;

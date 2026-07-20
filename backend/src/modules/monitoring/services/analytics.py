@@ -34,6 +34,7 @@ from src.modules.monitoring.repos import (
     ProductCardRepository,
     ProductSizeRepository,
     SaleRepository,
+    SkuDayActionRepository,
     SkuDayCommentRepository,
     StockRepository,
     WarehouseMarkRepository,
@@ -44,7 +45,10 @@ from src.modules.monitoring.schemas import (
     BaselineDemandRead,
     CampaignAdvertising,
     CampaignDailyStat,
+    DayActionResponse,
+    DayActionState,
     DayCommentResponse,
+    DayNote,
     FunnelDetailRead,
     FunnelResponseSchema,
     MetricWindow,
@@ -144,6 +148,7 @@ class AnalyticsService:
         warehouse_mark_repo: WarehouseMarkRepository,
         pinned_sku_repo: PinnedSkuRepository,
         day_comment_repo: SkuDayCommentRepository,
+        day_action_repo: SkuDayActionRepository,
     ) -> None:
         """Inject the read repositories the service composes over."""
         self._funnel = funnel_repo
@@ -159,6 +164,7 @@ class AnalyticsService:
         self._warehouse_marks = warehouse_mark_repo
         self._pinned_skus = pinned_sku_repo
         self._day_comments = day_comment_repo
+        self._day_actions = day_action_repo
 
     # ------------------------------------------------------------------ #
     # Summary listing
@@ -376,7 +382,7 @@ class AnalyticsService:
         overrides = await self._matrix_overrides.list_for_sku(
             nm_id=nm_id, date_from=date_from, date_to=date_to
         )
-        overlay_overrides(base, overrides)
+        overlay_overrides(base, overrides, nm_id=nm_id)
 
         # The raw funnel list/totals carry the same price-derived ₽ volumes
         # (count x carry-forward seller price) the matrix «Общая» column shows.
@@ -391,7 +397,10 @@ class AnalyticsService:
             {row.chrt_id for row in latest_stock_rows}
         )
         marked_warehouses = await self._warehouse_marks.list_names(nm_id=nm_id)
-        comments = await self._day_comments.map_for_window(
+        comment_rows = await self._day_comments.map_for_window(
+            nm_id=nm_id, date_from=date_from, date_to=date_to
+        )
+        action_rows = await self._day_actions.map_for_window(
             nm_id=nm_id, date_from=date_from, date_to=date_to
         )
 
@@ -399,7 +408,13 @@ class AnalyticsService:
             nm_id=nm_id,
             vendor_code=card.vendor_code if card else None,
             title=card.title if card else None,
-            comments=comments,
+            comments={
+                day: DayNote(body=row.body, header=row.header) for day, row in comment_rows.items()
+            },
+            day_actions={
+                day: DayActionState.model_validate(row, from_attributes=True)
+                for day, row in action_rows.items()
+            },
             window=MetricWindow(start=date_from, end=date_to),
             funnel=funnel_details,
             funnel_totals=compute_funnel_totals(
@@ -516,29 +531,105 @@ class AnalyticsService:
     # ------------------------------------------------------------------ #
     # Day comment (free-text «Комментарий» note on one matrix day)
     # ------------------------------------------------------------------ #
-    async def set_day_comment(
-        self, *, nm_id: int, comment_date: date, body: str
+    async def set_day_note(
+        self,
+        *,
+        nm_id: int,
+        comment_date: date,
+        body: str | None = None,
+        header: str | None = None,
     ) -> DayCommentResponse:
-        """Save or clear one SKU-day's free-text comment.
+        """Save one SKU-day's note — the comment, the header, or both.
 
-        The body is stripped; a blank body deletes the note (clearing the
-        comment). Comments are global — shared by every account, keyed by
-        ``(nm_id, comment_date)`` (same convention as pins/warehouse marks).
+        A field left as ``None`` keeps its stored value, so the two inputs save
+        independently. Values are stripped; emptying BOTH deletes the day's
+        row. Notes are global — shared by every account, keyed by
+        ``(nm_id, comment_date)``.
+
+        Nothing here carries the header onto later days: that happens once at
+        the day boundary (``monitoring.carry_day_headers``), which copies it as
+        a real row. So editing or clearing a header only ever changes its own
+        day — later days keep whatever was carried onto them.
 
         Args:
             nm_id: WB SKU identifier.
             comment_date: The day the note describes.
-            body: The note text; blank/whitespace-only clears the comment.
+            body: New comment text, or ``None`` to leave it unchanged.
+            header: New header text, or ``None`` to leave it unchanged.
 
         Returns:
-            The stored comment (``body`` is ``None`` after a clear).
+            The stored note (``note`` is ``None`` after a full clear).
         """
-        stripped = body.strip()
-        if stripped:
-            await self._day_comments.set(nm_id=nm_id, comment_date=comment_date, body=stripped)
-        else:
+        current = await self._day_comments.get(nm_id=nm_id, comment_date=comment_date)
+        new_body = (body if body is not None else (current.body if current else "")).strip()
+        new_header = (header if header is not None else (current.header if current else "")).strip()
+
+        if not new_body and not new_header:
             await self._day_comments.clear(nm_id=nm_id, comment_date=comment_date)
-        return DayCommentResponse(nm_id=nm_id, comment_date=comment_date, body=stripped or None)
+            return DayCommentResponse(nm_id=nm_id, comment_date=comment_date, note=None)
+
+        await self._day_comments.set(
+            nm_id=nm_id, comment_date=comment_date, body=new_body, header=new_header
+        )
+        return DayCommentResponse(
+            nm_id=nm_id,
+            comment_date=comment_date,
+            note=DayNote(body=new_body, header=new_header),
+        )
+
+    async def carry_day_headers(self, *, source_day: date, target_day: date) -> int:
+        """Copy every SKU's ``source_day`` header onto ``target_day``.
+
+        The day-boundary carry behind the running title in the matrix's notes
+        row (see :meth:`set_day_note`). Idempotent: a day that already has a
+        header keeps it.
+
+        Args:
+            source_day: The day to copy headers from (the previous day).
+            target_day: The day to copy them onto (the new day).
+
+        Returns:
+            The number of headers carried.
+        """
+        return await self._day_comments.carry_headers_to_day(
+            source_day=source_day, target_day=target_day
+        )
+
+    # ------------------------------------------------------------------ #
+    # Day actions («Действия»: РК toggles + budgets, price change)
+    # ------------------------------------------------------------------ #
+    async def set_day_action(
+        self, *, nm_id: int, action_date: date, action: DayActionState
+    ) -> DayActionResponse:
+        """Save one SKU-day's action row (full state, last write wins).
+
+        The frontend PUTs the WHOLE day state on every change (same convention
+        as the comment note). A state with every answer cleared deletes the
+        day's row instead of storing an all-``NULL`` one. Actions are global —
+        shared by every account, keyed by ``(nm_id, action_date)``.
+
+        Args:
+            nm_id: WB SKU identifier.
+            action_date: The day the actions describe.
+            action: The full desired state of the day's answers.
+
+        Returns:
+            The stored state (``action`` is ``None`` after a full clear).
+        """
+        if action.is_empty():
+            await self._day_actions.clear(nm_id=nm_id, action_date=action_date)
+            return DayActionResponse(nm_id=nm_id, action_date=action_date, action=None)
+        await self._day_actions.set(
+            nm_id=nm_id,
+            action_date=action_date,
+            uni_rk_enabled=action.uni_rk_enabled,
+            uni_rk_budget=action.uni_rk_budget,
+            manual_rk_enabled=action.manual_rk_enabled,
+            manual_rk_budget=action.manual_rk_budget,
+            price_change=action.price_change,
+            price_change_amount=action.price_change_amount,
+        )
+        return DayActionResponse(nm_id=nm_id, action_date=action_date, action=action)
 
     async def get_stock_day(self, *, nm_id: int, on_date: date) -> StockDayResponse:
         """Return one exact snapshot day's size x warehouse stock breakdown.
@@ -675,7 +766,7 @@ class AnalyticsService:
     # Matrix editing (preview + save)
     # ------------------------------------------------------------------ #
     def preview_matrix_edit(
-        self, base: MatrixBaseState, edit: MatrixCellEdit
+        self, base: MatrixBaseState, edit: MatrixCellEdit, *, nm_id: int | None = None
     ) -> MatrixPreviewResponse:
         """Apply one pending cell-edit to a working copy and recompute (no I/O).
 
@@ -686,6 +777,8 @@ class AnalyticsService:
         Args:
             base: The client's current input working copy.
             edit: The cell the user just changed.
+            nm_id: The SKU on screen — an edit to an ad zone's carts/orders
+                moves that SKU's row of the associative breakdown with it.
 
         Returns:
             The recomputed working copy and display matrix.
@@ -693,7 +786,7 @@ class AnalyticsService:
         Raises:
             ValidationError: If the edit targets a read-only / non-invertible cell.
         """
-        new_base = apply_edit(base, edit)
+        new_base = apply_edit(base, edit, viewed_nm_id=nm_id)
         return MatrixPreviewResponse(base=new_base, matrix=build_matrix_from_base(new_base))
 
     async def save_matrix(

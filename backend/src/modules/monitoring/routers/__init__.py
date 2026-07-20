@@ -26,6 +26,8 @@ from src.core.deps import get_current_user_id
 from src.modules.monitoring.deps import AnalyticsServiceDep, CurrentWorkspaceId, WorkspaceSku
 from src.modules.monitoring.schemas import (
     CommentUpdateRequest,
+    DayActionResponse,
+    DayActionState,
     DayCommentResponse,
     FunnelResponseSchema,
     MatrixPreviewRequest,
@@ -284,8 +286,38 @@ async def set_day_comment(
     body: CommentUpdateRequest,
     service: AnalyticsServiceDep,
 ) -> DayCommentResponse:
-    """Save or clear one day's free-text comment on a SKU (shared by everyone)."""
-    return await service.set_day_comment(nm_id=nm_id, comment_date=comment_date, body=body.body)
+    """Save one day's note on a SKU — its comment, its header, or both.
+
+    Omitted fields keep their stored value, so the two inputs save
+    independently; blanking both clears the day. Notes are shared by everyone.
+    """
+    return await service.set_day_note(
+        nm_id=nm_id, comment_date=comment_date, body=body.body, header=body.header
+    )
+
+
+@router.put(
+    "/skus/{nm_id}/actions/{action_date}",
+    response_model=DayActionResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "Day actions saved (or cleared); the stored state is returned."},
+        401: {"description": "Unauthorized access token."},
+        422: {"description": "Invalid payload (e.g. negative budget) or date."},
+    },
+)
+async def set_day_action(
+    nm_id: WorkspaceSku,
+    action_date: date,
+    body: DayActionState,
+    service: AnalyticsServiceDep,
+) -> DayActionResponse:
+    """Save one day's «Действия» row on a SKU (shared by everyone).
+
+    The body is the WHOLE day state (last write wins); a body with every
+    answer null clears the day's row.
+    """
+    return await service.set_day_action(nm_id=nm_id, action_date=action_date, action=body)
 
 
 @router.post(
@@ -309,7 +341,7 @@ async def preview_matrix_edit(
     (setting an input, or reverse-solving one for a derived cell) and returns
     the recomputed matrix. Nothing is persisted — «Сохранить» does that.
     """
-    return service.preview_matrix_edit(body.base, body.edit)
+    return service.preview_matrix_edit(body.base, body.edit, nm_id=nm_id)
 
 
 @router.put(

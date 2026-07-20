@@ -21,6 +21,7 @@ import {
   refreshSku,
   reorderPinnedSkus,
   saveMatrix,
+  setDayAction,
   setDayComment,
   setSkuPin,
   setSkuPinColor,
@@ -232,30 +233,40 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     }
   }
 
-  // --- day comments («Комментарий») -----------------------------------------
-  // Free-text notes attached to the CURRENT SKU's days: persisted on the backend
+  // --- day notes («Комментарий» + its header) --------------------------------
+  // Per-day notes on the CURRENT SKU: persisted on the backend
   // (monitoring.sku_day_comment), global per (nm_id, day) — shared by every
   // account. The persisted map rides on `currentProduct.comments` (keyed by ISO
-  // day, commented days only); the table owns the drafts.
+  // day, `{body, header}`); the table owns the drafts.
+  //
+  // Both fields are plain per-day facts here. The header's continuation onto a
+  // new day happens ONCE at the day boundary, server-side, and arrives as a
+  // stored row — the frontend never derives it, so editing one day's header
+  // leaves every other day alone.
   /** ISO days with a save (PUT) in flight — the row disables just those inputs. */
   const commentSavingDays = ref(new Set())
 
-  /** Persist one day's comment (blank clears it); updates the product's map. */
-  async function saveDayComment(iso, body) {
+  /**
+   * Persist one field of a day's note (blanking both clears the day).
+   *
+   * @param {string} iso The day, as YYYY-MM-DD.
+   * @param {{body?: string, header?: string}} patch The field just edited.
+   */
+  async function saveDayComment(iso, patch) {
     const nmId = currentProduct.value?.nm_id
     if (!nmId || commentSavingDays.value.has(iso)) return
     // A new Set per mutation: Vue tracks the ref's value, not the Set's writes.
     commentSavingDays.value = new Set(commentSavingDays.value).add(iso)
     matrixEditError.value = null
     try {
-      const result = await setDayComment(nmId, iso, body)
+      const result = await setDayComment(nmId, iso, patch)
       // Apply only while the same SKU is displayed (SKU-switch race guard).
       if (currentProduct.value?.nm_id !== nmId) return
       const comments = { ...(currentProduct.value.comments ?? {}) }
-      if (result.body == null) {
+      if (result.note == null) {
         delete comments[iso]
       } else {
-        comments[iso] = result.body
+        comments[iso] = result.note
       }
       currentProduct.value.comments = comments
     } catch (err) {
@@ -264,6 +275,42 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       const pending = new Set(commentSavingDays.value)
       pending.delete(iso)
       commentSavingDays.value = pending
+    }
+  }
+
+  // --- day actions («Действия»: РК toggles + budgets, price change) ---------
+  // Per-day answered questions under the comments row: persisted on the backend
+  // (monitoring.sku_day_action), global per (nm_id, day). The persisted map
+  // rides on `currentProduct.day_actions` (keyed by ISO day, touched days
+  // only); each change PUTs the merged FULL day state (last write wins).
+  /** ISO days with an action save (PUT) in flight — their controls disable. */
+  const actionSavingDays = ref(new Set())
+
+  /** Merge one day's partial change into its stored state and persist it. */
+  async function saveDayAction(iso, patch) {
+    const nmId = currentProduct.value?.nm_id
+    if (!nmId || actionSavingDays.value.has(iso)) return
+    const next = { ...(currentProduct.value.day_actions?.[iso] ?? {}), ...patch }
+    // A new Set per mutation: Vue tracks the ref's value, not the Set's writes.
+    actionSavingDays.value = new Set(actionSavingDays.value).add(iso)
+    matrixEditError.value = null
+    try {
+      const result = await setDayAction(nmId, iso, next)
+      // Apply only while the same SKU is displayed (SKU-switch race guard).
+      if (currentProduct.value?.nm_id !== nmId) return
+      const actions = { ...(currentProduct.value.day_actions ?? {}) }
+      if (result.action == null) {
+        delete actions[iso]
+      } else {
+        actions[iso] = result.action
+      }
+      currentProduct.value.day_actions = actions
+    } catch (err) {
+      matrixEditError.value = extractErrorMessage(err)
+    } finally {
+      const pending = new Set(actionSavingDays.value)
+      pending.delete(iso)
+      actionSavingDays.value = pending
     }
   }
 
@@ -432,9 +479,18 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   function applyMatrixState(state) {
     workingBase.value = state.base
     currentMatrix = state.matrix
+    // The per-variant breakdown behind the carts/orders hover rides on the
+    // BASE, so the new base has to travel with the matrix — patching with the
+    // matrix alone rebuilds every cell's `assoc` with an empty variant list and
+    // guts the menu after each edit/undo/redo.
+    const next = {
+      matrix: state.matrix,
+      matrix_base: state.base,
+      nm_id: currentProduct.value?.nm_id,
+    }
     // Patch in place; rebuild only if the shape somehow changed (window shift).
-    if (!patchMetricsMatrix(matrixView.value, { matrix: state.matrix })) {
-      matrixView.value = buildMetricsMatrix({ matrix: state.matrix })
+    if (!patchMetricsMatrix(matrixView.value, next)) {
+      matrixView.value = buildMetricsMatrix(next)
     }
   }
 
@@ -578,6 +634,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     toggleWarehouseMark,
     commentSavingDays,
     saveDayComment,
+    actionSavingDays,
+    saveDayAction,
     stockCompare,
     fetchStockCompareSide,
     fetchProductData,

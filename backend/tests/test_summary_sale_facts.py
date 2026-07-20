@@ -82,6 +82,7 @@ def _service(*, buyouts: int, returns: int) -> AnalyticsService:
         warehouse_mark_repo=None,  # type: ignore[arg-type]
         pinned_sku_repo=None,  # type: ignore[arg-type]
         day_comment_repo=None,  # type: ignore[arg-type]
+        day_action_repo=None,  # type: ignore[arg-type]
     )
 
 
@@ -98,6 +99,7 @@ async def test_sale_date_buyouts_and_returns_are_reported_as_counts() -> None:
     The real 2026-07-16 figures for nm 953770957: 274 buyouts, 30 returns.
     """
     item = await _item(buyouts=274, returns=30)
+
     assert item.total_buyout_count == 274
     assert item.total_return_count == 30
 
@@ -114,6 +116,7 @@ async def test_summary_exposes_no_buyout_ratio() -> None:
     divide the two counts themselves.
     """
     item = await _item(buyouts=274, returns=30)
+
     assert not hasattr(item, "buyout_conversion")
     assert not hasattr(item, "return_rate")
 
@@ -121,5 +124,6 @@ async def test_summary_exposes_no_buyout_ratio() -> None:
 async def test_sale_counts_are_zero_without_records() -> None:
     """No sale records in the window -> plain zeros."""
     item = await _item(buyouts=0, returns=0)
+
     assert item.total_buyout_count == 0
     assert item.total_return_count == 0

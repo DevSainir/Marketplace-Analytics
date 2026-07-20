@@ -22,7 +22,7 @@ from src.core.config import settings
 from src.core.database import AsyncSessionLocal, engine
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
-from src.core.timeutils import moscow_today
+from src.core.timeutils import moscow_today, operating_today
 from src.integrations.wildberries import (
     WBAdvertisingClient,
     WBAnalyticsClient,
@@ -49,6 +49,7 @@ from src.modules.monitoring.repos import (
     ProductCardRepository,
     ProductSizeRepository,
     SaleRepository,
+    SkuDayCommentRepository,
     StockRepository,
 )
 from src.modules.monitoring.services import IngestionService
@@ -749,3 +750,51 @@ def refresh_buyout_cohorts(days: int = COHORT_REFRESH_DAYS) -> dict[str, int]:
         except LockError:
             logger.warning("refresh_buyout_cohorts lock already expired at release time.")
         redis.close()
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="monitoring.carry_day_headers",
+    bind=False,
+    **_TASK_RETRY_KWARGS,
+)
+def carry_day_headers() -> dict[str, int]:
+    """Scheduled entrypoint: carry the previous day's note headers onto the new one.
+
+    The matrix's notes row has two fields per day: a free-text comment, which
+    is purely per-day, and a header — a running title that should continue onto
+    each new day without being retyped. That continuation happens HERE, once,
+    when the day rolls over, and it writes a real row for the new day. Making
+    the carry a stored fact rather than a live inheritance is what lets a
+    manager then edit or clear any single day's header without disturbing the
+    days around it.
+
+    The source is STRICTLY the previous day — never the last day that happened
+    to have a title. A blank header yesterday means the new day starts blank,
+    even when an older day still carries one.
+
+    Dated on the TEAM's clock (:func:`operating_today`), not WB's: the day the
+    managers see turn over at 00:00 Bishkek is the one that should receive the
+    title, and the beat fires at exactly that instant (21:00 MSK).
+
+    A day that already has a header is never overwritten, so re-running the
+    task is a no-op.
+
+    Returns:
+        ``{"headers_carried": n}``.
+    """
+
+    async def _run() -> dict[str, int]:
+        try:
+            today = operating_today()
+            async with AsyncSessionLocal() as session:
+                repo = SkuDayCommentRepository(session)
+                carried = await repo.carry_headers_to_day(
+                    source_day=today - timedelta(days=1), target_day=today
+                )
+                await session.commit()
+            logger.info("Carried %d note header(s) onto %s.", carried, today.isoformat())
+            return {"headers_carried": carried}
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())
