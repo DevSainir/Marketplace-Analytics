@@ -10,7 +10,6 @@ import PeriodSelector from '@/modules/monitoring/components/PeriodSelector.vue'
 import PinnedSkuRow from '@/modules/monitoring/components/PinnedSkuRow.vue'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
 import StockBreakdownTable from '@/modules/monitoring/components/StockBreakdownTable.vue'
-import StockHeatLegend from '@/modules/monitoring/components/StockHeatLegend.vue'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 
 const store = useMonitoringStore()
@@ -361,12 +360,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleHistoryKey))
              each side has its own day picker and its own size column, and
              both render the same rows (see `sharedStockSizes`). -->
         <section v-if="product.stock" class="mt-lg" aria-label="Остатки по складам">
-          <div class="flex items-center justify-between gap-md">
-            <h2 class="text-h3 font-semibold text-primary">Остатки по складам</h2>
-            <!-- One key for both tables: the heat scale is global, so a tint
-                 means the same count on either side (see stockHeat.js). -->
-            <StockHeatLegend />
-          </div>
+          <h2 class="text-h3 font-semibold text-primary">Остатки по складам</h2>
           <div class="mt-sm flex gap-md">
             <div v-for="side in ['left', 'right']" :key="side" class="min-w-0 flex-1">
               <DayPicker
