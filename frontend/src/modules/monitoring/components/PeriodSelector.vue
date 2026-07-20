@@ -5,7 +5,8 @@
  * Flow: click the field → the calendar opens → click the start day → click the
  * end day → the popover closes with the range set (the parent still applies it
  * with «Применить»). Between the two clicks, hovering previews the range. Quick
- * presets (7 / 30 / 90 дней) set a rolling window ending yesterday.
+ * presets (7 / 30 / 90 дней) set a rolling window ending TODAY (the current
+ * day counts as one of the N).
  *
  * Fully custom (no native `<input type=date>` — its calendar is off-brand):
  * styled with the design system, action-color endpoints and a soft action
@@ -164,8 +165,8 @@ function onHover(cell) {
 }
 
 function applyPreset(days) {
-  const from = isoDaysAgo(days)
-  const to = isoDaysAgo(1)
+  const from = isoDaysAgo(days - 1)
+  const to = isoDaysAgo(0)
   emit('update:from', from)
   emit('update:to', to)
   open.value = false
