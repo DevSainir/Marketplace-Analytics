@@ -297,6 +297,21 @@ function commitActionAmount(iso, field, event) {
   emit('action', { day: iso, patch: { [field]: value } })
 }
 
+/**
+ * Whether a day's amount input is still locked.
+ *
+ * An amount only means something once its question has an answer — a budget
+ * with no «Включали РК?» behind it, or a size with no «Меняли цену?», is a
+ * number nobody can read. The input stays disabled until the choice is made.
+ *
+ * @param {string} iso The day.
+ * @param {string} field The answer field the amount belongs to.
+ */
+function isAmountLocked(iso, field) {
+  const answer = dayAction(iso)[field]
+  return answer === null || answer === undefined || answer === ''
+}
+
 /** The tri-state select's tint follows the picked answer. */
 function priceChangeClass(iso) {
   const value = dayAction(iso).price_change
@@ -672,13 +687,19 @@ watch(
                       Нет
                     </button>
                   </div>
-                  <label class="day-action-amount">
+                  <label
+                    class="day-action-amount"
+                    :class="isAmountLocked(day.iso, block.field) && 'day-action-amount--locked'"
+                  >
                     <span>Бюджет рекламы</span>
                     <input
                       type="text"
                       inputmode="decimal"
                       :value="dayAction(day.iso)[block.budgetField] ?? ''"
-                      :disabled="actionSavingDays.has(day.iso)"
+                      :disabled="actionSavingDays.has(day.iso) || isAmountLocked(day.iso, block.field)"
+                      :title="
+                        isAmountLocked(day.iso, block.field) ? 'Сначала ответьте на вопрос' : null
+                      "
                       @keydown.enter.prevent="$event.target.blur()"
                       @blur="commitActionAmount(day.iso, block.budgetField, $event)"
                     />
@@ -704,13 +725,19 @@ watch(
                       {{ option.label }}
                     </option>
                   </select>
-                  <label class="day-action-amount">
+                  <label
+                    class="day-action-amount"
+                    :class="isAmountLocked(day.iso, 'price_change') && 'day-action-amount--locked'"
+                  >
                     <span>На сколько</span>
                     <input
                       type="text"
                       inputmode="decimal"
                       :value="dayAction(day.iso).price_change_amount ?? ''"
-                      :disabled="actionSavingDays.has(day.iso)"
+                      :disabled="actionSavingDays.has(day.iso) || isAmountLocked(day.iso, 'price_change')"
+                      :title="
+                        isAmountLocked(day.iso, 'price_change') ? 'Сначала ответьте на вопрос' : null
+                      "
                       @keydown.enter.prevent="$event.target.blur()"
                       @blur="commitActionAmount(day.iso, 'price_change_amount', $event)"
                     />
@@ -1266,6 +1293,16 @@ watch(
 }
 .day-action-amount input:disabled {
   opacity: 0.6;
+}
+/* Waiting on its question: dimmed further and visibly not a target, so the
+   answer above reads as the thing to do first. */
+.day-action-amount--locked span {
+  opacity: 0.55;
+}
+.day-action-amount--locked input {
+  border-style: dashed;
+  background: transparent;
+  cursor: not-allowed;
 }
 
 /* Collapsed row: a one-line trace of the days that carry a note. */
