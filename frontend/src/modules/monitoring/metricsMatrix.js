@@ -75,6 +75,27 @@ export const TRAFFIC_GROUPS = [
   { label: 'Органика', span: 1, spansZones: true },
 ]
 
+/**
+ * «ДРР от продаж» renders each campaign's zones as ONE merged cell (the value
+ * is campaign-level — the backend repeats it on every zone bucket of the
+ * group, so the first bucket carries the number). `offset` addresses the
+ * group's first leaf cell within a day section; spans sum to 8.
+ */
+export const DRR_SALES_COLUMNS = [
+  { key: 'uni_search', span: 3, offset: 0 },
+  { key: 'manual_search', span: 2, offset: 3 },
+  { key: 'manual_shelves', span: 1, offset: 5 },
+  { key: 'total', span: 1, offset: 6 },
+  { key: 'organic', span: 1, offset: 7 },
+]
+
+/**
+ * «Процент выкупа» is ONE number for the whole day — a SKU-level lagged cohort
+ * window, not a per-zone fact — so its row renders as a single cell spanning
+ * the day's 8 columns. The value lives in the «Общая» bucket (offset 6).
+ */
+export const DAY_SPAN_COLUMNS = [{ key: 'total', span: 8, offset: 6 }]
+
 /** "2026-07-05" -> "05.07.2026" for the day-section header. */
 function dayLabel(iso) {
   const [year, month, day] = iso.split('-')

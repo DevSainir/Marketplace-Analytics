@@ -12,11 +12,28 @@ from __future__ import annotations
 from src.modules.monitoring.models import MatrixOverride
 from src.modules.monitoring.schemas.matrix import (
     MATRIX_AD_BUCKETS,
+    AssocSkuCount,
+    MatrixAdBucketBase,
     MatrixBaseState,
 )
 
-#: Editable input fields of an advertising bucket.
-_AD_FIELDS: tuple[str, ...] = ("views", "clicks", "add_to_cart", "spend", "orders", "order_sum")
+#: Editable input fields of an advertising bucket. The ``assoc_*`` totals ride
+#: along because an edit to a zone's own carts/orders moves the all-variant
+#: total with it (see ``matrix_edit._set_ad_count``); persisting only one side
+#: would make the reloaded hover disagree with its cell.
+_AD_FIELDS: tuple[str, ...] = (
+    "views",
+    "clicks",
+    "add_to_cart",
+    "spend",
+    "orders",
+    "order_sum",
+    "assoc_add_to_cart",
+    "assoc_orders",
+)
+#: Own-count fields whose override must also be mirrored onto the viewed SKU's
+#: row of the per-variant breakdown (that row IS this SKU's own count).
+_VIEWED_ROW_FIELDS: frozenset[str] = frozenset({"add_to_cart", "orders"})
 #: Editable input fields of the organic funnel (behind «Общая»). The ₽ volumes
 #: and СПП are derived from ``seller_price``/``customer_price`` (not stored).
 _FUNNEL_FIELDS: tuple[str, ...] = (
@@ -28,6 +45,12 @@ _FUNNEL_FIELDS: tuple[str, ...] = (
 )
 #: The synthetic bucket name under which funnel inputs are stored.
 _FUNNEL_BUCKET = "funnel"
+#: The synthetic bucket name for DAY-level inputs (no bucket of their own).
+_DAY_BUCKET = "day"
+#: Editable day-level inputs. «Процент выкупа» is harvested from WB's period
+#: aggregate, so it is a fact a manager may correct — and everything derived
+#: from it («Выкупы, ₽», both ДРР rows) recomputes.
+_DAY_FIELDS: tuple[str, ...] = ("lagged_buyout_percent",)
 #: The synthetic bucket name under which DISPLAY overrides are stored; the
 #: ``field`` is then the ``"<bucket>:<metric>"`` cell key.
 _CELL_BUCKET = "cell"
@@ -42,7 +65,9 @@ def _coerce(field: str, value: float) -> int | float:
     return round(value) if field in _INT_FIELDS else round(float(value), 2)
 
 
-def overlay_overrides(base: MatrixBaseState, overrides: list[MatrixOverride]) -> None:
+def overlay_overrides(
+    base: MatrixBaseState, overrides: list[MatrixOverride], *, nm_id: int | None = None
+) -> None:
     """Apply stored overrides onto a fact-derived base state, in place.
 
     Missing targets (a bucket that no longer delivered, an unknown field) are
@@ -52,6 +77,9 @@ def overlay_overrides(base: MatrixBaseState, overrides: list[MatrixOverride]) ->
     Args:
         base: The fact-derived working copy to mutate.
         overrides: The SKU's stored override rows for the window.
+        nm_id: The SKU the overrides belong to. Restoring an edited carts/orders
+            count also restores it onto that SKU's row of the per-variant
+            breakdown, so a reloaded hover still sums to its cell.
     """
     by_day = {day.day: day for day in base.days}
     for override in overrides:
@@ -63,13 +91,30 @@ def overlay_overrides(base: MatrixBaseState, overrides: list[MatrixOverride]) ->
             day.cell_overrides[override.field] = round(float(override.value), 2)
             continue
         value = _coerce(override.field, float(override.value))
-        if override.bucket == _FUNNEL_BUCKET:
+        if override.bucket == _DAY_BUCKET:
+            if override.field in _DAY_FIELDS:
+                setattr(day, override.field, value)
+        elif override.bucket == _FUNNEL_BUCKET:
             if day.funnel is not None and override.field in _FUNNEL_FIELDS:
                 setattr(day.funnel, override.field, value)
         elif override.bucket in MATRIX_AD_BUCKETS and override.field in _AD_FIELDS:
             bucket = day.buckets.get(override.bucket)
             if bucket is not None:
                 setattr(bucket, override.field, value)
+                if nm_id is not None and override.field in _VIEWED_ROW_FIELDS:
+                    _restore_viewed_row(bucket, override.field, int(value), nm_id)
+
+
+def _restore_viewed_row(bucket: MatrixAdBucketBase, field: str, value: int, nm_id: int) -> None:
+    """Put an overridden own-count back onto the viewed SKU's breakdown row."""
+    if not bucket.assoc_skus:
+        return
+    for sku in bucket.assoc_skus:
+        if sku.nm_id == nm_id:
+            setattr(sku, field, value)
+            return
+    if value > 0:
+        bucket.assoc_skus.append(AssocSkuCount(nm_id=nm_id, **{field: value}))
 
 
 def _differs(working: float | None, fact: float | None) -> bool:
@@ -77,6 +122,18 @@ def _differs(working: float | None, fact: float | None) -> bool:
     if working is None or fact is None:
         return False  # tainted / read-only inputs are never overridable
     return round(working, 2) != round(fact, 2)
+
+
+def _day_value_differs(working: float | None, fact: float | None) -> bool:
+    """Whether a day-level input was edited, INCLUDING onto an absent fact.
+
+    Unlike :func:`_differs`, a ``None`` fact is a real starting point here: WB
+    serves no cohort for a day whose deliveries have not matured, and typing a
+    «Процент выкупа» there is exactly the correction the manager is making.
+    """
+    if working is None:
+        return False
+    return fact is None or round(working, 2) != round(fact, 2)
 
 
 def diff_to_overrides(
@@ -118,6 +175,18 @@ def diff_to_overrides(
                             "value": w_val,
                         }
                     )
+        for field in _DAY_FIELDS:
+            w_val = getattr(w_day, field)
+            if _day_value_differs(w_val, getattr(f_day, field)):
+                rows.append(
+                    {
+                        "nm_id": nm_id,
+                        "stat_date": w_day.day,
+                        "bucket": _DAY_BUCKET,
+                        "field": field,
+                        "value": w_val,
+                    }
+                )
         if w_day.funnel is not None and f_day.funnel is not None:
             for field in _FUNNEL_FIELDS:
                 w_val = getattr(w_day.funnel, field)

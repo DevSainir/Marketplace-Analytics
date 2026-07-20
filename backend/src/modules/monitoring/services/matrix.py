@@ -21,8 +21,11 @@ Campaign classification (via the ``Campaign`` dimension's adverts-v2 fields):
 * ``unified`` bid (always both zones) or a dual-placement manual campaign ->
   split: the search slice goes to the «Поиск» column, the remainder
   (``fullstats - search``, clamped at zero) to «Полки». WB exposes no
-  zone-attributed order revenue, so a split campaign's ``order_sum`` taints its
-  buckets' revenue cells to ``None`` («—») instead of guessing.
+  zone-attributed order revenue, so the ad buckets' «Заказы, ₽»/«Выкупы, ₽» are
+  DERIVED from the slice's own orders (see :func:`ad_order_sum`) — the same
+  ``count x seller_price`` rule the «Общая» column uses. Both ДРР rows divide a
+  campaign's spend by the revenue THAT campaign delivered, never by the SKU's
+  whole-day volume.
 
 Significant-campaign selection (see :func:`_select_day_buckets`): a SKU
 realistically has one — at most two — campaigns actually bringing traffic. A
@@ -345,16 +348,68 @@ def _classify(
     return []
 
 
-def _ad_cell(key: str, acc: _BucketAcc | None, bid_type_views: int) -> float | None:
+def ad_order_sum(orders: int, funnel: MatrixFunnelBase | None) -> float | None:
+    """«Заказы, ₽» an advertising slice brought = its orders x the day's price.
+
+    WB exposes no zone-attributed order revenue (and none at all for a split
+    campaign), so the campaign's own volume is DERIVED here — the same
+    ``count x seller_price`` rule the «Общая» column uses, applied to the ad
+    slice's own orders. That is what makes «ДРР от заказов»/«ДРР от продаж»
+    describe the campaign instead of the SKU's whole day.
+
+    The funnel row itself is not required (ad orders are facts of the ad feed,
+    not the funnel) — only the day's seller price. ``None`` when the day is
+    unpriced.
+    """
+    if funnel is None or funnel.seller_price is None:
+        return None
+    return round(orders * funnel.seller_price, 2)
+
+
+def ad_buyout_sum(
+    orders: int, funnel: MatrixFunnelBase | None, lagged_buyout_percent: float | None
+) -> float | None:
+    """«Выкупы, ₽» an advertising slice brought = its «Заказы, ₽» x «Процент выкупа».
+
+    Order-date attributed, exactly like the «Общая» column's buyout value: the
+    orders a campaign delivered on day D are worth what that day's cohort
+    actually bought out. ``None`` when the day is unpriced or the lagged buyout
+    percent could not be computed.
+    """
+    order_sum = ad_order_sum(orders, funnel)
+    if order_sum is None or lagged_buyout_percent is None:
+        return None
+    return round(order_sum * lagged_buyout_percent / 100, 2)
+
+
+def _shown(day: MatrixDayBase, bucket: str, metric: str, computed: float | None) -> float | None:
+    """The value a cell actually SHOWS — a manual display override wins.
+
+    The ДРР rows divide the spend and revenue printed above them in the same
+    column, so they resolve their inputs through this. Cells whose value cannot
+    be back-solved into a fact (the «Общая» spend roll-up, a buyout volume) are
+    stored as display overrides; without this they would be painted on screen
+    while the ratio underneath kept quoting the untouched computation.
+    """
+    override = day.cell_overrides.get(f"{bucket}:{metric}")
+    return computed if override is None else override
+
+
+def _ad_cell(
+    key: str, acc: _BucketAcc | None, bid_type_views: int, day: MatrixDayBase, bucket: str
+) -> float | None:
     """Compute one metric for an advertising bucket cell.
 
     ``bid_type_views`` is the total Показы of the bucket's bid type (unified or
     manual) that day — «Доля трафика» is normalized WITHIN a type, so Единая and
     Ручной each sum to 100%.
 
+    ``day`` carries the price and the lagged buyout percent the revenue rows are
+    derived from (see :func:`ad_order_sum`).
+
     ``None`` (rendered «—») when no campaign of the bucket delivered that day, or
-    the metric is not obtainable for ad buckets (buyouts are funnel-only, revenue
-    is untracked for split zones).
+    the metric is not obtainable for ad buckets («Процент выкупа» is a
+    SKU-level cohort window, not a per-campaign fact).
     """
     if acc is None:
         return None
@@ -388,17 +443,23 @@ def _ad_cell(key: str, acc: _BucketAcc | None, bid_type_views: int) -> float | N
             return float(acc.assoc_orders) if acc.assoc_orders > acc.orders else None
         case "order_conversion":
             return _percent(acc.orders, acc.add_to_cart)
-        case "order_sum":
-            return None if acc.order_sum is None else round(acc.order_sum, 2)
+        case "order_sum":  # orders x seller_price (WB reports none per zone)
+            return ad_order_sum(acc.orders, day.funnel)
+        case "buyout_sum":  # «Заказы, ₽» x «Процент выкупа»
+            return ad_buyout_sum(acc.orders, day.funnel, day.lagged_buyout_percent)
         case "cost_per_order":
             return _ratio(acc.spend, acc.orders)
         case "cost_per_cart":
             return _ratio(acc.spend, acc.add_to_cart)
-        case "drr_orders":
-            return _percent(acc.spend, acc.order_sum)
+        case "drr_orders":  # this zone's spend against the orders IT delivered
+            return _percent(
+                _shown(day, bucket, "spend", acc.spend),
+                _shown(day, bucket, "order_sum", ad_order_sum(acc.orders, day.funnel)),
+            )
         case _:
-            # buyout_sum / buyout_percent / drr_sales: buyouts are not
-            # attributable to advertising zones.
+            # buyout_percent is a SKU-level lagged cohort window, not a
+            # per-campaign fact. (drr_sales never reaches here — it is computed
+            # per campaign group in build_matrix_from_base.)
             return None
 
 
@@ -486,17 +547,24 @@ def _funnel_spp(funnel: MatrixFunnelBase | None) -> float | None:
 
 def _total_cell(
     key: str,
-    funnel: MatrixFunnelBase | None,
+    day: MatrixDayBase,
     day_ad: _BucketAcc | None,
-    lagged_buyout_percent: float | None,
-    stock: MatrixStockBase | None,
 ) -> float | None:
     """Compute one metric for the «Общая» column (funnel + cross-campaign ads).
 
     Count cells require a REAL funnel row (``has_funnel``) — a price-only day
     (the current day, funnel not served yet) renders its prices/СПП while the
     counts stay blank.
+
+    The two ДРР rows read their spend and revenue through :func:`_shown`: this
+    column's «Затраты, ₽» is a cross-campaign roll-up and its «Выкупы, ₽» a
+    derived volume, neither of which back-solves into a fact, so both are
+    edited as display overrides — and a ratio that ignored them would contradict
+    the very cells it divides.
     """
+    funnel = day.funnel
+    lagged_buyout_percent = day.lagged_buyout_percent
+    stock = day.stock
     counts = funnel if funnel is not None and funnel.has_funnel else None
     match key:
         case "spend":
@@ -533,14 +601,16 @@ def _total_cell(
             if day_ad is None or funnel is None:
                 return None
             return _ratio(day_ad.spend, funnel.cart_count)
-        case "drr_orders":
-            if day_ad is None or funnel is None:
-                return None
-            return _percent(day_ad.spend, _funnel_order_sum(funnel))
-        case "drr_sales":
-            if day_ad is None:
-                return None
-            return _percent(day_ad.spend, _buyout_sum(funnel, lagged_buyout_percent))
+        case "drr_orders":  # all ad spend / the day's whole order revenue
+            return _percent(
+                _shown(day, "total", "spend", day_ad.spend if day_ad else None),
+                _shown(day, "total", "order_sum", _funnel_order_sum(funnel)),
+            )
+        case "drr_sales":  # all ad spend / the day's whole buyout revenue
+            return _percent(
+                _shown(day, "total", "spend", day_ad.spend if day_ad else None),
+                _shown(day, "total", "buyout_sum", _buyout_sum(funnel, lagged_buyout_percent)),
+            )
         case "buyout_percent":
             return lagged_buyout_percent
         case "stock_quantity":
@@ -877,6 +947,64 @@ def derive_base_state(
     return MatrixBaseState(days=day_bases)
 
 
+#: The zone buckets of one campaign, per «тип получения трафика» group. «ДРР от
+#: продаж» is a CAMPAIGN-level metric (WB never attributes buyouts to a zone):
+#: every zone bucket of a group carries the same campaign-level value — the
+#: group's total Затраты over the day's total «Выкупы, ₽» — and the frontend
+#: renders the group as ONE merged cell.
+_CAMPAIGN_ZONE_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("uni_search", "uni_shelves", "uni_catalog"),
+    ("manual_search", "manual_catalog"),
+    ("manual_shelves",),
+)
+_CAMPAIGN_GROUP_BY_BUCKET: dict[str, tuple[str, ...]] = {
+    bucket: group for group in _CAMPAIGN_ZONE_GROUPS for bucket in group
+}
+
+
+def _campaign_drr_sales(
+    bucket: str, day: MatrixDayBase, bucket_accs: dict[str, _BucketAcc]
+) -> float | None:
+    """«ДРР от продаж» of the campaign group an ad bucket belongs to.
+
+    ``group spend / the group's OWN «Выкупы, ₽» x 100`` — the whole-campaign
+    efficiency across all its view zones, repeated on each of the group's
+    buckets so the frontend can merge them into one cell.
+
+    Both sides are the campaign's: the denominator is the buyout value of the
+    orders THIS campaign delivered (its own orders x price x «Процент выкупа»),
+    never the SKU's whole-day volume — dividing a campaign's spend by revenue
+    the organic traffic brought would flatter every campaign on a good day.
+
+    ``None`` when the group did not deliver that day, or the day is unpriced /
+    has no buyout percent. The legacy «Каталог» uni zone stays empty as
+    everywhere else — the merged cell reads the group's FIRST bucket, so it
+    never needs the repeat there.
+    """
+    if bucket == "uni_catalog":
+        return None
+    group = _CAMPAIGN_GROUP_BY_BUCKET.get(bucket)
+    if group is None:
+        return None
+    delivering = [name for name in group if name in bucket_accs]
+    if not delivering:
+        return None
+    # Both sides are summed from what the zones SHOW, so a manually corrected
+    # spend or buyout volume in any zone is the number this ratio divides.
+    spend = sum(_shown(day, name, "spend", bucket_accs[name].spend) or 0.0 for name in delivering)
+    buyout = sum(
+        _shown(
+            day,
+            name,
+            "buyout_sum",
+            ad_buyout_sum(bucket_accs[name].orders, day.funnel, day.lagged_buyout_percent),
+        )
+        or 0.0
+        for name in delivering
+    )
+    return _percent(spend, buyout)
+
+
 def _acc_from_base(base: MatrixAdBucketBase) -> _BucketAcc:
     """Rehydrate a bucket accumulator from its input DTO."""
     return _BucketAcc(
@@ -940,18 +1068,15 @@ def build_matrix_from_base(base: MatrixBaseState) -> MetricsMatrixRead:
             }
             for bucket in MATRIX_BUCKETS:
                 if bucket == "total":
-                    value = _total_cell(
-                        key,
-                        day.funnel,
-                        day_ad,
-                        day.lagged_buyout_percent,
-                        day.stock,
-                    )
+                    value = _total_cell(key, day, day_ad)
                 elif bucket == "organic":
                     value = _organic_cell(key, day.funnel, day_ad)
+                elif key == "drr_sales":
+                    # Campaign-level (all zones of the group share one value).
+                    value = _campaign_drr_sales(bucket, day, bucket_accs)
                 else:
                     bid_views = type_views["uni" if bucket.startswith("uni_") else "manual"]
-                    value = _ad_cell(key, bucket_accs.get(bucket), bid_views)
+                    value = _ad_cell(key, bucket_accs.get(bucket), bid_views, day, bucket)
                 # A manual display override wins over the computed value, so any
                 # non-invertible cell can still be edited (shown verbatim).
                 override = day.cell_overrides.get(f"{bucket}:{key}")

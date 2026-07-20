@@ -332,4 +332,32 @@ describe('associative conversions', () => {
     expect(patchMetricsMatrix(view, edited)).toBe(true)
     expect(cellObj(view, 'carts', 0, 'uni_shelves').assoc.associated).toBe(20)
   })
+
+  // The per-variant rows live on the BASE, not the matrix, so a patch that
+  // carries only the recomputed matrix silently empties every hover. Callers
+  // (the store's edit/undo/redo path) must pass the new base along with it.
+  it('keeps the variant rows when patched with the edited base', () => {
+    const view = buildMetricsMatrix(assocProduct())
+    // What the backend returns after the SKU's own carts are edited to 100:
+    // the cell, the all-variant total and the viewed SKU's row all move.
+    const edited = assocProduct()
+    edited.matrix.rows.find((r) => r.key === 'carts').values[col('uni_shelves')] = 100
+    edited.matrix.rows.find((r) => r.key === 'carts_assoc').values[col('uni_shelves')] = 138
+    edited.matrix_base.days[0].buckets.uni_shelves.assoc_skus[0].add_to_cart = 100
+
+    expect(patchMetricsMatrix(view, edited)).toBe(true)
+
+    const { assoc } = cellObj(view, 'carts', 0, 'uni_shelves')
+    expect(assoc.skus.map((s) => s.nm_id)).toEqual([1, 2, 3])
+    expect(assoc.skus.find((s) => s.isViewed).count).toBe(100)
+  })
+
+  it('empties the hover when the base is left out of the patch', () => {
+    const view = buildMetricsMatrix(assocProduct())
+    const withoutBase = assocProduct()
+    delete withoutBase.matrix_base
+
+    expect(patchMetricsMatrix(view, withoutBase)).toBe(true)
+    expect(cellObj(view, 'carts', 0, 'uni_shelves').assoc.skus).toEqual([])
+  })
 })

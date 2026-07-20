@@ -28,11 +28,16 @@ from datetime import date
 from src.core.exceptions import ValidationError
 from src.modules.monitoring.schemas.matrix import (
     MATRIX_AD_BUCKETS,
+    AssocSkuCount,
+    MatrixAdBucketBase,
     MatrixBaseState,
     MatrixCellEdit,
     MatrixDayBase,
 )
-from src.modules.monitoring.services.matrix import _day_ad_from_base
+from src.modules.monitoring.services.matrix import (
+    _day_ad_from_base,
+    ad_order_sum,
+)
 
 
 def _count(value: float) -> int:
@@ -45,23 +50,34 @@ def _money(value: float) -> float:
     return max(0.0, round(float(value), 2))
 
 
+def _percent(value: float) -> float:
+    """Coerce a solved value to a non-negative percentage (2 decimals)."""
+    return max(0.0, round(float(value), 2))
+
+
 def _readonly(bucket: str, metric: str) -> ValidationError:
     """Build the error raised when a non-editable cell is targeted."""
     return ValidationError(f"Cell '{metric}' in column '{bucket}' is not editable.")
 
 
-def apply_edit(base: MatrixBaseState, edit: MatrixCellEdit) -> MatrixBaseState:
+def apply_edit(
+    base: MatrixBaseState, edit: MatrixCellEdit, *, viewed_nm_id: int | None = None
+) -> MatrixBaseState:
     """Return a copy of ``base`` with one cell-edit applied.
 
     EVERY cell is editable. An **invertible input** cell (e.g. «Показы»,
     «Конверсия в заказ») back-solves an input fact so dependent cells recompute
     (dynamic). Any other cell — a cross-bucket rollup, a derived ratio, the
-    empty «Каталог» zone, a tainted split — records a **display override**
+    empty «Каталог» zone — records a **display override**
     (:attr:`MatrixDayBase.cell_overrides`) shown verbatim after the formulas.
 
     Args:
         base: The current input working copy.
         edit: The cell the user changed (day, bucket, metric, new value).
+        viewed_nm_id: The SKU on screen. Editing an ad zone's carts/orders
+            moves its associative breakdown with it (see
+            :func:`_set_ad_count`), which needs to know which row of that
+            breakdown is this SKU's own.
 
     Returns:
         A new :class:`MatrixBaseState` with the edit applied; pass it to
@@ -74,7 +90,7 @@ def apply_edit(base: MatrixBaseState, edit: MatrixCellEdit) -> MatrixBaseState:
     day = _find_day(new, edit.day)
     key = f"{edit.bucket}:{edit.metric}"
     try:
-        _apply_input_edit(day, edit)
+        _apply_input_edit(day, edit, viewed_nm_id)
     except ValidationError:
         # Non-invertible cell (read-only formula, tainted zone, empty «Каталог»,
         # a count with no funnel row) → store a direct display override so the
@@ -87,10 +103,12 @@ def apply_edit(base: MatrixBaseState, edit: MatrixCellEdit) -> MatrixBaseState:
     return new
 
 
-def _apply_input_edit(day: MatrixDayBase, edit: MatrixCellEdit) -> None:
+def _apply_input_edit(
+    day: MatrixDayBase, edit: MatrixCellEdit, viewed_nm_id: int | None = None
+) -> None:
     """Resolve the edit as an invertible input, or raise for a non-invertible cell."""
     if edit.bucket in MATRIX_AD_BUCKETS:
-        _edit_ad_bucket(day, edit.bucket, edit.metric, edit.value)
+        _edit_ad_bucket(day, edit.bucket, edit.metric, edit.value, viewed_nm_id)
     elif edit.bucket == "total":
         _edit_total(day, edit.metric, edit.value)
     elif edit.bucket == "organic":
@@ -107,7 +125,61 @@ def _find_day(base: MatrixBaseState, day: date) -> MatrixDayBase:
     raise ValidationError(f"Day {day.isoformat()} is not in the current window.")
 
 
-def _edit_ad_bucket(day: MatrixDayBase, bucket: str, metric: str, value: float) -> None:
+#: An ad bucket's own count and the all-variant total that decorates its cell.
+_ASSOC_TOTAL_FIELD: dict[str, str] = {
+    "orders": "assoc_orders",
+    "add_to_cart": "assoc_add_to_cart",
+}
+
+
+def _set_ad_count(
+    bucket: MatrixAdBucketBase, field: str, value: float, viewed_nm_id: int | None
+) -> None:
+    """Set the viewed SKU's own carts/orders in an ad zone, breakdown included.
+
+    A carts/orders cell shows the campaign's ALL-VARIANT total and its hover
+    breaks that total down per size/colour variant, the viewed SKU's own row
+    among them. An edit changes only what THIS SKU took, so:
+
+    * the all-variant total moves by exactly the same delta — the other
+      variants' conversions are untouched facts, and the hover's «associated»
+      remainder must stay what WB reported;
+    * the viewed SKU's row in the breakdown follows its new count, so the
+      listed rows still sum to the total in the cell.
+
+    Without this the two disagree: the cell keeps the old total while its own
+    slice moved, and the breakdown stops adding up.
+
+    Args:
+        bucket: The ad bucket being edited.
+        field: ``"orders"`` or ``"add_to_cart"``.
+        value: The new count for the viewed SKU.
+        viewed_nm_id: The SKU on screen; without it the per-variant rows cannot
+            be identified and only the totals move.
+    """
+    new = _count(value)
+    delta = new - getattr(bucket, field)
+    setattr(bucket, field, new)
+
+    total_field = _ASSOC_TOTAL_FIELD[field]
+    # Clamped at the SKU's own count: the total can never sit below one of its
+    # own parts.
+    setattr(bucket, total_field, max(new, getattr(bucket, total_field) + delta))
+
+    if viewed_nm_id is None or not bucket.assoc_skus:
+        return  # no breakdown to keep in step
+    for sku in bucket.assoc_skus:
+        if sku.nm_id == viewed_nm_id:
+            setattr(sku, field, new)
+            return
+    # The SKU had none of this metric before, so it has no row yet.
+    if new > 0:
+        bucket.assoc_skus.append(AssocSkuCount(nm_id=viewed_nm_id, **{field: new}))
+
+
+def _edit_ad_bucket(
+    day: MatrixDayBase, bucket: str, metric: str, value: float, viewed_nm_id: int | None = None
+) -> None:
     """Resolve an edit in one of the four advertising bucket columns."""
     b = day.buckets.get(bucket)
     if b is None:
@@ -119,15 +191,18 @@ def _edit_ad_bucket(day: MatrixDayBase, bucket: str, metric: str, value: float) 
         case "clicks":
             b.clicks = _count(value)
         case "carts":
-            b.add_to_cart = _count(value)
+            _set_ad_count(b, "add_to_cart", value, viewed_nm_id)
         case "spend":
             b.spend = _money(value)
         case "orders":
-            b.orders = _count(value)
-        case "order_sum":
-            if b.order_sum is None:
-                raise _readonly(bucket, metric)  # tainted split zone → «—»
-            b.order_sum = _money(value)
+            _set_ad_count(b, "orders", value, viewed_nm_id)
+        case "order_sum":  # orders x seller_price -> solve the orders count
+            # The displayed revenue is DERIVED from the slice's own orders, so
+            # writing `b.order_sum` here would change nothing on screen.
+            price = day.funnel.seller_price if day.funnel else None
+            if not price:
+                raise _readonly(bucket, metric)  # unpriced day → «—»
+            _set_ad_count(b, "orders", value / price, viewed_nm_id)
         # Derived: solve the numerator, hold the denominator.
         case "ctr":  # clicks / views * 100
             b.clicks = _count(value / 100 * b.views)
@@ -136,20 +211,25 @@ def _edit_ad_bucket(day: MatrixDayBase, bucket: str, metric: str, value: float) 
         case "cpc":  # spend / clicks
             b.spend = _money(value * b.clicks)
         case "cart_conversion":  # add_to_cart / clicks * 100
-            b.add_to_cart = _count(value / 100 * b.clicks)
+            _set_ad_count(b, "add_to_cart", value / 100 * b.clicks, viewed_nm_id)
         case "order_conversion":  # orders / add_to_cart * 100
-            b.orders = _count(value / 100 * b.add_to_cart)
+            _set_ad_count(b, "orders", value / 100 * b.add_to_cart, viewed_nm_id)
         case "cost_per_order":  # spend / orders
             b.spend = _money(value * b.orders)
         case "cost_per_cart":  # spend / add_to_cart
             b.spend = _money(value * b.add_to_cart)
-        case "drr_orders":  # spend / order_sum * 100
-            if not b.order_sum:
+        case "drr_orders":  # spend / (orders x seller_price) * 100
+            order_sum = ad_order_sum(b.orders, day.funnel)
+            if not order_sum:
                 raise _readonly(bucket, metric)  # order revenue is «—» here
-            b.spend = _money(value / 100 * b.order_sum)
+            b.spend = _money(value / 100 * order_sum)
         case "traffic_share":
             _solve_traffic_share(day, bucket, value)
         case _:  # drr_sales, buyout_sum, buyout_percent, …
+            # «ДРР от продаж» is deliberately not inverted: it is ONE merged
+            # cell over a campaign's zones, so moving a single zone's spend
+            # would not reproduce the typed number. It takes a display
+            # override instead (shown verbatim, which is what typing means).
             raise _readonly(bucket, metric)
 
 
@@ -178,9 +258,19 @@ def _solve_traffic_share(day: MatrixDayBase, bucket: str, value: float) -> None:
 def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
     """Resolve an edit in the «Общая» column (funnel-backed cells only).
 
-    Prices are editable inputs; «Заказы, ₽»/«Выкупы, ₽»/«СПП» are now DERIVED
-    (``count x seller_price`` and the СПП ratio) and therefore read-only.
+    Prices and counts are the inputs; «Выкупы, ₽»/«СПП» derive from them.
+    «Заказы, ₽» is derived too, but invertibly — it solves the order COUNT
+    (the price is never rewritten by another cell's edit).
     """
+    # «Процент выкупа» is a HARVESTED fact, not a formula: the cohort pass
+    # reads it from WB's period aggregate. So it is a plain input here, and
+    # editing it recomputes «Выкупы, ₽» (in «Общая» and in every ad zone) plus
+    # both ДРР rows. Handled before the funnel guard — a day can carry a buyout
+    # percent without a funnel row of its own.
+    if metric == "buyout_percent":
+        day.lagged_buyout_percent = _percent(value)
+        return
+
     f = day.funnel
     if f is None:
         raise ValidationError(f"No funnel data on {day.day.isoformat()} to edit.")
@@ -202,10 +292,18 @@ def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
             f.cart_count = _count(value / 100 * f.open_count)
         case "order_conversion" if counts_editable:  # order_count / cart_count * 100
             f.order_count = _count(value / 100 * f.cart_count)
+        case "order_sum" if counts_editable:  # order_count x seller_price
+            # Solve the COUNT, never the price: a price is a snapshot of what
+            # the SKU cost that day, and no other cell's edit may rewrite it.
+            # The advertising zones keep their own orders — this is the
+            # SKU-wide funnel count, so «Органика» absorbs the difference.
+            if not f.seller_price:
+                raise _readonly("total", metric)  # unpriced day → «—»
+            f.order_count = _count(value / f.seller_price)
         case _:
-            # order_sum/buyout_sum/spp derive from the prices (read-only);
+            # buyout_sum/spp derive from the prices and counts (read-only);
             # spend/views/cpc/cost_*/drr_* are cross-bucket ad roll-ups with no
-            # unique back-distribution; buyout_percent is a lagged window.
+            # unique back-distribution.
             raise _readonly("total", metric)
 
 
