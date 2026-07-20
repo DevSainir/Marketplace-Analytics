@@ -21,7 +21,6 @@ dependencies = [
     # Fernet symmetric encryption for per-workspace WB tokens stored in Postgres.
     "cryptography>=42",
     "python-multipart>=0.0.9",
-    "orjson>=3.10",
 ]
 
 [project.optional-dependencies]
@@ -38,10 +37,14 @@ target-version = "py312"
 src = ["src", "."]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "C4", "ASYNC", "S", "RUF"]
+select = ["E", "F", "I", "N", "UP", "B", "C4", "ASYNC", "S", "RUF", "SIM", "RET", "PT", "PTH"]
 # B008: FastAPI intentionally calls Query()/Depends() in argument defaults.
 # S101: asserts are allowed in tests.
 ignore = ["B008", "S101"]
+# Docstrings/labels are written in Russian; short words like «РК» or «На» are
+# built only from Latin-lookalike letters, which RUF001-003 would flag as
+# ambiguous — these four are legitimate Cyrillic, not confusables.
+allowed-confusables = ["Р", "К", "Н", "а"]
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/*" = ["N999", "F401"]
