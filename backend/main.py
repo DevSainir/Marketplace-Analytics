@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import JSONResponse
 
 from src.core.config import settings
 from src.core.database import dispose_engine
@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
-    default_response_class=ORJSONResponse,
+    default_response_class=JSONResponse,
     debug=settings.debug,
     lifespan=lifespan,
 )
@@ -94,7 +94,7 @@ async def log_requests(
 
 
 @app.exception_handler(AppError)
-async def handle_app_error(request: Request, exc: AppError) -> ORJSONResponse:
+async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
     """Translate any uncaught domain :class:`AppError` into an HTTP response.
 
     This is the single place where escaped business errors become transport
@@ -108,7 +108,7 @@ async def handle_app_error(request: Request, exc: AppError) -> ORJSONResponse:
         A JSON error envelope with the mapped HTTP status code.
     """
     logger.info("Domain error on %s %s: %s", request.method, request.url.path, exc.code)
-    return ORJSONResponse(
+    return JSONResponse(
         status_code=exc.http_status,
         content={"error": {"code": exc.code, "message": exc.message}},
     )
