@@ -195,14 +195,16 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _enforce_production_hardening(self) -> Settings:
-        """Refuse to start production with placeholder secrets or debug mode.
+        """Refuse to start any non-local environment with placeholder secrets
+        or debug mode.
 
         A missing/misspelled env var silently falls back to the insecure
-        defaults above; in production that means a publicly known HS256 key
-        (anyone can forge access tokens) or interactive tracebacks. Failing at
-        startup turns a silent compromise into an obvious deploy error.
+        defaults above; on a deployed environment (staging or production) that
+        means a publicly known HS256 key (anyone can forge access tokens) or
+        interactive tracebacks. Failing at startup turns a silent compromise
+        into an obvious deploy error. Only ``local`` is exempt.
         """
-        if not self.is_production:
+        if self.environment == "local":
             return self
 
         problems: list[str] = []
@@ -221,7 +223,9 @@ class Settings(BaseSettings):
 
         if problems:
             raise ValueError(
-                "Refusing to start with ENVIRONMENT=production: " + "; ".join(problems) + "."
+                f"Refusing to start with ENVIRONMENT={self.environment}: "
+                + "; ".join(problems)
+                + "."
             )
         return self
 
