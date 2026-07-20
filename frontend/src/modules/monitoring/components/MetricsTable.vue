@@ -266,6 +266,8 @@ const RK_BLOCKS = [
   { field: 'uni_rk_enabled', budgetField: 'uni_rk_budget', question: 'Включали РК единая?' },
   { field: 'manual_rk_enabled', budgetField: 'manual_rk_budget', question: 'Включали РК ручная?' },
 ]
+/** Answer field -> the budget it gates, for clearing one alongside the other. */
+const BUDGET_FIELD = Object.fromEntries(RK_BLOCKS.map((b) => [b.field, b.budgetField]))
 
 /** The day's stored answers (or an all-null blank). */
 function dayAction(iso) {
@@ -276,12 +278,22 @@ function dayAction(iso) {
 function toggleRkAnswer(iso, field, value) {
   if (props.actionSavingDays.has(iso)) return
   const current = dayAction(iso)[field] ?? null
-  emit('action', { day: iso, patch: { [field]: current === value ? null : value } })
+  const next = current === value ? null : value
+  const patch = { [field]: next }
+  // An answer that admits no budget takes the old one with it: the input is
+  // about to lock, and a number left behind it could not be read back or
+  // cleared — «Нет, and 1 500 ₽ of it» is not a state worth storing.
+  if (next !== true) patch[BUDGET_FIELD[field]] = null
+  emit('action', { day: iso, patch })
 }
 
 /** «Меняли цену?» select: '' un-answers, otherwise up/down/none. */
 function commitPriceChange(iso, event) {
-  emit('action', { day: iso, patch: { price_change: event.target.value || null } })
+  const next = event.target.value || null
+  const patch = { price_change: next }
+  // Same rule as the budgets: «Нет» (or no answer) leaves no size to state.
+  if (next !== 'up' && next !== 'down') patch.price_change_amount = null
+  emit('action', { day: iso, patch })
 }
 
 /** Commit a ₽ input (budget / «На сколько») on blur or Enter; blank clears. */
@@ -298,18 +310,21 @@ function commitActionAmount(iso, field, event) {
 }
 
 /**
- * Whether a day's amount input is still locked.
+ * Whether a day's amount input is locked.
  *
- * An amount only means something once its question has an answer — a budget
- * with no «Включали РК?» behind it, or a size with no «Меняли цену?», is a
- * number nobody can read. The input stays disabled until the choice is made.
+ * An amount only means something when the answer above it implies one: a
+ * budget belongs to a campaign that WAS switched on, a size to a price that
+ * WAS moved. So «Нет» keeps the field shut just as an unanswered question
+ * does — it settles the question and leaves nothing to enter.
  *
  * @param {string} iso The day.
  * @param {string} field The answer field the amount belongs to.
  */
 function isAmountLocked(iso, field) {
   const answer = dayAction(iso)[field]
-  return answer === null || answer === undefined || answer === ''
+  // «Меняли цену?» is tri-state: only a real direction has a size.
+  if (field === 'price_change') return answer !== 'up' && answer !== 'down'
+  return answer !== true
 }
 
 /** The tri-state select's tint follows the picked answer. */
