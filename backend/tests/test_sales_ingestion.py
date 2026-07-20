@@ -60,9 +60,11 @@ def _record(
 async def test_ingest_sales_maps_fields_and_flags_returns() -> None:
     """Rows carry the sale DATE, is_return from the R prefix, and the prices."""
     repo = _CapturingSaleRepo()
+
     count = await _service(repo).ingest_sales(
         [_record("S123"), _record("R456", sold="2026-07-11T15:30:00")]
     )
+
     assert count == 2
     by_id = {row["sale_id"]: row for row in repo.rows}
     sale = by_id["S123"]
@@ -79,6 +81,7 @@ async def test_ingest_sales_maps_fields_and_flags_returns() -> None:
 async def test_ingest_sales_dedupes_by_sale_id_keeping_latest_change() -> None:
     """A batch repeating one sale_id keeps the record with the newest change stamp."""
     repo = _CapturingSaleRepo()
+
     count = await _service(repo).ingest_sales(
         [
             _record("S123", changed="2026-07-12T10:00:00", finished=4181.0),
@@ -86,6 +89,7 @@ async def test_ingest_sales_dedupes_by_sale_id_keeping_latest_change() -> None:
             _record("S123", changed="2026-07-11T23:00:00", finished=4300.0),
         ]
     )
+
     assert count == 1
     assert repo.rows[0]["finished_price"] == 4000.0
     assert repo.rows[0]["last_change_date"] == datetime(2026, 7, 13, 8, 0, 0)

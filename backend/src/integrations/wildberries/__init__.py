@@ -1,13 +1,17 @@
-"""Low-level asynchronous WildBerries API clients."""
+"""Low-level asynchronous WildBerries API clients and raw payload schemas.
 
-from src.integrations.wildberries.card import WBCardClient
-from src.integrations.wildberries.client import (
+Layout mirrors the WB API surfaces: one client per surface in ``clients/``
+and its raw payload models in the matching ``schemas/`` module.
+"""
+
+from src.integrations.wildberries.clients import (
     WBAdvertisingClient,
     WBAnalyticsClient,
+    WBCardClient,
+    WBContentClient,
+    WBPricesClient,
+    WBStatisticsClient,
 )
-from src.integrations.wildberries.content import WBContentClient
-from src.integrations.wildberries.prices import WBPricesClient
-from src.integrations.wildberries.statistics import WBStatisticsClient
 
 __all__ = [
     "WBAdvertisingClient",

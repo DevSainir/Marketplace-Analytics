@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from src.core.exceptions import IntegrationError
-from src.integrations.wildberries.card import WBCardClient, _scrub
+from src.integrations.wildberries.clients.card import WBCardClient, _scrub
 
 
 def _settings(**overrides: Any) -> SimpleNamespace:
@@ -56,6 +56,7 @@ async def test_batches_split_and_merge() -> None:
         return _envelope(nms)
 
     client._curl_get_json = fake  # type: ignore[method-assign]
+
     products = await client.fetch_customer_prices([111, 222, 333, 444, 555])
 
     assert len(seen_urls) == 3  # 2 + 2 + 1
@@ -74,6 +75,7 @@ async def test_partial_failure_keeps_successful_batches() -> None:
         return _envelope(nms)
 
     client._curl_get_json = fake  # type: ignore[method-assign]
+
     products = await client.fetch_customer_prices([111, 222, 333, 444, 555])
 
     # First and third batches survive; the 333/444 batch is dropped.
@@ -89,6 +91,7 @@ async def test_total_failure_raises() -> None:
         raise IntegrationError("card.wb.ru request failed: HTTP 403.")
 
     client._curl_get_json = fake  # type: ignore[method-assign]
+
     with pytest.raises(IntegrationError, match=r"all .* batch"):
         await client.fetch_customer_prices([111, 222, 333])
 
@@ -101,6 +104,7 @@ async def test_bad_shape_raises() -> None:
         return {"data": {"unexpected": True}}
 
     client._curl_get_json = fake  # type: ignore[method-assign]
+
     with pytest.raises(IntegrationError, match="products list"):
         await client.fetch_customer_prices([111])
 
@@ -114,6 +118,7 @@ async def test_pydantic_validation_surfaces_api_change() -> None:
         return {"data": {"products": [{"identifier": 111, "sizes": []}]}}
 
     client._curl_get_json = fake  # type: ignore[method-assign]
+
     with pytest.raises(IntegrationError, match="validation"):
         await client.fetch_customer_prices([111])
 
@@ -129,6 +134,7 @@ async def test_empty_input_is_a_noop() -> None:
         return _envelope([])
 
     client._curl_get_json = fake  # type: ignore[method-assign]
+
     assert await client.fetch_customer_prices([]) == []
     assert called is False
 
@@ -136,5 +142,6 @@ async def test_empty_input_is_a_noop() -> None:
 def test_scrub_redacts_proxy_credentials() -> None:
     """Credentials never reach the logs."""
     dirty = "curl: (7) Failed to connect via http://user:secretpass@1.2.3.4:443"
+
     assert "secretpass" not in _scrub(dirty)
     assert "//***@1.2.3.4:443" in _scrub(dirty)

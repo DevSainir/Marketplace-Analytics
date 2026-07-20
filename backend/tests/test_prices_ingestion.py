@@ -31,6 +31,7 @@ def test_price_good_takes_first_positive_discounted_price() -> None:
             ],
         }
     )
+
     assert good.nm_id == 111
     assert good.seller_price == 540.0
 
@@ -38,6 +39,7 @@ def test_price_good_takes_first_positive_discounted_price() -> None:
 def test_price_good_seller_price_none_when_all_zero() -> None:
     """No positive discounted price -> ``None`` (unpriced)."""
     good = WBPriceGood.model_validate({"nmID": 5, "sizes": [{"discountedPrice": 0.0}]})
+
     assert good.seller_price is None
 
 
@@ -46,6 +48,7 @@ def test_card_product_customer_price_is_kopecks_over_100() -> None:
     product = WBCardProduct.model_validate(
         {"id": 111, "sizes": [{"price": {"basic": 60000, "product": 35000, "total": 35000}}]}
     )
+
     assert product.nm_id == 111
     assert product.customer_price == 350.0
 
@@ -55,6 +58,7 @@ def test_card_product_falls_back_to_total_when_no_product() -> None:
     product = WBCardProduct.model_validate(
         {"id": 9, "sizes": [{"price": {"basic": 50000, "product": 0, "total": 42000}}]}
     )
+
     assert product.customer_price == 420.0
 
 
@@ -113,9 +117,11 @@ async def test_ingest_prices_joins_seller_and_customer_by_sku() -> None:
         "customer_price": 350.0,
     }
     # SKU 2: seller only (no storefront row) -> customer None.
-    assert by_sku[2]["seller_price"] == 700.0 and by_sku[2]["customer_price"] is None
+    assert by_sku[2]["seller_price"] == 700.0
+    assert by_sku[2]["customer_price"] is None
     # SKU 3: customer only (no seller record) -> seller None.
-    assert by_sku[3]["seller_price"] is None and by_sku[3]["customer_price"] == 123.0
+    assert by_sku[3]["seller_price"] is None
+    assert by_sku[3]["customer_price"] == 123.0
 
 
 async def test_ingest_prices_scopes_to_harvested_nm_ids() -> None:

@@ -100,11 +100,11 @@ class WBCardClient:
         tb: TracebackType | None,
     ) -> None:
         """Exit the async context (nothing to close for a subprocess client)."""
-        return None
+        return
 
     async def aclose(self) -> None:
         """Symmetry with the httpx-based clients; a no-op here."""
-        return None
+        return
 
     async def fetch_customer_prices(self, nm_ids: list[int]) -> list[WBCardProduct]:
         """Fetch final customer prices for the given SKUs.
@@ -225,9 +225,7 @@ class WBCardClient:
             IntegrationError: On a non-200 response, unparseable body, or once
                 retries are exhausted.
         """
-        header_args: list[str] = []
-        for header in self._HEADERS:
-            header_args += ["-H", header]
+        header_args: list[str] = [arg for header in self._HEADERS for arg in ("-H", header)]
         proxy_args = ["-x", self._proxy] if self._proxy else []
         # ``-w '\n%{http_code}'`` appends the status after the body so we can
         # distinguish a 403 HTML page from a real JSON 200 without --fail

@@ -13,7 +13,7 @@ from datetime import date, datetime
 
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
-from src.integrations.wildberries.base import BaseWBClient
+from src.integrations.wildberries.clients.base import BaseWBClient
 from src.integrations.wildberries.schemas import WBSaleRecord
 
 
@@ -57,14 +57,30 @@ class WBStatisticsClient(BaseWBClient):
         the 429 ``Retry-After``. Responses cap at 80 000 records — a full page
         repeats the request from the last row's ``lastChangeDate``.
 
+        The cursor is a timestamp only — the endpoint accepts no record-id
+        component — so two hazards are handled client-side:
+
+        * ``dateFrom`` is inclusive, and WB may re-stamp rows while we walk the
+          pages, so consecutive pages can overlap. Records are keyed by
+          ``saleID`` (the operation's unique id), keeping the freshest copy.
+        * If a full page's max ``lastChangeDate`` does not advance past the
+          cursor (>80 000 rows sharing one timestamp, or a misbehaving WB
+          response), repeating the request would loop forever — that pass
+          raises instead, so the harvest records the source as failed.
+
         Args:
             changed_since: Inclusive lower bound on ``lastChangeDate``.
 
         Returns:
             One :class:`WBSaleRecord` per item operation (sales and returns).
+
+        Raises:
+            IntegrationError: On an unexpected response shape, or when
+                pagination stalls on a non-advancing cursor.
         """
-        records: list[WBSaleRecord] = []
+        records: dict[str, WBSaleRecord] = {}
         cursor = changed_since.isoformat()
+        previous_page_max: datetime | None = None
         while True:
             payload = await self._request(
                 "GET", "/api/v1/supplier/sales", params={"dateFrom": cursor, "flag": 0}
@@ -74,8 +90,16 @@ class WBStatisticsClient(BaseWBClient):
                     "Unexpected supplier/sales response shape (expected a list)."
                 )
             page = [WBSaleRecord.model_validate(row) for row in payload]
-            records.extend(page)
+            for record in page:
+                records[record.sale_id] = record
             if len(page) < self._PAGE_LIMIT:
                 break
-            cursor = max(record.last_change_date for record in page).isoformat()
-        return records
+            page_max = max(record.last_change_date for record in page)
+            if previous_page_max is not None and page_max <= previous_page_max:
+                raise IntegrationError(
+                    "supplier/sales pagination stalled: a full page did not advance "
+                    f"lastChangeDate past {previous_page_max.isoformat()}."
+                )
+            previous_page_max = page_max
+            cursor = page_max.isoformat()
+        return list(records.values())

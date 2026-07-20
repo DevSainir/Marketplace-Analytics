@@ -64,3 +64,9 @@ marketplace_service/
 * **Cookie Storage:** Refresh tokens must be transmitted strictly via HttpOnly, Secure, SameSite=Lax cookies.
 
 * **Timing Attack Mitigation:** The authorization service must use a dummy_hash fallback execution during user lookup to keep verification timelines identical whether the user account exists or not.
+
+## 6. Tests
+* **Arrange-Act-Assert:** All the test should follow this pattern and be divided by spaces.
+* **Business logic:** Do not create pointless or tautology tests, check business logic rather than code realization.
+* **Fixtures:** Use fixtures instead of mocks if it is possible.
+* **Explaining** Before writing a single line of code, you have to explain me the idea of the test.

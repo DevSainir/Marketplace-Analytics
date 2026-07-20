@@ -11,7 +11,7 @@ from typing import Any
 
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
-from src.integrations.wildberries.base import BaseWBClient
+from src.integrations.wildberries.clients.base import BaseWBClient
 from src.integrations.wildberries.schemas import WBCard
 
 #: Max cards per cards/list page (WB cursor pagination).
