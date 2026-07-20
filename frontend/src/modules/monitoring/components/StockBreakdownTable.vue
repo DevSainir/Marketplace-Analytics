@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
 import { formatNumber } from '@/core/utils/format'
+import { heatFill } from '@/modules/monitoring/stockHeat'
 
 /**
  * Warehouses × sizes stock matrix: a pivot of the backend `StockDetail.cells`
@@ -163,6 +164,29 @@ const rows = computed(() => {
   )
 })
 
+/**
+ * The heatmap tint for one quantity cell. Every cell gets one — an empty cell
+ * takes the ramp's floor rather than no tint, so the grid reads as a
+ * continuous field (see stockHeat.js).
+ *
+ * Painted as a `background-image` rather than a `background-color` so it
+ * LAYERS over the cell's existing background instead of replacing it: the
+ * zebra stripe and the row-hover tint both live on `background-color`, and a
+ * solid heat colour would mask them (the same masking the painted pin chips
+ * had to work around). Stacked this way, the semi-transparent tint lets both
+ * keep showing through underneath.
+ *
+ * Only the quantity cells are heated. The «Всего» column and the totals row
+ * are sums over a whole warehouse or a whole size — an order of magnitude
+ * above a single cell, so on this scale they would all peg to the darkest
+ * tint and say nothing. Leaving them plain keeps one tint = one meaning:
+ * units of THIS size at THIS warehouse, and gives the field a neutral frame.
+ */
+function heatStyle(units) {
+  const fill = heatFill(units)
+  return { backgroundImage: `linear-gradient(${fill}, ${fill})` }
+}
+
 const grandTotal = computed(() => warehouses.value.reduce((sum, wh) => sum + wh.total, 0))
 
 // Marked warehouses sort first, so the two header groups are contiguous:
@@ -236,6 +260,7 @@ function isGroupBoundary(index) {
               :key="wh.name"
               class="tabular-nums"
               :class="{ 'wh-divide': isGroupBoundary(whIndex) }"
+              :style="heatStyle(row.quantities[wh.name])"
             >
               <!-- Zeros read as blanks — only real remainders carry a number. -->
               <span v-if="row.quantities[wh.name]">{{
