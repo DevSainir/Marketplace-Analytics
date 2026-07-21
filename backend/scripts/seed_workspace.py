@@ -83,11 +83,11 @@ from src.modules.monitoring.services.matrix import (
     BUYOUT_LAG_END_DAYS,
     BUYOUT_LAG_START_DAYS,
 )
-from src.modules.monitoring.tasks import (
+from src.modules.monitoring.tasks.cohorts import (
     COHORT_REFRESH_DAYS,
-    _discover_and_harvest_workspace,
     _refresh_workspace_cohorts,
 )
+from src.modules.monitoring.tasks.discovery import _discover_and_harvest_workspace
 from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
     load_workspace_token_bundles,
