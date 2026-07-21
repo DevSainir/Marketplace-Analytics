@@ -1,4 +1,4 @@
-"""Unit tests for the per-day rows under the matrix (services/analytics.py).
+"""Unit tests for the per-day rows under the matrix (services/analytics/).
 
 Covers the note contract — header and comment are independent fields, and the
 day's row lives while either of them does — the «Действия» day-action
@@ -158,16 +158,22 @@ async def test_day_action_save_and_full_clear() -> None:
     saved = await service.set_day_action(
         nm_id=NM_ID,
         action_date=day,
-        action=DayActionState(uni_rk_enabled=True, uni_rk_budget=1500.0, price_change="down"),
+        action=DayActionState(first_rk_type="uni", first_rk_budget=1500.0, price_change="down"),
     )
     assert saved.action is not None
-    assert saved.action.uni_rk_enabled is True
-    assert repo.rows[day]["uni_rk_budget"] == 1500.0
-    assert repo.rows[day]["manual_rk_enabled"] is None
+    assert saved.action.first_rk_type == "uni"
+    assert repo.rows[day]["first_rk_budget"] == 1500.0
+    assert repo.rows[day]["second_rk_type"] is None
 
     cleared = await service.set_day_action(nm_id=NM_ID, action_date=day, action=DayActionState())
     assert cleared.action is None
     assert day not in repo.rows
+
+
+def test_the_two_rk_slots_cannot_hold_the_same_type() -> None:
+    """The synced dropdowns never repeat a type; a malformed request is rejected."""
+    with pytest.raises(ValueError, match="different campaign types"):
+        DayActionState(first_rk_type="uni", second_rk_type="uni")
 
 
 # --------------------------------------------------------------------------- #

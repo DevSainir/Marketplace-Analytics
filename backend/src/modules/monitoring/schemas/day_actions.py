@@ -1,9 +1,9 @@
 """DTOs for the per-day action row («Действия» under the matrix comments).
 
-Three per-day questions the manager answers about what was done that day:
-«Включали РК единая?» / «Включали РК ручная?» (each with a «Бюджет рекламы»)
-and «Меняли цену?» (direction + «На сколько»). Every field is optional — an
-unanswered question is ``None``.
+The manager records, per day: up to two advertising campaigns («Первая РК» /
+«Вторая РК»), each a campaign TYPE with its «Бюджет рекламы», and whether the
+price was moved («Меняли цену?» direction + «На сколько»). Every field is
+optional — an unset answer is ``None``.
 """
 
 from __future__ import annotations
@@ -11,10 +11,14 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-#: «Меняли цену?» answers: повысили / понизили / нет.
-PriceChange = Literal["up", "down", "none"]
+#: A РК campaign type: Единая / Руч. поиск / Руч. полки / CPC.
+RkType = Literal["uni", "manual_search", "manual_shelves", "cpc"]
+
+#: «Меняли цену?» answers: повысили / понизили (no «Нет» — an unmoved price is
+#: simply left unanswered).
+PriceChange = Literal["up", "down"]
 
 
 class DayActionState(BaseModel):
@@ -25,25 +29,37 @@ class DayActionState(BaseModel):
     detail response's ``day_actions`` map.
     """
 
-    uni_rk_enabled: bool | None = Field(
-        default=None, description="«Включали РК единая?» — да/нет, null when unanswered."
+    first_rk_type: RkType | None = Field(
+        default=None, description="«Первая РК» campaign type, null when unset."
     )
-    uni_rk_budget: float | None = Field(
-        default=None, ge=0, description="Unified campaign «Бюджет рекламы», rubles."
+    first_rk_budget: float | None = Field(
+        default=None, ge=0, description="First campaign «Бюджет рекламы», rubles."
     )
-    manual_rk_enabled: bool | None = Field(
-        default=None, description="«Включали РК ручная?» — да/нет, null when unanswered."
+    second_rk_type: RkType | None = Field(
+        default=None, description="«Вторая РК» campaign type, null when unset."
     )
-    manual_rk_budget: float | None = Field(
-        default=None, ge=0, description="Manual campaign «Бюджет рекламы», rubles."
+    second_rk_budget: float | None = Field(
+        default=None, ge=0, description="Second campaign «Бюджет рекламы», rubles."
     )
     price_change: PriceChange | None = Field(
         default=None,
-        description="«Меняли цену?» — up (повысили) / down (понизили) / none (нет).",
+        description="«Меняли цену?» — up (повысили) / down (понизили).",
     )
     price_change_amount: float | None = Field(
         default=None, ge=0, description="«На сколько» — the price difference, rubles."
     )
+
+    @model_validator(mode="after")
+    def _distinct_rk_types(self) -> DayActionState:
+        """Reject the same campaign type in both РК slots.
+
+        The two dropdowns are synced on screen, so this only fires on a
+        malformed request — but a day claiming «Единая» twice is meaningless,
+        and enforcing it here keeps the store the single source of truth.
+        """
+        if self.first_rk_type is not None and self.first_rk_type == self.second_rk_type:
+            raise ValueError("«Первая РК» and «Вторая РК» must be different campaign types.")
+        return self
 
     def is_empty(self) -> bool:
         """True when every answer is ``None`` (the day's row should not exist)."""

@@ -55,10 +55,10 @@ class SkuDayActionRepository:
         *,
         nm_id: int,
         action_date: date,
-        uni_rk_enabled: bool | None,
-        uni_rk_budget: float | None,
-        manual_rk_enabled: bool | None,
-        manual_rk_budget: float | None,
+        first_rk_type: str | None,
+        first_rk_budget: float | None,
+        second_rk_type: str | None,
+        second_rk_budget: float | None,
         price_change: str | None,
         price_change_amount: float | None,
     ) -> None:
@@ -67,18 +67,18 @@ class SkuDayActionRepository:
         Args:
             nm_id: WB SKU identifier.
             action_date: The day the actions describe.
-            uni_rk_enabled: «Включали РК единая?» answer, or ``None``.
-            uni_rk_budget: Unified campaign budget in rubles, or ``None``.
-            manual_rk_enabled: «Включали РК ручная?» answer, or ``None``.
-            manual_rk_budget: Manual campaign budget in rubles, or ``None``.
-            price_change: ``"up"``/``"down"``/``"none"``, or ``None``.
+            first_rk_type: «Первая РК» campaign type, or ``None``.
+            first_rk_budget: First campaign budget in rubles, or ``None``.
+            second_rk_type: «Вторая РК» campaign type, or ``None``.
+            second_rk_budget: Second campaign budget in rubles, or ``None``.
+            price_change: ``"up"``/``"down"``, or ``None``.
             price_change_amount: Price difference in rubles, or ``None``.
         """
         values = {
-            "uni_rk_enabled": uni_rk_enabled,
-            "uni_rk_budget": uni_rk_budget,
-            "manual_rk_enabled": manual_rk_enabled,
-            "manual_rk_budget": manual_rk_budget,
+            "first_rk_type": first_rk_type,
+            "first_rk_budget": first_rk_budget,
+            "second_rk_type": second_rk_type,
+            "second_rk_budget": second_rk_budget,
             "price_change": price_change,
             "price_change_amount": price_change_amount,
         }

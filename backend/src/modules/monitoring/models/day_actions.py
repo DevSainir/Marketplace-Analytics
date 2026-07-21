@@ -2,10 +2,10 @@
 
 One row per ``(nm_id, action_date)`` recording what was DONE that day (as
 opposed to the free-text :class:`~src.modules.monitoring.models.
-sku_day_comment.SkuDayComment` note): whether the unified / manual advertising
-campaigns were switched on (and with what budget), and whether the price was
-changed (direction + size). Actions are GLOBAL (shared by every account) —
-same convention as pins/marks/comments, so the row carries no user reference.
+sku_day_comment.SkuDayComment` note): which advertising campaigns were run (up
+to two, each with its budget), and whether the price was moved (direction +
+size). Actions are GLOBAL (shared by every account) — same convention as
+pins/marks/comments, so the row carries no user reference.
 
 Every field is nullable: an unanswered question simply stays ``NULL``. A row
 where every answer is ``NULL`` is deleted rather than stored.
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Numeric, String, func
+from sqlalchemy import BigInteger, Date, DateTime, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
@@ -26,16 +26,20 @@ _SCHEMA: str = "monitoring"
 class SkuDayAction(Base):
     """One SKU-day's logged manager actions.
 
+    The two РК slots are positional — «Первая РК» / «Вторая РК» — and each holds
+    a campaign TYPE (``uni`` / ``manual_search`` / ``manual_shelves`` / ``cpc``)
+    rather than a yes/no. The frontend keeps the two types distinct; a stored
+    row should never repeat one across the slots.
+
     Attributes:
         nm_id: WB SKU identifier the actions are attached to.
         action_date: The day the actions describe (a matrix column).
-        uni_rk_enabled: «Включали РК единая?» — ``True``/``False``, ``None``
-            when unanswered.
-        uni_rk_budget: The unified campaign's «Бюджет рекламы», rubles.
-        manual_rk_enabled: «Включали РК ручная?» — same convention.
-        manual_rk_budget: The manual campaign's «Бюджет рекламы», rubles.
-        price_change: «Меняли цену?» — ``"up"`` (повысили), ``"down"``
-            (понизили), ``"none"`` (нет), or ``None`` when unanswered.
+        first_rk_type: «Первая РК» campaign type, or ``None`` when unset.
+        first_rk_budget: The first campaign's «Бюджет рекламы», rubles.
+        second_rk_type: «Вторая РК» campaign type, or ``None``.
+        second_rk_budget: The second campaign's «Бюджет рекламы», rubles.
+        price_change: «Меняли цену?» — ``"up"`` (повысили) / ``"down"``
+            (понизили), or ``None`` when unset.
         price_change_amount: «На сколько» — the price difference, rubles.
         updated_at: When the row was last edited (bumped on every save).
     """
@@ -47,11 +51,11 @@ class SkuDayAction(Base):
 
     action_date: Mapped[date] = mapped_column(Date, primary_key=True)
 
-    uni_rk_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    uni_rk_budget: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    first_rk_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    first_rk_budget: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
 
-    manual_rk_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    manual_rk_budget: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    second_rk_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    second_rk_budget: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
 
     price_change: Mapped[str | None] = mapped_column(String(8), nullable=True)
     price_change_amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)

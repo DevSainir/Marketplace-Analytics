@@ -114,10 +114,10 @@ class DayAnnotationAnalytics:
         await self._day_actions.set(
             nm_id=nm_id,
             action_date=action_date,
-            uni_rk_enabled=action.uni_rk_enabled,
-            uni_rk_budget=action.uni_rk_budget,
-            manual_rk_enabled=action.manual_rk_enabled,
-            manual_rk_budget=action.manual_rk_budget,
+            first_rk_type=action.first_rk_type,
+            first_rk_budget=action.first_rk_budget,
+            second_rk_type=action.second_rk_type,
+            second_rk_budget=action.second_rk_budget,
             price_change=action.price_change,
             price_change_amount=action.price_change_amount,
         )
