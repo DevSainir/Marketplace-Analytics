@@ -7,15 +7,18 @@
  *
  * - click a chip → `select` (analyze that SKU);
  * - drag a chip onto another → `reorder` with the full new nm_id order;
- * - open the palette → paint mode, where a chip click `recolor`s instead of
- *   selecting. The mode lasts until the palette closes, so several chips can
- *   be painted in a row.
+ * - open the pencil → paint mode, whose popover just explains itself until a
+ *   chip is clicked. That click picks the pin to paint (rather than selecting
+ *   it) and reveals the swatch palette; a swatch click then `recolor`s that
+ *   pin. The picked chip shows its live tint over the selection highlight so
+ *   the colour is visible as you try it. The mode lasts until the popover
+ *   closes, so several chips can be painted in a row.
  *
  * When more chips are pinned than fit, arrows appear at both ends to page the
  * row sideways (the scrollbar is hidden, and a chip drag is a reorder here —
  * so neither of the usual ways to scroll a ribbon is available).
  */
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { PIN_COLORS } from '@/modules/monitoring/pinColors'
 
@@ -75,21 +78,50 @@ watch(
 )
 
 // --- paint mode -----------------------------------------------------------
-// The palette being open IS the mode: while it is, a chip click paints.
+// The palette being open IS the mode. Painting is two steps in this order:
+// first click a chip to pick WHICH pin to paint, then click a swatch to colour
+// it. The target stays selected after a swatch click, so its colour can be
+// tweaked, and any other chip can be picked next without leaving the mode.
 const paletteOpen = ref(false)
-const activeColor = ref(PIN_COLORS[0].value)
+const targetId = ref(null)
+
+// The swatch palette opens anchored under the picked chip; this is its left
+// offset within `root` (px), clamped so it never spills past the row's edges.
+const paletteLeft = ref(0)
+const PALETTE_WIDTH_PX = 256 // w-64
+
+const targetItem = computed(() =>
+  targetId.value === null ? null : (props.items.find((it) => it.nm_id === targetId.value) ?? null),
+)
+const targetColor = computed(() => targetItem.value?.color ?? null)
 
 function togglePalette() {
   paletteOpen.value = !paletteOpen.value
 }
 
-/** A chip click: paint it while the palette is open, otherwise analyze it. */
-function handleChipClick(item) {
+/** A chip click: in edit mode pick it as the paint target, else analyze it. */
+function handleChipClick(item, event) {
   if (paletteOpen.value) {
-    emit('recolor', item.nm_id, activeColor.value)
+    targetId.value = item.nm_id
+    anchorPaletteToChip(event.currentTarget)
     return
   }
   emit('select', item)
+}
+
+/** Line the palette up under the chip, then pull it back inside the row. */
+function anchorPaletteToChip(chipEl) {
+  if (!root.value || !chipEl) return
+  const rootRect = root.value.getBoundingClientRect()
+  const chipRect = chipEl.getBoundingClientRect()
+  const maxLeft = Math.max(0, root.value.clientWidth - PALETTE_WIDTH_PX)
+  paletteLeft.value = Math.min(Math.max(0, chipRect.left - rootRect.left), maxLeft)
+}
+
+/** Colour the chip picked for painting (color = null clears its tint). */
+function applyColor(color) {
+  if (targetId.value === null) return
+  emit('recolor', targetId.value, color)
 }
 
 // Close on a click anywhere outside the row — but NOT on a chip click, which
@@ -103,6 +135,8 @@ function handleEscape(event) {
 }
 
 watch(paletteOpen, (open) => {
+  // Leaving the mode forgets which chip was being painted.
+  if (!open) targetId.value = null
   const method = open ? 'addEventListener' : 'removeEventListener'
   document[method]('pointerdown', handleOutsidePointer)
   document[method]('keydown', handleEscape)
@@ -196,10 +230,11 @@ function pinLabel(item) {
           item.nm_id === selectedId ? 'pin-chip--active' : '',
           dragIndex === index ? 'opacity-50' : '',
           dropIndex === index && dragIndex !== index ? 'ring-2 ring-action' : '',
-          paletteOpen ? 'cursor-copy active:cursor-copy' : '',
+          paletteOpen ? 'cursor-pointer active:cursor-pointer' : '',
+          paletteOpen && item.nm_id === targetId ? 'pin-chip--target' : '',
         ]"
         :style="item.color ? { '--pin-tint': item.color } : null"
-        @click="handleChipClick(item)"
+        @click="handleChipClick(item, $event)"
         @dragstart="handleDragStart(index, $event)"
         @dragover="handleDragOver(index, $event)"
         @drop.prevent="handleDrop(index)"
@@ -239,8 +274,8 @@ function pinLabel(item) {
     <button
       type="button"
       :aria-pressed="paletteOpen"
-      aria-label="Раскрасить закреплённые SKU"
-      title="Раскрасить закреплённые SKU"
+      aria-label="Редактировать цвета закреплённых SKU"
+      title="Редактировать цвета закреплённых SKU"
       class="inline-flex h-7 w-7 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-muted shadow-soft transition hover:border-action hover:text-action"
       :class="paletteOpen ? 'border-action text-action' : ''"
       @click="togglePalette"
@@ -254,22 +289,33 @@ function pinLabel(item) {
         stroke-linecap="round"
         stroke-linejoin="round"
       >
-        <path
-          d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10a1.7 1.7 0 0 0 1.65-1.69c0-.44-.18-.83-.44-1.12a1.6 1.6 0 0 1-.43-1.13 1.64 1.64 0 0 1 1.66-1.66h1.99A5.56 5.56 0 0 0 22 10.85C22 6.01 17.46 2 12 2Z"
-        />
-        <circle cx="6.5" cy="12.5" r=".8" fill="currentColor" />
-        <circle cx="8.5" cy="7.5" r=".8" fill="currentColor" />
-        <circle cx="13.5" cy="6.5" r=".8" fill="currentColor" />
-        <circle cx="17.5" cy="10.5" r=".8" fill="currentColor" />
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
       </svg>
     </button>
 
-    <!-- Palette popover: a solid elevated surface (no translucency). -->
+    <!-- Hint bubble (before a chip is picked): a compact note in the corner,
+         under the pencil, that just explains what to do. -->
     <div
-      v-if="paletteOpen"
-      class="absolute right-0 top-full z-20 mt-xs w-64 rounded-card border border-border-subtle bg-surface p-sm shadow-card"
+      v-if="paletteOpen && !targetItem"
+      class="absolute right-0 top-full z-20 mt-xs w-52 rounded-card border border-border-subtle bg-surface px-sm py-xs shadow-card"
     >
-      <p class="text-micro font-semibold uppercase tracking-wide text-muted">Цвет закрепления</p>
+      <p class="text-micro font-medium text-primary">Режим раскраски</p>
+      <p class="mt-0.5 text-micro leading-snug text-muted">
+        Кликните по закреплённому&nbsp;SKU, чтобы выбрать для него цвет.
+      </p>
+    </div>
+
+    <!-- Palette popover (after a chip is picked): a solid elevated surface,
+         anchored under the chosen chip rather than pinned to the corner. -->
+    <div
+      v-if="paletteOpen && targetItem"
+      class="absolute top-full z-20 mt-xs w-64 rounded-card border border-border-subtle bg-surface p-sm shadow-card"
+      :style="{ left: `${paletteLeft}px` }"
+    >
+      <p class="text-micro font-semibold uppercase tracking-wide text-muted">
+        Цвет для «{{ pinLabel(targetItem) }}»
+      </p>
       <div class="mt-xs grid grid-cols-7 gap-xs">
         <button
           v-for="color in PIN_COLORS"
@@ -277,25 +323,23 @@ function pinLabel(item) {
           type="button"
           :title="color.label"
           :aria-label="color.label"
-          :aria-pressed="activeColor === color.value"
-          class="h-6 w-6 rounded-full border border-border-subtle transition"
-          :class="activeColor === color.value ? 'ring-2 ring-action' : 'hover:border-action'"
+          :aria-pressed="targetColor === color.value"
+          class="h-6 w-6 rounded-full border border-border-subtle transition hover:border-action"
+          :class="targetColor === color.value ? 'ring-2 ring-action' : ''"
           :style="{ backgroundColor: color.value }"
-          @click="activeColor = color.value"
+          @click="applyColor(color.value)"
         ></button>
       </div>
       <button
         type="button"
-        :aria-pressed="activeColor === null"
+        :aria-pressed="targetColor === null"
         class="mt-sm w-full rounded-btn border border-border-subtle bg-surface px-sm py-xs text-tiny font-medium text-primary transition hover:border-action"
-        :class="activeColor === null ? 'border-action text-action' : ''"
-        @click="activeColor = null"
+        :class="targetColor === null ? 'border-action text-action' : ''"
+        @click="applyColor(null)"
       >
         Убрать цвет
       </button>
-      <p class="mt-xs text-tiny text-muted">
-        Кликайте по SKU, чтобы закрасить. Цвет виден всей команде.
-      </p>
+      <p class="mt-xs text-tiny text-muted">Цвет виден всей команде.</p>
     </div>
   </div>
 </template>
@@ -316,6 +360,18 @@ function pinLabel(item) {
 .pin-chip.pin-chip--active {
   border-color: var(--color-action, #007e76);
   background-color: #e0efee; /* bg-hover: action at ~12% over white */
+}
+
+/* The chip being painted wins over any hover/selection mask so its live tint
+   stays visible while you try colours — the whole point of edit mode. A ring
+   (not a background swap) marks it as the target, keeping the colour readable.
+   Two class selectors out-specify the single-class rules above; :hover is
+   listed so the mask can't reclaim the background as the cursor sits on it. */
+.pin-chip.pin-chip--target,
+.pin-chip.pin-chip--target:hover {
+  background-color: var(--pin-tint, #f1f1f1);
+  border-color: var(--color-action, #007e76);
+  box-shadow: 0 0 0 2px var(--color-action, #007e76);
 }
 
 /* The pin chip row scrolls horizontally without a visible scrollbar (same
