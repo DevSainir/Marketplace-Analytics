@@ -203,12 +203,13 @@ export async function setDayComment(nmId, iso, patch) {
 }
 
 /**
+ * @typedef {'uni'|'manual_search'|'manual_shelves'|'cpc'} RkType
  * @typedef {object} DayAction
- * @property {boolean|null} uni_rk_enabled «Включали РК единая?» (null = unanswered).
- * @property {number|null} uni_rk_budget Unified campaign «Бюджет рекламы», ₽.
- * @property {boolean|null} manual_rk_enabled «Включали РК ручная?».
- * @property {number|null} manual_rk_budget Manual campaign «Бюджет рекламы», ₽.
- * @property {'up'|'down'|'none'|null} price_change «Меняли цену?».
+ * @property {RkType|null} first_rk_type «Первая РК» campaign type (null = unset).
+ * @property {number|null} first_rk_budget First campaign «Бюджет рекламы», ₽.
+ * @property {RkType|null} second_rk_type «Вторая РК» campaign type.
+ * @property {number|null} second_rk_budget Second campaign «Бюджет рекламы», ₽.
+ * @property {'up'|'down'|null} price_change «Меняли цену?».
  * @property {number|null} price_change_amount «На сколько», ₽.
  */
 

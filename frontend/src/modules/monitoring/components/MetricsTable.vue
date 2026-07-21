@@ -251,48 +251,66 @@ function commitNote(iso, field) {
 }
 
 // --- day actions («Действия») ---------------------------------------------
-// One always-visible row under the comments: per day, three answered blocks —
-// «Включали РК единая/ручная?» (Да/Нет + «Бюджет рекламы») and «Меняли цену?»
-// (Повысили/Понизили/Нет + «На сколько»). Every change emits `action` with a
+// One always-visible row under the comments: per day, three blocks — «Первая
+// РК» / «Вторая РК» (a campaign-type dropdown + «Бюджет рекламы») and «Меняли
+// цену?» (Повысили/Понизили + «На сколько»). Every change emits `action` with a
 // partial patch; the store merges it into the day's stored state and saves.
 const PRICE_CHANGE_OPTIONS = [
   { value: 'up', label: 'Повысили' },
   { value: 'down', label: 'Понизили' },
-  { value: 'none', label: 'Нет' },
 ]
 
-// The two РК question blocks share one markup (v-for over this config).
+// The campaign types a РК slot can hold. The two slots draw from this same
+// list but are kept distinct (a type picked in one is disabled in the other).
+const RK_TYPE_OPTIONS = [
+  { value: 'uni', label: 'Единая' },
+  { value: 'manual_search', label: 'Руч. поиск' },
+  { value: 'manual_shelves', label: 'Руч. полки' },
+  { value: 'cpc', label: 'CPC' },
+]
+
+// The two РК blocks share one markup (v-for over this config). `otherTypeField`
+// is the sibling slot, read to sync the dropdowns.
 const RK_BLOCKS = [
-  { field: 'uni_rk_enabled', budgetField: 'uni_rk_budget', question: 'Включали РК единая?' },
-  { field: 'manual_rk_enabled', budgetField: 'manual_rk_budget', question: 'Включали РК ручная?' },
+  {
+    typeField: 'first_rk_type',
+    budgetField: 'first_rk_budget',
+    otherTypeField: 'second_rk_type',
+    title: 'Первая РК',
+  },
+  {
+    typeField: 'second_rk_type',
+    budgetField: 'second_rk_budget',
+    otherTypeField: 'first_rk_type',
+    title: 'Вторая РК',
+  },
 ]
-/** Answer field -> the budget it gates, for clearing one alongside the other. */
-const BUDGET_FIELD = Object.fromEntries(RK_BLOCKS.map((b) => [b.field, b.budgetField]))
-
 /** The day's stored answers (or an all-null blank). */
 function dayAction(iso) {
   return props.dayActions[iso] ?? {}
 }
 
-/** Toggle a Да/Нет answer; clicking the selected option un-answers it. */
-function toggleRkAnswer(iso, field, value) {
-  if (props.actionSavingDays.has(iso)) return
-  const current = dayAction(iso)[field] ?? null
-  const next = current === value ? null : value
-  const patch = { [field]: next }
-  // An answer that admits no budget takes the old one with it: the input is
-  // about to lock, and a number left behind it could not be read back or
-  // cleared — «Нет, and 1 500 ₽ of it» is not a state worth storing.
-  if (next !== true) patch[BUDGET_FIELD[field]] = null
+/** Whether a type option is already taken by the OTHER РК slot (so, disabled). */
+function isTypeTaken(iso, block, optionValue) {
+  return dayAction(iso)[block.otherTypeField] === optionValue
+}
+
+/** Commit a РК slot's type; clearing it takes its now-locked budget with it. */
+function commitRkType(iso, block, event) {
+  const next = event.target.value || null
+  const patch = { [block.typeField]: next }
+  // No type -> the budget is about to lock; a number left behind it could not
+  // be read back or cleared, so it goes with the type.
+  if (next === null) patch[block.budgetField] = null
   emit('action', { day: iso, patch })
 }
 
-/** «Меняли цену?» select: '' un-answers, otherwise up/down/none. */
+/** «Меняли цену?» select: '' un-answers, otherwise up/down. */
 function commitPriceChange(iso, event) {
   const next = event.target.value || null
   const patch = { price_change: next }
-  // Same rule as the budgets: «Нет» (or no answer) leaves no size to state.
-  if (next !== 'up' && next !== 'down') patch.price_change_amount = null
+  // Same rule as the budgets: no direction leaves no size to state.
+  if (next === null) patch.price_change_amount = null
   emit('action', { day: iso, patch })
 }
 
@@ -312,27 +330,23 @@ function commitActionAmount(iso, field, event) {
 /**
  * Whether a day's amount input is locked.
  *
- * An amount only means something when the answer above it implies one: a
- * budget belongs to a campaign that WAS switched on, a size to a price that
- * WAS moved. So «Нет» keeps the field shut just as an unanswered question
- * does — it settles the question and leaves nothing to enter.
+ * An amount only means something once the choice above it is made: a budget
+ * belongs to a chosen campaign, a size to a chosen price direction. The input
+ * stays disabled until that field carries a value.
  *
  * @param {string} iso The day.
- * @param {string} field The answer field the amount belongs to.
+ * @param {string} field The choice field the amount belongs to.
  */
 function isAmountLocked(iso, field) {
   const answer = dayAction(iso)[field]
-  // «Меняли цену?» is tri-state: only a real direction has a size.
-  if (field === 'price_change') return answer !== 'up' && answer !== 'down'
-  return answer !== true
+  return answer === null || answer === undefined || answer === ''
 }
 
-/** The tri-state select's tint follows the picked answer. */
+/** The price select's tint follows the picked direction. */
 function priceChangeClass(iso) {
   const value = dayAction(iso).price_change
   if (value === 'up') return 'day-action-select--positive'
   if (value === 'down') return 'day-action-select--negative'
-  if (value === 'none') return 'day-action-select--warning'
   return ''
 }
 
@@ -664,10 +678,11 @@ watch(
           </tr>
         </tbody>
 
-        <!-- Day actions («Действия»): per day, three answered blocks — the two
-             РК questions (Да/Нет + «Бюджет рекламы») and the price question
-             (Повысили/Понизили/Нет + «На сколько»). Same table, same scroll
-             container — each day's cards sit in its day section. -->
+        <!-- Day actions («Действия»): per day, three blocks — «Первая РК» /
+             «Вторая РК» (a synced campaign-type dropdown + «Бюджет рекламы»)
+             and the price question (Повысили/Понизили + «На сколько»). Same
+             table, same scroll container — each day's cards sit in its day
+             section. -->
         <tbody class="matrix-actions">
           <tr class="matrix-gap" aria-hidden="true">
             <td :colspan="1 + days.length * 8"></td>
@@ -680,40 +695,39 @@ watch(
             </td>
             <td v-for="day in days" :key="day.iso" :colspan="8">
               <div class="day-action-cards">
-                <div v-for="block in RK_BLOCKS" :key="block.field" class="day-action-card">
-                  <span class="day-action-question">{{ block.question }}</span>
-                  <div class="day-action-toggle" role="group" :aria-label="block.question">
-                    <button
-                      type="button"
-                      class="day-action-btn day-action-btn--yes"
-                      :class="dayAction(day.iso)[block.field] === true && 'is-active'"
-                      :disabled="actionSavingDays.has(day.iso)"
-                      @click="toggleRkAnswer(day.iso, block.field, true)"
+                <div v-for="block in RK_BLOCKS" :key="block.typeField" class="day-action-card">
+                  <span class="day-action-question">{{ block.title }}</span>
+                  <select
+                    class="day-action-select"
+                    :value="dayAction(day.iso)[block.typeField] ?? ''"
+                    :disabled="actionSavingDays.has(day.iso)"
+                    :aria-label="`${block.title} (${day.label})`"
+                    @change="commitRkType(day.iso, block, $event)"
+                  >
+                    <option value="">—</option>
+                    <option
+                      v-for="option in RK_TYPE_OPTIONS"
+                      :key="option.value"
+                      :value="option.value"
+                      :disabled="isTypeTaken(day.iso, block, option.value)"
                     >
-                      Да
-                    </button>
-                    <button
-                      type="button"
-                      class="day-action-btn day-action-btn--no"
-                      :class="dayAction(day.iso)[block.field] === false && 'is-active'"
-                      :disabled="actionSavingDays.has(day.iso)"
-                      @click="toggleRkAnswer(day.iso, block.field, false)"
-                    >
-                      Нет
-                    </button>
-                  </div>
+                      {{ option.label }}
+                    </option>
+                  </select>
                   <label
                     class="day-action-amount"
-                    :class="isAmountLocked(day.iso, block.field) && 'day-action-amount--locked'"
+                    :class="isAmountLocked(day.iso, block.typeField) && 'day-action-amount--locked'"
                   >
                     <span>Бюджет рекламы</span>
                     <input
                       type="text"
                       inputmode="decimal"
                       :value="dayAction(day.iso)[block.budgetField] ?? ''"
-                      :disabled="actionSavingDays.has(day.iso) || isAmountLocked(day.iso, block.field)"
+                      :disabled="
+                        actionSavingDays.has(day.iso) || isAmountLocked(day.iso, block.typeField)
+                      "
                       :title="
-                        isAmountLocked(day.iso, block.field) ? 'Сначала ответьте на вопрос' : null
+                        isAmountLocked(day.iso, block.typeField) ? 'Сначала выберите РК' : null
                       "
                       @keydown.enter.prevent="$event.target.blur()"
                       @blur="commitActionAmount(day.iso, block.budgetField, $event)"
@@ -1203,50 +1217,11 @@ watch(
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+  text-align: left;
 }
 
-/* Да/Нет: outline chips; the picked answer tints solid (positive/negative). */
-.day-action-toggle {
-  display: flex;
-  gap: 6px;
-}
-.day-action-btn {
-  padding: 2px 10px;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  background: #fff;
-  color: #667085;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background-color 0.12s ease,
-    border-color 0.12s ease,
-    color 0.12s ease;
-}
-.day-action-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-.day-action-btn--yes:hover:not(:disabled),
-.day-action-btn--yes.is-active {
-  color: #179e60; /* status-positive */
-  border-color: #179e60;
-}
-.day-action-btn--yes.is-active {
-  background: rgba(23, 158, 96, 0.12);
-}
-.day-action-btn--no:hover:not(:disabled),
-.day-action-btn--no.is-active {
-  color: #ee522b; /* status-negative */
-  border-color: #ee522b;
-}
-.day-action-btn--no.is-active {
-  background: rgba(238, 82, 43, 0.12);
-}
-
-/* «Меняли цену?»: the select tints by its answer — Повысили positive,
-   Понизили negative, Нет warning. */
+/* The РК type / price dropdowns; the price one tints by its answer —
+   Повысили positive, Понизили negative. */
 .day-action-select {
   width: 100%;
   padding: 2px 6px;
@@ -1271,10 +1246,9 @@ watch(
   border-color: #ee522b;
   background: rgba(238, 82, 43, 0.12);
 }
-.day-action-select--warning {
-  color: #e8814f; /* status-warning */
-  border-color: #e8814f;
-  background: rgba(232, 129, 79, 0.12);
+/* A type taken by the sibling slot is offered but not pickable. */
+.day-action-select option:disabled {
+  color: #b4bcc8;
 }
 
 /* «Бюджет рекламы» / «На сколько»: label left, ₽ input right. */
