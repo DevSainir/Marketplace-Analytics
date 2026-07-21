@@ -1,4 +1,4 @@
-"""Unit tests for the pinned-SKU chip row (services/analytics.py).
+"""Unit tests for the pinned-SKU chip row (services/analytics/pins.py).
 
 Covers the reorder contract — which is the tenancy guard for
 ``PUT /pins/order``, since that endpoint takes its identifiers from the body

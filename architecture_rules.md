@@ -70,3 +70,10 @@ marketplace_service/
 * **Business logic:** Do not create pointless or tautology tests, check business logic rather than code realization.
 * **Fixtures:** Use fixtures instead of mocks if it is possible.
 * **Explaining** Before writing a single line of code, you have to explain me the idea of the test.
+
+## 7. File Size & Single Responsibility
+* **Hard limit — 300-500 lines per file.** No Python source file may exceed 500 lines; treat 300 as the point where you start looking for a split. When a file approaches the limit, split it BEFORE adding more code.
+* **One responsibility per file.** Split by responsibility (a cohesive concern with its own name), never by line count alone — a mechanical "part 1 / part 2" split is forbidden.
+* **Split layer modules into packages with a facade.** When a layer module (e.g. `services/analytics.py`) outgrows the limit, convert it into a package (`services/analytics/`) of single-responsibility modules and re-export the public API from the package `__init__.py` (`__all__`). External consumers (Celery tasks, DI wiring, `contract.py`, routers) must keep their imports unchanged — the internal layout is never their concern.
+* **Orchestration lives in its own module.** When the split units must be composed (e.g. `ingest_all()` running every ingestion family), add a dedicated orchestrator/facade module (e.g. `service.py`) that wires the units and preserves the original class's constructor and public methods.
+* **Reference layout:** `src/modules/monitoring/services/` — the `analytics/`, `ingestion/`, and `matrix/` packages are the canonical examples of this rule.

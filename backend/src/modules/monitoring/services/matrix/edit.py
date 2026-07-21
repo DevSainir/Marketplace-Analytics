@@ -34,10 +34,8 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixCellEdit,
     MatrixDayBase,
 )
-from src.modules.monitoring.services.matrix import (
-    _day_ad_from_base,
-    ad_order_sum,
-)
+from src.modules.monitoring.services.matrix.build import _day_ad_from_base
+from src.modules.monitoring.services.matrix.pricing import ad_order_sum
 
 
 def _count(value: float) -> int:

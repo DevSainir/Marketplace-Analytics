@@ -1,4 +1,4 @@
-"""Unit tests for the override overlay/diff mapping (services/matrix_overrides.py)."""
+"""Unit tests for the override overlay/diff mapping (services/matrix/overrides.py)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixDayBase,
     MatrixFunnelBase,
 )
-from src.modules.monitoring.services.matrix_overrides import (
+from src.modules.monitoring.services.matrix import (
     diff_to_overrides,
     overlay_overrides,
 )

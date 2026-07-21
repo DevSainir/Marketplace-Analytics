@@ -1,0 +1,220 @@
+"""Aggregate raw fact rows into the editable matrix input working copy.
+
+The first of the two matrix stages: campaign classification, the unified
+search/shelves split, and the lagged buyout window all happen here, and the
+result is frozen into per-day input facts (:class:`MatrixBaseState`). The
+second stage (:func:`~src.modules.monitoring.services.matrix.build.build_matrix_from_base`)
+derives the display matrix from it.
+"""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from datetime import date, timedelta
+
+from src.modules.monitoring.models import (
+    AdvertisingSearchStatDaily,
+    AdvertisingStatDaily,
+    Campaign,
+    PriceSnapshot,
+    SalesFunnelDaily,
+)
+from src.modules.monitoring.repos.advertising import CampaignDaySkuTotal, CampaignDayTotal
+from src.modules.monitoring.repos.stocks import StockDailyTotal
+from src.modules.monitoring.schemas.matrix import (
+    MatrixAdBucketBase,
+    MatrixBaseState,
+    MatrixDayBase,
+    MatrixFunnelBase,
+)
+from src.modules.monitoring.services.matrix.classification import _classify, _select_day_buckets
+from src.modules.monitoring.services.matrix.pricing import _stock_for_day, price_for_day
+from src.modules.monitoring.services.matrix.slices import _AdSlice, _day_range, _percent
+
+#: «Процент выкупа» is WB's definition — ``buyouts / DECIDED deliveries``, where
+#: a decided delivery is one the buyer either bought out or refused
+#: (``buyout_count + cancel_count``) — aggregated over a lagged cohort window:
+#: recent order cohorts are still maturing (their deliveries take 1-3 weeks to
+#: be accepted or refused), so for a day D the window is ``[D - 21, D - 7]``
+#: (e.g. for 10 July: 19 June .. 03 July).
+BUYOUT_LAG_START_DAYS = 21
+BUYOUT_LAG_END_DAYS = 7
+
+
+def derive_base_state(
+    *,
+    date_from: date,
+    date_to: date,
+    funnel_rows: list[SalesFunnelDaily],
+    ad_rows: list[AdvertisingStatDaily],
+    search_rows: list[AdvertisingSearchStatDaily],
+    campaigns: dict[int, Campaign],
+    price_snapshots: list[PriceSnapshot] | None = None,
+    stock_daily: list[StockDailyTotal] | None = None,
+    campaign_totals: list[CampaignDayTotal] | None = None,
+    campaign_sku_totals: list[CampaignDaySkuTotal] | None = None,
+    sku_labels: dict[int, str | None] | None = None,
+    nm_id: int | None = None,
+) -> MatrixBaseState:
+    """Aggregate raw facts into the editable input working copy.
+
+    This is the first of the two matrix stages: it does all the campaign
+    classification, the unified search/shelves split, and the lagged buyout
+    window, then freezes the result into the per-day input facts. The second
+    stage (``build_matrix_from_base``) derives the display matrix from it.
+    Isolating the inputs is what lets the frontend edit them and have the
+    server recompute the dependents.
+
+    Args:
+        date_from: Inclusive window start (first day column).
+        date_to: Inclusive window end (last day column).
+        funnel_rows: Daily funnel rows covering the EXTENDED window
+            ``[date_from - 21, date_to]`` — the lagged «Процент выкупа» reads up
+            to 21 days before the first displayed day.
+        ad_rows: The SKU's advertising fact rows within the window.
+        search_rows: The SKU's search-zone slices within the window.
+        campaigns: Campaign metadata keyed by ``campaign_id`` (may be partial).
+        price_snapshots: The SKU's seller/customer price snapshots; applied
+            only to their exact snapshot days (pricing «Заказы, ₽» and «СПП»
+            there; other days stay unpriced).
+        stock_daily: The SKU's per-day stock totals; applied only to their
+            exact snapshot days for the read-only stock/in-transit rows.
+        campaign_totals: Per-(campaign, day) conversion totals across ALL
+            nm_ids — the associative-conversion total shown in the carts/orders
+            cells. Missing entries mean no associative gap for that slice.
+        campaign_sku_totals: Those same totals broken down per nm_id — the
+            hover naming which variants they were booked on. Survives to the
+            cell only for campaign-days that were not split across zones.
+        sku_labels: Vendor codes keyed by ``nm_id``, for labelling the hover
+            rows; an unsynced variant falls back to its raw ``nm_id``.
+        nm_id: The SKU being analyzed. Splitting a campaign-day across zones
+            needs it to keep the viewed SKU's own counts exact; without it a
+            split cell ships no breakdown.
+
+    Returns:
+        The :class:`MatrixBaseState` working copy for the window.
+    """
+    days = _day_range(date_from, date_to)
+    funnel_by_date = {row.stat_date: row for row in funnel_rows}
+    ordered_prices = sorted(price_snapshots or [], key=lambda s: s.stat_date)
+    ordered_stock = sorted(stock_daily or [], key=lambda s: s.stat_date)
+
+    # One slice per (campaign, day), aggregated across platforms.
+    campaign_day: dict[tuple[int, date], _AdSlice] = {}
+    for row in ad_rows:
+        total = campaign_day.setdefault((row.campaign_id, row.stat_date), _AdSlice())
+        total.views += row.views
+        total.clicks += row.clicks
+        total.add_to_cart += row.add_to_cart
+        total.spend += float(row.spend)
+        total.orders += row.orders
+        if total.order_sum is not None:
+            total.order_sum += float(row.order_sum)
+
+    # Stamp the associative (all-variant) conversion totals onto each slice.
+    # Clamped from below at the SKU's own counts so a partial totals fetch can
+    # never show an associative total smaller than the SKU slice itself.
+    totals_by_key = {(t.campaign_id, t.stat_date): t for t in campaign_totals or []}
+    skus_by_key: dict[tuple[int, date], dict[int, tuple[int, int]]] = defaultdict(dict)
+    for sku_total in campaign_sku_totals or []:
+        skus_by_key[(sku_total.campaign_id, sku_total.stat_date)][sku_total.nm_id] = (
+            sku_total.add_to_cart,
+            sku_total.orders,
+        )
+    for key, total in campaign_day.items():
+        campaign_total = totals_by_key.get(key)
+        total.assoc_add_to_cart = max(
+            campaign_total.add_to_cart if campaign_total else 0, total.add_to_cart
+        )
+        total.assoc_orders = max(campaign_total.orders if campaign_total else 0, total.orders)
+        total.assoc_skus = skus_by_key.get(key, {})
+
+    search_by_key = {(row.campaign_id, row.stat_date): row for row in search_rows}
+
+    # Classify each campaign-day into its display-zone leg(s): a manual campaign
+    # yields one leg, a dual-zone (unified) campaign a search + a shelves slice.
+    # Collected per day (with the campaign total) so the significant campaign(s)
+    # can be selected.
+    day_campaigns: dict[date, list[tuple[_AdSlice, list[tuple[str, _AdSlice]]]]] = defaultdict(list)
+    for (campaign_id, stat_date), total in campaign_day.items():
+        legs = _classify(
+            campaigns.get(campaign_id),
+            total,
+            search_by_key.get((campaign_id, stat_date)),
+            nm_id,
+        )
+        if legs:  # unclassifiable campaigns (no settings) are excluded entirely
+            day_campaigns[stat_date].append((total, legs))
+
+    day_bases: list[MatrixDayBase] = []
+    for day in days:
+        # Keep only the significant campaign(s) (cut insignificant traffic). Cut
+        # campaigns are excluded from «Общая»/«Органика» too, so the unclassified
+        # remainder is empty and each bid type's «Доля трафика» sums to 100%.
+        buckets = _select_day_buckets(day_campaigns.get(day, []), sku_labels)
+
+        funnel_row = funnel_by_date.get(day)
+        seller_price, customer_price = price_for_day(ordered_prices, day)
+        if funnel_row is not None:
+            funnel_base = MatrixFunnelBase(
+                open_count=funnel_row.open_count,
+                cart_count=funnel_row.cart_count,
+                order_count=funnel_row.order_count,
+                seller_price=seller_price,
+                customer_price=customer_price,
+            )
+        elif seller_price is not None or customer_price is not None:
+            # No funnel row yet (the CURRENT day — WB serves the funnel a day
+            # late) but the day's prices were snapshotted at harvest: carry a
+            # price-only base so «Цены»/«СПП» render while the count cells
+            # stay blank and read-only.
+            funnel_base = MatrixFunnelBase(
+                seller_price=seller_price,
+                customer_price=customer_price,
+                has_funnel=False,
+            )
+        else:
+            funnel_base = None
+
+        # «Процент выкупа»: WB's definition — buyouts / DECIDED deliveries —
+        # over the lagged [D-21, D-7] cohort window (recent cohorts are still
+        # maturing). Both inputs are stored facts from the period-aggregate
+        # feed, so the window is a plain sum of counts:
+        #
+        #     Σ buyout_count / Σ (buyout_count + cancel_count)
+        #
+        # A cohort with ZERO buyouts still contributes its refusals to the
+        # denominator — dropping it (as the earlier `buyout_count / WB percent`
+        # reconstruction had to, since WB reports percent 0 for such a day and
+        # the denominator was unrecoverable) is what made the metric read far
+        # too high: SKU 914394276's 15.07 window held four zero-buyout days
+        # worth of refusals, and skipping them printed 41% against WB's 16%.
+        #
+        # `cancel_count is None` = the cohort pass has not refreshed that day
+        # yet; it is skipped rather than read as "no refusals", which would
+        # invent a 100% cohort.
+        window_start = day - timedelta(days=BUYOUT_LAG_START_DAYS)
+        window_end = day - timedelta(days=BUYOUT_LAG_END_DAYS)
+        buyouts = 0
+        decided = 0
+        for funnel_row in funnel_rows:
+            if not (window_start <= funnel_row.stat_date <= window_end):
+                continue
+            if funnel_row.cancel_count is None:
+                continue
+            buyouts += funnel_row.buyout_count
+            decided += funnel_row.buyout_count + funnel_row.cancel_count
+
+        day_bases.append(
+            MatrixDayBase(
+                day=day,
+                has_advertising=bool(buckets),
+                buckets=buckets,
+                unclassified=MatrixAdBucketBase(),  # cut campaigns are excluded
+                funnel=funnel_base,
+                lagged_buyout_percent=_percent(buyouts, decided),
+                stock=_stock_for_day(ordered_stock, day),
+            )
+        )
+
+    return MatrixBaseState(days=day_bases)

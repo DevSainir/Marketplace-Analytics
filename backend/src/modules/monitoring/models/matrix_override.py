@@ -1,7 +1,7 @@
 """Manual matrix-cell override model.
 
 Managers edit the daily metrics matrix like a spreadsheet. Their edits are
-resolved to **input** facts (see :mod:`services.matrix_edit`) and persisted here
+resolved to **input** facts (see :mod:`services.matrix.edit`) and persisted here
 as a thin layer *over* the pristine WB fact tables — the raw harvested numbers
 are never overwritten. On read the overlay is applied before the matrix is
 derived; any WB refresh (nightly harvest or a manual «Обновить») clears a SKU's

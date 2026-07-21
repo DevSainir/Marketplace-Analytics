@@ -1,4 +1,4 @@
-"""Unit tests for the pure metrics-matrix builder (services/matrix.py).
+"""Unit tests for the pure metrics-matrix builder (services/matrix/).
 
 Covers the load-bearing rules: the significant-campaign selection (cut noise, at
 most two campaigns, a unified campaign shown in both its WB zones), «Доля

@@ -1,4 +1,4 @@
-"""Unit tests for the associative-conversion breakdown (services/matrix.py).
+"""Unit tests for the associative-conversion breakdown (services/matrix/).
 
 The carts/orders cells show a campaign's ALL-VARIANT total; these cover the
 per-variant decomposition behind the hover. The load-bearing property is that

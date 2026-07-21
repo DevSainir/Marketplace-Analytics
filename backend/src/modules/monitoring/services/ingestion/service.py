@@ -1,0 +1,236 @@
+"""The write-side facade over the per-family ingestion units.
+
+:class:`IngestionService` keeps the exact constructor and public API the flat
+``services/ingestion.py`` module exposed (Celery tasks and the DI wiring are
+unchanged consumers); internally each fact family is handled by its own unit —
+see the sibling modules — and :meth:`IngestionService.ingest_all` orchestrates
+one full harvest across them.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import date
+
+from src.integrations.wildberries.schemas import (
+    WBAdvCampaignStats,
+    WBAdvertV2,
+    WBCampaign,
+    WBCard,
+    WBCardProduct,
+    WBFunnelAggregateRow,
+    WBFunnelHistoryRow,
+    WBNormQueryItem,
+    WBPriceGood,
+    WBSaleRecord,
+    WBStockRow,
+)
+from src.modules.monitoring.repos import (
+    AdvertisingRepository,
+    AdvertisingSearchRepository,
+    CampaignRepository,
+    FunnelRepository,
+    PriceRepository,
+    ProductCardRepository,
+    ProductSizeRepository,
+    SaleRepository,
+    StockRepository,
+)
+from src.modules.monitoring.schemas import CatalogIngestionResult, IngestionResult
+from src.modules.monitoring.services.ingestion.advertising import AdvertisingIngestion
+from src.modules.monitoring.services.ingestion.catalog import CatalogIngestion
+from src.modules.monitoring.services.ingestion.funnel import FunnelIngestion
+from src.modules.monitoring.services.ingestion.prices import PriceIngestion
+from src.modules.monitoring.services.ingestion.sales import SalesIngestion
+from src.modules.monitoring.services.ingestion.stocks import StockIngestion
+
+
+class IngestionService:
+    """Flattens and persists harvested WB statistics (facade over the units)."""
+
+    def __init__(
+        self,
+        *,
+        funnel_repo: FunnelRepository,
+        advertising_repo: AdvertisingRepository,
+        stock_repo: StockRepository,
+        campaign_repo: CampaignRepository,
+        product_card_repo: ProductCardRepository,
+        product_size_repo: ProductSizeRepository,
+        advertising_search_repo: AdvertisingSearchRepository,
+        price_repo: PriceRepository,
+        sale_repo: SaleRepository,
+    ) -> None:
+        """Wire each per-family ingestion unit from the injected repositories."""
+        self._funnel = FunnelIngestion(funnel_repo)
+        self._advertising = AdvertisingIngestion(
+            advertising_repo=advertising_repo,
+            campaign_repo=campaign_repo,
+            advertising_search_repo=advertising_search_repo,
+        )
+        self._stocks = StockIngestion(stock_repo)
+        self._prices = PriceIngestion(price_repo)
+        self._sales = SalesIngestion(sale_repo)
+        self._catalog = CatalogIngestion(
+            product_card_repo=product_card_repo,
+            product_size_repo=product_size_repo,
+        )
+
+    # ------------------------------------------------------------------ #
+    # Per-family delegates (see the unit classes for the full contracts)
+    # ------------------------------------------------------------------ #
+    async def ingest_sales_funnel(self, rows: list[WBFunnelHistoryRow]) -> int:
+        """Delegate to :meth:`FunnelIngestion.ingest_sales_funnel`."""
+        return await self._funnel.ingest_sales_funnel(rows)
+
+    async def ingest_funnel_cohorts(
+        self, day: date, rows: list[WBFunnelAggregateRow], *, nm_ids: set[int] | None = None
+    ) -> int:
+        """Delegate to :meth:`FunnelIngestion.ingest_funnel_cohorts`."""
+        return await self._funnel.ingest_funnel_cohorts(day, rows, nm_ids=nm_ids)
+
+    async def ingest_funnel_backfill(
+        self, day: date, rows: list[WBFunnelAggregateRow], *, nm_ids: set[int]
+    ) -> int:
+        """Delegate to :meth:`FunnelIngestion.ingest_funnel_backfill`."""
+        return await self._funnel.ingest_funnel_backfill(day, rows, nm_ids=nm_ids)
+
+    async def ingest_advertising(
+        self,
+        stats: list[WBAdvCampaignStats],
+        *,
+        window: tuple[date, date] | None = None,
+    ) -> int:
+        """Delegate to :meth:`AdvertisingIngestion.ingest_advertising`."""
+        return await self._advertising.ingest_advertising(stats, window=window)
+
+    async def ingest_campaigns(
+        self,
+        campaigns: list[WBCampaign],
+        adverts: list[WBAdvertV2] | None = None,
+    ) -> int:
+        """Delegate to :meth:`AdvertisingIngestion.ingest_campaigns`."""
+        return await self._advertising.ingest_campaigns(campaigns, adverts)
+
+    async def ingest_search_stats(
+        self,
+        items: list[WBNormQueryItem],
+        *,
+        window: tuple[date, date] | None = None,
+        requested_campaign_ids: list[int] | None = None,
+    ) -> int:
+        """Delegate to :meth:`AdvertisingIngestion.ingest_search_stats`."""
+        return await self._advertising.ingest_search_stats(
+            items, window=window, requested_campaign_ids=requested_campaign_ids
+        )
+
+    async def ingest_stocks(
+        self,
+        rows: list[WBStockRow],
+        *,
+        snapshot_date: date,
+        harvested_nm_ids: list[int] | None = None,
+    ) -> int:
+        """Delegate to :meth:`StockIngestion.ingest_stocks`."""
+        return await self._stocks.ingest_stocks(
+            rows, snapshot_date=snapshot_date, harvested_nm_ids=harvested_nm_ids
+        )
+
+    async def ingest_prices(
+        self,
+        goods: list[WBPriceGood],
+        customer: list[WBCardProduct],
+        *,
+        snapshot_date: date,
+        nm_ids: list[int] | None = None,
+    ) -> int:
+        """Delegate to :meth:`PriceIngestion.ingest_prices`."""
+        return await self._prices.ingest_prices(
+            goods, customer, snapshot_date=snapshot_date, nm_ids=nm_ids
+        )
+
+    async def ingest_sales(self, records: list[WBSaleRecord]) -> int:
+        """Delegate to :meth:`SalesIngestion.ingest_sales`."""
+        return await self._sales.ingest_sales(records)
+
+    async def ingest_catalog(
+        self, cards: list[WBCard], *, workspace_id: uuid.UUID
+    ) -> CatalogIngestionResult:
+        """Delegate to :meth:`CatalogIngestion.ingest_catalog`."""
+        return await self._catalog.ingest_catalog(cards, workspace_id=workspace_id)
+
+    # ------------------------------------------------------------------ #
+    # Full-harvest orchestration
+    # ------------------------------------------------------------------ #
+    async def ingest_all(
+        self,
+        *,
+        funnel: list[WBFunnelHistoryRow],
+        advertising: list[WBAdvCampaignStats],
+        stocks: list[WBStockRow],
+        snapshot_date: date,
+        harvested_nm_ids: list[int] | None = None,
+        advertising_window: tuple[date, date] | None = None,
+        search_stats: list[WBNormQueryItem] | None = None,
+        search_requested_campaign_ids: list[int] | None = None,
+        prices: list[WBPriceGood] | None = None,
+        customer_prices: list[WBCardProduct] | None = None,
+        price_nm_ids: list[int] | None = None,
+        sales: list[WBSaleRecord] | None = None,
+    ) -> IngestionResult:
+        """Run a full harvest ingestion in one unit of work.
+
+        Args:
+            funnel: Raw per-product daily funnel-history rows to persist.
+            advertising: Raw per-campaign stats trees to persist.
+            stocks: Raw stock rows to persist.
+            snapshot_date: Moscow-time day for the stock/price snapshot.
+            harvested_nm_ids: Every SKU this harvest covered (enables the
+                absence-means-zero stock sweep for sold-out SKUs).
+            advertising_window: The harvested advertising window (enables the
+                stale-row sweep before re-insert).
+            search_stats: Raw normquery search-zone stats to persist; ``None``
+                when the source failed (its rows are then left untouched).
+            search_requested_campaign_ids: Every campaign the search-zone
+                harvest asked for (enables its stale-row sweep).
+            prices: Raw seller pricing records; ``None`` when the source failed.
+            customer_prices: Raw storefront card products; ``None`` when that
+                source failed (the customer side is then left ``NULL``).
+            price_nm_ids: The harvested SKUs to snapshot prices for (scopes the
+                account-wide seller feed to this harvest); ``None`` writes all.
+            sales: Raw per-item sale/return records; ``None`` when the source
+                failed (existing rows are then left untouched).
+
+        Returns:
+            An :class:`IngestionResult` tallying rows persisted per family.
+        """
+        funnel_count = await self.ingest_sales_funnel(funnel)
+        ad_count = await self.ingest_advertising(advertising, window=advertising_window)
+        search_count = 0
+        if search_stats is not None:
+            search_count = await self.ingest_search_stats(
+                search_stats,
+                window=advertising_window,
+                requested_campaign_ids=search_requested_campaign_ids,
+            )
+        stock_count = await self.ingest_stocks(
+            stocks, snapshot_date=snapshot_date, harvested_nm_ids=harvested_nm_ids
+        )
+        # Prices snapshot: only written when the seller source succeeded (an
+        # absent prices fetch must not stamp a NULL-price snapshot for the day).
+        price_count = 0
+        if prices is not None:
+            price_count = await self.ingest_prices(
+                prices, customer_prices or [], snapshot_date=snapshot_date, nm_ids=price_nm_ids
+            )
+        sales_count = 0
+        if sales is not None:
+            sales_count = await self.ingest_sales(sales)
+        return IngestionResult(
+            funnel_rows=funnel_count,
+            advertising_rows=ad_count,
+            search_zone_rows=search_count,
+            stock_rows=stock_count,
+            price_rows=price_count,
+            sales_rows=sales_count,
+        )

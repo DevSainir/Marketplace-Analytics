@@ -1,4 +1,4 @@
-"""Unit tests for the matrix reverse-solver (services/matrix_edit.py).
+"""Unit tests for the matrix reverse-solver (services/matrix/edit.py).
 
 Covers the editability contract: direct input sets, numerator reverse-solves
 (incl. the user's order_conversion→orders example), the traffic-share
@@ -22,8 +22,7 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixDayBase,
     MatrixFunnelBase,
 )
-from src.modules.monitoring.services.matrix import build_matrix_from_base
-from src.modules.monitoring.services.matrix_edit import apply_edit
+from src.modules.monitoring.services.matrix import apply_edit, build_matrix_from_base
 
 DAY = date(2026, 7, 1)
 
