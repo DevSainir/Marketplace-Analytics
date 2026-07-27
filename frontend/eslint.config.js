@@ -52,11 +52,15 @@ export default [
     },
   },
 
-  // Vitest globals for colocated spec files.
+  // Vitest globals — for the colocated unit specs and for the cross-unit
+  // integration specs under tests/ (see docs/rules/tests_rules.md §2).
+  // `globals.node` comes with them: the architecture spec reads the source tree
+  // off disk, so it legitimately uses `process` and `node:fs`.
   {
-    files: ['src/**/*.spec.js'],
+    files: ['src/**/*.spec.js', 'tests/**/*.spec.js'],
     languageOptions: {
       globals: {
+        ...globals.node,
         describe: 'readonly',
         it: 'readonly',
         expect: 'readonly',

@@ -1,6 +1,8 @@
 import { fileURLToPath, URL } from 'node:url'
 
 import vue from '@vitejs/plugin-vue'
+import autoprefixer from 'autoprefixer'
+import tailwindcss from 'tailwindcss'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
@@ -8,6 +10,15 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  // Declared here rather than in a separate postcss.config.js: it is four lines
+  // of plugin wiring, and Vite is what runs PostCSS. Tailwind's own config stays
+  // in tailwind.config.js — that one is 88 lines of design tokens and belongs
+  // next to the design system, not inside the build config.
+  css: {
+    postcss: {
+      plugins: [tailwindcss(), autoprefixer()],
     },
   },
   server: {

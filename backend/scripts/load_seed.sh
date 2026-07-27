@@ -4,7 +4,7 @@
 # Run on the TARGET host (e.g. the VPS) AFTER the stack is up — the migrate
 # service must have applied the schema first:
 #
-#   cd backend && docker compose up -d --build
+#   make up
 #   backend/scripts/load_seed.sh
 #
 # Idempotent: the monitoring tables are TRUNCATED before loading, so re-running

@@ -12,7 +12,7 @@ from src.core.security import SecretDecryptionError, decrypt_secret, encrypt_sec
 def test_encrypt_decrypt_roundtrip(monkeypatch: pytest.MonkeyPatch) -> None:
     """A secret survives the encrypt -> decrypt roundtrip unchanged."""
     monkeypatch.setattr(settings, "fernet_secret_key", Fernet.generate_key().decode())
-    token = "eyJhbGciOiJFUzI1NiJ9.some-wb-token-payload"  # noqa: S105 — test fixture, not a credential
+    token = "eyJhbGciOiJFUzI1NiJ9.some-wb-token-payload"
 
     ciphertext = encrypt_secret(token)
 

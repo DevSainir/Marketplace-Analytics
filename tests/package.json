@@ -1,0 +1,18 @@
+{
+  "name": "marketplace-service-tests",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Cross-stack test tooling (Playwright end-to-end, k6 performance). The application code lives in backend/ and frontend/; this package exists only so the tests in this directory can resolve their runner. Kept here rather than at the repository root so the root carries no tooling files.",
+  "scripts": {
+    "test:e2e": "playwright test --project=chromium",
+    "test:e2e:ui": "playwright test --project=chromium --ui",
+    "test:e2e:headed": "playwright test --project=chromium --headed",
+    "test:e2e:report": "playwright show-report ./.report",
+    "test:perf:frontend": "playwright test --project=frontend-performance",
+    "setup:e2e": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0"
+  }
+}
