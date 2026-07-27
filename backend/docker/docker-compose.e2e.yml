@@ -1,0 +1,33 @@
+# ---------------------------------------------------------------------------
+# Overlay for throwaway end-to-end stacks (CI, and local runs without a cert).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
+#
+# WHAT IT CHANGES, AND WHY. Exactly one thing: nginx serves plain HTTP on any
+# Host (../frontend/docker/nginx.ci.conf) instead of terminating TLS for
+# example.com. The production config hard-requires the Let's Encrypt key
+# pair, which exists only on the VPS; without it nginx does not fall back to
+# HTTP, it refuses to load its configuration at all — `nginx -t` reports
+# "cannot load certificate ... no such file" — so the container restart-loops
+# and every request fails in a way that reads as a broken application.
+#
+# Everything else is the real topology: the same images, the same migrate job,
+# the same /api/ reverse proxy, the same security headers. The browser tier is
+# only worth running against something honest.
+#
+# The base file's `443:443` publish and its read-only /etc/letsencrypt mount are
+# left in place deliberately rather than removed. Compose MERGES `ports` and
+# `volumes` from an overlay instead of replacing them, and the `!override` tag
+# that would replace them needs Compose >= 2.24 — a floor not worth imposing on
+# contributors. Both leftovers are inert here: nothing listens on 443, and the
+# mounted directory is never read.
+#
+# Note this is NOT docker-compose.override.yml. Overrides apply automatically,
+# and a production stack that silently downgraded itself to plain HTTP would be
+# a security incident. This overlay has to be named on the command line.
+# ---------------------------------------------------------------------------
+
+services:
+  frontend:
+    volumes:
+      - ../frontend/docker/nginx.ci.conf:/etc/nginx/conf.d/default.conf:ro

@@ -26,6 +26,9 @@ RUN npm run build
 FROM nginx:1.27-alpine AS runtime
 
 # Replace the stock default server with our SPA + reverse-proxy config.
+# The snippets carry the response security headers, which every location that
+# sets its own cache header has to re-include (see snippets/security-headers.conf).
+COPY docker/snippets/ /etc/nginx/snippets/
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 
 COPY --from=builder /app/dist /usr/share/nginx/html

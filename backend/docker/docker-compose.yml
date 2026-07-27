@@ -1,7 +1,8 @@
 # ---------------------------------------------------------------------------
 # Base multi-container topology: nginx SPA (frontend, the single entry point)
 # + FastAPI (api) + Celery (worker) + PostgreSQL + Redis. The api and worker
-# build from separate Dockerfiles but share the same source tree and
+# are two `--target`s of ONE Dockerfile (docker/Dockerfile) — same code, same
+# resolved dependencies, different entrypoint — sharing the source tree and the
 # environment file.
 #
 # Security posture: this base file publishes ONE host port — frontend:80.
@@ -9,14 +10,30 @@
 # network; nginx reverse-proxies /api/ to the api container. Redis requires a
 # password — an open Redis is remote code execution via the Celery broker.
 #
-# Local development: docker-compose.override.yml (gitignored; copy it from
-# docker-compose.override.yml.example, applied automatically by `docker
-# compose up`) additionally publishes api/Postgres/Redis on loopback for host
-# tooling and the Vite dev server.
+# HOW TO RUN IT. From the repository root:
 #
-# Production (VPS): the override file does not exist there, so the SAME
-# command runs the closed topology with nothing but port 80 exposed —
-#   docker compose up -d --build
+#   make up          # build + start          make down     # stop
+#   make ps          # status                 make logs     # follow logs
+#
+# Those wrap `docker compose --project-directory backend -f <this file>`. The
+# --project-directory is NOT optional and is the reason the wrappers exist:
+# Compose resolves `.env`, `env_file:` and every build context against the
+# PROJECT directory, which it infers from the compose file's own location.
+# Left to infer, it would look for backend/docker/.env, find nothing, and start
+# Postgres and Redis with different passwords than the api and worker read from
+# backend/.env — a stack that comes up and then fails to authenticate.
+#
+# The `${VAR:?...}` forms below make that mistake immediate and self-explaining
+# instead: Compose refuses to render the file at all rather than substituting a
+# placeholder password.
+#
+# Local development: docker/docker-compose.override.yml (gitignored; copy it
+# from docker-compose.override.yml.example, applied automatically) additionally
+# publishes api/Postgres/Redis on loopback for host tooling and the Vite dev
+# server.
+#
+# Production (VPS): the override file does not exist there, so the same
+# `make up` runs the closed topology with nothing but port 80 exposed.
 # ---------------------------------------------------------------------------
 
 name: marketplace-service
@@ -28,7 +45,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-marketplace}
       POSTGRES_USER: ${POSTGRES_USER:-marketplace}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-in-prod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?missing — run from backend/ via `make up`, or pass --project-directory ..}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -41,7 +58,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis-dev-password}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?missing — run from backend/ via `make up`, or pass --project-directory ..}
     command:
       - sh
       - -c
@@ -60,7 +77,8 @@ services:
   migrate:
     build:
       context: .
-      dockerfile: docker/app.Dockerfile
+      dockerfile: docker/Dockerfile
+      target: api
     env_file:
       - .env
     environment:
@@ -75,7 +93,8 @@ services:
   api:
     build:
       context: .
-      dockerfile: docker/app.Dockerfile
+      dockerfile: docker/Dockerfile
+      target: api
     restart: unless-stopped
     env_file:
       - .env
@@ -126,7 +145,8 @@ services:
   worker:
     build:
       context: .
-      dockerfile: docker/celery.Dockerfile
+      dockerfile: docker/Dockerfile
+      target: worker
     restart: unless-stopped
     env_file:
       - .env
@@ -146,7 +166,8 @@ services:
   beat:
     build:
       context: .
-      dockerfile: docker/celery.Dockerfile
+      dockerfile: docker/Dockerfile
+      target: worker
     restart: unless-stopped
     env_file:
       - .env
