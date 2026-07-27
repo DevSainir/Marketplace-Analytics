@@ -1,0 +1,112 @@
+/*
+ * Styles for MatrixMetricsRows.vue — see the note in MetricsTable.css for why
+ * they live beside the component and why the `.app-datatable--matrix` ancestor
+ * prefixes still apply under `scoped`.
+ */
+
+.app-datatable--matrix tbody.matrix-metrics td.matrix-cell--merged {
+  text-align: center;
+}
+
+/* A merged row lays out fewer cells per day than the skin's 8-cell border
+   cadence in main.css assumes, so it misfires — reset every divider, then
+   restate them on the row's own cadence. */
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged td:not(:first-child) {
+  border-left: none;
+}
+
+/* «ДРР от продаж»: 5 cells per day (uni | руч.поиск | руч.полки | общая |
+   органика). Black day boundary before each day's first cell (except the
+   first day), light boundaries between the campaign groups within a day. */
+.app-datatable--matrix
+  tbody.matrix-metrics
+  tr.matrix-row-merged--campaign
+  td:nth-child(5n + 2):not(:nth-child(2)) {
+  border-left: 2px solid #101010;
+}
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(5n + 3),
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(5n + 4),
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(5n) {
+  border-left: 2px solid #d9d9d9;
+}
+
+/* «Процент выкупа»: ONE cell per day, so every cell after the frozen label
+   starts a new day and takes the black boundary (bar the first day). */
+.app-datatable--matrix
+  tbody.matrix-metrics
+  tr.matrix-row-merged--day
+  td:not(:first-child):not(:nth-child(2)) {
+  border-left: 2px solid #101010;
+}
+
+/* An editable cell reads as plain text but hints affordance on hover/focus.
+   min-height keeps a BLANK editable cell (empty content) a real click target. */
+.matrix-cell-btn {
+  display: inline-block;
+  width: 100%;
+  min-height: 1.1em;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: inherit;
+  /* Inherit family/size but keep the medium weight (a `font` shorthand would
+     reset weight back to the inherited 400). */
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 500;
+  cursor: text;
+  border-bottom: 1px dashed transparent;
+}
+.matrix-cell-btn:hover,
+.matrix-cell-btn:focus-visible {
+  border-bottom-color: currentColor;
+  outline: none;
+}
+
+.matrix-cell-input {
+  width: 100%;
+  min-width: 3.5rem;
+  padding: 2px 4px;
+  border: 1px solid var(--color-action, #2f7d68);
+  border-radius: 4px;
+  background: var(--color-surface, #fff);
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  text-align: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.matrix-cell-input:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-action, #2f7d68) 40%, transparent);
+  outline-offset: 0;
+}
+
+/* --- metric emphasis -------------------------------------------------------
+   The heavy `.app-datatable--matrix tbody...` prefixes out-rank the generic
+   skin rules from main.css. */
+
+/* Frozen row labels: a step bigger and bolder than the cell numbers. */
+.app-datatable--matrix tbody.matrix-metrics td:first-child .matrix-row-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* «ДРР от продаж»: the headline efficiency number — a step bigger and bold,
+   both the frozen label and every value cell (the cell button/span carry an
+   explicit font-weight, so target them directly, not just the td). */
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-emphasis td {
+  font-size: 13px;
+}
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-emphasis td .matrix-cell-btn,
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-emphasis td span {
+  font-size: 13px;
+  font-weight: 700;
+}
+.app-datatable--matrix
+  tbody.matrix-metrics
+  tr.matrix-row-emphasis
+  td:first-child
+  .matrix-row-label {
+  font-size: 14px;
+  font-weight: 700;
+}

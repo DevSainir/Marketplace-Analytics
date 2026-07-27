@@ -142,3 +142,64 @@ describe('«Меняли цену?» dropdown', () => {
     expect(values).toEqual(['', 'up', 'down'])
   })
 })
+
+describe('table composition', () => {
+  // The rows below the metrics are separate components, but they must render
+  // as <tbody> sections of the SAME <table>. That is what keeps every row's day
+  // columns aligned with the metrics above them and lets one scroll container
+  // move all of them together — a child that rendered its own <table> (or a
+  // wrapper element) would look right until the ribbon was scrolled sideways.
+  it('renders every row section inside the one table', () => {
+    const wrapper = mountTable({}, { priceRows: [{ key: 'seller_price', cells: [] }] })
+
+    const tables = wrapper.findAll('table')
+    const sections = wrapper.findAll('table > tbody')
+
+    expect(tables).toHaveLength(1)
+    expect(sections.map((s) => s.classes().find((c) => c.startsWith('matrix-')))).toEqual([
+      'matrix-metrics',
+      'matrix-blocks',
+      'matrix-comments',
+      'matrix-actions',
+    ])
+  })
+
+  it('keeps every day column the same width across all sections', () => {
+    const days = [
+      { iso: '2026-07-19', label: '19.07.2026' },
+      { iso: DAY, label: '20.07.2026' },
+    ]
+    const wrapper = mount(MetricsTable, {
+      props: {
+        days,
+        rows: [{ key: 'spend', label: 'Затраты, ₽', tone: null, group: 'traffic', cells: [] }],
+        priceRows: [{ key: 'seller_price', cells: [] }],
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    // Each section spans the label column plus 8 leaf columns per day; a
+    // mismatch here is exactly how a section drifts out of alignment.
+    const spans = wrapper.findAll('tr.matrix-gap td').map((td) => td.attributes('colspan'))
+
+    expect(spans.length).toBeGreaterThan(0)
+    expect(new Set(spans)).toEqual(new Set([String(1 + days.length * 8)]))
+  })
+
+  it('forwards a day-note edit from the comments section to its own listener', async () => {
+    const wrapper = mountTable()
+
+    // The notes row opens collapsed, so the inputs do not exist until it is
+    // expanded — which is itself part of what this asserts still works through
+    // the component boundary.
+    await wrapper.find('.comment-toggle').trigger('click')
+
+    const input = wrapper.find('.comment-header-input')
+    await input.setValue('Новый заголовок')
+    await input.trigger('blur')
+
+    expect(wrapper.emitted('comment')?.[0]).toEqual([
+      { day: DAY, patch: { header: 'Новый заголовок' } },
+    ])
+  })
+})

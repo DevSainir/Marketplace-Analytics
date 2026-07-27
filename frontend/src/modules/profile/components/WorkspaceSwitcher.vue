@@ -44,9 +44,7 @@ const emit = defineEmits(['select'])
           >
             Активно
           </span>
-          <span v-else class="ml-md shrink-0 text-tiny font-medium text-action">
-            Переключить
-          </span>
+          <span v-else class="ml-md shrink-0 text-tiny font-medium text-action"> Переключить </span>
         </button>
       </li>
     </ul>

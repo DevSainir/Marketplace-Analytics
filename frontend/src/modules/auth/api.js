@@ -5,7 +5,7 @@
  * cookie, which the shared Axios client sends automatically
  * (`withCredentials: true`).
  */
-import apiClient from '@/core/api/axios'
+import apiClient, { AUTH_TIMEOUT_MS } from '@/core/api/axios'
 
 /**
  * POST /v1/auth/register — create a new account (invite-only).
@@ -39,7 +39,12 @@ export async function loginUser({ email, password }) {
  * @returns {Promise<import('@/core/api/types').TokenPairResponse>}
  */
 export async function refreshSession() {
-  const { data } = await apiClient.post('/v1/auth/refresh')
+  // The tight auth budget, not the 15 s data budget: the router guard awaits
+  // this call on every app start, so its timeout bounds how long a user can
+  // stare at a spinner when the backend hangs.
+  const { data } = await apiClient.post('/v1/auth/refresh', undefined, {
+    timeout: AUTH_TIMEOUT_MS,
+  })
   return data
 }
 

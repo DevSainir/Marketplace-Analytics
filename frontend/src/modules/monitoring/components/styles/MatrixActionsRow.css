@@ -1,0 +1,132 @@
+/*
+ * Styles for MatrixActionsRow.vue — see the note in MatrixCommentsRow.css for
+ * why they live beside the component and why the `.app-datatable--matrix`
+ * ancestor prefixes still apply under `scoped`.
+ *
+ * Same open-card treatment as the blocks/comments rows: the heavy prefixes
+ * out-rank the skin's zebra/hover/day-border rules, so the three answer cards
+ * read as cards, not grid cells.
+ */
+
+/* --- day actions row -------------------------------------------------------
+   Same open-card treatment as the blocks/comments above: the heavy prefixes
+   out-rank the skin's zebra/hover/day-border rules, so the three answer cards
+   read as cards, not grid cells. */
+.app-datatable--matrix tbody.matrix-actions tr td,
+.app-datatable--matrix tbody.matrix-actions tr:hover td {
+  background: transparent;
+  border-left: none;
+  padding: 3px 6px;
+  vertical-align: top;
+}
+/* Frozen label cell: SOLID so the cards scroll underneath it. */
+.app-datatable--matrix tbody.matrix-actions tr td:first-child,
+.app-datatable--matrix tbody.matrix-actions tr:hover td:first-child {
+  background: #f1f1f1;
+  padding: 9px 8px;
+}
+.app-datatable--matrix tbody.matrix-actions tr.matrix-gap td,
+.app-datatable--matrix tbody.matrix-actions tr.matrix-gap:hover td {
+  background: transparent;
+  border: none;
+  height: 10px;
+  padding: 0;
+}
+
+/* Three answer cards share the day: side by side, equal widths. */
+.day-action-cards {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.day-action-card {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(16, 16, 16, 0.045);
+}
+.day-action-question {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* The РК type / price dropdowns; the price one tints by its answer —
+   Повысили positive, Понизили negative. */
+.day-action-select {
+  width: 100%;
+  padding: 2px 6px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 600;
+}
+.day-action-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.day-action-select--positive {
+  color: #179e60;
+  border-color: #179e60;
+  background: rgba(23, 158, 96, 0.12);
+}
+.day-action-select--negative {
+  color: #ee522b;
+  border-color: #ee522b;
+  background: rgba(238, 82, 43, 0.12);
+}
+/* A type taken by the sibling slot is offered but not pickable. */
+.day-action-select option:disabled {
+  color: #b4bcc8;
+}
+
+/* «Бюджет рекламы» / «На сколько»: label left, ₽ input right. */
+.day-action-amount {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.day-action-amount span {
+  color: #667085;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.day-action-amount input {
+  width: 5.5rem;
+  min-width: 3rem;
+  padding: 2px 6px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+  color: #101010;
+  font-size: 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.day-action-amount input:focus {
+  border-color: var(--color-action, #2f7d68);
+  outline: 2px solid color-mix(in srgb, var(--color-action, #2f7d68) 30%, transparent);
+  outline-offset: 0;
+}
+.day-action-amount input:disabled {
+  opacity: 0.6;
+}
+/* Waiting on its question: dimmed further and visibly not a target, so the
+   answer above reads as the thing to do first. */
+.day-action-amount--locked span {
+  opacity: 0.55;
+}
+.day-action-amount--locked input {
+  border-style: dashed;
+  background: transparent;
+  cursor: not-allowed;
+}

@@ -1,0 +1,204 @@
+/*
+ * Styles for StockBreakdownTable.vue — kept beside the component rather than inside it so
+ * the SFC stays readable at a glance (architecture rule: a component under 250
+ * lines). Still `scoped`: the component references this file with
+ * `<style scoped src="...">`, so Vue attaches its scope attribute exactly as it
+ * would for an inline block.
+ */
+
+/* Native scroll container: stands in for PrimeVue's `tablecontainer`, which
+   the .app-datatable skin targets but native markup doesn't render. Scrolls
+   only horizontally — every size row stays visible. The scrollbar is hidden
+   entirely (macOS overlay scrollbars otherwise pin a white track over the
+   table once hovered); scrolling still works via trackpad/wheel. */
+.stock-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.stock-scroll::-webkit-scrollbar {
+  display: none;
+}
+/* While a vertical trackpad gesture is in flight (see v-drag-scroll): the page
+   scrolls, the ribbon holds still instead of twitching sideways on the swipe's
+   stray deltaX. */
+.stock-scroll.wheel-axis-locked {
+  overflow-x: hidden;
+}
+/* While LMB-dragging the ribbon: pan cursor, and no accidental text selection. */
+.stock-scroll.drag-scrolling {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* The frozen pane's two columns. Every left-offset below derives from these,
+   so the pane can be re-tuned in one place — the group-label offset used to
+   be a hand-copied constant and drifted out of sync with the real width.
+   `--col-size-w` fits a full composite WB size («42/170-177», the widest
+   shape in practice — plain «XL» sellers just leave slack); `--col-total-w`
+   fits its own «Всего» header, which outruns the 4-digit totals below it. */
+.app-datatable {
+  --col-size-w: 4.25rem;
+  --col-total-w: 3rem;
+}
+
+/* Compact grid: WB warehouse lists run to dozens of columns — smaller type
+   and tighter cells than the generic skin, and the horizontal padding is
+   trimmed to the minimum that still separates adjacent numbers, since every
+   pixel saved here buys another warehouse column on screen. Heights are
+   EXPLICIT so the two side-by-side day tables stay row-aligned. */
+thead th {
+  height: 26px;
+  padding: 4px 5px;
+  font-size: 10px;
+}
+tbody td {
+  height: 24px;
+  padding: 3px 5px;
+  font-size: 11px;
+}
+tfoot td {
+  height: 26px;
+  padding: 3px 5px;
+  font-size: 11px;
+}
+
+/* Zebra stripes; the frozen pane keeps its own solid backgrounds (declared
+   later, so they win over the stripe). */
+tbody tr:nth-child(even) td {
+  background: #f7f7f7;
+}
+/* Striped cells would otherwise mask the skin's transparent row hover. */
+tbody tr:hover td {
+  background: #e8e8e8;
+}
+
+/* Collapsed borders detach from sticky cells while scrolling — the frozen
+   pane's right border would stay behind. Separate borders travel WITH the
+   cell (same fix as the matrix table). */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Warehouse header: name + the ⋮ mark-menu trigger. */
+.wh-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.wh-menu-btn {
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: #858585;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.wh-menu-btn:hover,
+.wh-menu-btn:focus-visible {
+  color: #101010;
+  outline: none;
+}
+/* Marked («на отгрузку») warehouses carry the action-color underline. */
+.wh-marked {
+  text-decoration: underline;
+  text-decoration-color: var(--color-action, #007e76);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+.wh-menu-checkbox {
+  accent-color: var(--color-action, #007e76);
+}
+
+/* Numbers right-align; their column headers follow (the skin's generic
+   `thead th` is left-aligned). */
+thead th.col-total,
+thead th.col-wh,
+td.cell-total,
+tbody td:not(.cell-size),
+tfoot td:not(.cell-size) {
+  text-align: right;
+}
+
+/* Group titles («Отгружено» / «Неотгружено»). A group can span dozens of
+   columns — far wider than the viewport — so the label sticks just right of
+   the frozen pane and stays readable while the group scrolls by. The marked
+   group carries the action color, echoing the name underline. */
+thead th.wh-group {
+  text-align: left;
+}
+thead th.wh-group .wh-group-label {
+  position: sticky;
+  left: calc(var(--col-size-w) + var(--col-total-w) + 12px);
+  display: inline-block;
+}
+thead th.wh-group--marked {
+  color: var(--color-action, #007e76);
+}
+
+/* The vertical rule between the marked and unmarked groups — same weight as
+   the matrix table's day-section boundaries. */
+.wh-divide {
+  border-left: 3px solid #bcbcbc;
+}
+
+/* Frozen pane — the size label and its «Всего» total: sticky on the left
+   with explicit backgrounds so they mask the warehouse columns scrolling
+   underneath. The corner header cells span both header rows (rowspan=2),
+   keep the skin's `sticky top-0` and additionally pin left. Both columns are
+   fixed-width so each knows the next one's offset. */
+th.col-size,
+td.cell-size {
+  width: var(--col-size-w);
+  min-width: var(--col-size-w);
+  max-width: var(--col-size-w);
+}
+th.col-total,
+td.cell-total {
+  width: var(--col-total-w);
+  min-width: var(--col-total-w);
+  max-width: var(--col-total-w);
+}
+/* Sizes past the common shape — a longer composite, or the `chrt 123456`
+   fallback for a size the content catalogue hasn't synced — would overrun
+   the fixed column, so clip them and leave the full text to the cell's
+   `title` (the warehouse headers use the same truncate-plus-reveal rule). */
+td.cell-size {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+thead th.col-size,
+thead th.col-total {
+  left: 0;
+  z-index: 30;
+  background: #f1f1f1;
+}
+td.cell-size,
+td.cell-total {
+  position: sticky;
+  left: 0;
+  z-index: 20;
+  background: #f1f1f1;
+}
+thead th.col-total,
+td.cell-total {
+  left: var(--col-size-w);
+  border-right: 3px solid #e0e0e0;
+}
+/* The skin's row-hover tint sits on the transparent `<tr>`; the solid frozen
+   cells would ignore it, so tint them explicitly (matching the skin's
+   bg-canvas row hover). */
+tbody tr:hover td.cell-size,
+tbody tr:hover td.cell-total {
+  background: #e8e8e8;
+}
+
+/* Totals row: pinned to the bottom edge, separated like the header. */
+tfoot td {
+  position: sticky;
+  bottom: 0;
+  border-top: 2px solid #e0e0e0;
+  background: #f1f1f1;
+  white-space: nowrap;
+}

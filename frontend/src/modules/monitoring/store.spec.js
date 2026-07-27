@@ -1,12 +1,22 @@
 import { createPinia, setActivePinia } from 'pinia'
 
-import { fetchSkuDetail, fetchSkuSummary, lookupSkus } from '@/modules/monitoring/api'
+import {
+  fetchSkuDetail,
+  fetchSkuSummary,
+  fetchStockDay,
+  getRefreshStatus,
+  lookupSkus,
+  refreshSku,
+} from '@/modules/monitoring/api'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 
 vi.mock('@/modules/monitoring/api', () => ({
   fetchSkuDetail: vi.fn(),
   fetchSkuSummary: vi.fn(),
+  fetchStockDay: vi.fn(),
+  getRefreshStatus: vi.fn(),
   lookupSkus: vi.fn(),
+  refreshSku: vi.fn(),
 }))
 
 const DETAIL = {
@@ -335,5 +345,64 @@ describe('request cancellation', () => {
     expect(store.error).toBeNull()
     expect(store.notFound).toBeNull()
     expect(store.lookupMatches).toEqual([])
+  })
+})
+
+describe('refreshFromWb', () => {
+  beforeEach(async () => {
+    fetchSkuDetail.mockResolvedValue(DETAIL)
+    fetchStockDay.mockResolvedValue({ stock: null })
+    await store.fetchProductData('953770957')
+    vi.clearAllMocks()
+    fetchSkuDetail.mockResolvedValue(DETAIL)
+    fetchStockDay.mockResolvedValue({ stock: null })
+  })
+
+  it('re-fetches the detail once the harvest task reports success', async () => {
+    refreshSku.mockResolvedValue({ task_id: 'task-1' })
+    getRefreshStatus
+      .mockResolvedValueOnce({ ready: false, successful: false })
+      .mockResolvedValueOnce({ ready: true, successful: true })
+
+    await store.refreshFromWb()
+
+    expect(fetchSkuDetail).toHaveBeenCalled()
+    expect(store.actionError).toBeNull()
+    expect(store.matrixRefreshing).toBe(false)
+  })
+
+  it('surfaces an error when the task finishes unsuccessfully', async () => {
+    refreshSku.mockResolvedValue({ task_id: 'task-2' })
+    getRefreshStatus.mockResolvedValue({ ready: true, successful: false })
+
+    await store.refreshFromWb()
+
+    expect(fetchSkuDetail).not.toHaveBeenCalled()
+    expect(store.actionError).toBeTruthy()
+  })
+
+  it('does NOT report success when the poll ceiling runs out', async () => {
+    // The bug this pins: exhausting the ceiling used to fall through to the
+    // re-fetch, clearing the spinner and presenting unrefreshed numbers as a
+    // completed refresh. A task that never becomes ready must surface an error
+    // and must not re-fetch.
+    //
+    // Fake timers so the ~2 min of real polling costs no wall-clock here;
+    // `advanceTimersByTimeAsync` flushes the awaited status calls between ticks.
+    vi.useFakeTimers()
+    try {
+      refreshSku.mockResolvedValue({ task_id: 'task-3' })
+      getRefreshStatus.mockResolvedValue({ ready: false, successful: false })
+
+      const pending = store.refreshFromWb()
+      await vi.advanceTimersByTimeAsync(200 * 600 + 5_000)
+      await pending
+    } finally {
+      vi.useRealTimers()
+    }
+
+    expect(fetchSkuDetail).not.toHaveBeenCalled()
+    expect(store.actionError).toMatch(/не завершилось за отведённое время/i)
+    expect(store.matrixRefreshing).toBe(false)
   })
 })

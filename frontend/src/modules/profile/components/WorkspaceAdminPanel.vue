@@ -52,13 +52,15 @@ function onRemove(id) {
   <section class="rounded-card border border-border-subtle bg-surface p-lg shadow-card">
     <div class="flex items-center gap-sm">
       <h2 class="text-h2 font-bold text-primary">Управление пространствами</h2>
-      <span class="rounded-btn bg-accent-indigo/10 px-sm py-xs text-tiny font-semibold text-accent-indigo">
+      <span
+        class="rounded-btn bg-accent-indigo/10 px-sm py-xs text-tiny font-semibold text-accent-indigo"
+      >
         dev
       </span>
     </div>
     <p class="mt-xs text-tiny font-medium text-muted">
-      Создание и удаление рабочих пространств, токены WB API. Токены хранятся в
-      базе в зашифрованном виде и никогда не показываются повторно.
+      Создание и удаление рабочих пространств, токены WB API. Токены хранятся в базе в зашифрованном
+      виде и никогда не показываются повторно.
     </p>
 
     <!-- Create -->
@@ -80,11 +82,7 @@ function onRemove(id) {
 
     <!-- Workspace list with per-workspace token editors -->
     <ul class="mt-md flex flex-col gap-sm">
-      <li
-        v-for="ws in workspaces"
-        :key="ws.id"
-        class="rounded-card border border-border-subtle"
-      >
+      <li v-for="ws in workspaces" :key="ws.id" class="rounded-card border border-border-subtle">
         <div class="flex items-center justify-between gap-sm px-md py-sm">
           <span class="flex min-w-0 items-center gap-xs">
             <span class="truncate text-base font-medium text-primary">{{ ws.name }}</span>
@@ -119,10 +117,7 @@ function onRemove(id) {
           </div>
         </div>
 
-        <div
-          v-if="expandedId === ws.id"
-          class="border-t border-border-subtle px-md py-md"
-        >
+        <div v-if="expandedId === ws.id" class="border-t border-border-subtle px-md py-md">
           <WorkspaceTokensForm
             :is-primary="ws.is_primary"
             :configured="tokenStatuses[ws.id]?.configured ?? []"

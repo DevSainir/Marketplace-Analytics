@@ -15,7 +15,15 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { isoDaysAgo, isoLocalDate } from '@/core/utils/dates'
+import { isoDaysAgo } from '@/core/utils/dates'
+import { btnClass, effectiveRange, wrapClass } from '@/modules/monitoring/calendarHighlight'
+import {
+  PRESETS,
+  TODAY,
+  TODAY_ISO,
+  useCalendarView,
+  WEEKDAYS,
+} from '@/modules/monitoring/calendarModel'
 
 const props = defineProps({
   from: { type: String, required: true },
@@ -23,25 +31,13 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:from', 'update:to'])
 
-const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-const MONTHS = [
-  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
-]
-const PRESETS = [
-  { label: '7 дней', days: 7 },
-  { label: '30 дней', days: 30 },
-  { label: '90 дней', days: 90 },
-]
-
-const today = new Date()
-const todayIso = isoLocalDate(today)
-
 // --- popover + view state ----------------------------------------------
 const root = ref(null)
 const open = ref(false)
-const viewYear = ref(today.getFullYear())
-const viewMonth = ref(today.getMonth()) // 0-based, the LEFT month of the pair
+const viewYear = ref(TODAY.getFullYear())
+const viewMonth = ref(TODAY.getMonth()) // 0-based, the LEFT month of the pair
+
+const { monthsToShow, canGoNext, shiftView } = useCalendarView(viewYear, viewMonth)
 
 // --- selection state ---------------------------------------------------
 // `phase` is 'start' until the first click of a new range, then 'end'.
@@ -57,76 +53,25 @@ function fmt(iso) {
   return `${d}.${m}.${y}`
 }
 
-// --- calendar model ----------------------------------------------------
-/** A 6×7 grid of day cells for one month (leading/trailing days dimmed). */
-function buildMonth(year, month) {
-  const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7 // Mon = 0
-  const start = new Date(year, month, 1 - firstWeekday)
-  const cells = []
-  for (let i = 0; i < 42; i += 1) {
-    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
-    const iso = isoLocalDate(d)
-    cells.push({ iso, day: d.getDate(), inMonth: d.getMonth() === month, disabled: iso > todayIso })
-  }
-  return cells
-}
-
-const monthsToShow = computed(() =>
-  [0, 1].map((offset) => {
-    const d = new Date(viewYear.value, viewMonth.value + offset, 1)
-    return { label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`, cells: buildMonth(d.getFullYear(), d.getMonth()) }
+// --- range highlighting ------------------------------------------------
+// Thin adapters over calendarHighlight: the component supplies the live state,
+// the module decides the paint.
+const range = computed(() =>
+  effectiveRange({
+    start: pendingStart.value,
+    end: pendingEnd.value,
+    hover: hover.value,
+    phase: phase.value,
   }),
 )
 
-// The right month may reach the current month, never beyond (no future-only view).
-const canGoNext = computed(
-  () => new Date(viewYear.value, viewMonth.value + 1, 1) < new Date(today.getFullYear(), today.getMonth(), 1),
-)
-
-function shiftView(delta) {
-  const d = new Date(viewYear.value, viewMonth.value + delta, 1)
-  viewYear.value = d.getFullYear()
-  viewMonth.value = d.getMonth()
-}
-
-// --- range highlighting ------------------------------------------------
-/** The range currently in effect, incl. the live hover preview while picking. */
-const effectiveRange = computed(() => {
-  const end = phase.value === 'end' ? hover.value || pendingEnd.value : pendingEnd.value
-  const start = pendingStart.value
-  if (!start || !end) return { lo: start || null, hi: null }
-  return start <= end ? { lo: start, hi: end } : { lo: end, hi: start }
-})
-
-function isEndpoint(iso) {
-  const { lo, hi } = effectiveRange.value
-  return iso === lo || iso === hi
-}
-
-/** Wrapper (range-band) classes: the soft action band connecting the endpoints. */
-function wrapClass(cell) {
-  const { lo, hi } = effectiveRange.value
-  if (!lo || !hi || lo === hi) return ''
-  if (cell.iso < lo || cell.iso > hi) return ''
-  const rounded = cell.iso === lo ? 'rounded-l-full' : cell.iso === hi ? 'rounded-r-full' : ''
-  return `bg-action/10 ${rounded}`
-}
-
-/** Day-number button classes: solid action endpoints, subtle in-between/hover. */
-function btnClass(cell) {
-  if (cell.disabled) return 'text-border-subtle cursor-not-allowed'
-  if (isEndpoint(cell.iso)) return 'bg-action text-white font-semibold shadow-soft'
-  const { lo, hi } = effectiveRange.value
-  const inside = lo && hi && cell.iso > lo && cell.iso < hi
-  const base = inside ? 'text-action' : cell.inMonth ? 'text-primary' : 'text-muted'
-  const todayRing = cell.iso === todayIso ? 'ring-1 ring-inset ring-action/40' : ''
-  return `${base} ${todayRing} hover:bg-action/15`
-}
+const dayWrapClass = (cell) => wrapClass(cell, range.value)
+const dayBtnClass = (cell) => btnClass(cell, range.value, TODAY_ISO)
 
 // --- interactions ------------------------------------------------------
 function openCalendar() {
   // Show the two most recent relevant months (the `to` month + the one before).
-  const [y, m] = (props.to || todayIso).split('-').map(Number)
+  const [y, m] = (props.to || TODAY_ISO).split('-').map(Number)
   const d = new Date(y, m - 2, 1) // m is 1-based → left month = to-month − 1
   viewYear.value = d.getFullYear()
   viewMonth.value = d.getMonth()
@@ -200,7 +145,14 @@ onBeforeUnmount(() => {
       :class="open ? 'border-action ring-2 ring-action/20' : 'border-border-subtle'"
       @click="toggle"
     >
-      <svg class="h-4 w-4 shrink-0 text-muted" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+      <svg
+        class="h-4 w-4 shrink-0 text-muted"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        aria-hidden="true"
+      >
         <rect x="1.75" y="2.75" width="12.5" height="11.5" rx="2" />
         <path d="M1.75 6.25h12.5M5 1.25v3M11 1.25v3" />
       </svg>
@@ -219,8 +171,15 @@ onBeforeUnmount(() => {
       >
         <!-- Header: navigation + the two month labels -->
         <div class="mb-sm flex items-center">
-          <button type="button" class="nav-btn" aria-label="Предыдущий месяц" @click="shiftView(-1)">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M10 3.5 5.5 8l4.5 4.5" /></svg>
+          <button
+            type="button"
+            class="nav-btn"
+            aria-label="Предыдущий месяц"
+            @click="shiftView(-1)"
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75">
+              <path d="M10 3.5 5.5 8l4.5 4.5" />
+            </svg>
           </button>
           <div class="flex flex-1 justify-around px-sm text-base font-semibold text-primary">
             <span v-for="m in monthsToShow" :key="m.label">{{ m.label }}</span>
@@ -232,7 +191,9 @@ onBeforeUnmount(() => {
             aria-label="Следующий месяц"
             @click="shiftView(1)"
           >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M6 3.5 10.5 8 6 12.5" /></svg>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75">
+              <path d="M6 3.5 10.5 8 6 12.5" />
+            </svg>
           </button>
         </div>
 
@@ -240,11 +201,16 @@ onBeforeUnmount(() => {
         <div class="flex flex-col gap-lg sm:flex-row" @mouseleave="hover = null">
           <div v-for="(m, mi) in monthsToShow" :key="mi" class="calendar-grid">
             <div v-for="w in WEEKDAYS" :key="w" class="weekday">{{ w }}</div>
-            <div v-for="cell in m.cells" :key="cell.iso" class="day-wrap" :class="wrapClass(cell)">
+            <div
+              v-for="cell in m.cells"
+              :key="cell.iso"
+              class="day-wrap"
+              :class="dayWrapClass(cell)"
+            >
               <button
                 type="button"
                 class="day"
-                :class="btnClass(cell)"
+                :class="dayBtnClass(cell)"
                 :disabled="cell.disabled"
                 @click="pickDay(cell)"
                 @mouseenter="onHover(cell)"
@@ -275,100 +241,4 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-<style scoped>
-.calendar-pop {
-  min-width: 18rem;
-}
-
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 2.25rem);
-  grid-auto-rows: 2.25rem;
-}
-
-.weekday {
-  display: grid;
-  place-items: center;
-  height: 1.75rem;
-  font-size: 0.6875rem; /* micro */
-  font-weight: 500;
-  text-transform: uppercase;
-  color: #858585; /* muted */
-}
-
-.day-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 2.25rem;
-  width: 2.25rem;
-}
-
-.day {
-  display: grid;
-  place-items: center;
-  height: 2.25rem;
-  width: 2.25rem;
-  border-radius: 9999px;
-  font-size: 0.875rem; /* base */
-  font-variant-numeric: tabular-nums;
-  transition:
-    background-color 0.12s ease,
-    color 0.12s ease;
-}
-.day:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-action, #007e76) 45%, transparent);
-  outline-offset: -2px;
-}
-
-.nav-btn {
-  display: grid;
-  place-items: center;
-  height: 1.75rem;
-  width: 1.75rem;
-  border-radius: 6px;
-  color: #101010;
-  transition: background-color 0.12s ease;
-}
-.nav-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-action, #007e76) 12%, transparent);
-}
-.nav-btn:disabled {
-  color: #d0d0d0;
-  cursor: not-allowed;
-}
-.nav-btn svg {
-  height: 1rem;
-  width: 1rem;
-}
-
-.preset-btn {
-  border-radius: 6px;
-  border: 1px solid #e0e0e0;
-  padding: 3px 10px;
-  font-size: 0.75rem; /* tiny */
-  font-weight: 500;
-  color: #101010;
-  transition:
-    background-color 0.12s ease,
-    border-color 0.12s ease,
-    color 0.12s ease;
-}
-.preset-btn:hover {
-  border-color: var(--color-action, #007e76);
-  background: color-mix(in srgb, var(--color-action, #007e76) 10%, transparent);
-  color: var(--color-action, #007e76);
-}
-
-.cal-enter-active,
-.cal-leave-active {
-  transition:
-    opacity 0.14s ease,
-    transform 0.14s ease;
-}
-.cal-enter-from,
-.cal-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-</style>
+<style scoped src="./styles/PeriodSelector.css"></style>

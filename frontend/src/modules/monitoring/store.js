@@ -29,6 +29,16 @@ import {
 } from '@/modules/monitoring/api'
 import { buildMetricsMatrix, patchMetricsMatrix } from '@/modules/monitoring/metricsMatrix'
 
+/** Poll interval while waiting for a «Обновить» harvest task, in ms. */
+const REFRESH_POLL_INTERVAL_MS = 600
+
+/**
+ * Poll ceiling for a «Обновить» harvest (~2 min at the interval above).
+ * Generous on purpose: the harvest is usually seconds, but WB's advertising
+ * limiter can stall it. Exhausting it raises — see `refreshFromWb`.
+ */
+const REFRESH_POLL_ATTEMPTS = 200
+
 export const useMonitoringStore = defineStore('monitoring', () => {
   // --- state -------------------------------------------------------------
   const loading = ref(false)
@@ -69,8 +79,15 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   const matrixSaving = ref(false)
   /** A WB re-harvest («Обновить») is in flight (enqueue + poll). */
   const matrixRefreshing = ref(false)
-  /** Transient message when an edit/save/refresh fails (e.g. a read-only cell). */
-  const matrixEditError = ref(null)
+  /**
+   * Transient message for ANY failed user action on the detail page, not just
+   * matrix edits: a rejected cell edit (422 on a read-only cell), a failed
+   * save/refresh, and every optimistic toggle that had to roll back — pins,
+   * chip reorder and colour, warehouse marks, day notes, «Действия», and the
+   * two stock-comparison sides. One sink because they all surface in the same
+   * place under the table.
+   */
+  const actionError = ref(null)
 
   // Window/filter params of the latest search, reused when the user picks one
   // of several vendor-code matches.
@@ -135,7 +152,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       pinnedSkus.value = result.items
     } catch (err) {
       pinnedSkus.value = previous
-      matrixEditError.value = extractErrorMessage(err)
+      actionError.value = extractErrorMessage(err)
     }
   }
 
@@ -151,7 +168,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       // The backend rejects an order computed against a list a teammate has
       // since changed — the rollback puts the real one back on screen.
       pinnedSkus.value = previous
-      matrixEditError.value = extractErrorMessage(err)
+      actionError.value = extractErrorMessage(err)
     }
   }
 
@@ -164,7 +181,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       pinnedSkus.value = result.items
     } catch (err) {
       pinnedSkus.value = previous
-      matrixEditError.value = extractErrorMessage(err)
+      actionError.value = extractErrorMessage(err)
     }
   }
 
@@ -191,7 +208,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     } catch (err) {
       if (currentProduct.value?.nm_id === nmId) {
         entry.stock = null
-        matrixEditError.value = extractErrorMessage(err)
+        actionError.value = extractErrorMessage(err)
       }
     } finally {
       entry.loading = false
@@ -229,7 +246,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       }
     } catch (err) {
       if (currentProduct.value?.nm_id === nmId) markedWarehouses.value = previous
-      matrixEditError.value = extractErrorMessage(err)
+      actionError.value = extractErrorMessage(err)
     }
   }
 
@@ -257,7 +274,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     if (!nmId || commentSavingDays.value.has(iso)) return
     // A new Set per mutation: Vue tracks the ref's value, not the Set's writes.
     commentSavingDays.value = new Set(commentSavingDays.value).add(iso)
-    matrixEditError.value = null
+    actionError.value = null
     try {
       const result = await setDayComment(nmId, iso, patch)
       // Apply only while the same SKU is displayed (SKU-switch race guard).
@@ -270,7 +287,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       }
       currentProduct.value.comments = comments
     } catch (err) {
-      matrixEditError.value = extractErrorMessage(err)
+      actionError.value = extractErrorMessage(err)
     } finally {
       const pending = new Set(commentSavingDays.value)
       pending.delete(iso)
@@ -293,7 +310,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     const next = { ...(currentProduct.value.day_actions?.[iso] ?? {}), ...patch }
     // A new Set per mutation: Vue tracks the ref's value, not the Set's writes.
     actionSavingDays.value = new Set(actionSavingDays.value).add(iso)
-    matrixEditError.value = null
+    actionError.value = null
     try {
       const result = await setDayAction(nmId, iso, next)
       // Apply only while the same SKU is displayed (SKU-switch race guard).
@@ -306,7 +323,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       }
       currentProduct.value.day_actions = actions
     } catch (err) {
-      matrixEditError.value = extractErrorMessage(err)
+      actionError.value = extractErrorMessage(err)
     } finally {
       const pending = new Set(actionSavingDays.value)
       pending.delete(iso)
@@ -458,7 +475,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     undoStack.value = []
     redoStack.value = []
     matrixDirty.value = false
-    matrixEditError.value = null
+    actionError.value = null
   }
 
   /** Drop all edit/undo state (used by reset()). */
@@ -469,7 +486,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     undoStack.value = []
     redoStack.value = []
     matrixDirty.value = false
-    matrixEditError.value = null
+    actionError.value = null
   }
 
   /**
@@ -503,7 +520,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   async function applyCellEdit(edit) {
     const product = currentProduct.value
     if (!product || !workingBase.value || matrixSaving.value || matrixRefreshing.value) return
-    matrixEditError.value = null
+    actionError.value = null
     try {
       const result = await previewMatrixEdit(product.nm_id, workingBase.value, edit)
       undoStack.value.push({ base: workingBase.value, matrix: currentMatrix })
@@ -513,7 +530,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     } catch (err) {
       // A read-only / non-invertible cell (422) or a network error: leave the
       // table untouched and surface a transient message.
-      matrixEditError.value = extractErrorMessage(err)
+      actionError.value = extractErrorMessage(err)
     }
   }
 
@@ -523,7 +540,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     redoStack.value.push({ base: workingBase.value, matrix: currentMatrix })
     applyMatrixState(undoStack.value.pop())
     matrixDirty.value = undoStack.value.length > 0
-    matrixEditError.value = null
+    actionError.value = null
   }
 
   /** Redo a previously undone change (Ctrl+Shift+Z / Ctrl+Y). */
@@ -532,7 +549,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     undoStack.value.push({ base: workingBase.value, matrix: currentMatrix })
     applyMatrixState(redoStack.value.pop())
     matrixDirty.value = true
-    matrixEditError.value = null
+    actionError.value = null
   }
 
   /** Persist the current edits as overrides; refresh from the save response. */
@@ -540,7 +557,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     const product = currentProduct.value
     if (!product || !matrixDirty.value || matrixSaving.value) return
     matrixSaving.value = true
-    matrixEditError.value = null
+    actionError.value = null
     try {
       const params = product.window
         ? { date_from: product.window.start, date_to: product.window.end }
@@ -548,7 +565,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       const detail = await saveMatrix(product.nm_id, workingBase.value, params)
       loadMatrix(detail)
     } catch (err) {
-      matrixEditError.value = extractErrorMessage(err)
+      actionError.value = extractErrorMessage(err)
     } finally {
       matrixSaving.value = false
     }
@@ -566,24 +583,35 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       ? { date_from: product.window.start, date_to: product.window.end }
       : {}
     matrixRefreshing.value = true
-    matrixEditError.value = null
+    actionError.value = null
     try {
       const { task_id: taskId } = await refreshSku(nmId)
       // Poll at a snappy interval so completion is noticed promptly (the harvest
       // itself is only a few seconds); keep a generous ~2 min ceiling in case
       // WB's advertising limiter throttles.
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-      for (let attempt = 0; attempt < 200; attempt += 1) {
+      let ready = false
+      for (let attempt = 0; attempt < REFRESH_POLL_ATTEMPTS; attempt += 1) {
         const status = await getRefreshStatus(taskId)
         if (status.ready) {
           if (!status.successful) throw new Error('Не удалось обновить данные из Wildberries.')
+          ready = true
           break
         }
-        await wait(600)
+        await wait(REFRESH_POLL_INTERVAL_MS)
+      }
+      // Exhausting the ceiling is a FAILURE, not a silent success: falling
+      // through here would clear the spinner and re-fetch unchanged data,
+      // presenting stale numbers as a completed refresh.
+      if (!ready) {
+        throw new Error(
+          'Обновление из Wildberries не завершилось за отведённое время. ' +
+            'Данные могут обновиться позже — попробуйте ещё раз.',
+        )
       }
       await fetchProductData(nmId, params)
     } catch (err) {
-      matrixEditError.value = extractErrorMessage(err)
+      actionError.value = extractErrorMessage(err)
     } finally {
       matrixRefreshing.value = false
     }
@@ -645,7 +673,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     matrixDirty,
     matrixSaving,
     matrixRefreshing,
-    matrixEditError,
+    actionError,
     canUndoMatrix,
     canRedoMatrix,
     applyCellEdit,

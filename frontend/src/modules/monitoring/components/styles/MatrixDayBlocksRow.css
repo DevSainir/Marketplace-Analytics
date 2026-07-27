@@ -1,0 +1,101 @@
+/*
+ * Styles for MatrixDayBlocksRow.vue — see the note in MatrixCommentsRow.css for
+ * why they live beside the component and why the `.app-datatable--matrix`
+ * ancestor prefixes still apply under `scoped`.
+ *
+ * The heavy prefixes out-rank the skin's zebra/hover/day-border rules from
+ * main.css so the block area reads as open card space with one tinted card per
+ * day.
+ */
+
+.app-datatable--matrix tbody.matrix-blocks tr td {
+  background: transparent;
+  border-left: none;
+  padding: 3px 6px;
+  vertical-align: top;
+}
+.app-datatable--matrix tbody.matrix-blocks tr:hover td {
+  background: transparent;
+}
+/* Section title cell: frozen with the rows, SOLID so it masks the cards
+   scrolling underneath it. */
+.app-datatable--matrix tbody.matrix-blocks tr td:first-child {
+  background: #f1f1f1;
+  padding: 9px 8px;
+}
+.app-datatable--matrix tbody.matrix-blocks tr:hover td:first-child {
+  background: #f1f1f1;
+}
+/* Spacer rows: pure air between the metric grid and each block. */
+.app-datatable--matrix tbody.matrix-blocks tr.matrix-gap td,
+.app-datatable--matrix tbody.matrix-blocks tr.matrix-gap:hover td {
+  background: transparent;
+  border: none;
+  height: 10px;
+  padding: 0;
+}
+
+/* The two cards share one row: side by side, each taking half the day. */
+.day-block-pair {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+/* One tight card: label+value lines, half a day section wide. */
+.day-block {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+.day-block--prices {
+  background: rgba(0, 126, 118, 0.08);
+}
+.day-block--stock {
+  background: rgba(79, 70, 229, 0.07);
+}
+/* The «Всего» card: shares the «Остатки» tint (it IS stock data), but only
+   takes the width its number needs — the two main cards shrink around it. */
+.day-block--total {
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+.day-block-total-value {
+  color: #101010;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.day-block-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.day-block-name {
+  color: #667085;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.day-block-value {
+  font-weight: 500;
+  color: #101010;
+  text-align: right;
+}
+/* The generic cell button stretches to 100%; inside a block line it must only
+   take its content so the label keeps the left edge. min-width keeps a BLANK
+   cell clickable — content-sized, it would collapse to zero width. */
+.day-block-line .matrix-cell-btn {
+  width: auto;
+  min-width: 2.5rem;
+}
+.day-block-input {
+  width: 6rem;
+  text-align: right;
+}

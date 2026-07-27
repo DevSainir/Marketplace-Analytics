@@ -40,7 +40,15 @@ export const useAuthStore = defineStore('auth', () => {
   const isSessionRejected = (err) => [401, 403].includes(err?.response?.status)
 
   // Bootstrap retry delays for transient refresh failures.
-  const BOOTSTRAP_RETRY_DELAYS_MS = [1_000, 3_000]
+  //
+  // These, times the auth request timeout, are the worst case a user waits
+  // before the app decides "guest" and shows the login screen:
+  //   3s + 0.4s + 3s + 1s + 3s ≈ 10s   (was 15s + 1s + 15s + 3s + 15s ≈ 50s)
+  //
+  // Giving up sooner is cheap here: the HttpOnly refresh cookie is untouched,
+  // so a user bounced to /login by a backend blip is logged straight back in by
+  // a reload. Fifty seconds of spinner was not cheap.
+  const BOOTSTRAP_RETRY_DELAYS_MS = [400, 1_000]
   // Proactive-refresh retry delay: the current token is still valid, so a
   // transient failure just tries again shortly instead of dropping the session.
   const PROACTIVE_RETRY_MS = 20_000

@@ -18,9 +18,12 @@
  * row sideways (the scrollbar is hidden, and a chip drag is a reorder here —
  * so neither of the usual ways to scroll a ribbon is available).
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ref } from 'vue'
 
 import { PIN_COLORS } from '@/modules/monitoring/pinColors'
+import { useHorizontalPaging } from '@/modules/monitoring/useHorizontalPaging'
+import { useDragReorder } from '@/modules/monitoring/useDragReorder'
+import { usePinPalette } from '@/modules/monitoring/usePinPalette'
 
 const props = defineProps({
   items: { type: Array, required: true },
@@ -31,159 +34,39 @@ const emit = defineEmits(['select', 'reorder', 'recolor'])
 
 const root = ref(null)
 
-// --- sideways paging ------------------------------------------------------
-// The arrows only exist while the row actually overflows, and each end's arrow
-// disables once that end is reached.
-const scroller = ref(null)
-const overflowing = ref(false)
-const canScrollLeft = ref(false)
-const canScrollRight = ref(false)
-
-// Sub-pixel scroll positions never land exactly on 0 / max at fractional zoom
-// levels, so treat anything within a pixel of an end as that end.
-const EDGE_EPSILON_PX = 1
-
-function syncArrows() {
-  const el = scroller.value
-  if (!el) return
-  const max = el.scrollWidth - el.clientWidth
-  overflowing.value = max > EDGE_EPSILON_PX
-  canScrollLeft.value = el.scrollLeft > EDGE_EPSILON_PX
-  canScrollRight.value = el.scrollLeft < max - EDGE_EPSILON_PX
-}
-
-/** Page the row by most of a screenful, keeping a little context in view. */
-function page(direction) {
-  const el = scroller.value
-  if (!el) return
-  el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' })
-}
-
-let observer = null
-
-onMounted(() => {
-  syncArrows()
-  // The row's overflow changes with the viewport, not just with the pin list.
-  observer = new ResizeObserver(syncArrows)
-  if (scroller.value) observer.observe(scroller.value)
+// Sideways paging and the paint mode are each a self-contained interaction with
+// its own listeners and lifecycle; they live beside this component so the chip
+// row itself stays legible.
+const { scroller, overflowing, canScrollLeft, canScrollRight, page } = useHorizontalPaging({
+  contentSource: () => props.items,
 })
 
-onBeforeUnmount(() => observer?.disconnect())
+const {
+  paletteOpen,
+  targetId,
+  targetColor,
+  paletteLeft,
+  togglePalette,
+  claimChipClick,
+  applyColor,
+} = usePinPalette({
+  root,
+  items: () => props.items,
+  onRecolor: (nmId, color) => emit('recolor', nmId, color),
+})
 
-// A pin added, removed, or reordered changes the row's width.
-watch(
-  () => props.items,
-  () => nextTick(syncArrows),
-  { deep: true },
-)
+const { dragIndex, dropIndex, handleDragStart, handleDragOver, handleDrop, resetDrag } =
+  useDragReorder({
+    items: () => props.items,
+    onReorder: (order) => emit('reorder', order),
+  })
 
-// --- paint mode -----------------------------------------------------------
-// The palette being open IS the mode. Painting is two steps in this order:
-// first click a chip to pick WHICH pin to paint, then click a swatch to colour
-// it. The target stays selected after a swatch click, so its colour can be
-// tweaked, and any other chip can be picked next without leaving the mode.
-const paletteOpen = ref(false)
-const targetId = ref(null)
-
-// The swatch palette opens anchored under the picked chip; this is its left
-// offset within `root` (px), clamped so it never spills past the row's edges.
-const paletteLeft = ref(0)
-const PALETTE_WIDTH_PX = 256 // w-64
-
-const targetItem = computed(() =>
-  targetId.value === null ? null : (props.items.find((it) => it.nm_id === targetId.value) ?? null),
-)
-const targetColor = computed(() => targetItem.value?.color ?? null)
-
-function togglePalette() {
-  paletteOpen.value = !paletteOpen.value
-}
-
-/** A chip click: in edit mode pick it as the paint target, else analyze it. */
+/** A chip click: in paint mode it picks the target, otherwise it analyzes. */
 function handleChipClick(item, event) {
-  if (paletteOpen.value) {
-    targetId.value = item.nm_id
-    anchorPaletteToChip(event.currentTarget)
-    return
-  }
+  if (claimChipClick(item, event)) return
   emit('select', item)
 }
 
-/** Line the palette up under the chip, then pull it back inside the row. */
-function anchorPaletteToChip(chipEl) {
-  if (!root.value || !chipEl) return
-  const rootRect = root.value.getBoundingClientRect()
-  const chipRect = chipEl.getBoundingClientRect()
-  const maxLeft = Math.max(0, root.value.clientWidth - PALETTE_WIDTH_PX)
-  paletteLeft.value = Math.min(Math.max(0, chipRect.left - rootRect.left), maxLeft)
-}
-
-/** Colour the chip picked for painting (color = null clears its tint). */
-function applyColor(color) {
-  if (targetId.value === null) return
-  emit('recolor', targetId.value, color)
-}
-
-// Close on a click anywhere outside the row — but NOT on a chip click, which
-// is the whole point of the mode, and which lands inside this root.
-function handleOutsidePointer(event) {
-  if (!root.value?.contains(event.target)) paletteOpen.value = false
-}
-
-function handleEscape(event) {
-  if (event.key === 'Escape') paletteOpen.value = false
-}
-
-watch(paletteOpen, (open) => {
-  // Leaving the mode forgets which chip was being painted.
-  if (!open) targetId.value = null
-  const method = open ? 'addEventListener' : 'removeEventListener'
-  document[method]('pointerdown', handleOutsidePointer)
-  document[method]('keydown', handleEscape)
-})
-
-onBeforeUnmount(() => {
-  document.removeEventListener('pointerdown', handleOutsidePointer)
-  document.removeEventListener('keydown', handleEscape)
-})
-
-// --- drag to reorder ------------------------------------------------------
-// Native HTML5 drag-and-drop: no dependency, and the browser suppresses the
-// click that ends a drag, so a reorder can't fall through to `select`.
-const dragIndex = ref(null)
-const dropIndex = ref(null)
-
-function handleDragStart(index, event) {
-  dragIndex.value = index
-  event.dataTransfer.effectAllowed = 'move'
-  // Firefox refuses to start a drag unless the payload is set.
-  event.dataTransfer.setData('text/plain', String(props.items[index].nm_id))
-}
-
-function handleDragOver(index, event) {
-  if (dragIndex.value === null) return
-  // preventDefault is what marks this chip as a valid drop target.
-  event.preventDefault()
-  event.dataTransfer.dropEffect = 'move'
-  dropIndex.value = index
-}
-
-function handleDrop(index) {
-  const from = dragIndex.value
-  resetDrag()
-  if (from === null || from === index) return
-  const order = props.items.map((item) => item.nm_id)
-  const [moved] = order.splice(from, 1)
-  order.splice(index, 0, moved)
-  emit('reorder', order)
-}
-
-function resetDrag() {
-  dragIndex.value = null
-  dropIndex.value = null
-}
-
-/** A pin chip shows the vendor code when the catalogue is synced, nm ID otherwise. */
 function pinLabel(item) {
   return item.vendor_code || `nm ${item.nm_id}`
 }
@@ -344,42 +227,4 @@ function pinLabel(item) {
   </div>
 </template>
 
-<style scoped>
-/* The paint tint rides a custom property rather than `background-color`
-   directly: as an inline `background-color` it outranked every state layer,
-   so a painted chip could never show hover or selection. Keeping the slot
-   free lets the rules below own the chip's background outright. */
-.pin-chip {
-  background-color: var(--pin-tint, #f1f1f1); /* bg-surface */
-}
-
-/* Hover and selection are the SAME treatment, and both are OPAQUE — a
-   translucent layer would read differently over each of the 13 paint tints,
-   whereas this masks the tint entirely, so every chip highlights alike. */
-.pin-chip:hover,
-.pin-chip.pin-chip--active {
-  border-color: var(--color-action, #007e76);
-  background-color: #e0efee; /* bg-hover: action at ~12% over white */
-}
-
-/* The chip being painted wins over any hover/selection mask so its live tint
-   stays visible while you try colours — the whole point of edit mode. A ring
-   (not a background swap) marks it as the target, keeping the colour readable.
-   Two class selectors out-specify the single-class rules above; :hover is
-   listed so the mask can't reclaim the background as the cursor sits on it. */
-.pin-chip.pin-chip--target,
-.pin-chip.pin-chip--target:hover {
-  background-color: var(--pin-tint, #f1f1f1);
-  border-color: var(--color-action, #007e76);
-  box-shadow: 0 0 0 2px var(--color-action, #007e76);
-}
-
-/* The pin chip row scrolls horizontally without a visible scrollbar (same
-   convention as the matrix/stock scroll containers). */
-.pins-row {
-  scrollbar-width: none;
-}
-.pins-row::-webkit-scrollbar {
-  display: none;
-}
-</style>
+<style scoped src="./styles/PinnedSkuRow.css"></style>

@@ -64,9 +64,9 @@ describe('SkuSearchSelect', () => {
     const wrapper = mount(SkuSearchSelect, { props: { items: ITEMS, selectedId: 222 } })
     await wrapper.find('input').trigger('focus')
 
-    const selected = wrapper.findAll('[role="option"]').filter(
-      (option) => option.attributes('aria-selected') === 'true',
-    )
+    const selected = wrapper
+      .findAll('[role="option"]')
+      .filter((option) => option.attributes('aria-selected') === 'true')
     expect(selected).toHaveLength(1)
     expect(selected[0].text()).toContain('M-TRX01-BEJ')
   })

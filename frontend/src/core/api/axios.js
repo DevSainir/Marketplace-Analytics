@@ -65,9 +65,33 @@ export function setUnauthorizedHandler(handler) {
 // build at a remote backend.
 const baseURL = import.meta.env.VITE_API_URL || '/api'
 
+// summary fans out over a settlement window and legitimately takes seconds.
+const DATA_TIMEOUT_MS = 15_000
+
+/**
+ * Budget for the auth surface — /refresh above all.
+ *
+ * Deliberately far tighter than `DATA_TIMEOUT_MS`, because this call is not a
+ * report: it is a same-origin token rotation that a healthy backend answers in
+ * ~3 ms (measured). Three seconds is a thousandfold margin, enough to absorb a
+ * cold connection pool or a loaded box, and nothing more.
+ *
+ * Why it matters: the router guard awaits the session bootstrap, so this
+ * timeout — multiplied by the store's retry ladder — IS the time a user spends
+ * looking at a spinner when the backend hangs. On the shared 15 s budget that
+ * worst case was ~50 s.
+ */
+export const AUTH_TIMEOUT_MS = 3_000
+
 const apiClient = axios.create({
   baseURL,
   withCredentials: true,
+  // A hung backend must surface as an error, never an eternal pending promise:
+  // the router guard awaits the session bootstrap, so one unbounded request
+  // here freezes every navigation (blank page behind the header). The auth
+  // store treats a timeout like any transient failure — bounded retries, then
+  // guest → /login.
+  timeout: DATA_TIMEOUT_MS,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -86,7 +110,7 @@ let refreshPromise = null
 function refreshAccessToken() {
   // Deduplicate concurrent 401s into a single /refresh round-trip.
   refreshPromise ??= apiClient
-    .post('/v1/auth/refresh')
+    .post('/v1/auth/refresh', undefined, { timeout: AUTH_TIMEOUT_MS })
     .then(({ data }) => {
       setAccessToken(data.access_token)
       return data.access_token
