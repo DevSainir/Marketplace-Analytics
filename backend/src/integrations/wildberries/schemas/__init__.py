@@ -37,7 +37,8 @@ from src.integrations.wildberries.schemas.card import (
     WBCardProduct,
     WBCardSizePrice,
 )
-from src.integrations.wildberries.schemas.content import WBCard, WBCardSize
+from src.integrations.wildberries.schemas.content import WBCard, WBCardDimensions, WBCardSize
+from src.integrations.wildberries.schemas.finance import WBReportDetailRow
 from src.integrations.wildberries.schemas.prices import WBPriceGood, WBPriceSize
 from src.integrations.wildberries.schemas.statistics import WBSaleRecord
 
@@ -54,6 +55,7 @@ __all__ = [
     "WBCampaign",
     "WBCampaignGroup",
     "WBCard",
+    "WBCardDimensions",
     "WBCardPrice",
     "WBCardProduct",
     "WBCardSize",
@@ -69,6 +71,7 @@ __all__ = [
     "WBNormQueryStat",
     "WBPriceGood",
     "WBPriceSize",
+    "WBReportDetailRow",
     "WBSaleRecord",
     "WBStockRow",
 ]

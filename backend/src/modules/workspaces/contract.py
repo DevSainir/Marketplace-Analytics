@@ -12,6 +12,7 @@ from __future__ import annotations
 from src.modules.workspaces.deps import WORKSPACE_HEADER, CurrentWorkspaceId
 from src.modules.workspaces.schemas import WorkspaceTokenBundle
 from src.modules.workspaces.services import (
+    load_workspace_name,
     load_workspace_token_bundle,
     load_workspace_token_bundles,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "WORKSPACE_HEADER",
     "CurrentWorkspaceId",
     "WorkspaceTokenBundle",
+    "load_workspace_name",
     "load_workspace_token_bundle",
     "load_workspace_token_bundles",
 ]

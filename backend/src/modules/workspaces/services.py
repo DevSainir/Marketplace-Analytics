@@ -222,6 +222,23 @@ async def load_workspace_token_bundle(
     return _resolve_bundle(workspace, tokens)
 
 
+async def load_workspace_name(session: AsyncSession, workspace_id: uuid.UUID) -> str:
+    """Return a workspace's display name (empty string when it does not exist).
+
+    Exposed through ``contract.py`` for modules that need the tenant's legal
+    Deliberately does not touch tokens, so no decryption happens.
+
+    Args:
+        session: An open async session (caller owns the transaction).
+        workspace_id: The workspace to resolve.
+
+    Returns:
+        The workspace name, or ``""`` when the workspace is unknown.
+    """
+    workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
+    return workspace.name if workspace is not None else ""
+
+
 async def load_workspace_token_bundles(session: AsyncSession) -> list[WorkspaceTokenBundle]:
     """Load and decrypt every workspace's WB tokens (harvest fan-out input).
 

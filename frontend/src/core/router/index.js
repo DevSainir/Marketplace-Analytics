@@ -8,6 +8,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import { authRoutes } from '@/modules/auth'
+import { finreportsRoutes } from '@/modules/finreports'
 import { monitoringRoutes } from '@/modules/monitoring'
 import { profileRoutes } from '@/modules/profile'
 
@@ -28,7 +29,13 @@ const coreRoutes = [
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [...coreRoutes, ...authRoutes, ...monitoringRoutes, ...profileRoutes],
+  routes: [
+    ...coreRoutes,
+    ...authRoutes,
+    ...monitoringRoutes,
+    ...finreportsRoutes,
+    ...profileRoutes,
+  ],
 })
 
 // Keep the tab title in sync with the route (`meta.title` is per-module data).

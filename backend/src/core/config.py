@@ -116,6 +116,14 @@ class Settings(BaseSettings):
     wb_content_base_url: str = Field(default="https://content-api.wildberries.ru")
     wb_prices_base_url: str = Field(default="https://discounts-prices-api.wildberries.ru")
     wb_statistics_base_url: str = Field(default="https://statistics-api.wildberries.ru")
+    wb_common_base_url: str = Field(default="https://common-api.wildberries.ru")
+    # Documents surface: signed weekly-realization / acceptance-act originals
+    # (finreports court-grade evidence archival).
+    wb_documents_base_url: str = Field(default="https://documents-api.wildberries.ru")
+    # Supplies surface: FBW supply / acceptance context (finreports gi_id join).
+    wb_supplies_base_url: str = Field(default="https://supplies-api.wildberries.ru")
+    # Finance surface: seller balance / settlement (finreports currency context).
+    wb_finance_base_url: str = Field(default="https://finance-api.wildberries.ru")
     # Public storefront card endpoint (card.wb.ru) — the final customer price
     # after ALL discounts incl. WB loyalty (СПП). Unauthenticated. ``dest`` is a
     # region/delivery code and ``spp`` the loyalty tier the storefront prices
@@ -138,6 +146,7 @@ class Settings(BaseSettings):
     # Tighter retry cap than the rate-limited seller APIs: a broken proxy must
     # give up quickly instead of spinning (protects the proxy balance).
     wb_card_max_retries: int = Field(default=3)
+    # Relative paths resolve against the backend working directory.
     wb_http_timeout_seconds: float = Field(default=30.0)
     # WB (esp. the advertising surface) is aggressively rate-limited (~1 req/min
     # -> HTTP 429). Requests retry with exponential backoff, honouring any

@@ -22,6 +22,7 @@ from src.core.database import dispose_engine
 from src.core.exceptions import AppError
 from src.core.logging import configure_logging, get_logger
 from src.core.redis import close_redis
+from src.modules.finreports.routers import router as finreports_router
 from src.modules.monitoring.routers import router as monitoring_router
 from src.modules.users.routers import router as users_router
 from src.modules.workspaces.routers import router as workspaces_router
@@ -107,7 +108,19 @@ async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
     Returns:
         A JSON error envelope with the mapped HTTP status code.
     """
-    logger.info("Domain error on %s %s: %s", request.method, request.url.path, exc.code)
+    # Severity follows the status, not the exception's class. A 4xx is the
+    # client being told "no" and belongs at INFO; a 5xx — an IntegrationError
+    # from WB, or any AppError that reached here without a mapped status — is
+    # OUR failure and has to survive a WARNING-level log scrape, which is what
+    # a uniform INFO used to hide.
+    log = logger.info if exc.http_status < 500 else logger.warning
+    log(
+        "Domain error on %s %s: %s (%d)",
+        request.method,
+        request.url.path,
+        exc.code,
+        exc.http_status,
+    )
     return JSONResponse(
         status_code=exc.http_status,
         content={"error": {"code": exc.code, "message": exc.message}},
@@ -130,3 +143,4 @@ async def health() -> dict[str, str]:
 app.include_router(users_router, prefix="/api")
 app.include_router(workspaces_router, prefix="/api")
 app.include_router(monitoring_router, prefix="/api")
+app.include_router(finreports_router, prefix="/api")

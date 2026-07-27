@@ -11,9 +11,25 @@ the human-readable vendor code (``Артикул продавца``) and size la
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from pydantic import Field
 
 from src.integrations.wildberries.schemas.base import RawBase
+
+
+class WBCardDimensions(RawBase):
+    """A card's declared package dimensions (cm) and gross weight (kg).
+
+    ``finreports`` module prices logistics against. ``is_valid`` is WB's own
+    completeness flag on the dimensions block.
+    """
+
+    length: Decimal | None = None
+    width: Decimal | None = None
+    height: Decimal | None = None
+    weight_brutto: Decimal | None = Field(default=None, alias="weightBrutto")
+    is_valid: bool = Field(default=False, alias="isValid")
 
 
 class WBCardSize(RawBase):
@@ -36,4 +52,5 @@ class WBCard(RawBase):
     nm_id: int = Field(alias="nmID")
     vendor_code: str = Field(default="", alias="vendorCode")
     title: str = Field(default="", alias="title")
+    dimensions: WBCardDimensions | None = None
     sizes: list[WBCardSize] = Field(default_factory=list)

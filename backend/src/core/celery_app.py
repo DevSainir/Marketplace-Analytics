@@ -67,6 +67,19 @@ celery_app.conf.beat_schedule = {
         "task": "auth.purge_expired_refresh_tokens",
         "schedule": crontab(hour=4, minute=30),
     },
+    # history, so the series is ours to accumulate). 05:00 MSK, before the
+    # finance harvest so each settlement row can price against a same-day tariff.
+    "daily-finreports-snapshot-tariffs": {
+        "schedule": crontab(hour=5, minute=0),
+    },
+    # weekly realization report settles a few days in arrears, so a rolling
+    # 28-day window keeps recent reports fresh (upsert-idempotent). 08:00 MSK,
+    # after the monitoring harvest and cohort refresh vacate the WB surfaces.
+    "daily-finreports-harvest": {
+        "task": "finreports.harvest_finance",
+        "schedule": crontab(hour=8, minute=0),
+        "kwargs": {"days": 28},
+    },
 }
 
 # Autodiscover ``tasks.py`` inside each registered business module.
@@ -74,5 +87,6 @@ celery_app.autodiscover_tasks(
     packages=[
         "src.modules.monitoring",
         "src.modules.users",
+        "src.modules.finreports",
     ],
 )
