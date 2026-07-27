@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from src.core.celery_app import celery_app
 from src.core.deps import get_current_user_id
+from src.core.exceptions import NotFoundError
 from src.modules.monitoring.deps import AnalyticsServiceDep, CurrentWorkspaceId, WorkspaceSku
 from src.modules.monitoring.schemas import (
     CommentUpdateRequest,
@@ -46,6 +47,7 @@ from src.modules.monitoring.schemas import (
     WarehouseMarksResponse,
     WarehouseMarkUpdateRequest,
 )
+from src.modules.monitoring.services import bind_task_to_workspace, task_belongs_to_workspace
 from src.modules.monitoring.tasks import harvest_sku_window
 
 router = APIRouter(
@@ -377,15 +379,22 @@ async def save_matrix(
         404: {"description": "SKU not found in this workspace."},
     },
 )
-async def refresh_sku(nm_id: WorkspaceSku) -> RefreshEnqueuedResponse:
+async def refresh_sku(
+    nm_id: WorkspaceSku,
+    workspace_id: CurrentWorkspaceId,
+) -> RefreshEnqueuedResponse:
     """Enqueue a fresh WB harvest for one SKU (discards its manual edits).
 
     Runs the harvest over WB's serviceable recent window (the funnel-history
     endpoint caps at 7 days); older days keep their last-harvested values. The
     harvest ingests fresh facts and clears this SKU's overrides. Poll
     ``GET /refresh/{task_id}`` for completion, then re-fetch the detail.
+
+    The task id is bound to the caller's workspace so only that workspace can
+    read its status back.
     """
     task = harvest_sku_window.delay([nm_id])
+    await bind_task_to_workspace(task.id, workspace_id)
     return RefreshEnqueuedResponse(task_id=task.id)
 
 
@@ -396,10 +405,22 @@ async def refresh_sku(nm_id: WorkspaceSku) -> RefreshEnqueuedResponse:
     responses={
         200: {"description": "Current state of a single-SKU refresh task."},
         401: {"description": "Unauthorized access token."},
+        404: {"description": "No such refresh task in this workspace."},
     },
 )
-async def get_refresh_status(task_id: str) -> RefreshStatusResponse:
-    """Report a refresh task's state so the frontend knows when to re-fetch."""
+async def get_refresh_status(
+    task_id: str,
+    workspace_id: CurrentWorkspaceId,
+) -> RefreshStatusResponse:
+    """Report a refresh task's state so the frontend knows when to re-fetch.
+
+    Scoped to the workspace that enqueued the task: Celery's ``AsyncResult``
+    would happily report on any id in the broker, which let one workspace learn
+    whether another's harvest had run and whether it succeeded. An id belonging
+    to another tenant is indistinguishable from one that never existed.
+    """
+    if not await task_belongs_to_workspace(task_id, workspace_id):
+        raise NotFoundError(f"Refresh task {task_id} not found.")
     result: AsyncResult[object] = AsyncResult(task_id, app=celery_app)
     ready = result.ready()
     return RefreshStatusResponse(

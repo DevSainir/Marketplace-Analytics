@@ -106,8 +106,14 @@ class AuthService:
         """
         configured = settings.registration_invite_code
         # compare_digest keeps the check constant-time so the code cannot be
-        # guessed byte-by-byte via response latency.
-        if not configured or not secrets.compare_digest(invite_code, configured):
+        # guessed byte-by-byte via response latency. Compare the UTF-8 ENCODINGS,
+        # not the strings: on `str` inputs compare_digest requires both operands
+        # to be ASCII-only and raises TypeError otherwise, so a submitted code
+        # containing any non-ASCII character (e.g. Cyrillic) turned this check
+        # into an unauthenticated 500. `bytes` carries no such restriction.
+        if not configured or not secrets.compare_digest(
+            invite_code.encode("utf-8"), configured.encode("utf-8")
+        ):
             raise PermissionDeniedError("Registration is by invitation only.")
 
         email = _normalize_email(email)
@@ -267,6 +273,18 @@ class AuthService:
 
         Silent no-op for a missing or unknown token so logout is idempotent and
         cannot be used as a user/token enumeration oracle.
+
+        Deliberately asymmetric with :meth:`_revoke_breached_user`, which also
+        stamps the Redis watermark: this revokes ONE family, and the watermark
+        is per-user, so stamping it here would sign every other device of the
+        same user out too — "log out of this browser" is not "log out
+        everywhere". The consequence is that the caller's own access token
+        stays valid until it expires (15 minutes by default). That is
+        acceptable because the SPA drops the token from memory on logout, and
+        because narrowing it further would need a per-family watermark that
+        buys nothing against a threat model where the attacker already holds
+        the access token. Breach detection, where the attacker DOES hold it, is
+        exactly the case that revokes globally.
 
         Args:
             refresh_secret: The opaque refresh secret from the client cookie, or

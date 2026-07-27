@@ -13,6 +13,9 @@ Three sub-packages plus one pure module, each with a single responsibility and
   day x traffic-bucket metrics matrix (derive, build, edit, overrides).
 * :mod:`~src.modules.monitoring.services.normalization` — pure functions
   implementing the baseline-organic-demand cleansing pipeline.
+* :mod:`~src.modules.monitoring.services.refresh_tracking` — the Redis
+  binding that makes an interactive refresh task's status readable only by
+  the workspace that enqueued it.
 
 This ``__init__`` is the layer's facade: external consumers (Celery tasks, the
 DI wiring, the module contract) import the services from here and are
@@ -21,5 +24,14 @@ insulated from the internal package layout.
 
 from src.modules.monitoring.services.analytics import AnalyticsService
 from src.modules.monitoring.services.ingestion import IngestionService
+from src.modules.monitoring.services.refresh_tracking import (
+    bind_task_to_workspace,
+    task_belongs_to_workspace,
+)
 
-__all__ = ["AnalyticsService", "IngestionService"]
+__all__ = [
+    "AnalyticsService",
+    "IngestionService",
+    "bind_task_to_workspace",
+    "task_belongs_to_workspace",
+]

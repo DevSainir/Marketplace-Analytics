@@ -8,6 +8,7 @@ domains stay decoupled.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncGenerator
 from typing import Annotated
@@ -22,6 +23,22 @@ from src.core.redis import sessions_revoked_after
 from src.core.security import TokenType, decode_token
 
 
+async def _commit_and_close(session: AsyncSession) -> None:
+    """Commit the request's unit of work, then release the connection."""
+    try:
+        await session.commit()
+    finally:
+        await session.close()
+
+
+async def _rollback_and_close(session: AsyncSession) -> None:
+    """Discard the request's unit of work, then release the connection."""
+    try:
+        await session.rollback()
+    finally:
+        await session.close()
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Yield a request-scoped async SQLAlchemy session (unit of work).
 
@@ -30,14 +47,26 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     failed request never leaves a half-applied write behind. Without the commit,
     repository ``flush``es would be discarded when the session closes and no API
     write would ever persist.
+
+    Cleanup is wrapped in :func:`asyncio.shield` and catches ``BaseException``
+    deliberately: a client disconnect CANCELS the request task mid-await (the
+    ``@app.middleware("http")`` logger runs handlers inside an anyio cancel
+    scope), and an unshielded ``rollback``/``close`` would itself be cancelled
+    at its first await — leaking the checked-out connection with its
+    transaction open. Leaked ``idle in transaction`` connections hold row locks
+    (e.g. on ``auth.refresh_tokens``) and exhaust the pool, taking the whole
+    API down. The shield lets cleanup finish even while cancellation is being
+    delivered; each branch is a single task so rollback/commit and close never
+    race on one session.
     """
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+    session = AsyncSessionLocal()
+    try:
+        yield session
+    except BaseException:  # includes CancelledError/GeneratorExit — see above
+        await asyncio.shield(_rollback_and_close(session))
+        raise
+    else:
+        await asyncio.shield(_commit_and_close(session))
 
 
 #: Reusable type alias injected into every repository dependency.

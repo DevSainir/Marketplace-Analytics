@@ -176,6 +176,12 @@ class BaseWBClient:
             try:
                 response = await self._client.request(method, path, params=params, json=json_body)
                 response.raise_for_status()
+                # An empty 200 body (WB returns one for out-of-range historical
+                # windows) is not valid JSON — treat it as "no data" (``None``)
+                # so callers handle it like WB's explicit ``null``, instead of a
+                # raw JSONDecodeError escaping the client.
+                if not response.content or not response.content.strip():
+                    return None
                 return response.json()
             except httpx.HTTPStatusError as exc:
                 last_exc = exc

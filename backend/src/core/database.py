@@ -52,6 +52,18 @@ engine: AsyncEngine = create_async_engine(
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
+    connect_args={
+        # Server-side backstop against leaked transactions: if any code path
+        # abandons a connection mid-transaction (e.g. a cancelled request task
+        # that never reached its session cleanup), PostgreSQL terminates the
+        # session after 5 minutes instead of holding row locks and a pool slot
+        # forever (an incident left `idle in transaction` connections alive for
+        # 22h and exhausted the pool). Generous enough for harvest tasks that
+        # await WB rate-limit backoffs between statements inside one
+        # transaction; `pool_pre_ping` transparently replaces any connection
+        # PostgreSQL kills.
+        "server_settings": {"idle_in_transaction_session_timeout": "300000"},
+    },
 )
 
 # ``expire_on_commit=False`` lets us safely read attributes off returned ORM
