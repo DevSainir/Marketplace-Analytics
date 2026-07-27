@@ -202,9 +202,19 @@ async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
 
     ``ASGITransport`` runs the real middleware stack and exception handlers
     in-process — no socket, no uvicorn, no port.
+
+    The base URL is **https** on purpose, and it is not cosmetic. The refresh
+    cookie ships with ``Secure`` (``REFRESH_COOKIE_SECURE`` defaults to true,
+    and production must never turn it off), and an HTTP client correctly
+    refuses to return a ``Secure`` cookie over plain http. Over ``http://`` the
+    rotation and logout tests therefore passed or failed according to whatever
+    the developer's ``backend/.env`` happened to set — green locally, red on
+    CI, which has no ``.env`` at all. Speaking https makes the tier hermetic
+    (the cookie flows under either value) and matches how the app is really
+    reached: behind nginx, over TLS.
     """
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as ac:
+    async with httpx.AsyncClient(transport=transport, base_url="https://testserver") as ac:
         yield ac
 
 
