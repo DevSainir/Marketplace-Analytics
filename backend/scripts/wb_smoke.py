@@ -30,13 +30,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-from datetime import date, timedelta
+from datetime import timedelta
 from typing import Any
 
 import httpx
 
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal, engine
+from src.core.timeutils import moscow_today
 from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
     load_workspace_token_bundles,
@@ -148,7 +149,7 @@ async def _test_funnel_and_stocks(nm_ids: list[int], analytics_token: str) -> No
     """Exercise our WBAnalyticsClient against the real API."""
     from src.integrations.wildberries import WBAnalyticsClient
 
-    end = date.today()
+    end = moscow_today()
     start = end - timedelta(days=7)
 
     _banner(f"[3a] FUNNEL via WBAnalyticsClient (nm_ids={nm_ids}, {start}..{end})")
@@ -176,7 +177,7 @@ async def _test_fullstats(campaign_id: int, advertising_token: str) -> None:
     """Exercise our WBAdvertisingClient against the real API."""
     from src.integrations.wildberries import WBAdvertisingClient
 
-    end = date.today()
+    end = moscow_today()
     start = end - timedelta(days=7)
     _banner(f"[4] FULLSTATS via WBAdvertisingClient (campaign_id={campaign_id})")
     try:

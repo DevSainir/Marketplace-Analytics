@@ -40,29 +40,25 @@ repos:
   # -------------------------------------------------------- Python: mypy
   # Runs from within backend/ so `src.*` absolute imports and the
   # [tool.mypy] block in backend/pyproject.toml resolve correctly.
-  # pre-commit builds an isolated venv from additional_dependencies, so no
-  # local virtualenv is required.
+  #
+  # Through `uv run`, so the hook typechecks against the SAME locked
+  # environment as CI. It used to carry its own `additional_dependencies` list
+  # — a second, hand-maintained copy of the project's dependencies that could
+  # (and did) resolve different versions than the lock, making the hook and CI
+  # disagree about whether the code typechecks. uv syncs backend/.venv on
+  # demand, so this still needs no manual virtualenv.
   - repo: local
     hooks:
       - id: mypy
         name: mypy (backend, strict)
-        language: python
-        entry: bash -c 'cd backend && exec mypy src'
+        language: system
+        # main.py and scripts/ are checked too: scripts/ runs against
+        # production data, and an unchecked one had a broken import
+        # (`_discover_and_harvest`) that only failed when someone ran it.
+        entry: bash -c 'cd backend && exec uv run mypy src main.py scripts'
         pass_filenames: false
         require_serial: true
         files: ^backend/.*\.py$
-        additional_dependencies:
-          - mypy>=1.10
-          - pydantic[email]>=2.7
-          - pydantic-settings>=2.3
-          - sqlalchemy[asyncio]>=2.0.30
-          - fastapi>=0.111
-          - httpx>=0.27
-          - redis>=5.0
-          - pyjwt>=2.8
-          - orjson>=3.10
-          - bcrypt>=4.0.1
-          - cryptography>=42.0
 
   # ------------------------------------------------------ Frontend: eslint
   # Uses the frontend's own flat config + node_modules via npx.
@@ -71,9 +67,19 @@ repos:
       - id: eslint
         name: eslint (frontend)
         language: system
-        entry: bash -c 'cd frontend && exec npx --no-install eslint src'
+        entry: bash -c 'cd frontend && exec npx --no-install eslint src tests'
         pass_filenames: false
-        files: ^frontend/src/.*\.(vue|js|ts|jsx|tsx|cjs|mjs)$
+        files: ^frontend/(src|tests)/.*\.(vue|js|ts|jsx|tsx|cjs|mjs)$
+
+      # Prettier was configured but run by nothing — not here, not in CI — so
+      # seven files had drifted. Rewriting in place (like ruff-format above)
+      # rather than --check keeps it out of the way on work in progress.
+      - id: prettier
+        name: prettier (frontend)
+        language: system
+        entry: bash -c 'cd frontend && exec npx --no-install prettier --write src tests'
+        pass_filenames: false
+        files: ^frontend/(src|tests)/.*\.(vue|js|ts|jsx|tsx|cjs|mjs|json|css|md)$
 
   # ------------------------------------------------ Conventional Commits
   - repo: https://github.com/commitizen-tools/commitizen

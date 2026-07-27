@@ -13,8 +13,8 @@
 
 # ---- Docker (local-only overrides) ----
 # The override publishes dev ports on loopback and must never reach the VPS:
-# a plain `docker compose up -d --build` there runs the closed base topology.
-docker-compose.override.yml
+# `make up` there runs the closed base topology.
+backend/docker/docker-compose.override.yml
 
 # ---- Python (backend) ----
 __pycache__/
@@ -36,15 +36,33 @@ htmlcov/
 coverage.xml
 
 # ---- Node / frontend ----
+# Consolidated here from frontend/.gitignore: one file to read, and no way for
+# the two to disagree about what is ignored in the same tree.
 node_modules/
 frontend/dist/
 frontend/dist-ssr/
 frontend/coverage/
+frontend/.npm-cache/
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# ---- Tests ----
+# Playwright evidence (traces, video, screenshots) and its HTML report: written
+# on every failing run and regenerated from scratch, never reviewed in a diff.
+tests/.artifacts/
+tests/.report/
+playwright-report/
+test-results/
+# k6 summary exports.
+tests/performance/**/*.summary.json
+
+# ---- Local artefacts, never committed ----
+
 # ---- Tooling ----
 .pre-commit-cache/
+# Wheels pip occasionally leaves in the working directory (e.g. when a
+# hash-checking resolve has to build one). Never an artefact worth keeping.
+*.whl

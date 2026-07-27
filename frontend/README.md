@@ -10,18 +10,18 @@ npm run dev          # dev server on http://localhost:5173
 npm run build        # production build into dist/
 npm run lint         # ESLint incl. fatal architectural boundary rules
 npm test             # Vitest suite (stores, interceptors, components)
-npm run format       # Prettier over src/
+npm run format       # Prettier over src/ and tests/
 npm run types:api    # regenerate src/core/api/schema.d.ts from the backend
                      # OpenAPI schema (backend must run on localhost:8000)
 ```
 
 ## Configuration
 
-The backend base URL is read from the environment — never hardcoded:
-
-```
-VITE_API_URL=http://localhost:8000/api   # see .env.example
-```
+The backend base URL is read from the environment — never hardcoded — but it
+needs no configuration in either environment that exists. `src/core/api/axios.js`
+falls back to the relative `/api`, which the Vite dev proxy serves in dev and
+nginx serves in prod. Set `VITE_API_URL` only to point a build at a *remote*
+backend; see `.env.example`.
 
 ## Authentication
 
@@ -59,14 +59,22 @@ src/
     │   ├── routes.js      # /login
     │   ├── views/         # LoginView
     │   └── index.js       # PUBLIC API CONTRACT
-    └── monitoring/
-        ├── api.js         # /v1/monitoring/* endpoint wrappers
-        ├── store.js       # useMonitoringStore — search, race-guarded fetch
-        ├── routes.js      # /monitoring (requiresAuth)
-        ├── views/         # Smart views (search state synced to URL query)
-        ├── components/    # Dumb presentational components
-        └── index.js       # PUBLIC API CONTRACT
+    ├── monitoring/
+    │   ├── api.js         # /v1/monitoring/* endpoint wrappers
+    │   ├── store.js       # useMonitoringStore — search, race-guarded fetch
+    │   ├── routes.js      # /monitoring (requiresAuth)
+    │   ├── use*.js        # composables: cell editing, paging, palette,
+    │   │                  #   drag-reorder, assoc hover, URL sync, undo keys
+    │   ├── *Model.js      # pure helpers: matrix columns, calendar grid
+    │   ├── views/         # Smart views (search state synced to URL query)
+    │   ├── components/    # Dumb presentational components
+    │   │   └── styles/    # their stylesheets, `<style scoped src=…>`
+    │   └── index.js       # PUBLIC API CONTRACT
+    └── profile/           # workspace switching and token administration
 ```
+
+Every component stays under 250 lines and every module exposes an `index.js`;
+both are enforced by `tests/integration/architecture.spec.js`, not by review.
 
 Boundary rules (fatal ESLint errors — see `eslint.config.js`):
 

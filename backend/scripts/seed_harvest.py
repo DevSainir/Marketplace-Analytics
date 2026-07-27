@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 
-from src.modules.monitoring.tasks import _discover_and_harvest
+from src.modules.monitoring.tasks.discovery import _discover_and_harvest
 
 
 async def main() -> None:

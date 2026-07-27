@@ -64,24 +64,48 @@ flat files, which the rules permit ("And so on").
 
 ```bash
 cp .env.example .env          # then fill secrets (JWT_SECRET_KEY, WB tokens…)
-docker compose up --build     # api :8000, worker, postgres :5432, redis :6379
+make up                       # api :8000, worker, postgres :5432, redis :6379
 ```
+
+Everything docker lives in `docker/` — the Dockerfile, its `.dockerignore`, and
+all three compose files. `make up`/`down`/`ps`/`logs` wrap them; for anything
+else, define the invocation once in your shell:
+
+```bash
+alias mc='docker compose --project-directory backend -f backend/docker/docker-compose.yml'
+```
+
+The `--project-directory` is required, not cosmetic: Compose resolves `.env`,
+`env_file:` and every build context against it, and would otherwise infer
+`backend/docker/` and start Postgres and Redis with different passwords than the
+api reads. The compose file's `${VAR:?...}` guards turn that mistake into an
+immediate error rather than a stack that comes up broken.
 
 Create the initial migration once the stack is up:
 
 ```bash
-docker compose exec api alembic revision --autogenerate -m "initial schemas"
-docker compose exec api alembic upgrade head
+mc exec api alembic revision --autogenerate -m "initial schemas"
+mc exec api alembic upgrade head
 ```
 
 API docs: <http://localhost:8000/docs> · Health: <http://localhost:8000/health>
 
 ## Quality gates
 
+Dependencies are managed with [uv](https://docs.astral.sh/uv/). There is no
+"activate the venv" step: `uv run` syncs `.venv` from `uv.lock` on demand, so a
+command can never execute against a stale environment.
+
 ```bash
-pip install -e ".[dev]"
-ruff check .
-mypy src main.py            # strict mode, zero errors
+uv sync                                     # create/refresh .venv from uv.lock
+uv run ruff check src tests main.py alembic scripts
+uv run mypy src main.py scripts             # strict mode, zero errors
+uv run pytest tests                         # every backend tier
 ```
 
-All 48 source modules pass `mypy --strict` and `ruff` clean.
+From the repository root, `make lint`, `make typecheck`, `make test` and
+`make audit` wrap the same commands across both stacks.
+
+After changing a dependency in `pyproject.toml`, run `make lock` (`uv lock`) and
+commit `uv.lock` with it — CI installs with `uv sync --locked`, which fails
+rather than silently re-resolving.

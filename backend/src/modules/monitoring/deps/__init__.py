@@ -33,7 +33,7 @@ from src.modules.monitoring.repos import (
     StockRepository,
     WarehouseMarkRepository,
 )
-from src.modules.monitoring.services import AnalyticsService, IngestionService
+from src.modules.monitoring.services import AnalyticsService
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
 
@@ -166,34 +166,10 @@ def get_analytics_service(
     )
 
 
-def get_ingestion_service(
-    funnel_repo: FunnelRepoDep,
-    advertising_repo: AdvertisingRepoDep,
-    advertising_search_repo: AdvertisingSearchRepoDep,
-    stock_repo: StockRepoDep,
-    campaign_repo: CampaignRepoDep,
-    product_card_repo: ProductCardRepoDep,
-    product_size_repo: ProductSizeRepoDep,
-    price_repo: PriceRepoDep,
-    sale_repo: SaleRepoDep,
-) -> IngestionService:
-    """Compose the write-side :class:`IngestionService` from its repositories."""
-    return IngestionService(
-        funnel_repo=funnel_repo,
-        advertising_repo=advertising_repo,
-        advertising_search_repo=advertising_search_repo,
-        stock_repo=stock_repo,
-        campaign_repo=campaign_repo,
-        product_card_repo=product_card_repo,
-        product_size_repo=product_size_repo,
-        price_repo=price_repo,
-        sale_repo=sale_repo,
-    )
-
-
-#: Clean, injectable service types consumed by the presentation layer.
+#: Clean, injectable service type consumed by the presentation layer.
+#: Ingestion has no DI wiring on purpose — it runs only in Celery tasks, which
+#: compose their own session and build IngestionService directly.
 AnalyticsServiceDep = Annotated[AnalyticsService, Depends(get_analytics_service)]
-IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
 
 
 # --------------------------------------------------------------------------- #
@@ -238,7 +214,6 @@ __all__ = [
     "CampaignRepoDep",
     "CurrentWorkspaceId",
     "FunnelRepoDep",
-    "IngestionServiceDep",
     "MatrixOverrideRepoDep",
     "PinnedSkuRepoDep",
     "PriceRepoDep",

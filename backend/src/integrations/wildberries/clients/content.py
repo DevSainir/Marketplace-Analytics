@@ -85,14 +85,3 @@ class WBContentClient(BaseWBClient):
                 "nmID": cur["nmID"],
             }
         return cards
-
-    async def list_all_nm_ids(self) -> list[int]:
-        """Return every nmID on the account.
-
-        Thin wrapper over :meth:`fetch_all_cards` for callers that only need the
-        SKU identifiers (e.g. the harvest's funnel/stock fan-out).
-
-        Returns:
-            The full list of SKU identifiers for the account.
-        """
-        return [card.nm_id for card in await self.fetch_all_cards()]

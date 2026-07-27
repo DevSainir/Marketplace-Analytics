@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,19 +67,3 @@ class CampaignRepository(BaseRepository):
         stmt = select(Campaign).where(Campaign.campaign_id.in_(ids))
         result = await self._session.execute(stmt)
         return {c.campaign_id: c for c in result.scalars().all()}
-
-    async def list_ids_by_status(self, status_labels: Sequence[str]) -> set[int]:
-        """Return the ids of campaigns whose normalized status matches.
-
-        Args:
-            status_labels: Normalized status labels to include (e.g.
-                ``["active", "paused"]``).
-
-        Returns:
-            The set of matching campaign ids.
-        """
-        if not status_labels:
-            return set()
-        stmt = select(Campaign.campaign_id).where(Campaign.status_label.in_(list(status_labels)))
-        result = await self._session.execute(stmt)
-        return set(result.scalars().all())

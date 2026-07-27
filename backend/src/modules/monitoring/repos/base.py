@@ -65,8 +65,9 @@ class BaseRepository:
         """Insert rows, updating the given columns on primary-key conflict.
 
         Large batches are split into multiple statements so the per-statement
-        bind-parameter cap (65535) is never exceeded — a single harvest can
-        carry tens of thousands of rows.
+        bind-parameter cap is never exceeded — a single harvest can carry tens
+        of thousands of rows. The real ceiling is asyncpg's 32767, not
+        PostgreSQL's often-quoted 65535; see :data:`_MAX_BIND_PARAMS`.
 
         Args:
             rows: Column->value mappings to persist. An empty sequence is a
