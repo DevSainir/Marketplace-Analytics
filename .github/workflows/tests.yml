@@ -1,0 +1,425 @@
+# CI staged by the testing pyramid.
+#
+# Jobs are ordered by cost and gated on each other, so a broken unit test stops
+# the pipeline in ~30 seconds instead of after a ten-minute browser run. That
+# ordering IS the pyramid: cheap feedback first, expensive confirmation last.
+#
+# The end-to-end and performance tiers are deliberately not on every push —
+# they need the full stack and a browser, and running them per-commit would
+# make the pipeline the slowest part of the working day.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_slow_tiers:
+        description: 'Also run the end-to-end and performance tiers'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# CI only reads the repository; nothing here pushes, comments, or releases.
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '22'
+  # Pinned so the resolver itself is reproducible, not just what it resolves.
+  UV_VERSION: '0.11.32'
+
+jobs:
+  # ------------------------------------------------------------------ #
+  # Gate 0 — style and types. Seconds, no infrastructure.
+  # ------------------------------------------------------------------ #
+  quality:
+    name: lint + typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      # `--locked` fails rather than silently re-resolving, so CI can never
+      # install a dependency set the committed uv.lock does not describe.
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --locked
+
+      # Every importable path, not just src/tests: main.py is the ASGI
+      # entrypoint, alembic/ holds hand-edited migrations, and scripts/ is run
+      # against production data. Leaving them unchecked was a silent gap —
+      # formatting had already drifted in alembic/versions/.
+      - name: Ruff (backend)
+        working-directory: backend
+        run: |
+          uv run ruff check src tests main.py alembic scripts
+          uv run ruff format --check src tests main.py alembic scripts
+
+      # Run from the REPO ROOT, not from backend/. ruff resolves the
+      # per-file-ignores patterns (`tests/**`) relative to the config file's
+      # directory, so linting `../tests/performance` from inside backend/ makes
+      # them stop matching and the tier fails on ignores it is meant to have.
+      - name: Ruff (cross-stack performance tier)
+        run: |
+          uv run --project backend ruff check --config backend/pyproject.toml tests/performance
+          uv run --project backend ruff format --check --config backend/pyproject.toml tests/performance
+
+      - name: mypy (strict)
+        working-directory: backend
+        run: uv run mypy src main.py scripts
+
+      # Audits the RUNTIME set only — what actually ships. `--disable-pip`
+      # because the export is fully pinned, so pip-audit has nothing to resolve.
+      - name: pip-audit (runtime dependencies)
+        working-directory: backend
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt -o /tmp/runtime.txt
+          uv run pip-audit --requirement /tmp/runtime.txt --strict --disable-pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: ESLint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Prettier
+        working-directory: frontend
+        run: npm run format:check
+
+      # Gate on what actually SHIPS. The dev tree carries advisories with no
+      # fixed version available (js-yaml via @redocly/openapi-core, js-beautify
+      # via @vue/test-utils — both already on their latest release), and
+      # blocking every PR on an unfixable finding just teaches people to ignore
+      # the gate. The production tree is audited strictly and is currently clean.
+      - name: npm audit (production dependencies)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (dev dependencies, informational)
+        working-directory: frontend
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+      # The SPA build is part of the product, so a build break is a red
+      # pipeline — not a surprise during the next deploy. Seconds to run, and
+      # it is the only gate that compiles every template and resolves every
+      # import for real.
+      - name: Build the SPA
+        working-directory: frontend
+        run: npm run build
+
+  # ------------------------------------------------------------------ #
+  # Gate 1 — the fast tiers. No database, no browser. Under a minute.
+  # ------------------------------------------------------------------ #
+  fast:
+    name: unit + component
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      # `--locked` fails rather than silently re-resolving, so CI can never
+      # install a dependency set the committed uv.lock does not describe.
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --locked
+
+      # Coverage is measured on the fast tiers only: they are the ones that are
+      # supposed to carry the pyramid's weight, so a number that drops here is
+      # the signal worth acting on. (Repositories look thin as a result — they
+      # are covered by the integration tier against a real database, which is
+      # the right place for them.)
+      #
+      # The floor is a RATCHET: today's measured figure is 70%, and 68 leaves
+      # just enough slack that an unrelated refactor does not fail the build on
+      # a rounding wobble. Raise it as the suite grows; never lower it to make a
+      # red build green.
+      - name: Backend unit + component tiers
+        working-directory: backend
+        run: >-
+          uv run pytest tests/unit tests/component -m "unit or component"
+          --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=68
+
+      - name: Upload the coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          retention-days: 7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend unit + integration specs
+        working-directory: frontend
+        run: npm run test
+
+  # ------------------------------------------------------------------ #
+  # Gate 2 — integration. Real PostgreSQL + Redis as services.
+  # ------------------------------------------------------------------ #
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: fast
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: marketplace
+          POSTGRES_USER: marketplace
+          POSTGRES_PASSWORD: ci-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U marketplace"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      ENVIRONMENT: local
+      DEBUG: 'false'
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: '5432'
+      POSTGRES_DB: marketplace
+      POSTGRES_USER: marketplace
+      POSTGRES_PASSWORD: ci-password
+      REDIS_HOST: localhost
+      REDIS_PORT: '6379'
+      REDIS_PASSWORD: ''
+      JWT_SECRET_KEY: ci-only-signing-key-not-used-anywhere-else
+      REGISTRATION_INVITE_CODE: ci-invite
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      # `--locked` fails rather than silently re-resolving, so CI can never
+      # install a dependency set the committed uv.lock does not describe.
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --locked
+
+      - name: Generate an ephemeral encryption key
+        run: |
+          echo "FERNET_SECRET_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
+
+      - name: Integration tier
+        working-directory: backend
+        run: uv run pytest tests/integration -m integration
+
+  # ------------------------------------------------------------------ #
+  # Gate 3 — end-to-end. Full stack + a real browser. Manual / main only.
+  # ------------------------------------------------------------------ #
+  end-to-end:
+    name: end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: integration
+    if: github.ref == 'refs/heads/main' || inputs.run_slow_tiers
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Prepare the backend environment
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          # openssl, not python+cryptography: this job installs no Python
+          # dependencies, and the runner's system python has no `cryptography`.
+          # A Fernet key is just 32 random bytes in urlsafe base64.
+          printf 'FERNET_SECRET_KEY=%s\n' "$(openssl rand 32 | base64 | tr '+/' '-_')" >> .env
+          # .env.example ships REGISTRATION_INVITE_CODE empty, which disables
+          # registration entirely. The tier does not register anyone (the
+          # account is seeded below), but leaving the file's own value blank
+          # would hide a future signup journey behind a 403.
+          printf 'REGISTRATION_INVITE_CODE=%s\n' 'ci-invite' >> .env
+
+      # The e2e overlay swaps nginx for a plain-HTTP server. Without it nginx
+      # cannot load its config at all — the production one hard-requires the
+      # Let's Encrypt key pair, which no runner has — so the container
+      # restart-loops and nothing is ever served.
+      - name: Start the stack
+        run: >-
+          docker compose --project-directory backend
+          -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml
+          up -d --build
+
+      # Assert a real 200. The previous gate used `curl -sf`, which treats a
+      # redirect as success and does not follow it — so it passed against a
+      # stack that served only "301 https://localhost/".
+      - name: Wait for the stack to serve the SPA
+        working-directory: backend
+        run: |
+          for _ in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost/ || true)
+            if [ "$code" = "200" ]; then
+              echo "Stack is serving (HTTP $code)."
+              exit 0
+            fi
+            echo "waiting… (HTTP ${code:-none})"
+            sleep 5
+          done
+          echo "The stack did not become healthy in time." >&2
+          docker compose --project-directory backend \
+            -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml \
+            logs --tail=100
+          exit 1
+
+      # The browser tier needs three things no migration supplies: an account
+      # (the auth schema is deliberately never dumped), a second workspace to
+      # switch to, and — the subtle one — a catalogue the workspace can SEE.
+      # The committed dump predates multi-tenancy, so every product_card lands
+      # with workspace_id NULL and is filtered out of every query.
+      - name: Load the catalogue seed
+        working-directory: backend
+        run: ./scripts/load_seed.sh
+
+      - name: Seed the end-to-end account and workspaces
+        run: >-
+          docker compose --project-directory backend
+          -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml
+          exec -T api python -m scripts.seed_e2e_fixtures
+
+      - name: Install Playwright and its browser
+        working-directory: tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: End-to-end tier
+        working-directory: tests
+        env:
+          E2E_BASE_URL: http://localhost
+        run: npm run test:e2e
+
+      - name: Upload traces and video on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            tests/.report
+            tests/.artifacts
+          retention-days: 7
+
+      - name: Stack logs on failure
+        if: failure()
+        run: >-
+          docker compose --project-directory backend
+          -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml
+          logs --tail=200
+
+  # ------------------------------------------------------------------ #
+  # Separate layer — performance. Opt-in only: it deliberately overloads
+  # the service it points at, so it must never run against anything shared.
+  # ------------------------------------------------------------------ #
+  performance:
+    name: performance probes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: integration
+    if: inputs.run_slow_tiers
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: marketplace
+          POSTGRES_USER: marketplace
+          POSTGRES_PASSWORD: ci-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U marketplace"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      ENVIRONMENT: local
+      POSTGRES_HOST: localhost
+      POSTGRES_USER: marketplace
+      POSTGRES_PASSWORD: ci-password
+      POSTGRES_DB: marketplace
+      JWT_SECRET_KEY: ci-only-signing-key-not-used-anywhere-else
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      # `--locked` fails rather than silently re-resolving, so CI can never
+      # install a dependency set the committed uv.lock does not describe.
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --locked
+
+      - name: Create the throwaway database
+        working-directory: backend
+        run: uv run pytest tests/integration/core/test_migrations.py -q
+
+      - name: Resource-exhaustion and race probes
+        run: uv run --project backend pytest -c tests/pytest.ini tests/performance
