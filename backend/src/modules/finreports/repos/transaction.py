@@ -214,3 +214,31 @@ class LogisticsTransactionRepository(BaseRepository):
             .order_by(txn.report_id, txn.rr_dt, txn.rrd_id)
         )
         result = await self._session.execute(stmt)
+
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        date_from: date,
+        date_to: date,
+        nm_ids: Sequence[int],
+    ) -> tuple[int, int]:
+        """Checksum the same row set :meth:`claim_ledger_rows` returns.
+
+        The predicate MUST stay identical to that method's, or the cache would
+        key on a different population than it renders. Only the columns that
+        reach a document are folded in — a change to any of them must produce a
+        different package, and does.
+        """
+        if not nm_ids:
+            return (0, 0)
+        txn = LogisticsTransaction
+        )
+        return await self.checksum(
+            *_CLAIM_SOURCE_COLUMNS,
+            where=(
+                txn.workspace_id == workspace_id,
+                txn.nm_id.in_(nm_ids),
+                txn.rr_dt >= date_from,
+                txn.rr_dt <= date_to,
+            ),
+        )
