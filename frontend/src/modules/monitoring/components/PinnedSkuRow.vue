@@ -37,13 +37,15 @@ const root = ref(null)
 // Sideways paging and the paint mode are each a self-contained interaction with
 // its own listeners and lifecycle; they live beside this component so the chip
 // row itself stays legible.
-const { scroller, overflowing, canScrollLeft, canScrollRight, page } = useHorizontalPaging({
-  contentSource: () => props.items,
-})
+const { scroller, overflowing, canScrollLeft, canScrollRight, page, syncArrows } =
+  useHorizontalPaging({
+    contentSource: () => props.items,
+  })
 
 const {
   paletteOpen,
   targetId,
+  targetItem,
   targetColor,
   paletteLeft,
   togglePalette,

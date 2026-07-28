@@ -49,6 +49,11 @@ export default [
     },
     rules: {
       'vue/multi-word-component-names': ['error', { ignores: ['App'] }],
+      // A template name with no binding behind it renders as `undefined` rather
+      // than as an error, so a whole interaction can silently stop working —
+      // this is how the pinned-row paint palette lost its `targetItem` and
+      // stopped opening. Vue cannot catch it at build time; the linter can.
+      'vue/no-undef-properties': 'error',
     },
   },
 
