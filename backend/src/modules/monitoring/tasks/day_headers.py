@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import timedelta
 
 from src.core.celery_app import celery_app
-from src.core.database import AsyncSessionLocal, engine
+from src.core.database import AsyncSessionLocal, run_task
 from src.core.logging import get_logger
 from src.core.timeutils import operating_today
 from src.modules.monitoring.repos import SkuDayCommentRepository
@@ -47,17 +46,14 @@ def carry_day_headers() -> dict[str, int]:
     """
 
     async def _run() -> dict[str, int]:
-        try:
-            today = operating_today()
-            async with AsyncSessionLocal() as session:
-                repo = SkuDayCommentRepository(session)
-                carried = await repo.carry_headers_to_day(
-                    source_day=today - timedelta(days=1), target_day=today
-                )
-                await session.commit()
-            logger.info("Carried %d note header(s) onto %s.", carried, today.isoformat())
-            return {"headers_carried": carried}
-        finally:
-            await engine.dispose()
+        today = operating_today()
+        async with AsyncSessionLocal() as session:
+            repo = SkuDayCommentRepository(session)
+            carried = await repo.carry_headers_to_day(
+                source_day=today - timedelta(days=1), target_day=today
+            )
+            await session.commit()
+        logger.info("Carried %d note header(s) onto %s.", carried, today.isoformat())
+        return {"headers_carried": carried}
 
-    return asyncio.run(_run())
+    return run_task(_run())

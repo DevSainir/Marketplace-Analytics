@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime, timedelta
 
 from src.core.celery_app import celery_app
-from src.core.database import AsyncSessionLocal, engine
+from src.core.database import AsyncSessionLocal, run_task
 from src.core.logging import get_logger
 from src.modules.users.repos import RefreshTokenRepository
 
@@ -33,18 +32,12 @@ def purge_expired_refresh_tokens() -> int:
     """
 
     async def _run() -> int:
-        try:
-            cutoff = datetime.now(UTC) - timedelta(days=_EXPIRED_TOKEN_RETENTION_DAYS)
-            async with AsyncSessionLocal() as session:
-                deleted = await RefreshTokenRepository(session).delete_expired(before=cutoff)
-                await session.commit()
-            return deleted
-        finally:
-            # Same cross-event-loop hygiene as the monitoring tasks: each task
-            # runs its own asyncio.run, so the shared pool must not leak
-            # connections bound to this loop into the next task.
-            await engine.dispose()
+        cutoff = datetime.now(UTC) - timedelta(days=_EXPIRED_TOKEN_RETENTION_DAYS)
+        async with AsyncSessionLocal() as session:
+            deleted = await RefreshTokenRepository(session).delete_expired(before=cutoff)
+            await session.commit()
+        return deleted
 
-    deleted = asyncio.run(_run())
+    deleted = run_task(_run())
     logger.info("Purged %d expired refresh-token rows.", deleted)
     return deleted

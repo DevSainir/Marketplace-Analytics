@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import timedelta
 
 from redis import Redis as SyncRedis
@@ -10,7 +9,7 @@ from redis.exceptions import LockError
 
 from src.core.celery_app import celery_app
 from src.core.config import settings
-from src.core.database import AsyncSessionLocal, engine
+from src.core.database import AsyncSessionLocal, run_task
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.timeutils import moscow_today
@@ -158,14 +157,8 @@ def harvest_all(days: int = 7) -> dict[str, int]:
 
     logger.info("Nightly harvest_all starting (last %d days).", days)
 
-    async def _run() -> dict[str, int]:
-        try:
-            return await _discover_and_harvest(days)
-        finally:
-            await engine.dispose()
-
     try:
-        return asyncio.run(_run())
+        return run_task(_discover_and_harvest(days))
     finally:
         try:
             lock.release()

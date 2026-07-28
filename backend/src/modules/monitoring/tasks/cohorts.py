@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import timedelta
 
 from redis import Redis as SyncRedis
@@ -11,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.celery_app import celery_app
 from src.core.config import settings
-from src.core.database import AsyncSessionLocal, engine
+from src.core.database import AsyncSessionLocal, run_task
 from src.core.logging import get_logger
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries import WBAnalyticsClient
@@ -144,21 +143,18 @@ def refresh_buyout_cohorts(days: int = COHORT_REFRESH_DAYS) -> dict[str, int]:
         return {"skipped_already_running": 1}
 
     async def _run() -> dict[str, int]:
-        try:
-            async with AsyncSessionLocal() as session:
-                bundles = await load_workspace_token_bundles(session)
-            total = 0
-            for bundle in bundles:
-                try:
-                    total += await _refresh_workspace_cohorts(bundle, days)
-                except Exception as exc:  # isolate workspaces from each other
-                    logger.warning("Cohort refresh failed for '%s': %s", bundle.name, exc)
-            return {"cohort_rows": total}
-        finally:
-            await engine.dispose()
+        async with AsyncSessionLocal() as session:
+            bundles = await load_workspace_token_bundles(session)
+        total = 0
+        for bundle in bundles:
+            try:
+                total += await _refresh_workspace_cohorts(bundle, days)
+            except Exception as exc:  # isolate workspaces from each other
+                logger.warning("Cohort refresh failed for '%s': %s", bundle.name, exc)
+        return {"cohort_rows": total}
 
     try:
-        return asyncio.run(_run())
+        return run_task(_run())
     finally:
         try:
             lock.release()

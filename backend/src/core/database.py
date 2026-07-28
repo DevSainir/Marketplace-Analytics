@@ -8,6 +8,9 @@ code never instantiates an engine or a session directly — it receives an
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Coroutine
+
 from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import (
     AsyncAttrs,
@@ -79,3 +82,42 @@ AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
 async def dispose_engine() -> None:
     """Dispose of the connection pool on application shutdown."""
     await engine.dispose()
+
+
+def run_task[T](coro: Coroutine[object, object, T]) -> T:
+    """Run one Celery task's async body on a private loop, then drain the pool.
+
+    Every Celery task is a synchronous function that drives async code through
+    its own :func:`asyncio.run`, i.e. its own short-lived event loop. The engine
+    above, however, is process-wide: connections it pools stay bound to the loop
+    that opened them. So a task that returns while leaving connections in the
+    pool hands the *next* task a live asyncpg connection whose transport belongs
+    to a loop that no longer exists — and that task dies on its very first
+    query with ``got Future attached to a different loop`` / ``Event loop is
+    closed``, before doing any work.
+
+    connections this way and killed ``monitoring.harvest_all`` (06:00 MSK) at
+    its first statement, so 2026-07-27 harvested nothing at all. The victim's
+    own ``dispose()`` then cleaned the pool, which is why the 07:00 task
+    recovered and only one task per night appeared to "randomly" fail.
+
+    Disposing here rather than in each task body is the point: the invariant
+    holds for every task that uses this entrypoint, including ones not written
+    yet. ``tests/unit/core/test_task_loop_hygiene.py`` fails the build if a
+    registered task drives ``asyncio.run`` itself instead of coming through
+    here.
+
+    Args:
+        coro: The task's async body. Awaited exactly once.
+
+    Returns:
+        Whatever ``coro`` returns.
+    """
+
+    async def _run() -> T:
+        try:
+            return await coro
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())

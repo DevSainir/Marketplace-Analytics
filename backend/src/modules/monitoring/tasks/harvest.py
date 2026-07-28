@@ -12,7 +12,7 @@ from datetime import date, timedelta
 
 from src.core.celery_app import celery_app
 from src.core.config import settings
-from src.core.database import AsyncSessionLocal, engine
+from src.core.database import AsyncSessionLocal, run_task
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.timeutils import moscow_today
@@ -311,31 +311,22 @@ def harvest_sku_window(
     logger.info("Harvesting SKUs %s for %s..%s", nm_ids, start, end)
 
     async def _run() -> dict[str, int]:
-        try:
-            async with AsyncSessionLocal() as session:
-                workspace_id = await ProductCardRepository(session).get_workspace_of_sku(nm_ids[0])
-                if workspace_id is None:
-                    raise IntegrationError(
-                        f"SKU {nm_ids[0]} is not registered to any workspace; "
-                        "cannot pick WB credentials for the refresh."
-                    )
-                tokens = await load_workspace_token_bundle(session, workspace_id)
-            if tokens is None:
+        async with AsyncSessionLocal() as session:
+            workspace_id = await ProductCardRepository(session).get_workspace_of_sku(nm_ids[0])
+            if workspace_id is None:
                 raise IntegrationError(
-                    f"Workspace {workspace_id} no longer exists; refresh aborted."
+                    f"SKU {nm_ids[0]} is not registered to any workspace; "
+                    "cannot pick WB credentials for the refresh."
                 )
-            return await _harvest_sku_window(
-                tokens=tokens,
-                nm_ids=nm_ids,
-                date_from=start,
-                date_to=end,
-                include_sales=False,
-            )
-        finally:
-            # Each Celery task runs its own asyncio.run (a fresh event loop).
-            # Dispose the shared engine's pool so its connections aren't left
-            # bound to this now-closed loop — otherwise the NEXT task in the same
-            # worker process fails with "Future attached to a different loop".
-            await engine.dispose()
+            tokens = await load_workspace_token_bundle(session, workspace_id)
+        if tokens is None:
+            raise IntegrationError(f"Workspace {workspace_id} no longer exists; refresh aborted.")
+        return await _harvest_sku_window(
+            tokens=tokens,
+            nm_ids=nm_ids,
+            date_from=start,
+            date_to=end,
+            include_sales=False,
+        )
 
-    return asyncio.run(_run())
+    return run_task(_run())
