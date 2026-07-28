@@ -43,6 +43,7 @@ frontend/dist/
 frontend/dist-ssr/
 frontend/coverage/
 frontend/.npm-cache/
+tests/.npm-cache/
 logs/
 *.log
 npm-debug.log*

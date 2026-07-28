@@ -9,8 +9,8 @@ Key security behaviours implemented here:
 
 * **Refresh Token Rotation (RTR):** every refresh consumes the presented token
   and issues a brand-new access+refresh pair.
-* **Breach detection:** replay of an already-consumed token revokes the user's
-  entire active session set and raises :class:`TokenReuseError` (HTTP 401).
+* **Breach detection:** replay of an already-consumed token revokes that
+  token's family (login lineage) and raises :class:`TokenReuseError` (HTTP 401).
 * **Timing-attack mitigation:** unknown-user logins still run a bcrypt verify
   against :data:`DUMMY_HASH`, keeping response latency constant.
 """
@@ -22,7 +22,8 @@ import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy.exc import IntegrityError
+import sqlalchemy as sa
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
@@ -34,7 +35,6 @@ from src.core.exceptions import (
 )
 from src.core.ids import uuid7
 from src.core.logging import get_logger
-from src.core.redis import mark_user_sessions_revoked
 from src.core.security import (
     DUMMY_HASH,
     create_access_token,
@@ -203,8 +203,8 @@ class AuthService:
 
         # --- Breach (fast path): a consumed token is being replayed. ---
         if token.is_used:
-            await self._revoke_breached_user(user_id=token.user_id, family_id=token.family_id)
-            raise TokenReuseError("Refresh token reuse detected. All sessions have been revoked.")
+            await self._revoke_breached_family(user_id=token.user_id, family_id=token.family_id)
+            raise TokenReuseError("Refresh token reuse detected. This session has been revoked.")
 
         if token.is_revoked:
             raise AuthenticationError("This session has been revoked.")
@@ -235,8 +235,8 @@ class AuthService:
         # conditional consume, two concurrent presentations of a stolen secret
         # would BOTH rotate successfully and the theft would go undetected.
         if not await self._tokens.consume(token.id):
-            await self._revoke_breached_user(user_id=token.user_id, family_id=token.family_id)
-            raise TokenReuseError("Refresh token reuse detected. All sessions have been revoked.")
+            await self._revoke_breached_family(user_id=token.user_id, family_id=token.family_id)
+            raise TokenReuseError("Refresh token reuse detected. This session has been revoked.")
 
         return await self._issue_pair(
             user_id=token.user_id,
@@ -245,25 +245,72 @@ class AuthService:
             not_after=session_deadline,
         )
 
-    async def _revoke_breached_user(self, *, user_id: uuid.UUID, family_id: uuid.UUID) -> None:
-        """Kill every session of a user whose refresh token was replayed.
+    async def _revoke_breached_family(self, *, user_id: uuid.UUID, family_id: uuid.UUID) -> None:
+        """Kill the login lineage whose refresh token was replayed — and only it.
 
-        Revokes all refresh rows in a DEDICATED committed transaction: the
-        calling request ends in a 401 (an exception), which rolls back the
-        request-scoped session — so the revocation must persist independently
-        or the "log out all devices" guarantee would be silently undone. Also
-        stamps the Redis watermark so outstanding *access* tokens die
-        immediately instead of surviving until natural expiry.
+        Scope is the FAMILY, not the user. This is what RFC 9700 (OAuth 2.0
+        Security BCP) §4.14.2 prescribes for detected refresh-token reuse:
+        revoke the token chain descended from the replayed token. It is also the
+        only scope this code can justify, because a replay is genuinely
+        ambiguous — the server cannot tell a thief from a client that legitimately
+        holds a superseded token:
+
+        * a laptop resumed from sleep, or a tab restored days later, replays the
+          token it went to sleep holding;
+        * a rotation that succeeded server-side but timed out client-side is
+          retried by the SPA with the same (now consumed) cookie.
+
+        Revoking every family on that evidence is what turned one such replay
+        into a team-wide outage on 2026-07-27: a tab last used on the 24th woke
+        up, replayed its long-dead token, and signed every other worker sharing
+        the account out mid-task, across all 14 of that user's live families.
+        Family scope still ends the ambiguous lineage — that device does have to
+        log in again — while leaving every other device untouched.
+
+        Revokes in a DEDICATED committed transaction: the calling request ends
+        in a 401 (an exception), which rolls back the request-scoped session, so
+        the revocation must persist independently or it would be silently undone.
+
+        No Redis watermark is stamped: that key is per-user, so using it here
+        would re-introduce exactly the account-wide blast radius this scopes
+        away. The consequence — access tokens already issued on this family stay
+        valid until they expire (15 minutes) — is the same one
+        :meth:`logout` documents and accepts, and it is bounded.
         """
         logger.warning(
-            "Refresh-token reuse detected for user %s (family %s); revoking all sessions.",
+            "Refresh-token reuse detected for user %s; revoking family %s "
+            "(other sessions of this user are left intact).",
             user_id,
             family_id,
         )
         async with AsyncSessionLocal() as breach_session:
-            await RefreshTokenRepository(breach_session).revoke_all_for_user(user_id)
-            await breach_session.commit()
-        await mark_user_sessions_revoked(user_id)
+            # Bound the wait for row locks. This revocation runs on a SECOND
+            # connection while the caller's own transaction is still open and
+            # may already hold locks on rows in this very family — so the two
+            # can wait on each other. Unbounded, that wait ends only when
+            # `idle_in_transaction_session_timeout` fires at five minutes, and
+            # the request holds a pool slot for all of it.
+            #
+            # On 2026-07-28 six concurrent refreshes hit this path at once and
+            # sat for 300 s each (measured: 300217-300231 ms, all returning
+            # 401 in the same second). With the pool that starved, every other
+            # user's request queued behind them — the site-wide freeze.
+            #
+            # Two seconds is far beyond a healthy uncontended UPDATE (~1 ms).
+            # Past that, failing the revocation is strictly better than holding
+            # the connection: the token was consumed and cannot rotate again, so
+            # the replay is already dead — this only defers marking its siblings.
+            await breach_session.execute(sa.text("SET LOCAL lock_timeout = '2s'"))
+            try:
+                await RefreshTokenRepository(breach_session).revoke_family(family_id)
+                await breach_session.commit()
+            except DBAPIError:
+                await breach_session.rollback()
+                logger.exception(
+                    "Could not revoke family %s within the lock timeout; the replayed "
+                    "token is already consumed, so the session cannot rotate regardless.",
+                    family_id,
+                )
 
     # ------------------------------------------------------------------ #
     # Logout
@@ -274,17 +321,18 @@ class AuthService:
         Silent no-op for a missing or unknown token so logout is idempotent and
         cannot be used as a user/token enumeration oracle.
 
-        Deliberately asymmetric with :meth:`_revoke_breached_user`, which also
-        stamps the Redis watermark: this revokes ONE family, and the watermark
-        is per-user, so stamping it here would sign every other device of the
-        same user out too — "log out of this browser" is not "log out
-        everywhere". The consequence is that the caller's own access token
-        stays valid until it expires (15 minutes by default). That is
-        acceptable because the SPA drops the token from memory on logout, and
-        because narrowing it further would need a per-family watermark that
-        buys nothing against a threat model where the attacker already holds
-        the access token. Breach detection, where the attacker DOES hold it, is
-        exactly the case that revokes globally.
+        Family-scoped, and no Redis watermark: that key is per-user, so stamping
+        it would sign every other device of the same user out too — "log out of
+        this browser" is not "log out everywhere". The consequence is that the
+        caller's own access token stays valid until it expires (15 minutes by
+        default). That is acceptable because the SPA drops the token from memory
+        on logout, and because narrowing it further would need a per-family
+        watermark that buys nothing against a threat model where the attacker
+        already holds the access token.
+
+        :meth:`_revoke_breached_family` now uses the same scope and the same
+        reasoning; see its docstring for why reuse detection stopped revoking
+        account-wide.
 
         Args:
             refresh_secret: The opaque refresh secret from the client cookie, or

@@ -54,19 +54,16 @@ def auth_service(
 ) -> AuthService:
     """Build the real service, with the breach handler joining this transaction.
 
-    ``_revoke_breached_user`` deliberately opens its own ``AsyncSessionLocal``
+    ``_revoke_breached_family`` deliberately opens its own ``AsyncSessionLocal``
     session so the revocation survives the failing request's rollback. Pointing
     that factory at the test connection keeps the behaviour intact (its commit
     is a savepoint release) while the outer transaction still cleans up.
+
+    No Redis stub is needed: breach handling no longer stamps the per-user
+    revocation watermark. Stamping it was account-wide by construction, which is
+    precisely the blast radius these tests now pin shut.
     """
     monkeypatch.setattr("src.modules.users.services.AsyncSessionLocal", session_factory)
-
-    async def _no_redis_watermark(user_id: object) -> None:
-        return None
-
-    monkeypatch.setattr(
-        "src.modules.users.services.mark_user_sessions_revoked", _no_redis_watermark
-    )
     return AuthService(
         user_repo=UserRepository(db_session), token_repo=RefreshTokenRepository(db_session)
     )
@@ -105,13 +102,17 @@ async def test_rotation_chain_is_persisted(
     assert [row.is_used for row in rows] == [True, True, False]
 
 
-async def test_replaying_a_consumed_token_revokes_every_session(
+async def test_replaying_a_consumed_token_revokes_that_lineage(
     auth_service: AuthService, db_session: AsyncSession, stored_user: User
 ) -> None:
-    """The classic stolen-cookie scenario: replay kills the whole account.
+    """The classic stolen-cookie scenario: replay kills the lineage.
 
     The attacker rotates first; the legitimate user's next refresh presents the
-    now-consumed secret, and every device is logged out.
+    now-consumed secret. Both ends of that lineage are cut, so neither party can
+    mint another token from it. Here the account has exactly one family, so
+    "this lineage" and "everything" coincide — see
+    :func:`test_revocation_spares_the_users_other_devices` for the case that
+    distinguishes them.
     """
     first = await auth_service.authenticate(email=stored_user.email, password=KNOWN_PASSWORD)
     await auth_service.rotate_refresh_token(refresh_secret=first.refresh_secret)
@@ -130,9 +131,9 @@ async def test_breach_revocation_survives_the_failed_requests_rollback(
 ) -> None:
     """Revocation is committed independently of the 401 that triggers it.
 
-    This is the whole reason ``_revoke_breached_user`` opens its own session. If
-    it wrote through the request session, the 401's rollback would undo the
-    "log out everywhere" and the breach response would be a no-op.
+    This is the whole reason ``_revoke_breached_family`` opens its own session.
+    If it wrote through the request session, the 401's rollback would undo the
+    revocation and the breach response would be a silent no-op.
     """
     first = await auth_service.authenticate(email=stored_user.email, password=KNOWN_PASSWORD)
     await auth_service.rotate_refresh_token(refresh_secret=first.refresh_secret)
@@ -146,13 +147,24 @@ async def test_breach_revocation_survives_the_failed_requests_rollback(
     assert all(row.is_revoked for row in rows)
 
 
-async def test_revocation_spans_every_family_not_just_the_breached_one(
+async def test_revocation_spares_the_users_other_devices(
     auth_service: AuthService, db_session: AsyncSession, stored_user: User
 ) -> None:
-    """A breach on the phone must also end the desktop session.
+    """A replay on the phone must NOT end the desktop session.
 
-    Revoking only the compromised lineage would leave the attacker's other
-    stolen sessions alive.
+    This is the 2026-07-27 outage, pinned. The team shares one login, so that
+    account carried a live family per device. A tab last used three days earlier
+    woke up and replayed the token it had gone to sleep holding; the old handler
+    read that as an account breach and revoked all fourteen families at once,
+    signing every worker out mid-task.
+
+    A replay is genuinely ambiguous — a resumed laptop and a thief look
+    identical on the wire — so the response is scoped to the lineage that
+    actually presented the dead token (RFC 9700 §4.14.2). The replaying device
+    still has to log in again; nobody else is touched.
+
+    The inverse of this assertion is what shipped before, so this test is the
+    thing standing between the team and a repeat.
     """
     phone = await auth_service.authenticate(email=stored_user.email, password=KNOWN_PASSWORD)
     desktop = await auth_service.authenticate(email=stored_user.email, password=KNOWN_PASSWORD)
@@ -161,14 +173,38 @@ async def test_revocation_spans_every_family_not_just_the_breached_one(
     with pytest.raises(TokenReuseError):
         await auth_service.rotate_refresh_token(refresh_secret=phone.refresh_secret)
 
-    desktop_row = (
-        await db_session.execute(
-            sa.select(RefreshToken).where(
-                RefreshToken.token_hash == hash_refresh_secret(desktop.refresh_secret)
-            )
-        )
-    ).scalar_one()
-    assert desktop_row.is_revoked is True
+    rows = (await db_session.execute(sa.select(RefreshToken))).scalars().all()
+    desktop_row = next(
+        row for row in rows if row.token_hash == hash_refresh_secret(desktop.refresh_secret)
+    )
+    assert desktop_row.is_revoked is False, "an unrelated device was signed out by the replay"
+
+    # ...and every row of the lineage that DID replay is dead, so this is a
+    # narrowing of the response, not a removal of it.
+    phone_rows = [row for row in rows if row.family_id != desktop_row.family_id]
+    assert len(phone_rows) == 2, "fixture sanity: the phone family is issue + rotation"
+    assert all(row.is_revoked for row in phone_rows)
+
+
+async def test_the_desktop_can_still_rotate_after_the_phone_was_breached(
+    auth_service: AuthService, stored_user: User
+) -> None:
+    """The surviving device keeps working, not merely keeps an unrevoked row.
+
+    Checking ``is_revoked`` alone would still pass if some other guard (the
+    Redis watermark, an account flag) locked the account out. What the team
+    needs is the desktop's *next* refresh succeeding, which is what actually
+    failed for them on 27.07.
+    """
+    phone = await auth_service.authenticate(email=stored_user.email, password=KNOWN_PASSWORD)
+    desktop = await auth_service.authenticate(email=stored_user.email, password=KNOWN_PASSWORD)
+    await auth_service.rotate_refresh_token(refresh_secret=phone.refresh_secret)
+
+    with pytest.raises(TokenReuseError):
+        await auth_service.rotate_refresh_token(refresh_secret=phone.refresh_secret)
+
+    rotated = await auth_service.rotate_refresh_token(refresh_secret=desktop.refresh_secret)
+    assert rotated.access_token
 
 
 async def test_concurrent_replays_produce_exactly_one_winner(
