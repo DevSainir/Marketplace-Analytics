@@ -251,54 +251,6 @@ class LogisticsTransactionRepository(BaseRepository):
             for row in result.all()
         }
 
-        self,
-        *,
-        workspace_id: uuid.UUID,
-        date_from: date,
-        date_to: date,
-        plans: Sequence[SkuRepricingPlan],
-    ) -> dict[int, Decimal]:
-
-        date rather than all of it on one notional day.
-
-        Args:
-            workspace_id: Tenancy scope.
-            date_from: Inclusive settlement-date start.
-            date_to: Inclusive settlement-date end.
-            plans: Per-SKU re-pricing timelines (empty → empty mapping).
-
-        Returns:
-        """
-        if not plans:
-            return {}
-        txn = LogisticsTransaction
-        whens = []
-        for plan in plans:
-            for start, ratio in reversed(plan.timeline):
-                condition = txn.nm_id == plan.nm_id
-                if start is not None:
-                    condition = condition & (txn.rr_dt >= start)
-                whens.append((condition & (txn.delivery_rub > 0), ratio))
-        is_logistics = txn.supplier_oper_name == LOGISTICS_OPER
-        )
-        charged = case((is_logistics, txn.delivery_rub), else_=0)
-        fair = case(
-            (is_logistics, func.round(txn.delivery_rub * case(*whens, else_=Decimal(1)), 2)),
-            else_=0,
-        )
-        )
-        stmt = (
-            .where(
-                txn.workspace_id == workspace_id,
-                txn.nm_id.in_([p.nm_id for p in plans]),
-                txn.rr_dt >= date_from,
-                txn.rr_dt <= date_to,
-            )
-            .group_by(txn.report_id)
-        )
-        result = await self._session.execute(stmt)
-        return {row[0]: Decimal(row[1]) for row in result.all()}
-
     async def list_for_sku(
         self, *, nm_id: int, date_from: date, date_to: date
     ) -> list[LogisticsTransaction]:
