@@ -79,6 +79,38 @@ _CLAIM_SOURCE_COLUMNS = (
 
 
 @dataclass(frozen=True)
+class SkuRepricingPlan:
+    """Instructions for re-pricing one SKU's logistics inside the database.
+
+    Attributes:
+        nm_id: The SKU.
+        timeline: ``[(start_date, ratio), ...]`` ordered by start date, where
+            the first start is ``None`` (unbounded) and each ratio applies until
+            the next entry's start — exactly the shape
+            produces.
+    """
+
+    nm_id: int
+    timeline: list[tuple[date | None, Decimal]]
+
+
+@dataclass(frozen=True)
+    """One SKU's logistics re-priced against WB's own measurement record.
+
+    Attributes:
+        nm_id: The SKU.
+        charged: Σ ``delivery_rub`` WB actually withheld.
+        fair: Σ of what each row should have cost at the reference volume.
+        overpay: ``charged - fair`` (never negative in aggregate — credit notes
+    """
+
+    nm_id: int
+    charged: Decimal
+    fair: Decimal
+    overpay: Decimal
+
+
+@dataclass(frozen=True)
 class SkuLogisticsAggregate:
     """Per-SKU rollup of the raw settlement facts over a window.
 
@@ -155,6 +187,117 @@ class LogisticsTransactionRepository(BaseRepository):
             )
             for row in result.all()
         ]
+
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        date_from: date,
+        date_to: date,
+        plans: Sequence[SkuRepricingPlan],
+        """Re-price each SKU's logistics in SQL and return the per-SKU totals.
+
+        row — ``ROUND(delivery_rub * ratio, 2)`` per row, then summed — so the
+        the kopeck, without the page paying for 83 443 hydrated rows (~6 s) to
+        get there. ``ROUND(numeric, 2)`` is half-up away from zero, matching
+        :data:`decimal.ROUND_HALF_UP` on the non-negative amounts re-priced here.
+
+        Credit notes (``delivery_rub < 0``) pass through untouched: re-pricing a
+
+        Args:
+            workspace_id: Tenancy scope.
+            date_from: Inclusive settlement-date start.
+            date_to: Inclusive settlement-date end.
+            plans: Per-SKU re-pricing timelines (empty → empty mapping).
+
+        Returns:
+            logistics row in the window.
+        """
+        if not plans:
+            return {}
+        txn = LogisticsTransaction
+        # One CASE over every (SKU, date range). Ranges are emitted newest-first
+        # so the first matching branch is the latest measurement in force —
+        # the SQL twin of `applicable_basis`, whose opening range is unbounded.
+        whens = []
+        for plan in plans:
+            for start, ratio in reversed(plan.timeline):
+                condition = txn.nm_id == plan.nm_id
+                if start is not None:
+                    condition = condition & (txn.rr_dt >= start)
+                whens.append((condition & (txn.delivery_rub > 0), ratio))
+        # `else_` is a Decimal, not the int 1, so the CASE (and the product with
+        # it) stays `numeric` — exact — instead of collapsing to a float.
+        fair_expr = func.round(txn.delivery_rub * case(*whens, else_=Decimal(1)), 2)
+        charged = func.coalesce(func.sum(txn.delivery_rub), 0)
+        fair = func.coalesce(func.sum(fair_expr), 0)
+        stmt = (
+            select(txn.nm_id, charged, fair)
+            .where(
+                txn.workspace_id == workspace_id,
+                txn.nm_id.in_([p.nm_id for p in plans]),
+                txn.rr_dt >= date_from,
+                txn.rr_dt <= date_to,
+                txn.supplier_oper_name == LOGISTICS_OPER,
+            )
+            .group_by(txn.nm_id)
+        )
+        result = await self._session.execute(stmt)
+        return {
+                nm_id=row[0],
+                charged=Decimal(row[1]),
+                fair=Decimal(row[2]),
+                overpay=Decimal(row[1]) - Decimal(row[2]),
+            )
+            for row in result.all()
+        }
+
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        date_from: date,
+        date_to: date,
+        plans: Sequence[SkuRepricingPlan],
+    ) -> dict[int, Decimal]:
+
+        date rather than all of it on one notional day.
+
+        Args:
+            workspace_id: Tenancy scope.
+            date_from: Inclusive settlement-date start.
+            date_to: Inclusive settlement-date end.
+            plans: Per-SKU re-pricing timelines (empty → empty mapping).
+
+        Returns:
+        """
+        if not plans:
+            return {}
+        txn = LogisticsTransaction
+        whens = []
+        for plan in plans:
+            for start, ratio in reversed(plan.timeline):
+                condition = txn.nm_id == plan.nm_id
+                if start is not None:
+                    condition = condition & (txn.rr_dt >= start)
+                whens.append((condition & (txn.delivery_rub > 0), ratio))
+        is_logistics = txn.supplier_oper_name == LOGISTICS_OPER
+        )
+        charged = case((is_logistics, txn.delivery_rub), else_=0)
+        fair = case(
+            (is_logistics, func.round(txn.delivery_rub * case(*whens, else_=Decimal(1)), 2)),
+            else_=0,
+        )
+        )
+        stmt = (
+            .where(
+                txn.workspace_id == workspace_id,
+                txn.nm_id.in_([p.nm_id for p in plans]),
+                txn.rr_dt >= date_from,
+                txn.rr_dt <= date_to,
+            )
+            .group_by(txn.report_id)
+        )
+        result = await self._session.execute(stmt)
+        return {row[0]: Decimal(row[1]) for row in result.all()}
 
     async def list_for_sku(
         self, *, nm_id: int, date_from: date, date_to: date

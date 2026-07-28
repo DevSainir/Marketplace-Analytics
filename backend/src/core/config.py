@@ -7,6 +7,7 @@ fully-validated configuration object.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from functools import lru_cache
 from typing import Literal
 from urllib.parse import quote
@@ -152,6 +153,12 @@ class Settings(BaseSettings):
     # How many built packages to keep. Each is a few MB, and a full disk on this
     # box has taken the API down before, so the oldest are pruned.
     finreports_package_cache_entries: int = Field(default=24, ge=1)
+    # The seller's tax rate on the NET amount WB pays out (2 % for this account).
+    # WB withholds logistics before paying, so an overcharge shrank the taxable
+    # payout by the same amount — the tax saved on it is what separates the sum
+    # claimed from WB from the sum the seller is actually short. Settable because
+    # a different workspace may trade under a different regime; see
+    finreports_tax_rate: Decimal = Field(default=Decimal("0.02"), ge=0, lt=1)
     wb_http_timeout_seconds: float = Field(default=30.0)
     # WB (esp. the advertising surface) is aggressively rate-limited (~1 req/min
     # -> HTTP 429). Requests retry with exponential backoff, honouring any

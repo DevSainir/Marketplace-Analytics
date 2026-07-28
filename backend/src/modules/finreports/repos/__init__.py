@@ -10,6 +10,7 @@ from src.modules.finreports.repos.financial_report import FinancialReportReposit
 from src.modules.finreports.repos.transaction import (
     LogisticsTransactionRepository,
     SkuLogisticsAggregate,
+    SkuRepricingPlan,
 )
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "FinancialReportRepository",
     "LogisticsTransactionRepository",
     "SkuLogisticsAggregate",
+    "SkuRepricingPlan",
 ]
