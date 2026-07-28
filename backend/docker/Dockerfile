@@ -82,6 +82,11 @@ COPY . .
 FROM base AS api
 
 RUN useradd --create-home --uid 10001 appuser \
+    # runtime user. Docker seeds a fresh named volume from the image's directory
+    # at that path, ownership included; with no such directory the volume is
+    # created root-owned and the unprivileged process cannot write to it. The
+    # service degrades to rebuilding on every request when that happens — the
+    # download still works, so the only symptom is silently losing the cache.
     && chown -R appuser:appuser /app
 USER appuser
 
