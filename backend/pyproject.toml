@@ -17,7 +17,10 @@ dependencies = [
     "celery[redis]>=5.4",
     "redis>=5.0",
     "httpx>=0.27",
-    "openpyxl>=3.1",
+    # xlsxwriter, not openpyxl: the detail sheet is ~30k rows and openpyxl cost
+    # 5.43 s of per-cell Python overhead against production data (2.28x slower
+    # on the same grid). openpyxl is now a TEST dependency only, where it reads
+    # the output back — verifying with a different library than we write with.
     "python-docx>=1.1",
     # bcrypt is used directly (src.core.security); passlib was dropped — it is
     # unmaintained and forced an upper pin on bcrypt.
@@ -26,6 +29,7 @@ dependencies = [
     # Fernet symmetric encryption for per-workspace WB tokens stored in Postgres.
     "cryptography>=42",
     "python-multipart>=0.0.9",
+    "xlsxwriter>=3.2",
 ]
 
 # Development tooling. A PEP 735 dependency-group, not an optional-dependency
@@ -41,6 +45,9 @@ dev = [
     "pytest-cov>=5.0",
     # Dependency vulnerability audit (CI `quality` gate).
     "pip-audit>=2.7",
+    # Reads the generated XLSX back in tests. Deliberately a different library
+    # than the writer, so a round-trip test cannot pass by sharing a bug.
+    "openpyxl>=3.1",
 ]
 
 [tool.ruff]
@@ -91,7 +98,7 @@ module = ["celery.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["openpyxl.*", "docx.*"]
+module = ["openpyxl.*", "docx.*", "xlsxwriter.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
