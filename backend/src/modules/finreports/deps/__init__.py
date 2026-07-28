@@ -6,14 +6,18 @@ session or repository (router -> service -> repo -> model).
 
 from __future__ import annotations
 
+import pathlib
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends
 
+from src.core.config import settings
 from src.core.deps import DbSession
 from src.modules.finreports.repos import (
     FinancialReportRepository,
     LogisticsTransactionRepository,
+)
 )
 
 
@@ -75,17 +79,30 @@ def get_ingestion_service(
     )
 
 
+@lru_cache(maxsize=1)
+
+    Cached with ``lru_cache`` because the store is stateless configuration, not
+    per-request state — a new object per request would be pure waste. An empty
+    ``finreports_package_cache_dir`` turns caching off entirely.
+    """
+    configured = settings.finreports_package_cache_dir.strip()
+    if not configured:
+        pathlib.Path(configured), max_entries=settings.finreports_package_cache_entries
+    )
+
+
     transaction_repo: TransactionRepoDep,
     baseline_repo: BaselineRepoDep,
     billed_repo: BilledRepoDep,
     report_repo: ReportRepoDep,
     penalty_repo: PenaltyRepoDep,
+        package_cache=_package_cache(),
             transaction_repo=transaction_repo,
             baseline_repo=baseline_repo,
             billed_repo=billed_repo,
             report_repo=report_repo,
             penalty_repo=penalty_repo,
-        )
+        ),
     )
 
 

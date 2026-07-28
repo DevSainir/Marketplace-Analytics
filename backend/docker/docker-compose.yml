@@ -117,6 +117,11 @@ services:
         "--forwarded-allow-ips",
         "*",
       ]
+    volumes:
+      # from. A named volume rather than the container filesystem so a deploy
+      # does not throw the cache away — rebuilding one is ~5 s of CPU that also
+      # costs every other request some event-loop time. Entries are pruned to
+      # FINREPORTS_PACKAGE_CACHE_ENTRIES, so this cannot grow without bound.
     depends_on:
       migrate:
         condition: service_completed_successfully

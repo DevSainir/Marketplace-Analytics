@@ -147,6 +147,11 @@ class Settings(BaseSettings):
     # give up quickly instead of spinning (protects the proxy balance).
     wb_card_max_retries: int = Field(default=3)
     # Relative paths resolve against the backend working directory.
+    # disables caching entirely. Relative paths resolve against the backend
+    # working directory; a bind mount or S3 can replace it without code changes.
+    # How many built packages to keep. Each is a few MB, and a full disk on this
+    # box has taken the API down before, so the oldest are pruned.
+    finreports_package_cache_entries: int = Field(default=24, ge=1)
     wb_http_timeout_seconds: float = Field(default=30.0)
     # WB (esp. the advertising surface) is aggressively rate-limited (~1 req/min
     # -> HTTP 429). Requests retry with exponential backoff, honouring any
