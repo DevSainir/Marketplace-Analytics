@@ -42,6 +42,8 @@ def get_report_repo(session: DbSession) -> FinancialReportRepository:
 
 
 
+
+
 TransactionRepoDep = Annotated[LogisticsTransactionRepository, Depends(get_transaction_repo)]
 ReportRepoDep = Annotated[FinancialReportRepository, Depends(get_report_repo)]
 
@@ -54,11 +56,13 @@ ReportRepoDep = Annotated[FinancialReportRepository, Depends(get_report_repo)]
     billed_repo: BilledRepoDep,
     report_repo: ReportRepoDep,
     penalty_repo: PenaltyRepoDep,
+    measurement_repo: MeasurementRepoDep,
         transaction_repo=transaction_repo,
         baseline_repo=baseline_repo,
         billed_repo=billed_repo,
         report_repo=report_repo,
         penalty_repo=penalty_repo,
+        measurement_repo=measurement_repo,
     )
 
 
@@ -68,6 +72,7 @@ def get_ingestion_service(
     baseline_repo: BaselineRepoDep,
     billed_repo: BilledRepoDep,
     penalty_repo: PenaltyRepoDep,
+    measurement_repo: MeasurementRepoDep,
 ) -> IngestionService:
     """Compose the write-side :class:`IngestionService` from its repositories."""
     return IngestionService(
@@ -76,6 +81,7 @@ def get_ingestion_service(
         baseline_repo=baseline_repo,
         billed_repo=billed_repo,
         penalty_repo=penalty_repo,
+        measurement_repo=measurement_repo,
     )
 
 
@@ -96,12 +102,14 @@ def get_ingestion_service(
     billed_repo: BilledRepoDep,
     report_repo: ReportRepoDep,
     penalty_repo: PenaltyRepoDep,
+    measurement_repo: MeasurementRepoDep,
         package_cache=_package_cache(),
             transaction_repo=transaction_repo,
             baseline_repo=baseline_repo,
             billed_repo=billed_repo,
             report_repo=report_repo,
             penalty_repo=penalty_repo,
+            measurement_repo=measurement_repo,
         ),
     )
 

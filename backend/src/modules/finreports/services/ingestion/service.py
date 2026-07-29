@@ -100,6 +100,20 @@ _PENALTY_UPDATE = [
     "is_valid_dt",
     "workspace_id",
 ]
+_MEASUREMENT_UPDATE = [
+    "subject_name",
+    "length_cm",
+    "width_cm",
+    "height_cm",
+    "volume_l",
+    "measured_at",
+    "photo_url",
+    "workspace_id",
+]
+
+#: Sort key that orders the rows of one penalty group reproducibly. WB publishes
+#: no row identity, so the ordinal has to come from the values themselves.
+_UNIT_ORDER = ("volume_sup", "penalty_amount", "reversal_amount")
 
 
 def _as_date(value: date | datetime | None) -> date | None:
@@ -122,6 +136,32 @@ def _dedupe(rows: list[dict[str, object]], *, keys: list[str]) -> list[dict[str,
     return list(by_key.values())
 
 
+def _number_units(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Number the rows of each ``(nm_id, dim_id, dt_bonus)`` group.
+
+    WB emits one row per penalised unit with no row identity, so the ordinal is
+    derived from the values: each group is sorted by
+    :data:`_UNIT_ORDER` and numbered from zero. A re-harvest of the same report
+    therefore reproduces the same ordinals, which keeps the upsert idempotent
+    instead of shuffling rows between keys.
+    """
+    groups: dict[tuple[object, ...], list[dict[str, object]]] = {}
+    for row in rows:
+        groups.setdefault((row["nm_id"], row["dim_id"], row["dt_bonus"]), []).append(row)
+    numbered: list[dict[str, object]] = []
+    for group in groups.values():
+        group.sort(key=lambda r: tuple(_sort_value(r.get(k)) for k in _UNIT_ORDER))
+        for index, row in enumerate(group):
+            row["unit_no"] = index
+            numbered.append(row)
+    return numbered
+
+
+def _sort_value(value: object) -> Decimal:
+    """Order a possibly-``None`` numeric column without comparing mixed types."""
+    return value if isinstance(value, Decimal) else Decimal(-1)
+
+
 class IngestionService:
 
     def __init__(
@@ -136,6 +176,7 @@ class IngestionService:
         self._baselines = baseline_repo
         self._billed = billed_repo
         self._penalties = penalty_repo
+        self._measurements = measurement_repo
 
     async def ingest_finance_report(
         self, rows: list[WBReportDetailRow], *, workspace_id: uuid.UUID
@@ -292,11 +333,20 @@ class IngestionService:
         )
 
     ) -> int:
+
+        Every row WB publishes is kept. ``(nm_id, dim_id, dt_bonus)`` is not
+        unique — WB emits one row per penalised unit, and rows sharing that key
+        can carry different card dimensions and penalties — so each group is
+        sorted deterministically and numbered (``unit_no``). Sorting rather
+        than trusting WB's page order is what makes a re-harvest idempotent:
+        the same report always yields the same ordinals.
+        """
         payload: list[dict[str, object]] = [
             {
                 "nm_id": r.nm_id,
                 "dim_id": r.dim_id,
                 "dt_bonus": r.dt_bonus,
+                "unit_no": 0,
                 "subject_name": r.subject_name,
                 "prc_over": r.prc_over,
                 "length_sup": r.length_sup,
@@ -317,9 +367,33 @@ class IngestionService:
             for r in rows
             if r.dt_bonus is not None
         ]
-        payload = _dedupe(payload, keys=["nm_id", "dim_id", "dt_bonus"])
+        payload = _number_units(payload)
         return await self._penalties.bulk_upsert(
             payload,
-            conflict_columns=["nm_id", "dim_id", "dt_bonus"],
+            conflict_columns=["nm_id", "dim_id", "dt_bonus", "unit_no"],
             update_columns=_PENALTY_UPDATE,
+        )
+
+    ) -> int:
+        payload: list[dict[str, object]] = [
+            {
+                "nm_id": r.nm_id,
+                "dim_id": r.dim_id,
+                "subject_name": r.subject_name,
+                "length_cm": r.length,
+                "width_cm": r.width,
+                "height_cm": r.height,
+                "volume_l": r.volume,
+                "measured_at": r.measured_at,
+                "photo_url": r.photo_urls[0] if r.photo_urls else "",
+                "workspace_id": workspace_id,
+            }
+            for r in rows
+            if r.dim_id
+        ]
+        payload = _dedupe(payload, keys=["nm_id", "dim_id"])
+        return await self._measurements.bulk_upsert(
+            payload,
+            conflict_columns=["nm_id", "dim_id"],
+            update_columns=_MEASUREMENT_UPDATE,
         )

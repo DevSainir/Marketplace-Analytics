@@ -41,6 +41,7 @@ from src.integrations.wildberries.schemas.content import WBCard, WBCardDimension
 from src.integrations.wildberries.schemas.finance import WBReportDetailRow
 from src.integrations.wildberries.schemas.prices import WBPriceGood, WBPriceSize
 from src.integrations.wildberries.schemas.statistics import WBSaleRecord
+)
 
 __all__ = [
     "WBAdvApp",
