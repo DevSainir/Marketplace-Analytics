@@ -74,8 +74,10 @@ export default {
         // cells picked it up back when `surface` was translucent (glass UI,
         // since removed).
         zebra: '#F1F1F1',
-        // Row hover in the daily table: action-default at ~12% over white
-        // (solid, so the frozen first column stays opaque while scrolling).
+        // The one hover fill for anything sitting on canvas/surface — daily
+        // table rows, secondary buttons, toggles. Action-default at ~12% over
+        // white, flattened (solid, so the frozen first column stays opaque
+        // while scrolling). There is no `surface.hover`: it is `bg-hover`.
         hover: '#E0EFEE',
       },
       textColor: {

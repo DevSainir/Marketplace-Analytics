@@ -49,7 +49,7 @@ defineEmits(['save', 'refresh'])
       <button
         type="button"
         :disabled="!dirty || saving || refreshing"
-        class="inline-flex h-9 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:text-muted disabled:opacity-60"
+        class="inline-flex h-9 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover disabled:cursor-not-allowed disabled:text-muted disabled:opacity-60"
         @click="$emit('save')"
       >
         {{ saving ? 'Сохраняем…' : 'Сохранить' }}

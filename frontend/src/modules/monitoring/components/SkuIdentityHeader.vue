@@ -34,7 +34,7 @@ defineEmits(['toggle-pin'])
       :class="
         isPinned
           ? 'bg-action/10 text-action hover:bg-action/20'
-          : 'bg-surface text-primary hover:bg-surface-hover'
+          : 'bg-surface text-primary hover:bg-hover'
       "
       @click="$emit('toggle-pin')"
     >
