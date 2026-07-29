@@ -58,7 +58,7 @@ export default [
   },
 
   // Vitest globals — for the colocated unit specs and for the cross-unit
-  // integration specs under tests/ (see docs/rules/tests_rules.md §2).
+  // integration specs under tests/ (see the `testing` skill's tier contracts).
   // `globals.node` comes with them: the architecture spec reads the source tree
   // off disk, so it legitimately uses `process` and `node:fs`.
   {

@@ -10,7 +10,7 @@
 # commit; the tiers below it need progressively more infrastructure and are the
 # reason each one is a separate target rather than a single `make test`.
 #
-# See `docs/rules/tests_rules.md` for what belongs in which tier.
+# See `.claude/skills/testing/SKILL.md` for what belongs in which tier.
 
 # Every backend command goes through `uv run --project backend`: uv creates and
 # syncs backend/.venv from uv.lock on demand, so there is no "activate the venv

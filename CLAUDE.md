@@ -2,7 +2,7 @@
 
 Wildberries seller analytics. FastAPI + Celery backend, Vue 3 SPA, PostgreSQL + Redis,
 everything in Docker. A modular monolith: `backend/src/modules/{users,workspaces,monitoring,finreports}`,
-`frontend/src/modules/{auth,monitoring,finreports}`.
+`frontend/src/modules/{auth,profile,monitoring,finreports}`.
 
 ## Repo-wide invariants
 
@@ -21,19 +21,12 @@ All four are machine-enforced — `backend/tests/unit/core/test_module_boundarie
 
 ## Where the rest lives
 
-These are reference, not preamble — open the one you are about to need.
+The project's rules are skills in `.claude/skills/` — `backend-architecture`,
+`wildberries-api`, `frontend-architecture`, `design-system`, `testing`. Each one's description
+says when it applies, so they load themselves when the work calls for them rather than sitting
+in every conversation. Read them directly (they are plain markdown) when working without that
+mechanism, and put new project guidance in the relevant skill rather than here.
 
-| Working on | Read |
-| --- | --- |
-| Backend module layout, DI, DB schemas, auth/session invariants | `docs/rules/architecture_rules.md` |
-| Any WildBerries endpoint, ingestion mapping, or funnel metric | `docs/rules/api_contracts.md` |
-| Vue app structure, stores, the API client | `docs/rules/frontend_architecture.md` |
-| Any UI surface | `docs/rules/design_system.md` |
-| Writing, moving, or deleting a test | `docs/rules/tests_rules.md` |
-| Judging what is already covered, or a known gap | `docs/rules/current_tests.md` |
-
-`api_contracts.md` in particular is a log of things verified against the live WB API that
-its own documentation gets wrong — read it before writing any request by hand.
 
 ## Commands
 
@@ -44,3 +37,8 @@ make lint typecheck   # ruff + eslint + mypy --strict
 ```
 
 `make` with no target lists every runner, including the e2e and performance tiers.
+
+The Makefile drives pytest through `uv`, which lives in `~/.local/bin` and is **not** on a
+non-interactive shell's PATH — `make test-fast` there dies with `uv: command not found`. Either
+export the path first or call the venv directly:
+`cd backend && .venv/bin/python -m pytest tests/unit tests/component`.

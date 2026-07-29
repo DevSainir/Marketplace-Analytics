@@ -3,8 +3,8 @@
 "Integration" here means the whole client is exercised end to end — request
 construction, pagination, envelope unwrapping, and Pydantic validation — with
 only the network replaced. The canned envelopes in ``tests/support/wb_payloads``
-are copied from observed WB responses, because the documented contract in
-``docs/rules/api_contracts.md`` does not match the live API.
+are copied from observed WB responses rather than written from any document, so
+a drafting error in the ``wildberries-api`` skill cannot propagate into them.
 
 Real WB calls are deliberately out of scope: they need live seller tokens, they
 are rate-limited to roughly one request a minute, and they would make the suite

@@ -49,16 +49,13 @@ routers  ->  services  ->  repos  ->  models
   (`GET /api/v1/monitoring/skus/{nm_id}`), plus the cleansed funnel
   (`GET /api/v1/monitoring/funnel/{nm_id}`).
 
-## A note on the spec (layout reconciliation)
+## A note on module layout
 
-`architecture_rules.md` draws the `monitoring` module as **package directories**
-(`models/`, `repos/`, …) while `di_patterns.md` writes them as flat files and
-names the DI file `dependencies.py`. This build honours the **directory tree**
-as the source of truth: `monitoring` uses packages whose `__init__.py`
-re-export the public classes, so the clean import paths from `di_patterns.md`
-(`from src.modules.monitoring.repos import AnalyticsRepository`) still resolve.
-The DI package is named `deps/` (matching the tree). The `users` module uses
-flat files, which the rules permit ("And so on").
+A layer is a flat file until it outgrows the size limit, then a package whose
+`__init__.py` re-exports the same public names — so `monitoring` reads
+`from src.modules.monitoring.repos import AnalyticsRepository` exactly as `users`
+does, and callers never learn which form they are importing from. See the
+`backend-architecture` skill (`.claude/skills/backend-architecture/SKILL.md`).
 
 ## Running locally
 

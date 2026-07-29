@@ -9,7 +9,7 @@ document (``npm run types:api``). That is what these tests guard.
 
 When a module does start calling another over HTTP (or a queue), add its
 consumer-driven contract here and mirror the split in
-``docs/rules/current_tests.md``.
+``.claude/skills/testing/references/coverage-map.md``.
 
 The failure these tests exist to prevent: a renamed field or a widened
 nullability ships, the SPA's generated types are not regenerated, and the UI
@@ -178,7 +178,7 @@ def test_every_protected_route_declares_a_security_scheme(openapi: dict[str, Any
 def test_every_operation_documents_an_error_response(openapi: dict[str, Any]) -> None:
     """Each route declares more than the happy path.
 
-    ``architecture_rules.md`` requires explicit status codes; a document that
+    The ``backend-architecture`` skill requires explicit status codes; a document that
     lists only 200 tells a client nothing about how failures look.
     """
     happy_path_only: list[str] = []

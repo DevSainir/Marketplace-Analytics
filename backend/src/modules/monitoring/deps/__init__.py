@@ -4,9 +4,9 @@ Assembles the repository -> service graph from the global ``DbSession``. The
 presentation layer depends only on :data:`AnalyticsServiceDep`; it never sees a
 session or repository, preserving the router -> service -> repo -> model flow.
 
-The ``deps`` package (rather than a flat ``dependencies.py``) matches the
-directory layout mandated by ``architecture_rules.md`` while exposing the exact
-clean dependency types described in ``di_patterns.md``.
+A package rather than a flat ``deps.py`` only because this module's wiring
+outgrew one file; the exported ``Annotated`` aliases are the same either way
+(see the ``backend-architecture`` skill, "Dependency injection").
 """
 
 from __future__ import annotations

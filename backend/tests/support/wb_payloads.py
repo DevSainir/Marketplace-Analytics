@@ -1,10 +1,9 @@
 """Canned WildBerries API response envelopes.
 
 One place to keep the *real* upstream shapes — not the shapes the code wishes
-WB used. ``docs/rules/api_contracts.md`` documents an idealised contract that
-the live API does not match, so these builders are copied from observed
-responses and are the single source of truth for the integration tier's mock
-transport.
+WB used. Every builder here is copied from an observed response, which is what
+makes them the single source of truth for the integration tier's mock
+transport; the ``wildberries-api`` skill describes the same shapes in prose.
 
 Every builder returns a plain ``dict``/``list`` so a test can mutate one field
 to drive a specific edge case without rebuilding the whole envelope.

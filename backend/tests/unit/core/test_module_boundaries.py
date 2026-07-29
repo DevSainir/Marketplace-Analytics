@@ -1,4 +1,5 @@
-"""Architecture tests: the rules in ``docs/rules/architecture_rules.md``.
+"""Architecture tests: the rules in the ``backend-architecture`` skill
+(``.claude/skills/backend-architecture/SKILL.md``).
 
 These rules were written down and then enforced by review alone. The frontend
 already has a machine gate for the same ideas (``frontend/eslint.config.js``
@@ -15,7 +16,7 @@ instead of blowing up at collection:
 3. **Contracts do not rot.** Every name a contract advertises must actually
    resolve — this is what makes a currently-unconsumed contract (``monitoring``,
    ``finreports``) a maintained surface rather than dead code.
-4. **The 500-line hard limit** on any single source file (rule §7).
+4. **The 500-line hard limit** on any single source file.
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ _BACKEND_ROOT = Path(__file__).resolve().parents[3]
 _SRC = _BACKEND_ROOT / "src"
 _MODULES = _SRC / "modules"
 
-#: Rule §7: no Python source file may exceed this. 300 is the "start looking
+#: No Python source file may exceed this. 300 is the "start looking
 #: for a split" mark; this is the hard ceiling that fails a build.
 _MAX_FILE_LINES = 500
 
@@ -126,7 +127,7 @@ def test_a_contract_advertises_only_names_it_can_actually_export(module: str) ->
 
 
 def test_no_source_file_exceeds_the_hard_line_limit() -> None:
-    """Rule §7: 500 lines is a ceiling, not a suggestion.
+    """500 lines is a ceiling, not a suggestion.
 
     The rule exists because the alternative is what it replaced — single files
     holding several responsibilities that nobody could review as a whole. Split

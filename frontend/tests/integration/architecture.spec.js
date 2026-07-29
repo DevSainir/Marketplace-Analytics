@@ -1,11 +1,12 @@
 /**
- * Architecture tests: the rules in `docs/rules/frontend_architecture.md`.
+ * Architecture tests: the rules in the `frontend-architecture` skill
+ * (`.claude/skills/frontend-architecture/SKILL.md`).
  *
- * ESLint already enforces the import boundaries (§4/§8) — horizontal imports,
- * downward imports from `core/`, and parent-relative paths are all fatal there.
- * What it cannot express is §3's component-size rule and §4's public-API rule,
- * which were enforced by review alone until now. `MetricsTable.vue` had reached
- * 1327 lines against a 250-line limit before anyone noticed.
+ * ESLint already enforces the import boundaries — horizontal imports, downward
+ * imports from `core/`, and parent-relative paths are all fatal there. What it
+ * cannot express is the component-size rule and the public-API rule, which were
+ * enforced by review alone until now. `MetricsTable.vue` had reached 1327 lines
+ * against a 250-line limit before anyone noticed.
  *
  * Lives in `tests/` rather than beside a component because it is about the tree,
  * not about any one unit.
