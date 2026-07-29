@@ -122,6 +122,9 @@ services:
       # does not throw the cache away — rebuilding one is ~5 s of CPU that also
       # costs every other request some event-loop time. Entries are pruned to
       # FINREPORTS_PACKAGE_CACHE_ENTRIES, so this cannot grow without bound.
+      # on purpose: it is an archive of legal documents, so it has to be
+      # visible, backup-able and replaceable without going through Docker, and
+      # WB can purge its CDN copies at any time. Read-only: nothing in the app
     depends_on:
       migrate:
         condition: service_completed_successfully

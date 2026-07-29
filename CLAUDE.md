@@ -1,31 +1,46 @@
-# CLAUDE.md — Project Guidelines & Commands
+# marketplace_service
 
-## 1. Strict Architectural Enforcement
-You must strictly follow the rules defined in the standalone documentation files located in
-the `docs/rules/` directory. BEFORE modifying or creating any code, read and comply with:
-1. `docs/rules/architecture_rules.md` — For Clean Architecture boundaries, module isolation (`contract.py`), UUIDv7 primary keys, and multi-schema PostgreSQL setup.
-2. `docs/rules/api_contracts.md` — For Wildberries API structures, data flattening, and the 3-step data normalization math (OOS masking, promo lift, seasonality).
-3. `docs/rules/di_patterns.md` — For handling asynchronous dependency injection via `Annotated` in `src/core/deps.py` and local modules.
-4. `docs/rules/frontend_architecture.md` — For Vue 3, PrimeVue integration, Axios configuration, and CORS/Docker connectivity
-5. `docs/rules/design_system.md` — For UI aesthetics.
-6. `docs/rules/tests_rules.md` — For the testing pyramid: tier definitions, folder layout, Arrange-Act-Assert, fixture and mocking policy, and what belongs in which tier. Read this BEFORE writing or moving any test.
-7. `docs/rules/current_tests.md` — A living inventory of what is currently covered. Update it whenever you add, move, or delete a test file.
+Wildberries seller analytics. FastAPI + Celery backend, Vue 3 SPA, PostgreSQL + Redis,
+everything in Docker. A modular monolith: `backend/src/modules/{users,workspaces,monitoring,finreports}`,
+`frontend/src/modules/{auth,monitoring,finreports}`.
 
-This file (`CLAUDE.md`) stays in the repository root on purpose: it is the entry point
-Claude Code loads automatically, and it is what points at `docs/rules/`.
+## Repo-wide invariants
 
-## 2. Code Style Notes
-* **Imports:** Use absolute imports starting from `src.` ONLY. Relative imports are strictly forbidden.
-* **Async:** All I/O, database sessions, and external API requests must be 100% asynchronous.
+Four rules that cost more to discover from a failing test than to state here:
 
-## 3. Test Commands
-Run from the repository root:
+* **Imports are absolute from `src.`** — relative imports are not used anywhere in the backend.
+* **Modules talk only through `contract.py`.** No module imports another module's internals;
+  the frontend equivalent is each module's `index.js`.
+* **Every I/O path is async** — DB sessions, HTTP clients, Celery task bodies.
+* **500 lines is a hard ceiling per file**, 300 the point to start looking for a split.
+  Split by responsibility, never `part1`/`part2`; a grown layer module becomes a package
+  with the public API re-exported from `__init__.py`.
+
+All four are machine-enforced — `backend/tests/unit/core/test_module_boundaries.py`,
+`frontend/eslint.config.js`, `frontend/tests/integration/architecture.spec.js`.
+
+## Where the rest lives
+
+These are reference, not preamble — open the one you are about to need.
+
+| Working on | Read |
+| --- | --- |
+| Backend module layout, DI, DB schemas, auth/session invariants | `docs/rules/architecture_rules.md` |
+| Any WildBerries endpoint, ingestion mapping, or funnel metric | `docs/rules/api_contracts.md` |
+| Vue app structure, stores, the API client | `docs/rules/frontend_architecture.md` |
+| Any UI surface | `docs/rules/design_system.md` |
+| Writing, moving, or deleting a test | `docs/rules/tests_rules.md` |
+| Judging what is already covered, or a known gap | `docs/rules/current_tests.md` |
+
+`api_contracts.md` in particular is a log of things verified against the live WB API that
+its own documentation gets wrong — read it before writing any request by hand.
+
+## Commands
 
 ```bash
 make test-fast        # backend unit + component, frontend unit — the pre-commit gate
-make test-integration # real Postgres/Redis tier (auto-skips when they are unreachable)
-make test-e2e         # Playwright user flows against the running stack
-make test-perf        # k6 load/spike/DDoS profiles + pytest resilience probes
+make test-integration # real Postgres/Redis (auto-skips when unreachable)
+make lint typecheck   # ruff + eslint + mypy --strict
 ```
 
-See `docs/rules/tests_rules.md` for the full command list and tier contracts.
+`make` with no target lists every runner, including the e2e and performance tiers.
