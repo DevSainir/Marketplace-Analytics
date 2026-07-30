@@ -241,6 +241,18 @@ export async function refreshSku(nmId) {
 }
 
 /**
+ * POST /v1/monitoring/skus/refresh-all — enqueue a fresh WB harvest for EVERY
+ * SKU in the workspace. Returns the Celery task id to poll with
+ * {@link getRefreshStatus}, exactly like the single-SKU refresh.
+ *
+ * @returns {Promise<{task_id: string}>}
+ */
+export async function refreshAllSkus() {
+  const { data } = await apiClient.post('/v1/monitoring/skus/refresh-all')
+  return data
+}
+
+/**
  * GET /v1/monitoring/refresh/{task_id} — poll a refresh task's state.
  *
  * @param {string} taskId Celery task id from {@link refreshSku}.

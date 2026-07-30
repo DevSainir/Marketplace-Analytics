@@ -62,7 +62,7 @@ async def test_a_pass_that_wb_never_answered_raises(monkeypatch: pytest.MonkeyPa
     """Every day refused is an outage; the task must fail so it gets retried."""
     client = RefusingAnalyticsClient()
     monkeypatch.setattr(
-        "src.modules.monitoring.tasks.cohorts.WBAnalyticsClient",
+        "src.modules.monitoring.tasks.cohorts.build_analytics_client",
         lambda *args, **kwargs: client,
     )
 
@@ -81,7 +81,7 @@ async def test_a_workspace_without_an_analytics_token_is_skipped_not_failed(
     everyone else's healthy pass.
     """
     monkeypatch.setattr(
-        "src.modules.monitoring.tasks.cohorts.WBAnalyticsClient",
+        "src.modules.monitoring.tasks.cohorts.build_analytics_client",
         lambda *args, **kwargs: RefusingAnalyticsClient(),
     )
 

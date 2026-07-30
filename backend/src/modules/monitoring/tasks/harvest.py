@@ -18,11 +18,12 @@ from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries import (
-    WBAdvertisingClient,
     WBAnalyticsClient,
-    WBCardClient,
-    WBPricesClient,
-    WBStatisticsClient,
+    build_advertising_client,
+    build_analytics_client,
+    build_card_client,
+    build_prices_client,
+    build_statistics_client,
 )
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
@@ -162,11 +163,11 @@ async def _harvest_sku_window(
         able to tell the two apart.
     """
     async with (
-        WBAnalyticsClient(settings, token=tokens.analytics) as analytics_client,
-        WBAdvertisingClient(settings, token=tokens.advertising) as advertising_client,
-        WBPricesClient(settings, token=tokens.prices) as prices_client,
-        WBCardClient(settings) as card_client,
-        WBStatisticsClient(settings, token=tokens.statistics) as statistics_client,
+        build_analytics_client(settings, token=tokens.analytics) as analytics_client,
+        build_advertising_client(settings, token=tokens.advertising) as advertising_client,
+        build_prices_client(settings, token=tokens.prices, nm_ids=nm_ids) as prices_client,
+        build_card_client(settings) as card_client,
+        build_statistics_client(settings, token=tokens.statistics) as statistics_client,
     ):
         # Fire the independent WB calls concurrently and RESILIENTLY:
         # ``return_exceptions`` keeps one failing source (e.g. a stale funnel

@@ -6,6 +6,7 @@ import {
   fetchStockDay,
   getRefreshStatus,
   lookupSkus,
+  refreshAllSkus,
   refreshSku,
 } from '@/modules/monitoring/api'
 import { useMonitoringStore } from '@/modules/monitoring/store'
@@ -16,6 +17,7 @@ vi.mock('@/modules/monitoring/api', () => ({
   fetchStockDay: vi.fn(),
   getRefreshStatus: vi.fn(),
   lookupSkus: vi.fn(),
+  refreshAllSkus: vi.fn(),
   refreshSku: vi.fn(),
 }))
 
@@ -477,5 +479,50 @@ describe('refreshFromWb', () => {
 
     expect(store.actionWarning).toBeNull()
     expect(store.actionError).toBeNull()
+  })
+})
+
+describe('refreshAllFromWb', () => {
+  beforeEach(() => {
+    fetchSkuSummary.mockResolvedValue({ items: [] })
+  })
+
+  it('refreshes the SKU list once the bulk harvest reports success', async () => {
+    // The button lives on the empty/list view too, so a run with no SKU open
+    // must still complete and repaint the list — not depend on a current SKU.
+    refreshAllSkus.mockResolvedValue({ task_id: 'task-all-1' })
+    getRefreshStatus
+      .mockResolvedValueOnce({ ready: false, successful: false })
+      .mockResolvedValueOnce({ ready: true, successful: true, failed_sources: [] })
+
+    await store.refreshAllFromWb()
+
+    expect(refreshAllSkus).toHaveBeenCalledOnce()
+    expect(fetchSkuSummary).toHaveBeenCalled()
+    expect(store.allRefreshError).toBeNull()
+    expect(store.allRefreshing).toBe(false)
+  })
+
+  it('surfaces an error and does not repaint when the task fails', async () => {
+    refreshAllSkus.mockResolvedValue({ task_id: 'task-all-2' })
+    getRefreshStatus.mockResolvedValue({ ready: true, successful: false })
+
+    await store.refreshAllFromWb()
+
+    expect(fetchSkuSummary).not.toHaveBeenCalled()
+    expect(store.allRefreshError).toBeTruthy()
+    expect(store.allRefreshing).toBe(false)
+  })
+
+  it('surfaces the error when there is nothing to refresh (404 on enqueue)', async () => {
+    // An empty workspace returns 404 from the enqueue endpoint; the message must
+    // reach the button's own error slot, not the metrics table's actionError.
+    refreshAllSkus.mockRejectedValue(new Error('В воркспейсе нет ни одного SKU для обновления.'))
+
+    await store.refreshAllFromWb()
+
+    expect(store.allRefreshError).toBeTruthy()
+    expect(store.actionError).toBeNull()
+    expect(store.allRefreshing).toBe(false)
   })
 })

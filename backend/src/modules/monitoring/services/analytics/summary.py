@@ -50,6 +50,14 @@ class SummaryAnalytics:
         self._sales = sale_repo
         self._product_cards = product_card_repo
 
+    async def list_workspace_nm_ids(self, *, workspace_id: uuid.UUID) -> list[int]:
+        """Return every SKU registered to the workspace.
+
+        Backs the bulk «Обновить все SKU» refresh: the route enqueues a harvest
+        over exactly this list.
+        """
+        return await self._product_cards.list_workspace_nm_ids(workspace_id)
+
     async def get_summary(
         self,
         *,

@@ -113,6 +113,27 @@ class ProductCardRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none() is not None
 
+    async def list_workspace_nm_ids(self, workspace_id: uuid.UUID) -> list[int]:
+        """Return every SKU registered to a workspace, ascending by ``nm_id``.
+
+        Backs the bulk «Обновить все SKU» refresh (enqueue a harvest over the
+        whole catalogue) and the fake-harvest discovery path (which re-harvests
+        the SKUs already on file instead of calling the Content API).
+
+        Args:
+            workspace_id: The workspace whose catalogue to enumerate.
+
+        Returns:
+            The workspace's ``nm_id`` list (empty when it owns no SKUs yet).
+        """
+        stmt = (
+            select(ProductCard.nm_id)
+            .where(ProductCard.workspace_id == workspace_id)
+            .order_by(ProductCard.nm_id)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_workspace_of_sku(self, nm_id: int) -> uuid.UUID | None:
         """Return the owning workspace of a SKU, or ``None`` if unregistered.
 

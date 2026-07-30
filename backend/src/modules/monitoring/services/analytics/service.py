@@ -117,6 +117,10 @@ class AnalyticsService:
     # ------------------------------------------------------------------ #
     # Summary listing + lookup
     # ------------------------------------------------------------------ #
+    async def list_workspace_nm_ids(self, *, workspace_id: uuid.UUID) -> list[int]:
+        """Delegate to :meth:`SummaryAnalytics.list_workspace_nm_ids`."""
+        return await self._summary.list_workspace_nm_ids(workspace_id=workspace_id)
+
     async def get_summary(
         self,
         *,

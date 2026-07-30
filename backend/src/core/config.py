@@ -152,6 +152,18 @@ class Settings(BaseSettings):
     # How many built packages to keep. Each is a few MB, and a full disk on this
     # box has taken the API down before, so the oldest are pruned.
     finreports_package_cache_entries: int = Field(default=24, ge=1)
+    # Fake WB harvesting for LOCAL development. When on, the harvest tasks build
+    # synthetic WB clients instead of the real HTTP ones (see
+    # ``src.integrations.wildberries.build_*_client``): no request ever leaves
+    # the box, and deterministic, plausible rows are written to the real tables
+    # so the UI and pipeline stay debuggable without burning WB's rate budget.
+    #
+    # The code path is IDENTICAL to production — only this flag differs — so
+    # local and prod never diverge. It is refused outright on any non-local
+    # environment (see ``_enforce_production_hardening``): fabricated analytics
+    # must never reach a real seller's dashboard, so prod cannot even boot with
+    # it on. EMPTY/false everywhere but a developer's own ``.env``.
+    wb_fake_harvest: bool = Field(default=False)
     wb_http_timeout_seconds: float = Field(default=30.0)
     # WB (esp. the advertising surface) is aggressively rate-limited (~1 req/min
     # -> HTTP 429). Requests retry with exponential backoff, honouring any
@@ -252,6 +264,10 @@ class Settings(BaseSettings):
             problems.append("REDIS_PASSWORD is unset or a known placeholder")
         if self.debug:
             problems.append("DEBUG must be false (leaks tracebacks and SQL echo)")
+        # Synthetic harvesting fabricates analytics; letting it run anywhere but
+        # a developer's own box would silently poison a real seller's numbers.
+        if self.wb_fake_harvest:
+            problems.append("WB_FAKE_HARVEST must be off (it writes fabricated WB data)")
 
         if problems:
             raise ValueError(

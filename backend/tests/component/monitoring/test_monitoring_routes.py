@@ -42,6 +42,13 @@ class _StubAnalyticsService:
     def __init__(self) -> None:
         """Start with no recorded calls and benign default answers."""
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        #: SKUs the bulk «Обновить все SKU» refresh will enqueue over.
+        self.workspace_nm_ids: list[int] = [NM_ID]
+
+    async def list_workspace_nm_ids(self, **kwargs: Any) -> list[int]:
+        """Return the workspace's SKU list, recording the call."""
+        self.calls.append(("list_workspace_nm_ids", kwargs))
+        return self.workspace_nm_ids
 
     async def get_summary(self, **kwargs: Any) -> SkuSummaryListResponse:
         """Return an empty listing, recording the resolved window and paging."""
@@ -308,7 +315,7 @@ class _FakeAsyncResult:
 @pytest.fixture
 def _fake_celery_result(monkeypatch: pytest.MonkeyPatch) -> None:
     """Replace Celery's result lookup for the refresh-status route."""
-    monkeypatch.setattr("src.modules.monitoring.routers.AsyncResult", _FakeAsyncResult)
+    monkeypatch.setattr("src.modules.monitoring.routers.refresh.AsyncResult", _FakeAsyncResult)
 
 
 @pytest.mark.usefixtures("_fake_celery_result")
@@ -330,7 +337,7 @@ async def test_a_refresh_task_id_is_only_readable_by_the_workspace_that_enqueued
     key it writes and the comparison it makes — untested.
     """
     monkeypatch.setattr(
-        "src.modules.monitoring.routers.harvest_sku_window.delay",
+        "src.modules.monitoring.routers.refresh.harvest_sku_window.delay",
         lambda nm_ids: type("Task", (), {"id": "task-abc"})(),
     )
 
@@ -358,7 +365,7 @@ async def test_a_refresh_task_is_invisible_to_a_different_workspace(
     workspace comparison can reject it.
     """
     monkeypatch.setattr(
-        "src.modules.monitoring.routers.harvest_sku_window.delay",
+        "src.modules.monitoring.routers.refresh.harvest_sku_window.delay",
         lambda nm_ids: type("Task", (), {"id": "task-xyz"})(),
     )
     other = make_workspace(name="Другое пространство")
@@ -393,7 +400,7 @@ async def test_a_partially_served_refresh_reports_which_wb_sources_failed(
         _FakeAsyncResult, "payload", {"funnel_rows": 0, "failed_sources": ["sales-funnel"]}
     )
     monkeypatch.setattr(
-        "src.modules.monitoring.routers.harvest_sku_window.delay",
+        "src.modules.monitoring.routers.refresh.harvest_sku_window.delay",
         lambda nm_ids: type("Task", (), {"id": "task-partial"})(),
     )
 
@@ -419,7 +426,7 @@ async def test_a_task_result_without_the_field_is_read_as_no_failures(
     """
     monkeypatch.setattr(_FakeAsyncResult, "payload", {"funnel_rows": 12})
     monkeypatch.setattr(
-        "src.modules.monitoring.routers.harvest_sku_window.delay",
+        "src.modules.monitoring.routers.refresh.harvest_sku_window.delay",
         lambda nm_ids: type("Task", (), {"id": "task-legacy"})(),
     )
 
@@ -428,3 +435,56 @@ async def test_a_task_result_without_the_field_is_read_as_no_failures(
 
     assert status.status_code == 200
     assert status.json()["failed_sources"] == []
+
+
+# --------------------------------------------------------------------------- #
+# Bulk «Обновить все SKU»
+# --------------------------------------------------------------------------- #
+async def test_refresh_all_enqueues_a_harvest_over_every_workspace_sku(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    analytics: _StubAnalyticsService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bulk refresh harvests exactly the workspace's own SKU list.
+
+    The single task must carry every SKU the workspace owns — the whole point of
+    the button — and no others, so the harvest cannot reach into another tenant.
+    """
+    analytics.workspace_nm_ids = [NM_ID, 424242]
+    captured: dict[str, Any] = {}
+
+    def _capture(nm_ids: list[int]) -> Any:
+        captured["nm_ids"] = nm_ids
+        return type("Task", (), {"id": "task-all"})()
+
+    monkeypatch.setattr("src.modules.monitoring.routers.refresh.harvest_sku_window.delay", _capture)
+
+    response = await client.post("/api/v1/monitoring/skus/refresh-all", headers=headers)
+
+    assert response.status_code == 202
+    assert response.json()["task_id"] == "task-all"
+    assert captured["nm_ids"] == [NM_ID, 424242]
+
+
+async def test_refresh_all_on_an_empty_workspace_is_a_404(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    analytics: _StubAnalyticsService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no SKUs there is nothing to harvest, and enqueuing an empty task
+    would crash the worker (it indexes ``nm_ids[0]`` to resolve the workspace),
+    so the route refuses up front instead."""
+    analytics.workspace_nm_ids = []
+
+    def _must_not_enqueue(nm_ids: list[int]) -> Any:  # pragma: no cover - must not run
+        raise AssertionError("no harvest should be enqueued for an empty workspace")
+
+    monkeypatch.setattr(
+        "src.modules.monitoring.routers.refresh.harvest_sku_window.delay", _must_not_enqueue
+    )
+
+    response = await client.post("/api/v1/monitoring/skus/refresh-all", headers=headers)
+
+    assert response.status_code == 404

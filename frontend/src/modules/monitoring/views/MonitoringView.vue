@@ -10,6 +10,7 @@ import PeriodSelector from '@/modules/monitoring/components/PeriodSelector.vue'
 import SkuIdentityHeader from '@/modules/monitoring/components/SkuIdentityHeader.vue'
 import SkuMatchPicker from '@/modules/monitoring/components/SkuMatchPicker.vue'
 import PinnedSkuRow from '@/modules/monitoring/components/PinnedSkuRow.vue'
+import RefreshAllSkusButton from '@/modules/monitoring/components/RefreshAllSkusButton.vue'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
 import StockComparePanel from '@/modules/monitoring/components/StockComparePanel.vue'
 import { useMonitoringStore } from '@/modules/monitoring/store'
@@ -117,8 +118,17 @@ onMounted(() => store.fetchPins())
     <div class="w-full">
       <h1 class="sr-only">Мониторинг SKU</h1>
 
-      <!-- Period selector, slightly above the search bar -->
-      <PeriodSelector v-model:from="dateFrom" v-model:to="dateTo" class="mb-sm" />
+      <!-- Period selector, slightly above the search bar; the bulk WB refresh
+           sits beside it and stays visible with or without a SKU open. -->
+      <div class="mb-sm flex flex-wrap items-start justify-between gap-sm">
+        <PeriodSelector v-model:from="dateFrom" v-model:to="dateTo" />
+        <RefreshAllSkusButton
+          :refreshing="store.allRefreshing"
+          :error="store.allRefreshError"
+          :warning="store.allRefreshWarning"
+          @refresh="store.refreshAllFromWb()"
+        />
+      </div>
 
       <!-- Search bar: apply on the left, dropdown with all SKUs below -->
       <SkuSearchSelect

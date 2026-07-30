@@ -14,6 +14,8 @@ from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries import WBContentClient
+from src.integrations.wildberries.schemas import WBCard
+from src.modules.monitoring.repos import ProductCardRepository
 from src.modules.monitoring.tasks.common import _TASK_RETRY_KWARGS
 from src.modules.monitoring.tasks.harvest import _harvest_sku_window
 from src.modules.workspaces.contract import (
@@ -53,15 +55,26 @@ async def _discover_and_harvest_workspace(
         IntegrationError: If the workspace has no analytics token (discovery
             is impossible without it) or discovery itself fails.
     """
-    if not tokens.content:
-        raise IntegrationError(
-            f"Workspace '{tokens.name}' has no content/analytics token; cannot discover its SKUs."
-        )
-    async with WBContentClient(settings, token=tokens.content) as content:
-        cards = await content.fetch_all_cards()
-    nm_ids = [card.nm_id for card in cards]
+    if settings.wb_fake_harvest:
+        # Fake harvesting never calls the Content API. The SKUs already on file
+        # keep their catalogue rows (vendor codes + size labels), so discovery
+        # just re-harvests them with fresh synthetic facts — no card refresh
+        # (``cards=None``), and no invented/garbage SKUs.
+        async with AsyncSessionLocal() as session:
+            nm_ids = await ProductCardRepository(session).list_workspace_nm_ids(tokens.workspace_id)
+        cards: list[WBCard] | None = None
+    else:
+        if not tokens.content:
+            raise IntegrationError(
+                f"Workspace '{tokens.name}' has no content/analytics token; "
+                "cannot discover its SKUs."
+            )
+        async with WBContentClient(settings, token=tokens.content) as content:
+            fetched = await content.fetch_all_cards()
+        nm_ids = [card.nm_id for card in fetched]
+        cards = fetched
     logger.info(
-        "Discovered %d SKUs from the content API for workspace '%s'.",
+        "Discovered %d SKUs for workspace '%s'.",
         len(nm_ids),
         tokens.name,
     )

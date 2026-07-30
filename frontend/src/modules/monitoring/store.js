@@ -18,6 +18,7 @@ import {
   getRefreshStatus,
   lookupSkus,
   previewMatrixEdit,
+  refreshAllSkus,
   refreshSku,
   reorderPinnedSkus,
   saveMatrix,
@@ -49,6 +50,17 @@ const REFRESH_POLL_INTERVAL_MS = 600
  * into a visible failure.
  */
 const REFRESH_POLL_CEILING_MS = 6 * 60 * 1000
+
+/**
+ * Ceiling for the bulk «Обновить все SKU» harvest, which covers the whole
+ * catalogue in one task. It is not many-times the single-SKU worst case — the
+ * funnel is fetched in chunks of 20 nmIDs, so a 50-SKU account is a handful of
+ * extra analytics calls, not 50× — but each of those can still queue behind
+ * WB's rate budget, so the ceiling is doubled to keep a genuinely slow bulk run
+ * from being reported as a failure. (Locally, under WB_FAKE_HARVEST, it returns
+ * in well under a second.)
+ */
+const REFRESH_ALL_POLL_CEILING_MS = 12 * 60 * 1000
 
 /**
  * Interval the poll relaxes to after the first few seconds. The harvest is
@@ -138,6 +150,17 @@ export const useMonitoringStore = defineStore('monitoring', () => {
    * retry right now — it explains, it does not alarm.
    */
   const actionWarning = ref(null)
+
+  /** A bulk «Обновить все SKU» harvest is in flight (enqueue + poll). */
+  const allRefreshing = ref(false)
+  /**
+   * Error/partial-outcome messages for the BULK refresh, kept separate from
+   * `actionError`/`actionWarning`: the bulk button lives beside the period
+   * picker and is visible with no SKU open, so its messages must not surface
+   * under the metrics table (and vice versa).
+   */
+  const allRefreshError = ref(null)
+  const allRefreshWarning = ref(null)
 
   // Window/filter params of the latest search, reused when the user picks one
   // of several vendor-code matches.
@@ -685,6 +708,61 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     }
   }
 
+  /**
+   * «Обновить все SKU»: re-harvest the WHOLE workspace catalogue from WB (one
+   * task over every SKU, discarding their manual edits), poll it to completion,
+   * then refresh what's on screen — the SKU list always, and the open SKU's
+   * detail if one is shown. Independent of {@link refreshFromWb}: it can run on
+   * the empty/list view where no SKU is selected.
+   */
+  async function refreshAllFromWb() {
+    if (allRefreshing.value) return
+    allRefreshing.value = true
+    allRefreshError.value = null
+    allRefreshWarning.value = null
+    try {
+      const { task_id: taskId } = await refreshAllSkus()
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+      const startedAt = Date.now()
+      let ready = false
+      let failedSources = []
+      while (Date.now() - startedAt < REFRESH_ALL_POLL_CEILING_MS) {
+        const status = await getRefreshStatus(taskId)
+        if (status.ready) {
+          if (!status.successful) throw new Error('Не удалось обновить данные из Wildberries.')
+          ready = true
+          failedSources = status.failed_sources ?? []
+          break
+        }
+        const elapsed = Date.now() - startedAt
+        await wait(
+          elapsed < REFRESH_POLL_RELAX_AFTER_MS
+            ? REFRESH_POLL_INTERVAL_MS
+            : REFRESH_POLL_SLOW_INTERVAL_MS,
+        )
+      }
+      if (!ready) {
+        throw new Error(
+          'Обновление всех SKU не завершилось за отведённое время. ' +
+            'Данные могут обновиться позже — попробуйте ещё раз.',
+        )
+      }
+      // Reflect the fresh data: the list always, and the open SKU if any.
+      await fetchSkuList(lastParams)
+      if (currentProduct.value) {
+        await fetchProductData(currentProduct.value.nm_id, lastParams)
+      }
+      allRefreshWarning.value = failedSources.length
+        ? `Wildberries не отдал: ${failedSources.map(sourceLabel).join(', ')}. ` +
+          'Эти данные остались прежними — попробуйте позже.'
+        : null
+    } catch (err) {
+      allRefreshError.value = extractErrorMessage(err)
+    } finally {
+      allRefreshing.value = false
+    }
+  }
+
   /** Back to the pristine state (e.g. the URL query was cleared); aborts any in-flight search. */
   function reset() {
     requestSeq += 1 // in-flight responses become stale
@@ -750,5 +828,10 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     redoMatrixEdit,
     saveMatrixEdits,
     refreshFromWb,
+    // bulk «Обновить все SKU»
+    allRefreshing,
+    allRefreshError,
+    allRefreshWarning,
+    refreshAllFromWb,
   }
 })

@@ -14,7 +14,7 @@ from src.core.database import AsyncSessionLocal, run_task
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.timeutils import moscow_today
-from src.integrations.wildberries import WBAnalyticsClient
+from src.integrations.wildberries import build_analytics_client
 from src.modules.monitoring.repos import (
     AdvertisingRepository,
     AdvertisingSearchRepository,
@@ -91,7 +91,7 @@ async def _refresh_workspace_cohorts(tokens: WorkspaceTokenBundle, days: int) ->
     end = moscow_today() - timedelta(days=1)  # WB serves no current-day data
     refreshed = 0
     served = 0
-    async with WBAnalyticsClient(settings, token=tokens.analytics) as analytics_client:
+    async with build_analytics_client(settings, token=tokens.analytics) as analytics_client:
         for offset in range(days):
             day = end - timedelta(days=offset)
             try:

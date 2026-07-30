@@ -64,6 +64,7 @@ def test_local_environment_tolerates_placeholder_secrets(
         ("REDIS_PASSWORD", "redis-dev-password", "REDIS_PASSWORD"),
         ("FERNET_SECRET_KEY", "", "FERNET_SECRET_KEY"),
         ("DEBUG", "true", "DEBUG must be false"),
+        ("WB_FAKE_HARVEST", "true", "WB_FAKE_HARVEST"),
     ],
 )
 def test_production_refuses_each_insecure_default(
@@ -76,6 +77,31 @@ def test_production_refuses_each_insecure_default(
     env = {**_SECURE_ENV, field: value}
 
     with pytest.raises(ValueError, match=expected_message):
+        _settings(env, monkeypatch)
+
+
+def test_local_allows_fake_harvesting(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fake WB harvesting is a local-only convenience and is accepted there.
+
+    It swaps the real WB clients for synthetic ones so local dev stops spending
+    WB's rate budget; the value must actually read back as ``True`` so the
+    factory seam takes the synthetic branch.
+    """
+    settings = _settings({"ENVIRONMENT": "local", "WB_FAKE_HARVEST": "true"}, monkeypatch)
+
+    assert settings.wb_fake_harvest is True
+
+
+def test_production_refuses_fake_harvesting(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fake harvesting cannot boot outside local: it fabricates analytics.
+
+    Letting it run on a deployed environment would silently write invented
+    numbers onto a real seller's dashboard, so the guard refuses startup rather
+    than trusting the flag to be off by luck.
+    """
+    env = {**_SECURE_ENV, "WB_FAKE_HARVEST": "true"}
+
+    with pytest.raises(ValueError, match="WB_FAKE_HARVEST"):
         _settings(env, monkeypatch)
 
 
