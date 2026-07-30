@@ -27,6 +27,9 @@ says when it applies, so they load themselves when the work calls for them rathe
 in every conversation. Read them directly (they are plain markdown) when working without that
 mechanism, and put new project guidance in the relevant skill rather than here.
 
+`docs/finreports/` holds what no skill covers: how the P&L is derived from WB's weekly
+Read `PNL.md` before changing anything that touches a settlement figure — most of the ways to
+get it wrong produce a plausible statement rather than an error.
 
 ## Commands
 

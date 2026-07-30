@@ -12,6 +12,7 @@ from datetime import date
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.base import BaseWBClient
+from src.integrations.wildberries.rate_limit import analytics_rate_gate
 from src.integrations.wildberries.schemas import (
     WBFunnelAggregateRow,
     WBFunnelHistoryRow,
@@ -45,6 +46,10 @@ class WBAnalyticsClient(BaseWBClient):
             max_retries=settings.wb_max_retries,
             backoff_base_seconds=settings.wb_retry_backoff_seconds,
             backoff_max_seconds=settings.wb_retry_max_backoff_seconds,
+            # This surface is the one that took the site's funnel data out on
+            # 2026-07-30: its buckets are small, and overrunning them makes WB
+            # stall the connection rather than answer 429. Pace before sending.
+            rate_gate=analytics_rate_gate(settings, token=token),
         )
 
     async def fetch_sales_funnel(

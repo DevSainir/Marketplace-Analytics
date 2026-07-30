@@ -117,7 +117,8 @@ def _wire_finreports(
     async def _workspace_name(session: Any, workspace_id: Any) -> str:
         return workspace.name
 
-    monkeypatch.setattr("src.modules.finreports.routers.load_workspace_name", _workspace_name)
+    monkeypatch.setattr(
+    )
 
 
 @pytest.fixture

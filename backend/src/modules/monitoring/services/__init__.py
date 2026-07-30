@@ -23,6 +23,12 @@ insulated from the internal package layout.
 """
 
 from src.modules.monitoring.services.analytics import AnalyticsService
+from src.modules.monitoring.services.exports import (
+    ad_coverage,
+    funnel_coverage,
+    load_ad_spend_by_nm,
+    load_orders_by_nm,
+)
 from src.modules.monitoring.services.ingestion import IngestionService
 from src.modules.monitoring.services.refresh_tracking import (
     bind_task_to_workspace,
@@ -32,6 +38,10 @@ from src.modules.monitoring.services.refresh_tracking import (
 __all__ = [
     "AnalyticsService",
     "IngestionService",
+    "ad_coverage",
     "bind_task_to_workspace",
+    "funnel_coverage",
+    "load_ad_spend_by_nm",
+    "load_orders_by_nm",
     "task_belongs_to_workspace",
 ]

@@ -42,6 +42,9 @@ function onLogout() {
 const navLinks = [
   { to: '/', label: 'Главная', exact: true },
   { to: '/monitoring', label: 'Мониторинг', exact: false },
+  // One entry for finreports, pointing at the P&L: the логистика claim and the
+  // cost-price editor are reached from the statement, where their numbers live.
+  { to: '/finreports', label: 'Прибыли и убытки', exact: false },
 ]
 </script>
 

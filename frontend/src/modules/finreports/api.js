@@ -2,11 +2,65 @@
  * FinReports module API layer — thin async wrappers over the backend's
  * `/api/v1/finreports/*` endpoints (see backend `finreports/routers`).
  *
- * SCAFFOLD: the backend answers `501 Not Implemented` until the WB finance
- * token is provisioned. These wrappers are the stable shape the store/view will
- * consume; errors propagate to the caller.
  */
 import apiClient from '@/core/api/axios'
+
+/**
+ * GET /v1/finreports/pnl — the settlement-basis profit-and-loss statement.
+ *
+ * @param {{date_from?: string, date_to?: string, grouping?: 'week'|'month'|'sku'}} [params]
+ * @param {AbortSignal} [signal] Cancels the request when a newer fetch starts.
+ * @returns {Promise<object>} `{ total, buckets, notes, ... }`
+ */
+export async function fetchPnl(params = {}, signal) {
+  const { data } = await apiClient.get('/v1/finreports/pnl', { params, signal })
+  return data
+}
+
+/**
+ * GET /v1/finreports/pnl/skus — the per-SKU P&L cut («По артикулам») for an
+ * arbitrary settlement-date window.
+ *
+ * @param {{date_from?: string, date_to?: string}} [params]
+ * @param {AbortSignal} [signal] Cancels the request when a newer fetch starts.
+ * @returns {Promise<object>} `{ rows, unallocated, totals, notes, ... }`
+ */
+export async function fetchSkuPnl(params = {}, signal) {
+  const { data } = await apiClient.get('/v1/finreports/pnl/skus', { params, signal })
+  return data
+}
+
+/**
+ * GET /v1/finreports/cost-prices — costs on file plus the SKUs still missing one.
+ *
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<{currency: string, items: Array<object>, missing: Array<object>}>}
+ */
+export async function fetchCostPrices(signal) {
+  const { data } = await apiClient.get('/v1/finreports/cost-prices', { signal })
+  return data
+}
+
+/**
+ * PUT /v1/finreports/cost-prices — save the whole edited grid in one request.
+ *
+ * @param {Array<{nm_id: number, cost: number, currency?: string, vendor_code?: string, note?: string}>} items
+ * @returns {Promise<{saved: number}>}
+ */
+export async function saveCostPrices(items) {
+  const { data } = await apiClient.put('/v1/finreports/cost-prices', { items })
+  return data
+}
+
+/**
+ * DELETE /v1/finreports/cost-prices/{nmId} — clear one SKU's cost.
+ *
+ * @param {number} nmId
+ * @returns {Promise<void>}
+ */
+export async function deleteCostPrice(nmId) {
+  await apiClient.delete(`/v1/finreports/cost-prices/${nmId}`)
+}
 
 /**
  * GET /v1/finreports/weeks — the WB weekly report periods (newest first) that

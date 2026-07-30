@@ -17,6 +17,7 @@ import httpx
 
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
+from src.integrations.wildberries.rate_limit import NullRateGate, RateGate
 
 logger = get_logger(__name__)
 
@@ -97,6 +98,7 @@ class BaseWBClient:
         max_retries: int = 4,
         backoff_base_seconds: float = 2.0,
         backoff_max_seconds: float = 60.0,
+        rate_gate: RateGate | None = None,
     ) -> None:
         """Configure the client transport and retry policy.
 
@@ -112,8 +114,15 @@ class BaseWBClient:
             backoff_base_seconds: Base for the exponential backoff sequence
                 ``base * 2**(attempt - 1)``.
             backoff_max_seconds: Upper bound applied to any single backoff wait.
+            rate_gate: Pacing gate consulted before **every** attempt, retries
+                included. Retrying without it is what made the 2026-07-30
+                incident: the backoff ladder starts inside WB's bucket window,
+                so each attempt hit the same empty bucket and paid a 30s
+                stall. Defaults to no pacing for surfaces with no measured
+                bucket.
         """
         self._max_retries = max_retries
+        self._rate_gate: RateGate = rate_gate or NullRateGate()
         self._backoff_base = backoff_base_seconds
         self._backoff_max = backoff_max_seconds
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
@@ -158,6 +167,11 @@ class BaseWBClient:
             params: Optional query-string parameters.
             json_body: Optional JSON request body.
 
+        Every attempt — the first and each retry — passes the rate gate first,
+        so a retry can never re-enter an empty WB bucket. WB's own
+        ``x-ratelimit-remaining`` on the answer is fed back to the gate, which
+        is what keeps the pacing correct when another process shares the token.
+
         Retries retriable failures (HTTP 429 / transient 5xx / transport
         errors) up to ``max_retries`` times with exponential backoff, honouring
         a ``Retry-After`` header when WB supplies one. Non-retriable 4xx errors
@@ -173,8 +187,10 @@ class BaseWBClient:
         last_exc: httpx.HTTPError | None = None
 
         for attempt in range(self._max_retries + 1):
+            await self._rate_gate.acquire(path)
             try:
                 response = await self._client.request(method, path, params=params, json=json_body)
+                await self._observe_rate_headers(path, response)
                 response.raise_for_status()
                 # An empty 200 body (WB returns one for out-of-range historical
                 # windows) is not valid JSON — treat it as "no data" (``None``)
@@ -234,6 +250,27 @@ class BaseWBClient:
 
         # Unreachable: the loop either returns or raises. Guard for type safety.
         raise IntegrationError(f"WildBerries API request failed on {path}.") from last_exc
+
+    async def _observe_rate_headers(self, path: str, response: httpx.Response) -> None:
+        """Teach the gate what WB just said about this endpoint's budget.
+
+        The analytics surface answers ``x-ratelimit-remaining`` and nothing else
+        (no ``limit``, ``reset`` or ``retry`` — verified live 2026-07-30), so
+        that single header is the whole feedback channel. A malformed value is
+        ignored rather than guessed at.
+
+        Args:
+            path: The endpoint whose bucket this response describes.
+            response: The answer WB gave, successful or not.
+        """
+        raw = response.headers.get("X-Ratelimit-Remaining")
+        if raw is None:
+            return
+        try:
+            remaining = int(raw.strip())
+        except ValueError:
+            return
+        await self._rate_gate.observe(path, remaining)
 
     def _retry_delay(self, attempt: int, response: httpx.Response | None) -> float:
         """Compute the backoff delay before the next retry.

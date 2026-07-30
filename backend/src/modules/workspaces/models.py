@@ -6,7 +6,6 @@ tokens are stored **encrypted** (Fernet, key from ``FERNET_SECRET_KEY``) — the
 database never sees a plaintext WB credential.
 """
 
-# ruff: noqa: RUF002, RUF003 — Russian WB category labels are intentionally Cyrillic.
 from __future__ import annotations
 
 import enum

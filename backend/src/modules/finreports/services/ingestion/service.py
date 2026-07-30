@@ -4,12 +4,15 @@ Pure persistence (mirrors monitoring's ingestion): each method maps a list of
 typed WB rows onto DB dicts and idempotently upserts them. The client-calling
 orchestration (building per-workspace clients, fetching) lives in the tasks
 layer, so this service stays session-bound and unit-testable.
+
+The mapping itself lives in :mod:`.rows` and the upsert column lists in
+:mod:`.columns`; what is left here is the repository choreography.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 from src.integrations.wildberries.schemas import (
@@ -20,146 +23,20 @@ from src.modules.finreports.repos import (
     FinancialReportRepository,
     LogisticsTransactionRepository,
 )
-
-# Column sets for the idempotent upserts (everything but the conflict key).
-_TXN_UPDATE = [
-    "report_id",
-    "workspace_id",
-    "nm_id",
-    "barcode",
-    "sa_name",
-    "ts_name",
-    "srid",
-    "shk_id",
-    "gi_id",
-    "office_name",
-    "rr_dt",
-    "order_dt",
-    "sale_dt",
-    "supplier_oper_name",
-    "bonus_type_name",
-    "gi_box_type_name",
-    "delivery_method",
-    "currency_name",
-    "quantity",
-    "delivery_amount",
-    "dlv_prc",
-    "delivery_rub",
-    "penalty",
-    "additional_payment",
-    "rebill_logistic_cost",
-    "storage_fee",
-    "acceptance",
-    "deduction",
-    "fix_tariff_date_from",
-    "fix_tariff_date_to",
-]
-_REPORT_UPDATE = ["workspace_id", "date_from", "date_to", "currency", "create_dt"]
-    "box_delivery_base",
-    "box_delivery_liter",
-    "box_delivery_coef_pct",
-    "box_storage_base",
-    "box_storage_liter",
-    "box_storage_coef_pct",
-    "geo_name",
-    "dt_till_max",
-]
-_BASELINE_UPDATE = [
-    "vendor_code",
-    "length_cm",
-    "width_cm",
-    "height_cm",
-    "weight_brutto_kg",
-    "volume_l",
-    "workspace_id",
-    "document_proof_id",
-]
-_BILLED_UPDATE = [
-    "nm_id",
-    "barcode",
-    "volume_l",
-    "warehouse_coef",
-    "calc_type",
-    "warehouse_price",
-]
-_PENALTY_UPDATE = [
-    "subject_name",
-    "prc_over",
-    "length_sup",
-    "width_sup",
-    "height_sup",
-    "volume_sup",
-    "length",
-    "width",
-    "height",
-    "volume",
-    "penalty_amount",
-    "reversal_amount",
-    "photo_url",
-    "is_valid",
-    "is_valid_dt",
-    "workspace_id",
-]
-_MEASUREMENT_UPDATE = [
-    "subject_name",
-    "length_cm",
-    "width_cm",
-    "height_cm",
-    "volume_l",
-    "measured_at",
-    "photo_url",
-    "workspace_id",
-]
-
-#: Sort key that orders the rows of one penalty group reproducibly. WB publishes
-#: no row identity, so the ordinal has to come from the values themselves.
-_UNIT_ORDER = ("volume_sup", "penalty_amount", "reversal_amount")
-
-
-def _as_date(value: date | datetime | None) -> date | None:
-    """Coerce a WB date/datetime (or ``None``) to a plain ``date``."""
-    if isinstance(value, datetime):
-        return value.date()
-    return value
-
-
-def _dedupe(rows: list[dict[str, object]], *, keys: list[str]) -> list[dict[str, object]]:
-    """Collapse rows sharing the same conflict key, keeping the last.
-
-    PostgreSQL's ``INSERT ... ON CONFLICT DO UPDATE`` rejects a batch that
-    carries two rows with the same conflict target, so any source that emits
-    storage unit) must be de-duplicated before the upsert.
-    """
-    by_key: dict[tuple[object, ...], dict[str, object]] = {}
-    for row in rows:
-        by_key[tuple(row[k] for k in keys)] = row
-    return list(by_key.values())
-
-
-def _number_units(rows: list[dict[str, object]]) -> list[dict[str, object]]:
-    """Number the rows of each ``(nm_id, dim_id, dt_bonus)`` group.
-
-    WB emits one row per penalised unit with no row identity, so the ordinal is
-    derived from the values: each group is sorted by
-    :data:`_UNIT_ORDER` and numbered from zero. A re-harvest of the same report
-    therefore reproduces the same ordinals, which keeps the upsert idempotent
-    instead of shuffling rows between keys.
-    """
-    groups: dict[tuple[object, ...], list[dict[str, object]]] = {}
-    for row in rows:
-        groups.setdefault((row["nm_id"], row["dim_id"], row["dt_bonus"]), []).append(row)
-    numbered: list[dict[str, object]] = []
-    for group in groups.values():
-        group.sort(key=lambda r: tuple(_sort_value(r.get(k)) for k in _UNIT_ORDER))
-        for index, row in enumerate(group):
-            row["unit_no"] = index
-            numbered.append(row)
-    return numbered
-
-
-def _sort_value(value: object) -> Decimal:
-    """Order a possibly-``None`` numeric column without comparing mixed types."""
-    return value if isinstance(value, Decimal) else Decimal(-1)
+from src.modules.finreports.services.ingestion.columns import (
+    BASELINE_UPDATE,
+    BILLED_UPDATE,
+    MEASUREMENT_UPDATE,
+    PENALTY_UPDATE,
+    REPORT_UPDATE,
+    TXN_UPDATE,
+)
+from src.modules.finreports.services.ingestion.rows import (
+    dedupe,
+    number_units,
+    report_headers,
+    settlement_row,
+)
 
 
 class IngestionService:
@@ -192,66 +69,15 @@ class IngestionService:
         """
         if not rows:
             return 0
-        headers: dict[int, dict[str, object]] = {}
-        txn_rows: list[dict[str, object]] = []
-        for r in rows:
-            rr = _as_date(r.rr_dt)
-            header = headers.setdefault(
-                r.realizationreport_id,
-                {
-                    "report_id": r.realizationreport_id,
-                    "workspace_id": workspace_id,
-                    "date_from": rr,
-                    "date_to": rr,
-                    "currency": r.currency_name,
-                    "create_dt": None,
-                },
-            )
-            if rr is not None:
-                if header["date_from"] is None or rr < header["date_from"]:  # type: ignore[operator]
-                    header["date_from"] = rr
-                if header["date_to"] is None or rr > header["date_to"]:  # type: ignore[operator]
-                    header["date_to"] = rr
-            txn_rows.append(
-                {
-                    "rrd_id": r.rrd_id,
-                    "report_id": r.realizationreport_id,
-                    "workspace_id": workspace_id,
-                    "nm_id": r.nm_id,
-                    "barcode": r.barcode,
-                    "sa_name": r.sa_name,
-                    "ts_name": r.ts_name,
-                    "srid": r.srid,
-                    "shk_id": r.shk_id,
-                    "gi_id": r.gi_id,
-                    "office_name": r.office_name,
-                    "rr_dt": rr,
-                    "order_dt": _as_date(r.order_dt),
-                    "sale_dt": _as_date(r.sale_dt),
-                    "supplier_oper_name": r.supplier_oper_name,
-                    "bonus_type_name": r.bonus_type_name,
-                    "gi_box_type_name": r.gi_box_type_name,
-                    "delivery_method": r.delivery_method,
-                    "currency_name": r.currency_name,
-                    "quantity": r.quantity,
-                    "delivery_amount": r.delivery_amount,
-                    "dlv_prc": r.dlv_prc,
-                    "delivery_rub": r.delivery_rub,
-                    "penalty": r.penalty,
-                    "additional_payment": r.additional_payment,
-                    "rebill_logistic_cost": r.rebill_logistic_cost,
-                    "storage_fee": r.storage_fee,
-                    "acceptance": r.acceptance,
-                    "deduction": r.deduction,
-                    "fix_tariff_date_from": _as_date(r.fix_tariff_date_from),
-                    "fix_tariff_date_to": _as_date(r.fix_tariff_date_to),
-                }
-            )
         await self._reports.bulk_upsert(
-            list(headers.values()), conflict_columns=["report_id"], update_columns=_REPORT_UPDATE
+            report_headers(rows, workspace_id=workspace_id),
+            conflict_columns=["report_id"],
+            update_columns=REPORT_UPDATE,
         )
         return await self._transactions.bulk_upsert(
-            txn_rows, conflict_columns=["rrd_id"], update_columns=_TXN_UPDATE
+            [settlement_row(row, workspace_id=workspace_id) for row in rows],
+            conflict_columns=["rrd_id"],
+            update_columns=TXN_UPDATE,
         )
 
     async def ingest_tariffs(
@@ -272,7 +98,7 @@ class IngestionService:
             for r in rows
             if r.warehouse_name
         ]
-        payload = _dedupe(payload, keys=["snapshot_date", "warehouse_name"])
+        payload = dedupe(payload, keys=["snapshot_date", "warehouse_name"])
         return await self._tariffs.bulk_upsert(
             payload,
             conflict_columns=["snapshot_date", "warehouse_name"],
@@ -306,7 +132,7 @@ class IngestionService:
         return await self._baselines.bulk_upsert(
             payload,
             conflict_columns=["nm_id", "snapshot_date", "source"],
-            update_columns=_BASELINE_UPDATE,
+            update_columns=BASELINE_UPDATE,
         )
 
         payload: list[dict[str, object]] = [
@@ -325,11 +151,11 @@ class IngestionService:
             for r in rows
             if r.observed_date is not None and r.warehouse
         ]
-        payload = _dedupe(payload, keys=["observed_date", "warehouse_name", "gi_id", "chrt_id"])
+        payload = dedupe(payload, keys=["observed_date", "warehouse_name", "gi_id", "chrt_id"])
         return await self._billed.bulk_upsert(
             payload,
             conflict_columns=["observed_date", "warehouse_name", "gi_id", "chrt_id"],
-            update_columns=_BILLED_UPDATE,
+            update_columns=BILLED_UPDATE,
         )
 
     ) -> int:
@@ -367,11 +193,11 @@ class IngestionService:
             for r in rows
             if r.dt_bonus is not None
         ]
-        payload = _number_units(payload)
+        payload = number_units(payload)
         return await self._penalties.bulk_upsert(
             payload,
             conflict_columns=["nm_id", "dim_id", "dt_bonus", "unit_no"],
-            update_columns=_PENALTY_UPDATE,
+            update_columns=PENALTY_UPDATE,
         )
 
     ) -> int:
@@ -391,9 +217,9 @@ class IngestionService:
             for r in rows
             if r.dim_id
         ]
-        payload = _dedupe(payload, keys=["nm_id", "dim_id"])
+        payload = dedupe(payload, keys=["nm_id", "dim_id"])
         return await self._measurements.bulk_upsert(
             payload,
             conflict_columns=["nm_id", "dim_id"],
-            update_columns=_MEASUREMENT_UPDATE,
+            update_columns=MEASUREMENT_UPDATE,
         )

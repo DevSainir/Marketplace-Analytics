@@ -159,6 +159,24 @@ class Settings(BaseSettings):
     wb_max_retries: int = Field(default=4)
     wb_retry_backoff_seconds: float = Field(default=2.0)
     wb_retry_max_backoff_seconds: float = Field(default=60.0)
+    # Client-side pacing of the analytics surface, measured live on 2026-07-30
+    # against seller-analytics-api: each endpoint holds a 3-token bucket per
+    # seller token and refills one token within 20s (a call every 20s keeps
+    # ``x-ratelimit-remaining`` pinned at 2; a call 5s later drops it to 1).
+    # Overrunning it does NOT reliably answer 429 — WB returns HTTP 500, or
+    # holds the connection until our read timeout — so the budget has to be
+    # respected before sending, not discovered afterwards.
+    wb_analytics_bucket_capacity: int = Field(default=3, ge=1)
+    wb_analytics_bucket_refill_seconds: float = Field(default=20.0, gt=0)
+    # A request may queue this long for a token before the client gives up. The
+    # 22-day cohort pass needs ~7 min of queueing overall but never more than
+    # one refill per call; anything beyond this means the budget is being
+    # consumed faster than it refills, and failing lets the task's retry policy
+    # reschedule instead of parking a worker.
+    wb_analytics_max_queue_seconds: float = Field(default=120.0, gt=0)
+    # Escape hatch: disables Redis-backed pacing (tests and any environment
+    # with no Redis). The clients then fall back to per-process spacing.
+    wb_rate_pacing_enabled: bool = Field(default=True)
 
     @computed_field  # type: ignore[prop-decorator]
     @property

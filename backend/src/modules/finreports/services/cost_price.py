@@ -1,0 +1,139 @@
+"""Read/write service for the seller's per-SKU cost prices.
+
+The module's only write path. It exists to keep two things honest:
+
+* **Uncosted SKUs are surfaced, not hidden.** Listing costs alone would let a
+  seller believe the P&L is complete when 85 % of the units it settled have no
+  cost on file. The listing therefore also returns every SKU that has sold but
+  carries no cost, ordered by units so the expensive omissions come first.
+* **Costs entered in the wrong currency are rejected, never converted.** The
+  settlement is KGS; a cost typed in RUB would silently produce a plausible,
+  wrong margin.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import timedelta
+
+from src.core.timeutils import moscow_today
+from src.modules.finreports.repos import CostPriceRepository, PnlRepository, SkuUnits
+from src.modules.finreports.schemas.cost_price import (
+    CostPriceInput,
+    CostPriceItem,
+    CostPriceListResponse,
+    CostPriceSaveResponse,
+)
+
+#: How far back the "which SKUs still need a cost" list looks. Long enough to
+#: cover seasonality, short enough that a card retired two years ago does not
+#: nag forever.
+_COVERAGE_WINDOW_DAYS = 365
+
+
+class CostPriceService:
+    """Manages the seller-entered cost of goods."""
+
+    def __init__(self, *, cost_repo: CostPriceRepository, pnl_repo: PnlRepository) -> None:
+        """Wire the service from the cost and settlement repositories."""
+        self._costs = cost_repo
+        self._pnl = pnl_repo
+
+    async def list_cost_prices(self, *, workspace_id: uuid.UUID) -> CostPriceListResponse:
+        """Return every cost on file plus the SKUs that still need one.
+
+        Args:
+            workspace_id: Owning workspace.
+
+        Returns:
+            Costed SKUs by ``nm_id``, and uncosted-but-selling SKUs by volume.
+        """
+        stored = await self._costs.list_for_workspace(workspace_id)
+        by_nm = {row.nm_id: row for row in stored}
+        today = moscow_today()
+        sold = await self._pnl.sku_units(
+            workspace_id=workspace_id,
+            date_from=today - timedelta(days=_COVERAGE_WINDOW_DAYS),
+            date_to=today,
+        )
+        units_by_nm = {s.nm_id: s for s in sold}
+
+        items = [
+            CostPriceItem(
+                nm_id=row.nm_id,
+                cost=row.cost,
+                currency=row.currency,
+                vendor_code=row.vendor_code
+                or (units_by_nm[row.nm_id].vendor_code if row.nm_id in units_by_nm else ""),
+                source=row.source,
+                note=row.note,
+                updated_at=row.updated_at,
+                sold_units=self._net_units(units_by_nm.get(row.nm_id)),
+            )
+            for row in stored
+        ]
+        missing = [
+            CostPriceItem(
+                nm_id=s.nm_id,
+                cost=0,
+                currency="",
+                vendor_code=s.vendor_code,
+                source="",
+                note="",
+                sold_units=self._net_units(s),
+            )
+            for s in sold
+            if s.nm_id not in by_nm
+        ]
+        currency = next((row.currency for row in stored), "KGS")
+        return CostPriceListResponse(currency=currency, items=items, missing=missing)
+
+    async def save_cost_prices(
+        self, *, workspace_id: uuid.UUID, items: list[CostPriceInput]
+    ) -> CostPriceSaveResponse:
+        """Insert or overwrite a batch of cost prices.
+
+        Args:
+            workspace_id: Owning workspace.
+            items: The costs to persist (validated by the schema).
+
+        Returns:
+            How many rows were written.
+        """
+        saved = await self._costs.upsert_many(
+            [
+                {
+                    "workspace_id": workspace_id,
+                    "nm_id": item.nm_id,
+                    "cost": item.cost,
+                    "currency": item.currency,
+                    "vendor_code": item.vendor_code,
+                    "source": "manual",
+                    "note": item.note,
+                }
+                for item in items
+            ]
+        )
+        return CostPriceSaveResponse(saved=saved)
+
+    async def delete_cost_price(self, *, workspace_id: uuid.UUID, nm_id: int) -> int:
+        """Remove one SKU's cost price.
+
+        Args:
+            workspace_id: Owning workspace.
+            nm_id: The SKU to clear.
+
+        Returns:
+            ``1`` when a row was removed, ``0`` when there was nothing on file.
+        """
+        return await self._costs.delete_one(workspace_id=workspace_id, nm_id=nm_id)
+
+    @staticmethod
+    def _net_units(units: SkuUnits | None) -> int:
+        """Net settled units for a SKU (0 when it has not sold in the window)."""
+        if units is None:
+            return 0
+        return units.sold_units - units.returned_units
+
+
+__all__ = ["CostPriceService"]

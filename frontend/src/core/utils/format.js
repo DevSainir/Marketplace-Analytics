@@ -18,6 +18,40 @@ export function formatCurrency(value) {
   return currencyFormat.format(value)
 }
 
+const moneyFormats = new Map()
+
+/**
+ * Money in whatever currency the source states, e.g. 12345.6 -> "12 346 KGS".
+ *
+ * Separate from `formatCurrency`, which is pinned to RUB: the WB settlement
+ * reports of a Kyrgyz account are denominated in KGS, and rendering those as ₽
+ * would misstate every figure on a financial statement by an exchange rate.
+ * Intl formatters are expensive to build, so one is memoised per currency.
+ *
+ * @param {number|string|null|undefined} value
+ * @param {string} [currency] ISO code from the data; falsy renders a bare number.
+ * @param {number} [fractionDigits]
+ * @returns {string} An em dash when the value is missing — a blank figure and a
+ *   zero mean different things on a P&L.
+ */
+export function formatMoney(value, currency = '', fractionDigits = 0) {
+  if (value === null || value === undefined || value === '') return '—'
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return '—'
+  const key = `${currency}|${fractionDigits}`
+  if (!moneyFormats.has(key)) {
+    moneyFormats.set(
+      key,
+      new Intl.NumberFormat('ru-RU', {
+        minimumFractionDigits: fractionDigits,
+        maximumFractionDigits: fractionDigits,
+      }),
+    )
+  }
+  const formatted = moneyFormats.get(key).format(amount)
+  return currency ? `${formatted} ${currency}` : formatted
+}
+
 const currencyTenthsFormat = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
   currency: 'RUB',

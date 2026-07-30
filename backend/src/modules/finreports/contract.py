@@ -1,13 +1,24 @@
 """Public contract for the ``finreports`` module.
 
-The stable surface other modules may consume (no horizontal imports). Exposes
+The stable surface other modules may consume (no horizontal imports): the read
+
+``PnlService`` and its ``PnlStatement`` are the module's headline output — the
+of it («логистика») examined closely enough to file in court. The cost-price
+service is deliberately NOT exported: those figures are the seller's own
+commercial input, edited through this module's own HTTP surface, and nothing
+outside it has a reason to write them.
 """
 
 from src.modules.finreports.schemas import (
+    PnlResponse,
+    PnlStatement,
 )
     LogisticsPricing,
 )
 
 __all__ = [
     "LogisticsPricing",
+    "PnlResponse",
+    "PnlService",
+    "PnlStatement",
 ]
