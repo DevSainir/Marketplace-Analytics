@@ -1,5 +1,5 @@
 # ruff: noqa: S608 — schema names in the f-string SQL are module constants.
-# ruff: noqa: RUF002 — the seed workspace name is genuinely Cyrillic.
+
 """workspaces: per-category tokens for the primary workspace
 
 Revision ID: f2b0c6e8d4a3

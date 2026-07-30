@@ -18,7 +18,6 @@ Introduces the workspace tenancy unit:
   account ``dev@example.com`` where it exists.
 """
 
-# ruff: noqa: RUF001, RUF002 — the seed workspace name is genuinely Cyrillic.
 # ruff: noqa: S608 — schema names in the f-string SQL are module constants.
 from __future__ import annotations
 
