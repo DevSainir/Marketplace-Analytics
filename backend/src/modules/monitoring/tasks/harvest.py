@@ -8,6 +8,7 @@ Owns the harvest core (:func:`_harvest_sku_window`) shared by the interactive
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import date, timedelta
 
 from src.core.celery_app import celery_app
@@ -26,8 +27,10 @@ from src.integrations.wildberries import (
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
     WBCard,
+    WBFunnelHistoryRow,
     WBNormQueryItem,
     WBSaleRecord,
+    WBStockRow,
 )
 from src.modules.monitoring.repos import (
     AdvertisingRepository,
@@ -55,6 +58,66 @@ from src.modules.workspaces.contract import (
 logger = get_logger(__name__)
 
 
+@dataclass(frozen=True, slots=True)
+class HarvestOutcome:
+    """What one harvest actually managed to persist, and what WB withheld.
+
+    ``failed_sources`` exists because a harvest is deliberately tolerant of a
+    partial WB outage — but "0 funnel rows because WB stalled the request" and
+    "0 funnel rows because the SKU had no traffic" are indistinguishable from
+    the counts alone. The 2026-07-30 incident hid behind exactly that: tasks
+    reported SUCCESS with ``funnel_rows: 0`` while «Обновить» users watched
+    unchanged numbers and concluded the button did nothing.
+    """
+
+    counts: dict[str, int]
+    failed_sources: tuple[str, ...] = ()
+
+
+async def _fetch_analytics_in_turn(
+    client: WBAnalyticsClient,
+    *,
+    nm_ids: list[int],
+    date_from: date,
+    date_to: date,
+) -> tuple[list[WBFunnelHistoryRow] | BaseException, list[WBStockRow] | BaseException]:
+    """Fetch the funnel, then the stocks — never both at once.
+
+    WB meters the analytics surface per endpoint with a bucket only three tokens
+    deep, and it does not answer an overrun politely: measured live on
+    2026-07-30 it returns HTTP 500, or holds the socket until the client's
+    30-second read timeout. Issuing this pair inside one ``asyncio.gather``
+    therefore guaranteed that a contended refresh burnt both its retries on
+    stalls — «Обновить» took 145-200s and persisted zero funnel rows.
+
+    Awaiting them in turn lets the client's rate gate space them, and keeps a
+    failure of one from cancelling the other: each is captured and returned so
+    the caller keeps its existing partial-harvest semantics.
+
+    Args:
+        client: The workspace's analytics client (holds the rate gate).
+        nm_ids: SKUs to fetch both sources for.
+        date_from: Inclusive window start (funnel only; stocks are live).
+        date_to: Inclusive window end.
+
+    Returns:
+        ``(funnel, stocks)``, each either the rows or the exception raised.
+    """
+    funnel: list[WBFunnelHistoryRow] | BaseException
+    stocks: list[WBStockRow] | BaseException
+    try:
+        funnel = await client.fetch_sales_funnel(
+            nm_ids=nm_ids, date_from=date_from, date_to=date_to
+        )
+    except Exception as exc:
+        funnel = exc
+    try:
+        stocks = await client.fetch_warehouse_stocks(nm_ids=nm_ids)
+    except Exception as exc:
+        stocks = exc
+    return funnel, stocks
+
+
 async def _harvest_sku_window(
     *,
     tokens: WorkspaceTokenBundle,
@@ -63,7 +126,7 @@ async def _harvest_sku_window(
     date_to: date,
     cards: list[WBCard] | None = None,
     include_sales: bool = True,
-) -> dict[str, int]:
+) -> HarvestOutcome:
     """Fetch, flatten, and persist a full harvest for one workspace's SKUs.
 
     Opens a dedicated async DB session and transaction, calls the WB clients
@@ -92,8 +155,11 @@ async def _harvest_sku_window(
             :func:`harvest_sku_window`.
 
     Returns:
-        A mapping of persisted row counts per metric family (plus catalogue
-        counts when ``cards`` is supplied).
+        The persisted row counts per metric family (plus catalogue counts when
+        ``cards`` is supplied), alongside the labels of any WB source that
+        failed — a harvest that wrote nothing because WB withheld the funnel is
+        not the same event as one that found nothing, and the caller must be
+        able to tell the two apart.
     """
     async with (
         WBAnalyticsClient(settings, token=tokens.analytics) as analytics_client,
@@ -107,24 +173,31 @@ async def _harvest_sku_window(
         # window or a 429) from aborting the whole harvest. Prices (seller) and
         # the storefront card (customer) join the fan-out for the daily price
         # snapshot.
+        #
+        # The two ANALYTICS calls are the exception — see
+        # :func:`_fetch_analytics_in_turn`. Different HOSTS still run
+        # concurrently; only that one surface is serialised.
         (
-            funnel_res,
-            stock_res,
+            analytics_res,
             camp_res,
             adverts_res,
             prices_res,
             card_res,
         ) = await asyncio.gather(
-            analytics_client.fetch_sales_funnel(
-                nm_ids=nm_ids, date_from=date_from, date_to=date_to
+            _fetch_analytics_in_turn(
+                analytics_client, nm_ids=nm_ids, date_from=date_from, date_to=date_to
             ),
-            analytics_client.fetch_warehouse_stocks(nm_ids=nm_ids),
             advertising_client.list_campaigns(),
             advertising_client.list_adverts(),
             prices_client.fetch_prices(),
             card_client.fetch_customer_prices(nm_ids),
             return_exceptions=True,
         )
+        if isinstance(analytics_res, BaseException):
+            funnel_res: list[WBFunnelHistoryRow] | BaseException = analytics_res
+            stock_res: list[WBStockRow] | BaseException = analytics_res
+        else:
+            funnel_res, stock_res = analytics_res
         # Partial failure is tolerated (a 429 on one source must not void the
         # others), but ALL sources failing means the harvest did nothing —
         # raising marks the task FAILED and triggers the retry policy instead
@@ -198,6 +271,24 @@ async def _harvest_sku_window(
         # ``None`` (source failed) leaves the sale/return records untouched.
         sales = _unwrap(sales_res, "sales")
 
+        # Which sources WB actually withheld. Reported all the way to the UI so
+        # a refresh that changed nothing says why instead of looking inert.
+        failed_sources = tuple(
+            label
+            for label, result in (
+                ("sales-funnel", funnel_res),
+                ("stocks", stock_res),
+                ("campaigns", camp_res),
+                ("adverts-v2", adverts_res),
+                ("prices", prices_res),
+                ("card-prices", card_res),
+                ("advertising", adv_res),
+                ("search-zone", search_res),
+                ("sales", sales_res),
+            )
+            if isinstance(result, BaseException)
+        )
+
     async with AsyncSessionLocal() as session:
         service = IngestionService(
             funnel_repo=FunnelRepository(session),
@@ -250,16 +341,19 @@ async def _harvest_sku_window(
             logger.info("Cleared %d manual matrix overrides after refresh.", cleared)
         await session.commit()
 
-    return {
-        "funnel_rows": result.funnel_rows,
-        "advertising_rows": result.advertising_rows,
-        "search_zone_rows": result.search_zone_rows,
-        "stock_rows": result.stock_rows,
-        "price_rows": result.price_rows,
-        "sales_rows": result.sales_rows,
-        "product_card_rows": card_count,
-        "product_size_rows": size_count,
-    }
+    return HarvestOutcome(
+        counts={
+            "funnel_rows": result.funnel_rows,
+            "advertising_rows": result.advertising_rows,
+            "search_zone_rows": result.search_zone_rows,
+            "stock_rows": result.stock_rows,
+            "price_rows": result.price_rows,
+            "sales_rows": result.sales_rows,
+            "product_card_rows": card_count,
+            "product_size_rows": size_count,
+        },
+        failed_sources=failed_sources,
+    )
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -271,7 +365,7 @@ def harvest_sku_window(
     nm_ids: list[int],
     date_from: str | None = None,
     date_to: str | None = None,
-) -> dict[str, int]:
+) -> dict[str, object]:
     """Celery entrypoint: harvest and persist WB stats for a SKU window.
 
     Harvests funnel + stock for ``nm_ids`` and advertising for the campaigns
@@ -297,8 +391,11 @@ def harvest_sku_window(
             not serve current-day statistics).
 
     Returns:
-        A mapping of persisted row counts per metric family (``sales_rows`` is
-        always 0 — the feed is not part of a scoped refresh).
+        The persisted row counts per metric family (``sales_rows`` is always 0 —
+        the feed is not part of a scoped refresh), plus ``failed_sources``: the
+        WB sources that did not answer. The refresh-status endpoint serves that
+        list to the SPA, which is how «Обновить» can say "WB withheld the
+        funnel" instead of silently redrawing the same numbers.
 
     Raises:
         IntegrationError: If the SKUs are not registered to any workspace, or
@@ -310,7 +407,7 @@ def harvest_sku_window(
     start = date.fromisoformat(date_from) if date_from else end - timedelta(days=6)
     logger.info("Harvesting SKUs %s for %s..%s", nm_ids, start, end)
 
-    async def _run() -> dict[str, int]:
+    async def _run() -> dict[str, object]:
         async with AsyncSessionLocal() as session:
             workspace_id = await ProductCardRepository(session).get_workspace_of_sku(nm_ids[0])
             if workspace_id is None:
@@ -321,12 +418,13 @@ def harvest_sku_window(
             tokens = await load_workspace_token_bundle(session, workspace_id)
         if tokens is None:
             raise IntegrationError(f"Workspace {workspace_id} no longer exists; refresh aborted.")
-        return await _harvest_sku_window(
+        outcome = await _harvest_sku_window(
             tokens=tokens,
             nm_ids=nm_ids,
             date_from=start,
             date_to=end,
             include_sales=False,
         )
+        return {**outcome.counts, "failed_sources": list(outcome.failed_sources)}
 
     return run_task(_run())

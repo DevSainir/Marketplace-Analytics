@@ -270,3 +270,12 @@ class RefreshStatusResponse(BaseModel):
     status: str = Field(description="Celery state: PENDING/STARTED/SUCCESS/FAILURE/...")
     ready: bool = Field(description="True once the task has finished (success or failure).")
     successful: bool = Field(description="True only when the task finished successfully.")
+    failed_sources: list[str] = Field(
+        default_factory=list,
+        description=(
+            "WB sources that did not answer during an otherwise successful "
+            "refresh (e.g. 'sales-funnel'). A harvest tolerates a partial WB "
+            "outage, so 'successful' alone cannot tell the user why the numbers "
+            "did not move."
+        ),
+    )

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.celery_app import celery_app
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal, run_task
+from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries import WBAnalyticsClient
@@ -58,8 +59,17 @@ async def _refresh_workspace_cohorts(tokens: WorkspaceTokenBundle, days: int) ->
     workspace regardless of SKU count, not ``days x SKUs``.
 
     Days are fetched sequentially and failures are isolated per day: this
-    surface is rate-limited, and a 429 on one cohort must not cost the others
-    (the client already honours ``Retry-After`` internally).
+    surface is rate-limited, and a 429 on one cohort must not cost the others.
+    The pacing itself is the client's: :class:`WBAnalyticsClient` holds a
+    Redis-backed token bucket per endpoint, so the loop below simply asks for
+    the next day and the gate makes it wait its turn. That is what keeps a
+    22-day pass to its ~7 minutes instead of the 65+ minutes it took on
+    2026-07-30, when the loop fired each day the instant the previous returned
+    and every request landed in an empty bucket.
+
+    The gate is shared across processes, so this pass no longer starves an
+    interactive «Обновить» running beside it — the two queue against the same
+    budget instead of racing for it.
 
     Args:
         tokens: The workspace's decrypted WB credentials.
@@ -67,6 +77,12 @@ async def _refresh_workspace_cohorts(tokens: WorkspaceTokenBundle, days: int) ->
 
     Returns:
         The number of cohort days refreshed across the window.
+
+    Raises:
+        IntegrationError: When WB served no day at all. A pass that refreshed
+            nothing used to log "Refreshed 0 cohort days" at INFO and exit
+            successfully, which is how «Процент выкупа» could quietly stop
+            maturing; failing hands it to the task retry policy instead.
     """
     if not tokens.analytics:
         logger.warning("Workspace '%s' has no analytics token; skipping cohorts.", tokens.name)
@@ -74,6 +90,7 @@ async def _refresh_workspace_cohorts(tokens: WorkspaceTokenBundle, days: int) ->
 
     end = moscow_today() - timedelta(days=1)  # WB serves no current-day data
     refreshed = 0
+    served = 0
     async with WBAnalyticsClient(settings, token=tokens.analytics) as analytics_client:
         for offset in range(days):
             day = end - timedelta(days=offset)
@@ -82,14 +99,21 @@ async def _refresh_workspace_cohorts(tokens: WorkspaceTokenBundle, days: int) ->
             except Exception as exc:  # isolate one cohort day from the rest
                 logger.warning("Cohort refresh failed for %s: %s", day, exc)
                 continue
+            served += 1
             async with AsyncSessionLocal() as session:
                 service = _cohort_ingestion_service(session)
                 refreshed += await service.ingest_funnel_cohorts(day, rows)
                 await session.commit()
+    if served == 0:
+        raise IntegrationError(
+            f"WB served none of the {days} cohort days for workspace '{tokens.name}'; "
+            "«Процент выкупа» would silently stop maturing."
+        )
     logger.info(
-        "Refreshed %d cohort days for workspace '%s' (%d-day window).",
+        "Refreshed %d cohort days for workspace '%s' (%d of %d days served).",
         refreshed,
         tokens.name,
+        served,
         days,
     )
     return refreshed
@@ -146,11 +170,20 @@ def refresh_buyout_cohorts(days: int = COHORT_REFRESH_DAYS) -> dict[str, int]:
         async with AsyncSessionLocal() as session:
             bundles = await load_workspace_token_bundles(session)
         total = 0
+        failures: list[str] = []
         for bundle in bundles:
             try:
                 total += await _refresh_workspace_cohorts(bundle, days)
             except Exception as exc:  # isolate workspaces from each other
                 logger.warning("Cohort refresh failed for '%s': %s", bundle.name, exc)
+                failures.append(bundle.name)
+        # One workspace with a revoked token must not fail the pass, but every
+        # workspace failing is a systemic outage and has to be reported as one —
+        # otherwise the cohorts stop maturing behind a green task.
+        if bundles and len(failures) == len(bundles):
+            raise IntegrationError(
+                f"Cohort refresh failed for every workspace ({', '.join(failures)}); see logs."
+            )
         return {"cohort_rows": total}
 
     try:

@@ -387,7 +387,7 @@ describe('refreshFromWb', () => {
     // completed refresh. A task that never becomes ready must surface an error
     // and must not re-fetch.
     //
-    // Fake timers so the ~2 min of real polling costs no wall-clock here;
+    // Fake timers so the minutes of real polling cost no wall-clock here;
     // `advanceTimersByTimeAsync` flushes the awaited status calls between ticks.
     vi.useFakeTimers()
     try {
@@ -395,7 +395,7 @@ describe('refreshFromWb', () => {
       getRefreshStatus.mockResolvedValue({ ready: false, successful: false })
 
       const pending = store.refreshFromWb()
-      await vi.advanceTimersByTimeAsync(200 * 600 + 5_000)
+      await vi.advanceTimersByTimeAsync(7 * 60_000)
       await pending
     } finally {
       vi.useRealTimers()
@@ -404,5 +404,78 @@ describe('refreshFromWb', () => {
     expect(fetchSkuDetail).not.toHaveBeenCalled()
     expect(store.actionError).toMatch(/не завершилось за отведённое время/i)
     expect(store.matrixRefreshing).toBe(false)
+  })
+
+  it('waits out a slow harvest instead of calling it a timeout', async () => {
+    // THE 2026-07-30 REGRESSION. The ceiling was 200 polls x 600ms = 120s while
+    // the backend legitimately takes up to ~4 minutes when a cohort pass is
+    // competing for WB's rate budget. Harvests that succeeded in 144-198s were
+    // all reported as "не завершилось за отведённое время", which is why users
+    // concluded «Обновить» never works. A poll ceiling BELOW the backend's own
+    // limit turns every slow success into a visible failure.
+    vi.useFakeTimers()
+    try {
+      refreshSku.mockResolvedValue({ task_id: 'task-slow' })
+      let elapsed = 0
+      getRefreshStatus.mockImplementation(async () => {
+        elapsed = Date.now() - startedAt
+        return elapsed < 200_000 ? { ready: false } : { ready: true, successful: true }
+      })
+      const startedAt = Date.now()
+
+      const pending = store.refreshFromWb()
+      await vi.advanceTimersByTimeAsync(210_000)
+      await pending
+    } finally {
+      vi.useRealTimers()
+    }
+
+    expect(fetchSkuDetail).toHaveBeenCalled()
+    expect(store.actionError).toBeNull()
+  })
+
+  it('says which WB sources were withheld when the harvest was partial', async () => {
+    // A harvest tolerates a partial WB outage, so `successful` stays true while
+    // the funnel never arrived and the table redraws its previous numbers. Left
+    // unsaid, that is indistinguishable from a button that does nothing — which
+    // is precisely how the incident presented to users.
+    refreshSku.mockResolvedValue({ task_id: 'task-partial' })
+    getRefreshStatus.mockResolvedValue({
+      ready: true,
+      successful: true,
+      failed_sources: ['sales-funnel', 'stocks'],
+    })
+
+    await store.refreshFromWb()
+
+    expect(fetchSkuDetail).toHaveBeenCalled()
+    expect(store.actionError).toBeNull()
+    expect(store.actionWarning).toMatch(/воронку продаж/i)
+    expect(store.actionWarning).toMatch(/остатки/i)
+  })
+
+  it('clears the partial-refresh warning once WB serves everything', async () => {
+    refreshSku.mockResolvedValue({ task_id: 'task-partial' })
+    getRefreshStatus.mockResolvedValue({
+      ready: true,
+      successful: true,
+      failed_sources: ['sales-funnel'],
+    })
+    await store.refreshFromWb()
+    getRefreshStatus.mockResolvedValue({ ready: true, successful: true, failed_sources: [] })
+
+    await store.refreshFromWb()
+
+    expect(store.actionWarning).toBeNull()
+  })
+
+  it('reports a fully served refresh without any warning', async () => {
+    refreshSku.mockResolvedValue({ task_id: 'task-ok' })
+    getRefreshStatus.mockResolvedValue({ ready: true, successful: true, failed_sources: [] })
+
+    await store.refreshFromWb()
+
+    expect(store.actionWarning).toBeNull()
+    expect(store.actionError).toBeNull()
   })
 })

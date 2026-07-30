@@ -70,9 +70,19 @@ async def _discover_and_harvest_workspace(
 
     end = moscow_today() - timedelta(days=1)  # WB serves no current-day data
     start = end - timedelta(days=days - 1)
-    return await _harvest_sku_window(
+    outcome = await _harvest_sku_window(
         tokens=tokens, nm_ids=nm_ids, date_from=start, date_to=end, cards=cards
     )
+    # A partial WB outage must be visible in the nightly run's own log line, not
+    # only inferable from a suspiciously round zero in the counts.
+    if outcome.failed_sources:
+        logger.warning(
+            "Workspace '%s' harvested with %d WB source(s) withheld: %s.",
+            tokens.name,
+            len(outcome.failed_sources),
+            ", ".join(outcome.failed_sources),
+        )
+    return outcome.counts
 
 
 async def _discover_and_harvest(days: int) -> dict[str, int]:

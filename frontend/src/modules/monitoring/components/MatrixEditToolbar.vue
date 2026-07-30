@@ -20,6 +20,12 @@ defineProps({
   loading: { type: Boolean, default: false },
   /** Transient message from the last failed action, if any. */
   error: { type: String, default: null },
+  /**
+   * The last action completed, but WB withheld part of its data — so part of
+   * the table is deliberately unchanged. Distinct from `error`: nothing failed,
+   * and the user's own next move is to wait, not to retry.
+   */
+  warning: { type: String, default: null },
 })
 
 defineEmits(['save', 'refresh'])
@@ -67,5 +73,9 @@ defineEmits(['save', 'refresh'])
 
   <p v-if="error" class="mt-xs text-tiny text-status-negative" role="alert">
     {{ error }}
+  </p>
+
+  <p v-else-if="warning" class="mt-xs text-tiny text-status-warning" role="status">
+    {{ warning }}
   </p>
 </template>

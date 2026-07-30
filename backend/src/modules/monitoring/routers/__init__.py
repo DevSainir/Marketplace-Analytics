@@ -398,6 +398,28 @@ async def refresh_sku(
     return RefreshEnqueuedResponse(task_id=task.id)
 
 
+def _failed_sources(result: AsyncResult[object]) -> list[str]:
+    """Read the ``failed_sources`` list out of a finished harvest's return value.
+
+    Defensive about the shape: the value comes back through the Celery result
+    backend, and an older task payload (enqueued before this field existed, or
+    by a previous deploy mid-rollout) simply has no such key.
+
+    Args:
+        result: A successful task's ``AsyncResult``.
+
+    Returns:
+        The WB source labels that did not answer, or an empty list.
+    """
+    payload = result.result
+    if not isinstance(payload, dict):
+        return []
+    sources = payload.get("failed_sources")
+    if not isinstance(sources, list):
+        return []
+    return [str(source) for source in sources]
+
+
 @router.get(
     "/refresh/{task_id}",
     response_model=RefreshStatusResponse,
@@ -423,11 +445,13 @@ async def get_refresh_status(
         raise NotFoundError(f"Refresh task {task_id} not found.")
     result: AsyncResult[object] = AsyncResult(task_id, app=celery_app)
     ready = result.ready()
+    successful = bool(result.successful()) if ready else False
     return RefreshStatusResponse(
         task_id=task_id,
         status=str(result.state),
         ready=ready,
-        successful=bool(result.successful()) if ready else False,
+        successful=successful,
+        failed_sources=_failed_sources(result) if successful else [],
     )
 
 

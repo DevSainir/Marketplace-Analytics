@@ -33,11 +33,54 @@ import { buildMetricsMatrix, patchMetricsMatrix } from '@/modules/monitoring/met
 const REFRESH_POLL_INTERVAL_MS = 600
 
 /**
- * Poll ceiling for a «Обновить» harvest (~2 min at the interval above).
- * Generous on purpose: the harvest is usually seconds, but WB's advertising
- * limiter can stall it. Exhausting it raises — see `refreshFromWb`.
+ * How long to keep polling a «Обновить» harvest before calling it failed.
+ *
+ * This is a CEILING ON THE BACKEND'S WORST CASE, not a guess at a comfortable
+ * wait, and it is why the number looks large. A refresh makes two calls to
+ * WB's analytics surface, each of which may queue up to
+ * `wb_analytics_max_queue_seconds` (120s) for a rate token, so the task itself
+ * can legitimately run ~4 minutes when a nightly cohort pass is competing for
+ * the same WB budget.
+ *
+ * The old ceiling was 120s — BELOW that worst case. On 2026-07-30 harvests
+ * that genuinely succeeded in 144-198s were all reported to the user as
+ * "не завершилось за отведённое время", which is why «Обновить» appeared never
+ * to work. A ceiling under the backend's own limit turns every slow success
+ * into a visible failure.
  */
-const REFRESH_POLL_ATTEMPTS = 200
+const REFRESH_POLL_CEILING_MS = 6 * 60 * 1000
+
+/**
+ * Interval the poll relaxes to after the first few seconds. The harvest is
+ * usually quick, so the first seconds are polled tightly; a refresh queueing
+ * behind WB's rate budget does not need 600ms resolution for minutes on end.
+ */
+const REFRESH_POLL_SLOW_INTERVAL_MS = 2000
+
+/** When to switch from the tight interval to the relaxed one, in ms. */
+const REFRESH_POLL_RELAX_AFTER_MS = 10 * 1000
+
+/**
+ * WB source labels as the backend names them, in the words the table uses.
+ * An unmapped label falls back to itself rather than being dropped — a source
+ * we forgot to translate must still be reported.
+ */
+const WB_SOURCE_LABELS = {
+  'sales-funnel': 'воронку продаж',
+  stocks: 'остатки',
+  campaigns: 'кампании',
+  'adverts-v2': 'настройки кампаний',
+  advertising: 'статистику рекламы',
+  'search-zone': 'поисковую зону',
+  prices: 'цены',
+  'card-prices': 'цены покупателя',
+  sales: 'выкупы и возвраты',
+}
+
+/** Translate one backend WB source label for display. */
+function sourceLabel(source) {
+  return WB_SOURCE_LABELS[source] ?? source
+}
 
 export const useMonitoringStore = defineStore('monitoring', () => {
   // --- state -------------------------------------------------------------
@@ -88,6 +131,13 @@ export const useMonitoringStore = defineStore('monitoring', () => {
    * place under the table.
    */
   const actionError = ref(null)
+  /**
+   * A completed-but-incomplete action: the refresh ran, WB withheld some of its
+   * sources, so part of the table is deliberately unchanged. Separate from
+   * `actionError` because nothing failed on our side and there is nothing to
+   * retry right now — it explains, it does not alarm.
+   */
+  const actionWarning = ref(null)
 
   // Window/filter params of the latest search, reused when the user picks one
   // of several vendor-code matches.
@@ -487,6 +537,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     redoStack.value = []
     matrixDirty.value = false
     actionError.value = null
+    actionWarning.value = null
   }
 
   /**
@@ -584,21 +635,30 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       : {}
     matrixRefreshing.value = true
     actionError.value = null
+    actionWarning.value = null
     try {
       const { task_id: taskId } = await refreshSku(nmId)
-      // Poll at a snappy interval so completion is noticed promptly (the harvest
-      // itself is only a few seconds); keep a generous ~2 min ceiling in case
-      // WB's advertising limiter throttles.
+      // Poll tightly at first (the harvest is usually seconds), then relax —
+      // and keep going until the backend's own worst case has elapsed, never
+      // less. See REFRESH_POLL_CEILING_MS.
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+      const startedAt = Date.now()
       let ready = false
-      for (let attempt = 0; attempt < REFRESH_POLL_ATTEMPTS; attempt += 1) {
+      let failedSources = []
+      while (Date.now() - startedAt < REFRESH_POLL_CEILING_MS) {
         const status = await getRefreshStatus(taskId)
         if (status.ready) {
           if (!status.successful) throw new Error('Не удалось обновить данные из Wildberries.')
           ready = true
+          failedSources = status.failed_sources ?? []
           break
         }
-        await wait(REFRESH_POLL_INTERVAL_MS)
+        const elapsed = Date.now() - startedAt
+        await wait(
+          elapsed < REFRESH_POLL_RELAX_AFTER_MS
+            ? REFRESH_POLL_INTERVAL_MS
+            : REFRESH_POLL_SLOW_INTERVAL_MS,
+        )
       }
       // Exhausting the ceiling is a FAILURE, not a silent success: falling
       // through here would clear the spinner and re-fetch unchanged data,
@@ -610,6 +670,14 @@ export const useMonitoringStore = defineStore('monitoring', () => {
         )
       }
       await fetchProductData(nmId, params)
+      // A harvest tolerates a partial WB outage, so "successful" can still mean
+      // the funnel never arrived and the table redraws its previous numbers.
+      // Saying so is the difference between a working button and one the user
+      // believes is broken.
+      actionWarning.value = failedSources.length
+        ? `Wildberries не отдал: ${failedSources.map(sourceLabel).join(', ')}. ` +
+          'Эти данные остались прежними — попробуйте позже.'
+        : null
     } catch (err) {
       actionError.value = extractErrorMessage(err)
     } finally {
@@ -674,6 +742,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     matrixSaving,
     matrixRefreshing,
     actionError,
+    actionWarning,
     canUndoMatrix,
     canRedoMatrix,
     applyCellEdit,

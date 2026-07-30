@@ -202,6 +202,7 @@ onMounted(() => store.fetchPins())
             :refreshing="store.matrixRefreshing"
             :loading="store.loading"
             :error="store.actionError"
+            :warning="store.actionWarning"
             @save="store.saveMatrixEdits()"
             @refresh="store.refreshFromWb()"
           />

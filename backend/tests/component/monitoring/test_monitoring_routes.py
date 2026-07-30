@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import date
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx
 import pytest
@@ -287,10 +287,14 @@ class _FakeAsyncResult:
     ``tests/integration/celery/test_task_wiring.py``.
     """
 
+    #: Return value the faked task reports, as the harvest would produce it.
+    payload: ClassVar[object] = {"funnel_rows": 7, "failed_sources": []}
+
     def __init__(self, task_id: str, app: Any = None) -> None:
         """Record the polled id and report a finished, successful task."""
         self.id = task_id
         self.state = "SUCCESS"
+        self.result = self.payload
 
     def ready(self) -> bool:
         """Report the task as finished."""
@@ -369,3 +373,58 @@ async def test_a_refresh_task_is_invisible_to_a_different_workspace(
 
     assert seen_by_owner.status_code == 200
     assert seen_by_other.status_code == 404
+
+
+@pytest.mark.usefixtures("_fake_celery_result")
+async def test_a_partially_served_refresh_reports_which_wb_sources_failed(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A successful harvest that WB only partly served says which part is missing.
+
+    The harvest deliberately tolerates a partial WB outage, so ``successful``
+    stays true while the funnel rows never arrive. On 2026-07-30 that combination
+    redrew the same numbers with no explanation and «Обновить» looked inert. The
+    SPA can only say "Wildberries не отдал воронку продаж" if this field carries
+    it, so the field is part of the contract.
+    """
+    monkeypatch.setattr(
+        _FakeAsyncResult, "payload", {"funnel_rows": 0, "failed_sources": ["sales-funnel"]}
+    )
+    monkeypatch.setattr(
+        "src.modules.monitoring.routers.harvest_sku_window.delay",
+        lambda nm_ids: type("Task", (), {"id": "task-partial"})(),
+    )
+
+    await client.post(f"/api/v1/monitoring/skus/{NM_ID}/refresh", headers=headers)
+    status = await client.get("/api/v1/monitoring/refresh/task-partial", headers=headers)
+
+    assert status.status_code == 200
+    assert status.json()["successful"] is True
+    assert status.json()["failed_sources"] == ["sales-funnel"]
+
+
+@pytest.mark.usefixtures("_fake_celery_result")
+async def test_a_task_result_without_the_field_is_read_as_no_failures(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A result enqueued before this field existed must not break the poll.
+
+    Mid-rollout, and for a few minutes after every deploy, the result backend
+    still holds payloads from the previous version. The poll is what the SPA
+    spins on — it cannot 500 on an older shape.
+    """
+    monkeypatch.setattr(_FakeAsyncResult, "payload", {"funnel_rows": 12})
+    monkeypatch.setattr(
+        "src.modules.monitoring.routers.harvest_sku_window.delay",
+        lambda nm_ids: type("Task", (), {"id": "task-legacy"})(),
+    )
+
+    await client.post(f"/api/v1/monitoring/skus/{NM_ID}/refresh", headers=headers)
+    status = await client.get("/api/v1/monitoring/refresh/task-legacy", headers=headers)
+
+    assert status.status_code == 200
+    assert status.json()["failed_sources"] == []
