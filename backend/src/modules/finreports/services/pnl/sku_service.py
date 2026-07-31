@@ -17,9 +17,10 @@ from src.modules.finreports.repos import (
     CostPriceRepository,
     PnlGrouping,
     PnlRepository,
+    SkuExclusionRepository,
 )
 from src.modules.finreports.schemas.sku_report import PnlSkuReportResponse, PnlSkuRow
-from src.modules.finreports.services.pnl.sku_report import build_sku_report
+from src.modules.finreports.services.pnl.sku_report import build_dashboard, build_sku_report
 
 _ZERO = Decimal(0)
 
@@ -27,10 +28,29 @@ _ZERO = Decimal(0)
 class SkuReportService:
     """Builds the «По артикулам» P&L cut for a workspace and window."""
 
-    def __init__(self, *, pnl_repo: PnlRepository, cost_repo: CostPriceRepository) -> None:
+    def __init__(
+        self,
+        *,
+        pnl_repo: PnlRepository,
+        cost_repo: CostPriceRepository,
+        exclusion_repo: SkuExclusionRepository,
+    ) -> None:
         """Wire the read service from its repositories."""
         self._pnl = pnl_repo
         self._costs = cost_repo
+        self._exclusions = exclusion_repo
+
+    async def set_exclusion(self, *, workspace_id: uuid.UUID, nm_id: int, excluded: bool) -> None:
+        """Mark or clear one SKU's «Не включать в общий счёт» flag.
+
+        Args:
+            workspace_id: Owning workspace (the mark is shared across its users).
+            nm_id: SKU the mark applies to.
+            excluded: ``True`` to mark «Не включать», ``False`` to clear it.
+        """
+        await self._exclusions.set_excluded(
+            workspace_id=workspace_id, nm_id=nm_id, excluded=excluded
+        )
 
     async def get_report(
         self,
@@ -81,7 +101,9 @@ class SkuReportService:
             penalties=await self._pnl.sku_penalties(
                 workspace_id=workspace_id, date_from=date_from, date_to=date_to
             ),
+            excluded=await self._exclusions.excluded_nm_ids(workspace_id),
         )
+        dashboard = build_dashboard(rows=rows, totals=totals, total_aggregate=total_aggregate)
         notes = await self._notes(
             workspace_id=workspace_id,
             date_from=date_from,
@@ -97,6 +119,7 @@ class SkuReportService:
             rows=rows,
             unallocated=unallocated,
             totals=totals,
+            dashboard=dashboard,
             notes=notes,
         )
 

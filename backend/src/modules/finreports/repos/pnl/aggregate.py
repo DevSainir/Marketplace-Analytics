@@ -69,6 +69,8 @@ class SettlementAggregate:
         label: Human-readable name for the key (``sa_name`` for a SKU cut).
         date_from / date_to: Settlement dates actually observed in this group.
         currency: Settlement currency observed on the rows.
+        subject_name / brand_name: WB's catalogue identity for the row (Тип
+            предмета / Бренд). Meaningful on the SKU cut only.
         sold_units / returned_units: Units on «Продажа» / «Возврат» rows.
         sales_gross / returns_gross: ``retail_amount`` — what buyers paid and
             what was refunded.
@@ -122,6 +124,11 @@ class SettlementAggregate:
     date_from: date | None
     date_to: date | None
     currency: str
+    #: Catalogue identity WB stamps on the row. Meaningful only on the SKU cut
+    #: (all of a SKU's rows share them, so ``max`` = the value); on period/total
+    #: cuts they are an arbitrary max and go unused.
+    subject_name: str
+    brand_name: str
     sold_units: int
     returned_units: int
     sales_gross: Decimal
@@ -215,7 +222,12 @@ def _on(opers: Sequence[str], column: SqlExpr) -> ColumnElement[Any]:
 _AGGREGATES: tuple[SqlExpr, ...] = (
     func.min(_T.rr_dt),
     func.max(_T.rr_dt),
-    func.coalesce(func.max(_T.currency_name), ""),
+    # The MODAL currency, not max(): a workspace's settlements are effectively
+    # single-currency (this seller: 436 742 KGS rows), but a couple of stray rows
+    # in another currency exist, and max() is lexical — max("KGS","RUB") = "RUB",
+    # which would mislabel the whole statement AND make every KGS cost price
+    # unmatchable (costs are dropped when their currency differs, PNL.md §13).
+    func.coalesce(func.mode().within_group(_T.currency_name).filter(_T.currency_name != ""), ""),
     _units(SALE_OPERS),
     _units(RETURN_OPERS),
     _on(SALE_OPERS, _T.retail_amount),
@@ -303,6 +315,10 @@ _AGGREGATES: tuple[SqlExpr, ...] = (
             else_=_ZERO,
         )
     ),
+    # Catalogue identity, carried for the SKU cut's Тип предмета / Бренд columns.
+    # ``max`` because a SKU's rows all share them; ignored on period/total cuts.
+    func.max(_T.subject_name),
+    func.max(_T.brand_name),
     func.count(),
 )
 
@@ -315,6 +331,8 @@ def _to_aggregate(row: Sequence[Any]) -> SettlementAggregate:
         date_from=row[2],
         date_to=row[3],
         currency=str(row[4]),
+        subject_name=str(row[30] or ""),
+        brand_name=str(row[31] or ""),
         sold_units=int(row[5]),
         returned_units=int(row[6]),
         sales_gross=Decimal(row[7]),
@@ -340,8 +358,10 @@ def _to_aggregate(row: Sequence[Any]) -> SettlementAggregate:
         additional_payments=Decimal(row[27]),
         rebill_logistic_cost=Decimal(row[28]),
         advertising=Decimal(row[29]),
-        rows=int(row[30]),
+        rows=int(row[32]),
     )
+    # Row layout: key(0), label(1), then _AGGREGATES in order (2..). subject_name and
+    # brand_name are appended just before the count, taking 30 and 31; count is 32.
 
 
 #: Grouping key + label expression per :class:`PnlGrouping`. Only the SKU cut

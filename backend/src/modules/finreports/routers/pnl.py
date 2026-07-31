@@ -26,6 +26,7 @@ from src.modules.finreports.schemas import (
     CostPriceSaveResponse,
     PnlResponse,
     PnlSkuReportResponse,
+    SkuExclusionInput,
 )
 from src.modules.monitoring.contract import (
     ad_coverage,
@@ -101,6 +102,30 @@ async def get_pnl_by_sku(
         funnel_span=await funnel_coverage(session, date_from=start, date_to=end),
         ad_span=await ad_coverage(session, date_from=start, date_to=end),
     )
+
+
+@router.put(
+    "/pnl/skus/{nm_id}/exclusion",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        204: {"description": "SKU marked «Не включать в общий счёт», or cleared."},
+        401: {"description": "Unauthorized access token."},
+    },
+)
+async def set_sku_exclusion(
+    nm_id: int,
+    payload: SkuExclusionInput,
+    service: SkuReportServiceDep,
+    workspace_id: CurrentWorkspaceId,
+) -> Response:
+    """Mark or clear one SKU's «Не включать в общий счёт» flag.
+
+    The mark is stored per workspace, so it is shared across the workspace's
+    users, and it changes only the dashboard's «общий счёт» — the per-SKU rows
+    and the reconciled totals are unaffected. Idempotent in both directions.
+    """
+    await service.set_exclusion(workspace_id=workspace_id, nm_id=nm_id, excluded=payload.excluded)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(

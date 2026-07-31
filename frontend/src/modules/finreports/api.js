@@ -31,6 +31,18 @@ export async function fetchSkuPnl(params = {}, signal) {
 }
 
 /**
+ * PUT /v1/finreports/pnl/skus/{nmId}/exclusion — mark a SKU «Не включать в
+ * общий счёт» (or clear it). The mark is stored per workspace and shared.
+ *
+ * @param {number} nmId WB SKU identifier.
+ * @param {boolean} excluded `true` to exclude the SKU, `false` to include it.
+ * @returns {Promise<void>}
+ */
+export async function setSkuExclusion(nmId, excluded) {
+  await apiClient.put(`/v1/finreports/pnl/skus/${nmId}/exclusion`, { excluded })
+}
+
+/**
  * GET /v1/finreports/cost-prices — costs on file plus the SKUs still missing one.
  *
  * @param {AbortSignal} [signal]

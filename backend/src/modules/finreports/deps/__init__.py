@@ -19,6 +19,7 @@ from src.modules.finreports.repos import (
     FinancialReportRepository,
     LogisticsTransactionRepository,
     PnlRepository,
+    SkuExclusionRepository,
 )
 from src.modules.finreports.services import (
     CostPriceService,
@@ -62,10 +63,16 @@ def get_cost_repo(session: DbSession) -> CostPriceRepository:
     return CostPriceRepository(session)
 
 
+def get_exclusion_repo(session: DbSession) -> SkuExclusionRepository:
+    """Provide a :class:`SkuExclusionRepository` for the request."""
+    return SkuExclusionRepository(session)
+
+
 TransactionRepoDep = Annotated[LogisticsTransactionRepository, Depends(get_transaction_repo)]
 ReportRepoDep = Annotated[FinancialReportRepository, Depends(get_report_repo)]
 PnlRepoDep = Annotated[PnlRepository, Depends(get_pnl_repo)]
 CostRepoDep = Annotated[CostPriceRepository, Depends(get_cost_repo)]
+ExclusionRepoDep = Annotated[SkuExclusionRepository, Depends(get_exclusion_repo)]
 
 
 # --------------------------------------------------------------------------- #
@@ -100,9 +107,11 @@ def get_cost_price_service(cost_repo: CostRepoDep, pnl_repo: PnlRepoDep) -> Cost
     return CostPriceService(cost_repo=cost_repo, pnl_repo=pnl_repo)
 
 
-def get_sku_report_service(pnl_repo: PnlRepoDep, cost_repo: CostRepoDep) -> SkuReportService:
+def get_sku_report_service(
+    pnl_repo: PnlRepoDep, cost_repo: CostRepoDep, exclusion_repo: ExclusionRepoDep
+) -> SkuReportService:
     """Compose the :class:`SkuReportService` for the per-SKU P&L report."""
-    return SkuReportService(pnl_repo=pnl_repo, cost_repo=cost_repo)
+    return SkuReportService(pnl_repo=pnl_repo, cost_repo=cost_repo, exclusion_repo=exclusion_repo)
 
 
 def get_ingestion_service(
@@ -163,6 +172,7 @@ __all__ = [
     "BilledRepoDep",
     "CostPriceServiceDep",
     "CostRepoDep",
+    "ExclusionRepoDep",
     "IngestionServiceDep",
     "PenaltyRepoDep",
     "PnlRepoDep",

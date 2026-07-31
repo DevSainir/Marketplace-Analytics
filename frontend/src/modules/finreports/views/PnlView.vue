@@ -9,7 +9,7 @@
  * sales funnel and «Реклама» from the promotion statistics (the settlement
  * carries ad spend only as account-level invoices).
  */
-import { computed, defineAsyncComponent, onMounted, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import PnlDashboardCards from '@/modules/finreports/components/PnlDashboardCards.vue'
@@ -32,14 +32,15 @@ const PRESETS = [
   { key: 90, label: '90 дней' },
 ]
 
-const totals = computed(() => store.report?.totals ?? null)
+// The backend dashboard (exclusion-aware, whole window). While the table has a
+// filter/search active it emits a «по фильтру» subtotal, which takes over —
+// so the cards reflect only the SKUs on screen. `null` = no filter → backend.
+const filteredDashboard = ref(null)
+const dashboard = computed(() => filteredDashboard.value ?? store.report?.dashboard ?? null)
 const rows = computed(() => store.report?.rows ?? [])
 const unallocated = computed(() => store.report?.unallocated ?? null)
 const notes = computed(() => store.report?.notes ?? [])
 const currency = computed(() => store.report?.currency ?? '')
-const uncostedCount = computed(
-  () => rows.value.filter((r) => r.cost_price === null && r.sold_units > 0).length,
-)
 
 const isAllHistory = computed(
   () =>
@@ -151,8 +152,8 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
       <p class="mt-xs text-base text-muted">{{ store.reportError }}</p>
     </div>
 
-    <template v-else-if="totals">
-      <PnlDashboardCards :totals="totals" :currency="currency" :uncosted-count="uncostedCount" />
+    <template v-else-if="dashboard">
+      <PnlDashboardCards :dashboard="dashboard" :currency="currency" />
 
       <ul v-if="notes.length" class="mt-md space-y-xs">
         <li v-for="note in notes" :key="note" class="text-tiny text-muted">⚠ {{ note }}</li>
@@ -166,7 +167,13 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           заказов периода, за свежие даты покажут меньшие числа — большая часть заказов ещё не
           выкуплена и в расчёт WB не попала.
         </p>
-        <PnlSkuTable :rows="rows" :unallocated="unallocated" :currency="currency" />
+        <PnlSkuTable
+          :rows="rows"
+          :unallocated="unallocated"
+          :currency="currency"
+          @toggle-exclusion="store.toggleExclusion($event.nmId, $event.excluded)"
+          @dashboard-change="filteredDashboard = $event"
+        />
       </div>
     </template>
   </main>

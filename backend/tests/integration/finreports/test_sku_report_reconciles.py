@@ -20,7 +20,12 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.finreports.repos import CostPriceRepository, PnlRepository
+from src.modules.finreports.models import LogisticsTransaction
+from src.modules.finreports.repos import (
+    CostPriceRepository,
+    PnlRepository,
+    SkuExclusionRepository,
+)
 from src.modules.finreports.services.pnl import SkuReportService
 from src.modules.finreports.services.pnl.sku_report import UNALLOCATED_NAME
 from src.modules.monitoring.contract import (
@@ -35,6 +40,7 @@ from tests.integration.finreports.conftest import (
     OTHER_WORKSPACE,
     SKU_A,
     SKU_B,
+    THIS_WEEK,
     WINDOW_FROM,
     WINDOW_TO,
     WORKSPACE,
@@ -46,7 +52,9 @@ pytestmark = pytest.mark.integration
 async def _report(session: AsyncSession):
     """Build the per-SKU report for the seeded window, loaders included."""
     service = SkuReportService(
-        pnl_repo=PnlRepository(session), cost_repo=CostPriceRepository(session)
+        pnl_repo=PnlRepository(session),
+        cost_repo=CostPriceRepository(session),
+        exclusion_repo=SkuExclusionRepository(session),
     )
     return await service.get_report(
         workspace_id=WORKSPACE,
@@ -189,3 +197,64 @@ async def test_a_foreign_workspace_stays_invisible(db_session: AsyncSession, see
     assert all(r.sales_amount < Decimal("777777") for r in report.rows)
     assert report.totals.sales_amount < Decimal("777777")
     _ = OTHER_WORKSPACE  # documents what the assertion is about
+
+
+async def test_a_stray_currency_row_does_not_poison_the_report_currency(
+    db_session: AsyncSession, seeded: None
+) -> None:
+    """Currency is the MODAL one — a lone RUB row can't relabel a KGS workspace.
+
+    max() is lexical (max("KGS","RUB") == "RUB"), which would both mislabel the
+    statement and make every KGS cost price unmatchable. mode() picks the
+    dominant currency instead, so the KGS costs still apply.
+    """
+    db_session.add(
+        LogisticsTransaction(
+            rrd_id=99_000_001,
+            report_id=THIS_WEEK,
+            workspace_id=WORKSPACE,
+            nm_id=SKU_A,
+            supplier_oper_name="Продажа",
+            rr_dt=WINDOW_FROM,
+            currency_name="RUB",
+            quantity=1,
+            retail_amount=Decimal("999999"),
+            ppvz_for_pay=Decimal("999999"),
+        )
+    )
+    await db_session.flush()
+
+    report = await _report(db_session)
+
+    assert report.currency == "KGS"
+    # Costs are seeded in KGS; with the currency resolved to KGS they apply.
+    assert any(r.cost_price is not None for r in report.rows)
+
+
+async def test_excluding_a_sku_shrinks_the_dashboard_but_not_the_totals(
+    db_session: AsyncSession, seeded: None
+) -> None:
+    """The mark persists in real SQL and only the dashboard's «общий счёт» moves."""
+    before = await _report(db_session)
+    row_a = next(r for r in before.rows if r.nm_id == SKU_A)
+
+    # Nothing marked yet: the dashboard equals the reconciled totals.
+    assert before.dashboard.excluded_count == 0
+    assert before.dashboard.payout_net == before.totals.payout_net
+    assert before.dashboard.sales == before.totals.revenue_paid
+
+    service = SkuReportService(
+        pnl_repo=PnlRepository(db_session),
+        cost_repo=CostPriceRepository(db_session),
+        exclusion_repo=SkuExclusionRepository(db_session),
+    )
+    await service.set_exclusion(workspace_id=WORKSPACE, nm_id=SKU_A, excluded=True)
+
+    after = await _report(db_session)
+
+    assert after.dashboard.excluded_count == 1
+    assert next(r for r in after.rows if r.nm_id == SKU_A).is_excluded is True
+    # The card drops exactly SKU A's share…
+    assert after.dashboard.payout_net == before.totals.payout_net - row_a.payout_net
+    # …while the reconciled totals stay full (the invariant is untouched).
+    assert after.totals.payout_net == before.totals.payout_net

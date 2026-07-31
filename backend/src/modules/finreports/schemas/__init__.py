@@ -21,8 +21,10 @@ from src.modules.finreports.schemas.pnl import (
     ReasonShare,
 )
 from src.modules.finreports.schemas.sku_report import (
+    PnlDashboard,
     PnlSkuReportResponse,
     PnlSkuRow,
+    SkuExclusionInput,
     SkuPenalty,
 )
 
@@ -33,12 +35,14 @@ __all__ = [
     "CostPriceListResponse",
     "CostPriceSaveResponse",
     "LogisticsTxnItem",
+    "PnlDashboard",
     "PnlResponse",
     "PnlSection",
     "PnlSkuReportResponse",
     "PnlSkuRow",
     "PnlStatement",
     "ReasonShare",
+    "SkuExclusionInput",
     "SkuPenalty",
     "WeekPeriod",
     "WeeksResponse",

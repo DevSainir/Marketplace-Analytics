@@ -6,6 +6,7 @@ import {
   fetchSkuPnl,
   fetchWeeks,
   saveCostPrices,
+  setSkuExclusion,
 } from '@/modules/finreports/api'
 import { useFinReportsStore } from '@/modules/finreports/store'
 
@@ -15,6 +16,7 @@ vi.mock('@/modules/finreports/api', () => ({
   fetchSkuPnl: vi.fn(),
   fetchWeeks: vi.fn(),
   saveCostPrices: vi.fn(),
+  setSkuExclusion: vi.fn(),
 }))
 
 const WEEKS = [
@@ -28,6 +30,7 @@ const REPORT = { totals: { payout_net: '2010193.84' }, rows: [], unallocated: nu
 let store
 
 beforeEach(() => {
+  localStorage.clear()
   setActivePinia(createPinia())
   store = useFinReportsStore()
   vi.clearAllMocks()
@@ -44,13 +47,27 @@ describe('period selection', () => {
     expect(store.fullSpan).toEqual({ date_from: '2024-01-29', date_to: '2026-07-19' })
   })
 
-  it('defaults to the last 30 settled days, anchored to the newest harvested day', async () => {
+  it('defaults to the last week, anchored to the newest harvested day', async () => {
     // NOT the whole history: the recent window is what a seller checks daily,
     // and it renders an order of magnitude faster than 2.5 years of rows.
     await store.loadWeeks()
 
     expect(store.dateTo).toBe('2026-07-19')
-    expect(store.dateFrom).toBe('2026-06-20')
+    expect(store.dateFrom).toBe('2026-07-13') // 7 days inclusive
+  })
+
+  it('restores the last chosen period on reload instead of the default', async () => {
+    await store.loadWeeks()
+    store.setPeriod('2025-03-04', '2025-11-17')
+
+    // A page reload resets the store; a fresh one must read the saved period.
+    setActivePinia(createPinia())
+    const reloaded = useFinReportsStore()
+    fetchWeeks.mockResolvedValue({ weeks: WEEKS })
+    await reloaded.loadWeeks()
+
+    expect(reloaded.dateFrom).toBe('2025-03-04')
+    expect(reloaded.dateTo).toBe('2025-11-17')
   })
 
   it('accepts an arbitrary start/end pair, not only report weeks', async () => {
@@ -177,6 +194,46 @@ describe('cost prices invalidating the report', () => {
 
     await expect(store.persistCostPrices([{ nm_id: 1, cost: 1 }])).rejects.toThrow()
     expect(store.report).toEqual(REPORT)
+  })
+})
+
+describe('excluding a SKU from the общий счёт', () => {
+  it('persists the mark then reloads so the backend recomputes the dashboard', async () => {
+    await store.loadWeeks()
+    await store.loadReport()
+    setSkuExclusion.mockResolvedValue(undefined)
+    fetchSkuPnl.mockClear()
+
+    await store.toggleExclusion(953770957, true)
+
+    expect(setSkuExclusion).toHaveBeenCalledWith(953770957, true)
+    // The dashboard is the backend's, so the store re-fetches rather than
+    // adjusting totals on the client.
+    expect(fetchSkuPnl).toHaveBeenCalled()
+  })
+
+  it('flips the row optimistically before the reload lands', async () => {
+    await store.loadWeeks()
+    store.report = { rows: [{ nm_id: 1, is_excluded: false }], dashboard: {} }
+    setSkuExclusion.mockResolvedValue(undefined)
+    // Freeze the reload so we can observe the optimistic state.
+    fetchSkuPnl.mockImplementation(() => new Promise(() => {}))
+
+    store.toggleExclusion(1, true)
+
+    expect(store.report.rows[0].is_excluded).toBe(true)
+  })
+
+  it('surfaces a failed mark and still reloads to resync', async () => {
+    await store.loadWeeks()
+    await store.loadReport()
+    setSkuExclusion.mockRejectedValue({ response: { data: { detail: 'Нельзя' } } })
+    fetchSkuPnl.mockClear()
+
+    await store.toggleExclusion(1, true)
+
+    expect(store.reportError).toBe('Нельзя')
+    expect(fetchSkuPnl).toHaveBeenCalled()
   })
 })
 

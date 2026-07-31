@@ -2,22 +2,30 @@
 /**
  * The per-SKU P&L table — the «По артикулам» cut of the report.
  *
- * One row per SKU with the money columns of the reference workbook: units,
- * revenue and СПП, logistics with its share, penalties by WB's own categories,
- * advertising, the payout and the net profit. Percentages are shares of that
- * SKU's net paid revenue.
+ * One row per SKU with the money columns of the reference workbook plus WB's
+ * catalogue identity (Артикул WB / Тип предмета / Бренд) and the efficiency
+ * ratios (Средний чек, ROI, ROMI). «Продажи» is shown NET of returns, matching
+ * WB's finance page; percentages are shares of that net paid revenue.
+ *
+ * Every figure is the backend's — this component only formats, filters and
+ * sorts. Search and the Тип предмета / Бренд filters are purely local over the
+ * already-loaded rows (like monitoring's SkuSearchSelect); they never re-fetch
+ * and never change the dashboard, which reflects the persisted exclusion marks.
  *
  * The «Штрафы» cell carries its categories inline (tiny second line) — the
- * category is what tells a seller whether a fine is disputable, and hiding it
- * behind an expander buried exactly the number this module exists to surface.
+ * category is what tells a seller whether a fine is disputable. The rightmost
+ * column is the «Не включать в общий счёт» mark; toggling it emits upward so the
+ * store can persist it and reload the backend-computed dashboard.
  *
  * PrimeVue in unstyled/Tailwind mode, matching the monitoring tables: sorting
  * and the frozen article column are the reason.
  */
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
-import { computed, ref, toRefs } from 'vue'
+import { ref, toRefs, watchEffect } from 'vue'
 
+import PnlSkuTableToolbar from '@/modules/finreports/components/PnlSkuTableToolbar.vue'
+import { subsetDashboard, usePnlSkuRows } from '@/modules/finreports/usePnlSkuRows'
 import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 
 /** Page-size choices. A native select, not the paginator's built-in dropdown:
@@ -33,38 +41,20 @@ const props = defineProps({
   currency: { type: String, default: '' },
 })
 
+const emit = defineEmits(['toggle-exclusion', 'dashboard-change'])
+
 const { rows, unallocated } = toRefs(props)
 
-const num = (value) => (value === null || value === undefined ? null : Number(value))
+// Row shaping + local search/filter live in the composable (keeps this
+// component under the size limit).
+const { query, subjectFilter, brandFilter, subjects, brands, tableRows, filtered, isFiltering } =
+  usePnlSkuRows(rows, unallocated)
 
-function toRow(r, isBucket = false) {
-  return {
-    nmId: r.nm_id,
-    saName: r.sa_name,
-    isBucket,
-    orders: num(r.orders_units),
-    sold: r.sold_units,
-    returned: r.returned_units,
-    returnPct: num(r.return_rate_pct),
-    sales: num(r.sales_amount),
-    sppPct: num(r.spp_pct),
-    logistics: num(r.logistics_total),
-    logisticsPct: num(r.logistics_pct),
-    penalties: num(r.penalties_total),
-    penaltyReasons: (r.penalties ?? []).map((p) => ({ reason: p.reason, amount: num(p.amount) })),
-    cogs: num(r.cogs),
-    advertising: num(r.advertising),
-    advertisingPct: num(r.advertising_pct),
-    payout: num(r.payout_net),
-    profit: num(r.net_profit),
-    profitPct: num(r.net_profit_pct),
-  }
-}
-
-const tableRows = computed(() => {
-  const list = rows.value.map((r) => toRow(r))
-  if (unallocated.value) list.push(toRow(unallocated.value, true))
-  return list
+// Tell the parent to swap the dashboard to a «по фильтру» subtotal while a
+// filter/search is active, and back to the backend one when it clears. Summing
+// the visible rows is instant, so the search needs no debounce.
+watchEffect(() => {
+  emit('dashboard-change', isFiltering.value ? subsetDashboard(filtered.value) : null)
 })
 
 const money = (value) => (value === null ? '—' : formatMoney(value, ''))
@@ -79,26 +69,33 @@ function setPageSize(value) {
   rowsPerPage.value = Number(value)
   first.value = 0
 }
+
+/** Dim the excluded rows so the seller sees what the «общий счёт» drops. */
+const rowClass = (data) => (data.isExcluded ? 'opacity-50' : '')
+
+function onToggle(data, checked) {
+  emit('toggle-exclusion', { nmId: data.nmId, excluded: checked })
+}
 </script>
 
 <template>
   <div class="app-datatable rounded-card border border-border-subtle bg-surface shadow-card">
-    <div class="flex items-center justify-end gap-sm border-b border-border-subtle px-md py-sm">
-      <label class="text-tiny text-muted" for="sku-page-size">Строк на странице:</label>
-      <select
-        id="sku-page-size"
-        :value="rowsPerPage"
-        class="rounded-input border border-border-subtle bg-surface px-sm py-xs text-base text-primary"
-        @change="setPageSize($event.target.value)"
-      >
-        <option v-for="size in PAGE_SIZES" :key="size" :value="size">{{ size }}</option>
-      </select>
-    </div>
+    <PnlSkuTableToolbar
+      v-model:query="query"
+      v-model:subject="subjectFilter"
+      v-model:brand="brandFilter"
+      :page-size="rowsPerPage"
+      :page-sizes="PAGE_SIZES"
+      :subjects="subjects"
+      :brands="brands"
+      @update:page-size="setPageSize"
+    />
     <DataTable
       v-model:first="first"
       :value="tableRows"
       :paginator="tableRows.length > rowsPerPage"
       :rows="rowsPerPage"
+      :row-class="rowClass"
       sort-mode="single"
       data-key="nmId"
       scrollable
@@ -115,6 +112,17 @@ function setPageSize(value) {
           </span>
         </template>
       </Column>
+      <Column field="nmId" header="Артикул WB" sortable>
+        <template #body="{ data }">
+          <span class="tabular-nums text-muted">{{ data.isBucket ? '—' : data.nmId }}</span>
+        </template>
+      </Column>
+      <Column field="subject" header="Тип предмета" sortable>
+        <template #body="{ data }">{{ data.subject || '—' }}</template>
+      </Column>
+      <Column field="brand" header="Бренд" sortable>
+        <template #body="{ data }">{{ data.brand || '—' }}</template>
+      </Column>
       <Column field="orders" header="Заказы, шт" sortable>
         <template #body="{ data }">
           {{ data.orders === null ? '—' : formatNumber(data.orders) }}
@@ -128,6 +136,9 @@ function setPageSize(value) {
       </Column>
       <Column field="sales" :header="`Продажи, ${currency}`" sortable>
         <template #body="{ data }">{{ money(data.sales) }}</template>
+      </Column>
+      <Column field="averageCheque" header="Средний чек" sortable>
+        <template #body="{ data }">{{ money(data.averageCheque) }}</template>
       </Column>
       <Column field="sppPct" header="СПП, %" sortable>
         <template #body="{ data }">{{ pct(data.sppPct) }}</template>
@@ -166,6 +177,12 @@ function setPageSize(value) {
           </span>
         </template>
       </Column>
+      <Column field="roi" header="ROI" sortable>
+        <template #body="{ data }">{{ pct(data.roi) }}</template>
+      </Column>
+      <Column field="romi" header="ROMI" sortable>
+        <template #body="{ data }">{{ pct(data.romi) }}</template>
+      </Column>
       <Column field="payout" header="К перечислению" sortable>
         <template #body="{ data }">{{ money(data.payout) }}</template>
       </Column>
@@ -178,6 +195,28 @@ function setPageSize(value) {
             <span class="text-tiny text-muted"> ({{ pct(data.profitPct) }})</span>
           </template>
           <template v-else>—</template>
+        </template>
+      </Column>
+      <Column field="isExcluded" header="" :sortable="false">
+        <template #body="{ data }">
+          <label
+            v-if="!data.isBucket"
+            class="group relative flex items-center justify-center"
+            title="Не включать в общий счёт"
+          >
+            <input
+              type="checkbox"
+              :checked="data.isExcluded"
+              aria-label="Не включать в общий счёт"
+              class="h-4 w-4 cursor-pointer rounded border-border-subtle text-action focus:ring-action/20"
+              @change="onToggle(data, $event.target.checked)"
+            />
+            <span
+              class="pointer-events-none absolute right-full top-1/2 z-20 mr-sm hidden -translate-y-1/2 whitespace-nowrap rounded-input border border-border-subtle bg-surface px-sm py-xs text-tiny text-primary shadow-card group-hover:block"
+            >
+              Не включать в общий счёт
+            </span>
+          </label>
         </template>
       </Column>
     </DataTable>

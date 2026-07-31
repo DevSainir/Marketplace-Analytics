@@ -36,6 +36,12 @@ class SkuPenalty(BaseModel):
     amount: Decimal
 
 
+class SkuExclusionInput(BaseModel):
+    """Request body for marking a SKU «Не включать в общий счёт» (or clearing it)."""
+
+    excluded: bool
+
+
 class PnlSkuRow(BaseModel):
     """One SKU's slice of the window, every money figure in the row currency.
 
@@ -45,6 +51,15 @@ class PnlSkuRow(BaseModel):
 
     nm_id: int
     sa_name: str
+    #: WB's catalogue identity for the SKU (Тип предмета / Бренд). "" on the
+    #: totals and account-level bucket rows, which span many subjects/brands.
+    subject_name: str
+    brand_name: str
+
+    #: Whether the seller marked this SKU «Не включать в общий счёт». Never true
+    #: for the account-level bucket. The mark is persisted per workspace and is
+    #: what the dashboard's exclusion-aware figures are computed against.
+    is_excluded: bool
 
     #: Ordered units from the funnel history; ``None`` = no funnel coverage.
     orders_units: int | None
@@ -55,12 +70,15 @@ class PnlSkuRow(BaseModel):
     #: Продажи / Возвраты, сом (what buyers paid on sale / refund rows).
     sales_amount: Decimal
     returns_amount: Decimal
-    #: Продажи - Возвраты — the base every percentage in the row is against.
+    #: Продажи - Возвраты — the base every percentage in the row is against, and
+    #: the «Продажи» actually shown (net of returns, to match WB's finance page).
     revenue_paid: Decimal
     #: The same net revenue at the seller's own pre-СПП price.
     revenue_seller_price: Decimal
     spp_amount: Decimal
     spp_pct: Decimal | None
+    #: Средний чек — net revenue per bought-out unit. ``None`` when net units 0.
+    average_cheque: Decimal | None
 
     logistics_forward: Decimal
     logistics_return: Decimal
@@ -90,6 +108,47 @@ class PnlSkuRow(BaseModel):
     net_profit: Decimal | None
     net_profit_pct: Decimal | None
 
+    #: ROI = net profit / cost * 100. ``None`` without cost (profit is ``None``
+    #: then too) or when cost is zero.
+    roi_pct: Decimal | None
+    #: ROMI = net profit / ad spend * 100. ``None`` when profit is unknown or
+    #: there was no advertising to return on.
+    romi_pct: Decimal | None
+
+
+class PnlDashboard(BaseModel):
+    """The dashboard KPIs — exclusion-aware, computed on the backend.
+
+    Separate from :attr:`PnlSkuReportResponse.totals` on purpose. ``totals`` is
+    the full reconciled window (Σ rows + unallocated, to the kopeck — a tested
+    invariant). This is what the five cards show, and its four per-SKU figures
+    drop the SKUs the seller marked «Не включать в общий счёт». Account-level
+    money («Прочие удержания») has no SKU, so it is never affected by a mark.
+    """
+
+    #: «Продажи» — net of returns, over non-excluded SKUs (matches WB's page).
+    sales: Decimal
+    #: Gross sales and returns behind :attr:`sales`, for the card's subline.
+    sales_gross: Decimal
+    returns_amount: Decimal
+    sold_units: int
+    return_rate_pct: Decimal | None
+    #: «Логистика» over non-excluded SKUs, and its share of :attr:`sales`.
+    logistics: Decimal
+    logistics_pct: Decimal | None
+    #: «Себестоимость» of the non-excluded costed SKUs; SKUs with sales but no
+    #: cost on file are counted in :attr:`uncosted_count`, not summed here.
+    cogs: Decimal
+    uncosted_count: int
+    #: «Перечисление» — Σ non-excluded SKUs' payout + the account-level bucket.
+    payout_net: Decimal
+    #: «Прочие удержания» — Σ ``deduction`` (WB's own line), account-level, so it
+    #: is exclusion-independent. ``advertising`` is its ВБ.Продвижение share.
+    other_deductions: Decimal
+    advertising: Decimal
+    #: How many SKUs are currently marked out of the count.
+    excluded_count: int
+
 
 class PnlSkuReportResponse(BaseModel):
     """The per-SKU report plus its reconciliation frame."""
@@ -102,6 +161,8 @@ class PnlSkuReportResponse(BaseModel):
     #: Account-level money WB attributes to no SKU. ``None`` when the window has
     #: none. Σ rows + unallocated = totals, exactly.
     unallocated: PnlSkuRow | None
-    #: The whole window in one row — the dashboard reads from here.
+    #: The whole window in one row — the full reconciled total (all SKUs).
     totals: PnlSkuRow
+    #: The exclusion-aware KPIs the five dashboard cards render.
+    dashboard: PnlDashboard
     notes: list[str]

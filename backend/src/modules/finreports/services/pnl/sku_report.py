@@ -16,13 +16,15 @@ invoice-vs-stats gap stays visible in the unallocated row.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from decimal import Decimal
 
 from src.modules.finreports.repos import SettlementAggregate
-from src.modules.finreports.schemas.sku_report import PnlSkuRow, SkuPenalty
+from src.modules.finreports.schemas.sku_report import PnlDashboard, PnlSkuRow, SkuPenalty
 
 _ZERO = Decimal(0)
 _HUNDRED = Decimal(100)
+_CENTS = Decimal("0.01")
 
 #: Grouping label of the row that carries WB's account-level (nm_id = 0) money.
 UNALLOCATED_NAME = "Без привязки к артикулу (счёт целиком)"
@@ -44,6 +46,9 @@ def build_sku_row(
     cost_price: Decimal | None,
     advertising: Decimal | None,
     penalties: list[SkuPenalty],
+    subject_name: str = "",
+    brand_name: str = "",
+    is_excluded: bool = False,
 ) -> PnlSkuRow:
     """Compose one SKU's row from its aggregate and the cross-module figures.
 
@@ -55,6 +60,9 @@ def build_sku_row(
         cost_price: The seller's per-unit cost, ``None`` when not on file.
         advertising: Promotion-API spend, ``None`` without coverage.
         penalties: This SKU's penalty categories.
+        subject_name: WB's Тип предмета (blank on the totals/bucket rows).
+        brand_name: WB's Бренд (blank on the totals/bucket rows).
+        is_excluded: Whether the seller marked the SKU «Не включать в общий счёт».
 
     Returns:
         The row, with every derived figure computed.
@@ -88,6 +96,9 @@ def build_sku_row(
     return PnlSkuRow(
         nm_id=nm_id,
         sa_name=sa_name,
+        subject_name=subject_name,
+        brand_name=brand_name,
+        is_excluded=is_excluded,
         orders_units=orders,
         sold_units=aggregate.sold_units,
         returned_units=aggregate.returned_units,
@@ -98,6 +109,7 @@ def build_sku_row(
         revenue_seller_price=revenue_seller,
         spp_amount=revenue_seller - revenue_paid,
         spp_pct=_pct(revenue_seller - revenue_paid, revenue_seller),
+        average_cheque=((revenue_paid / net_units).quantize(_CENTS) if net_units else None),
         logistics_forward=aggregate.logistics_forward,
         logistics_return=aggregate.logistics_return,
         logistics_total=logistics,
@@ -112,6 +124,13 @@ def build_sku_row(
         payout_net=payout_net,
         net_profit=net_profit,
         net_profit_pct=_pct(net_profit, revenue_paid) if net_profit is not None else None,
+        # Profit-based, per the seller's choice: ROI against cost, ROMI against
+        # ad spend. Each is None the moment its denominator is missing or zero —
+        # net_profit is already None without a cost, so ROI/ROMI follow.
+        roi_pct=(_pct(net_profit, cogs) if net_profit is not None and cogs else None),
+        romi_pct=(
+            _pct(net_profit, advertising) if net_profit is not None and advertising else None
+        ),
     )
 
 
@@ -123,6 +142,7 @@ def build_sku_report(
     orders: dict[int, int] | None,
     ad_spend: dict[int, Decimal] | None,
     penalties: list[tuple[int, str, Decimal]],
+    excluded: set[int] | None = None,
 ) -> tuple[list[PnlSkuRow], PnlSkuRow | None, PnlSkuRow]:
     """Assemble the report's rows, its unallocated bucket and its totals row.
 
@@ -133,10 +153,14 @@ def build_sku_report(
         orders: Funnel orders per ``nm_id``; ``None`` = no coverage at all.
         ad_spend: Promotion-API spend per ``nm_id``; ``None`` = no coverage.
         penalties: ``(nm_id, reason, amount)`` categories for the window.
+        excluded: ``nm_id``s marked «Не включать в общий счёт». Only flags the
+            rows; ``totals`` stays the full reconciled window regardless (the
+            exclusion-aware figures live in :func:`build_dashboard`).
 
     Returns:
         ``(rows sorted by net revenue, unallocated row or None, totals row)``.
     """
+    excluded = excluded or set()
     penalty_map: dict[int, list[SkuPenalty]] = {}
     for nm_id, reason, amount in penalties:
         penalty_map.setdefault(nm_id, []).append(SkuPenalty(reason=reason, amount=amount))
@@ -153,6 +177,9 @@ def build_sku_report(
             cost_price=costs.get(nm_id),
             advertising=None if ad_spend is None else ad_spend.get(nm_id, _ZERO),
             penalties=penalty_map.get(nm_id, []),
+            subject_name=aggregate.subject_name if nm_id else "",
+            brand_name=aggregate.brand_name if nm_id else "",
+            is_excluded=nm_id in excluded,
         )
         if nm_id == 0:
             row.sa_name = UNALLOCATED_NAME
@@ -185,6 +212,60 @@ def build_sku_report(
     totals.net_profit_pct = _pct(totals.net_profit, totals.revenue_paid)
     _ = total_costed_units  # coverage is reported by the service's notes
     return rows, unallocated, totals
+
+
+def build_dashboard(
+    *,
+    rows: list[PnlSkuRow],
+    totals: PnlSkuRow,
+    total_aggregate: SettlementAggregate,
+) -> PnlDashboard:
+    """Compose the five dashboard cards, dropping the marked SKUs.
+
+    Computed as ``totals - sum(marked rows)`` rather than ``sum(included rows)`` on
+    purpose: with nothing marked the dashboard then equals the full reconciled
+    ``totals`` to the kopeck (so «Продажи» matches WB's page and «Перечисление»
+    matches «Итого к оплате»), and each mark subtracts exactly that SKU's share —
+    including its slice of «Перечисление», which ``totals`` carries together with
+    the account-level bucket. «Прочие удержания» is account-level (no ``nm_id``),
+    so it is read off the window aggregate and a mark never moves it.
+
+    Args:
+        rows: The real-SKU rows (each carrying ``is_excluded``).
+        totals: The full reconciled window row from :func:`build_sku_report`.
+        total_aggregate: The window aggregate, for the account-level deductions.
+
+    Returns:
+        The exclusion-aware KPIs the cards render.
+    """
+    marked = [r for r in rows if r.is_excluded]
+
+    def _less(total: Decimal, pick: Callable[[PnlSkuRow], Decimal]) -> Decimal:
+        return total - sum((pick(r) for r in marked), _ZERO)
+
+    sales = _less(totals.revenue_paid, lambda r: r.revenue_paid)
+    logistics = _less(totals.logistics_total, lambda r: r.logistics_total)
+    sold_units = totals.sold_units - sum(r.sold_units for r in marked)
+    returned_units = totals.returned_units - sum(r.returned_units for r in marked)
+    cogs = (totals.cogs or _ZERO) - sum((r.cogs or _ZERO) for r in marked)
+
+    return PnlDashboard(
+        sales=sales,
+        sales_gross=_less(totals.sales_amount, lambda r: r.sales_amount),
+        returns_amount=_less(totals.returns_amount, lambda r: r.returns_amount),
+        sold_units=sold_units,
+        return_rate_pct=_pct(Decimal(returned_units), Decimal(sold_units)),
+        logistics=logistics,
+        logistics_pct=_pct(logistics, sales),
+        cogs=cogs,
+        uncosted_count=sum(
+            1 for r in rows if not r.is_excluded and r.cost_price is None and r.sold_units
+        ),
+        payout_net=_less(totals.payout_net, lambda r: r.payout_net),
+        other_deductions=total_aggregate.deductions,
+        advertising=total_aggregate.advertising,
+        excluded_count=len(marked),
+    )
 
 
 def _merged_reasons(penalties: list[tuple[int, str, Decimal]]) -> list[SkuPenalty]:

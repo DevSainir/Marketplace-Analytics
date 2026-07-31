@@ -22,12 +22,36 @@ import {
   fetchSkuPnl,
   fetchWeeks,
   saveCostPrices,
+  setSkuExclusion,
 } from '@/modules/finreports/api'
 
 /** YYYY-MM-DD in the local calendar (the report dates are calendar days). */
 function isoDate(date) {
   const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
   return shifted.toISOString().slice(0, 10)
+}
+
+/** The seller's chosen period survives a reload, kept in localStorage. */
+const PERIOD_KEY = 'finreports:period'
+/** Default span on first ever open: the last week (7 settled days). */
+const DEFAULT_DAYS = 7
+
+function readSavedPeriod() {
+  try {
+    const raw = localStorage.getItem(PERIOD_KEY)
+    const saved = raw ? JSON.parse(raw) : null
+    return saved?.from && saved?.to ? saved : null
+  } catch {
+    return null
+  }
+}
+
+function writeSavedPeriod(from, to) {
+  try {
+    localStorage.setItem(PERIOD_KEY, JSON.stringify({ from, to }))
+  } catch {
+    /* private mode / storage disabled — the period just won't persist */
+  }
 }
 
 export const useFinReportsStore = defineStore('finreports', () => {
@@ -61,14 +85,22 @@ export const useFinReportsStore = defineStore('finreports', () => {
     weeksLoading.value = true
     try {
       weeks.value = (await fetchWeeks()).weeks ?? []
-      // First open: default to the last ~30 settled days, not the whole
-      // history — the recent window is what a seller checks daily, and it
-      // renders an order of magnitude faster than 2.5 years of rows.
+      // On a fresh load (page reload resets the store): restore the period the
+      // seller last chose, so a reload keeps their view instead of snapping back
+      // to a default. Only when there is nothing saved do we default — to the
+      // last week (the window a seller checks daily, and far faster to render
+      // than 2.5 years of rows).
       if (!dateFrom.value && fullSpan.value) {
-        const end = new Date(fullSpan.value.date_to)
-        const start = new Date(end.getTime() - 29 * 86400000)
-        dateTo.value = fullSpan.value.date_to
-        dateFrom.value = isoDate(start)
+        const saved = readSavedPeriod()
+        if (saved) {
+          dateFrom.value = saved.from
+          dateTo.value = saved.to
+        } else {
+          const end = new Date(fullSpan.value.date_to)
+          const start = new Date(end.getTime() - (DEFAULT_DAYS - 1) * 86400000)
+          dateTo.value = fullSpan.value.date_to
+          dateFrom.value = isoDate(start)
+        }
       }
     } catch (error) {
       reportError.value = extractErrorMessage(error)
@@ -109,13 +141,39 @@ export const useFinReportsStore = defineStore('finreports', () => {
     }
   }
 
-  /** Set an explicit period. Swapped ends are corrected, not rejected. */
+  /**
+   * Mark a SKU «Не включать в общий счёт» (or clear it), then reload.
+   *
+   * The dashboard's «общий счёт» is recomputed on the backend, so after
+   * persisting the mark we re-fetch the report rather than adjust totals on the
+   * client. The row's own flag is flipped optimistically so the checkbox reacts
+   * immediately; the reload then brings the recomputed dashboard.
+   */
+  async function toggleExclusion(nmId, excluded) {
+    const row = report.value?.rows?.find((r) => r.nm_id === nmId)
+    if (row) row.is_excluded = excluded
+    let failure = ''
+    try {
+      await setSkuExclusion(nmId, excluded)
+    } catch (error) {
+      failure = extractErrorMessage(error)
+    }
+    // Reload regardless, to resync from the persisted truth (the mark may not
+    // have applied). Surface the failure *after* — loadReport clears the error
+    // channel on entry, so setting it before would be wiped out.
+    await loadReport()
+    if (failure) reportError.value = failure
+  }
+
+  /** Set an explicit period. Swapped ends are corrected, not rejected. The
+   *  choice is persisted so a page reload restores it. */
   function setPeriod(from, to) {
     if (from && to && from > to) {
       ;[from, to] = [to, from]
     }
     dateFrom.value = from
     dateTo.value = to
+    if (from && to) writeSavedPeriod(from, to)
   }
 
   /** Last N settled days (against the newest harvested day, not today). */
@@ -195,6 +253,7 @@ export const useFinReportsStore = defineStore('finreports', () => {
     costsSaving,
     loadWeeks,
     loadReport,
+    toggleExclusion,
     setPeriod,
     setPresetDays,
     setPresetAll,
