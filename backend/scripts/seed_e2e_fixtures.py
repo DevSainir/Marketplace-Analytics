@@ -93,7 +93,7 @@ _FALLBACK_NM_ID = 990_000_501
 #: load-bearing: WB bills 20 litres for a box the seller measured at 10, so the
 _DECLARED_VOLUME_L = Decimal("10.000")
 _BILLED_VOLUME_L = Decimal("20.000")
-_LOGISTICS_BILLED_RUB = Decimal("278.00")
+_LOGISTICS_BILLED_KGS = Decimal("278.00")
 _BOX_DELIVERY_BASE = Decimal("46.00")
 _BOX_DELIVERY_LITER = Decimal("14.00")
 _FIXTURE_WAREHOUSE = "Коледино"
@@ -222,6 +222,26 @@ async def _ensure_finreports_week(session: AsyncSession, workspace_id: uuid.UUID
     if existing is not None:
         return False
 
+    # Safety guard — the reason this function cannot pollute real data again.
+    # The e2e fixture DB holds nothing but what this script seeds, so it has zero
+    # non-fixture settlement rows and the guard is a no-op. A developer's dev DB
+    # (or prod) holds hundreds of thousands of real rows; injecting a fake demo
+    # "week" onto a real SKU there silently skews the P&L. That accident happened
+    # once (report 990000001 landed in «Демо» via a stray local `make
+    # seed-e2e`), so this refuses outright rather than trusting the .env target.
+    real_rows = await session.scalar(
+        select(func.count())
+        .select_from(LogisticsTransaction)
+        .where(LogisticsTransaction.report_id != _FIXTURE_REPORT_ID)
+    )
+    if real_rows:
+        print(
+            f"  SKIPPED finreports fixture: database already has {real_rows} real "
+            "settlement rows. This seeder is for a fresh e2e database only — it "
+            "refuses to inject the demo week into populated (dev/prod) data."
+        )
+        return False
+
     today = date.today()
     date_to = today - timedelta(days=7)
     date_from = date_to - timedelta(days=6)
@@ -243,7 +263,7 @@ async def _ensure_finreports_week(session: AsyncSession, workspace_id: uuid.UUID
             workspace_id=workspace_id,
             date_from=date_from,
             date_to=date_to,
-            currency="RUB",
+            currency="KGS",
             create_dt=date_to,
         )
     )
@@ -253,7 +273,7 @@ async def _ensure_finreports_week(session: AsyncSession, workspace_id: uuid.UUID
         "nm_id": nm_id,
         "sa_name": sa_name,
         "rr_dt": date_to,
-        "currency_name": "RUB",
+        "currency_name": "KGS",
         "office_name": _FIXTURE_WAREHOUSE,
         "gi_id": _FIXTURE_GI_ID,
     }
@@ -263,7 +283,7 @@ async def _ensure_finreports_week(session: AsyncSession, workspace_id: uuid.UUID
             supplier_oper_name=LOGISTICS_OPER,
             quantity=1,
             delivery_amount=1,
-            delivery_rub=_LOGISTICS_BILLED_RUB,
+            delivery_rub=_LOGISTICS_BILLED_KGS,
             **common,
         )
     )
