@@ -37,6 +37,18 @@ repos:
         name: ruff (format)
         files: ^backend/.*\.py$
 
+  # PATH for `language: system` hooks
+  # ---------------------------------
+  # These hooks shell out to tools (`uv`, `npx`) that live in per-user install
+  # dirs. pre-commit runs them under whatever PATH git inherited — and when git
+  # is launched from a non-login shell (an IDE's Git integration, a `make`
+  # recipe, a cron/agent) that PATH does NOT include ~/.local/bin, where the
+  # standalone `uv` installer puts uv. The hook then dies with
+  # `exec: uv: not found` and the commit is blocked with a confusing error.
+  # Every system hook below therefore prepends the standard tool-install dirs
+  # so the tool resolves no matter how git was invoked. Keep this in sync across
+  # the three entries.
+
   # -------------------------------------------------------- Python: mypy
   # Runs from within backend/ so `src.*` absolute imports and the
   # [tool.mypy] block in backend/pyproject.toml resolve correctly.
@@ -55,7 +67,7 @@ repos:
         # main.py and scripts/ are checked too: scripts/ runs against
         # production data, and an unchecked one had a broken import
         # (`_discover_and_harvest`) that only failed when someone ran it.
-        entry: bash -c 'cd backend && exec uv run mypy src main.py scripts'
+        entry: bash -c 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"; cd backend && exec uv run mypy src main.py scripts'
         pass_filenames: false
         require_serial: true
         files: ^backend/.*\.py$
@@ -67,7 +79,7 @@ repos:
       - id: eslint
         name: eslint (frontend)
         language: system
-        entry: bash -c 'cd frontend && exec npx --no-install eslint src tests'
+        entry: bash -c 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"; cd frontend && exec npx --no-install eslint src tests'
         pass_filenames: false
         files: ^frontend/(src|tests)/.*\.(vue|js|ts|jsx|tsx|cjs|mjs)$
 
@@ -77,7 +89,7 @@ repos:
       - id: prettier
         name: prettier (frontend)
         language: system
-        entry: bash -c 'cd frontend && exec npx --no-install prettier --write src tests'
+        entry: bash -c 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"; cd frontend && exec npx --no-install prettier --write src tests'
         pass_filenames: false
         files: ^frontend/(src|tests)/.*\.(vue|js|ts|jsx|tsx|cjs|mjs|json|css|md)$
 
