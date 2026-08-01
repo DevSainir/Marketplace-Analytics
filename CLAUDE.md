@@ -19,14 +19,6 @@ Four rules that cost more to discover from a failing test than to state here:
 All four are machine-enforced — `backend/tests/unit/core/test_module_boundaries.py`,
 `frontend/eslint.config.js`, `frontend/tests/integration/architecture.spec.js`.
 
-## Git workflow — trunk-based
-
-**One long-lived branch: `main`. Commit and push straight to it.** Do NOT create feature
-branches or open PRs for normal work — this project is trunk-based on purpose, and pushing to
-`main` *is* the deploy (CI-gated tests → automatic VPS deploy). Ignore the generic "branch off
-the default branch first" default; it does not apply here. The only exception is an isolated
-worktree the user explicitly asks for.
-
 ## Where the rest lives
 
 The project's rules are skills in `.claude/skills/` — `backend-architecture`,
