@@ -98,13 +98,15 @@ export function usePnlSkuRows(rows, unallocated) {
  * it is instant and needs no debounce even while typing in the search.
  *
  * The marked («Не включать») rows are dropped, exactly as the backend dashboard
- * does. Account-level money (storage, subscriptions, the ad invoices) has no SKU
- * to attribute to a filtered subset, so «Прочие удержания» here is the subset's
- * own per-SKU advertising rather than the whole-account deduction line.
+ * does. «Прочие удержания» (ad invoices, subscription, transit) is account-level
+ * money WB books without a SKU, so it cannot be attributed to a filtered subset —
+ * it is carried through from the backend dashboard unchanged, and `filtered` is
+ * set so the card can say «на весь счёт».
  *
  * @param {Array<object>} rows Raw `PnlSkuRow`s passing the current filter.
+ * @param {object|null} base The backend dashboard, for the account-level figures.
  */
-export function subsetDashboard(rows) {
+export function subsetDashboard(rows, base = null) {
   const included = rows.filter((r) => !r.is_excluded)
   const n = (v) => (v === null || v === undefined ? 0 : Number(v))
   const sum = (pick) => included.reduce((acc, r) => acc + n(pick(r)), 0)
@@ -113,7 +115,6 @@ export function subsetDashboard(rows) {
   const logistics = sum((r) => r.logistics_total)
   const sold = included.reduce((a, r) => a + r.sold_units, 0)
   const returned = included.reduce((a, r) => a + r.returned_units, 0)
-  const ads = sum((r) => r.advertising)
 
   return {
     sales,
@@ -126,8 +127,10 @@ export function subsetDashboard(rows) {
     cogs: sum((r) => r.cogs),
     uncosted_count: included.filter((r) => r.cost_price === null && r.sold_units > 0).length,
     payout_net: sum((r) => r.payout_net),
-    other_deductions: ads,
-    advertising: ads,
+    // Account-level, not per-SKU — carried from the backend dashboard as-is.
+    other_deductions: base ? n(base.other_deductions) : 0,
+    advertising: base ? n(base.advertising) : 0,
     excluded_count: rows.filter((r) => r.is_excluded).length,
+    filtered: true,
   }
 }

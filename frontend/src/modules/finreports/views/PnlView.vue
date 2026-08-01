@@ -170,6 +170,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
         <PnlSkuTable
           :rows="rows"
           :unallocated="unallocated"
+          :base-dashboard="store.report?.dashboard ?? null"
           :currency="currency"
           @toggle-exclusion="store.toggleExclusion($event.nmId, $event.excluded)"
           @dashboard-change="filteredDashboard = $event"

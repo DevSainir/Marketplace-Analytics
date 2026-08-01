@@ -38,6 +38,9 @@ const props = defineProps({
   rows: { type: Array, default: () => [] },
   /** @type {object|null} The account-level bucket (rendered as the last row). */
   unallocated: { type: Object, default: null },
+  /** @type {object|null} The backend dashboard, for the account-level «Прочие
+   *  удержания» the «по фильтру» subtotal carries through unchanged. */
+  baseDashboard: { type: Object, default: null },
   currency: { type: String, default: '' },
 })
 
@@ -54,7 +57,10 @@ const { query, subjectFilter, brandFilter, subjects, brands, tableRows, filtered
 // filter/search is active, and back to the backend one when it clears. Summing
 // the visible rows is instant, so the search needs no debounce.
 watchEffect(() => {
-  emit('dashboard-change', isFiltering.value ? subsetDashboard(filtered.value) : null)
+  emit(
+    'dashboard-change',
+    isFiltering.value ? subsetDashboard(filtered.value, props.baseDashboard) : null,
+  )
 })
 
 const money = (value) => (value === null ? '—' : formatMoney(value, ''))
@@ -131,7 +137,14 @@ function onToggle(data, checked) {
       <Column field="sold" header="Продажи, шт" sortable>
         <template #body="{ data }">{{ formatNumber(data.sold) }}</template>
       </Column>
-      <Column field="returnPct" header="Возвраты, %" sortable>
+      <Column field="returnPct" sortable>
+        <template #header>
+          <span
+            title="Выкупленные товары, которые покупатель затем вернул (не отмены заказов): доля от выкупленных штук."
+          >
+            Возвраты, %
+          </span>
+        </template>
         <template #body="{ data }">{{ pct(data.returnPct) }}</template>
       </Column>
       <Column field="sales" :header="`Продажи, ${currency}`" sortable>

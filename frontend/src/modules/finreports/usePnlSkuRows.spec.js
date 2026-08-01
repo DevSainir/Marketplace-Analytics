@@ -43,13 +43,24 @@ describe('subsetDashboard', () => {
     expect(d.excluded_count).toBe(1)
   })
 
-  it('treats a null cost/advertising as absent, not zero-in-the-denominator', () => {
-    const d = subsetDashboard([
-      row({ cogs: null, cost_price: null, advertising: null, sold_units: 5 }),
-    ])
+  it('treats a null cost as absent, not zero-in-the-denominator', () => {
+    const d = subsetDashboard([row({ cogs: null, cost_price: null, sold_units: 5 })])
 
     expect(d.cogs).toBe(0)
-    expect(d.other_deductions).toBe(0)
     expect(d.uncosted_count).toBe(1)
+  })
+
+  it('carries «Прочие удержания» from the backend dashboard, not per-SKU ads', () => {
+    // Ad invoices/subscriptions/transit are account-level with no SKU, so a
+    // filtered subtotal keeps the whole-account figure and flags itself filtered.
+    const base = { other_deductions: '436765', advertising: '329594' }
+    const d = subsetDashboard(
+      [row({ advertising: '50' }), row({ nm_id: 2, advertising: '70' })],
+      base,
+    )
+
+    expect(d.other_deductions).toBe(436765) // account-level, NOT 50 + 70
+    expect(d.advertising).toBe(329594)
+    expect(d.filtered).toBe(true)
   })
 })

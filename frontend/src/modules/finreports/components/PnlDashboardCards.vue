@@ -41,6 +41,7 @@ const cards = computed(() => {
       label: 'Продажи',
       value: money(d.sales),
       sub: `${formatNumber(d.sold_units)} шт · возвраты ${pct(d.return_rate_pct)} · валовые ${money(d.sales_gross)}`,
+      hint: 'Продажи = «Вайлдберриз реализовал товар» за вычетом возвратов (то, что покупатели заплатили после СПП). Возвраты — выкупленные товары, которые затем вернули, не отмены заказов.',
       to: null,
     },
     {
@@ -52,7 +53,10 @@ const cards = computed(() => {
       key: 'other',
       label: 'Прочие удержания',
       value: money(d.other_deductions),
-      sub: `в т.ч. реклама: ${money(d.advertising)}`,
+      sub: d.filtered
+        ? `в т.ч. реклама: ${money(d.advertising)} · на весь счёт`
+        : `в т.ч. реклама: ${money(d.advertising)}`,
+      hint: 'Реклама, подписка и транзитные удержания WB списывает счётом на весь аккаунт без привязки к SKU — поэтому эта карточка не меняется от фильтра или исключения артикулов.',
       to: null,
     },
     {
@@ -91,7 +95,11 @@ const cards = computed(() => {
       <div class="mt-xs text-h2 font-bold" :class="card.accent ? 'text-action' : 'text-primary'">
         {{ card.value }}
       </div>
-      <div class="mt-xs text-tiny" :class="card.warn ? 'text-status-warning' : 'text-muted'">
+      <div
+        class="mt-xs text-tiny"
+        :class="card.warn ? 'text-status-warning' : 'text-muted'"
+        :title="card.hint || undefined"
+      >
         {{ card.sub }}
       </div>
     </component>
