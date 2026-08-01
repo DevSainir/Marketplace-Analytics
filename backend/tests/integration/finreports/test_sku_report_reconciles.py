@@ -241,7 +241,7 @@ async def test_excluding_a_sku_shrinks_the_dashboard_but_not_the_totals(
     # Nothing marked yet: the dashboard equals the reconciled totals.
     assert before.dashboard.excluded_count == 0
     assert before.dashboard.payout_net == before.totals.payout_net
-    assert before.dashboard.sales == before.totals.revenue_paid
+    assert before.dashboard.sales == before.totals.revenue_seller_price
 
     service = SkuReportService(
         pnl_repo=PnlRepository(db_session),

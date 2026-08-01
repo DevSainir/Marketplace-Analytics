@@ -243,7 +243,11 @@ def build_dashboard(
     def _less(total: Decimal, pick: Callable[[PnlSkuRow], Decimal]) -> Decimal:
         return total - sum((pick(r) for r in marked), _ZERO)
 
-    sales = _less(totals.revenue_paid, lambda r: r.revenue_paid)
+    # «Продажи» at the seller's own price (revenue_seller_price = «Цена розничная
+    # с учётом согласованной скидки», before СПП); «оплачено покупателями» is the
+    # after-СПП amount, kept as the card's qualifier.
+    sales = _less(totals.revenue_seller_price, lambda r: r.revenue_seller_price)
+    paid = _less(totals.revenue_paid, lambda r: r.revenue_paid)
     logistics = _less(totals.logistics_total, lambda r: r.logistics_total)
     sold_units = totals.sold_units - sum(r.sold_units for r in marked)
     returned_units = totals.returned_units - sum(r.returned_units for r in marked)
@@ -251,8 +255,7 @@ def build_dashboard(
 
     return PnlDashboard(
         sales=sales,
-        sales_gross=_less(totals.sales_amount, lambda r: r.sales_amount),
-        returns_amount=_less(totals.returns_amount, lambda r: r.returns_amount),
+        paid=paid,
         sold_units=sold_units,
         return_rate_pct=_pct(Decimal(returned_units), Decimal(sold_units)),
         logistics=logistics,

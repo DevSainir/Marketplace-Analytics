@@ -24,7 +24,7 @@ export function toRow(r, isBucket = false) {
     sold: r.sold_units,
     returned: r.returned_units,
     returnPct: num(r.return_rate_pct),
-    sales: num(r.revenue_paid),
+    sales: num(r.revenue_seller_price),
     averageCheque: num(r.average_cheque),
     sppPct: num(r.spp_pct),
     logistics: num(r.logistics_total),
@@ -111,15 +111,15 @@ export function subsetDashboard(rows, base = null) {
   const n = (v) => (v === null || v === undefined ? 0 : Number(v))
   const sum = (pick) => included.reduce((acc, r) => acc + n(pick(r)), 0)
 
-  const sales = sum((r) => r.revenue_paid)
+  const sales = sum((r) => r.revenue_seller_price) // seller price, net of returns
+  const paid = sum((r) => r.revenue_paid) // what buyers paid, after СПП
   const logistics = sum((r) => r.logistics_total)
   const sold = included.reduce((a, r) => a + r.sold_units, 0)
   const returned = included.reduce((a, r) => a + r.returned_units, 0)
 
   return {
     sales,
-    sales_gross: sum((r) => r.sales_amount),
-    returns_amount: sum((r) => r.returns_amount),
+    paid,
     sold_units: sold,
     return_rate_pct: sold ? (returned / sold) * 100 : null,
     logistics,

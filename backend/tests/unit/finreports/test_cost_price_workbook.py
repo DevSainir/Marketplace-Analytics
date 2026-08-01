@@ -71,9 +71,8 @@ def _row(nm_id: int, sa_name: str, *, cost: str | None) -> PnlSkuRow:
 def _report(rows: list[PnlSkuRow], *, unallocated: PnlSkuRow | None = None) -> PnlSkuReportResponse:
     """Wrap rows into a report with a totals row and a dashboard."""
     dash = PnlDashboard(
-        sales=Decimal("900"),
-        sales_gross=Decimal("1000"),
-        returns_amount=Decimal("100"),
+        sales=Decimal("1000"),
+        paid=Decimal("900"),
         sold_units=8,
         return_rate_pct=Decimal("12.5"),
         logistics=Decimal("60"),

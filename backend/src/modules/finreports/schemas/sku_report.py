@@ -126,11 +126,13 @@ class PnlDashboard(BaseModel):
     money («Прочие удержания») has no SKU, so it is never affected by a mark.
     """
 
-    #: «Продажи» — net of returns, over non-excluded SKUs (matches WB's page).
+    #: «Продажи» — at the SELLER's price («Цена розничная с учётом согласованной
+    #: скидки», i.e. before WB's СПП), net of returns, over non-excluded SKUs.
+    #: This is what the seller is effectively paid on (WB funds the СПП gap).
     sales: Decimal
-    #: Gross sales and returns behind :attr:`sales`, for the card's subline.
-    sales_gross: Decimal
-    returns_amount: Decimal
+    #: «Оплачено покупателями» — the same net revenue at the after-СПП price the
+    #: buyer actually paid; shown as the «Продажи» card's qualifier.
+    paid: Decimal
     sold_units: int
     return_rate_pct: Decimal | None
     #: «Логистика» over non-excluded SKUs, and its share of :attr:`sales`.
