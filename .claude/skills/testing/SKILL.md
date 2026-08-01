@@ -162,6 +162,9 @@ First-time setup for the browser tier: `npm install && npm run setup:e2e`.
    a migration.
 5. `references/coverage-map.md` still reads true. It records what each tier *owns* and which gaps
    are deliberate, so it needs an edit when coverage changes shape, not when a file moves.
+6. Land it on `main`. This repo is **trunk-based**: commit and push straight to `main` — no feature
+   branches or PRs for normal work. That push *is* the deploy (CI reruns every tier, then the VPS
+   auto-deploys on green), so steps 1–5 are what stands between a commit and production.
 
 ## When a test fails
 
