@@ -17,6 +17,11 @@ import WorkspaceMenu from '@/core/components/WorkspaceMenu.vue'
 
 defineProps({
   isAuthenticated: { type: Boolean, default: false },
+  // False while the session is still bootstrapping (auth status 'unknown'). The
+  // guest UI («Войти») renders only once auth is RESOLVED as guest — otherwise a
+  // full reload (e.g. a workspace switch) flashes «Войти» for the fraction of a
+  // second the silent cookie-refresh takes to confirm the session.
+  authResolved: { type: Boolean, default: false },
   userEmail: { type: String, default: null },
   workspaces: { type: Array, default: () => [] },
   currentWorkspaceId: { type: String, default: null },
@@ -101,7 +106,7 @@ const navLinks = [
           </svg>
         </RouterLink>
         <RouterLink
-          v-else
+          v-else-if="authResolved"
           to="/login"
           class="hidden rounded-btn px-md py-xs text-base font-medium text-action transition hover:bg-action/10 sm:inline-flex"
           @click="closeMenu"
@@ -176,7 +181,7 @@ const navLinks = [
                 Выйти
               </button>
             </template>
-            <div v-else class="flex flex-col gap-xs">
+            <div v-else-if="authResolved" class="flex flex-col gap-xs">
               <RouterLink
                 to="/login"
                 class="rounded-btn bg-action px-md py-sm text-center text-base font-semibold text-white transition hover:bg-action-hover"
