@@ -15,8 +15,8 @@
  *   the advertising (ВБ.Продвижение) share it is mostly made of.
  * - «Себестоимость» — the seller's own cost of the sold units; flags how many
  *   SKUs still have no cost, because the profit is understated by exactly them.
- * - «Перечисление» — Итого к оплате: what actually reaches the bank account
- *   after every withholding, minus any marked SKUs.
+ * - «Итого к оплате» — what actually reaches the bank account after every
+ *   withholding, minus any marked SKUs (WB's own name for this total).
  */
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
@@ -66,7 +66,7 @@ const cards = computed(() => {
     },
     {
       key: 'payout',
-      label: 'Перечисление',
+      label: 'Итого к оплате',
       value: money(d.payout_net),
       sub:
         excluded > 0 ? `на счёт · исключено ${excluded} SKU` : 'на счёт, после всех удержаний WB',

@@ -5,6 +5,8 @@ mirror of the ORM rows (the service maps models onto these).
 
 from src.modules.finreports.schemas.cost_price import (
     CostPriceBulkInput,
+    CostPriceImportIssue,
+    CostPriceImportResponse,
     CostPriceInput,
     CostPriceItem,
     CostPriceListResponse,
@@ -30,6 +32,8 @@ from src.modules.finreports.schemas.sku_report import (
 
 __all__ = [
     "CostPriceBulkInput",
+    "CostPriceImportIssue",
+    "CostPriceImportResponse",
     "CostPriceInput",
     "CostPriceItem",
     "CostPriceListResponse",

@@ -9,10 +9,12 @@ statement is their revenue, so neither may ever be resolved without tenancy.
 from __future__ import annotations
 
 from datetime import date
+from urllib.parse import quote
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, File, Query, Response, UploadFile, status
 
 from src.core.deps import DbSession
+from src.core.exceptions import ValidationError
 from src.modules.finreports.deps import (
     CostPriceServiceDep,
     PnlServiceDep,
@@ -22,6 +24,7 @@ from src.modules.finreports.repos import PnlGrouping
 from src.modules.finreports.routers.window import resolve_window
 from src.modules.finreports.schemas import (
     CostPriceBulkInput,
+    CostPriceImportResponse,
     CostPriceListResponse,
     CostPriceSaveResponse,
     PnlResponse,
@@ -35,6 +38,19 @@ from src.modules.monitoring.contract import (
     load_orders_by_nm,
 )
 from src.modules.workspaces.contract import CurrentWorkspaceId
+
+#: The OOXML spreadsheet media type — what browsers map to an ``.xlsx`` download.
+_XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+#: Downloaded file name. ASCII fallback for `filename=`, the Cyrillic real name
+#: goes in the RFC 5987 `filename*` field so it survives older clients.
+_EXPORT_ASCII_NAME = "pnl-cost-prices.xlsx"
+_EXPORT_UTF8_NAME = "P&L себестоимость.xlsx"
+
+#: Cap on an uploaded workbook. The grid is at most a few thousand SKUs, so a
+#: legitimate file is tens of KB; this simply refuses a multi-MB paste before it
+#: reaches the parser and is measured in the request body, not after.
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 router = APIRouter()
 
@@ -184,3 +200,83 @@ async def delete_cost_price(
     """Clear one SKU's cost price, returning it to the "uncosted" list."""
     await service.delete_cost_price(workspace_id=workspace_id, nm_id=nm_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/cost-prices/export",
+    response_class=Response,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {
+            "description": "The cost-price grid as an editable XLSX workbook.",
+            "content": {_XLSX_MEDIA_TYPE: {}},
+        },
+        401: {"description": "Unauthorized access token."},
+    },
+)
+async def export_cost_prices(
+    service: SkuReportServiceDep,
+    workspace_id: CurrentWorkspaceId,
+    session: DbSession,
+    date_from: date | None = Query(default=None, description="Inclusive settlement-date start."),
+    date_to: date | None = Query(default=None, description="Inclusive settlement-date end."),
+) -> Response:
+    """Download the per-SKU P&L as an XLSX for bulk offline cost entry.
+
+    The same «По артикулам» statement the screen shows, with an editable
+    «Себестоимость за 1 ед.» column. The seller fills it and uploads the file
+    back through ``POST /cost-prices/import``. The two cross-module columns
+    (orders, advertising) are resolved here through the monitoring contract, the
+    same way ``GET /pnl/skus`` does.
+    """
+    start, end = resolve_window(date_from, date_to)
+    blob = await service.export_workbook(
+        workspace_id=workspace_id,
+        date_from=start,
+        date_to=end,
+        orders=await load_orders_by_nm(session, date_from=start, date_to=end),
+        ad_spend=await load_ad_spend_by_nm(session, date_from=start, date_to=end),
+        funnel_span=await funnel_coverage(session, date_from=start, date_to=end),
+        ad_span=await ad_coverage(session, date_from=start, date_to=end),
+    )
+    disposition = (
+        f'attachment; filename="{_EXPORT_ASCII_NAME}"; '
+        f"filename*=UTF-8''{quote(_EXPORT_UTF8_NAME)}"
+    )
+    return Response(
+        content=blob,
+        media_type=_XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": disposition},
+    )
+
+
+@router.post(
+    "/cost-prices/import",
+    response_model=CostPriceImportResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "Costs applied; the summary reports skips and issues."},
+        401: {"description": "Unauthorized access token."},
+        422: {"description": "The upload is not a readable cost-price workbook."},
+    },
+)
+async def import_cost_prices(
+    service: CostPriceServiceDep,
+    workspace_id: CurrentWorkspaceId,
+    file: UploadFile = File(description="Cost sheet (.xlsx, .xls or .csv) with costs filled in."),
+) -> CostPriceImportResponse:
+    """Apply the «Себестоимость» column of an uploaded cost sheet.
+
+    Accepts ``.xlsx``, ``.xls`` and ``.csv``. Costs are written only for SKUs
+    this workspace already knows and only in its settlement currency; blanks
+    change nothing and every other skip is reported. A file that is not a
+    readable cost sheet is a 422, not a partial, guessed import.
+    """
+    data = await file.read()
+    if not data:
+        raise ValidationError("Файл пуст.")
+    if len(data) > _MAX_UPLOAD_BYTES:
+        raise ValidationError("Файл слишком большой для загрузки себестоимости.")
+    return await service.import_workbook(
+        workspace_id=workspace_id, filename=file.filename or "", data=data
+    )

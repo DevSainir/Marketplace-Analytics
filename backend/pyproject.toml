@@ -17,10 +17,17 @@ dependencies = [
     "celery[redis]>=5.4",
     "redis>=5.0",
     "httpx>=0.27",
-    # xlsxwriter, not openpyxl: the detail sheet is ~30k rows and openpyxl cost
-    # 5.43 s of per-cell Python overhead against production data (2.28x slower
-    # on the same grid). openpyxl is now a TEST dependency only, where it reads
-    # the output back — verifying with a different library than we write with.
+    # xlsxwriter, not openpyxl, does the WRITING: the detail sheet is ~30k rows
+    # and openpyxl cost 5.43 s of per-cell Python overhead against production
+    # data (2.28x slower on the same grid). openpyxl earns its runtime place on
+    # the READ side — the cost-price editor accepts an uploaded XLSX back, and
+    # xlsxwriter cannot parse. It also still reads our own output in tests,
+    # verifying with a different library than we write with.
+    "openpyxl>=3.1",
+    # Reads legacy .xls uploads on the cost-price import (openpyxl only reads the
+    # OOXML .xlsx; xlrd 2.0 reads only the old binary .xls — the two cover the
+    # spreadsheet a seller might export from an older Excel or 1C).
+    "xlrd>=2.0",
     "python-docx>=1.1",
     # bcrypt is used directly (src.core.security); passlib was dropped — it is
     # unmaintained and forced an upper pin on bcrypt.
@@ -45,9 +52,9 @@ dev = [
     "pytest-cov>=5.0",
     # Dependency vulnerability audit (CI `quality` gate).
     "pip-audit>=2.7",
-    # Reads the generated XLSX back in tests. Deliberately a different library
-    # than the writer, so a round-trip test cannot pass by sharing a bug.
-    "openpyxl>=3.1",
+    # Writes a legacy .xls in the cost-upload parser tests — xlrd only reads, so
+    # the round-trip proof needs a writer. Test-only; never imported by src.
+    "xlwt>=1.3",
 ]
 
 [tool.ruff]
@@ -104,7 +111,7 @@ module = ["celery.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["openpyxl.*", "docx.*", "xlsxwriter.*"]
+module = ["openpyxl.*", "docx.*", "xlsxwriter.*", "xlrd.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

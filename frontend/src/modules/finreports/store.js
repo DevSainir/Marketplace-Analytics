@@ -18,9 +18,11 @@ import { computed, ref } from 'vue'
 import { extractErrorMessage } from '@/core/api/axios'
 import {
   deleteCostPrice,
+  downloadCostPricesXlsx,
   fetchCostPrices,
   fetchSkuPnl,
   fetchWeeks,
+  importCostPricesXlsx,
   saveCostPrices,
   setSkuExclusion,
 } from '@/modules/finreports/api'
@@ -238,6 +240,44 @@ export const useFinReportsStore = defineStore('finreports', () => {
     }
   }
 
+  /**
+   * Fetch the per-SKU P&L as an XLSX Blob (the view triggers the download).
+   *
+   * Exports the whole harvested history so every SKU that ever sold appears with
+   * a row to cost — a cost sheet scoped to last week would omit most of them. The
+   * weeks are loaded first when the cost page was opened directly, since it is
+   * `fullSpan` (derived from them) that bounds «вся история».
+   */
+  async function exportCostPrices() {
+    if (!weeks.value.length) await loadWeeks()
+    const span = fullSpan.value
+    return downloadCostPricesXlsx(span ? { date_from: span.date_from, date_to: span.date_to } : {})
+  }
+
+  /**
+   * Import an uploaded workbook, then invalidate the report.
+   *
+   * Same reasoning as {@link persistCostPrices}: applied costs restate every
+   * margin already computed, so the cached report is dropped and the grid
+   * reloaded from the persisted truth. Returns the backend's summary so the
+   * view can tell the seller how many rows landed and which were skipped.
+   */
+  async function importCostPrices(file) {
+    costsSaving.value = true
+    costsError.value = ''
+    try {
+      const summary = await importCostPricesXlsx(file)
+      report.value = null
+      await loadCostPrices()
+      return summary
+    } catch (error) {
+      costsError.value = extractErrorMessage(error)
+      throw error
+    } finally {
+      costsSaving.value = false
+    }
+  }
+
   return {
     weeks,
     weeksLoading,
@@ -260,5 +300,7 @@ export const useFinReportsStore = defineStore('finreports', () => {
     loadCostPrices,
     persistCostPrices,
     removeCostPrice,
+    exportCostPrices,
+    importCostPrices,
   }
 })

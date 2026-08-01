@@ -7,14 +7,18 @@
  * coverage plainly at the top, because the margin on the dashboard is only as
  * meaningful as the share of sold units these figures cover.
  */
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { formatNumber, formatPercent } from '@/core/utils/format'
+import CostPriceExcelPanel from '@/modules/finreports/components/CostPriceExcelPanel.vue'
 import CostPriceGrid from '@/modules/finreports/components/CostPriceGrid.vue'
 import { useFinReportsStore } from '@/modules/finreports/store'
 
 const store = useFinReportsStore()
+
+/** The last import summary, shown in the Excel panel until the next upload. */
+const importResult = ref(null)
 
 const items = computed(() => store.costPrices?.items ?? [])
 const missing = computed(() => store.costPrices?.missing ?? [])
@@ -69,6 +73,32 @@ async function onRemove(nmId) {
   }
 }
 
+/** Download the grid as an XLSX for offline editing. */
+async function onExport() {
+  try {
+    const { blob, filename } = await store.exportCostPrices()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  } catch {
+    // The store surfaces the message via costsError.
+  }
+}
+
+/** Apply a filled-in workbook and keep its summary on screen. */
+async function onImport(file) {
+  try {
+    importResult.value = await store.importCostPrices(file)
+  } catch {
+    importResult.value = null
+  }
+}
+
 onMounted(() => {
   if (!store.costPrices) store.loadCostPrices()
 })
@@ -120,6 +150,14 @@ onMounted(() => {
         </p>
       </div>
     </section>
+
+    <CostPriceExcelPanel
+      :busy="store.costsSaving"
+      :result="importResult"
+      :currency="currency"
+      @export="onExport"
+      @import="onImport"
+    />
 
     <div
       v-if="store.costsLoading"

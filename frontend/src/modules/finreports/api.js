@@ -75,6 +75,54 @@ export async function deleteCostPrice(nmId) {
 }
 
 /**
+ * GET /v1/finreports/cost-prices/export — the per-SKU P&L as an XLSX, with an
+ * editable «Себестоимость за 1 ед.» column for bulk offline cost entry.
+ *
+ * Returns the workbook as a Blob plus the server-suggested file name; the
+ * Cyrillic real name travels in `filename*` (RFC 5987), decoded here.
+ *
+ * @param {{date_from?: string, date_to?: string}} [params] Settlement window.
+ * @returns {Promise<{blob: Blob, filename: string}>}
+ */
+export async function downloadCostPricesXlsx(params = {}) {
+  const response = await apiClient.get('/v1/finreports/cost-prices/export', {
+    params,
+    responseType: 'blob',
+    // The whole-history P&L aggregates ~620k settlement rows; like the claim
+    // package, it legitimately outruns the client's default timeout.
+    timeout: 600000,
+  })
+  const disposition = response.headers['content-disposition'] || ''
+  const utf8 = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  const ascii = disposition.match(/filename="?([^";]+)"?/i)
+  const filename = utf8 ? decodeURIComponent(utf8[1]) : ascii ? ascii[1] : 'cost-prices.xlsx'
+  return { blob: response.data, filename }
+}
+
+/**
+ * POST /v1/finreports/cost-prices/import — upload a filled-in workbook.
+ *
+ * Sends the file as multipart form data; the backend parses «Себестоимость»
+ * into existing SKUs and returns a summary of what it applied and skipped.
+ *
+ * @param {File} file The XLSX file exported from this module, with costs filled in.
+ * @returns {Promise<{applied: number, skipped: number, issues: Array<object>}>}
+ */
+export async function importCostPricesXlsx(file) {
+  const form = new FormData()
+  form.append('file', file)
+  // The shared client defaults to `Content-Type: application/json`. Left in
+  // place, axios serialises the FormData to JSON and the file never leaves the
+  // browser — the backend then rejects the multipart field as «Field required».
+  // Overriding to multipart keeps the FormData intact; axios drops this header
+  // just before sending so the browser sets it *with* the boundary.
+  const { data } = await apiClient.post('/v1/finreports/cost-prices/import', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
+/**
  * GET /v1/finreports/weeks — the WB weekly report periods (newest first) that
  *
  * @param {AbortSignal} [signal]

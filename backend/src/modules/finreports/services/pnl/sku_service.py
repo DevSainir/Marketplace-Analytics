@@ -20,6 +20,7 @@ from src.modules.finreports.repos import (
     SkuExclusionRepository,
 )
 from src.modules.finreports.schemas.sku_report import PnlSkuReportResponse, PnlSkuRow
+from src.modules.finreports.services.cost_price_workbook import build_pnl_workbook
 from src.modules.finreports.services.pnl.sku_report import build_dashboard, build_sku_report
 
 _ZERO = Decimal(0)
@@ -122,6 +123,38 @@ class SkuReportService:
             dashboard=dashboard,
             notes=notes,
         )
+
+    async def export_workbook(
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        date_from: date,
+        date_to: date,
+        orders: dict[int, int],
+        ad_spend: dict[int, Decimal],
+        funnel_span: tuple[date | None, date | None],
+        ad_span: tuple[date | None, date | None],
+    ) -> bytes:
+        """Render the per-SKU P&L for the window as an editable XLSX.
+
+        The download half of the cost round trip: the same report the «По
+        артикулам» view shows, serialised so the seller can fill the
+        «Себестоимость за 1 ед.» column offline and upload it back. Takes the
+        cross-module figures the router already resolves for :meth:`get_report`.
+
+        Returns:
+            The workbook as bytes.
+        """
+        report = await self.get_report(
+            workspace_id=workspace_id,
+            date_from=date_from,
+            date_to=date_to,
+            orders=orders,
+            ad_spend=ad_spend,
+            funnel_span=funnel_span,
+            ad_span=ad_span,
+        )
+        return build_pnl_workbook(report)
 
     async def _notes(
         self,

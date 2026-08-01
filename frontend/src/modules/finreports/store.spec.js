@@ -2,9 +2,11 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import {
   deleteCostPrice,
+  downloadCostPricesXlsx,
   fetchCostPrices,
   fetchSkuPnl,
   fetchWeeks,
+  importCostPricesXlsx,
   saveCostPrices,
   setSkuExclusion,
 } from '@/modules/finreports/api'
@@ -12,9 +14,11 @@ import { useFinReportsStore } from '@/modules/finreports/store'
 
 vi.mock('@/modules/finreports/api', () => ({
   deleteCostPrice: vi.fn(),
+  downloadCostPricesXlsx: vi.fn(),
   fetchCostPrices: vi.fn(),
   fetchSkuPnl: vi.fn(),
   fetchWeeks: vi.fn(),
+  importCostPricesXlsx: vi.fn(),
   saveCostPrices: vi.fn(),
   setSkuExclusion: vi.fn(),
 }))
@@ -194,6 +198,41 @@ describe('cost prices invalidating the report', () => {
 
     await expect(store.persistCostPrices([{ nm_id: 1, cost: 1 }])).rejects.toThrow()
     expect(store.report).toEqual(REPORT)
+  })
+})
+
+describe('cost-price Excel round trip', () => {
+  it('returns the exported blob and filename for the view to download', async () => {
+    const blob = new Blob(['xlsx'])
+    downloadCostPricesXlsx.mockResolvedValue({ blob, filename: 'себестоимость.xlsx' })
+
+    const result = await store.exportCostPrices()
+
+    expect(result).toEqual({ blob, filename: 'себестоимость.xlsx' })
+  })
+
+  it('drops the cached report and reloads costs after an import', async () => {
+    // An applied cost restates every margin, exactly like a manual save.
+    await store.loadWeeks()
+    await store.loadReport()
+    importCostPricesXlsx.mockResolvedValue({ applied: 3, skipped: 1, issues: [] })
+
+    const summary = await store.importCostPrices(new File(['x'], 'costs.xlsx'))
+
+    expect(summary.applied).toBe(3)
+    expect(store.report).toBeNull()
+    expect(fetchCostPrices).toHaveBeenCalled()
+  })
+
+  it('surfaces a rejected import and rethrows without touching the report', async () => {
+    await store.loadWeeks()
+    await store.loadReport()
+    importCostPricesXlsx.mockRejectedValue({ response: { data: { detail: 'Файл пуст.' } } })
+
+    await expect(store.importCostPrices(new File([''], 'x.xlsx'))).rejects.toBeDefined()
+    expect(store.costsError).toBe('Файл пуст.')
+    expect(store.report).toEqual(REPORT)
+    expect(store.costsSaving).toBe(false)
   })
 })
 

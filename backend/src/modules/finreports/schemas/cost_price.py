@@ -87,3 +87,29 @@ class CostPriceSaveResponse(BaseModel):
     """Outcome of a bulk save."""
 
     saved: int
+
+
+class CostPriceImportIssue(BaseModel):
+    """One row of an uploaded workbook the import could not apply.
+
+    Only rows that *looked* intended and failed are reported — a blank cost is
+    the norm for an uncosted SKU and is skipped without an issue. Each carries
+    the sheet row so the seller can find and fix the offending line.
+    """
+
+    row: int
+    nm_id: int | None = None
+    reason: str
+
+
+class CostPriceImportResponse(BaseModel):
+    """Outcome of an XLSX cost-price import.
+
+    ``applied`` costs were written; ``skipped`` rows were not (a blank cost, an
+    unknown SKU, or a value the validator rejected). ``issues`` explains every
+    skip that was not simply an empty cell, so a partial import is never silent.
+    """
+
+    applied: int
+    skipped: int
+    issues: list[CostPriceImportIssue] = Field(default_factory=list)

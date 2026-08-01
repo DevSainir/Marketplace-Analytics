@@ -21,7 +21,7 @@ test('the dashboard renders its cards and the per-SKU table', async ({ signedIn:
   // «Себестоимость» legitimately recur as table column headers below the
   // cards. Generous timeout: the default window aggregates a month of
   // settlement rows on first paint.
-  for (const label of ['Продажи', 'Логистика', 'Себестоимость', 'Перечисление']) {
+  for (const label of ['Продажи', 'Логистика', 'Себестоимость', 'Итого к оплате']) {
     await expect(page.getByText(label, { exact: true }).first()).toBeVisible({ timeout: 30_000 })
   }
 

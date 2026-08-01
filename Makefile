@@ -40,7 +40,7 @@ TESTS_NPM := npm --prefix tests
 .PHONY: help test test-fast test-unit test-component test-integration test-backend \
         test-frontend test-e2e test-perf test-perf-frontend test-perf-load lint \
         format audit lock typecheck setup-test-db clean-test-db seed-e2e \
-        up down ps logs
+        up down ps logs prune rebuild
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -157,6 +157,17 @@ ps: ## Status of every service
 
 logs: ## Follow the logs of every service
 	$(COMPOSE) logs -f
+
+# A backend rebuild writes a fresh image layer set every time; on a small host
+# the accumulated build cache is what fills the disk and flips the Docker VM
+# read-only (an empty-body 500 on /auth/login is the tell). `prune` reclaims it;
+# `rebuild` prunes first so the build has room, then brings the stack back up.
+prune: ## Reclaim the Docker build cache (run when a rebuild fills the disk)
+	docker builder prune -af
+
+rebuild: ## Prune build cache, then rebuild and start the stack
+	docker builder prune -af
+	$(COMPOSE) up -d --build
 
 # --------------------------------------------------------------------------- #
 # Test database helpers
