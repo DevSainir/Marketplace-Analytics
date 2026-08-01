@@ -310,6 +310,34 @@ class LogisticsTransactionRepository(BaseRepository):
         )
         result = await self._session.execute(stmt)
 
+    async def window_checksum(
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+    ) -> tuple[int, int]:
+
+        the summary displays *every* SKU with a row in the window, so its cache
+        fingerprint must move if ANY of those rows is restated. Covers exactly
+        computed in PostgreSQL, so a whole-history probe returns two numbers
+        rather than hydrating 620k rows (see
+        :meth:`~src.modules.finreports.repos.base.BaseRepository.checksum`).
+        """
+        txn = LogisticsTransaction
+        return await self.checksum(
+            txn.nm_id,
+            txn.sa_name,
+            txn.currency_name,
+            txn.rr_dt,
+            txn.supplier_oper_name,
+            txn.bonus_type_name,
+            txn.delivery_rub,
+            txn.delivery_amount,
+            txn.penalty,
+            where=(
+                txn.workspace_id == workspace_id,
+                txn.rr_dt >= date_from,
+                txn.rr_dt <= date_to,
+            ),
+        )
+
         self,
         *,
         workspace_id: uuid.UUID,

@@ -14,6 +14,7 @@ from fastapi import Depends
 
 from src.core.config import settings
 from src.core.deps import DbSession
+from src.core.redis import get_redis
 from src.modules.finreports.repos import (
     CostPriceRepository,
     FinancialReportRepository,
@@ -26,6 +27,7 @@ from src.modules.finreports.services import (
     IngestionService,
     PnlService,
     SkuReportService,
+)
 )
 )
 
@@ -78,6 +80,17 @@ ExclusionRepoDep = Annotated[SkuExclusionRepository, Depends(get_exclusion_repo)
 # --------------------------------------------------------------------------- #
 # Services
 # --------------------------------------------------------------------------- #
+@lru_cache(maxsize=1)
+
+    Cached with ``lru_cache`` because the store is stateless configuration (it
+    holds only the shared Redis client and a TTL), not per-request state. A TTL
+    of 0 turns caching off entirely, degrading to a recompute on every call.
+    """
+    if settings.finreports_summary_cache_ttl_seconds <= 0:
+        get_redis(), ttl_seconds=settings.finreports_summary_cache_ttl_seconds
+    )
+
+
     transaction_repo: TransactionRepoDep,
     baseline_repo: BaselineRepoDep,
     billed_repo: BilledRepoDep,
@@ -90,6 +103,7 @@ ExclusionRepoDep = Annotated[SkuExclusionRepository, Depends(get_exclusion_repo)
         report_repo=report_repo,
         penalty_repo=penalty_repo,
         measurement_repo=measurement_repo,
+        summary_cache=_summary_cache(),
     )
 
 

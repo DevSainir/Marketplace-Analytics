@@ -157,9 +157,11 @@ export async function fetchWeeks(signal) {
  * @param {AbortSignal} [signal] Cancels the request when a newer fetch starts.
  * @returns {Promise<object>}
  */
-  // «За всю историю» re-prices ~620k settlement rows against baselines/tariffs
-  // and legitimately outruns the default 15s data timeout on a cold call — which
-  // surfaced as «Данные недоступны · timeout of 15000ms exceeded». Give it a
+  // The backend caches this response content-addressed and warms the whole-
+  // history window after each harvest, so the common call is a fast cache hit.
+  // A cold MISS (an arbitrary window, or an entry invalidated by fresh data)
+  // still re-prices ~620k settlement rows and outruns the default 15s budget —
+  // which surfaced as «Данные недоступны · timeout of 15000ms exceeded» — so the
     params,
     signal,
     timeout: 120000,

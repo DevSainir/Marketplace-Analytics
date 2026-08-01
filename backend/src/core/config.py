@@ -152,6 +152,11 @@ class Settings(BaseSettings):
     # How many built packages to keep. Each is a few MB, and a full disk on this
     # box has taken the API down before, so the oldest are pruned.
     finreports_package_cache_entries: int = Field(default=24, ge=1)
+    # .cache), keyed by a content digest of its inputs. The entry is only a
+    # cost saver — correctness comes from the digest, not the clock — so the TTL
+    # just bounds Redis growth for windows that stop being asked for. 0 disables
+    # caching entirely.
+    finreports_summary_cache_ttl_seconds: int = Field(default=1209600, ge=0)
     # Fake WB harvesting for LOCAL development. When on, the harvest tasks build
     # synthetic WB clients instead of the real HTTP ones (see
     # ``src.integrations.wildberries.build_*_client``): no request ever leaves
