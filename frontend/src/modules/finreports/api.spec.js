@@ -1,7 +1,10 @@
 import MockAdapter from 'axios-mock-adapter'
 
 import apiClient from '@/core/api/axios'
-import { downloadCostPricesXlsx, importCostPricesXlsx } from '@/modules/finreports/api'
+import {
+  downloadCostPricesXlsx,
+  importCostPricesXlsx,
+} from '@/modules/finreports/api'
 
 let mock
 
@@ -32,6 +35,19 @@ describe('importCostPricesXlsx', () => {
     expect(captured.data.get('file')).toBe(file)
     expect(String(captured.headers['Content-Type'])).not.toContain('application/json')
     expect(result).toEqual({ applied: 1, skipped: 0, issues: [] })
+  })
+})
+
+  it('uses a generous timeout — «за всю историю» outruns the default 15s', async () => {
+    // Regression: the whole-history rollup re-prices ~620k rows and timed out at
+    // the default 15000ms, surfacing as «Данные недоступны».
+    let captured
+      captured = config
+      return [200, { totals: null, skus: [], notes: [] }]
+    })
+
+
+    expect(captured.timeout).toBeGreaterThan(15000)
   })
 })
 
