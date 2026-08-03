@@ -40,6 +40,31 @@ async def close_redis() -> None:
     await _redis.aclose()
 
 
+async def drain_redis_pool() -> None:
+    """Disconnect every pooled connection while leaving the client reusable.
+
+    The Redis client above is process-wide, and ``redis.asyncio`` binds each
+    pooled connection to the event loop that opened it — exactly like asyncpg
+    behind the SQLAlchemy engine. A Celery task runs its own short-lived
+    ``asyncio.run`` loop, so a task that returns while leaving a connection in
+    the pool hands the *next* task a socket whose transport belongs to a loop
+    that no longer exists. The next task's first Redis call then dies with
+    ``RuntimeError: Event loop is closed`` before doing any work.
+
+    That is not hypothetical: it silently voided the ``sales-funnel`` source of
+    every ``monitoring.harvest_sku_window`` after the worker's first task,
+    because the funnel's rate-gate ``acquire`` is the first Redis op in the
+    harvest and the gate only catches :class:`RedisError`, not this
+    ``RuntimeError`` — so «Обновить все SKU» kept succeeding with
+    ``funnel_rows: 0``. See :func:`src.core.database.run_task`, which drains
+    this pool alongside the engine at every task boundary.
+
+    Draining rather than closing keeps the singleton reusable: the pool object
+    stays, and the next command lazily reconnects on the current loop.
+    """
+    await _redis.connection_pool.disconnect()
+
+
 def _revocation_key(user_id: uuid.UUID) -> str:
     """Build the per-user revocation-watermark key."""
     return f"auth:revoked-after:{user_id}"
