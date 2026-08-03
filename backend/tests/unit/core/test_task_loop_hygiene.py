@@ -95,13 +95,13 @@ def test_the_sweep_actually_finds_the_tasks() -> None:
 def test_no_task_drives_its_own_event_loop(location: str, node: ast.FunctionDef) -> None:
     """A task calling ``asyncio.run`` directly can strand pooled connections.
 
-    Route the coroutine through ``src.core.database.run_task`` instead: it owns
-    the loop and disposes the engine's pool in a ``finally``, so the next task
-    in the worker process starts against a clean pool.
+    Route the coroutine through ``src.core.tasks.run_task`` instead: it owns the
+    loop and drains both the engine's and Redis's pools in a ``finally``, so the
+    next task in the worker process starts against clean pools.
     """
     assert not _calls_asyncio_run(node), (
         f"{location} calls asyncio.run directly. Use run_task(...) from "
-        f"src.core.database — otherwise this task can leave asyncpg connections "
+        f"src.core.tasks — otherwise this task can leave asyncpg/redis connections "
         f"bound to its dead event loop and the NEXT scheduled task fails on its "
         f"first query with 'got Future attached to a different loop'."
     )

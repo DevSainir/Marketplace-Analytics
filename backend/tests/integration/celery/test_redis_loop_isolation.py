@@ -29,7 +29,7 @@ from redis.asyncio import Redis
 
 import src.core.redis as redis_module
 from src.core.config import settings
-from src.core.database import run_task
+from src.core.tasks import run_task
 from tests.integration.conftest import TEST_REDIS_DB
 
 #: A single-connection pool makes the leak deterministic rather than

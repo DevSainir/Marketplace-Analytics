@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from src.core.celery_app import celery_app
-from src.core.database import AsyncSessionLocal, run_task
+from src.core.database import AsyncSessionLocal
 from src.core.logging import get_logger
+from src.core.tasks import run_task
 from src.modules.users.repos import RefreshTokenRepository
 
 logger = get_logger(__name__)

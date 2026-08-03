@@ -56,8 +56,8 @@ async def drain_redis_pool() -> None:
     because the funnel's rate-gate ``acquire`` is the first Redis op in the
     harvest and the gate only catches :class:`RedisError`, not this
     ``RuntimeError`` — so «Обновить все SKU» kept succeeding with
-    ``funnel_rows: 0``. See :func:`src.core.database.run_task`, which drains
-    this pool alongside the engine at every task boundary.
+    ``funnel_rows: 0``. See :func:`src.core.tasks.run_task`, which drains this
+    pool alongside the engine at every task boundary.
 
     Draining rather than closing keeps the singleton reusable: the pool object
     stays, and the next command lazily reconnects on the current loop.

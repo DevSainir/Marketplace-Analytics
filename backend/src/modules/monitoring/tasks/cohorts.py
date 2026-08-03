@@ -10,9 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.celery_app import celery_app
 from src.core.config import settings
-from src.core.database import AsyncSessionLocal, run_task
+from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
+from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries import build_analytics_client
 from src.modules.monitoring.repos import (

@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import timedelta
 
 from src.core.celery_app import celery_app
-from src.core.database import AsyncSessionLocal, run_task
+from src.core.database import AsyncSessionLocal
 from src.core.logging import get_logger
+from src.core.tasks import run_task
 from src.core.timeutils import operating_today
 from src.modules.monitoring.repos import SkuDayCommentRepository
 from src.modules.monitoring.tasks.common import _TASK_RETRY_KWARGS

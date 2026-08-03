@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import NullPool
 
 import src.core.database as database_module
-from src.core.database import run_task
+from src.core.tasks import run_task
 from tests.integration.conftest import TEST_DB_NAME, _dsn
 
 pytestmark = pytest.mark.usefixtures("postgres_ready")
@@ -83,8 +83,9 @@ def _terminate(pid: int) -> None:
 def app_engine_is(pooled_engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch) -> AsyncEngine:
     """Point the module-level engine AND session factory at the pooled engine.
 
-    ``run_task`` disposes ``src.core.database.engine`` by global lookup, so
-    patching the attribute is what makes the real code path observable here.
+    ``run_task`` disposes the engine through ``dispose_engine``, which reads
+    ``src.core.database.engine`` by global lookup, so patching the attribute is
+    what makes the real code path observable here.
     """
     monkeypatch.setattr(database_module, "engine", pooled_engine)
     monkeypatch.setattr(
