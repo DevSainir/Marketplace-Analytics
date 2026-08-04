@@ -72,9 +72,13 @@ celery_app.conf.beat_schedule = {
     "daily-finreports-snapshot-tariffs": {
         "schedule": crontab(hour=5, minute=0),
     },
-    # weekly realization report settles a few days in arrears, so a rolling
-    # 28-day window keeps recent reports fresh (upsert-idempotent). 08:00 MSK,
-    # after the monitoring harvest and cohort refresh vacate the WB surfaces.
+    # daily because WB publishes the realization report on no fixed day, but
+    # each run first asks WB whether it has a report we do not hold and skips the
+    # workspace when it does not (src/modules/finreports/tasks/freshness.py) —
+    # days there is nothing new to walk for. When it does run, the rolling
+    # 28-day window keeps the recent reports fresh (upsert-idempotent). 08:00
+    # MSK, after the monitoring harvest and cohort refresh vacate the WB
+    # surfaces.
     "daily-finreports-harvest": {
         "task": "finreports.harvest_finance",
         "schedule": crontab(hour=8, minute=0),
