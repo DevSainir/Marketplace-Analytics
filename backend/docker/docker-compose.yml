@@ -34,6 +34,16 @@
 #
 # Production (VPS): the override file does not exist there, so the same
 # `make up` runs the closed topology with nothing but port 80 exposed.
+#
+# RESOURCE CEILINGS. Every service caps its memory and CPU because the VPS
+# (2 vCPU / 3.8 GB, no swap) hosts more than this stack. Without a cap the
+# kernel's OOM killer picks a victim by score, and the victim is as likely to
+# be a co-tenant's database as the process that actually ran away. The numbers
+# are measured steady-state usage rounded up with headroom — worker 355 MB,
+# api 110 MB, postgres 196 MB, beat 110 MB, redis 6 MB, frontend 6 MB — and
+# sum to ~2.0 GB of ceiling against ~800 MB of real use. They are ceilings,
+# not reservations: nothing is set aside, so deliberate over-subscription of
+# the 2 CPUs is fine and intended.
 # ---------------------------------------------------------------------------
 
 name: marketplace-service
@@ -42,6 +52,8 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    mem_limit: 384m
+    cpus: 1.0
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-marketplace}
       POSTGRES_USER: ${POSTGRES_USER:-marketplace}
@@ -57,6 +69,12 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # No redis `maxmemory` to go with this: Redis is the Celery broker, and an
+    # eviction policy there silently drops queued tasks. The container cap is
+    # the backstop instead — if Redis ever approaches it, the queue is stuck
+    # and we want the crash, not a harvest that quietly loses half its jobs.
+    mem_limit: 96m
+    cpus: 0.5
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?missing — run from backend/ via `make up`, or pass --project-directory ..}
     command:
@@ -79,6 +97,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: api
+    mem_limit: 384m
+    cpus: 1.0
     env_file:
       - .env
     environment:
@@ -96,6 +116,9 @@ services:
       dockerfile: docker/Dockerfile
       target: api
     restart: unless-stopped
+    # whole document in memory before it is written to the cache volume.
+    mem_limit: 512m
+    cpus: 1.5
     env_file:
       - .env
     environment:
@@ -141,6 +164,8 @@ services:
       context: ../frontend
       dockerfile: docker/Dockerfile
     restart: unless-stopped
+    mem_limit: 64m
+    cpus: 0.5
     ports:
       - "80:80"
       - "443:443"
@@ -156,6 +181,11 @@ services:
       dockerfile: docker/Dockerfile
       target: worker
     restart: unless-stopped
+    # The largest ceiling in the stack: the nightly harvest holds a settlement
+    # week's rows while it prices them, and this is the only service whose
+    # working set scales with the seller's history rather than with traffic.
+    mem_limit: 768m
+    cpus: 1.5
     env_file:
       - .env
     environment:
@@ -177,6 +207,8 @@ services:
       dockerfile: docker/Dockerfile
       target: worker
     restart: unless-stopped
+    mem_limit: 192m
+    cpus: 0.5
     env_file:
       - .env
     environment:
