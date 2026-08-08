@@ -40,7 +40,8 @@ TESTS_NPM := npm --prefix tests
 .PHONY: help test test-fast test-unit test-component test-integration test-backend \
         test-frontend test-e2e test-perf test-perf-frontend test-perf-load lint \
         format audit lock typecheck setup-test-db clean-test-db seed-e2e \
-        up down ps logs prune rebuild
+        up down ps logs prune rebuild \
+        backup backup-verify backup-list
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -168,6 +169,22 @@ prune: ## Reclaim the Docker build cache (run when a rebuild fills the disk)
 rebuild: ## Prune build cache, then rebuild and start the stack
 	docker builder prune -af
 	$(COMPOSE) up -d --build
+
+# --------------------------------------------------------------------------- #
+# Database backups
+#
+# Cron runs `backup` on the VPS at 03:00 Europe/Moscow; these targets are for
+# doing it by hand. See backend/scripts/backup/README.md for the gates, the
+# tier rules and the restore procedure.
+# --------------------------------------------------------------------------- #
+backup: ## Dump, verify, encrypt and push the database to both object storages
+	backend/scripts/backup/backup.sh
+
+backup-verify: ## Full run WITHOUT uploading, including the restore rehearsal
+	backend/scripts/backup/backup.sh --no-upload --force-deep-check
+
+backup-list: ## List the backups currently held in both object storages
+	backend/scripts/backup/restore.sh list
 
 # --------------------------------------------------------------------------- #
 # Test database helpers

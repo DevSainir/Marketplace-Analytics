@@ -1,0 +1,23 @@
+# /etc/cron.d/marketplace-backup — nightly PostgreSQL backup.
+#
+# Install on the VPS with:
+#   install -m 644 -o root -g root \
+#     backend/scripts/backup/cron/marketplace-backup /etc/cron.d/marketplace-backup
+#
+# The file name deliberately has no dot: run-parts ignores those, and cron.d
+# would silently never run the job.
+#
+# 00:00 UTC is 03:00 Europe/Moscow. The entry is written in UTC rather than
+# with CRON_TZ because the host clock is UTC and Moscow has been a fixed UTC+3
+# since 2014 — no DST means the two can never drift, and a UTC entry cannot be
+# misread by a cron build without CRON_TZ support.
+#
+# The script decides its own tiers (daily every night, + weekly on Sunday,
+# + monthly on the 1st) from the Moscow date, and runs the restore rehearsal on
+# Sundays. Retention is enforced by lifecycle policies on the buckets.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=""
+
+0 0 * * * root /srv/marketplace_service/backend/scripts/backup/backup.sh >> /var/backups/marketplace/logs/cron.log 2>&1
