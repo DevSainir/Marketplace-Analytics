@@ -44,15 +44,29 @@ Log: ${BACKUP_LOG_FILE:-<none>}"
 
 # Best-effort notification. Never fails the run on its own — a backup that
 # succeeded but could not be announced is still a backup.
+#
+# --fail-with-body is not decoration: without it curl exits 0 on an HTTP 400,
+# so a wrong chat id or a revoked token would look exactly like a delivered
+# message. An alerting channel nobody has ever seen fail is the one that turns
+# out to be broken on the night it matters.
 alert() {
-    local text=$1
+    local text=$1 response
     [ -n "${BACKUP_ALERT_TELEGRAM_BOT_TOKEN:-}" ] || return 0
     [ -n "${BACKUP_ALERT_TELEGRAM_CHAT_ID:-}" ] || return 0
-    curl -sS -m 20 -o /dev/null \
+
+    if ! response=$(curl -sS -m 20 --fail-with-body \
         -X POST "https://api.telegram.org/bot${BACKUP_ALERT_TELEGRAM_BOT_TOKEN}/sendMessage" \
         -d chat_id="${BACKUP_ALERT_TELEGRAM_CHAT_ID}" \
-        --data-urlencode text="${text}" ||
-        warn "Telegram alert could not be delivered."
+        --data-urlencode text="${text}" 2>&1); then
+        # Never echo the response verbatim — the URL it came from carries the
+        # bot token, and this line lands in a log file.
+        warn "Telegram alert was rejected (HTTP error); check BACKUP_ALERT_TELEGRAM_*."
+        return 0
+    fi
+    case ${response} in
+    *'"ok":true'*) return 0 ;;
+    *) warn "Telegram accepted the request but did not confirm delivery." ;;
+    esac
     return 0
 }
 
