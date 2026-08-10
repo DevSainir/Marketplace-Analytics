@@ -3,11 +3,13 @@ import { createPinia, setActivePinia } from 'pinia'
 import {
   deleteCostPrice,
   downloadCostPricesXlsx,
+  fetchBalance,
   fetchCostPrices,
   fetchSkuPnl,
   fetchWeeks,
   importCostPricesXlsx,
   saveCostPrices,
+  setBalancePin,
   setSkuExclusion,
 } from '@/modules/finreports/api'
 import { useFinReportsStore } from '@/modules/finreports/store'
@@ -15,11 +17,13 @@ import { useFinReportsStore } from '@/modules/finreports/store'
 vi.mock('@/modules/finreports/api', () => ({
   deleteCostPrice: vi.fn(),
   downloadCostPricesXlsx: vi.fn(),
+  fetchBalance: vi.fn(),
   fetchCostPrices: vi.fn(),
   fetchSkuPnl: vi.fn(),
   fetchWeeks: vi.fn(),
   importCostPricesXlsx: vi.fn(),
   saveCostPrices: vi.fn(),
+  setBalancePin: vi.fn(),
   setSkuExclusion: vi.fn(),
 }))
 
@@ -297,5 +301,52 @@ describe('failures', () => {
 
     expect(store.reportError).toBe('')
     expect(store.report).toEqual(REPORT)
+  })
+})
+
+describe('balance marks', () => {
+  /**
+   * A mark is applied to the loaded payload first and persisted after, so the
+   * grid re-orders on the click rather than a round trip. That makes the SHAPE
+   * of what is written load-bearing: the grid matches a mark against the row's
+   * own `nm_id`, a number, so a SKU mark stored as text applies to nothing and
+   * the click looks ignored until the next reload.
+   */
+  const PAYLOAD = {
+    stat_date: '2026-08-03',
+    rows: [],
+    pinned_skus: [],
+    pinned_warehouses: [],
+    uncounted_warehouses: [],
+    uncounted_skus: [],
+  }
+
+  beforeEach(async () => {
+    fetchBalance.mockResolvedValue({ ...PAYLOAD })
+    await store.loadBalance()
+    vi.clearAllMocks()
+  })
+
+  it('applies a SKU mark as a number, without refetching', async () => {
+    await store.toggleBalancePin('sku_uncounted', '953770957', true)
+
+    expect(store.balance.uncounted_skus).toEqual([953770957])
+    expect(setBalancePin).toHaveBeenCalledWith('sku_uncounted', '953770957', true)
+    expect(fetchBalance).not.toHaveBeenCalled()
+  })
+
+  it('applies a warehouse mark as its name', async () => {
+    await store.toggleBalancePin('warehouse', 'Тула', true)
+
+    expect(store.balance.pinned_warehouses).toEqual(['Тула'])
+  })
+
+  it('rolls a failed mark back and says so', async () => {
+    setBalancePin.mockRejectedValueOnce({ response: { data: { detail: 'Не сохранено' } } })
+
+    await store.toggleBalancePin('sku', '953770957', true)
+
+    expect(store.balance.pinned_skus).toEqual([])
+    expect(store.balanceError).toBe('Не сохранено')
   })
 })

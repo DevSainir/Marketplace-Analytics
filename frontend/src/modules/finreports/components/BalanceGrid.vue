@@ -116,7 +116,7 @@ defineExpose({ scroller })
         <tr
           v-for="(row, rowIndex) in rows"
           :key="row.nmId"
-          :class="{ 'row-divide': isRowBoundary(rowIndex) }"
+          :class="{ 'row-divide': isRowBoundary(rowIndex), 'is-uncounted': row.isUncounted }"
         >
           <td class="cell-sku" :title="row.saName">
             <span class="sku-header">
@@ -132,6 +132,7 @@ defineExpose({ scroller })
                       value: String(row.nmId),
                       label: row.saName,
                       pinned: row.isPinned,
+                      uncounted: row.isUncounted,
                     },
                   })
                 "

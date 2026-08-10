@@ -47,11 +47,12 @@ export function useBalancePins({ onMark }) {
     onMark({ kind, value, pinned: !pinned })
   }
 
-  /** «Не считать» / «Считать» — warehouse columns only. */
+  /** «Не считать» / «Считать» — the same mark on either axis, so the kind is
+   *  derived from what the menu was opened on rather than hard-coded. */
   function toggleUncounted() {
-    const { value, uncounted } = menu.value
+    const { kind, value, uncounted } = menu.value
     menu.value = null
-    onMark({ kind: 'warehouse_uncounted', value, pinned: !uncounted })
+    onMark({ kind: `${kind}_uncounted`, value, pinned: !uncounted })
   }
 
   function onDocumentPointerDown(event) {

@@ -49,6 +49,7 @@ def build_balance(
     pinned_skus: set[int],
     pinned_warehouses: set[str],
     uncounted_warehouses: set[str],
+    uncounted_skus: set[int],
     currency: str,
     span: tuple[date | None, date | None],
 ) -> BalanceResponse:
@@ -66,6 +67,7 @@ def build_balance(
         pinned_warehouses: Warehouses pinned to the left of the grid.
         uncounted_warehouses: Warehouses marked «Не считать» — priced like any
             other, but never ranked on and never totalled.
+        uncounted_skus: SKUs marked «Не считать» — the same on the row axis.
         currency: Settlement currency every money figure is stated in.
         span: ``(first, last)`` snapshot day on record, for the day picker.
 
@@ -89,6 +91,7 @@ def build_balance(
         pinned_skus=sorted(pinned_skus),
         pinned_warehouses=sorted(pinned_warehouses),
         uncounted_warehouses=sorted(uncounted_warehouses),
+        uncounted_skus=sorted(uncounted_skus),
         uncosted_count=len(uncosted),
         notes=_notes(stat_date=stat_date, rows=rows, uncosted=uncosted, span=span),
     )
@@ -229,13 +232,14 @@ class BalanceService:
             ),
             identity=await self._pnl.sku_identity(workspace_id=workspace_id, nm_ids=nm_ids),
             vendor_codes=vendor_codes,
-            pinned_skus=await self._pinned_skus(workspace_id),
+            pinned_skus=await self._sku_marks(workspace_id, BalancePinKind.SKU),
             pinned_warehouses=await self._pins.list_values(
                 workspace_id=workspace_id, kind=BalancePinKind.WAREHOUSE
             ),
             uncounted_warehouses=await self._pins.list_values(
                 workspace_id=workspace_id, kind=BalancePinKind.WAREHOUSE_UNCOUNTED
             ),
+            uncounted_skus=await self._sku_marks(workspace_id, BalancePinKind.SKU_UNCOUNTED),
             currency=currency or _FALLBACK_CURRENCY,
             span=span,
         )
@@ -248,12 +252,12 @@ class BalanceService:
             workspace_id=workspace_id, kind=kind, value=value, pinned=pinned
         )
 
-    async def _pinned_skus(self, workspace_id: uuid.UUID) -> set[int]:
-        """The pinned ``nm_id``s, ignoring any value that is not one.
+    async def _sku_marks(self, workspace_id: uuid.UUID, kind: BalancePinKind) -> set[int]:
+        """One kind of SKU mark as ``nm_id``s, ignoring any value that is not one.
 
         Marks are stored as text so one table serves rows and columns alike; a
         value that is not a number can only come from a hand-edited row, and
         dropping it is better than failing the whole grid over it.
         """
-        values = await self._pins.list_values(workspace_id=workspace_id, kind=BalancePinKind.SKU)
+        values = await self._pins.list_values(workspace_id=workspace_id, kind=kind)
         return {int(value) for value in values if value.lstrip("-").isdigit()}

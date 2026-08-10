@@ -47,7 +47,7 @@ defineExpose({ scroller })
         <tr
           v-for="(row, rowIndex) in rows"
           :key="row.nmId"
-          :class="{ 'row-divide': isRowBoundary(rowIndex) }"
+          :class="{ 'row-divide': isRowBoundary(rowIndex), 'is-uncounted': row.isUncounted }"
         >
           <td class="col-qty tabular-nums">{{ formatNumber(row.totalQuantity) }}</td>
           <td class="col-cost tabular-nums">{{ money(row.totalBalance) }}</td>

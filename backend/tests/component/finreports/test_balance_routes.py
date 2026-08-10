@@ -65,6 +65,7 @@ class _StubBalanceService:
             pinned_skus=[],
             pinned_warehouses=["Коледино"],
             uncounted_warehouses=["СЦ Брак"],
+            uncounted_skus=[],
             uncosted_count=0,
             notes=[],
         )

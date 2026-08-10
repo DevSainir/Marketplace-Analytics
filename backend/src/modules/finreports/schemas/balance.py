@@ -90,6 +90,10 @@ class BalanceResponse(BaseModel):
     #: Warehouses marked «Не считать»: shown, sorted last, and left out of every
     #: total the client draws.
     uncounted_warehouses: list[str]
+    #: SKUs marked «Не считать» — the same, one axis over: the row is shown and
+    #: keeps its own «Итого по артикулу», but contributes to no column total and
+    #: not to the corner.
+    uncounted_skus: list[int]
 
     #: How many rows carry quantities but no cost — the size of the gap in any
     #: money total drawn from this response.

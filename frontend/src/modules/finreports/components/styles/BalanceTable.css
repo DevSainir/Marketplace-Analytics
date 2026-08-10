@@ -18,18 +18,29 @@
      Sized against the type scale below — grow one and these have to follow, or
      «119 | 143 500с» starts clipping. */
   --col-sku-w: 12rem;
-  --col-wh-w: 8.25rem;
+  --col-wh-w: 7.25rem;
   --col-qty-w: 5.5rem;
   --col-cost-w: 8.5rem;
 
-  /* Type scale for the three data blocks. The corner keeps its own, larger
-     sizes: it is one number, not a table of them. */
+  /* Type scale. The grid runs a notch tighter than the panels: it is dozens of
+     cells wide and every pixel there buys another warehouse on screen, while
+     the panels hold one figure per row and are what the eye lands on. The
+     corner keeps its own, larger sizes — it is one number, not a table. */
   --font-cell: 12px;
+  --font-grid-cell: 11px;
   --font-head: 11px;
 
-  /* Row heights. EXPLICIT, because the grid and the row panel are two separate
-     scrollers whose rows must line up while one drives the other's offset. */
-  --row-h: 27px;
+  /* Row heights. EXPLICIT and SHARED, because the grid and the row panel are
+     two separate scrollers whose rows must line up while one drives the other's
+     offset — the panel follows this, it does not get its own.
+
+     `--row-line` is load-bearing with it: `height` on a table cell is a MINIMUM,
+     so a block whose text needs more leading than `--row-h` allows silently
+     grows its own rows, and the two scrollers drift a pixel per row (41px by
+     row 40 — the totals end up beside the wrong SKUs). Both blocks pin their
+     leading to this, and it must stay under `--row-h` minus the cell padding. */
+  --row-h: 25px;
+  --row-line: 1.25;
   --row-head-h: 29px;
   --row-foot-h: 34px;
 

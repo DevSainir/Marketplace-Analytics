@@ -73,6 +73,29 @@ describe('useBalanceRows', () => {
     expect(totals.value.quantity).toBe(120)
   })
 
+  it('leaves a «Не считать» SKU out of every total but keeps its own row', () => {
+    const { tableRows, totals, isRowBoundary } = useBalanceRows(
+      payload({ uncounted_skus: [BRUKI.nm_id] }),
+    )
+
+    const excluded = tableRows.value.find((r) => r.nmId === BRUKI.nm_id)
+
+    // Its own «Итого по артикулу» still stands — the seller wants to see what
+    // is lying there; it just is not theirs to count.
+    expect(excluded.isUncounted).toBe(true)
+    expect(excluded.totalQuantity).toBe(85)
+    expect(excluded.totalBalance).toBe(68000)
+    // …and it reaches neither the column totals nor the corner. All that is
+    // left in the count is the uncosted SKU, which carries units and no money.
+    expect(totals.value.quantity).toBe(40)
+    expect(totals.value.balance).toBe(0)
+    expect(totals.value.warehouses.find((w) => w.name === 'Коледино').quantity).toBe(0)
+    expect(totals.value.warehouses.find((w) => w.name === 'Тула').quantity).toBe(40)
+    // Excluded rows sink to the bottom, behind a seam of their own.
+    expect(tableRows.value.at(-1).nmId).toBe(BRUKI.nm_id)
+    expect(isRowBoundary(1)).toBe(true)
+  })
+
   it('re-totals the panels over the visible rows once a filter is on', () => {
     const { brandFilter, tableRows, totals } = useBalanceRows(payload())
 

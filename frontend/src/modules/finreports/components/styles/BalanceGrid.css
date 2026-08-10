@@ -41,8 +41,9 @@ table {
 
 th,
 td {
-  padding: 4px 8px;
-  font-size: var(--font-cell);
+  padding: 3px 6px;
+  /* Tighter than the panels — see the note on the scale in BalanceTable.css. */
+  font-size: var(--font-grid-cell);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -66,6 +67,8 @@ thead tr:last-child th {
 }
 tbody td {
   height: var(--row-h);
+  /* Pinned, not inherited: see the note on --row-line in BalanceTable.css. */
+  line-height: var(--row-line);
 }
 
 /* The article column keeps out of the zebra: it is the grid's spine, not one of
@@ -195,9 +198,13 @@ thead th.wh-group--uncounted {
 .is-pinned {
   box-shadow: inset 0 -2px 0 var(--color-action, #007e76);
 }
-/* A warehouse taken out of the count still shows its stock — the seller wants
-   to see what is lying there — but it reads as parenthetical. */
-.is-uncounted {
+/* Taken out of the count — a warehouse column or a SKU row — still shows its
+   stock, because the seller wants to see what is lying there, but it reads as
+   parenthetical. On a row the whole line greys out, article name included. */
+.is-uncounted,
+tbody tr.is-uncounted td,
+/* The money span carries its own colour, so greying the cell is not enough. */
+tbody tr.is-uncounted .cell-money {
   color: var(--ink-dim);
 }
 

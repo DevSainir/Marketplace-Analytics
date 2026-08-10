@@ -33,6 +33,7 @@ def _balance(**overrides: object) -> object:
         "pinned_skus": set(),
         "pinned_warehouses": set(),
         "uncounted_warehouses": set(),
+        "uncounted_skus": set(),
         "currency": "KGS",
         "span": SPAN,
     }
@@ -110,10 +111,15 @@ def test_the_persisted_marks_travel_with_the_grid() -> None:
     from the totals; all three are answered from the persisted marks, not
     re-derived per request from anything on the client.
     """
-    grid = _balance(pinned_skus={NM_BRUKI}, pinned_warehouses={"Коледино"})
+    grid = _balance(
+        pinned_skus={NM_BRUKI},
+        pinned_warehouses={"Коледино"},
+        uncounted_skus={NM_SHORTS},
+    )
 
     assert grid.pinned_skus == [NM_BRUKI]
     assert grid.pinned_warehouses == ["Коледино"]
+    assert grid.uncounted_skus == [NM_SHORTS]
 
 
 def test_a_day_without_a_snapshot_is_empty_and_says_which_days_exist() -> None:

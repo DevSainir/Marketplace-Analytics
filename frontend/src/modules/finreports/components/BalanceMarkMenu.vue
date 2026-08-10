@@ -7,10 +7,9 @@
  * scroll container they would be clipped by it. Split out of BalanceTable.vue
  * to keep it under the size limit; it owns no state, the composable does.
  *
- * A warehouse column offers both marks: «Закрепить» moves it to the front,
- * «Не считать» sends it to the back and out of every total. A SKU row offers
- * only the pin — a row cannot be «not counted»; that is what the search and the
- * filters are for.
+ * Both axes offer both marks: «Закрепить» moves a row or column to the front,
+ * «Не считать» sends it to the back and out of every total while leaving it on
+ * screen — the seller still wants to see stock they have stopped counting.
  */
 defineProps({
   /** `{kind, value, label, pinned, uncounted, x, y}` or `null`. */
@@ -48,10 +47,7 @@ const emit = defineEmits(['toggle-pin', 'toggle-uncounted'])
         />
         {{ menu.pinned ? 'Открепить' : 'Закрепить' }}
       </label>
-      <label
-        v-if="menu.kind === 'warehouse'"
-        class="flex cursor-pointer select-none items-center gap-sm text-base text-primary"
-      >
+      <label class="flex cursor-pointer select-none items-center gap-sm text-base text-primary">
         <input
           type="checkbox"
           class="pin-menu-checkbox"

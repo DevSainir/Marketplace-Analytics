@@ -49,6 +49,10 @@ thead tr:last-child th {
 }
 tbody td {
   height: var(--row-h);
+  /* Pinned, not inherited — the app's default leading needs 26px against a 25px
+     row, and the panel would grow a pixel per row away from the grid it must
+     line up with (see --row-line in BalanceTable.css). */
+  line-height: var(--row-line);
   /* The same medium the headers use: these are totals of the row beside them,
      not a heavier class of figure. */
   font-weight: 500;
@@ -65,9 +69,13 @@ tbody tr:nth-child(even) td {
 tbody tr:hover td {
   background-color: var(--hover);
 }
-/* The seam between the pinned SKUs and the rest, continued from the grid. */
+/* The seams between the row groups, continued from the grid. */
 tbody tr.row-divide td {
   border-top: 1px solid var(--seam);
+}
+/* A row out of the count keeps its own totals — greyed, like its cells. */
+tbody tr.is-uncounted td {
+  color: var(--ink-dim);
 }
 
 col.c-qty {

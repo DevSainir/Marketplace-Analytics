@@ -57,8 +57,9 @@ export function shortWarehouseName(name) {
  * @param {object} r The backend row.
  * @param {Set<string>} uncounted Warehouses marked «Не считать».
  * @param {Set<number>} pinnedSkus SKUs pinned to the top.
+ * @param {Set<number>} uncountedSkus SKUs marked «Не считать».
  */
-export function toRow(r, uncounted, pinnedSkus) {
+export function toRow(r, uncounted, pinnedSkus, uncountedSkus) {
   const byWarehouse = {}
   let totalQuantity = 0
   let totalBalance = 0
@@ -76,6 +77,7 @@ export function toRow(r, uncounted, pinnedSkus) {
     brand: r.brand_name || '',
     costPrice: num(r.cost_price),
     isPinned: pinnedSkus.has(r.nm_id),
+    isUncounted: uncountedSkus.has(r.nm_id),
     byWarehouse,
     totalQuantity,
     // An uncosted SKU has no balance at all — 0 would read as «free goods».
@@ -87,7 +89,9 @@ export function toRow(r, uncounted, pinnedSkus) {
  * Sum the visible rows into the panels — «Итого по складу» and the corner.
  *
  * A column marked «Не считать» keeps its OWN total (the seller wants to see
- * what is lying there) but contributes nothing to the corner.
+ * what is lying there) but contributes nothing to the corner. A ROW marked the
+ * same way keeps its «Итого по артикулу» and contributes to neither: it is out
+ * of the count on both axes, which is the whole point of the mark.
  *
  * @param {Array<object>} rows Flattened rows currently on screen.
  * @param {Array<{name: string, isUncounted: boolean}>} columns The grid's
@@ -99,6 +103,7 @@ export function subtotals(rows, columns) {
   let quantity = 0
   let balance = 0
   for (const row of rows) {
+    if (row.isUncounted) continue
     quantity += row.totalQuantity
     balance += row.totalBalance ?? 0
     for (const [name, cell] of Object.entries(row.byWarehouse)) {
@@ -129,6 +134,7 @@ export function useBalanceRows(balance) {
   const pinnedSkus = computed(() => new Set(balance.value?.pinned_skus ?? []))
   const pinnedWarehouses = computed(() => new Set(balance.value?.pinned_warehouses ?? []))
   const uncounted = computed(() => new Set(balance.value?.uncounted_warehouses ?? []))
+  const uncountedSkus = computed(() => new Set(balance.value?.uncounted_skus ?? []))
 
   /**
    * The columns: every warehouse holding stock today, pinned ones first,
@@ -186,10 +192,12 @@ export function useBalanceRows(balance) {
         ),
       )
     }
-    // Pinned rows lead; the rest keep the backend's «largest balance first».
+    // Pinned rows lead, «не считается» rows trail, and the rest keep the
+    // backend's «largest balance first» — the same three groups the columns
+    // fall into, one axis over.
     return list
-      .map((r) => toRow(r, uncounted.value, pinnedSkus.value))
-      .sort((a, b) => b.isPinned - a.isPinned)
+      .map((r) => toRow(r, uncounted.value, pinnedSkus.value, uncountedSkus.value))
+      .sort((a, b) => a.isUncounted - b.isUncounted || b.isPinned - a.isPinned)
   })
 
   /** The bottom «Итого по складу» panel and the bottom-right corner. */
@@ -201,11 +209,15 @@ export function useBalanceRows(balance) {
   const pinnedCount = computed(() => columns.value.filter((c) => c.isPinned).length)
   const uncountedCount = computed(() => columns.value.filter((c) => c.isUncounted).length)
   const pinnedRowCount = computed(() => tableRows.value.filter((r) => r.isPinned).length)
+  const uncountedRowCount = computed(() => tableRows.value.filter((r) => r.isUncounted).length)
   const isGroupBoundary = (index) =>
     index > 0 &&
     ((pinnedCount.value > 0 && index === pinnedCount.value) ||
       (uncountedCount.value > 0 && index === columns.value.length - uncountedCount.value))
-  const isRowBoundary = (index) => pinnedRowCount.value > 0 && index === pinnedRowCount.value
+  const isRowBoundary = (index) =>
+    index > 0 &&
+    ((pinnedRowCount.value > 0 && index === pinnedRowCount.value) ||
+      (uncountedRowCount.value > 0 && index === tableRows.value.length - uncountedRowCount.value))
 
   return {
     query,

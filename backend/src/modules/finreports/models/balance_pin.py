@@ -44,6 +44,10 @@ class BalancePinKind(enum.StrEnum):
     #: whose stock is not the seller's to count — goods already written off,
     #: or a transit point they do not sell from.
     WAREHOUSE_UNCOUNTED = "warehouse_uncounted"
+    #: The same mark on a SKU row: still shown, still priced, sorted to the
+    #: bottom and out of the totals. For stock the seller does not count as
+    #: theirs — a discontinued line, or goods held for someone else.
+    SKU_UNCOUNTED = "sku_uncounted"
 
 
 class BalancePin(Base):

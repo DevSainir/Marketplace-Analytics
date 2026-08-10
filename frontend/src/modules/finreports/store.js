@@ -224,6 +224,7 @@ export const useFinReportsStore = defineStore('finreports', () => {
     sku: 'pinned_skus',
     warehouse: 'pinned_warehouses',
     warehouse_uncounted: 'uncounted_warehouses',
+    sku_uncounted: 'uncounted_skus',
   }
 
   /**
@@ -239,7 +240,10 @@ export const useFinReportsStore = defineStore('finreports', () => {
   async function toggleBalancePin(kind, value, pinned) {
     const field = BALANCE_MARKS[kind]
     if (!field || !balance.value) return
-    const key = kind === 'sku' ? Number(value) : String(value)
+    // Both SKU marks key on a NUMERIC nm_id, the way the backend sends them and
+    // the way the rows carry them — a string would never match its row, and the
+    // mark would look like it had not applied until the next reload.
+    const key = kind.startsWith('sku') ? Number(value) : String(value)
     const before = balance.value[field] ?? []
     balance.value[field] = pinned ? [...before, key] : before.filter((v) => v !== key)
     try {
