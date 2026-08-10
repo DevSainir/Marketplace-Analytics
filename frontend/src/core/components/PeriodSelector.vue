@@ -5,8 +5,11 @@
  * Flow: click the field → the calendar opens → click the start day → click the
  * end day → the popover closes with the range set (the parent still applies it
  * with «Применить»). Between the two clicks, hovering previews the range. Quick
- * presets (7 / 30 / 90 дней) set a rolling window ending TODAY (the current
- * day counts as one of the N).
+ * presets (7 / 30 / 90 дней) set a rolling window ending on `presetEnd` —
+ * today unless the caller names a last day (it counts as one of the N).
+ *
+ * Lives in `core/`: two modules pick periods with it — monitoring's matrix and
+ * the finreports P&L.
  *
  * Fully custom (no native `<input type=date>` — its calendar is off-brand):
  * styled with the design system, action-color endpoints and a soft action
@@ -15,19 +18,20 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { isoDaysAgo } from '@/core/utils/dates'
-import { btnClass, effectiveRange, wrapClass } from '@/modules/monitoring/calendarHighlight'
-import {
-  PRESETS,
-  TODAY,
-  TODAY_ISO,
-  useCalendarView,
-  WEEKDAYS,
-} from '@/modules/monitoring/calendarModel'
+import { isoDaysAgo, isoLocalDate } from '@/core/utils/dates'
+import { btnClass, effectiveRange, wrapClass } from '@/core/utils/calendarHighlight'
+import { PRESETS, TODAY, TODAY_ISO, useCalendarView, WEEKDAYS } from '@/core/utils/calendarModel'
 
 const props = defineProps({
   from: { type: String, required: true },
   to: { type: String, required: true },
+  /**
+   * Day the quick presets end on (ISO). Empty = today, which is right for live
+   * traffic data. The P&L passes its newest SETTLED day instead: WB publishes a
+   * settlement week at a time, so «7 дней» ending today would silently include
+   * days no report covers yet and read as a collapse in sales.
+   */
+  presetEnd: { type: String, default: '' },
 })
 const emit = defineEmits(['update:from', 'update:to'])
 
@@ -110,8 +114,9 @@ function onHover(cell) {
 }
 
 function applyPreset(days) {
-  const from = isoDaysAgo(days - 1)
-  const to = isoDaysAgo(0)
+  const to = props.presetEnd || isoDaysAgo(0)
+  const end = new Date(`${to}T00:00:00`)
+  const from = isoLocalDate(new Date(end.getTime() - (days - 1) * 86400000))
   emit('update:from', from)
   emit('update:to', to)
   open.value = false

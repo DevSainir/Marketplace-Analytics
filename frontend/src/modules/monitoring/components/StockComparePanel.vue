@@ -10,7 +10,7 @@
  *
  * Dumb by contract: it renders the sides it is given and reports intent.
  */
-import DayPicker from '@/modules/monitoring/components/DayPicker.vue'
+import DayPicker from '@/core/components/DayPicker.vue'
 import StockBreakdownTable from '@/modules/monitoring/components/StockBreakdownTable.vue'
 
 defineProps({

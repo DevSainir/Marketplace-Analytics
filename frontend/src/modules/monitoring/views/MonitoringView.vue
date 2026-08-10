@@ -6,7 +6,7 @@ import { isoDaysAgo } from '@/core/utils/dates'
 
 import MatrixEditToolbar from '@/modules/monitoring/components/MatrixEditToolbar.vue'
 import MetricsTable from '@/modules/monitoring/components/MetricsTable.vue'
-import PeriodSelector from '@/modules/monitoring/components/PeriodSelector.vue'
+import PeriodSelector from '@/core/components/PeriodSelector.vue'
 import SkuIdentityHeader from '@/modules/monitoring/components/SkuIdentityHeader.vue'
 import SkuMatchPicker from '@/modules/monitoring/components/SkuMatchPicker.vue'
 import PinnedSkuRow from '@/modules/monitoring/components/PinnedSkuRow.vue'

@@ -6,6 +6,10 @@
  *
  * Click the field → one month opens on the selected date → click a day →
  * the popover closes and `update:modelValue` fires with the ISO date.
+ *
+ * Lives in `core/` because two modules pick days with it now — monitoring's
+ * stock comparison and the finreports stock balance — and a date is not a
+ * domain concept either of them owns.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
@@ -16,6 +20,13 @@ const props = defineProps({
   modelValue: { type: String, required: true },
   /** Latest pickable day (ISO); later cells are disabled. */
   max: { type: String, default: () => isoLocalDate(new Date()) },
+  /**
+   * Earliest pickable day (ISO); earlier cells are disabled. Empty = no floor.
+   * The stock balance has one: days before the first snapshot hold no data at
+   * all, and letting them be picked would answer «нет остатков» to a question
+   * that was never asked.
+   */
+  min: { type: String, default: '' },
   ariaLabel: { type: String, default: 'Выбор дня' },
 })
 const emit = defineEmits(['update:modelValue'])
@@ -62,7 +73,7 @@ function buildMonth(year, month) {
       iso,
       day: d.getDate(),
       inMonth: d.getMonth() === month,
-      disabled: iso > props.max,
+      disabled: iso > props.max || (!!props.min && iso < props.min),
     })
   }
   return cells
