@@ -49,6 +49,10 @@ Log: ${BACKUP_LOG_FILE:-<none>}"
 # so a wrong chat id or a revoked token would look exactly like a delivered
 # message. An alerting channel nobody has ever seen fail is the one that turns
 # out to be broken on the night it matters.
+#
+# disable_notification is a project-wide invariant: every message this project
+# sends arrives silently, so a 03:00 backup never wakes anyone. The alert is
+# still there at 09:00, which is when it gets acted on anyway.
 alert() {
     local text=$1 response
     [ -n "${BACKUP_ALERT_TELEGRAM_BOT_TOKEN:-}" ] || return 0
@@ -57,6 +61,7 @@ alert() {
     if ! response=$(curl -sS -m 20 --fail-with-body \
         -X POST "https://api.telegram.org/bot${BACKUP_ALERT_TELEGRAM_BOT_TOKEN}/sendMessage" \
         -d chat_id="${BACKUP_ALERT_TELEGRAM_CHAT_ID}" \
+        -d disable_notification=true \
         --data-urlencode text="${text}" 2>&1); then
         # Never echo the response verbatim — the URL it came from carries the
         # bot token, and this line lands in a log file.

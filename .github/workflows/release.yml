@@ -1,0 +1,109 @@
+# Semantic versioning, changelog, and the release announcement.
+#
+# The version of this project is derived, never typed. Release Please reads the
+# Conventional Commits on main (already enforced at commit time by the
+# commitizen hook in .pre-commit-config.yaml) and keeps an open "release PR"
+# that shows exactly what the next version would be and why. Merging that PR is
+# the release: it writes CHANGELOG.md, bumps version.txt, backend/pyproject.toml
+# and frontend/package.json in lockstep, tags `vX.Y.Z`, and publishes a GitHub
+# Release. Nothing here decides a version number on its own.
+#
+# Pre-1.0 the config sets `bump-minor-pre-major`, so a breaking change moves
+# 0.1.0 -> 0.2.0 instead of jumping the project to 1.0.0 before it is ready.
+#
+# The announcement is the second half. Release notes are written in English by
+# people who read English; the people who USE the product read Russian, so the
+# commit subjects are sent through Gemini for translation and — the part that
+# actually makes them readable — a tense change out of the imperative:
+#   feat(finreports): add Balance table
+#   -> Модуль финотчётов: была добавлена таблица Баланс.
+#
+# Audience differs by kind of news, deliberately: deploys and backups are
+# operational and go to the maintainer in English (see deploy.yml), releases are
+# product news and go to everyone in Russian. All of it is sent silently.
+#
+# Note on CI for the release PR: it is opened by GITHUB_TOKEN, and GitHub does
+# not run workflows for such PRs. The PR only touches CHANGELOG.md and version
+# files; the merge commit itself lands on main and does run the full `tests`
+# pipeline, which is what gates the deploy.
+
+name: release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: version + changelog + announcement
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # Everything below runs only on the merge that actually cut a release.
+      - name: Check out the tagged commit
+        if: steps.release.outputs.release_created
+        uses: actions/checkout@v4
+        with:
+          # Full history + tags: the announcement is built from the commits
+          # between the previous tag and this one.
+          fetch-depth: 0
+
+      - name: Collect the commits in this release
+        if: steps.release.outputs.release_created
+        id: commits
+        env:
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force --quiet
+
+          # The tag immediately preceding this one, by version order. Empty on
+          # the very first release, in which case we take the whole history.
+          prev=$(git tag --list 'v*' --sort=-v:refname | grep -vFx "$TAG" | head -n 1 || true)
+          if [ -n "$prev" ]; then
+            range="${prev}..${TAG}"
+          else
+            range="$TAG"
+          fi
+          echo "Announcing range: ${range}"
+
+          # --no-merges keeps merge-commit subjects ("Merge pull request #12…")
+          # out of a list meant for humans. The cap is --max-count and not a
+          # `| head`, which under `pipefail` would fail the step with SIGPIPE
+          # on exactly the large release it is there to protect.
+          git log --no-merges --max-count=200 --pretty=format:%s "$range" > commits.txt
+          echo "range=${range}" >> "$GITHUB_OUTPUT"
+          wc -l < commits.txt
+
+      - name: Announce the release in Telegram (Russian, everyone)
+        if: steps.release.outputs.release_created
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
+          WORKERS_TELEGRAM_CHAT_IDS: ${{ secrets.WORKERS_TELEGRAM_CHAT_IDS }}
+          VERSION: ${{ steps.release.outputs.version }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+          REPO: ${{ github.repository }}
+          RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.release.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/release_notes_ru.py < commits.txt \
+            | python3 .github/scripts/telegram_notify.py --audience all --parse-mode HTML

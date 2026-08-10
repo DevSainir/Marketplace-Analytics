@@ -78,6 +78,16 @@ jobs:
           uv run --project backend ruff check --config backend/pyproject.toml tests/performance
           uv run --project backend ruff format --check --config backend/pyproject.toml tests/performance
 
+      # The release/deploy notification scripts. Same reason as backend/scripts
+      # above: they are real Python that runs unattended, and a release is the
+      # worst moment to find out one of them has a typo. Run from the repo root
+      # for the same config-resolution reason as the performance tier.
+      - name: Ruff + mypy (CI notification scripts)
+        run: |
+          uv run --project backend ruff check --config backend/pyproject.toml .github/scripts
+          uv run --project backend ruff format --check --config backend/pyproject.toml .github/scripts
+          uv run --project backend mypy --strict .github/scripts
+
       - name: mypy (strict)
         working-directory: backend
         run: uv run mypy src main.py scripts

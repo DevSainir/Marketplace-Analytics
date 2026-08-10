@@ -98,6 +98,12 @@ Optional Telegram alerting: set `BACKUP_ALERT_TELEGRAM_BOT_TOKEN` and
 `BACKUP_ALERT_TELEGRAM_CHAT_ID` and failures — plus the weekly deep-check
 result — reach a human. Unset, the job is silent but still exits non-zero.
 
+The alert itself is sent with `disable_notification`, like every other message
+this project sends (see `docs/RELEASES.md`): a 03:00 backup must not ring a
+phone, and the alert is still there at 09:00, which is when it gets acted on.
+`BACKUP_ALERT_TELEGRAM_CHAT_ID` is the maintainer's chat — backups are
+operational news, not something the whole team needs.
+
 ## Running it by hand
 
 ```bash

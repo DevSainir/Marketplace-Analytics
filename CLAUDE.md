@@ -31,6 +31,12 @@ mechanism, and put new project guidance in the relevant skill rather than here.
 Read `PNL.md` before changing anything that touches a settlement figure — most of the ways to
 get it wrong produce a plausible statement rather than an error.
 
+`docs/RELEASES.md` covers versioning: the version is **derived from your commit messages**, never
+typed, so a `feat:` and a `fix:` are not interchangeable. Release Please keeps one open
+`chore(release):` PR and merging it cuts the release; the announcement is auto-translated to
+Russian for the team. Read it before editing `.github/workflows/release.yml`, the version fields
+in `backend/pyproject.toml` / `frontend/package.json`, or anything under `.github/scripts/`.
+
 ## Commands
 
 ```bash
