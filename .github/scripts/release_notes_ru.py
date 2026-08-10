@@ -197,12 +197,15 @@ def discover_models(api_key: str) -> tuple[str, ...]:
 def gemini(prompt: str, api_key: str, models: tuple[str, ...]) -> str:
     """Ask the first model that answers. Returns "" when all of them fail."""
     for model in models:
-        # thinkingBudget=0 keeps a reasoning model from spending the whole
-        # output budget before it writes a word; older models reject the field,
-        # hence the second, plainer attempt.
+        # Plain request FIRST, thinking disabled second. thinkingBudget=0 is a
+        # remedy for one specific failure — a reasoning model spending its whole
+        # output budget before writing a word, which shows up as an empty
+        # completion — and not every model accepts the field: gemini-3.6-flash
+        # answers 400 to it. Leading with it spent one guaranteed-failed request
+        # and a 400 in the log on every single release.
         for config in (
-            {"temperature": 0.2, "maxOutputTokens": 4096, "thinkingConfig": {"thinkingBudget": 0}},
             {"temperature": 0.2, "maxOutputTokens": 4096},
+            {"temperature": 0.2, "maxOutputTokens": 4096, "thinkingConfig": {"thinkingBudget": 0}},
         ):
             payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": config}
             for attempt in range(3):
