@@ -57,6 +57,56 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      # ---------------------------------------------------------------- #
+      # `uv.lock` records the project's OWN version, not just its
+      # dependencies. So the moment Release Please bumps
+      # backend/pyproject.toml, the committed lock is one line stale and
+      # `uv sync --locked` fails — taking `lint + typecheck` and
+      # `unit + component` down with it, and with them the deploy gate.
+      #
+      # v0.1.1 is the worked example: it was tagged and released, its tests
+      # went red on that single line, and the deploy correctly refused to
+      # run. The release existed and production never saw it.
+      #
+      # The honest fix is to update the lock rather than to stop checking it:
+      # `--locked` is what stops CI installing a dependency set the lock does
+      # not describe, and that guarantee is worth keeping.
+      # ---------------------------------------------------------------- #
+      - name: Check out the release branch
+        if: steps.release.outputs.pr
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+
+      - name: Install uv
+        if: steps.release.outputs.pr
+        uses: astral-sh/setup-uv@v5
+        with:
+          # Keep in step with UV_VERSION in tests.yml — a different resolver
+          # here could write a lock that the test workflow then rejects.
+          version: '0.11.32'
+          python-version: '3.12'
+
+      - name: Keep uv.lock in step with the bumped version
+        if: steps.release.outputs.pr
+        run: |
+          set -euo pipefail
+          (cd backend && uv lock)
+
+          if git diff --quiet -- backend/uv.lock; then
+            echo "uv.lock already matches the release version."
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/uv.lock
+          # `chore(release):` on purpose — the announcement filters the release
+          # bot's own commits, and this is one of them.
+          git commit -m 'chore(release): sync uv.lock with the bumped version'
+          # A GITHUB_TOKEN push does not trigger workflows, so this cannot loop.
+          git push
+
       # Everything below runs only on the merge that actually cut a release.
       - name: Check out the tagged commit
         if: steps.release.outputs.release_created

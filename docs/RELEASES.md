@@ -52,6 +52,17 @@ which version it releases.
 The `# x-release-please-version` comment in `pyproject.toml` is what marks the line to update —
 do not remove it.
 
+There is a fifth file nobody thinks of: **`backend/uv.lock` records the project's own version**,
+not just its dependencies. A version bump therefore leaves the committed lock one line stale, and
+`uv sync --locked` fails — which takes out `lint + typecheck`, `unit + component` and, through
+them, the deploy gate. v0.1.1 was tagged and released and production never saw it, for exactly
+that one line.
+
+The release workflow now runs `uv lock` on the release branch and commits the result, so the
+commit that lands on `main` is self-consistent. `--locked` stays: it is what stops CI installing a
+dependency set the lock does not describe, and the right response to a stale lock is to update it,
+not to stop checking. If you ever bump a version by hand, run `uv lock` in the same commit.
+
 The `v0.1.0` tag is the baseline: the state of the project when versioning was introduced.
 Everything before it predates the changelog. It exists so that Release Please and the
 announcement both have something to diff the first release against — without it, the first
