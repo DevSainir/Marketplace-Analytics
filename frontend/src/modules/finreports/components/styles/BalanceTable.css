@@ -1,0 +1,97 @@
+/*
+ * Layout for BalanceTable.vue — the four blocks and the metrics they share.
+ *
+ * The blocks are separate elements, so nothing but these CUSTOM PROPERTIES
+ * keeps their rows and columns aligned; custom properties inherit through the
+ * DOM regardless of style scoping, which is what lets each block keep its own
+ * scoped stylesheet and still agree on every width and height. Change a size
+ * here, never in one block alone, or the panels drift off their rows.
+ */
+
+.balance-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--panel-gap);
+
+  /* Column widths. `--col-sku-w` fits a WB seller article («M-TRX01-BLK») plus
+     its ⋮; the summary pair fits its own headers, which outrun the figures.
+     Sized against the type scale below — grow one and these have to follow, or
+     «119 | 143 500с» starts clipping. */
+  --col-sku-w: 12rem;
+  --col-wh-w: 8.25rem;
+  --col-qty-w: 5.5rem;
+  --col-cost-w: 8.5rem;
+
+  /* Type scale for the three data blocks. The corner keeps its own, larger
+     sizes: it is one number, not a table of them. */
+  --font-cell: 12px;
+  --font-head: 11px;
+
+  /* Row heights. EXPLICIT, because the grid and the row panel are two separate
+     scrollers whose rows must line up while one drives the other's offset. */
+  --row-h: 27px;
+  --row-head-h: 29px;
+  --row-foot-h: 34px;
+
+  /* The empty canvas between the blocks. */
+  --panel-gap: 10px;
+
+  /* One palette for all four blocks. */
+  --rule: #dcdcdc;
+  --seam: #949494;
+  --panel-bg: #f1f1f1;
+  --zebra: #f7f7f7;
+  --hover: #e8e8e8;
+  --ink-dim: #9a9a9a;
+}
+
+/* Every block floats over the page's canvas on its own soft shadow. */
+.balance-block {
+  border-radius: 10px;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 8%),
+    0 6px 16px -6px rgb(0 0 0 / 18%);
+}
+
+.toolbar-block {
+  overflow: hidden;
+}
+
+/* Grid + row totals on one line, column totals + corner beneath, each pair
+   sharing the gap. `minmax(0, 1fr)` (not `1fr`) lets the grid block SHRINK
+   below its content — without it the table would push the block wider than the
+   page and the panel off the right edge, which is exactly how the panel came to
+   be clipped when it lived inside the table. */
+.balance-blocks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--panel-gap);
+  align-items: stretch;
+}
+
+/* --- the corner: the whole balance in one number ------------------------- */
+.corner-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  /* The same width the row-totals block declares, so the two right-hand blocks
+     square up instead of the grid column stretching one of them. */
+  width: calc(var(--col-qty-w) + var(--col-cost-w));
+  padding: 4px 10px;
+  background: var(--panel-bg);
+  line-height: 1.15;
+}
+.corner-label {
+  font-size: 10px;
+  color: #4a4a4a;
+}
+.corner-value {
+  font-size: 14px;
+  font-weight: 700;
+}
+.corner-money {
+  font-size: 17px;
+  color: var(--color-action, #007e76);
+}

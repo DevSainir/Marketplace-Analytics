@@ -1,0 +1,81 @@
+/*
+ * Styles for BalanceRowTotals.vue — block 2, «Итого по артикулу».
+ *
+ * Every height here MUST match BalanceGrid.css, because the grid drives this
+ * block's vertical offset: two header rows of `--row-head-h` and body rows of
+ * `--row-h`, or the totals drift off their SKUs as the grid scrolls. Both read
+ * the same custom properties for exactly that reason.
+ */
+
+/* No scrollbars of its own: the parent sets `scrollTop` from the grid, and a
+   second scrollbar here would let the two panes disagree. */
+.totals-scroll {
+  overflow: hidden;
+  max-height: 640px;
+}
+
+/* An explicit width, not `100%`: this block sits in an `auto` grid column, so
+   `100%` would be circular. The corner block below declares the same sum, which
+   is what squares the two right-hand blocks with each other. */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  width: calc(var(--col-qty-w) + var(--col-cost-w));
+}
+
+th,
+td {
+  padding: 4px 8px;
+  font-size: var(--font-cell);
+  text-align: right;
+  white-space: nowrap;
+}
+thead th {
+  height: var(--row-head-h);
+  padding: 5px 8px;
+  font-size: var(--font-head);
+  /* Medium, matching the grid's headers — see BalanceGrid.css. */
+  font-weight: 500;
+  position: sticky;
+  z-index: 30;
+  background: var(--panel-bg);
+}
+thead tr:first-child th {
+  top: 0;
+}
+thead tr:last-child th {
+  top: var(--row-head-h);
+}
+tbody td {
+  height: var(--row-h);
+  /* The same medium the headers use: these are totals of the row beside them,
+     not a heavier class of figure. */
+  font-weight: 500;
+}
+
+/* The block's own title, left-aligned over the pair it names. */
+thead th.panel-title {
+  text-align: left;
+}
+
+tbody tr:nth-child(even) td {
+  background-color: var(--zebra);
+}
+tbody tr:hover td {
+  background-color: var(--hover);
+}
+/* The seam between the pinned SKUs and the rest, continued from the grid. */
+tbody tr.row-divide td {
+  border-top: 1px solid var(--seam);
+}
+
+col.c-qty {
+  width: var(--col-qty-w);
+}
+col.c-cost {
+  width: var(--col-cost-w);
+}
+.col-cost {
+  border-left: 1px solid var(--rule);
+}

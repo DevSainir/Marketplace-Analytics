@@ -15,6 +15,7 @@ is a few dozen numbers. The expressions themselves live in :mod:`.aggregate`.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Collection
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -226,6 +227,64 @@ class PnlRepository:
         ).where(*self._window(workspace_id, date_from, date_to))
         row = (await self._session.execute(stmt)).one()
         return int(row[0]), int(row[1])
+
+    async def sku_identity(
+        self, *, workspace_id: uuid.UUID, nm_ids: Collection[int]
+    ) -> dict[int, tuple[str, str, str]]:
+        """Return ``{nm_id: (sa_name, subject_name, brand_name)}`` for given SKUs.
+
+        Identity WB stamps on the settlement rows themselves, read over the whole
+        history rather than a window: the balance table names SKUs that still
+        hold stock, and a SKU can easily hold stock without having settled a
+        single row inside any window the seller happens to be looking at.
+
+        Scoped to the SKUs actually asked about so the query rides the
+        ``(nm_id, rr_dt)`` index instead of scanning 620k rows for a catalogue
+        the caller already knows the shape of.
+
+        Args:
+            workspace_id: Owning workspace.
+            nm_ids: The SKUs to name; an empty collection returns ``{}``.
+
+        Returns:
+            One triple per SKU that has ever settled a row; SKUs that never have
+            are absent, and the caller falls back to the catalogue vendor code.
+        """
+        ids = list(nm_ids)
+        if not ids:
+            return {}
+        stmt = (
+            select(
+                _T.nm_id,
+                func.max(_T.sa_name),
+                func.max(_T.subject_name),
+                func.max(_T.brand_name),
+            )
+            .where(_T.workspace_id == workspace_id, _T.nm_id.in_(ids))
+            .group_by(_T.nm_id)
+        )
+        rows = (await self._session.execute(stmt)).all()
+        return {int(r[0]): (str(r[1] or ""), str(r[2] or ""), str(r[3] or "")) for r in rows}
+
+    async def settlement_currency(self, *, workspace_id: uuid.UUID) -> str:
+        """Return the currency WB settles this workspace in.
+
+        Read off the newest settlement row rather than aggregated: the caller
+        needs it only to pick which cost prices apply (a cost stated in another
+        currency must never be mixed into a balance), and the whole history of
+        this account is denominated in one currency.
+
+        Returns:
+            The ISO code, or ``""`` when the workspace has no settlement rows
+            yet — the caller decides what to do with an unknown currency.
+        """
+        stmt = (
+            select(_T.currency_name)
+            .where(_T.workspace_id == workspace_id, _T.currency_name != "")
+            .order_by(_T.rr_dt.desc())
+            .limit(1)
+        )
+        return str((await self._session.execute(stmt)).scalars().first() or "")
 
     async def unclassified_opers(
         self, *, workspace_id: uuid.UUID, date_from: date, date_to: date

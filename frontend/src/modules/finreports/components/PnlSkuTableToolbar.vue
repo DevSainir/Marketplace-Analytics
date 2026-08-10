@@ -7,6 +7,10 @@
  * filter values are `v-model`s the table owns, because the table is what
  * actually filters its rows against them. Split out of PnlSkuTable to keep that
  * component under the size limit.
+ *
+ * Shared with the balance grid, which scrolls instead of paginating: an empty
+ * `pageSizes` hides the picker, so both tables get the identical search and
+ * filters without the balance growing a control that would do nothing.
  */
 import { nextTick, ref } from 'vue'
 
@@ -128,7 +132,7 @@ function closeSearch() {
       <option v-for="b in brands" :key="b" :value="b">{{ b }}</option>
     </select>
 
-    <div class="ml-auto flex items-center gap-sm">
+    <div v-if="pageSizes.length" class="ml-auto flex items-center gap-sm">
       <label class="text-tiny text-muted" for="sku-page-size">Строк на странице:</label>
       <select
         id="sku-page-size"

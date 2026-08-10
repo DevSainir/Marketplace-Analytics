@@ -1,0 +1,225 @@
+/**
+ * The balance grid's view logic: order, filtering, and the two totals panels.
+ *
+ * Everything the backend does NOT decide lives here, and that is deliberate: a
+ * pin, a «Не считать» and a search all change the order and every total the
+ * moment they are clicked, with no round trip (the same instant feel as
+ * monitoring's stock table). So the column order, the row order and all three
+ * panels are computed from the priced cells the response carries plus the mark
+ * sets, which the store keeps optimistically ahead of the server.
+ *
+ * The arithmetic is only ADDITION over backend-priced cells — the balance math
+ * itself (units x cost price) stays on the backend, where the cost prices are.
+ */
+import { computed, ref } from 'vue'
+
+import { formatMoney } from '@/core/utils/format'
+
+const num = (value) => (value === null || value === undefined ? null : Number(value))
+
+/** Warehouse names longer than this are shortened; hover reveals the full one. */
+export const NAME_LIMIT = 8
+
+/**
+ * A money formatter bound to the response's currency, e.g. 57600 -> «57 600с».
+ * Missing money (an uncosted SKU) stays an em dash — a blank balance and a zero
+ * balance mean different things on a table whose whole subject is money.
+ */
+export function moneyFormatter(currency) {
+  const suffix = currencySuffix(currency)
+  return (value) => (value === null || value === undefined ? '—' : formatMoney(value) + suffix)
+}
+
+/**
+ * The currency's short suffix, so a cell reads «57 600с» and not «57 600 KGS» —
+ * the grid is dozens of columns wide and a three-letter code per cell costs a
+ * whole warehouse of screen space.
+ */
+export function currencySuffix(currency) {
+  if (currency === 'KGS') return 'с'
+  if (currency === 'RUB') return '₽'
+  if (currency === 'USD') return '$'
+  return currency ? ` ${currency}` : ''
+}
+
+/**
+ * Compact warehouse header: WB names like «Электросталь» blow a numeric column
+ * up, so only the first {@link NAME_LIMIT} letters are shown and the full name
+ * comes back on hover.
+ */
+export function shortWarehouseName(name) {
+  return name.length > NAME_LIMIT ? `${name.slice(0, NAME_LIMIT)}…` : name
+}
+
+/**
+ * Flatten one backend balance row, totalling it over the COUNTED warehouses.
+ *
+ * @param {object} r The backend row.
+ * @param {Set<string>} uncounted Warehouses marked «Не считать».
+ * @param {Set<number>} pinnedSkus SKUs pinned to the top.
+ */
+export function toRow(r, uncounted, pinnedSkus) {
+  const byWarehouse = {}
+  let totalQuantity = 0
+  let totalBalance = 0
+  for (const cell of r.cells ?? []) {
+    const balance = num(cell.balance)
+    byWarehouse[cell.warehouse_name] = { quantity: cell.quantity, balance }
+    if (uncounted.has(cell.warehouse_name)) continue
+    totalQuantity += cell.quantity
+    totalBalance += balance ?? 0
+  }
+  return {
+    nmId: r.nm_id,
+    saName: r.sa_name,
+    subject: r.subject_name || '',
+    brand: r.brand_name || '',
+    costPrice: num(r.cost_price),
+    isPinned: pinnedSkus.has(r.nm_id),
+    byWarehouse,
+    totalQuantity,
+    // An uncosted SKU has no balance at all — 0 would read as «free goods».
+    totalBalance: r.cost_price === null || r.cost_price === undefined ? null : totalBalance,
+  }
+}
+
+/**
+ * Sum the visible rows into the panels — «Итого по складу» and the corner.
+ *
+ * A column marked «Не считать» keeps its OWN total (the seller wants to see
+ * what is lying there) but contributes nothing to the corner.
+ *
+ * @param {Array<object>} rows Flattened rows currently on screen.
+ * @param {Array<{name: string, isUncounted: boolean}>} columns The grid's
+ *   columns, kept in full even when a filter empties one — a column that
+ *   disappears while typing makes the grid jump under the reader.
+ */
+export function subtotals(rows, columns) {
+  const perWarehouse = new Map(columns.map((c) => [c.name, { quantity: 0, balance: 0 }]))
+  let quantity = 0
+  let balance = 0
+  for (const row of rows) {
+    quantity += row.totalQuantity
+    balance += row.totalBalance ?? 0
+    for (const [name, cell] of Object.entries(row.byWarehouse)) {
+      const total = perWarehouse.get(name)
+      if (!total) continue
+      total.quantity += cell.quantity
+      total.balance += cell.balance ?? 0
+    }
+  }
+  return {
+    warehouses: columns.map((c) => ({ ...c, ...perWarehouse.get(c.name) })),
+    quantity,
+    balance,
+  }
+}
+
+/**
+ * Search + Тип предмета / Бренд filtering over one loaded balance response.
+ *
+ * @param {import('vue').Ref<object|null>} balance The `/finreports/balance` payload.
+ */
+export function useBalanceRows(balance) {
+  const query = ref('')
+  const subjectFilter = ref('')
+  const brandFilter = ref('')
+
+  const rawRows = computed(() => balance.value?.rows ?? [])
+  const pinnedSkus = computed(() => new Set(balance.value?.pinned_skus ?? []))
+  const pinnedWarehouses = computed(() => new Set(balance.value?.pinned_warehouses ?? []))
+  const uncounted = computed(() => new Set(balance.value?.uncounted_warehouses ?? []))
+
+  /**
+   * The columns: every warehouse holding stock today, pinned ones first,
+   * «Не считать» ones last, the rest by how much stock they hold.
+   */
+  const columns = computed(() => {
+    const quantities = new Map()
+    for (const row of rawRows.value) {
+      for (const cell of row.cells ?? []) {
+        quantities.set(
+          cell.warehouse_name,
+          (quantities.get(cell.warehouse_name) ?? 0) + cell.quantity,
+        )
+      }
+    }
+    return [...quantities]
+      .map(([name, stock]) => ({
+        name,
+        isPinned: pinnedWarehouses.value.has(name),
+        isUncounted: uncounted.value.has(name),
+        stock,
+      }))
+      .sort(
+        (a, b) =>
+          a.isUncounted - b.isUncounted ||
+          b.isPinned - a.isPinned ||
+          b.stock - a.stock ||
+          a.name.localeCompare(b.name, 'ru'),
+      )
+  })
+
+  const distinct = (key) =>
+    [...new Set(rawRows.value.map((r) => r[key]).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, 'ru'),
+    )
+  // Тип предмета and Бренд have no column of their own here (the grid's columns
+  // are warehouses), but they stay filterable — they are how a seller narrows a
+  // catalogue down to the part they are actually restocking.
+  const subjects = computed(() => distinct('subject_name'))
+  const brands = computed(() => distinct('brand_name'))
+
+  const isFiltering = computed(
+    () => !!(query.value.trim() || subjectFilter.value || brandFilter.value),
+  )
+
+  const tableRows = computed(() => {
+    const needle = query.value.trim().toLowerCase()
+    let list = rawRows.value
+    if (subjectFilter.value) list = list.filter((r) => r.subject_name === subjectFilter.value)
+    if (brandFilter.value) list = list.filter((r) => r.brand_name === brandFilter.value)
+    if (needle) {
+      list = list.filter((r) =>
+        [r.sa_name, String(r.nm_id), r.subject_name, r.brand_name].some((field) =>
+          field?.toLowerCase().includes(needle),
+        ),
+      )
+    }
+    // Pinned rows lead; the rest keep the backend's «largest balance first».
+    return list
+      .map((r) => toRow(r, uncounted.value, pinnedSkus.value))
+      .sort((a, b) => b.isPinned - a.isPinned)
+  })
+
+  /** The bottom «Итого по складу» panel and the bottom-right corner. */
+  const totals = computed(() => subtotals(tableRows.value, columns.value))
+
+  // The columns fall into three contiguous groups — pinned, ordinary, «не
+  // считается» — so the header can title each one and a rule can sit on the two
+  // seams. The rows have one seam of the same kind, after the pinned ones.
+  const pinnedCount = computed(() => columns.value.filter((c) => c.isPinned).length)
+  const uncountedCount = computed(() => columns.value.filter((c) => c.isUncounted).length)
+  const pinnedRowCount = computed(() => tableRows.value.filter((r) => r.isPinned).length)
+  const isGroupBoundary = (index) =>
+    index > 0 &&
+    ((pinnedCount.value > 0 && index === pinnedCount.value) ||
+      (uncountedCount.value > 0 && index === columns.value.length - uncountedCount.value))
+  const isRowBoundary = (index) => pinnedRowCount.value > 0 && index === pinnedRowCount.value
+
+  return {
+    query,
+    subjectFilter,
+    brandFilter,
+    subjects,
+    brands,
+    columns,
+    tableRows,
+    totals,
+    isFiltering,
+    pinnedCount,
+    uncountedCount,
+    isGroupBoundary,
+    isRowBoundary,
+  }
+}

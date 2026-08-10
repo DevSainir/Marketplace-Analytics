@@ -43,6 +43,32 @@ export async function setSkuExclusion(nmId, excluded) {
 }
 
 /**
+ * GET /v1/finreports/balance — «Баланс по товарным остаткам»: the SKU x
+ * warehouse stock grid for ONE snapshot day, priced at the seller's costs.
+ *
+ * @param {{stat_date?: string}} [params] Omit the day to get the newest snapshot.
+ * @param {AbortSignal} [signal] Cancels the request when a newer fetch starts.
+ * @returns {Promise<object>} `{ stat_date, warehouses, rows, total_*, notes, ... }`
+ */
+export async function fetchBalance(params = {}, signal) {
+  const { data } = await apiClient.get('/v1/finreports/balance', { params, signal })
+  return data
+}
+
+/**
+ * PUT /v1/finreports/balance/pins — pin («Закрепить») a SKU row or a warehouse
+ * column of the balance grid, or clear the pin. Stored per workspace.
+ *
+ * @param {'sku'|'warehouse'} kind What the pin is attached to.
+ * @param {string} value `nm_id` as text for a SKU, the warehouse name otherwise.
+ * @param {boolean} pinned `true` to pin, `false` to unpin.
+ * @returns {Promise<void>}
+ */
+export async function setBalancePin(kind, value, pinned) {
+  await apiClient.put('/v1/finreports/balance/pins', { kind, value, pinned })
+}
+
+/**
  * GET /v1/finreports/cost-prices — costs on file plus the SKUs still missing one.
  *
  * @param {AbortSignal} [signal]

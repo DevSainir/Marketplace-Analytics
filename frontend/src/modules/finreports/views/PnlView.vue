@@ -15,6 +15,8 @@ import { RouterLink } from 'vue-router'
 import PnlDashboardCards from '@/modules/finreports/components/PnlDashboardCards.vue'
 import { useFinReportsStore } from '@/modules/finreports/store'
 
+import PeriodSelector from '@/core/components/PeriodSelector.vue'
+
 /**
  * The SKU table pulls in PrimeVue's DataTable, which is ~400 kB — five times
  * the rest of this route. Loading it on demand keeps the dashboard (the four
@@ -22,6 +24,15 @@ import { useFinReportsStore } from '@/modules/finreports/store'
  */
 const PnlSkuTable = defineAsyncComponent(
   () => import('@/modules/finreports/components/PnlSkuTable.vue'),
+)
+
+/**
+ * The stock balance is the page's third block and the heaviest grid on it
+ * (every SKU x every warehouse). Loaded on demand for the same reason as the
+ * SKU table, so the dashboard still paints first.
+ */
+const BalanceSection = defineAsyncComponent(
+  () => import('@/modules/finreports/components/BalanceSection.vue'),
 )
 
 const store = useFinReportsStore()
@@ -83,31 +94,15 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
       </RouterLink>
     </header>
 
-    <!-- Period: explicit range + presets -->
+    <!-- Period: the shared calendar + presets -->
     <div class="mb-lg flex flex-wrap items-center gap-md">
-      <label class="text-base text-muted" for="pnl-from">Период:</label>
-      <div class="flex items-center gap-xs">
-        <input
-          id="pnl-from"
-          type="date"
-          :value="store.dateFrom"
-          :min="store.fullSpan?.date_from"
-          :max="store.dateTo || store.fullSpan?.date_to"
-          class="rounded-input border border-border-subtle bg-surface px-md py-xs text-base text-primary"
-          @change="store.setPeriod($event.target.value, store.dateTo)"
-        />
-        <span class="text-muted">—</span>
-        <input
-          id="pnl-to"
-          aria-label="Конец периода"
-          type="date"
-          :value="store.dateTo"
-          :min="store.dateFrom || store.fullSpan?.date_from"
-          :max="store.fullSpan?.date_to"
-          class="rounded-input border border-border-subtle bg-surface px-md py-xs text-base text-primary"
-          @change="store.setPeriod(store.dateFrom, $event.target.value)"
-        />
-      </div>
+      <PeriodSelector
+        :from="store.dateFrom"
+        :to="store.dateTo"
+        :preset-end="store.fullSpan?.date_to ?? ''"
+        @update:from="store.setPeriod($event, store.dateTo)"
+        @update:to="store.setPeriod(store.dateFrom, $event)"
+      />
 
       <div class="flex items-center gap-xs rounded-btn border border-border-subtle bg-surface p-xs">
         <button
@@ -176,6 +171,8 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           @dashboard-change="filteredDashboard = $event"
         />
       </div>
+
+      <BalanceSection />
     </template>
   </main>
 </template>

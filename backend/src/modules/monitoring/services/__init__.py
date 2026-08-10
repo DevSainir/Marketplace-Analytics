@@ -28,6 +28,9 @@ from src.modules.monitoring.services.exports import (
     funnel_coverage,
     load_ad_spend_by_nm,
     load_orders_by_nm,
+    load_stock_by_warehouse,
+    load_vendor_codes,
+    stock_day_span,
 )
 from src.modules.monitoring.services.ingestion import IngestionService
 from src.modules.monitoring.services.refresh_tracking import (
@@ -43,5 +46,8 @@ __all__ = [
     "funnel_coverage",
     "load_ad_spend_by_nm",
     "load_orders_by_nm",
+    "load_stock_by_warehouse",
+    "load_vendor_codes",
+    "stock_day_span",
     "task_belongs_to_workspace",
 ]

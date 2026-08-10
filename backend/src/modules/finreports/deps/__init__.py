@@ -16,6 +16,7 @@ from src.core.config import settings
 from src.core.deps import DbSession
 from src.core.redis import get_redis
 from src.modules.finreports.repos import (
+    BalancePinRepository,
     CostPriceRepository,
     FinancialReportRepository,
     LogisticsTransactionRepository,
@@ -23,6 +24,7 @@ from src.modules.finreports.repos import (
     SkuExclusionRepository,
 )
 from src.modules.finreports.services import (
+    BalanceService,
     CostPriceService,
     IngestionService,
     PnlService,
@@ -70,11 +72,17 @@ def get_exclusion_repo(session: DbSession) -> SkuExclusionRepository:
     return SkuExclusionRepository(session)
 
 
+def get_balance_pin_repo(session: DbSession) -> BalancePinRepository:
+    """Provide a :class:`BalancePinRepository` for the request."""
+    return BalancePinRepository(session)
+
+
 TransactionRepoDep = Annotated[LogisticsTransactionRepository, Depends(get_transaction_repo)]
 ReportRepoDep = Annotated[FinancialReportRepository, Depends(get_report_repo)]
 PnlRepoDep = Annotated[PnlRepository, Depends(get_pnl_repo)]
 CostRepoDep = Annotated[CostPriceRepository, Depends(get_cost_repo)]
 ExclusionRepoDep = Annotated[SkuExclusionRepository, Depends(get_exclusion_repo)]
+BalancePinRepoDep = Annotated[BalancePinRepository, Depends(get_balance_pin_repo)]
 
 
 # --------------------------------------------------------------------------- #
@@ -119,6 +127,13 @@ def get_pnl_service(
 def get_cost_price_service(cost_repo: CostRepoDep, pnl_repo: PnlRepoDep) -> CostPriceService:
     """Compose the :class:`CostPriceService` (needs settled units for coverage)."""
     return CostPriceService(cost_repo=cost_repo, pnl_repo=pnl_repo)
+
+
+def get_balance_service(
+    pnl_repo: PnlRepoDep, cost_repo: CostRepoDep, pin_repo: BalancePinRepoDep
+) -> BalanceService:
+    """Compose the :class:`BalanceService` for the stock-balance grid."""
+    return BalanceService(pnl_repo=pnl_repo, cost_repo=cost_repo, pin_repo=pin_repo)
 
 
 def get_sku_report_service(
@@ -180,8 +195,11 @@ IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)
 PnlServiceDep = Annotated[PnlService, Depends(get_pnl_service)]
 SkuReportServiceDep = Annotated[SkuReportService, Depends(get_sku_report_service)]
 CostPriceServiceDep = Annotated[CostPriceService, Depends(get_cost_price_service)]
+BalanceServiceDep = Annotated[BalanceService, Depends(get_balance_service)]
 
 __all__ = [
+    "BalancePinRepoDep",
+    "BalanceServiceDep",
     "BaselineRepoDep",
     "BilledRepoDep",
     "CostPriceServiceDep",

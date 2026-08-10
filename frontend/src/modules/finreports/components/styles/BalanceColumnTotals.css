@@ -1,0 +1,81 @@
+/*
+ * Styles for BalanceColumnTotals.vue — block 3, «Итого по складу».
+ *
+ * Every width here MUST match BalanceGrid.css, because the grid drives this
+ * block's horizontal offset: the label column is `--col-sku-w`, each warehouse
+ * `--col-wh-w`, and the same trailing spacer soaks up the slack — otherwise a
+ * warehouse's total slides out from under its column as the grid scrolls.
+ */
+
+/* No scrollbar of its own: the parent sets `scrollLeft` from the grid. */
+.totals-scroll {
+  overflow: hidden;
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  table-layout: fixed;
+}
+
+/* Column widths, matching BalanceGrid.css exactly. */
+col.c-sku {
+  width: var(--col-sku-w);
+}
+col.c-wh {
+  width: var(--col-wh-w);
+}
+col.c-spacer {
+  width: auto;
+}
+
+td {
+  height: var(--row-foot-h);
+  padding: 4px 8px;
+  font-size: var(--font-cell);
+  /* Centred, not aligned to the grid's divider: each cell here holds ONE
+     figure, and with no divider to close on it reads best on the column's
+     own axis. */
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The label column: sticky, so the two rows stay named while the warehouses
+   scroll past — the same behaviour the grid's article column has. */
+td.cell-sku {
+  position: sticky;
+  left: 0;
+  z-index: 20;
+  width: var(--col-sku-w);
+  background-color: var(--panel-bg);
+  text-align: left;
+  font-size: var(--font-head);
+  font-weight: 500;
+}
+
+td.col-wh {
+  width: var(--col-wh-w);
+  border-left: 1px solid var(--rule);
+}
+td.col-spacer {
+  width: auto;
+  padding: 0;
+  border-left: 1px solid var(--rule);
+}
+/* Group seams, continued from the grid (see BalanceGrid.css for the
+   specificity note — `td.col-wh` beats a bare class here too). */
+.wh-divide,
+td.col-wh.wh-divide {
+  border-left: 1px solid var(--seam);
+}
+/* A warehouse out of the count keeps its own two figures, greyed. */
+.is-uncounted {
+  color: var(--ink-dim);
+}
+
+tbody tr:first-child td {
+  border-bottom: 1px solid var(--rule);
+}

@@ -1,0 +1,130 @@
+/**
+ * The balance grid's view logic: order, filtering, and what the panels show.
+ *
+ * The panels are the part that can silently lie, and they are computed here
+ * rather than fetched because a mark applies without a round trip. Three rules
+ * carry the weight: a «Не считать» warehouse leaves every total but keeps its
+ * own column figures, a filter re-totals to the rows on screen (a bottom row
+ * still summing the whole catalogue is a number a seller would act on), and an
+ * uncosted SKU never contributes a zero in place of an unknown.
+ */
+import { describe, expect, it } from 'vitest'
+import { ref } from 'vue'
+
+import { currencySuffix, useBalanceRows } from '@/modules/finreports/useBalanceRows'
+
+const BRUKI = {
+  nm_id: 953770957,
+  sa_name: 'm-trx01-blk',
+  subject_name: 'Брюки',
+  brand_name: 'NORTH LINE',
+  cost_price: '800',
+  cells: [
+    { warehouse_name: 'Тула', quantity: 72, balance: '57600' },
+    { warehouse_name: 'Коледино', quantity: 8, balance: '6400' },
+    { warehouse_name: 'СЦ Брак', quantity: 5, balance: '4000' },
+  ],
+}
+
+const SHORTS = {
+  nm_id: 611450917,
+  sa_name: 'm-wdx02-wht',
+  subject_name: 'Шорты',
+  brand_name: 'OTHER',
+  cost_price: null,
+  cells: [{ warehouse_name: 'Тула', quantity: 40, balance: null }],
+}
+
+function payload(overrides = {}) {
+  return ref({
+    stat_date: '2026-08-03',
+    currency: 'KGS',
+    rows: [BRUKI, SHORTS],
+    pinned_skus: [],
+    pinned_warehouses: [],
+    uncounted_warehouses: [],
+    uncosted_count: 1,
+    notes: [],
+    ...overrides,
+  })
+}
+
+describe('useBalanceRows', () => {
+  it('totals the visible rows across the counted warehouses', () => {
+    const { totals } = useBalanceRows(payload())
+
+    expect(totals.value.quantity).toBe(125)
+    expect(totals.value.balance).toBe(68000)
+  })
+
+  it('leaves a «Не считать» warehouse out of the totals but keeps its column', () => {
+    const { columns, tableRows, totals } = useBalanceRows(
+      payload({ uncounted_warehouses: ['СЦ Брак'] }),
+    )
+
+    const brak = columns.value.find((c) => c.name === 'СЦ Брак')
+    expect(brak.isUncounted).toBe(true)
+    // Last column, still carrying its own figures…
+    expect(columns.value.at(-1).name).toBe('СЦ Брак')
+    expect(totals.value.warehouses.at(-1).balance).toBe(4000)
+    // …and out of both the row total and the corner.
+    expect(tableRows.value.find((r) => r.nmId === BRUKI.nm_id).totalBalance).toBe(64000)
+    expect(totals.value.balance).toBe(64000)
+    expect(totals.value.quantity).toBe(120)
+  })
+
+  it('re-totals the panels over the visible rows once a filter is on', () => {
+    const { brandFilter, tableRows, totals } = useBalanceRows(payload())
+
+    brandFilter.value = 'NORTH LINE'
+
+    expect(tableRows.value).toHaveLength(1)
+    expect(totals.value.quantity).toBe(85)
+    expect(totals.value.balance).toBe(68000)
+    // The emptied column stays in place — a column disappearing mid-search
+    // makes the grid jump under the reader.
+    expect(totals.value.warehouses.map((w) => w.name)).toEqual(['Тула', 'Коледино', 'СЦ Брак'])
+  })
+
+  it('keeps an uncosted SKU out of the money but not out of the units', () => {
+    const { tableRows, totals } = useBalanceRows(payload())
+
+    const uncosted = tableRows.value.find((r) => r.nmId === SHORTS.nm_id)
+
+    expect(uncosted.totalQuantity).toBe(40)
+    expect(uncosted.totalBalance).toBeNull()
+    expect(totals.value.quantity).toBe(125)
+  })
+
+  it('floats pinned rows and columns to the front without a refetch', () => {
+    const balance = payload()
+    const { columns, tableRows, pinnedCount, isGroupBoundary } = useBalanceRows(balance)
+
+    // What the store does optimistically when the seller clicks «Закрепить».
+    balance.value.pinned_skus = [SHORTS.nm_id]
+    balance.value.pinned_warehouses = ['Коледино']
+
+    expect(tableRows.value[0].nmId).toBe(SHORTS.nm_id)
+    expect(columns.value[0].name).toBe('Коледино')
+    expect(pinnedCount.value).toBe(1)
+    expect(isGroupBoundary(1)).toBe(true)
+    expect(isGroupBoundary(0)).toBe(false)
+  })
+
+  it('searches the article, nm, subject and brand of a row', () => {
+    const { query, tableRows } = useBalanceRows(payload())
+
+    query.value = '611450917'
+
+    expect(tableRows.value.map((r) => r.saName)).toEqual(['m-wdx02-wht'])
+  })
+})
+
+describe('currencySuffix', () => {
+  it('shortens the settlement currency to one character', () => {
+    // A three-letter code per cell would cost a whole warehouse of screen width.
+    expect(currencySuffix('KGS')).toBe('с')
+    expect(currencySuffix('RUB')).toBe('₽')
+    expect(currencySuffix('')).toBe('')
+  })
+})

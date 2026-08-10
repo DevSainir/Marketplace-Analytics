@@ -19,11 +19,13 @@ import { extractErrorMessage } from '@/core/api/axios'
 import {
   deleteCostPrice,
   downloadCostPricesXlsx,
+  fetchBalance,
   fetchCostPrices,
   fetchSkuPnl,
   fetchWeeks,
   importCostPricesXlsx,
   saveCostPrices,
+  setBalancePin,
   setSkuExclusion,
 } from '@/modules/finreports/api'
 
@@ -67,6 +69,14 @@ export const useFinReportsStore = defineStore('finreports', () => {
   const report = ref(null)
   const reportLoading = ref(false)
   const reportError = ref('')
+
+  // --- stock balance («Баланс по товарным остаткам») -----------------------
+  // Its own period, deliberately: stock is a point-in-time snapshot, so the
+  // balance is a picked DAY while the P&L above it is a range.
+  const balance = ref(null)
+  const balanceDate = ref('')
+  const balanceLoading = ref(false)
+  const balanceError = ref('')
 
   // --- cost prices --------------------------------------------------------
   const costPrices = ref(null)
@@ -165,6 +175,79 @@ export const useFinReportsStore = defineStore('finreports', () => {
     // channel on entry, so setting it before would be wiped out.
     await loadReport()
     if (failure) reportError.value = failure
+  }
+
+  /** Aborts the in-flight balance request when a newer one starts. */
+  let balanceRequest = null
+
+  /**
+   * Load the stock balance for {@link balanceDate} (newest snapshot when empty).
+   *
+   * The day is then taken FROM the response rather than assumed: an empty
+   * `balanceDate` means «whatever WB last captured», and only the backend knows
+   * which day that is.
+   */
+  async function loadBalance() {
+    balanceRequest?.abort()
+    const request = new AbortController()
+    balanceRequest = request
+    balanceLoading.value = true
+    balanceError.value = ''
+    try {
+      const data = await fetchBalance(
+        balanceDate.value ? { stat_date: balanceDate.value } : {},
+        request.signal,
+      )
+      if (balanceRequest !== request) return
+      balance.value = data
+      balanceDate.value = data.stat_date
+    } catch (error) {
+      if (request.signal.aborted) return
+      balanceError.value = extractErrorMessage(error)
+    } finally {
+      if (balanceRequest === request) {
+        balanceRequest = null
+        balanceLoading.value = false
+      }
+    }
+  }
+
+  /** Pick another snapshot day and reload the grid. */
+  async function setBalanceDate(day) {
+    if (!day || day === balanceDate.value) return
+    balanceDate.value = day
+    await loadBalance()
+  }
+
+  /** Which array of the loaded payload each mark kind lives in. */
+  const BALANCE_MARKS = {
+    sku: 'pinned_skus',
+    warehouse: 'pinned_warehouses',
+    warehouse_uncounted: 'uncounted_warehouses',
+  }
+
+  /**
+   * Mark a SKU row or warehouse column of the balance grid, or clear the mark.
+   *
+   * Applied to the loaded payload FIRST and persisted after, with no reload —
+   * the grid re-orders and re-totals itself from these arrays, so the click
+   * lands instantly (the same behaviour as pinning on the monitoring page,
+   * where waiting for a round trip to see a column move felt broken). A failed
+   * write is rolled back and surfaced, so the screen never keeps a mark the
+   * server rejected.
+   */
+  async function toggleBalancePin(kind, value, pinned) {
+    const field = BALANCE_MARKS[kind]
+    if (!field || !balance.value) return
+    const key = kind === 'sku' ? Number(value) : String(value)
+    const before = balance.value[field] ?? []
+    balance.value[field] = pinned ? [...before, key] : before.filter((v) => v !== key)
+    try {
+      await setBalancePin(kind, String(value), pinned)
+    } catch (error) {
+      if (balance.value) balance.value[field] = before
+      balanceError.value = extractErrorMessage(error)
+    }
   }
 
   /** Set an explicit period. Swapped ends are corrected, not rejected. The
@@ -287,6 +370,10 @@ export const useFinReportsStore = defineStore('finreports', () => {
     report,
     reportLoading,
     reportError,
+    balance,
+    balanceDate,
+    balanceLoading,
+    balanceError,
     costPrices,
     costsLoading,
     costsError,
@@ -294,6 +381,9 @@ export const useFinReportsStore = defineStore('finreports', () => {
     loadWeeks,
     loadReport,
     toggleExclusion,
+    loadBalance,
+    setBalanceDate,
+    toggleBalancePin,
     setPeriod,
     setPresetDays,
     setPresetAll,

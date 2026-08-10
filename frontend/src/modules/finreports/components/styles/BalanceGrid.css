@@ -1,0 +1,226 @@
+/*
+ * Styles for BalanceGrid.vue — block 1, the only one that scrolls.
+ *
+ * Sizes come from the custom properties BalanceTable.css declares on the
+ * layout: this block and the two panels are separate scrollers, and those
+ * variables are the only thing keeping their rows and columns aligned.
+ */
+
+/* Both axes: the warehouses run off the right, the catalogue off the bottom.
+   The height matches the P&L table above it, so the page reads as one thing. */
+.grid-scroll {
+  overflow: auto;
+  max-height: 640px;
+  /* No scrollbars: they would sit between this block and the two panels and
+     break the gap that separates them, and macOS pins a white track over the
+     figures once the pointer enters. Wheel, trackpad and the drag-scroll
+     directive all still work. */
+  scrollbar-width: none;
+}
+.grid-scroll::-webkit-scrollbar {
+  display: none;
+}
+/* While a vertical trackpad gesture is in flight (see v-drag-scroll). */
+.grid-scroll.wheel-axis-locked {
+  overflow-x: hidden;
+}
+.grid-scroll.drag-scrolling {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* The table fills the block and no more — the trailing spacer soaks up any
+   slack, so the warehouse columns keep their width and the zebra still reaches
+   the far edge. Only real overflow (more warehouses than fit) scrolls. */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  table-layout: fixed;
+}
+
+th,
+td {
+  padding: 4px 8px;
+  font-size: var(--font-cell);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+thead th {
+  height: var(--row-head-h);
+  padding: 5px 8px;
+  font-size: var(--font-head);
+  /* Medium, not the browser's bold: on a grid this dense the headers are
+     signposts, and bold ones compete with the figures they label. */
+  font-weight: 500;
+  position: sticky;
+  z-index: 30;
+  background: var(--panel-bg);
+}
+thead tr:first-child th {
+  top: 0;
+}
+thead tr:last-child th {
+  top: var(--row-head-h);
+}
+tbody td {
+  height: var(--row-h);
+}
+
+/* The article column keeps out of the zebra: it is the grid's spine, not one of
+   its figures, and it reads as one solid strip beside the striped data. Hover
+   still tints it — that one marks the row you are pointing at. */
+tbody tr:nth-child(even) td:not(.cell-sku) {
+  background-color: var(--zebra);
+}
+tbody tr:hover td {
+  background-color: var(--hover);
+}
+
+/* --- columns ------------------------------------------------------------- */
+/* Column widths for `table-layout: fixed` (see the colgroup in the template).
+   The spacer is the only `auto` one, so it takes every unclaimed pixel. */
+col.c-sku {
+  width: var(--col-sku-w);
+}
+col.c-wh {
+  width: var(--col-wh-w);
+}
+col.c-spacer {
+  width: auto;
+}
+
+th.col-sku,
+td.cell-sku {
+  position: sticky;
+  left: 0;
+  z-index: 20;
+  width: var(--col-sku-w);
+  background-color: var(--panel-bg);
+  text-align: left;
+}
+thead th.col-sku {
+  z-index: 40;
+}
+tbody tr:hover td.cell-sku {
+  background-color: var(--hover);
+}
+.sku-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sku-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+th.col-wh,
+td.cell-wh {
+  width: var(--col-wh-w);
+  text-align: right;
+  /* A rule between every pair of warehouses: light enough to stay behind the
+     figures, dark enough to follow one column down forty rows. */
+  border-left: 1px solid var(--rule);
+}
+/* The slack. `table-layout: fixed` hands every unclaimed pixel to the one
+   column with `width: auto`, which is this one. */
+th.col-spacer,
+td.col-spacer {
+  width: auto;
+  padding: 0;
+  border-left: 1px solid var(--rule);
+}
+
+/* Group seams (pinned | ordinary | uncounted) — darker than the ordinary rule,
+   written with the selectors it has to beat: `td.cell-wh` above is more
+   specific than a bare class, so a plain `.wh-divide` silently loses. */
+.wh-divide,
+th.col-wh.wh-divide,
+td.cell-wh.wh-divide {
+  border-left: 1px solid var(--seam);
+}
+/* The same seam between the pinned SKUs and the rest, across the row. */
+tbody tr.row-divide td {
+  border-top: 1px solid var(--seam);
+}
+
+/* --- header groups and marks --------------------------------------------- */
+/* A group can span more columns than fit on screen, so its title sticks just
+   right of the article column and stays readable while the group scrolls by. */
+thead th.wh-group {
+  text-align: left;
+  overflow: visible;
+}
+thead th.wh-group .wh-group-label {
+  position: sticky;
+  left: calc(var(--col-sku-w) + 12px);
+  display: inline-block;
+}
+thead th.wh-group--pinned {
+  color: var(--color-action, #007e76);
+}
+thead th.wh-group--uncounted {
+  color: var(--ink-dim);
+}
+
+.wh-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.pin-menu-btn {
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: #858585;
+  /* A notch above the cell type, so the affordance stays findable now that the
+     figures beside it are larger. */
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pin-menu-btn:hover,
+.pin-menu-btn:focus-visible {
+  color: #101010;
+  outline: none;
+}
+/* Pinned rows and columns carry the action-color underline — drawn as an inset
+   shadow, NOT `text-decoration`. A real underline sits below the baseline and
+   grows the line box, so a pinned row came out a pixel or two taller than its
+   neighbours and the rule wandered up and down the column. A shadow is painted
+   on the element's own bottom edge and takes part in no layout at all, so every
+   pinned row keeps the height of every other one. */
+.is-pinned {
+  box-shadow: inset 0 -2px 0 var(--color-action, #007e76);
+}
+/* A warehouse taken out of the count still shows its stock — the seller wants
+   to see what is lying there — but it reads as parenthetical. */
+.is-uncounted {
+  color: var(--ink-dim);
+}
+
+/* --- the cell's two figures («72|57 600с») -------------------------------- */
+/* The divider is the column's centre axis: equal `1fr` tracks on either side
+   put it in the middle whatever the figures are, the stock closes on it from
+   the left and the money opens from the right. Read down a column, both numbers
+   line up on that axis instead of drifting with their own lengths.
+   The grid lives on an inner div — `display: grid` on the `<td>` itself would
+   pull the cell out of the table's layout and collapse the column. */
+.cell-split {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+.cell-stock {
+  text-align: right;
+}
+.cell-sep {
+  margin: 0 3px;
+  color: #bcbcbc;
+}
+.cell-money {
+  text-align: left;
+  color: #4a4a4a;
+}
