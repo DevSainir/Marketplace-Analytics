@@ -117,6 +117,16 @@ script tries the override first and still falls back through its own list.
 
 ## Known wrinkle
 
-The release PR is opened by `GITHUB_TOKEN`, and GitHub does not run workflows for PRs it opens
-itself, so that PR shows no checks. It only touches `CHANGELOG.md` and the version files; the
-merge commit lands on `main` and does run the full pipeline, which is what gates the deploy.
+The release PR is opened by `GITHUB_TOKEN`, and GitHub holds workflow runs for PRs that Actions
+opened at **`action_required`** until a human approves them. So the PR shows a `tests` run with an
+*Approve and run* button rather than a green tick — it has not failed, it has not started.
+
+Approving it is optional. The PR only touches `CHANGELOG.md` and the version files, and the merge
+commit lands on `main` where the full pipeline runs anyway and gates the deploy. Approve it if you
+want the checks green before merging:
+
+```bash
+gh run list --event pull_request --limit 1
+```
+
+then approve it from the run's page in the browser.

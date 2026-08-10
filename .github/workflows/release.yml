@@ -22,10 +22,12 @@
 # operational and go to the maintainer in English (see deploy.yml), releases are
 # product news and go to everyone in Russian. All of it is sent silently.
 #
-# Note on CI for the release PR: it is opened by GITHUB_TOKEN, and GitHub does
-# not run workflows for such PRs. The PR only touches CHANGELOG.md and version
-# files; the merge commit itself lands on main and does run the full `tests`
-# pipeline, which is what gates the deploy.
+# Note on CI for the release PR: it is opened by GITHUB_TOKEN, and GitHub holds
+# workflow runs for Actions-opened PRs at `action_required` until a human
+# approves them — so that PR shows a pending `tests` run, not a failed or
+# missing one. Approving it is optional: the PR only touches CHANGELOG.md and
+# the version files, and the merge commit itself lands on main and runs the
+# full pipeline, which is what gates the deploy.
 
 name: release
 
