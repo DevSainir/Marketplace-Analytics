@@ -18,7 +18,7 @@
   },
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": false,
-  "separate-pull-requests": false,
+  "separate-pull-requests": true,
   "pull-request-title-pattern": "chore(release): v${version}",
   "pull-request-header": "Автоматический релиз. Слияние этого PR создаст тег, GitHub Release и уведомление в Telegram.",
   "changelog-sections": [

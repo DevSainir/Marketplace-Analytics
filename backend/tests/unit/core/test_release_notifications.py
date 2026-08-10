@@ -227,8 +227,20 @@ def test_notes_fall_back_to_grouped_english_when_gemini_is_unavailable(
     assert "<b>Прочее</b>\n• <b>deps</b>: bump nanoid" in out
 
 
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "chore(release): v0.2.0",
+        # What Release Please actually wrote on the first run: a single-package
+        # manifest still invokes the Merge plugin, which throws away the
+        # configured title pattern. The filter must match the family, not one
+        # literal, or the bot announces itself.
+        "chore: release main",
+        "chore(main): release 0.2.0",
+    ],
+)
 def test_the_release_bots_own_commit_is_not_announced(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    subject: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """The release bot's own commit is the announcement, not news inside it."""
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -236,7 +248,7 @@ def test_the_release_bots_own_commit_is_not_announced(
     monkeypatch.setattr(
         sys,
         "stdin",
-        io.StringIO("chore(release): v0.2.0\nfeat(users): add invite codes\n"),
+        io.StringIO(f"{subject}\nfeat(users): add invite codes\n"),
     )
 
     notes.main()
@@ -244,3 +256,32 @@ def test_the_release_bots_own_commit_is_not_announced(
     out = capsys.readouterr().out
     assert "release" not in out
     assert "add invite codes" in out
+
+
+def test_an_ordinary_chore_is_still_announced(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The release-bot filter must not swallow real work.
+
+    It matches on `chore: release …`, which is close enough to an ordinary
+    `chore(deps)` subject that a careless pattern would drop dependency bumps —
+    the one kind of chore the team most needs to see.
+    """
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("VERSION", "0.2.0")
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        io.StringIO(
+            "chore(deps): bump cryptography to 50.0.0\n"
+            # `release\b` and not `release`: the word boundary is what keeps
+            # this line from reading as the release bot.
+            "chore: released the storage backfill behind a flag\n"
+        ),
+    )
+
+    notes.main()
+
+    out = capsys.readouterr().out
+    assert "bump cryptography to 50.0.0" in out
+    assert "released the storage backfill behind a flag" in out

@@ -124,6 +124,13 @@ def gemini(prompt: str, api_key: str, models: tuple[str, ...]) -> str:
 
 CONVENTIONAL = re.compile(r"^(?P<type>[a-z]+)(?:\((?P<scope>[^)]*)\))?!?:\s*(?P<subject>.+)$")
 
+# Release Please's own merge commit, in every shape it writes one. Its title
+# depends on config in ways that are not obvious — a single-package manifest
+# still runs the Merge plugin, which discards the configured title pattern and
+# writes `chore: release main` — so this matches the family rather than one
+# literal. The commit announcing the release is not news inside the release.
+RELEASE_BOT = re.compile(r"^chore(\([^)]*\))?:\s*(release\b|v?\d+\.\d+\.\d+)", re.IGNORECASE)
+
 SECTIONS = (
     ("feat", "Новые функции"),
     ("fix", "Исправления"),
@@ -160,7 +167,7 @@ def main() -> int:
 
     commits = [ln.strip() for ln in sys.stdin.read().splitlines() if ln.strip()]
     # The release bot's own commit is never news to anyone.
-    commits = [c for c in commits if not c.lower().startswith("chore(release)")]
+    commits = [c for c in commits if not RELEASE_BOT.match(c)]
 
     if not commits:
         sys.stderr.write("No commits to announce.\n")

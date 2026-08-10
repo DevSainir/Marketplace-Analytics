@@ -35,6 +35,16 @@ SemVer rules take over.
 
 To force a specific number once, put `Release-As: 1.0.0` in a commit body.
 
+### Why `separate-pull-requests` is true for a single package
+
+It reads like a contradiction and is not. There is one package, so it changes nothing about how
+many PRs get opened — what it does is keep the **Merge plugin** out of the way. With it `false`,
+Merge runs even for a single package, discards `pull-request-title-pattern`, and hardcodes
+`chore: release main`. That title then lands on `main` as a commit subject, where the release
+announcement has to recognise and drop it. `release_notes_ru.py` filters the whole family of
+release-bot subjects anyway — belt and braces — but the PR is easier to read when its title says
+which version it releases.
+
 ## Where the version lives
 
 `version.txt` at the repo root is the source of truth; `backend/pyproject.toml` and
