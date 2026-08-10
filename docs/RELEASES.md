@@ -88,7 +88,7 @@ The first is obvious; the second is the part that makes the note readable. `add 
 written for the person who wrote the code. «была добавлена таблица Баланс» is written for the
 person who now has the table.
 
-Two details that are not decoration:
+Three details that are not decoration:
 
 * **The scope glossary is in the prompt.** `finreports` becomes «модуль финотчётов» in every
   release, instead of drifting between three plausible translations.
@@ -96,13 +96,39 @@ Two details that are not decoration:
   a list the model emits anyway is a 400 and a lost announcement. `telegram_notify.py` degrades
   list markup to bullets and escapes anything else before sending, and falls back to plain text
   if Telegram rejects the message regardless.
+* **The model is discovered, not hardcoded.** The script asks the API which models this key may
+  use for `generateContent`, ranks them (flash before pro, released before preview, newest
+  version first, `-latest` aliases last because they move between releases) and tries the top
+  three. A hardcoded name is a slow-motion outage — see below.
+
+The message carries only the version: no repository name, no GitHub link. The repo is private,
+so both are noise to every recipient who cannot open them.
 
 If Gemini is unreachable or the key is missing, the announcement still goes out, in grouped
 English, with a note saying the translation was unavailable. A release nobody hears about is a
 worse failure than one announced in the wrong language.
 
-Override the model with a `GEMINI_MODEL` repository **variable** if the default is retired; the
-script tries the override first and still falls back through its own list.
+`GEMINI_MODEL` (a repository **variable**) is prepended to the discovered list if you need to pin
+one; a stale value degrades to "tried first" rather than disabling translation.
+
+## When the announcement arrives in English
+
+That is the fallback working, not the pipeline breaking — but the reason is always in the
+`Announce the release in Telegram` step's log, which names the model and quotes the API's own
+explanation. The v0.1.1 release is the worked example: `gemini-2.5-flash` answered **404** (not
+available for that key's API version) and `gemini-2.0-flash` was rate limited six times in a row.
+Model discovery exists because of that release.
+
+Both scripts print the API's own error text now. That is safe and deliberate: the Gemini key
+travels in the `x-goog-api-key` **header** and is scrubbed from any logged text anyway, and the
+bot token is in the Telegram **URL**, never in a response body.
+
+## When a recipient does not get the message
+
+The step ends with `Delivered to N/M chat(s)`. A chat that fails with **`Bad Request: chat not
+found`** has not gone wrong in this repo: a Telegram bot cannot open a conversation, so each
+person in `WORKERS_TELEGRAM_CHAT_IDS` must send the bot `/start` once (or the bot must be a
+member of the group). Until they do, their id is unreachable no matter what is deployed.
 
 ## Secrets
 

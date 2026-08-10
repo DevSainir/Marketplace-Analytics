@@ -103,8 +103,6 @@ jobs:
           WORKERS_TELEGRAM_CHAT_IDS: ${{ secrets.WORKERS_TELEGRAM_CHAT_IDS }}
           VERSION: ${{ steps.release.outputs.version }}
           TAG: ${{ steps.release.outputs.tag_name }}
-          REPO: ${{ github.repository }}
-          RELEASE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.release.outputs.tag_name }}
         run: |
           set -euo pipefail
           python3 .github/scripts/release_notes_ru.py < commits.txt \

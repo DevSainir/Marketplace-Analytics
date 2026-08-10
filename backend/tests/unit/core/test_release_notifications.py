@@ -285,3 +285,100 @@ def test_an_ordinary_chore_is_still_announced(
     out = capsys.readouterr().out
     assert "bump cryptography to 50.0.0" in out
     assert "released the storage backfill behind a flag" in out
+
+
+# ------------------------------------------------- choosing a translator model
+
+
+def test_the_newest_stable_flash_model_is_preferred() -> None:
+    """Model choice is derived from the live listing, not a hardcoded guess.
+
+    The first real release announced in English because both hardcoded names
+    failed — one retired for this key's API version, one rate limited. Ranking
+    what the API says it has removes that entire class of failure: flash before
+    pro (this is a dozen commit subjects, not an essay), released before
+    preview, and a pinned version before a `-latest` alias that moves between
+    releases.
+    """
+    available = [
+        "gemini-2.5-pro",
+        "gemini-2.5-flash-lite",
+        "gemini-3.0-flash-preview",
+        "gemini-2.0-flash",
+        "gemini-flash-latest",
+        "gemini-3.0-flash",
+    ]
+
+    ranked = sorted(available, key=notes.rank_model)
+
+    assert ranked[0] == "gemini-3.0-flash"
+    assert ranked.index("gemini-2.5-flash-lite") > ranked.index("gemini-2.0-flash")
+    assert ranked[-1] == "gemini-2.5-pro"
+
+
+def test_models_that_cannot_write_text_are_never_candidates() -> None:
+    """An embedding or image model answering generateContent is still useless."""
+    rejected = ["text-embedding-004", "imagen-3.0-generate", "gemini-2.5-flash-image", "gemma-3"]
+
+    for name in rejected:
+        assert any(word in name for word in notes._NOT_A_TRANSLATOR), name
+
+
+# ----------------------------------------------------------- failure diagnosis
+
+
+def test_an_api_failure_reports_the_reason_and_never_the_key() -> None:
+    """The log must say *why*, and must not leak the credential saying it.
+
+    Both halves were learned the hard way: a bare "HTTP 404" cost a live
+    release its diagnosis, and the obvious fix — print the response body — is
+    only safe because the key travels in a header and is scrubbed here anyway.
+    """
+    body = (
+        '{"error":{"code":404,"message":"models/gemini-2.5-flash is not found '
+        'for API version v1beta. key=SUPERSECRET","status":"NOT_FOUND"}}'
+    )
+
+    reason = notes._reason(404, body, "SUPERSECRET")
+
+    assert "is not found for API version v1beta" in reason
+    assert "SUPERSECRET" not in reason
+
+
+def test_telegram_failures_name_the_actual_problem() -> None:
+    """ "chat not found" and a markup error are both HTTP 400 and need different fixes.
+
+    A chat the bot has never been started by cannot be fixed by re-sending, and
+    a broken tag cannot be fixed by adding the recipient. The description is
+    the only thing that tells them apart, and it carries no bot token.
+    """
+    assert notify.describe({"ok": False, "description": "Bad Request: chat not found"}) == (
+        "Bad Request: chat not found"
+    )
+
+
+# ------------------------------------------------------------- message shape
+
+
+def test_the_announcement_carries_no_repository_identity() -> None:
+    """The repo is private, so its name and a GitHub link are noise to readers.
+
+    Anyone who could open the link already knows where the code lives; everyone
+    else gets a URL that 404s at them.
+    """
+    monkeypatch = pytest.MonkeyPatch()
+    try:
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.setenv("VERSION", "0.2.0")
+        monkeypatch.setenv("TAG", "v0.2.0")
+        monkeypatch.setattr(sys, "stdin", io.StringIO("feat(users): add invite codes\n"))
+        buffer = io.StringIO()
+        monkeypatch.setattr(sys, "stdout", buffer)
+        notes.main()
+    finally:
+        monkeypatch.undo()
+
+    out = buffer.getvalue()
+    assert out.startswith("<b>Релиз v0.2.0</b>")
+    assert "github.com" not in out
+    assert "🚀" not in out

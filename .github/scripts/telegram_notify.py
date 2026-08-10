@@ -168,7 +168,22 @@ def post(token: str, chat_id: str, text: str, parse_mode: str | None) -> None:
     with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
         body = json.loads(resp.read().decode())
     if not body.get("ok"):
-        raise RuntimeError(f"Telegram did not confirm delivery: {body}")
+        raise RuntimeError(f"Telegram did not confirm delivery: {describe(body)}")
+
+
+def describe(payload: object) -> str:
+    """Telegram's own explanation of a failure, without the bot token.
+
+    The token is in the URL, never in the response body, so the body's
+    `description` is safe to log — and it is the only thing that separates
+    "chat not found" (that chat has never opened a conversation with the bot)
+    from a markup error. Withholding it once cost a live release the ability to
+    say which of the two had happened.
+    """
+    if isinstance(payload, dict):
+        detail = payload.get("description") or payload.get("error_code") or payload
+        return str(detail)[:200]
+    return str(payload)[:200]
 
 
 def send(token: str, chat_id: str, text: str, parse_mode: str | None) -> bool:
@@ -182,18 +197,23 @@ def send(token: str, chat_id: str, text: str, parse_mode: str | None) -> bool:
             post(token, chat_id, text, parse_mode)
             return True
         except urllib.error.HTTPError as exc:
+            try:
+                reason = describe(json.loads(exc.read().decode(errors="replace")))
+            except (ValueError, OSError):
+                reason = f"HTTP {exc.code}"
+
             if exc.code == 400 and parse_mode:
                 sys.stderr.write(
-                    f"chat {chat_id}: HTTP 400 with parse_mode={parse_mode}; "
-                    "retrying as plain text.\n"
+                    f"chat {chat_id}: HTTP 400 with parse_mode={parse_mode} "
+                    f"({reason}); retrying as plain text.\n"
                 )
                 text, parse_mode = to_plain_text(text), None
                 continue
             if exc.code == 429 or exc.code >= 500:
+                sys.stderr.write(f"chat {chat_id}: {reason} — retry {attempt + 1}/2.\n")
                 time.sleep(2 * (attempt + 1))
                 continue
-            # Never echo the response: the URL it came from carries the token.
-            sys.stderr.write(f"chat {chat_id}: Telegram returned HTTP {exc.code}.\n")
+            sys.stderr.write(f"chat {chat_id}: HTTP {exc.code} — {reason}.\n")
             return False
         except Exception as exc:  # alerting must never raise into the workflow
             sys.stderr.write(f"chat {chat_id}: {type(exc).__name__}: {exc}\n")
