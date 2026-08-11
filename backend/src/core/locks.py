@@ -84,4 +84,28 @@ async def single_flight(key: str, *, ttl_seconds: int, redis: Redis) -> AsyncIte
                 )
 
 
-__all__ = ["single_flight"]
+async def is_held(key: str, *, redis: Redis) -> bool:
+    """Whether someone currently holds the lock on ``key``.
+
+    Advisory only, and deliberately so: between this answer and any decision
+    made on it the lock can be taken or dropped. It exists to tell a *user* that
+    a job is already running, not to serialise anything — :func:`single_flight`
+    is what actually keeps two runs apart.
+
+    Args:
+        key: The same key the job passes to :func:`single_flight`.
+        redis: The shared async Redis client.
+
+    Returns:
+        ``True`` when the key exists. ``False`` when Redis cannot answer —
+        matching the fail-open policy above: an unreachable cache must not make
+        the app claim a harvest is running and refuse to start one.
+    """
+    try:
+        return bool(await redis.exists(key))
+    except RedisError as exc:
+        logger.warning("single_flight: could not read %s (%s) — reporting free.", key, exc)
+        return False
+
+
+__all__ = ["is_held", "single_flight"]

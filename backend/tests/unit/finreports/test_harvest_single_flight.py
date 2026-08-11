@@ -12,19 +12,30 @@ special-case it.
 
 from __future__ import annotations
 
-import pytest
+import uuid
+from datetime import date
 
+import pytest
+from redis.exceptions import RedisError
+
+from src.modules.finreports.constants import HARVEST_LOCK_KEY
+from src.modules.finreports.services import HarvestControlService
 from src.modules.finreports.tasks import harvest
 from src.modules.finreports.tasks.harvest import harvest_all_workspaces
 
 pytestmark = pytest.mark.unit
+
+WORKSPACE = uuid.UUID("00000000-0000-0000-0000-0000000000aa")
 
 
 class _HeldRedis:
     """A Redis whose lock key is already taken by another run."""
 
     def __init__(self) -> None:
-        self.store: dict[str, str] = {harvest._HARVEST_LOCK_KEY: "another-runs-token"}
+        self.store: dict[str, str] = {HARVEST_LOCK_KEY: "another-runs-token"}
+
+    async def exists(self, key: str) -> int:
+        return 1 if key in self.store else 0
 
     async def set(
         self, key: str, value: str, *, nx: bool = False, ex: int | None = None
@@ -92,3 +103,62 @@ async def test_the_lock_is_freed_for_the_next_tick(
     await harvest_all_workspaces(days=28)
 
     assert redis.store == {}
+
+
+class _StubReportRepo:
+    """Answers the one coverage question the control service asks."""
+
+    def __init__(self, settled: date | None) -> None:
+        self._settled = settled
+
+    async def latest_settled_date(self, *, workspace_id: uuid.UUID) -> date | None:
+        return self._settled
+
+
+async def test_the_button_sees_a_harvest_that_is_already_running() -> None:
+    """What the route turns into «уже выполняется» instead of a second run."""
+    service = HarvestControlService(
+        report_repo=_StubReportRepo(date(2026, 8, 9)),  # type: ignore[arg-type]
+        redis=_HeldRedis(),  # type: ignore[arg-type]
+    )
+
+    state = await service.get_state(workspace_id=WORKSPACE)
+
+    assert state.running is True
+    assert state.latest_settled == date(2026, 8, 9)
+
+
+async def test_an_idle_lock_reads_as_not_running() -> None:
+    """Otherwise the button would refuse to work for an hour after every run."""
+    redis = _HeldRedis()
+    redis.store.clear()
+    service = HarvestControlService(
+        report_repo=_StubReportRepo(None),  # type: ignore[arg-type]
+        redis=redis,  # type: ignore[arg-type]
+    )
+
+    state = await service.get_state(workspace_id=WORKSPACE)
+
+    assert state.running is False
+    assert state.latest_settled is None
+
+
+async def test_an_unreachable_redis_does_not_block_the_button() -> None:
+    """Fail open, the same way the lock itself does.
+
+    Reporting "a harvest is running" because the cache is down would disable the
+    one manual escape hatch precisely when the scheduled path is also degraded.
+    """
+
+    class _BrokenRedis:
+        async def exists(self, key: str) -> int:
+            raise RedisError("connection refused")
+
+    service = HarvestControlService(
+        report_repo=_StubReportRepo(None),  # type: ignore[arg-type]
+        redis=_BrokenRedis(),  # type: ignore[arg-type]
+    )
+
+    state = await service.get_state(workspace_id=WORKSPACE)
+
+    assert state.running is False

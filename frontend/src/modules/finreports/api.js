@@ -43,6 +43,33 @@ export async function setSkuExclusion(nmId, excluded) {
 }
 
 /**
+ * GET /v1/finreports/harvest — is a WB harvest running, and how far does this
+ * workspace's harvested settlement history reach.
+ *
+ * Polled while «Обновить» is in flight: `running` falling to false ends the
+ * wait, and `latest_settled` moving is what says a new report actually arrived.
+ *
+ * @returns {Promise<{running: boolean, latest_settled: string|null}>}
+ */
+export async function fetchHarvestState() {
+  const { data } = await apiClient.get('/v1/finreports/harvest')
+  return data
+}
+
+/**
+ * POST /v1/finreports/harvest — ask WB now for any report we do not hold.
+ *
+ * Guarded server-side: a click while a harvest is already running enqueues
+ * nothing and comes back as `already_running`.
+ *
+ * @returns {Promise<{status: 'started'|'already_running', task_id: string|null}>}
+ */
+export async function triggerHarvest() {
+  const { data } = await apiClient.post('/v1/finreports/harvest')
+  return data
+}
+
+/**
  * GET /v1/finreports/balance — «Баланс по товарным остаткам»: the SKU x
  * warehouse stock grid for ONE snapshot day, priced at the seller's costs.
  *

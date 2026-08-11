@@ -86,13 +86,36 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           из строк самого артикула; общие удержания счёта показаны отдельной строкой.
         </p>
       </div>
-      <RouterLink
-        :to="{ name: 'finreports-cost-prices' }"
-        class="rounded-btn border border-border-subtle bg-surface px-md py-sm text-base font-medium text-primary transition hover:border-action hover:text-action"
-      >
-        Себестоимость
-      </RouterLink>
+      <div class="flex items-center gap-sm">
+        <!--
+          The schedule asks WB hourly; this covers the hours it cannot — a report
+          published overnight, or an hour the worker was down for. Disabled while
+          a harvest runs: the backend refuses a second one anyway, and a button
+          that looks clickable but changes nothing reads as broken.
+        -->
+        <button
+          type="button"
+          :disabled="store.harvestRunning"
+          class="rounded-btn border border-border-subtle bg-surface px-md py-sm text-base font-medium text-primary transition hover:border-action hover:text-action disabled:cursor-not-allowed disabled:text-muted disabled:hover:border-border-subtle disabled:hover:text-muted"
+          @click="store.refreshFromWb()"
+        >
+          {{ store.harvestRunning ? 'Обновляем…' : 'Обновить' }}
+        </button>
+        <RouterLink
+          :to="{ name: 'finreports-cost-prices' }"
+          class="rounded-btn border border-border-subtle bg-surface px-md py-sm text-base font-medium text-primary transition hover:border-action hover:text-action"
+        >
+          Себестоимость
+        </RouterLink>
+      </div>
     </header>
+
+    <p v-if="store.harvestError" class="mb-md text-base text-status-negative">
+      {{ store.harvestError }}
+    </p>
+    <p v-else-if="store.harvestNotice" class="mb-md text-base text-muted">
+      {{ store.harvestNotice }}
+    </p>
 
     <!-- Period: the shared calendar + presets -->
     <div class="mb-lg flex flex-wrap items-center gap-md">

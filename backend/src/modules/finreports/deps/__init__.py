@@ -26,6 +26,7 @@ from src.modules.finreports.repos import (
 from src.modules.finreports.services import (
     BalanceService,
     CostPriceService,
+    HarvestControlService,
     IngestionService,
     PnlService,
     SkuReportService,
@@ -191,11 +192,21 @@ def get_ingestion_service(
     )
 
 
+def get_harvest_control_service(report_repo: ReportRepoDep) -> HarvestControlService:
+    """Compose the :class:`HarvestControlService` behind «Обновить».
+
+    Takes the shared Redis directly rather than through a cache object: it reads
+    one key and holds no state worth caching.
+    """
+    return HarvestControlService(report_repo=report_repo, redis=get_redis())
+
+
 IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
 PnlServiceDep = Annotated[PnlService, Depends(get_pnl_service)]
 SkuReportServiceDep = Annotated[SkuReportService, Depends(get_sku_report_service)]
 CostPriceServiceDep = Annotated[CostPriceService, Depends(get_cost_price_service)]
 BalanceServiceDep = Annotated[BalanceService, Depends(get_balance_service)]
+HarvestControlServiceDep = Annotated[HarvestControlService, Depends(get_harvest_control_service)]
 
 __all__ = [
     "BalancePinRepoDep",

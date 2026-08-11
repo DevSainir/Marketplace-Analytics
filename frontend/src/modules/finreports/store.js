@@ -28,6 +28,7 @@ import {
   setBalancePin,
   setSkuExclusion,
 } from '@/modules/finreports/api'
+import { useHarvestRefresh } from '@/modules/finreports/useHarvestRefresh'
 
 /** YYYY-MM-DD in the local calendar (the report dates are calendar days). */
 function isoDate(date) {
@@ -365,6 +366,38 @@ export const useFinReportsStore = defineStore('finreports', () => {
     }
   }
 
+  /**
+   * Reload the harvested weeks and the statement after a harvest brought one.
+   *
+   * The period follows the new data only for a seller who was looking at the
+   * latest week — for them the window they picked *means* «последняя неделя»,
+   * and leaving it behind would show a stale week under a fresh report. A
+   * deliberately chosen older period is left exactly where it was.
+   */
+  async function adoptNewReports() {
+    const previous = fullSpan.value
+    const wasOnLatest = Boolean(dateFrom.value) && dateTo.value === previous?.date_to
+    // «Вся история» is followed by extending it, not by sliding it: the window
+    // is anchored at both ends, so preserving its LENGTH over a new week would
+    // walk its start forward and quietly drop the oldest days from the total.
+    const wasWholeHistory = wasOnLatest && dateFrom.value === previous?.date_from
+    const spanDays = Math.round((new Date(dateTo.value) - new Date(dateFrom.value)) / 86400000) + 1
+    await loadWeeks()
+    if (wasOnLatest && fullSpan.value && fullSpan.value.date_to !== previous?.date_to) {
+      if (wasWholeHistory) setPresetAll()
+      else setPresetDays(spanDays)
+    }
+    await loadReport()
+  }
+
+  // The manual «Обновить» trigger. It owns the request and the waiting; the
+  // store keeps the one decision that is about the period rather than about
+  // harvesting — what a newly arrived week does to the window on screen.
+  const { harvestRunning, harvestNotice, harvestError, refreshFromWb } = useHarvestRefresh({
+    currentSettled: () => fullSpan.value?.date_to ?? '',
+    onNewReports: adoptNewReports,
+  })
+
   return {
     weeks,
     weeksLoading,
@@ -382,6 +415,10 @@ export const useFinReportsStore = defineStore('finreports', () => {
     costsLoading,
     costsError,
     costsSaving,
+    harvestRunning,
+    harvestNotice,
+    harvestError,
+    refreshFromWb,
     loadWeeks,
     loadReport,
     toggleExclusion,

@@ -22,6 +22,10 @@ from src.modules.finreports.schemas.cost_price import (
     WeekPeriod,
     WeeksResponse,
 )
+from src.modules.finreports.schemas.harvest import (
+    HarvestStateResponse,
+    HarvestTriggerResponse,
+)
 from src.modules.finreports.schemas.pnl import (
     PnlResponse,
     PnlSection,
@@ -48,6 +52,8 @@ __all__ = [
     "CostPriceItem",
     "CostPriceListResponse",
     "CostPriceSaveResponse",
+    "HarvestStateResponse",
+    "HarvestTriggerResponse",
     "LogisticsTxnItem",
     "PnlDashboard",
     "PnlResponse",

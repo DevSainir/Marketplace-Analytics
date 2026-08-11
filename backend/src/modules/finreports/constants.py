@@ -9,6 +9,19 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+# --------------------------------------------------------------------------- #
+# Harvest concurrency
+# --------------------------------------------------------------------------- #
+#: Redis key guarding the fleet-wide finance harvest against overlapping runs.
+#: Shared by the task that takes the lock and the route that reports it, which
+#: is why it is here rather than private to either.
+HARVEST_LOCK_KEY: str = "finreports:harvest_finance"
+
+#: workspace plus the finance and content pages, so an hour is well clear of a
+#: full fleet's run while keeping the cost of a worker killed mid-harvest to a
+#: single skipped tick.
+HARVEST_LOCK_TTL_SECONDS: int = 3600
+
 #: WB ``supplier_oper_name`` for a logistics (delivery) charge.
 LOGISTICS_OPER: str = "Логистика"
 

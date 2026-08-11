@@ -5,12 +5,14 @@ import {
   downloadCostPricesXlsx,
   fetchBalance,
   fetchCostPrices,
+  fetchHarvestState,
   fetchSkuPnl,
   fetchWeeks,
   importCostPricesXlsx,
   saveCostPrices,
   setBalancePin,
   setSkuExclusion,
+  triggerHarvest,
 } from '@/modules/finreports/api'
 import { useFinReportsStore } from '@/modules/finreports/store'
 
@@ -19,12 +21,14 @@ vi.mock('@/modules/finreports/api', () => ({
   downloadCostPricesXlsx: vi.fn(),
   fetchBalance: vi.fn(),
   fetchCostPrices: vi.fn(),
+  fetchHarvestState: vi.fn(),
   fetchSkuPnl: vi.fn(),
   fetchWeeks: vi.fn(),
   importCostPricesXlsx: vi.fn(),
   saveCostPrices: vi.fn(),
   setBalancePin: vi.fn(),
   setSkuExclusion: vi.fn(),
+  triggerHarvest: vi.fn(),
 }))
 
 const WEEKS = [
@@ -348,5 +352,161 @@ describe('balance marks', () => {
 
     expect(store.balance.pinned_skus).toEqual([])
     expect(store.balanceError).toBe('Не сохранено')
+  })
+})
+
+describe('«Обновить» — the manual WB harvest', () => {
+  /**
+   * The poll waits real milliseconds between attempts, so the clock is faked.
+   * `runAllTimersAsync` drives it: each awaited timer resolves and the loop
+   * takes its next turn, without the suite waiting five seconds per attempt.
+   */
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Run `action` to completion while advancing the fake clock. */
+  async function settle(action) {
+    const running = action()
+    await vi.runAllTimersAsync()
+    await running
+  }
+
+  it('reports a new week and reloads the statement when one arrives', async () => {
+    await store.loadWeeks()
+    triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
+    fetchHarvestState
+      .mockResolvedValueOnce({ running: true, latest_settled: '2026-07-19' })
+      .mockResolvedValue({ running: false, latest_settled: '2026-07-26' })
+    fetchWeeks.mockResolvedValue({
+      weeks: [{ report_id: 786, date_from: '2026-07-20', date_to: '2026-07-26' }, ...WEEKS],
+    })
+
+    await settle(() => store.refreshFromWb())
+
+    expect(store.harvestRunning).toBe(false)
+    expect(store.harvestNotice).toContain('2026-07-26')
+    expect(store.dateTo).toBe('2026-07-26')
+  })
+
+  it('says so plainly when WB had nothing new', async () => {
+    await store.loadWeeks()
+    triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
+    fetchHarvestState.mockResolvedValue({ running: false, latest_settled: '2026-07-19' })
+
+    await settle(() => store.refreshFromWb())
+
+    expect(store.harvestNotice).toBe('Новых отчётов у Wildberries пока нет.')
+    expect(store.dateTo).toBe('2026-07-19')
+  })
+
+  it('waits out a harvest that was already running instead of starting another', async () => {
+    await store.loadWeeks()
+    triggerHarvest.mockResolvedValue({ status: 'already_running', task_id: null })
+    fetchHarvestState.mockResolvedValue({ running: false, latest_settled: '2026-07-19' })
+
+    await settle(() => store.refreshFromWb())
+
+    expect(triggerHarvest).toHaveBeenCalledTimes(1)
+    expect(fetchHarvestState).toHaveBeenCalled()
+  })
+
+  it('ignores a second click while one refresh is still in flight', async () => {
+    await store.loadWeeks()
+    triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
+    fetchHarvestState.mockResolvedValue({ running: false, latest_settled: '2026-07-19' })
+
+    const first = store.refreshFromWb()
+    const second = store.refreshFromWb()
+    await vi.runAllTimersAsync()
+    await Promise.all([first, second])
+
+    expect(triggerHarvest).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a deliberately chosen older period when a new week lands', async () => {
+    await store.loadWeeks()
+    store.setPeriod('2024-01-29', '2024-02-04')
+    triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
+    fetchHarvestState.mockResolvedValue({ running: false, latest_settled: '2026-07-26' })
+    fetchWeeks.mockResolvedValue({
+      weeks: [{ report_id: 786, date_from: '2026-07-20', date_to: '2026-07-26' }, ...WEEKS],
+    })
+
+    await settle(() => store.refreshFromWb())
+
+    expect(store.dateFrom).toBe('2024-01-29')
+    expect(store.dateTo).toBe('2024-02-04')
+  })
+
+  it('surfaces a failed trigger instead of pretending a harvest started', async () => {
+    triggerHarvest.mockRejectedValue(new Error('нет связи'))
+
+    await settle(() => store.refreshFromWb())
+
+    expect(store.harvestRunning).toBe(false)
+    expect(store.harvestError).toBeTruthy()
+    expect(fetchHarvestState).not.toHaveBeenCalled()
+  })
+
+  it('keeps watching when a single status poll fails', async () => {
+    await store.loadWeeks()
+    triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
+    fetchHarvestState
+      .mockRejectedValueOnce(new Error('таймаут'))
+      .mockResolvedValue({ running: false, latest_settled: '2026-07-19' })
+
+    await settle(() => store.refreshFromWb())
+
+    expect(store.harvestError).toBe('')
+    expect(store.harvestNotice).toBe('Новых отчётов у Wildberries пока нет.')
+  })
+})
+
+describe('«Обновить» — how the period follows new data', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
+    fetchHarvestState.mockResolvedValue({ running: false, latest_settled: '2026-07-26' })
+    fetchWeeks.mockResolvedValue({
+      weeks: [{ report_id: 786, date_from: '2026-07-20', date_to: '2026-07-26' }, ...WEEKS],
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function refresh() {
+    const running = store.refreshFromWb()
+    await vi.runAllTimersAsync()
+    await running
+  }
+
+  it('extends «вся история» instead of sliding it forward', async () => {
+    fetchWeeks.mockResolvedValueOnce({ weeks: WEEKS })
+    await store.loadWeeks()
+    store.setPresetAll()
+    const oldestDay = store.dateFrom
+
+    await refresh()
+
+    expect(store.dateFrom).toBe(oldestDay)
+    expect(store.dateTo).toBe('2026-07-26')
+  })
+
+  it('slides a last-N-days window forward, keeping its length', async () => {
+    fetchWeeks.mockResolvedValueOnce({ weeks: WEEKS })
+    await store.loadWeeks()
+    store.setPresetDays(30)
+
+    await refresh()
+
+    expect(store.dateTo).toBe('2026-07-26')
+    expect(store.dateFrom).toBe('2026-06-27')
   })
 })

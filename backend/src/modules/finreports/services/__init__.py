@@ -9,6 +9,8 @@ Mirrors the monitoring split — one write service, the rest read-only:
   dispute-ready evidence, which is one line of that statement examined closely.
 * :class:`CostPriceService` — the module's only other write path: the seller's
   own cost of goods, the single P&L input WB cannot supply.
+* :class:`HarvestControlService` — the manual «Обновить» trigger's read half:
+  is a harvest running, and how far does the harvested history reach.
 * :class:`BalanceService` — read side: what the UNSOLD stock is worth, per
   warehouse, on one snapshot day («Баланс по товарным остаткам»).
 
@@ -19,12 +21,18 @@ against real WB payloads without a database.
 
 from src.modules.finreports.services.balance import BalanceService, build_balance
 from src.modules.finreports.services.cost_price import CostPriceService
+from src.modules.finreports.services.harvest_control import (
+    HarvestControlService,
+    HarvestState,
+)
 from src.modules.finreports.services.ingestion import IngestionService
 from src.modules.finreports.services.pnl import PnlService, SkuReportService
 
 __all__ = [
     "BalanceService",
     "CostPriceService",
+    "HarvestControlService",
+    "HarvestState",
     "IngestionService",
     "PnlService",
     "SkuReportService",
