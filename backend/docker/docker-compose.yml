@@ -41,9 +41,14 @@
 # be a co-tenant's database as the process that actually ran away. The numbers
 # are measured steady-state usage rounded up with headroom — worker 355 MB,
 # api 110 MB, postgres 196 MB, beat 110 MB, redis 6 MB, frontend 6 MB — and
-# sum to ~2.0 GB of ceiling against ~800 MB of real use. They are ceilings,
+# sum to ~2.4 GB of ceiling against ~800 MB of real use. They are ceilings,
 # not reservations: nothing is set aside, so deliberate over-subscription of
 # the 2 CPUs is fine and intended.
+#
+# Steady state is not what sizes the worker, though: its ceiling has to clear
+# the PEAK of a harvest, which scales with the seller's history and therefore
+# grows on its own over time. See its `mem_limit` for what happened when it
+# did not.
 # ---------------------------------------------------------------------------
 
 name: marketplace-service
@@ -181,10 +186,21 @@ services:
       dockerfile: docker/Dockerfile
       target: worker
     restart: unless-stopped
-    # The largest ceiling in the stack: the nightly harvest holds a settlement
-    # week's rows while it prices them, and this is the only service whose
-    # working set scales with the seller's history rather than with traffic.
-    mem_limit: 768m
+    # The largest ceiling in the stack: the harvest holds a settlement window's
+    # rows while it prices them, and this is the only service whose working set
+    # scales with the seller's history rather than with traffic.
+    #
+    # Raised from 768m after the cgroup OOM-killed the 2026-08-11 08:00 harvest
+    # mid-walk (`signal 9`, anon-rss 574 MB in the fork worker alone, plus ~150
+    # MB of parent). `WBFinanceClient.fetch_report` materialises the whole
+    # 28-day window as validated rows before anything is ingested, so the peak
+    # tracks how much the seller sold in those 28 days — and it had grown past
+    # the ceiling measured when this stack was sized. The durable fix is to
+    # ingest the walk page by page instead of accumulating it; until then the
+    # ceiling has to clear the peak, because the failure mode is not a slow
+    # harvest but a killed one that leaves the week unharvested and its lock
+    # behind.
+    mem_limit: 1152m
     cpus: 1.5
     env_file:
       - .env
