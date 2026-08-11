@@ -38,7 +38,7 @@ class _HeldRedis:
         return 1 if key in self.store else 0
 
     async def set(
-        self, key: str, value: str, *, nx: bool = False, ex: int | None = None
+        self, key: str, value: str, *, nx: bool = False, px: int | None = None
     ) -> bool | None:
         if nx and key in self.store:
             return None

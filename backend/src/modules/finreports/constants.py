@@ -17,10 +17,19 @@ from decimal import Decimal
 #: is why it is here rather than private to either.
 HARVEST_LOCK_KEY: str = "finreports:harvest_finance"
 
-#: workspace plus the finance and content pages, so an hour is well clear of a
-#: full fleet's run while keeping the cost of a worker killed mid-harvest to a
-#: single skipped tick.
-HARVEST_LOCK_TTL_SECONDS: int = 3600
+#: How long the lock outlives a harvest that stops renewing it — NOT how long a
+#: harvest may run. A live run heartbeats and holds the lock for as long as it
+#: takes; this only bounds how long a DEAD one strands the job.
+#:
+#: Ten minutes, because both of its failure modes are real and pull opposite
+#: ways. Too short and a healthy run that blocks its event loop (ingesting 30k
+#: settlement rows does) loses the lock to the next tick and gets joined
+#: mid-walk. Too long and a killed worker keeps the job stranded: on 2026-08-11
+#: an hour-long TTL cost two skipped ticks in one morning — once after the OOM
+#: killer took the walk, once after a deploy recreated the worker under it.
+#: Ten minutes clears the longest block by a wide margin and is short enough
+#: that the next hourly tick recovers on its own.
+HARVEST_LOCK_TTL_SECONDS: int = 600
 
 #: WB ``supplier_oper_name`` for a logistics (delivery) charge.
 LOGISTICS_OPER: str = "Логистика"

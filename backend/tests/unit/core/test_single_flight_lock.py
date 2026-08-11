@@ -17,6 +17,9 @@ unavailable is precisely the failure this module was added to prevent.
 
 from __future__ import annotations
 
+import asyncio
+import time
+
 import pytest
 from redis.exceptions import RedisError
 
@@ -32,7 +35,7 @@ class _FakeRedis:
         self.store: dict[str, str] = {}
 
     async def set(
-        self, key: str, value: str, *, nx: bool = False, ex: int | None = None
+        self, key: str, value: str, *, nx: bool = False, px: int | None = None
     ) -> bool | None:
         if nx and key in self.store:
             return None
@@ -51,7 +54,7 @@ class _BrokenRedis:
     """A client whose every call fails, standing in for a Redis outage."""
 
     async def set(
-        self, key: str, value: str, *, nx: bool = False, ex: int | None = None
+        self, key: str, value: str, *, nx: bool = False, px: int | None = None
     ) -> bool | None:
         raise RedisError("connection refused")
 
@@ -123,4 +126,118 @@ async def test_a_failed_release_does_not_propagate() -> None:
             raise RedisError("gone away")
 
     async with single_flight("job", ttl_seconds=60, redis=_FailsOnRelease()) as acquired:
+        assert acquired is True
+
+
+class _ExpiringRedis(_FakeRedis):
+    """A fake with real, wall-clock key expiry.
+
+    Real time rather than a fake clock on purpose: the heartbeat sleeps on the
+    event loop, so a test that fakes the clock proves nothing about whether it
+    actually fires. The TTLs below are therefore fractions of a second, and the
+    tests wait them out for real.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.expiry: dict[str, float] = {}
+        self.renewals = 0
+
+    def _expire_due(self) -> None:
+        now = time.monotonic()
+        for key, at in list(self.expiry.items()):
+            if at <= now:
+                self.store.pop(key, None)
+                self.expiry.pop(key, None)
+
+    async def set(
+        self, key: str, value: str, *, nx: bool = False, px: int | None = None
+    ) -> bool | None:
+        self._expire_due()
+        if nx and key in self.store:
+            return None
+        self.store[key] = value
+        if px is not None:
+            self.expiry[key] = time.monotonic() + px / 1000
+        return True
+
+    async def eval(self, script: str, numkeys: int, *args: str) -> int:
+        self._expire_due()
+        key, token = args[0], args[1]
+        if self.store.get(key) != token:
+            return 0
+        if "expire" in script:
+            self.renewals += 1
+            self.expiry[key] = time.monotonic() + float(args[2]) / 1000
+            return 1
+        del self.store[key]
+        self.expiry.pop(key, None)
+        return 1
+
+
+#: One TTL, in seconds. Small enough to wait out several times in a unit test.
+TTL = 0.3
+
+
+async def test_a_live_holder_keeps_the_lock_past_its_ttl() -> None:
+    """The heartbeat is what holds the lock — a long run must not lose it.
+
+    Without renewal, sizing the TTL is a bet on the slowest run: lose that bet
+    and a second harvest joins the first mid-walk, on WB surfaces that allow one
+    request a minute between them.
+    """
+    redis = _ExpiringRedis()
+
+    async with single_flight("job", ttl_seconds=TTL, redis=redis) as acquired:
+        assert acquired is True
+        await asyncio.sleep(TTL * 3)
+        # Three TTLs in, the lock is still ours — and still refuses a rival.
+        async with single_flight("job", ttl_seconds=TTL, redis=redis) as rival:
+            assert rival is False
+
+    assert redis.renewals >= 3
+
+
+async def test_a_dead_holder_lets_go_within_one_ttl() -> None:
+    """The other half: a killed process must not strand the job.
+
+    This is the case that cost two harvests on 2026-08-11 — an hour of TTL left
+    behind, once by the OOM killer and once by a deploy recreating the worker.
+    A holder that never renews is exactly a holder that died.
+    """
+    redis = _ExpiringRedis()
+    await redis.set("job", "dead-holders-token", nx=True, px=int(TTL * 1000))
+
+    await asyncio.sleep(TTL * 1.5)
+
+    async with single_flight("job", ttl_seconds=TTL, redis=redis) as acquired:
+        assert acquired is True
+
+
+async def test_the_heartbeat_stops_when_the_block_exits() -> None:
+    """A leaked renewal task would hold a lock nobody is using."""
+    redis = _ExpiringRedis()
+
+    async with single_flight("job", ttl_seconds=TTL, redis=redis):
+        await asyncio.sleep(TTL)
+    renewals_at_exit = redis.renewals
+    await asyncio.sleep(TTL * 2)
+
+    assert redis.renewals == renewals_at_exit
+    assert redis.store == {}
+
+
+async def test_a_renewal_failure_does_not_kill_the_guarded_work() -> None:
+    """Redis hiccuping mid-run must not raise into the harvest."""
+
+    class _FlakyRenewals(_ExpiringRedis):
+        async def eval(self, script: str, numkeys: int, *args: str) -> int:
+            if "expire" in script:
+                raise RedisError("blip")
+            return await super().eval(script, numkeys, *args)
+
+    redis = _FlakyRenewals()
+
+    async with single_flight("job", ttl_seconds=TTL, redis=redis) as acquired:
+        await asyncio.sleep(TTL * 1.5)
         assert acquired is True
