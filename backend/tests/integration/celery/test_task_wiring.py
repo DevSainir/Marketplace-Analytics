@@ -80,6 +80,36 @@ def test_the_nightly_harvest_precedes_the_dependent_jobs() -> None:
     assert min(harvest_hour) < min(cohorts_hour)
 
 
+def test_the_finance_harvest_asks_more_than_once_a_day() -> None:
+    """WB publishes at no fixed hour, so a daily check is a daily staleness bet.
+
+    It lost on 2026-08-10: WB formed the week's report after that day's single
+    08:00 run had already asked and been told there was nothing, and the P&L
+    showed an empty week until the next morning. The freshness gate makes a
+    quiet tick cost one request per workspace, so the answer is to ask often.
+    """
+    hours = celery_app.conf.beat_schedule["hourly-finreports-harvest"]["schedule"].hour
+
+    assert len(hours) > 1
+
+
+def test_the_finance_harvest_leaves_the_monitoring_hours_alone() -> None:
+
+    The finance walk competes with them for the same rate-limited analytics
+    surfaces, and unlike them it can fire at any hour — so it is the one that
+    yields.
+    """
+    schedule = celery_app.conf.beat_schedule
+    hours = schedule["hourly-finreports-harvest"]["schedule"].hour
+    reserved = {
+        min(schedule["daily-finreports-snapshot-tariffs"]["schedule"].hour),
+        min(schedule["nightly-harvest-all"]["schedule"].hour),
+        min(schedule["nightly-refresh-buyout-cohorts"]["schedule"].hour),
+    }
+
+    assert hours & reserved == set()
+
+
 def test_results_expire_so_redis_does_not_grow_without_bound() -> None:
     """Every enqueued refresh leaves a result key; unbounded they fill Redis.
 

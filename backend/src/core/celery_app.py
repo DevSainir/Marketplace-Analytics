@@ -72,16 +72,27 @@ celery_app.conf.beat_schedule = {
     "daily-finreports-snapshot-tariffs": {
         "schedule": crontab(hour=5, minute=0),
     },
-    # daily because WB publishes the realization report on no fixed day, but
-    # each run first asks WB whether it has a report we do not hold and skips the
-    # workspace when it does not (src/modules/finreports/tasks/freshness.py) —
-    # days there is nothing new to walk for. When it does run, the rolling
-    # 28-day window keeps the recent reports fresh (upsert-idempotent). 08:00
-    # MSK, after the monitoring harvest and cohort refresh vacate the WB
-    # surfaces.
-    "daily-finreports-harvest": {
+    #
+    # Hourly, not daily. WB publishes the weekly realization report on no fixed
+    # day *and no fixed hour*: report 978271922 (03.08-09.08.2026) was formed on
+    # 10.08 after that day's 08:00 run had already asked and been told there was
+    # nothing, so the P&L showed an empty week for a full day until the next
+    # run. One check a day means up to 24h of staleness every time WB publishes
+    # during working hours.
+    #
+    # Ticking hourly is affordable only because of the freshness gate
+    # (src/modules/finreports/tasks/freshness.py): a tick with nothing new costs
+    # one `limit=1` request per workspace and stops there. Only a tick that
+    # finds an unharvested report pays for the walk — minutes of paced
+    # the next tick cannot start a second copy alongside it. The rolling 28-day
+    # window keeps recent reports fresh and is upsert-idempotent, so re-running
+    # is always safe.
+    #
+    # harvest and cohort refresh own those hours, and the walk competes with
+    # them for the same rate-limited analytics surfaces.
+    "hourly-finreports-harvest": {
         "task": "finreports.harvest_finance",
-        "schedule": crontab(hour=8, minute=0),
+        "schedule": crontab(hour="0-4,8-23", minute=0),
         "kwargs": {"days": 28},
     },
 }

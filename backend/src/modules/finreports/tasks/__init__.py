@@ -1,7 +1,8 @@
 """Celery tasks for the ``finreports`` module.
 
   historical settlement rows price against the tariff that was live then.
-  gate that decides that is :mod:`.freshness`.
+  The gate that decides that is :mod:`.freshness`, and it is what makes an
+  hourly tick cost one request per workspace on the quiet hours.
 
 Both run the async harvest core (:mod:`.harvest`) through
 :func:`src.core.tasks.run_task`, which owns the per-task event loop and drains

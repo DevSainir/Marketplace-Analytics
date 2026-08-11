@@ -1,9 +1,15 @@
 """The freshness gate in front of the finreports harvest.
 
-WB publishes the weekly realization report on no fixed day — usually one a week,
-sometimes two in a week, sometimes none — so the harvest runs daily and asks
-first: *is there a report we do not already hold?* One request over the days
-after everything harvested answers it, and only a non-empty answer is worth the
+WB publishes the weekly realization report on no fixed day and no fixed hour —
+usually one a week, sometimes two in a week, sometimes none — so the harvest
+runs hourly and asks first: *is there a report we do not already hold?* One
+request over the days after everything harvested answers it, and only a
+windows per workspace).
+
+This gate is what buys the schedule its frequency. Asking every hour is what
+keeps a report published at 09:15 from sitting unharvested until the next
+morning; asking cheaply is what makes twenty-odd ticks a day affordable on a
+~1 req/min surface.
 
 The gate is deliberately asymmetric. Skipping is only ever decided by a WB answer
 that came back *empty*; every other outcome — a workspace never harvested, a
