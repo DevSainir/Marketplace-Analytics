@@ -147,14 +147,40 @@ def report_headers(
 ) -> list[dict[str, Any]]:
     """Group settlement rows into their weekly ``financial_report`` headers.
 
+    See :func:`merge_report_headers` for why the period is taken from WB.
+    """
+    headers: dict[int, dict[str, Any]] = {}
+    merge_report_headers(headers, rows, workspace_id=workspace_id)
+    return list(headers.values())
+
+
+def merge_report_headers(
+    headers: dict[int, dict[str, Any]],
+    rows: list[WBReportDetailRow],
+    *,
+    workspace_id: uuid.UUID,
+) -> None:
+    """Fold one page of settlement rows into the headers accumulated so far.
+
     The period comes from WB's own ``date_from``/``date_to`` on the row, not from
     ``min(rr_dt)``/``max(rr_dt)``: a report routinely carries no settlement on
     its first or last day, and deriving the period from the rows then reports a
     six-day week — which shifts every week-scoped figure the P&L and the claim
     put in front of a court. ``rr_dt`` is kept only as the fallback for the rare
     row where WB leaves the period blank.
+
+    That fallback is exactly why the accumulator is threaded through the whole
+    paginated walk instead of each page building its own headers: a report whose
+    rows straddle a page boundary would otherwise have its period rebuilt from
+    the last page's ``rr_dt`` alone, and the upsert would overwrite the wider
+    period with the narrower one. The dict is tiny — one entry per weekly
+    report, a handful per harvest window — so carrying it costs nothing.
+
+    Args:
+        headers: Accumulator, keyed by ``realizationreport_id``. Mutated.
+        rows: One page of settlement rows.
+        workspace_id: Owning workspace.
     """
-    headers: dict[int, dict[str, Any]] = {}
     for row in rows:
         stated_from, stated_to = as_date(row.date_from), as_date(row.date_to)
         rr = as_date(row.rr_dt)
@@ -175,7 +201,6 @@ def report_headers(
             header["create_dt"] = as_date(row.create_dt)
         if not header["currency"]:
             header["currency"] = row.currency_name
-    return list(headers.values())
 
 
 def _earliest(current: date | None, candidate: date | None) -> date | None:
@@ -195,6 +220,7 @@ def _latest(current: date | None, candidate: date | None) -> date | None:
 __all__ = [
     "as_date",
     "dedupe",
+    "merge_report_headers",
     "number_units",
     "report_headers",
     "settlement_row",
