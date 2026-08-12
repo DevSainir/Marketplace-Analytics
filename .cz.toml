@@ -1,0 +1,19 @@
+# Commit-message validation (the `commit-msg` pre-commit hook).
+#
+# Exists for ONE reason: to add `feat-minor` to the accepted types. Commitizen's
+# built-in `cz_conventional_commits` hard-codes its list, and a type it does not
+# know is rejected outright — so the type has to be declared somewhere, and the
+# only way to extend the list is `cz_customize`.
+#
+# The pattern below is that built-in one verbatim, plus `feat-minor` in front of
+# `feat`. Ahead of it deliberately: alternation is first-match, and while Python
+# would backtrack from `feat` into `feat-minor`, relying on that is a subtle way
+# to make a small edit here fail later.
+#
+# What each type does to the version lives in docs/RELEASES.md; when to reach
+# for which one lives in .claude/skills/git-workflow.
+[tool.commitizen]
+name = "cz_customize"
+
+[tool.commitizen.customize]
+schema_pattern = '(?s)(build|bump|chore|ci|docs|feat-minor|feat|fix|perf|refactor|revert|style|test)(\(\S+\))?!?: ([^\n\r]+)((\n\n.*)|(\s*))?$'

@@ -23,6 +23,7 @@
   "pull-request-header": "Автоматический релиз. Слияние этого PR создаст тег, GitHub Release и уведомление в Telegram.",
   "changelog-sections": [
     { "type": "feat", "section": "Features" },
+    { "type": "feat-minor", "section": "Minor Features" },
     { "type": "fix", "section": "Bug Fixes" },
     { "type": "perf", "section": "Performance" },
     { "type": "refactor", "section": "Refactoring" },

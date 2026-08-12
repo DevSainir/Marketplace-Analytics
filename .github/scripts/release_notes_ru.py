@@ -243,7 +243,10 @@ def gemini(prompt: str, api_key: str, models: tuple[str, ...]) -> str:
     return ""
 
 
-CONVENTIONAL = re.compile(r"^(?P<type>[a-z]+)(?:\((?P<scope>[^)]*)\))?!?:\s*(?P<subject>.+)$")
+# `[a-z-]` and not `[a-z]`: `feat-minor` is a type here (see docs/RELEASES.md),
+# and with the tighter class it matched nothing and every small feature landed
+# under «Прочее».
+CONVENTIONAL = re.compile(r"^(?P<type>[a-z][a-z-]*)(?:\((?P<scope>[^)]*)\))?!?:\s*(?P<subject>.+)$")
 
 # Release Please's own merge commit, in every shape it writes one. Its title
 # depends on config in ways that are not obvious — a single-package manifest
@@ -254,6 +257,7 @@ RELEASE_BOT = re.compile(r"^chore(\([^)]*\))?:\s*(release\b|v?\d+\.\d+\.\d+)", r
 
 SECTIONS = (
     ("feat", "Новые функции"),
+    ("feat-minor", "Мелкие функции"),
     ("fix", "Исправления"),
     (None, "Прочее"),
 )
@@ -261,7 +265,10 @@ SECTIONS = (
 
 def fallback(commits: list[str]) -> str:
     """Grouped, untranslated notes — used only when Gemini is unavailable."""
-    buckets: dict[str, list[str]] = {"feat": [], "fix": [], "other": []}
+    # Keyed off SECTIONS so a new section needs one edit, not two: the previous
+    # shape hard-coded the type list here as well, which is how «Мелкие функции»
+    # would have arrived with its own heading and nothing under it.
+    buckets: dict[str, list[str]] = {key or "other": [] for key, _ in SECTIONS}
     for line in commits:
         m = CONVENTIONAL.match(line)
         if not m:
@@ -270,7 +277,8 @@ def fallback(commits: list[str]) -> str:
         scope = m.group("scope")
         subject = html.escape(m.group("subject"))
         entry = f"• <b>{html.escape(scope)}</b>: {subject}" if scope else f"• {subject}"
-        buckets[m.group("type") if m.group("type") in ("feat", "fix") else "other"].append(entry)
+        kind = m.group("type")
+        buckets[kind if kind in buckets else "other"].append(entry)
 
     out = ["<i>(перевод недоступен, список на английском)</i>"]
     for key, title in SECTIONS:

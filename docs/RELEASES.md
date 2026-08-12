@@ -24,9 +24,24 @@ Nothing is released until you merge that PR. To hold a release, leave it open.
 | Commit | Effect while < 1.0 |
 | --- | --- |
 | `fix:` | patch — `0.1.0` → `0.1.1` |
+| `feat-minor:` | patch — `0.1.0` → `0.1.1` |
 | `feat:` | minor — `0.1.0` → `0.2.0` |
 | `feat!:` / `BREAKING CHANGE:` | minor — `0.1.0` → `0.2.0` |
 | `chore:`, `docs:`, `ci:`, … | patch, and appears in the changelog under its own section |
+
+`feat-minor:` is ours, not part of the Conventional Commits spec, and it exists because most
+features here are not worth a minor bump — see the git-workflow skill for which one to reach for.
+Nothing configures it as "patch": Release Please bumps **minor only for the literal type `feat`**
+and major only for a breaking change, and everything else falls through to patch. So the type
+needed no bump rule, only three registrations, and the failure mode if you add another such type
+and forget one of them is silence rather than an error:
+
+* `release-please-config.json` → a `changelog-sections` entry, or it is absent from the changelog
+  (an explicit sections list hides every type it does not name);
+* `.cz.toml` → the `schema_pattern`, or the commit-msg hook rejects the commit outright — the one
+  registration that fails loudly;
+* `.github/scripts/release_notes_ru.py` → `SECTIONS`, or the Telegram announcement files it under
+  «Прочее». Its `CONVENTIONAL` regex also has to allow the hyphen.
 
 The last row of that table is the reason for `"bump-minor-pre-major": true` in
 `release-please-config.json`: without it a single `!` commit would declare the project 1.0.0 long

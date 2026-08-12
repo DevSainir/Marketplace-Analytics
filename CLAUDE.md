@@ -21,18 +21,19 @@ All four are machine-enforced — `backend/tests/unit/core/test_module_boundarie
 
 ## Where the rest lives
 
-The project's rules are skills in `.claude/skills/` — `backend-architecture`,
-`wildberries-api`, `frontend-architecture`, `design-system`, `phone-layout`, `testing`. Each one's description
-says when it applies, so they load themselves when the work calls for them rather than sitting
-in every conversation. Read them directly (they are plain markdown) when working without that
-mechanism, and put new project guidance in the relevant skill rather than here.
+The project's rules are skills in `.claude/skills/` — `backend-architecture`, `wildberries-api`,
+`frontend-architecture`, `design-system`, `phone-layout`, `testing`, `git-workflow`. Each one's
+description says when it applies, so they load themselves when the work calls for them rather than
+sitting in every conversation. Read them directly (they are plain markdown) when working without
+that mechanism, and put new project guidance in the relevant skill rather than here.
 
 `docs/finreports/` holds what no skill covers: how the P&L is derived from WB's weekly
 Read `PNL.md` before changing anything that touches a settlement figure — most of the ways to
 get it wrong produce a plausible statement rather than an error.
 
 `docs/RELEASES.md` covers versioning: the version is **derived from your commit messages**, never
-typed, so a `feat:` and a `fix:` are not interchangeable. Release Please keeps one open
+typed, so a `feat:`, a `feat-minor:` and a `fix:` are not interchangeable (which to use, and the
+trunk-based rule that work goes straight to `main`, are in the `git-workflow` skill). Release Please keeps one open
 `chore(release):` PR and merging it cuts the release; the announcement is auto-translated to
 Russian for the team. Read it before editing `.github/workflows/release.yml`, the version fields
 in `backend/pyproject.toml` / `frontend/package.json`, or anything under `.github/scripts/`.
