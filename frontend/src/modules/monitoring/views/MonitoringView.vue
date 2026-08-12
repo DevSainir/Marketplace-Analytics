@@ -111,10 +111,8 @@ onMounted(() => store.fetchPins())
 </script>
 
 <template>
-  <!-- Canvas: the old max-w-7xl (80rem) plus 2/3 of the spare viewport width
-       beyond it — calc(80rem + (100vw - 80rem) * 2/3). Below 80rem viewports
-       the calc exceeds 100vw, so w-full keeps behaving as before. -->
-  <div class="mx-auto w-full max-w-[calc(26.667rem_+_66.667vw)] px-md py-lg sm:px-lg">
+  <!-- `.app-container` is the shared canvas width + safe-area gutter (main.css). -->
+  <div class="app-container py-lg">
     <div class="w-full">
       <h1 class="sr-only">Мониторинг SKU</h1>
 
@@ -230,7 +228,7 @@ onMounted(() => store.fetchPins())
       </template>
 
       <!-- Initial state: an inviting hint until the first SKU is submitted -->
-      <div v-else-if="!store.lookupMatches.length" class="mt-20 text-center">
+      <div v-else-if="!store.lookupMatches.length" class="mt-20 text-center phone:mt-xl">
         <p class="text-h2 font-semibold text-primary">Введите артикул товара</p>
         <p class="mx-auto mt-sm max-w-xl text-base text-muted">
           Начните вводить артикул продавца, nm ID или название — либо просто кликните по строке

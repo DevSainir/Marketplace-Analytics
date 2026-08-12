@@ -105,7 +105,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-[calc(26.667rem_+_66.667vw)] px-md py-xl sm:px-lg">
+  <!-- `.app-container` is the shared canvas width + safe-area gutter (main.css). -->
+  <main class="app-container py-xl phone:py-lg">
     <header class="mb-lg">
       <RouterLink
         :to="{ name: 'finreports' }"
@@ -124,9 +125,9 @@ onMounted(() => {
 
     <section
       v-if="coverage.totalUnits"
-      class="mb-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card"
+      class="mb-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
     >
-      <div class="flex flex-wrap items-baseline gap-lg">
+      <div class="flex flex-wrap items-baseline gap-lg phone:gap-sm">
         <div>
           <div class="text-tiny font-medium uppercase tracking-wide text-muted">
             Покрытие проданных единиц

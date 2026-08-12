@@ -3,6 +3,15 @@ export default {
   content: ['./index.html', './src/**/*.{vue,js}'],
   theme: {
     extend: {
+      // The app's ONE phone breakpoint. Everything else here is mobile-first
+      // (`sm:` and up), so `phone:` is deliberately a MAX-width query: it can
+      // only ever narrow the default layout and desktop is provably untouched.
+      // 430px is the top of the modern iPhone band — 12/13/14 are 390pt,
+      // 15/16/17 Pro are 402pt, the Plus/Max models 428–430pt — so the
+      // 390–410px target sits comfortably inside it with room either side.
+      screens: {
+        phone: { max: '430px' },
+      },
       fontFamily: {
         sans: ['Inter Tight', 'sans-serif'],
       },

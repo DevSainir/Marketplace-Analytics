@@ -29,7 +29,7 @@ const emit = defineEmits(['select'])
       <li v-for="ws in workspaces" :key="ws.id">
         <button
           type="button"
-          class="flex w-full items-center justify-between rounded-btn border px-md py-sm text-left transition"
+          class="flex w-full items-center justify-between rounded-btn border px-md py-sm text-left transition phone:min-h-11"
           :class="
             ws.id === currentId
               ? 'border-action bg-action/10 text-primary'

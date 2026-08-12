@@ -1,0 +1,117 @@
+/*
+ * The phone record ROW — what a wide finreports table becomes below `sm`.
+ *
+ * A row, not a card. These lists run to dozens of records, and per-record chrome
+ * (border + shadow + card padding + a full-width toggle button) turned each one
+ * into a block the reader had to scroll past to reach the next: forty SKUs
+ * became a scroll nobody finishes. What is left is the density of a table row
+ * with enough air to stay tappable — two lines, a hairline between them, and the
+ * remaining columns behind the row itself.
+ *
+ * Two lines carry four figures: the identity and the lead number on the first,
+ * the qualifiers on the second. Everything else is one tap away.
+ *
+ * Imported by each component's own `<style scoped>`, so each still gets its own
+ * scope attribute.
+ */
+
+.record-list {
+  @apply divide-y divide-border-subtle;
+}
+
+.record-card {
+  @apply first:pt-0 last:pb-0;
+}
+
+/*
+ * The whole row is the disclosure control — a separate «Подробнее» button cost
+ * a third line per record. `min-h-11` keeps the tap target honest even when both
+ * lines are short.
+ */
+.record-summary {
+  @apply flex min-h-11 w-full items-center gap-sm rounded-input px-xs py-xs text-left transition;
+}
+
+/* Hover only where there is a pointer: on a touch screen `:hover` sticks after
+   the tap, leaving the row the reader just opened permanently highlighted. */
+@media (hover: hover) {
+  .record-summary:hover {
+    @apply bg-hover;
+  }
+}
+
+/* The same row box, for a list whose row is NOT a disclosure — an editable grid
+   keeps its input visible, so there is nothing to expand into. */
+.record-line {
+  @apply flex min-h-11 w-full items-center gap-sm px-xs py-xs;
+}
+
+.record-main {
+  @apply min-w-0 flex-1;
+}
+
+.record-title {
+  @apply block truncate text-base font-medium text-primary;
+}
+
+.record-sub {
+  @apply block truncate text-tiny text-muted;
+}
+
+/* The right-hand column: the lead figure with its qualifiers under it. */
+.record-figures {
+  @apply flex flex-none flex-col items-end;
+}
+
+.record-value {
+  @apply tabular-nums font-semibold text-primary;
+}
+
+.record-support {
+  @apply text-tiny tabular-nums text-muted;
+}
+
+/* Tone MODIFIERS, not bare `text-*` utilities beside `.record-value`: the
+   scoped class already sets `text-primary` and outranks a utility, so the
+   colour would silently not apply. */
+.record-value--negative {
+  @apply text-status-negative;
+}
+
+.record-value--warning {
+  @apply text-status-warning;
+}
+
+.record-value--muted {
+  @apply font-normal text-muted;
+}
+
+.record-chevron {
+  @apply h-4 w-4 flex-none text-muted transition;
+}
+
+.record-chevron--open {
+  @apply rotate-180;
+}
+
+/* The folded-away columns, subordinate to the row that owns them: indented, on
+   the canvas tint, one step down in size. */
+.record-details {
+  @apply mb-xs ml-md rounded-input bg-canvas px-md py-xs;
+}
+
+.record-row {
+  @apply flex items-baseline justify-between gap-sm py-xs text-tiny;
+}
+
+.record-row + .record-row {
+  @apply border-t border-border-subtle;
+}
+
+.record-label {
+  @apply min-w-0 flex-1 truncate text-muted;
+}
+
+.record-note {
+  @apply text-micro leading-tight text-muted;
+}

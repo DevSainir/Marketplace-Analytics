@@ -46,7 +46,7 @@ function onSelect(workspace) {
   >
     <button
       type="button"
-      class="flex h-8 max-w-[10rem] items-center gap-xs rounded-btn border border-border-subtle bg-canvas px-sm text-tiny font-medium text-primary transition hover:border-action hover:text-action"
+      class="flex h-8 max-w-[10rem] items-center gap-xs rounded-btn border border-border-subtle bg-canvas px-sm text-tiny font-medium text-primary transition hover:border-action hover:text-action phone:max-w-[6.5rem]"
       :aria-expanded="open"
       aria-haspopup="listbox"
       :title="current?.name || 'Пространство'"
@@ -96,7 +96,7 @@ function onSelect(workspace) {
               type="button"
               role="option"
               :aria-selected="workspace.id === currentId"
-              class="flex w-full items-center gap-sm px-md py-sm text-left transition hover:bg-action/10"
+              class="flex w-full items-center gap-sm px-md py-sm text-left transition hover:bg-action/10 phone:py-md"
               :class="workspace.id === currentId ? 'bg-action/10' : ''"
               @click="onSelect(workspace)"
             >

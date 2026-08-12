@@ -77,7 +77,8 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-[calc(26.667rem_+_66.667vw)] px-md py-xl sm:px-lg">
+  <!-- `.app-container` is the shared canvas width + safe-area gutter (main.css). -->
+  <main class="app-container py-xl phone:py-lg">
     <header class="mb-lg flex flex-wrap items-end justify-between gap-md">
       <div>
         <h1 class="text-h2 font-bold text-primary">Прибыли и убытки</h1>
@@ -86,7 +87,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           из строк самого артикула; общие удержания счёта показаны отдельной строкой.
         </p>
       </div>
-      <div class="flex items-center gap-sm">
+      <div class="flex items-center gap-sm phone:w-full">
         <!--
           The schedule asks WB hourly; this covers the hours it cannot — a report
           published overnight, or an hour the worker was down for. Disabled while
@@ -96,14 +97,14 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
         <button
           type="button"
           :disabled="store.harvestRunning"
-          class="rounded-btn border border-border-subtle bg-surface px-md py-sm text-base font-medium text-primary transition hover:border-action hover:text-action disabled:cursor-not-allowed disabled:text-muted disabled:hover:border-border-subtle disabled:hover:text-muted"
+          class="rounded-btn border border-border-subtle bg-surface px-md py-sm text-base font-medium text-primary transition hover:border-action hover:text-action disabled:cursor-not-allowed disabled:text-muted disabled:hover:border-border-subtle disabled:hover:text-muted phone:min-h-11 phone:flex-1"
           @click="store.refreshFromWb()"
         >
           {{ store.harvestRunning ? 'Обновляем…' : 'Обновить' }}
         </button>
         <RouterLink
           :to="{ name: 'finreports-cost-prices' }"
-          class="rounded-btn border border-border-subtle bg-surface px-md py-sm text-base font-medium text-primary transition hover:border-action hover:text-action"
+          class="flex items-center justify-center rounded-btn border border-border-subtle bg-surface px-md py-sm text-base font-medium text-primary transition hover:border-action hover:text-action phone:min-h-11 phone:flex-1"
         >
           Себестоимость
         </RouterLink>
@@ -127,12 +128,16 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
         @update:to="store.setPeriod(store.dateFrom, $event)"
       />
 
-      <div class="flex items-center gap-xs rounded-btn border border-border-subtle bg-surface p-xs">
+      <!-- Four abreast at 402pt gives each preset ~88px and «Вся история» wraps
+           to two lines; two rows of two give every label its own line. -->
+      <div
+        class="flex items-center gap-xs rounded-btn border border-border-subtle bg-surface p-xs phone:grid phone:w-full phone:grid-cols-2"
+      >
         <button
           v-for="preset in PRESETS"
           :key="preset.key"
           type="button"
-          class="rounded-btn px-md py-xs text-base font-medium transition"
+          class="rounded-btn px-md py-xs text-base font-medium transition phone:min-h-11 phone:flex-1"
           :class="
             isPresetActive(preset.key)
               ? 'bg-action text-white'
@@ -144,7 +149,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
         </button>
         <button
           type="button"
-          class="rounded-btn px-md py-xs text-base font-medium transition"
+          class="rounded-btn px-md py-xs text-base font-medium transition phone:min-h-11 phone:flex-1"
           :class="
             isAllHistory ? 'bg-action text-white' : 'text-muted hover:bg-hover hover:text-primary'
           "

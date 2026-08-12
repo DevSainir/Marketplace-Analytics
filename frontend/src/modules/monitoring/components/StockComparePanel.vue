@@ -34,7 +34,11 @@ defineEmits(['change-day', 'toggle-mark'])
      both render the same rows (see `sharedStockSizes`). -->
   <section class="mt-lg" aria-label="Остатки по складам">
     <h2 class="text-h3 font-semibold text-primary">Остатки по складам</h2>
-    <div class="mt-sm flex gap-md">
+    <!-- Side by side is the whole point of the panel, but at 402pt each side
+         gets ~190px and neither table is readable — so on a phone the pair
+         stacks and the comparison becomes vertical. Each side keeps its own day
+         picker, which is what labels it once they are no longer left/right. -->
+    <div class="mt-sm flex gap-md phone:flex-col">
       <div v-for="side in ['left', 'right']" :key="side" class="min-w-0 flex-1">
         <DayPicker
           class="mb-xs"

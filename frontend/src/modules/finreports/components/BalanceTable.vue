@@ -23,6 +23,7 @@
  */
 import { computed, ref, toRefs } from 'vue'
 
+import BalanceCards from '@/modules/finreports/components/BalanceCards.vue'
 import BalanceColumnTotals from '@/modules/finreports/components/BalanceColumnTotals.vue'
 import BalanceGrid from '@/modules/finreports/components/BalanceGrid.vue'
 import BalanceMarkMenu from '@/modules/finreports/components/BalanceMarkMenu.vue'
@@ -113,45 +114,60 @@ function forwardWheel(event) {
       {{ isFiltering ? 'Нет артикулов по фильтру' : 'Нет остатков на выбранный день' }}
     </div>
 
-    <div v-else class="balance-blocks">
-      <BalanceGrid
-        ref="grid"
+    <!-- Below `sm` the grid and its three total panels become one card per SKU
+         (see the phone-layout skill for why the switch is at `sm`, not at
+         `phone:`). Same rows, same totals — only the projection differs. The
+         grid's half is hidden from BalanceTable.css rather than with `hidden`,
+         because `.balance-blocks` is a scoped rule and outranks the utility. -->
+    <template v-else>
+      <BalanceCards
+        class="balance-block sm:hidden"
+        :rows="tableRows"
         :columns="columns"
-        :rows="tableRows"
+        :totals="totals"
         :money="money"
-        :pinned-count="pinnedCount"
-        :uncounted-count="uncountedCount"
-        :ordinary-count="ordinaryCount"
-        :is-group-boundary="isGroupBoundary"
-        :is-row-boundary="isRowBoundary"
-        @scroll="syncPanels"
-        @open-menu="openMenu($event.event, $event.target)"
-        @show-tip="showNameTip($event.event, $event.name, $event.limit)"
-        @hide-tip="hideNameTip"
       />
 
-      <BalanceRowTotals
-        ref="rowTotals"
-        :rows="tableRows"
-        :money="money"
-        :is-row-boundary="isRowBoundary"
-        @wheel="forwardWheel"
-      />
+      <div class="balance-blocks">
+        <BalanceGrid
+          ref="grid"
+          :columns="columns"
+          :rows="tableRows"
+          :money="money"
+          :pinned-count="pinnedCount"
+          :uncounted-count="uncountedCount"
+          :ordinary-count="ordinaryCount"
+          :is-group-boundary="isGroupBoundary"
+          :is-row-boundary="isRowBoundary"
+          @scroll="syncPanels"
+          @open-menu="openMenu($event.event, $event.target)"
+          @show-tip="showNameTip($event.event, $event.name, $event.limit)"
+          @hide-tip="hideNameTip"
+        />
 
-      <BalanceColumnTotals
-        ref="columnTotals"
-        :warehouses="totals.warehouses"
-        :money="money"
-        :is-group-boundary="isGroupBoundary"
-        @wheel="forwardWheel"
-      />
+        <BalanceRowTotals
+          ref="rowTotals"
+          :rows="tableRows"
+          :money="money"
+          :is-row-boundary="isRowBoundary"
+          @wheel="forwardWheel"
+        />
 
-      <div class="balance-block corner-block">
-        <div class="corner-label">Итого</div>
-        <div class="corner-value tabular-nums">{{ formatNumber(totals.quantity) }} шт</div>
-        <div class="corner-value corner-money tabular-nums">{{ money(totals.balance) }}</div>
+        <BalanceColumnTotals
+          ref="columnTotals"
+          :warehouses="totals.warehouses"
+          :money="money"
+          :is-group-boundary="isGroupBoundary"
+          @wheel="forwardWheel"
+        />
+
+        <div class="balance-block corner-block">
+          <div class="corner-label">Итого</div>
+          <div class="corner-value tabular-nums">{{ formatNumber(totals.quantity) }} шт</div>
+          <div class="corner-value corner-money tabular-nums">{{ money(totals.balance) }}</div>
+        </div>
       </div>
-    </div>
+    </template>
 
     <BalanceMarkMenu
       :menu="menu"

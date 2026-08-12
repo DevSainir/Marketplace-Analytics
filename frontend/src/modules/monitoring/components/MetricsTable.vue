@@ -42,6 +42,7 @@ import MatrixMetricsRows from '@/modules/monitoring/components/MatrixMetricsRows
 import MatrixActionsRow from '@/modules/monitoring/components/MatrixActionsRow.vue'
 import MatrixCommentsRow from '@/modules/monitoring/components/MatrixCommentsRow.vue'
 import MatrixDayBlocksRow from '@/modules/monitoring/components/MatrixDayBlocksRow.vue'
+import MetricsDayList from '@/modules/monitoring/components/MetricsDayList.vue'
 import { TRAFFIC_GROUPS } from '@/modules/monitoring/metricsMatrix'
 import { useMatrixColumns } from '@/modules/monitoring/matrixColumns'
 import { useAssocHover } from '@/modules/monitoring/useAssocHover'
@@ -92,87 +93,116 @@ watch(
 </script>
 
 <template>
-  <!-- --matrix-days drives the fixed-layout width so EXACTLY two day
-       sections fill the viewport (see .app-datatable--matrix in main.css). -->
-  <div class="app-datatable app-datatable--matrix" :style="`--matrix-days: ${days.length}`">
-    <div v-if="!rows.length" class="px-md py-xl text-center text-base text-muted">
-      Нет данных за выбранный период.
-    </div>
+  <div>
+    <!--
+      Below `sm` the matrix is not a table at all — see MetricsDayList. The
+      switch is at `sm` (640px) rather than at the `phone:` breakpoint because
+      it is a capability threshold, not a phone tweak: the fixed layout divides
+      the width between two day sections, so anything under ~640px squeezes the
+      8 leaf columns until the numbers overlap. Both read the same rows.
+    -->
+    <MetricsDayList
+      class="rounded-card border border-border-subtle bg-surface p-md shadow-card sm:hidden"
+      :days="days"
+      :rows="rows"
+      :price-rows="priceRows"
+      :stock-rows="stockRows"
+      :stock-total-rows="stockTotalRows"
+      :editing-disabled="editingDisabled"
+      :comments="comments"
+      :comment-saving-days="commentSavingDays"
+      :day-actions="dayActions"
+      :action-saving-days="actionSavingDays"
+      @edit="emit('edit', $event)"
+      @comment="emit('comment', $event)"
+      @action="emit('action', $event)"
+    />
 
+    <!-- --matrix-days drives the fixed-layout width so EXACTLY two day
+         sections fill the viewport (see .app-datatable--matrix in main.css). -->
     <div
-      v-else
-      ref="scroll"
-      v-drag-scroll
-      class="matrix-scroll"
-      @mouseover="onMatrixOver"
-      @mouseleave="hideAssocTip"
+      class="app-datatable app-datatable--matrix hidden sm:block"
+      :style="`--matrix-days: ${days.length}`"
     >
-      <table>
-        <thead>
-          <!-- Row 1: date, one label spanning each day's 8 columns. -->
-          <tr>
-            <th>Дата</th>
-            <th v-for="day in days" :key="day.iso" :colspan="8">{{ day.label }}</th>
-          </tr>
-          <!-- Row 2: «Тип получения трафика» groups (Общая/Органика span row 3). -->
-          <tr>
-            <th>Тип получения трафика</th>
-            <template v-for="day in days" :key="day.iso">
-              <th
-                v-for="group in TRAFFIC_GROUPS"
-                :key="`${day.iso}:${group.label}`"
-                :colspan="group.span"
-                :rowspan="group.spansZones ? 2 : 1"
-              >
-                {{ group.label }}
-              </th>
-            </template>
-          </tr>
-          <!-- Row 3: «Зоны показов» — only the zoned leaf columns. -->
-          <tr>
-            <th>Зоны показов</th>
-            <th v-for="leaf in zoneHeaderColumns" :key="leaf.id">{{ leaf.zone }}</th>
-          </tr>
-        </thead>
+      <div v-if="!rows.length" class="px-md py-xl text-center text-base text-muted">
+        Нет данных за выбранный период.
+      </div>
 
-        <MatrixMetricsRows
-          :rows="rows"
-          :row-columns="rowColumns"
-          :assoc-data="assocData"
-          :editing-disabled="editingDisabled"
-          @edit="emit('edit', $event)"
-        />
+      <div
+        v-else
+        ref="scroll"
+        v-drag-scroll
+        class="matrix-scroll"
+        @mouseover="onMatrixOver"
+        @mouseleave="hideAssocTip"
+      >
+        <table>
+          <thead>
+            <!-- Row 1: date, one label spanning each day's 8 columns. -->
+            <tr>
+              <th>Дата</th>
+              <th v-for="day in days" :key="day.iso" :colspan="8">{{ day.label }}</th>
+            </tr>
+            <!-- Row 2: «Тип получения трафика» groups (Общая/Органика span row 3). -->
+            <tr>
+              <th>Тип получения трафика</th>
+              <template v-for="day in days" :key="day.iso">
+                <th
+                  v-for="group in TRAFFIC_GROUPS"
+                  :key="`${day.iso}:${group.label}`"
+                  :colspan="group.span"
+                  :rowspan="group.spansZones ? 2 : 1"
+                >
+                  {{ group.label }}
+                </th>
+              </template>
+            </tr>
+            <!-- Row 3: «Зоны показов» — only the zoned leaf columns. -->
+            <tr>
+              <th>Зоны показов</th>
+              <th v-for="leaf in zoneHeaderColumns" :key="leaf.id">{{ leaf.zone }}</th>
+            </tr>
+          </thead>
 
-        <!-- Day-bound «Цены»/«Остатки» blocks: ONE row, each day cell holding
-             the two tinted cards side by side, in the SAME table so they
-             scroll with their day. -->
+          <MatrixMetricsRows
+            :rows="rows"
+            :row-columns="rowColumns"
+            :assoc-data="assocData"
+            :editing-disabled="editingDisabled"
+            @edit="emit('edit', $event)"
+          />
 
-        <MatrixDayBlocksRow
-          :days="days"
-          :price-rows="priceRows"
-          :stock-rows="stockRows"
-          :stock-total-rows="stockTotalRows"
-          :editing-disabled="editingDisabled"
-          @edit="emit('edit', $event)"
-        />
+          <!-- Day-bound «Цены»/«Остатки» blocks: ONE row, each day cell holding
+               the two tinted cards side by side, in the SAME table so they
+               scroll with their day. -->
 
-        <MatrixCommentsRow
-          :days="days"
-          :comments="comments"
-          :comment-saving-days="commentSavingDays"
-          @comment="emit('comment', $event)"
-        />
+          <MatrixDayBlocksRow
+            :days="days"
+            :price-rows="priceRows"
+            :stock-rows="stockRows"
+            :stock-total-rows="stockTotalRows"
+            :editing-disabled="editingDisabled"
+            @edit="emit('edit', $event)"
+          />
 
-        <MatrixActionsRow
-          :days="days"
-          :day-actions="dayActions"
-          :action-saving-days="actionSavingDays"
-          @action="emit('action', $event)"
-        />
-      </table>
+          <MatrixCommentsRow
+            :days="days"
+            :comments="comments"
+            :comment-saving-days="commentSavingDays"
+            @comment="emit('comment', $event)"
+          />
+
+          <MatrixActionsRow
+            :days="days"
+            :day-actions="dayActions"
+            :action-saving-days="actionSavingDays"
+            @action="emit('action', $event)"
+          />
+        </table>
+      </div>
+
+      <AssocBreakdownTip :tip="assocTip" />
     </div>
-
-    <AssocBreakdownTip :tip="assocTip" />
   </div>
 </template>
 

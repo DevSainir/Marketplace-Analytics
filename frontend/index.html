@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- `viewport-fit=cover` lets the canvas run edge to edge under the Dynamic
+         Island and the home indicator, which is why the layout must pay for the
+         safe areas itself — see `.app-container` / `.pt-safe` / `.pb-safe`
+         in src/assets/main.css. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- Design-system typeface: Inter Tight (see design_system.md / tailwind fontFamily.sans). -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

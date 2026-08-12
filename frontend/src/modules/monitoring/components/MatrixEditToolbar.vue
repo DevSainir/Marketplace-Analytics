@@ -48,14 +48,17 @@ defineEmits(['save', 'refresh'])
       >+<kbd class="rounded border border-border-subtle px-1">Z</kbd> — повторить.
     </p>
 
-    <div class="ml-auto flex items-center gap-sm">
+    <!-- The keyboard hint above is desktop advice (there is no Ctrl+Z on a
+         phone), so on a phone the actions come first and take the full width
+         rather than sitting as two stubs at the right edge. -->
+    <div class="ml-auto flex flex-wrap items-center gap-sm phone:order-first phone:w-full">
       <span v-if="dirty" class="text-base font-bold text-status-warning">
         Есть несохранённые изменения
       </span>
       <button
         type="button"
         :disabled="!dirty || saving || refreshing"
-        class="inline-flex h-9 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover disabled:cursor-not-allowed disabled:text-muted disabled:opacity-60"
+        class="inline-flex h-9 items-center justify-center rounded-btn phone:h-11 phone:flex-1 bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover disabled:cursor-not-allowed disabled:text-muted disabled:opacity-60"
         @click="$emit('save')"
       >
         {{ saving ? 'Сохраняем…' : 'Сохранить' }}
@@ -63,7 +66,7 @@ defineEmits(['save', 'refresh'])
       <button
         type="button"
         :disabled="loading || refreshing || saving"
-        class="inline-flex h-9 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+        class="inline-flex h-9 items-center justify-center rounded-btn phone:h-11 phone:flex-1 bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
         @click="$emit('refresh')"
       >
         {{ refreshing ? 'Обновляем из Wildberries…' : 'Обновить' }}

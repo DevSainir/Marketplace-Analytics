@@ -119,8 +119,28 @@ describe('which edits reach the server', () => {
   it('offers the explicit clear only on rows that have a cost', () => {
     const wrapper = mountGrid()
 
-    const clears = wrapper.findAll('button').filter((b) => b.text() === 'Очистить')
+    // Both projections render — CSS hides one per viewport and jsdom applies
+    // none — so each is counted on its own. A single total would still pass if
+    // one projection lost the rule and the other grew a spare button.
+    const inTable = wrapper.findAll('tbody tr').filter((tr) => tr.text().includes('Очистить'))
+    const inRows = wrapper.findAll('.record-card').filter((li) => li.text().includes('Очистить'))
 
-    expect(clears).toHaveLength(1)
+    expect(inTable).toHaveLength(1)
+    expect(inRows).toHaveLength(1)
+  })
+
+  it('collects an edit typed into the phone row list, not just the table', async () => {
+    // The two projections write the same draft buffer through the same handler;
+    // the phone one hands over a raw value where the table hands over an event.
+    const wrapper = mountGrid()
+
+    const row = wrapper.findAll('.record-card').find((li) => li.text().includes('m-lnx02-blk'))
+    await row.find('input').setValue('800')
+    await saveButton(wrapper).trigger('click')
+
+    const { save } = wrapper.emitted('save')[0][0]
+    expect(save).toEqual([
+      { nm_id: 940954338, cost: 800, currency: 'KGS', vendor_code: 'm-lnx02-blk' },
+    ])
   })
 })

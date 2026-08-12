@@ -56,28 +56,31 @@ const navLinks = [
 <template>
   <!-- Chrome sits on the SAME canvas as the page (see design_system.md
        «Page Chrome & Canvas») — one plane, only cards are surfaces. -->
-  <header class="sticky top-0 z-30 border-b border-border-subtle bg-canvas">
-    <!-- Same container width as the monitoring canvas (80rem + 2/3 of the
-         spare viewport beyond it) so chrome and page share their side margins. -->
-    <nav
-      class="mx-auto flex h-14 w-full max-w-[calc(26.667rem_+_66.667vw)] items-center justify-between px-md sm:px-lg"
-    >
+  <!-- `pt-safe`: with viewport-fit=cover the sticky header starts at the very
+       top of the display, so it pads itself past the Dynamic Island and its
+       canvas fills that strip instead of leaving a black bar. -->
+  <header class="sticky top-0 z-30 border-b border-border-subtle bg-canvas pt-safe">
+    <!-- `.app-container` is the shared width + safe-area gutter (main.css), so
+         chrome and page keep the same side margins on every route. -->
+    <nav class="app-container flex h-14 items-center justify-between">
       <!-- Logo (stub) -->
-      <RouterLink to="/" class="flex items-center gap-sm" @click="closeMenu">
+      <RouterLink to="/" class="flex min-w-0 items-center gap-sm" @click="closeMenu">
         <span
-          class="flex h-8 w-8 items-center justify-center rounded-btn bg-action text-h3 font-bold text-white"
+          class="flex h-8 w-8 flex-none items-center justify-center rounded-btn bg-action text-h3 font-bold text-white"
           aria-hidden="true"
         >
           М
         </span>
-        <span class="text-h3 font-semibold tracking-tight text-primary">
-          Аналитика<span class="text-muted"> · WB</span>
+        <span class="truncate text-h3 font-semibold tracking-tight text-primary">
+          <!-- On a phone the right cluster (switcher + profile + burger) needs
+               the room more than the qualifier does — the mark stays. -->
+          Аналитика<span class="text-muted phone:hidden"> · WB</span>
         </span>
       </RouterLink>
 
       <!-- Right cluster: workspace switcher + profile link (auth) / login link
            (guest) + burger -->
-      <div class="flex items-center gap-sm">
+      <div class="flex flex-none items-center gap-sm">
         <WorkspaceMenu
           v-if="isAuthenticated"
           :workspaces="workspaces"
@@ -145,13 +148,13 @@ const navLinks = [
       leave-to-class="-translate-y-2 opacity-0"
     >
       <div v-if="menuOpen" class="border-t border-border-subtle bg-canvas">
-        <div class="mx-auto w-full max-w-[calc(26.667rem_+_66.667vw)] px-md py-md sm:px-lg">
+        <div class="app-container py-md">
           <div class="flex flex-col gap-xs">
             <RouterLink
               v-for="link in navLinks"
               :key="link.to"
               :to="link.to"
-              class="rounded-btn px-md py-sm text-base font-medium text-muted transition hover:bg-surface hover:text-primary"
+              class="rounded-btn px-md py-sm text-base font-medium text-muted transition hover:bg-surface hover:text-primary phone:py-md"
               :active-class="link.exact ? '' : 'bg-surface text-primary'"
               :exact-active-class="link.exact ? 'bg-surface text-primary' : ''"
               @click="closeMenu"
@@ -167,7 +170,7 @@ const navLinks = [
               </p>
               <RouterLink
                 to="/profile"
-                class="mt-xs block rounded-btn px-md py-sm text-base font-medium text-muted transition hover:bg-surface hover:text-primary"
+                class="mt-xs block rounded-btn px-md py-sm text-base font-medium text-muted transition hover:bg-surface hover:text-primary phone:py-md"
                 active-class="bg-surface text-primary"
                 @click="closeMenu"
               >
@@ -175,7 +178,7 @@ const navLinks = [
               </RouterLink>
               <button
                 type="button"
-                class="mt-xs w-full rounded-btn px-md py-sm text-left text-base font-medium text-status-negative transition hover:bg-status-negative/10"
+                class="mt-xs w-full rounded-btn px-md py-sm text-left text-base font-medium text-status-negative transition hover:bg-status-negative/10 phone:py-md"
                 @click="onLogout"
               >
                 Выйти

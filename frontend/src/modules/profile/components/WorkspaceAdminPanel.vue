@@ -64,17 +64,19 @@ function onRemove(id) {
     </p>
 
     <!-- Create -->
-    <form class="mt-md flex gap-sm" @submit.prevent="onCreate">
+    <!-- Side by side, the button leaves the field too narrow to read a name
+         back on a phone, so the pair stacks. -->
+    <form class="mt-md flex gap-sm phone:flex-col" @submit.prevent="onCreate">
       <input
         v-model="newName"
         type="text"
         placeholder="Название нового пространства"
-        class="w-full rounded-input border border-border-subtle bg-canvas px-md py-sm text-base text-primary placeholder:text-muted focus:border-action focus:outline-none"
+        class="w-full rounded-input border border-border-subtle bg-canvas px-md py-sm text-base text-primary placeholder:text-muted focus:border-action focus:outline-none phone:min-h-11"
       />
       <button
         type="submit"
         :disabled="busy || !newName.trim()"
-        class="shrink-0 rounded-btn bg-action px-md py-sm text-base font-semibold text-white transition hover:bg-action-hover disabled:opacity-50"
+        class="shrink-0 rounded-btn bg-action px-md py-sm text-base font-semibold text-white transition hover:bg-action-hover disabled:opacity-50 phone:min-h-11"
       >
         Создать
       </button>
@@ -83,7 +85,12 @@ function onRemove(id) {
     <!-- Workspace list with per-workspace token editors -->
     <ul class="mt-md flex flex-col gap-sm">
       <li v-for="ws in workspaces" :key="ws.id" class="rounded-card border border-border-subtle">
-        <div class="flex items-center justify-between gap-sm px-md py-sm">
+        <!-- Name opposite its two actions needs ~420px before the name starts
+             truncating to nothing («И…»), so on a phone the row becomes two:
+             the workspace it is, then what you can do to it. -->
+        <div
+          class="flex items-center justify-between gap-sm px-md py-sm phone:flex-col phone:items-stretch phone:gap-xs"
+        >
           <span class="flex min-w-0 items-center gap-xs">
             <span class="truncate text-base font-medium text-primary">{{ ws.name }}</span>
             <span
@@ -93,10 +100,10 @@ function onRemove(id) {
               основное
             </span>
           </span>
-          <div class="flex shrink-0 items-center gap-xs">
+          <div class="flex shrink-0 items-center gap-xs phone:justify-between">
             <button
               type="button"
-              class="rounded-btn px-md py-xs text-tiny font-medium text-action transition hover:bg-action/10"
+              class="rounded-btn px-md py-xs text-tiny font-medium text-action transition hover:bg-action/10 phone:min-h-11 phone:flex-1"
               @click="toggleExpand(ws.id)"
             >
               {{ expandedId === ws.id ? 'Скрыть токены' : 'Токены WB' }}
@@ -104,7 +111,7 @@ function onRemove(id) {
             <button
               type="button"
               :disabled="busy"
-              class="rounded-btn px-md py-xs text-tiny font-medium transition disabled:opacity-50"
+              class="rounded-btn px-md py-xs text-tiny font-medium transition disabled:opacity-50 phone:min-h-11 phone:flex-1"
               :class="
                 confirmDeleteId === ws.id
                   ? 'bg-status-negative text-white hover:bg-status-negative/80'
