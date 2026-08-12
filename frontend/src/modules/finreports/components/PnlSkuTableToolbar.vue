@@ -132,7 +132,10 @@ function closeSearch() {
       <option v-for="b in brands" :key="b" :value="b">{{ b }}</option>
     </select>
 
-    <div v-if="pageSizes.length" class="ml-auto flex items-center gap-sm">
+    <!-- Page size belongs to the DataTable's paginator; the phone card list
+         grows with its own «Показать ещё», so this control would do nothing
+         there and reads as broken. -->
+    <div v-if="pageSizes.length" class="ml-auto hidden items-center gap-sm sm:flex">
       <label class="text-tiny text-muted" for="sku-page-size">Строк на странице:</label>
       <select
         id="sku-page-size"

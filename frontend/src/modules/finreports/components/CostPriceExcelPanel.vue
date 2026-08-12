@@ -31,7 +31,9 @@ function onFile(event) {
 </script>
 
 <template>
-  <section class="mb-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card">
+  <section
+    class="mb-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
+  >
     <div class="text-tiny font-medium uppercase tracking-wide text-muted">Excel: массовый ввод</div>
     <p class="mt-xs max-w-2xl text-base text-muted">
       Скачайте P&amp;L по артикулам, заполните столбец «Себестоимость за 1 ед.» (в
@@ -39,10 +41,10 @@ function onFile(event) {
       «Артикул WB»; пустые ячейки ничего не меняют. Форматы: .xlsx, .xls, .csv.
     </p>
 
-    <div class="mt-md flex flex-wrap items-center gap-md">
+    <div class="mt-md flex flex-wrap items-center gap-md phone:gap-sm">
       <button
         type="button"
-        class="rounded-btn border border-border-subtle px-lg py-sm text-base font-semibold text-primary transition hover:border-action disabled:cursor-not-allowed disabled:opacity-50"
+        class="rounded-btn border border-border-subtle px-lg py-sm text-base font-semibold text-primary transition hover:border-action disabled:cursor-not-allowed disabled:opacity-50 phone:min-h-11 phone:w-full"
         :disabled="busy"
         @click="emit('export')"
       >
@@ -50,7 +52,7 @@ function onFile(event) {
       </button>
 
       <label
-        class="cursor-pointer rounded-btn bg-action px-lg py-sm text-base font-semibold text-white transition hover:bg-action-hover"
+        class="cursor-pointer rounded-btn bg-action px-lg py-sm text-center text-base font-semibold text-white transition hover:bg-action-hover phone:flex phone:min-h-11 phone:w-full phone:items-center phone:justify-center"
         :class="busy ? 'cursor-not-allowed opacity-50' : ''"
       >
         {{ busy ? 'Загрузка…' : 'Загрузить Excel' }}

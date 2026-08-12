@@ -163,8 +163,24 @@ async def _harvest_sku_window(
         not the same event as one that found nothing, and the caller must be
         able to tell the two apart.
     """
+    # Each SKU's catalogued size ids, for the synthetic stock client — a real
+    # stock response carries its own sizes and the real client discards this
+    # (see :func:`build_analytics_client`). Read unconditionally rather than
+    # behind the fake-harvest flag: the point of the factory seam is that this
+    # body is byte-identical in both environments, and one indexed lookup is
+    # nothing beside the WB round-trips below. Cards, when the discover flow
+    # already fetched them, additionally cover SKUs the catalogue has not been
+    # told about yet — their sizes land later in this same transaction.
+    async with AsyncSessionLocal() as session:
+        size_ids_by_nm = await ProductSizeRepository(session).get_chrt_ids_by_nm_ids(nm_ids)
+    for card in cards or []:
+        if card.sizes:
+            size_ids_by_nm[card.nm_id] = sorted({size.chrt_id for size in card.sizes})
+
     async with (
-        build_analytics_client(settings, token=tokens.analytics) as analytics_client,
+        build_analytics_client(
+            settings, token=tokens.analytics, size_ids_by_nm=size_ids_by_nm
+        ) as analytics_client,
         build_advertising_client(settings, token=tokens.advertising) as advertising_client,
         build_prices_client(settings, token=tokens.prices, nm_ids=nm_ids) as prices_client,
         build_card_client(settings) as card_client,

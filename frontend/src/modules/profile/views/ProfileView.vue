@@ -59,19 +59,27 @@ async function onSaveTokens({ workspaceId, tokens }) {
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-[calc(26.667rem_+_66.667vw)] px-md py-lg sm:px-lg">
-    <div class="mx-auto flex w-full max-w-2xl flex-col gap-lg">
+  <!-- `.app-container` is the shared canvas width + safe-area gutter (main.css). -->
+  <div class="app-container py-lg">
+    <div class="mx-auto flex w-full max-w-2xl flex-col gap-lg phone:gap-md">
       <!-- Account card -->
       <section class="rounded-card border border-border-subtle bg-surface p-lg shadow-card">
         <h1 class="text-h2 font-bold text-primary">Профиль</h1>
-        <dl class="mt-md flex flex-col gap-sm">
-          <div class="flex items-center justify-between gap-md">
+        <!-- Label opposite value reads well at desktop width; on a phone an
+             email or a workspace name takes the whole line, so the pair stacks
+             and the value is free to use it. -->
+        <dl class="mt-md flex flex-col gap-sm phone:gap-md">
+          <div
+            class="flex items-center justify-between gap-md phone:flex-col phone:items-start phone:gap-0"
+          >
             <dt class="text-tiny font-medium text-muted">Email</dt>
-            <dd class="truncate text-base font-medium text-primary">
+            <dd class="min-w-0 truncate text-base font-medium text-primary phone:w-full">
               {{ store.me?.email ?? '—' }}
             </dd>
           </div>
-          <div class="flex items-center justify-between gap-md">
+          <div
+            class="flex items-center justify-between gap-md phone:flex-col phone:items-start phone:gap-xs"
+          >
             <dt class="text-tiny font-medium text-muted">Роль</dt>
             <dd>
               <span
@@ -86,9 +94,11 @@ async function onSaveTokens({ workspaceId, tokens }) {
               </span>
             </dd>
           </div>
-          <div class="flex items-center justify-between gap-md">
+          <div
+            class="flex items-center justify-between gap-md phone:flex-col phone:items-start phone:gap-0"
+          >
             <dt class="text-tiny font-medium text-muted">Активное пространство</dt>
-            <dd class="truncate text-base font-medium text-primary">
+            <dd class="min-w-0 truncate text-base font-medium text-primary phone:w-full">
               {{ store.currentWorkspace?.name ?? '—' }}
             </dd>
           </div>

@@ -26,9 +26,11 @@ paint its own. The app header and its dropdown use the **same** `bg-canvas` with
 `bg-surface` is for elevated blocks only — cards, tables, popovers, dropdowns. The recipe is
 `bg-surface border border-border-subtle rounded-card shadow-card`, padded `p-lg`.
 
-Header nav and page content share one container width:
-`mx-auto w-full max-w-[calc(26.667rem_+_66.667vw)] px-md sm:px-lg` — 80rem plus two thirds of
-the viewport beyond it, so side margins line up on every page.
+Header nav and page content share one container: **`.app-container`** in
+`src/assets/main.css` — 80rem plus two thirds of the viewport beyond it, so side margins line up
+on every page. Use the class, not the literal `mx-auto w-full max-w-[calc(...)] px-md sm:px-lg`
+it replaced; the class also carries the horizontal safe area (below), which the literal recipe
+cannot. Views still carry their own `py-*`.
 
 **No glassmorphism.** `backdrop-blur`, `backdrop-saturate` and translucent surfaces
 (`bg-surface/NN`, `bg-white/NN`, rgba surface tokens) are out. A glass UI was built and removed;
@@ -37,6 +39,10 @@ exists as a separate token for the same grey `surface` uses.
 
 Anything using z-index inside a card (frozen table columns) must be contained by that card —
 `isolation: isolate` on `.app-datatable` — so it can never stack above page chrome.
+
+Widths are a separate subject: the app has one phone breakpoint (`phone:`, max-width 430px) and a
+safe-area contract that `.app-container` is part of. Both live in the **phone-layout** skill —
+read it before making anything narrow.
 
 ## Type
 

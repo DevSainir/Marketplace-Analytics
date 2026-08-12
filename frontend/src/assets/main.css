@@ -10,6 +10,31 @@
 
 @layer components {
   /*
+   * The one shared page/chrome container (design_system.md «Page Chrome &
+   * Canvas»): 80rem plus two thirds of the spare viewport, so the header nav
+   * and the page content line up their side margins on every route.
+   *
+   * It owns the horizontal safe area too. `viewport-fit=cover` in index.html
+   * hands us the full display, bezel included, so the gutter is the DESIGN
+   * gutter or the device inset, whichever is larger — on a phone held sideways
+   * that inset is ~59px and without the max() the first column of a table sits
+   * under the curve of the screen. On everything else env() resolves to 0px and
+   * this is exactly `px-md sm:px-lg`.
+   */
+  .app-container {
+    @apply mx-auto w-full max-w-[calc(26.667rem_+_66.667vw)];
+    padding-left: max(theme('spacing.md'), env(safe-area-inset-left));
+    padding-right: max(theme('spacing.md'), env(safe-area-inset-right));
+  }
+
+  @media (min-width: theme('screens.sm')) {
+    .app-container {
+      padding-left: max(theme('spacing.lg'), env(safe-area-inset-left));
+      padding-right: max(theme('spacing.lg'), env(safe-area-inset-right));
+    }
+  }
+
+  /*
    * Design tokens for the unstyled PrimeVue DataTable.
    * PrimeVue renders semantic <table> markup plus data-pc-* styling hooks,
    * so the design-system table skin lives here in one place (see design_system.md).
@@ -196,5 +221,24 @@
   .app-datatable--matrix tbody td:nth-child(8n + 7),
   .app-datatable--matrix tbody td:nth-child(8n) {
     @apply border-l-2 border-l-[#d9d9d9];
+  }
+}
+
+@layer utilities {
+  /*
+   * Vertical safe areas, the counterpart to `.app-container`'s horizontal ones.
+   *
+   * Apply them only to elements that have NO padding of their own on that edge
+   * (the sticky header's top, the <main> wrapper's bottom) — they set padding
+   * rather than add to it, so they push the whole page's content clear of the
+   * Dynamic Island and the home indicator once, instead of every view having to
+   * remember. Both resolve to 0px wherever there is no inset.
+   */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }

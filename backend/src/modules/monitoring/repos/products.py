@@ -173,6 +173,36 @@ class ProductSizeRepository(BaseRepository):
             rows, conflict_columns=_SIZE_CONFLICT, update_columns=_SIZE_UPDATE
         )
 
+    async def get_chrt_ids_by_nm_ids(self, nm_ids: Iterable[int]) -> dict[int, list[int]]:
+        """Return each SKU's known size characteristic ids.
+
+        The inverse of :meth:`get_labels_by_chrt_ids`: that one decorates a
+        label-less fact with its size, this one asks which sizes a SKU has at
+        all. Its caller is the harvest, which hands the map to the synthetic
+        stock client so fake stock lands on the SKU's REAL sizes and therefore
+        resolves to a real label (see the factory).
+
+        Args:
+            nm_ids: SKU ids to look up.
+
+        Returns:
+            A mapping of ``nm_id -> [chrt_id, ...]``, ascending. SKUs with no
+            catalogued sizes are omitted rather than mapped to an empty list.
+        """
+        ids = list(nm_ids)
+        if not ids:
+            return {}
+        stmt = (
+            select(ProductSize.nm_id, ProductSize.chrt_id)
+            .where(ProductSize.nm_id.in_(ids))
+            .order_by(ProductSize.nm_id, ProductSize.chrt_id)
+        )
+        result = await self._session.execute(stmt)
+        sizes: dict[int, list[int]] = {}
+        for nm_id, chrt_id in result.all():
+            sizes.setdefault(nm_id, []).append(chrt_id)
+        return sizes
+
     async def get_labels_by_chrt_ids(self, chrt_ids: Iterable[int]) -> dict[int, str]:
         """Return a ``chrt_id -> tech_size`` label map for the given ids.
 

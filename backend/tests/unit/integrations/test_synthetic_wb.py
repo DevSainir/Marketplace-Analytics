@@ -108,6 +108,69 @@ async def test_synthetic_customer_price_is_below_seller_price() -> None:
     assert 0 < customer < seller
 
 
+async def test_synthetic_stock_lands_on_the_skus_real_sizes() -> None:
+    """Stock rows carry the SKU's catalogued ``chrt_id``s, nothing invented.
+
+    A stock row has no size label of its own — the detail view joins ``chrt_id``
+    back to ``product_size`` to find one. Rows on invented ids therefore render
+    as a bare characteristic id, which is a local-only difference from
+    production that reads as a bug in the panel.
+    """
+    sizes = {101: [917310181, 917338406, 917338407]}
+
+    async with build_analytics_client(_fake(), token="t", size_ids_by_nm=sizes) as client:
+        rows = await client.fetch_warehouse_stocks(nm_ids=[101])
+
+    assert rows
+    assert {row.chrt_id for row in rows} <= set(sizes[101])
+
+
+async def test_synthetic_stock_spans_every_warehouse() -> None:
+    """Each warehouse gets rows, so the «Остатки по складам» panel has columns."""
+    async with build_analytics_client(
+        _fake(), token="t", size_ids_by_nm={101: [1, 2, 3, 4]}
+    ) as client:
+        rows = await client.fetch_warehouse_stocks(nm_ids=[101])
+
+    assert {row.warehouse_name for row in rows} == {"Коледино", "Электросталь", "Казань"}
+
+
+async def test_synthetic_stock_falls_back_for_an_uncatalogued_sku() -> None:
+    """A SKU whose sizes are unknown still gets stock — unlabelled, correctly.
+
+    The first harvest of a new account fetches stock before its cards land, so
+    there is genuinely no size to name yet.
+    """
+    async with build_analytics_client(_fake(), token="t") as client:
+        rows = await client.fetch_warehouse_stocks(nm_ids=[101])
+
+    assert rows
+    assert {row.chrt_id for row in rows} <= {10100, 10101, 10102}
+
+
+async def test_synthetic_stock_is_deterministic() -> None:
+    """The same SKU yields the same stock on every call — a moving snapshot
+    would make the day-over-day comparison panel useless for debugging."""
+    sizes = {101: [11, 22, 33]}
+
+    async with build_analytics_client(_fake(), token="t", size_ids_by_nm=sizes) as client:
+        first = await client.fetch_warehouse_stocks(nm_ids=[101])
+        second = await client.fetch_warehouse_stocks(nm_ids=[101])
+
+    assert [(r.chrt_id, r.warehouse_name, r.quantity) for r in first] == [
+        (r.chrt_id, r.warehouse_name, r.quantity) for r in second
+    ]
+
+
+async def test_the_real_analytics_client_ignores_the_size_map() -> None:
+    """``size_ids_by_nm`` is a synthetic-only crutch: a real stock response
+    carries its own sizes, so the production client must not grow a dependency
+    on the caller having looked them up."""
+    client = build_analytics_client(_real(), token="t", size_ids_by_nm={101: [1, 2]})
+
+    assert type(client) is WBAnalyticsClient
+
+
 async def test_synthetic_cohort_is_empty() -> None:
     """No synthetic buyout cohorts: the real endpoint is catalogue-wide with no
     SKU filter, so a DB-free client has no basis to answer for specific SKUs."""

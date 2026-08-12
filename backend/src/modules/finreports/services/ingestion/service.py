@@ -12,6 +12,8 @@ The mapping itself lives in :mod:`.rows` and the upsert column lists in
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncGenerator
+from contextlib import aclosing
 from datetime import date
 from decimal import Decimal
 
@@ -33,8 +35,8 @@ from src.modules.finreports.services.ingestion.columns import (
 )
 from src.modules.finreports.services.ingestion.rows import (
     dedupe,
+    merge_report_headers,
     number_units,
-    report_headers,
     settlement_row,
 )
 
@@ -56,29 +58,59 @@ class IngestionService:
         self._measurements = measurement_repo
 
     async def ingest_finance_report(
-        self, rows: list[WBReportDetailRow], *, workspace_id: uuid.UUID
+        self,
+        pages: AsyncGenerator[list[WBReportDetailRow], None],
+        *,
+        workspace_id: uuid.UUID,
     ) -> int:
-        """Upsert settlement rows and their weekly-report headers.
+        """Upsert a paginated settlement walk and its weekly-report headers.
+
+        Consumes the pages as they arrive and writes each one before asking for
+        the next, so neither this method nor its caller ever holds more than a
+        page. Taking a whole window as a list is what made the peak scale with
+        the seller's history — see
+        :meth:`~src.integrations.wildberries.clients.finance.WBFinanceClient.iter_report_pages`.
+
+        Every statement here goes to the caller's session and **nothing is
+        committed**: the harvest's all-or-nothing property is the caller's to
+        keep, and a walk that fails halfway must leave no settlement rows behind
+        (a half-written settlement window is a P&L that looks right and is not).
 
         Args:
-            rows: Raw ``reportDetailByPeriod`` rows.
+            pages: The paginated walk. Consumed and closed here — a walk
+                abandoned mid-way (an error below) must not be left suspended
+                holding its page and its socket.
             workspace_id: Owning workspace.
 
         Returns:
             The number of settlement rows upserted.
         """
-        if not rows:
-            return 0
-        await self._reports.bulk_upsert(
-            report_headers(rows, workspace_id=workspace_id),
-            conflict_columns=["report_id"],
-            update_columns=REPORT_UPDATE,
-        )
-        return await self._transactions.bulk_upsert(
-            [settlement_row(row, workspace_id=workspace_id) for row in rows],
-            conflict_columns=["rrd_id"],
-            update_columns=TXN_UPDATE,
-        )
+        headers: dict[int, dict[str, object]] = {}
+        total = 0
+        async with aclosing(pages):
+            async for page in pages:
+                merge_report_headers(headers, page, workspace_id=workspace_id)
+                # Re-upserting every header on every page (a handful of rows)
+                # rather than only the current page's, so the last write of a
+                # report's period is always the widest one seen so far.
+                await self._reports.bulk_upsert(
+                    list(headers.values()),
+                    conflict_columns=["report_id"],
+                    update_columns=REPORT_UPDATE,
+                )
+                total += await self._transactions.bulk_upsert(
+                    # WB's cursor is exclusive, so a repeat inside one page is
+                    # the only way a duplicate key can reach the statement —
+                    # and ON CONFLICT DO UPDATE rejects the whole batch if one
+                    # does.
+                    dedupe(
+                        [settlement_row(row, workspace_id=workspace_id) for row in page],
+                        keys=["rrd_id"],
+                    ),
+                    conflict_columns=["rrd_id"],
+                    update_columns=TXN_UPDATE,
+                )
+        return total
 
     async def ingest_tariffs(
     ) -> int:

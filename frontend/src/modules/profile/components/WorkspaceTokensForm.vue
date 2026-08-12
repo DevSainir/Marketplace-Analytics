@@ -97,7 +97,7 @@ function onSubmit() {
         autocomplete="off"
         :disabled="clearFlags[field.key]"
         placeholder="Вставьте новый токен (пусто — без изменений)"
-        class="w-full rounded-input border border-border-subtle bg-canvas px-md py-sm text-base text-primary placeholder:text-muted focus:border-action focus:outline-none disabled:opacity-50"
+        class="w-full rounded-input border border-border-subtle bg-canvas px-md py-sm text-base text-primary placeholder:text-muted focus:border-action focus:outline-none disabled:opacity-50 phone:min-h-11"
       />
       <label
         v-if="isConfigured(field.key)"
@@ -108,11 +108,11 @@ function onSubmit() {
       </label>
     </div>
 
-    <div class="flex items-center gap-md">
+    <div class="flex items-center gap-md phone:flex-col phone:items-stretch phone:gap-sm">
       <button
         type="submit"
         :disabled="saving"
-        class="rounded-btn bg-action px-md py-sm text-base font-semibold text-white transition hover:bg-action-hover disabled:opacity-50"
+        class="rounded-btn bg-action px-md py-sm text-base font-semibold text-white transition hover:bg-action-hover disabled:opacity-50 phone:min-h-11"
       >
         {{ saving ? 'Сохранение…' : 'Сохранить токены' }}
       </button>

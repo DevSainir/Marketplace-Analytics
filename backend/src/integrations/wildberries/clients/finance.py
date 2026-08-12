@@ -13,6 +13,7 @@ the right precedent.
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from datetime import date
 
 from src.core.config import Settings
@@ -24,26 +25,40 @@ from src.integrations.wildberries.schemas import WBReportDetailRow
 class WBFinanceClient(BaseWBClient):
     """Client for the WB realization/finance report (``reportDetailByPeriod``)."""
 
-    #: WB caps one response at 100 000 rows; a full page means "repeat from the
-    #: last row's ``rrd_id`` via the ``rrdid`` query cursor".
-    _PAGE_LIMIT = 100_000
+    #: Rows asked for per request. **This is a memory ceiling, not a throughput
+    #: knob.** WB allows up to 100 000, and asking for that many is what
+    #: OOM-killed the 2026-08-11 harvest: a settlement row costs ~9.7 KB while
+    #: it is being validated (measured — the raw decoded dict and the
+    #: :class:`WBReportDetailRow` coexist), so a full page is ~1 GB of transient
+    #: heap and the caller has no way to process it in smaller bites.
+    #:
+    #: At 10 000 a page costs ~125 MB including the undecoded response body,
+    #: and :meth:`iter_report_pages` hands it over before asking for the next —
+    #: so the peak is fixed by this constant rather than by how much the seller
+    #: sold. The price is more requests against a ~1 req/min surface (a 28-day
+    #: window of ~40 000 rows costs 5 instead of 1), which the harvest can
+    #: afford and an OOM kill is not.
+    _PAGE_LIMIT = 10_000
 
     #: Rows the freshness probe asks for. It only needs to know whether the
     #: window is empty, so one row is the whole answer.
     _PROBE_LIMIT = 1
 
-    def __init__(self, settings: Settings, *, token: str) -> None:
+    def __init__(self, settings: Settings, *, token: str, max_retries: int | None = None) -> None:
         """Build the finance client against the Statistics surface.
 
         Args:
             settings: Transport configuration (base URL, timeouts, retries).
             token: The workspace's «Статистика»-scope bearer token.
+            max_retries: Override for the retry ladder. The harvest lowers it
+                because it pages **inside an open transaction** — see
+                :func:`~src.modules.finreports.tasks.harvest.harvest_workspace`.
         """
         super().__init__(
             base_url=settings.wb_statistics_base_url,
             token=token,
             timeout=settings.wb_http_timeout_seconds,
-            max_retries=settings.wb_max_retries,
+            max_retries=settings.wb_max_retries if max_retries is None else max_retries,
             # Match WBStatisticsClient: ~1 req/min surface, 429s carry no
             # Retry-After, so the shared 2/4/8/16s ladder is too tight.
             backoff_base_seconds=20.0,
@@ -95,25 +110,36 @@ class WBFinanceClient(BaseWBClient):
             return None
         return WBReportDetailRow.model_validate(payload[0])
 
-    async def fetch_report(self, *, date_from: date, date_to: date) -> list[WBReportDetailRow]:
-        """Return every settlement row for the window, following the cursor.
+    async def iter_report_pages(
+        self, *, date_from: date, date_to: date
+    ) -> AsyncGenerator[list[WBReportDetailRow], None]:
+        """Yield the window's settlement rows one ``rrdid`` page at a time.
 
         Endpoint: ``GET /api/v5/supplier/reportDetailByPeriod``. Pages by
         ``rrdid`` (the last row's ``rrd_id``) until a short page is returned. A
         full page whose last ``rrd_id`` does not advance would loop forever —
         that pass raises instead, so the harvest records the source as failed.
 
+        **Nothing accumulates across pages.** This used to return the whole
+        window as one list, which made the caller's peak memory a function of
+        how much the seller sold — it grew on its own until it crossed the
+        worker's cgroup limit and the 2026-08-11 harvest was killed mid-walk.
+        The generator holds at most one page (:data:`_PAGE_LIMIT` rows), so a
+        caller that ingests each page as it arrives has a peak fixed by that
+        constant. The cursor state that survives a page is two integers.
+
         Args:
             date_from: Inclusive settlement-date window start.
             date_to: Inclusive settlement-date window end.
 
-        Returns:
-            One :class:`WBReportDetailRow` per settlement operation.
+        Yields:
+            Non-empty pages of :class:`WBReportDetailRow`, in WB's own
+            ``rrd_id`` order. Pages do not overlap: the cursor is exclusive, so
+            a row is yielded exactly once.
 
         Raises:
             IntegrationError: On an unexpected response shape or a stalled cursor.
         """
-        rows: dict[int, WBReportDetailRow] = {}
         cursor = 0
         previous_cursor: int | None = None
         while True:
@@ -129,16 +155,21 @@ class WBFinanceClient(BaseWBClient):
             )
             # WB returns null (not []) for an empty window — treat as "done".
             if payload is None:
-                break
+                return
             if not isinstance(payload, list):
                 raise IntegrationError(
                     "Unexpected reportDetailByPeriod response shape (expected a list)."
                 )
-            page = [WBReportDetailRow.model_validate(row) for row in payload]
-            for record in page:
-                rows[record.rrd_id] = record
-            if len(page) < self._PAGE_LIMIT:
-                break
+            page_size = len(payload)
+            page = _validate_draining(payload)
+            # ``payload`` is now empty, but the name still pins the (already
+            # freed) list in this frame across the yield below. Dropping it
+            # keeps the generator's retained set to the validated page alone.
+            del payload
+            if page:
+                yield page
+            if page_size < self._PAGE_LIMIT:
+                return
             next_cursor = page[-1].rrd_id
             if previous_cursor is not None and next_cursor <= previous_cursor:
                 raise IntegrationError(
@@ -147,4 +178,28 @@ class WBFinanceClient(BaseWBClient):
                 )
             previous_cursor = next_cursor
             cursor = next_cursor
-        return list(rows.values())
+            del page
+
+
+def _validate_draining(payload: list[object]) -> list[WBReportDetailRow]:
+    """Validate a decoded page, freeing each raw row as it is converted.
+
+    A list comprehension over ``payload`` would hold the whole page twice at
+    once — the decoded dicts and the models built from them. Measured on a
+    realistic settlement row that is 13.5 KB per row instead of 9.7 KB, i.e.
+    ~40 % of the page's peak for no reason: the raw dict is dead the moment its
+    model exists. Draining from the end (``pop`` is O(1)) drops each one
+    immediately; the result is reversed back into WB's order, which the cursor
+    depends on.
+
+    Args:
+        payload: The decoded JSON page. **Emptied by this call.**
+
+    Returns:
+        The validated rows in their original order.
+    """
+    rows: list[WBReportDetailRow] = []
+    while payload:
+        rows.append(WBReportDetailRow.model_validate(payload.pop()))
+    rows.reverse()
+    return rows

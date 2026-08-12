@@ -28,10 +28,23 @@ from src.integrations.wildberries.synthetic import (
 )
 
 
-def build_analytics_client(settings: Settings, *, token: str) -> WBAnalyticsClient:
-    """The analytics (funnel + stocks + cohort) client — real or synthetic."""
+def build_analytics_client(
+    settings: Settings,
+    *,
+    token: str,
+    size_ids_by_nm: dict[int, list[int]] | None = None,
+) -> WBAnalyticsClient:
+    """The analytics (funnel + stocks + cohort) client — real or synthetic.
+
+    ``size_ids_by_nm`` maps each SKU to its catalogued ``chrt_id``s. A real
+    stock response carries its own sizes, so the real client ignores it; the
+    synthetic one has no other way to know them, and without them its stock
+    rows land on invented ids that no size label can be joined to. Optional,
+    because the cohort task builds this client for an endpoint that has nothing
+    to do with stock.
+    """
     if settings.wb_fake_harvest:
-        return SyntheticAnalyticsClient(settings, token=token)
+        return SyntheticAnalyticsClient(settings, token=token, size_ids_by_nm=size_ids_by_nm)
     return WBAnalyticsClient(settings, token=token)
 
 

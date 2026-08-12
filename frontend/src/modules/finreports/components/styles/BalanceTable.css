@@ -81,6 +81,17 @@
   align-items: stretch;
 }
 
+/* Below `sm` the grid and its three panels give way to BalanceCards — a grid
+   whose cells land a few pixels wide is not a balance anyone can read, and the
+   panels exist to track a scroll that no longer happens. Hidden from here
+   rather than with Tailwind's `hidden`, because the rule above is scoped and
+   would outrank the utility. */
+@media (max-width: 639.98px) {
+  .balance-blocks {
+    display: none;
+  }
+}
+
 /* --- the corner: the whole balance in one number ------------------------- */
 .corner-block {
   display: flex;

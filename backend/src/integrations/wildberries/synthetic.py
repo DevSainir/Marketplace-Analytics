@@ -120,27 +120,43 @@ _WAREHOUSES: tuple[tuple[str, str], ...] = (
 )
 
 
-def _stock_rows(nm_id: int) -> list[WBStockRow]:
-    """A few per-warehouse stock rows for a SKU.
+def _stock_rows(nm_id: int, size_ids: list[int]) -> list[WBStockRow]:
+    """Per-warehouse, per-size stock rows for a SKU.
 
-    The ``chrt_id`` is derived, not a real size characteristic, so the daily
-    detail view shows the quantities with blank size labels — enough to exercise
-    the stock panels without a catalogue join.
+    ``size_ids`` are the SKU's REAL ``chrt_id``s, read from the catalogue by the
+    harvest and passed down through the factory. They matter because a stock row
+    carries no size label of its own: the detail view resolves one by joining
+    ``chrt_id`` back to ``product_size``. Inventing an id (as this did) leaves
+    every row unlabelled, and the panel falls back to printing the bare
+    characteristic id — which is not a bug in the panel, but it is a local-only
+    difference from production, and one that reads as one.
+
+    Falls back to derived ids for a SKU the catalogue has never seen (a brand
+    new account's first harvest, before its cards land in the same transaction).
+    Those rows stay unlabelled — correctly so, since there is no size to name.
+
+    A size is stocked in roughly two thirds of the warehouses, so the grid has
+    the holes real stock has instead of being uniformly full.
     """
     rows: list[WBStockRow] = []
+    chrt_ids = size_ids or [nm_id * 100 + index for index in range(len(_WAREHOUSES))]
+
     for index, (warehouse, region) in enumerate(_WAREHOUSES):
-        quantity = _seed(nm_id, index, 11) % 120
-        rows.append(
-            WBStockRow(
-                nm_id=nm_id,
-                chrt_id=nm_id * 100 + index,
-                warehouse_name=warehouse,
-                region_name=region,
-                quantity=quantity,
-                in_way_to_client=quantity // 10,
-                in_way_from_client=quantity // 25,
+        for chrt_id in chrt_ids:
+            quantity = _seed(nm_id, index, chrt_id, 11) % 120
+            if quantity % 3 == 0:
+                continue
+            rows.append(
+                WBStockRow(
+                    nm_id=nm_id,
+                    chrt_id=chrt_id,
+                    warehouse_name=warehouse,
+                    region_name=region,
+                    quantity=quantity,
+                    in_way_to_client=quantity // 10,
+                    in_way_from_client=quantity // 25,
+                )
             )
-        )
     return rows
 
 
@@ -185,6 +201,23 @@ class _SyntheticWBClient:
 class SyntheticAnalyticsClient(_SyntheticWBClient, WBAnalyticsClient):
     """Funnel history + stocks, synthesised; the cohort aggregate stays empty."""
 
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        token: str = "",
+        size_ids_by_nm: dict[int, list[int]] | None = None,
+    ) -> None:
+        """Remember each SKU's real size ids, so synthetic stock can use them.
+
+        The real ``fetch_warehouse_stocks`` gets the sizes from WB inside the
+        response; a DB-free synthetic client cannot, so the harvest reads them
+        from the catalogue and the factory passes them in. The real client
+        ignores the argument entirely.
+        """
+        super().__init__(settings, token=token)
+        self._size_ids_by_nm = size_ids_by_nm or {}
+
     async def fetch_sales_funnel(
         self, *, nm_ids: list[int], date_from: date, date_to: date
     ) -> list[WBFunnelHistoryRow]:
@@ -199,8 +232,12 @@ class SyntheticAnalyticsClient(_SyntheticWBClient, WBAnalyticsClient):
         ]
 
     async def fetch_warehouse_stocks(self, *, nm_ids: list[int]) -> list[WBStockRow]:
-        """A flat list of per-warehouse stock snapshots for the SKUs."""
-        return [row for nm_id in nm_ids for row in _stock_rows(nm_id)]
+        """A flat list of per-warehouse, per-size stock snapshots for the SKUs."""
+        return [
+            row
+            for nm_id in nm_ids
+            for row in _stock_rows(nm_id, self._size_ids_by_nm.get(nm_id, []))
+        ]
 
     async def fetch_funnel_cohort_day(self, *, day: date) -> list[WBFunnelAggregateRow]:
         """No synthetic cohorts: the real endpoint is catalogue-wide and takes

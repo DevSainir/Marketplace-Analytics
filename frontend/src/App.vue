@@ -52,7 +52,9 @@ function onSelectWorkspace(id) {
       @select-workspace="onSelectWorkspace"
     />
 
-    <main class="flex-1">
+    <!-- `pb-safe` clears the home indicator once for every route, so no view
+         has to end in a hand-rolled bottom spacer (see main.css). -->
+    <main class="flex-1 pb-safe">
       <RouterView />
     </main>
   </div>

@@ -13,7 +13,8 @@
  */
 import { computed, ref, watch } from 'vue'
 
-import { formatNumber } from '@/core/utils/format'
+import CostPriceRows from '@/modules/finreports/components/CostPriceRows.vue'
+import CostPriceTable from '@/modules/finreports/components/CostPriceTable.vue'
 
 const props = defineProps({
   /** @type {Array<object>} Costed SKUs from the backend. */
@@ -67,8 +68,8 @@ function value(row) {
   return draft.value[row.nmId] ?? (row.stored === null ? '' : String(row.stored))
 }
 
-function onInput(row, event) {
-  draft.value = { ...draft.value, [row.nmId]: event.target.value }
+function onInput(row, raw) {
+  draft.value = { ...draft.value, [row.nmId]: raw }
 }
 
 /**
@@ -116,10 +117,10 @@ const invalid = computed(() =>
 
 <template>
   <div>
-    <div class="mb-md flex flex-wrap items-center gap-md">
+    <div class="mb-md flex flex-wrap items-center gap-md phone:gap-sm">
       <button
         type="button"
-        class="rounded-btn bg-action px-lg py-sm text-base font-semibold text-white transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
+        class="rounded-btn bg-action px-lg py-sm text-base font-semibold text-white transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50 phone:min-h-11 phone:w-full"
         :disabled="saving || !pendingCount || invalid"
         @click="emit('save', edits)"
       >
@@ -133,70 +134,25 @@ const invalid = computed(() =>
       </p>
     </div>
 
-    <div class="overflow-x-auto rounded-card border border-border-subtle bg-surface shadow-card">
-      <table class="w-full min-w-[720px] text-base">
-        <thead class="border-b border-border-subtle text-left text-tiny uppercase text-muted">
-          <tr>
-            <th class="px-md py-sm">Артикул</th>
-            <th class="px-md py-sm">nm_id</th>
-            <th class="px-md py-sm text-right">Продано, шт</th>
-            <th class="px-md py-sm text-right">Себестоимость</th>
-            <th class="px-md py-sm">Источник</th>
-            <th class="px-md py-sm"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="row in rows"
-            :key="row.nmId"
-            class="border-b border-border-subtle/60 last:border-0"
-            :class="row.stored === null ? 'bg-status-warning/5' : ''"
-          >
-            <td class="px-md py-sm font-medium text-primary">{{ row.vendorCode || '—' }}</td>
-            <td class="px-md py-sm tabular-nums text-muted">{{ row.nmId }}</td>
-            <td class="px-md py-sm text-right tabular-nums text-primary">
-              {{ formatNumber(row.soldUnits) }}
-            </td>
-            <td class="px-md py-sm text-right">
-              <input
-                type="number"
-                min="0"
-                step="1"
-                inputmode="decimal"
-                class="w-28 rounded-input border border-border-subtle bg-canvas px-sm py-xs text-right tabular-nums text-primary focus:border-action focus:outline-none"
-                :value="value(row)"
-                :placeholder="row.stored === null ? 'не задана' : ''"
-                @input="onInput(row, $event)"
-              />
-            </td>
-            <td class="px-md py-sm text-tiny text-muted">
-              {{
-                row.source === 'seed'
-                  ? 'со слов продавца'
-                  : row.source === 'manual'
-                    ? 'вручную'
-                    : '—'
-              }}
-            </td>
-            <td class="px-md py-sm text-right">
-              <button
-                v-if="row.stored !== null"
-                type="button"
-                class="rounded-btn px-sm py-xs text-tiny font-medium text-muted transition hover:bg-status-negative/10 hover:text-status-negative"
-                :disabled="saving"
-                @click="emit('remove', row.nmId)"
-              >
-                Очистить
-              </button>
-            </td>
-          </tr>
-          <tr v-if="!rows.length">
-            <td colspan="6" class="px-md py-xl text-center text-muted">
-              Нет проданных SKU за последний год.
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <!-- Below `sm` the six columns become one row per SKU, input included — see
+         the phone-layout skill for why the switch is at `sm`, not `phone:`.
+         Both read the same `rows` and write the same draft buffer. -->
+    <CostPriceRows
+      class="sm:hidden"
+      :rows="rows"
+      :value="value"
+      :saving="saving"
+      @input="onInput"
+      @remove="emit('remove', $event)"
+    />
+
+    <CostPriceTable
+      class="hidden sm:block"
+      :rows="rows"
+      :value="value"
+      :saving="saving"
+      @input="onInput"
+      @remove="emit('remove', $event)"
+    />
   </div>
 </template>

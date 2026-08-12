@@ -82,13 +82,17 @@ const cards = computed(() => {
 </script>
 
 <template>
-  <section class="grid grid-cols-2 gap-md md:grid-cols-3 xl:grid-cols-5">
+  <!-- Two-up wraps «2 403 199 KGS» onto a second line at 402pt and leaves the
+       fifth card alone on its own row; one column keeps each figure whole. -->
+  <section
+    class="grid grid-cols-2 gap-md phone:grid-cols-1 phone:gap-sm md:grid-cols-3 xl:grid-cols-5"
+  >
     <component
       :is="card.to ? RouterLink : 'div'"
       v-for="card in cards"
       :key="card.key"
       :to="card.to ?? undefined"
-      class="rounded-card border border-border-subtle bg-surface p-lg shadow-card"
+      class="rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
       :class="card.to ? 'transition hover:border-action' : ''"
     >
       <div class="text-tiny font-medium uppercase tracking-wide text-muted">{{ card.label }}</div>

@@ -65,7 +65,9 @@ function onApply() {
 
 <template>
   <div ref="root" class="relative" @focusout="onFocusOut" @keydown.esc="close">
-    <form class="flex items-stretch gap-sm" @submit.prevent="onApply">
+    <!-- On a phone «Применить» beside the field leaves the input too narrow to
+         show an артикул, so the pair stacks and each takes the full width. -->
+    <form class="flex items-stretch gap-sm phone:flex-col" @submit.prevent="onApply">
       <div class="relative flex-1">
         <svg
           class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
@@ -111,7 +113,7 @@ function onApply() {
 
       <button
         type="submit"
-        class="inline-flex h-12 flex-none items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action"
+        class="inline-flex h-12 flex-none items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action phone:h-11"
       >
         Применить
       </button>

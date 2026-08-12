@@ -33,9 +33,12 @@ const toneChip = {
 </script>
 
 <template>
-  <!-- Same container width as the monitoring canvas — see design_system.md
-       «Page Chrome & Canvas». -->
-  <div class="mx-auto w-full max-w-[calc(26.667rem_+_66.667vw)] px-md py-16 sm:px-lg sm:py-24">
+  <!-- `.app-container` is the shared width + safe-area gutter (main.css) — see
+       design_system.md «Page Chrome & Canvas». The `phone:` overrides below are
+       the app's single max-width breakpoint (≤430px, i.e. the 17 Pro's 402pt):
+       on a phone this page is a scroll, not a poster, so it trades the desktop
+       page's air for the number of screens it takes to read. -->
+  <div class="app-container py-16 phone:py-lg sm:py-24">
     <!-- Hero -->
     <section class="mx-auto max-w-3xl text-center">
       <span
@@ -45,26 +48,31 @@ const toneChip = {
         Данные Wildberries · live
       </span>
 
-      <h1 class="mt-lg text-4xl font-bold tracking-tight text-primary sm:text-6xl">
+      <!-- 36px over a 402pt screen breaks «маркетплейса» onto a line of its own
+           and pushes the call to action below the fold; 30px keeps the whole
+           hero — chip, headline, promise, buttons — on the first screen. -->
+      <h1
+        class="mt-lg text-4xl font-bold tracking-tight text-primary phone:mt-md phone:text-3xl sm:text-6xl"
+      >
         Аналитика маркетплейса
         <span class="text-action">без лишнего шума.</span>
       </h1>
 
-      <p class="mx-auto mt-lg max-w-2xl text-lg leading-8 text-muted">
+      <p class="mx-auto mt-lg max-w-2xl text-lg leading-8 text-muted phone:mt-md phone:leading-7">
         Сервис нормализует сырые метрики Wildberries — маскирует периоды отсутствия на складе,
         выделяет промо-всплески и сезонность, — чтобы менеджеры видели реальный спрос на товар.
       </p>
 
-      <div class="mt-xl flex flex-col items-center justify-center gap-sm sm:flex-row">
+      <div class="mt-xl flex flex-col items-center justify-center gap-sm phone:mt-lg sm:flex-row">
         <RouterLink
           to="/monitoring"
-          class="inline-flex w-full items-center justify-center rounded-btn bg-action px-lg py-sm text-base font-semibold text-white shadow-soft transition hover:bg-action-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action sm:w-auto"
+          class="inline-flex w-full items-center justify-center rounded-btn bg-action px-lg py-sm text-base font-semibold text-white shadow-soft transition hover:bg-action-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action phone:min-h-11 sm:w-auto"
         >
           Открыть мониторинг →
         </RouterLink>
         <a
           href="#features"
-          class="inline-flex w-full items-center justify-center rounded-btn border border-border-subtle bg-surface px-lg py-sm text-base font-semibold text-primary shadow-soft transition hover:bg-canvas sm:w-auto"
+          class="inline-flex w-full items-center justify-center rounded-btn border border-border-subtle bg-surface px-lg py-sm text-base font-semibold text-primary shadow-soft transition hover:bg-canvas phone:min-h-11 sm:w-auto"
         >
           Что внутри
         </a>
@@ -72,29 +80,38 @@ const toneChip = {
     </section>
 
     <!-- Feature cards -->
-    <section id="features" class="mt-20 grid grid-cols-1 gap-lg md:grid-cols-3">
+    <section
+      id="features"
+      class="mt-20 grid grid-cols-1 gap-lg phone:mt-xl phone:gap-md md:grid-cols-3"
+    >
       <article
         v-for="feature in features"
         :key="feature.title"
-        class="rounded-card border border-border-subtle bg-surface p-lg shadow-card"
+        class="rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
       >
-        <span
-          class="inline-flex h-10 w-10 items-center justify-center rounded-btn"
-          :class="toneChip[feature.tone]"
-        >
-          <svg
-            class="h-5 w-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+        <!-- Stacked on desktop, where three cards sit side by side and the icon
+             is the column's marker; on a phone the cards are one column and the
+             icon reads better as a bullet on the title's line, which also buys
+             back a row of height per card. -->
+        <div class="phone:flex phone:items-center phone:gap-sm">
+          <span
+            class="inline-flex h-10 w-10 items-center justify-center rounded-btn phone:h-8 phone:w-8 phone:flex-none"
+            :class="toneChip[feature.tone]"
           >
-            <path :d="feature.icon" />
-          </svg>
-        </span>
-        <h2 class="mt-md text-h3 font-semibold text-primary">{{ feature.title }}</h2>
+            <svg
+              class="h-5 w-5 phone:h-4 phone:w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path :d="feature.icon" />
+            </svg>
+          </span>
+          <h2 class="mt-md text-h3 font-semibold text-primary phone:mt-0">{{ feature.title }}</h2>
+        </div>
         <p class="mt-sm text-base leading-6 text-muted">{{ feature.description }}</p>
       </article>
     </section>
