@@ -64,6 +64,27 @@ export function formatCurrencyTenths(value) {
   return currencyTenthsFormat.format(value)
 }
 
+/**
+ * A seller article the way it is printed on the box — uppercase:
+ * «m-trx01-blk» -> «M-TRX01-BLK». WB stores whatever casing the seller typed,
+ * so the same article arrives lowercase in one report and uppercase in another
+ * and the tables look inconsistent.
+ *
+ * The same fields also carry prose rather than a code: the P&L's «Без привязки
+ * к артикулу» / «Итого» buckets, and the «nm 12345» fallback for a card with no
+ * article at all. Neither is a SKU, so only pure-ASCII values that are not the
+ * nm fallback are touched; everything else is returned as it came.
+ *
+ * @param {string|null|undefined} value
+ * @returns {string|null|undefined} The input unchanged when it is not a code.
+ */
+export function formatSku(value) {
+  if (!value) return value
+  const text = String(value)
+  if (text.startsWith('nm ') || !/^[ -~]+$/.test(text)) return text
+  return text.toUpperCase()
+}
+
 const percentFormat = new Intl.NumberFormat('ru-RU', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,

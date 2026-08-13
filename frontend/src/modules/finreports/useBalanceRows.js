@@ -13,7 +13,7 @@
  */
 import { computed, ref } from 'vue'
 
-import { formatMoney } from '@/core/utils/format'
+import { formatMoney, formatSku } from '@/core/utils/format'
 
 const num = (value) => (value === null || value === undefined ? null : Number(value))
 
@@ -72,7 +72,7 @@ export function toRow(r, uncounted, pinnedSkus, uncountedSkus) {
   }
   return {
     nmId: r.nm_id,
-    saName: r.sa_name,
+    saName: formatSku(r.sa_name),
     subject: r.subject_name || '',
     brand: r.brand_name || '',
     costPrice: num(r.cost_price),

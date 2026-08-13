@@ -20,6 +20,7 @@
  */
 import { ref } from 'vue'
 
+import { formatSku } from '@/core/utils/format'
 import { PIN_COLORS } from '@/modules/monitoring/pinColors'
 import { useHorizontalPaging } from '@/modules/monitoring/useHorizontalPaging'
 import { useDragReorder } from '@/modules/monitoring/useDragReorder'
@@ -70,7 +71,7 @@ function handleChipClick(item, event) {
 }
 
 function pinLabel(item) {
-  return item.vendor_code || `nm ${item.nm_id}`
+  return formatSku(item.vendor_code) || `nm ${item.nm_id}`
 }
 </script>
 

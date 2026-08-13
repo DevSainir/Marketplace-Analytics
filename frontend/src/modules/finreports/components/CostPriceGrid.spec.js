@@ -32,9 +32,9 @@ function mountGrid(props = {}) {
   })
 }
 
-/** Type into the cost field of the row whose vendor code matches. */
+/** Type into the cost field of the row whose vendor code matches (rendered uppercase). */
 async function type(wrapper, vendorCode, value) {
-  const row = wrapper.findAll('tbody tr').find((tr) => tr.text().includes(vendorCode))
+  const row = wrapper.findAll('tbody tr').find((tr) => tr.text().includes(vendorCode.toUpperCase()))
   const input = row.find('input')
   await input.setValue(value)
 }
@@ -50,7 +50,7 @@ describe('which edits reach the server', () => {
 
     const first = wrapper.findAll('tbody tr')[0]
 
-    expect(first.text()).toContain('m-lnx02-blk')
+    expect(first.text()).toContain('M-LNX02-BLK')
   })
 
   it('saves a cost of zero on a SKU that had none', async () => {
@@ -134,7 +134,7 @@ describe('which edits reach the server', () => {
     // the phone one hands over a raw value where the table hands over an event.
     const wrapper = mountGrid()
 
-    const row = wrapper.findAll('.record-card').find((li) => li.text().includes('m-lnx02-blk'))
+    const row = wrapper.findAll('.record-card').find((li) => li.text().includes('M-LNX02-BLK'))
     await row.find('input').setValue('800')
     await saveButton(wrapper).trigger('click')
 

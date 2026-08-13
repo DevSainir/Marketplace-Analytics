@@ -97,7 +97,7 @@ describe('BalanceTable', () => {
       r.firstElementChild.textContent.trim(),
     )
 
-    expect(names).toEqual(['m-trx01-blk', 'm-wdx02-wht'])
+    expect(names).toEqual(['M-TRX01-BLK', 'M-WDX02-WHT'])
     expect(totals).toEqual(['80', '40'])
     wrapper.unmount()
   })

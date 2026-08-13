@@ -12,7 +12,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { formatNumber } from '@/core/utils/format'
+import { formatNumber, formatSku } from '@/core/utils/format'
 
 const ASSOC_METRICS = new Set(['carts', 'orders'])
 
@@ -63,7 +63,7 @@ export function useAssocHover(rows) {
       exact: cell.assoc.exact,
       skus: cell.assoc.skus.map((sku) => ({
         key: sku.nm_id,
-        label: sku.vendor_code || `nm ${sku.nm_id}`,
+        label: formatSku(sku.vendor_code) || `nm ${sku.nm_id}`,
         count: formatNumber(sku.count),
         isViewed: sku.isViewed,
       })),

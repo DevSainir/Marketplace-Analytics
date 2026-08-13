@@ -9,13 +9,15 @@
  */
 import { computed, ref } from 'vue'
 
+import { formatSku } from '@/core/utils/format'
+
 const num = (value) => (value === null || value === undefined ? null : Number(value))
 
 /** Flatten one backend `PnlSkuRow` to the shape the table renders and sorts on. */
 export function toRow(r, isBucket = false) {
   return {
     nmId: r.nm_id,
-    saName: r.sa_name,
+    saName: formatSku(r.sa_name),
     subject: r.subject_name || '',
     brand: r.brand_name || '',
     isBucket,

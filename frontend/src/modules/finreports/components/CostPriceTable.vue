@@ -9,7 +9,7 @@
  *
  * Dumb by contract: the parent owns the draft buffer and the save.
  */
-import { formatNumber } from '@/core/utils/format'
+import { formatNumber, formatSku } from '@/core/utils/format'
 
 defineProps({
   /** @type {Array<object>} Rows from `CostPriceGrid`, uncosted first by volume. */
@@ -42,7 +42,9 @@ const emit = defineEmits(['input', 'remove'])
           class="border-b border-border-subtle/60 last:border-0"
           :class="row.stored === null ? 'bg-status-warning/5' : ''"
         >
-          <td class="px-md py-sm font-medium text-primary">{{ row.vendorCode || '—' }}</td>
+          <td class="px-md py-sm font-medium text-primary">
+            {{ formatSku(row.vendorCode) || '—' }}
+          </td>
           <td class="px-md py-sm tabular-nums text-muted">{{ row.nmId }}</td>
           <td class="px-md py-sm text-right tabular-nums text-primary">
             {{ formatNumber(row.soldUnits) }}

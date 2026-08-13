@@ -8,6 +8,8 @@
  *
  * Dumb by contract: it renders the matches and emits `select`.
  */
+import { formatSku } from '@/core/utils/format'
+
 defineProps({
   /** @type {Array<{nm_id: number, vendor_code: string, title: string}>} */
   matches: { type: Array, required: true },
@@ -30,7 +32,7 @@ defineEmits(['select'])
         class="inline-flex max-w-full items-center gap-sm rounded-btn border border-border-subtle bg-surface px-sm py-xs text-base shadow-soft transition hover:border-action hover:bg-action/10"
         @click="$emit('select', match)"
       >
-        <span class="font-semibold text-primary">{{ match.vendor_code }}</span>
+        <span class="font-semibold text-primary">{{ formatSku(match.vendor_code) }}</span>
         <span class="truncate text-tiny text-muted">{{ match.title }}</span>
       </button>
     </div>

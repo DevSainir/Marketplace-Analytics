@@ -139,7 +139,8 @@ describe('useBalanceRows', () => {
 
     query.value = '611450917'
 
-    expect(tableRows.value.map((r) => r.saName)).toEqual(['m-wdx02-wht'])
+    // The row is found by its lowercase article but rendered uppercase.
+    expect(tableRows.value.map((r) => r.saName)).toEqual(['M-WDX02-WHT'])
   })
 })
 

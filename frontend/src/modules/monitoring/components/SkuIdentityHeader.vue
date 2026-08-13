@@ -9,6 +9,8 @@
  *
  * Dumb by contract: it renders what it is given and emits `toggle-pin`.
  */
+import { formatSku } from '@/core/utils/format'
+
 defineProps({
   /** @type {{nm_id: number, vendor_code: string|null, title: string|null}} */
   product: { type: Object, required: true },
@@ -25,7 +27,7 @@ defineEmits(['toggle-pin'])
   <div class="mt-lg flex flex-wrap items-baseline gap-x-sm gap-y-xs">
     <!-- Vendor code is the big black heading; the nm ID follows in the
        action accent; title small grey; the pin toggle at the right. -->
-    <h2 class="text-h2 font-bold text-primary">{{ product.vendor_code ?? skuLabel }}</h2>
+    <h2 class="text-h2 font-bold text-primary">{{ formatSku(product.vendor_code ?? skuLabel) }}</h2>
     <span class="text-tiny font-semibold text-action">SKU {{ product.nm_id }}</span>
     <span v-if="product.title" class="text-tiny text-muted">{{ product.title }}</span>
     <button

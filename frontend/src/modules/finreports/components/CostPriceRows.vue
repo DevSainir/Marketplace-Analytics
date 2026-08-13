@@ -16,7 +16,7 @@
  */
 import { computed, ref, watch } from 'vue'
 
-import { formatNumber } from '@/core/utils/format'
+import { formatNumber, formatSku } from '@/core/utils/format'
 
 const props = defineProps({
   /** @type {Array<object>} Rows from `CostPriceGrid`, uncosted first by volume. */
@@ -58,7 +58,7 @@ const visible = computed(() => props.rows.slice(0, shown.value))
       >
         <div class="record-line">
           <div class="record-main">
-            <span class="record-title">{{ row.vendorCode || '—' }}</span>
+            <span class="record-title">{{ formatSku(row.vendorCode) || '—' }}</span>
             <span class="record-sub">
               {{ row.nmId }} · {{ formatNumber(row.soldUnits) }} шт
               <template v-if="SOURCE_LABELS[row.source]">
@@ -73,7 +73,7 @@ const visible = computed(() => props.rows.slice(0, shown.value))
               min="0"
               step="1"
               inputmode="decimal"
-              :aria-label="`Себестоимость ${row.vendorCode || row.nmId}`"
+              :aria-label="`Себестоимость ${formatSku(row.vendorCode) || row.nmId}`"
               class="h-11 w-24 rounded-input border border-border-subtle bg-canvas px-sm text-right tabular-nums text-primary focus:border-action focus:outline-none"
               :value="value(row)"
               :placeholder="row.stored === null ? 'не задана' : ''"

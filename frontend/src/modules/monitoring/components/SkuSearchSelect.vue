@@ -9,6 +9,8 @@
  */
 import { computed, ref } from 'vue'
 
+import { formatSku } from '@/core/utils/format'
+
 const props = defineProps({
   items: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
@@ -52,7 +54,7 @@ function onFocusOut(event) {
 }
 
 function onSelect(item) {
-  query.value = item.vendor_code || String(item.nm_id)
+  query.value = formatSku(item.vendor_code) || String(item.nm_id)
   close()
   emit('select', item)
 }
@@ -146,7 +148,7 @@ function onApply() {
               @click="onSelect(item)"
             >
               <span class="text-base font-semibold text-primary">
-                {{ item.vendor_code || item.nm_id }}
+                {{ formatSku(item.vendor_code) || item.nm_id }}
               </span>
               <span class="min-w-0 flex-1 truncate text-base text-muted">{{ item.title }}</span>
               <span
