@@ -35,6 +35,7 @@ from src.core.config import Settings
 from src.integrations.wildberries.clients.advertising import WBAdvertisingClient
 from src.integrations.wildberries.clients.analytics import WBAnalyticsClient
 from src.integrations.wildberries.clients.card import WBCardClient
+from src.integrations.wildberries.clients.marketplace import WBMarketplaceClient
 from src.integrations.wildberries.clients.prices import WBPricesClient
 from src.integrations.wildberries.clients.statistics import WBStatisticsClient
 from src.integrations.wildberries.schemas import (
@@ -44,6 +45,8 @@ from src.integrations.wildberries.schemas import (
     WBCardPrice,
     WBCardProduct,
     WBCardSizePrice,
+    WBFbsStockRow,
+    WBFbsWarehouse,
     WBFunnelAggregateRow,
     WBFunnelHistoryDay,
     WBFunnelHistoryProduct,
@@ -304,6 +307,37 @@ class SyntheticStatisticsClient(_SyntheticWBClient, WBStatisticsClient):
     async def fetch_sales(self, *, changed_since: date | datetime) -> list[WBSaleRecord]:
         """No synthetic sale-date records."""
         return []
+
+
+class SyntheticMarketplaceClient(_SyntheticWBClient, WBMarketplaceClient):
+    """One FBS warehouse holding a deterministic slice of the asked-for sizes."""
+
+    async def fetch_warehouses(self) -> list[WBFbsWarehouse]:
+        """The single configured FBS warehouse, so local dev matches prod's shape."""
+        return [
+            WBFbsWarehouse(
+                id=self._settings.wb_fbs_warehouse_id,
+                name=self._settings.wb_fbs_warehouse_label,
+                office_id=236,
+                cargo_type=1,
+                delivery_type=1,
+            )
+        ]
+
+    async def fetch_stocks(self, *, warehouse_id: int, skus: list[str]) -> list[WBFbsStockRow]:
+        """Stock for roughly two thirds of the asked-for barcodes.
+
+        The holes are the point: the real endpoint omits barcodes it does not
+        know at that warehouse, so a synthetic run that answered every barcode
+        would hide the absent-is-not-zero case the ingestion has to handle.
+        """
+        rows: list[WBFbsStockRow] = []
+        for sku in skus:
+            seed = _seed(warehouse_id, *(ord(ch) for ch in sku[-6:]))
+            if seed % 3 == 0:
+                continue
+            rows.append(WBFbsStockRow(sku=sku, chrt_id=0, amount=seed % 200))
+        return rows
 
 
 class SyntheticCardClient(_SyntheticWBClient, WBCardClient):

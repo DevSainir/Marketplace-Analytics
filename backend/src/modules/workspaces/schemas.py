@@ -81,3 +81,4 @@ class WorkspaceTokenBundle(BaseModel):
     advertising: str = ""
     prices: str = ""
     statistics: str = ""
+    marketplace: str = ""

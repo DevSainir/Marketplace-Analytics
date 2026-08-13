@@ -81,6 +81,13 @@ class ProductSize(Base):
         tech_size: Human size label (the "Размер вещи", e.g. ``"52/170-177"`` /
             ``"L"`` / ``"42"``); may be blank for one-size items.
         wb_size: WB's alternate size scale (e.g. ``"2XL/ 170-177"`` / ``"46"``).
+        barcode: The size's first WB barcode (``sizes[].skus[0]``), or blank
+            when the card carries none. Stored solely because the FBS stock
+            endpoint is queried BY barcode — every other WB surface identifies
+            a size by ``chrt_id``. Only the first is kept: a size may carry
+            several, but WB registers FBS stock against one, and the response
+            echoes ``chrtId`` back so a second barcode would resolve to a row
+            we already have.
         synced_at: Timestamp of the last sync from WB.
     """
 
@@ -91,6 +98,7 @@ class ProductSize(Base):
     nm_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     tech_size: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     wb_size: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    barcode: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

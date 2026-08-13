@@ -130,10 +130,14 @@ class IngestionService:
         *,
         snapshot_date: date,
         harvested_nm_ids: list[int] | None = None,
+        keep_warehouses: tuple[str, ...] = (),
     ) -> int:
         """Delegate to :meth:`StockIngestion.ingest_stocks`."""
         return await self._stocks.ingest_stocks(
-            rows, snapshot_date=snapshot_date, harvested_nm_ids=harvested_nm_ids
+            rows,
+            snapshot_date=snapshot_date,
+            harvested_nm_ids=harvested_nm_ids,
+            keep_warehouses=keep_warehouses,
         )
 
     async def ingest_prices(
@@ -177,6 +181,7 @@ class IngestionService:
         customer_prices: list[WBCardProduct] | None = None,
         price_nm_ids: list[int] | None = None,
         sales: list[WBSaleRecord] | None = None,
+        keep_warehouses: tuple[str, ...] = (),
     ) -> IngestionResult:
         """Run a full harvest ingestion in one unit of work.
 
@@ -200,6 +205,9 @@ class IngestionService:
                 account-wide seller feed to this harvest); ``None`` writes all.
             sales: Raw per-item sale/return records; ``None`` when the source
                 failed (existing rows are then left untouched).
+            keep_warehouses: Warehouses whose feeding source failed this run, so
+                the sweep leaves their rows in place (FBO and FBS reach this
+                table from different WB surfaces and fail independently).
 
         Returns:
             An :class:`IngestionResult` tallying rows persisted per family.
@@ -214,7 +222,10 @@ class IngestionService:
                 requested_campaign_ids=search_requested_campaign_ids,
             )
         stock_count = await self.ingest_stocks(
-            stocks, snapshot_date=snapshot_date, harvested_nm_ids=harvested_nm_ids
+            stocks,
+            snapshot_date=snapshot_date,
+            harvested_nm_ids=harvested_nm_ids,
+            keep_warehouses=keep_warehouses,
         )
         # Prices snapshot: only written when the seller source succeeded (an
         # absent prices fetch must not stamp a NULL-price snapshot for the day).

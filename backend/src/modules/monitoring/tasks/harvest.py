@@ -48,6 +48,7 @@ from src.modules.monitoring.repos import (
 )
 from src.modules.monitoring.services import IngestionService
 from src.modules.monitoring.tasks.common import _TASK_RETRY_KWARGS, _unwrap
+from src.modules.monitoring.tasks.fbs import fetch_fbs_stock_rows
 from src.modules.monitoring.tasks.planning import (
     _advertising_harvest_ids,
     _candidate_search_pairs,
@@ -276,10 +277,16 @@ async def _harvest_sku_window(
                 return None
             return await statistics_client.fetch_sales(changed_since=date_from)
 
-        adv_res, search_res, sales_res = await asyncio.gather(
+        # FBS stock rides this wave too: a different WB host and token category
+        # from the FBO stock above, so it neither shares nor contends for the
+        # analytics rate budget. It returns ordinary stock rows (see
+        # :mod:`~src.modules.monitoring.tasks.fbs`), and a workspace with no
+        # «Маркетплейс» token simply gets an empty list.
+        adv_res, search_res, sales_res, fbs_res = await asyncio.gather(
             _fetch_fullstats(),
             _fetch_search(),
             _fetch_sales(),
+            fetch_fbs_stock_rows(settings, token=tokens.marketplace, nm_ids=nm_ids, cards=cards),
             return_exceptions=True,
         )
         advertising_stats = _unwrap(adv_res, "advertising") or []
@@ -288,6 +295,16 @@ async def _harvest_sku_window(
         search_stats = _unwrap(search_res, "search-zone")
         # ``None`` (source failed) leaves the sale/return records untouched.
         sales = _unwrap(sales_res, "sales")
+        # FBS rows join the FBO ones in the same table under their own warehouse
+        # label. When the FBS source fails while FBO succeeded, its warehouse is
+        # spared from the absence-means-zero sweep: the two sources fail
+        # independently, and sweeping would report the seller's warehouse as
+        # emptied rather than unread.
+        fbs_rows = _unwrap(fbs_res, "stocks-fbs") or []
+        stock_rows = [*stock_rows, *fbs_rows]
+        keep_warehouses = (
+            (settings.wb_fbs_warehouse_label,) if isinstance(fbs_res, BaseException) else ()
+        )
 
         # Which sources WB actually withheld. Reported all the way to the UI so
         # a refresh that changed nothing says why instead of looking inert.
@@ -303,6 +320,7 @@ async def _harvest_sku_window(
                 ("advertising", adv_res),
                 ("search-zone", search_res),
                 ("sales", sales_res),
+                ("stocks-fbs", fbs_res),
             )
             if isinstance(result, BaseException)
         )
@@ -350,6 +368,7 @@ async def _harvest_sku_window(
             customer_prices=customer_prices,
             price_nm_ids=nm_ids,
             sales=sales,
+            keep_warehouses=keep_warehouses,
         )
         # Fresh WB data supersedes any manual matrix edits for these SKUs — the
         # product rule is that any refresh (nightly or a manual «Обновить»)

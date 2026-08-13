@@ -21,7 +21,7 @@ _CARD_CONFLICT = ("nm_id",)
 _CARD_UPDATE = ("workspace_id", "vendor_code", "title", "synced_at")
 
 _SIZE_CONFLICT = ("chrt_id",)
-_SIZE_UPDATE = ("nm_id", "tech_size", "wb_size", "synced_at")
+_SIZE_UPDATE = ("nm_id", "tech_size", "wb_size", "barcode", "synced_at")
 
 
 class ProductCardRepository(BaseRepository):
@@ -202,6 +202,32 @@ class ProductSizeRepository(BaseRepository):
         for nm_id, chrt_id in result.all():
             sizes.setdefault(nm_id, []).append(chrt_id)
         return sizes
+
+    async def get_sizes_by_barcode(self, nm_ids: Iterable[int]) -> dict[str, tuple[int, int]]:
+        """Return ``barcode -> (nm_id, chrt_id)`` for the given SKUs' sizes.
+
+        The FBS stock endpoint takes barcodes and answers with barcodes, while
+        every table downstream is keyed by ``chrt_id`` — this map is both the
+        query input and the way back. WB does return a ``chrtId`` of its own on
+        that response, but ours is what ``stock_snapshot`` and the size labels
+        already join on, so the mapping is resolved locally and WB's copy is
+        only a cross-check.
+
+        Args:
+            nm_ids: SKU ids whose sizes should be resolved.
+
+        Returns:
+            A mapping keyed by barcode; sizes with no stored barcode (an older
+            catalogue sync, or a card WB serves none for) are omitted.
+        """
+        ids = list(nm_ids)
+        if not ids:
+            return {}
+        stmt = select(ProductSize.barcode, ProductSize.nm_id, ProductSize.chrt_id).where(
+            ProductSize.nm_id.in_(ids), ProductSize.barcode != ""
+        )
+        result = await self._session.execute(stmt)
+        return {barcode: (nm_id, chrt_id) for barcode, nm_id, chrt_id in result.all()}
 
     async def get_labels_by_chrt_ids(self, chrt_ids: Iterable[int]) -> dict[int, str]:
         """Return a ``chrt_id -> tech_size`` label map for the given ids.

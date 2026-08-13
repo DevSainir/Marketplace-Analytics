@@ -275,3 +275,30 @@ def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
         refill_seconds=settings.wb_analytics_bucket_refill_seconds,
         max_wait_seconds=settings.wb_analytics_max_queue_seconds,
     )
+
+
+def marketplace_rate_gate(settings: Settings, *, token: str) -> RateGate:
+    """Build the pacing gate for the marketplace (FBS) surface.
+
+    Both FBS endpoints answered ``x-ratelimit-remaining: 20`` when measured on
+    2026-08-13 — a far tighter budget than the analytics surface, and the
+    harvest spends one token per enabled warehouse per run.
+
+    Args:
+        settings: Bucket parameters and the Redis DSN.
+        token: The workspace's marketplace token — the bucket is per token.
+
+    Returns:
+        A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`
+        when pacing is switched off (unit tests, or no Redis available).
+    """
+    if not settings.wb_rate_pacing_enabled:
+        return NullRateGate()
+    return TokenBucketRateGate(
+        get_redis(),
+        surface="marketplace",
+        token=token,
+        capacity=settings.wb_marketplace_bucket_capacity,
+        refill_seconds=settings.wb_marketplace_bucket_refill_seconds,
+        max_wait_seconds=settings.wb_analytics_max_queue_seconds,
+    )

@@ -63,6 +63,9 @@ class CatalogIngestion:
                 "nm_id": card.nm_id,
                 "tech_size": size.tech_size,
                 "wb_size": size.wb_size,
+                # First barcode only — the FBS stock query needs one per size,
+                # and WB echoes ``chrtId`` back, so extras add no reachable rows.
+                "barcode": size.skus[0] if size.skus else "",
             }
             for card in cards
             for size in card.sizes

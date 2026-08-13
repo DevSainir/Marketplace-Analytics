@@ -178,7 +178,13 @@ class StockRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return {row.nm_id: int(row.quantity) for row in result.all()}
 
-    async def delete_snapshot_day(self, *, snapshot_date: date, nm_ids: Iterable[int]) -> int:
+    async def delete_snapshot_day(
+        self,
+        *,
+        snapshot_date: date,
+        nm_ids: Iterable[int],
+        keep_warehouses: Iterable[str] = (),
+    ) -> int:
         """Delete a day's snapshot rows for the given SKUs (pre-refresh sweep).
 
         WB's stock report simply omits size x warehouse rows that dropped to
@@ -190,6 +196,11 @@ class StockRepository(BaseRepository):
         Args:
             snapshot_date: The Moscow-time snapshot day being re-written.
             nm_ids: The SKUs covered by this harvest.
+            keep_warehouses: Warehouses to leave untouched. Used when one stock
+                SOURCE failed while another succeeded: FBO and FBS come from
+                different WB surfaces into the same table, so sweeping the whole
+                day on a partial failure would report the surviving source's
+                warehouses as empty — a sell-out that never happened.
 
         Returns:
             The number of rows deleted.
@@ -197,9 +208,12 @@ class StockRepository(BaseRepository):
         ids = list(nm_ids)
         if not ids:
             return 0
+        spared = list(keep_warehouses)
         stmt = delete(StockSnapshot).where(
             StockSnapshot.stat_date == snapshot_date,
             StockSnapshot.nm_id.in_(ids),
         )
+        if spared:
+            stmt = stmt.where(StockSnapshot.warehouse_name.not_in(spared))
         result = cast("CursorResult[Any]", await self._session.execute(stmt))
         return int(result.rowcount or 0)

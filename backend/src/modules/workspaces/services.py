@@ -61,6 +61,10 @@ def _resolve_bundle(workspace: Workspace, tokens: dict[str, str]) -> WorkspaceTo
         advertising=pick(TokenKind.PROMOTION),
         prices=pick(TokenKind.PRICES),
         statistics=pick(TokenKind.STATISTICS),
+        # No fallback chain: the FBS surface rejects every other category with
+        # 401 «token scope not allowed» (verified live 2026-08-13), so guessing
+        # a substitute would only turn a skipped source into a failed one.
+        marketplace=pick(TokenKind.MARKETPLACE),
     )
 
 

@@ -17,12 +17,14 @@ from src.core.config import Settings
 from src.integrations.wildberries.clients.advertising import WBAdvertisingClient
 from src.integrations.wildberries.clients.analytics import WBAnalyticsClient
 from src.integrations.wildberries.clients.card import WBCardClient
+from src.integrations.wildberries.clients.marketplace import WBMarketplaceClient
 from src.integrations.wildberries.clients.prices import WBPricesClient
 from src.integrations.wildberries.clients.statistics import WBStatisticsClient
 from src.integrations.wildberries.synthetic import (
     SyntheticAdvertisingClient,
     SyntheticAnalyticsClient,
     SyntheticCardClient,
+    SyntheticMarketplaceClient,
     SyntheticPricesClient,
     SyntheticStatisticsClient,
 )
@@ -79,3 +81,15 @@ def build_card_client(settings: Settings) -> WBCardClient:
     if settings.wb_fake_harvest:
         return SyntheticCardClient(settings)
     return WBCardClient(settings)
+
+
+def build_marketplace_client(settings: Settings, *, token: str) -> WBMarketplaceClient:
+    """The FBS (seller-warehouse) stock client — real or synthetic.
+
+    ``token`` must be «Маркетплейс»-scope; every other category answers this
+    surface with 401. A workspace without one has no FBS visibility at all, and
+    the harvest skips the source rather than failing.
+    """
+    if settings.wb_fake_harvest:
+        return SyntheticMarketplaceClient(settings, token=token)
+    return WBMarketplaceClient(settings, token=token)

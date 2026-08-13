@@ -24,6 +24,7 @@ class StockIngestion:
         *,
         snapshot_date: date,
         harvested_nm_ids: list[int] | None = None,
+        keep_warehouses: tuple[str, ...] = (),
     ) -> int:
         """Persist per-warehouse stock snapshots for a given day.
 
@@ -44,6 +45,10 @@ class StockIngestion:
             harvested_nm_ids: Every SKU this harvest covered (a superset of the
                 SKUs present in ``rows``); defaults to the SKUs in ``rows`` —
                 sufficient only when absence-means-zero cleanup is not needed.
+            keep_warehouses: Warehouses excluded from the sweep because the
+                source that feeds them failed this run. ``rows`` must then carry
+                nothing for them; the day keeps its previous values instead of
+                being rewritten as empty.
 
         Returns:
             The number of size x warehouse rows persisted.
@@ -52,7 +57,7 @@ class StockIngestion:
             harvested_nm_ids if harvested_nm_ids is not None else [row.nm_id for row in rows]
         )
         deleted = await self._stocks.delete_snapshot_day(
-            snapshot_date=snapshot_date, nm_ids=swept_ids
+            snapshot_date=snapshot_date, nm_ids=swept_ids, keep_warehouses=keep_warehouses
         )
         if deleted:
             logger.info("Swept %d prior stock rows for %s before refresh.", deleted, snapshot_date)

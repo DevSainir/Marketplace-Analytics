@@ -124,6 +124,24 @@ class Settings(BaseSettings):
     wb_supplies_base_url: str = Field(default="https://supplies-api.wildberries.ru")
     # Finance surface: seller balance / settlement (finreports currency context).
     wb_finance_base_url: str = Field(default="https://finance-api.wildberries.ru")
+    # Marketplace surface: seller-owned (FBS) warehouses and their stock. Needs
+    # a «Маркетплейс»-scope token; no other category authenticates this host.
+    wb_marketplace_base_url: str = Field(default="https://marketplace-api.wildberries.ru")
+    # The ONE FBS warehouse whose stock is harvested, and the label it shows
+    # under in the stock and balance tables.
+    #
+    # Deliberately a single id rather than a list: the account owns five FBS
+    # warehouses but four are test/cross-border stubs holding nothing (verified
+    # 2026-08-13), and enabling them would spend rate budget to write zeroes.
+    # ``0`` disables FBS harvesting entirely.
+    #
+    # The label is configured rather than taken from WB because the seller's own
+    # warehouse name is a working note («Иван  - Москва (Внуково) НЕ
+    # УДАЛЯТЬ!!!») that would become a column header — and because
+    # ``warehouse_name`` is a primary-key column, so a rename in the WB portal
+    # would otherwise orphan every stored snapshot row and «Отгрузить» mark.
+    wb_fbs_warehouse_id: int = Field(default=9945803, ge=0)
+    wb_fbs_warehouse_label: str = Field(default="Москва (Внуково) (FBS)")
     # Public storefront card endpoint (card.wb.ru) — the final customer price
     # after ALL discounts incl. WB loyalty (СПП). Unauthenticated. ``dest`` is a
     # region/delivery code and ``spp`` the loyalty tier the storefront prices
@@ -191,6 +209,12 @@ class Settings(BaseSettings):
     # consumed faster than it refills, and failing lets the task's retry policy
     # reschedule instead of parking a worker.
     wb_analytics_max_queue_seconds: float = Field(default=120.0, gt=0)
+    # The marketplace (FBS) surface answered ``x-ratelimit-remaining: 20`` on
+    # both its endpoints when measured live on 2026-08-13. Refill is assumed
+    # per-minute (WB publishes no window); the header clamp corrects us
+    # downward on every response, so guessing generously here is safe.
+    wb_marketplace_bucket_capacity: int = Field(default=20, ge=1)
+    wb_marketplace_bucket_refill_seconds: float = Field(default=3.0, gt=0)
     # Escape hatch: disables Redis-backed pacing (tests and any environment
     # with no Redis). The clients then fall back to per-process spacing.
     wb_rate_pacing_enabled: bool = Field(default=True)

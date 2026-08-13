@@ -44,6 +44,10 @@ class WBCardSize(RawBase):
     chrt_id: int = Field(alias="chrtID")
     tech_size: str = Field(default="", alias="techSize")
     wb_size: str = Field(default="", alias="wbSize")
+    # Barcodes of this size. WB has always returned them here; we started
+    # persisting one because the FBS stock endpoint is queried BY barcode —
+    # ``chrt_id`` gets us everywhere else, but not there.
+    skus: list[str] = Field(default_factory=list)
 
 
 class WBCard(RawBase):
