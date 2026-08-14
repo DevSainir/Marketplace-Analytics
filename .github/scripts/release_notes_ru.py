@@ -142,6 +142,17 @@ def _call(url: str, api_key: str, payload: dict[str, Any] | None = None) -> tupl
             return int(resp.status), resp.read().decode()
     except urllib.error.HTTPError as exc:
         return int(exc.code), exc.read().decode(errors="replace")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        # "Unreachable" is not only DNS and refused connections: a socket that
+        # accepts the request and then stops answering raises TimeoutError out
+        # of ssl.read, which is NOT an HTTPError and used to escape this
+        # function entirely. The whole script then died, printed nothing, and
+        # telegram_notify refused an empty body — so the v0.5.4 release went
+        # out with no announcement at all, which is precisely the outcome the
+        # English fallback exists to prevent. Reported as a synthetic 000 so
+        # the caller treats it like any other failed candidate and moves on to
+        # the next model.
+        return 0, f"transport error: {type(exc).__name__}: {str(exc)[:200]}"
 
 
 def rank_model(name: str) -> tuple[int, int, int, int, str]:
