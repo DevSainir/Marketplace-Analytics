@@ -8,16 +8,24 @@ commit time by the `commitizen` hook in `.pre-commit-config.yaml`.
 
 1. You push conventional commits to `main` as usual (this repo is trunk-based).
 2. `.github/workflows/release.yml` runs [Release Please](https://github.com/googleapis/release-please),
-   which keeps **one open pull request** titled `chore(release): vX.Y.Z`. That PR is a live preview
-   of the next release: the version it would produce and the changelog entries it would write.
-3. Merging that PR **is** the release. Release Please then:
+   which opens a pull request titled `chore(release): vX.Y.Z` describing the version it would
+   produce and the changelog it would write — and then **merges it automatically**.
+3. That merge **is** the release. Release Please then:
    * writes `CHANGELOG.md`,
    * bumps `version.txt`, `backend/pyproject.toml` and `frontend/package.json` to the same number,
    * tags `vX.Y.Z` and publishes a GitHub Release.
 4. The merge lands on `main` like any other commit, so `tests` runs and the VPS auto-deploys on green.
 5. The release announcement goes out to Telegram (below).
 
-Nothing is released until you merge that PR. To hold a release, leave it open.
+### Holding a release
+
+Every push to `main` therefore releases. To stop one, label the open PR **`hold-release`**: the
+merge step skips it and the PR stays open until you remove the label (the next push re-runs the
+workflow and merges it then). Leaving it open is no longer enough on its own.
+
+The merge is deliberately not gated on the PR's own checks — they never run. GitHub holds workflow
+runs for Actions-opened PRs at `action_required`, so waiting for green there would wait forever.
+The gate is the merge commit on `main`, which runs the full pipeline before anything deploys.
 
 ### Which number you get
 
@@ -171,14 +179,21 @@ member of the group). Until they do, their id is unreachable no matter what is d
 
 The release PR is opened by `GITHUB_TOKEN`, and GitHub holds workflow runs for PRs that Actions
 opened at **`action_required`** until a human approves them. So the PR shows a `tests` run with an
-*Approve and run* button rather than a green tick — it has not failed, it has not started.
+*Approve and run* button rather than a green tick — it has not failed, it has not started. Nothing
+waits on it: the merge commit lands on `main` where the full pipeline runs and gates the deploy.
 
-Approving it is optional. The PR only touches `CHANGELOG.md` and the version files, and the merge
-commit lands on `main` where the full pipeline runs anyway and gates the deploy. Approve it if you
-want the checks green before merging:
+The same rule has a sharper edge on the automatic merge, and it is the reason that step does more
+than call `gh pr merge`. **A merge performed with `GITHUB_TOKEN` pushes to `main` without
+triggering any workflow** — the property the `uv.lock` push relies on to avoid looping. Two things
+a human merge would have started go missing with it:
 
-```bash
-gh run list --event pull_request --limit 1
-```
+* `tests`, whose green run is what `deploy` waits for. Without it the bump sits on `main`,
+  released and never shipped — v0.1.1's failure reached from the other direction.
+* `release` itself, which is what sees the merged PR and creates the tag, the GitHub Release and
+  the announcement. Without it the PR merges and no release is ever cut.
 
-then approve it from the run's page in the browser.
+`workflow_dispatch` is the documented exception, so the merge step starts both explicitly. A
+dispatched `tests` on `main` runs the same tiers a push does — `end-to-end` keys off the branch and
+`performance` is opt-in either way — so the deploy gate keeps its full strength. If you ever swap
+the merge onto a PAT, delete both dispatches: with a real user token the push triggers them itself
+and you would get two runs of each.

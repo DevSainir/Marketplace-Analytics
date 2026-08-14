@@ -22,12 +22,17 @@
 # operational and go to the maintainer in English (see deploy.yml), releases are
 # product news and go to everyone in Russian. All of it is sent silently.
 #
+# The release PR is merged here rather than by hand (see «Merging it» below);
+# label it `hold-release` to keep one open.
+#
 # Note on CI for the release PR: it is opened by GITHUB_TOKEN, and GitHub holds
 # workflow runs for Actions-opened PRs at `action_required` until a human
 # approves them — so that PR shows a pending `tests` run, not a failed or
-# missing one. Approving it is optional: the PR only touches CHANGELOG.md and
-# the version files, and the merge commit itself lands on main and runs the
-# full pipeline, which is what gates the deploy.
+# missing one. That pending run is why the merge is not gated on the PR's own
+# checks: they never start, so waiting for them would wait forever. Nothing is
+# lost by it — the PR only touches CHANGELOG.md and the version files, and the
+# merge commit lands on main and runs the full pipeline, which is what gates
+# the deploy.
 
 name: release
 
@@ -43,6 +48,9 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  # `actions: write` is what lets the merge step start the two workflows that a
+  # human merge would have started by itself — see «Merging it» below.
+  actions: write
 
 jobs:
   release:
@@ -106,6 +114,68 @@ jobs:
           git commit -m 'chore(release): sync uv.lock with the bumped version'
           # A GITHUB_TOKEN push does not trigger workflows, so this cannot loop.
           git push
+
+      # ---------------------------------------------------------------- #
+      # Merging it. The release PR used to be merged by hand; it is merged
+      # here instead, because "click the button" was the only thing standing
+      # between a green main and a released one.
+      #
+      # THE CATCH, and why this step is longer than one `gh pr merge`: a merge
+      # performed with GITHUB_TOKEN pushes to main WITHOUT triggering any
+      # workflow — the same rule the uv.lock push above relies on to avoid
+      # looping. A human merge triggers two things, and both would go missing:
+      #
+      #   * `tests`, whose green run is what `deploy` waits for. Without it the
+      #     version bump would sit on main, released but never shipped — the
+      #     exact failure v0.1.1 had, arrived at from the other direction.
+      #   * `release` itself, which is what notices the merged PR and creates
+      #     the tag, the GitHub Release and the Telegram announcement. Without
+      #     it the PR would merge and no release would ever be cut.
+      #
+      # `workflow_dispatch` is the documented exception to that rule, so both
+      # are started explicitly. A dispatched `tests` on main runs the same
+      # tiers a push does (`end-to-end` keys off the branch, `performance` is
+      # opt-in either way), so the deploy gate keeps its full strength.
+      #
+      # To HOLD a release, label the PR `hold-release`: the merge is skipped
+      # and the PR stays open, which is what leaving it open used to mean.
+      # ---------------------------------------------------------------- #
+      - name: Merge the release PR
+        if: steps.release.outputs.pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Resolved from the branch rather than read off the action's `pr`
+          # output: the branch name is the one field this workflow already
+          # depends on above, so nothing new is assumed about that payload.
+          HEAD_BRANCH: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+        run: |
+          set -euo pipefail
+
+          PR_NUMBER=$(gh pr list --head "$HEAD_BRANCH" --state open \
+            --json number --jq '.[0].number // empty')
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No open PR on ${HEAD_BRANCH}; nothing to merge."
+            exit 0
+          fi
+
+          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' \
+              | grep -qx 'hold-release'; then
+            echo "PR #${PR_NUMBER} is labelled hold-release — leaving it open."
+            exit 0
+          fi
+
+          # A merge commit, not a squash: the announcement builds its list with
+          # `git log --no-merges`, which is what keeps "Merge pull request #12…"
+          # out of a note meant for humans.
+          gh pr merge "$PR_NUMBER" --merge
+          echo "Merged release PR #${PR_NUMBER}."
+
+          # Both of these would have happened on their own had a person clicked
+          # the button. Started in this order so the pipeline that gates the
+          # deploy is already moving before release-please cuts the tag.
+          gh workflow run tests.yml --ref main
+          gh workflow run release.yml --ref main
+          echo "Dispatched tests + release for the merged commit."
 
       # Everything below runs only on the merge that actually cut a release.
       - name: Check out the tagged commit
