@@ -18,6 +18,7 @@ from src.modules.monitoring.schemas import (
 )
 from src.modules.monitoring.services import (
     AnalyticsService,
+    WarehouseStock,
     ad_coverage,
     funnel_coverage,
     load_ad_spend_by_nm,
@@ -32,6 +33,7 @@ __all__ = [
     "SkuDetailResponse",
     "SkuSummaryItem",
     "SkuSummaryListResponse",
+    "WarehouseStock",
     "ad_coverage",
     "funnel_coverage",
     "load_ad_spend_by_nm",

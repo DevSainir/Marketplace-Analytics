@@ -26,6 +26,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 from decimal import Decimal
+from typing import NamedTuple
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -158,16 +159,34 @@ async def stock_day_span(
     return first, last
 
 
+class WarehouseStock(NamedTuple):
+    """One SKU's units at one warehouse, split by where they physically are.
+
+    ``in_way`` folds WB's two directions together — ``inWayToClient`` (sold,
+    riding to a buyer who may still refuse it) and ``inWayFromClient`` (refused,
+    riding back). Both are goods the seller has already paid for and will get
+    back or get paid for, so a balance that priced only ``quantity`` would
+    understate the money tied up in the warehouse by exactly the goods in motion.
+    They are kept apart from ``quantity`` rather than added into it because only
+    ``quantity`` can be shipped today.
+    """
+
+    quantity: int
+    in_way: int
+
+
 async def load_stock_by_warehouse(
     session: AsyncSession, *, workspace_id: uuid.UUID, stat_date: date
-) -> dict[tuple[int, str], int]:
-    """Return one day's remaining stock per SKU and warehouse.
+) -> dict[tuple[int, str], WarehouseStock]:
+    """Return one day's remaining and in-transit stock per SKU and warehouse.
 
     Summed across sizes in SQL: the balance table is a SKU x warehouse grid, and
     a size grain would multiply a few thousand rows into tens of thousands the
-    consumer would only fold back together. Zero-quantity cells are dropped — WB
-    omits emptied rows from its own report anyway, so an explicit zero carries no
-    more meaning than an absent row.
+    consumer would only fold back together. Cells empty on BOTH counts are
+    dropped — WB omits emptied rows from its own report anyway, so an explicit
+    zero carries no more meaning than an absent row — but a warehouse holding
+    nothing while goods ride back to it survives, because that is money in
+    motion and the whole reason in-transit is reported at all.
 
     Args:
         session: An open async session (caller owns the transaction).
@@ -175,21 +194,25 @@ async def load_stock_by_warehouse(
         stat_date: The exact snapshot day (never a carried-over neighbour).
 
     Returns:
-        ``{(nm_id, warehouse_name): Σ quantity}``; empty when the day has no
+        ``{(nm_id, warehouse_name): WarehouseStock}``; empty when the day has no
         snapshot.
     """
-    total = func.sum(StockSnapshot.quantity)
+    quantity = func.sum(StockSnapshot.quantity)
+    in_way = func.sum(StockSnapshot.in_way_to_client) + func.sum(StockSnapshot.in_way_from_client)
     stmt = (
-        select(StockSnapshot.nm_id, StockSnapshot.warehouse_name, total)
+        select(StockSnapshot.nm_id, StockSnapshot.warehouse_name, quantity, in_way)
         .where(
             StockSnapshot.stat_date == stat_date,
             StockSnapshot.nm_id.in_(workspace_sku_select(workspace_id)),
         )
         .group_by(StockSnapshot.nm_id, StockSnapshot.warehouse_name)
-        .having(total != 0)
+        .having((quantity != 0) | (in_way != 0))
     )
     rows = (await session.execute(stmt)).all()
-    return {(int(nm_id), str(warehouse)): int(quantity) for nm_id, warehouse, quantity in rows}
+    return {
+        (int(nm_id), str(warehouse)): WarehouseStock(int(units), int(moving or 0))
+        for nm_id, warehouse, units, moving in rows
+    }
 
 
 async def load_vendor_codes(session: AsyncSession, *, workspace_id: uuid.UUID) -> dict[int, str]:

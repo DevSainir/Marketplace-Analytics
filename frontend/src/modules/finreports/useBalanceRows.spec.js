@@ -6,7 +6,9 @@
  * carry the weight: a «Не считать» warehouse leaves every total but keeps its
  * own column figures, a filter re-totals to the rows on screen (a bottom row
  * still summing the whole catalogue is a number a seller would act on), and an
- * uncosted SKU never contributes a zero in place of an unknown.
+ * uncosted SKU never contributes a zero in place of an unknown. A fourth joins
+ * them: goods in transit are money the seller has already spent, so they belong
+ * in «По себестоимости» — but never in «По остаткам», which is what can ship.
  */
 import { describe, expect, it } from 'vitest'
 import { ref } from 'vue'
@@ -20,9 +22,11 @@ const BRUKI = {
   brand_name: 'NORTH LINE',
   cost_price: '800',
   cells: [
-    { warehouse_name: 'Тула', quantity: 72, balance: '57600' },
-    { warehouse_name: 'Коледино', quantity: 8, balance: '6400' },
-    { warehouse_name: 'СЦ Брак', quantity: 5, balance: '4000' },
+    // Five units riding to or from a buyer, worth 4 000 on top of the 57 600
+    // lying in Тула — the whole point of the «В пути» column.
+    { warehouse_name: 'Тула', quantity: 72, in_way: 5, balance: '57600', in_way_balance: '4000' },
+    { warehouse_name: 'Коледино', quantity: 8, in_way: 0, balance: '6400', in_way_balance: '0' },
+    { warehouse_name: 'СЦ Брак', quantity: 5, in_way: 0, balance: '4000', in_way_balance: '0' },
   ],
 }
 
@@ -32,7 +36,7 @@ const SHORTS = {
   subject_name: 'Шорты',
   brand_name: 'OTHER',
   cost_price: null,
-  cells: [{ warehouse_name: 'Тула', quantity: 40, balance: null }],
+  cells: [{ warehouse_name: 'Тула', quantity: 40, in_way: 0, balance: null, in_way_balance: null }],
 }
 
 function payload(overrides = {}) {
@@ -54,7 +58,9 @@ describe('useBalanceRows', () => {
     const { totals } = useBalanceRows(payload())
 
     expect(totals.value.quantity).toBe(125)
-    expect(totals.value.balance).toBe(68000)
+    expect(totals.value.inWay).toBe(5)
+    // 68 000 lying in the warehouses plus the 4 000 riding between them.
+    expect(totals.value.balance).toBe(72000)
   })
 
   it('leaves a «Не считать» warehouse out of the totals but keeps its column', () => {
@@ -68,8 +74,8 @@ describe('useBalanceRows', () => {
     expect(columns.value.at(-1).name).toBe('СЦ Брак')
     expect(totals.value.warehouses.at(-1).balance).toBe(4000)
     // …and out of both the row total and the corner.
-    expect(tableRows.value.find((r) => r.nmId === BRUKI.nm_id).totalBalance).toBe(64000)
-    expect(totals.value.balance).toBe(64000)
+    expect(tableRows.value.find((r) => r.nmId === BRUKI.nm_id).totalBalance).toBe(68000)
+    expect(totals.value.balance).toBe(68000)
     expect(totals.value.quantity).toBe(120)
   })
 
@@ -84,10 +90,12 @@ describe('useBalanceRows', () => {
     // is lying there; it just is not theirs to count.
     expect(excluded.isUncounted).toBe(true)
     expect(excluded.totalQuantity).toBe(85)
-    expect(excluded.totalBalance).toBe(68000)
+    expect(excluded.totalInWay).toBe(5)
+    expect(excluded.totalBalance).toBe(72000)
     // …and it reaches neither the column totals nor the corner. All that is
     // left in the count is the uncosted SKU, which carries units and no money.
     expect(totals.value.quantity).toBe(40)
+    expect(totals.value.inWay).toBe(0)
     expect(totals.value.balance).toBe(0)
     expect(totals.value.warehouses.find((w) => w.name === 'Коледино').quantity).toBe(0)
     expect(totals.value.warehouses.find((w) => w.name === 'Тула').quantity).toBe(40)
@@ -103,7 +111,7 @@ describe('useBalanceRows', () => {
 
     expect(tableRows.value).toHaveLength(1)
     expect(totals.value.quantity).toBe(85)
-    expect(totals.value.balance).toBe(68000)
+    expect(totals.value.balance).toBe(72000)
     // The emptied column stays in place — a column disappearing mid-search
     // makes the grid jump under the reader.
     expect(totals.value.warehouses.map((w) => w.name)).toEqual(['Тула', 'Коледино', 'СЦ Брак'])
@@ -117,6 +125,22 @@ describe('useBalanceRows', () => {
     expect(uncosted.totalQuantity).toBe(40)
     expect(uncosted.totalBalance).toBeNull()
     expect(totals.value.quantity).toBe(125)
+  })
+
+  it('keeps goods in transit out of the units but inside the money', () => {
+    const { tableRows, totals } = useBalanceRows(payload())
+
+    const bruki = tableRows.value.find((r) => r.nmId === BRUKI.nm_id)
+
+    // «По остаткам» is what can be shipped today — the five in transit are not
+    // part of it, and a seller reading 85 must not be reading 90.
+    expect(bruki.totalQuantity).toBe(85)
+    expect(bruki.totalInWay).toBe(5)
+    // «По себестоимости» is money already spent, which the five very much are.
+    expect(bruki.totalBalance).toBe(72000)
+    // Per warehouse, on both axes of the grid.
+    expect(bruki.byWarehouse['Тула']).toEqual({ quantity: 72, inWay: 5, balance: 61600 })
+    expect(totals.value.warehouses.find((w) => w.name === 'Тула').inWay).toBe(5)
   })
 
   it('floats pinned rows and columns to the front without a refetch', () => {

@@ -4,10 +4,13 @@ One picked DAY, not a period: remaining stock is a snapshot WB reports per day
 with no carry-over, so a range would have to either sum quantities that are the
 same units counted twice or silently pick one of its days.
 
-The grid is SKU x warehouse. Every cell carries two figures — the units still
-lying there, and what they cost the seller to put there (units x the cost price
-already on file). The second is the whole point of the table: a warehouse row of
-«72» says nothing about whether the money tied up in it is 6 000 or 600 000.
+The grid is SKU x warehouse. Every cell carries the units still lying there, the
+units in transit to and from buyers, and what all of them cost the seller (units
+x the cost price already on file). The money is the whole point of the table: a
+warehouse row of «72» says nothing about whether the money tied up in it is
+6 000 or 600 000. Goods in transit are priced too — they are paid for and will
+either come back or be paid for — but counted separately, because only the goods
+lying in the warehouse can be shipped today.
 
 A SKU with no cost price on file keeps its quantities and reports ``None`` for
 every money figure, exactly as the P&L does — a balance computed against free
@@ -47,8 +50,17 @@ class BalanceCell(BaseModel):
 
     warehouse_name: str
     quantity: int
+    #: Units in motion for this warehouse: riding to a buyer plus riding back
+    #: from one. The seller has paid for them and they are not lying anywhere,
+    #: which is why they are a figure of their own rather than part of
+    #: ``quantity`` — see :class:`~src.modules.monitoring.contract.WarehouseStock`.
+    in_way: int
     #: quantity x cost price; ``None`` when the SKU has no cost on file.
     balance: Decimal | None
+    #: in_way x cost price, on the same terms as ``balance``. Kept apart so the
+    #: client can show what is lying there and what is moving, and still add the
+    #: two into the money the warehouse is holding.
+    in_way_balance: Decimal | None
 
 
 class BalanceSkuRow(BaseModel):

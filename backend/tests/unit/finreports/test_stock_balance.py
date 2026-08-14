@@ -14,6 +14,7 @@ from datetime import date
 from decimal import Decimal
 
 from src.modules.finreports.services import build_balance
+from src.modules.monitoring.contract import WarehouseStock
 
 DAY = date(2026, 8, 3)
 SPAN = (date(2026, 1, 1), date(2026, 8, 3))
@@ -22,11 +23,16 @@ NM_BRUKI = 953770957
 NM_SHORTS = 611450917
 
 
+def _at(quantity: int, in_way: int = 0) -> WarehouseStock:
+    """One cell's units: lying in the warehouse, and riding to or from a buyer."""
+    return WarehouseStock(quantity, in_way)
+
+
 def _balance(**overrides: object) -> object:
     """Build a grid over one costed SKU in two warehouses, unless overridden."""
     kwargs: dict[str, object] = {
         "stat_date": DAY,
-        "stock": {(NM_BRUKI, "Тула"): 72, (NM_BRUKI, "Коледино"): 8},
+        "stock": {(NM_BRUKI, "Тула"): _at(72), (NM_BRUKI, "Коледино"): _at(8)},
         "costs": {NM_BRUKI: Decimal("800")},
         "identity": {NM_BRUKI: ("m-trx01-blk", "Брюки", "NORTH LINE")},
         "vendor_codes": {},
@@ -63,7 +69,7 @@ def test_an_uncosted_sku_keeps_its_units_and_reports_no_money() -> None:
     so the panels can be read as the partial sums they are.
     """
     grid = _balance(
-        stock={(NM_BRUKI, "Тула"): 72, (NM_SHORTS, "Тула"): 40},
+        stock={(NM_BRUKI, "Тула"): _at(72), (NM_SHORTS, "Тула"): _at(40)},
         identity={
             NM_BRUKI: ("m-trx01-blk", "Брюки", "NORTH LINE"),
             NM_SHORTS: ("m-wdx02-wht", "Шорты", "NORTH LINE"),
@@ -73,7 +79,7 @@ def test_an_uncosted_sku_keeps_its_units_and_reports_no_money() -> None:
     uncosted = next(row for row in grid.rows if row.nm_id == NM_SHORTS)
 
     assert uncosted.cost_price is None
-    assert [(c.quantity, c.balance) for c in uncosted.cells] == [(40, None)]
+    assert [(c.quantity, c.balance, c.in_way_balance) for c in uncosted.cells] == [(40, None, None)]
     assert grid.uncosted_count == 1
 
 
@@ -86,9 +92,9 @@ def test_rows_are_ranked_on_counted_stock_only() -> None:
     """
     grid = _balance(
         stock={
-            (NM_BRUKI, "СЦ Брак"): 500,
-            (NM_BRUKI, "Тула"): 1,
-            (NM_SHORTS, "Тула"): 10,
+            (NM_BRUKI, "СЦ Брак"): _at(500),
+            (NM_BRUKI, "Тула"): _at(1),
+            (NM_SHORTS, "Тула"): _at(10),
         },
         costs={NM_BRUKI: Decimal("800"), NM_SHORTS: Decimal("300")},
         identity={
@@ -142,10 +148,56 @@ def test_a_sku_that_never_settled_a_row_is_named_by_its_catalogue_code() -> None
     the catalogue «Артикул продавца» stands in.
     """
     grid = _balance(
-        stock={(NM_SHORTS, "Тула"): 12},
+        stock={(NM_SHORTS, "Тула"): _at(12)},
         costs={},
         identity={},
         vendor_codes={NM_SHORTS: "m-wdx02-wht"},
     )
 
     assert grid.rows[0].sa_name == "m-wdx02-wht"
+
+
+def test_goods_in_transit_are_priced_beside_the_stock_not_inside_it() -> None:
+    """«В пути» is money the seller has spent, but not stock they can ship.
+
+    The units riding to a buyer (or back from one) are already paid for and will
+    either come back to the shelf or be bought out, so leaving them out of the
+    money understates the balance. They stay out of ``quantity``, though: a
+    seller reading «80 в наличии» must not be reading goods that are on a van.
+    """
+    grid = _balance(stock={(NM_BRUKI, "Тула"): _at(72, in_way=5)})
+
+    tula = grid.rows[0].cells[0]
+
+    assert (tula.quantity, tula.in_way) == (72, 5)
+    assert tula.balance == Decimal("57600")
+    assert tula.in_way_balance == Decimal("4000")
+
+
+def test_a_sku_whose_stock_is_all_in_transit_still_ranks_by_its_money() -> None:
+    """Goods in motion rank with the goods on the shelf — it is the same money.
+
+    Ranking on the shelf alone would sink a SKU to the bottom of the table on
+    the very day its whole holding is out with buyers, which is when the seller
+    most needs to see it.
+    """
+    grid = _balance(
+        stock={
+            (NM_BRUKI, "Тула"): _at(0, in_way=60),
+            (NM_SHORTS, "Тула"): _at(30),
+        },
+        costs={NM_BRUKI: Decimal("800"), NM_SHORTS: Decimal("300")},
+        identity={
+            NM_BRUKI: ("m-trx01-blk", "Брюки", "NORTH LINE"),
+            NM_SHORTS: ("m-wdx02-wht", "Шорты", "NORTH LINE"),
+        },
+    )
+
+    assert [row.nm_id for row in grid.rows] == [NM_BRUKI, NM_SHORTS]
+
+
+def test_the_standing_note_says_where_goods_in_transit_are_counted() -> None:
+    """The corner is unreadable without knowing which figure holds the transit."""
+    grid = _balance()
+
+    assert any("В пути" in note and "себестоимости" in note for note in grid.notes)

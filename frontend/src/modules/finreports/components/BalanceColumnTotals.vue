@@ -1,25 +1,28 @@
 <script setup>
 /**
- * Block 3: «Итого по складу» — two rows under the grid, one column per warehouse.
+ * Block 3: «Итого по складу» — three rows under the grid, one column per warehouse.
  *
  * A table of its own, so it never scrolls out of sight vertically however long
  * the catalogue is. Its columns mirror the grid's — same order, same widths,
  * same trailing spacer — and the parent drives its horizontal scroll from the
  * grid's, which is what keeps a column's total under that column.
  *
- * One figure per cell, centred: with no divider to hang them on, the two rows
+ * One figure per cell, centred: with no divider to hang them on, the three rows
  * read better on the column's own axis than pushed to an edge.
  *
- * A warehouse marked «Не считать» still shows its own two figures here: the
- * seller wants to see what is lying there. It is the corner block that leaves
- * it out.
+ * The middle row is the goods in transit for that warehouse — outside «шт»,
+ * which is what can ship today, but inside «себестоимость», which is money
+ * already spent. Without it the third row would not follow from the first.
+ *
+ * A warehouse marked «Не считать» still shows its own figures here: the seller
+ * wants to see what is lying there. It is the corner block that leaves it out.
  */
 import { ref } from 'vue'
 
 import { formatNumber } from '@/core/utils/format'
 
 defineProps({
-  /** `[{name, isPinned, isUncounted, quantity, balance}]`, in display order. */
+  /** `[{name, isPinned, isUncounted, quantity, inWay, balance}]`, in display order. */
   warehouses: { type: Array, required: true },
   /** Money formatter bound to the response currency. */
   money: { type: Function, required: true },
@@ -51,6 +54,18 @@ defineExpose({ scroller })
             :class="{ 'wh-divide': isGroupBoundary(index), 'is-uncounted': column.isUncounted }"
           >
             {{ column.quantity ? formatNumber(column.quantity) : '' }}
+          </td>
+          <td class="col-spacer"></td>
+        </tr>
+        <tr>
+          <td class="cell-sku panel-title">Итого по складу, в пути</td>
+          <td
+            v-for="(column, index) in warehouses"
+            :key="column.name"
+            class="col-wh col-way tabular-nums"
+            :class="{ 'wh-divide': isGroupBoundary(index), 'is-uncounted': column.isUncounted }"
+          >
+            {{ column.inWay ? formatNumber(column.inWay) : '' }}
           </td>
           <td class="col-spacer"></td>
         </tr>

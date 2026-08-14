@@ -23,6 +23,7 @@ import pytest
 
 from src.modules.finreports.deps import get_balance_service
 from src.modules.finreports.schemas import BalanceCell, BalanceResponse, BalanceSkuRow
+from src.modules.monitoring.contract import WarehouseStock
 from src.modules.users.deps import get_user_repo
 from src.modules.workspaces.contract import WORKSPACE_HEADER
 from src.modules.workspaces.deps import get_workspace_repo
@@ -58,7 +59,13 @@ class _StubBalanceService:
                     brand_name="NORTH LINE",
                     cost_price=Decimal("800"),
                     cells=[
-                        BalanceCell(warehouse_name="Тула", quantity=72, balance=Decimal("57600"))
+                        BalanceCell(
+                            warehouse_name="Тула",
+                            quantity=72,
+                            in_way=5,
+                            balance=Decimal("57600"),
+                            in_way_balance=Decimal("4000"),
+                        )
                     ],
                 )
             ],
@@ -97,8 +104,9 @@ def _wire(
     async def _span(session: Any, **_kw: Any) -> tuple[date, date]:
         return (FIRST_DAY, LATEST_DAY)
 
-    async def _stock(session: Any, **kwargs: Any) -> dict[tuple[int, str], int]:
-        return {(NM_ID, "Тула"): 72} if kwargs["stat_date"] == LATEST_DAY else {}
+    async def _stock(session: Any, **kwargs: Any) -> dict[tuple[int, str], WarehouseStock]:
+        cells = {(NM_ID, "Тула"): WarehouseStock(72, 5)}
+        return cells if kwargs["stat_date"] == LATEST_DAY else {}
 
     async def _vendor_codes(session: Any, **_kw: Any) -> dict[int, str]:
         return {NM_ID: "m-trx01-blk"}
@@ -167,7 +175,7 @@ async def test_the_stock_reaches_the_service_through_the_route(
     await client.get("/api/v1/finreports/balance", headers=headers)
 
     call = balance.calls[0]
-    assert call["stock"] == {(NM_ID, "Тула"): 72}
+    assert call["stock"] == {(NM_ID, "Тула"): WarehouseStock(72, 5)}
     assert call["vendor_codes"] == {NM_ID: "m-trx01-blk"}
     assert call["span"] == (FIRST_DAY, LATEST_DAY)
 
@@ -180,7 +188,13 @@ async def test_the_response_serialises_the_grid_shape_the_table_reads(
 
     body = response.json()
     row = body["rows"][0]
-    assert row["cells"][0] == {"warehouse_name": "Тула", "quantity": 72, "balance": "57600"}
+    assert row["cells"][0] == {
+        "warehouse_name": "Тула",
+        "quantity": 72,
+        "in_way": 5,
+        "balance": "57600",
+        "in_way_balance": "4000",
+    }
     for field in ("sa_name", "subject_name", "brand_name", "cost_price"):
         assert field in row
     # The marks travel with the grid: the client draws the panels, so it needs

@@ -30,6 +30,7 @@ from src.modules.finreports.schemas.balance import (
     BalanceResponse,
     BalanceSkuRow,
 )
+from src.modules.monitoring.contract import WarehouseStock
 
 _ZERO = Decimal(0)
 
@@ -42,7 +43,7 @@ _FALLBACK_CURRENCY = "KGS"
 def build_balance(
     *,
     stat_date: date,
-    stock: dict[tuple[int, str], int],
+    stock: dict[tuple[int, str], WarehouseStock],
     costs: dict[int, Decimal],
     identity: dict[int, tuple[str, str, str]],
     vendor_codes: dict[int, str],
@@ -57,7 +58,8 @@ def build_balance(
 
     Args:
         stat_date: The snapshot day being rendered.
-        stock: ``{(nm_id, warehouse): units}`` — only non-zero cells.
+        stock: ``{(nm_id, warehouse): units}`` — only cells that hold or move
+            something.
         costs: ``{nm_id: cost per unit}`` in ``currency``; SKUs absent from it
             are uncosted and get quantities but no money.
         identity: ``{nm_id: (sa_name, subject, brand)}`` from the settlement rows.
@@ -99,16 +101,16 @@ def build_balance(
 
 def _build_rows(
     *,
-    stock: dict[tuple[int, str], int],
+    stock: dict[tuple[int, str], WarehouseStock],
     costs: dict[int, Decimal],
     identity: dict[int, tuple[str, str, str]],
     vendor_codes: dict[int, str],
     uncounted_warehouses: set[str],
 ) -> list[BalanceSkuRow]:
     """One row per SKU holding stock, largest counted balance first."""
-    by_sku: dict[int, list[tuple[str, int]]] = {}
-    for (nm_id, warehouse), quantity in stock.items():
-        by_sku.setdefault(nm_id, []).append((warehouse, quantity))
+    by_sku: dict[int, list[tuple[str, WarehouseStock]]] = {}
+    for (nm_id, warehouse), units in stock.items():
+        by_sku.setdefault(nm_id, []).append((warehouse, units))
 
     rows: list[BalanceSkuRow] = []
     ranking: dict[int, tuple[Decimal, int]] = {}
@@ -128,18 +130,23 @@ def _build_rows(
                 cells=[
                     BalanceCell(
                         warehouse_name=warehouse,
-                        quantity=quantity,
-                        balance=None if cost is None else cost * quantity,
+                        quantity=units.quantity,
+                        in_way=units.in_way,
+                        balance=None if cost is None else cost * units.quantity,
+                        in_way_balance=None if cost is None else cost * units.in_way,
                     )
-                    for warehouse, quantity in sorted(cells)
+                    for warehouse, units in sorted(cells)
                 ],
             )
         )
         # Rank on the COUNTED stock only, so a warehouse the seller took out of
-        # the totals cannot decide which rows they see first either.
-        counted = [(w, q) for w, q in cells if w not in uncounted_warehouses]
-        units = sum(quantity for _warehouse, quantity in counted)
-        ranking[nm_id] = (_ZERO if cost is None else cost * units, units)
+        # the totals cannot decide which rows they see first either. Goods in
+        # transit are ranked WITH the stock: they are the same money, and a SKU
+        # whose whole holding happens to be riding to buyers today would
+        # otherwise sink to the bottom of the table on the day it matters most.
+        counted = [units for warehouse, units in cells if warehouse not in uncounted_warehouses]
+        held = sum(units.quantity + units.in_way for units in counted)
+        ranking[nm_id] = (_ZERO if cost is None else cost * held, held)
 
     # Money first — the row worth 600 000 matters more than the row of 600 units
     # of a cheap SKU. Uncosted rows have no balance to rank on and fall to the
@@ -176,8 +183,10 @@ def _notes(
             "их баланс не посчитан и в «Итого» не входит. Заполните в разделе «Себестоимость»."
         )
     notes.append(
-        "Баланс — остаток на складе, умноженный на себестоимость единицы: сколько денег "
-        "лежит на складе, а не сколько за него выручат. Товар в пути в остатки не входит."
+        "Баланс — остаток, умноженный на себестоимость единицы: сколько денег лежит "
+        "на складе, а не сколько за него выручат. Товар в пути (к клиенту и от него) "
+        "показан отдельной колонкой «В пути», но в «По себестоимости» входит — он уже "
+        "оплачен и вернётся на склад или будет выкуплен."
     )
     return notes
 
@@ -202,7 +211,7 @@ class BalanceService:
         *,
         workspace_id: uuid.UUID,
         stat_date: date,
-        stock: dict[tuple[int, str], int],
+        stock: dict[tuple[int, str], WarehouseStock],
         vendor_codes: dict[int, str],
         span: tuple[date | None, date | None],
     ) -> BalanceResponse:
@@ -215,7 +224,8 @@ class BalanceService:
         Args:
             workspace_id: Owning workspace.
             stat_date: The snapshot day to render.
-            stock: ``{(nm_id, warehouse): units}`` for that day.
+            stock: ``{(nm_id, warehouse): units}`` for that day, in-transit
+                included.
             vendor_codes: Catalogue names, the identity fallback.
             span: ``(first, last)`` snapshot day on record.
 

@@ -7,11 +7,11 @@
  * cells land a few pixels wide, and the panels exist precisely to keep totals
  * beside a grid that is scrolling in two directions.
  *
- * A phone reads one SKU at a time, so each becomes a card carrying the two
- * figures that make this a balance rather than a stock list — the units lying
- * there and what they cost to put there — with the per-warehouse split folded
- * away. «Итого» leads the list, because on a phone it would otherwise be a
- * scroll away past every SKU.
+ * A phone reads one SKU at a time, so each becomes a card carrying the figures
+ * that make this a balance rather than a stock list — the units lying there,
+ * the units in transit, and what they cost to put there — with the per-warehouse
+ * split folded away. «Итого» leads the list, because on a phone it would
+ * otherwise be a scroll away past every SKU.
  *
  * Fed the same rows and totals as the grid (`useBalanceRows`), so the shared
  * toolbar's search and filters apply to both. Marking a warehouse «не считать»
@@ -27,8 +27,8 @@ const props = defineProps({
   rows: { type: Array, default: () => [] },
   /** @type {Array<{name, isPinned, isUncounted}>} Warehouse columns, in order. */
   columns: { type: Array, default: () => [] },
-  /** @type {{quantity: number, balance: number|null}} The corner total. */
-  totals: { type: Object, default: () => ({ quantity: 0, balance: null }) },
+  /** @type {{quantity: number, inWay: number, balance: number|null}} The corner total. */
+  totals: { type: Object, default: () => ({ quantity: 0, inWay: 0, balance: null }) },
   /** Currency formatter from `moneyFormatter`. */
   money: { type: Function, required: true },
 })
@@ -71,6 +71,9 @@ function stocked(row) {
       <span class="text-right">
         <span class="block text-base font-bold tabular-nums text-primary">
           {{ formatNumber(totals.quantity) }} шт
+          <span v-if="totals.inWay" class="text-tiny font-medium text-muted">
+            +{{ formatNumber(totals.inWay) }} в пути
+          </span>
         </span>
         <span class="block text-tiny tabular-nums text-muted">{{ money(totals.balance) }}</span>
       </span>
@@ -96,7 +99,12 @@ function stocked(row) {
           </span>
 
           <span class="record-figures">
-            <span class="record-value">{{ formatNumber(row.totalQuantity) }} шт</span>
+            <span class="record-value">
+              {{ formatNumber(row.totalQuantity) }} шт
+              <span v-if="row.totalInWay" class="text-tiny font-normal text-muted">
+                +{{ formatNumber(row.totalInWay) }} в пути
+              </span>
+            </span>
             <!-- `null` is «нет себестоимости», which is not the same statement as
                  a zero balance — the grid draws the same distinction. -->
             <span class="record-support">
@@ -126,6 +134,9 @@ function stocked(row) {
             </span>
             <span class="record-value">
               {{ formatNumber(column.cell.quantity) }} шт
+              <span v-if="column.cell.inWay" class="text-muted">
+                (+{{ formatNumber(column.cell.inWay) }} в пути)
+              </span>
               <span v-if="column.cell.balance !== null" class="text-muted">
                 · {{ money(column.cell.balance) }}
               </span>

@@ -14,13 +14,17 @@
   gap: var(--panel-gap);
 
   /* Column widths. `--col-sku-w` fits a WB seller article («M-TRX01-BLK») plus
-     its ⋮; the summary pair fits its own headers, which outrun the figures.
+     its ⋮; the summary trio fits its own headers, which outrun the figures.
      Sized against the type scale below — grow one and these have to follow, or
      «119 | 143 500с» starts clipping. */
   --col-sku-w: 12rem;
   --col-wh-w: 7.25rem;
   --col-qty-w: 5.5rem;
+  --col-way-w: 4rem;
   --col-cost-w: 8.5rem;
+  /* The right-hand blocks — «Итого по артикулу» and the corner beneath it —
+     square up on this one figure instead of each re-adding the columns. */
+  --panel-w: calc(var(--col-qty-w) + var(--col-way-w) + var(--col-cost-w));
 
   /* Type scale. The grid runs a notch tighter than the panels: it is dozens of
      cells wide and every pixel there buys another warehouse on screen, while
@@ -100,7 +104,7 @@
   align-items: flex-end;
   /* The same width the row-totals block declares, so the two right-hand blocks
      square up instead of the grid column stretching one of them. */
-  width: calc(var(--col-qty-w) + var(--col-cost-w));
+  width: var(--panel-w);
   padding: 4px 10px;
   background: var(--panel-bg);
   line-height: 1.15;
@@ -112,6 +116,13 @@
 .corner-value {
   font-size: 14px;
   font-weight: 700;
+}
+/* Goods in motion, under the goods on the shelf: the same figure the «В пути»
+   column totals, kept quiet so the corner still reads as one number. */
+.corner-way {
+  font-size: 11px;
+  font-weight: 500;
+  color: #4a4a4a;
 }
 .corner-money {
   font-size: 17px;

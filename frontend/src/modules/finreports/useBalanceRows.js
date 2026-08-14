@@ -62,12 +62,24 @@ export function shortWarehouseName(name) {
 export function toRow(r, uncounted, pinnedSkus, uncountedSkus) {
   const byWarehouse = {}
   let totalQuantity = 0
+  let totalInWay = 0
   let totalBalance = 0
   for (const cell of r.cells ?? []) {
-    const balance = num(cell.balance)
-    byWarehouse[cell.warehouse_name] = { quantity: cell.quantity, balance }
+    // The cell's money covers BOTH halves — what lies there and what is riding
+    // to or from a buyer — because both are paid for and both come back to this
+    // warehouse or get bought out. The units stay apart: only the ones lying
+    // there can be shipped today.
+    const lying = num(cell.balance)
+    const moving = num(cell.in_way_balance)
+    const balance = lying === null ? null : lying + (moving ?? 0)
+    byWarehouse[cell.warehouse_name] = {
+      quantity: cell.quantity,
+      inWay: cell.in_way ?? 0,
+      balance,
+    }
     if (uncounted.has(cell.warehouse_name)) continue
     totalQuantity += cell.quantity
+    totalInWay += cell.in_way ?? 0
     totalBalance += balance ?? 0
   }
   return {
@@ -80,6 +92,7 @@ export function toRow(r, uncounted, pinnedSkus, uncountedSkus) {
     isUncounted: uncountedSkus.has(r.nm_id),
     byWarehouse,
     totalQuantity,
+    totalInWay,
     // An uncosted SKU has no balance at all — 0 would read as «free goods».
     totalBalance: r.cost_price === null || r.cost_price === undefined ? null : totalBalance,
   }
@@ -99,23 +112,27 @@ export function toRow(r, uncounted, pinnedSkus, uncountedSkus) {
  *   disappears while typing makes the grid jump under the reader.
  */
 export function subtotals(rows, columns) {
-  const perWarehouse = new Map(columns.map((c) => [c.name, { quantity: 0, balance: 0 }]))
+  const perWarehouse = new Map(columns.map((c) => [c.name, { quantity: 0, inWay: 0, balance: 0 }]))
   let quantity = 0
+  let inWay = 0
   let balance = 0
   for (const row of rows) {
     if (row.isUncounted) continue
     quantity += row.totalQuantity
+    inWay += row.totalInWay
     balance += row.totalBalance ?? 0
     for (const [name, cell] of Object.entries(row.byWarehouse)) {
       const total = perWarehouse.get(name)
       if (!total) continue
       total.quantity += cell.quantity
+      total.inWay += cell.inWay
       total.balance += cell.balance ?? 0
     }
   }
   return {
     warehouses: columns.map((c) => ({ ...c, ...perWarehouse.get(c.name) })),
     quantity,
+    inWay,
     balance,
   }
 }
@@ -144,9 +161,13 @@ export function useBalanceRows(balance) {
     const quantities = new Map()
     for (const row of rawRows.value) {
       for (const cell of row.cells ?? []) {
+        // Ordered on everything the warehouse holds, goods in motion included —
+        // a warehouse whose stock happens to be riding to buyers today has not
+        // become a minor warehouse, and the column jumping left and right day to
+        // day would be worse than either place for it.
         quantities.set(
           cell.warehouse_name,
-          (quantities.get(cell.warehouse_name) ?? 0) + cell.quantity,
+          (quantities.get(cell.warehouse_name) ?? 0) + cell.quantity + (cell.in_way ?? 0),
         )
       }
     }

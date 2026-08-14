@@ -21,7 +21,7 @@ table {
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
-  width: calc(var(--col-qty-w) + var(--col-cost-w));
+  width: var(--panel-w);
 }
 
 th,
@@ -81,9 +81,19 @@ tbody tr.is-uncounted td {
 col.c-qty {
   width: var(--col-qty-w);
 }
+col.c-way {
+  width: var(--col-way-w);
+}
 col.c-cost {
   width: var(--col-cost-w);
 }
+.col-way,
 .col-cost {
   border-left: 1px solid var(--rule);
+}
+/* Goods in motion are a smaller claim than goods on the shelf — the same
+   parenthetical grey the grid gives a warehouse taken out of the count. */
+tbody td.col-way {
+  color: var(--ink-dim);
+  font-weight: 400;
 }

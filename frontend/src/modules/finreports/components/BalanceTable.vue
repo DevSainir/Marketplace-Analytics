@@ -2,9 +2,11 @@
 /**
  * «Баланс по товарным остаткам» — the SKU x warehouse stock grid for one day.
  *
- * Rows are SKUs, columns are warehouses, and every cell carries the two figures
- * that make this a balance rather than a stock report: the units still lying
- * there and what they cost the seller to put there (units x cost price).
+ * Rows are SKUs, columns are warehouses, and every cell carries the figures that
+ * make this a balance rather than a stock report: the units still lying there,
+ * the units riding to or from a buyer, and what all of them cost the seller to
+ * put there (units x cost price). The units in motion are counted in the money
+ * — they are paid for — but never in «остаток», which is what can ship today.
  *
  * FOUR separate blocks floating over the canvas, not one table with frozen
  * edges: the grid, «Итого по артикулу» beside it, «Итого по складу» beneath it,
@@ -164,6 +166,9 @@ function forwardWheel(event) {
         <div class="balance-block corner-block">
           <div class="corner-label">Итого</div>
           <div class="corner-value tabular-nums">{{ formatNumber(totals.quantity) }} шт</div>
+          <div v-if="totals.inWay" class="corner-way tabular-nums">
+            +{{ formatNumber(totals.inWay) }} шт в пути
+          </div>
           <div class="corner-value corner-money tabular-nums">{{ money(totals.balance) }}</div>
         </div>
       </div>

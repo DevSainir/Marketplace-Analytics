@@ -22,8 +22,20 @@ const PAYLOAD = {
       brand_name: 'NORTH LINE',
       cost_price: '800',
       cells: [
-        { warehouse_name: 'Тула', quantity: 72, balance: '57600' },
-        { warehouse_name: 'Коледино', quantity: 8, balance: '6400' },
+        {
+          warehouse_name: 'Тула',
+          quantity: 72,
+          in_way: 5,
+          balance: '57600',
+          in_way_balance: '4000',
+        },
+        {
+          warehouse_name: 'Коледино',
+          quantity: 8,
+          in_way: 0,
+          balance: '6400',
+          in_way_balance: '0',
+        },
       ],
     },
     {
@@ -32,7 +44,9 @@ const PAYLOAD = {
       subject_name: 'Шорты',
       brand_name: 'OTHER',
       cost_price: '300',
-      cells: [{ warehouse_name: 'Тула', quantity: 40, balance: '12000' }],
+      cells: [
+        { warehouse_name: 'Тула', quantity: 40, in_way: 0, balance: '12000', in_way_balance: '0' },
+      ],
     },
   ],
   pinned_skus: [],
@@ -99,6 +113,28 @@ describe('BalanceTable', () => {
 
     expect(names).toEqual(['M-TRX01-BLK', 'M-WDX02-WHT'])
     expect(totals).toEqual(['80', '40'])
+    wrapper.unmount()
+  })
+
+  it('gives goods in transit their own column and folds them into the money', async () => {
+    // «В пути» sits between the units and the money because it belongs to both:
+    // outside «По остаткам», which is what can ship today, and inside «По
+    // себестоимости», which is what the seller has already paid for.
+    const { wrapper, rowTotals } = mountTable()
+
+    const headers = [...rowTotals.querySelectorAll('thead tr:last-child th')].map((h) =>
+      h.textContent.trim(),
+    )
+    const bruki = [...rowTotals.querySelectorAll('tbody tr')[0].children].map((c) =>
+      c.textContent.trim(),
+    )
+
+    expect(headers).toEqual(['По остаткам', 'В пути', 'По себестоимости'])
+    // 80 lying in the two warehouses, 5 in transit, and 64 000 + 4 000 of money.
+    expect(bruki).toEqual(['80', '5', '68\u00a0000с'])
+    // A SKU with nothing moving leaves the column blank — a column of zeros
+    // down a catalogue that mostly sits still buries the rows that move.
+    expect([...rowTotals.querySelectorAll('tbody tr')[1].children][1].textContent.trim()).toBe('')
     wrapper.unmount()
   })
 })
