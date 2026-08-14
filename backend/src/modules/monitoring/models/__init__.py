@@ -6,6 +6,8 @@ regardless of the underlying file split.
 """
 
 from src.modules.monitoring.models.advertising import (
+    CLUSTER_MAX_LENGTH,
+    AdvertisingClusterStatDaily,
     AdvertisingSearchStatDaily,
     AdvertisingStatDaily,
 )
@@ -28,8 +30,10 @@ from src.modules.monitoring.models.stocks import StockSnapshot
 from src.modules.monitoring.models.warehouse_marks import WarehouseMark
 
 __all__ = [
+    "CLUSTER_MAX_LENGTH",
     "WB_STATUS_LABELS",
     "WB_TYPE_LABELS",
+    "AdvertisingClusterStatDaily",
     "AdvertisingSearchStatDaily",
     "AdvertisingStatDaily",
     "Campaign",

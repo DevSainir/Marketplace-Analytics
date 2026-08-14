@@ -164,6 +164,27 @@ class Settings(BaseSettings):
     # Tighter retry cap than the rate-limited seller APIs: a broken proxy must
     # give up quickly instead of spinning (protects the proxy balance).
     wb_card_max_retries: int = Field(default=3)
+    # Public storefront SEARCH endpoint (search.wb.ru) — the organic ranking a
+    # shopper sees, which no seller API exposes. Unauthenticated, shares the
+    # card endpoint's anti-bot edge, its proxy and its timeout/retry budget.
+    wb_search_base_url: str = Field(default="https://search.wb.ru")
+    # The API version is a knob because WB retires them abruptly: verified live
+    # 2026-08-14, v14 served results while v13 and v5 answered 429 to every
+    # request from the same IP in the same minute.
+    wb_search_path: str = Field(default="/exactmatch/ru/common/v14/search")
+    # Delivery region the ranking is computed for (see wb_card_dest). A position
+    # is only meaningful together with this value.
+    wb_search_dest: int = Field(default=-1257786)
+    # Result slots per page; 100 is what the storefront itself requests.
+    wb_search_page_size: int = Field(default=100, ge=1, le=300)
+    # How deep a position probe may scan. Pages are fetched SEQUENTIALLY because
+    # the host 429s back-to-back requests, so this bounds the endpoint's latency
+    # as much as WB's patience: 3 pages = the top 300 positions.
+    wb_search_max_pages: int = Field(default=3, ge=1, le=20)
+    # How long a keyword's probe result is reused (Redis). The ranking moves
+    # within the hour, so this trades freshness for not being throttled: a team
+    # of five checking the same phrase pays for one probe.
+    wb_search_cache_seconds: int = Field(default=600, ge=0)
     # Relative paths resolve against the backend working directory.
     # disables caching entirely. Relative paths resolve against the backend
     # working directory; a bind mount or S3 can replace it without code changes.

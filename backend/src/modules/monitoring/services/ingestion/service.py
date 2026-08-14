@@ -26,6 +26,7 @@ from src.integrations.wildberries.schemas import (
     WBStockRow,
 )
 from src.modules.monitoring.repos import (
+    AdvertisingClusterRepository,
     AdvertisingRepository,
     AdvertisingSearchRepository,
     CampaignRepository,
@@ -58,6 +59,7 @@ class IngestionService:
         product_card_repo: ProductCardRepository,
         product_size_repo: ProductSizeRepository,
         advertising_search_repo: AdvertisingSearchRepository,
+        advertising_cluster_repo: AdvertisingClusterRepository,
         price_repo: PriceRepository,
         sale_repo: SaleRepository,
     ) -> None:
@@ -67,6 +69,7 @@ class IngestionService:
             advertising_repo=advertising_repo,
             campaign_repo=campaign_repo,
             advertising_search_repo=advertising_search_repo,
+            advertising_cluster_repo=advertising_cluster_repo,
         )
         self._stocks = StockIngestion(stock_repo)
         self._prices = PriceIngestion(price_repo)
@@ -121,6 +124,18 @@ class IngestionService:
     ) -> int:
         """Delegate to :meth:`AdvertisingIngestion.ingest_search_stats`."""
         return await self._advertising.ingest_search_stats(
+            items, window=window, requested_campaign_ids=requested_campaign_ids
+        )
+
+    async def ingest_search_clusters(
+        self,
+        items: list[WBNormQueryItem],
+        *,
+        window: tuple[date, date] | None = None,
+        requested_campaign_ids: list[int] | None = None,
+    ) -> int:
+        """Delegate to :meth:`AdvertisingIngestion.ingest_search_clusters`."""
+        return await self._advertising.ingest_search_clusters(
             items, window=window, requested_campaign_ids=requested_campaign_ids
         )
 
@@ -215,8 +230,17 @@ class IngestionService:
         funnel_count = await self.ingest_sales_funnel(funnel)
         ad_count = await self.ingest_advertising(advertising, window=advertising_window)
         search_count = 0
+        cluster_count = 0
         if search_stats is not None:
             search_count = await self.ingest_search_stats(
+                search_stats,
+                window=advertising_window,
+                requested_campaign_ids=search_requested_campaign_ids,
+            )
+            # The same payload at its per-cluster grain (see the method's
+            # docstring): the zone aggregate above sums the cluster texts away,
+            # and «Поиск по кластерам» needs them.
+            cluster_count = await self.ingest_search_clusters(
                 search_stats,
                 window=advertising_window,
                 requested_campaign_ids=search_requested_campaign_ids,
@@ -241,6 +265,7 @@ class IngestionService:
             funnel_rows=funnel_count,
             advertising_rows=ad_count,
             search_zone_rows=search_count,
+            search_cluster_rows=cluster_count,
             stock_rows=stock_count,
             price_rows=price_count,
             sales_rows=sales_count,

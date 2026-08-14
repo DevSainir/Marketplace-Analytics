@@ -150,6 +150,9 @@ class IngestionResult(BaseModel):
     funnel_rows: int = Field(default=0, description="Funnel rows upserted.")
     advertising_rows: int = Field(default=0, description="Advertising rows upserted.")
     search_zone_rows: int = Field(default=0, description="Search-zone advertising rows upserted.")
+    search_cluster_rows: int = Field(
+        default=0, description="Per-search-cluster advertising rows upserted."
+    )
     stock_rows: int = Field(default=0, description="Stock rows upserted.")
     price_rows: int = Field(default=0, description="Price snapshot rows upserted.")
     sales_rows: int = Field(default=0, description="Per-item sale/return records upserted.")

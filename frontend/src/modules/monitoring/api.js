@@ -262,3 +262,42 @@ export async function getRefreshStatus(taskId) {
   const { data } = await apiClient.get(`/v1/monitoring/refresh/${taskId}`)
   return data
 }
+
+/**
+ * GET /v1/monitoring/skus/{nm_id}/clusters — the search clusters this SKU's
+ * advertising served in over the window («Поиск по кластерам», stored half).
+ *
+ * Harvested history, so it answers instantly and covers only phrases the seller
+ * PAID to appear for.
+ *
+ * @param {number|string} nmId WB SKU identifier.
+ * @param {{date_from?: string, date_to?: string, limit?: number}} [params]
+ * @param {AbortSignal} [signal] Cancels the request when the SKU/window changes.
+ * @returns {Promise<import('@/core/api/types').SkuClustersResponse>}
+ */
+export async function fetchSkuClusters(nmId, params = {}, signal) {
+  const { data } = await apiClient.get(`/v1/monitoring/skus/${nmId}/clusters`, { params, signal })
+  return data
+}
+
+/**
+ * GET /v1/monitoring/skus/{nm_id}/search-position — where this SKU ranks in WB's
+ * PUBLIC search for a typed phrase, checked live.
+ *
+ * Slow and rate-limited on WB's side (the backend caches each phrase for a few
+ * minutes and shares the scan across the workspace's SKUs), so it runs only on
+ * an explicit search and its failure must not disturb the block above it.
+ *
+ * @param {number|string} nmId WB SKU identifier.
+ * @param {string} query The phrase a shopper would type.
+ * @param {{refresh?: boolean}} [options] `refresh` re-checks WB, skipping the cache.
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<import('@/core/api/types').SkuSearchPositionResponse>}
+ */
+export async function probeSkuSearchPosition(nmId, query, options = {}, signal) {
+  const { data } = await apiClient.get(`/v1/monitoring/skus/${nmId}/search-position`, {
+    params: { query, refresh: options.refresh ? true : undefined },
+    signal,
+  })
+  return data
+}

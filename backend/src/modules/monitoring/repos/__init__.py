@@ -6,6 +6,7 @@ SQL for the module — services depend on them and never issue queries.
 """
 
 from src.modules.monitoring.repos.advertising import AdvertisingRepository
+from src.modules.monitoring.repos.advertising_clusters import AdvertisingClusterRepository
 from src.modules.monitoring.repos.advertising_search import AdvertisingSearchRepository
 from src.modules.monitoring.repos.campaigns import CampaignRepository
 from src.modules.monitoring.repos.day_actions import SkuDayActionRepository
@@ -23,6 +24,7 @@ from src.modules.monitoring.repos.stocks import StockRepository
 from src.modules.monitoring.repos.warehouse_marks import WarehouseMarkRepository
 
 __all__ = [
+    "AdvertisingClusterRepository",
     "AdvertisingRepository",
     "AdvertisingSearchRepository",
     "CampaignRepository",

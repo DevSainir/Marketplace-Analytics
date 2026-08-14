@@ -35,6 +35,7 @@ from src.integrations.wildberries.schemas import (
     WBStockRow,
 )
 from src.modules.monitoring.repos import (
+    AdvertisingClusterRepository,
     AdvertisingRepository,
     AdvertisingSearchRepository,
     CampaignRepository,
@@ -334,6 +335,7 @@ async def _harvest_sku_window(
             product_card_repo=ProductCardRepository(session),
             product_size_repo=ProductSizeRepository(session),
             advertising_search_repo=AdvertisingSearchRepository(session),
+            advertising_cluster_repo=AdvertisingClusterRepository(session),
             price_repo=PriceRepository(session),
             sale_repo=SaleRepository(session),
         )
@@ -383,6 +385,7 @@ async def _harvest_sku_window(
             "funnel_rows": result.funnel_rows,
             "advertising_rows": result.advertising_rows,
             "search_zone_rows": result.search_zone_rows,
+            "search_cluster_rows": result.search_cluster_rows,
             "stock_rows": result.stock_rows,
             "price_rows": result.price_rows,
             "sales_rows": result.sales_rows,

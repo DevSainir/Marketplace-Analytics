@@ -22,7 +22,7 @@ DI wiring, the module contract) import the services from here and are
 insulated from the internal package layout.
 """
 
-from src.modules.monitoring.services.analytics import AnalyticsService
+from src.modules.monitoring.services.analytics import AnalyticsService, ClusterAnalytics
 from src.modules.monitoring.services.exports import (
     WarehouseStock,
     ad_coverage,
@@ -41,6 +41,7 @@ from src.modules.monitoring.services.refresh_tracking import (
 
 __all__ = [
     "AnalyticsService",
+    "ClusterAnalytics",
     "IngestionService",
     "WarehouseStock",
     "ad_coverage",

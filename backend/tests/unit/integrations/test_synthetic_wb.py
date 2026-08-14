@@ -18,10 +18,12 @@ from src.integrations.wildberries import (
     build_analytics_client,
     build_card_client,
     build_prices_client,
+    build_search_client,
 )
 from src.integrations.wildberries.synthetic import (
     SyntheticAnalyticsClient,
     SyntheticPricesClient,
+    SyntheticSearchClient,
 )
 
 _WINDOW_START = date(2026, 7, 20)
@@ -178,3 +180,37 @@ async def test_synthetic_cohort_is_empty() -> None:
         rows = await client.fetch_funnel_cohort_day(day=_WINDOW_START)
 
     assert rows == []
+
+
+async def test_the_synthetic_search_probe_runs_without_the_real_clients_state() -> None:
+    """The position probe works locally — it reads SETTINGS, not client attributes.
+
+    The mixin's ``__init__`` deliberately never runs the real client's (that
+    would open an httpx client), so a synthetic method reaching for
+    ``self._page_size`` raises ``AttributeError`` at request time instead of
+    failing to construct. That is exactly how «Проверить позицию» broke locally
+    while every construction-level test stayed green.
+    """
+    client = build_search_client(_fake())
+
+    probe = await client.find_positions(query="носки мужские", nm_ids={1001, 1002, 1003, 1004})
+
+    assert isinstance(client, SyntheticSearchClient)
+    assert probe.positions_scanned == _fake().wb_search_page_size * _fake().wb_search_max_pages
+    assert all(1 <= position.position <= probe.positions_scanned for position in probe.positions)
+
+
+async def test_the_synthetic_probe_finds_some_skus_and_misses_others() -> None:
+    """The misses are the point: the real probe rarely finds a whole catalogue.
+
+    A synthetic client that placed every SKU would hide the empty state the block
+    has to render — which is the one a seller sees most often.
+    """
+    client = build_search_client(_fake())
+    catalogue = set(range(1000, 1040))
+
+    probe = await client.find_positions(query="носки", nm_ids=catalogue)
+
+    found = {position.nm_id for position in probe.positions}
+    assert found
+    assert found != catalogue

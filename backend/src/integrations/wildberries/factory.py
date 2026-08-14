@@ -19,6 +19,7 @@ from src.integrations.wildberries.clients.analytics import WBAnalyticsClient
 from src.integrations.wildberries.clients.card import WBCardClient
 from src.integrations.wildberries.clients.marketplace import WBMarketplaceClient
 from src.integrations.wildberries.clients.prices import WBPricesClient
+from src.integrations.wildberries.clients.search import WBPublicSearchClient
 from src.integrations.wildberries.clients.statistics import WBStatisticsClient
 from src.integrations.wildberries.synthetic import (
     SyntheticAdvertisingClient,
@@ -26,6 +27,7 @@ from src.integrations.wildberries.synthetic import (
     SyntheticCardClient,
     SyntheticMarketplaceClient,
     SyntheticPricesClient,
+    SyntheticSearchClient,
     SyntheticStatisticsClient,
 )
 
@@ -81,6 +83,18 @@ def build_card_client(settings: Settings) -> WBCardClient:
     if settings.wb_fake_harvest:
         return SyntheticCardClient(settings)
     return WBCardClient(settings)
+
+
+def build_search_client(settings: Settings) -> WBPublicSearchClient:
+    """The public-search position probe — real or synthetic.
+
+    Unauthenticated (the storefront needs no token), so this factory takes no
+    token: what makes a probe workspace-specific is which SKUs the caller asks
+    it to look for.
+    """
+    if settings.wb_fake_harvest:
+        return SyntheticSearchClient(settings)
+    return WBPublicSearchClient(settings)
 
 
 def build_marketplace_client(settings: Settings, *, token: str) -> WBMarketplaceClient:

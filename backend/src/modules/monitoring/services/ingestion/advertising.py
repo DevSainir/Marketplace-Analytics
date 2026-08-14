@@ -12,8 +12,9 @@ from src.integrations.wildberries.schemas import (
     WBCampaign,
     WBNormQueryItem,
 )
-from src.modules.monitoring.models import normalize_status
+from src.modules.monitoring.models import CLUSTER_MAX_LENGTH, normalize_status
 from src.modules.monitoring.repos import (
+    AdvertisingClusterRepository,
     AdvertisingRepository,
     AdvertisingSearchRepository,
     CampaignRepository,
@@ -33,6 +34,33 @@ class _SearchZoneAcc:
     orders: int = 0
 
 
+@dataclass
+class _ClusterAcc:
+    """Mutable per-(date, campaign, SKU, cluster) accumulator.
+
+    WB has been observed to repeat a cluster inside one day's ``dailyStats``
+    (the same phrase split across entries), so the cluster grain accumulates
+    too instead of trusting the payload to be unique per key. ``position_views``
+    tracks only the impressions WB reported a position for, so a positionless
+    entry cannot dilute the average.
+    """
+
+    views: int = 0
+    clicks: int = 0
+    add_to_cart: int = 0
+    spend: float = 0.0
+    orders: int = 0
+    weighted_position: float = 0.0
+    position_views: int = 0
+
+    @property
+    def avg_position(self) -> float:
+        """Impression-weighted average ad position; 0.0 when WB reported none."""
+        if not self.position_views:
+            return 0.0
+        return self.weighted_position / self.position_views
+
+
 class AdvertisingIngestion:
     """Flattens and persists advertising stats, campaign metadata, and search slices."""
 
@@ -42,11 +70,13 @@ class AdvertisingIngestion:
         advertising_repo: AdvertisingRepository,
         campaign_repo: CampaignRepository,
         advertising_search_repo: AdvertisingSearchRepository,
+        advertising_cluster_repo: AdvertisingClusterRepository,
     ) -> None:
         """Inject the advertising-family repositories used for persistence."""
         self._advertising = advertising_repo
         self._campaigns = campaign_repo
         self._advertising_search = advertising_search_repo
+        self._advertising_clusters = advertising_cluster_repo
 
     async def ingest_advertising(
         self,
@@ -231,4 +261,96 @@ class AdvertisingIngestion:
         ]
         count = await self._advertising_search.upsert_many(flattened)
         logger.info("Ingested %d search-zone rows from %d normquery items.", count, len(items))
+        return count
+
+    async def ingest_search_clusters(
+        self,
+        items: list[WBNormQueryItem],
+        *,
+        window: tuple[date, date] | None = None,
+        requested_campaign_ids: list[int] | None = None,
+    ) -> int:
+        """Persist the SAME normquery payload at its per-CLUSTER grain.
+
+        :meth:`ingest_search_stats` sums the clusters away to answer "how much of
+        this campaign-day was the search zone". This keeps the cluster texts,
+        which is what «Поиск по кластерам» searches — the only record of which
+        search phrases the seller's ads actually appeared for.
+
+        Entries WB returns without a cluster text are dropped rather than
+        persisted under a blank key: they are not a phrase anyone can search for,
+        and their metrics are already counted by the zone aggregate.
+
+        Args:
+            items: Raw per-(campaign, SKU) search-cluster stats.
+            window: Optional inclusive ``(date_from, date_to)`` harvest window to
+                sweep before inserting. Sweeping matters more here than for the
+                aggregate: a campaign that stopped bidding on a cluster emits no
+                row for it, so without the sweep the dropped phrase would stay
+                in the seller's report forever.
+            requested_campaign_ids: Every campaign the harvest asked stats for (a
+                superset of those present in ``items``); defaults to the
+                campaigns in ``items``.
+
+        Returns:
+            The number of per-cluster rows persisted.
+        """
+        if window is not None:
+            swept_ids = (
+                requested_campaign_ids
+                if requested_campaign_ids is not None
+                else [item.campaign_id for item in items]
+            )
+            deleted = await self._advertising_clusters.delete_window_for_campaigns(
+                date_from=window[0], date_to=window[1], campaign_ids=swept_ids
+            )
+            if deleted:
+                logger.info("Swept %d stale search-cluster rows before refresh.", deleted)
+
+        accumulated: dict[tuple[date, int, int, str], _ClusterAcc] = {}
+        skipped_unlabelled = 0
+        for item in items:
+            for daily in item.daily_stats:
+                stat = daily.stat
+                # Truncated to the column width — WB's clusters are short
+                # phrases, so this is a guard, not an expected path.
+                cluster = stat.norm_query.strip()[:CLUSTER_MAX_LENGTH]
+                if not cluster:
+                    skipped_unlabelled += 1
+                    continue
+                key = (daily.stat_date, item.campaign_id, item.nm_id, cluster)
+                acc = accumulated.setdefault(key, _ClusterAcc())
+                acc.views += stat.views
+                acc.clicks += stat.clicks
+                acc.add_to_cart += stat.atbs
+                acc.spend += stat.spend
+                acc.orders += stat.orders
+                if stat.avg_position > 0:
+                    acc.weighted_position += stat.avg_position * stat.views
+                    acc.position_views += stat.views
+
+        # All-zero rows carry no signal — mirror the advertising/zone skip.
+        flattened: list[dict[str, object]] = [
+            {
+                "stat_date": stat_date,
+                "campaign_id": campaign_id,
+                "nm_id": nm_id,
+                "cluster": cluster,
+                "views": acc.views,
+                "clicks": acc.clicks,
+                "add_to_cart": acc.add_to_cart,
+                "spend": acc.spend,
+                "orders": acc.orders,
+                "avg_position": acc.avg_position,
+            }
+            for (stat_date, campaign_id, nm_id, cluster), acc in accumulated.items()
+            if acc.views or acc.clicks or acc.add_to_cart or acc.spend or acc.orders
+        ]
+        count = await self._advertising_clusters.upsert_many(flattened)
+        logger.info(
+            "Ingested %d search-cluster rows from %d normquery items (%d unlabelled skipped).",
+            count,
+            len(items),
+            skipped_unlabelled,
+        )
         return count

@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from src.core.deps import get_current_user_id
 from src.modules.monitoring.deps import AnalyticsServiceDep, CurrentWorkspaceId, WorkspaceSku
+from src.modules.monitoring.routers.clusters import router as clusters_router
 from src.modules.monitoring.routers.refresh import router as refresh_router
 from src.modules.monitoring.schemas import (
     CommentUpdateRequest,
@@ -53,6 +54,11 @@ router = APIRouter(
 # The WB re-harvest trigger surface (enqueue + poll) lives in its own module;
 # it inherits this router's prefix and access-token dependency.
 router.include_router(refresh_router)
+# «Поиск по кластерам» — the keyword search over harvested search clusters plus
+# the live WB-search position probe. Declared BEFORE the ``/skus/{nm_id}``
+# routes for the same reason ``/skus/lookup`` is: a static path must not be
+# shadowed by a typed path parameter.
+router.include_router(clusters_router)
 
 
 @router.get(

@@ -11,11 +11,14 @@ import SkuIdentityHeader from '@/modules/monitoring/components/SkuIdentityHeader
 import SkuMatchPicker from '@/modules/monitoring/components/SkuMatchPicker.vue'
 import PinnedSkuRow from '@/modules/monitoring/components/PinnedSkuRow.vue'
 import RefreshAllSkusButton from '@/modules/monitoring/components/RefreshAllSkusButton.vue'
+import SkuClusterBlock from '@/modules/monitoring/components/SkuClusterBlock.vue'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
 import StockComparePanel from '@/modules/monitoring/components/StockComparePanel.vue'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 import { useMatrixHistoryKeys } from '@/modules/monitoring/useMatrixHistoryKeys'
+import { unionStockSizes } from '@/modules/monitoring/stockCompareSizes'
 import { useSearchQuerySync } from '@/modules/monitoring/useSearchQuerySync'
+import { useSkuClusters } from '@/modules/monitoring/useSkuClusters'
 
 const store = useMonitoringStore()
 const route = useRoute()
@@ -65,22 +68,8 @@ function handleActionEdit({ day, patch }) {
 }
 
 // --- two-day stock comparison ----------------------------------------------
-// Both side-by-side tables render the UNION of the two days' sizes so their
-// rows align 1:1 (a size absent on one day shows blank there) — each table
-// carries its own «Размер» column, so the labels repeat by design: it keeps
-// each day readable on its own, and the pair still compares row by row.
-const sharedStockSizes = computed(() => {
-  const byChrt = new Map()
-  for (const side of ['left', 'right']) {
-    for (const cell of store.stockCompare[side].stock?.cells ?? []) {
-      if (!byChrt.has(cell.chrt_id)) byChrt.set(cell.chrt_id, cell.tech_size ?? null)
-    }
-  }
-  const label = (size) => size.tech_size ?? `chrt ${size.chrt_id}`
-  return [...byChrt.entries()]
-    .map(([chrt_id, tech_size]) => ({ chrt_id, tech_size }))
-    .sort((a, b) => label(a).localeCompare(label(b), 'ru', { numeric: true }))
-})
+// Both tables share one row set (see the helper for why).
+const sharedStockSizes = computed(() => unionStockSizes(store.stockCompare))
 
 function onStockDayChange(side, iso) {
   if (iso) store.fetchStockCompareSide(side, iso)
@@ -106,6 +95,10 @@ useMatrixHistoryKeys({
   redo: () => store.canRedoMatrix && store.redoMatrixEdit(),
   locked: () => editingLocked.value,
 })
+
+// «Поиск по кластерам» (the page's last block): the cluster table follows the
+// LOADED SKU and window; the search bar below it checks the live WB position.
+const clusters = useSkuClusters()
 
 onMounted(() => store.fetchPins())
 </script>
@@ -224,6 +217,18 @@ onMounted(() => store.fetchPins())
           :max-date="DEFAULT_TO"
           @change-day="onStockDayChange"
           @toggle-mark="store.toggleWarehouseMark"
+        />
+
+        <SkuClusterBlock
+          :clusters="clusters.clusters"
+          :clusters-loading="clusters.clustersLoading"
+          :clusters-error="clusters.clustersError"
+          :loaded="clusters.loaded"
+          :position="clusters.position"
+          :position-loading="clusters.positionLoading"
+          :position-error="clusters.positionError"
+          @check="clusters.checkPosition($event)"
+          @recheck="clusters.checkPosition($event, { refresh: true })"
         />
       </template>
 

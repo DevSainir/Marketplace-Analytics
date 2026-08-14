@@ -15,9 +15,12 @@ from typing import Annotated
 
 from fastapi import Depends
 
+from src.core.config import settings
 from src.core.deps import DbSession
 from src.core.exceptions import NotFoundError
+from src.integrations.wildberries import build_search_client
 from src.modules.monitoring.repos import (
+    AdvertisingClusterRepository,
     AdvertisingRepository,
     AdvertisingSearchRepository,
     CampaignRepository,
@@ -33,7 +36,7 @@ from src.modules.monitoring.repos import (
     StockRepository,
     WarehouseMarkRepository,
 )
-from src.modules.monitoring.services import AnalyticsService
+from src.modules.monitoring.services import AnalyticsService, ClusterAnalytics
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
 
@@ -53,6 +56,11 @@ def get_advertising_repo(session: DbSession) -> AdvertisingRepository:
 def get_advertising_search_repo(session: DbSession) -> AdvertisingSearchRepository:
     """Provide an :class:`AdvertisingSearchRepository` bound to the request session."""
     return AdvertisingSearchRepository(session)
+
+
+def get_advertising_cluster_repo(session: DbSession) -> AdvertisingClusterRepository:
+    """Provide an :class:`AdvertisingClusterRepository` bound to the request session."""
+    return AdvertisingClusterRepository(session)
 
 
 def get_stock_repo(session: DbSession) -> StockRepository:
@@ -115,6 +123,9 @@ AdvertisingRepoDep = Annotated[AdvertisingRepository, Depends(get_advertising_re
 AdvertisingSearchRepoDep = Annotated[
     AdvertisingSearchRepository, Depends(get_advertising_search_repo)
 ]
+AdvertisingClusterRepoDep = Annotated[
+    AdvertisingClusterRepository, Depends(get_advertising_cluster_repo)
+]
 StockRepoDep = Annotated[StockRepository, Depends(get_stock_repo)]
 CampaignRepoDep = Annotated[CampaignRepository, Depends(get_campaign_repo)]
 ProductCardRepoDep = Annotated[ProductCardRepository, Depends(get_product_card_repo)]
@@ -166,10 +177,32 @@ def get_analytics_service(
     )
 
 
+def get_cluster_analytics(
+    cluster_repo: AdvertisingClusterRepoDep,
+    product_card_repo: ProductCardRepoDep,
+) -> ClusterAnalytics:
+    """Compose the «Поиск по кластерам» service.
+
+    The live position probe is built here rather than injected as a shared
+    client: it holds no connection (it shells out to ``curl`` per request), and
+    the factory is what swaps in the synthetic ranking under
+    ``WB_FAKE_HARVEST`` so local dev renders the panel without touching WB.
+    """
+    return ClusterAnalytics(
+        cluster_repo=cluster_repo,
+        product_card_repo=product_card_repo,
+        search_client=build_search_client(settings),
+        cache_seconds=settings.wb_search_cache_seconds,
+        search_dest=settings.wb_search_dest,
+    )
+
+
 #: Clean, injectable service type consumed by the presentation layer.
 #: Ingestion has no DI wiring on purpose — it runs only in Celery tasks, which
 #: compose their own session and build IngestionService directly.
 AnalyticsServiceDep = Annotated[AnalyticsService, Depends(get_analytics_service)]
+#: The keyword-search service («Поиск по кластерам»), stored + live halves.
+ClusterAnalyticsDep = Annotated[ClusterAnalytics, Depends(get_cluster_analytics)]
 
 
 # --------------------------------------------------------------------------- #
@@ -208,10 +241,12 @@ async def require_workspace_sku(
 WorkspaceSku = Annotated[int, Depends(require_workspace_sku)]
 
 __all__ = [
+    "AdvertisingClusterRepoDep",
     "AdvertisingRepoDep",
     "AdvertisingSearchRepoDep",
     "AnalyticsServiceDep",
     "CampaignRepoDep",
+    "ClusterAnalyticsDep",
     "CurrentWorkspaceId",
     "FunnelRepoDep",
     "MatrixOverrideRepoDep",

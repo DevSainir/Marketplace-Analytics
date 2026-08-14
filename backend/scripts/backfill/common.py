@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import IntegrationError
 from src.modules.monitoring.repos import (
+    AdvertisingClusterRepository,
     AdvertisingRepository,
     AdvertisingSearchRepository,
     CampaignRepository,
@@ -59,6 +60,7 @@ def _build_service(session: AsyncSession) -> IngestionService:
         product_card_repo=ProductCardRepository(session),
         product_size_repo=ProductSizeRepository(session),
         advertising_search_repo=AdvertisingSearchRepository(session),
+        advertising_cluster_repo=AdvertisingClusterRepository(session),
         price_repo=PriceRepository(session),
         sale_repo=SaleRepository(session),
     )

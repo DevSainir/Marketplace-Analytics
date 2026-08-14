@@ -144,8 +144,19 @@ class WBAdvertV2(RawBase):
 
 
 class WBNormQueryStat(RawBase):
-    """Metrics of one search cluster on one day (search zone only)."""
+    """Metrics of one search cluster on one day (search zone only).
 
+    ``norm_query`` is the cluster's own text — the normalized search phrase WB
+    grouped the queries under. It is what «Поиск по кластерам» searches, so it
+    is kept even though the zone-split aggregate sums clusters away. WB has been
+    observed to omit it on aggregate-looking rows; those default to ``""`` and
+    are dropped by the cluster ingest rather than persisted under a blank key.
+    """
+
+    norm_query: str = Field(default="", alias="normQuery")
+    #: Average ad position within the cluster's search results (WB ``avgPos``);
+    #: 0 when WB omits it, which reads as "unknown", not "first place".
+    avg_position: float = Field(default=0.0, alias="avgPos")
     views: int = Field(default=0)
     clicks: int = Field(default=0)
     atbs: int = Field(default=0)

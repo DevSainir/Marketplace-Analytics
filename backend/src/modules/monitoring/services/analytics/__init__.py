@@ -23,6 +23,12 @@ One responsibility per module:
   notes and «Действия» answers.
 * :mod:`~src.modules.monitoring.services.analytics.stock_view` — exact-day
   stock breakdowns and warehouse marks.
+* :mod:`~src.modules.monitoring.services.analytics.clusters` — «Поиск по
+  кластерам»: the per-cluster advertising history and the live WB-search
+  position probe. It is NOT part of the :class:`AnalyticsService` facade: it is
+  the module's only read path that makes an outbound HTTP call, and folding a
+  live storefront probe into the facade every SKU view depends on would put that
+  call one careless method away from the dashboard's hot path.
 * :mod:`~src.modules.monitoring.services.analytics.service` — the
   :class:`AnalyticsService` facade the presentation layer depends on.
 
@@ -32,6 +38,7 @@ flat ``services/analytics.py`` module.
 """
 
 from src.modules.monitoring.services.analytics.annotations import DayAnnotationAnalytics
+from src.modules.monitoring.services.analytics.clusters import ClusterAnalytics
 from src.modules.monitoring.services.analytics.detail import DetailAnalytics
 from src.modules.monitoring.services.analytics.matrix_editing import MatrixEditingAnalytics
 from src.modules.monitoring.services.analytics.pins import PinnedSkuAnalytics
@@ -42,6 +49,7 @@ from src.modules.monitoring.services.analytics.window import resolve_window
 
 __all__ = [
     "AnalyticsService",
+    "ClusterAnalytics",
     "DayAnnotationAnalytics",
     "DetailAnalytics",
     "MatrixEditingAnalytics",

@@ -17,6 +17,7 @@ from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries import build_analytics_client
 from src.modules.monitoring.repos import (
+    AdvertisingClusterRepository,
     AdvertisingRepository,
     AdvertisingSearchRepository,
     CampaignRepository,
@@ -134,6 +135,7 @@ def _cohort_ingestion_service(session: AsyncSession) -> IngestionService:
         product_card_repo=ProductCardRepository(session),
         product_size_repo=ProductSizeRepository(session),
         advertising_search_repo=AdvertisingSearchRepository(session),
+        advertising_cluster_repo=AdvertisingClusterRepository(session),
         price_repo=PriceRepository(session),
         sale_repo=SaleRepository(session),
     )

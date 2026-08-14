@@ -99,6 +99,7 @@ class BaseWBClient:
         backoff_base_seconds: float = 2.0,
         backoff_max_seconds: float = 60.0,
         rate_gate: RateGate | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         """Configure the client transport and retry policy.
 
@@ -128,6 +129,8 @@ class BaseWBClient:
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
         if token:
             headers["Authorization"] = token
+        if extra_headers:
+            headers.update(extra_headers)
         self._client = httpx.AsyncClient(
             base_url=base_url,
             timeout=httpx.Timeout(timeout),
