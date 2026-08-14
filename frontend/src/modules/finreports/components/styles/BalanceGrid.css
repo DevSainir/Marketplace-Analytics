@@ -223,13 +223,6 @@ tbody tr.is-uncounted .cell-money {
 .cell-stock {
   text-align: right;
 }
-/* The in-transit rider on the stock figure: subordinate to it, and never wide
-   enough to push the divider off the column's centre axis. */
-.cell-way {
-  margin-left: 2px;
-  font-size: 10px;
-  color: #9a9a9a;
-}
 .cell-sep {
   margin: 0 3px;
   color: #bcbcbc;

@@ -132,11 +132,11 @@ function stocked(row) {
             <span class="record-label" :class="column.isUncounted && 'line-through'">
               {{ column.name }}
             </span>
+            <!-- Per warehouse, this is the shelf only — the desktop grid's cell
+                 says the same thing. The goods in transit are on the card's own
+                 summary line above, where they are counted once. -->
             <span class="record-value">
               {{ formatNumber(column.cell.quantity) }} шт
-              <span v-if="column.cell.inWay" class="text-muted">
-                (+{{ formatNumber(column.cell.inWay) }} в пути)
-              </span>
               <span v-if="column.cell.balance !== null" class="text-muted">
                 · {{ money(column.cell.balance) }}
               </span>

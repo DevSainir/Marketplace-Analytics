@@ -76,11 +76,6 @@ td.col-wh.wh-divide {
   color: var(--ink-dim);
 }
 
-tbody tr:not(:last-child) td {
+tbody tr:first-child td {
   border-bottom: 1px solid var(--rule);
-}
-/* The in-transit row is subordinate to the two it sits between — the same
-   parenthetical grey the grid gives goods in motion. */
-tbody td.col-way {
-  color: var(--ink-dim);
 }

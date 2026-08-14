@@ -54,6 +54,11 @@ export function shortWarehouseName(name) {
 /**
  * Flatten one backend balance row, totalling it over the COUNTED warehouses.
  *
+ * The row's «По остаткам» and «По себестоимости» are deliberately not the same
+ * population: the units are what is lying in the warehouses (what can ship
+ * today), the money is that plus the goods in transit (what the seller has
+ * already paid for). «В пути» beside them is what reconciles the two.
+ *
  * @param {object} r The backend row.
  * @param {Set<string>} uncounted Warehouses marked «Не считать».
  * @param {Set<number>} pinnedSkus SKUs pinned to the top.
@@ -65,22 +70,16 @@ export function toRow(r, uncounted, pinnedSkus, uncountedSkus) {
   let totalInWay = 0
   let totalBalance = 0
   for (const cell of r.cells ?? []) {
-    // The cell's money covers BOTH halves — what lies there and what is riding
-    // to or from a buyer — because both are paid for and both come back to this
-    // warehouse or get bought out. The units stay apart: only the ones lying
-    // there can be shipped today.
-    const lying = num(cell.balance)
-    const moving = num(cell.in_way_balance)
-    const balance = lying === null ? null : lying + (moving ?? 0)
-    byWarehouse[cell.warehouse_name] = {
-      quantity: cell.quantity,
-      inWay: cell.in_way ?? 0,
-      balance,
-    }
+    // A cell is what is LYING in that warehouse, units and money alike — the
+    // grid and «Итого по складу» beneath it answer «what is on this shelf».
+    // Goods in transit belong to no shelf, so they are collected here for the
+    // row's own summary and never written into a cell.
+    const balance = num(cell.balance)
+    byWarehouse[cell.warehouse_name] = { quantity: cell.quantity, balance }
     if (uncounted.has(cell.warehouse_name)) continue
     totalQuantity += cell.quantity
     totalInWay += cell.in_way ?? 0
-    totalBalance += balance ?? 0
+    totalBalance += (balance ?? 0) + (num(cell.in_way_balance) ?? 0)
   }
   return {
     nmId: r.nm_id,
@@ -106,13 +105,18 @@ export function toRow(r, uncounted, pinnedSkus, uncountedSkus) {
  * same way keeps its «Итого по артикулу» and contributes to neither: it is out
  * of the count on both axes, which is the whole point of the mark.
  *
+ * The two outputs answer different questions and their money does not tie out,
+ * by design: `warehouses` is per SHELF and holds only what is lying on it,
+ * while the corner is the seller's whole holding and carries the goods in
+ * transit too. `inWay` in the corner is what accounts for the difference.
+ *
  * @param {Array<object>} rows Flattened rows currently on screen.
  * @param {Array<{name: string, isUncounted: boolean}>} columns The grid's
  *   columns, kept in full even when a filter empties one — a column that
  *   disappears while typing makes the grid jump under the reader.
  */
 export function subtotals(rows, columns) {
-  const perWarehouse = new Map(columns.map((c) => [c.name, { quantity: 0, inWay: 0, balance: 0 }]))
+  const perWarehouse = new Map(columns.map((c) => [c.name, { quantity: 0, balance: 0 }]))
   let quantity = 0
   let inWay = 0
   let balance = 0
@@ -125,7 +129,6 @@ export function subtotals(rows, columns) {
       const total = perWarehouse.get(name)
       if (!total) continue
       total.quantity += cell.quantity
-      total.inWay += cell.inWay
       total.balance += cell.balance ?? 0
     }
   }
@@ -161,13 +164,11 @@ export function useBalanceRows(balance) {
     const quantities = new Map()
     for (const row of rawRows.value) {
       for (const cell of row.cells ?? []) {
-        // Ordered on everything the warehouse holds, goods in motion included —
-        // a warehouse whose stock happens to be riding to buyers today has not
-        // become a minor warehouse, and the column jumping left and right day to
-        // day would be worse than either place for it.
+        // Ordered on the shelf alone, which is what these columns show — a
+        // column ranked on figures it does not display reads as mis-sorted.
         quantities.set(
           cell.warehouse_name,
-          (quantities.get(cell.warehouse_name) ?? 0) + cell.quantity + (cell.in_way ?? 0),
+          (quantities.get(cell.warehouse_name) ?? 0) + cell.quantity,
         )
       }
     }

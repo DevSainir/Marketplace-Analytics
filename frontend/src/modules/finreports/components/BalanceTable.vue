@@ -2,11 +2,15 @@
 /**
  * «Баланс по товарным остаткам» — the SKU x warehouse stock grid for one day.
  *
- * Rows are SKUs, columns are warehouses, and every cell carries the figures that
- * make this a balance rather than a stock report: the units still lying there,
- * the units riding to or from a buyer, and what all of them cost the seller to
- * put there (units x cost price). The units in motion are counted in the money
- * — they are paid for — but never in «остаток», which is what can ship today.
+ * Rows are SKUs, columns are warehouses, and every cell carries the two figures
+ * that make this a balance rather than a stock report: the units still lying
+ * there and what they cost the seller to put there (units x cost price).
+ *
+ * Goods in transit are the seller's too — paid for, riding to a buyer or back
+ * from one — but they sit on no shelf, so they are reported once rather than
+ * spread over the grid: «В пути» in «Итого по артикулу», and folded into the
+ * money in that panel and in the corner. The grid and «Итого по складу» stay
+ * strictly about what is lying where.
  *
  * FOUR separate blocks floating over the canvas, not one table with frozen
  * edges: the grid, «Итого по артикулу» beside it, «Итого по складу» beneath it,

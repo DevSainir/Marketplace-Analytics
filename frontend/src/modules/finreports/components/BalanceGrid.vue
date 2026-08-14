@@ -152,19 +152,11 @@ defineExpose({ scroller })
                  divider sits on the column's centre line, stock closing on it
                  from the left and money opening from the right, so a column
                  reads as two aligned числа rather than one ragged string.
-                 A «+3» rides with the stock when goods are in transit here: the
-                 money on the right covers them, so without it the cell would
-                 look mispriced. -->
+                 Both figures are what is LYING here: goods in transit belong to
+                 no shelf and are reported once, in «Итого по артикулу». -->
             <div v-if="row.byWarehouse[column.name]" class="cell-split">
               <span class="cell-stock">
                 {{ formatNumber(row.byWarehouse[column.name].quantity) }}
-                <span
-                  v-if="row.byWarehouse[column.name].inWay"
-                  class="cell-way"
-                  :title="`${row.byWarehouse[column.name].inWay} шт в пути (к клиенту и от клиента)`"
-                >
-                  +{{ formatNumber(row.byWarehouse[column.name].inWay) }}
-                </span>
               </span>
               <span class="cell-sep">|</span>
               <span class="cell-money">{{ money(row.byWarehouse[column.name].balance) }}</span>

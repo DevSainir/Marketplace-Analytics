@@ -137,4 +137,21 @@ describe('BalanceTable', () => {
     expect([...rowTotals.querySelectorAll('tbody tr')[1].children][1].textContent.trim()).toBe('')
     wrapper.unmount()
   })
+
+  it('keeps the grid and «Итого по складу» strictly about what is on the shelf', async () => {
+    // Goods in transit are on no shelf, so they appear in neither — they are
+    // counted once, in the row panel and the corner. A cell that quietly priced
+    // them would make a warehouse look like it is holding stock it has not got.
+    const { wrapper, grid, columnTotals } = mountTable()
+
+    const tula = grid.querySelectorAll('tbody tr')[0].querySelectorAll('.cell-wh')[0]
+    const shelfMoney = [...columnTotals.querySelectorAll('tbody tr')].map((r) =>
+      r.children[1].textContent.trim(),
+    )
+
+    // 72 lying in Тула at 800 — the 5 in transit are not priced into the cell.
+    expect(tula.textContent.replace(/\s+/g, ' ').trim()).toBe('72|57 600с')
+    expect(shelfMoney).toEqual(['112', '69\u00a0600с'])
+    wrapper.unmount()
+  })
 })

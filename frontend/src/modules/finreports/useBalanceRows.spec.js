@@ -138,9 +138,15 @@ describe('useBalanceRows', () => {
     expect(bruki.totalInWay).toBe(5)
     // «По себестоимости» is money already spent, which the five very much are.
     expect(bruki.totalBalance).toBe(72000)
-    // Per warehouse, on both axes of the grid.
-    expect(bruki.byWarehouse['Тула']).toEqual({ quantity: 72, inWay: 5, balance: 61600 })
-    expect(totals.value.warehouses.find((w) => w.name === 'Тула').inWay).toBe(5)
+    // A cell is the SHELF and nothing else — units and money alike. The goods
+    // in transit sit on no shelf and are reported once, in the row's summary.
+    expect(bruki.byWarehouse['Тула']).toEqual({ quantity: 72, balance: 57600 })
+    // So «Итого по складу» sums the shelves and the corner sums the holding.
+    // They are MEANT to disagree, by exactly the money that is in transit —
+    // the day they tie out is the day «В пути» stopped being counted.
+    const shelves = totals.value.warehouses.reduce((sum, w) => sum + w.balance, 0)
+    expect(shelves).toBe(68000)
+    expect(totals.value.balance - shelves).toBe(4000)
   })
 
   it('floats pinned rows and columns to the front without a refetch', () => {
