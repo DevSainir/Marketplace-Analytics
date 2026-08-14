@@ -156,6 +156,10 @@ jobs:
       - name: Merge the release PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # This step runs with no checkout (the ones above are conditional),
+          # so `gh` has no git remote to infer the repository from and every
+          # call fails with "not a git repository". `GH_REPO` supplies it.
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
 

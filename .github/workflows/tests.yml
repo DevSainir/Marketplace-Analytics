@@ -454,14 +454,21 @@ jobs:
     timeout-minutes: 5
     needs: [quality, fast, integration, end-to-end]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    # A job-level `permissions:` REPLACES the workflow's, it does not add to
+    # it, so naming only `actions: write` dropped `contents: read` and the
+    # checkout failed with "Repository not found" — a permissions error
+    # wearing a missing-repo costume.
     permissions:
+      contents: read
       actions: write
     steps:
-      - uses: actions/checkout@v4
+      # No checkout: nothing here reads the tree, and `GH_REPO` gives `gh` the
+      # repository context it would otherwise infer from a git remote.
       - name: Start the deploy
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           gh workflow run deploy.yml --ref main
-          echo "Dispatched deploy for $(git rev-parse --short HEAD)."
+          echo "Dispatched deploy for ${GITHUB_SHA:0:7}."
