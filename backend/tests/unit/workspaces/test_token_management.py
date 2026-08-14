@@ -198,6 +198,21 @@ def test_unified_token_serves_every_surface() -> None:
     assert bundle.statistics == "one-token"
 
 
+def test_the_marketplace_surface_does_not_take_the_unified_token() -> None:
+    """FBS is opt-in per workspace, even for a workspace whose token allows it.
+
+    The enabled FBS warehouse belongs to one WB account. A unified token from
+    another workspace authenticates and then 404s on a warehouse that is not
+    its own — which is exactly what three workspaces did on the 2026-08-14
+    harvest, each reporting a withheld source that was never theirs to fetch.
+    """
+    workspace = make_workspace(is_primary=False)
+
+    bundle = _resolve_bundle(workspace, {TokenKind.UNIFIED.value: "one-token"})
+
+    assert bundle.marketplace == ""
+
+
 def test_category_tokens_map_to_their_own_surfaces() -> None:
     """A primary workspace routes each WB category token to its own client."""
     workspace = make_workspace(is_primary=True)

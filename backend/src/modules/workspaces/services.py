@@ -61,10 +61,15 @@ def _resolve_bundle(workspace: Workspace, tokens: dict[str, str]) -> WorkspaceTo
         advertising=pick(TokenKind.PROMOTION),
         prices=pick(TokenKind.PRICES),
         statistics=pick(TokenKind.STATISTICS),
-        # No fallback chain: the FBS surface rejects every other category with
-        # 401 «token scope not allowed» (verified live 2026-08-13), so guessing
-        # a substitute would only turn a skipped source into a failed one.
-        marketplace=pick(TokenKind.MARKETPLACE),
+        # The ONLY surface that does not fall back to ``unified``, and the one
+        # place a fallback actively harms: the enabled FBS warehouse belongs to
+        # one specific WB account, so a different workspace's unified token
+        # authenticates fine and then 404s on a warehouse that is not its own.
+        # That happened on the 2026-08-14 harvest — three workspaces each
+        # reported «stocks-fbs withheld», polluting the signal that exists to
+        # flag real WB outages. A workspace ships FBS only if it was given an
+        # explicit «Маркетплейс» token.
+        marketplace=tokens.get(TokenKind.MARKETPLACE.value, ""),
     )
 
 
