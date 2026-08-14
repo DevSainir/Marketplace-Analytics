@@ -29,6 +29,16 @@ Verified live 2026-08-14 against ``GET /exactmatch/ru/common/v14/search``:
   ``httpx`` was served 200s (including one 220 KB page) in the same session in
   which ``curl`` was being 429'd, so this rides the normal async client.
 
+**Why it goes through the card proxy.** The TLS fingerprint is not the only
+thing that edge judges: it also rate-limits and blocks by IP, and production
+egresses from a datacenter address that card.wb.ru already answered 403 to
+(2026-07-14). Probing from there spends its budget against the worst possible
+IP, which is what «timeout of 15000ms exceeded» looked like from the seller's
+side. So the probe inherits ``wb_card_proxy`` unless told otherwise — same
+storefront, same edge, one credential (see :meth:`WBPublicSearchClient
+.resolve_proxy`). A probe is user-triggered, so the proxy is billed per press,
+not per harvest.
+
 **What a position means, and does not.** The ranking is computed for the
 ``dest`` (delivery region) and ``spp`` (loyalty tier) sent with the request and
 moves within the hour. A probe is a timestamped sample for one shopper profile,
@@ -101,6 +111,28 @@ class WBPublicSearchClient(BaseWBClient):
         "Referer": "https://www.wildberries.ru/",
     }
 
+    @staticmethod
+    def resolve_proxy(settings: Settings) -> str:
+        """The forward proxy this client should use, or ``""`` for direct.
+
+        Empty configuration INHERITS ``wb_card_proxy``: same storefront, same
+        anti-bot edge, and prod's datacenter IP is blocked on both — so a host
+        that needed a clean IP for card prices needs one here too, without
+        copying the credential into a second variable. The literal ``direct``
+        opts out, for a host that proxies card prices (a background harvest, one
+        big batched request) but not probes (user-triggered, one per press).
+
+        Args:
+            settings: The application settings.
+
+        Returns:
+            The proxy URL, or an empty string for a direct connection.
+        """
+        configured = settings.wb_search_proxy.strip()
+        if configured.casefold() == "direct":
+            return ""
+        return configured or settings.wb_card_proxy.strip()
+
     def __init__(self, settings: Settings) -> None:
         """Build the unauthenticated storefront-search client.
 
@@ -110,10 +142,18 @@ class WBPublicSearchClient(BaseWBClient):
         super().__init__(
             base_url=settings.wb_search_base_url,
             token="",
-            timeout=settings.wb_http_timeout_seconds,
-            max_retries=settings.wb_max_retries,
-            backoff_base_seconds=settings.wb_retry_backoff_seconds,
-            backoff_max_seconds=settings.wb_retry_max_backoff_seconds,
+            timeout=settings.wb_search_timeout_seconds,
+            # The probe's own, much tighter ladder — NOT the seller APIs'. See
+            # ``wb_search_max_retries``: a watched request must fail fast and be
+            # retried into a warm cache, not sit through WB's throttle window.
+            max_retries=settings.wb_search_max_retries,
+            backoff_base_seconds=settings.wb_search_retry_backoff_seconds,
+            backoff_max_seconds=settings.wb_search_retry_max_backoff_seconds,
+            # Without this, one ``Retry-After: 60`` from WB reinstates exactly
+            # the latency the budget above exists to bound: a demanded wait is
+            # otherwise honoured past the backoff cap.
+            retry_after_ceiling_seconds=settings.wb_search_retry_max_backoff_seconds,
+            proxy=self.resolve_proxy(settings),
             extra_headers=self._HEADERS,
         )
         self._path = settings.wb_search_path
@@ -229,7 +269,21 @@ class WBPublicSearchClient(BaseWBClient):
             "limit": self._page_size,
             "query": query,
         }
-        payload = await self._request("GET", self._path, params=params)
+        try:
+            payload = await self._request("GET", self._path, params=params)
+        except IntegrationError as exc:
+            # The probe gives up fast by design (see the retry budget in
+            # settings), so retry exhaustion here is the ORDINARY throttled
+            # outcome, not a breakage — and it has to read that way to whoever
+            # pressed the button. Wrapped at the transport call, not around the
+            # whole page fetch, so the soft-block message below (which says
+            # something more specific) survives untouched. The transport detail
+            # stays as the cause, for the log.
+            raise IntegrationError(
+                f"search.wb.ru не ответил на проверку позиции по запросу {query!r} — "
+                "публичный поиск сейчас ограничивает частоту запросов. "
+                "Повторите через минуту."
+            ) from exc
         if not isinstance(payload, dict):
             raise IntegrationError(
                 "Unexpected search response shape (expected an object, "

@@ -165,8 +165,10 @@ class Settings(BaseSettings):
     # give up quickly instead of spinning (protects the proxy balance).
     wb_card_max_retries: int = Field(default=3)
     # Public storefront SEARCH endpoint (search.wb.ru) — the organic ranking a
-    # shopper sees, which no seller API exposes. Unauthenticated, shares the
-    # card endpoint's anti-bot edge, its proxy and its timeout/retry budget.
+    # shopper sees, which no seller API exposes. Unauthenticated, and behind the
+    # same anti-bot edge as the card endpoint, whose proxy it inherits (see
+    # ``wb_search_proxy``). Its timeout and retry budget are its OWN, and far
+    # tighter, because this surface is read while a user waits.
     wb_search_base_url: str = Field(default="https://search.wb.ru")
     # The API version is a knob because WB retires them abruptly: verified live
     # 2026-08-14, v14 served results while v13 and v5 answered 429 to every
@@ -185,6 +187,37 @@ class Settings(BaseSettings):
     # within the hour, so this trades freshness for not being throttled: a team
     # of five checking the same phrase pays for one probe.
     wb_search_cache_seconds: int = Field(default=600, ge=0)
+    # Forward proxy for search.wb.ru. EMPTY (the default) INHERITS
+    # ``wb_card_proxy``: both are the same public storefront behind the same
+    # anti-bot edge, which IP-blocks datacenter egress, so a prod that needs a
+    # clean IP for one needs it for the other — and inheriting means the
+    # credential lives in exactly one place. The literal ``direct`` forces a
+    # direct connection, for a host whose card proxy is set but whose search
+    # probes should not spend proxy balance (each probe is user-triggered).
+    wb_search_proxy: str = Field(default="")
+    # Per-request cap for one search page, tighter than the shared 30s: a ranked
+    # page is ~220 KB served in well under a second when the host is willing, so
+    # a slow read here means throttling, and waiting the full 30s only delays
+    # the retry. Bounds the probe's worst case together with the two knobs below
+    # (pages x attempts x this + waits), which must stay under the browser's own
+    # budget in frontend/src/modules/monitoring/api.js.
+    wb_search_timeout_seconds: float = Field(default=12.0, gt=0)
+    # Retry budget for ONE search page, deliberately far tighter than the seller
+    # APIs' (4). A probe is INTERACTIVE: someone is watching a spinner, and the
+    # seller-API ladder (4 retries, 2/4/8/16s backoff, plus a Retry-After WB
+    # sets as high as 60s) can push a single page past a minute — three pages
+    # past three. Throttling here is the normal state, not an incident, so the
+    # probe reports «WB притормозил» quickly and lets the user retry into a
+    # warm cache instead of holding the request open.
+    wb_search_max_retries: int = Field(default=1, ge=0)
+    # Backoff between those attempts. One short wait is worth taking (WB's
+    # bucket refills in seconds); a long ladder is not, for the reason above.
+    wb_search_retry_backoff_seconds: float = Field(default=1.5, ge=0)
+    # Ceiling on a single wait. Passed BOTH as the backoff cap and as the
+    # client's Retry-After ceiling: a server-demanded wait is otherwise honoured
+    # past the backoff cap (correct for the harvest, wrong for a watched
+    # request), and one 60s header would silently undo this whole budget.
+    wb_search_retry_max_backoff_seconds: float = Field(default=5.0, ge=0)
     # Relative paths resolve against the backend working directory.
     # disables caching entirely. Relative paths resolve against the backend
     # working directory; a bind mount or S3 can replace it without code changes.

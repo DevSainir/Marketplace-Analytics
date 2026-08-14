@@ -298,6 +298,15 @@ export async function probeSkuSearchPosition(nmId, query, options = {}, signal) 
   const { data } = await apiClient.get(`/v1/monitoring/skus/${nmId}/search-position`, {
     params: { query, refresh: options.refresh ? true : undefined },
     signal,
+    // The shared 15s budget cannot cover an uncached scan: the backend walks up
+    // to three ranked pages SEQUENTIALLY against a host that throttles per IP,
+    // so a cold probe routinely outruns it — and the client was discarding a
+    // scan the server went on to finish and cache, making the next attempt look
+    // instant and the failure random. Sized above the backend's own bounded
+    // worst case (pages × attempts × wb_search_timeout_seconds, plus waits), so
+    // a WB stall surfaces as the backend's «повторите через минуту» rather than
+    // as «timeout of 15000ms exceeded».
+    timeout: 120000,
   })
   return data
 }

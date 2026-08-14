@@ -7,10 +7,12 @@ does not rank" and "WB did not answer", which the panel must never conflate.
 
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
+from src.integrations.wildberries.clients.base import scrub_credentials
 from src.integrations.wildberries.clients.search import WBPublicSearchClient
 from src.integrations.wildberries.schemas import (
     WBSearchMetadata,
@@ -101,6 +103,70 @@ async def test_a_failure_on_the_first_page_is_raised_not_reported_as_absent() ->
 
     with pytest.raises(IntegrationError):
         await client.find_positions(query="носки", nm_ids={OURS})
+
+
+async def test_a_throttled_first_page_says_so_in_the_words_the_panel_shows() -> None:
+    """The probe gives up fast on purpose, so its failure must read as "retry", not "broken".
+
+    The transport error stays as the exception's cause: the log keeps "429", the
+    seller reads a sentence telling them what to do about it.
+    """
+    cause = IntegrationError("GET /exactmatch failed after 2 attempts: HTTP 429")
+    client = WBPublicSearchClient(_settings())
+
+    async def fake_request(*args: object, **kwargs: object) -> dict[str, object]:
+        raise cause
+
+    client._request = fake_request  # type: ignore[method-assign]
+
+    with pytest.raises(IntegrationError, match="Повторите через минуту") as raised:
+        await client.find_positions(query="носки", nm_ids={OURS})
+
+    assert raised.value.__cause__ is cause
+
+
+def test_the_probe_inherits_the_card_proxy_so_prod_does_not_probe_from_a_blocked_ip() -> None:
+    """One credential, both storefront surfaces: the edge blocks by IP, not just by TLS."""
+    settings = _settings(wb_card_proxy="http://user:pass@residential.example:8000")
+
+    assert (
+        WBPublicSearchClient.resolve_proxy(settings) == "http://user:pass@residential.example:8000"
+    )
+
+
+def test_an_explicit_direct_opts_out_of_a_configured_card_proxy() -> None:
+    """A probe is billed per press, so a host may proxy harvests but not probes."""
+    settings = _settings(
+        wb_card_proxy="http://user:pass@residential.example:8000",
+        wb_search_proxy="direct",
+    )
+
+    assert WBPublicSearchClient.resolve_proxy(settings) == ""
+
+
+def test_a_proxy_url_never_reaches_a_log_with_its_credentials() -> None:
+    """Transport errors quote the tunnel URL verbatim, password included."""
+    failure = "ProxyError: http://user:hunter2@residential.example:8000 refused the tunnel"
+
+    assert "hunter2" not in scrub_credentials(failure)
+    assert "residential.example:8000" in scrub_credentials(failure)
+
+
+def test_the_probe_never_waits_out_a_retry_after_the_way_the_harvest_does() -> None:
+    """A watched request caps the server's demanded wait; the harvest honours it.
+
+    Regression: ``max_retries`` alone bounded nothing, because a demanded wait is
+    honoured PAST the backoff cap — one ``Retry-After: 60`` would have restored
+    the latency this budget exists to remove.
+    """
+    settings = _settings()
+    probe = WBPublicSearchClient(settings)
+    demanded = httpx.Response(429, headers={"Retry-After": "60"})
+
+    waited = probe._retry_delay(attempt=0, response=demanded)
+
+    assert waited == settings.wb_search_retry_max_backoff_seconds
+    assert waited < 60
 
 
 async def test_a_failure_on_a_later_page_keeps_what_was_already_found() -> None:

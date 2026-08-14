@@ -8,6 +8,7 @@ handling, and uniform error translation into :class:`IntegrationError`.
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from types import TracebackType
@@ -20,6 +21,20 @@ from src.core.logging import get_logger
 from src.integrations.wildberries.rate_limit import NullRateGate, RateGate
 
 logger = get_logger(__name__)
+
+#: Redacts ``user:password@`` credentials from a proxy URL before logging.
+_CREDENTIALS_RE = re.compile(r"//[^/@\s]+@")
+
+
+def scrub_credentials(text: str) -> str:
+    """Strip any ``user:pass@`` credentials from a string before it is logged.
+
+    Lives here rather than in one client because any surface reached through a
+    forward proxy can surface the tunnel's URL — credentials included — inside a
+    transport error's own message.
+    """
+    return _CREDENTIALS_RE.sub("//***@", text)
+
 
 # HTTP statuses worth retrying: 429 (rate limited) and transient 5xx.
 _RETRIABLE_STATUSES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
@@ -98,6 +113,8 @@ class BaseWBClient:
         max_retries: int = 4,
         backoff_base_seconds: float = 2.0,
         backoff_max_seconds: float = 60.0,
+        retry_after_ceiling_seconds: float = _RETRY_AFTER_CEILING_SECONDS,
+        proxy: str = "",
         rate_gate: RateGate | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
@@ -115,6 +132,19 @@ class BaseWBClient:
             backoff_base_seconds: Base for the exponential backoff sequence
                 ``base * 2**(attempt - 1)``.
             backoff_max_seconds: Upper bound applied to any single backoff wait.
+            retry_after_ceiling_seconds: Upper bound applied to a wait the
+                SERVER demanded (``Retry-After`` / ``X-Ratelimit-Retry``), which
+                is otherwise honoured past ``backoff_max_seconds``. Harvest
+                clients keep the generous default — waiting out WB's stated
+                window is what eventually gets the data. An INTERACTIVE caller
+                passes a small value: nobody watching a spinner benefits from
+                honouring a 60s demand, and failing fast lets the retry land on
+                a warm cache.
+            proxy: Forward proxy URL for this surface, or empty for a direct
+                connection. Only the PUBLIC storefront surfaces need one — their
+                anti-bot edge IP-blocks datacenter egress, so production reaches
+                them from a residential IP. Holds credentials, so anything
+                logged goes through :func:`scrub_credentials`.
             rate_gate: Pacing gate consulted before **every** attempt, retries
                 included. Retrying without it is what made the 2026-07-30
                 incident: the backoff ladder starts inside WB's bucket window,
@@ -126,6 +156,7 @@ class BaseWBClient:
         self._rate_gate: RateGate = rate_gate or NullRateGate()
         self._backoff_base = backoff_base_seconds
         self._backoff_max = backoff_max_seconds
+        self._retry_after_ceiling = retry_after_ceiling_seconds
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
         if token:
             headers["Authorization"] = token
@@ -135,6 +166,7 @@ class BaseWBClient:
             base_url=base_url,
             timeout=httpx.Timeout(timeout),
             headers=headers,
+            proxy=proxy or None,
         )
 
     async def __aenter__(self) -> Self:
@@ -238,7 +270,14 @@ class BaseWBClient:
             except httpx.HTTPError as exc:
                 last_exc = exc
                 if attempt == self._max_retries:
-                    logger.warning("WB API transport error for %s %s: %s", method, path, exc)
+                    # Scrubbed: a proxied surface fails with the tunnel's URL —
+                    # credentials and all — inside the exception's own message.
+                    logger.warning(
+                        "WB API transport error for %s %s: %s",
+                        method,
+                        path,
+                        scrub_credentials(str(exc)),
+                    )
                     raise IntegrationError(f"WildBerries API unreachable on {path}.") from exc
                 delay = self._retry_delay(attempt, None)
                 logger.warning(
@@ -284,6 +323,10 @@ class BaseWBClient:
         attempt against the same limiter. Otherwise falls back to exponential
         backoff ``base * 2**attempt``.
 
+        The demanded wait is capped by ``retry_after_ceiling_seconds``, which an
+        interactive caller lowers to give up rather than wait out a throttle
+        window (see the constructor).
+
         Args:
             attempt: Zero-based index of the attempt that just failed.
             response: The failed response, if any (for the wait headers).
@@ -294,5 +337,5 @@ class BaseWBClient:
         if response is not None:
             demanded = _server_demanded_wait(response)
             if demanded is not None:
-                return min(demanded, _RETRY_AFTER_CEILING_SECONDS)
+                return min(demanded, self._retry_after_ceiling)
         return min(self._backoff_base * (2.0**attempt), self._backoff_max)
