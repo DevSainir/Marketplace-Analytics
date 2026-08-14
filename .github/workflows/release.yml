@@ -137,24 +137,33 @@ jobs:
       # tiers a push does (`end-to-end` keys off the branch, `performance` is
       # opt-in either way), so the deploy gate keeps its full strength.
       #
+      # The suppression bites one level deeper than it first appears, and cost
+      # v0.5.2 its deploy: the `workflow_run` event that `tests` normally emits
+      # to start `deploy` is ALSO suppressed when the run was dispatched by
+      # GITHUB_TOKEN. `tests` therefore hands off to `deploy` itself for
+      # dispatched runs on main — see `deploy-after-dispatch` in tests.yml.
+      #
       # To HOLD a release, label the PR `hold-release`: the merge is skipped
       # and the PR stays open, which is what leaving it open used to mean.
       # ---------------------------------------------------------------- #
+      # No `if:` and no `fromJSON` here, both deliberately. A step's `env:` is
+      # templated even when its `if` is false, so reading
+      # `fromJSON(steps.release.outputs.pr)` from `env` blew the whole job up
+      # on the run where no PR existed — "Error reading JToken from JsonReader"
+      # — while the identical expression under `with:` above is fine. Finding
+      # the PR by branch prefix instead makes the step safe to run every time
+      # and lets a manual dispatch merge a PR an earlier run left behind.
       - name: Merge the release PR
-        if: steps.release.outputs.pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Resolved from the branch rather than read off the action's `pr`
-          # output: the branch name is the one field this workflow already
-          # depends on above, so nothing new is assumed about that payload.
-          HEAD_BRANCH: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
         run: |
           set -euo pipefail
 
-          PR_NUMBER=$(gh pr list --head "$HEAD_BRANCH" --state open \
-            --json number --jq '.[0].number // empty')
+          PR_NUMBER=$(gh pr list --state open --json number,headRefName --jq '
+            [.[] | select(.headRefName | startswith("release-please--branches--main"))]
+            | .[0].number // empty')
           if [ -z "$PR_NUMBER" ]; then
-            echo "No open PR on ${HEAD_BRANCH}; nothing to merge."
+            echo "No open release PR; nothing to merge."
             exit 0
           fi
 

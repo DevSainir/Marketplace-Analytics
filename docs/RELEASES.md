@@ -194,6 +194,14 @@ a human merge would have started go missing with it:
 
 `workflow_dispatch` is the documented exception, so the merge step starts both explicitly. A
 dispatched `tests` on `main` runs the same tiers a push does — `end-to-end` keys off the branch and
-`performance` is opt-in either way — so the deploy gate keeps its full strength. If you ever swap
-the merge onto a PAT, delete both dispatches: with a real user token the push triggers them itself
-and you would get two runs of each.
+`performance` is opt-in either way — so the deploy gate keeps its full strength.
+
+The suppression reaches one level further than it looks, and v0.5.2 paid for the lesson: it was
+tagged and announced and never shipped, because the **`workflow_run` event `tests` emits to start
+`deploy` is suppressed too** when the run itself was dispatched by `GITHUB_TOKEN`. So `tests` hands
+off to `deploy` explicitly for dispatched runs on `main` (`deploy-after-dispatch` in `tests.yml`),
+and only for those — a normal push still arrives through `workflow_run`, and dispatching there as
+well would deploy the same commit twice.
+
+If you ever move the merge onto a PAT, delete all three hand-offs: with a real user token the push
+triggers everything by itself, and each would fire twice.
