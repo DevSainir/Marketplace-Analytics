@@ -174,8 +174,15 @@ class Settings(BaseSettings):
     # 2026-08-14, v14 served results while v13 and v5 answered 429 to every
     # request from the same IP in the same minute.
     wb_search_path: str = Field(default="/exactmatch/ru/common/v14/search")
-    # Delivery region the ranking is computed for (see wb_card_dest). A position
-    # is only meaningful together with this value.
+    # Delivery region the ranking is computed for (see wb_card_dest). Verified
+    # 2026-08-15: this value and every Russian dest WB's own geo resolver hands
+    # out (Moscow 1259570991, СПб -1198054, Екатеринбург -5818883, Новосибирск
+    # -364764) returned the SAME 100 ids in the same order for the same phrase —
+    # so within Russia this ranking is not regionalized and the value needs no
+    # alignment with any particular city. It is still a knob because a
+    # non-Russian storefront IS a different catalogue (.kg, dest=286, answered
+    # 5 178 results against 7 486 and moved the SKU from 26 to 53), which is the
+    # first thing to check when a seller reports a position we disagree with.
     wb_search_dest: int = Field(default=-1257786)
     # Result slots per page; 100 is what the storefront itself requests.
     wb_search_page_size: int = Field(default=100, ge=1, le=300)
