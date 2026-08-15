@@ -106,7 +106,7 @@ async def test_a_failure_on_the_first_page_is_raised_not_reported_as_absent() ->
 
 
 async def test_a_throttled_first_page_says_so_in_the_words_the_panel_shows() -> None:
-    """The probe gives up fast on purpose, so its failure must read as "retry", not "broken".
+    """A throttled probe must read as "retry", not as "broken" or "ranks nowhere".
 
     The transport error stays as the exception's cause: the log keeps "429", the
     seller reads a sentence telling them what to do about it.
@@ -125,23 +125,29 @@ async def test_a_throttled_first_page_says_so_in_the_words_the_panel_shows() -> 
     assert raised.value.__cause__ is cause
 
 
-def test_the_probe_inherits_the_card_proxy_so_prod_does_not_probe_from_a_blocked_ip() -> None:
-    """One credential, both storefront surfaces: the edge blocks by IP, not just by TLS."""
+def test_the_probe_goes_direct_even_when_the_card_endpoint_is_proxied() -> None:
+    """Regression: proxying this host CAUSED the throttling it was meant to dodge.
+
+    Measured from prod 2026-08-15, same query seconds apart — direct answered 200
+    with a full page, the residential proxy answered 429. search.wb.ru does not
+    block datacenter egress the way card.wb.ru does; it rate-limits per IP, and a
+    shared proxy exit arrives with its budget already spent.
+    """
     settings = _settings(wb_card_proxy="http://user:pass@residential.example:8000")
+
+    assert WBPublicSearchClient.resolve_proxy(settings) == ""
+
+
+def test_card_opts_back_into_the_shared_proxy_credential() -> None:
+    """The escape hatch if this host ever starts blocking us too — one credential."""
+    settings = _settings(
+        wb_card_proxy="http://user:pass@residential.example:8000",
+        wb_search_proxy="card",
+    )
 
     assert (
         WBPublicSearchClient.resolve_proxy(settings) == "http://user:pass@residential.example:8000"
     )
-
-
-def test_an_explicit_direct_opts_out_of_a_configured_card_proxy() -> None:
-    """A probe is billed per press, so a host may proxy harvests but not probes."""
-    settings = _settings(
-        wb_card_proxy="http://user:pass@residential.example:8000",
-        wb_search_proxy="direct",
-    )
-
-    assert WBPublicSearchClient.resolve_proxy(settings) == ""
 
 
 def test_a_proxy_url_never_reaches_a_log_with_its_credentials() -> None:
@@ -156,17 +162,18 @@ def test_the_probe_never_waits_out_a_retry_after_the_way_the_harvest_does() -> N
     """A watched request caps the server's demanded wait; the harvest honours it.
 
     Regression: ``max_retries`` alone bounded nothing, because a demanded wait is
-    honoured PAST the backoff cap — one ``Retry-After: 60`` would have restored
-    the latency this budget exists to remove.
+    honoured PAST the backoff cap — an unbounded ``Retry-After`` would hang the
+    page. The cap is one throttle window, not a token gesture: a 1.5s retry was
+    refused every time on prod because this host's window is tens of seconds.
     """
     settings = _settings()
     probe = WBPublicSearchClient(settings)
-    demanded = httpx.Response(429, headers={"Retry-After": "60"})
+    demanded = httpx.Response(429, headers={"Retry-After": "900"})
 
     waited = probe._retry_delay(attempt=0, response=demanded)
 
     assert waited == settings.wb_search_retry_max_backoff_seconds
-    assert waited < 60
+    assert waited < 900
 
 
 async def test_a_failure_on_a_later_page_keeps_what_was_already_found() -> None:

@@ -204,13 +204,15 @@ class Settings(BaseSettings):
     # within the hour, so this trades freshness for not being throttled: a team
     # of five checking the same phrase pays for one probe.
     wb_search_cache_seconds: int = Field(default=600, ge=0)
-    # Forward proxy for search.wb.ru. EMPTY (the default) INHERITS
-    # ``wb_card_proxy``: both are the same public storefront behind the same
-    # anti-bot edge, which IP-blocks datacenter egress, so a prod that needs a
-    # clean IP for one needs it for the other — and inheriting means the
-    # credential lives in exactly one place. The literal ``direct`` forces a
-    # direct connection, for a host whose card proxy is set but whose search
-    # probes should not spend proxy balance (each probe is user-triggered).
+    # Forward proxy for search.wb.ru. EMPTY (the default) means DIRECT, which is
+    # the opposite of what card.wb.ru needs — measured 2026-08-15 from the prod
+    # VPS, same query seconds apart: direct answered HTTP 200 with a full page,
+    # the residential proxy answered 429. This host does NOT block datacenter
+    # egress the way card.wb.ru does (403 there since 2026-07-14); it only
+    # rate-limits per IP, and a shared proxy exit is hotter than our own address,
+    # so proxying made throttling MORE likely while costing ~216 KB of billed
+    # traffic per page. The literal ``card`` opts back into ``wb_card_proxy`` if
+    # this host ever starts blocking us too; any other value is used as-is.
     wb_search_proxy: str = Field(default="")
     # Per-request cap for one search page, tighter than the shared 30s: a ranked
     # page is ~220 KB served in well under a second when the host is willing, so
@@ -227,14 +229,21 @@ class Settings(BaseSettings):
     # probe reports «WB притормозил» quickly and lets the user retry into a
     # warm cache instead of holding the request open.
     wb_search_max_retries: int = Field(default=1, ge=0)
-    # Backoff between those attempts. One short wait is worth taking (WB's
-    # bucket refills in seconds); a long ladder is not, for the reason above.
-    wb_search_retry_backoff_seconds: float = Field(default=1.5, ge=0)
+    # The wait before that retry, and it has to be long enough to OUTLAST a
+    # throttle window rather than merely to look patient. Measured on prod
+    # 2026-08-15: a 1.5s retry was refused every time (429, retry 1/1 in 1.5s,
+    # 429 — the whole probe gave up in two seconds) because this host's window is
+    # tens of seconds. Retrying inside it spends an attempt to learn nothing.
+    # 30s is one window; a second retry would push the worst case past the
+    # browser's budget for no extra odds.
+    wb_search_retry_backoff_seconds: float = Field(default=30.0, ge=0)
     # Ceiling on a single wait. Passed BOTH as the backoff cap and as the
     # client's Retry-After ceiling: a server-demanded wait is otherwise honoured
     # past the backoff cap (correct for the harvest, wrong for a watched
-    # request), and one 60s header would silently undo this whole budget.
-    wb_search_retry_max_backoff_seconds: float = Field(default=5.0, ge=0)
+    # request), and an unbounded 900s header would hang the page. Sized so one
+    # retry still fits well inside the browser's 120s budget: worst case per page
+    # is timeout + wait + timeout = 12 + 30 + 12 = 54s.
+    wb_search_retry_max_backoff_seconds: float = Field(default=30.0, ge=0)
     # Relative paths resolve against the backend working directory.
     # disables caching entirely. Relative paths resolve against the backend
     # working directory; a bind mount or S3 can replace it without code changes.
