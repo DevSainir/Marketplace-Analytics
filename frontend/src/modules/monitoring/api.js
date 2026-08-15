@@ -310,3 +310,62 @@ export async function probeSkuSearchPosition(nmId, query, options = {}, signal) 
   })
   return data
 }
+
+/**
+ * GET /v1/monitoring/skus/{nm_id}/pinned-keywords — the phrases «Закрепить» keeps
+ * on this SKU, each with the position the last scheduled run recorded.
+ *
+ * Stored, not live: answers from one small table and never touches WB, so it
+ * keeps working while the probe above is being throttled.
+ *
+ * @param {number|string} nmId WB SKU identifier.
+ * @param {AbortSignal} [signal] Cancels the request when the SKU changes.
+ * @returns {Promise<{nm_id: number, items: Array<object>}>}
+ */
+export async function fetchPinnedKeywords(nmId, signal) {
+  const { data } = await apiClient.get(`/v1/monitoring/skus/${nmId}/pinned-keywords`, { signal })
+  return data
+}
+
+/**
+ * POST /v1/monitoring/skus/{nm_id}/pinned-keywords — pin a phrase to this SKU.
+ *
+ * Idempotent on the backend: re-pinning an existing phrase returns its card with
+ * the stored number intact rather than blanking it.
+ *
+ * @param {number|string} nmId WB SKU identifier.
+ * @param {string} keyword The phrase to pin.
+ * @returns {Promise<object>} The pinned card (no position until the first run).
+ */
+export async function pinKeyword(nmId, keyword) {
+  const { data } = await apiClient.post(`/v1/monitoring/skus/${nmId}/pinned-keywords`, { keyword })
+  return data
+}
+
+/**
+ * DELETE /v1/monitoring/skus/{nm_id}/pinned-keywords/{keyword} — unpin a phrase.
+ *
+ * @param {number|string} nmId WB SKU identifier.
+ * @param {string} keyword The pinned phrase.
+ * @returns {Promise<void>}
+ */
+export async function unpinKeyword(nmId, keyword) {
+  await apiClient.delete(
+    `/v1/monitoring/skus/${nmId}/pinned-keywords/${encodeURIComponent(keyword)}`,
+  )
+}
+
+/**
+ * POST /v1/monitoring/positions/refresh — «Проверить все позиции».
+ *
+ * Enqueues the same task the schedule runs three times a day, scoped to the
+ * active workspace. Phrases are probed about a minute apart (WB refuses
+ * back-to-back requests), so this returns a task id to poll via
+ * `getRefreshStatus` rather than waiting for the work.
+ *
+ * @returns {Promise<{task_id: string, pinned_count: number}>}
+ */
+export async function refreshAllPositions() {
+  const { data } = await apiClient.post('/v1/monitoring/positions/refresh')
+  return data
+}

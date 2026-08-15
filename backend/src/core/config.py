@@ -190,6 +190,16 @@ class Settings(BaseSettings):
     # the host 429s back-to-back requests, so this bounds the endpoint's latency
     # as much as WB's patience: 3 pages = the top 300 positions.
     wb_search_max_pages: int = Field(default=3, ge=1, le=20)
+    # Gap between phrases in a scheduled pinned-position run. Not politeness:
+    # this host answers back-to-back requests with 429 even one per 25 s (see
+    # the search client's module docstring), so a run that hurries returns
+    # nothing at all. One phrase a minute is what measured as sustainable.
+    wb_search_probe_spacing_seconds: float = Field(default=60.0, ge=0)
+    # Phrases one scheduled run may probe, per workspace. At the spacing above
+    # this is the run's wall-clock budget (60 = about an hour). Pins beyond it
+    # keep their previous position and are named in the run's log — a silently
+    # truncated run would leave stale cards looking current.
+    wb_search_max_keywords_per_run: int = Field(default=60, ge=1)
     # How long a keyword's probe result is reused (Redis). The ranking moves
     # within the hour, so this trades freshness for not being throttled: a team
     # of five checking the same phrase pays for one probe.

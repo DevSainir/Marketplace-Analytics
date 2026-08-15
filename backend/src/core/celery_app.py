@@ -43,6 +43,29 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=6, minute=0),
         "kwargs": {"days": 7},
     },
+    # Live search positions for pinned phrases, three times a day. The hours are
+    # written in Moscow time because ``timezone`` above is Europe/Moscow, but
+    # they were chosen in the team's own time (Bishkek, UTC+6, three hours
+    # ahead): 06:00/11:00/18:00 MSK == 09:00/14:00/21:00 in Bishkek — start of
+    # their day, mid-afternoon, and last thing at night.
+    #
+    # The first one deliberately coincides with the harvest above rather than
+    # dodging it: this task talks to the PUBLIC storefront, which meters its own
+    # per-IP bucket, so it competes with the harvest for nothing. It is a
+    # separate task with separate transactions for the same reason — a throttled
+    # position must not be able to fail a harvest that succeeded.
+    "pinned-positions-morning": {
+        "task": "monitoring.refresh_pinned_positions",
+        "schedule": crontab(hour=6, minute=0),
+    },
+    "pinned-positions-afternoon": {
+        "task": "monitoring.refresh_pinned_positions",
+        "schedule": crontab(hour=11, minute=0),
+    },
+    "pinned-positions-evening": {
+        "task": "monitoring.refresh_pinned_positions",
+        "schedule": crontab(hour=18, minute=0),
+    },
     # «Процент выкупа» inputs: re-read the order-date cohorts that are still
     # maturing (deliveries keep being accepted/refused for ~3 weeks). Runs an
     # hour after the harvest so it never competes with it for the same

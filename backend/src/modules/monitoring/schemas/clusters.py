@@ -20,6 +20,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
+from src.modules.monitoring.models.pinned_keywords import KEYWORD_MAX_LENGTH
 from src.modules.monitoring.schemas.summary import MetricWindow
 
 
@@ -67,6 +68,59 @@ class SkuClustersResponse(BaseModel):
     nm_id: int
     window: MetricWindow
     items: list[SkuClusterItem] = Field(default_factory=list)
+
+
+class PinnedKeywordItem(BaseModel):
+    """One pinned phrase and the last position recorded for it.
+
+    Three states the card must keep apart, because two of them look identical if
+    collapsed and mean opposite things to someone deciding on a bid:
+
+    * ``checked_at is None`` — pinned, never probed. The card shows «—».
+    * ``checked_at`` set, ``position is None`` — WB answered and the SKU was not
+      inside ``positions_scanned``. It may still rank deeper (``truncated``).
+    * ``position`` set — a real rank, as of ``checked_at``.
+    """
+
+    keyword: str = Field(description="The phrase as the seller pinned it.")
+    normalized_query: str | None = Field(
+        default=None, description="WB's normalization from the last probe, if any."
+    )
+    position: int | None = Field(default=None, description="Last known 1-based rank.")
+    positions_scanned: int = Field(default=0, description="Depth of the last scan.")
+    total_found: int = Field(default=0, description="WB's result count at the last check.")
+    truncated: bool = Field(
+        default=False, description="WB had results deeper than the last scan reached."
+    )
+    checked_at: datetime | None = Field(
+        default=None, description="When it was last probed; None = never."
+    )
+    created_at: datetime = Field(description="When the phrase was pinned.")
+
+
+class PinnedKeywordsResponse(BaseModel):
+    """A SKU's pinned phrases, in pin order."""
+
+    nm_id: int
+    items: list[PinnedKeywordItem] = Field(default_factory=list)
+
+
+class PinKeywordRequest(BaseModel):
+    """The phrase to pin («Закрепить»)."""
+
+    keyword: str = Field(min_length=1, max_length=KEYWORD_MAX_LENGTH)
+
+
+class PositionRefreshAccepted(BaseModel):
+    """Acknowledgement that a «Проверить все позиции» run was queued.
+
+    Carries the Celery task id so the UI can poll the shared refresh-status
+    endpoint, and the pin count so it can say how much work was actually queued
+    (zero pins is a legitimate, silent no-op otherwise).
+    """
+
+    task_id: str
+    pinned_count: int = Field(description="Pins the run will probe for this workspace.")
 
 
 class OtherSkuPosition(BaseModel):

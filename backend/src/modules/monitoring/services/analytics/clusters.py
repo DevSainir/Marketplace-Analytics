@@ -31,6 +31,9 @@ from src.core.logging import get_logger
 from src.core.redis import get_redis
 from src.integrations.wildberries.clients.search import SearchProbe, WBPublicSearchClient
 from src.modules.monitoring.models import ProductCard
+from src.modules.monitoring.models.pinned_keywords import (
+    KEYWORD_MAX_LENGTH as _KEYWORD_MAX_LENGTH,
+)
 from src.modules.monitoring.repos import (
     AdvertisingClusterRepository,
     ProductCardRepository,
@@ -49,8 +52,11 @@ from src.modules.monitoring.services.analytics.window import resolve_window
 logger = get_logger(__name__)
 
 #: Longest phrase accepted. WB clusters are short phrases; anything longer is a
-#: pasted paragraph, and it would only ever find nothing (slowly).
-KEYWORD_MAX_LENGTH = 100
+#: pasted paragraph, and it would only ever find nothing (slowly). Re-exported
+#: from the model so the probe's limit and the ``pinned_keyword.keyword`` column
+#: width cannot drift apart — a phrase that pins but cannot be checked, or the
+#: reverse, is worse than either bound alone.
+KEYWORD_MAX_LENGTH = _KEYWORD_MAX_LENGTH
 
 
 def _cache_key(*, query: str, dest: int) -> str:

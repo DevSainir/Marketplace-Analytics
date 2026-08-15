@@ -1,0 +1,186 @@
+"""Unit tests for the scheduled pinned-position refresh.
+
+Fakes stand in for the search client and the repository; no network, no Redis,
+no Celery. What these pin is the arithmetic that makes three runs a day
+affordable at ~1 request per minute — one scan per PHRASE, not per pin — and the
+failure policy that keeps one throttled phrase from costing the run the rest.
+"""
+
+from __future__ import annotations
+
+import uuid
+from typing import Any, ClassVar
+
+import pytest
+
+from src.core.exceptions import IntegrationError
+from src.integrations.wildberries.clients.search import SearchPosition, SearchProbe
+from src.modules.monitoring.models.pinned_keywords import PinnedKeyword
+from src.modules.monitoring.tasks import positions as positions_task
+
+WORKSPACE = uuid.UUID("018f4e2a-0000-7000-8000-000000000001")
+FIRST = 953770957
+SECOND = 144178006
+
+
+def _pin(nm_id: int, keyword: str) -> PinnedKeyword:
+    return PinnedKeyword(nm_id=nm_id, keyword=keyword)
+
+
+def _probe(keyword: str, found: dict[int, int]) -> SearchProbe:
+    """A probe that located ``found`` (nm_id -> position) for ``keyword``."""
+    return SearchProbe(
+        query=keyword,
+        normalized_query=keyword,
+        total_found=7486,
+        pages_scanned=3,
+        positions_scanned=300,
+        truncated=True,
+        positions=[
+            SearchPosition(nm_id=nm_id, position=pos, page=1, position_on_page=pos)
+            for nm_id, pos in found.items()
+        ],
+    )
+
+
+class _FakeSearchClient:
+    """Records every phrase asked for; optionally throttles some of them."""
+
+    def __init__(self, results: dict[str, Any]) -> None:
+        self._results = results
+        self.asked: list[str] = []
+
+    async def __aenter__(self) -> _FakeSearchClient:
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        return None
+
+    async def find_positions(self, *, query: str, nm_ids: set[int]) -> SearchProbe:
+        self.asked.append(query)
+        outcome = self._results[query]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+class _FakePinRepo:
+    """Captures what the run wrote back onto the pins."""
+
+    # Class-level on purpose: the task builds its own repository per phrase (one
+    # session per transaction), so the assertions need somewhere shared to look.
+    rows: ClassVar[list[PinnedKeyword]] = []
+    written: ClassVar[list[dict[str, Any]]] = []
+
+    def __init__(self, _session: object) -> None:
+        pass
+
+    async def list_for_workspace(self, **_: Any) -> list[PinnedKeyword]:
+        return type(self).rows
+
+    async def record_probe(self, **kwargs: Any) -> None:
+        type(self).written.append(kwargs)
+
+
+class _FakeCardRepo:
+    def __init__(self, _session: object) -> None:
+        pass
+
+    async def list_workspace_nm_ids(self, _workspace_id: uuid.UUID) -> list[int]:
+        return [FIRST, SECOND]
+
+
+class _FakeSession:
+    async def __aenter__(self) -> _FakeSession:
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        return None
+
+    async def commit(self) -> None:
+        return None
+
+
+@pytest.fixture(autouse=True)
+def _wire(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Swap the module's collaborators for fakes and remove the pacing delay."""
+    _FakePinRepo.rows = []
+    _FakePinRepo.written = []
+    monkeypatch.setattr(positions_task, "AsyncSessionLocal", _FakeSession)
+    monkeypatch.setattr(positions_task, "PinnedKeywordRepository", _FakePinRepo)
+    monkeypatch.setattr(positions_task, "ProductCardRepository", _FakeCardRepo)
+    # The real gap is a minute per phrase; the schedule is what it protects, not
+    # anything these tests assert.
+    monkeypatch.setattr(positions_task.settings, "wb_search_probe_spacing_seconds", 0)
+
+
+async def test_one_scan_answers_for_every_sku_pinned_to_that_phrase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two SKUs, one phrase: WB is asked ONCE and both pins get their own rank.
+
+    This is what makes the run affordable three times a day — the probe reads
+    whole result pages, so a second SKU on the same phrase is free.
+    """
+    _FakePinRepo.rows = [_pin(FIRST, "носки мужские"), _pin(SECOND, "носки мужские")]
+    client = _FakeSearchClient({"носки мужские": _probe("носки мужские", {FIRST: 7, SECOND: 41})})
+    monkeypatch.setattr(positions_task, "build_search_client", lambda _s: client)
+
+    counts = await positions_task._probe_workspace_pins(WORKSPACE, "ИП Тест")
+
+    assert client.asked == ["носки мужские"]
+    assert counts["pins_updated"] == 2
+    assert {w["nm_id"]: w["position"] for w in _FakePinRepo.written} == {FIRST: 7, SECOND: 41}
+
+
+async def test_a_sku_absent_from_the_scan_is_recorded_as_checked_not_forgotten(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ "Checked, not in the depth" is a result and must overwrite the old rank."""
+    _FakePinRepo.rows = [_pin(FIRST, "носки мужские")]
+    client = _FakeSearchClient({"носки мужские": _probe("носки мужские", {})})
+    monkeypatch.setattr(positions_task, "build_search_client", lambda _s: client)
+
+    await positions_task._probe_workspace_pins(WORKSPACE, "ИП Тест")
+
+    written = _FakePinRepo.written[0]
+    assert written["position"] is None
+    assert written["positions_scanned"] == 300
+    assert written["checked_at"] is not None
+
+
+async def test_a_throttled_phrase_costs_only_itself(monkeypatch: pytest.MonkeyPatch) -> None:
+    """WB refusing one phrase must not abandon the phrases after it.
+
+    The failed pin keeps its previous number AND its previous timestamp, which is
+    what tells the seller the card is stale rather than newly unranked.
+    """
+    _FakePinRepo.rows = [_pin(FIRST, "аaa"), _pin(FIRST, "ббб")]
+    client = _FakeSearchClient(
+        {
+            "аaa": IntegrationError("search.wb.ru не ответил"),
+            "ббб": _probe("ббб", {FIRST: 3}),
+        }
+    )
+    monkeypatch.setattr(positions_task, "build_search_client", lambda _s: client)
+
+    counts = await positions_task._probe_workspace_pins(WORKSPACE, "ИП Тест")
+
+    assert counts["phrases_failed"] == 1
+    assert counts["phrases"] == 1
+    assert [w["keyword"] for w in _FakePinRepo.written] == ["ббб"]
+
+
+async def test_the_per_run_ceiling_is_reported_not_silent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A truncated run must say so: stale cards otherwise look current."""
+    _FakePinRepo.rows = [_pin(FIRST, f"фраза {i}") for i in range(5)]
+    monkeypatch.setattr(positions_task.settings, "wb_search_max_keywords_per_run", 2)
+    client = _FakeSearchClient({f"фраза {i}": _probe(f"фраза {i}", {FIRST: 1}) for i in range(5)})
+    monkeypatch.setattr(positions_task, "build_search_client", lambda _s: client)
+
+    counts = await positions_task._probe_workspace_pins(WORKSPACE, "ИП Тест")
+
+    assert counts["phrases_skipped"] == 3
+    assert len(client.asked) == 2

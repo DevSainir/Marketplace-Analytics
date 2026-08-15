@@ -29,6 +29,10 @@ One responsibility per module:
   the module's only read path that makes an outbound HTTP call, and folding a
   live storefront probe into the facade every SKU view depends on would put that
   call one careless method away from the dashboard's hot path.
+* :mod:`~src.modules.monitoring.services.analytics.pinned_keywords` — the
+  phrases «Закрепить» keeps on a SKU and the last position stored for each. Pure
+  CRUD over one table and deliberately separate from ``clusters`` above: this
+  half must keep answering when WB throttles the probe half.
 * :mod:`~src.modules.monitoring.services.analytics.service` — the
   :class:`AnalyticsService` facade the presentation layer depends on.
 
@@ -41,6 +45,7 @@ from src.modules.monitoring.services.analytics.annotations import DayAnnotationA
 from src.modules.monitoring.services.analytics.clusters import ClusterAnalytics
 from src.modules.monitoring.services.analytics.detail import DetailAnalytics
 from src.modules.monitoring.services.analytics.matrix_editing import MatrixEditingAnalytics
+from src.modules.monitoring.services.analytics.pinned_keywords import PinnedKeywordService
 from src.modules.monitoring.services.analytics.pins import PinnedSkuAnalytics
 from src.modules.monitoring.services.analytics.service import AnalyticsService
 from src.modules.monitoring.services.analytics.stock_view import StockViewAnalytics
@@ -53,6 +58,7 @@ __all__ = [
     "DayAnnotationAnalytics",
     "DetailAnalytics",
     "MatrixEditingAnalytics",
+    "PinnedKeywordService",
     "PinnedSkuAnalytics",
     "StockViewAnalytics",
     "SummaryAnalytics",

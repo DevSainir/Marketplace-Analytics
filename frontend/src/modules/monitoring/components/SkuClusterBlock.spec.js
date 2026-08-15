@@ -16,26 +16,12 @@ const CLUSTERS = [
   },
 ]
 
-const POSITION = {
-  nm_id: 953770957,
-  query: 'носки',
-  normalized_query: 'мужские носки',
-  checked_at: '2026-08-14T09:00:00Z',
-  total_found: 111119,
-  positions_scanned: 300,
-  truncated: true,
-  position: 7,
-  page: 1,
-  position_on_page: 7,
-  other_skus: [{ nm_id: 144178006, vendor_code: 'M-TRX01-BEJ', position: 41 }],
-}
-
 const mountBlock = (props = {}) =>
   mount(SkuClusterBlock, { props: { clusters: CLUSTERS, ...props } })
 
 it('shows the SKU’s clusters without anyone typing a phrase', () => {
-  // The stored half is the block's default content: it describes the SKU, not a
-  // search, so it must not wait on the search bar.
+  // The stored half describes the SKU, not a search: it must render on its own,
+  // which is why it is a section of its own since the live probe moved out.
   const wrapper = mountBlock()
 
   expect(wrapper.text()).toContain('носки мужские')
@@ -50,37 +36,11 @@ it('renders an unreported average ad position as a dash, not zero', () => {
   expect(wrapper.find('tbody tr').text()).toContain('—')
 })
 
-it('reports the live rank with its page and WB’s own phrasing', () => {
-  const wrapper = mountBlock({ position: POSITION })
+it('carries its own heading, so an empty table cannot read as a broken probe', () => {
+  // Regression: the two halves shared one «Поиск по кластерам» title, and an
+  // empty advertising table looked like the position check had failed.
+  const wrapper = mountBlock({ clusters: [], loaded: true })
 
-  expect(wrapper.text()).toContain('7')
-  expect(wrapper.text()).toContain('мужские носки')
-  expect(wrapper.text()).toContain('M-TRX01-BEJ')
-})
-
-it('names the scanned depth when the SKU did not rank inside it', () => {
-  // A SKU can rank deeper than the probe looks, so the empty state states the
-  // depth instead of implying the SKU is absent from WB.
-  const wrapper = mountBlock({ position: { ...POSITION, position: null, page: null } })
-
-  expect(wrapper.text()).toContain('не найден в первых 300')
-})
-
-it('says WB did not answer instead of reporting the SKU as unranked', () => {
-  // The block's central rule: «не проверилось» and «нет в выдаче» lead a seller
-  // to opposite decisions about the bid.
-  const wrapper = mountBlock({ positionError: 'WB притормозил запрос. Повторите через минуту.' })
-
-  expect(wrapper.text()).toContain('притормозил')
-  expect(wrapper.text()).not.toContain('не найден в первых')
-})
-
-it('emits the typed phrase on submit and never an empty one', async () => {
-  const wrapper = mountBlock()
-
-  await wrapper.get('form').trigger('submit')
-  await wrapper.get('input').setValue('носки')
-  await wrapper.get('form').trigger('submit')
-
-  expect(wrapper.emitted('check')).toEqual([['носки']])
+  expect(wrapper.get('h2').text()).toBe('Рекламные кластеры')
+  expect(wrapper.text()).toContain('реклама этого артикула не показывалась')
 })

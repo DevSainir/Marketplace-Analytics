@@ -12,6 +12,7 @@ import SkuMatchPicker from '@/modules/monitoring/components/SkuMatchPicker.vue'
 import PinnedSkuRow from '@/modules/monitoring/components/PinnedSkuRow.vue'
 import RefreshAllSkusButton from '@/modules/monitoring/components/RefreshAllSkusButton.vue'
 import SkuClusterBlock from '@/modules/monitoring/components/SkuClusterBlock.vue'
+import SkuPositionPanel from '@/modules/monitoring/components/SkuPositionPanel.vue'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
 import StockComparePanel from '@/modules/monitoring/components/StockComparePanel.vue'
 import { useMonitoringStore } from '@/modules/monitoring/store'
@@ -96,8 +97,8 @@ useMatrixHistoryKeys({
   locked: () => editingLocked.value,
 })
 
-// «Поиск по кластерам» (the page's last block): the cluster table follows the
-// LOADED SKU and window; the search bar below it checks the live WB position.
+// The page's last two sections: live search positions (typed or pinned) and the
+// advertising-cluster history. Both follow the LOADED SKU and window.
 const clusters = useSkuClusters()
 
 onMounted(() => store.fetchPins())
@@ -219,17 +220,16 @@ onMounted(() => store.fetchPins())
           @toggle-mark="store.toggleWarehouseMark"
         />
 
-        <SkuClusterBlock
-          :clusters="clusters.clusters"
-          :clusters-loading="clusters.clustersLoading"
-          :clusters-error="clusters.clustersError"
-          :loaded="clusters.loaded"
-          :position="clusters.position"
-          :position-loading="clusters.positionLoading"
-          :position-error="clusters.positionError"
+        <SkuPositionPanel
+          v-bind="clusters.positionPanelProps"
           @check="clusters.checkPosition($event)"
           @recheck="clusters.checkPosition($event, { refresh: true })"
+          @pin="clusters.pin($event)"
+          @unpin="clusters.unpin($event)"
+          @refresh-all="clusters.refreshAllPinned()"
         />
+
+        <SkuClusterBlock v-bind="clusters.clusterTableProps" />
       </template>
 
       <!-- Initial state: an inviting hint until the first SKU is submitted -->

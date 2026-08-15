@@ -20,6 +20,7 @@ from src.modules.monitoring.models.campaigns import (
 )
 from src.modules.monitoring.models.day_actions import SkuDayAction
 from src.modules.monitoring.models.matrix_override import MatrixOverride
+from src.modules.monitoring.models.pinned_keywords import KEYWORD_MAX_LENGTH, PinnedKeyword
 from src.modules.monitoring.models.pinned_skus import PinnedSku
 from src.modules.monitoring.models.prices import PriceSnapshot
 from src.modules.monitoring.models.products import ProductCard, ProductSize
@@ -31,6 +32,7 @@ from src.modules.monitoring.models.warehouse_marks import WarehouseMark
 
 __all__ = [
     "CLUSTER_MAX_LENGTH",
+    "KEYWORD_MAX_LENGTH",
     "WB_STATUS_LABELS",
     "WB_TYPE_LABELS",
     "AdvertisingClusterStatDaily",
@@ -38,6 +40,7 @@ __all__ = [
     "AdvertisingStatDaily",
     "Campaign",
     "MatrixOverride",
+    "PinnedKeyword",
     "PinnedSku",
     "PriceSnapshot",
     "ProductCard",
