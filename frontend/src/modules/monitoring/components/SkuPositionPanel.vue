@@ -1,8 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
-import { formatNumber } from '@/core/utils/format'
 import PinnedKeywordCards from '@/modules/monitoring/components/PinnedKeywordCards.vue'
+import SearchPositionResult from '@/modules/monitoring/components/SearchPositionResult.vue'
 
 /**
  * «Позиции в поиске» — where this SKU stands in WB's live organic search.
@@ -30,7 +30,7 @@ import PinnedKeywordCards from '@/modules/monitoring/components/PinnedKeywordCar
  * checked; a null position means the SKU was not inside the scanned depth (which
  * is printed, since a deeper rank is still possible); a number is a real rank.
  */
-defineProps({
+const props = defineProps({
   /** Backend `SkuSearchPositionResponse`, or null before the first check. */
   position: { type: Object, default: null },
   positionLoading: { type: Boolean, default: false },
@@ -49,6 +49,11 @@ const emit = defineEmits(['check', 'recheck', 'pin', 'unpin', 'refresh-all'])
 
 const term = ref('')
 
+/** The phrase the spinner names. «Проверить снова» re-probes the phrase already
+ *  on screen with the input empty, so the typed value alone would leave the
+ *  message saying nothing about what is being checked. */
+const probingTerm = computed(() => term.value.trim() || props.position?.query || '')
+
 /** Submit guard: Enter in the input bypasses the disabled button, and an empty
  *  phrase has no ranking to ask WB for. */
 function submit() {
@@ -62,16 +67,6 @@ function pin() {
   emit('pin', term.value)
   term.value = ''
 }
-
-/** «14.08.2026, 15:42» — the probe is a sample, so its timestamp is part of it. */
-const checkedAt = (iso) =>
-  new Date(iso).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 </script>
 
 <template>
@@ -80,6 +75,17 @@ const checkedAt = (iso) =>
     <p class="mt-xs max-w-3xl text-tiny font-medium text-muted">
       Живая выдача WB: введите запрос, чтобы узнать позицию артикула прямо сейчас, или закрепите
       фразу — её позиция будет обновляться три раза в день.
+    </p>
+    <!-- Without this the panel gets read as broken: a seller sees their own
+         advertised card at первое место on wildberries.ru and «не найден в
+         первых 300» here, for the same phrase, the same minute. Both are true —
+         the storefront grid interleaves paid placements, this number is the
+         organic list alone — and the gap between them is the point of the
+         panel, not a defect in it. -->
+    <p class="mt-xs max-w-3xl text-tiny font-medium text-muted">
+      Считается только органическая выдача, без рекламы. На сайте WB рекламные карточки
+      подмешиваются в сетку выше органики, поэтому артикул может стоять там первым и при этом не
+      входить в органические 300.
     </p>
 
     <div class="mt-md flex flex-wrap items-center gap-sm">
@@ -166,51 +172,35 @@ const checkedAt = (iso) =>
       позиция обновлялась три раза в день.
     </p>
 
-    <p v-if="positionError" class="mt-md text-base text-status-negative">{{ positionError }}</p>
-
-    <div
-      v-else-if="position"
-      class="mt-md rounded-card border border-border-subtle bg-surface p-lg shadow-card"
+    <!-- A cold probe reads up to three ranked pages one after another, and a
+         throttled first page waits out WB's window before its single retry — so
+         this legitimately runs for tens of seconds. A greyed-out button is not
+         feedback: it reads as "nothing happened". -->
+    <p
+      v-if="positionLoading"
+      class="mt-md flex items-center gap-sm text-base text-muted"
+      role="status"
+      aria-live="polite"
     >
-      <div class="flex flex-wrap items-baseline justify-between gap-sm">
-        <p class="text-base text-primary">
-          <template v-if="position.position">
-            Позиция в выдаче по «{{ position.query }}»:
-            <span class="text-h3 font-bold">{{ position.position }}</span>
-            <span class="text-tiny font-medium text-muted">
-              (стр. {{ position.page }}, {{ position.position_on_page }})
-            </span>
-          </template>
-          <template v-else>
-            Артикул не найден в первых {{ formatNumber(position.positions_scanned) }} позициях по
-            «{{ position.query }}».
-            <span v-if="position.truncated" class="text-muted">
-              Глубже проверка не заходит — WB ограничивает выдачу.
-            </span>
-          </template>
-        </p>
-        <button
-          type="button"
-          class="rounded-btn border border-border-subtle px-md py-xs text-tiny font-medium text-primary transition hover:bg-canvas disabled:opacity-50"
-          :disabled="positionLoading"
-          @click="emit('recheck', position.query)"
-        >
-          Проверить заново
-        </button>
-      </div>
-      <p class="mt-xs text-tiny font-medium text-muted">
-        Проверено {{ checkedAt(position.checked_at) }} · всего по запросу
-        {{ formatNumber(position.total_found) }} товаров
-        <span v-if="position.normalized_query">
-          · запрос WB: «{{ position.normalized_query }}»</span
-        >
-      </p>
-      <p v-if="position.other_skus.length" class="mt-sm text-tiny text-muted">
-        Другие ваши артикулы в этой выдаче:
-        <span v-for="(other, index) in position.other_skus" :key="other.nm_id">
-          <span v-if="index">, </span>{{ other.vendor_code || other.nm_id }} — {{ other.position }}
-        </span>
-      </p>
-    </div>
+      <span
+        class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-border-subtle border-t-action"
+        aria-hidden="true"
+      />
+      <span v-if="probingTerm">
+        Проверяем позицию по «{{ probingTerm }}». WB отвечает медленно — до минуты.
+      </span>
+      <span v-else>Проверяем позицию. WB отвечает медленно — до минуты.</span>
+    </p>
+
+    <p v-else-if="positionError" class="mt-md text-base text-status-negative">
+      {{ positionError }}
+    </p>
+
+    <SearchPositionResult
+      v-else-if="position"
+      :position="position"
+      :busy="positionLoading"
+      @recheck="emit('recheck', $event)"
+    />
   </section>
 </template>

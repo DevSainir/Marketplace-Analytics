@@ -104,3 +104,38 @@ it('disables «Проверить все позиции» while a run is in flig
   expect(wrapper.get('button').attributes('disabled')).toBeDefined()
   expect(wrapper.text()).toContain('Проверяем 3 запроса.')
 })
+
+it('says a check is running, naming the phrase — a greyed-out button is not feedback', async () => {
+  // A cold probe reads three pages sequentially and waits out WB's throttle
+  // window before its one retry, so this runs for tens of seconds. Reported as
+  // "nothing ever happens" when the only signal was the disabled button.
+  const wrapper = mountPanel({ positionLoading: true })
+  await wrapper.get('input').setValue('брюки мужские')
+
+  expect(wrapper.text()).toContain('Проверяем позицию по «брюки мужские»')
+})
+
+it('names the phrase being re-checked when the input is empty', () => {
+  // «Проверить снова» re-probes what is already on screen, so the typed value is
+  // blank and the message would otherwise say nothing about what is running.
+  const wrapper = mountPanel({ positionLoading: true, position: { ...POSITION } })
+
+  expect(wrapper.text()).toContain(`Проверяем позицию по «${POSITION.query}»`)
+})
+
+it('hides a stale result while the next check runs', () => {
+  // The old rank next to a spinner reads as the new answer.
+  const wrapper = mountPanel({ positionLoading: true, position: { ...POSITION } })
+
+  expect(wrapper.text()).not.toContain(`Позиция в выдаче`)
+})
+
+it('says the rank excludes advertising — the gap is the point, not a defect', () => {
+  // Reported as a bug: their own advertised card sat at #1 on wildberries.ru
+  // while this panel said «не найден в первых 300» for the same phrase. Both
+  // true — the storefront grid interleaves paid placements — so the panel has to
+  // say which of the two it measures.
+  const wrapper = mountPanel()
+
+  expect(wrapper.text()).toContain('без рекламы')
+})
