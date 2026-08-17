@@ -121,26 +121,27 @@ class WBPublicSearchClient(BaseWBClient):
     def resolve_proxy(settings: Settings) -> str:
         """The forward proxy this client should use, or ``""`` for direct.
 
-        Direct by default, unlike ``card.wb.ru``. Measured from the production
-        VPS on 2026-08-15, the same query seconds apart: **direct answered 200
-        with a full page while the residential proxy answered 429.** This host
-        does not block datacenter egress — it rate-limits per IP, and a shared
-        proxy exit has already spent that budget on somebody else. Proxying here
-        therefore made throttling more likely AND cost ~216 KB of billed traffic
-        per page.
+        Proxied by default (``card`` reuses ``wb_card_proxy``, one credential in
+                one place); ``direct`` or an empty value forces a direct connection, and
+                anything else is taken as a proxy URL.
 
-        ``card`` opts back into ``wb_card_proxy`` (one credential, one place) if
-        this host ever starts blocking us the way the card endpoint does; any
-        other value is used as the proxy URL.
+                We shipped ``direct`` once, on a two-request comparison taken while WB
+                was retiring the API version we called — noise mistaken for a result.
+                What holds is that this edge scores IP REPUTATION and escalates: the
+                VPS address collects HTTP 498 from the storefront and 429 from the search
+                host once warm, and no header or param talks it down. The proxy rotates
+                residential exits per request (verified 2026-08-17: three IPs in three
+                requests), so each probe starts clean — the only lever available while we
+                cannot present the browser's JS-issued ``x_wbaas_token``.
 
-        Args:
-            settings: The application settings.
+                Args:
+                    settings: The application settings.
 
-        Returns:
-            The proxy URL, or an empty string for a direct connection.
+                Returns:
+                    The proxy URL, or an empty string for a direct connection.
         """
         configured = settings.wb_search_proxy.strip()
-        if not configured:
+        if not configured or configured.casefold() == "direct":
             return ""
         if configured.casefold() == "card":
             return settings.wb_card_proxy.strip()
@@ -276,7 +277,12 @@ class WBPublicSearchClient(BaseWBClient):
             total_found=total,
             pages_scanned=scanned_pages,
             positions_scanned=scanned_slots,
-            truncated=not exhausted and total > scanned_slots,
+            # `total` is absent from the current (v18) envelope, so 0 means
+            # UNKNOWN, not "no results". Only a short page proves the result set
+            # ran out; without that proof the safe claim is "there may be more",
+            # because the alternative tells a seller their card is nowhere in WB
+            # search when the scan simply stopped early.
+            truncated=not exhausted and (total == 0 or total > scanned_slots),
             positions=sorted(found.values(), key=lambda position: position.position),
         )
 
@@ -295,14 +301,24 @@ class WBPublicSearchClient(BaseWBClient):
                 payload that no longer matches the verified shape, or a page 1
                 that is empty while WB reports results (a soft block).
         """
+        # Captured from the storefront's own request on 2026-08-17. The extra
+        # flags are free and remove differences between our call and one WB
+        # serves without complaint; `lang`/`locale` in particular were absent
+        # from every request of ours that got refused.
         params: dict[str, object] = {
-            "ab_testing": "false",
+            "ab_testid": "old_cb_and_poly",
             "appType": 1,
             "curr": "rub",
             "dest": self._dest,
+            "hide_dtype": 15,
+            "hide_vflags": 4294967296,
+            "inheritFilters": "true",
+            "lang": "ru",
+            "locale": "ru",
             "resultset": "catalog",
             "sort": "popular",
             "spp": self._spp,
+            "suppressSpellcheck": "false",
             "page": page,
             "limit": self._page_size,
             "query": query,

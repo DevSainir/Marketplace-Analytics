@@ -170,20 +170,33 @@ class Settings(BaseSettings):
     # ``wb_search_proxy``). Its timeout and retry budget are its OWN, and far
     # tighter, because this surface is read while a user waits.
     wb_search_base_url: str = Field(default="https://search.wb.ru")
-    # The API version is a knob because WB retires them abruptly: verified live
-    # 2026-08-14, v14 served results while v13 and v5 answered 429 to every
-    # request from the same IP in the same minute.
-    wb_search_path: str = Field(default="/exactmatch/ru/common/v14/search")
-    # Delivery region the ranking is computed for (see wb_card_dest). Verified
-    # 2026-08-15: this value and every Russian dest WB's own geo resolver hands
-    # out (Moscow 1259570991, СПб -1198054, Екатеринбург -5818883, Новосибирск
-    # -364764) returned the SAME 100 ids in the same order for the same phrase —
-    # so within Russia this ranking is not regionalized and the value needs no
-    # alignment with any particular city. It is still a knob because a
-    # non-Russian storefront IS a different catalogue (.kg, dest=286, answered
-    # 5 178 results against 7 486 and moved the SKU from 26 to 53), which is the
-    # first thing to check when a seller reports a position we disagree with.
-    wb_search_dest: int = Field(default=-1257786)
+    # The API version is a knob because WB retires them abruptly, and a retired
+    # version is indistinguishable from a rate limit: it answers 429 to
+    # everything. That is exactly what happened between 2026-08-14 (v14 verified
+    # serving full pages) and 2026-08-17, when v14 began refusing every request
+    # from every IP, direct or proxied, with or without the storefront's headers
+    # — while v18 answered 200 with 100 products in the same minute.
+    #
+    # v18 is what the storefront itself calls today. It reaches it through
+    # ``www.wildberries.ru/__internal/u-search/…``, which is NOT usable here: that
+    # path is fronted by wbaas and answers 403 to any client without the
+    # browser's JS-issued ``x_wbaas_token``. The same version on the API host
+    # serves us directly.
+    wb_search_path: str = Field(default="/exactmatch/ru/common/v18/search")
+    # Delivery region the ranking is computed for (see wb_card_dest). This is the
+    # value the storefront itself sends for Moscow today, captured from its own
+    # request on 2026-08-17; the previous `-1257786` still answered, but matching
+    # the storefront removes one difference between our request and the one WB
+    # serves without complaint.
+    #
+    # Verified 2026-08-15: within Russia this ranking is not regionalized — this
+    # value and every Russian dest WB's geo resolver hands out (СПб -1198054,
+    # Екатеринбург -5818883, Новосибирск -364764) returned the SAME 100 ids in
+    # the same order. It stays a knob because a non-Russian storefront IS a
+    # different catalogue (.kg, dest=286: 5 178 results against 7 486, and the
+    # same SKU at 53 instead of 26), which is the first thing to check when a
+    # seller reports a position we disagree with.
+    wb_search_dest: int = Field(default=1259570991)
     # Result slots per page; 100 is what the storefront itself requests.
     wb_search_page_size: int = Field(default=100, ge=1, le=300)
     # How deep a position probe may scan. Pages are fetched SEQUENTIALLY because
@@ -204,16 +217,22 @@ class Settings(BaseSettings):
     # within the hour, so this trades freshness for not being throttled: a team
     # of five checking the same phrase pays for one probe.
     wb_search_cache_seconds: int = Field(default=600, ge=0)
-    # Forward proxy for search.wb.ru. EMPTY (the default) means DIRECT, which is
-    # the opposite of what card.wb.ru needs — measured 2026-08-15 from the prod
-    # VPS, same query seconds apart: direct answered HTTP 200 with a full page,
-    # the residential proxy answered 429. This host does NOT block datacenter
-    # egress the way card.wb.ru does (403 there since 2026-07-14); it only
-    # rate-limits per IP, and a shared proxy exit is hotter than our own address,
-    # so proxying made throttling MORE likely while costing ~216 KB of billed
-    # traffic per page. The literal ``card`` opts back into ``wb_card_proxy`` if
-    # this host ever starts blocking us too; any other value is used as-is.
-    wb_search_proxy: str = Field(default="")
+    # Forward proxy for the public search host. ``card`` (the default) reuses
+    # ``wb_card_proxy``; ``direct`` forces a direct connection; any other value is
+    # used as the proxy URL; empty means direct too.
+    #
+    # Proxied on purpose, and this flip-flopped once on bad evidence. On
+    # 2026-08-15 a two-request comparison said direct won (200 direct vs 429
+    # proxied) — but that was measured while WB was retiring the API version we
+    # were calling, so the sample was noise, and we shipped `direct` on it.
+    # What actually holds (2026-08-17): the block is per-IP REPUTATION, not a
+    # quota, and it escalates — the VPS address earns HTTP 498 from the storefront
+    # and 429 from the search host once warm, while the proxy hands out a fresh
+    # residential IP per request (verified: 198.51.100.31 -> 198.51.100.32 ->
+    # 198.51.100.33). Since we cannot present a browser's JS-issued wbaas token,
+    # a clean IP per probe is the only lever left. It costs ~216 KB of billed
+    # traffic per page.
+    wb_search_proxy: str = Field(default="card")
     # Per-request cap for one search page, tighter than the shared 30s: a ranked
     # page is ~220 KB served in well under a second when the host is willing, so
     # a slow read here means throttling, and waiting the full 30s only delays
