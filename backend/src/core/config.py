@@ -265,7 +265,13 @@ class Settings(BaseSettings):
     # returning early with nothing. Measured on prod 2026-08-17: the interactive
     # budget (one retry, 30s) lost the only pinned phrase to two consecutive
     # 429s, and the run reported SUCCESS having updated nothing.
-    wb_search_task_max_retries: int = Field(default=3, ge=0)
+    # Five, not three: every attempt is an INDEPENDENT draw, because the proxy
+    # opens a new tunnel and therefore presents a new residential IP each time.
+    # Measured success is roughly one attempt in three, so three attempts clear
+    # ~70% and five clear ~87% — and out here the extra minutes cost nothing but
+    # the worker's patience. Bounded by the per-run keyword ceiling, so a large
+    # pin list still cannot outlive the run's lock.
+    wb_search_task_max_retries: int = Field(default=5, ge=0)
     wb_search_task_retry_backoff_seconds: float = Field(default=60.0, ge=0)
     wb_search_task_retry_max_backoff_seconds: float = Field(default=120.0, ge=0)
     # Ceiling on a single wait. Passed BOTH as the backoff cap and as the
