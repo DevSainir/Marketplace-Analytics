@@ -192,7 +192,7 @@ jobs:
 
       # Everything below runs only on the merge that actually cut a release.
       - name: Check out the tagged commit
-        if: steps.release.outputs.release_created
+        if: steps.release.outputs.release_created && vars.ANNOUNCE_RELEASES == 'true'
         uses: actions/checkout@v4
         with:
           # Full history + tags: the announcement is built from the commits
@@ -200,7 +200,7 @@ jobs:
           fetch-depth: 0
 
       - name: Collect the commits in this release
-        if: steps.release.outputs.release_created
+        if: steps.release.outputs.release_created && vars.ANNOUNCE_RELEASES == 'true'
         id: commits
         env:
           TAG: ${{ steps.release.outputs.tag_name }}
@@ -227,7 +227,7 @@ jobs:
           wc -l < commits.txt
 
       - name: Announce the release in Telegram (Russian, everyone)
-        if: steps.release.outputs.release_created
+        if: steps.release.outputs.release_created && vars.ANNOUNCE_RELEASES == 'true'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}

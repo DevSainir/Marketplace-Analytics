@@ -15,7 +15,7 @@ commit time by the `commitizen` hook in `.pre-commit-config.yaml`.
    * bumps `version.txt`, `backend/pyproject.toml` and `frontend/package.json` to the same number,
    * tags `vX.Y.Z` and publishes a GitHub Release.
 4. The merge lands on `main` like any other commit, so `tests` runs and the VPS auto-deploys on green.
-5. The release announcement goes out to Telegram (below).
+5. The release announcement to Telegram is **off** (see below) — nothing is sent on a version bump.
 
 ### Holding a release
 
@@ -99,14 +99,31 @@ and backups run at 03:00; the requirement is that the message is waiting in the 
 it wakes anyone. There is deliberately no flag to turn this off, and
 `backend/tests/unit/core/test_release_notifications.py` fails if someone adds one.
 
-| What | Audience | Language |
-| --- | --- | --- |
-| Deploy succeeded / failed | `TELEGRAM_MAIN_CHAT_ID` | English |
-| Backup failed (VPS cron) | `BACKUP_ALERT_TELEGRAM_CHAT_ID` in the server `.env` | English |
-| Release published | `TELEGRAM_MAIN_CHAT_ID` + `WORKERS_TELEGRAM_CHAT_IDS` | Russian |
+| What | Audience | Language | State |
+| --- | --- | --- | --- |
+| Deploy succeeded / failed | `TELEGRAM_MAIN_CHAT_ID` | English | **on** |
+| Backup failed (VPS cron) | `BACKUP_ALERT_TELEGRAM_CHAT_ID` in the server `.env` | English | **on** |
+| Release published | `TELEGRAM_MAIN_CHAT_ID` + `WORKERS_TELEGRAM_CHAT_IDS` | Russian | **off** |
 
 Operational news is for whoever fixes it. Release news is for whoever uses the product — which is
 why it is translated.
+
+### The release announcement is currently off
+
+Every push to `main` cuts a release, so the announcement fired on every version bump — including
+the `fix:` and `chore:` ones nobody wants a Telegram message about. The three steps that build and
+send it are gated on a repository variable and stay dormant until it exists:
+
+```
+if: steps.release.outputs.release_created && vars.ANNOUNCE_RELEASES == 'true'
+```
+
+To turn it back on, add repository variable **`ANNOUNCE_RELEASES` = `true`** (Settings → Secrets
+and variables → Actions → Variables). Nothing else changes: the translation pipeline, the audience
+split and the secrets are all still wired, and `release_notes_ru.py` is still covered by its tests,
+so re-enabling is one variable rather than a revert.
+
+Deploy and backup alerts are untouched by this and keep firing.
 
 ### The translation
 
