@@ -115,7 +115,18 @@ services:
       postgres:
         condition: service_healthy
 
-  api:
+  # Two interchangeable api instances, so a deploy never leaves /api/ unanswered.
+  #
+  # nginx holds BOTH in one upstream pool and fails a refused request over to the
+  # other (../frontend/docker/nginx.conf), and the deploy recreates them one at a
+  # time. With a single instance, recreating it took the API down for ~10s
+  # (measured 2026-08-17) — longer than the SPA's session bootstrap tolerates, so
+  # every deploy threw logged-in users onto /login.
+  #
+  # `api` carries the definition and `api_standby` merges it, so the two cannot
+  # drift: anything that differed between them would make a deploy's behaviour
+  # depend on which instance answered.
+  api: &api
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -161,6 +172,12 @@ services:
       redis:
         condition: service_healthy
 
+  # The pool's second member. A named service rather than a `--scale` replica:
+  # nginx's upstream needs one resolvable name per member, and the deploy has to
+  # address them individually to rotate them one at a time.
+  api_standby:
+    <<: *api
+
   # Single entry point: nginx serves the built SPA and reverse-proxies /api/
   # to the api container over the internal Docker network (see
   # ../frontend/docker/nginx.conf). Only port published in the base topology.
@@ -175,7 +192,12 @@ services:
       - "80:80"
       - "443:443"
     depends_on:
+      # Both members must be up before nginx starts: its upstream block resolves
+      # every member's name at load time, and an unresolvable one is a hard
+      # config error, not a degraded pool.
       api:
+        condition: service_healthy
+      api_standby:
         condition: service_healthy
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
