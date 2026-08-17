@@ -268,6 +268,29 @@ async def test_the_cluster_routes_require_an_access_token(
     assert response.status_code in {401, 403}
 
 
+class _FinishedAsyncResult:
+    """Celery's ``AsyncResult`` without its Redis result backend.
+
+    The route asks Celery whether the check has finished, and Celery answers from
+    the result backend — a live Redis this tier deliberately does not have. Faking
+    it keeps the route, the marker round-trip and the response model real; whether
+    Celery reports state correctly is Celery's problem, covered for real in
+    ``tests/integration/celery/test_task_wiring.py``.
+    """
+
+    def __init__(self, task_id: str, app: Any = None) -> None:
+        """Record the polled id and report a finished, successful check."""
+        self.id = task_id
+
+    def ready(self) -> bool:
+        """Report the check as finished."""
+        return True
+
+    def successful(self) -> bool:
+        """Report the check as successful."""
+        return True
+
+
 async def test_a_position_check_is_queued_and_remembered_for_this_sku(
     client: httpx.AsyncClient,
     headers: dict[str, str],
@@ -283,6 +306,7 @@ async def test_a_position_check_is_queued_and_remembered_for_this_sku(
         "src.modules.monitoring.routers.clusters.probe_position.delay",
         lambda workspace_id, nm_id, query: type("Task", (), {"id": "check-1"})(),
     )
+    monkeypatch.setattr("src.modules.monitoring.routers.clusters.AsyncResult", _FinishedAsyncResult)
 
     # Before anything is queued the panel must get a plain null, not an error:
     # it asks this on every mount, including the first one.

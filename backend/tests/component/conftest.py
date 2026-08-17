@@ -82,6 +82,10 @@ class _InMemoryRedis:
         """Return a stored value, or ``None`` when the key is absent."""
         return self.values.get(key)
 
+    async def delete(self, key: str) -> int:
+        """Drop a key, reporting how many were removed (Redis's own contract)."""
+        return 1 if self.values.pop(key, None) is not None else 0
+
 
 @pytest.fixture(autouse=True)
 def rate_limiter_store(monkeypatch: pytest.MonkeyPatch) -> _InMemoryRedis:
@@ -97,6 +101,28 @@ def rate_limiter_store(monkeypatch: pytest.MonkeyPatch) -> _InMemoryRedis:
     """
     store = _InMemoryRedis()
     monkeypatch.setattr(ratelimit, "get_redis", lambda: store)
+    return store
+
+
+@pytest.fixture(autouse=True)
+def position_check_store(monkeypatch: pytest.MonkeyPatch) -> _InMemoryRedis:
+    """Back the position-check marker and probe cache with an in-memory store.
+
+    The marker is what lets «Проверить позицию» survive a reload, and it is
+    deliberately server-side — so without this the tier either reaches for a real
+    Redis (which the fast CI job does not run, though a developer's laptop often
+    has one, making the test pass locally and fail in CI) or silently swallows
+    every write and reports "no check in flight" forever.
+
+    Per test, so one test's queued check cannot appear in the next one's panel.
+
+    Returns:
+        The store, so a test can inspect the marker it wrote.
+    """
+    from src.modules.monitoring.services.analytics import position_cache
+
+    store = _InMemoryRedis()
+    monkeypatch.setattr(position_cache, "get_redis", lambda: store)
     return store
 
 
