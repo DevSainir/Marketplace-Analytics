@@ -89,45 +89,27 @@ function pin() {
     </p>
 
     <div class="mt-md flex flex-wrap items-center gap-sm">
-      <form class="relative w-full max-w-sm" @submit.prevent="submit">
+      <form class="flex w-full max-w-sm items-center gap-xs" @submit.prevent="submit">
         <label class="sr-only" for="wb-search-term">Запрос в поиске WB</label>
-        <!-- pr-xl (32px) is exactly the icon button's 28px plus its right-xs
-             offset: any less and a long phrase slides under the icon. The
-             spacing scale stops at xl, so there is no larger token to reach for
-             and an arbitrary value would break the design-system rule. -->
         <input
           id="wb-search-term"
           v-model="term"
           type="search"
           maxlength="100"
           placeholder="носки мужские"
-          class="w-full rounded-btn border border-border-subtle bg-surface py-sm pl-md pr-xl text-base text-primary outline-none transition focus:border-action"
+          class="min-w-0 flex-1 rounded-btn border border-border-subtle bg-surface py-sm pl-md pr-md text-base text-primary outline-none transition focus:border-action"
         />
-        <!-- The submit lives inside the field as the search icon: the row
-             carries three actions, and a third full-width button made it read
-             like a form with two submits. Hover paints the whole control rather
-             than the glyph — a colour shift on a 20px outline icon is nearly
-             invisible on a field this size. -->
+        <!-- A labelled button, not the search glyph it briefly was: inside the
+             field the icon read as decoration, and nobody could tell it was the
+             thing that starts the check. Outlined rather than filled so it does
+             not compete with «Закрепить» beside it — that one changes what the
+             page tracks from now on, this one just asks a question. -->
         <button
           type="submit"
-          class="absolute right-xs top-1/2 -translate-y-1/2 rounded-btn p-xs text-muted transition hover:bg-action hover:text-white focus-visible:bg-action focus-visible:text-white disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted"
+          class="shrink-0 rounded-btn border border-action px-md py-sm text-base font-semibold text-action transition hover:bg-action hover:text-white disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-action"
           :disabled="positionLoading || !term.trim()"
-          :aria-label="positionLoading ? 'Проверяем позицию' : 'Проверить позицию'"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            class="h-5 w-5"
-            :class="positionLoading && 'animate-pulse'"
-            aria-hidden="true"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
+          {{ positionLoading ? 'Проверяем…' : 'Проверить' }}
         </button>
       </form>
 

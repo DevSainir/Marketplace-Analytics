@@ -139,3 +139,13 @@ it('says the rank excludes advertising — the gap is the point, not a defect', 
 
   expect(wrapper.text()).toContain('без рекламы')
 })
+
+it('labels the submit in words — an icon-only control read as decoration', () => {
+  // Reported: "it is not intuitively clear". The glyph inside the field gave no
+  // hint that it was what starts the check, and its only other feedback was
+  // going grey. The label is the affordance, so it is asserted.
+  const wrapper = mountPanel()
+  const submit = wrapper.find('button[type="submit"]')
+
+  expect(submit.text()).toBe('Проверить')
+})
