@@ -15,6 +15,11 @@ Verified live 2026-08-14 against ``GET /exactmatch/ru/common/v14/search``:
   itself asks for), plus ``dest``, ``spp``, ``resultset=catalog``, ``sort``,
   ``appType``, ``curr``. Response: ``{"metadata": {"normquery": ...},
   "products": [...], "total": N}``, ``products`` in rank order.
+* **Every request opens its own tunnel.** The proxy rotates its residential exit
+  per connection, so keep-alive silently defeats it: measured 2026-08-17, one
+  reused tunnel answered 1 of 4 requests (and dropped twice), while a fresh
+  tunnel per request answered 3 of 4. A retry that reuses the connection is a
+  retry against the IP that just refused us.
 * **Throttled per IP, hard.** Back-to-back requests answer 429 even one per
   25 s; ~1/min was sustainable. Pages are therefore fetched one at a time AND
   paced by a shared Redis token bucket (:func:`search_rate_gate`) — sequential
@@ -187,6 +192,13 @@ class WBPublicSearchClient(BaseWBClient):
             # otherwise honoured past the backoff cap.
             retry_after_ceiling_seconds=ceiling,
             proxy=self.resolve_proxy(settings),
+            connect_timeout=settings.wb_search_connect_timeout_seconds,
+            # A NEW tunnel per request, which is the whole point of a rotating
+            # proxy: its exit IP changes per connection, so a pooled one pins
+            # every retry to the address WB just refused. Measured 2026-08-17 —
+            # one reused tunnel answered 1 of 4 requests, a fresh tunnel each
+            # time answered 3 of 4.
+            disable_keepalive=True,
             # The gate is what makes this client survivable. Its pages used to
             # go out back-to-back, which tripped the edge on the probe's own
             # first page; the gate is consulted before EVERY attempt, retries

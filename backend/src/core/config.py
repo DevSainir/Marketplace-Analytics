@@ -240,6 +240,10 @@ class Settings(BaseSettings):
     # (pages x attempts x this + waits), which must stay under the browser's own
     # budget in frontend/src/modules/monitoring/api.js.
     wb_search_timeout_seconds: float = Field(default=12.0, gt=0)
+    # Opening the proxy tunnel is the slow part — far slower than the answer —
+    # and it gets its own ceiling so the read budget above does not have to be
+    # sized for it. A dead tunnel then fails in 20s instead of burning a slot.
+    wb_search_connect_timeout_seconds: float = Field(default=20.0, gt=0)
     # Retry budget for ONE search page, deliberately far tighter than the seller
     # APIs' (4). A probe is INTERACTIVE: someone is watching a spinner, and the
     # seller-API ladder (4 retries, 2/4/8/16s backoff, plus a Retry-After WB

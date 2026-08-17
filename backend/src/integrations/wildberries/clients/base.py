@@ -115,6 +115,8 @@ class BaseWBClient:
         backoff_max_seconds: float = 60.0,
         retry_after_ceiling_seconds: float = _RETRY_AFTER_CEILING_SECONDS,
         proxy: str = "",
+        connect_timeout: float | None = None,
+        disable_keepalive: bool = False,
         rate_gate: RateGate | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
@@ -145,6 +147,18 @@ class BaseWBClient:
                 anti-bot edge IP-blocks datacenter egress, so production reaches
                 them from a residential IP. Holds credentials, so anything
                 logged goes through :func:`scrub_credentials`.
+            connect_timeout: Separate ceiling on establishing the connection,
+                for surfaces reached through a proxy: a tunnel is far slower to
+                open than the request is to answer, and one flat timeout has to
+                be sized for the slower of the two.
+            disable_keepalive: Open a NEW connection for every request. Costs a
+                handshake per call and is the point when the proxy is a ROTATING
+                one: its exit IP changes per tunnel, so a pooled connection pins
+                every retry to the same address the server just refused.
+                Measured 2026-08-17 against search.wb.ru — reusing one tunnel
+                answered 1 of 4 requests, a fresh tunnel each time answered 3 of
+                4, and the reused pool also produced RemoteProtocolError as the
+                proxy dropped it.
             rate_gate: Pacing gate consulted before **every** attempt, retries
                 included. Retrying without it is what made the 2026-07-30
                 incident: the backoff ladder starts inside WB's bucket window,
@@ -164,9 +178,12 @@ class BaseWBClient:
             headers.update(extra_headers)
         self._client = httpx.AsyncClient(
             base_url=base_url,
-            timeout=httpx.Timeout(timeout),
+            timeout=httpx.Timeout(timeout, connect=connect_timeout or timeout),
             headers=headers,
             proxy=proxy or None,
+            limits=httpx.Limits(max_keepalive_connections=0)
+            if disable_keepalive
+            else httpx.Limits(),
         )
 
     async def __aenter__(self) -> Self:
