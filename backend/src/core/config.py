@@ -199,10 +199,16 @@ class Settings(BaseSettings):
     wb_search_dest: int = Field(default=1259570991)
     # Result slots per page; 100 is what the storefront itself requests.
     wb_search_page_size: int = Field(default=100, ge=1, le=300)
-    # How deep a position probe may scan. Pages are fetched SEQUENTIALLY because
-    # the host 429s back-to-back requests, so this bounds the endpoint's latency
-    # as much as WB's patience: 3 pages = the top 300 positions.
-    wb_search_max_pages: int = Field(default=3, ge=1, le=20)
+    # How deep a position probe may scan — ONE page, the top 100.
+    #
+    # Was 3. Each page is a separate request against a host that refuses roughly
+    # two attempts in three, so depth was buying rank 101-300 at the price of
+    # tripling the requests, tripling the rate-budget spend, and tripling the
+    # chances of a check ending in «повторите через минуту». A card outside the
+    # first 100 is not being found by shoppers either, so "не в первой сотне" is
+    # the same decision for the seller as "не в первых трёхстах" — at a third of
+    # the cost.
+    wb_search_max_pages: int = Field(default=1, ge=1, le=20)
     # Gap between phrases in a scheduled pinned-position run. Not politeness:
     # this host answers back-to-back requests with 429 even one per 25 s (see
     # the search client's module docstring), so a run that hurries returns
@@ -272,8 +278,14 @@ class Settings(BaseSettings):
     # the worker's patience. Bounded by the per-run keyword ceiling, so a large
     # pin list still cannot outlive the run's lock.
     wb_search_task_max_retries: int = Field(default=5, ge=0)
+    # FLAT, not exponential: the ceiling equals the base, so the ladder is
+    # 60s + 60s + … rather than 60 + 120 + 120 + 120. Doubling made no sense
+    # against a limiter whose window is tens of seconds — it did not improve the
+    # odds of the next draw, it just pushed one check to ~9 minutes (observed
+    # 2026-08-17 on «брюки мужской»). Five flat waits bound a check at ~5 min,
+    # which is a promise the panel can make.
     wb_search_task_retry_backoff_seconds: float = Field(default=60.0, ge=0)
-    wb_search_task_retry_max_backoff_seconds: float = Field(default=120.0, ge=0)
+    wb_search_task_retry_max_backoff_seconds: float = Field(default=60.0, ge=0)
     # Ceiling on a single wait. Passed BOTH as the backoff cap and as the
     # client's Retry-After ceiling: a server-demanded wait is otherwise honoured
     # past the backoff cap (correct for the harvest, wrong for a watched
@@ -351,11 +363,10 @@ class Settings(BaseSettings):
     # so a watched request that cannot get a slot says «повторите через минуту»
     # instead of timing out: 2 pages x (30s wait + 12s request) fits in 90s.
     wb_search_max_queue_seconds: float = Field(default=90.0, gt=0)
-    # How deep a WATCHED probe scans, against wb_search_max_pages for the
-    # scheduled run. Each page is now a paced slot, so depth is latency: 2 pages
-    # (top 200) answers in ~40s, three would spend 70s of somebody's attention to
-    # extend a "not found" from 200 to 300.
-    wb_search_interactive_max_pages: int = Field(default=2, ge=1, le=20)
+    # Kept as a separate knob, now equal to the scheduled depth: one page is
+    # already the right answer for both, and a future deeper scan should have to
+    # justify itself on the watched path first.
+    wb_search_interactive_max_pages: int = Field(default=1, ge=1, le=20)
     # Escape hatch: disables Redis-backed pacing (tests and any environment
     # with no Redis). The clients then fall back to per-process spacing.
     wb_rate_pacing_enabled: bool = Field(default=True)

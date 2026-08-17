@@ -43,12 +43,16 @@ export const useAuthStore = defineStore('auth', () => {
   //
   // These, times the auth request timeout, are the worst case a user waits
   // before the app decides "guest" and shows the login screen:
-  //   3s + 0.4s + 3s + 1s + 3s ≈ 10s   (was 15s + 1s + 15s + 3s + 15s ≈ 50s)
+  //   ~3s + 0.4 + 3 + 1 + 3 + 4 + 3 + 8 + 3 ≈ 28s
   //
-  // Giving up sooner is cheap here: the HttpOnly refresh cookie is untouched,
-  // so a user bounced to /login by a backend blip is logged straight back in by
-  // a reload. Fifty seconds of spinner was not cheap.
-  const BOOTSTRAP_RETRY_DELAYS_MS = [400, 1_000]
+  // Extended from ~10s on 2026-08-17: a deploy recreates the api container, and
+  // for those seconds /refresh answers nothing at all. Ten seconds was inside
+  // that window, so every deploy threw logged-in users onto /login mid-session —
+  // exactly the "it kicked me off" report. The trade is a longer worst-case
+  // spinner for a user whose backend is genuinely down, which is the rarer and
+  // less damaging case; the HttpOnly cookie survives either way, so nobody has
+  // to type a password again.
+  const BOOTSTRAP_RETRY_DELAYS_MS = [400, 1_000, 4_000, 8_000]
   // Proactive-refresh retry delay: the current token is still valid, so a
   // transient failure just tries again shortly instead of dropping the session.
   const PROACTIVE_RETRY_MS = 20_000

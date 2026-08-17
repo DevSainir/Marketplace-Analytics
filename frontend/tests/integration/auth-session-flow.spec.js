@@ -107,7 +107,10 @@ describe('bootstrap on app start', () => {
     mock.onPost('/v1/auth/refresh').reply(503)
 
     const bootstrapping = auth.bootstrap()
-    await vi.advanceTimersByTimeAsync(10_000)
+    // The ladder now spans a deploy's api restart (~30s), so the wall-clock this
+    // test has to advance grew with it. Still bounded: a backend that is really
+    // gone ends as guest rather than spinning.
+    await vi.advanceTimersByTimeAsync(30_000)
     await bootstrapping
 
     expect(auth.status).toBe('guest')

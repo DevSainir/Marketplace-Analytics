@@ -107,15 +107,19 @@ describe('bootstrap', () => {
   })
 
   it('gives up on a persistent transient failure after bounded retries', async () => {
+    // The ladder covers a deploy's api restart (~30s) rather than the ~10s it
+    // used to: a swap shorter than the ladder no longer throws a logged-in user
+    // onto /login. It is still bounded — a backend that is genuinely gone ends as
+    // guest instead of spinning forever.
     vi.useFakeTimers()
     refreshSession.mockRejectedValue(new Error('network down'))
 
     const pending = store.bootstrap()
-    await vi.advanceTimersByTimeAsync(10_000)
+    await vi.advanceTimersByTimeAsync(30_000)
     await pending
 
     expect(store.status).toBe('guest')
-    expect(refreshSession).toHaveBeenCalledTimes(3) // initial try + two retries
+    expect(refreshSession).toHaveBeenCalledTimes(5) // initial try + four retries
     vi.useRealTimers()
   })
 
