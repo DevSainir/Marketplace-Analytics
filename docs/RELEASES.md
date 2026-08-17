@@ -213,6 +213,19 @@ a human merge would have started go missing with it:
 dispatched `tests` on `main` runs the same tiers a push does — `end-to-end` keys off the branch and
 `performance` is opt-in either way — so the deploy gate keeps its full strength.
 
+### «Base branch was modified» on the automatic merge
+
+Seen once on 2026-08-17 (v0.7.6): the merge step failed with
+`GraphQL: Base branch was modified. Review and try the merge again.`, the release PR stayed open,
+and `main` kept the previous version numbers — while the deploy of that same commit succeeded, so
+the code was live and only the bump was missing.
+
+It is a **race, not a conflict**. The step above it pushes `uv.lock` to the release branch, and a
+merge issued while GitHub is still recomputing the PR's mergeability is refused with that message.
+The step now retries five times with a growing pause and treats "already merged" (a concurrent run
+won) as success. If all five are refused it fails loudly rather than skipping quietly, because the
+deploy has already happened by then; the next push re-runs the workflow and merges the PR.
+
 The suppression reaches one level further than it looks, and v0.5.2 paid for the lesson: it was
 tagged and announced and never shipped, because the **`workflow_run` event `tests` emits to start
 `deploy` is suppressed too** when the run itself was dispatched by `GITHUB_TOKEN`. So `tests` hands

@@ -177,11 +177,42 @@ jobs:
             exit 0
           fi
 
+          # Wait for GitHub to finish recomputing mergeability before asking it
+          # to merge. The step above pushes uv.lock to the release branch, and a
+          # merge issued while that recomputation is still in flight is refused
+          # with "Base branch was modified" — which is a race, not a conflict.
+          # Observed 2026-08-17 (v0.7.6): one failure in twelve runs, and the
+          # release sat unmerged while the deploy of the same commit succeeded.
+          #
           # A merge commit, not a squash: the announcement builds its list with
           # `git log --no-merges`, which is what keeps "Merge pull request #12…"
           # out of a note meant for humans.
-          gh pr merge "$PR_NUMBER" --merge
-          echo "Merged release PR #${PR_NUMBER}."
+          merged=""
+          for attempt in 1 2 3 4 5; do
+            state=$(gh pr view "$PR_NUMBER" --json state --jq '.state')
+            if [ "$state" = "MERGED" ]; then
+              # A concurrent run got there first; that is success, not failure.
+              echo "Release PR #${PR_NUMBER} is already merged."
+              merged="already"
+              break
+            fi
+            if gh pr merge "$PR_NUMBER" --merge; then
+              echo "Merged release PR #${PR_NUMBER} on attempt ${attempt}."
+              merged="yes"
+              break
+            fi
+            echo "Merge attempt ${attempt} was refused; re-checking in $((attempt * 10))s."
+            sleep $((attempt * 10))
+          done
+
+          if [ -z "$merged" ]; then
+            # Deliberately a failure: the deploy of this commit has already
+            # happened, so a silent skip would leave main's version fields behind
+            # with nothing pointing at why. The next push re-runs this workflow
+            # and merges the PR then.
+            echo "::error::Could not merge release PR #${PR_NUMBER} after 5 attempts."
+            exit 1
+          fi
 
           # Both of these would have happened on their own had a person clicked
           # the button. Started in this order so the pipeline that gates the
