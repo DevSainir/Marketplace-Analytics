@@ -237,6 +237,14 @@ class Settings(BaseSettings):
     # 30s is one window; a second retry would push the worst case past the
     # browser's budget for no extra odds.
     wb_search_retry_backoff_seconds: float = Field(default=30.0, ge=0)
+    # The SCHEDULED run's budget, which is the opposite trade: nobody is watching
+    # it, so waiting out several throttle windows is strictly better than
+    # returning early with nothing. Measured on prod 2026-08-17: the interactive
+    # budget (one retry, 30s) lost the only pinned phrase to two consecutive
+    # 429s, and the run reported SUCCESS having updated nothing.
+    wb_search_task_max_retries: int = Field(default=3, ge=0)
+    wb_search_task_retry_backoff_seconds: float = Field(default=60.0, ge=0)
+    wb_search_task_retry_max_backoff_seconds: float = Field(default=120.0, ge=0)
     # Ceiling on a single wait. Passed BOTH as the backoff cap and as the
     # client's Retry-After ceiling: a server-demanded wait is otherwise honoured
     # past the backoff cap (correct for the harvest, wrong for a watched

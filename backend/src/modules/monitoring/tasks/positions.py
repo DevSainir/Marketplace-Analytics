@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from redis import Redis as SyncRedis
@@ -60,7 +61,22 @@ _POSITIONS_LOCK_NAME = "monitoring:refresh_pinned_positions:lock"
 _POSITIONS_LOCK_TIMEOUT_SECONDS = 2 * 60 * 60
 
 
-async def _probe_workspace_pins(workspace_id: uuid.UUID, name: str) -> dict[str, int]:
+@dataclass(frozen=True, slots=True)
+class PositionRunOutcome:
+    """What one workspace's position run managed, and what WB withheld.
+
+    Mirrors ``HarvestOutcome``: counters alone cannot separate "nothing to do"
+    from "WB refused everything", and this task reports SUCCESS either way — the
+    throttled phrase is caught per phrase so one refusal cannot cost the run its
+    other phrases. Without the withheld list a seller presses the button, waits,
+    and sees an unchanged timestamp with nothing to explain it.
+    """
+
+    counts: dict[str, int]
+    withheld: tuple[str, ...] = ()
+
+
+async def _probe_workspace_pins(workspace_id: uuid.UUID, name: str) -> PositionRunOutcome:
     """Re-probe every phrase pinned to one workspace's SKUs.
 
     Args:
@@ -68,14 +84,15 @@ async def _probe_workspace_pins(workspace_id: uuid.UUID, name: str) -> dict[str,
         name: Its display name, for the log line.
 
     Returns:
-        Counters: phrases probed, pins updated, phrases WB withheld, and phrases
-        dropped by the per-run ceiling.
+        The counters, plus the phrases WB refused.
     """
     async with AsyncSessionLocal() as session:
         pins = await PinnedKeywordRepository(session).list_for_workspace(workspace_id=workspace_id)
         catalogue = await ProductCardRepository(session).list_workspace_nm_ids(workspace_id)
     if not pins:
-        return {"phrases": 0, "pins_updated": 0, "phrases_failed": 0, "phrases_skipped": 0}
+        return PositionRunOutcome(
+            counts={"phrases": 0, "pins_updated": 0, "phrases_failed": 0, "phrases_skipped": 0}
+        )
 
     by_keyword: dict[str, list[int]] = defaultdict(list)
     for pin in pins:
@@ -99,7 +116,8 @@ async def _probe_workspace_pins(workspace_id: uuid.UUID, name: str) -> dict[str,
 
     wanted = set(catalogue)
     counts = {"phrases": 0, "pins_updated": 0, "phrases_failed": 0, "phrases_skipped": skipped}
-    async with build_search_client(settings) as client:
+    withheld: list[str] = []
+    async with build_search_client(settings, patient=True) as client:
         for index, keyword in enumerate(phrases):
             if index:
                 await asyncio.sleep(settings.wb_search_probe_spacing_seconds)
@@ -113,6 +131,7 @@ async def _probe_workspace_pins(workspace_id: uuid.UUID, name: str) -> dict[str,
                 # timestamp, which is what tells the seller it is stale.
                 logger.warning("Position probe for %r failed (%s); leaving its pins.", keyword, exc)
                 counts["phrases_failed"] += 1
+                withheld.append(keyword)
                 continue
             counts["phrases"] += 1
             found = {position.nm_id: position for position in probe.positions}
@@ -137,10 +156,10 @@ async def _probe_workspace_pins(workspace_id: uuid.UUID, name: str) -> dict[str,
                     )
                     counts["pins_updated"] += 1
                 await session.commit()
-    return counts
+    return PositionRunOutcome(counts=counts, withheld=tuple(withheld))
 
 
-async def _refresh_pinned_positions(workspace_id: uuid.UUID | None) -> dict[str, int]:
+async def _refresh_pinned_positions(workspace_id: uuid.UUID | None) -> dict[str, object]:
     """Refresh pinned positions for one workspace, or for every workspace.
 
     Args:
@@ -148,7 +167,9 @@ async def _refresh_pinned_positions(workspace_id: uuid.UUID | None) -> dict[str,
             scheduled run).
 
     Returns:
-        Counters summed across the workspaces visited.
+        Counters summed across the workspaces visited, plus ``failed_sources``:
+        the phrases WB withheld, which the status endpoint already forwards to
+        the UI for exactly this "succeeded, still incomplete" case.
     """
     async with AsyncSessionLocal() as session:
         bundles = await load_workspace_token_bundles(session)
@@ -156,19 +177,21 @@ async def _refresh_pinned_positions(workspace_id: uuid.UUID | None) -> dict[str,
         bundles = [bundle for bundle in bundles if bundle.workspace_id == workspace_id]
     if not bundles:
         logger.warning("No workspace to refresh positions for.")
-        return {"workspaces": 0, "phrases": 0, "pins_updated": 0}
+        return {"workspaces": 0, "phrases": 0, "pins_updated": 0, "failed_sources": []}
 
     totals: dict[str, int] = {"workspaces": 0}
+    withheld: list[str] = []
     for bundle in bundles:
         try:
-            result = await _probe_workspace_pins(bundle.workspace_id, bundle.name)
+            outcome = await _probe_workspace_pins(bundle.workspace_id, bundle.name)
         except Exception as exc:  # isolate workspaces from each other
             logger.warning("Position refresh failed for workspace '%s': %s", bundle.name, exc)
             continue
         totals["workspaces"] += 1
-        for key, value in result.items():
+        for key, value in outcome.counts.items():
             totals[key] = totals.get(key, 0) + value
-    return totals
+        withheld.extend(outcome.withheld)
+    return {**totals, "failed_sources": withheld}
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -176,7 +199,7 @@ async def _refresh_pinned_positions(workspace_id: uuid.UUID | None) -> dict[str,
     bind=False,
     **_TASK_RETRY_KWARGS,
 )
-def refresh_pinned_positions(workspace_id: str | None = None) -> dict[str, int]:
+def refresh_pinned_positions(workspace_id: str | None = None) -> dict[str, object]:
     """Re-check the live WB position of every pinned phrase.
 
     Runs three times a day on the schedule (see ``celery_app.beat_schedule``) and

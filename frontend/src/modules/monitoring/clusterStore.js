@@ -317,6 +317,38 @@ export const useClusterSearchStore = defineStore('monitoringClusters', () => {
   }
 
   /**
+   * Turn a finished run into one sentence a seller can act on.
+   *
+   * The task reports SUCCESS even when WB refused every phrase — a throttled
+   * probe is caught per phrase so one refusal cannot cost the run the others —
+   * so `successful` alone said «Позиции обновлены.» over an unchanged timestamp.
+   * Prod, 2026-08-17: one pinned phrase, two 429s, `pins_updated: 0`, and the UI
+   * claimed success. `failed_sources` carries the phrases WB withheld.
+   *
+   * @param {{successful: boolean, failed_sources?: string[]}} status Finished status.
+   * @returns {string} The message to show.
+   */
+  function describeRun(status) {
+    if (!status.successful) {
+      return 'Проверка не завершилась. Позиции остались с прошлой проверки.'
+    }
+    const withheld = status.failed_sources ?? []
+    if (withheld.length) {
+      // Naming the phrases matters: with several pinned, "some failed" leaves the
+      // seller comparing timestamps by hand to find which number is stale.
+      const quoted = withheld.map((phrase) => `«${phrase}»`).join(', ')
+      return (
+        `WB ограничил частоту запросов — не удалось проверить: ${quoted}. ` +
+        'Прежние позиции сохранены; повторите через минуту или дождитесь следующей проверки.'
+      )
+    }
+    if (!pins.value.length) {
+      return 'Проверка закончена. У этого артикула нет закреплённых запросов — обновились фразы других артикулов.'
+    }
+    return 'Позиции обновлены.'
+  }
+
+  /**
    * Watch a queued run until it finishes, then reload the cards.
    *
    * A poll failure ends the watch rather than retrying forever: the run itself
@@ -338,11 +370,7 @@ export const useClusterSearchStore = defineStore('monitoringClusters', () => {
         // Says something on success too: a run whose phrases all belong to other
         // SKUs changes nothing on this page, and silence there is exactly what
         // reads as «ничего не произошло».
-        refreshMessage.value = status.successful
-          ? pins.value.length
-            ? 'Позиции обновлены.'
-            : 'Проверка закончена. У этого артикула нет закреплённых запросов — обновились фразы других артикулов.'
-          : 'WB не ответил на часть запросов. Позиции обновятся при следующей проверке.'
+        refreshMessage.value = describeRun(status)
       } catch {
         refreshingAll.value = false
         refreshMessage.value = ''

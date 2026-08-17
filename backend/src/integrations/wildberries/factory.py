@@ -85,16 +85,22 @@ def build_card_client(settings: Settings) -> WBCardClient:
     return WBCardClient(settings)
 
 
-def build_search_client(settings: Settings) -> WBPublicSearchClient:
+def build_search_client(settings: Settings, *, patient: bool = False) -> WBPublicSearchClient:
     """The public-search position probe — real or synthetic.
 
     Unauthenticated (the storefront needs no token), so this factory takes no
     token: what makes a probe workspace-specific is which SKUs the caller asks
     it to look for.
+
+    Args:
+        settings: The application settings.
+        patient: Ask for the scheduled run's generous retry budget rather than
+            the interactive one (see :meth:`WBPublicSearchClient.__init__`). The
+            synthetic client ignores it — it makes no request to be throttled.
     """
     if settings.wb_fake_harvest:
         return SyntheticSearchClient(settings)
-    return WBPublicSearchClient(settings)
+    return WBPublicSearchClient(settings, patient=patient)
 
 
 def build_marketplace_client(settings: Settings, *, token: str) -> WBMarketplaceClient:

@@ -141,12 +141,31 @@ class WBPublicSearchClient(BaseWBClient):
             return settings.wb_card_proxy.strip()
         return configured
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, patient: bool = False) -> None:
         """Build the unauthenticated storefront-search client.
 
         No token: the storefront needs none. What makes a probe
         workspace-specific is which SKUs the caller asks it to look for.
+
+        Args:
+            settings: The application settings.
+            patient: Use the SCHEDULED run's retry budget instead of the
+                interactive one. A background run has no one watching, so
+                outlasting several throttle windows beats returning early with
+                nothing; a watched request must answer or say why. Same host,
+                opposite trade — measured, see ``wb_search_task_max_retries``.
         """
+        retries = settings.wb_search_task_max_retries if patient else settings.wb_search_max_retries
+        backoff = (
+            settings.wb_search_task_retry_backoff_seconds
+            if patient
+            else settings.wb_search_retry_backoff_seconds
+        )
+        ceiling = (
+            settings.wb_search_task_retry_max_backoff_seconds
+            if patient
+            else settings.wb_search_retry_max_backoff_seconds
+        )
         super().__init__(
             base_url=settings.wb_search_base_url,
             token="",
@@ -154,13 +173,13 @@ class WBPublicSearchClient(BaseWBClient):
             # The probe's own, much tighter ladder — NOT the seller APIs'. See
             # ``wb_search_max_retries``: a watched request must fail fast and be
             # retried into a warm cache, not sit through WB's throttle window.
-            max_retries=settings.wb_search_max_retries,
-            backoff_base_seconds=settings.wb_search_retry_backoff_seconds,
-            backoff_max_seconds=settings.wb_search_retry_max_backoff_seconds,
+            max_retries=retries,
+            backoff_base_seconds=backoff,
+            backoff_max_seconds=ceiling,
             # Without this, one ``Retry-After: 60`` from WB reinstates exactly
             # the latency the budget above exists to bound: a demanded wait is
             # otherwise honoured past the backoff cap.
-            retry_after_ceiling_seconds=settings.wb_search_retry_max_backoff_seconds,
+            retry_after_ceiling_seconds=ceiling,
             proxy=self.resolve_proxy(settings),
             extra_headers=self._HEADERS,
         )

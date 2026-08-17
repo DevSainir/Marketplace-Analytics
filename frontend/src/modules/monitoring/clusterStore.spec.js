@@ -1,11 +1,22 @@
 import { createPinia, setActivePinia } from 'pinia'
 
-import { fetchSkuClusters, probeSkuSearchPosition } from '@/modules/monitoring/api'
+import {
+  fetchPinnedKeywords,
+  fetchSkuClusters,
+  getRefreshStatus,
+  probeSkuSearchPosition,
+  refreshAllPositions,
+} from '@/modules/monitoring/api'
 import { useClusterSearchStore } from '@/modules/monitoring/clusterStore'
 
 vi.mock('@/modules/monitoring/api', () => ({
+  fetchPinnedKeywords: vi.fn(),
   fetchSkuClusters: vi.fn(),
+  getRefreshStatus: vi.fn(),
+  pinKeyword: vi.fn(),
   probeSkuSearchPosition: vi.fn(),
+  refreshAllPositions: vi.fn(),
+  unpinKeyword: vi.fn(),
 }))
 
 const NM_ID = 953770957
@@ -135,5 +146,34 @@ describe('the live position half', () => {
       { refresh: true },
       expect.anything(),
     )
+  })
+})
+
+describe('refreshAllPinned', () => {
+  it('reports the phrases WB refused instead of claiming success', async () => {
+    // Prod 2026-08-17: one pinned phrase, two 429s, the task returned SUCCESS
+    // having updated nothing, and the panel said «Позиции обновлены.» over an
+    // unchanged timestamp. The run's own `successful` flag cannot carry this.
+    vi.useFakeTimers()
+    fetchPinnedKeywords.mockResolvedValue({
+      items: [
+        { keyword: 'штаны бананы мужские', position: 26, checked_at: '2026-08-17T05:02:00Z' },
+      ],
+    })
+    refreshAllPositions.mockResolvedValue({ task_id: 'abc', pinned_count: 1 })
+    getRefreshStatus.mockResolvedValue({
+      ready: true,
+      successful: true,
+      failed_sources: ['штаны бананы мужские'],
+    })
+
+    await store.loadForSku(NM_ID, {})
+    await store.refreshAllPinned()
+    await vi.advanceTimersByTimeAsync(6000)
+
+    expect(store.refreshMessage).toContain('WB ограничил частоту')
+    expect(store.refreshMessage).toContain('штаны бананы мужские')
+    expect(store.refreshMessage).not.toContain('Позиции обновлены')
+    vi.useRealTimers()
   })
 })

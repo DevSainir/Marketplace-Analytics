@@ -17,6 +17,7 @@ from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.search import SearchPosition, SearchProbe
 from src.modules.monitoring.models.pinned_keywords import PinnedKeyword
 from src.modules.monitoring.tasks import positions as positions_task
+from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 WORKSPACE = uuid.UUID("018f4e2a-0000-7000-8000-000000000001")
 FIRST = 953770957
@@ -101,6 +102,22 @@ class _FakeSession:
         return None
 
 
+async def _fake_bundles(_session: object) -> list[WorkspaceTokenBundle]:
+    """The one workspace the aggregation walks; no WB token is needed to probe."""
+    return [
+        WorkspaceTokenBundle(
+            workspace_id=WORKSPACE,
+            name="ИП Тест",
+            analytics="",
+            advertising="",
+            content="",
+            prices="",
+            statistics="",
+            marketplace="",
+        )
+    ]
+
+
 @pytest.fixture(autouse=True)
 def _wire(monkeypatch: pytest.MonkeyPatch) -> None:
     """Swap the module's collaborators for fakes and remove the pacing delay."""
@@ -124,12 +141,12 @@ async def test_one_scan_answers_for_every_sku_pinned_to_that_phrase(
     """
     _FakePinRepo.rows = [_pin(FIRST, "носки мужские"), _pin(SECOND, "носки мужские")]
     client = _FakeSearchClient({"носки мужские": _probe("носки мужские", {FIRST: 7, SECOND: 41})})
-    monkeypatch.setattr(positions_task, "build_search_client", lambda _s: client)
+    monkeypatch.setattr(positions_task, "build_search_client", lambda _s, **_: client)
 
-    counts = await positions_task._probe_workspace_pins(WORKSPACE, "ИП Тест")
+    outcome = await positions_task._probe_workspace_pins(WORKSPACE, "ИП Тест")
 
     assert client.asked == ["носки мужские"]
-    assert counts["pins_updated"] == 2
+    assert outcome.counts["pins_updated"] == 2
     assert {w["nm_id"]: w["position"] for w in _FakePinRepo.written} == {FIRST: 7, SECOND: 41}
 
 
@@ -139,7 +156,7 @@ async def test_a_sku_absent_from_the_scan_is_recorded_as_checked_not_forgotten(
     """ "Checked, not in the depth" is a result and must overwrite the old rank."""
     _FakePinRepo.rows = [_pin(FIRST, "носки мужские")]
     client = _FakeSearchClient({"носки мужские": _probe("носки мужские", {})})
-    monkeypatch.setattr(positions_task, "build_search_client", lambda _s: client)
+    monkeypatch.setattr(positions_task, "build_search_client", lambda _s, **_: client)
 
     await positions_task._probe_workspace_pins(WORKSPACE, "ИП Тест")
 
@@ -162,13 +179,16 @@ async def test_a_throttled_phrase_costs_only_itself(monkeypatch: pytest.MonkeyPa
             "ббб": _probe("ббб", {FIRST: 3}),
         }
     )
-    monkeypatch.setattr(positions_task, "build_search_client", lambda _s: client)
+    monkeypatch.setattr(positions_task, "build_search_client", lambda _s, **_: client)
 
-    counts = await positions_task._probe_workspace_pins(WORKSPACE, "ИП Тест")
+    outcome = await positions_task._probe_workspace_pins(WORKSPACE, "ИП Тест")
 
-    assert counts["phrases_failed"] == 1
-    assert counts["phrases"] == 1
+    assert outcome.counts["phrases_failed"] == 1
+    assert outcome.counts["phrases"] == 1
     assert [w["keyword"] for w in _FakePinRepo.written] == ["ббб"]
+    # Named, not just counted: with several pins the seller otherwise has to
+    # compare timestamps by hand to find which number is stale.
+    assert outcome.withheld == ("аaa",)
 
 
 async def test_the_per_run_ceiling_is_reported_not_silent(
@@ -178,9 +198,34 @@ async def test_the_per_run_ceiling_is_reported_not_silent(
     _FakePinRepo.rows = [_pin(FIRST, f"фраза {i}") for i in range(5)]
     monkeypatch.setattr(positions_task.settings, "wb_search_max_keywords_per_run", 2)
     client = _FakeSearchClient({f"фраза {i}": _probe(f"фраза {i}", {FIRST: 1}) for i in range(5)})
-    monkeypatch.setattr(positions_task, "build_search_client", lambda _s: client)
+    monkeypatch.setattr(positions_task, "build_search_client", lambda _s, **_: client)
 
-    counts = await positions_task._probe_workspace_pins(WORKSPACE, "ИП Тест")
+    outcome = await positions_task._probe_workspace_pins(WORKSPACE, "ИП Тест")
 
-    assert counts["phrases_skipped"] == 3
+    assert outcome.counts["phrases_skipped"] == 3
     assert len(client.asked) == 2
+
+
+async def test_the_run_payload_carries_the_withheld_phrases_to_the_ui(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The task reports SUCCESS on a refusal, so the payload must say what is missing.
+
+    Prod 2026-08-17: the one pinned phrase was refused twice, the run returned
+    SUCCESS having updated nothing, and the panel said «Позиции обновлены.» over
+    an unchanged timestamp. ``failed_sources`` is the key the status endpoint
+    already forwards for "succeeded and still incomplete".
+    """
+    _FakePinRepo.rows = [_pin(FIRST, "аaa")]
+    client = _FakeSearchClient({"аaa": IntegrationError("search.wb.ru не ответил")})
+    monkeypatch.setattr(positions_task, "build_search_client", lambda _s, **_: client)
+    monkeypatch.setattr(
+        positions_task,
+        "load_workspace_token_bundles",
+        _fake_bundles,
+    )
+
+    payload = await positions_task._refresh_pinned_positions(WORKSPACE)
+
+    assert payload["failed_sources"] == ["аaa"]
+    assert payload["pins_updated"] == 0
