@@ -16,8 +16,12 @@ Verified live 2026-08-14 against ``GET /exactmatch/ru/common/v14/search``:
   ``appType``, ``curr``. Response: ``{"metadata": {"normquery": ...},
   "products": [...], "total": N}``, ``products`` in rank order.
 * **Throttled per IP, hard.** Back-to-back requests answer 429 even one per
-  25 s; ~1/min was sustainable. So pages are fetched sequentially, the depth is
-  bounded by settings, and the caller caches the result.
+  25 s; ~1/min was sustainable. Pages are therefore fetched one at a time AND
+  paced by a shared Redis token bucket (:func:`search_rate_gate`) — sequential
+  is not the same as paced, and for a while this client only managed the former:
+  three pages left in the same second, which tripped the edge on the probe's own
+  first page and left the next press inside the penalty window. The depth is
+  bounded by settings and the caller caches the result.
 * A throttled request is **not always** a 429: the same query was answered HTTP
   200 with an ordinary envelope, zero products and ``total: 0``, then 100
   products and ``total: 109542`` a minute later. An empty first page is
@@ -60,6 +64,7 @@ from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.integrations.wildberries.clients.base import BaseWBClient
+from src.integrations.wildberries.rate_limit import search_rate_gate
 from src.integrations.wildberries.schemas import WBSearchPage
 
 logger = get_logger(__name__)
@@ -181,6 +186,12 @@ class WBPublicSearchClient(BaseWBClient):
             # otherwise honoured past the backoff cap.
             retry_after_ceiling_seconds=ceiling,
             proxy=self.resolve_proxy(settings),
+            # The gate is what makes this client survivable. Its pages used to
+            # go out back-to-back, which tripped the edge on the probe's own
+            # first page; the gate is consulted before EVERY attempt, retries
+            # included, and is shared by the api and worker processes because WB
+            # meters the IP they share.
+            rate_gate=search_rate_gate(settings),
             extra_headers=self._HEADERS,
         )
         self._path = settings.wb_search_path

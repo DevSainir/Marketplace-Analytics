@@ -26,6 +26,7 @@ from typing import Any
 
 from redis.exceptions import RedisError
 
+from src.core.config import settings
 from src.core.exceptions import ValidationError
 from src.core.logging import get_logger
 from src.core.redis import get_redis
@@ -236,7 +237,15 @@ class ClusterAnalytics:
 
         cached = None if refresh else await self._cached_probe(term)
         if cached is None:
-            result = await self._search.find_positions(query=term, nm_ids=wanted)
+            # Shallower than the scheduled run on purpose: every page is now a
+            # paced slot (~30s), so depth is latency somebody is watching. Two
+            # pages answer in ~40s; a third would spend 30 more to turn "not in
+            # the top 200" into "not in the top 300".
+            result = await self._search.find_positions(
+                query=term,
+                nm_ids=wanted,
+                max_pages=settings.wb_search_interactive_max_pages,
+            )
             cached = self._serialize(result)
             await self._store_probe(term, cached)
 

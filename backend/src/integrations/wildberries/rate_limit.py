@@ -302,3 +302,39 @@ def marketplace_rate_gate(settings: Settings, *, token: str) -> RateGate:
         refill_seconds=settings.wb_marketplace_bucket_refill_seconds,
         max_wait_seconds=settings.wb_analytics_max_queue_seconds,
     )
+
+
+def search_rate_gate(settings: Settings) -> RateGate:
+    """Build the pacing gate for the PUBLIC search host.
+
+    The one gate here that paces an unauthenticated surface, so it takes no
+    token: search.wb.ru meters by IP and client reputation, which every process
+    on this box shares. A fixed key is the point — the interactive probe, the
+    scheduled run and two sellers pressing the button must queue behind each
+    other rather than each discovering the limit for itself.
+
+    Sized meaner than any measured header (capacity 1, one slot per ~30s)
+    because this edge publishes no quota and does not merely refuse an overrun:
+    a burst earns an escalating anti-bot block, IP-wide. Verified 2026-08-17,
+    when the probe was firing three unpaced pages per press and being refused on
+    roughly every second attempt.
+
+    Args:
+        settings: Bucket parameters and the Redis DSN.
+
+    Returns:
+        A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`
+        when pacing is switched off (unit tests, or no Redis available).
+    """
+    if not settings.wb_rate_pacing_enabled:
+        return NullRateGate()
+    return TokenBucketRateGate(
+        get_redis(),
+        surface="search-public",
+        # No credential to key by: the bucket mirrors WB's own per-IP metering,
+        # which everything running here shares.
+        token="",
+        capacity=settings.wb_search_bucket_capacity,
+        refill_seconds=settings.wb_search_bucket_refill_seconds,
+        max_wait_seconds=settings.wb_search_max_queue_seconds,
+    )

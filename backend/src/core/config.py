@@ -303,6 +303,30 @@ class Settings(BaseSettings):
     # downward on every response, so guessing generously here is safe.
     wb_marketplace_bucket_capacity: int = Field(default=20, ge=1)
     wb_marketplace_bucket_refill_seconds: float = Field(default=3.0, gt=0)
+    # The public search host, whose budget we were spending three times over per
+    # button press. Verified 2026-08-17: the probe fetched its pages with no gap
+    # at all ("sequential" is not "paced"), so ONE press sent three requests
+    # inside a second — enough to trip the edge on its own first page and leave
+    # the next press inside the penalty window it had just created. That is what
+    # "429 every second try" was.
+    #
+    # Unlike the seller APIs this is not a published quota but an anti-bot
+    # reputation system (a burst earns «Подозрительная активность» with a
+    # countdown, IP-wide), so the bucket is deliberately meaner than any measured
+    # header: one request at a time, ~30s apart. Capacity 1 means no burst is
+    # possible even across the api and worker processes, which share this key —
+    # nothing else here coordinates them.
+    wb_search_bucket_capacity: int = Field(default=1, ge=1)
+    wb_search_bucket_refill_seconds: float = Field(default=30.0, gt=0)
+    # Longest a probe may queue for a slot. Sized under the browser's own budget
+    # so a watched request that cannot get a slot says «повторите через минуту»
+    # instead of timing out: 2 pages x (30s wait + 12s request) fits in 90s.
+    wb_search_max_queue_seconds: float = Field(default=90.0, gt=0)
+    # How deep a WATCHED probe scans, against wb_search_max_pages for the
+    # scheduled run. Each page is now a paced slot, so depth is latency: 2 pages
+    # (top 200) answers in ~40s, three would spend 70s of somebody's attention to
+    # extend a "not found" from 200 to 300.
+    wb_search_interactive_max_pages: int = Field(default=2, ge=1, le=20)
     # Escape hatch: disables Redis-backed pacing (tests and any environment
     # with no Redis). The clients then fall back to per-process spacing.
     wb_rate_pacing_enabled: bool = Field(default=True)

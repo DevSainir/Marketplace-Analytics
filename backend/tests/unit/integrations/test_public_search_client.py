@@ -14,6 +14,7 @@ from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.base import scrub_credentials
 from src.integrations.wildberries.clients.search import WBPublicSearchClient
+from src.integrations.wildberries.rate_limit import NullRateGate, TokenBucketRateGate
 from src.integrations.wildberries.schemas import (
     WBSearchMetadata,
     WBSearchPage,
@@ -204,3 +205,31 @@ async def test_an_empty_first_page_is_treated_as_a_block_not_as_a_ranking(total:
 
     with pytest.raises(IntegrationError, match="пустую выдачу"):
         await client.find_positions(query="носки", nm_ids={OURS})
+
+
+def test_the_probe_is_paced_by_a_shared_gate_not_left_to_burst() -> None:
+    """Regression, and the reason for «429 every second try».
+
+    The client shipped with the default :class:`NullRateGate`, so ``find_positions``
+    put its three pages on the wire inside the same second. That tripped the edge
+    on the probe's own first page and left the next press inside the penalty
+    window it had just created. The gate is Redis-backed so the api and the
+    worker queue behind each other — they share the IP WB actually meters.
+    """
+    paced = WBPublicSearchClient(_settings())
+
+    assert isinstance(paced._rate_gate, TokenBucketRateGate)
+
+
+def test_pacing_can_be_switched_off_for_environments_without_redis() -> None:
+    """Unit tests and a Redis-less box must still construct a client."""
+    unpaced = WBPublicSearchClient(_settings(wb_rate_pacing_enabled=False))
+
+    assert isinstance(unpaced._rate_gate, NullRateGate)
+
+
+def test_a_watched_probe_scans_shallower_than_the_scheduled_run() -> None:
+    """Every page is a paced slot now, so interactive depth is somebody's patience."""
+    settings = _settings()
+
+    assert settings.wb_search_interactive_max_pages < settings.wb_search_max_pages
