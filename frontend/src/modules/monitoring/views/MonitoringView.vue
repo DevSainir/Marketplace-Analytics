@@ -223,7 +223,7 @@ onMounted(() => store.fetchPins())
         <SkuPositionPanel
           v-bind="clusters.positionPanelProps"
           @check="clusters.checkPosition($event)"
-          @recheck="clusters.checkPosition($event, { refresh: true })"
+          @recheck="clusters.checkPosition($event)"
           @pin="clusters.pin($event)"
           @unpin="clusters.unpin($event)"
           @refresh-all="clusters.refreshAllPinned()"

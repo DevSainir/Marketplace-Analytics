@@ -281,12 +281,11 @@ export async function fetchSkuClusters(nmId, params = {}, signal) {
 }
 
 /**
- * GET /v1/monitoring/skus/{nm_id}/search-position — where this SKU ranks in WB's
- * PUBLIC search for a typed phrase, checked live.
+ * GET /v1/monitoring/skus/{nm_id}/search-position — the STORED sample for a
+ * phrase. Reads only; 404 means nobody has checked it recently.
  *
- * Slow and rate-limited on WB's side (the backend caches each phrase for a few
- * minutes and shares the scan across the workspace's SKUs), so it runs only on
- * an explicit search and its failure must not disturb the block above it.
+ * Taking a sample is `startSkuPositionCheck` below, because WB refuses roughly
+ * every second attempt and the retries take minutes.
  *
  * @param {number|string} nmId WB SKU identifier.
  * @param {string} query The phrase a shopper would type.
@@ -294,19 +293,10 @@ export async function fetchSkuClusters(nmId, params = {}, signal) {
  * @param {AbortSignal} [signal]
  * @returns {Promise<import('@/core/api/types').SkuSearchPositionResponse>}
  */
-export async function probeSkuSearchPosition(nmId, query, options = {}, signal) {
+export async function fetchSkuSearchPosition(nmId, query, signal) {
   const { data } = await apiClient.get(`/v1/monitoring/skus/${nmId}/search-position`, {
-    params: { query, refresh: options.refresh ? true : undefined },
+    params: { query },
     signal,
-    // The shared 15s budget cannot cover an uncached scan: the backend walks up
-    // to three ranked pages SEQUENTIALLY against a host that throttles per IP,
-    // so a cold probe routinely outruns it — and the client was discarding a
-    // scan the server went on to finish and cache, making the next attempt look
-    // instant and the failure random. Sized above the backend's own bounded
-    // worst case (pages × attempts × wb_search_timeout_seconds, plus waits), so
-    // a WB stall surfaces as the backend's «повторите через минуту» rather than
-    // as «timeout of 15000ms exceeded».
-    timeout: 120000,
   })
   return data
 }
@@ -368,4 +358,39 @@ export async function unpinKeyword(nmId, keyword) {
 export async function refreshAllPositions() {
   const { data } = await apiClient.post('/v1/monitoring/positions/refresh')
   return data
+}
+
+/**
+ * POST /v1/monitoring/skus/{nm_id}/search-position/checks — queue a live check.
+ *
+ * Returns as soon as the work is queued. The backend also remembers the task
+ * against (workspace, SKU), so a reload can re-attach with
+ * `fetchSkuPositionCheck` — a check is not lost by leaving the page.
+ *
+ * @param {number|string} nmId WB SKU identifier.
+ * @param {string} query The phrase to check.
+ * @returns {Promise<{task_id: string, query: string}>}
+ */
+export async function startSkuPositionCheck(nmId, query) {
+  const { data } = await apiClient.post(
+    `/v1/monitoring/skus/${nmId}/search-position/checks`,
+    undefined,
+    { params: { query } },
+  )
+  return data
+}
+
+/**
+ * GET /v1/monitoring/skus/{nm_id}/search-position/checks — the check this SKU
+ * last started, running or finished, or `null` when there is none.
+ *
+ * @param {number|string} nmId WB SKU identifier.
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<{task_id: string, query: string, ready: boolean, successful: boolean}|null>}
+ */
+export async function fetchSkuPositionCheck(nmId, signal) {
+  const { data } = await apiClient.get(`/v1/monitoring/skus/${nmId}/search-position/checks`, {
+    signal,
+  })
+  return data ?? null
 }

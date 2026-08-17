@@ -5,8 +5,10 @@ Both halves belong to the block at the bottom of a SKU's monitoring page:
 * :meth:`ClusterAnalytics.clusters_for_sku` reads the per-cluster advertising
   history harvested from ``POST /adv/v1/normquery/stats``. It needs no keyword —
   it is the SKU's own list of phrases and shows whenever the page has a SKU.
-* :meth:`ClusterAnalytics.probe_position` answers the search box: where this SKU
-  ranks in WB's public search for the phrase, right now.
+* :meth:`ClusterAnalytics.cached_position` answers the search box: where this SKU
+  ranked when the phrase was last checked. The checking itself is a Celery task
+  (``monitoring.probe_position``) because WB refuses roughly every second attempt
+  and outlasting that takes minutes — this reads what the task stored.
 
 They are never merged into one number. One is a window of paid impressions, the
 other a sample taken seconds ago from a personalized, regional result page.
@@ -19,18 +21,12 @@ dashboard depends on.
 
 from __future__ import annotations
 
-import json
 import uuid
-from datetime import UTC, date, datetime, timedelta
-from typing import Any
+from datetime import date, datetime, timedelta
 
-from redis.exceptions import RedisError
-
-from src.core.config import settings
 from src.core.exceptions import ValidationError
 from src.core.logging import get_logger
-from src.core.redis import get_redis
-from src.integrations.wildberries.clients.search import SearchProbe, WBPublicSearchClient
+from src.integrations.wildberries.clients.search import WBPublicSearchClient
 from src.modules.monitoring.models import ProductCard
 from src.modules.monitoring.models.pinned_keywords import (
     KEYWORD_MAX_LENGTH as _KEYWORD_MAX_LENGTH,
@@ -48,6 +44,9 @@ from src.modules.monitoring.schemas.clusters import (
     SkuSearchPositionResponse,
 )
 from src.modules.monitoring.schemas.summary import MetricWindow
+from src.modules.monitoring.services.analytics.position_cache import (
+    read_probe_result,
+)
 from src.modules.monitoring.services.analytics.window import resolve_window
 
 logger = get_logger(__name__)
@@ -58,18 +57,6 @@ logger = get_logger(__name__)
 #: width cannot drift apart — a phrase that pins but cannot be checked, or the
 #: reverse, is worse than either bound alone.
 KEYWORD_MAX_LENGTH = _KEYWORD_MAX_LENGTH
-
-
-def _cache_key(*, query: str, dest: int) -> str:
-    """Build the per-phrase probe cache key.
-
-    Keyed by phrase and delivery region ONLY — deliberately not by SKU. The probe
-    reads whole result pages, so one scan answers for every SKU in the workspace,
-    and a teammate checking the same phrase on another SKU's page reuses it
-    instead of spending WB's rate budget again. ``dest`` is part of the key
-    because a position is only meaningful for the region it was computed for.
-    """
-    return f"monitoring:search-position:{dest}:{query.casefold()}"
 
 
 class ClusterAnalytics:
@@ -198,56 +185,45 @@ class ClusterAnalytics:
     # ------------------------------------------------------------------ #
     # Live: where this SKU ranks in WB search right now
     # ------------------------------------------------------------------ #
-    async def probe_position(
+    async def cached_position(
         self,
         *,
         nm_id: int,
         workspace_id: uuid.UUID,
         query: str,
-        refresh: bool = False,
-    ) -> SkuSearchPositionResponse:
-        """Locate the SKU in WB's public search results for ``query``.
+    ) -> SkuSearchPositionResponse | None:
+        """Return the STORED sample for ``query``, or ``None`` if there is none.
 
-        The scan reads whole result pages, so it looks for the workspace's ENTIRE
-        catalogue in one pass at no extra cost: the asked-for SKU's rank is the
-        answer, and its siblings' ranks come back as context. That also makes the
-        cached scan reusable from any SKU's page — the endpoint is throttled by WB
-        per IP, so reuse is the difference between an answer and a 429.
+        This path makes NO outbound call any more, and that is the design rather
+        than an optimisation. WB refuses roughly every second attempt from a
+        shared residential exit, each retry has to wait out a throttle window, and
+        an HTTP request cannot honestly be held open for that; worse, a seller who
+        left the page lost the work. Getting the answer is now
+        ``monitoring.probe_position``'s job — it writes here, and this reads.
+
+        One scan still answers for the whole workspace: it looks for every SKU in
+        the catalogue, so a colleague checking the same phrase from another SKU's
+        page is served from the same sample instead of spending WB's budget again.
 
         Args:
             nm_id: The SKU the page is about (ownership already proven).
-            workspace_id: The caller's active workspace (whose SKUs to look for).
+            workspace_id: The caller's active workspace, for the sibling ranks.
             query: The shopper's phrase, as typed.
-            refresh: Skip the cached scan and probe WB again.
 
         Returns:
-            The SKU's rank, or a response with ``position=None`` when it was not
-            inside the scanned depth.
+            The SKU's rank, a response with ``position=None`` when the scan did
+            not find it inside its depth, or ``None`` when no scan is stored —
+            which the router turns into "not checked yet", NOT "ranks nowhere".
 
         Raises:
             ValidationError: On a blank or over-long phrase.
-            IntegrationError: When WB did not answer at all (propagated from the
-                client, so the caller never mistakes it for "ranks nowhere").
         """
         term = self._clean_keyword(query)
-        nm_ids = await self._cards.list_workspace_nm_ids(workspace_id)
-        # The asked-for SKU is always looked for, even if the catalogue registry
-        # is somehow behind — the router already proved the caller owns it.
-        wanted = set(nm_ids) | {nm_id}
-
-        cached = None if refresh else await self._cached_probe(term)
+        cached = await read_probe_result(
+            term, dest=self._search_dest, ttl_seconds=self._cache_seconds
+        )
         if cached is None:
-            # Shallower than the scheduled run on purpose: every page is now a
-            # paced slot (~30s), so depth is latency somebody is watching. Two
-            # pages answer in ~40s; a third would spend 30 more to turn "not in
-            # the top 200" into "not in the top 300".
-            result = await self._search.find_positions(
-                query=term,
-                nm_ids=wanted,
-                max_pages=settings.wb_search_interactive_max_pages,
-            )
-            cached = self._serialize(result)
-            await self._store_probe(term, cached)
+            return None
 
         found = {int(row["nm_id"]): row for row in cached["positions"]}
         mine = found.get(nm_id)
@@ -276,64 +252,18 @@ class ClusterAnalytics:
         )
 
     @staticmethod
-    def _serialize(result: SearchProbe) -> dict[str, Any]:
-        """Flatten a probe into the JSON shape the cache stores."""
-        return {
-            "normalized_query": result.normalized_query,
-            "total_found": result.total_found,
-            "positions_scanned": result.positions_scanned,
-            "truncated": result.truncated,
-            "checked_at": datetime.now(UTC).isoformat(),
-            "positions": [
-                {
-                    "nm_id": position.nm_id,
-                    "position": position.position,
-                    "page": position.page,
-                    "position_on_page": position.position_on_page,
-                }
-                for position in result.positions
-            ],
-        }
-
-    async def _cached_probe(self, term: str) -> dict[str, Any] | None:
-        """Return a cached scan for the phrase, or ``None``.
-
-        Redis is optional (see :mod:`src.core.redis`): an outage costs a slower,
-        throttled probe, not the feature.
-        """
-        if not self._cache_seconds:
-            return None
-        try:
-            raw = await get_redis().get(_cache_key(query=term, dest=self._search_dest))
-        except RedisError:
-            logger.warning("Redis unavailable: probing search.wb.ru without the phrase cache.")
-            return None
-        if raw is None:
-            return None
-        payload = raw.decode("utf-8") if isinstance(raw, bytes) else raw
-        try:
-            cached = json.loads(payload)
-        except json.JSONDecodeError:
-            return None
-        return cached if isinstance(cached, dict) else None
-
-    async def _store_probe(self, term: str, probe: dict[str, Any]) -> None:
-        """Cache a fresh scan, tolerating a Redis outage."""
-        if not self._cache_seconds:
-            return
-        try:
-            await get_redis().set(
-                _cache_key(query=term, dest=self._search_dest),
-                json.dumps(probe),
-                ex=self._cache_seconds,
-            )
-        except RedisError:
-            logger.warning("Redis unavailable: the probe for %r was not cached.", term)
-
-    @staticmethod
     def _vendor_code(card: ProductCard | None) -> str | None:
         """The card's seller article code, or ``None`` when it is not synced yet."""
         return card.vendor_code if card is not None else None
+
+    @staticmethod
+    def normalise_keyword(query: str) -> str:
+        """Public alias of :meth:`_clean_keyword` for callers that only validate.
+
+        The route that ENQUEUES a check has to normalise the phrase before it
+        becomes a task argument and a Redis key, without touching the store.
+        """
+        return ClusterAnalytics._clean_keyword(query)
 
     @staticmethod
     def _clean_keyword(query: str) -> str:

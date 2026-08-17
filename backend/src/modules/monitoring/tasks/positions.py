@@ -44,6 +44,7 @@ from src.core.logging import get_logger
 from src.core.tasks import run_task
 from src.integrations.wildberries import build_search_client
 from src.modules.monitoring.repos import PinnedKeywordRepository, ProductCardRepository
+from src.modules.monitoring.services.analytics.position_cache import store_probe_result
 from src.modules.monitoring.tasks.common import _TASK_RETRY_KWARGS
 from src.modules.workspaces.contract import load_workspace_token_bundles
 
@@ -239,3 +240,101 @@ def refresh_pinned_positions(workspace_id: str | None = None) -> dict[str, objec
         except LockError:
             logger.warning("refresh_pinned_positions lock already expired at release time.")
         redis.close()
+
+
+async def _probe_one_phrase(workspace_id: uuid.UUID, nm_id: int, query: str) -> dict[str, object]:
+    """Probe ONE phrase patiently and leave the result where readers look.
+
+    This is what «Проверить позицию» enqueues. It exists because the same work
+    done inside the HTTP request could not be patient: WB refuses roughly every
+    other attempt from a shared residential exit, each retry has to wait out a
+    throttle window, and nobody watches a spinner for three minutes. Out here the
+    attempts are free — the seller closes the page and the answer is waiting.
+
+    The result is written to the SAME Redis key the read endpoint serves from, so
+    there is no second store to keep in step: a finished run simply makes the
+    ordinary cached read succeed. When the phrase is also pinned to this SKU the
+    pin is updated too, so its card carries the new number and timestamp.
+
+    Args:
+        workspace_id: Whose catalogue to look for (every SKU of it, one scan).
+        nm_id: The SKU the check was started from.
+        query: The phrase, already trimmed and length-checked by the router.
+
+    Returns:
+        What the run managed: whether WB answered, and the position if found.
+    """
+    async with AsyncSessionLocal() as session:
+        catalogue = await ProductCardRepository(session).list_workspace_nm_ids(workspace_id)
+        pinned = await PinnedKeywordRepository(session).list_for_workspace(
+            workspace_id=workspace_id
+        )
+    wanted = set(catalogue) | {nm_id}
+
+    # Patient: the scheduled run's retry budget, not the interactive one.
+    async with build_search_client(settings, patient=True) as client:
+        probe = await client.find_positions(query=query, nm_ids=wanted)
+
+    checked_at = datetime.now(UTC)
+    await store_probe_result(
+        query=query,
+        probe=probe,
+        dest=settings.wb_search_dest,
+        ttl_seconds=settings.wb_search_cache_seconds,
+        checked_at=checked_at,
+    )
+
+    # A pin on this phrase gets the fresh sample too — the card and the panel
+    # must never disagree about the same phrase.
+    holders = [pin.nm_id for pin in pinned if pin.keyword == query]
+    found = {position.nm_id: position for position in probe.positions}
+    if holders:
+        async with AsyncSessionLocal() as session:
+            repo = PinnedKeywordRepository(session)
+            for holder in holders:
+                position = found.get(holder)
+                await repo.record_probe(
+                    nm_id=holder,
+                    keyword=query,
+                    normalized_query=probe.normalized_query,
+                    position=position.position if position else None,
+                    positions_scanned=probe.positions_scanned,
+                    total_found=probe.total_found,
+                    truncated=probe.truncated,
+                    checked_at=checked_at,
+                )
+            await session.commit()
+
+    mine = found.get(nm_id)
+    return {
+        "query": query,
+        "nm_id": nm_id,
+        "position": mine.position if mine else None,
+        "positions_scanned": probe.positions_scanned,
+        "pins_updated": len(holders),
+    }
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="monitoring.probe_position",
+    bind=False,
+    **_TASK_RETRY_KWARGS,
+)
+def probe_position(workspace_id: str, nm_id: int, query: str) -> dict[str, object]:
+    """Check one phrase's live position, out of band from the request that asked.
+
+    Deliberately NOT guarded by the pinned-refresh lock: this is one phrase a
+    person is waiting for, the shared rate gate already paces it against every
+    other caller, and making a seller queue behind an hour-long scheduled run
+    would defeat the point of the button.
+
+    Args:
+        workspace_id: The caller's workspace (ownership proven by the router).
+        nm_id: The SKU whose page the check was started from.
+        query: The phrase to check.
+
+    Returns:
+        The position found (or ``None``), plus how deep the scan reached.
+    """
+    logger.info("Position check starting for %r (SKU %s).", query, nm_id)
+    return run_task(_probe_one_phrase(uuid.UUID(workspace_id), nm_id, query))

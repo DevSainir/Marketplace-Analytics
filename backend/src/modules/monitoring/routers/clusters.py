@@ -18,8 +18,11 @@ from __future__ import annotations
 
 from datetime import date
 
+from celery.result import AsyncResult
 from fastapi import APIRouter, Query, status
 
+from src.core.celery_app import celery_app
+from src.core.exceptions import NotFoundError
 from src.modules.monitoring.deps import (
     ClusterAnalyticsDep,
     CurrentWorkspaceId,
@@ -30,12 +33,18 @@ from src.modules.monitoring.schemas.clusters import (
     PinKeywordRequest,
     PinnedKeywordItem,
     PinnedKeywordsResponse,
+    PositionCheckAccepted,
+    PositionCheckState,
     PositionRefreshAccepted,
     SkuClustersResponse,
     SkuSearchPositionResponse,
 )
 from src.modules.monitoring.services import bind_task_to_workspace
-from src.modules.monitoring.tasks import refresh_pinned_positions
+from src.modules.monitoring.services.analytics.position_cache import (
+    current_run,
+    remember_run,
+)
+from src.modules.monitoring.tasks import probe_position, refresh_pinned_positions
 
 router = APIRouter(tags=["Monitoring"])
 
@@ -81,19 +90,21 @@ async def probe_sku_position(
     service: ClusterAnalyticsDep,
     workspace_id: CurrentWorkspaceId,
     query: str = Query(min_length=1, description="The phrase a shopper would type."),
-    refresh: bool = Query(
-        default=False,
-        description="Skip the cached scan and re-check WB now (costs rate budget).",
-    ),
 ) -> SkuSearchPositionResponse:
-    """Report where this SKU currently ranks in WB search for a phrase.
+    """Return the stored sample for this phrase, or 404 if none has been taken.
 
-    Live, not history: a sample for the configured delivery region and loyalty
-    tier, cached briefly and shared across the workspace's SKUs.
+    Reads only. Taking the sample belongs to ``POST .../search-position/checks``,
+    because WB refuses roughly every second attempt and the retries take minutes —
+    longer than any HTTP request should live, and long enough that holding one
+    open lost the work whenever a seller left the page.
+
+    A 404 here means "nobody has checked this phrase recently", which the panel
+    must not render as "the card ranks nowhere".
     """
-    return await service.probe_position(
-        nm_id=nm_id, workspace_id=workspace_id, query=query, refresh=refresh
-    )
+    found = await service.cached_position(nm_id=nm_id, workspace_id=workspace_id, query=query)
+    if found is None:
+        raise NotFoundError(f"No recent position sample for {query!r}.")
+    return found
 
 
 @router.get(
@@ -189,3 +200,74 @@ async def refresh_all_positions(
     task = refresh_pinned_positions.delay(str(workspace_id))
     await bind_task_to_workspace(task.id, workspace_id)
     return PositionRefreshAccepted(task_id=task.id, pinned_count=pinned)
+
+
+@router.post(
+    "/skus/{nm_id}/search-position/checks",
+    response_model=PositionCheckAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        202: {"description": "The check was queued; poll the GET beside this."},
+        401: {"description": "Unauthorized access token."},
+        404: {"description": "No such SKU in the active workspace."},
+        422: {"description": "Blank or over-long phrase."},
+    },
+)
+async def start_position_check(
+    nm_id: WorkspaceSku,
+    service: ClusterAnalyticsDep,
+    workspace_id: CurrentWorkspaceId,
+    query: str = Query(min_length=1, description="The phrase a shopper would type."),
+) -> PositionCheckAccepted:
+    """«Проверить позицию» — queue a live check of one phrase.
+
+    Queued rather than awaited because WB refuses roughly every second attempt
+    from a shared residential exit and each retry waits out a throttle window: the
+    work takes minutes, and a held-open request both timed out and lost the answer
+    whenever the seller left the page.
+
+    The task id is also stored against (workspace, SKU), which is what lets the
+    panel re-attach after a reload — see the GET beside this.
+    """
+    term = service.normalise_keyword(query)
+    task = probe_position.delay(str(workspace_id), nm_id, term)
+    await bind_task_to_workspace(task.id, workspace_id)
+    await remember_run(workspace_id=str(workspace_id), nm_id=nm_id, task_id=task.id, query=term)
+    return PositionCheckAccepted(task_id=task.id, query=term)
+
+
+@router.get(
+    "/skus/{nm_id}/search-position/checks",
+    response_model=PositionCheckState | None,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "The last check for this SKU, or null if there is none."},
+        401: {"description": "Unauthorized access token."},
+        404: {"description": "No such SKU in the active workspace."},
+    },
+)
+async def position_check_state(
+    nm_id: WorkspaceSku,
+    workspace_id: CurrentWorkspaceId,
+) -> PositionCheckState | None:
+    """Report the check this SKU's panel last started, running or finished.
+
+    This is the endpoint that makes a check survive leaving the page: the marker
+    lives in Redis against (workspace, SKU), not in the tab that started it, so a
+    reload re-attaches to a running check instead of showing nothing while the
+    worker carries on.
+
+    ``null`` means no check has been started recently — the marker outlives the
+    task by a few minutes and then expires on its own.
+    """
+    marker = await current_run(workspace_id=str(workspace_id), nm_id=nm_id)
+    if marker is None:
+        return None
+    result = AsyncResult(str(marker.get("task_id", "")), app=celery_app)
+    ready = result.ready()
+    return PositionCheckState(
+        task_id=str(marker.get("task_id", "")),
+        query=str(marker.get("query", "")),
+        ready=ready,
+        successful=bool(result.successful()) if ready else False,
+    )

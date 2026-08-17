@@ -3,19 +3,23 @@ import { createPinia, setActivePinia } from 'pinia'
 import {
   fetchPinnedKeywords,
   fetchSkuClusters,
+  fetchSkuPositionCheck,
+  fetchSkuSearchPosition,
   getRefreshStatus,
-  probeSkuSearchPosition,
   refreshAllPositions,
+  startSkuPositionCheck,
 } from '@/modules/monitoring/api'
 import { useClusterSearchStore } from '@/modules/monitoring/clusterStore'
 
 vi.mock('@/modules/monitoring/api', () => ({
   fetchPinnedKeywords: vi.fn(),
   fetchSkuClusters: vi.fn(),
+  fetchSkuPositionCheck: vi.fn(),
+  fetchSkuSearchPosition: vi.fn(),
   getRefreshStatus: vi.fn(),
   pinKeyword: vi.fn(),
-  probeSkuSearchPosition: vi.fn(),
   refreshAllPositions: vi.fn(),
+  startSkuPositionCheck: vi.fn(),
   unpinKeyword: vi.fn(),
 }))
 
@@ -48,7 +52,9 @@ beforeEach(() => {
   store = useClusterSearchStore()
   vi.clearAllMocks()
   fetchSkuClusters.mockResolvedValue(CLUSTERS)
-  probeSkuSearchPosition.mockResolvedValue(POSITION)
+  fetchSkuSearchPosition.mockResolvedValue(POSITION)
+  fetchSkuPositionCheck.mockResolvedValue(null)
+  startSkuPositionCheck.mockResolvedValue({ task_id: 'check-1', query: 'носки' })
 })
 
 describe('the cluster half', () => {
@@ -87,34 +93,31 @@ describe('the cluster half', () => {
 })
 
 describe('the live position half', () => {
-  it('checks the phrase against the SKU currently loaded', async () => {
+  it('queues a check for the SKU currently loaded', async () => {
     await store.loadForSku(NM_ID, {})
 
     await store.checkPosition('  носки  ')
 
-    expect(probeSkuSearchPosition).toHaveBeenCalledWith(
-      NM_ID,
-      'носки',
-      { refresh: false },
-      expect.anything(),
-    )
-    expect(store.position.position).toBe(7)
+    expect(startSkuPositionCheck).toHaveBeenCalledWith(NM_ID, 'носки')
+    // Nothing is read until the check reports ready: showing the previous sample
+    // under a running spinner reads as the new answer.
+    expect(store.positionLoading).toBe(true)
   })
 
   it('does nothing without a phrase or without a SKU', async () => {
-    // WB has no ranking for an empty phrase, and the endpoint is rate-limited
-    // per IP — spending that budget on nothing slows down real checks.
+    // WB has no ranking for an empty phrase, and every attempt spends a slot of a
+    // budget that refuses roughly every second request.
     await store.checkPosition('носки')
     await store.loadForSku(NM_ID, {})
     await store.checkPosition('   ')
 
-    expect(probeSkuSearchPosition).not.toHaveBeenCalled()
+    expect(startSkuPositionCheck).not.toHaveBeenCalled()
   })
 
-  it('keeps the cluster table when the probe is throttled', async () => {
-    // The halves have different provenance and different failure modes: a
-    // throttled WB must not blank out a month of harvested history.
-    probeSkuSearchPosition.mockRejectedValue({ response: { status: 502 } })
+  it('keeps the cluster table when the check cannot even be queued', async () => {
+    // The halves have different provenance and different failure modes: a broken
+    // check must not blank out a month of harvested history.
+    startSkuPositionCheck.mockRejectedValue({ response: { status: 502 } })
     await store.loadForSku(NM_ID, {})
 
     await store.checkPosition('носки')
@@ -124,28 +127,65 @@ describe('the live position half', () => {
     expect(store.positionError).not.toBe('')
   })
 
+  it('re-attaches to a check that was already running when the page loaded', async () => {
+    // The point of moving the work into a task: a seller who leaves and comes
+    // back must see the check still running, not an empty panel. The task id
+    // lives server-side, so a fresh tab finds it.
+    fetchSkuPositionCheck.mockResolvedValue({
+      task_id: 'check-9',
+      query: 'носки мужские',
+      ready: false,
+      successful: false,
+    })
+
+    await store.loadForSku(NM_ID, {})
+    await vi.waitFor(() => expect(store.positionLoading).toBe(true))
+
+    expect(store.query).toBe('носки мужские')
+  })
+
+  it('collects the result of a check that finished while nobody was looking', async () => {
+    fetchSkuPositionCheck.mockResolvedValue({
+      task_id: 'check-9',
+      query: 'носки',
+      ready: true,
+      successful: true,
+    })
+
+    await store.loadForSku(NM_ID, {})
+    await vi.waitFor(() => expect(store.position?.position).toBe(7))
+
+    expect(store.positionLoading).toBe(false)
+    expect(fetchSkuSearchPosition).toHaveBeenCalledWith(NM_ID, 'носки')
+  })
+
+  it('explains a finished check that WB never answered', async () => {
+    // `successful: false` is not "ranks nowhere" — the pins keep their numbers and
+    // the panel has to say why nothing moved.
+    fetchSkuPositionCheck.mockResolvedValue({
+      task_id: 'check-9',
+      query: 'носки',
+      ready: true,
+      successful: false,
+    })
+
+    await store.loadForSku(NM_ID, {})
+    await vi.waitFor(() => expect(store.positionError).not.toBe(''))
+
+    expect(store.position).toBeNull()
+    expect(fetchSkuSearchPosition).not.toHaveBeenCalled()
+  })
+
   it('drops a rank that belonged to the previous SKU', async () => {
     // The number is about one card. Carrying it onto the next SKU's page would
     // read as that card's position, which it never was.
+    fetchSkuPositionCheck.mockResolvedValue(null)
     await store.loadForSku(NM_ID, {})
-    await store.checkPosition('носки')
+    store.position = POSITION
 
     await store.loadForSku(144178006, {})
 
     expect(store.position).toBeNull()
-  })
-
-  it('asks the backend to bypass its cache on an explicit re-check', async () => {
-    await store.loadForSku(NM_ID, {})
-
-    await store.checkPosition('носки', { refresh: true })
-
-    expect(probeSkuSearchPosition).toHaveBeenCalledWith(
-      NM_ID,
-      'носки',
-      { refresh: true },
-      expect.anything(),
-    )
   })
 })
 

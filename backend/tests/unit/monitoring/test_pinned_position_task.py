@@ -229,3 +229,56 @@ async def test_the_run_payload_carries_the_withheld_phrases_to_the_ui(
 
     assert payload["failed_sources"] == ["аaa"]
     assert payload["pins_updated"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# One phrase, on demand: what «Проверить позицию» enqueues
+# --------------------------------------------------------------------------- #
+async def test_the_on_demand_check_looks_for_the_whole_catalogue_in_one_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One scan answers for every SKU, so it asks for all of them at once.
+
+    Moved here from the service when the check became a task: WB throttles per IP,
+    and a per-SKU scan of the same pages would spend the budget N times over
+    information already on the page.
+    """
+    _FakePinRepo.rows = []
+    client = _FakeSearchClient({"носки": _probe("носки", {FIRST: 7})})
+    monkeypatch.setattr(positions_task, "build_search_client", lambda _s, **_: client)
+    stored: dict[str, object] = {}
+
+    async def fake_store(**kwargs: object) -> None:
+        stored.update(kwargs)
+
+    monkeypatch.setattr(positions_task, "store_probe_result", fake_store)
+
+    outcome = await positions_task._probe_one_phrase(WORKSPACE, FIRST, "носки")
+
+    assert client.asked == ["носки"]
+    assert outcome["position"] == 7
+    # Stored where the read endpoint looks — that is the whole handoff.
+    assert stored["query"] == "носки"
+
+
+async def test_the_on_demand_check_updates_a_pin_on_the_same_phrase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The card and the panel must never disagree about one phrase.
+
+    Checking a phrase that is also pinned writes the fresh sample onto the pin, so
+    the card's number and timestamp move with the panel's.
+    """
+    _FakePinRepo.rows = [_pin(FIRST, "носки")]
+    client = _FakeSearchClient({"носки": _probe("носки", {FIRST: 12})})
+    monkeypatch.setattr(positions_task, "build_search_client", lambda _s, **_: client)
+
+    async def fake_store(**_: object) -> None:
+        return None
+
+    monkeypatch.setattr(positions_task, "store_probe_result", fake_store)
+
+    outcome = await positions_task._probe_one_phrase(WORKSPACE, FIRST, "носки")
+
+    assert outcome["pins_updated"] == 1
+    assert [(w["keyword"], w["position"]) for w in _FakePinRepo.written] == [("носки", 12)]

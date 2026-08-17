@@ -166,3 +166,30 @@ class SkuSearchPositionResponse(BaseModel):
         default_factory=list,
         description="The workspace's OTHER SKUs found in the same scan, best first.",
     )
+
+
+class PositionCheckAccepted(BaseModel):
+    """Acknowledgement that a single-phrase check was queued.
+
+    The task id is returned so the tab that started the check can poll it — but
+    it is ALSO remembered server-side, keyed by workspace and SKU, so a tab that
+    never sees this response (reloaded, navigated away, closed) can still find
+    the check on return. The id here is a convenience, not the source of truth.
+    """
+
+    task_id: str
+    query: str = Field(description="The phrase as it was normalised for checking.")
+
+
+class PositionCheckState(BaseModel):
+    """What became of the check this SKU's panel last started.
+
+    Exists so «Проверить позицию» can survive leaving the page: the panel asks
+    this on mount and either re-attaches to a running check or collects the
+    result of one that finished while nobody was looking.
+    """
+
+    task_id: str
+    query: str
+    ready: bool = Field(description="True once the check finished, either way.")
+    successful: bool = Field(description="True only when WB actually answered.")

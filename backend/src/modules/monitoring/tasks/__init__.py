@@ -35,13 +35,14 @@ from src.modules.monitoring.tasks.cohorts import COHORT_REFRESH_DAYS, refresh_bu
 from src.modules.monitoring.tasks.day_headers import carry_day_headers
 from src.modules.monitoring.tasks.discovery import harvest_all
 from src.modules.monitoring.tasks.harvest import harvest_sku_window
-from src.modules.monitoring.tasks.positions import refresh_pinned_positions
+from src.modules.monitoring.tasks.positions import probe_position, refresh_pinned_positions
 
 __all__ = [
     "COHORT_REFRESH_DAYS",
     "carry_day_headers",
     "harvest_all",
     "harvest_sku_window",
+    "probe_position",
     "refresh_buyout_cohorts",
     "refresh_pinned_positions",
 ]
