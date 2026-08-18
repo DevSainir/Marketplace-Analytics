@@ -196,6 +196,13 @@ class Settings(BaseSettings):
     # 7 486, the same SKU at 53 instead of 26) — the first thing to check when a
     # seller disputes a position. Details in the wildberries-api skill.
     wb_search_dest: int = Field(default=1259570991)
+    # The iOS app's search surface, used INSTEAD of the two above whenever a
+    # session holds an app token. It answers from our own datacenter IP with no
+    # proxy, needs no cookie jar, and returns `total` (which the website's v18
+    # dropped) — but it refuses every request without `X-Wbaas-Token`, so it is
+    # useless anonymously. See integrations/wildberries/search_session.py.
+    wb_search_mobile_base_url: str = Field(default="https://api-ios.wildberries.ru")
+    wb_search_mobile_path: str = Field(default="/__internal/search/exactmatch/ru/common/v14/search")
     # Result slots per page; 100 is what the storefront itself requests.
     wb_search_page_size: int = Field(default=100, ge=1, le=300)
     # How deep a position probe may scan — ONE page, the top 100.

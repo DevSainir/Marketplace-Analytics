@@ -1,27 +1,34 @@
-"""Store a WB storefront session copied from a real browser.
+"""Store a WB search session copied from the iOS app (or, failing that, a browser).
 
-The automated mint does not work, and the reason is not fixable from our side:
-WB's `wbaas` challenge detects headless Chromium itself. Measured 2026-08-18 from
-the production VPS — datacenter IP, residential proxy exit, hardened fingerprint
-(spoofed UA, locale, timezone, viewport, webdriver, plugins, WebGL vendor) — every
-attempt was served HTTP 498 «Подозрительная активность» and a placeholder token
-that every later request refuses with 403. A real browser on the same residential
-network is served normally.
+The token cannot be minted here — WB's challenge detects headless Chromium, which
+is measured and written up in this repo's wildberries-api reference — so it is
+copied. That takes about a minute, and the app's token is markedly better than the
+website's:
 
-So the session is copied from a browser instead, which takes about thirty seconds
-every few days:
+* **iOS app** — a single ``X-Wbaas-Token`` header, no cookie jar, no proof of work
+  (a subtractive bisect over the app's whole header set left only this and the
+  User-Agent). Measured 2026-08-18 from the production VPS on its own datacenter
+  IP: 20 of 20 requests answered, and it reaches the Russian catalogue through
+  ``api-ios.wildberries.ru`` while restoring the ``total`` the website dropped.
+* **website** — a cookie jar that answered 10 of 10 and was then revoked about
+  half an hour into server-side use, dead afterwards even from the laptop that
+  minted it.
 
-1. Open wildberries.ru, search for anything.
-2. DevTools → Network → the `u-search` request → Copy → Copy as cURL.
-3. Paste the ``-b '…'`` cookie string and the ``user-agent`` header here::
+Capture the app's request with a proxy on the phone (Proxyman, Charles), copy the
+``X-Wbaas-Token`` header, and store it::
 
-       WB_SEARCH_COOKIE='external-locale=ru; _wbauid=…; x_wbaas_token=…' \\
-       WB_SEARCH_UA='Mozilla/5.0 (Macintosh; …) Chrome/151.0.0.0 Safari/537.36' \\
-       docker compose … run --rm -T api python -m scripts.set_search_session
+    WB_SEARCH_TOKEN='1.1000.…' \
+    docker compose … exec -T api python -m scripts.set_search_session
 
-The token declares its own expiry — 72 hours on the samples seen so far — and the
-store drops it when it lapses, so the panel degrades to anonymous probing (~1
-request in 3) rather than silently serving stale positions.
+The website form is still accepted::
+
+    WB_SEARCH_COOKIE='external-locale=ru; _wbauid=…; x_wbaas_token=…' \
+    WB_SEARCH_UA='Mozilla/5.0 (Macintosh; …) Chrome/151.0.0.0 Safari/537.36' \
+    docker compose … exec -T api python -m scripts.set_search_session
+
+The token declares its own expiry — 36 hours on the app samples — and the store
+drops it when it lapses, so the panel falls back to anonymous probing (~1 request
+in 3) rather than silently serving stale positions.
 """
 
 from __future__ import annotations
@@ -38,6 +45,12 @@ from src.integrations.wildberries.search_session import (
 )
 
 logger = get_logger(__name__)
+
+#: The app's own User-Agent, which its token is minted against. Defaulted so the
+#: usual case is one variable to paste rather than two.
+_IOS_USER_AGENT = (
+    "Wildberries/7.7.6000 (RU.WILDBERRIES.MOBILEAPP; build:22862666; iOS 26.6.0) Alamofire/5.9.1"
+)
 
 
 def parse_cookie_header(raw: str) -> dict[str, str]:
@@ -60,16 +73,22 @@ def parse_cookie_header(raw: str) -> dict[str, str]:
 async def main() -> int:
     """Read the pasted session from the environment and store it."""
     configure_logging()
+    app_token = os.environ.get("WB_SEARCH_TOKEN", "").strip()
     cookie_header = os.environ.get("WB_SEARCH_COOKIE", "").strip()
-    user_agent = os.environ.get("WB_SEARCH_UA", "").strip()
-    if not cookie_header or not user_agent:
-        logger.error("Set WB_SEARCH_COOKIE and WB_SEARCH_UA (see this module's docstring).")
+    user_agent = os.environ.get("WB_SEARCH_UA", "").strip() or (
+        _IOS_USER_AGENT if app_token else ""
+    )
+    if not user_agent or not (app_token or cookie_header):
+        logger.error(
+            "Set WB_SEARCH_TOKEN (iOS app, preferred) or WB_SEARCH_COOKIE (website); "
+            "see this module's docstring."
+        )
         return 2
 
-    jar = parse_cookie_header(cookie_header)
-    token = jar.get("x_wbaas_token", "")
+    jar = parse_cookie_header(cookie_header) if cookie_header else {}
+    token = app_token or jar.get("x_wbaas_token", "")
     if not token:
-        logger.error("The cookie string carries no x_wbaas_token; nothing to store.")
+        logger.error("Neither an app token nor an x_wbaas_token cookie was given.")
         return 2
 
     expires_at = token_expiry(token)
@@ -86,10 +105,15 @@ async def main() -> int:
             user_agent=user_agent,
             device_id=jar.get("deviceid", ""),
             expires_at=expires_at,
+            wbaas_token=app_token,
         )
     )
     hours = (expires_at - datetime.now(UTC)).total_seconds() / 3600
-    logger.info("Stored %d cookies; the session is good for %.1f h.", len(jar), hours)
+    logger.info(
+        "Stored %s; good for %.1f h.",
+        "an app token" if app_token else f"{len(jar)} cookies",
+        hours,
+    )
     return 0
 
 

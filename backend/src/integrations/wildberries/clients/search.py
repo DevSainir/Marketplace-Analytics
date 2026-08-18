@@ -1,48 +1,50 @@
-"""Position probe against WB's public storefront search.
+"""Position probe against WB's public search.
 
 Answers "where does this SKU rank when a shopper types this phrase" — the one
 question no seller API answers. The advertising surface reports the average
 position of PAID impressions inside a cluster; the ranked organic list exists
 only on the storefront, so this client reads the storefront.
 
-**The session is the whole game.** WB's `wbaas` edge does not judge this request
-by its IP, its headers, its HTTP version or its host — it judges whether the
-caller carries a session it issued. Measured 2026-08-17 from the production VPS,
-on its own datacenter address, no proxy:
+**A session is the whole game, and the app's is the one that works.** WB's
+`wbaas` edge does not judge this request by its IP, its headers, its HTTP version
+or its host — it judges whether the caller carries a token it issued. Measured
+from the production VPS, its own datacenter address, no proxy:
 
-* cookieless — **~1 request in 3 answered**, the rest 429, retries taking minutes;
-* carrying a browser session — **10 of 10 answered, ~180 ms each**.
+* nothing attached — **~1 request in 3**, the rest 429, retries running to minutes;
+* a website cookie session — 10 of 10 at ~180 ms, then revoked half an hour in;
+* an **iOS app token** — 20 of 20, and still serving.
 
-Everything else in this file's history was an attempt to fix that from the wrong
-side: pacing, rotating residential proxies, fresh tunnels per request, flattened
-retry ladders, three API versions. They each moved the number a little; the
-session moved it to 100%. See :mod:`src.integrations.wildberries.search_session`
-for how one is minted (a headless browser, once a day) and why one mint lasts.
+Everything else this file has tried was the same problem attacked from the wrong
+side: pacing, rotating residential exits, a fresh tunnel per request, flattened
+ladders, four API versions. Each moved the number a little. The token moves it to
+all of them. How one is obtained (copied, not minted — headless is detected) is in
+:mod:`src.integrations.wildberries.search_session`.
 
-Endpoint, verified 2026-08-17:
+So this client speaks to two surfaces and picks per request:
 
-``GET https://www.wildberries.ru/__internal/u-search/exactmatch/ru/common/v18/search``
+* **with an app token** — ``api-ios.wildberries.ru/__internal/search/…/v14``, the
+  app's own dialect (``appType=64``, its hide-flags, ``uclusters``, no ``limit``),
+  carrying ``X-Wbaas-Token``. It even returns ``total``, which the website's v18
+  dropped.
+* **without one** — ``search.wb.ru/…/v18`` anonymously, which answers sometimes.
+  Strictly a fallback, kept because a missing token must degrade the panel rather
+  than break it.
 
-* This is the storefront's OWN route, which answers 403 to anyone without a
-  session — the reason we used the bare ``search.wb.ru`` host until now.
-* The version is load-bearing and WB retires versions without notice: v14 served
-  full pages on 2026-08-14 and refused everything by 2026-08-17, from every IP,
-  proxied or not, while v18 answered in the same minute. **A retired version is
-  indistinguishable from a rate limit**, so when 429s become universal, check the
-  version before blaming the network. It is a settings knob for that reason.
-* Params are the storefront's own set (``lang``, ``locale``, ``hide_dtype``,
-  ``hide_vflags``, ``inheritFilters``, ``suppressSpellcheck``, ``ab_testid``,
-  plus ``dest``/``spp``/``resultset``/``sort``). Response keeps
-  ``metadata.normquery`` and ``products[].id`` and **no longer carries `total`**,
-  so an absent total means UNKNOWN, never "no results".
-* ``metadata.normquery`` is WB's own normalization of the phrase and can reorder
-  it («носки мужские» → «мужские носки»). It is the key the advertising clusters
-  are filed under, which is what lets a live probe line up against them.
-* A throttled request is **not always** a 429: the same phrase was answered 200
+Two properties that cost a day to learn and are worth keeping in view:
+
+* **A retired version is indistinguishable from a rate limit** — it answers 429 to
+  everything. v14 served full pages on 2026-08-14 and refused everything by
+  2026-08-17 while v18 answered in the same minute. When 429s go universal, check
+  the version before blaming the network.
+* **A throttled request is not always a 429**: the same phrase was answered 200
   with an ordinary envelope and zero products, then 100 products a minute later.
   An empty first page is therefore treated as a block, never as "ranks nowhere".
 
-The pacing gate, the retry ladder and the proxy knob all remain, and all are now
+``metadata.normquery`` is WB's own normalization of the phrase and can reorder it
+(«носки мужские» → «мужские носки»). It is the key the advertising clusters are
+filed under, which is what lets a live probe line up against them.
+
+The pacing gate, the retry ladders and the proxy knob all remain, and all are now
 fallbacks for a missing or expired session rather than the primary mechanism.
 
 **What a position means, and does not.** The ranking is computed for the ``dest``
@@ -209,6 +211,8 @@ class WBPublicSearchClient(BaseWBClient):
             extra_headers=self._HEADERS,
         )
         self._path = settings.wb_search_path
+        self._mobile_base_url = settings.wb_search_mobile_base_url.rstrip("/")
+        self._mobile_path = settings.wb_search_mobile_path
         self._dest = settings.wb_search_dest
         self._spp = settings.wb_card_spp
         self._page_size = settings.wb_search_page_size
@@ -300,6 +304,32 @@ class WBPublicSearchClient(BaseWBClient):
         )
 
     @staticmethod
+    def _mobile_params(params: dict[str, object]) -> dict[str, object]:
+        """Recast the website's query for the iOS app's surface.
+
+        The app asks for the same ranking with its own dialect: ``appType=64``
+        instead of 1, its own hide-flags, ``uclusters``, and no ``limit`` (it
+        always gets 100). Sending the website's set here answers 400.
+        """
+        mobile = {
+            key: value
+            for key, value in params.items()
+            if key in {"curr", "dest", "lang", "locale", "spp", "page", "query", "sort"}
+        }
+        mobile.update(
+            {
+                "ab_testid": "no_promo",
+                "appType": 64,
+                "hide_dflags": 131072,
+                "hide_dtype": "9;11;13;14;15",
+                "hide_vflags": 4563402752,
+                "resultset": "catalog",
+                "uclusters": 0,
+            }
+        )
+        return mobile
+
+    @staticmethod
     def _session_headers(session: SearchSession | None) -> dict[str, str] | None:
         """Cookie + UA headers for a stored session, or ``None`` without one.
 
@@ -309,6 +339,14 @@ class WBPublicSearchClient(BaseWBClient):
         """
         if session is None:
             return None
+        if session.wbaas_token:
+            # The app sends the token as a header and nothing else matters: a
+            # subtractive bisect over its full header set left this and the UA.
+            return {
+                "X-Wbaas-Token": session.wbaas_token,
+                "User-Agent": session.user_agent,
+                "Accept": "*/*",
+            }
         return {
             "Cookie": session.cookie_header,
             "User-Agent": session.user_agent,
@@ -357,8 +395,15 @@ class WBPublicSearchClient(BaseWBClient):
         # old cookies would look throttled for reasons nothing logs.
         session = await load_session()
         headers = self._session_headers(session)
+        # An app token unlocks the mobile surface, which is the only one that
+        # answers reliably; without one, fall back to the host that at least
+        # answers anonymously. Absolute URL so one client can reach both.
+        target = self._path
+        if session is not None and session.wbaas_token:
+            target = f"{self._mobile_base_url}{self._mobile_path}"
+            params = self._mobile_params(params)
         try:
-            payload = await self._request("GET", self._path, params=params, headers=headers)
+            payload = await self._request("GET", target, params=params, headers=headers)
         except IntegrationError as exc:
             # The probe gives up fast by design (see the retry budget in
             # settings), so retry exhaustion here is the ORDINARY throttled
