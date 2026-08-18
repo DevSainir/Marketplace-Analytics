@@ -169,36 +169,32 @@ class Settings(BaseSettings):
     # same anti-bot edge as the card endpoint, whose proxy it inherits (see
     # ``wb_search_proxy``). Its timeout and retry budget are its OWN, and far
     # tighter, because this surface is read while a user waits.
-    # The storefront's own host and internal route. Reachable because we now carry
-    # a browser session (see search_session.py); without one it answers 403 to
-    # everything, which is why we used the bare API host for a day.
-    wb_search_base_url: str = Field(default="https://www.wildberries.ru")
-    # The API version is a knob because WB retires them abruptly, and a retired
-    # version is indistinguishable from a rate limit: it answers 429 to
-    # everything. That is exactly what happened between 2026-08-14 (v14 verified
-    # serving full pages) and 2026-08-17, when v14 began refusing every request
-    # from every IP, direct or proxied, with or without the storefront's headers
-    # — while v18 answered 200 with 100 products in the same minute.
+    # The bare API host, NOT the storefront's own `/__internal/u-search/` route.
     #
-    # v18 is what the storefront itself calls today. It reaches it through
-    # ``www.wildberries.ru/__internal/u-search/…``, which is NOT usable here: that
-    # path is fronted by wbaas and answers 403 to any client without the
-    # browser's JS-issued ``x_wbaas_token``. The same version on the API host
-    # serves us directly.
-    wb_search_path: str = Field(default="/__internal/u-search/exactmatch/ru/common/v18/search")
-    # Delivery region the ranking is computed for (see wb_card_dest). This is the
-    # value the storefront itself sends for Moscow today, captured from its own
-    # request on 2026-08-17; the previous `-1257786` still answered, but matching
-    # the storefront removes one difference between our request and the one WB
-    # serves without complaint.
+    # The internal route is strictly better when a session is in hand (10/10 at
+    # ~180 ms) and strictly useless without one — it answers 403 to every
+    # anonymous request. And a session cannot currently be kept: a token copied
+    # from a real browser was revoked about half an hour into server-side use
+    # (measured 2026-08-18, dead afterwards from the VPS *and* from the laptop
+    # that minted it, long before its declared 72 h), while minting one here is
+    # blocked by the headless detection described in scripts/set_search_session.py.
     #
-    # Verified 2026-08-15: within Russia this ranking is not regionalized — this
-    # value and every Russian dest WB's geo resolver hands out (СПб -1198054,
-    # Екатеринбург -5818883, Новосибирск -364764) returned the SAME 100 ids in
-    # the same order. It stays a knob because a non-Russian storefront IS a
-    # different catalogue (.kg, dest=286: 5 178 results against 7 486, and the
-    # same SKU at 53 instead of 26), which is the first thing to check when a
-    # seller reports a position we disagree with.
+    # So the default has to be the host that answers anonymously, even though it
+    # answers only about one request in three. Point this pair at the internal
+    # route the day a session can be sustained; the client already attaches one
+    # whenever the store holds it.
+    wb_search_base_url: str = Field(default="https://search.wb.ru")
+    # A knob because WB retires versions abruptly, and a retired one is
+    # indistinguishable from a rate limit — it answers 429 to everything (v14 did
+    # exactly that between 2026-08-14 and 2026-08-17, while v18 served 100
+    # products in the same minute). See clients/search.py.
+    wb_search_path: str = Field(default="/exactmatch/ru/common/v18/search")
+    # Delivery region the ranking is computed for — the value the storefront
+    # itself sends for Moscow. Within Russia the ranking is NOT regionalized
+    # (verified across four dests, byte-identical top 100), but a non-Russian
+    # storefront is a different catalogue entirely (.kg: 5 178 results against
+    # 7 486, the same SKU at 53 instead of 26) — the first thing to check when a
+    # seller disputes a position. Details in the wildberries-api skill.
     wb_search_dest: int = Field(default=1259570991)
     # Result slots per page; 100 is what the storefront itself requests.
     wb_search_page_size: int = Field(default=100, ge=1, le=300)
@@ -283,12 +279,10 @@ class Settings(BaseSettings):
     # returning early with nothing. Measured on prod 2026-08-17: the interactive
     # budget (one retry, 30s) lost the only pinned phrase to two consecutive
     # 429s, and the run reported SUCCESS having updated nothing.
-    # Five, not three: every attempt is an INDEPENDENT draw, because the proxy
-    # opens a new tunnel and therefore presents a new residential IP each time.
-    # Measured success is roughly one attempt in three, so three attempts clear
-    # ~70% and five clear ~87% — and out here the extra minutes cost nothing but
-    # the worker's patience. Bounded by the per-run keyword ceiling, so a large
-    # pin list still cannot outlive the run's lock.
+    # Five, not three: anonymous success is roughly one attempt in three, and out
+    # here the extra minutes cost nothing but the worker's patience. (Attempts are
+    # NOT independent — the pool's addresses are burned together — so this buys
+    # less than the arithmetic suggests.) Bounded by the per-run keyword ceiling.
     wb_search_task_max_retries: int = Field(default=5, ge=0)
     # NOTE: with a session in hand these ladders almost never engage — a probe is
     # one request that answers in ~200 ms. They remain as the fallback for an
