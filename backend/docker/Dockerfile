@@ -130,9 +130,10 @@ FROM base AS session_minter
 
 USER root
 
-# One shared browser directory, owned by the runtime user. Chromium is ~450 MB;
-# installing to the default per-user cache and then copying it to the minter's
-# home stored it TWICE and pushed the image to 3.6 GB.
+# One shared, world-readable browser directory. Installing to the default
+# per-user cache and copying it to the minter's home stored it TWICE and pushed
+# the image to 3.6 GB. `--only-shell` then fetches just the headless shell rather
+# than the full desktop Chromium, which is the only build this job can use.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 
 # The shared libraries Chromium needs, named explicitly for Debian.
@@ -155,11 +156,14 @@ RUN apt-get update \
         fonts-liberation \
     && python -m ensurepip --upgrade \
     && python -m pip install --no-cache-dir playwright==1.49.1 \
-    && python -m playwright install chromium \
+    && python -m playwright install --only-shell chromium \
     && rm -rf /var/lib/apt/lists/* /root/.cache
 
-RUN useradd --create-home --uid 10003 minter \
-    && chown -R minter:minter /app /opt/ms-playwright
+# No `chown -R` here, deliberately: chowning the browser directory rewrote every
+# file into a new layer and cost 1.26 GB on its own. The minter only READS /app
+# and the browser (both world-readable at 755) and writes to its own home and
+# /tmp, so ownership never needs changing.
+RUN useradd --create-home --uid 10003 minter
 USER minter
 
 # One shot: mint, store, exit. Scheduled from the host's crontab beside the
