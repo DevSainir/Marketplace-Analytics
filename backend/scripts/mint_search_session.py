@@ -21,11 +21,14 @@ Exit codes: 0 minted and stored, 1 the challenge never produced a token.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import sys
 from datetime import UTC, datetime
+from urllib.parse import unquote, urlparse
 
 from playwright.async_api import async_playwright
 
+from src.core.config import settings
 from src.core.logging import configure_logging, get_logger
 from src.integrations.wildberries.search_session import (
     SearchSession,
@@ -66,14 +69,48 @@ _USER_AGENT = (
 _REQUIRED_COOKIES = ("x_wbaas_token", "_wbauid")
 
 
+def _proxy_config() -> dict[str, str] | None:
+    """Playwright proxy settings for the mint, or ``None`` to go direct.
+
+    The MINT needs a residential address even though the requests afterwards do
+    not. Measured 2026-08-18 from the VPS: loading the storefront on its own
+    datacenter IP returns HTTP 498 «Подозрительная активность» — the interstitial,
+    which hands out a placeholder token that every later request answers 403 to.
+    The same storefront through the residential proxy serves the real page.
+
+    So the proxy is now used exactly once a day, for one page load, instead of on
+    every probe: a few MB rather than ~450 KB per search. The token it yields is
+    then usable from our own address, because WB records the issuing IP without
+    enforcing it (verified: a token minted on one IP answered 200 from two others).
+
+    Returns:
+        A Playwright proxy dict, or ``None`` when no proxy is configured.
+    """
+    raw = settings.wb_card_proxy.strip()
+    if not raw:
+        return None
+    parsed = urlparse(raw)
+    if not parsed.hostname:
+        return None
+    config = {"server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"}
+    if parsed.username:
+        config["username"] = unquote(parsed.username)
+    if parsed.password:
+        config["password"] = unquote(parsed.password)
+    return config
+
+
 async def mint() -> SearchSession | None:
     """Drive a headless browser until WB hands over a complete session.
 
     Returns:
         The minted session, or ``None`` when the challenge never completed.
     """
+    proxy = _proxy_config()
+    logger.info("Minting a WB session %s.", "through the proxy" if proxy else "directly")
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(
+            proxy=proxy,
             # --no-sandbox: the container runs unprivileged with no user
             # namespaces, and Chromium's sandbox needs them.
             # --disable-dev-shm-usage: Docker's default /dev/shm is 64 MB and
@@ -115,6 +152,18 @@ async def mint() -> SearchSession | None:
                 if all(required in names for required in _REQUIRED_COOKIES):
                     break
                 await asyncio.sleep(1)
+
+            # Best-effort: this text is a diagnosis, and failing to read it must
+            # not turn a recoverable mint into a crash.
+            body = ""
+            with contextlib.suppress(Exception):
+                body = (await page.inner_text("body"))[:200]
+            if "Подозрительная активность" in body:
+                logger.error(
+                    "WB served the anti-bot interstitial instead of the storefront "
+                    "(the mint needs a residential exit; проверьте WB_CARD_PROXY)."
+                )
+                return None
 
             jar = {str(c["name"]): str(c["value"]) for c in cookies}
             token = jar.get(_TOKEN_COOKIE, "")
