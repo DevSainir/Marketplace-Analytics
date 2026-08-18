@@ -133,12 +133,21 @@ USER root
 # --with-deps installs exactly the shared libraries Chromium needs (fonts,
 # nss, dbus, …). Without them the browser exits immediately with a bare
 # "Target closed", which reads as a WB failure rather than a missing .so.
-# apt-get update first: the base stage deletes /var/lib/apt/lists, and
-# `--with-deps` shells out to apt-get install, which then fails with a bare
-# "exited with code: 100" that says nothing about a missing package index.
+# The shared libraries Chromium needs, named explicitly for Debian.
+#
+# NOT `playwright install --with-deps`: it detects an unsupported OS, falls back
+# to its Ubuntu 20.04 package list, and dies on packages Debian does not carry
+# ("Package 'ttf-unifont' has no installation candidate", surfacing as a bare
+# exit code 100). Listing them here also documents what a headless browser
+# actually costs this image.
 RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
+        libcups2 libdrm2 libgbm1 libxkbcommon0 libxcomposite1 libxdamage1 \
+        libxfixes3 libxrandr2 libpango-1.0-0 libcairo2 libasound2 \
+        fonts-liberation \
     && pip install --no-cache-dir playwright==1.49.1 \
-    && playwright install --with-deps chromium \
+    && playwright install chromium \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home --uid 10003 minter \
