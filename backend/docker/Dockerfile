@@ -133,7 +133,11 @@ USER root
 # --with-deps installs exactly the shared libraries Chromium needs (fonts,
 # nss, dbus, …). Without them the browser exits immediately with a bare
 # "Target closed", which reads as a WB failure rather than a missing .so.
-RUN pip install --no-cache-dir playwright==1.49.1 \
+# apt-get update first: the base stage deletes /var/lib/apt/lists, and
+# `--with-deps` shells out to apt-get install, which then fails with a bare
+# "exited with code: 100" that says nothing about a missing package index.
+RUN apt-get update \
+    && pip install --no-cache-dir playwright==1.49.1 \
     && playwright install --with-deps chromium \
     && rm -rf /var/lib/apt/lists/*
 
