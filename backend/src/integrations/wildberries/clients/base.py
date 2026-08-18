@@ -211,6 +211,7 @@ class BaseWBClient:
         params: dict[str, Any] | None = None,
         json_body: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
+        skip_rate_gate: bool = False,
     ) -> Any:
         """Perform an async request and return the decoded JSON payload.
 
@@ -240,7 +241,8 @@ class BaseWBClient:
         last_exc: httpx.HTTPError | None = None
 
         for attempt in range(self._max_retries + 1):
-            await self._rate_gate.acquire(path)
+            if not skip_rate_gate:
+                await self._rate_gate.acquire(path)
             try:
                 response = await self._client.request(
                     method, path, params=params, json=json_body, headers=headers

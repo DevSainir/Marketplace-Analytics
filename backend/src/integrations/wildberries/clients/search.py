@@ -399,11 +399,23 @@ class WBPublicSearchClient(BaseWBClient):
         # answers reliably; without one, fall back to the host that at least
         # answers anonymously. Absolute URL so one client can reach both.
         target = self._path
-        if session is not None and session.wbaas_token:
+        on_app_surface = session is not None and bool(session.wbaas_token)
+        if on_app_surface and session is not None:
             target = f"{self._mobile_base_url}{self._mobile_path}"
             params = self._mobile_params(params)
         try:
-            payload = await self._request("GET", target, params=params, headers=headers)
+            # The gate paces the ANONYMOUS host, which refuses about two requests
+            # in three. The app surface does not meter us like that — 20 of 20
+            # answered at a few seconds apart — so pacing there just made a check
+            # that takes 0.3s take 30, and every page after the first wait for a
+            # slot it never needed.
+            payload = await self._request(
+                "GET",
+                target,
+                params=params,
+                headers=headers,
+                skip_rate_gate=on_app_surface,
+            )
         except IntegrationError as exc:
             # The probe gives up fast by design (see the retry budget in
             # settings), so retry exhaustion here is the ORDINARY throttled
