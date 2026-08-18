@@ -130,9 +130,11 @@ FROM base AS session_minter
 
 USER root
 
-# --with-deps installs exactly the shared libraries Chromium needs (fonts,
-# nss, dbus, …). Without them the browser exits immediately with a bare
-# "Target closed", which reads as a WB failure rather than a missing .so.
+# One shared browser directory, owned by the runtime user. Chromium is ~450 MB;
+# installing to the default per-user cache and then copying it to the minter's
+# home stored it TWICE and pushed the image to 3.6 GB.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+
 # The shared libraries Chromium needs, named explicitly for Debian.
 #
 # NOT `playwright install --with-deps`: it detects an unsupported OS, falls back
@@ -140,23 +142,27 @@ USER root
 # ("Package 'ttf-unifont' has no installation candidate", surfacing as a bare
 # exit code 100). Listing them here also documents what a headless browser
 # actually costs this image.
+#
+# `python -m pip`, not `pip`: PATH puts the uv-built venv first, so `python` is
+# the venv's — but uv does not install pip INTO the venv, so a bare `pip` is the
+# system one and playwright lands where the venv cannot see it. That failure
+# arrives much later, as ModuleNotFoundError at runtime.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
         libcups2 libdrm2 libgbm1 libxkbcommon0 libxcomposite1 libxdamage1 \
         libxfixes3 libxrandr2 libpango-1.0-0 libcairo2 libasound2 \
         fonts-liberation \
-    && pip install --no-cache-dir playwright==1.49.1 \
-    && playwright install chromium \
-    && rm -rf /var/lib/apt/lists/*
+    && python -m ensurepip --upgrade \
+    && python -m pip install --no-cache-dir playwright==1.49.1 \
+    && python -m playwright install chromium \
+    && rm -rf /var/lib/apt/lists/* /root/.cache
 
 RUN useradd --create-home --uid 10003 minter \
-    && cp -r /root/.cache/ms-playwright /home/minter/.cache-ms-playwright \
-    && chown -R minter:minter /home/minter /app
-ENV PLAYWRIGHT_BROWSERS_PATH=/home/minter/.cache-ms-playwright
+    && chown -R minter:minter /app /opt/ms-playwright
 USER minter
 
 # One shot: mint, store, exit. Scheduled from the host's crontab beside the
-# backup jobs (see docs), not from Celery beat — the browser lives in this
-# image, and the worker has no way to launch it.
+# backup jobs, not from Celery beat — the browser lives in this image, and the
+# worker has no way to launch it.
 CMD ["python", "-m", "scripts.mint_search_session"]
