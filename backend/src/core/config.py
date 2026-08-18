@@ -169,7 +169,10 @@ class Settings(BaseSettings):
     # same anti-bot edge as the card endpoint, whose proxy it inherits (see
     # ``wb_search_proxy``). Its timeout and retry budget are its OWN, and far
     # tighter, because this surface is read while a user waits.
-    wb_search_base_url: str = Field(default="https://search.wb.ru")
+    # The storefront's own host and internal route. Reachable because we now carry
+    # a browser session (see search_session.py); without one it answers 403 to
+    # everything, which is why we used the bare API host for a day.
+    wb_search_base_url: str = Field(default="https://www.wildberries.ru")
     # The API version is a knob because WB retires them abruptly, and a retired
     # version is indistinguishable from a rate limit: it answers 429 to
     # everything. That is exactly what happened between 2026-08-14 (v14 verified
@@ -182,7 +185,7 @@ class Settings(BaseSettings):
     # path is fronted by wbaas and answers 403 to any client without the
     # browser's JS-issued ``x_wbaas_token``. The same version on the API host
     # serves us directly.
-    wb_search_path: str = Field(default="/exactmatch/ru/common/v18/search")
+    wb_search_path: str = Field(default="/__internal/u-search/exactmatch/ru/common/v18/search")
     # Delivery region the ranking is computed for (see wb_card_dest). This is the
     # value the storefront itself sends for Moscow today, captured from its own
     # request on 2026-08-17; the previous `-1257786` still answered, but matching
@@ -227,7 +230,16 @@ class Settings(BaseSettings):
     # ``wb_card_proxy``; ``direct`` forces a direct connection; any other value is
     # used as the proxy URL; empty means direct too.
     #
-    # Proxied on purpose, and this flip-flopped once on bad evidence. On
+    # DIRECT, and this setting has now been through the full argument. It was
+    # direct, then proxied (rotation being the only lever against an IP-reputation
+    # block), and it is direct again for a better reason than either: the block was
+    # never really about the IP. Measured 2026-08-17 from the VPS's own datacenter
+    # address, no proxy, carrying a browser session — 10 of 10 requests answered in
+    # ~180 ms, where the same address cookieless managed about one in three. A
+    # residential exit bought nothing that a session does not buy outright, and it
+    # cost ~450 KB of billed traffic per page.
+    #
+    # Historical note, since this flip-flopped once on bad evidence: On
     # 2026-08-15 a two-request comparison said direct won (200 direct vs 429
     # proxied) — but that was measured while WB was retiring the API version we
     # were calling, so the sample was noise, and we shipped `direct` on it.
@@ -238,7 +250,7 @@ class Settings(BaseSettings):
     # 198.51.100.33). Since we cannot present a browser's JS-issued wbaas token,
     # a clean IP per probe is the only lever left. It costs ~216 KB of billed
     # traffic per page.
-    wb_search_proxy: str = Field(default="card")
+    wb_search_proxy: str = Field(default="direct")
     # Per-request cap for one search page, tighter than the shared 30s: a ranked
     # page is ~220 KB served in well under a second when the host is willing, so
     # a slow read here means throttling, and waiting the full 30s only delays
@@ -278,6 +290,10 @@ class Settings(BaseSettings):
     # the worker's patience. Bounded by the per-run keyword ceiling, so a large
     # pin list still cannot outlive the run's lock.
     wb_search_task_max_retries: int = Field(default=5, ge=0)
+    # NOTE: with a session in hand these ladders almost never engage — a probe is
+    # one request that answers in ~200 ms. They remain as the fallback for an
+    # expired or missing session, when WB is back to refusing two requests in three.
+    #
     # FLAT, not exponential: the ceiling equals the base, so the ladder is
     # 60s + 60s + … rather than 60 + 120 + 120 + 120. Doubling made no sense
     # against a limiter whose window is tens of seconds — it did not improve the

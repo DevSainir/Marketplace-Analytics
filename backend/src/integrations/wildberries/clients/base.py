@@ -210,6 +210,7 @@ class BaseWBClient:
         *,
         params: dict[str, Any] | None = None,
         json_body: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> Any:
         """Perform an async request and return the decoded JSON payload.
 
@@ -241,7 +242,9 @@ class BaseWBClient:
         for attempt in range(self._max_retries + 1):
             await self._rate_gate.acquire(path)
             try:
-                response = await self._client.request(method, path, params=params, json=json_body)
+                response = await self._client.request(
+                    method, path, params=params, json=json_body, headers=headers
+                )
                 await self._observe_rate_headers(path, response)
                 response.raise_for_status()
                 # An empty 200 body (WB returns one for out-of-range historical

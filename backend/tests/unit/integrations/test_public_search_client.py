@@ -126,31 +126,28 @@ async def test_a_throttled_first_page_says_so_in_the_words_the_panel_shows() -> 
     assert raised.value.__cause__ is cause
 
 
-def test_the_probe_borrows_the_card_proxy_by_default() -> None:
-    """A rotating residential exit is the only lever against an IP-reputation block.
+def test_the_probe_goes_direct_even_when_a_card_proxy_is_configured() -> None:
+    """The proxy is no longer this path's answer, and paying for it would be waste.
 
-    This default flip-flopped once: a two-request comparison on 2026-08-15 said
-    direct won, but it was taken while WB was retiring the API version we called,
-    so it measured noise. What holds is that the VPS address earns 498 from the
-    storefront and 429 from the search host once warm, and that the proxy hands
-    out a fresh residential IP per request — while no header or parameter talks
-    the edge down, because it wants a browser's JS-issued token.
+    Rotation was the best lever available while every request was anonymous. With
+    a session the VPS's own address answers 10 of 10 in ~180 ms, so a residential
+    exit buys nothing and costs ~450 KB of billed traffic per page.
     """
     settings = _settings(wb_card_proxy="http://user:pass@residential.example:8000")
+
+    assert WBPublicSearchClient.resolve_proxy(settings) == ""
+
+
+def test_card_opts_back_into_the_proxy_if_this_host_ever_blocks_us_by_address() -> None:
+    """One credential, one place — kept as the escape hatch, not the default."""
+    settings = _settings(
+        wb_card_proxy="http://user:pass@residential.example:8000",
+        wb_search_proxy="card",
+    )
 
     assert (
         WBPublicSearchClient.resolve_proxy(settings) == "http://user:pass@residential.example:8000"
     )
-
-
-def test_direct_is_still_reachable_for_a_host_with_a_clean_ip() -> None:
-    """Local development has nothing to hide behind a proxy, and pays no balance."""
-    settings = _settings(
-        wb_card_proxy="http://user:pass@residential.example:8000",
-        wb_search_proxy="direct",
-    )
-
-    assert WBPublicSearchClient.resolve_proxy(settings) == ""
 
 
 def test_a_proxy_url_never_reaches_a_log_with_its_credentials() -> None:

@@ -113,3 +113,37 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
 
 CMD ["celery", "-A", "src.core.celery_app.celery_app", "worker", \
      "--loglevel=INFO", "--concurrency=4"]
+
+# -------------------------------------------------------------- session_minter
+# A browser, kept OUT of the api and worker images on purpose.
+#
+# Only one job needs Chromium — minting the WB storefront session once a day —
+# and it needs it for a few seconds. Installing it into the worker would put
+# ~400 MB of browser into an image that runs every harvest, on a host with 2 GB
+# free; here it stays in a stage nothing else pulls, started on a schedule and
+# gone again.
+#
+# playwright's own chromium build rather than the distro package: the Python
+# package pins the protocol version it drives, and a distro chromium that
+# upgrades underneath it breaks with an unhelpful handshake error.
+FROM base AS session_minter
+
+USER root
+
+# --with-deps installs exactly the shared libraries Chromium needs (fonts,
+# nss, dbus, …). Without them the browser exits immediately with a bare
+# "Target closed", which reads as a WB failure rather than a missing .so.
+RUN pip install --no-cache-dir playwright==1.49.1 \
+    && playwright install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd --create-home --uid 10003 minter \
+    && cp -r /root/.cache/ms-playwright /home/minter/.cache-ms-playwright \
+    && chown -R minter:minter /home/minter /app
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/minter/.cache-ms-playwright
+USER minter
+
+# One shot: mint, store, exit. Scheduled from the host's crontab beside the
+# backup jobs (see docs), not from Celery beat — the browser lives in this
+# image, and the worker has no way to launch it.
+CMD ["python", "-m", "scripts.mint_search_session"]

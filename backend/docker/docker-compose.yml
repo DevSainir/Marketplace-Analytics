@@ -178,6 +178,37 @@ services:
   api_standby:
     <<: *api
 
+  # The daily browser. Not started by `up`: it is a one-shot run, scheduled from
+  # the host crontab beside the backups, and it exits as soon as it has a token.
+  #
+  #   docker compose … run --rm -T session_minter
+  #
+  # `profiles` is what keeps it out of `up -d`; without it the stack would try to
+  # keep a finished container running and Chromium would idle in memory all day.
+  session_minter:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: session_minter
+    profiles: ["tools"]
+    restart: "no"
+    # Chromium is the memory-hungry part of this box for the seconds it runs.
+    # Capped so a runaway page cannot squeeze Postgres or the worker out.
+    mem_limit: 768m
+    cpus: 1.0
+    # Chromium's default /dev/shm inside Docker is 64 MB and it will exhaust it
+    # mid-navigation; the launch flags avoid /dev/shm, this is the belt to that
+    # brace.
+    shm_size: 256m
+    env_file:
+      - .env
+    environment:
+      REDIS_HOST: redis
+      POSTGRES_HOST: postgres
+    depends_on:
+      redis:
+        condition: service_healthy
+
   # Single entry point: nginx serves the built SPA and reverse-proxies /api/
   # to the api container over the internal Docker network (see
   # ../frontend/docker/nginx.conf). Only port published in the base topology.

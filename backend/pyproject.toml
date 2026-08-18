@@ -110,6 +110,12 @@ explicit_package_bases = true
 module = ["celery.*"]
 ignore_missing_imports = true
 
+# Playwright is installed only in the session_minter image (the browser is kept
+# out of the api and worker images), so the type checker never sees it here.
+[[tool.mypy.overrides]]
+module = ["playwright.*"]
+ignore_missing_imports = true
+
 [[tool.mypy.overrides]]
 module = ["openpyxl.*", "docx.*", "xlsxwriter.*", "xlrd.*"]
 ignore_missing_imports = true

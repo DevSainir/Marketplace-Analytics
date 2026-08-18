@@ -1,58 +1,54 @@
-"""Position probe against the public WB search host (search.wb.ru).
+"""Position probe against WB's public storefront search.
 
 Answers "where does this SKU rank when a shopper types this phrase" — the one
 question no seller API answers. The advertising surface reports the average
-position of PAID impressions inside a search cluster; the ranked organic list
-exists only on the storefront, so this client reads the storefront.
+position of PAID impressions inside a cluster; the ranked organic list exists
+only on the storefront, so this client reads the storefront.
 
-Verified live 2026-08-14 against ``GET /exactmatch/ru/common/v14/search``:
+**The session is the whole game.** WB's `wbaas` edge does not judge this request
+by its IP, its headers, its HTTP version or its host — it judges whether the
+caller carries a session it issued. Measured 2026-08-17 from the production VPS,
+on its own datacenter address, no proxy:
 
-* The API **version is load-bearing**. ``v14`` served full result pages while
-  ``v13`` and ``v5`` answered HTTP 429 to every request from the same IP in the
-  same minute — a retired version fails as if you were rate-limited. It is a
-  settings knob for exactly that reason.
-* Params: ``query``, ``page`` (1-based), ``limit`` (100 = what the storefront
-  itself asks for), plus ``dest``, ``spp``, ``resultset=catalog``, ``sort``,
-  ``appType``, ``curr``. Response: ``{"metadata": {"normquery": ...},
-  "products": [...], "total": N}``, ``products`` in rank order.
-* **Every request opens its own tunnel.** The proxy rotates its residential exit
-  per connection, so keep-alive silently defeats it: measured 2026-08-17, one
-  reused tunnel answered 1 of 4 requests (and dropped twice), while a fresh
-  tunnel per request answered 3 of 4. A retry that reuses the connection is a
-  retry against the IP that just refused us.
-* **Throttled per IP, hard.** Back-to-back requests answer 429 even one per
-  25 s; ~1/min was sustainable. Pages are therefore fetched one at a time AND
-  paced by a shared Redis token bucket (:func:`search_rate_gate`) — sequential
-  is not the same as paced, and for a while this client only managed the former:
-  three pages left in the same second, which tripped the edge on the probe's own
-  first page and left the next press inside the penalty window. The depth is
-  bounded by settings and the caller caches the result.
-* A throttled request is **not always** a 429: the same query was answered HTTP
-  200 with an ordinary envelope, zero products and ``total: 0``, then 100
-  products and ``total: 109542`` a minute later. An empty first page is
-  therefore rejected rather than reported as "ranks nowhere".
+* cookieless — **~1 request in 3 answered**, the rest 429, retries taking minutes;
+* carrying a browser session — **10 of 10 answered, ~180 ms each**.
+
+Everything else in this file's history was an attempt to fix that from the wrong
+side: pacing, rotating residential proxies, fresh tunnels per request, flattened
+retry ladders, three API versions. They each moved the number a little; the
+session moved it to 100%. See :mod:`src.integrations.wildberries.search_session`
+for how one is minted (a headless browser, once a day) and why one mint lasts.
+
+Endpoint, verified 2026-08-17:
+
+``GET https://www.wildberries.ru/__internal/u-search/exactmatch/ru/common/v18/search``
+
+* This is the storefront's OWN route, which answers 403 to anyone without a
+  session — the reason we used the bare ``search.wb.ru`` host until now.
+* The version is load-bearing and WB retires versions without notice: v14 served
+  full pages on 2026-08-14 and refused everything by 2026-08-17, from every IP,
+  proxied or not, while v18 answered in the same minute. **A retired version is
+  indistinguishable from a rate limit**, so when 429s become universal, check the
+  version before blaming the network. It is a settings knob for that reason.
+* Params are the storefront's own set (``lang``, ``locale``, ``hide_dtype``,
+  ``hide_vflags``, ``inheritFilters``, ``suppressSpellcheck``, ``ab_testid``,
+  plus ``dest``/``spp``/``resultset``/``sort``). Response keeps
+  ``metadata.normquery`` and ``products[].id`` and **no longer carries `total`**,
+  so an absent total means UNKNOWN, never "no results".
 * ``metadata.normquery`` is WB's own normalization of the phrase and can reorder
-  it («носки мужские» → «мужские носки»). It is the same key the advertising
-  clusters carry, which is what lets a live probe be lined up against them.
-* Unlike ``card.wb.ru``, this host does **not** need curl's TLS fingerprint —
-  ``httpx`` was served 200s (including one 220 KB page) in the same session in
-  which ``curl`` was being 429'd, so this rides the normal async client.
+  it («носки мужские» → «мужские носки»). It is the key the advertising clusters
+  are filed under, which is what lets a live probe line up against them.
+* A throttled request is **not always** a 429: the same phrase was answered 200
+  with an ordinary envelope and zero products, then 100 products a minute later.
+  An empty first page is therefore treated as a block, never as "ranks nowhere".
 
-**Why it does NOT go through the card proxy.** It briefly did, on the assumption
-that this host shares card.wb.ru's block on datacenter egress (403 there since
-2026-07-14). Measured from the production VPS on 2026-08-15, the same query
-seconds apart, that assumption was wrong in the worst way: **direct answered 200
-with a full page while the residential proxy answered 429.** This edge does not
-block our address, it rate-limits per IP — and a shared proxy exit arrives with
-that budget already spent by somebody else. Proxying made throttling MORE likely
-and cost ~216 KB of billed traffic per page. Default is direct;
-``WB_SEARCH_PROXY=card`` opts back in if this host ever starts blocking us too
-(see :meth:`WBPublicSearchClient.resolve_proxy`).
+The pacing gate, the retry ladder and the proxy knob all remain, and all are now
+fallbacks for a missing or expired session rather than the primary mechanism.
 
-**What a position means, and does not.** The ranking is computed for the
-``dest`` (delivery region) and ``spp`` (loyalty tier) sent with the request and
-moves within the hour. A probe is a timestamped sample for one shopper profile,
-never a stored fact — which is why nothing here is persisted.
+**What a position means, and does not.** The ranking is computed for the ``dest``
+(delivery region) and ``spp`` (loyalty tier) sent with the request and moves
+within the hour. A probe is a timestamped sample for one shopper profile, never a
+stored fact.
 
 > Unofficial endpoint, used deliberately: it is the only source of organic
 > position. A failure degrades the panel, never the harvest.
@@ -71,6 +67,7 @@ from src.core.logging import get_logger
 from src.integrations.wildberries.clients.base import BaseWBClient
 from src.integrations.wildberries.rate_limit import search_rate_gate
 from src.integrations.wildberries.schemas import WBSearchPage
+from src.integrations.wildberries.search_session import SearchSession, load_session
 
 logger = get_logger(__name__)
 
@@ -108,42 +105,46 @@ class SearchProbe:
 class WBPublicSearchClient(BaseWBClient):
     """Reads ranked pages from WB's public search and locates given SKUs."""
 
-    #: Headers the WB storefront SPA sends. The endpoint answered without them
-    #: too, but an unadorned API-client signature is the first thing an anti-bot
-    #: edge filters on (card.wb.ru already blocks one), so they are sent.
+    #: Headers the storefront's own SPA sends with this request, captured from a
+    #: working browser call. Sent because the edge scores the whole shape of the
+    #: request, and the ones it clearly reads are here: `x-requested-with`,
+    #: `x-spa-version` and the `sec-*` group. The User-Agent is NOT here — it comes
+    #: from the session, because the token embeds the UA it was minted with and a
+    #: mismatched pair presents a session that contradicts itself.
     _HEADERS: ClassVar[dict[str, str]] = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Origin": "https://www.wildberries.ru",
-        "Referer": "https://www.wildberries.ru/",
+        "Accept": "*/*",
+        "Accept-Language": "ru,ru-RU;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://www.wildberries.ru/catalog/0/search.aspx",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "x-requested-with": "XMLHttpRequest",
+        "x-spa-version": "14.21.3",
+        "x-userid": "0",
+        "priority": "u=1, i",
     }
 
     @staticmethod
     def resolve_proxy(settings: Settings) -> str:
         """The forward proxy this client should use, or ``""`` for direct.
 
-        Proxied by default (``card`` reuses ``wb_card_proxy``, one credential in
-                one place); ``direct`` or an empty value forces a direct connection, and
-                anything else is taken as a proxy URL.
+        DIRECT by default, and this setting has been round the houses: direct,
+        then ``card`` (rotation being the only lever we had against what looked
+        like an IP-reputation block), and direct again for a better reason than
+        either — the block was never really about the IP. With a session, the
+        VPS's own datacenter address answers 10 of 10 in ~180 ms; a residential
+        exit buys nothing a session does not, and costs ~450 KB of billed traffic
+        per page.
 
-                We shipped ``direct`` once, on a two-request comparison taken while WB
-                was retiring the API version we called — noise mistaken for a result.
-                What holds is that this edge scores IP REPUTATION and escalates: the
-                VPS address collects HTTP 498 from the storefront and 429 from the search
-                host once warm, and no header or param talks it down. The proxy rotates
-                residential exits per request (verified 2026-08-17: three IPs in three
-                requests), so each probe starts clean — the only lever available while we
-                cannot present the browser's JS-issued ``x_wbaas_token``.
+        ``card`` reuses ``wb_card_proxy`` (one credential, one place) if this host
+        ever does start blocking us by address; any other value is a proxy URL.
 
-                Args:
-                    settings: The application settings.
+        Args:
+            settings: The application settings.
 
-                Returns:
-                    The proxy URL, or an empty string for a direct connection.
+        Returns:
+            The proxy URL, or an empty string for a direct connection.
         """
         configured = settings.wb_search_proxy.strip()
         if not configured or configured.casefold() == "direct":
@@ -298,6 +299,22 @@ class WBPublicSearchClient(BaseWBClient):
             positions=sorted(found.values(), key=lambda position: position.position),
         )
 
+    @staticmethod
+    def _session_headers(session: SearchSession | None) -> dict[str, str] | None:
+        """Cookie + UA headers for a stored session, or ``None`` without one.
+
+        Anonymous is a supported state, not an error: WB answers roughly one such
+        request in three, so a missing session degrades the probe instead of
+        breaking it — and the ladder above exists for exactly that case.
+        """
+        if session is None:
+            return None
+        return {
+            "Cookie": session.cookie_header,
+            "User-Agent": session.user_agent,
+            "deviceid": session.device_id,
+        }
+
     async def _fetch_page(self, *, query: str, page: int) -> WBSearchPage:
         """Fetch and validate one ranked result page.
 
@@ -335,8 +352,13 @@ class WBPublicSearchClient(BaseWBClient):
             "limit": self._page_size,
             "query": query,
         }
+        # Read per request rather than at construction: a client can outlive a
+        # session (the minter refreshes daily), and a probe that started with the
+        # old cookies would look throttled for reasons nothing logs.
+        session = await load_session()
+        headers = self._session_headers(session)
         try:
-            payload = await self._request("GET", self._path, params=params)
+            payload = await self._request("GET", self._path, params=params, headers=headers)
         except IntegrationError as exc:
             # The probe gives up fast by design (see the retry budget in
             # settings), so retry exhaustion here is the ORDINARY throttled
