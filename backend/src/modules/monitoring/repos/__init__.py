@@ -10,6 +10,7 @@ from src.modules.monitoring.repos.advertising_clusters import AdvertisingCluster
 from src.modules.monitoring.repos.advertising_search import AdvertisingSearchRepository
 from src.modules.monitoring.repos.campaigns import CampaignRepository
 from src.modules.monitoring.repos.day_actions import SkuDayActionRepository
+from src.modules.monitoring.repos.fbs_warehouses import FbsWarehouseRepository
 from src.modules.monitoring.repos.funnel import FunnelRepository
 from src.modules.monitoring.repos.matrix_override import MatrixOverrideRepository
 from src.modules.monitoring.repos.pinned_keywords import PinnedKeywordRepository
@@ -29,6 +30,7 @@ __all__ = [
     "AdvertisingRepository",
     "AdvertisingSearchRepository",
     "CampaignRepository",
+    "FbsWarehouseRepository",
     "FunnelRepository",
     "MatrixOverrideRepository",
     "PinnedKeywordRepository",

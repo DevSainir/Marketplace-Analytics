@@ -49,7 +49,7 @@ from src.modules.monitoring.repos import (
 )
 from src.modules.monitoring.services import IngestionService
 from src.modules.monitoring.tasks.common import _TASK_RETRY_KWARGS, _unwrap
-from src.modules.monitoring.tasks.fbs import fetch_fbs_stock_rows
+from src.modules.monitoring.tasks.fbs import fetch_fbs_stock_rows, known_warehouse_labels
 from src.modules.monitoring.tasks.planning import (
     _advertising_harvest_ids,
     _candidate_search_pairs,
@@ -296,15 +296,18 @@ async def _harvest_sku_window(
         search_stats = _unwrap(search_res, "search-zone")
         # ``None`` (source failed) leaves the sale/return records untouched.
         sales = _unwrap(sales_res, "sales")
-        # FBS rows join the FBO ones in the same table under their own warehouse
-        # label. When the FBS source fails while FBO succeeded, its warehouse is
-        # spared from the absence-means-zero sweep: the two sources fail
-        # independently, and sweeping would report the seller's warehouse as
-        # emptied rather than unread.
-        fbs_rows = _unwrap(fbs_res, "stocks-fbs") or []
-        stock_rows = [*stock_rows, *fbs_rows]
+        # FBS rows join the FBO ones in the same table, each under its own
+        # warehouse label. Any FBS warehouse we did not manage to read is spared
+        # from the absence-means-zero sweep — the sources fail independently, and
+        # sweeping would report the seller's warehouse as emptied rather than
+        # unread. A wholesale FBS failure spares every label we know of, since
+        # without a read there is nothing to tell us which warehouses exist.
+        fbs = _unwrap(fbs_res, "stocks-fbs")
+        stock_rows = [*stock_rows, *(fbs.rows if fbs else [])]
         keep_warehouses = (
-            (settings.wb_fbs_warehouse_label,) if isinstance(fbs_res, BaseException) else ()
+            await known_warehouse_labels()
+            if isinstance(fbs_res, BaseException)
+            else (fbs.unread if fbs else ())
         )
 
         # Which sources WB actually withheld. Reported all the way to the UI so

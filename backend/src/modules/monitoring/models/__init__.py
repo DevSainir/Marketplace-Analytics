@@ -19,6 +19,7 @@ from src.modules.monitoring.models.campaigns import (
     normalize_type,
 )
 from src.modules.monitoring.models.day_actions import SkuDayAction
+from src.modules.monitoring.models.fbs_warehouses import LABEL_MAX_LENGTH, FbsWarehouse
 from src.modules.monitoring.models.matrix_override import MatrixOverride
 from src.modules.monitoring.models.pinned_keywords import KEYWORD_MAX_LENGTH, PinnedKeyword
 from src.modules.monitoring.models.pinned_skus import PinnedSku
@@ -33,12 +34,14 @@ from src.modules.monitoring.models.warehouse_marks import WarehouseMark
 __all__ = [
     "CLUSTER_MAX_LENGTH",
     "KEYWORD_MAX_LENGTH",
+    "LABEL_MAX_LENGTH",
     "WB_STATUS_LABELS",
     "WB_TYPE_LABELS",
     "AdvertisingClusterStatDaily",
     "AdvertisingSearchStatDaily",
     "AdvertisingStatDaily",
     "Campaign",
+    "FbsWarehouse",
     "MatrixOverride",
     "PinnedKeyword",
     "PinnedSku",

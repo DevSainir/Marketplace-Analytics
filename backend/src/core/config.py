@@ -127,21 +127,21 @@ class Settings(BaseSettings):
     # Marketplace surface: seller-owned (FBS) warehouses and their stock. Needs
     # a «Маркетплейс»-scope token; no other category authenticates this host.
     wb_marketplace_base_url: str = Field(default="https://marketplace-api.wildberries.ru")
-    # The ONE FBS warehouse whose stock is harvested, and the label it shows
-    # under in the stock and balance tables.
-    #
-    # Deliberately a single id rather than a list: the account owns five FBS
-    # warehouses but four are test/cross-border stubs holding nothing (verified
-    # 2026-08-13), and enabling them would spend rate budget to write zeroes.
-    # ``0`` disables FBS harvesting entirely.
-    #
-    # The label is configured rather than taken from WB because the seller's own
-    # warehouse name is a working note («Иван  - Москва (Внуково) НЕ
-    # УДАЛЯТЬ!!!») that would become a column header — and because
-    # ``warehouse_name`` is a primary-key column, so a rename in the WB portal
-    # would otherwise orphan every stored snapshot row and «Отгрузить» mark.
-    wb_fbs_warehouse_id: int = Field(default=9945803, ge=0)
-    wb_fbs_warehouse_label: str = Field(default="Москва (Внуково) (FBS)")
+    # FBS (seller-warehouse) stock. Every warehouse WB lists for the seller is
+    # discovered and read — a warehouse opened in the portal is harvested on the
+    # next run, with no deploy — so there is no id list here. ``False`` switches
+    # FBS harvesting off entirely.
+    wb_fbs_harvest_enabled: bool = True
+    # Display labels for warehouses whose WB name should not become a column
+    # header (the seller's names are working notes: «Иван  - Москва
+    # (Внуково) НЕ УДАЛЯТЬ!!!»); anything absent is labelled from WB's name.
+    # Read ONCE per warehouse, at discovery, then frozen in
+    # ``monitoring.fbs_warehouse`` — ``stock_snapshot.warehouse_name`` is a
+    # primary key, so editing an entry later starts a new column and orphans
+    # that warehouse's stock history and «Отгрузить» marks.
+    wb_fbs_warehouse_labels: dict[int, str] = Field(
+        default_factory=lambda: {9945803: "Москва (Внуково) (FBS)"}
+    )
     # Public storefront card endpoint (card.wb.ru) — the final customer price
     # after ALL discounts incl. WB loyalty (СПП). Unauthenticated. ``dest`` is a
     # region/delivery code and ``spp`` the loyalty tier the storefront prices

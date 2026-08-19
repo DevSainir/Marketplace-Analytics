@@ -315,18 +315,34 @@ class SyntheticStatisticsClient(_SyntheticWBClient, WBStatisticsClient):
 
 
 class SyntheticMarketplaceClient(_SyntheticWBClient, WBMarketplaceClient):
-    """One FBS warehouse holding a deterministic slice of the asked-for sizes."""
+    """Several FBS warehouses, each holding a deterministic slice of the sizes."""
 
     async def fetch_warehouses(self) -> list[WBFbsWarehouse]:
-        """The single configured FBS warehouse, so local dev matches prod's shape."""
-        return [
+        """The configured warehouses plus one unnamed in config.
+
+        More than one, and one WITHOUT a configured label, so a local run
+        exercises the shape prod actually has: several warehouses read in turn,
+        and a newly discovered one labelled from WB's own name.
+        """
+        configured = [
             WBFbsWarehouse(
-                id=self._settings.wb_fbs_warehouse_id,
-                name=self._settings.wb_fbs_warehouse_label,
+                id=warehouse_id,
+                name=label,
                 office_id=236,
                 cargo_type=1,
                 delivery_type=1,
             )
+            for warehouse_id, label in sorted(self._settings.wb_fbs_warehouse_labels.items())
+        ]
+        return [
+            *configured,
+            WBFbsWarehouse(
+                id=3300771,
+                name="Иван  - Тула НЕ УДАЛЯТЬ!!!",
+                office_id=507,
+                cargo_type=1,
+                delivery_type=1,
+            ),
         ]
 
     async def fetch_stocks(self, *, warehouse_id: int, skus: list[str]) -> list[WBFbsStockRow]:
