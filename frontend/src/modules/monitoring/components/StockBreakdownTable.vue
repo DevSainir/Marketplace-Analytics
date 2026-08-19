@@ -75,9 +75,16 @@ const warehouses = computed(() => {
   for (const cell of props.cells) {
     totals.set(cell.warehouse_name, (totals.get(cell.warehouse_name) ?? 0) + cell.quantity)
   }
-  return [...totals]
-    .map(([name, total]) => ({ name, total, marked: markedSet.value.has(name) }))
-    .sort((a, b) => b.marked - a.marked || b.total - a.total || a.name.localeCompare(b.name, 'ru'))
+  return (
+    [...totals]
+      .map(([name, total]) => ({ name, total, marked: markedSet.value.has(name) }))
+      // WB reports every seller warehouse, stubs included, so an empty one is a
+      // column of zeros. A MARKED one stays: «we ship there and it is empty».
+      .filter((w) => w.total > 0 || w.marked)
+      .sort(
+        (a, b) => b.marked - a.marked || b.total - a.total || a.name.localeCompare(b.name, 'ru'),
+      )
+  )
 })
 
 const rows = computed(() => {

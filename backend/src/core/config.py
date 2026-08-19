@@ -127,20 +127,21 @@ class Settings(BaseSettings):
     # Marketplace surface: seller-owned (FBS) warehouses and their stock. Needs
     # a «Маркетплейс»-scope token; no other category authenticates this host.
     wb_marketplace_base_url: str = Field(default="https://marketplace-api.wildberries.ru")
-    # FBS (seller-warehouse) stock. Every warehouse WB lists for the seller is
-    # discovered and read — a warehouse opened in the portal is harvested on the
-    # next run, with no deploy — so there is no id list here. ``False`` switches
-    # FBS harvesting off entirely.
+    # Every FBS warehouse WB lists for the seller is discovered and read, so a
+    # warehouse opened in the portal needs no deploy. ``False`` switches FBS off.
     wb_fbs_harvest_enabled: bool = True
-    # Display labels for warehouses whose WB name should not become a column
-    # header (the seller's names are working notes: «Иван  - Москва
-    # (Внуково) НЕ УДАЛЯТЬ!!!»); anything absent is labelled from WB's name.
-    # Read ONCE per warehouse, at discovery, then frozen in
-    # ``monitoring.fbs_warehouse`` — ``stock_snapshot.warehouse_name`` is a
-    # primary key, so editing an entry later starts a new column and orphans
-    # that warehouse's stock history and «Отгрузить» marks.
+    # Column headers by warehouse id; anything absent is labelled from WB's own
+    # name, which is a seller's working note. Read ONCE at discovery and then
+    # FROZEN — see monitoring/models/fbs_warehouses.py before editing an entry.
     wb_fbs_warehouse_labels: dict[int, str] = Field(
-        default_factory=lambda: {9945803: "Москва (Внуково) (FBS)"}
+        default_factory=lambda: {
+            9945803: "Москва (Внуково) (FBS)",  # ships
+            9990254: "Москва (Белая дача) (FBS)",  # ships (empty as of 19.08)
+            9931578: "Бишкек (FBS)",
+            9830567: "Бишкек EDBS (FBS)",
+            9041173: "Тест товаров (FBS)",
+            9684293: "Тест 2 (FBS)",
+        }
     )
     # Public storefront card endpoint (card.wb.ru) — the final customer price
     # after ALL discounts incl. WB loyalty (СПП). Unauthenticated. ``dest`` is a
