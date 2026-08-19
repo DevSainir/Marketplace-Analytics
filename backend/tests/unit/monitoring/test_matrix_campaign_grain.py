@@ -89,3 +89,44 @@ def test_the_cards_own_columns_keep_the_cards_own_share() -> None:
     assert _cell(rows, "clicks", 0, "organic") == 390  # 400 opens - the card's 10
     assert _cell(rows, "carts", 0, "organic") == 35  # 40 - the card's 5
     assert _cell(rows, "orders", 0, "organic") == 10  # 12 - the card's 2
+
+
+def test_a_siblings_campaign_does_not_claim_a_column_here() -> None:
+    """A campaign that never advertised THIS card paints no column on its page.
+
+    WB books a campaign's conversions on whichever variant the buyer picked, so
+    a card collects orders from campaigns promoting its siblings — with no
+    traffic and no spend of its own (live on 2026-08-18: this card carried 2
+    orders of a campaign that spent 6 483 ₽ advertising another one). Judged by
+    the campaign's numbers such a campaign clears every significance test and,
+    ranked by Показы, displaces the campaign that actually runs here.
+
+    So what a column SHOWS is the whole кампания; what puts it on this page is
+    the card's own delivery.
+    """
+    rows = _matrix(
+        campaigns={
+            1: _campaign(1, "manual", search=False, shelves=True),
+            2: _campaign(2, "manual", search=True, shelves=False),
+        },
+        ad_rows=[
+            # The campaign that advertises this card.
+            _ad_row(1, DAY1, views=1000, clicks=50, add_to_cart=20, spend=8000, orders=22),
+            # A sibling's campaign: conversions booked here, no traffic, no spend.
+            _ad_row(2, DAY1, views=0, clicks=0, add_to_cart=5, spend=0, orders=2),
+        ],
+        campaign_totals=[
+            _campaign_total(1, DAY1, views=1200, clicks=60, add_to_cart=30, spend=9000, orders=32),
+            # Far bigger than the campaign that runs here, on another card.
+            _campaign_total(
+                2, DAY1, views=9000, clicks=400, add_to_cart=166, spend=8027, orders=82
+            ),
+        ],
+        funnel_rows=[_funnel_row(DAY1, open_count=400, cart_count=40, order_count=40)],
+    )
+
+    assert _cell(rows, "spend", 0, "manual_shelves") == 9000  # the card's campaign
+    assert _cell(rows, "orders", 0, "manual_shelves") == 32
+    # …and the sibling's campaign is nowhere in this card's columns.
+    assert _cell(rows, "spend", 0, "manual_search") is None
+    assert _cell(rows, "orders", 0, "manual_search") is None

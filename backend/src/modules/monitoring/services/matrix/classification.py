@@ -260,7 +260,7 @@ def _select_day_buckets(
     A SKU realistically has one — at most two — campaigns actually bringing
     traffic (a paused campaign can still deliver, so status is ignored; only real
     paid delivery counts). A campaign-day must first clear
-    :data:`_MIN_CAMPAIGN_DAY_SPEND` to count as delivering at all — a real
+    :data:`_MIN_CAMPAIGN_DAY_SPEND` ON THIS CARD to count as delivering at all — a real
     campaign spends thousands of ₽ on the days it runs, so a few ₽ of residual
     trickle is not a campaign the SKU's traffic should be attributed to.
     Survivors are ranked by Показы; the leader is kept, and a second is kept
@@ -270,7 +270,7 @@ def _select_day_buckets(
 
     A surviving campaign keeps ALL its zones: a unified campaign's WB search /
     shelves split is shown in full (even a 99/1 split), because that division is
-    WB's own. A zone leg with no impressions is omitted (nothing to show).
+    WB's own. A zone leg the card had no impressions in is omitted.
 
     Args:
         campaigns_today: One ``(campaign total, zone legs)`` entry per delivering
@@ -281,26 +281,34 @@ def _select_day_buckets(
     Returns:
         The surviving ``bucket_key -> input DTO`` map.
     """
+    # Selection reads the CARD's own delivery, never the campaign's. A campaign
+    # promoting a sibling variant books associated conversions here with no
+    # traffic and no spend of its own (live: this card carries 2 orders of a
+    # campaign that spent 6 483 ₽ on another card) — its column belongs on the
+    # card it advertises, not on this one, and ranked by campaign Показы it
+    # would out-rank the campaign that actually runs here. What the surviving
+    # column then SHOWS is the whole кампания; what puts it on this page is the
+    # card's own share of it.
     candidates = [
         (total, legs)
         for total, legs in campaigns_today
-        if total.views > 0 and total.spend >= _MIN_CAMPAIGN_DAY_SPEND
+        if total.sku.views > 0 and total.sku.spend >= _MIN_CAMPAIGN_DAY_SPEND
     ]
-    candidates.sort(key=lambda entry: entry[0].views, reverse=True)
+    candidates.sort(key=lambda entry: entry[0].sku.views, reverse=True)
     if not candidates:
         return {}
 
     kept = [candidates[0]]
-    leader_views = candidates[0][0].views
+    leader_views = candidates[0][0].sku.views
     if len(candidates) > 1 and (
-        candidates[1][0].views >= _SECONDARY_MIN_CAMPAIGN_VIEW_RATIO * leader_views
+        candidates[1][0].sku.views >= _SECONDARY_MIN_CAMPAIGN_VIEW_RATIO * leader_views
     ):
         kept.append(candidates[1])
 
     bucket_acc: dict[str, _BucketAcc] = {}
     for _total, legs in kept:
         for bucket_key, slice_ in legs:
-            if slice_.views <= 0:
-                continue  # no impressions in this zone -> nothing to show
+            if slice_.sku.views <= 0:
+                continue  # the card had no impressions in this zone
             bucket_acc.setdefault(bucket_key, _BucketAcc()).add(slice_)
     return {name: _bucket_base(acc, sku_labels) for name, acc in bucket_acc.items()}
