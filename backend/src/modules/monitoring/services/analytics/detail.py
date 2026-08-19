@@ -33,7 +33,11 @@ from src.modules.monitoring.repos import (
     StockRepository,
     WarehouseMarkRepository,
 )
-from src.modules.monitoring.repos.advertising import CampaignDaySkuTotal, CampaignDayTotal
+from src.modules.monitoring.repos.advertising import (
+    CampaignDaySkuTotal,
+    CampaignDayTotal,
+    CampaignSearchDayTotal,
+)
 from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas import (
     DayActionState,
@@ -70,6 +74,7 @@ class MatrixInputs:
     price_snapshots: list[PriceSnapshot]
     stock_daily: list[StockDailyTotal]
     campaign_totals: list[CampaignDayTotal]
+    campaign_search_totals: list[CampaignSearchDayTotal]
     campaign_sku_totals: list[CampaignDaySkuTotal]
     sku_labels: dict[int, str | None]
 
@@ -88,6 +93,7 @@ def derive_fact_base(
         price_snapshots=inputs.price_snapshots,
         stock_daily=inputs.stock_daily,
         campaign_totals=inputs.campaign_totals,
+        campaign_search_totals=inputs.campaign_search_totals,
         campaign_sku_totals=inputs.campaign_sku_totals,
         sku_labels=inputs.sku_labels,
         nm_id=nm_id,
@@ -305,10 +311,16 @@ class DetailAnalytics:
             nm_id=nm_id, date_from=date_from, date_to=date_to, campaign_id=campaign_id
         )
         campaigns = await self._campaigns.get_by_ids({row.campaign_id for row in ad_rows})
-        # All-variant conversion totals of the same campaigns — the associative
-        # «100» decorating the SKU's own «71» in the matrix carts/orders cells.
+        # The campaigns' OWN totals across every nm_id they delivered for —
+        # what the advertising columns measure. The SKU's rows above stay the
+        # card's share of them («Общая»/«Органика», and the hover's split).
         campaign_ids = {row.campaign_id for row in ad_rows}
         campaign_totals = await self._advertising.campaign_day_totals(
+            campaign_ids=campaign_ids,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        campaign_search_totals = await self._advertising_search.campaign_day_totals(
             campaign_ids=campaign_ids,
             date_from=date_from,
             date_to=date_to,
@@ -346,6 +358,7 @@ class DetailAnalytics:
             price_snapshots=price_snapshots,
             stock_daily=stock_daily,
             campaign_totals=campaign_totals,
+            campaign_search_totals=campaign_search_totals,
             campaign_sku_totals=campaign_sku_totals,
             sku_labels=sku_labels,
         )

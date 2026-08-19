@@ -18,7 +18,7 @@ from src.modules.monitoring.services.matrix.pricing import (
     ad_buyout_sum,
     ad_order_sum,
 )
-from src.modules.monitoring.services.matrix.slices import _BucketAcc, _percent, _ratio
+from src.modules.monitoring.services.matrix.slices import _BucketAcc, _percent, _ratio, _SkuSlice
 
 
 def _shown(day: MatrixDayBase, bucket: str, metric: str, computed: float | None) -> float | None:
@@ -46,6 +46,13 @@ def _ad_cell(
     ``day`` carries the price and the lagged buyout percent the revenue rows are
     derived from (see :func:`ad_order_sum`).
 
+    Every metric here is the кампания's — an ad bucket carries no other kind
+    (see :class:`~...slices._AdSlice`) — so every ratio describes what the
+    campaign spent and brought, not the fraction of it that happened to be
+    booked on the card on screen. The card's own share is emitted separately by
+    the ``carts_sku``/``orders_sku`` rows, which the hover reports as the
+    associated split.
+
     ``None`` (rendered «—») when no campaign of the bucket delivered that day, or
     the metric is not obtainable for ad buckets («Процент выкупа» is a
     SKU-level cohort window, not a per-campaign fact).
@@ -70,16 +77,16 @@ def _ad_cell(
             return float(acc.clicks)
         case "carts":
             return float(acc.add_to_cart)
-        case "carts_assoc":
-            # Emitted only when associated variants actually converted — the
-            # frontend then decorates the carts cell as «assoc(sku)».
-            return float(acc.assoc_add_to_cart) if acc.assoc_add_to_cart > acc.add_to_cart else None
+        case "carts_sku":
+            # Emitted only when the campaign booked carts on OTHER variants —
+            # the frontend reports the difference as the associated share.
+            return float(acc.sku.add_to_cart) if acc.sku.add_to_cart < acc.add_to_cart else None
         case "cart_conversion":
             return _percent(acc.add_to_cart, acc.clicks)
         case "orders":
             return float(acc.orders)
-        case "orders_assoc":
-            return float(acc.assoc_orders) if acc.assoc_orders > acc.orders else None
+        case "orders_sku":
+            return float(acc.sku.orders) if acc.sku.orders < acc.orders else None
         case "order_conversion":
             return _percent(acc.orders, acc.add_to_cart)
         case "order_sum":  # orders x seller_price (WB reports none per zone)
@@ -105,7 +112,7 @@ def _ad_cell(
 def _total_cell(
     key: str,
     day: MatrixDayBase,
-    day_ad: _BucketAcc | None,
+    day_ad: _SkuSlice | None,
 ) -> float | None:
     """Compute one metric for the «Общая» column (funnel + cross-campaign ads).
 
@@ -187,9 +194,14 @@ def _total_cell(
 
 
 def _organic_cell(
-    key: str, funnel: MatrixFunnelBase | None, day_ad: _BucketAcc | None
+    key: str, funnel: MatrixFunnelBase | None, day_ad: _SkuSlice | None
 ) -> float | None:
-    """Compute one metric for the «Органика» column (общая - реклама)."""
+    """Compute one metric for the «Органика» column (общая - реклама).
+
+    ``day_ad`` is the CARD's own advertising day, never the campaigns' — the
+    funnel counts are the card's, so subtracting a campaign's all-variant
+    conversions would credit this column with orders never booked here.
+    """
     if funnel is None or not funnel.has_funnel:
         # No funnel counts (price-only day): «funnel - ads» would go negative.
         return None
@@ -232,9 +244,10 @@ def _campaign_drr_sales(
     buckets so the frontend can merge them into one cell.
 
     Both sides are the campaign's: the denominator is the buyout value of the
-    orders THIS campaign delivered (its own orders x price x «Процент выкупа»),
-    never the SKU's whole-day volume — dividing a campaign's spend by revenue
-    the organic traffic brought would flatter every campaign on a good day.
+    orders THIS campaign delivered (its all-variant orders x price x «Процент
+    выкупа»), never the SKU's whole-day volume — dividing a campaign's spend by
+    revenue the organic traffic brought would flatter every campaign on a good
+    day.
 
     ``None`` when the group did not deliver that day, or the day is unpriced /
     has no buyout percent. The legacy «Каталог» uni zone stays empty as

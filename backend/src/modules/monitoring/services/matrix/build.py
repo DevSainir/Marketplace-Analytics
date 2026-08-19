@@ -16,7 +16,7 @@ from src.modules.monitoring.models import (
     PriceSnapshot,
     SalesFunnelDaily,
 )
-from src.modules.monitoring.repos.advertising import CampaignDayTotal
+from src.modules.monitoring.repos.advertising import CampaignDayTotal, CampaignSearchDayTotal
 from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas.matrix import (
     MATRIX_BUCKETS,
@@ -34,7 +34,7 @@ from src.modules.monitoring.services.matrix.cells import (
     _organic_cell,
     _total_cell,
 )
-from src.modules.monitoring.services.matrix.slices import _BucketAcc
+from src.modules.monitoring.services.matrix.slices import _BucketAcc, _SkuSlice
 
 
 def _acc_from_base(base: MatrixAdBucketBase) -> _BucketAcc:
@@ -46,28 +46,39 @@ def _acc_from_base(base: MatrixAdBucketBase) -> _BucketAcc:
         spend=base.spend,
         orders=base.orders,
         order_sum=base.order_sum,
-        assoc_add_to_cart=base.assoc_add_to_cart,
-        assoc_orders=base.assoc_orders,
+        sku=_SkuSlice(
+            views=base.sku.views,
+            clicks=base.sku.clicks,
+            add_to_cart=base.sku.add_to_cart,
+            spend=base.sku.spend,
+            orders=base.sku.orders,
+        ),
         assoc_skus={c.nm_id: (c.add_to_cart, c.orders) for c in base.assoc_skus},
         assoc_exact=base.assoc_exact,
     )
 
 
-def _day_ad_from_base(day: MatrixDayBase) -> _BucketAcc | None:
-    """Reconstruct a day's overall ad totals = Σ buckets + unclassified.
+def _day_ad_from_base(day: MatrixDayBase) -> _SkuSlice | None:
+    """Reconstruct the CARD's own advertising day = Σ its slice of each bucket.
+
+    «Общая» is the viewed card's whole day and «Органика» that day minus what
+    the ads brought, so both are built from the card's own share of each
+    bucket — never from the campaigns' totals, which for a campaign promoting
+    several cards would lend this one the others' spend and drive «Органика»
+    negative.
 
     Returns ``None`` for days with no advertising at all, so «Общая» ad cells
     render «—» exactly as before (a zero accumulator would show ``0``).
     """
     if not day.has_advertising:
         return None
-    total = _BucketAcc()
+    total = _SkuSlice()
     for base in (*day.buckets.values(), day.unclassified):
-        total.views += base.views
-        total.clicks += base.clicks
-        total.add_to_cart += base.add_to_cart
-        total.spend += base.spend
-        total.orders += base.orders
+        total.views += base.sku.views
+        total.clicks += base.sku.clicks
+        total.add_to_cart += base.sku.add_to_cart
+        total.spend += base.sku.spend
+        total.orders += base.sku.orders
     return total
 
 
@@ -129,6 +140,7 @@ def build_metrics_matrix(
     price_snapshots: list[PriceSnapshot] | None = None,
     stock_daily: list[StockDailyTotal] | None = None,
     campaign_totals: list[CampaignDayTotal] | None = None,
+    campaign_search_totals: list[CampaignSearchDayTotal] | None = None,
 ) -> MetricsMatrixRead:
     """Build the complete day x bucket metrics matrix for one SKU.
 
@@ -146,8 +158,9 @@ def build_metrics_matrix(
         campaigns: Campaign metadata keyed by ``campaign_id`` (may be partial).
         price_snapshots: The SKU's seller/customer price snapshots.
         stock_daily: The SKU's per-day stock totals.
-        campaign_totals: Per-(campaign, day) all-variant conversion totals
-            (the associative-conversion display).
+        campaign_totals: Per-(campaign, day) metrics across all nm_ids — the
+            кампания the advertising columns measure.
+        campaign_search_totals: The search-zone slice of those totals.
 
     Returns:
         A fully computed :class:`MetricsMatrixRead`.
@@ -163,5 +176,6 @@ def build_metrics_matrix(
             price_snapshots=price_snapshots,
             stock_daily=stock_daily,
             campaign_totals=campaign_totals,
+            campaign_search_totals=campaign_search_totals,
         )
     )

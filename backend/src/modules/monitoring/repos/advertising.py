@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, delete, func, or_, select
+from sqlalchemy import CursorResult, case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import AdvertisingStatDaily
@@ -26,16 +26,51 @@ class AdAggregate:
 
 @dataclass(frozen=True, slots=True)
 class CampaignDayTotal:
-    """One campaign-day's conversion totals across ALL its nm_ids.
+    """One campaign-day's metrics across ALL its nm_ids — the whole кампания.
 
-    WB attributes a campaign's conversions to every size/colour variant the
-    buyer actually converted on («ассоциированные конверсии»), so these totals
-    exceed any single SKU's slice whenever associated variants converted.
+    An advertising column of the matrix is a view of a рекламная кампания, not
+    of the card on screen, so this — not the viewed SKU's slice of it — is what
+    the column is built from. WB attributes a campaign's conversions to every
+    size/colour variant the buyer actually converted on («ассоциированные
+    конверсии»), so the totals exceed any single SKU's slice whenever
+    associated variants converted.
+
+    ``traffic_add_to_cart``/``traffic_orders`` are the same sums restricted to
+    the rows that carried traffic (``views > 0``) — the advertised card(s). WB
+    books an associated variant's conversions with ``views=clicks=0``, so the
+    difference between the two pairs is exactly the associative extra: the part
+    of the campaign's conversions no report attributes to a display zone, which
+    the zone split has to apportion.
     """
 
     campaign_id: int
     stat_date: date
+    views: int
+    clicks: int
     add_to_cart: int
+    spend: float
+    orders: int
+    order_sum: float
+    traffic_add_to_cart: int
+    traffic_orders: int
+
+
+@dataclass(frozen=True, slots=True)
+class CampaignSearchDayTotal:
+    """One campaign-day's SEARCH-zone metrics across ALL its nm_ids.
+
+    The campaign-grain counterpart of :class:`CampaignDayTotal` for WB's
+    normquery feed, which reports only what the advertised card(s) took in the
+    search zone (an associated variant's conversions never appear here — see
+    :class:`CampaignDayTotal`).
+    """
+
+    campaign_id: int
+    stat_date: date
+    views: int
+    clicks: int
+    add_to_cart: int
+    spend: float
     orders: int
 
 
@@ -117,11 +152,11 @@ class AdvertisingRepository(BaseRepository):
     async def campaign_day_totals(
         self, *, campaign_ids: Iterable[int], date_from: date, date_to: date
     ) -> list[CampaignDayTotal]:
-        """Return per-(campaign, day) conversion totals across ALL nm_ids.
+        """Return per-(campaign, day) totals across ALL nm_ids — the whole кампания.
 
-        Feeds the matrix's associative-conversion display: the campaign-level
-        «carts/orders including associated variants» shown next to the viewed
-        SKU's own slice.
+        These ARE the matrix's advertising columns: a column measures the
+        рекламная кампания, and the viewed SKU's own rows only decorate it (the
+        carts/orders hover) and feed the «Общая»/«Органика» columns.
 
         Args:
             campaign_ids: Campaigns to aggregate (typically the ones that
@@ -135,12 +170,26 @@ class AdvertisingRepository(BaseRepository):
         ids = list(campaign_ids)
         if not ids:
             return []
+        # The associated variants' rows carry conversions with no traffic, so
+        # the traffic-only sums are taken in the same pass — a second query
+        # over the same rows would only add a round trip.
+        with_traffic = AdvertisingStatDaily.views > 0
         stmt = (
             select(
                 AdvertisingStatDaily.campaign_id,
                 AdvertisingStatDaily.stat_date,
+                func.sum(AdvertisingStatDaily.views).label("views"),
+                func.sum(AdvertisingStatDaily.clicks).label("clicks"),
                 func.sum(AdvertisingStatDaily.add_to_cart).label("add_to_cart"),
+                func.sum(AdvertisingStatDaily.spend).label("spend"),
                 func.sum(AdvertisingStatDaily.orders).label("orders"),
+                func.sum(AdvertisingStatDaily.order_sum).label("order_sum"),
+                func.sum(case((with_traffic, AdvertisingStatDaily.add_to_cart), else_=0)).label(
+                    "traffic_add_to_cart"
+                ),
+                func.sum(case((with_traffic, AdvertisingStatDaily.orders), else_=0)).label(
+                    "traffic_orders"
+                ),
             )
             .where(
                 AdvertisingStatDaily.campaign_id.in_(ids),
@@ -155,8 +204,14 @@ class AdvertisingRepository(BaseRepository):
             CampaignDayTotal(
                 campaign_id=row.campaign_id,
                 stat_date=row.stat_date,
+                views=int(row.views),
+                clicks=int(row.clicks),
                 add_to_cart=int(row.add_to_cart),
+                spend=float(row.spend),
                 orders=int(row.orders),
+                order_sum=float(row.order_sum),
+                traffic_add_to_cart=int(row.traffic_add_to_cart),
+                traffic_orders=int(row.traffic_orders),
             )
             for row in result.all()
         ]

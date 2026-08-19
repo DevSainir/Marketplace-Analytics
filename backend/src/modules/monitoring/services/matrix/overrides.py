@@ -17,10 +17,7 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixBaseState,
 )
 
-#: Editable input fields of an advertising bucket. The ``assoc_*`` totals ride
-#: along because an edit to a zone's own carts/orders moves the all-variant
-#: total with it (see ``matrix_edit._set_ad_count``); persisting only one side
-#: would make the reloaded hover disagree with its cell.
+#: Editable input fields of an advertising bucket — the кампания's own numbers.
 _AD_FIELDS: tuple[str, ...] = (
     "views",
     "clicks",
@@ -28,10 +25,15 @@ _AD_FIELDS: tuple[str, ...] = (
     "spend",
     "orders",
     "order_sum",
-    "assoc_add_to_cart",
-    "assoc_orders",
 )
-#: Own-count fields whose override must also be mirrored onto the viewed SKU's
+#: The viewed card's share of those same fields, stored under a ``sku.`` prefix.
+#: It rides along because an edit moves both sides (see
+#: ``matrix.edit._set_ad_metric``): persisting only the campaign's would leave
+#: the reloaded «Общая»/«Органика» quoting the harvested share against a
+#: corrected campaign, and the hover disagreeing with its own cell.
+_AD_SKU_PREFIX = "sku."
+_AD_SKU_FIELDS: tuple[str, ...] = ("views", "clicks", "add_to_cart", "spend", "orders")
+#: Card-share fields whose override must also be mirrored onto the viewed SKU's
 #: row of the per-variant breakdown (that row IS this SKU's own count).
 _VIEWED_ROW_FIELDS: frozenset[str] = frozenset({"add_to_cart", "orders"})
 #: Editable input fields of the organic funnel (behind «Общая»). The ₽ volumes
@@ -56,7 +58,19 @@ _DAY_FIELDS: tuple[str, ...] = ("lagged_buyout_percent",)
 _CELL_BUCKET = "cell"
 #: Fields that are integer counts (stored as numeric, coerced back on overlay).
 _INT_FIELDS: frozenset[str] = frozenset(
-    {"views", "clicks", "add_to_cart", "orders", "open_count", "cart_count", "order_count"}
+    {
+        "views",
+        "clicks",
+        "add_to_cart",
+        "orders",
+        "open_count",
+        "cart_count",
+        "order_count",
+        "sku.views",
+        "sku.clicks",
+        "sku.add_to_cart",
+        "sku.orders",
+    }
 )
 
 
@@ -97,12 +111,18 @@ def overlay_overrides(
         elif override.bucket == _FUNNEL_BUCKET:
             if day.funnel is not None and override.field in _FUNNEL_FIELDS:
                 setattr(day.funnel, override.field, value)
-        elif override.bucket in MATRIX_AD_BUCKETS and override.field in _AD_FIELDS:
+        elif override.bucket in MATRIX_AD_BUCKETS:
             bucket = day.buckets.get(override.bucket)
-            if bucket is not None:
+            if bucket is None:
+                continue
+            if override.field in _AD_FIELDS:
                 setattr(bucket, override.field, value)
-                if nm_id is not None and override.field in _VIEWED_ROW_FIELDS:
-                    _restore_viewed_row(bucket, override.field, int(value), nm_id)
+            elif override.field.startswith(_AD_SKU_PREFIX):
+                field = override.field.removeprefix(_AD_SKU_PREFIX)
+                if field in _AD_SKU_FIELDS:
+                    setattr(bucket.sku, field, value)
+                    if nm_id is not None and field in _VIEWED_ROW_FIELDS:
+                        _restore_viewed_row(bucket, field, int(value), nm_id)
 
 
 def _restore_viewed_row(bucket: MatrixAdBucketBase, field: str, value: int, nm_id: int) -> None:
@@ -172,6 +192,18 @@ def diff_to_overrides(
                             "stat_date": w_day.day,
                             "bucket": name,
                             "field": field,
+                            "value": w_val,
+                        }
+                    )
+            for field in _AD_SKU_FIELDS:
+                w_val = getattr(w_bucket.sku, field)
+                if _differs(w_val, getattr(f_bucket.sku, field)):
+                    rows.append(
+                        {
+                            "nm_id": nm_id,
+                            "stat_date": w_day.day,
+                            "bucket": name,
+                            "field": f"{_AD_SKU_PREFIX}{field}",
                             "value": w_val,
                         }
                     )

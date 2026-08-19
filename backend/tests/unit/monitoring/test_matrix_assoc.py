@@ -1,9 +1,10 @@
 """Unit tests for the associative-conversion breakdown (services/matrix/).
 
-The carts/orders cells show a campaign's ALL-VARIANT total; these cover the
-per-variant decomposition behind the hover. The load-bearing property is that
-a cell's rows SUM to the number the cell displays — a breakdown that doesn't
-add up is worse than none, since the reader checks it against the cell.
+The carts/orders cells show the кампания's own count, associated size/colour
+variants included; these cover the per-variant decomposition behind the hover.
+The load-bearing property is that a cell's rows SUM to the number the cell
+displays — a breakdown that doesn't add up is worse than none, since the reader
+checks it against the cell.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from src.modules.monitoring.models import (
 from src.modules.monitoring.repos.advertising import CampaignDaySkuTotal, CampaignDayTotal
 from src.modules.monitoring.schemas.matrix import MatrixAdBucketBase
 from src.modules.monitoring.services.matrix import derive_base_state
+from tests.support.matrix_rows import _campaign_total
 
 DAY = date(2026, 7, 1)
 VIEWED = 100
@@ -106,7 +108,7 @@ def test_single_zone_campaign_breaks_down_exactly() -> None:
         ad_rows=[_ad_row(1, views=1000, clicks=100, add_to_cart=56, orders=10)],
         search_rows=[],
         campaigns={1: _campaign(1, "manual", search=False, shelves=True)},
-        totals=[CampaignDayTotal(campaign_id=1, stat_date=DAY, add_to_cart=57, orders=11)],
+        totals=[_campaign_total(1, DAY, add_to_cart=57, orders=11)],
         sku_totals=[
             CampaignDaySkuTotal(
                 campaign_id=1, stat_date=DAY, nm_id=VIEWED, add_to_cart=56, orders=10
@@ -124,8 +126,10 @@ def test_single_zone_campaign_breaks_down_exactly() -> None:
         (SIBLING, "M-SIBLING", 1),
     ]
     # The rows add up to the number the cell shows.
-    assert sum(s.add_to_cart for s in shelves.assoc_skus) == shelves.assoc_add_to_cart == 57
-    assert sum(s.orders for s in shelves.assoc_skus) == shelves.assoc_orders == 11
+    assert sum(s.add_to_cart for s in shelves.assoc_skus) == shelves.add_to_cart == 57
+    assert sum(s.orders for s in shelves.assoc_skus) == shelves.orders == 11
+    # …and the viewed card's own share of that cell is its 56/10.
+    assert (shelves.sku.add_to_cart, shelves.sku.orders) == (56, 10)
 
 
 def test_split_campaign_with_an_empty_search_zone_stays_exact() -> None:
@@ -138,7 +142,7 @@ def test_split_campaign_with_an_empty_search_zone_stays_exact() -> None:
         ad_rows=[_ad_row(1, views=12283, clicks=386, add_to_cart=56, orders=10)],
         search_rows=[_search_row(1, views=23, clicks=1, add_to_cart=0, orders=0)],
         campaigns={1: _campaign(1, "unified", search=True, shelves=True)},
-        totals=[CampaignDayTotal(campaign_id=1, stat_date=DAY, add_to_cart=57, orders=11)],
+        totals=[_campaign_total(1, DAY, add_to_cart=57, orders=11)],
         sku_totals=[
             CampaignDaySkuTotal(
                 campaign_id=1, stat_date=DAY, nm_id=VIEWED, add_to_cart=56, orders=10
@@ -152,7 +156,7 @@ def test_split_campaign_with_an_empty_search_zone_stays_exact() -> None:
 
     assert shelves.assoc_exact is True
     assert {(s.nm_id, s.add_to_cart) for s in shelves.assoc_skus} == {(VIEWED, 56), (SIBLING, 1)}
-    assert sum(s.add_to_cart for s in shelves.assoc_skus) == shelves.assoc_add_to_cart == 57
+    assert sum(s.add_to_cart for s in shelves.assoc_skus) == shelves.add_to_cart == 57
     # The search leg converted nothing of its own and took none of the extra.
     assert buckets["uni_search"].assoc_skus == []
 
@@ -168,7 +172,7 @@ def test_split_campaign_apportions_the_extra_and_flags_it() -> None:
         # Half the viewed SKU's carts came from search -> half the extra does.
         search_rows=[_search_row(1, views=500, clicks=100, add_to_cart=20, orders=5)],
         campaigns={1: _campaign(1, "unified", search=True, shelves=True)},
-        totals=[CampaignDayTotal(campaign_id=1, stat_date=DAY, add_to_cart=50, orders=14)],
+        totals=[_campaign_total(1, DAY, add_to_cart=50, orders=14)],
         sku_totals=[
             CampaignDaySkuTotal(
                 campaign_id=1, stat_date=DAY, nm_id=VIEWED, add_to_cart=40, orders=10
@@ -186,8 +190,8 @@ def test_split_campaign_apportions_the_extra_and_flags_it() -> None:
 
     # Every leg's rows still add up to the number its cell shows.
     for bucket in (search, shelves):
-        assert sum(s.add_to_cart for s in bucket.assoc_skus) == bucket.assoc_add_to_cart
-        assert sum(s.orders for s in bucket.assoc_skus) == bucket.assoc_orders
+        assert sum(s.add_to_cart for s in bucket.assoc_skus) == bucket.add_to_cart
+        assert sum(s.orders for s in bucket.assoc_skus) == bucket.orders
 
     # The viewed SKU's own split is fact, not estimate: 20 of its 40 carts.
     assert next(s.add_to_cart for s in search.assoc_skus if s.nm_id == VIEWED) == 20
@@ -206,10 +210,10 @@ def test_breakdown_is_absent_without_harvested_sku_totals() -> None:
         ad_rows=[_ad_row(1, views=1000, clicks=100, add_to_cart=56, orders=10)],
         search_rows=[],
         campaigns={1: _campaign(1, "manual", search=False, shelves=True)},
-        totals=[CampaignDayTotal(campaign_id=1, stat_date=DAY, add_to_cart=57, orders=11)],
+        totals=[_campaign_total(1, DAY, add_to_cart=57, orders=11)],
         sku_totals=[],
     )
     shelves = buckets["manual_shelves"]
 
     assert shelves.assoc_skus == []
-    assert shelves.assoc_add_to_cart == 57
+    assert shelves.add_to_cart == 57

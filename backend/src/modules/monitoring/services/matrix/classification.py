@@ -27,38 +27,82 @@ at 99/1). Cut campaigns are excluded from «Общая»/«Органика» to
 from __future__ import annotations
 
 from src.modules.monitoring.models import AdvertisingSearchStatDaily, Campaign
-from src.modules.monitoring.schemas.matrix import AssocSkuCount, MatrixAdBucketBase
+from src.modules.monitoring.repos.advertising import CampaignSearchDayTotal
+from src.modules.monitoring.schemas.matrix import (
+    AssocSkuCount,
+    MatrixAdBucketBase,
+    MatrixAdSkuBase,
+)
 from src.modules.monitoring.services.matrix.assoc import _allocate_assoc, _split_assoc_skus
-from src.modules.monitoring.services.matrix.slices import _AdSlice, _BucketAcc
+from src.modules.monitoring.services.matrix.slices import _AdSlice, _BucketAcc, _SkuSlice
+
+
+def _split_sku(
+    sku: _SkuSlice, search: AdvertisingSearchStatDaily | None
+) -> tuple[_SkuSlice, _SkuSlice]:
+    """Split the viewed card's own slice into (search, remainder) by its own row.
+
+    The campaign's zone split is driven by the campaign's search totals; the
+    card's own share rides the SAME split but off its OWN normquery row, so
+    «Общая»/«Органика» stay the card's whatever the rest of the campaign did.
+    Each metric is clamped at the card's own total (the two feeds are collected
+    at different times) and the remainder leg takes what is left.
+    """
+    if search is None:
+        return _SkuSlice(), _SkuSlice(**vars(sku))
+    taken = _SkuSlice(
+        views=min(search.views, sku.views),
+        clicks=min(search.clicks, sku.clicks),
+        add_to_cart=min(search.add_to_cart, sku.add_to_cart),
+        spend=min(float(search.spend), sku.spend),
+        orders=min(search.orders, sku.orders),
+    )
+    rest = _SkuSlice(
+        views=sku.views - taken.views,
+        clicks=sku.clicks - taken.clicks,
+        add_to_cart=sku.add_to_cart - taken.add_to_cart,
+        spend=round(sku.spend - taken.spend, 2),
+        orders=sku.orders - taken.orders,
+    )
+    return taken, rest
 
 
 def _split_search(
-    total: _AdSlice, search: AdvertisingSearchStatDaily | None, viewed_nm: int | None = None
+    total: _AdSlice,
+    search: CampaignSearchDayTotal | None,
+    sku_search: AdvertisingSearchStatDaily | None = None,
+    viewed_nm: int | None = None,
 ) -> tuple[_AdSlice, _AdSlice]:
     """Split a dual-zone campaign-day into (search, shelves) slices.
 
-    The search slice is clamped per-metric at the campaign total (the two
-    sources are collected at different times, so tiny attribution drifts can
-    put a click in one report before the other); the shelves slice is the
-    remainder. Zone-attributed order revenue does not exist: both slices carry
-    ``order_sum=None`` unless the campaign-day had no revenue at all. The
-    associative totals ride the same split (see :func:`_allocate_assoc`).
+    Both sides are the whole кампания's. The search slice is clamped per-metric
+    at the campaign total (the two sources are collected at different times, so
+    tiny attribution drifts can put a click in one report before the other); the
+    shelves slice is the remainder. Zone-attributed order revenue does not
+    exist: both slices carry ``order_sum=None`` unless the campaign-day had no
+    revenue at all.
+
+    The conversion split runs against the TRAFFIC-attributed counts, because
+    that is all WB's normquery feed reports; the associative extra on top has no
+    zone of its own and is apportioned (see :func:`_allocate_assoc`). The viewed
+    card's own slice splits alongside, off its own search row.
     """
     s_views = min(search.views, total.views) if search else 0
     s_clicks = min(search.clicks, total.clicks) if search else 0
-    s_atbs = min(search.add_to_cart, total.add_to_cart) if search else 0
+    s_atbs = min(search.add_to_cart, total.traffic_add_to_cart) if search else 0
     s_spend = min(float(search.spend), total.spend) if search else 0.0
-    s_orders = min(search.orders, total.orders) if search else 0
+    s_orders = min(search.orders, total.traffic_orders) if search else 0
     revenue: float | None = 0.0 if not total.order_sum else None
     view_share = s_views / total.views if total.views > 0 else 0.0
-    extra_carts = max(0, total.assoc_add_to_cart - total.add_to_cart)
-    extra_orders = max(0, total.assoc_orders - total.orders)
-    s_extra_carts = _allocate_assoc(extra_carts, s_atbs, total.add_to_cart, view_share)
-    s_extra_orders = _allocate_assoc(extra_orders, s_orders, total.orders, view_share)
+    extra_carts = max(0, total.add_to_cart - total.traffic_add_to_cart)
+    extra_orders = max(0, total.orders - total.traffic_orders)
+    s_extra_carts = _allocate_assoc(extra_carts, s_atbs, total.traffic_add_to_cart, view_share)
+    s_extra_orders = _allocate_assoc(extra_orders, s_orders, total.traffic_orders, view_share)
     # The associated variants' counts are apportioned — EXCEPT when a zone took
     # none of the extra (or all of it), where the division is forced and the
     # per-variant rows are as exact as the campaign-day's own.
     exact = s_extra_carts in (0, extra_carts) and s_extra_orders in (0, extra_orders)
+    sku_search_slice, sku_rest_slice = _split_sku(total.sku, sku_search)
     if viewed_nm is None:
         search_skus: dict[int, tuple[int, int]] = {}
         rest_skus: dict[int, tuple[int, int]] = {}
@@ -66,30 +110,32 @@ def _split_search(
         search_skus, rest_skus = _split_assoc_skus(
             total.assoc_skus,
             viewed_nm=viewed_nm,
-            search_own=(s_atbs, s_orders),
+            search_own=(sku_search_slice.add_to_cart, sku_search_slice.orders),
             search_extra=(s_extra_carts, s_extra_orders),
         )
     search_slice = _AdSlice(
         views=s_views,
         clicks=s_clicks,
-        add_to_cart=s_atbs,
+        add_to_cart=s_atbs + s_extra_carts,
         spend=s_spend,
-        orders=s_orders,
+        orders=s_orders + s_extra_orders,
         order_sum=revenue,
-        assoc_add_to_cart=s_atbs + s_extra_carts,
-        assoc_orders=s_orders + s_extra_orders,
+        traffic_add_to_cart=s_atbs,
+        traffic_orders=s_orders,
+        sku=sku_search_slice,
         assoc_skus=search_skus,
         assoc_exact=exact,
     )
     shelves_slice = _AdSlice(
         views=total.views - s_views,
         clicks=total.clicks - s_clicks,
-        add_to_cart=total.add_to_cart - s_atbs,
+        add_to_cart=(total.traffic_add_to_cart - s_atbs) + (extra_carts - s_extra_carts),
         spend=round(total.spend - s_spend, 2),
-        orders=total.orders - s_orders,
+        orders=(total.traffic_orders - s_orders) + (extra_orders - s_extra_orders),
         order_sum=revenue,
-        assoc_add_to_cart=(total.add_to_cart - s_atbs) + (extra_carts - s_extra_carts),
-        assoc_orders=(total.orders - s_orders) + (extra_orders - s_extra_orders),
+        traffic_add_to_cart=total.traffic_add_to_cart - s_atbs,
+        traffic_orders=total.traffic_orders - s_orders,
+        sku=sku_rest_slice,
         assoc_skus=rest_skus,
         assoc_exact=exact,
     )
@@ -99,7 +145,8 @@ def _split_search(
 def _classify(
     meta: Campaign | None,
     total: _AdSlice,
-    search: AdvertisingSearchStatDaily | None,
+    search: CampaignSearchDayTotal | None,
+    sku_search: AdvertisingSearchStatDaily | None = None,
     viewed_nm: int | None = None,
 ) -> list[tuple[str, _AdSlice]]:
     """Assign a campaign-day's metrics to matrix buckets.
@@ -113,7 +160,7 @@ def _classify(
     in_shelves = bool(meta.placement_recommendations)
     unified = meta.bid_type == "unified"
     if in_search and in_shelves:
-        search_slice, shelves_slice = _split_search(total, search, viewed_nm)
+        search_slice, shelves_slice = _split_search(total, search, sku_search, viewed_nm)
         if unified:
             return [("uni_search", search_slice), ("uni_shelves", shelves_slice)]
         return [("manual_search", search_slice), ("manual_shelves", shelves_slice)]
@@ -129,7 +176,7 @@ def _classify(
         # search campaign into catalog.
         if search is None:
             return [("manual_search", total)]
-        search_slice, catalog_slice = _split_search(total, search, viewed_nm)
+        search_slice, catalog_slice = _split_search(total, search, sku_search, viewed_nm)
         return [("manual_search", search_slice), ("manual_catalog", catalog_slice)]
     if in_shelves:
         return [("manual_shelves", total)]
@@ -162,8 +209,13 @@ def _bucket_base(
         spend=round(acc.spend, 2),
         orders=acc.orders,
         order_sum=None if acc.order_sum is None else round(acc.order_sum, 2),
-        assoc_add_to_cart=acc.assoc_add_to_cart,
-        assoc_orders=acc.assoc_orders,
+        sku=MatrixAdSkuBase(
+            views=acc.sku.views,
+            clicks=acc.sku.clicks,
+            add_to_cart=acc.sku.add_to_cart,
+            spend=round(acc.sku.spend, 2),
+            orders=acc.sku.orders,
+        ),
         assoc_skus=_assoc_sku_counts(acc, sku_labels),
         assoc_exact=acc.assoc_exact,
     )

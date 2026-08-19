@@ -127,18 +127,18 @@ const METRIC_DEFS = [
   { key: 'cpm', label: 'CPM, ₽', group: 'traffic', format: fmtCurrency },
   { key: 'cpc', label: 'CPC, ₽', group: 'traffic', format: fmtCurrencyTenths },
   { key: 'clicks', label: 'Клики', group: 'traffic', format: fmtNumber },
-  // `assocKey` points at the backend's associative-conversion row (campaign
-  // totals including associated size/colour variants). When that row has a
-  // value for the cell, the cell shows that TOTAL and hovering it breaks the
-  // total down per variant — `assocCountField` picks this metric's count out
-  // of the shared per-variant rows.
+  // The cell itself is the кампания's count. `skuKey` points at the backend's
+  // row for the VIEWED card's share of it, which is emitted only when the two
+  // differ — i.e. when associated size/colour variants converted. Hovering
+  // then breaks the cell down per variant; `assocCountField` picks this
+  // metric's count out of the shared per-variant rows.
   {
     key: 'carts',
     label: 'Корзины',
     tone: 'carts',
     group: 'funnel',
     format: fmtNumber,
-    assocKey: 'carts_assoc',
+    skuKey: 'carts_sku',
     assocCountField: 'add_to_cart',
   },
   {
@@ -154,7 +154,7 @@ const METRIC_DEFS = [
     tone: 'warning',
     group: 'funnel',
     format: fmtNumber,
-    assocKey: 'orders_assoc',
+    skuKey: 'orders_sku',
     assocCountField: 'orders',
   },
   {
@@ -224,29 +224,28 @@ function resolveRaw(values, bucketCount, bucketIndex, dayIndex) {
 }
 
 /**
- * Cell display string: the all-variant TOTAL when the backend emitted one for
- * the cell, the plain formatted value otherwise. The viewed SKU's own slice is
- * not shown inline — it is a row of the hover breakdown (see `cellAssoc`).
- * Both numbers come precomputed from the backend — this is formatting only.
+ * Cell display string. The value comes precomputed from the backend — this is
+ * formatting only.
  */
-function cellDisplay(def, raw, assocRaw) {
-  return def.format(assocRaw ?? raw)
+function cellDisplay(def, raw) {
+  return def.format(raw)
 }
 
 /**
  * The hover payload of a carts/orders cell, or null when the cell has no
- * associative gap (nothing to break down — the whole total is the viewed SKU's).
+ * associative gap (nothing to break down — the campaign's whole count is the
+ * viewed SKU's).
  *
  * `associated` is the ASSOCIATED share of the cell: the conversions the campaign
- * delivered that were booked on OTHER size/colour variants (cell total minus the
- * viewed SKU's own). `skus` names every variant behind the cell — the viewed one
- * included and flagged, so the row it contributes is visible next to the ones it
- * did not; those rows sum to the cell total, of which the unflagged ones sum to
- * `associated`. `exact` says whether the counts are harvested fact or the
+ * delivered that were booked on OTHER size/colour variants (the cell minus the
+ * viewed SKU's own share). `skus` names every variant behind the cell — the
+ * viewed one included and flagged, so the row it contributes is visible next to
+ * the ones it did not; those rows sum to the cell, of which the unflagged ones
+ * sum to `associated`. `exact` says whether the counts are harvested fact or the
  * backend's apportionment of a two-zone campaign (the tooltip captions it).
  */
-function cellAssoc(def, raw, assocRaw, breakdown, viewedNmId) {
-  if (assocRaw == null) return null
+function cellAssoc(def, raw, skuRaw, breakdown, viewedNmId) {
+  if (skuRaw == null) return null
   const skus = (breakdown?.skus ?? [])
     .map((sku) => ({
       nm_id: sku.nm_id,
@@ -259,7 +258,7 @@ function cellAssoc(def, raw, assocRaw, breakdown, viewedNmId) {
     // A variant that took orders but no carts belongs in the orders list only.
     .filter((sku) => sku.count > 0)
   return {
-    associated: assocRaw - (raw ?? 0),
+    associated: (raw ?? 0) - skuRaw,
     skus,
     exact: breakdown?.exact ?? true,
   }
@@ -328,7 +327,7 @@ export function buildMetricsMatrix(product) {
 
   const rows = METRIC_DEFS.map((def) => {
     const values = backendValues.get(def.key)
-    const assocValues = def.assocKey ? backendValues.get(def.assocKey) : null
+    const skuValues = def.skuKey ? backendValues.get(def.skuKey) : null
     return {
       key: def.key,
       label: def.label,
@@ -339,16 +338,16 @@ export function buildMetricsMatrix(product) {
         TRAFFIC_COLUMNS.map((column, columnIndex) => {
           const bucketIndex = bucketIndexByColumn[columnIndex]
           const raw = resolveRaw(values, bucketCount, bucketIndex, dayIndex)
-          const assocRaw = assocValues
-            ? resolveRaw(assocValues, bucketCount, bucketIndex, dayIndex)
+          const skuRaw = skuValues
+            ? resolveRaw(skuValues, bucketCount, bucketIndex, dayIndex)
             : null
           return {
-            display: cellDisplay(def, raw, assocRaw),
+            display: cellDisplay(def, raw),
             raw,
             assoc: cellAssoc(
               def,
               raw,
-              assocRaw,
+              skuRaw,
               breakdowns.get(`${iso}:${column.key}`),
               product.nm_id,
             ),
@@ -398,21 +397,19 @@ export function patchMetricsMatrix(view, product) {
     const def = defByKey.get(row.key)
     if (!def) continue
     const values = backendValues.get(row.key)
-    const assocValues = def.assocKey ? backendValues.get(def.assocKey) : null
+    const skuValues = def.skuKey ? backendValues.get(def.skuKey) : null
     for (let dayIndex = 0; dayIndex < matrix.days.length; dayIndex += 1) {
       for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
         const cell = row.cells[dayIndex * columnCount + columnIndex]
         const bucketIndex = bucketIndexByColumn[columnIndex]
         const raw = resolveRaw(values, bucketCount, bucketIndex, dayIndex)
-        const assocRaw = assocValues
-          ? resolveRaw(assocValues, bucketCount, bucketIndex, dayIndex)
-          : null
-        const display = cellDisplay(def, raw, assocRaw)
+        const skuRaw = skuValues ? resolveRaw(skuValues, bucketCount, bucketIndex, dayIndex) : null
+        const display = cellDisplay(def, raw)
         const editable = isEditable(TRAFFIC_COLUMNS[columnIndex].key, def.key)
         const assoc = cellAssoc(
           def,
           raw,
-          assocRaw,
+          skuRaw,
           breakdowns.get(`${cell.day}:${TRAFFIC_COLUMNS[columnIndex].key}`),
           product.nm_id,
         )

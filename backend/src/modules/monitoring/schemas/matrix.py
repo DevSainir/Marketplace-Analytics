@@ -52,13 +52,14 @@ MATRIX_METRIC_KEYS: tuple[str, ...] = (
     "cpc",
     "clicks",
     "carts",
-    # Associative-conversion totals — campaign-level carts/orders including
-    # associated size/colour variants; the frontend renders them as the
-    # parenthesised «100(71)» decoration of the carts/orders cells (read-only).
-    "carts_assoc",
+    # The viewed card's OWN share of the campaign's carts/orders — emitted only
+    # when it is smaller, i.e. when associated size/colour variants converted.
+    # The cells themselves show the campaign's number; the frontend reports the
+    # difference as the associated share in the carts/orders hover (read-only).
+    "carts_sku",
     "cart_conversion",
     "orders",
-    "orders_assoc",
+    "orders_sku",
     "order_conversion",
     "order_sum",
     "buyout_sum",
@@ -130,25 +131,46 @@ class AssocSkuCount(BaseModel):
     orders: int = Field(default=0, description="Orders booked on this variant.")
 
 
+class MatrixAdSkuBase(BaseModel):
+    """The viewed card's own share of an ad bucket's metrics.
+
+    An advertising bucket is the whole кампания; these are the part of it
+    booked on the card being viewed. «Общая» and «Органика» are built from
+    them — the card's own day, and that day minus what the ads brought — and
+    the carts/orders hover reports the rest as the associated share.
+    """
+
+    views: int = 0
+    clicks: int = 0
+    add_to_cart: int = 0
+    spend: float = 0.0
+    orders: int = 0
+
+
 class MatrixAdBucketBase(BaseModel):
     """The editable input facts of one ``(day, ad-bucket)`` cell.
+
+    Every metric here is the CAMPAIGN's, across all the nm_ids it delivered
+    for: an advertising column measures a рекламная кампания, so its spend, its
+    traffic and its conversions are the campaign's own — including the
+    conversions WB booked on associated size/colour variants
+    («ассоциированные конверсии»), which are orders the campaign paid for and
+    brought.
 
     ``order_sum`` is ``None`` for split (unified / dual-placement) campaigns
     whose order revenue cannot be attributed to a single zone — that cell
     renders «—» and is not editable.
 
-    ``assoc_add_to_cart``/``assoc_orders`` are the campaign-level conversion
-    totals INCLUDING associated size/colour variants («ассоциированные
-    конверсии») — read-only harvested facts decorating the carts/orders cells;
-    they are never editable and never diffed into overrides.
+    ``sku`` is the viewed card's own share of all of it (see
+    :class:`MatrixAdSkuBase`).
 
-    ``assoc_skus`` decomposes those totals per variant for the hover, and always
-    sums to them. ``assoc_exact`` reports whether that decomposition is fact or
-    estimate: the viewed SKU's own counts always split exactly, but a campaign
-    running in two zones has its ASSOCIATED variants' counts apportioned between
-    them (WB attributes associated conversions per campaign, never per zone) —
-    unless one zone took none of them, where the division is forced and the
-    counts are exact again.
+    ``assoc_skus`` decomposes the conversion totals per variant for the hover,
+    and always sums to them. ``assoc_exact`` reports whether that decomposition
+    is fact or estimate: the viewed SKU's own counts always split exactly, but a
+    campaign running in two zones has its ASSOCIATED variants' counts
+    apportioned between them (WB attributes associated conversions per campaign,
+    never per zone) — unless one zone took none of them, where the division is
+    forced and the counts are exact again.
     """
 
     views: int = 0
@@ -157,8 +179,7 @@ class MatrixAdBucketBase(BaseModel):
     spend: float = 0.0
     orders: int = 0
     order_sum: float | None = 0.0
-    assoc_add_to_cart: int = 0
-    assoc_orders: int = 0
+    sku: MatrixAdSkuBase = Field(default_factory=MatrixAdSkuBase)
     assoc_skus: list[AssocSkuCount] = Field(default_factory=list)
     assoc_exact: bool = True
 

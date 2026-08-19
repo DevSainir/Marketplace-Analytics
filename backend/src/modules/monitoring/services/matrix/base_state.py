@@ -19,7 +19,11 @@ from src.modules.monitoring.models import (
     PriceSnapshot,
     SalesFunnelDaily,
 )
-from src.modules.monitoring.repos.advertising import CampaignDaySkuTotal, CampaignDayTotal
+from src.modules.monitoring.repos.advertising import (
+    CampaignDaySkuTotal,
+    CampaignDayTotal,
+    CampaignSearchDayTotal,
+)
 from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas.matrix import (
     MatrixAdBucketBase,
@@ -52,6 +56,7 @@ def derive_base_state(
     price_snapshots: list[PriceSnapshot] | None = None,
     stock_daily: list[StockDailyTotal] | None = None,
     campaign_totals: list[CampaignDayTotal] | None = None,
+    campaign_search_totals: list[CampaignSearchDayTotal] | None = None,
     campaign_sku_totals: list[CampaignDaySkuTotal] | None = None,
     sku_labels: dict[int, str | None] | None = None,
     nm_id: int | None = None,
@@ -79,9 +84,12 @@ def derive_base_state(
             there; other days stay unpriced).
         stock_daily: The SKU's per-day stock totals; applied only to their
             exact snapshot days for the read-only stock/in-transit rows.
-        campaign_totals: Per-(campaign, day) conversion totals across ALL
-            nm_ids — the associative-conversion total shown in the carts/orders
-            cells. Missing entries mean no associative gap for that slice.
+        campaign_totals: Per-(campaign, day) metrics across ALL nm_ids — the
+            кампания itself, which is what the advertising columns are built
+            from. A campaign-day missing from here falls back to the viewed
+            card's own rows standing in for the whole campaign.
+        campaign_search_totals: The search-zone slice of those same totals,
+            campaign-grain. Same fallback: the card's own normquery row.
         campaign_sku_totals: Those same totals broken down per nm_id — the
             hover naming which variants they were booked on. Survives to the
             cell only for campaign-days that were not split across zones.
@@ -99,22 +107,54 @@ def derive_base_state(
     ordered_prices = sorted(price_snapshots or [], key=lambda s: s.stat_date)
     ordered_stock = sorted(stock_daily or [], key=lambda s: s.stat_date)
 
-    # One slice per (campaign, day), aggregated across platforms.
-    campaign_day: dict[tuple[int, date], _AdSlice] = {}
-    for row in ad_rows:
-        total = campaign_day.setdefault((row.campaign_id, row.stat_date), _AdSlice())
-        total.views += row.views
-        total.clicks += row.clicks
-        total.add_to_cart += row.add_to_cart
-        total.spend += float(row.spend)
-        total.orders += row.orders
-        if total.order_sum is not None:
-            total.order_sum += float(row.order_sum)
+    # One slice per (campaign, day) — the WHOLE кампания, which is what an
+    # advertising column measures.
+    campaign_day: dict[tuple[int, date], _AdSlice] = {
+        (total.campaign_id, total.stat_date): _AdSlice(
+            views=total.views,
+            clicks=total.clicks,
+            add_to_cart=total.add_to_cart,
+            spend=total.spend,
+            orders=total.orders,
+            order_sum=total.order_sum,
+            traffic_add_to_cart=total.traffic_add_to_cart,
+            traffic_orders=total.traffic_orders,
+        )
+        for total in campaign_totals or []
+    }
 
-    # Stamp the associative (all-variant) conversion totals onto each slice.
-    # Clamped from below at the SKU's own counts so a partial totals fetch can
-    # never show an associative total smaller than the SKU slice itself.
-    totals_by_key = {(t.campaign_id, t.stat_date): t for t in campaign_totals or []}
+    # The viewed card's own share of each campaign-day, aggregated across
+    # platforms — «Общая»/«Органика» are built from this, and the carts/orders
+    # hover reports the rest of the campaign as the associated share.
+    for row in ad_rows:
+        key = (row.campaign_id, row.stat_date)
+        total = campaign_day.get(key)
+        if total is None:
+            # No campaign-grain totals for this campaign-day (an older caller,
+            # or a totals query that came back short): the card's own rows are
+            # the best statement of the campaign available, so it stands in as
+            # the whole — which is exactly true for the single-card campaigns
+            # this account runs.
+            total = campaign_day.setdefault(key, _AdSlice(order_sum=0.0))
+            total.views += row.views
+            total.clicks += row.clicks
+            total.add_to_cart += row.add_to_cart
+            total.traffic_add_to_cart += row.add_to_cart
+            total.spend += float(row.spend)
+            total.orders += row.orders
+            total.traffic_orders += row.orders
+            if total.order_sum is not None:
+                total.order_sum += float(row.order_sum)
+        total.sku.views += row.views
+        total.sku.clicks += row.clicks
+        total.sku.add_to_cart += row.add_to_cart
+        total.sku.spend += float(row.spend)
+        total.sku.orders += row.orders
+
+    # Stamp the per-variant decomposition of each campaign-day's conversions
+    # (the carts/orders hover). The campaign's own counts are clamped from below
+    # at the card's own: a partial totals fetch must never leave a campaign
+    # holding less than one of its parts, which would drive «Органика» negative.
     skus_by_key: dict[tuple[int, date], dict[int, tuple[int, int]]] = defaultdict(dict)
     for sku_total in campaign_sku_totals or []:
         skus_by_key[(sku_total.campaign_id, sku_total.stat_date)][sku_total.nm_id] = (
@@ -122,14 +162,34 @@ def derive_base_state(
             sku_total.orders,
         )
     for key, total in campaign_day.items():
-        campaign_total = totals_by_key.get(key)
-        total.assoc_add_to_cart = max(
-            campaign_total.add_to_cart if campaign_total else 0, total.add_to_cart
-        )
-        total.assoc_orders = max(campaign_total.orders if campaign_total else 0, total.orders)
+        total.views = max(total.views, total.sku.views)
+        total.clicks = max(total.clicks, total.sku.clicks)
+        total.add_to_cart = max(total.add_to_cart, total.sku.add_to_cart)
+        total.traffic_add_to_cart = max(total.traffic_add_to_cart, total.sku.add_to_cart)
+        total.spend = max(total.spend, total.sku.spend)
+        total.orders = max(total.orders, total.sku.orders)
+        total.traffic_orders = max(total.traffic_orders, total.sku.orders)
         total.assoc_skus = skus_by_key.get(key, {})
 
-    search_by_key = {(row.campaign_id, row.stat_date): row for row in search_rows}
+    search_by_key = {(t.campaign_id, t.stat_date): t for t in campaign_search_totals or []}
+    sku_search_by_key = {(row.campaign_id, row.stat_date): row for row in search_rows}
+    for key, sku_row in sku_search_by_key.items():
+        # The same stand-in rule: with no campaign-grain search slice for a
+        # campaign-day, the card's own normquery row states the campaign's
+        # search zone. Without this a missing aggregate would put a unified
+        # campaign's whole day on the shelves side.
+        search_by_key.setdefault(
+            key,
+            CampaignSearchDayTotal(
+                campaign_id=sku_row.campaign_id,
+                stat_date=sku_row.stat_date,
+                views=sku_row.views,
+                clicks=sku_row.clicks,
+                add_to_cart=sku_row.add_to_cart,
+                spend=float(sku_row.spend),
+                orders=sku_row.orders,
+            ),
+        )
 
     # Classify each campaign-day into its display-zone leg(s): a manual campaign
     # yields one leg, a dual-zone (unified) campaign a search + a shelves slice.
@@ -141,6 +201,7 @@ def derive_base_state(
             campaigns.get(campaign_id),
             total,
             search_by_key.get((campaign_id, stat_date)),
+            sku_search_by_key.get((campaign_id, stat_date)),
             nm_id,
         )
         if legs:  # unclassifiable campaigns (no settings) are excluded entirely

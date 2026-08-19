@@ -7,7 +7,6 @@ from datetime import date
 from src.modules.monitoring.models import MatrixOverride
 from src.modules.monitoring.schemas.matrix import (
     AssocSkuCount,
-    MatrixAdBucketBase,
     MatrixBaseState,
     MatrixDayBase,
     MatrixFunnelBase,
@@ -16,6 +15,7 @@ from src.modules.monitoring.services.matrix import (
     diff_to_overrides,
     overlay_overrides,
 )
+from tests.support.matrix_rows import _ad_bucket
 
 DAY = date(2026, 7, 1)
 
@@ -28,11 +28,11 @@ def _fact_base() -> MatrixBaseState:
                 day=DAY,
                 has_advertising=True,
                 buckets={
-                    "manual_search": MatrixAdBucketBase(
+                    "manual_search": _ad_bucket(
                         views=40, clicks=4, add_to_cart=2, spend=20.0, orders=2, order_sum=500.0
                     )
                 },
-                unclassified=MatrixAdBucketBase(),
+                unclassified=_ad_bucket(),
                 funnel=MatrixFunnelBase(
                     open_count=200,
                     cart_count=20,
@@ -187,15 +187,16 @@ def test_buyout_percent_roundtrips_as_a_day_level_input() -> None:
 
 
 def test_restoring_an_orders_override_repairs_the_viewed_breakdown_row() -> None:
-    """A reloaded own-count lands on the viewed SKU's row of the hover too.
+    """A reloaded card share lands on the viewed SKU's row of the hover too.
 
-    Only the totals are stored as numbers; the per-variant rows are re-derived
-    from facts. Without this the reloaded breakdown would still list the
-    harvested 2 while the cell claims 6, and the rows would stop summing.
+    Only the numbers are stored; the per-variant rows are re-derived from facts.
+    Without this the reloaded breakdown would still list the harvested 2 while
+    the cell claims 9, and the rows would stop summing.
     """
     base = _fact_base()
     bucket = base.days[0].buckets["manual_search"]
-    bucket.assoc_orders = 5
+    bucket.orders = 5
+    bucket.sku.orders = 2
     bucket.assoc_skus = [
         AssocSkuCount(nm_id=111, orders=2),
         AssocSkuCount(nm_id=222, orders=3),
@@ -205,10 +206,10 @@ def test_restoring_an_orders_override_repairs_the_viewed_breakdown_row() -> None
         base,
         [
             MatrixOverride(
-                nm_id=111, stat_date=DAY, bucket="manual_search", field="orders", value=6
+                nm_id=111, stat_date=DAY, bucket="manual_search", field="orders", value=9
             ),
             MatrixOverride(
-                nm_id=111, stat_date=DAY, bucket="manual_search", field="assoc_orders", value=9
+                nm_id=111, stat_date=DAY, bucket="manual_search", field="sku.orders", value=6
             ),
         ],
         nm_id=111,
@@ -216,4 +217,22 @@ def test_restoring_an_orders_override_repairs_the_viewed_breakdown_row() -> None
 
     rows = {sku.nm_id: sku.orders for sku in bucket.assoc_skus}
     assert rows == {111: 6, 222: 3}
-    assert sum(rows.values()) == bucket.assoc_orders == 9
+    assert sum(rows.values()) == bucket.orders == 9
+
+
+def test_an_edited_card_share_is_persisted_beside_the_campaigns_number() -> None:
+    """An ad edit moves both sides, so both are diffed into overrides.
+
+    «Общая» and «Органика» are built from the card's share: persisting only the
+    campaign's number would reload a corrected column with the harvested share
+    underneath it.
+    """
+    fact = _fact_base()
+    working = _fact_base()
+    bucket = working.days[0].buckets["manual_search"]
+    bucket.orders = 6
+    bucket.sku.orders = 4
+
+    rows = diff_to_overrides(nm_id=111, working=working, fact=fact)
+
+    assert {(row["field"], row["value"]) for row in rows} == {("orders", 6), ("sku.orders", 4)}

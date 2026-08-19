@@ -242,18 +242,19 @@ describe('patchMetricsMatrix', () => {
   })
 })
 
-// The carts/orders cells show the campaign's ALL-VARIANT total («ассоциированные
-// конверсии»); the per-variant rows behind the hover ride the editable base.
+// A carts/orders cell is the кампания's own count («ассоциированные конверсии»
+// included); the card's share and the per-variant rows behind the hover ride
+// alongside it.
 describe('associative conversions', () => {
   /**
-   * PRODUCT + a carts row, the all-variant carts_assoc total, and the
-   * per-variant breakdown on day 0: 56 of the campaign's 57 carts are the
-   * viewed SKU's, the 57th went to a sibling variant.
+   * PRODUCT + a carts row (the campaign's 120), the viewed card's share of it
+   * (82), and the per-variant breakdown on day 0 — the remaining 38 carts went
+   * to two sibling variants.
    */
   function assocProduct({ exact = true } = {}) {
     const clone = structuredClone(PRODUCT)
-    clone.matrix.rows.push(backendRow('carts', [{ uni_shelves: 82, manual_search: 8 }, {}]))
-    clone.matrix.rows.push(backendRow('carts_assoc', [{ uni_shelves: 120 }, {}]))
+    clone.matrix.rows.push(backendRow('carts', [{ uni_shelves: 120, manual_search: 8 }, {}]))
+    clone.matrix.rows.push(backendRow('carts_sku', [{ uni_shelves: 82 }, {}]))
     clone.matrix_base = {
       days: [
         {
@@ -276,9 +277,18 @@ describe('associative conversions', () => {
     return clone
   }
 
-  it('shows the all-variant total alone — no «120(82)» parenthesis', () => {
+  it('shows the campaign’s count alone — no «120(82)» parenthesis', () => {
     const matrix = buildMetricsMatrix(assocProduct())
     expect(cell(matrix, 'carts', 0, 'uni_shelves')).toBe(formatNumber(120))
+  })
+
+  // The inline editor seeds itself from `raw` and the backend's ₽ rows divide
+  // the same count, so `raw` is the number the cell prints — never the card's
+  // share, which would open a cell reading 120 on a draft of 82.
+  it('carries the campaign’s count as the cell’s editable value', () => {
+    const matrix = buildMetricsMatrix(assocProduct())
+    expect(cellObj(matrix, 'carts', 0, 'uni_shelves').raw).toBe(120)
+    expect(cellObj(matrix, 'carts', 0, 'manual_search').raw).toBe(8)
   })
 
   it('reports the associated share, not the cell total again', () => {
@@ -306,7 +316,7 @@ describe('associative conversions', () => {
 
   it('picks each metric its own counts out of the shared variant rows', () => {
     const matrix = buildMetricsMatrix(assocProduct())
-    // No orders_assoc row -> the orders cell has no gap to break down.
+    // No orders_sku row -> the orders cell has no gap to break down.
     expect(cellObj(matrix, 'orders', 0, 'uni_shelves').assoc).toBeNull()
     expect(cellObj(matrix, 'carts', 0, 'uni_shelves').assoc.skus.map((s) => s.count)).toEqual([
       82, 30, 8,
@@ -327,7 +337,7 @@ describe('associative conversions', () => {
   it('moves the associated share when the SKU’s own slice is edited', () => {
     const view = buildMetricsMatrix(assocProduct())
     const edited = assocProduct()
-    edited.matrix.rows.find((r) => r.key === 'carts').values[col('uni_shelves')] = 100
+    edited.matrix.rows.find((r) => r.key === 'carts_sku').values[col('uni_shelves')] = 100
 
     expect(patchMetricsMatrix(view, edited)).toBe(true)
     expect(cellObj(view, 'carts', 0, 'uni_shelves').assoc.associated).toBe(20)
@@ -341,8 +351,8 @@ describe('associative conversions', () => {
     // What the backend returns after the SKU's own carts are edited to 100:
     // the cell, the all-variant total and the viewed SKU's row all move.
     const edited = assocProduct()
-    edited.matrix.rows.find((r) => r.key === 'carts').values[col('uni_shelves')] = 100
-    edited.matrix.rows.find((r) => r.key === 'carts_assoc').values[col('uni_shelves')] = 138
+    edited.matrix.rows.find((r) => r.key === 'carts_sku').values[col('uni_shelves')] = 100
+    edited.matrix.rows.find((r) => r.key === 'carts').values[col('uni_shelves')] = 138
     edited.matrix_base.days[0].buckets.uni_shelves.assoc_skus[0].add_to_cart = 100
 
     expect(patchMetricsMatrix(view, edited)).toBe(true)

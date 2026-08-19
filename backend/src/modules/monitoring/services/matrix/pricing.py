@@ -18,10 +18,16 @@ def ad_order_sum(orders: int, funnel: MatrixFunnelBase | None) -> float | None:
     """«Заказы, ₽» an advertising slice brought = its orders x the day's price.
 
     WB exposes no zone-attributed order revenue (and none at all for a split
-    campaign), so the campaign's own volume is DERIVED here — the same
-    ``count x seller_price`` rule the «Общая» column uses, applied to the ad
-    slice's own orders. That is what makes «ДРР от заказов»/«ДРР от продаж»
-    describe the campaign instead of the SKU's whole day.
+    campaign), so the volume is DERIVED here — the same ``count x seller_price``
+    rule the «Общая» column uses, applied to the ad slice.
+
+    ``orders`` is the CAMPAIGN's count, all associated size/colour variants
+    included (an ad bucket carries no other kind — see :class:`_AdSlice`),
+    because the column measures a рекламная кампания: an order the campaign
+    paid for is revenue it brought whichever variant the buyer finally picked.
+    It is priced at the viewed card's ``seller_price`` — the only price a
+    SKU-scoped view has, and an approximation whenever the variants are not
+    priced alike.
 
     The funnel row itself is not required (ad orders are facts of the ad feed,
     not the funnel) — only the day's seller price. ``None`` when the day is

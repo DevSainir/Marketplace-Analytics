@@ -23,9 +23,14 @@ from src.modules.monitoring.models import (
     PriceSnapshot,
     SalesFunnelDaily,
 )
-from src.modules.monitoring.repos.advertising import CampaignDayTotal
+from src.modules.monitoring.repos.advertising import CampaignDayTotal, CampaignSearchDayTotal
 from src.modules.monitoring.repos.stocks import StockDailyTotal
-from src.modules.monitoring.schemas.matrix import MATRIX_BUCKETS
+from src.modules.monitoring.schemas.matrix import (
+    MATRIX_BUCKETS,
+    AssocSkuCount,
+    MatrixAdBucketBase,
+    MatrixAdSkuBase,
+)
 from src.modules.monitoring.services.matrix import build_metrics_matrix
 
 DAY1 = date(2026, 7, 1)
@@ -97,6 +102,79 @@ def _search_row(
     )
 
 
+def _campaign_total(
+    campaign_id: int,
+    stat_date: date,
+    *,
+    add_to_cart: int = 0,
+    orders: int = 0,
+    views: int = 0,
+    clicks: int = 0,
+    spend: float = 0.0,
+    order_sum: float = 0.0,
+    traffic_add_to_cart: int | None = None,
+    traffic_orders: int | None = None,
+) -> CampaignDayTotal:
+    """Construct one campaign-day's all-nm_id totals.
+
+    ``traffic_*`` default to zero, which the base state then clamps up to the
+    viewed card's own rows — the shape of a single-card campaign, where the card
+    IS the campaign's traffic and the totals only add what associated variants
+    converted.
+    """
+    return CampaignDayTotal(
+        campaign_id=campaign_id,
+        stat_date=stat_date,
+        views=views,
+        clicks=clicks,
+        add_to_cart=add_to_cart,
+        spend=spend,
+        orders=orders,
+        order_sum=order_sum,
+        traffic_add_to_cart=traffic_add_to_cart or 0,
+        traffic_orders=traffic_orders or 0,
+    )
+
+
+def _ad_bucket(
+    *,
+    views: int = 0,
+    clicks: int = 0,
+    add_to_cart: int = 0,
+    spend: float = 0.0,
+    orders: int = 0,
+    order_sum: float | None = 0.0,
+    sku_add_to_cart: int | None = None,
+    sku_orders: int | None = None,
+    assoc_skus: list[AssocSkuCount] | None = None,
+    assoc_exact: bool = True,
+) -> MatrixAdBucketBase:
+    """One ad bucket's input facts: the кампания's, with the card's share.
+
+    The card's share of the conversions defaults to the whole — a single-card
+    campaign, where the card IS the campaign — so a fixture only states
+    ``sku_add_to_cart``/``sku_orders`` when it wants associated variants in
+    play. Traffic and spend are always the advertised card's own.
+    """
+    return MatrixAdBucketBase(
+        views=views,
+        clicks=clicks,
+        add_to_cart=add_to_cart,
+        spend=spend,
+        orders=orders,
+        order_sum=order_sum,
+        sku=MatrixAdSkuBase(
+            views=views,
+            clicks=clicks,
+            add_to_cart=add_to_cart if sku_add_to_cart is None else sku_add_to_cart,
+            spend=spend,
+            orders=orders if sku_orders is None else sku_orders,
+        ),
+        assoc_skus=assoc_skus or [],
+        assoc_exact=assoc_exact,
+    )
+
+
 def _funnel_row(
     stat_date: date,
     *,
@@ -146,6 +224,7 @@ def _matrix(
     price_snapshots: list[PriceSnapshot] | None = None,
     stock_daily: list[StockDailyTotal] | None = None,
     campaign_totals: list[CampaignDayTotal] | None = None,
+    campaign_search_totals: list[CampaignSearchDayTotal] | None = None,
     date_from: date = DAY1,
     date_to: date = DAY1,
 ) -> dict[str, list[float | None]]:
@@ -160,6 +239,7 @@ def _matrix(
         price_snapshots=price_snapshots or [],
         stock_daily=stock_daily or [],
         campaign_totals=campaign_totals,
+        campaign_search_totals=campaign_search_totals,
     )
     return {row.key: row.values for row in matrix.rows}
 

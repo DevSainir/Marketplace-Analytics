@@ -6,10 +6,11 @@ from collections.abc import Iterable
 from datetime import date
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, delete, select
+from sqlalchemy import CursorResult, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import AdvertisingSearchStatDaily
+from src.modules.monitoring.repos.advertising import CampaignSearchDayTotal
 from src.modules.monitoring.repos.base import BaseRepository
 
 _CONFLICT = ("stat_date", "campaign_id", "nm_id")
@@ -35,6 +36,59 @@ class AdvertisingSearchRepository(BaseRepository):
             The number of rows submitted.
         """
         return await self.bulk_upsert(rows, conflict_columns=_CONFLICT, update_columns=_UPDATE)
+
+    async def campaign_day_totals(
+        self, *, campaign_ids: Iterable[int], date_from: date, date_to: date
+    ) -> list[CampaignSearchDayTotal]:
+        """Return per-(campaign, day) search-zone totals across ALL nm_ids.
+
+        The zone split of an advertising column divides the whole кампания, so
+        the slice it splits off has to be the whole campaign's search zone —
+        not the viewed card's share of it.
+
+        Args:
+            campaign_ids: Campaigns to aggregate (typically the ones that
+                delivered for the viewed SKU in the window).
+            date_from: Inclusive window start.
+            date_to: Inclusive window end.
+
+        Returns:
+            One :class:`CampaignSearchDayTotal` per campaign-day with any rows.
+        """
+        ids = list(campaign_ids)
+        if not ids:
+            return []
+        stmt = (
+            select(
+                AdvertisingSearchStatDaily.campaign_id,
+                AdvertisingSearchStatDaily.stat_date,
+                func.sum(AdvertisingSearchStatDaily.views).label("views"),
+                func.sum(AdvertisingSearchStatDaily.clicks).label("clicks"),
+                func.sum(AdvertisingSearchStatDaily.add_to_cart).label("add_to_cart"),
+                func.sum(AdvertisingSearchStatDaily.spend).label("spend"),
+                func.sum(AdvertisingSearchStatDaily.orders).label("orders"),
+            )
+            .where(
+                AdvertisingSearchStatDaily.campaign_id.in_(ids),
+                AdvertisingSearchStatDaily.stat_date >= date_from,
+                AdvertisingSearchStatDaily.stat_date <= date_to,
+            )
+            .group_by(AdvertisingSearchStatDaily.campaign_id, AdvertisingSearchStatDaily.stat_date)
+            .order_by(AdvertisingSearchStatDaily.campaign_id, AdvertisingSearchStatDaily.stat_date)
+        )
+        result = await self._session.execute(stmt)
+        return [
+            CampaignSearchDayTotal(
+                campaign_id=row.campaign_id,
+                stat_date=row.stat_date,
+                views=int(row.views),
+                clicks=int(row.clicks),
+                add_to_cart=int(row.add_to_cart),
+                spend=float(row.spend),
+                orders=int(row.orders),
+            )
+            for row in result.all()
+        ]
 
     async def list_for_sku(
         self,

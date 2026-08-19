@@ -34,6 +34,7 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixCellEdit,
     MatrixDayBase,
 )
+from src.modules.monitoring.services.matrix.assoc import _allocate_counts
 from src.modules.monitoring.services.matrix.build import _day_ad_from_base
 from src.modules.monitoring.services.matrix.pricing import ad_order_sum
 
@@ -73,8 +74,8 @@ def apply_edit(
         base: The current input working copy.
         edit: The cell the user changed (day, bucket, metric, new value).
         viewed_nm_id: The SKU on screen. Editing an ad zone's carts/orders
-            moves its associative breakdown with it (see
-            :func:`_set_ad_count`), which needs to know which row of that
+            moves its per-variant breakdown with it (see
+            :func:`_set_ad_metric`), which needs to know which row of that
             breakdown is this SKU's own.
 
     Returns:
@@ -123,56 +124,72 @@ def _find_day(base: MatrixBaseState, day: date) -> MatrixDayBase:
     raise ValidationError(f"Day {day.isoformat()} is not in the current window.")
 
 
-#: An ad bucket's own count and the all-variant total that decorates its cell.
-_ASSOC_TOTAL_FIELD: dict[str, str] = {
-    "orders": "assoc_orders",
-    "add_to_cart": "assoc_add_to_cart",
-}
+#: The carts/orders fields, whose edit also has a per-variant breakdown to keep
+#: in step (every other ad metric is a plain number).
+_BREAKDOWN_FIELDS: frozenset[str] = frozenset({"add_to_cart", "orders"})
 
 
-def _set_ad_count(
-    bucket: MatrixAdBucketBase, field: str, value: float, viewed_nm_id: int | None
+def _set_ad_metric(
+    bucket: MatrixAdBucketBase, field: str, value: float, viewed_nm_id: int | None = None
 ) -> None:
-    """Set the viewed SKU's own carts/orders in an ad zone, breakdown included.
+    """Set an ad cell's CAMPAIGN metric, moving the card's own share with it.
 
-    A carts/orders cell shows the campaign's ALL-VARIANT total and its hover
-    breaks that total down per size/colour variant, the viewed SKU's own row
-    among them. An edit changes only what THIS SKU took, so:
+    An advertising cell states what the кампания did, so that is what a typed
+    number sets. The rest of the campaign is harvested fact the edit has no
+    claim on — the other cards' spend, the other variants' conversions — so the
+    VIEWED card's own share absorbs the whole delta, which keeps «Общая» and
+    «Органика» (built from that share) in step with the correction.
 
-    * the all-variant total moves by exactly the same delta — the other
-      variants' conversions are untouched facts, and the hover's «associated»
-      remainder must stay what WB reported;
-    * the viewed SKU's row in the breakdown follows its new count, so the
-      listed rows still sum to the total in the cell.
-
-    Without this the two disagree: the cell keeps the old total while its own
-    slice moved, and the breakdown stops adding up.
+    The share floors at zero and caps at the new total: correcting a cell to
+    less than the rest of the campaign holds leaves the card with none of it.
+    For carts/orders that also means the hover's rows have to shrink, or the
+    breakdown would list more than the cell above it.
 
     Args:
         bucket: The ad bucket being edited.
-        field: ``"orders"`` or ``"add_to_cart"``.
-        value: The new count for the viewed SKU.
+        field: The metric field on the bucket (and on its ``sku`` share).
+        value: The new value for the whole campaign.
         viewed_nm_id: The SKU on screen; without it the per-variant rows cannot
-            be identified and only the totals move.
+            be identified and only the counts move.
     """
-    new = _count(value)
-    delta = new - getattr(bucket, field)
-    setattr(bucket, field, new)
+    if field == "spend":
+        spend = _money(value)
+        # The card's own share moves by the same delta, floored/capped as below.
+        own_spend = min(max(bucket.sku.spend + spend - bucket.spend, 0.0), spend)
+        bucket.spend = spend
+        bucket.sku.spend = _money(own_spend)
+        return
+    count = _count(value)
+    own = _count(min(max(getattr(bucket.sku, field) + count - getattr(bucket, field), 0), count))
+    setattr(bucket, field, count)
+    setattr(bucket.sku, field, own)
 
-    total_field = _ASSOC_TOTAL_FIELD[field]
-    # Clamped at the SKU's own count: the total can never sit below one of its
-    # own parts.
-    setattr(bucket, total_field, max(new, getattr(bucket, total_field) + delta))
+    if field not in _BREAKDOWN_FIELDS or viewed_nm_id is None or not bucket.assoc_skus:
+        return
+    _keep_breakdown_summing(bucket, field, own, count, viewed_nm_id)
 
-    if viewed_nm_id is None or not bucket.assoc_skus:
-        return  # no breakdown to keep in step
+
+def _keep_breakdown_summing(
+    bucket: MatrixAdBucketBase, field: str, own: int, total: int, viewed_nm_id: int
+) -> None:
+    """Rewrite the per-variant rows so they still add up to the edited cell."""
+    others = {
+        sku.nm_id: getattr(sku, field) for sku in bucket.assoc_skus if sku.nm_id != viewed_nm_id
+    }
+    if own == 0 and sum(others.values()) > total:
+        # The typed total no longer covers the other variants: scale them down
+        # proportionally rather than let the hover exceed its own cell.
+        allocated = _allocate_counts(others, total)
+        for sku in bucket.assoc_skus:
+            if sku.nm_id != viewed_nm_id:
+                setattr(sku, field, allocated.get(sku.nm_id, 0))
     for sku in bucket.assoc_skus:
         if sku.nm_id == viewed_nm_id:
-            setattr(sku, field, new)
+            setattr(sku, field, own)
             return
     # The SKU had none of this metric before, so it has no row yet.
-    if new > 0:
-        bucket.assoc_skus.append(AssocSkuCount(nm_id=viewed_nm_id, **{field: new}))
+    if own > 0:
+        bucket.assoc_skus.append(AssocSkuCount(nm_id=viewed_nm_id, **{field: own}))
 
 
 def _edit_ad_bucket(
@@ -185,42 +202,42 @@ def _edit_ad_bucket(
         raise ValidationError(f"No advertising in '{bucket}' on {day.day.isoformat()} to edit.")
     match metric:
         case "views":
-            b.views = _count(value)
+            _set_ad_metric(b, "views", value)
         case "clicks":
-            b.clicks = _count(value)
+            _set_ad_metric(b, "clicks", value)
         case "carts":
-            _set_ad_count(b, "add_to_cart", value, viewed_nm_id)
+            _set_ad_metric(b, "add_to_cart", value, viewed_nm_id)
         case "spend":
-            b.spend = _money(value)
+            _set_ad_metric(b, "spend", value)
         case "orders":
-            _set_ad_count(b, "orders", value, viewed_nm_id)
+            _set_ad_metric(b, "orders", value, viewed_nm_id)
         case "order_sum":  # orders x seller_price -> solve the orders count
-            # The displayed revenue is DERIVED from the slice's own orders, so
+            # The displayed revenue is DERIVED from the campaign's orders, so
             # writing `b.order_sum` here would change nothing on screen.
             price = day.funnel.seller_price if day.funnel else None
             if not price:
                 raise _readonly(bucket, metric)  # unpriced day → «—»
-            _set_ad_count(b, "orders", value / price, viewed_nm_id)
+            _set_ad_metric(b, "orders", value / price, viewed_nm_id)
         # Derived: solve the numerator, hold the denominator.
         case "ctr":  # clicks / views * 100
-            b.clicks = _count(value / 100 * b.views)
+            _set_ad_metric(b, "clicks", value / 100 * b.views)
         case "cpm":  # spend / views * 1000
-            b.spend = _money(value / 1000 * b.views)
+            _set_ad_metric(b, "spend", value / 1000 * b.views)
         case "cpc":  # spend / clicks
-            b.spend = _money(value * b.clicks)
+            _set_ad_metric(b, "spend", value * b.clicks)
         case "cart_conversion":  # add_to_cart / clicks * 100
-            _set_ad_count(b, "add_to_cart", value / 100 * b.clicks, viewed_nm_id)
+            _set_ad_metric(b, "add_to_cart", value / 100 * b.clicks, viewed_nm_id)
         case "order_conversion":  # orders / add_to_cart * 100
-            _set_ad_count(b, "orders", value / 100 * b.add_to_cart, viewed_nm_id)
+            _set_ad_metric(b, "orders", value / 100 * b.add_to_cart, viewed_nm_id)
         case "cost_per_order":  # spend / orders
-            b.spend = _money(value * b.orders)
+            _set_ad_metric(b, "spend", value * b.orders)
         case "cost_per_cart":  # spend / add_to_cart
-            b.spend = _money(value * b.add_to_cart)
+            _set_ad_metric(b, "spend", value * b.add_to_cart)
         case "drr_orders":  # spend / (orders x seller_price) * 100
             order_sum = ad_order_sum(b.orders, day.funnel)
             if not order_sum:
                 raise _readonly(bucket, metric)  # order revenue is «—» here
-            b.spend = _money(value / 100 * order_sum)
+            _set_ad_metric(b, "spend", value / 100 * order_sum)
         case "traffic_share":
             _solve_traffic_share(day, bucket, value)
         case _:  # drr_sales, buyout_sum, buyout_percent, …
@@ -250,7 +267,7 @@ def _solve_traffic_share(day: MatrixDayBase, bucket: str, value: float) -> None:
             "«Доля трафика» can only be set when another campaign of the same "
             "type has views and the target is strictly between 0% and 100%."
         )
-    b.views = _count(others * fraction / (1 - fraction))
+    _set_ad_metric(b, "views", others * fraction / (1 - fraction))
 
 
 def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:

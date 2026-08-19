@@ -20,13 +20,13 @@ from src.core.timeutils import MOSCOW_TZ, operating_today
 from src.modules.monitoring.schemas.day_actions import DayActionState
 from src.modules.monitoring.schemas.matrix import (
     MATRIX_BUCKETS,
-    MatrixAdBucketBase,
     MatrixBaseState,
     MatrixDayBase,
     MatrixFunnelBase,
 )
 from src.modules.monitoring.services.analytics import AnalyticsService
 from src.modules.monitoring.services.matrix import build_matrix_from_base
+from tests.support.matrix_rows import _ad_bucket
 
 NM_ID = 111
 
@@ -198,8 +198,8 @@ def test_drr_sales_uses_the_campaigns_own_buyout_volume() -> None:
                 day=date(2026, 7, 10),
                 has_advertising=True,
                 buckets={
-                    "uni_search": MatrixAdBucketBase(views=100, clicks=10, spend=100.0, orders=3),
-                    "uni_shelves": MatrixAdBucketBase(views=300, clicks=20, spend=150.0, orders=1),
+                    "uni_search": _ad_bucket(views=100, clicks=10, spend=100.0, orders=3),
+                    "uni_shelves": _ad_bucket(views=300, clicks=20, spend=150.0, orders=1),
                 },
                 funnel=MatrixFunnelBase(
                     open_count=100, cart_count=30, order_count=10, seller_price=100.0

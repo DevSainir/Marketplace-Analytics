@@ -5,6 +5,11 @@ every matrix stage trades in: a campaign-day's advertising metrics (or a zone
 slice of them) and the per-(day, bucket) accumulator such slices are folded
 into. The tiny numeric helpers live here too so every stage rounds and guards
 division-by-zero the same way.
+
+Both carry the кампания's numbers as their primary metrics — an advertising
+column measures a рекламная кампания, not the card on screen — with the viewed
+card's own share alongside in :class:`_SkuSlice`, which is what «Общая» and
+«Органика» are built from and what the carts/orders hover splits out.
 """
 
 from __future__ import annotations
@@ -14,19 +19,55 @@ from datetime import date, timedelta
 
 
 @dataclass
+class _SkuSlice:
+    """The viewed card's own share of an advertising slice.
+
+    An advertising column is the campaign's, but two columns are the CARD's:
+    «Общая» (its whole day) and «Органика» (that day minus what the ads
+    brought). Both would be wrong if built from a campaign's totals — a
+    campaign promoting several cards would lend this one the others' spend, and
+    «Органика» would subtract orders never booked on it. So the card's own
+    slice rides along, split across zones by its own search rows.
+    """
+
+    views: int = 0
+    clicks: int = 0
+    add_to_cart: int = 0
+    spend: float = 0.0
+    orders: int = 0
+
+    def add(self, piece: _SkuSlice) -> None:
+        """Fold another card-slice into this one."""
+        self.views += piece.views
+        self.clicks += piece.clicks
+        self.add_to_cart += piece.add_to_cart
+        self.spend += piece.spend
+        self.orders += piece.orders
+
+
+@dataclass
 class _AdSlice:
     """Advertising metrics of one campaign-day (or a zone slice of it).
+
+    Every metric here is the CAMPAIGN's, summed across all its nm_ids: the
+    matrix's advertising columns measure a рекламная кампания, so a conversion
+    it paid for counts whichever size/colour variant the buyer finally picked
+    («ассоциированные конверсии» — WB books the conversion on the variant, not
+    on the advertised card).
 
     ``order_sum`` is ``None`` when the slice's revenue cannot be attributed to
     its zone (a split campaign) — the taint propagates to the bucket.
 
-    ``assoc_add_to_cart``/``assoc_orders`` are the campaign-level conversion
-    totals INCLUDING associated size/colour variants («ассоциированные
-    конверсии» — WB books a conversion on whichever variant the buyer picked,
-    so only part of a campaign's carts/orders land on the advertised SKU).
-    They always satisfy ``assoc_x >= x`` for a whole campaign-day slice.
+    ``traffic_add_to_cart``/``traffic_orders`` are the part of those conversions
+    that came with traffic (the advertised card's own rows). WB books an
+    associated variant's conversions with ``views=clicks=0``, so what the two
+    pairs differ by is exactly the associative extra — the conversions no report
+    attributes to a display zone, and which splitting a campaign-day therefore
+    has to apportion.
 
-    ``assoc_skus`` names the variants behind those totals (``nm_id`` →
+    ``sku`` is the viewed card's own share (see :class:`_SkuSlice`).
+
+    ``assoc_skus`` names the variants behind the conversion totals (``nm_id`` →
     ``(carts, orders)``), always summing to them. ``assoc_exact`` says whether
     those per-variant counts are harvested fact or apportionment: splitting a
     campaign-day across zones divides the associated variants' counts by
@@ -41,15 +82,20 @@ class _AdSlice:
     spend: float = 0.0
     orders: int = 0
     order_sum: float | None = 0.0
-    assoc_add_to_cart: int = 0
-    assoc_orders: int = 0
+    traffic_add_to_cart: int = 0
+    traffic_orders: int = 0
+    sku: _SkuSlice = field(default_factory=_SkuSlice)
     assoc_skus: dict[int, tuple[int, int]] = field(default_factory=dict)
     assoc_exact: bool = True
 
 
 @dataclass
 class _BucketAcc:
-    """Accumulated advertising metrics of one (day, bucket) cell."""
+    """Accumulated advertising metrics of one (day, bucket) cell.
+
+    The campaign's numbers (see :class:`_AdSlice`), with the viewed card's own
+    share in ``sku``.
+    """
 
     views: int = 0
     clicks: int = 0
@@ -57,8 +103,7 @@ class _BucketAcc:
     spend: float = 0.0
     orders: int = 0
     order_sum: float | None = 0.0
-    assoc_add_to_cart: int = 0
-    assoc_orders: int = 0
+    sku: _SkuSlice = field(default_factory=_SkuSlice)
     assoc_skus: dict[int, tuple[int, int]] = field(default_factory=dict)
     assoc_exact: bool = True
 
@@ -69,8 +114,7 @@ class _BucketAcc:
         self.add_to_cart += piece.add_to_cart
         self.spend += piece.spend
         self.orders += piece.orders
-        self.assoc_add_to_cart += piece.assoc_add_to_cart
-        self.assoc_orders += piece.assoc_orders
+        self.sku.add(piece.sku)
         # One estimated slice taints the whole cell's breakdown: the listed
         # variants would no longer sum to the number the cell shows.
         self.assoc_exact = self.assoc_exact and piece.assoc_exact

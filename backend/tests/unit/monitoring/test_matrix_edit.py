@@ -23,6 +23,7 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixFunnelBase,
 )
 from src.modules.monitoring.services.matrix import apply_edit, build_matrix_from_base
+from tests.support.matrix_rows import _ad_bucket
 
 DAY = date(2026, 7, 1)
 
@@ -35,14 +36,14 @@ def _base() -> MatrixBaseState:
                 day=DAY,
                 has_advertising=True,
                 buckets={
-                    "uni_search": MatrixAdBucketBase(
+                    "uni_search": _ad_bucket(
                         views=30, clicks=3, add_to_cart=1, spend=15.0, orders=1, order_sum=None
                     ),
-                    "manual_search": MatrixAdBucketBase(
+                    "manual_search": _ad_bucket(
                         views=40, clicks=4, add_to_cart=10, spend=20.0, orders=2, order_sum=500.0
                     ),
                 },
-                unclassified=MatrixAdBucketBase(views=10, clicks=1, spend=5.0),
+                unclassified=_ad_bucket(views=10, clicks=1, spend=5.0),
                 funnel=MatrixFunnelBase(
                     open_count=200,
                     cart_count=20,
@@ -158,8 +159,8 @@ def _dual_zone_base() -> MatrixBaseState:
                 day=DAY,
                 has_advertising=True,
                 buckets={
-                    "uni_search": MatrixAdBucketBase(views=30, clicks=3, spend=15.0),
-                    "uni_shelves": MatrixAdBucketBase(views=70, clicks=7, spend=35.0),
+                    "uni_search": _ad_bucket(views=30, clicks=3, spend=15.0),
+                    "uni_shelves": _ad_bucket(views=70, clicks=7, spend=35.0),
                 },
                 funnel=MatrixFunnelBase(open_count=200, cart_count=20, order_count=10),
             )
@@ -344,14 +345,14 @@ def _assoc_base() -> MatrixBaseState:
                 day=DAY,
                 has_advertising=True,
                 buckets={
-                    "manual_search": MatrixAdBucketBase(
+                    "manual_search": _ad_bucket(
                         views=40,
                         clicks=4,
                         add_to_cart=10,
                         spend=20.0,
-                        orders=2,
-                        assoc_orders=5,
-                        assoc_add_to_cart=10,
+                        # The campaign booked 5 orders, 2 of them on this card.
+                        orders=5,
+                        sku_orders=2,
                         assoc_skus=[
                             AssocSkuCount(nm_id=VIEWED_NM_ID, add_to_cart=10, orders=2),
                             AssocSkuCount(nm_id=OTHER_NM_ID, add_to_cart=0, orders=3),
@@ -364,13 +365,13 @@ def _assoc_base() -> MatrixBaseState:
     )
 
 
-def test_editing_a_zones_orders_keeps_its_breakdown_summing() -> None:
-    """The all-variant total moves with the SKU's own slice, and so does its row.
+def test_editing_a_zones_orders_sets_the_campaigns_total() -> None:
+    """The cell IS the campaign's all-variant count, so that is what an edit sets.
 
-    The zone took 2 of the campaign's 5 orders, the other variant 3. Raising
-    this SKU to 6 leaves those 3 alone (they are harvested facts), lifts the
-    cell's total to 9, and rewrites only the viewed SKU's row — so the hover's
-    rows still add up to the number in the cell.
+    The zone took 2 of the campaign's 5 orders, the other variant 3. Typing 6
+    into the cell means the campaign delivered 6: the other variant's 3 are
+    harvested facts and stay, so the viewed card's own slice absorbs the whole
+    move (to 3) and the hover's rows still add up to the number in the cell.
     """
     base = apply_edit(
         _assoc_base(),
@@ -379,16 +380,20 @@ def test_editing_a_zones_orders_keeps_its_breakdown_summing() -> None:
     )
     bucket = _bucket(base, "manual_search")
 
-    assert bucket.orders == 6
-    assert bucket.assoc_orders == 9  # 5 + (6 - 2)
+    assert bucket.orders == 6  # the cell now reads 6
+    assert bucket.sku.orders == 3  # 6 - the other variant's untouched 3
     rows = {sku.nm_id: sku.orders for sku in bucket.assoc_skus}
-    assert rows[VIEWED_NM_ID] == 6  # the viewed row follows the edit
+    assert rows[VIEWED_NM_ID] == 3  # the viewed row follows its own slice
     assert rows[OTHER_NM_ID] == 3  # the other variant is untouched
-    assert sum(rows.values()) == bucket.assoc_orders  # the hover adds up
+    assert sum(rows.values()) == bucket.orders  # the hover adds up
 
 
-def test_the_all_variant_total_never_drops_below_the_sku_own_count() -> None:
-    """Raising the own count past the old total drags the total up with it."""
+def test_a_zone_without_associated_variants_moves_both_counts_together() -> None:
+    """With no associated share, the campaign's count and the card's own are one.
+
+    Every cart of this zone was booked on the viewed card (10 of 10), so there
+    is no other variant to hold fixed and the edit lands on both numbers.
+    """
     base = apply_edit(
         _assoc_base(),
         MatrixCellEdit(day=DAY, bucket="manual_search", metric="carts", value=25),
@@ -397,7 +402,29 @@ def test_the_all_variant_total_never_drops_below_the_sku_own_count() -> None:
     bucket = _bucket(base, "manual_search")
 
     assert bucket.add_to_cart == 25
-    assert bucket.assoc_add_to_cart == 25  # 10 + 15, and never under 25
+    assert bucket.sku.add_to_cart == 25
+
+
+def test_a_total_below_the_associated_share_shrinks_the_breakdown() -> None:
+    """Typing under the associated remainder scales the other variants down.
+
+    The other variant holds 3 of the campaign's 5 orders. Correcting the cell
+    to 2 leaves no room for them: the viewed card's own slice floors at zero
+    and the associated rows are rescaled, so the hover never lists more than
+    the cell above it.
+    """
+    base = apply_edit(
+        _assoc_base(),
+        MatrixCellEdit(day=DAY, bucket="manual_search", metric="orders", value=2),
+        viewed_nm_id=VIEWED_NM_ID,
+    )
+    bucket = _bucket(base, "manual_search")
+
+    assert bucket.orders == 2
+    assert bucket.sku.orders == 0
+    rows = {sku.nm_id: sku.orders for sku in bucket.assoc_skus}
+    assert rows[OTHER_NM_ID] == 2
+    assert sum(rows.values()) == bucket.orders
 
 
 # --------------------------------------------------------------------------- #
