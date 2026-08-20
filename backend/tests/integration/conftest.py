@@ -48,7 +48,7 @@ from src.core.database import Base
 import src.modules.workspaces.models  # noqa: F401  isort:skip
 
 #: Logical schemas the monolith owns; mirrors ``alembic/env.py``.
-SCHEMAS: tuple[str, ...] = ("auth", "monitoring", "workspaces", "finreports")
+SCHEMAS: tuple[str, ...] = ("auth", "monitoring", "workspaces", "finreports", "ab_tests")
 
 #: Name of the throwaway database. Overridable so CI can shard runs.
 TEST_DB_NAME: str = os.getenv("TEST_POSTGRES_DB", "marketplace_test")

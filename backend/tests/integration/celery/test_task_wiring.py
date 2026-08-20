@@ -33,6 +33,7 @@ def _load_task_modules() -> None:
     In production the worker autodiscovers these; in-process we import them so
     the registry under test is the same one the worker builds.
     """
+    import src.modules.ab_tests.tasks
     import src.modules.finreports.tasks
     import src.modules.monitoring.tasks
     import src.modules.users.tasks  # noqa: F401

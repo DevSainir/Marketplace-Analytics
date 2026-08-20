@@ -1,7 +1,7 @@
 """A/B tests: rotations, photo variants, exposures and attributed ad days
 
 Revision ID: 865b8a783a85
-Revises: b4f1e7c92d05
+Revises: c7e4a1d90b62
 Create Date: 2026-08-20 10:54:09.786142
 
 """
@@ -16,7 +16,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "865b8a783a85"
-down_revision: str | None = "b4f1e7c92d05"
+down_revision: str | None = "c7e4a1d90b62"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
