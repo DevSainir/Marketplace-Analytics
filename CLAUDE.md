@@ -22,7 +22,8 @@ All four are machine-enforced — `backend/tests/unit/core/test_module_boundarie
 ## Where the rest lives
 
 The project's rules are skills in `.claude/skills/` — `backend-architecture`, `wildberries-api`,
-`frontend-architecture`, `design-system`, `phone-layout`, `testing`, `git-workflow`. Each one's
+`frontend-architecture`, `design-system`, `phone-layout`, `testing`, `git-workflow`,
+`production-access`. Each one's
 description says when it applies, so they load themselves when the work calls for them rather than
 sitting in every conversation. Read them directly (they are plain markdown) when working without
 that mechanism, and put new project guidance in the relevant skill rather than here.
