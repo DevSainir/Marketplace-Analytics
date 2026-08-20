@@ -12,7 +12,7 @@ import uuid
 from fastapi import APIRouter, File, Query, UploadFile, status
 from fastapi.responses import Response
 
-from src.modules.ab_tests.deps import AbTestCatalogServiceDep
+from src.modules.ab_tests.deps import AbTestCatalogServiceDep, InstallerDep
 from src.modules.ab_tests.schemas import (
     AbTestCreate,
     AbTestDetail,
@@ -84,11 +84,20 @@ async def set_status(
     test_id: uuid.UUID,
     payload: AbTestStatusUpdate,
     service: AbTestCatalogServiceDep,
+    installer: InstallerDep,
     workspace_id: CurrentWorkspaceId,
 ) -> AbTestRead:
-    """Change a test's status; starting installs the first photo on the card."""
+    """Change a test's status; starting installs the first photo on the card.
+
+    This is the only route that needs a WB token, so it is the only one that
+    depends on the installer — reading a test must stay possible for a
+    workspace that has not stored its credentials yet.
+    """
     return await service.set_status(
-        workspace_id=workspace_id, test_id=test_id, status=payload.status
+        workspace_id=workspace_id,
+        test_id=test_id,
+        status=payload.status,
+        installer=installer,
     )
 
 

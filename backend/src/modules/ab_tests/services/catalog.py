@@ -50,7 +50,6 @@ class AbTestCatalogService:
         exposures: ExposureRepository,
         stats: VariantStatRepository,
         media_store: MediaStore,
-        installer: VariantInstaller,
     ) -> None:
         """Wire the service to its repositories and the WB installer.
 
@@ -60,14 +59,12 @@ class AbTestCatalogService:
             exposures: Exposure repository.
             stats: Attributed-day repository.
             media_store: Where variant originals are written and read.
-            installer: Puts a variant's image on the card.
         """
         self._tests = tests
         self._variants = variants
         self._exposures = exposures
         self._stats = stats
         self._media = media_store
-        self._installer = installer
 
     # ----------------------------------------------------------------- reads
 
@@ -266,7 +263,12 @@ class AbTestCatalogService:
             self._media.delete(path)
 
     async def set_status(
-        self, *, workspace_id: uuid.UUID, test_id: uuid.UUID, status: str
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        test_id: uuid.UUID,
+        status: str,
+        installer: VariantInstaller,
     ) -> AbTestRead:
         """Start, pause or cancel a test.
 
@@ -277,6 +279,10 @@ class AbTestCatalogService:
             workspace_id: Tenancy guard.
             test_id: Test identifier.
             status: One of ``running``, ``paused``, ``cancelled``.
+            installer: Puts the first photo on the card. Passed in per call
+                rather than held on the service because building it needs the
+                workspace's WB token, and reading a test must not require one —
+                a workspace with no token can still look at its results.
 
         Returns:
             The updated test.
@@ -297,7 +303,7 @@ class AbTestCatalogService:
             raise ValidationError(f"Статус {status} выставляется автоматически.")
 
         if target is AbTestStatus.RUNNING:
-            await self._start(test)
+            await self._start(test, installer)
         elif target is AbTestStatus.CANCELLED:
             await self._exposures.close_open(test_id=test.id, deactivated_at=datetime.now(UTC))
             await self._tests.set_status(test=test, status=target, finished_at=datetime.now(UTC))
@@ -333,7 +339,7 @@ class AbTestCatalogService:
 
     # --------------------------------------------------------------- private
 
-    async def _start(self, test: AbTest) -> None:
+    async def _start(self, test: AbTest, installer: VariantInstaller) -> None:
         """Put the first photo up and mark the test running.
 
         A paused test resumes on whatever photo is already installed rather
@@ -349,7 +355,7 @@ class AbTestCatalogService:
         now = datetime.now(UTC)
         if test.active_variant_id is None:
             first = test.variants[0]
-            await self._installer.install(nm_id=test.nm_id, variant=first)
+            await installer.install(nm_id=test.nm_id, variant=first)
             await self._exposures.open(test_id=test.id, variant_id=first.id, activated_at=now)
             await self._tests.set_active_variant(test=test, variant_id=first.id)
 

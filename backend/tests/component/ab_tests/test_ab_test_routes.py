@@ -19,7 +19,7 @@ import httpx
 import pytest
 
 from src.core.exceptions import ConflictError, NotFoundError
-from src.modules.ab_tests.deps import get_catalog_service
+from src.modules.ab_tests.deps import get_catalog_service, get_installer
 from src.modules.ab_tests.schemas import AbTestDetail, AbTestRead, VariantMetrics
 from src.modules.users.deps import get_user_repo
 from src.modules.workspaces.contract import WORKSPACE_HEADER
@@ -76,6 +76,16 @@ def _detail() -> AbTestDetail:
             )
         ],
     )
+
+
+class _StubInstaller:
+    """Stands in for the WB media upload the start route wires in."""
+
+    def __init__(self) -> None:
+        self.installed: list[int] = []
+
+    async def install(self, *, nm_id: int, variant: Any) -> None:
+        self.installed.append(nm_id)
 
 
 class _StubCatalog:
@@ -149,6 +159,7 @@ def _wire(
     override(get_user_repo, user_repo)
     override(get_workspace_repo, workspace_repo)
     override(get_catalog_service, catalog)
+    override(get_installer, _StubInstaller())
 
 
 @pytest.fixture

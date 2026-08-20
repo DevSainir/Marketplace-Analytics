@@ -90,7 +90,6 @@ def get_catalog_service(
     exposures: Annotated[ExposureRepository, Depends(get_exposure_repo)],
     stats: Annotated[VariantStatRepository, Depends(get_stat_repo)],
     media_store: MediaStoreDep,
-    installer: InstallerDep,
 ) -> AbTestCatalogService:
     """Provide the module's request-scoped service."""
     return AbTestCatalogService(
@@ -99,7 +98,6 @@ def get_catalog_service(
         exposures=exposures,
         stats=stats,
         media_store=media_store,
-        installer=installer,
     )
 
 

@@ -50,6 +50,7 @@ const navLinks = [
   // One entry for finreports, pointing at the P&L: the логистика claim and the
   // cost-price editor are reached from the statement, where their numbers live.
   { to: '/finreports', label: 'Прибыли и убытки', exact: false },
+  { to: '/ab-tests', label: 'A/Б-тесты', exact: false },
 ]
 </script>
 

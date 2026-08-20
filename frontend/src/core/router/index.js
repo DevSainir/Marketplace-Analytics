@@ -7,6 +7,7 @@
  */
 import { createRouter, createWebHistory } from 'vue-router'
 
+import { abTestsRoutes } from '@/modules/abTests'
 import { authRoutes } from '@/modules/auth'
 import { finreportsRoutes } from '@/modules/finreports'
 import { monitoringRoutes } from '@/modules/monitoring'
@@ -34,6 +35,7 @@ const router = createRouter({
     ...authRoutes,
     ...monitoringRoutes,
     ...finreportsRoutes,
+    ...abTestsRoutes,
     ...profileRoutes,
   ],
 })
