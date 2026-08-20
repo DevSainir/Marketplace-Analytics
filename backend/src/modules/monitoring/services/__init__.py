@@ -28,9 +28,11 @@ from src.modules.monitoring.services.analytics import (
     PinnedKeywordService,
 )
 from src.modules.monitoring.services.exports import (
+    AdDay,
     WarehouseStock,
     ad_coverage,
     funnel_coverage,
+    load_ad_days_for_nm,
     load_ad_spend_by_nm,
     load_orders_by_nm,
     load_stock_by_warehouse,
@@ -44,6 +46,7 @@ from src.modules.monitoring.services.refresh_tracking import (
 )
 
 __all__ = [
+    "AdDay",
     "AnalyticsService",
     "ClusterAnalytics",
     "IngestionService",
@@ -52,6 +55,7 @@ __all__ = [
     "ad_coverage",
     "bind_task_to_workspace",
     "funnel_coverage",
+    "load_ad_days_for_nm",
     "load_ad_spend_by_nm",
     "load_orders_by_nm",
     "load_stock_by_warehouse",

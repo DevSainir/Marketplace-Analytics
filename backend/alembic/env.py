@@ -16,6 +16,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool, text
 
 # Import model modules for their side effect: registering tables on Base.metadata.
+import src.modules.ab_tests.models
 import src.modules.finreports.models
 import src.modules.monitoring.models
 import src.modules.users.models
@@ -25,7 +26,7 @@ from src.core.config import settings
 from src.core.database import Base
 
 # All logical schemas that must exist before migrations run.
-_SCHEMAS: tuple[str, ...] = ("auth", "monitoring", "workspaces", "finreports")
+_SCHEMAS: tuple[str, ...] = ("auth", "monitoring", "workspaces", "finreports", "ab_tests")
 
 
 def _include_name(name: str | None, type_: str, parent_names: dict[str, object]) -> bool:

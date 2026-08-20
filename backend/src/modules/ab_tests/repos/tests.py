@@ -1,0 +1,194 @@
+"""Data access for A/B tests themselves.
+
+Sole owner of SQL for ``ab_tests.ab_test``. Every read is scoped by
+``workspace_id``: a test rewrites the seller's live card, so a leak across
+tenants is not a privacy bug but a "someone else changed my storefront" bug.
+"""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import Sequence
+from datetime import datetime
+from typing import Any, cast
+
+from sqlalchemy import String, delete, func, or_, select
+from sqlalchemy import cast as sa_cast
+from sqlalchemy.engine import CursorResult
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from src.modules.ab_tests.models import AbTest, AbTestStatus
+
+
+class AbTestRepository:
+    """Reads and writes A/B tests."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        """Bind the repository to the request-scoped session.
+
+        Args:
+            session: The request's async SQLAlchemy session.
+        """
+        self._session = session
+
+    async def create(
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        nm_id: int,
+        vendor_code: str,
+        name: str,
+        impression_budget: int,
+    ) -> AbTest:
+        """Insert a draft test.
+
+        Args:
+            workspace_id: Owning workspace.
+            nm_id: The card whose main photo will rotate.
+            vendor_code: Артикул продавца, denormalised for search.
+            name: Human title.
+            impression_budget: Impressions one variant must gather.
+
+        Returns:
+            The persisted test, flushed so its id is available.
+        """
+        test = AbTest(
+            workspace_id=workspace_id,
+            nm_id=nm_id,
+            vendor_code=vendor_code,
+            name=name,
+            status=AbTestStatus.DRAFT.value,
+            impression_budget=impression_budget,
+        )
+        self._session.add(test)
+        await self._session.flush()
+        return test
+
+    async def get(self, *, workspace_id: uuid.UUID, test_id: uuid.UUID) -> AbTest | None:
+        """Return one test with its variants loaded, or ``None``.
+
+        Args:
+            workspace_id: Tenancy guard — a foreign test reads as absent.
+            test_id: Test identifier.
+
+        Returns:
+            The test, or ``None`` when it does not exist in this workspace.
+        """
+        stmt = (
+            select(AbTest)
+            .where(AbTest.id == test_id, AbTest.workspace_id == workspace_id)
+            .options(selectinload(AbTest.variants))
+        )
+        return (await self._session.execute(stmt)).scalars().one_or_none()
+
+    async def search(
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        query: str | None = None,
+        statuses: Sequence[str] | None = None,
+    ) -> list[AbTest]:
+        """List the workspace's tests, newest first, optionally filtered.
+
+        ``query`` matches any of the fields the list shows — the test's name,
+        the WB article and the seller's article — so the one search box in the
+        header behaves the way the cabinet's does. The nm is matched as text
+        because users paste partial articles.
+
+        Args:
+            workspace_id: Owning workspace.
+            query: Free-text needle; ``None`` or blank returns everything.
+            statuses: Restrict to these statuses when given.
+
+        Returns:
+            Matching tests with their variants loaded, newest first.
+        """
+        stmt = (
+            select(AbTest)
+            .where(AbTest.workspace_id == workspace_id)
+            .options(selectinload(AbTest.variants))
+            .order_by(AbTest.created_at.desc())
+        )
+
+        needle = (query or "").strip()
+        if needle:
+            pattern = f"%{needle.lower()}%"
+            stmt = stmt.where(
+                or_(
+                    func.lower(AbTest.name).like(pattern),
+                    func.lower(AbTest.vendor_code).like(pattern),
+                    sa_cast(AbTest.nm_id, String).like(f"%{needle}%"),
+                    func.lower(AbTest.status).like(pattern),
+                )
+            )
+
+        if statuses:
+            stmt = stmt.where(AbTest.status.in_(list(statuses)))
+
+        return list((await self._session.execute(stmt)).scalars().all())
+
+    async def list_advanceable(self) -> list[AbTest]:
+        """Return every running test, across all workspaces.
+
+        Used by the nightly rotation pass, which is not request-scoped and so
+        has no workspace of its own.
+
+        Returns:
+            Running tests with their variants loaded.
+        """
+        stmt = (
+            select(AbTest)
+            .where(AbTest.status == AbTestStatus.RUNNING.value)
+            .options(selectinload(AbTest.variants))
+            .order_by(AbTest.created_at)
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
+
+    async def set_status(
+        self,
+        *,
+        test: AbTest,
+        status: AbTestStatus,
+        started_at: datetime | None = None,
+        finished_at: datetime | None = None,
+    ) -> None:
+        """Move a test to a new status, stamping the lifecycle timestamps.
+
+        Args:
+            test: The test to update (already loaded).
+            status: New status.
+            started_at: Set on the first transition into ``RUNNING``.
+            finished_at: Set when the test stops for good.
+        """
+        test.status = status.value
+        if started_at is not None:
+            test.started_at = started_at
+        if finished_at is not None:
+            test.finished_at = finished_at
+        await self._session.flush()
+
+    async def set_active_variant(self, *, test: AbTest, variant_id: uuid.UUID | None) -> None:
+        """Record which variant is currently on the card.
+
+        Args:
+            test: The test to update.
+            variant_id: The live variant, or ``None`` when none is.
+        """
+        test.active_variant_id = variant_id
+        await self._session.flush()
+
+    async def delete(self, *, workspace_id: uuid.UUID, test_id: uuid.UUID) -> bool:
+        """Delete a test and everything hanging off it.
+
+        Args:
+            workspace_id: Tenancy guard.
+            test_id: Test identifier.
+
+        Returns:
+            ``True`` when a row was removed.
+        """
+        stmt = delete(AbTest).where(AbTest.id == test_id, AbTest.workspace_id == workspace_id)
+        result = await self._session.execute(stmt)
+        await self._session.flush()
+        return bool(cast("CursorResult[Any]", result).rowcount)

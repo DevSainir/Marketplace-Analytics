@@ -17,6 +17,7 @@ from functools import lru_cache
 from pydantic import model_validator
 from pydantic_settings import SettingsConfigDict
 
+from src.core.config.ab_tests import AbTestsSettings
 from src.core.config.app import AppSettings
 from src.core.config.datastore import DataStoreSettings
 from src.core.config.finreports import FinreportsSettings
@@ -32,6 +33,7 @@ class Settings(
     WildberriesSettings,
     StorefrontSettings,
     FinreportsSettings,
+    AbTestsSettings,
 ):
     """Strongly-typed, validated application settings.
 

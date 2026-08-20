@@ -211,6 +211,7 @@ class BaseWBClient:
         params: dict[str, Any] | None = None,
         json_body: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
+        files: dict[str, tuple[str, bytes, str]] | None = None,
         skip_rate_gate: bool = False,
     ) -> Any:
         """Perform an async request and return the decoded JSON payload.
@@ -220,6 +221,10 @@ class BaseWBClient:
             path: Path appended to the client's base URL.
             params: Optional query-string parameters.
             json_body: Optional JSON request body.
+            files: Optional multipart payload, ``{field: (filename, bytes,
+                content_type)}``. WB's media upload is the only surface that
+                takes one; it goes through the same gate and retry ladder as
+                every other call because its bucket is metered the same way.
 
         Every attempt — the first and each retry — passes the rate gate first,
         so a retry can never re-enter an empty WB bucket. WB's own
@@ -245,7 +250,7 @@ class BaseWBClient:
                 await self._rate_gate.acquire(path)
             try:
                 response = await self._client.request(
-                    method, path, params=params, json=json_body, headers=headers
+                    method, path, params=params, json=json_body, headers=headers, files=files
                 )
                 await self._observe_rate_headers(path, response)
                 response.raise_for_status()

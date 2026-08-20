@@ -234,3 +234,68 @@ async def load_vendor_codes(session: AsyncSession, *, workspace_id: uuid.UUID) -
         ProductCard.workspace_id == workspace_id, ProductCard.vendor_code != ""
     )
     return {int(nm_id): str(code) for nm_id, code in (await session.execute(stmt)).all()}
+
+
+class AdDay(NamedTuple):
+    """One SKU's advertising day, summed over campaigns and platforms.
+
+    The A/B-tests module consumes this instead of calling ``fullstats`` itself:
+    the harvest already pays that endpoint's ~1-request-per-minute toll, and a
+    second caller on the same token would push the bucket over — which WB
+    answers with a 500 or a hung socket rather than a clean 429.
+    """
+
+    stat_date: date
+    views: int
+    clicks: int
+    atbs: int
+    orders: int
+    spend: Decimal
+
+
+async def load_ad_days_for_nm(
+    session: AsyncSession, *, nm_id: int, date_from: date, date_to: date
+) -> list[AdDay]:
+    """Return one SKU's advertising days over a window.
+
+    Rows are summed across every campaign and platform that served the card, in
+    line with how a campaign-day is split in ``fullstats`` — reading a single
+    bucket as "the day" understates every metric.
+
+    Args:
+        session: An open async session (caller owns the transaction).
+        nm_id: SKU to report.
+        date_from: Inclusive stat-date start.
+        date_to: Inclusive stat-date end.
+
+    Returns:
+        Days in ascending order; days with no advertising are absent.
+    """
+    stmt = (
+        select(
+            AdvertisingStatDaily.stat_date,
+            func.sum(AdvertisingStatDaily.views),
+            func.sum(AdvertisingStatDaily.clicks),
+            func.sum(AdvertisingStatDaily.add_to_cart),
+            func.sum(AdvertisingStatDaily.orders),
+            func.sum(AdvertisingStatDaily.spend),
+        )
+        .where(
+            AdvertisingStatDaily.nm_id == nm_id,
+            AdvertisingStatDaily.stat_date >= date_from,
+            AdvertisingStatDaily.stat_date <= date_to,
+        )
+        .group_by(AdvertisingStatDaily.stat_date)
+        .order_by(AdvertisingStatDaily.stat_date)
+    )
+    return [
+        AdDay(
+            stat_date=row[0],
+            views=int(row[1] or 0),
+            clicks=int(row[2] or 0),
+            atbs=int(row[3] or 0),
+            orders=int(row[4] or 0),
+            spend=Decimal(row[5] or 0),
+        )
+        for row in (await session.execute(stmt)).all()
+    ]

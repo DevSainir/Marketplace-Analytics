@@ -38,6 +38,14 @@ celery_app.conf.update(
 # 06:00 MSK. It harvests yesterday's funnel + stock for every SKU and the last
 # week of advertising for all active/paused campaigns.
 celery_app.conf.beat_schedule = {
+    # A/B photo rotations, after the harvest that writes the advertising rows
+    # they read. 08:00 MSK leaves the 06:00 harvest and the 07:00 cohort pass
+    # room to finish; a rotation that runs on a half-written day would
+    # under-count the live photo and delay its swap by a day.
+    "ab-tests-advance-rotations": {
+        "task": "ab_tests.advance_rotations",
+        "schedule": crontab(hour=8, minute=0),
+    },
     "nightly-harvest-all": {
         "task": "monitoring.harvest_all",
         "schedule": crontab(hour=6, minute=0),
@@ -126,5 +134,6 @@ celery_app.autodiscover_tasks(
         "src.modules.monitoring",
         "src.modules.users",
         "src.modules.finreports",
+        "src.modules.ab_tests",
     ],
 )

@@ -85,3 +85,44 @@ class WBContentClient(BaseWBClient):
                 "nmID": cur["nmID"],
             }
         return cards
+
+    async def upload_media_file(
+        self,
+        *,
+        nm_id: int,
+        photo_number: int,
+        content: bytes,
+        filename: str,
+        content_type: str,
+    ) -> None:
+        """Replace one media slot of a card with an uploaded file.
+
+        Endpoint: ``POST /content/v3/media/file`` — multipart, with the target
+        card and slot in headers rather than the body.
+
+        This is deliberately not ``/content/v3/media/save``: that method takes a
+        list of URLs and **replaces the entire gallery**, so setting the main
+        photo with it means re-sending every other image and losing any it does
+        not know about. ``media/file`` writes exactly one slot, which is what a
+        photo rotation needs — ``photo_number=1`` is the main photo.
+
+        WB moderates the new image asynchronously; a 200 here means accepted for
+        moderation, not yet live on the storefront.
+
+        Args:
+            nm_id: WB SKU whose gallery slot is written.
+            photo_number: 1-based slot; ``1`` is the main photo.
+            content: Raw image bytes.
+            filename: Name to send in the multipart part (WB ignores it, but a
+                missing one makes some proxies drop the part).
+            content_type: MIME type of ``content``.
+
+        Raises:
+            IntegrationError: If WB rejects the upload.
+        """
+        await self._request(
+            "POST",
+            "/content/v3/media/file",
+            headers={"X-Nm-Id": str(nm_id), "X-Photo-Number": str(photo_number)},
+            files={"uploadfile": (filename, content, content_type)},
+        )

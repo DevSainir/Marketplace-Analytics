@@ -17,10 +17,12 @@ from src.modules.monitoring.schemas import (
     SkuSummaryListResponse,
 )
 from src.modules.monitoring.services import (
+    AdDay,
     AnalyticsService,
     WarehouseStock,
     ad_coverage,
     funnel_coverage,
+    load_ad_days_for_nm,
     load_ad_spend_by_nm,
     load_orders_by_nm,
     load_stock_by_warehouse,
@@ -29,6 +31,7 @@ from src.modules.monitoring.services import (
 )
 
 __all__ = [
+    "AdDay",
     "AnalyticsService",
     "SkuDetailResponse",
     "SkuSummaryItem",
@@ -36,6 +39,7 @@ __all__ = [
     "WarehouseStock",
     "ad_coverage",
     "funnel_coverage",
+    "load_ad_days_for_nm",
     "load_ad_spend_by_nm",
     "load_orders_by_nm",
     "load_stock_by_warehouse",

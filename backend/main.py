@@ -22,6 +22,7 @@ from src.core.database import dispose_engine
 from src.core.exceptions import AppError
 from src.core.logging import configure_logging, get_logger
 from src.core.redis import close_redis
+from src.modules.ab_tests.routers import router as ab_tests_router
 from src.modules.finreports.routers import router as finreports_router
 from src.modules.monitoring.routers import router as monitoring_router
 from src.modules.users.routers import router as users_router
@@ -144,3 +145,4 @@ app.include_router(users_router, prefix="/api")
 app.include_router(workspaces_router, prefix="/api")
 app.include_router(monitoring_router, prefix="/api")
 app.include_router(finreports_router, prefix="/api")
+app.include_router(ab_tests_router, prefix="/api")
