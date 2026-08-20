@@ -40,15 +40,25 @@ class WildberriesSettings(BaseSettings):
     # Every FBS warehouse WB lists for the seller is discovered and read, so a
     # warehouse opened in the portal needs no deploy. ``False`` switches FBS off.
     wb_fbs_harvest_enabled: bool = True
-    # Column headers by warehouse id; anything absent is labelled from WB's own
-    # name, which is a seller's working note. Read ONCE at discovery and then
-    # FROZEN — see monitoring/models/fbs_warehouses.py before editing an entry.
+    # Column headers by warehouse id, written «<точка> - <город> (FBS)»: the
+    # warehouse's own name first, because that is what distinguishes it from
+    # its neighbours, then the city. The header is truncated to its first
+    # letters in «Остатки по складам», so what a reader gets is «Внуково…» and
+    # «Белая дача…» rather than two columns that both read «Москва (…».
+    # The city is dropped where it would only repeat the name («Бишкек»), and
+    # a warehouse with no meaningful region keeps its name alone.
+    #
+    # Anything absent is labelled from WB's own name, which is a seller's
+    # working note. Read ONCE at discovery and then FROZEN: an entry edited
+    # here changes nothing on its own, because the label in force lives in
+    # ``monitoring.fbs_warehouse`` — renaming one means migrating every table
+    # that stores it (see monitoring/models/fbs_warehouses.py).
     wb_fbs_warehouse_labels: dict[int, str] = Field(
         default_factory=lambda: {
-            9945803: "Москва (Внуково) (FBS)",  # ships
-            9990254: "Москва (Белая дача) (FBS)",  # ships (empty as of 19.08)
+            9945803: "Внуково - Москва (FBS)",  # ships
+            9990254: "Белая дача - Москва (FBS)",  # ships (since 20.08)
             9931578: "Бишкек (FBS)",
-            9830567: "Бишкек EDBS (FBS)",
+            9830567: "EDBS - Бишкек (FBS)",
             9041173: "Тест товаров (FBS)",
             9684293: "Тест 2 (FBS)",
         }
