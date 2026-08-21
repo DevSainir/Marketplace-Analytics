@@ -35,6 +35,30 @@ describe('request interceptor', () => {
 
     expect(data.auth).toBeNull()
   })
+
+  it('lets a FormData body pick its own Content-Type', async () => {
+    // The instance default is `application/json`, and an instance default
+    // outranks the per-request type Axios would infer. A multipart body sent
+    // under it reaches the server unparseable — the boundary is missing, so
+    // there are no fields at all — and the upload fails as a malformed
+    // request, which is what broke every A/Б photo upload in the browser
+    // while every unit and component test stayed green.
+    const form = new FormData()
+    form.append('file', new Blob(['x']), 'variant.jpg')
+    mock.onPost('/v1/upload').reply((config) => [200, { type: config.headers['Content-Type'] }])
+
+    const { data } = await apiClient.post('/v1/upload', form)
+
+    expect(data.type).not.toBe('application/json')
+  })
+
+  it('still sends JSON for an ordinary object body', async () => {
+    mock.onPost('/v1/thing').reply((config) => [200, { type: config.headers['Content-Type'] }])
+
+    const { data } = await apiClient.post('/v1/thing', { name: 'x' })
+
+    expect(data.type).toBe('application/json')
+  })
 })
 
 describe('401 refresh-retry interceptor', () => {

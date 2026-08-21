@@ -102,6 +102,15 @@ apiClient.interceptors.request.use((config) => {
   if (workspaceId) {
     config.headers['X-Workspace-Id'] = workspaceId
   }
+  // A FormData body must carry `multipart/form-data; boundary=…`, and only the
+  // browser can name that boundary. The JSON default above is set on the
+  // instance, so it outranks the one Axios would infer per request and the
+  // upload goes out labelled `application/json` with a multipart body inside —
+  // which the server cannot parse, and rejects as a malformed request rather
+  // than a bad image. Deleting the header lets Axios fill it in.
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    delete config.headers['Content-Type']
+  }
   return config
 })
 
