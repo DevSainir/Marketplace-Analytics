@@ -135,10 +135,12 @@ async def _harvest_sku_window(
 
     Opens a dedicated async DB session and transaction, calls the WB clients
     resiliently, delegates flattening/persistence to :class:`IngestionService`,
-    and commits atomically. Advertising is pulled for the active/paused
-    campaigns that advertise ``nm_ids`` (see :func:`_advertising_harvest_ids`),
-    so a SKU's detail view shows every campaign that spent on it during the
-    window, without dragging in the rest of the account's.
+    and commits atomically. Advertising is pulled for the campaigns that
+    advertise ``nm_ids`` and are still running, plus any that already delivered
+    inside the window (see :func:`_advertising_harvest_ids`), so a SKU's detail
+    view shows every campaign that spent on it during the window — including
+    one completed part-way through it — without dragging in the rest of the
+    account's.
 
     Args:
         tokens: The owning workspace's decrypted WB credentials. A surface
@@ -175,6 +177,13 @@ async def _harvest_sku_window(
     # told about yet — their sizes land later in this same transaction.
     async with AsyncSessionLocal() as session:
         size_ids_by_nm = await ProductSizeRepository(session).get_chrt_ids_by_nm_ids(nm_ids)
+        # Campaigns that already delivered inside this window, so the fullstats
+        # scope can include the ones WB has since stopped calling active — the
+        # day a campaign ENDS on is only ever collectable by the pass that
+        # still remembers it (see :func:`_advertising_harvest_ids`).
+        recent_campaign_ids = await AdvertisingRepository(session).campaign_ids_in_window(
+            nm_ids=nm_ids, date_from=date_from, date_to=date_to
+        )
     for card in cards or []:
         if card.sizes:
             size_ids_by_nm[card.nm_id] = sorted({size.chrt_id for size in card.sizes})
@@ -249,7 +258,9 @@ async def _harvest_sku_window(
         # SKUs: a full (all-SKU) harvest keeps every active campaign, but a
         # targeted single-SKU refresh drops the account's other campaigns —
         # turning a ~all-campaigns pull into a handful, the bulk of the latency.
-        harvest_ids = _advertising_harvest_ids(campaigns, adverts, nm_ids)
+        # The window's already-delivering campaigns join that scope whatever
+        # status WB now gives them, which is what keeps a campaign's closing day.
+        harvest_ids = _advertising_harvest_ids(campaigns, adverts, nm_ids, recent_campaign_ids)
         search_pairs = _candidate_search_pairs(adverts, nm_ids, harvest_ids)
 
         async def _fetch_fullstats() -> list[WBAdvCampaignStats]:

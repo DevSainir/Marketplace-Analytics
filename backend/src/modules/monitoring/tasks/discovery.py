@@ -41,9 +41,20 @@ async def _discover_and_harvest_workspace(
 ) -> dict[str, int]:
     """Discover one workspace's SKUs and harvest a rolling ``days``-day window.
 
-    Discovery runs with the workspace's own Analytics token against the
-    Content API, so the resulting cards — and everything harvested for them —
-    are provably that workspace's SKUs.
+    Discovery runs with the workspace's own Content token — the Analytics one
+    when no Content token is stored — against the Content API, so the resulting
+    cards, and everything harvested for them, are provably that workspace's
+    SKUs.
+
+    Discovery is a SOURCE, not a precondition. When the Content API refuses
+    (no token, or one whose categories do not include «Контент»), the harvest
+    falls back to the SKUs already registered to the workspace and runs every
+    other source over them; only a workspace with no catalogue at all has
+    nothing left to harvest. Letting it abort instead cost the «Демо»
+    workspace every nightly harvest from the day WB stopped serving
+    ``/content/v2/get/cards/list`` on the analytics scope: funnel, advertising,
+    stocks and prices all went unharvested because the SKU LIST could not be
+    refreshed, though it had not changed.
 
     Args:
         tokens: The workspace's decrypted WB credentials.
@@ -53,8 +64,8 @@ async def _discover_and_harvest_workspace(
         A mapping of persisted row counts per metric family.
 
     Raises:
-        IntegrationError: If the workspace has no analytics token (discovery
-            is impossible without it) or discovery itself fails.
+        IntegrationError: If discovery fails and the workspace has no SKUs on
+            file, leaving nothing to harvest.
     """
     if settings.wb_fake_harvest:
         # Fake harvesting never calls the Content API. The SKUs already on file
@@ -65,20 +76,44 @@ async def _discover_and_harvest_workspace(
             nm_ids = await ProductCardRepository(session).list_workspace_nm_ids(tokens.workspace_id)
         cards: list[WBCard] | None = None
     else:
-        if not tokens.content:
-            raise IntegrationError(
-                f"Workspace '{tokens.name}' has no content/analytics token; "
-                "cannot discover its SKUs."
+        try:
+            if not tokens.content:
+                raise IntegrationError(
+                    f"Workspace '{tokens.name}' has no content/analytics token; "
+                    "cannot discover its SKUs."
+                )
+            async with WBContentClient(settings, token=tokens.content) as content:
+                fetched = await content.fetch_all_cards()
+        except Exception as exc:
+            # The catalogue is the one source whose failure used to void the
+            # others. It is also the most static of them: yesterday's SKU list
+            # is a fine basis for harvesting yesterday's facts, so fall back to
+            # it rather than skip the workspace.
+            async with AsyncSessionLocal() as session:
+                nm_ids = await ProductCardRepository(session).list_workspace_nm_ids(
+                    tokens.workspace_id
+                )
+            if not nm_ids:
+                raise IntegrationError(
+                    f"Workspace '{tokens.name}' has no SKUs on file and its catalogue "
+                    f"could not be read: {exc}"
+                ) from exc
+            logger.warning(
+                "Catalogue refresh failed for workspace '%s' (%s); harvesting the "
+                "%d SKU(s) already on file instead.",
+                tokens.name,
+                exc,
+                len(nm_ids),
             )
-        async with WBContentClient(settings, token=tokens.content) as content:
-            fetched = await content.fetch_all_cards()
-        nm_ids = [card.nm_id for card in fetched]
-        cards = fetched
-    logger.info(
-        "Discovered %d SKUs for workspace '%s'.",
-        len(nm_ids),
-        tokens.name,
-    )
+            cards = None
+        else:
+            nm_ids = [card.nm_id for card in fetched]
+            cards = fetched
+            logger.info(
+                "Discovered %d SKUs for workspace '%s'.",
+                len(nm_ids),
+                tokens.name,
+            )
     if not nm_ids:
         return {}
 

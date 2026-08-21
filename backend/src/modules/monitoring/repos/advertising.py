@@ -307,6 +307,40 @@ class AdvertisingRepository(BaseRepository):
             for row in result.all()
         ]
 
+    async def campaign_ids_in_window(
+        self, *, nm_ids: Iterable[int], date_from: date, date_to: date
+    ) -> list[int]:
+        """Return the campaigns already holding rows for ``nm_ids`` in a window.
+
+        The harvest re-asks WB for these regardless of the status WB now
+        reports, so a campaign the seller completed mid-window still gets its
+        final day collected (see
+        :func:`~src.modules.monitoring.tasks.planning._advertising_harvest_ids`).
+
+        Args:
+            nm_ids: The SKUs being harvested.
+            date_from: Inclusive window start.
+            date_to: Inclusive window end.
+
+        Returns:
+            Ascending campaign ids, empty when nothing delivered in the window.
+        """
+        ids = list(nm_ids)
+        if not ids:
+            return []
+        stmt = (
+            select(AdvertisingStatDaily.campaign_id)
+            .where(
+                AdvertisingStatDaily.nm_id.in_(ids),
+                AdvertisingStatDaily.stat_date >= date_from,
+                AdvertisingStatDaily.stat_date <= date_to,
+            )
+            .distinct()
+            .order_by(AdvertisingStatDaily.campaign_id)
+        )
+        result = await self._session.execute(stmt)
+        return [int(cid) for cid in result.scalars().all()]
+
     async def delete_window_for_campaigns(
         self, *, date_from: date, date_to: date, campaign_ids: Iterable[int]
     ) -> int:
