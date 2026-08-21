@@ -15,12 +15,24 @@
  */
 import { expect, test } from '../fixtures/app.js'
 
-/** A minimal valid JPEG — enough bytes for the upload to be a real file. */
-const JPEG = Buffer.concat([
-  Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
-  Buffer.alloc(2048, 0x20),
-  Buffer.from([0xff, 0xd9]),
-])
+/**
+ * A real, decodable 1x1 baseline JPEG.
+ *
+ * It has to be decodable, not merely JPEG-shaped: the assertion below is that
+ * the browser actually RENDERED the thumbnail, and `naturalWidth` stays 0 for
+ * bytes it cannot decode. The previous fixture — two markers around a block of
+ * spaces — passed upload (the server checks the declared type and the size, it
+ * does not decode) but could never have produced a picture on screen.
+ */
+const JPEG = Buffer.from(
+  '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a' +
+    'HBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAHwAAAQUBAQEB' +
+    'AQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1Fh' +
+    'ByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZ' +
+    'WmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXG' +
+    'x8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9oACAEBAAA/APn+v//Z',
+  'base64',
+)
 
 test('a test is created, takes photos, and shows them as rows of the result table', async ({
   signedIn: page,
@@ -51,14 +63,28 @@ test('a test is created, takes photos, and shows them as rows of the result tabl
 
   // The thumbnail is served by our own image route. A queued variant has no WB
   // URL at all, so this is the only place the picture can come from.
+  //
+  // It reaches the tag as an object URL, NOT as `/api/…/image`. This assertion
+  // used to require the latter, which cannot work: that route is
+  // authenticated, and the access token lives in memory, so an `<img>` loading
+  // it directly sends neither the token nor the workspace header and is
+  // answered 401. The SPA fetches the bytes through the API client instead and
+  // hands `<img>` a blob — the same route the finreports downloads take. What
+  // is worth pinning is unchanged and asserted below: a picture arrived, and
+  // its bytes came from our own store rather than from WB.
   const thumbnail = rows.first().getByRole('img').first()
   await expect(thumbnail).toBeVisible()
   const source = await thumbnail.getAttribute('src')
-  expect(source).toMatch(/\/api\/ab-tests\/.+\/variants\/.+\/image$/)
+  expect(source).toMatch(/^blob:/)
 
-  const response = await page.request.get(source)
-  expect(response.status()).toBe(200)
-  expect(response.headers()['content-type']).toContain('image')
+  // `naturalWidth` is 0 until the browser has actually decoded bytes behind
+  // that URL, so this is what separates a rendered photo from an `<img>` that
+  // merely exists with a plausible src.
+  await expect
+    .poll(() => thumbnail.evaluate((node) => node.complete && node.naturalWidth > 0), {
+      timeout: 15_000,
+    })
+    .toBe(true)
 
   // Nothing has been live yet, so every ratio reads «—». Zero would claim the
   // photo converted nobody, which is a measurement it has not made.

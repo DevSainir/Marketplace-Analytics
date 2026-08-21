@@ -90,6 +90,26 @@ export async function uploadVariant(testId, file) {
 }
 
 /**
+ * GET /ab-tests/{id}/variants/{variantId}/image — the stored original.
+ *
+ * Fetched through the API client rather than pointed at from an `<img src>`:
+ * the route is authenticated, and the access token lives in memory, so a plain
+ * image request carries neither it nor the workspace header and is refused.
+ * The view turns the blob into an object URL — the same route the finreports
+ * downloads take.
+ *
+ * @param {string} testId Test identifier.
+ * @param {string} variantId Variant identifier.
+ * @returns {Promise<Blob>} The image bytes.
+ */
+export async function fetchVariantImage(testId, variantId) {
+  const { data } = await apiClient.get(`/ab-tests/${testId}/variants/${variantId}/image`, {
+    responseType: 'blob',
+  })
+  return data
+}
+
+/**
  * DELETE /ab-tests/{id}/variants/{variantId} — drop a photo from the rotation.
  *
  * @param {string} testId Test identifier.

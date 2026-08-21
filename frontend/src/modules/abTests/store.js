@@ -21,6 +21,7 @@ import {
   deleteVariant,
   fetchTest,
   fetchTests,
+  fetchVariantImage,
   setTestStatus,
   uploadVariant,
 } from '@/modules/abTests/api'
@@ -40,6 +41,10 @@ export const MAX_VARIANTS = 10
 export const useAbTestsStore = defineStore('abTests', () => {
   const tests = ref([])
   const detail = ref(null)
+  // variant_id -> object URL. The images are authenticated, so they are
+  // fetched as blobs and handed to `<img>` as object URLs; the browser would
+  // send neither the access token nor the workspace header on its own.
+  const imageUrls = ref({})
   const query = ref('')
   const loading = ref(false)
   const saving = ref(false)
@@ -203,6 +208,45 @@ export const useAbTestsStore = defineStore('abTests', () => {
   }
 
   /**
+   * Release every object URL held for the open test.
+   *
+   * An object URL pins its blob in memory until it is revoked, so leaving a
+   * rotation of ten photos behind on every navigation leaks all of them.
+   *
+   * @returns {void}
+   */
+  function releaseImages() {
+    for (const url of Object.values(imageUrls.value)) URL.revokeObjectURL(url)
+    imageUrls.value = {}
+  }
+
+  /**
+   * Fetch the open test's photos and expose them as object URLs.
+   *
+   * A photo that fails to load is simply absent from the map rather than
+   * failing the whole table: the row still carries the metrics, which is most
+   * of what the table is for.
+   *
+   * @param {string} testId Test identifier.
+   * @returns {Promise<void>}
+   */
+  async function loadImages(testId) {
+    const variants = detail.value?.variants ?? []
+    const next = {}
+    for (const variant of variants) {
+      try {
+        next[variant.variant_id] = URL.createObjectURL(
+          await fetchVariantImage(testId, variant.variant_id),
+        )
+      } catch {
+        // Left out of the map; the row renders without its thumbnail.
+      }
+    }
+    releaseImages()
+    imageUrls.value = next
+  }
+
+  /**
    * Delete a test and drop it from the list.
    *
    * @param {string} testId Test identifier.
@@ -227,6 +271,7 @@ export const useAbTestsStore = defineStore('abTests', () => {
   return {
     tests,
     detail,
+    imageUrls,
     query,
     loading,
     saving,
@@ -242,5 +287,7 @@ export const useAbTestsStore = defineStore('abTests', () => {
     removePhoto,
     changeStatus,
     remove,
+    loadImages,
+    releaseImages,
   }
 })

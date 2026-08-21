@@ -11,7 +11,7 @@
  * A ratio reads «—» rather than 0 % when its denominator is empty: a photo that
  * has not been live yet has not converted nobody, it has not been measured.
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
 import { MAX_VARIANTS, STATUS_LABELS, useAbTestsStore } from '@/modules/abTests'
@@ -27,6 +27,17 @@ watch(
   () => route.params.testId,
   (id) => id && store.loadTest(id),
 )
+
+// The photos are authenticated, so they cannot be pointed at from `<img src>`
+// — the store fetches them and hands back object URLs. Re-run whenever the set
+// of variants changes (an upload replaces the whole detail), and release the
+// URLs on the way out so their blobs are not pinned in memory.
+watch(
+  () => (test.value?.variants ?? []).map((variant) => variant.variant_id).join(','),
+  () => test.value && store.loadImages(test.value.id),
+  { immediate: true },
+)
+onUnmounted(() => store.releaseImages())
 
 function percent(value) {
   return value === null || value === undefined ? '—' : `${Number(value).toFixed(2)} %`
@@ -143,7 +154,8 @@ async function onFiles(event) {
             <td class="px-lg py-md">
               <div class="flex items-center gap-sm">
                 <img
-                  :src="variant.image_url"
+                  v-if="store.imageUrls[variant.variant_id]"
+                  :src="store.imageUrls[variant.variant_id]"
                   :alt="`Вариант ${variant.position}`"
                   class="h-20 w-16 rounded-control object-cover"
                 />

@@ -6,6 +6,7 @@ import {
   deleteVariant,
   fetchTest,
   fetchTests,
+  fetchVariantImage,
   setTestStatus,
   uploadVariant,
 } from '@/modules/abTests/api'
@@ -17,6 +18,7 @@ vi.mock('@/modules/abTests/api', () => ({
   deleteVariant: vi.fn(),
   fetchTest: vi.fn(),
   fetchTests: vi.fn(),
+  fetchVariantImage: vi.fn(),
   setTestStatus: vi.fn(),
   uploadVariant: vi.fn(),
 }))
@@ -39,6 +41,85 @@ function detail(variantCount) {
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
+})
+
+describe('A/Б-tests photo object URLs', () => {
+  // The image route is authenticated and the access token lives in memory, so
+  // `<img src="/api/…">` is refused — the bytes come through the API client and
+  // reach the tag as object URLs instead. That makes their lifetime the store's
+  // problem: an object URL pins its blob until revoked.
+  let created
+  let revoked
+
+  beforeEach(() => {
+    created = 0
+    revoked = []
+    vi.stubGlobal('URL', {
+      createObjectURL: () => `blob:fake/${++created}`,
+      revokeObjectURL: (url) => revoked.push(url),
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('exposes one object URL per variant', async () => {
+    fetchTest.mockResolvedValue(detail(2))
+    fetchVariantImage.mockResolvedValue(new Blob(['jpeg']))
+    const store = useAbTestsStore()
+    await store.loadTest(TEST_ID)
+
+    await store.loadImages(TEST_ID)
+
+    expect(Object.keys(store.imageUrls)).toEqual(['v0', 'v1'])
+    expect(store.imageUrls.v0).toMatch(/^blob:/)
+  })
+
+  it('still renders a row whose photo could not be fetched', async () => {
+    // The metrics are most of what the table is for; one unreachable image
+    // must not blank the whole rotation.
+    fetchTest.mockResolvedValue(detail(2))
+    fetchVariantImage
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce(new Blob(['jpeg']))
+    const store = useAbTestsStore()
+    await store.loadTest(TEST_ID)
+
+    await store.loadImages(TEST_ID)
+
+    expect(store.imageUrls.v0).toBeUndefined()
+    expect(store.imageUrls.v1).toMatch(/^blob:/)
+  })
+
+  it('revokes the previous URLs when the photos are reloaded', async () => {
+    // An upload replaces the whole detail, so this runs on every added photo.
+    // Without the revoke a ten-photo rotation leaks ten blobs per upload.
+    fetchTest.mockResolvedValue(detail(1))
+    fetchVariantImage.mockResolvedValue(new Blob(['jpeg']))
+    const store = useAbTestsStore()
+    await store.loadTest(TEST_ID)
+    await store.loadImages(TEST_ID)
+    const first = store.imageUrls.v0
+
+    await store.loadImages(TEST_ID)
+
+    expect(revoked).toContain(first)
+    expect(store.imageUrls.v0).not.toBe(first)
+  })
+
+  it('releases every URL when the view goes away', async () => {
+    fetchTest.mockResolvedValue(detail(2))
+    fetchVariantImage.mockResolvedValue(new Blob(['jpeg']))
+    const store = useAbTestsStore()
+    await store.loadTest(TEST_ID)
+    await store.loadImages(TEST_ID)
+
+    store.releaseImages()
+
+    expect(revoked).toHaveLength(2)
+    expect(store.imageUrls).toEqual({})
+  })
 })
 
 describe('A/Б-tests store', () => {
