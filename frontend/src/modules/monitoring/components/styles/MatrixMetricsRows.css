@@ -15,18 +15,27 @@
   border-left: none;
 }
 
-/* «ДРР от продаж»: 5 cells per day (uni | руч.поиск | руч.полки | общая |
-   органика). Black day boundary before each day's first cell (except the
-   first day), light boundaries between the campaign groups within a day. */
+/* «ДРР от продаж»: one cell per traffic group, so 6 per day (uni | руч.поиск |
+   руч.полки | CPC | общая | органика). Black day boundary before each day's
+   first cell (except the first day), light boundaries between the campaign
+   groups within a day — the same cadence as the type header in main.css, one
+   row up in the same columns.
+
+   The stride is DRR_SALES_COLUMNS.length in metricsMatrix.js. It is NOT
+   COLUMNS_PER_DAY: this row merges its zones, so it lays out fewer cells per
+   day than the rows above and cannot inherit their border cadence (which is
+   what `matrix-row-merged` strips off at the top of this file). Adding a
+   traffic group moves both, by different amounts. */
 .app-datatable--matrix
   tbody.matrix-metrics
   tr.matrix-row-merged--campaign
-  td:nth-child(5n + 2):not(:nth-child(2)) {
+  td:nth-child(6n + 2):not(:nth-child(2)) {
   border-left: 2px solid #101010;
 }
-.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(5n + 3),
-.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(5n + 4),
-.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(5n) {
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(6n + 3),
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(6n + 4),
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(6n + 5),
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(6n) {
   border-left: 2px solid #d9d9d9;
 }
 

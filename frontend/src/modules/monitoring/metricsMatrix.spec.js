@@ -1,5 +1,7 @@
 import { formatCurrency, formatCurrencyTenths, formatNumber } from '@/core/utils/format'
 import {
+  COLUMNS_PER_DAY,
+  DRR_SALES_COLUMNS,
   TRAFFIC_COLUMNS,
   TRAFFIC_GROUPS,
   buildMetricsMatrix,
@@ -38,6 +40,27 @@ describe('traffic column structure', () => {
   it('group spans cover exactly the leaf columns', () => {
     const spanned = TRAFFIC_GROUPS.reduce((sum, g) => sum + g.span, 0)
     expect(spanned).toBe(TRAFFIC_COLUMNS.length)
+  })
+
+  it('merges «ДРР от продаж» into exactly one cell per traffic group', () => {
+    // The row's day/group dividers are drawn by an `nth-child(6n + …)` cadence
+    // in MatrixMetricsRows.css, and 6 is this length — the row merges its
+    // zones, so it lays out fewer cells per day than the rows above and cannot
+    // inherit their cadence. Adding a traffic group without an entry here (or
+    // vice versa) slides every divider on this row out of line with the table,
+    // which is what happened when the CPC group landed.
+    expect(DRR_SALES_COLUMNS).toHaveLength(TRAFFIC_GROUPS.length)
+    expect(DRR_SALES_COLUMNS.map((c) => c.span)).toEqual(TRAFFIC_GROUPS.map((g) => g.span))
+
+    // ...and those cells tile the day exactly: each starts where the last ended.
+    const offsets = DRR_SALES_COLUMNS.map((c) => c.offset)
+    let running = 0
+    for (const [index, column] of DRR_SALES_COLUMNS.entries()) {
+      expect(offsets[index]).toBe(running)
+      expect(TRAFFIC_COLUMNS[column.offset].key).toBe(column.key)
+      running += column.span
+    }
+    expect(running).toBe(COLUMNS_PER_DAY)
   })
 })
 
