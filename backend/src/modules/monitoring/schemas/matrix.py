@@ -18,8 +18,11 @@ from pydantic import BaseModel, Field
 #: CATALOG slice of a search-only campaign: WB «поисковые» campaigns also
 #: deliver in каталог, derived as fullstats - normquery); ``uni_catalog`` is a
 #: legacy WB zone that no longer exists in the v2 API and stays empty;
-#: ``total`` is the funnel-wide «Общая» column and ``organic`` is «Органика»
-#: (общая - реклама).
+#: ``cpc_*`` are the pay-per-click campaigns («CPC»), which WB bills per click
+#: rather than per 1000 показов and whose ставки therefore cannot be read
+#: alongside a CPM campaign's — they get their own «тип получения трафика»
+#: group, split into the same two zones; ``total`` is the funnel-wide «Общая»
+#: column and ``organic`` is «Органика» (общая - реклама).
 MATRIX_BUCKETS: tuple[str, ...] = (
     "uni_search",
     "uni_shelves",
@@ -27,6 +30,8 @@ MATRIX_BUCKETS: tuple[str, ...] = (
     "manual_search",
     "manual_catalog",
     "manual_shelves",
+    "cpc_search",
+    "cpc_shelves",
     "total",
     "organic",
 )
@@ -39,7 +44,29 @@ MATRIX_AD_BUCKETS: tuple[str, ...] = (
     "manual_search",
     "manual_catalog",
     "manual_shelves",
+    "cpc_search",
+    "cpc_shelves",
 )
+
+#: «Доля трафика» is normalized WITHIN a «тип получения трафика», so each type
+#: sums to 100% on its own: a unified campaign's zones cannot be a share of a
+#: manual campaign's показы, and a CPC campaign — bought per click — is not
+#: comparable to either. Maps a bucket to the type it is normalized against.
+_BUCKET_TYPES: tuple[str, ...] = ("uni", "manual", "cpc")
+
+
+def bucket_traffic_type(bucket: str) -> str:
+    """Return the «тип получения трафика» an ad bucket is normalized within.
+
+    Unknown buckets answer ``"manual"``, which is what the single ``uni``/
+    ``manual`` split did before CPC campaigns existed — the fallback only ever
+    reaches a bucket outside :data:`MATRIX_AD_BUCKETS`, which carries no share.
+    """
+    for prefix in _BUCKET_TYPES:
+        if bucket.startswith(f"{prefix}_"):
+            return prefix
+    return "manual"
+
 
 #: Metric rows, in the workbook's row order. Keys are shared verbatim with the
 #: frontend, which maps them to labels/formatting only.

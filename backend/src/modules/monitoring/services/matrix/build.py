@@ -26,6 +26,7 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixDayBase,
     MatrixMetricRow,
     MetricsMatrixRead,
+    bucket_traffic_type,
 )
 from src.modules.monitoring.services.matrix.base_state import derive_base_state
 from src.modules.monitoring.services.matrix.cells import (
@@ -103,12 +104,13 @@ def build_matrix_from_base(base: MatrixBaseState) -> MetricsMatrixRead:
         for day in base.days:
             day_ad = _day_ad_from_base(day)
             bucket_accs = {name: _acc_from_base(b) for name, b in day.buckets.items()}
-            # «Доля трафика» is normalized within each bid type (Единая / Ручной
-            # each sum to 100%), so precompute per-type total Показы.
-            type_views = {
-                "uni": sum(b.views for n, b in day.buckets.items() if n.startswith("uni_")),
-                "manual": sum(b.views for n, b in day.buckets.items() if n.startswith("manual_")),
-            }
+            # «Доля трафика» is normalized within each «тип получения трафика»
+            # (Единая / Ручной / CPC each sum to 100%), so precompute per-type
+            # total Показы.
+            type_views: dict[str, int] = {}
+            for name, b in day.buckets.items():
+                traffic_type = bucket_traffic_type(name)
+                type_views[traffic_type] = type_views.get(traffic_type, 0) + b.views
             for bucket in MATRIX_BUCKETS:
                 if bucket == "total":
                     value = _total_cell(key, day, day_ad)
@@ -118,7 +120,7 @@ def build_matrix_from_base(base: MatrixBaseState) -> MetricsMatrixRead:
                     # Campaign-level (all zones of the group share one value).
                     value = _campaign_drr_sales(bucket, day, bucket_accs)
                 else:
-                    bid_views = type_views["uni" if bucket.startswith("uni_") else "manual"]
+                    bid_views = type_views.get(bucket_traffic_type(bucket), 0)
                     value = _ad_cell(key, bucket_accs.get(bucket), bid_views, day, bucket)
                 # A manual display override wins over the computed value, so any
                 # non-invertible cell can still be edited (shown verbatim).

@@ -94,12 +94,24 @@
 /* «ДРР от продаж»: the headline efficiency number — a step bigger and bold,
    both the frozen label and every value cell (the cell button/span carry an
    explicit font-weight, so target them directly, not just the td). */
-.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-emphasis td {
-  font-size: 13px;
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-emphasis td:not(:first-child) {
+  font-size: 12px;
+  /* One point over the ribbon's 11px, not two: with the CPC group a leaf
+     column is ~52px, and «100,00%» at 13px/700 wants ~53px of it. The bold
+     weight and the merged cell are what make this row the headline — the size
+     step only has to be visible, not maximal.
+
+     It also gives up the padding it does not use. The numbers are right
+     aligned, so the left padding is empty air; the gap to the cell on the left
+     is that cell's own right padding. A right-aligned overflow clips the
+     LEADING digit, which does not merely look tight — «100,00%» would print
+     as «00,00%». */
+  padding-left: 0;
+  padding-right: theme('spacing.xs');
 }
 .app-datatable--matrix tbody.matrix-metrics tr.matrix-row-emphasis td .matrix-cell-btn,
 .app-datatable--matrix tbody.matrix-metrics tr.matrix-row-emphasis td span {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
 }
 .app-datatable--matrix

@@ -1,7 +1,7 @@
 /**
  * The metrics matrix projected as a LIST — one day at a time, for a phone.
  *
- * The table is 8 traffic columns per day and cannot be narrowed into a 402pt
+ * The table is 10 traffic columns per day and cannot be narrowed into a 402pt
  * screen by any amount of column work: sized to fit, each column lands around
  * 10px and the numbers print over one another; sized to their content, one day
  * runs several screens wide and the reader swipes through mostly-empty campaign
@@ -39,7 +39,7 @@ const LEAF_LABELS = TRAFFIC_GROUPS.flatMap((group, groupIndex) => {
 const LEAF_BREAKDOWN = LEAF_LABELS.map((label, offset) => ({ label, offset }))
 
 /**
- * Rows that do not lay out all 8 leaf columns, and so break down differently:
+ * Rows that do not lay out every leaf column, and so break down differently:
  * «ДРР от продаж» is a CAMPAIGN-level number (one per traffic group), and
  * «Процент выкупа» is one number for the whole day — nothing to break down.
  */

@@ -37,8 +37,19 @@ DAY1 = date(2026, 7, 1)
 DAY2 = date(2026, 7, 2)
 
 
-def _campaign(campaign_id: int, bid_type: str, search: bool, shelves: bool) -> Campaign:
-    """Construct an in-memory Campaign dimension row."""
+def _campaign(
+    campaign_id: int,
+    bid_type: str,
+    search: bool,
+    shelves: bool,
+    payment_type: str = "cpm",
+) -> Campaign:
+    """Construct an in-memory Campaign dimension row.
+
+    ``payment_type`` defaults to ``"cpm"`` — the way WB bills every campaign
+    that is not one of the newer pay-per-click ones, and what classification
+    reads to decide whether a campaign belongs in the «CPC» group.
+    """
     return Campaign(
         campaign_id=campaign_id,
         type=9,
@@ -48,7 +59,7 @@ def _campaign(campaign_id: int, bid_type: str, search: bool, shelves: bool) -> C
         placement_search=search,
         placement_recommendations=shelves,
         name=f"campaign {campaign_id}",
-        payment_type="cpm",
+        payment_type=payment_type,
     )
 
 

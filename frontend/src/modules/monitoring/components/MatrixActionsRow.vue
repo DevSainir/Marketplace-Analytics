@@ -11,6 +11,8 @@
  * Renders a `<tbody>`: it is a section of the parent's single `<table>`, so
  * each day's cards sit in that day's column and scroll with it.
  */
+import { COLUMNS_PER_DAY } from '@/modules/monitoring/metricsMatrix'
+
 const props = defineProps({
   /** @type {Array<{iso: string, label: string}>} oldest -> newest */
   days: { type: Array, required: true },
@@ -121,13 +123,13 @@ function priceChangeClass(iso) {
 <template>
   <tbody class="matrix-actions">
     <tr class="matrix-gap" aria-hidden="true">
-      <td :colspan="1 + days.length * 8"></td>
+      <td :colspan="1 + days.length * COLUMNS_PER_DAY"></td>
     </tr>
     <tr>
       <td>
         <span class="text-micro font-semibold uppercase tracking-wide text-muted"> Действия </span>
       </td>
-      <td v-for="day in days" :key="day.iso" :colspan="8">
+      <td v-for="day in days" :key="day.iso" :colspan="COLUMNS_PER_DAY">
         <div class="day-action-cards">
           <div v-for="block in RK_BLOCKS" :key="block.typeField" class="day-action-card">
             <span class="day-action-question">{{ block.title }}</span>

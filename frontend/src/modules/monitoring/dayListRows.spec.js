@@ -3,11 +3,12 @@ import {
   dayLabelWithWeekday,
   metricDayItems,
 } from '@/modules/monitoring/dayListRows'
+import { COLUMNS_PER_DAY } from '@/modules/monitoring/metricsMatrix'
 
 /**
  * A metric row as the matrix builds it: cells flat in day-major order,
- * `cells[day * 8 + column]` over TRAFFIC_COLUMNS.
- * `values` is a per-day array of 8 raw numbers (null = blank).
+ * `cells[day * COLUMNS_PER_DAY + column]` over TRAFFIC_COLUMNS.
+ * `values` is a per-day array of COLUMNS_PER_DAY raw numbers (null = blank).
  */
 function metricRow(key, values, extra = {}) {
   return {
@@ -18,7 +19,7 @@ function metricRow(key, values, extra = {}) {
     cells: values.flat().map((raw, index) => ({
       raw,
       display: raw == null ? '' : String(raw),
-      day: `2026-07-${String(19 + Math.floor(index / 8)).padStart(2, '0')}`,
+      day: `2026-07-${String(19 + Math.floor(index / COLUMNS_PER_DAY)).padStart(2, '0')}`,
       bucket: 'bucket',
       metric: key,
       editable: true,
@@ -27,10 +28,10 @@ function metricRow(key, values, extra = {}) {
 }
 
 // Column order: uni_search, uni_shelves, uni_catalog, manual_search,
-// manual_catalog, manual_shelves, total, organic.
-const ONLY_TOTAL = [null, null, null, null, null, null, 42, null]
-const TOTAL_AND_ORGANIC = [null, null, null, null, null, null, 9, 9]
-const WITH_CAMPAIGNS = [5, null, null, 3, null, null, 9, 1]
+// manual_catalog, manual_shelves, cpc_search, cpc_shelves, total, organic.
+const ONLY_TOTAL = [null, null, null, null, null, null, null, null, 42, null]
+const TOTAL_AND_ORGANIC = [null, null, null, null, null, null, null, null, 9, 9]
+const WITH_CAMPAIGNS = [5, null, null, 3, null, null, 2, null, 9, 1]
 
 describe('metricDayItems', () => {
   it('takes «Общая» as the headline value of the requested day', () => {
@@ -55,7 +56,7 @@ describe('metricDayItems', () => {
 
     const [item] = metricDayItems(rows, 0)
 
-    expect(item.breakdown).toHaveLength(8)
+    expect(item.breakdown).toHaveLength(COLUMNS_PER_DAY)
     expect(item.breakdown.map((entry) => entry.label)).toEqual([
       'Единая ставка · Поиск',
       'Единая ставка · Полки',
@@ -63,6 +64,8 @@ describe('metricDayItems', () => {
       'Руч. поиск · Поиск',
       'Руч. поиск · Каталог',
       'Руч. полки · Полки',
+      'CPC · Поиск',
+      'CPC · Полки',
       'Общая',
       'Органика',
     ])
@@ -70,7 +73,8 @@ describe('metricDayItems', () => {
   })
 
   it('breaks «ДРР от продаж» down by campaign, not by zone', () => {
-    // The value is campaign-level: 5 merged cells per day, not 8.
+    // The value is campaign-level: one merged cell per traffic group, not per
+    // leaf column — and the CPC group's value sits on its «Поиск» leg.
     const rows = [metricRow('drr_sales', [WITH_CAMPAIGNS])]
 
     const [item] = metricDayItems(rows, 0)
@@ -79,9 +83,11 @@ describe('metricDayItems', () => {
       'Единая ставка',
       'Руч. поиск',
       'Руч. полки',
+      'CPC',
       'Общая',
       'Органика',
     ])
+    expect(item.breakdown.find((entry) => entry.label === 'CPC').cell.raw).toBe(2)
   })
 
   it('gives «Процент выкупа» no breakdown at all', () => {

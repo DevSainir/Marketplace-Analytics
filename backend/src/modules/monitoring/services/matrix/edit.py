@@ -33,6 +33,7 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixBaseState,
     MatrixCellEdit,
     MatrixDayBase,
+    bucket_traffic_type,
 )
 from src.modules.monitoring.services.matrix.assoc import _allocate_counts
 from src.modules.monitoring.services.matrix.build import _day_ad_from_base
@@ -249,16 +250,24 @@ def _edit_ad_bucket(
 
 
 def _solve_traffic_share(day: MatrixDayBase, bucket: str, value: float) -> None:
-    """Set a bucket's views so its share WITHIN ITS BID TYPE equals ``value``.
+    """Set a bucket's views so its share WITHIN ITS TRAFFIC TYPE equals ``value``.
 
-    «Доля трафика» is normalized per bid type (Единая / Ручной), so only the
-    other buckets OF THE SAME TYPE are the denominator. Holding them fixed:
-    ``share = v / (others + v)`` ⇒ ``v = others * f / (1 - f)`` with
-    ``f = value / 100``; the other same-type buckets' shares then recompute.
+    «Доля трафика» is normalized per «тип получения трафика» (Единая / Ручной /
+    CPC), so only the other buckets OF THE SAME TYPE are the denominator.
+    Holding them fixed: ``share = v / (others + v)`` ⇒
+    ``v = others * f / (1 - f)`` with ``f = value / 100``; the other same-type
+    buckets' shares then recompute.
     """
-    prefix = "uni_" if bucket.startswith("uni_") else "manual_"
+    traffic_type = bucket_traffic_type(bucket)
     b = day.buckets[bucket]
-    others = sum(bb.views for name, bb in day.buckets.items() if name.startswith(prefix)) - b.views
+    others = (
+        sum(
+            bb.views
+            for name, bb in day.buckets.items()
+            if bucket_traffic_type(name) == traffic_type
+        )
+        - b.views
+    )
     fraction = value / 100
     if others <= 0 or fraction <= 0 or fraction >= 1:
         # Nothing to redistribute against (the only bucket of its type is always

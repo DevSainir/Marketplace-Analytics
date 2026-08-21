@@ -96,7 +96,7 @@
 
   /*
    * Matrix variant: the daily metrics table — a horizontal ribbon of day
-   * sections (7 «тип × зона» columns each) with a 3-row header (дата → тип
+   * sections (one «тип × зона» column block each) with a 3-row header (дата → тип
    * получения трафика → зоны показов). Day values are right-aligned numbers;
    * the metric-name column is frozen on the left while the ribbon scrolls.
    */
@@ -136,11 +136,32 @@
   /* Traffic-type group labels («Руч. полки» over a single zone column) can
      run wider than their cell in the fixed layout — wrap onto a second line
      (with clipping as the safety net) so they never overlap the neighbouring
-     group's border. */
+     group's border. «Общая»/«Органика» are single words with no wrap point,
+     and «Органика» does not fit one zone column at any size we would read, so
+     the group row hyphenates (the document is lang="ru"): «Орга-ника» over
+     two lines is legible where a mid-word clip is not. */
   .app-datatable--matrix thead tr:nth-child(2) th:not(:first-child) {
     overflow: hidden;
     white-space: normal;
     line-height: 1.2;
+    letter-spacing: 0.02em;
+    hyphens: auto;
+  }
+
+  /* Both lower header rows carry the narrowest labels over the narrowest
+     cells, so they take the tighter horizontal padding — a zone column is
+     ~52px and «Каталог» does not survive 8px on each side of it (the value
+     rows below take the same relief, for the same reason). */
+  .app-datatable--matrix thead tr:nth-child(2) th,
+  .app-datatable--matrix thead tr:nth-child(3) th {
+    @apply px-xs;
+  }
+
+  /* The zones row drops the base header's `tracking-wider` to the same 0.02em
+     the group row above it uses: at 0.05em «КАТАЛОГ» spends ~4px on letter
+     gaps it does not have in a zone column, and the two header rows now read
+     as one block rather than two tracking treatments. */
+  .app-datatable--matrix thead tr:nth-child(3) th {
     letter-spacing: 0.02em;
   }
 
@@ -148,15 +169,22 @@
     @apply sticky left-0 z-30 border-r-2 border-[#d9d9d9] text-left;
   }
 
-  /* Compact cells (the ribbon is wide); headers drop to the micro size so
-     2 full day sections fit on one screen. */
+  /* Compact cells (the ribbon is wide): everything drops to the micro size so
+     2 full day sections fit on one screen. The values used to sit one step
+     above at `text-tiny`; the CPC group's two extra columns took a leaf column
+     from ~64px to ~52px, which is less than «100,00%» needs there. */
   .app-datatable--matrix thead th,
   .app-datatable--matrix tbody td {
     @apply px-sm py-xs text-micro;
   }
 
+  /* The value cells take the tighter horizontal padding for the same reason
+     the header does: a leaf column is ~52px, and «100,00%» / «45 679 ₽» spend
+     more than the 36px that px-sm leaves of it. A right-aligned overflow clips
+     the LEADING glyph, so a cramped cell does not merely look tight — it
+     prints a different number («100,00%» as «00,00%»). */
   .app-datatable--matrix tbody td {
-    @apply text-tiny;
+    @apply px-xs;
   }
 
   .app-datatable--matrix tbody td:not(:first-child) {
@@ -193,33 +221,39 @@
   }
 
   /* Day-section boundaries — BLACK, so adjacent days read as separate panels.
-     Type row (2): 5 group cells per day; zones row (3): 6 zoned cells per day
-     («Общая»/«Органика» span from the type row); body rows: 8 leaf cells per
+     Type row (2): 6 group cells per day; zones row (3): 8 zoned cells per day
+     («Общая»/«Органика» span from the type row); body rows: 10 leaf cells per
      day. The very first section (nth-child(2)) is excluded — the frozen
-     column's right border draws that line (borders no longer collapse). */
+     column's right border draws that line (borders no longer collapse).
+     The three strides are TRAFFIC_GROUPS, the zoned leaves and
+     COLUMNS_PER_DAY in metricsMatrix.js — a column added there moves all
+     of the formulas below. */
   .app-datatable--matrix thead tr:first-child th:not(:first-child):not(:nth-child(2)),
-  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(5n + 2):not(:nth-child(2)),
-  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(6n + 2):not(:nth-child(2)),
-  .app-datatable--matrix tbody td:nth-child(8n + 2):not(:nth-child(2)) {
+  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 2):not(:nth-child(2)),
+  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 2):not(:nth-child(2)),
+  .app-datatable--matrix tbody td:nth-child(10n + 2):not(:nth-child(2)) {
     @apply border-l-2 border-l-[#101010];
   }
 
   /* Promotion-type boundaries WITHIN a day — light, subordinate to the black
-     day dividers: Единая ставка | Руч. поиск (+ Каталог) | Руч. полки | Общая
-     + Органика read as four parts. Type row: before «Руч. поиск» (5n+3), «Руч.
-     полки» (5n+4), «Общая» (5n). Zones row: before the manual search zone
-     (6n+5) and the manual shelves zone (6n+1, excluding the frozen label
-     cell); Общая/Органика span from row 2, their border extends down with the
-     rowspan. Body rows: before manual_search (8n+5), manual_shelves (8n+7),
-     and total (8n). */
-  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(5n + 3),
-  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(5n + 4),
-  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(5n),
-  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(6n + 5),
-  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(6n + 1):not(:first-child),
-  .app-datatable--matrix tbody td:nth-child(8n + 5),
-  .app-datatable--matrix tbody td:nth-child(8n + 7),
-  .app-datatable--matrix tbody td:nth-child(8n) {
+     day dividers: Единая ставка | Руч. поиск (+ Каталог) | Руч. полки | CPC |
+     Общая + Органика read as five parts. Type row: before «Руч. поиск» (6n+3),
+     «Руч. полки» (6n+4), «CPC» (6n+5), «Общая» (6n). Zones row: before the
+     manual search zone (8n+5), the manual shelves zone (8n+7) and the CPC
+     search zone (8n); Общая/Органика span from row 2, their border extends
+     down with the rowspan. Body rows: before manual_search (10n+5),
+     manual_shelves (10n+7), cpc_search (10n+8) and total (10n). */
+  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 3),
+  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 4),
+  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 5),
+  .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n),
+  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 5),
+  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 7),
+  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n),
+  .app-datatable--matrix tbody td:nth-child(10n + 5),
+  .app-datatable--matrix tbody td:nth-child(10n + 7),
+  .app-datatable--matrix tbody td:nth-child(10n + 8),
+  .app-datatable--matrix tbody td:nth-child(10n) {
     @apply border-l-2 border-l-[#d9d9d9];
   }
 }

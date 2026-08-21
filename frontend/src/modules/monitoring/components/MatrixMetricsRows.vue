@@ -56,9 +56,10 @@ function rowClasses(row) {
   return [
     row.group && `matrix-group--${row.group}`,
     row.emphasis && 'matrix-row-emphasis',
-    // A merged row lays out fewer cells per day than the skin's 8-cell border
-    // cadence in main.css assumes, so each restates its own boundaries below:
-    // «ДРР от продаж» has 5 per day, «Процент выкупа» exactly 1.
+    // A merged row lays out fewer cells per day than the skin's per-leaf
+    // border cadence in main.css assumes, so each restates its own boundaries
+    // below: «ДРР от продаж» has one per traffic group, «Процент выкупа»
+    // exactly one per day.
     row.key === 'drr_sales' && 'matrix-row-merged matrix-row-merged--campaign',
     row.key === 'buyout_percent' && 'matrix-row-merged matrix-row-merged--day',
   ]

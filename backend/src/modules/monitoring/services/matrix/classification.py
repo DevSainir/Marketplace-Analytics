@@ -14,6 +14,15 @@ Campaign classification (via the ``Campaign`` dimension's adverts-v2 fields):
   split: the search slice goes to the «Поиск» column, the remainder
   (``fullstats - search``, clamped at zero) to «Полки».
 
+A ``cpc`` payment type overrides all of it: WB bills those campaigns per CLICK
+rather than per 1000 показов, so their ставки, their CPM and their «Доля
+трафика» share nothing with a CPM campaign's and belong in their own «CPC»
+group («Поиск» | «Полки»), whatever the bid type says. A dual-placement CPC
+campaign splits on the same normquery slice; a single-placement one keeps its
+whole day in the zone it runs in — including a search-only one, which unlike
+«Руч. поиск» does NOT shed a catalog remainder, because the CPC group has no
+«Каталог» column to put it in and dropping the leg would understate «Общая».
+
 Significant-campaign selection (see :func:`_select_day_buckets`): a SKU
 realistically has one — at most two — campaigns actually bringing traffic. A
 campaign-day must first spend at least :data:`_MIN_CAMPAIGN_DAY_SPEND` to count
@@ -159,6 +168,16 @@ def _classify(
     in_search = bool(meta.placement_search)
     in_shelves = bool(meta.placement_recommendations)
     unified = meta.bid_type == "unified"
+    if meta.payment_type == "cpc":
+        # Paid per click, so it is never comparable to the CPM columns beside
+        # it: own group, same two zones. A search-only CPC campaign keeps its
+        # whole day (there is no «CPC · Каталог» column for a remainder).
+        if in_search and in_shelves:
+            search_slice, shelves_slice = _split_search(total, search, sku_search, viewed_nm)
+            return [("cpc_search", search_slice), ("cpc_shelves", shelves_slice)]
+        if in_shelves:
+            return [("cpc_shelves", total)]
+        return [("cpc_search", total)]
     if in_search and in_shelves:
         search_slice, shelves_slice = _split_search(total, search, sku_search, viewed_nm)
         if unified:

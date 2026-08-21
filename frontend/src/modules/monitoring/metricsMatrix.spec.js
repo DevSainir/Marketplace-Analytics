@@ -1,4 +1,4 @@
-import { formatCurrency, formatNumber } from '@/core/utils/format'
+import { formatCurrency, formatCurrencyTenths, formatNumber } from '@/core/utils/format'
 import {
   TRAFFIC_COLUMNS,
   TRAFFIC_GROUPS,
@@ -7,7 +7,7 @@ import {
 } from '@/modules/monitoring/metricsMatrix'
 
 describe('traffic column structure', () => {
-  it('has 8 leaf columns matching the workbook zones', () => {
+  it('has one leaf column per workbook zone, CPC included', () => {
     expect(TRAFFIC_COLUMNS.map((c) => c.zone)).toEqual([
       'Поиск',
       'Полки',
@@ -15,8 +15,23 @@ describe('traffic column structure', () => {
       'Поиск',
       'Каталог',
       'Полки',
+      'Поиск',
+      'Полки',
       'Общая',
       'Органика',
+    ])
+  })
+
+  it('gives the CPC group its own Поиск/Полки pair', () => {
+    const cpc = TRAFFIC_GROUPS.find((g) => g.label === 'CPC')
+    const offset = TRAFFIC_GROUPS.slice(0, TRAFFIC_GROUPS.indexOf(cpc)).reduce(
+      (sum, g) => sum + g.span,
+      0,
+    )
+
+    expect(TRAFFIC_COLUMNS.slice(offset, offset + cpc.span).map((c) => c.key)).toEqual([
+      'cpc_search',
+      'cpc_shelves',
     ])
   })
 
@@ -50,8 +65,12 @@ const PRODUCT = {
         {},
       ]),
       backendRow('spend', [{ uni_search: 15, uni_shelves: 35, manual_search: 20, total: 75 }, {}]),
-      backendRow('views', [{ uni_search: 30, uni_shelves: 70, manual_search: 40, total: 150 }, {}]),
+      backendRow('views', [
+        { uni_search: 30, uni_shelves: 70, manual_search: 40, cpc_search: 25, total: 150 },
+        {},
+      ]),
       backendRow('ctr', [{ uni_search: 10, manual_search: 10 }, {}]),
+      backendRow('cpc', [{ cpc_search: 12.5, cpc_shelves: 9.4 }, {}]),
       backendRow('clicks', [{ uni_search: 3, total: 200, organic: 185 }, {}]),
       backendRow('order_sum', [{ manual_search: 500, total: 5000 }, {}]),
       backendRow('buyout_percent', [{ total: 50 }, { total: 50 }]),
@@ -182,6 +201,21 @@ describe('buildMetricsMatrix', () => {
     expect(cell(matrix, 'views', 0, 'uni_shelves')).toBe(formatNumber(70))
     expect(cell(matrix, 'views', 0, 'manual_search')).toBe(formatNumber(40))
     expect(cell(matrix, 'clicks', 0, 'organic')).toBe(formatNumber(185))
+  })
+
+  it('lands the CPC buckets in their own two columns', () => {
+    const matrix = buildMetricsMatrix(PRODUCT)
+
+    // A pay-per-click campaign's ставка is the CPC row itself, so the two zone
+    // cells must address cpc_search/cpc_shelves and nothing beside them.
+    // «CPC, ₽» prints tenths (formatCurrencyTenths) — a click costs single ₽.
+    expect(cell(matrix, 'cpc', 0, 'cpc_search')).toBe(formatCurrencyTenths(12.5))
+    expect(cell(matrix, 'cpc', 0, 'cpc_shelves')).toBe(formatCurrencyTenths(9.4))
+    expect(cell(matrix, 'cpc', 0, 'uni_search')).toBe('')
+    expect(cellObj(matrix, 'views', 0, 'cpc_search')).toMatchObject({
+      raw: 25,
+      bucket: 'cpc_search',
+    })
   })
 
   it('renders blank for null cells, absent rows, and the legacy «Каталог» zone', () => {

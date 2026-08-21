@@ -2,11 +2,15 @@
  * Day-by-day metrics matrix for the monitoring table — a faithful replica of
  * the manager's Excel workbook.
  *
- * Every day is a section of 7 columns (traffic type × display zone):
- *   Единая ставка (Поиск | Полки | Каталог) · Руч. поиск (Поиск) ·
- *   Руч. полки (Полки) · Общая · Органика
+ * Every day is a section of columns (traffic type × display zone):
+ *   Единая ставка (Поиск | Полки | Каталог) · Руч. поиск (Поиск | Каталог) ·
+ *   Руч. полки (Полки) · CPC (Поиск | Полки) · Общая · Органика
  * with the date spanning the section; sections flow horizontally, the newest
  * day on the right. Metric rows mirror the workbook's order.
+ *
+ * «CPC» is the pay-per-click campaign group: WB bills it per click instead of
+ * per 1000 показов, so its ставка and its CPM cannot be read against the CPM
+ * columns beside it and it gets a group of its own.
  *
  * ALL values arrive precomputed from the backend (`SkuDetailResponse.matrix`,
  * built by `services/matrix.py`) — strict rule: no calculations in the
@@ -57,9 +61,19 @@ export const TRAFFIC_COLUMNS = [
   { key: 'manual_search', zone: 'Поиск' },
   { key: 'manual_catalog', zone: 'Каталог' },
   { key: 'manual_shelves', zone: 'Полки' },
+  { key: 'cpc_search', zone: 'Поиск' },
+  { key: 'cpc_shelves', zone: 'Полки' },
   { key: 'total', zone: 'Общая' },
   { key: 'organic', zone: 'Органика' },
 ]
+
+/**
+ * Leaf columns per day section — the stride of every `row.cells` index, and
+ * the colspan a whole day's cell needs. Exported so the table's own rows
+ * («Цены», the day note, «Действия») span the section without restating the
+ * number: they got out of step with TRAFFIC_COLUMNS once already.
+ */
+export const COLUMNS_PER_DAY = TRAFFIC_COLUMNS.length
 
 /**
  * «Тип получения трафика» header groups (spans over TRAFFIC_COLUMNS).
@@ -71,6 +85,7 @@ export const TRAFFIC_GROUPS = [
   { label: 'Единая ставка', span: 3 },
   { label: 'Руч. поиск', span: 2 },
   { label: 'Руч. полки', span: 1 },
+  { label: 'CPC', span: 2 },
   { label: 'Общая', span: 1, spansZones: true },
   { label: 'Органика', span: 1, spansZones: true },
 ]
@@ -79,22 +94,25 @@ export const TRAFFIC_GROUPS = [
  * «ДРР от продаж» renders each campaign's zones as ONE merged cell (the value
  * is campaign-level — the backend repeats it on every zone bucket of the
  * group, so the first bucket carries the number). `offset` addresses the
- * group's first leaf cell within a day section; spans sum to 8.
+ * group's first leaf cell within a day section; spans sum to COLUMNS_PER_DAY,
+ * and the entries stay parallel to TRAFFIC_GROUPS (the phone list labels them
+ * by position).
  */
 export const DRR_SALES_COLUMNS = [
   { key: 'uni_search', span: 3, offset: 0 },
   { key: 'manual_search', span: 2, offset: 3 },
   { key: 'manual_shelves', span: 1, offset: 5 },
-  { key: 'total', span: 1, offset: 6 },
-  { key: 'organic', span: 1, offset: 7 },
+  { key: 'cpc_search', span: 2, offset: 6 },
+  { key: 'total', span: 1, offset: 8 },
+  { key: 'organic', span: 1, offset: 9 },
 ]
 
 /**
  * «Процент выкупа» is ONE number for the whole day — a SKU-level lagged cohort
  * window, not a per-zone fact — so its row renders as a single cell spanning
- * the day's 8 columns. The value lives in the «Общая» bucket (offset 6).
+ * the day's whole section. The value lives in the «Общая» bucket (offset 8).
  */
-export const DAY_SPAN_COLUMNS = [{ key: 'total', span: 8, offset: 6 }]
+export const DAY_SPAN_COLUMNS = [{ key: 'total', span: COLUMNS_PER_DAY, offset: 8 }]
 
 /** "2026-07-05" -> "05.07.2026" for the day-section header. */
 function dayLabel(iso) {

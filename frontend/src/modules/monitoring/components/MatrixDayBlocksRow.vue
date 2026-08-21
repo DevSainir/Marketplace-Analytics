@@ -16,6 +16,8 @@
  */
 import { computed } from 'vue'
 
+import { COLUMNS_PER_DAY } from '@/modules/monitoring/metricsMatrix'
+
 import { useCellEditing, vFocus } from '@/modules/monitoring/useCellEditing'
 
 const props = defineProps({
@@ -47,7 +49,7 @@ const blocks = computed(() => [
 <template>
   <tbody v-if="priceRows.length || stockRows.length" class="matrix-blocks">
     <tr class="matrix-gap" aria-hidden="true">
-      <td :colspan="1 + days.length * 8"></td>
+      <td :colspan="1 + days.length * COLUMNS_PER_DAY"></td>
     </tr>
     <tr>
       <td>
@@ -56,7 +58,7 @@ const blocks = computed(() => [
           ><span class="text-accent-indigo">Остатки</span>
         </span>
       </td>
-      <td v-for="(day, dayIndex) in days" :key="day.iso" :colspan="8">
+      <td v-for="(day, dayIndex) in days" :key="day.iso" :colspan="COLUMNS_PER_DAY">
         <div class="day-block-pair">
           <div
             v-for="block in blocks"

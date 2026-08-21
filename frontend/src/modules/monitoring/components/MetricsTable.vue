@@ -1,8 +1,8 @@
 <script setup>
 /**
  * Day-by-day metrics table (spreadsheet-like): a horizontal ribbon of day
- * sections, each one the workbook's 7-column «тип трафика × зона показов»
- * block, newest day on the right. Auto-scrolls to the newest day whenever a
+ * sections, each one the workbook's «тип трафика × зона показов» block,
+ * newest day on the right. Auto-scrolls to the newest day whenever a
  * new matrix arrives; the metric-name column stays frozen on the left while
  * scrolling (see `.app-datatable--matrix` skin in main.css).
  *
@@ -43,7 +43,7 @@ import MatrixActionsRow from '@/modules/monitoring/components/MatrixActionsRow.v
 import MatrixCommentsRow from '@/modules/monitoring/components/MatrixCommentsRow.vue'
 import MatrixDayBlocksRow from '@/modules/monitoring/components/MatrixDayBlocksRow.vue'
 import MetricsDayList from '@/modules/monitoring/components/MetricsDayList.vue'
-import { TRAFFIC_GROUPS } from '@/modules/monitoring/metricsMatrix'
+import { COLUMNS_PER_DAY, TRAFFIC_GROUPS } from '@/modules/monitoring/metricsMatrix'
 import { useMatrixColumns } from '@/modules/monitoring/matrixColumns'
 import { useAssocHover } from '@/modules/monitoring/useAssocHover'
 
@@ -99,7 +99,7 @@ watch(
       switch is at `sm` (640px) rather than at the `phone:` breakpoint because
       it is a capability threshold, not a phone tweak: the fixed layout divides
       the width between two day sections, so anything under ~640px squeezes the
-      8 leaf columns until the numbers overlap. Both read the same rows.
+      leaf columns until the numbers overlap. Both read the same rows.
     -->
     <MetricsDayList
       class="rounded-card border border-border-subtle bg-surface p-md shadow-card sm:hidden"
@@ -138,10 +138,12 @@ watch(
       >
         <table>
           <thead>
-            <!-- Row 1: date, one label spanning each day's 8 columns. -->
+            <!-- Row 1: date, one label spanning each day's whole section. -->
             <tr>
               <th>Дата</th>
-              <th v-for="day in days" :key="day.iso" :colspan="8">{{ day.label }}</th>
+              <th v-for="day in days" :key="day.iso" :colspan="COLUMNS_PER_DAY">
+                {{ day.label }}
+              </th>
             </tr>
             <!-- Row 2: «Тип получения трафика» groups (Общая/Органика span row 3). -->
             <tr>

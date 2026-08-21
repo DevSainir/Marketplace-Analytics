@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 
 import MetricsTable from '@/modules/monitoring/components/MetricsTable.vue'
+import { COLUMNS_PER_DAY } from '@/modules/monitoring/metricsMatrix'
 
 const DAY = '2026-07-20'
 
@@ -164,6 +165,26 @@ describe('table composition', () => {
     ])
   })
 
+  it('heads the CPC group with its own Поиск/Полки zone pair', () => {
+    // The «CPC» campaigns are billed per click, so they read as their own
+    // «тип получения трафика» rather than as more zones of a CPM column.
+    const wrapper = mountTable()
+
+    const groups = wrapper.findAll('thead tr:nth-child(2) th').map((th) => th.text())
+    const zones = wrapper.findAll('thead tr:nth-child(3) th').map((th) => th.text())
+
+    expect(groups).toEqual([
+      'Тип получения трафика',
+      'Единая ставка',
+      'Руч. поиск',
+      'Руч. полки',
+      'CPC',
+      'Общая',
+      'Органика',
+    ])
+    expect(zones.slice(-2)).toEqual(['Поиск', 'Полки'])
+  })
+
   it('keeps every day column the same width across all sections', () => {
     const days = [
       { iso: '2026-07-19', label: '19.07.2026' },
@@ -178,12 +199,12 @@ describe('table composition', () => {
       global: { stubs: { Teleport: true } },
     })
 
-    // Each section spans the label column plus 8 leaf columns per day; a
-    // mismatch here is exactly how a section drifts out of alignment.
+    // Each section spans the label column plus one leaf column per traffic
+    // column; a mismatch here is exactly how a section drifts out of alignment.
     const spans = wrapper.findAll('tr.matrix-gap td').map((td) => td.attributes('colspan'))
 
     expect(spans.length).toBeGreaterThan(0)
-    expect(new Set(spans)).toEqual(new Set([String(1 + days.length * 8)]))
+    expect(new Set(spans)).toEqual(new Set([String(1 + days.length * COLUMNS_PER_DAY)]))
   })
 
   it('forwards a day-note edit from the comments section to its own listener', async () => {

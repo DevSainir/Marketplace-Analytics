@@ -228,6 +228,7 @@ _CAMPAIGN_ZONE_GROUPS: tuple[tuple[str, ...], ...] = (
     ("uni_search", "uni_shelves", "uni_catalog"),
     ("manual_search", "manual_catalog"),
     ("manual_shelves",),
+    ("cpc_search", "cpc_shelves"),
 )
 _CAMPAIGN_GROUP_BY_BUCKET: dict[str, tuple[str, ...]] = {
     bucket: group for group in _CAMPAIGN_ZONE_GROUPS for bucket in group

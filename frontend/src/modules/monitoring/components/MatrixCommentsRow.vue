@@ -18,6 +18,8 @@
  */
 import { ref, watch } from 'vue'
 
+import { COLUMNS_PER_DAY } from '@/modules/monitoring/metricsMatrix'
+
 const props = defineProps({
   /** @type {Array<{iso: string, label: string}>} oldest -> newest */
   days: { type: Array, required: true },
@@ -77,7 +79,7 @@ function commitNote(iso, field) {
 <template>
   <tbody class="matrix-comments">
     <tr class="matrix-gap" aria-hidden="true">
-      <td :colspan="1 + days.length * 8"></td>
+      <td :colspan="1 + days.length * COLUMNS_PER_DAY"></td>
     </tr>
     <tr>
       <td>
@@ -107,7 +109,7 @@ function commitNote(iso, field) {
       <td
         v-for="day in days"
         :key="day.iso"
-        :colspan="8"
+        :colspan="COLUMNS_PER_DAY"
         :class="!commentsExpanded && 'comment-cell--collapsed'"
         @click="commentsExpanded || (commentsExpanded = true)"
       >

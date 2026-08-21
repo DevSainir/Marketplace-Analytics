@@ -34,6 +34,8 @@ const ZONED_GROUP_KEYS = new Set([
   'manual_search',
   'manual_catalog',
   'manual_shelves',
+  'cpc_search',
+  'cpc_shelves',
 ])
 
 /**
