@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { isoDaysAgo } from '@/core/utils/dates'
 
 import MatrixEditToolbar from '@/modules/monitoring/components/MatrixEditToolbar.vue'
+import MetricsChartsPanel from '@/modules/monitoring/components/MetricsChartsPanel.vue'
 import MetricsTable from '@/modules/monitoring/components/MetricsTable.vue'
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
 import SkuIdentityHeader from '@/modules/monitoring/components/SkuIdentityHeader.vue'
@@ -209,6 +210,8 @@ onMounted(() => store.fetchPins())
             @refresh="store.refreshFromWb()"
           />
         </section>
+
+        <MetricsChartsPanel :view="metricsMatrix" />
 
         <StockComparePanel
           v-if="product.stock"
