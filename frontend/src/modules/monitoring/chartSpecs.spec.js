@@ -1,4 +1,4 @@
-import { SERIES_COLORS } from '@/modules/monitoring/chartOptions'
+import { SERIES_COLORS, axisOnlyOption, plotOnlyOption } from '@/modules/monitoring/chartOptions'
 import { buildChartSpecs } from '@/modules/monitoring/chartSpecs'
 import {
   COLUMNS_PER_DAY,
@@ -82,8 +82,11 @@ describe('buildChartSpecs', () => {
 
   it('never puts two y-axes on one plot', () => {
     // Two scales behind one set of marks make any crossing look like a
-    // relationship. Small multiples are the allowed shape — several plots, one
-    // axis each — so the rule is one y-axis PER GRID, not one per chart.
+    // relationship, and worse — three scales put клики 439, корзины 215 and
+    // заказы 105 on the SAME point of the plot, which is the opposite of the
+    // absolute reading a funnel needs. Small multiples are the allowed shape
+    // for series of different magnitude («Воронка 2»): several plots, one axis
+    // each. So the rule is one y-axis PER GRID.
     for (const chart of buildChartSpecs(matrixView([]))) {
       const axes = [chart.option.yAxis].flat()
       const grids = axes.map((axis) => axis.gridIndex ?? 0)
@@ -92,24 +95,91 @@ describe('buildChartSpecs', () => {
     }
   })
 
-  it('gives the funnel a panel per series, each captioned', () => {
-    // Клики run in the thousands and заказы in the tens: on one scale the
-    // bottom two lie flat against the axis.
-    const funnel = buildChartSpecs(matrixView([])).find((chart) => chart.key === 'funnel')
+  it('draws the two «Воронка» tabs from one set of series', () => {
+    // The same three numbers, two ways of looking at them: one plot with a
+    // hidden scale per line, and one panel per line with a plain axis.
+    const charts = buildChartSpecs(matrixView([]))
+    const one = charts.find((chart) => chart.key === 'funnel')
+    const two = charts.find((chart) => chart.key === 'funnel_panels')
 
-    expect(funnel.option.grid).toHaveLength(3)
-    expect(funnel.option.yAxis.map((axis) => axis.name)).toEqual(['Клики', 'Корзины', 'Заказы'])
+    expect([one.tab, two.tab]).toEqual(['Воронка 1', 'Воронка 2'])
+    expect(one.option.series.map((entry) => entry.name)).toEqual(
+      two.option.series.map((entry) => entry.name),
+    )
+    expect(one.option.series.map((entry) => entry.data)).toEqual(
+      two.option.series.map((entry) => entry.data),
+    )
   })
 
-  it('leaves headroom above the tallest mark, and none below zero', () => {
+  it('plots «Воронка 1» on ONE absolute scale', () => {
+    // One axis, three lines measured against it: заказы run low and flat under
+    // клики, which is the truth about a funnel. Given a scale each they were
+    // each stretched to the full plot height, so a day with 439 clicks, 215
+    // carts and 105 orders drew all three at the same point — a chart that
+    // contradicted its own tooltip.
+    const one = buildChartSpecs(matrixView([])).find((chart) => chart.key === 'funnel')
+
+    expect(Array.isArray(one.option.yAxis)).toBe(false)
+    expect(one.option.series).toHaveLength(3)
+    expect(one.option.series.every((entry) => entry.yAxisIndex === undefined)).toBe(true)
+  })
+
+  it('captions every «Воронка 2» panel on its own visible axis', () => {
+    const two = buildChartSpecs(matrixView([])).find((chart) => chart.key === 'funnel_panels')
+
+    expect(two.option.grid).toHaveLength(3)
+    expect(two.option.yAxis.map((axis) => axis.name)).toEqual(['Клики', 'Корзины', 'Заказы'])
+    expect(two.axisGutter).toBeGreaterThan(0)
+  })
+
+  it('leaves headroom above the tallest mark, by whichever means the axis allows', () => {
     // «Цена» and «Остатки» both peaked flush against the top edge, where a line
-    // reads as clipped rather than as a maximum. The padding is top-only: a
-    // bottom gap sent «ДРР», which cannot go negative, down to a −2% gridline.
+    // reads as clipped rather than as a maximum. The two mechanisms exclude
+    // each other: ANY `boundaryGap` on a value axis re-anchors it to zero, so
+    // only a zero-anchored axis can use one. A scaled axis gets its head-room
+    // from `scale`'s own rounding up to the next whole tick — and keeping
+    // `boundaryGap` off it is what lets the funnel fit its band instead of
+    // starting at zero.
     for (const chart of buildChartSpecs(matrixView([]))) {
       for (const axis of [chart.option.yAxis].flat()) {
-        expect(axis.boundaryGap).toEqual([0, '12%'])
+        if (axis.scale) expect(axis.boundaryGap).toBeUndefined()
+        else expect(axis.boundaryGap).toEqual(['0%', '12%'])
       }
     }
+  })
+
+  it('reports the day count the ribbon is sized from', () => {
+    // The plot is laid out at a fixed width PER DAY and scrolled sideways, the
+    // way the metrics table's ribbon is — so the panel has to know how many.
+    for (const chart of buildChartSpecs(matrixView([]))) {
+      expect(chart.dayCount).toBe(DAYS.length)
+    }
+  })
+
+  it('names and colours the legend for the panel to render in HTML', () => {
+    // On the canvas the legend scrolled away with the days it labels.
+    const sales = buildChartSpecs(matrixView([])).find((chart) => chart.key === 'sales')
+
+    expect(sales.legend.map((entry) => entry.name)).toEqual(['Заказы, ₽', 'Выкупы, ₽'])
+    expect(sales.legend.map((entry) => entry.color)).toEqual(SERIES_COLORS.slice(0, 2))
+    // ...and it is gone from the option, or it would be drawn twice.
+    expect(sales.option.legend).toBeUndefined()
+  })
+
+  it('splits into a pinned axis and a scrolling plot that agree', () => {
+    // Both copies keep the same series and the same axis config, which is what
+    // makes ECharts land on identical ticks without any extent maths here.
+    const sales = buildChartSpecs(matrixView([row('order_sum', { total: [1000, 2500] })])).find(
+      (chart) => chart.key === 'sales',
+    )
+    const axis = axisOnlyOption(sales.option)
+    const plot = plotOnlyOption(sales.option)
+
+    expect(axis.series.map((entry) => entry.data)).toEqual(plot.series.map((entry) => entry.data))
+    expect(axis.yAxis.scale).toBe(plot.yAxis.scale)
+    expect(axis.yAxis.axisLabel.show).not.toBe(false) // the pinned copy shows them
+    expect(plot.yAxis.axisLabel.show).toBe(false) // the scrolling one does not
+    expect(axis.series.every((entry) => entry.silent)).toBe(true)
   })
 
   it('anchors bars and stacks to zero, and lets a plain line chart zoom', () => {

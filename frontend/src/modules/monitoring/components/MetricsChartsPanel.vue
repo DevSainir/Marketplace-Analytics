@@ -16,21 +16,15 @@
  */
 import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 
+import { vDragScroll } from '@/core/utils/dragScroll'
 import { buildChartSpecs } from '@/modules/monitoring/chartSpecs'
+import { useChartRibbon } from '@/modules/monitoring/useChartRibbon'
 
 // ECharts is ~185 kB gzipped — three times the rest of this route put together.
 // Loading it asynchronously keeps it out of the view's own chunk, so the daily
 // table (what the page is actually for) paints without waiting for a charting
 // library, and the block fills itself in a moment later.
 const BaseChart = defineAsyncComponent(() => import('@/core/components/BaseChart.vue'))
-
-/**
- * Plot height. Held here rather than in a class so the wrapper can RESERVE it
- * while the async component is still loading — otherwise the card collapses and
- * snaps back open a moment later. No spacing token comes near this size; it is
- * a plot's proportions, not layout rhythm.
- */
-const CHART_HEIGHT = '340px'
 
 const props = defineProps({
   /** The store's live display matrix (`matrixView`). */
@@ -42,11 +36,25 @@ const charts = computed(() => buildChartSpecs(props.view))
 const activeIndex = ref(0)
 const active = computed(() => charts.value[activeIndex.value] ?? null)
 
+// The plot is drawn at its natural width and scrolled sideways; the y axis is
+// pinned beside it like the table's frozen first column.
+const { scroller, plotWidth, axisOption, plotOption } = useChartRibbon(active)
+const axisWidth = computed(() => `${active.value?.axisGutter ?? 74}px`)
+
 // A new SKU or a new window rebuilds the slides; the tab that was open may no
 // longer exist, so fall back to the first rather than render nothing.
 watch(charts, (list) => {
   if (activeIndex.value >= list.length) activeIndex.value = 0
 })
+
+/**
+ * Plot height, per slide (the funnel's three panels need more than one plot
+ * does). Read off the spec rather than hard-coded so the wrapper can RESERVE
+ * it while the async component is still loading — otherwise the card collapses
+ * and snaps back open a moment later. No spacing token comes near these sizes;
+ * they are a plot's proportions, not layout rhythm.
+ */
+const chartHeight = computed(() => active.value?.height ?? '340px')
 
 /** Step the carousel, wrapping at both ends («‹» from the first goes last). */
 function step(delta) {
@@ -142,12 +150,73 @@ async function onArrowKey(event) {
       <!-- `key` forces a fresh canvas per slide: ECharts keeps the previous
            chart's axis extents when only the option object changes, and a ₽
            axis inherited by a % chart is worse than a re-init. -->
-      <div v-if="active && !active.empty" class="mt-sm" :style="{ height: CHART_HEIGHT }">
-        <BaseChart :key="active.key" :option="active.option" :height="CHART_HEIGHT" />
-      </div>
+      <template v-if="active && !active.empty">
+        <!-- Legend above the plot, in HTML: on the canvas it scrolled away with
+             the days it labels. -->
+        <ul class="mt-sm flex flex-wrap gap-x-md gap-y-xs">
+          <li
+            v-for="entry in active.legend"
+            :key="entry.name"
+            class="flex items-center gap-xs text-tiny text-muted"
+          >
+            <span
+              class="h-2.5 w-2.5 shrink-0 rounded-sm"
+              :style="{ backgroundColor: entry.color }"
+              aria-hidden="true"
+            ></span>
+            {{ entry.name }}
+          </li>
+        </ul>
+
+        <!-- The chart's «frozen column»: the y axis stands still while the days
+             scroll past it, the way the metrics table pins its metric names. -->
+        <div class="mt-xs flex" :style="{ height: chartHeight }">
+          <!-- «Воронка 1» draws no y axis, so it has no frozen column and the
+               plot runs the full width of the card. -->
+          <BaseChart
+            v-if="active.axisGutter"
+            :key="`axis-${active.key}`"
+            class="shrink-0"
+            :option="axisOption"
+            :height="chartHeight"
+            :style="{ width: axisWidth }"
+          />
+          <div ref="scroller" v-drag-scroll class="chart-scroll min-w-0 flex-1">
+            <div :style="{ minWidth: '100%', width: plotWidth, height: chartHeight }">
+              <BaseChart :key="active.key" :option="plotOption" :height="chartHeight" />
+            </div>
+          </div>
+        </div>
+      </template>
       <p v-else-if="active" class="mt-sm py-xl text-center text-base text-muted">
         За выбранный период нет данных для этого графика.
       </p>
     </div>
   </section>
 </template>
+
+<style scoped>
+/* Native scroll, matching the metrics table's ribbon exactly (`.matrix-scroll`):
+   the scrollbar is hidden because macOS overlay scrollbars otherwise pin a white
+   track over the card, and `v-drag-scroll` supplies wheel + drag panning.
+
+   `overflow: auto`, NOT `overflow-y: hidden`. Pinning the vertical axis here
+   stopped the page scrolling while the cursor was over a chart — and it was
+   never this stylesheet's call to make: the directive already decides, per
+   gesture, whether a trackpad swipe is vertical (page scrolls, ribbon held
+   still via `.wheel-axis-locked`) or sideways (ribbon scrolls natively). */
+.chart-scroll {
+  overflow: auto;
+  scrollbar-width: none;
+}
+.chart-scroll::-webkit-scrollbar {
+  display: none;
+}
+.chart-scroll.drag-scrolling {
+  cursor: grabbing;
+  user-select: none;
+}
+.chart-scroll.wheel-axis-locked {
+  overflow-x: hidden;
+}
+</style>

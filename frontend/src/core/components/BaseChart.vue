@@ -18,6 +18,10 @@ import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/compon
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 
+// Registration is the whole point of the `echarts/core` entry point: anything
+// left out here is silently absent at runtime — an option referencing it logs
+// «Component X is used but not imported» to the console and simply does not
+// draw. Add to this list when a chart starts using a new component.
 echarts.use([BarChart, LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
 const props = defineProps({

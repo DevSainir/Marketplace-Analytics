@@ -89,11 +89,14 @@ function seriesMark(series, color, stack) {
     type: 'line',
     stack,
     smooth: false,
-    // A 30-day window puts a dot every ~30px; the crosshair tooltip reads the
-    // values instead, and the symbol grows to 8px on hover.
-    showSymbol: false,
+    // Every day gets a dot. The plot is laid out at a fixed width PER DAY and
+    // scrolled (see `DAY_WIDTH`), so there is always room for them — and on a
+    // near-flat series they are what makes one day legibly different from the
+    // next, rather than a line that looks straight.
+    showSymbol: true,
     symbol: 'circle',
-    symbolSize: 8,
+    symbolSize: 5,
+    emphasis: { scale: 1.8 },
     lineStyle: { width: 2 },
     areaStyle: series.area ? { opacity: 0.18 } : undefined,
     // A gap in the data is a day WB served nothing — joining across it would
@@ -112,25 +115,64 @@ function seriesMark(series, color, stack) {
  */
 const AXIS_HEADROOM = '12%'
 
-/** The value-axis spec shared by both layouts (single plot and panels). */
+/**
+ * Plot geometry, in pixels and shared by both copies of a chart (see
+ * `axisOnlyOption`). `PLOT_BOTTOM` is the strip the day labels sit in.
+ */
+const PLOT_TOP = 12
+const PLOT_BOTTOM = 28
+
+/** Width of the pinned y-axis column, wide enough for «500 000» and «Корзины». */
+export const AXIS_GUTTER_PX = 74
+
+/**
+ * The value-axis spec shared by both layouts (single plot and panels).
+ *
+ * A note on `splitNumber`, which is deliberately NOT set: ECharts picks the
+ * tick interval from it and then snaps the axis minimum DOWN to a multiple of
+ * that interval. Asking for two ticks on a «Корзины» panel spanning 90-215
+ * bought an interval of 100 and therefore a minimum of 0 — `scale: true`
+ * honoured to the letter and useless in practice, with the whole series
+ * crushed into the top third and 97 and 118 a hair apart. Left alone, ECharts
+ * chooses ~5 ticks, an interval of 30, and a minimum of 90.
+ */
 function valueAxis(unit, { scale }) {
   return {
     type: 'value',
     scale,
-    // `boundaryGap`, not a computed `max`: padding the extent by hand pins the
-    // axis to an arbitrary number and ECharts prints it as the top tick
-    // («481 900,432»). This pads the same way but leaves the tick algorithm to
-    // pick round numbers.
+    // Head-room above the tallest mark, and the two ways of getting it — which
+    // are mutually exclusive, so each axis takes the one that fits it.
     //
-    // The TOP only. Padding the bottom too sent «ДРР» — which never goes below
-    // zero — down to a −2% gridline, and an axis that shows an impossible value
-    // is worse than a line sitting near the floor. On a scaled axis ECharts
-    // still rounds the minimum down to a tick of its own accord.
-    boundaryGap: [0, AXIS_HEADROOM],
+    // A ZERO-ANCHORED axis (bars, stacks) uses `boundaryGap`. Not a computed
+    // `max`: padding the extent by hand pins the axis to an arbitrary number
+    // and ECharts prints it as the top tick («481 900,432»), where this pads
+    // the same way and still lets the tick algorithm pick round numbers. Only
+    // the top is padded — padding the bottom sent «ДРР», which never goes
+    // negative, down to a −2% gridline.
+    //
+    // A SCALED axis gets NONE, because any `boundaryGap` on a value axis makes
+    // ECharts include zero again, whatever `scale` says — measured both as
+    // `[0, …]` and `['0%', …]`. That is exactly what flattened the funnel: with
+    // one spike day at 215 the «Корзины» panel ran 0-250 and the 97-118 band
+    // the series actually lives in was a few pixels tall. Without it the panel
+    // fits 30-210, and `scale`'s own rounding-up to the next whole tick leaves
+    // the head-room anyway (verified on «Цены»: a 4 370 ₽ peak under a 4 400 ₽
+    // top tick).
+    boundaryGap: scale ? undefined : ['0%', AXIS_HEADROOM],
     min: scale ? undefined : 0,
     axisLine: { show: false },
     axisTick: { show: false },
-    axisLabel: { color: INK_MUTED, fontSize: 11, formatter: (v) => axisLabel(unit, v) },
+    axisLabel: {
+      color: INK_MUTED,
+      fontSize: 11,
+      // A funnel panel is ~90px tall and ECharts sizes its tick count for a
+      // full plot, so «100» and «120» collided into a smudge. Dropping a
+      // colliding label is the right lever — forcing a smaller `splitNumber`
+      // coarsens the interval, and a coarse interval is what snaps the axis
+      // minimum back down to zero.
+      hideOverlap: true,
+      formatter: (v) => axisLabel(unit, v),
+    },
     splitLine: { lineStyle: { color: LINE_SUBTLE, type: 'dashed' } },
   }
 }
@@ -152,6 +194,76 @@ function panelsTooltip(unit) {
 }
 
 /**
+ * The same chart with its y axis muted — the copy that scrolls.
+ *
+ * Its labels and panel captions belong to the pinned copy standing to its left;
+ * drawn here too they would scroll away mid-ribbon and collide with the data on
+ * the way out.
+ *
+ * @param {object} option A built chart option (either layout).
+ * @returns {object} The same option, minus the y-axis furniture.
+ */
+export function plotOnlyOption(option) {
+  const muted = (axis) => ({ ...axis, axisLabel: { ...axis.axisLabel, show: false }, name: '' })
+  return {
+    ...option,
+    yAxis: Array.isArray(option.yAxis) ? option.yAxis.map(muted) : muted(option.yAxis),
+  }
+}
+
+/**
+ * The same chart, reduced to its y axis — the frozen column of a scrolling plot.
+ *
+ * The plot is drawn at a fixed width per day and scrolled sideways, which took
+ * the y axis off screen with it: gridlines survived, the numbers did not. So
+ * the chart is rendered TWICE, side by side — this copy pinned at the card's
+ * left edge showing only the axis, the wide one scrolling beside it with its
+ * own labels switched off.
+ *
+ * The two agree without any extent arithmetic here, and that is the point of
+ * doing it this way: an axis extent is a pure function of the DATA and the axis
+ * config, neither of which depends on how wide the canvas is. Give both copies
+ * the same series and the same `scale`, give them the same height and the same
+ * grid top/bottom, and ECharts independently arrives at the same ticks in the
+ * same places. The series are kept (invisible) for exactly that reason —
+ * dropping them would drop the extent with them.
+ *
+ * @param {object} option A built chart option (either layout).
+ * @returns {object} The same option, stripped to the axis.
+ */
+export function axisOnlyOption(option, gutter = AXIS_GUTTER_PX) {
+  // Both layouts pass through here — one plot or three — so each field keeps
+  // whatever shape it arrived in. ECharts accepts either, but returning an
+  // array where the scrolling copy has a bare object makes the two impossible
+  // to compare, in a test or by eye.
+  const mapAxis = (axis, fn) => (Array.isArray(axis) ? axis.map(fn) : fn(axis))
+  return {
+    ...option,
+    animation: false,
+    tooltip: { show: false },
+    // The gutter is the whole canvas here, so the grid is pushed to its right
+    // edge and the labels render in the space to the left of it.
+    grid: mapAxis(option.grid, (grid) => ({ ...grid, left: gutter - 6, right: 0 })),
+    xAxis: mapAxis(option.xAxis, (axis) => ({
+      ...axis,
+      axisLabel: { ...axis.axisLabel, show: false },
+      axisLine: { show: false },
+    })),
+    yAxis: mapAxis(option.yAxis, (axis) => ({ ...axis, splitLine: { show: false } })),
+    // Present in the data, absent on screen: they set the extent and draw
+    // nothing. `silent` keeps them from answering a hover that is not theirs.
+    series: option.series.map((entry) => ({
+      ...entry,
+      silent: true,
+      showSymbol: false,
+      lineStyle: { ...entry.lineStyle, opacity: 0 },
+      areaStyle: entry.areaStyle ? { ...entry.areaStyle, opacity: 0 } : undefined,
+      itemStyle: { ...entry.itemStyle, opacity: 0, borderWidth: 0 },
+    })),
+  }
+}
+
+/**
  * A complete ECharts option for a SMALL-MULTIPLES chart: one thin panel per
  * series, stacked, all sharing the day axis.
  *
@@ -169,10 +281,13 @@ function panelsTooltip(unit) {
 function buildPanelsOption({ days, unit, series }) {
   const count = series.length
   // Percentages of the canvas: a title strip above each panel, the day labels
-  // under the last one only.
-  const TOP = 9
-  const BOTTOM = 10
-  const GAP = 10
+  // and the scroll handle under the last one only. The chart is given extra
+  // HEIGHT to spend here (see `PANEL_CHART_HEIGHT`) — three panels sharing a
+  // single-plot's 340px leaves each about 50px, which is not a trend line, it
+  // is a horizon.
+  const TOP = 8
+  const BOTTOM = 11
+  const GAP = 9
   const height = (100 - TOP - BOTTOM - GAP * (count - 1)) / count
   const panelTop = (index) => TOP + index * (height + GAP)
 
@@ -192,11 +307,10 @@ function buildPanelsOption({ days, unit, series }) {
     },
     axisPointer: { link: [{ xAxisIndex: 'all' }], lineStyle: { color: INK_MUTED } },
     grid: series.map((_, index) => ({
-      left: 4,
+      left: 0,
       right: 8,
       top: `${panelTop(index)}%`,
       height: `${height}%`,
-      containLabel: true,
     })),
     xAxis: series.map((_, index) => ({
       type: 'category',
@@ -207,7 +321,12 @@ function buildPanelsOption({ days, unit, series }) {
       axisTick: { show: false },
       // Only the bottom panel carries the dates; repeating them three times
       // would cost a third of the plot to say the same thing twice.
-      axisLabel: { show: index === count - 1, color: INK_MUTED, fontSize: 11 },
+      axisLabel: {
+        show: index === count - 1,
+        color: INK_MUTED,
+        fontSize: 11,
+        hideOverlap: true,
+      },
     })),
     yAxis: series.map((entry, index) => ({
       ...valueAxis(unit, { scale: true }),
@@ -218,8 +337,11 @@ function buildPanelsOption({ days, unit, series }) {
       name: entry.name,
       nameLocation: 'end',
       nameGap: 10,
-      nameTextStyle: { color: INK_MUTED, fontSize: 11, align: 'left' },
-      splitNumber: 2,
+      // Aligned RIGHT, which reads backwards but is what keeps it on screen:
+      // the caption is anchored to the axis line, and the axis line is at the
+      // right-hand edge of the pinned gutter. Aligned left it grows into the
+      // scroller and is clipped to «К».
+      nameTextStyle: { color: INK_MUTED, fontSize: 11, align: 'right' },
     })),
     series: series.map((entry, index) => ({
       ...seriesMark(entry, SERIES_COLORS[entry.colorIndex ?? index], null),
@@ -246,11 +368,15 @@ export function buildChartOption({ days, unit, stack = null, panels = false, ser
 
   return {
     animationDuration: 300,
-    // A fixed one-row allowance under the plot. The legend is pinned to one
-    // row (below), so this can be a constant — a wrapping legend would grow
-    // into the grid on a narrow screen, and ECharts does not reflow the grid
-    // for it.
-    grid: { left: 4, right: 8, top: 12, bottom: 30, containLabel: true },
+    // A fixed allowance under the plot: one legend row (it is pinned to one
+    // row below, since a wrapping legend would grow into the grid and ECharts
+    // does not reflow it) plus the scroll handle.
+    // Explicit pixels, NOT `containLabel`: this plot is rendered twice — once
+    // wide inside the scroller and once as a narrow pinned axis beside it — and
+    // `containLabel` sizes the grid around whichever labels each copy happens
+    // to show, which would slide the two apart vertically by a few pixels and
+    // leave every gridline off by that much.
+    grid: { left: 0, right: 8, top: PLOT_TOP, bottom: PLOT_BOTTOM },
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: hasBar ? 'shadow' : 'line' },
@@ -261,27 +387,13 @@ export function buildChartOption({ days, unit, stack = null, panels = false, ser
       textStyle: { color: INK_PRIMARY, fontSize: 12 },
       valueFormatter: (value) => formatValue(unit, value),
     },
-    legend: {
-      bottom: 0,
-      // The composition charts carry eight entries: at desktop width they all
-      // fit one row, and on a phone `scroll` pages through them instead of
-      // wrapping over the plot.
-      type: series.length > 4 ? 'scroll' : 'plain',
-      pageIconSize: 9,
-      pageTextStyle: { color: INK_MUTED, fontSize: 11 },
-      icon: 'roundRect',
-      itemWidth: 10,
-      itemHeight: 10,
-      itemGap: 14,
-      textStyle: { color: INK_MUTED, fontSize: 11 },
-    },
     xAxis: {
       type: 'category',
       data: days.map(shortDayLabel),
       boundaryGap: hasBar,
       axisLine: { lineStyle: { color: LINE_SUBTLE } },
       axisTick: { show: false },
-      axisLabel: { color: INK_MUTED, fontSize: 11 },
+      axisLabel: { color: INK_MUTED, fontSize: 11, hideOverlap: true },
     },
     // Bars encode magnitude by length and a composition sums from nothing, so
     // both are anchored to zero. A plain line chart is not: pinning цена

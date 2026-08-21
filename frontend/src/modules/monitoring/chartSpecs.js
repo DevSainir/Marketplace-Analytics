@@ -12,7 +12,21 @@
  * its lines look like a relationship, so a second unit gets its own slide.
  */
 import { COLUMNS_PER_DAY, TRAFFIC_COLUMNS } from '@/modules/monitoring/metricsMatrix'
-import { buildChartOption } from '@/modules/monitoring/chartOptions'
+import { AXIS_GUTTER_PX, SERIES_COLORS, buildChartOption } from '@/modules/monitoring/chartOptions'
+
+/**
+ * Plot height. A single plot gets the standard one; a small-multiples chart
+ * gets enough that each of its three panels is still a plot rather than a
+ * horizon line.
+ */
+const CHART_HEIGHT = '340px'
+// Height is the ONLY lever left for telling 97 from 118 apart. The axis cannot
+// zoom to that band while a 215-spike day shares the panel, and the panel keeps
+// the spike because dropping it would be a lie — so the band gets pixels
+// instead. At 720 each of the three panels is ~190px of plot and a 20-unit move
+// is ~18px; at the 440 it started from it was 6, which is what «not
+// distinguishable» meant. Vertical space is the cheap thing on this page.
+const PANEL_CHART_HEIGHT = '720px'
 
 /** Column index of each backend bucket within a day section of `row.cells`. */
 const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key, index]))
@@ -66,6 +80,13 @@ const byAdBucket = (metric, { organic = false } = {}) => [
  * it (a mixed column has no meaningful click-through rate), which is why the
  * conversion slide reads корзина/заказ/выкуп rather than CTR.
  */
+/** Shared by both «Воронка» tabs — the same numbers, drawn two ways. */
+const FUNNEL_SERIES = [
+  { metric: 'clicks', bucket: 'total', name: 'Клики', type: 'line' },
+  { metric: 'carts', bucket: 'total', name: 'Корзины', type: 'line' },
+  { metric: 'orders', bucket: 'total', name: 'Заказы', type: 'line' },
+]
+
 const CHART_SPECS = [
   {
     key: 'sales',
@@ -92,18 +113,25 @@ const CHART_SPECS = [
   },
   {
     key: 'funnel',
-    tab: 'Воронка',
+    tab: 'Воронка 1',
     title: 'Клики → корзины → заказы, шт',
     unit: 'number',
-    // Three panels, not three lines on one scale: клики run in the thousands
-    // and заказы in the tens, so a shared axis flattens the bottom two into
-    // the baseline (see `buildPanelsOption`).
+    // One plot, ONE absolute scale, three lines on it. Заказы therefore run low
+    // and flat under клики — which is the truth about a funnel, and the reason
+    // «Воронка 2» exists beside it: a scale per stage there shows each one's own
+    // shape, this one shows how the three actually compare.
+    series: FUNNEL_SERIES,
+  },
+  {
+    key: 'funnel_panels',
+    tab: 'Воронка 2',
+    title: 'Клики → корзины → заказы, шт',
+    unit: 'number',
+    // The same three series as one panel each, with their own plain axes. The
+    // lines cannot cross here — which in a funnel matters, because
+    // клики >= корзины >= заказы always holds and a crossing is always false.
     panels: true,
-    series: [
-      { metric: 'clicks', bucket: 'total', name: 'Клики', type: 'line' },
-      { metric: 'carts', bucket: 'total', name: 'Корзины', type: 'line' },
-      { metric: 'orders', bucket: 'total', name: 'Заказы', type: 'line' },
-    ],
+    series: FUNNEL_SERIES,
   },
   {
     key: 'conversion',
@@ -205,6 +233,19 @@ export function buildChartSpecs(view) {
       key: spec.key,
       tab: spec.tab,
       title: spec.title,
+      // Three stacked panels need more room than one plot; the panel builder
+      // lays itself out in percentages, so the pixels have to come from here.
+      height: spec.panels ? PANEL_CHART_HEIGHT : CHART_HEIGHT,
+      axisGutter: AXIS_GUTTER_PX,
+      // The plot is laid out at a fixed width per day and scrolled sideways,
+      // so the panel needs to know how many there are.
+      dayCount: days.length,
+      // Rendered as HTML above the plot rather than on the canvas: a canvas
+      // legend scrolls away with the plot it belongs to.
+      legend: series.map((entry, index) => ({
+        name: entry.name,
+        color: SERIES_COLORS[entry.colorIndex ?? index],
+      })),
       empty: series.every((entry) => entry.data.every((value) => value == null)),
       option: buildChartOption({
         days,
