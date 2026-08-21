@@ -107,3 +107,47 @@ def test_traffic_share_normalizes_within_the_cpc_group() -> None:
     assert _cell(rows, "traffic_share", 0, "uni_shelves") == 40.0
     assert _cell(rows, "traffic_share", 0, "cpc_search") == 25.0
     assert _cell(rows, "traffic_share", 0, "cpc_shelves") == 75.0
+
+
+def test_a_cpc_campaign_delivers_below_the_cpm_floor() -> None:
+    """A CPC campaign-day clearing 50 ₽ counts as delivering, not as trickle.
+
+    The 200 ₽ floor is calibrated on CPM economics (WB's CPM floor puts it at
+    roughly 700-1300 показы). A pay-per-click campaign buys the same delivery
+    for about a quarter of that, so the CPM floor read a real day as noise: live
+    on 20.08.2026, campaign 97455941 served 646 показы and 74 клика for
+    166.50 ₽ on M-TRX01-BLK, and the «CPC» column stayed blank on that card.
+    """
+    campaigns = {1: _campaign(1, "manual", search=True, shelves=False, payment_type="cpc")}
+    ad_rows = [_ad_row(1, DAY1, views=1154, clicks=74, spend=166.50, orders=3)]
+
+    rows = _matrix(campaigns=campaigns, ad_rows=ad_rows)
+
+    assert _cell(rows, "views", 0, "cpc_search") == 1154
+    assert _cell(rows, "spend", 0, "cpc_search") == 166.50
+    assert _cell(rows, "cpc", 0, "cpc_search") == 2.25
+
+
+def test_a_cpc_campaign_that_never_delivered_is_still_cut() -> None:
+    """The lower floor is not "no floor" — a no-click CPC day is still trickle.
+
+    A paused-but-not-finished CPC campaign trickles a handful of показы for
+    0 ₽ (16 such campaign-day-cards live, all at 0 кликов); those must not
+    open a «CPC» column that claims the card had pay-per-click traffic.
+    """
+    campaigns = {1: _campaign(1, "manual", search=True, shelves=False, payment_type="cpc")}
+    ad_rows = [_ad_row(1, DAY1, views=19, clicks=0, spend=0.0)]
+
+    rows = _matrix(campaigns=campaigns, ad_rows=ad_rows)
+
+    assert _cell(rows, "views", 0, "cpc_search") is None
+
+
+def test_the_cpm_floor_is_unchanged_by_the_cpc_one() -> None:
+    """A CPM campaign at 166.50 ₽ is still trickle — the relief is CPC-only."""
+    campaigns = {1: _campaign(1, "manual", search=True, shelves=False)}
+    ad_rows = [_ad_row(1, DAY1, views=1154, clicks=74, spend=166.50, orders=3)]
+
+    rows = _matrix(campaigns=campaigns, ad_rows=ad_rows)
+
+    assert _cell(rows, "views", 0, "manual_search") is None

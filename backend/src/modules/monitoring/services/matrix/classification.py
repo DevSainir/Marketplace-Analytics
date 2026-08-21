@@ -26,8 +26,9 @@ whole day in the zone it runs in — including a search-only one, which unlike
 Significant-campaign selection (see :func:`_select_day_buckets`): a SKU
 realistically has one — at most two — campaigns actually bringing traffic. A
 campaign-day must first spend at least :data:`_MIN_CAMPAIGN_DAY_SPEND` to count
-as delivering; of those, only the leading campaign (by Показы) is kept, plus a
-second campaign when its Показы clear
+as delivering (:data:`_MIN_CPC_CAMPAIGN_DAY_SPEND` for a pay-per-click campaign,
+which buys the same delivery for a quarter of the money); of those, only the
+leading campaign (by Показы) is kept, plus a second campaign when its Показы clear
 :data:`_SECONDARY_MIN_CAMPAIGN_VIEW_RATIO` of the leader's. A surviving campaign
 keeps ALL its zones (a unified campaign's WB search/shelves split is shown even
 at 99/1). Cut campaigns are excluded from «Общая»/«Органика» too.
@@ -269,6 +270,40 @@ _SECONDARY_MIN_CAMPAIGN_VIEW_RATIO = 0.10
 #: still be meaningfully in the auction. Tunable.
 _MIN_CAMPAIGN_DAY_SPEND = 200.0
 
+#: The same floor for a PAY-PER-CLICK campaign, which buys the same delivery for
+#: a fraction of the money and would otherwise be cut as trickle on days it
+#: plainly ran. Derived, not picked: the floor is a proxy for «did this campaign
+#: deliver», and on the live data a CPC campaign's показы cost about a quarter of
+#: a CPM campaign's (20.08.2026, card M-TRX01-CHK: CPC campaign 230 ₽ per 1000
+#: показы against the manual campaign's 630 ₽ on the same card and day), so the
+#: same bar converts to ~50 ₽.
+#:
+#: The live CPC campaign-day-cards separate even more sharply than the CPM ones
+#: did, because WB bills these per click and a day with no clicks costs nothing:
+#:
+#:     0 ₽        16 days, avg 4 показы, 0 кликов   <- never delivered
+#:     166-285 ₽   3 days, 334-1158 показы, 19-114 кликов
+#:     8 556 ₽     1 day, 10 491 показы, 671 кликов
+#:
+#: — an empty band from 0 to 166 ₽, so 50 ₽ separates them with room on both
+#: sides. Without it the 166.50 ₽ / 646 показы / 74 клика day of campaign
+#: 97455941 read as noise and the «CPC» column stayed blank on that card.
+#: Tunable.
+_MIN_CPC_CAMPAIGN_DAY_SPEND = 50.0
+
+
+def _day_spend_floor(legs: list[tuple[str, _AdSlice]]) -> float:
+    """The delivery floor a campaign-day must clear, by how WB bills it.
+
+    Read off the legs the campaign was classified into rather than passed in
+    separately: a campaign is in the «CPC» buckets exactly when its
+    ``payment_type`` put it there, so the classification already carries the
+    answer.
+    """
+    if any(bucket.startswith("cpc_") for bucket, _ in legs):
+        return _MIN_CPC_CAMPAIGN_DAY_SPEND
+    return _MIN_CAMPAIGN_DAY_SPEND
+
 
 def _select_day_buckets(
     campaigns_today: list[tuple[_AdSlice, list[tuple[str, _AdSlice]]]],
@@ -311,7 +346,7 @@ def _select_day_buckets(
     candidates = [
         (total, legs)
         for total, legs in campaigns_today
-        if total.sku.views > 0 and total.sku.spend >= _MIN_CAMPAIGN_DAY_SPEND
+        if total.sku.views > 0 and total.sku.spend >= _day_spend_floor(legs)
     ]
     candidates.sort(key=lambda entry: entry[0].sku.views, reverse=True)
     if not candidates:
