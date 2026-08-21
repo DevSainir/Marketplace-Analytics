@@ -20,14 +20,33 @@ from src.integrations.wildberries.schemas import (
     WBSearchPage,
     WBSearchProduct,
 )
+from src.integrations.wildberries.search_session import SearchSession
 
 OURS = 953770957
 ALSO_OURS = 144178006
 
 
 def _settings(**overrides: object) -> Settings:
-    """Settings with a small page size so a two-page scan stays readable."""
-    return Settings(wb_search_page_size=3, wb_search_max_pages=3, **overrides)  # type: ignore[arg-type]
+    """Settings with a small page size so a two-page scan stays readable.
+
+    Pacing is OFF unless a test asks for it. A paced client takes its slot from
+    the PROCESS-WIDE Redis client, and `redis.asyncio` binds each pooled
+    connection to the event loop that opened it — while pytest-asyncio gives
+    every test a fresh loop. So on a machine where Redis happens to be
+    reachable, one test pools a connection and the next one to reach the gate
+    dies on `RuntimeError: Event loop is closed` (the same trap
+    `drain_redis_pool` exists for; the gate fails open on `RedisError`, and a
+    `RuntimeError` is not one).
+
+    That made this file pass in CI and on a laptop with the stack down, and fail
+    the moment `docker compose up` had been run — which is the worst way for a
+    tier-1 test to behave. A unit test does no I/O; this is what enforces it.
+    """
+    return Settings(  # type: ignore[arg-type]
+        wb_search_page_size=3,
+        wb_search_max_pages=3,
+        **{"wb_rate_pacing_enabled": False, **overrides},
+    )
 
 
 def _page(*nm_ids: int, total: int = 99, normquery: str = "носки") -> WBSearchPage:
@@ -186,7 +205,34 @@ async def test_a_failure_on_a_later_page_keeps_what_was_already_found() -> None:
     assert [position.nm_id for position in probe.positions] == [OURS]
 
 
+@pytest.fixture
+def _no_stored_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Probe anonymously, without asking Redis whether a session is stored.
+
+    Only reached by a test that stubs `_request` rather than `_fetch_page`, so
+    the real `_fetch_page` runs — and its first act is `await load_session()`,
+    a `GET` against the process-wide Redis client. That client pools per event
+    loop while pytest-asyncio hands out a fresh one per test, so on a machine
+    with Redis up the second test through here dies on `RuntimeError: Event
+    loop is closed`. `load_session` only falls open on `RedisError`, which that
+    is not.
+
+    `None` is the honest stub: it is what a box with no stored session returns,
+    and it selects the anonymous surface the stubbed `_request` stands in for.
+    """
+    monkeypatch.setattr(
+        "src.integrations.wildberries.clients.search.load_session",
+        _no_session,
+    )
+
+
+async def _no_session() -> SearchSession | None:
+    """A `load_session` that answers "nothing stored" without touching Redis."""
+    return None
+
+
 @pytest.mark.parametrize("total", [111119, 0])
+@pytest.mark.usefixtures("_no_stored_session")
 async def test_an_empty_first_page_is_treated_as_a_block_not_as_a_ranking(total: int) -> None:
     """WB's throttled edge answers 200 with no products; that is not "nowhere".
 
@@ -214,8 +260,15 @@ def test_the_probe_is_paced_by_a_shared_gate_not_left_to_burst() -> None:
     on the probe's own first page and left the next press inside the penalty
     window it had just created. The gate is Redis-backed so the api and the
     worker queue behind each other — they share the IP WB actually meters.
+
+    Half the regression is that pacing is ON out of the box, so it is asserted
+    off the field's declared default rather than off an environment that may
+    carry a ``.env`` saying otherwise — and off the model, not a live
+    ``Settings()``, since `_settings` above deliberately switches it off.
     """
-    paced = WBPublicSearchClient(_settings())
+    assert Settings.model_fields["wb_rate_pacing_enabled"].default is True
+
+    paced = WBPublicSearchClient(_settings(wb_rate_pacing_enabled=True))
 
     assert isinstance(paced._rate_gate, TokenBucketRateGate)
 
@@ -225,6 +278,17 @@ def test_pacing_can_be_switched_off_for_environments_without_redis() -> None:
     unpaced = WBPublicSearchClient(_settings(wb_rate_pacing_enabled=False))
 
     assert isinstance(unpaced._rate_gate, NullRateGate)
+
+
+def test_this_file_probes_without_ever_reaching_redis() -> None:
+    """The tier boundary, asserted rather than trusted.
+
+    Every client these tests build must carry the null gate: one that did not
+    was enough to make the file's result depend on whether Redis happened to be
+    running on the machine (see :func:`_settings`).
+    """
+    assert isinstance(WBPublicSearchClient(_settings())._rate_gate, NullRateGate)
+    assert isinstance(_client([_page(OURS)])._rate_gate, NullRateGate)
 
 
 def test_a_watched_probe_scans_shallower_than_the_scheduled_run() -> None:
