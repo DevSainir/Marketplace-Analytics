@@ -106,6 +106,73 @@ describe('A/Б-tests store', () => {
     expect(store.detail.variants).toHaveLength(2)
   })
 
+  it('surfaces a rejected upload instead of leaving the table silently empty', async () => {
+    // A refused upload has to SAY so. The failure mode this guards against is
+    // the one that shipped on 2026-08-20: every upload answered 422, and
+    // because the table only renders `variants`, the page showed an empty
+    // result table and no reason for it. An empty table reads as "no photos
+    // yet", which is exactly the wrong thing for a user to conclude.
+    fetchTest.mockResolvedValue(detail(0))
+    uploadVariant.mockRejectedValue({
+      response: { data: { detail: [{ msg: 'Field required' }] } },
+    })
+    const store = useAbTestsStore()
+    await store.loadTest(TEST_ID)
+
+    const ok = await store.addPhoto(TEST_ID, new File([''], 'photo.jpg'))
+
+    expect(ok).toBe(false)
+    expect(store.error).toBe('Field required')
+    expect(store.detail.variants).toHaveLength(0)
+  })
+
+  it('keeps the photos already uploaded when a later one is refused', async () => {
+    // The view uploads a multi-file selection one at a time, so a rejection
+    // part-way through must not discard the ones that already landed — the
+    // rotation the user can still start is whatever did get through.
+    fetchTest.mockResolvedValue(detail(2))
+    uploadVariant.mockRejectedValue({ response: { data: { detail: 'Файл пустой.' } } })
+    const store = useAbTestsStore()
+    await store.loadTest(TEST_ID)
+
+    const ok = await store.addPhoto(TEST_ID, new File([''], 'photo.jpg'))
+
+    expect(ok).toBe(false)
+    expect(store.error).toBe('Файл пустой.')
+    expect(store.detail.variants).toHaveLength(2)
+  })
+
+  it('clears a previous upload error once one succeeds', async () => {
+    // Otherwise a stale banner outlives the problem it described, and the user
+    // is told the upload failed while looking at the photo it produced.
+    fetchTest.mockResolvedValue(detail(0))
+    uploadVariant.mockRejectedValueOnce({ response: { data: { detail: 'Файл пустой.' } } })
+    const store = useAbTestsStore()
+    await store.loadTest(TEST_ID)
+    await store.addPhoto(TEST_ID, new File([''], 'bad.jpg'))
+
+    uploadVariant.mockResolvedValue(detail(1))
+    const ok = await store.addPhoto(TEST_ID, new File([''], 'good.jpg'))
+
+    expect(ok).toBe(true)
+    expect(store.error).toBe('')
+    expect(store.detail.variants).toHaveLength(1)
+  })
+
+  it('stops saving even when the upload throws', async () => {
+    // `saving` disables the file input and the start button. Leaving it stuck
+    // on after a failure locks the user out of retrying the very upload the
+    // error message is telling them to fix.
+    fetchTest.mockResolvedValue(detail(0))
+    uploadVariant.mockRejectedValue({ response: { data: { detail: 'Файл пустой.' } } })
+    const store = useAbTestsStore()
+    await store.loadTest(TEST_ID)
+
+    await store.addPhoto(TEST_ID, new File([''], 'photo.jpg'))
+
+    expect(store.saving).toBe(false)
+  })
+
   it('surfaces a rejected start instead of showing the test as running', async () => {
     // Starting installs the first photo on the seller's live card. A rejection
     // means the card was NOT touched, so the row must stay as it was.
