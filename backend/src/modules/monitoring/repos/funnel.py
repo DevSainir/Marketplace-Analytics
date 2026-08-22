@@ -3,14 +3,37 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.monitoring.models import SalesFunnelDaily
+from src.modules.monitoring.models import PriceSnapshot, SalesFunnelDaily
 from src.modules.monitoring.repos.base import BaseRepository, workspace_sku_select
+
+
+@dataclass(frozen=True, slots=True)
+class FunnelDayTotal:
+    """One day of funnel facts, summed across the SKUs in scope.
+
+    ``sku_count`` is how many cards contributed — the honest denominator for
+    reading the day, and what tells a blank stretch («no card reported») apart
+    from a real zero.
+
+    ``order_sum`` is ``None`` when not one contributing SKU-day carried a price,
+    matching the per-SKU matrix, which leaves «Заказы, ₽» blank rather than
+    calling an unpriced day zero roubles.
+    """
+
+    stat_date: date
+    sku_count: int
+    open_count: int
+    cart_count: int
+    order_count: int
+    buyout_count: int
+    order_sum: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +151,76 @@ class FunnelRepository(BaseRepository):
         )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def daily_totals(
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        date_from: date,
+        date_to: date,
+        nm_ids: Sequence[int] | None = None,
+    ) -> list[FunnelDayTotal]:
+        """Return per-DAY funnel totals summed ACROSS SKUs, with order revenue.
+
+        The sibling of :meth:`aggregate_window`, grouped the other way: that one
+        answers «what did each SKU do over the window», this one «what did the
+        whole account do on each day» — the series the «Графики» page draws.
+
+        ``order_sum`` is ``Σ(order_count x seller_price)`` over the SKUs of a
+        day, not ``Σorders x some price``: each card is worth its own price, so
+        the join to the price snapshot happens BEFORE the sum. A SKU-day with no
+        price snapshot contributes its counts and nothing to the revenue, the
+        same silence the per-SKU matrix keeps («Заказы, ₽» is ``None`` when
+        unpriced) rather than valuing it at zero.
+
+        Args:
+            workspace_id: Restrict to SKUs owned by this workspace.
+            date_from: Inclusive window start.
+            date_to: Inclusive window end.
+            nm_ids: Restrict further to these SKUs; ``None`` means all of them.
+
+        Returns:
+            One :class:`FunnelDayTotal` per day with data, ascending by date.
+        """
+        revenue = func.sum(SalesFunnelDaily.order_count * PriceSnapshot.seller_price)
+        stmt = (
+            select(
+                SalesFunnelDaily.stat_date,
+                func.count().label("sku_count"),
+                func.sum(SalesFunnelDaily.open_count).label("open_count"),
+                func.sum(SalesFunnelDaily.cart_count).label("cart_count"),
+                func.sum(SalesFunnelDaily.order_count).label("order_count"),
+                func.sum(SalesFunnelDaily.buyout_count).label("buyout_count"),
+                revenue.label("order_sum"),
+            )
+            .outerjoin(
+                PriceSnapshot,
+                (PriceSnapshot.nm_id == SalesFunnelDaily.nm_id)
+                & (PriceSnapshot.stat_date == SalesFunnelDaily.stat_date),
+            )
+            .where(
+                SalesFunnelDaily.stat_date >= date_from,
+                SalesFunnelDaily.stat_date <= date_to,
+                SalesFunnelDaily.nm_id.in_(workspace_sku_select(workspace_id)),
+            )
+            .group_by(SalesFunnelDaily.stat_date)
+            .order_by(SalesFunnelDaily.stat_date)
+        )
+        if nm_ids is not None:
+            stmt = stmt.where(SalesFunnelDaily.nm_id.in_(list(nm_ids)))
+        result = await self._session.execute(stmt)
+        return [
+            FunnelDayTotal(
+                stat_date=row.stat_date,
+                sku_count=int(row.sku_count),
+                open_count=int(row.open_count),
+                cart_count=int(row.cart_count),
+                order_count=int(row.order_count),
+                buyout_count=int(row.buyout_count),
+                order_sum=None if row.order_sum is None else float(row.order_sum),
+            )
+            for row in result.all()
+        ]
 
     async def aggregate_window(
         self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
