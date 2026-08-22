@@ -17,7 +17,13 @@
 import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
-import { buildChartSpecs } from '@/modules/monitoring/chartSpecs'
+import ChartCarouselHeader from '@/modules/monitoring/components/ChartCarouselHeader.vue'
+import ChartMetricPicker from '@/modules/monitoring/components/ChartMetricPicker.vue'
+import {
+  DEFAULT_OVERVIEW,
+  OVERVIEW_METRICS,
+  buildChartSpecs,
+} from '@/modules/monitoring/chartSpecs'
 import { useChartRibbon } from '@/modules/monitoring/useChartRibbon'
 
 // ECharts is ~185 kB gzipped — three times the rest of this route put together.
@@ -27,18 +33,49 @@ import { useChartRibbon } from '@/modules/monitoring/useChartRibbon'
 const BaseChart = defineAsyncComponent(() => import('@/core/components/BaseChart.vue'))
 
 const props = defineProps({
-  /** The store's live display matrix (`matrixView`). */
+  /** The store's live display matrix (`matrixView`, or the aggregate one). */
   view: { type: Object, required: true },
+  /**
+   * Which chart list to draw. Defaults to the per-SKU set; the account-wide
+   * «Графики» page passes its own shorter one, so both pages share this
+   * component, its ribbon and its carousel rather than growing a second copy.
+   */
+  buildSpecs: { type: Function, default: buildChartSpecs },
+  /** Window totals for the funnel slide; computed server-side, never here. */
+  totals: { type: Object, default: null },
+  heading: { type: String, default: 'Графики' },
+  hint: {
+    type: String,
+    default:
+      'Те же значения, что и в таблице выше, по дням выбранного периода. Наведите курсор, ' +
+      'чтобы увидеть точные числа за день.',
+  },
 })
 
-const charts = computed(() => buildChartSpecs(props.view))
+/**
+ * «Общий» is the one slide with no fixed question: the reader ticks the
+ * metrics whose relationship they are chasing. Held here rather than in the
+ * spec module because it is view state, and it survives switching tabs.
+ */
+const overview = ref([...DEFAULT_OVERVIEW])
+/** «Значения» or «Индекс» — see `OVERVIEW_MODES`. */
+const overviewMode = ref('absolute')
+const metricChoices = OVERVIEW_METRICS
+
+const charts = computed(() =>
+  props.buildSpecs(props.view, {
+    overview: overview.value,
+    mode: overviewMode.value,
+    totals: props.totals,
+  }),
+)
 
 const activeIndex = ref(0)
 const active = computed(() => charts.value[activeIndex.value] ?? null)
 
 // The plot is drawn at its natural width and scrolled sideways; the y axis is
 // pinned beside it like the table's frozen first column.
-const { scroller, plotWidth, axisOption, plotOption } = useChartRibbon(active)
+const { scroller, plotWidth, axisOption, plotOption, onUserSteer } = useChartRibbon(active)
 const axisWidth = computed(() => `${active.value?.axisGutter ?? 74}px`)
 
 // A new SKU or a new window rebuilds the slides; the tab that was open may no
@@ -62,8 +99,8 @@ function step(delta) {
   if (count) activeIndex.value = (activeIndex.value + delta + count) % count
 }
 
-/** The tab buttons, so an arrow key can move focus onto the one it selects. */
-const tabRefs = ref([])
+/** The header owns the tab buttons, so focus can follow an arrow-key move. */
+const header = ref(null)
 
 /**
  * ←/→ step the carousel, but only once the block has the keyboard: the page's
@@ -83,17 +120,14 @@ async function onArrowKey(event) {
   // Stop the browser scrolling the tab strip sideways under the slide change.
   event.preventDefault()
   await nextTick()
-  tabRefs.value[activeIndex.value]?.focus()
+  header.value?.focusActiveTab(activeIndex.value)
 }
 </script>
 
 <template>
-  <section v-if="charts.length" class="mt-lg" aria-label="Графики">
-    <h2 class="text-h3 font-semibold text-primary">Графики</h2>
-    <p class="mt-xs max-w-3xl text-tiny font-medium text-muted">
-      Те же значения, что и в таблице выше, по дням выбранного периода. Наведите курсор, чтобы
-      увидеть точные числа за день.
-    </p>
+  <section v-if="charts.length" class="mt-lg" :aria-label="heading">
+    <h2 class="text-h3 font-semibold text-primary">{{ heading }}</h2>
+    <p class="mt-xs max-w-3xl text-tiny font-medium text-muted">{{ hint }}</p>
 
     <div
       class="mt-sm rounded-card border border-border-subtle bg-surface p-lg shadow-card outline-none focus-visible:ring-2 focus-visible:ring-action phone:p-md"
@@ -102,54 +136,24 @@ async function onArrowKey(event) {
       aria-label="Карусель графиков: стрелки влево и вправо переключают график"
       @keydown="onArrowKey"
     >
-      <!-- Tab strip = the carousel's position indicator. It scrolls sideways on
-           a narrow screen instead of wrapping into three ragged rows. -->
-      <div role="tablist" aria-label="Графики метрик" class="flex gap-xs overflow-x-auto pb-xs">
-        <button
-          v-for="(chart, index) in charts"
-          :key="chart.key"
-          :ref="(el) => (tabRefs[index] = el)"
-          type="button"
-          role="tab"
-          :aria-selected="index === activeIndex"
-          :tabindex="index === activeIndex ? 0 : -1"
-          class="shrink-0 rounded-btn px-md py-xs text-tiny font-medium transition phone:py-sm"
-          :class="
-            index === activeIndex
-              ? 'bg-action text-white shadow-soft'
-              : 'text-muted hover:bg-hover hover:text-primary'
-          "
-          @click="activeIndex = index"
-        >
-          {{ chart.tab }}
-        </button>
-      </div>
+      <ChartCarouselHeader
+        ref="header"
+        :charts="charts"
+        :active-index="activeIndex"
+        :title="active?.title ?? ''"
+        @select="activeIndex = $event"
+        @step="step"
+      />
 
-      <div v-if="active" class="mt-md flex items-center gap-sm">
-        <button
-          type="button"
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-btn border border-border-subtle bg-canvas text-h3 leading-none text-primary transition hover:bg-hover phone:h-10 phone:w-10"
-          aria-label="Предыдущий график"
-          @click="step(-1)"
-        >
-          ‹
-        </button>
-        <h3 class="min-w-0 flex-1 text-center text-base font-semibold text-primary">
-          {{ active.title }}
-        </h3>
-        <button
-          type="button"
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-btn border border-border-subtle bg-canvas text-h3 leading-none text-primary transition hover:bg-hover phone:h-10 phone:w-10"
-          aria-label="Следующий график"
-          @click="step(1)"
-        >
-          ›
-        </button>
-      </div>
+      <!-- The picker rides above «Общий» only: every other slide is a saved
+           question and its metrics are the answer. -->
+      <ChartMetricPicker
+        v-if="active?.pickable"
+        v-model="overview"
+        v-model:mode="overviewMode"
+        :choices="metricChoices"
+      />
 
-      <!-- `key` forces a fresh canvas per slide: ECharts keeps the previous
-           chart's axis extents when only the option object changes, and a ₽
-           axis inherited by a % chart is worse than a re-init. -->
       <template v-if="active && !active.empty">
         <!-- Legend above the plot, in HTML: on the canvas it scrolled away with
              the days it labels. -->
@@ -170,18 +174,35 @@ async function onArrowKey(event) {
 
         <!-- The chart's «frozen column»: the y axis stands still while the days
              scroll past it, the way the metrics table pins its metric names. -->
-        <div class="mt-xs flex" :style="{ height: chartHeight }">
-          <!-- «Воронка 1» draws no y axis, so it has no frozen column and the
-               plot runs the full width of the card. -->
-          <BaseChart
+        <!-- A funnel has no day ribbon and no frozen column: it is the whole
+             window in one shape, so it takes the card's full width. -->
+        <div v-if="active.funnel" class="mt-xs" :style="{ height: chartHeight }">
+          <BaseChart :key="active.key" :option="active.option" :height="chartHeight" />
+        </div>
+
+        <div v-else class="mt-xs flex" :style="{ height: chartHeight }">
+          <!-- The column is RESERVED by this wrapper rather than sized by the
+               chart inside it. The chart is loaded asynchronously, so until it
+               arrives it occupies nothing — and the ribbon beside it, being
+               `flex-1`, opened 74px too wide and scrolled to a stale end,
+               parking the newest days just off screen.
+
+               «Воронка 1» draws no y axis at all, so it reserves nothing and
+               the plot runs the full width of the card. -->
+          <div
             v-if="active.axisGutter"
-            :key="`axis-${active.key}`"
             class="shrink-0"
-            :option="axisOption"
-            :height="chartHeight"
-            :style="{ width: axisWidth }"
-          />
-          <div ref="scroller" v-drag-scroll class="chart-scroll min-w-0 flex-1">
+            :style="{ width: axisWidth, height: chartHeight }"
+          >
+            <BaseChart :key="`axis-${active.key}`" :option="axisOption" :height="chartHeight" />
+          </div>
+          <div
+            ref="scroller"
+            v-drag-scroll
+            class="chart-scroll min-w-0 flex-1"
+            @wheel.passive="onUserSteer"
+            @pointerdown.passive="onUserSteer"
+          >
             <div :style="{ minWidth: '100%', width: plotWidth, height: chartHeight }">
               <BaseChart :key="active.key" :option="plotOption" :height="chartHeight" />
             </div>

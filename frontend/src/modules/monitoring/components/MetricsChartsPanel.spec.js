@@ -1,4 +1,4 @@
-import { shallowMount } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 
 import MetricsChartsPanel from '@/modules/monitoring/components/MetricsChartsPanel.vue'
 import { TRAFFIC_COLUMNS, buildMetricsMatrix } from '@/modules/monitoring/metricsMatrix'
@@ -13,9 +13,14 @@ function view(rows = []) {
   })
 }
 
-/** `shallow` stubs the async ECharts child — jsdom has no canvas to draw on. */
+/**
+ * Mounted for real except the chart itself: the tab strip and the metric
+ * picker are child components now, and stubbing everything (`shallowMount`)
+ * would leave nothing to click. `BaseChart` stays stubbed because jsdom has no
+ * canvas to draw on.
+ */
 function mountPanel(props = { view: view() }) {
-  return shallowMount(MetricsChartsPanel, { props })
+  return mount(MetricsChartsPanel, { props, global: { stubs: { BaseChart: true } } })
 }
 
 const tabs = (wrapper) => wrapper.findAll('[role="tab"]')

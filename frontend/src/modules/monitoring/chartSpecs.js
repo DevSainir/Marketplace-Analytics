@@ -12,7 +12,13 @@
  * its lines look like a relationship, so a second unit gets its own slide.
  */
 import { COLUMNS_PER_DAY, TRAFFIC_COLUMNS } from '@/modules/monitoring/metricsMatrix'
-import { AXIS_GUTTER_PX, SERIES_COLORS, buildChartOption } from '@/modules/monitoring/chartOptions'
+import {
+  AXIS_GUTTER_PX,
+  SERIES_COLORS,
+  buildChartOption,
+  buildFunnelOption,
+  gutterFor,
+} from '@/modules/monitoring/chartOptions'
 
 /**
  * Plot height. A single plot gets the standard one; a small-multiples chart
@@ -27,6 +33,8 @@ const CHART_HEIGHT = '340px'
 // is ~18px; at the 440 it started from it was 6, which is what «not
 // distinguishable» meant. Vertical space is the cheap thing on this page.
 const PANEL_CHART_HEIGHT = '720px'
+/** A funnel needs height for its stages, not for a day axis. */
+const FUNNEL_CHART_HEIGHT = '420px'
 
 /** Column index of each backend bucket within a day section of `row.cells`. */
 const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key, index]))
@@ -62,12 +70,6 @@ const AD_BUCKETS = [
  */
 const ORGANIC = { bucket: 'organic', name: 'Органика', colorIndex: 5 }
 
-/** Every ad bucket of one metric as a stacked series list, plus «Органика». */
-const byAdBucket = (metric, { organic = false } = {}) => [
-  ...(organic ? [{ ...ORGANIC, metric, type: 'bar' }] : []),
-  ...AD_BUCKETS.map((entry) => ({ ...entry, metric, type: 'bar' })),
-]
-
 /**
  * The slides, in reading order: what the day earned, what it cost, how the
  * funnel moved, then the two compositions, then price and stock.
@@ -80,111 +82,263 @@ const byAdBucket = (metric, { organic = false } = {}) => [
  * it (a mixed column has no meaningful click-through rate), which is why the
  * conversion slide reads корзина/заказ/выкуп rather than CTR.
  */
-/** Shared by both «Воронка» tabs — the same numbers, drawn two ways. */
-const FUNNEL_SERIES = [
-  { metric: 'clicks', bucket: 'total', name: 'Клики', type: 'line' },
-  { metric: 'carts', bucket: 'total', name: 'Корзины', type: 'line' },
-  { metric: 'orders', bucket: 'total', name: 'Заказы', type: 'line' },
+/**
+ * The metrics «Общий» offers, and the shape every other chart is built from.
+ *
+ * `unit` is per METRIC, not per chart, because a chart earns its keep by
+ * pairing metrics that answer one question — and those rarely share a unit.
+ * The builder gives each unit its own axis (see `chartUnits`).
+ */
+const METRICS = {
+  order_sum: { metric: 'order_sum', bucket: 'total', name: 'Заказы, ₽', unit: 'currency' },
+  buyout_sum: { metric: 'buyout_sum', bucket: 'total', name: 'Выкупы, ₽', unit: 'currency' },
+  spend: { metric: 'spend', bucket: 'total', name: 'Затраты, ₽', unit: 'currency' },
+  cpc: { metric: 'cpc', bucket: 'total', name: 'CPC, ₽', unit: 'currency' },
+  cost_per_order: {
+    metric: 'cost_per_order',
+    bucket: 'total',
+    name: 'Стоимость заказа, ₽',
+    unit: 'currency',
+  },
+  customer_price: {
+    metric: 'customer_price',
+    source: 'priceRows',
+    name: 'Цена покупателя, ₽',
+    unit: 'currency',
+  },
+  views: { metric: 'views', bucket: 'total', name: 'Показы', unit: 'number' },
+  clicks: { metric: 'clicks', bucket: 'total', name: 'Клики', unit: 'number' },
+  carts: { metric: 'carts', bucket: 'total', name: 'Корзины', unit: 'number' },
+  orders: { metric: 'orders', bucket: 'total', name: 'Заказы, шт', unit: 'number' },
+  orders_organic: {
+    metric: 'orders',
+    bucket: 'organic',
+    name: 'Заказы органика, шт',
+    unit: 'number',
+  },
+  stock_total: {
+    metric: 'stock_total',
+    source: 'stockTotalRows',
+    name: 'Остаток, шт',
+    unit: 'number',
+  },
+  drr_sales: { metric: 'drr_sales', bucket: 'total', name: 'ДРР от продаж, %', unit: 'percent' },
+  drr_orders: { metric: 'drr_orders', bucket: 'total', name: 'ДРР от заказов, %', unit: 'percent' },
+  cart_conversion: {
+    metric: 'cart_conversion',
+    bucket: 'total',
+    name: 'В корзину, %',
+    unit: 'percent',
+  },
+  order_conversion: {
+    metric: 'order_conversion',
+    bucket: 'total',
+    name: 'В заказ, %',
+    unit: 'percent',
+  },
+  buyout_percent: {
+    metric: 'buyout_percent',
+    bucket: 'total',
+    name: 'Процент выкупа, %',
+    unit: 'percent',
+  },
+  spp: { metric: 'spp', source: 'priceRows', name: 'СПП, %', unit: 'percent' },
+}
+
+/**
+ * What «Общий» starts on: revenue against the share advertising ate — the
+ * money question, and two DIFFERENT units, so neither crushes the other.
+ */
+export const DEFAULT_OVERVIEW = ['order_sum', 'drr_sales']
+
+/**
+ * How many metrics «Общий» will draw at once.
+ *
+ * Not a arbitrary tidiness rule: dashboard guidance puts the readable ceiling
+ * at four to six series, after which the advice is to facet or filter rather
+ * than keep stacking. Google's own metric-comparison view goes further and
+ * compares exactly two. Four is the generous end of that, and the picker stops
+ * there rather than letting a reader build a chart nobody can read.
+ */
+export const MAX_OVERVIEW_METRICS = 4
+
+/**
+ * The two ways «Общий» can put unlike metrics on one plot.
+ *
+ * `absolute` keeps real values, one axis per unit — true numbers, but «Заказы,
+ * ₽» at 500 000 flattens «Затраты, ₽» at 7 000 against the baseline, because
+ * they are both roubles and therefore share a ruler.
+ *
+ * `index` is the documented answer to exactly that: rebase every series to 100
+ * at the window's first day, so what is compared is SHAPE — did this rise while
+ * that fell — on one axis, whatever the units. Its known weakness is that the
+ * baseline day is arbitrary and a different one draws a different chart, which
+ * is why it is a mode the reader chooses and never the default, and why the
+ * hover still shows the real value underneath.
+ */
+export const OVERVIEW_MODES = [
+  { key: 'absolute', label: 'Значения' },
+  { key: 'index', label: 'Индекс (100 = первый день)' },
 ]
 
+/** Every metric «Общий» can overlay, in picker order. */
+export const OVERVIEW_METRICS = Object.entries(METRICS).map(([key, entry]) => ({
+  key,
+  name: entry.name,
+  unit: entry.unit,
+}))
+
+/** A metric as a line, or as bars when it is the chart's subject rather than its context. */
+const line = (key, extra = {}) => ({ ...METRICS[key], type: 'line', ...extra })
+const bar = (key, extra = {}) => ({ ...METRICS[key], type: 'bar', ...extra })
+
+/** The funnel's three stages, shared by both «Воронка» tabs. */
+/** Shared by both «Воронка» tabs — the same numbers, drawn two ways. */
+const FUNNEL_SERIES = [line('clicks'), line('carts'), line('orders')]
+
+/**
+ * The charts, each answering ONE question.
+ *
+ * The rule they are built to — taken from how advertising dashboards are
+ * actually laid out — is that if you cannot say in a sentence why two metrics
+ * share a chart, they should not. A lone series is a number on a wall: «Цена»
+ * by itself says nothing you could act on, while price against demand asks
+ * whether the last cut worked. So the standalone «Цены», «Конверсии» and
+ * «Остатки» slides are gone, folded into the questions they belong to.
+ */
 const CHART_SPECS = [
+  {
+    key: 'overview',
+    tab: 'Общий',
+    title: 'Свой набор метрик',
+    // The one chart with no fixed question: pick the metrics whose relationship
+    // you are chasing today. Everything else here is a saved answer.
+    pickable: true,
+    series: [],
+  },
   {
     key: 'sales',
     tab: 'Продажи',
-    title: 'Заказы и выкупы, ₽',
-    unit: 'currency',
-    // «Затраты, ₽» is the same unit but an order of magnitude smaller — on this
-    // scale its line sits flat on the axis and reads as zero every day. It gets
-    // the «Расходы» slide, whose stack totals the very same number.
-    series: [
-      { metric: 'order_sum', bucket: 'total', name: 'Заказы, ₽', type: 'bar' },
-      { metric: 'buyout_sum', bucket: 'total', name: 'Выкупы, ₽', type: 'bar' },
-    ],
+    title: 'Что заказали, что выкупили и какая доля дошла',
+    series: [bar('order_sum'), bar('buyout_sum'), line('buyout_percent')],
   },
   {
-    key: 'drr',
-    tab: 'ДРР',
-    title: 'Доля рекламных расходов, %',
-    unit: 'percent',
-    series: [
-      { metric: 'drr_orders', bucket: 'total', name: 'ДРР от заказов, %', type: 'line' },
-      { metric: 'drr_sales', bucket: 'total', name: 'ДРР от продаж, %', type: 'line' },
-    ],
+    key: 'ads',
+    tab: 'Реклама',
+    title: 'Сколько потратили, сколько заказов принесло и какой ценой',
+    // The shape ad dashboards actually use: VOLUME as bars on one axis and
+    // EFFICIENCY as a line on another, so you read «spent more» and «got more»
+    // and «at what share» in one glance.
+    //
+    // Spend alone against ДРР said nothing, which is fair: a ratio with
+    // neither of its halves on screen is a number with no story. «Заказы, шт»
+    // is the half that fits — «Заказы, ₽» is fifty times the spend and would
+    // flatten the bars it is meant to explain. And ONE ДРР line, not two: от
+    // заказов and от продаж track each other so closely that the second was
+    // just ink.
+    series: [bar('spend'), line('orders'), line('drr_sales')],
+  },
+  {
+    key: 'traffic',
+    tab: 'Трафик',
+    title: 'Сколько показов, сколько кликов и почём клик',
+    series: [bar('views'), line('clicks'), line('cpc')],
   },
   {
     key: 'funnel',
-    tab: 'Воронка 1',
-    title: 'Клики → корзины → заказы, шт',
-    unit: 'number',
-    // One plot, ONE absolute scale, three lines on it. Заказы therefore run low
-    // and flat under клики — which is the truth about a funnel, and the reason
-    // «Воронка 2» exists beside it: a scale per stage there shows each one's own
-    // shape, this one shows how the three actually compare.
-    series: FUNNEL_SERIES,
-  },
-  {
-    key: 'funnel_panels',
-    tab: 'Воронка 2',
-    title: 'Клики → корзины → заказы, шт',
-    unit: 'number',
-    // The same three series as one panel each, with their own plain axes. The
-    // lines cannot cross here — which in a funnel matters, because
-    // клики >= корзины >= заказы always holds and a crossing is always false.
-    panels: true,
-    series: FUNNEL_SERIES,
+    tab: 'Воронка',
+    title: 'Где теряются покупатели за период',
+    // A FUNNEL, not five day-series pretending to be one. The stages are the
+    // window's totals drawn against each other, so the drop-off is the shape
+    // itself and each stage carries its share of the one above — which the
+    // funnel literature calls the actionable number.
+    funnel: true,
+    series: [],
   },
   {
     key: 'conversion',
     tab: 'Конверсии',
-    title: 'Конверсии и выкуп, %',
-    unit: 'percent',
-    series: [
-      { metric: 'cart_conversion', bucket: 'total', name: 'В корзину, %', type: 'line' },
-      { metric: 'order_conversion', bucket: 'total', name: 'В заказ, %', type: 'line' },
-      { metric: 'buyout_percent', bucket: 'total', name: 'Выкуп, %', type: 'line' },
-    ],
+    title: 'Как менялись конверсии между шагами',
+    // The trend half. A funnel is a snapshot and cannot show one, so the same
+    // conversions are drawn over the days beside it — one axis, all percent.
+    series: [line('cart_conversion'), line('order_conversion'), line('buyout_percent')],
+  },
+  {
+    key: 'stages',
+    tab: 'Этапы по дням',
+    title: 'Клики, корзины и заказы по дням',
+    // The counts, when what you want is the day one of them moved. Kept as
+    // panels because клики run in the thousands and заказы in the tens.
+    panels: true,
+    series: FUNNEL_SERIES,
   },
   {
     key: 'spend_mix',
-    tab: 'Расходы',
-    title: 'Затраты по типам трафика, ₽',
-    unit: 'currency',
+    tab: 'Расходы по типам',
+    title: 'Из чего сложились затраты на рекламу',
     stack: 'spend',
-    series: byAdBucket('spend'),
+    series: AD_BUCKETS.map((entry) => ({
+      ...entry,
+      metric: 'spend',
+      unit: 'currency',
+      type: 'bar',
+    })),
   },
   {
     key: 'orders_mix',
     tab: 'Реклама и органика',
-    title: 'Заказы: реклама и органика, шт',
-    unit: 'number',
+    title: 'Сколько заказов принесла реклама, а сколько органика',
     stack: 'orders',
-    series: byAdBucket('orders', { organic: true }),
+    series: [
+      { ...ORGANIC, metric: 'orders', unit: 'number', type: 'bar' },
+      ...AD_BUCKETS.map((entry) => ({
+        ...entry,
+        metric: 'orders',
+        unit: 'number',
+        type: 'bar',
+      })),
+    ],
   },
   {
     key: 'price',
-    tab: 'Цены',
-    title: 'Цена продавца и покупателя, ₽',
-    unit: 'currency',
-    source: 'priceRows',
-    series: [
-      { metric: 'seller_price', name: 'Цена продавца, ₽', type: 'line' },
-      { metric: 'customer_price', name: 'Цена покупателя, ₽', type: 'line' },
-    ],
+    tab: 'Цена и спрос',
+    title: 'Двигался ли спрос, когда двигалась цена',
+    // The pairing price analytics is built on: a price change is only
+    // interesting next to what it did to the orders. СПП is deliberately NOT
+    // here — it is a third thing, and a third unit means a third axis for a
+    // question that only asked about two.
+    series: [line('customer_price'), line('orders')],
   },
   {
     key: 'stock',
-    tab: 'Остатки',
-    title: 'Остаток и товар в пути, шт',
-    unit: 'number',
-    stack: 'stock',
-    source: 'stockRows',
-    series: [
-      { metric: 'stock_quantity', name: 'На складах', type: 'line', area: true },
-      { metric: 'stock_to_client', name: 'В пути к клиенту', type: 'line', area: true },
-      { metric: 'stock_from_client', name: 'В пути от клиента', type: 'line', area: true },
-    ],
+    tab: 'Остатки и продажи',
+    title: 'На сколько хватит остатка при таком темпе заказов',
+    // Both in штуках, so they share one axis and the comparison is direct —
+    // which is what turns «остаток 400» into «дней на десять».
+    series: [line('stock_total', { area: true }), line('orders')],
   },
 ]
+
+/**
+ * Rebase a series to 100 at its first reported day, keeping the real values.
+ *
+ * The `raw` half is what the hover reads: an index is a shape, and a reader
+ * who wants to know what «118» meant in roubles must not have to leave the
+ * chart to find out. A series with no first value cannot be rebased and is
+ * returned untouched — it is all gaps anyway.
+ */
+function indexed(data, active) {
+  if (!active) return { data }
+  const base = data.find((value) => value != null && value !== 0)
+  if (base == null) return { data }
+  return {
+    data: data.map((value) => (value == null ? null : round2((value / base) * 100))),
+    raw: data,
+  }
+}
+
+/** Two decimals, the way the backend rounds every ratio it serves. */
+const round2 = (value) => Math.round(value * 100) / 100
 
 /**
  * The per-day values of one metric row, read straight out of the display
@@ -194,15 +348,52 @@ const CHART_SPECS = [
  * the main grid is day-major with a `COLUMNS_PER_DAY` stride, so the bucket's
  * column index picks the cell out of each day's section.
  */
-function readSeries(view, spec, series) {
-  const rows = view[spec.source ?? 'rows'] ?? []
+function readSeries(view, series) {
+  const rows = view[series.source ?? 'rows'] ?? []
   const row = rows.find((candidate) => candidate.key === series.metric)
   if (!row) return view.days.map(() => null)
-  if (spec.source) return row.cells.map((cell) => cell.raw ?? null)
+  // A mini-block row («Цены», «Остатки») already carries one cell per day.
+  if (series.source) return row.cells.map((cell) => cell.raw ?? null)
 
   const column = BUCKET_INDEX.get(series.bucket)
   if (column === undefined) return view.days.map(() => null)
   return view.days.map((_, day) => row.cells[day * COLUMNS_PER_DAY + column]?.raw ?? null)
+}
+
+/**
+ * The stages of a funnel slide, widest first, each with its share of the one
+ * above — all of it computed by the backend (`funnel_totals`).
+ *
+ * Summing a window's days in the browser would be exactly the arithmetic the
+ * matrix rule exists to keep out of it, so a page that cannot supply totals
+ * gets an empty funnel and says «нет данных» rather than adding up cells.
+ */
+function funnelSlide(spec, totals) {
+  const stages = totals
+    ? [
+        { name: 'Клики', value: totals.open_count, conversion: null },
+        { name: 'Корзины', value: totals.cart_count, conversion: totals.cart_conversion },
+        { name: 'Заказы', value: totals.order_count, conversion: totals.order_conversion },
+        { name: 'Выкупы', value: totals.buyout_count, conversion: totals.buyout_conversion },
+      ].filter((stage) => stage.value > 0)
+    : []
+  return {
+    key: spec.key,
+    tab: spec.tab,
+    title: spec.title,
+    height: FUNNEL_CHART_HEIGHT,
+    // No day ribbon and no pinned axis: a funnel has neither.
+    axisGutter: 0,
+    dayCount: 0,
+    funnel: true,
+    pickable: false,
+    legend: stages.map((stage, index) => ({
+      name: stage.name,
+      color: SERIES_COLORS[index],
+    })),
+    empty: !stages.length,
+    option: buildFunnelOption(stages),
+  }
 }
 
 /**
@@ -217,17 +408,52 @@ function readSeries(view, spec, series) {
  * @returns {Array<{key: string, tab: string, title: string, empty: boolean,
  *   option: object}>} Empty when the window has no days at all.
  */
-export function buildChartSpecs(view) {
+export function buildChartSpecs(view, options = {}) {
+  return buildSpecs(view, CHART_SPECS, options)
+}
+
+/**
+ * Turn a list of chart definitions into drawable slides against one matrix.
+ *
+ * Shared with the account-wide «Графики» page (`aggregateChartSpecs.js`), which
+ * draws a SHORTER list from a matrix carrying only «Общая» and «Органика». Both
+ * pages therefore go through the same builder, the same theme and the same
+ * ribbon geometry, and cannot drift into looking like two different products.
+ *
+ * @param {object} view A display matrix (the store's `matrixView` shape).
+ * @param {Array<object>} specs Chart definitions; see `CHART_SPECS`.
+ * @param {{overview?: string[], catalogue?: object}} [options] Which metrics
+ *   «Общий» currently shows, and the catalogue to resolve them against — the
+ *   aggregate page serves a different set of metrics, so it passes its own.
+ * @returns {Array<object>} Slides, or empty when the window has no days.
+ */
+export function buildSpecs(
+  view,
+  specs,
+  { overview = DEFAULT_OVERVIEW, mode = 'absolute', catalogue = METRICS, totals = null } = {},
+) {
   if (!view?.days?.length) return []
   const days = view.days.map((day) => day.iso)
 
-  return CHART_SPECS.map((spec) => {
-    const series = spec.series.map((entry, index) => ({
+  return specs.map((spec) => {
+    // A funnel is the window's totals, not a day series: it has no ribbon, no
+    // day axis and no frozen column, so it leaves the shared path here.
+    if (spec.funnel) return funnelSlide(spec, totals)
+    // «Общий» has no fixed series list — it draws whatever the reader ticked.
+    const chosen = spec.pickable
+      ? overview
+          .slice(0, MAX_OVERVIEW_METRICS)
+          .map((key) => catalogue[key])
+          .filter(Boolean)
+          .map((entry) => ({ ...entry, type: 'line' }))
+      : spec.series
+    const series = chosen.map((entry, index) => ({
       name: entry.name,
       type: entry.type,
       area: entry.area ?? false,
       colorIndex: entry.colorIndex ?? index,
-      data: readSeries(view, spec, entry),
+      unit: entry.unit ?? 'number',
+      ...indexed(readSeries(view, entry), spec.pickable && mode === 'index'),
     }))
     return {
       key: spec.key,
@@ -236,7 +462,10 @@ export function buildChartSpecs(view) {
       // Three stacked panels need more room than one plot; the panel builder
       // lays itself out in percentages, so the pixels have to come from here.
       height: spec.panels ? PANEL_CHART_HEIGHT : CHART_HEIGHT,
-      axisGutter: AXIS_GUTTER_PX,
+      // One axis per unit, so the frozen column grows with the units on show.
+      axisGutter: series.length ? gutterFor(series) : AXIS_GUTTER_PX,
+      // The picker rides above this slide only.
+      pickable: spec.pickable ?? false,
       // The plot is laid out at a fixed width per day and scrolled sideways,
       // so the panel needs to know how many there are.
       dayCount: days.length,
@@ -249,9 +478,10 @@ export function buildChartSpecs(view) {
       empty: series.every((entry) => entry.data.every((value) => value == null)),
       option: buildChartOption({
         days,
-        unit: spec.unit,
         stack: spec.stack ?? null,
         panels: spec.panels ?? false,
+        // An index is unitless: one axis for everything, whatever was picked.
+        indexMode: spec.pickable && mode === 'index',
         series,
       }),
     }

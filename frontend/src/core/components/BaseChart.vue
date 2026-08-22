@@ -13,7 +13,7 @@
  */
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-import { BarChart, LineChart } from 'echarts/charts'
+import { BarChart, FunnelChart, LineChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -22,7 +22,15 @@ import { CanvasRenderer } from 'echarts/renderers'
 // left out here is silently absent at runtime — an option referencing it logs
 // «Component X is used but not imported» to the console and simply does not
 // draw. Add to this list when a chart starts using a new component.
-echarts.use([BarChart, LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
+echarts.use([
+  BarChart,
+  FunnelChart,
+  LineChart,
+  GridComponent,
+  LegendComponent,
+  TooltipComponent,
+  CanvasRenderer,
+])
 
 const props = defineProps({
   /** A complete ECharts option (see `chartOptions.js` for the app's theme). */

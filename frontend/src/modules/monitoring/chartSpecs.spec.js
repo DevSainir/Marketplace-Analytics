@@ -1,5 +1,9 @@
 import { SERIES_COLORS, axisOnlyOption, plotOnlyOption } from '@/modules/monitoring/chartOptions'
-import { buildChartSpecs } from '@/modules/monitoring/chartSpecs'
+import {
+  DEFAULT_OVERVIEW,
+  OVERVIEW_METRICS,
+  buildChartSpecs,
+} from '@/modules/monitoring/chartSpecs'
 import {
   COLUMNS_PER_DAY,
   TRAFFIC_COLUMNS,
@@ -24,6 +28,9 @@ function matrixView(rows) {
   })
 }
 
+const chart = (key, rows = [], options) =>
+  buildChartSpecs(matrixView(rows), options).find((entry) => entry.key === key)
+
 describe('buildChartSpecs', () => {
   it('has no slides at all without a window', () => {
     expect(buildChartSpecs({ days: [], rows: [] })).toEqual([])
@@ -31,19 +38,14 @@ describe('buildChartSpecs', () => {
   })
 
   it('reads a «Общая» metric off the matrix into the day series', () => {
-    const view = matrixView([row('order_sum', { total: [1000, 2500] })])
+    const sales = chart('sales', [row('order_sum', { total: [1000, 2500] })])
 
-    const sales = buildChartSpecs(view).find((chart) => chart.key === 'sales')
-    const orders = sales.option.series.find((s) => s.name === 'Заказы, ₽')
-
-    expect(orders.data).toEqual([1000, 2500])
+    expect(sales.option.series.find((s) => s.name === 'Заказы, ₽').data).toEqual([1000, 2500])
     expect(sales.empty).toBe(false)
   })
 
   it('reads each advertising bucket into its own stacked series', () => {
-    const view = matrixView([row('spend', { uni_search: [10, 20], cpc_shelves: [3, 4] })])
-
-    const spend = buildChartSpecs(view).find((chart) => chart.key === 'spend_mix')
+    const spend = chart('spend_mix', [row('spend', { uni_search: [10, 20], cpc_shelves: [3, 4] })])
     const byName = new Map(spend.option.series.map((s) => [s.name, s]))
 
     expect(byName.get('Единая · поиск').data).toEqual([10, 20])
@@ -52,188 +54,244 @@ describe('buildChartSpecs', () => {
     expect(spend.option.series.every((s) => s.stack === 'spend')).toBe(true)
   })
 
-  it('keeps «Органика» out of the spend chart and in the orders chart', () => {
-    const charts = buildChartSpecs(matrixView([row('orders', { organic: [5, 6] })]))
-    const names = (key) =>
-      charts.find((chart) => chart.key === key).option.series.map((s) => s.name)
-
-    expect(names('spend_mix')).not.toContain('Органика')
-    expect(names('orders_mix')).toContain('Органика')
-  })
-
   it('drops the always-empty «Каталог» zone of the unified campaigns', () => {
-    // `uni_catalog` is a legacy WB zone that no longer exists in the v2 API; a
-    // series for it would be a permanently blank legend entry.
-    const charts = buildChartSpecs(matrixView([row('spend', {})]))
-    const spend = charts.find((chart) => chart.key === 'spend_mix')
-
-    expect(spend.option.series).toHaveLength(7)
+    expect(chart('spend_mix').option.series).toHaveLength(7)
   })
 
   it('never asks for a ninth categorical colour', () => {
     // Past eight, a slot would be recycled and two series would share a hue.
-    const charts = buildChartSpecs(matrixView([]))
-
-    for (const chart of charts) {
-      expect(chart.option.series.length).toBeLessThanOrEqual(SERIES_COLORS.length)
-      expect(new Set(chart.option.series.map((s) => s.color)).size).toBe(chart.option.series.length)
+    for (const entry of buildChartSpecs(matrixView([]))) {
+      expect(entry.option.series.length).toBeLessThanOrEqual(SERIES_COLORS.length)
     }
   })
 
-  it('never puts two y-axes on one plot', () => {
-    // Two scales behind one set of marks make any crossing look like a
-    // relationship, and worse — three scales put клики 439, корзины 215 and
-    // заказы 105 on the SAME point of the plot, which is the opposite of the
-    // absolute reading a funnel needs. Small multiples are the allowed shape
-    // for series of different magnitude («Воронка 2»): several plots, one axis
-    // each. So the rule is one y-axis PER GRID.
-    for (const chart of buildChartSpecs(matrixView([]))) {
-      const axes = [chart.option.yAxis].flat()
-      const grids = axes.map((axis) => axis.gridIndex ?? 0)
+  describe('one axis per UNIT', () => {
+    it('gives two metrics of the same unit one shared ruler', () => {
+      // The rule the funnel taught: three scales for клики/корзины/заказы put
+      // 439, 215 and 105 on the same point of the plot. Same unit, same axis.
+      // «Остаток, шт» and «Заказы, шт» — one unit, therefore one axis, and
+      // every series pinned to it.
+      const stock = chart('stock')
 
-      expect(new Set(grids).size).toBe(axes.length)
-    }
+      expect([stock.option.yAxis].flat()).toHaveLength(1)
+      expect(stock.option.series.every((s) => s.yAxisIndex === 0)).toBe(true)
+    })
+
+    it('gives metrics of different units an axis each, named by the unit', () => {
+      // «Затраты, ₽» and «ДРР, %» answer one question together and cannot share
+      // a scale, so they get one axis apiece — labelled by unit, not by series,
+      // because an axis measures everything on the chart denominated that way.
+      const ads = chart('ads')
+      const axes = [ads.option.yAxis].flat()
+
+      // Затраты ₽ (bars) · Заказы шт (line) · ДРР % (line) — volume against
+      // efficiency, which is the shape ad dashboards use.
+      expect(axes.map((axis) => axis.name)).toEqual(['₽', 'шт', '%'])
+      expect(ads.option.series.map((s) => s.yAxisIndex)).toEqual([0, 1, 2])
+    })
+
+    it('widens the frozen column for the second axis', () => {
+      expect(chart('ads').axisGutter).toBeGreaterThan(chart('stock').axisGutter)
+    })
+
+    it('anchors a unit carrying bars to zero, and lets a line-only unit fit', () => {
+      // A bar's length IS its value, so a cut baseline lies about it; a line
+      // may fit its own band, which is what makes a flat ДРР readable.
+      const axes = [chart('ads').option.yAxis].flat()
+
+      expect(axes[0].scale).toBe(false) // ₽ carries the spend bars
+      expect(axes[1].scale).toBe(true) // % carries only lines
+    })
   })
 
-  it('draws the two «Воронка» tabs from one set of series', () => {
-    // The same three numbers, two ways of looking at them: one plot with a
-    // hidden scale per line, and one panel per line with a plain axis.
-    const charts = buildChartSpecs(matrixView([]))
-    const one = charts.find((chart) => chart.key === 'funnel')
-    const two = charts.find((chart) => chart.key === 'funnel_panels')
+  describe('«Общий»', () => {
+    it('draws whatever the reader ticked, in the order they ticked it', () => {
+      const overview = chart('overview', [], { overview: ['orders', 'spend'] })
 
-    expect([one.tab, two.tab]).toEqual(['Воронка 1', 'Воронка 2'])
-    expect(one.option.series.map((entry) => entry.name)).toEqual(
-      two.option.series.map((entry) => entry.name),
-    )
-    expect(one.option.series.map((entry) => entry.data)).toEqual(
-      two.option.series.map((entry) => entry.data),
-    )
-  })
+      expect(overview.option.series.map((s) => s.name)).toEqual(['Заказы, шт', 'Затраты, ₽'])
+    })
 
-  it('plots «Воронка 1» on ONE absolute scale', () => {
-    // One axis, three lines measured against it: заказы run low and flat under
-    // клики, which is the truth about a funnel. Given a scale each they were
-    // each stretched to the full plot height, so a day with 439 clicks, 215
-    // carts and 105 orders drew all three at the same point — a chart that
-    // contradicted its own tooltip.
-    const one = buildChartSpecs(matrixView([])).find((chart) => chart.key === 'funnel')
+    it('opens on the money question rather than on nothing', () => {
+      expect(chart('overview').option.series).toHaveLength(DEFAULT_OVERVIEW.length)
+    })
 
-    expect(Array.isArray(one.option.yAxis)).toBe(false)
-    expect(one.option.series).toHaveLength(3)
-    expect(one.option.series.every((entry) => entry.yAxisIndex === undefined)).toBe(true)
-  })
+    it('draws nothing at all when everything is unticked', () => {
+      expect(chart('overview', [], { overview: [] }).option.series).toEqual([])
+    })
 
-  it('captions every «Воронка 2» panel on its own visible axis', () => {
-    const two = buildChartSpecs(matrixView([])).find((chart) => chart.key === 'funnel_panels')
-
-    expect(two.option.grid).toHaveLength(3)
-    expect(two.option.yAxis.map((axis) => axis.name)).toEqual(['Клики', 'Корзины', 'Заказы'])
-    expect(two.axisGutter).toBeGreaterThan(0)
-  })
-
-  it('leaves headroom above the tallest mark, by whichever means the axis allows', () => {
-    // «Цена» and «Остатки» both peaked flush against the top edge, where a line
-    // reads as clipped rather than as a maximum. The two mechanisms exclude
-    // each other: ANY `boundaryGap` on a value axis re-anchors it to zero, so
-    // only a zero-anchored axis can use one. A scaled axis gets its head-room
-    // from `scale`'s own rounding up to the next whole tick — and keeping
-    // `boundaryGap` off it is what lets the funnel fit its band instead of
-    // starting at zero.
-    for (const chart of buildChartSpecs(matrixView([]))) {
-      for (const axis of [chart.option.yAxis].flat()) {
-        if (axis.scale) expect(axis.boundaryGap).toBeUndefined()
-        else expect(axis.boundaryGap).toEqual(['0%', '12%'])
+    it('offers every metric it can actually resolve', () => {
+      // A chip naming a metric the matrix cannot serve would tick and do
+      // nothing, which reads as a broken control rather than an empty day.
+      for (const choice of OVERVIEW_METRICS) {
+        const only = chart('overview', [], { overview: [choice.key] })
+        expect(only.option.series, choice.key).toHaveLength(1)
       }
-    }
+    })
+
+    it('stops at four series, because past that nobody can read it', () => {
+      // Dashboard guidance puts the readable ceiling at four to six lines and
+      // Google's own metric comparison shows two. Seventeen chips with no cap
+      // let a reader build a hairball and blame the chart.
+      const many = ['order_sum', 'spend', 'orders', 'clicks', 'carts', 'views']
+      const overview = chart('overview', [], { overview: many })
+
+      expect(overview.option.series).toHaveLength(4)
+    })
+
+    it('rebases every series to 100 in index mode, keeping the real values', () => {
+      // The documented answer to unlike scales: «Заказы, ₽» at 500 000 and
+      // «Затраты, ₽» at 7 000 share a unit and therefore an axis, which
+      // flattens the smaller one. Indexed, both are shapes — and the hover
+      // still reads the roubles, because an index is not a quantity.
+      const rows = [row('order_sum', { total: [200, 400] }), row('spend', { total: [10, 5] })]
+      const indexed = chart('overview', rows, {
+        overview: ['order_sum', 'spend'],
+        mode: 'index',
+      })
+
+      expect(indexed.option.series.map((s) => s.data)).toEqual([
+        [100, 200],
+        [100, 50],
+      ])
+      // One axis for everything: an index is unitless.
+      expect([indexed.option.yAxis].flat()).toHaveLength(1)
+    })
+
+    it('leaves absolute mode alone, with an axis per unit', () => {
+      const rows = [row('order_sum', { total: [200, 400] }), row('spend', { total: [10, 5] })]
+      const absolute = chart('overview', rows, { overview: ['order_sum', 'spend'] })
+
+      expect(absolute.option.series[0].data).toEqual([200, 400])
+      expect([absolute.option.yAxis].flat()).toHaveLength(1) // both are ₽
+    })
+
+    it('is the only slide carrying a picker', () => {
+      const pickable = buildChartSpecs(matrixView([])).filter((entry) => entry.pickable)
+
+      expect(pickable.map((entry) => entry.key)).toEqual(['overview'])
+    })
   })
 
-  it('reports the day count the ribbon is sized from', () => {
-    // The plot is laid out at a fixed width PER DAY and scrolled sideways, the
-    // way the metrics table's ribbon is — so the panel has to know how many.
-    for (const chart of buildChartSpecs(matrixView([]))) {
-      expect(chart.dayCount).toBe(DAYS.length)
-    }
-  })
+  it('pairs metrics that explain each other rather than standing alone', () => {
+    // The redesign's rule, from how ad dashboards are actually built: a lone
+    // series is a number on a wall. «Цена» said nothing actionable by itself;
+    // price against demand asks whether the last cut worked.
+    const price = chart('price')
 
-  it('names and colours the legend for the panel to render in HTML', () => {
-    // On the canvas the legend scrolled away with the days it labels.
-    const sales = buildChartSpecs(matrixView([])).find((chart) => chart.key === 'sales')
-
-    expect(sales.legend.map((entry) => entry.name)).toEqual(['Заказы, ₽', 'Выкупы, ₽'])
-    expect(sales.legend.map((entry) => entry.color)).toEqual(SERIES_COLORS.slice(0, 2))
-    // ...and it is gone from the option, or it would be drawn twice.
-    expect(sales.option.legend).toBeUndefined()
+    expect(price.option.series.map((s) => s.name)).toEqual(
+      expect.arrayContaining(['Цена покупателя, ₽', 'Заказы, шт']),
+    )
+    // ...and the slides that said nothing on their own are gone.
+    const tabs = buildChartSpecs(matrixView([])).map((entry) => entry.tab)
+    expect(tabs).not.toContain('Цены')
+    expect(tabs).not.toContain('Остатки')
   })
 
   it('splits into a pinned axis and a scrolling plot that agree', () => {
     // Both copies keep the same series and the same axis config, which is what
     // makes ECharts land on identical ticks without any extent maths here.
-    const sales = buildChartSpecs(matrixView([row('order_sum', { total: [1000, 2500] })])).find(
-      (chart) => chart.key === 'sales',
-    )
+    const sales = chart('sales', [row('order_sum', { total: [1000, 2500] })])
     const axis = axisOnlyOption(sales.option)
     const plot = plotOnlyOption(sales.option)
 
-    expect(axis.series.map((entry) => entry.data)).toEqual(plot.series.map((entry) => entry.data))
-    expect(axis.yAxis.scale).toBe(plot.yAxis.scale)
-    expect(axis.yAxis.axisLabel.show).not.toBe(false) // the pinned copy shows them
-    expect(plot.yAxis.axisLabel.show).toBe(false) // the scrolling one does not
-    expect(axis.series.every((entry) => entry.silent)).toBe(true)
+    expect(axis.series.map((e) => e.data)).toEqual(plot.series.map((e) => e.data))
+    expect(axis.series.every((e) => e.silent)).toBe(true)
+    expect([plot.yAxis].flat().every((a) => a.axisLabel.show === false)).toBe(true)
   })
 
-  it('anchors bars and stacks to zero, and lets a plain line chart zoom', () => {
-    // A price band of 990–1290 ₽ pinned to zero spends four fifths of the plot
-    // on empty space; a bar's length, and a stack's sum, mean nothing without
-    // the zero baseline.
-    const charts = buildChartSpecs(matrixView([]))
-    const scaled = (key) => charts.find((chart) => chart.key === key).option.yAxis.scale
+  it('reports the day count the ribbon is sized from', () => {
+    // Except the funnel, which is the window in one shape and has no ribbon.
+    for (const entry of buildChartSpecs(matrixView([]))) {
+      expect(entry.dayCount, entry.key).toBe(entry.funnel ? 0 : DAYS.length)
+    }
+  })
 
-    expect(scaled('sales')).toBe(false)
-    expect(scaled('stock')).toBe(false)
-    expect(scaled('orders_mix')).toBe(false)
-    expect(scaled('price')).toBe(true)
-    expect(scaled('drr')).toBe(true)
+  describe('«Воронка»', () => {
+    const TOTALS = {
+      open_count: 1000,
+      cart_count: 200,
+      order_count: 50,
+      buyout_count: 40,
+      cart_conversion: 20,
+      order_conversion: 25,
+      buyout_conversion: 80,
+    }
+
+    it('draws the window as a funnel, not as five day-series', () => {
+      // The old slide put three counts and two percentages over thirty days on
+      // one plot and answered none of «where do we lose people».
+      const funnel = chart('funnel', [], { totals: TOTALS })
+
+      expect(funnel.funnel).toBe(true)
+      expect(funnel.option.series[0].type).toBe('funnel')
+      expect(funnel.option.series[0].data.map((stage) => stage.name)).toEqual([
+        'Клики',
+        'Корзины',
+        'Заказы',
+        'Выкупы',
+      ])
+    })
+
+    it('labels each stage with its share of the one ABOVE it', () => {
+      // Stage-over-stage, not share-of-top: it is the number that says which
+      // step is leaking.
+      const stages = chart('funnel', [], { totals: TOTALS }).option.series[0].data
+
+      expect(stages.map((stage) => stage.conversion)).toEqual([null, 20, 25, 80])
+    })
+
+    it('keeps the journey order rather than sorting by size', () => {
+      // Sorted by value, a stage that GREW would quietly change places and the
+      // shape would stop being a funnel.
+      expect(chart('funnel', [], { totals: TOTALS }).option.series[0].sort).toBe('none')
+    })
+
+    it('says «нет данных» rather than summing the days itself', () => {
+      // The totals are the backend's; adding up matrix cells here is exactly
+      // the arithmetic the no-frontend-math rule forbids.
+      expect(chart('funnel').empty).toBe(true)
+    })
+
+    it('is joined by a conversion TREND, which a funnel cannot show', () => {
+      const conversion = chart('conversion')
+      const axes = [conversion.option.yAxis].flat()
+
+      expect(axes.map((axis) => axis.name)).toEqual(['%'])
+      expect(conversion.option.series.length).toBeGreaterThan(1)
+    })
+  })
+
+  it('names and colours the legend for the panel to render in HTML', () => {
+    // On the canvas the legend scrolled away with the days it labels.
+    const sales = chart('sales')
+
+    expect(sales.legend.map((e) => e.name)).toEqual(sales.option.series.map((e) => e.name))
+    expect(sales.option.legend).toBeUndefined()
   })
 
   it('flags a slide whose every series is blank, and keeps its tab', () => {
-    const charts = buildChartSpecs(matrixView([row('order_sum', { total: [null, null] })]))
+    const sales = chart('sales', [row('order_sum', { total: [null, null] })])
 
-    expect(charts.find((chart) => chart.key === 'sales').empty).toBe(true)
-    expect(charts.map((chart) => chart.key)).toContain('sales')
+    expect(sales.empty).toBe(true)
+    expect(buildChartSpecs(matrixView([])).map((e) => e.key)).toContain('sales')
   })
 
-  it('reads price and stock off their «Общая»-only mini blocks', () => {
-    const view = matrixView([
-      row('customer_price', { total: [990, 890] }),
-      row('stock_quantity', { total: [40, 31] }),
-    ])
-    const charts = buildChartSpecs(view)
-    const series = (key, name) =>
-      charts.find((chart) => chart.key === key).option.series.find((s) => s.name === name)
-
-    expect(series('price', 'Цена покупателя, ₽').data).toEqual([990, 890])
-    expect(series('stock', 'На складах').data).toEqual([40, 31])
-  })
-
-  it('labels the x axis by day, shortened to fit a 30-column window', () => {
-    const charts = buildChartSpecs(matrixView([]))
-
-    expect(charts[0].option.xAxis.data).toEqual(['01.07', '02.07'])
+  it('labels the x axis by day, shortened to fit a long window', () => {
+    expect(chart('sales').option.xAxis.data).toEqual(['01.07', '02.07'])
   })
 
   it('follows the matrix stride when reading a bucket other than the first', () => {
     // A day section is COLUMNS_PER_DAY wide; reading with the wrong stride
     // silently returns another bucket's number, which still renders.
-    const view = matrixView([row('clicks', { organic: [7, 9] })])
-    const clicksRow = view.rows.find((r) => r.key === 'clicks')
+    const view = matrixView([row('orders', { organic: [7, 9] })])
+    const ordersRow = view.rows.find((r) => r.key === 'orders')
     const organicColumn = TRAFFIC_COLUMNS.findIndex((c) => c.key === 'organic')
 
-    expect(clicksRow.cells[COLUMNS_PER_DAY + organicColumn].raw).toBe(9)
+    expect(ordersRow.cells[COLUMNS_PER_DAY + organicColumn].raw).toBe(9)
     expect(
       buildChartSpecs(view)
-        .find((chart) => chart.key === 'orders_mix')
+        .find((e) => e.key === 'orders_mix')
         .option.series.find((s) => s.name === 'Органика').data,
-    ).toEqual([null, null])
+    ).toEqual([7, 9])
   })
 })

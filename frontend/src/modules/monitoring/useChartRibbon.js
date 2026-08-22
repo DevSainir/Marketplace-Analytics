@@ -11,7 +11,7 @@
  * (wheel, drag or trackpad, all via `v-drag-scroll`) with the labels that name
  * things held still beside it.
  */
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { axisOnlyOption, plotOnlyOption } from '@/modules/monitoring/chartOptions'
 
@@ -46,6 +46,10 @@ export function useChartRibbon(active) {
   )
   const plotOption = computed(() => (active.value ? plotOnlyOption(active.value.option) : null))
 
+  /** True once the reader has moved the ribbon themselves — then it is theirs. */
+  let steered = false
+  let observer = null
+
   /**
    * Open on the NEWEST day, the way the metrics table's ribbon does. History
    * runs off to the left; landing on a month-old Monday would make every chart
@@ -57,10 +61,51 @@ export function useChartRibbon(active) {
     if (el) el.scrollLeft = el.scrollWidth
   }
 
-  // A new slide re-renders the plot at a new width, so the position has to be
-  // retaken rather than kept.
-  watch(() => active.value?.key, scrollToLatest)
-  onMounted(scrollToLatest)
+  /**
+   * Re-pin whenever the ribbon's own width changes, until the reader steers.
+   *
+   * Once is not enough: at mount the flex row has not settled — the pinned
+   * axis has not taken its column and the async chart has not loaded — so the
+   * scroller measures wider than it ends up (1108px against a final 628px on
+   * the «Графики» page). `scrollLeft = scrollWidth` clamps to the maximum THAT
+   * width implies, which left the chart parked mid-window looking like the
+   * recent days were missing.
+   */
+  function watchWidth() {
+    const el = scroller.value
+    if (!el || typeof ResizeObserver === 'undefined') return
+    observer = new ResizeObserver(() => {
+      if (!steered) scrollToLatest()
+    })
+    observer.observe(el)
+  }
 
-  return { scroller, plotWidth, axisOption, plotOption }
+  /**
+   * Hand the position over to the reader on their first real gesture.
+   *
+   * Bound to the INPUT events, not to `scroll`: a scroll event cannot tell a
+   * finger from `scrollLeft = …`, so listening to it let the ribbon's own
+   * opening scroll count as steering and cancel the re-pin that follows it.
+   * A wheel or a pointer landing on the plot is unambiguously a person.
+   */
+  function onUserSteer() {
+    steered = true
+  }
+
+  // A new slide re-renders the plot at a new width, and is a new question — so
+  // the position is retaken rather than kept, reader or no reader.
+  watch(
+    () => active.value?.key,
+    () => {
+      steered = false
+      scrollToLatest()
+    },
+  )
+  onMounted(() => {
+    scrollToLatest()
+    watchWidth()
+  })
+  onBeforeUnmount(() => observer?.disconnect())
+
+  return { scroller, plotWidth, axisOption, plotOption, onUserSteer }
 }

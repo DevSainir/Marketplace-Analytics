@@ -211,7 +211,7 @@ onMounted(() => store.fetchPins())
           />
         </section>
 
-        <MetricsChartsPanel :view="metricsMatrix" />
+        <MetricsChartsPanel :view="metricsMatrix" :totals="product.funnel_totals ?? null" />
 
         <StockComparePanel
           v-if="product.stock"

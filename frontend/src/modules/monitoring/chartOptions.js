@@ -125,6 +125,31 @@ const PLOT_BOTTOM = 28
 /** Width of the pinned y-axis column, wide enough for «500 000» and «Корзины». */
 export const AXIS_GUTTER_PX = 74
 
+/** Extra column each additional unit's axis needs beside the first. */
+const AXIS_STEP_PX = 54
+
+/**
+ * What a chart's axes are keyed by: the UNIT, never the series.
+ *
+ * A chart may pair metrics that answer one question together — spend against
+ * ДРР, price against demand — and those have different units, so one scale
+ * cannot carry both. What it must never do is give two metrics of the SAME
+ * unit two scales: that is what put клики 439, корзины 215 and заказы 105 on
+ * one point of the plot. One axis per unit means everything comparable shares
+ * a ruler, and everything that does not is visibly labelled «₽» or «%».
+ */
+const UNIT_LABEL = { currency: '₽', number: 'шт', percent: '%', index: 'инд.' }
+
+/** The distinct units a series list carries, in first-appearance order. */
+export function chartUnits(series) {
+  return [...new Set(series.map((entry) => entry.unit))]
+}
+
+/** Pixels the frozen column needs for one axis per unit. */
+export function gutterFor(series) {
+  return AXIS_GUTTER_PX + (chartUnits(series).length - 1) * AXIS_STEP_PX
+}
+
 /**
  * The value-axis spec shared by both layouts (single plot and panels).
  *
@@ -177,6 +202,37 @@ function valueAxis(unit, { scale }) {
   }
 }
 
+/**
+ * A tooltip whose rows each carry their own unit.
+ *
+ * Once a chart may pair «Затраты, ₽» with «ДРР, %», a chart-wide value
+ * formatter is not enough — it would print one of the two in the other's
+ * units, which is worse than printing none.
+ */
+function unitTooltip(series, indexMode = false) {
+  return (params) => {
+    const points = [...params].sort((a, b) => a.seriesIndex - b.seriesIndex)
+    const rows = points
+      .map((point) => {
+        const entry = series[point.seriesIndex] ?? {}
+        // In index mode the plotted number is a shape, not a quantity — so the
+        // hover shows what it actually was, with the index beside it.
+        const real = entry.raw?.[point.dataIndex]
+        const value =
+          indexMode && real != null
+            ? `${formatValue(entry.unit, real)} <span style="color:${INK_MUTED}">` +
+              `(${formatValue('number', point.value)})</span>`
+            : formatValue(entry.unit, point.value)
+        return (
+          `<div style="display:flex;gap:24px;justify-content:space-between">` +
+          `<span>${point.marker}${point.seriesName}</span><b>${value}</b></div>`
+        )
+      })
+      .join('')
+    return `<div style="color:${INK_MUTED};margin-bottom:4px">${points[0].axisValue}</div>${rows}`
+  }
+}
+
 /** One tooltip block for a linked small-multiples hover: date, then a row each. */
 function panelsTooltip(unit) {
   return (params) => {
@@ -190,6 +246,71 @@ function panelsTooltip(unit) {
       )
       .join('')
     return `<div style="color:${INK_MUTED};margin-bottom:4px">${points[0].axisValue}</div>${rows}`
+  }
+}
+
+/**
+ * A real funnel: the window's stages as one shrinking shape, drop-off included.
+ *
+ * The day-by-day chart it replaces tried to be both things at once and was
+ * neither — five series over thirty days, two of them percentages, none of
+ * which answered «where do we lose people». A funnel is a SNAPSHOT of a
+ * period, which is exactly why it can show the drop-off: each stage is drawn
+ * against the one above it, and the label carries the stage-over-stage
+ * conversion, the number the funnel literature calls the actionable one.
+ *
+ * Its own limitation is the reason «Конверсии» sits beside it: a funnel cannot
+ * show a trend, so the same conversions are also drawn over time.
+ *
+ * @param {Array<{name: string, value: number, conversion: number|null}>} stages
+ *   Stages widest first, each with the share of the stage ABOVE it.
+ */
+export function buildFunnelOption(stages) {
+  return {
+    animationDuration: 300,
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: '#FFFFFF',
+      borderColor: LINE_SUBTLE,
+      borderWidth: 1,
+      padding: [8, 12],
+      textStyle: { color: INK_PRIMARY, fontSize: 12 },
+      formatter: (params) =>
+        `<b>${params.name}</b><br/>${formatValue('number', params.value)}` +
+        (params.data.conversion == null
+          ? ''
+          : `<br/>${formatValue('percent', params.data.conversion)} от предыдущего шага`),
+    },
+    series: [
+      {
+        type: 'funnel',
+        left: '8%',
+        right: '8%',
+        top: 12,
+        bottom: 12,
+        minSize: '20%',
+        // Sorted as given, not by value: a funnel's order is the JOURNEY, and
+        // letting the chart re-sort would quietly hide a stage that grew.
+        sort: 'none',
+        gap: 2,
+        label: {
+          position: 'inside',
+          color: '#FFFFFF',
+          fontSize: 12,
+          fontWeight: 600,
+          formatter: (params) =>
+            params.data.conversion == null
+              ? `${params.name}: ${formatValue('number', params.value)}`
+              : `${params.name}: ${formatValue('number', params.value)}` +
+                `  (${formatValue('percent', params.data.conversion)})`,
+        },
+        itemStyle: { borderColor: SURFACE, borderWidth: 2 },
+        data: stages.map((stage, index) => ({
+          ...stage,
+          itemStyle: { color: SERIES_COLORS[index] },
+        })),
+      },
+    ],
   }
 }
 
@@ -361,10 +482,26 @@ function buildPanelsOption({ days, unit, series }) {
  *   series: Array<{name: string, type: string, data: Array<number|null>,
  *   area?: boolean}>}} spec
  */
-export function buildChartOption({ days, unit, stack = null, panels = false, series }) {
-  if (panels) return buildPanelsOption({ days, unit, series })
+export function buildChartOption({
+  days,
+  stack = null,
+  panels = false,
+  indexMode = false,
+  series,
+}) {
+  // An index is unitless — every series is «100 at the first day», so they all
+  // belong on one axis whatever they measure. That is the whole point of the
+  // mode: it exists to make unlike metrics comparable in shape.
+  const units = indexMode ? ['index'] : chartUnits(series)
+  if (panels) return buildPanelsOption({ days, unit: units[0], series })
 
   const hasBar = series.some((entry) => entry.type === 'bar')
+  // A unit whose marks include a bar is zero-anchored — a bar's length IS its
+  // value, so a cut baseline lies about it. A unit carrying only lines may fit
+  // its own band.
+  const barUnits = new Set(
+    series.filter((entry) => entry.type === 'bar').map((entry) => entry.unit),
+  )
 
   return {
     animationDuration: 300,
@@ -385,7 +522,9 @@ export function buildChartOption({ days, unit, stack = null, panels = false, ser
       borderWidth: 1,
       padding: [8, 12],
       textStyle: { color: INK_PRIMARY, fontSize: 12 },
-      valueFormatter: (value) => formatValue(unit, value),
+      // Each row formatted by ITS OWN unit: with «Затраты, ₽» and «ДРР, %» on
+      // one chart, a single formatter would print one of them wrong.
+      formatter: unitTooltip(series, indexMode),
     },
     xAxis: {
       type: 'category',
@@ -395,14 +534,33 @@ export function buildChartOption({ days, unit, stack = null, panels = false, ser
       axisTick: { show: false },
       axisLabel: { color: INK_MUTED, fontSize: 11, hideOverlap: true },
     },
-    // Bars encode magnitude by length and a composition sums from nothing, so
-    // both are anchored to zero. A plain line chart is not: pinning цена
-    // 990–1290 ₽ to a zero baseline spends four fifths of the plot on empty
-    // space and flattens the very change the chart exists to show.
-    yAxis: valueAxis(unit, { scale: !hasBar && !stack }),
+    // ONE AXIS PER UNIT, stacked in the frozen column so both stay put while
+    // the days scroll. Two metrics that answer a question together — spend and
+    // ДРР, price and demand — need two rulers; two metrics of the same unit
+    // must never get two, or they stop being comparable.
+    yAxis: units.map((axisUnit, index) => ({
+      ...valueAxis(axisUnit === 'index' ? 'number' : axisUnit, {
+        scale: !barUnits.has(axisUnit) && !stack,
+      }),
+      position: 'left',
+      offset: index * AXIS_STEP_PX,
+      // The axis is named by its UNIT, not by a series: it measures everything
+      // on the chart that is denominated that way, which is the whole point.
+      name: UNIT_LABEL[axisUnit] ?? '',
+      nameLocation: 'end',
+      nameGap: 10,
+      nameTextStyle: { color: INK_MUTED, fontSize: 11, align: 'right' },
+      // Only the first unit rules the plot; a second set of gridlines would
+      // offer the other unit's marks a ruler that is not theirs.
+      splitLine:
+        index === 0 ? { lineStyle: { color: LINE_SUBTLE, type: 'dashed' } } : { show: false },
+    })),
     // `colorIndex` pins a slot to the ENTITY (a traffic bucket keeps its hue on
     // every slide it appears on); without one, a series takes the slot its
     // position implies. Slots are never recycled — see SERIES_COLORS.
-    series: series.map((s, index) => seriesMark(s, SERIES_COLORS[s.colorIndex ?? index], stack)),
+    series: series.map((entry, index) => ({
+      ...seriesMark(entry, SERIES_COLORS[entry.colorIndex ?? index], stack),
+      yAxisIndex: indexMode ? 0 : units.indexOf(entry.unit),
+    })),
   }
 }
