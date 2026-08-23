@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from src.modules.monitoring.schemas.funnel import FunnelTotals
 from src.modules.monitoring.schemas.matrix import MetricsMatrixRead
 from src.modules.monitoring.schemas.summary import MetricWindow
 
@@ -36,15 +35,6 @@ class AggregateChartsResponse(BaseModel):
         ),
     )
     sku_count: int = Field(description="How many SKUs contributed at least one day.")
-    funnel_totals: FunnelTotals = Field(
-        description=(
-            "Window totals for the funnel chart: the stages summed, and the "
-            "stage-over-stage conversions recomputed FROM those sums. A funnel "
-            "is a snapshot of a period, not a day series, so it needs its own "
-            "totals — and computing them in the browser would be exactly the "
-            "arithmetic this endpoint exists to keep out of it."
-        )
-    )
     matrix: MetricsMatrixRead = Field(
         description=(
             "Day x bucket matrix carrying only «Общая» and «Органика». Every "

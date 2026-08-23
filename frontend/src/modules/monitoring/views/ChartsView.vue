@@ -18,9 +18,12 @@ import { computed, onMounted, ref, watch } from 'vue'
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
 import { isoDaysAgo } from '@/core/utils/dates'
 
-import MetricsChartsPanel from '@/modules/monitoring/components/MetricsChartsPanel.vue'
+import MetricsChart from '@/modules/monitoring/components/MetricsChart.vue'
 import SkuMultiSelect from '@/modules/monitoring/components/SkuMultiSelect.vue'
-import { buildAggregateChartSpecs } from '@/modules/monitoring/aggregateChartSpecs'
+import {
+  AGGREGATE_DEFAULT_METRICS,
+  AGGREGATE_METRIC_GROUPS,
+} from '@/modules/monitoring/metricChart'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 
 const store = useMonitoringStore()
@@ -98,13 +101,11 @@ const scope = computed(() =>
         За выбранный период нет данных ни по одному артикулу.
       </p>
 
-      <MetricsChartsPanel
+      <MetricsChart
         v-else
         :view="store.aggregateView"
-        :totals="store.aggregateTotals"
-        :build-specs="buildAggregateChartSpecs"
-        heading="Сводные графики"
-        hint="Наведите курсор, чтобы увидеть точные числа за день. График можно прокручивать вбок."
+        :groups="AGGREGATE_METRIC_GROUPS"
+        :default-metrics="AGGREGATE_DEFAULT_METRICS"
       />
     </div>
   </div>

@@ -124,8 +124,6 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   const aggregateError = ref(null)
   /** How many SKUs actually contributed a day — the page states its own scope. */
   const aggregateSkuCount = ref(0)
-  /** Window totals for the funnel slide (server-computed). */
-  const aggregateTotals = ref(null)
 
   // --- matrix editing state ---------------------------------------------
   /**
@@ -528,12 +526,10 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       const result = await fetchAggregateCharts(params, controller.signal)
       aggregateView.value = buildMetricsMatrix(result)
       aggregateSkuCount.value = result.sku_count ?? 0
-      aggregateTotals.value = result.funnel_totals ?? null
     } catch (err) {
       if (isAbortError(err)) return
       aggregateView.value = { days: [], rows: [], priceRows: [], stockRows: [], stockTotalRows: [] }
       aggregateSkuCount.value = 0
-      aggregateTotals.value = null
       aggregateError.value = extractErrorMessage(err)
     } finally {
       if (aggregateController === controller) {
@@ -850,7 +846,6 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     aggregateLoading,
     aggregateError,
     aggregateSkuCount,
-    aggregateTotals,
     fetchAggregate,
     selectSku,
     totalCarts,

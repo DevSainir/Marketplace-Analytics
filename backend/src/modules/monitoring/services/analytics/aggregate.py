@@ -23,7 +23,6 @@ from src.modules.monitoring.repos.funnel import FunnelDayTotal
 from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas import MetricWindow
 from src.modules.monitoring.schemas.aggregate import AggregateChartsResponse
-from src.modules.monitoring.schemas.funnel import FunnelTotals
 from src.modules.monitoring.schemas.matrix import MatrixMetricRow, MetricsMatrixRead
 from src.modules.monitoring.services.analytics.window import resolve_window
 
@@ -144,7 +143,6 @@ class AggregateAnalytics:
 
         return AggregateChartsResponse(
             window=window,
-            funnel_totals=_funnel_totals(funnel_days),
             nm_ids=sorted(selected) if selected else [],
             sku_count=max((row.sku_count for row in funnel_days), default=0),
             matrix=MetricsMatrixRead(
@@ -153,34 +151,6 @@ class AggregateAnalytics:
                 rows=[MatrixMetricRow(key=key, values=cells[key]) for key in _METRIC_KEYS],
             ),
         )
-
-
-def _funnel_totals(rows: list[FunnelDayTotal]) -> FunnelTotals:
-    """Roll the window's days up into the stages a funnel chart draws.
-
-    The conversions are recomputed from the summed stages, never averaged over
-    the days — the same rule the per-SKU `compute_funnel_totals` follows, and
-    for the same reason: a day with four carts and a day with four hundred do
-    not contribute equally to the window's conversion.
-    """
-    opens = sum(row.open_count for row in rows)
-    carts = sum(row.cart_count for row in rows)
-    orders = sum(row.order_count for row in rows)
-    buyouts = sum(row.buyout_count for row in rows)
-    revenue = sum(row.order_sum or 0.0 for row in rows)
-    return FunnelTotals(
-        days_count=len(rows),
-        open_count=opens,
-        cart_count=carts,
-        order_count=orders,
-        order_sum=round(revenue, 2),
-        buyout_count=buyouts,
-        buyout_sum=0.0,
-        add_to_wishlist=0,
-        cart_conversion=_percent(carts, opens) or 0.0,
-        order_conversion=_percent(orders, carts) or 0.0,
-        buyout_conversion=_percent(buyouts, orders) or 0.0,
-    )
 
 
 def _window_days(start: date, end: date) -> list[date]:

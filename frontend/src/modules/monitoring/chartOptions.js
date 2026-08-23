@@ -1,9 +1,9 @@
 /**
  * The shared look of every monitoring chart: palette, axes, grid, tooltip.
  *
- * Split from `chartSpecs.js` so the WHAT (which metric goes on which chart)
- * and the HOW (what a chart looks like) stay separately readable — the specs
- * file is a data table, this one is the theme.
+ * Split from `metricChart.js` so the WHAT (which metrics a page can offer) and
+ * the HOW (what a chart looks like) stay separately readable — that file is a
+ * catalogue, this one is the theme.
  *
  * Ink and surface mirror `tailwind.config.js` (text-muted, border-subtle,
  * bg-surface). They are repeated as hex because ECharts paints onto a canvas
@@ -140,9 +140,21 @@ const AXIS_STEP_PX = 54
  */
 const UNIT_LABEL = { currency: '₽', number: 'шт', percent: '%', index: 'инд.' }
 
-/** The distinct units a series list carries, in first-appearance order. */
+/**
+ * The distinct units a series list carries, in a FIXED order: ₽, шт, %.
+ *
+ * Not first-appearance order — that made the axis columns land in whatever
+ * sequence the reader happened to tick, so the same three metrics produced a
+ * different layout each time. Money, then counts, then rates is the order the
+ * metrics themselves are read in.
+ */
+const UNIT_ORDER = ['currency', 'number', 'percent']
 export function chartUnits(series) {
-  return [...new Set(series.map((entry) => entry.unit))]
+  const present = new Set(series.map((entry) => entry.unit))
+  const known = UNIT_ORDER.filter((unit) => present.has(unit))
+  // Anything outside the known order (the unitless index) keeps its place.
+  const rest = [...present].filter((unit) => !UNIT_ORDER.includes(unit))
+  return [...known, ...rest]
 }
 
 /** Pixels the frozen column needs for one axis per unit. */
@@ -233,87 +245,6 @@ function unitTooltip(series, indexMode = false) {
   }
 }
 
-/** One tooltip block for a linked small-multiples hover: date, then a row each. */
-function panelsTooltip(unit) {
-  return (params) => {
-    const points = [...params].sort((a, b) => a.seriesIndex - b.seriesIndex)
-    const rows = points
-      .map(
-        (point) =>
-          `<div style="display:flex;gap:24px;justify-content:space-between">` +
-          `<span>${point.marker}${point.seriesName}</span>` +
-          `<b>${formatValue(unit, point.value)}</b></div>`,
-      )
-      .join('')
-    return `<div style="color:${INK_MUTED};margin-bottom:4px">${points[0].axisValue}</div>${rows}`
-  }
-}
-
-/**
- * A real funnel: the window's stages as one shrinking shape, drop-off included.
- *
- * The day-by-day chart it replaces tried to be both things at once and was
- * neither — five series over thirty days, two of them percentages, none of
- * which answered «where do we lose people». A funnel is a SNAPSHOT of a
- * period, which is exactly why it can show the drop-off: each stage is drawn
- * against the one above it, and the label carries the stage-over-stage
- * conversion, the number the funnel literature calls the actionable one.
- *
- * Its own limitation is the reason «Конверсии» sits beside it: a funnel cannot
- * show a trend, so the same conversions are also drawn over time.
- *
- * @param {Array<{name: string, value: number, conversion: number|null}>} stages
- *   Stages widest first, each with the share of the stage ABOVE it.
- */
-export function buildFunnelOption(stages) {
-  return {
-    animationDuration: 300,
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: '#FFFFFF',
-      borderColor: LINE_SUBTLE,
-      borderWidth: 1,
-      padding: [8, 12],
-      textStyle: { color: INK_PRIMARY, fontSize: 12 },
-      formatter: (params) =>
-        `<b>${params.name}</b><br/>${formatValue('number', params.value)}` +
-        (params.data.conversion == null
-          ? ''
-          : `<br/>${formatValue('percent', params.data.conversion)} от предыдущего шага`),
-    },
-    series: [
-      {
-        type: 'funnel',
-        left: '8%',
-        right: '8%',
-        top: 12,
-        bottom: 12,
-        minSize: '20%',
-        // Sorted as given, not by value: a funnel's order is the JOURNEY, and
-        // letting the chart re-sort would quietly hide a stage that grew.
-        sort: 'none',
-        gap: 2,
-        label: {
-          position: 'inside',
-          color: '#FFFFFF',
-          fontSize: 12,
-          fontWeight: 600,
-          formatter: (params) =>
-            params.data.conversion == null
-              ? `${params.name}: ${formatValue('number', params.value)}`
-              : `${params.name}: ${formatValue('number', params.value)}` +
-                `  (${formatValue('percent', params.data.conversion)})`,
-        },
-        itemStyle: { borderColor: SURFACE, borderWidth: 2 },
-        data: stages.map((stage, index) => ({
-          ...stage,
-          itemStyle: { color: SERIES_COLORS[index] },
-        })),
-      },
-    ],
-  }
-}
-
 /**
  * The same chart with its y axis muted — the copy that scrolls.
  *
@@ -385,94 +316,6 @@ export function axisOnlyOption(option, gutter = AXIS_GUTTER_PX) {
 }
 
 /**
- * A complete ECharts option for a SMALL-MULTIPLES chart: one thin panel per
- * series, stacked, all sharing the day axis.
- *
- * The remedy for series that share a unit but not an order of magnitude — the
- * funnel's клики (thousands), корзины (hundreds) and заказы (tens). On one
- * scale the last two lie flat on the axis; a second y-axis would be worse
- * still. Each panel gets its own scale and its own title, so identity comes
- * from position and words rather than from colour alone, and one crosshair
- * runs through all three (`axisPointer.link`) so a day reads across the funnel
- * at a glance.
- *
- * @param {{days: string[], unit: string, series: Array<{name: string,
- *   type: string, data: Array<number|null>}>}} spec
- */
-function buildPanelsOption({ days, unit, series }) {
-  const count = series.length
-  // Percentages of the canvas: a title strip above each panel, the day labels
-  // and the scroll handle under the last one only. The chart is given extra
-  // HEIGHT to spend here (see `PANEL_CHART_HEIGHT`) — three panels sharing a
-  // single-plot's 340px leaves each about 50px, which is not a trend line, it
-  // is a horizon.
-  const TOP = 8
-  const BOTTOM = 11
-  const GAP = 9
-  const height = (100 - TOP - BOTTOM - GAP * (count - 1)) / count
-  const panelTop = (index) => TOP + index * (height + GAP)
-
-  return {
-    animationDuration: 300,
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: '#FFFFFF',
-      borderColor: LINE_SUBTLE,
-      borderWidth: 1,
-      padding: [8, 12],
-      textStyle: { color: INK_PRIMARY, fontSize: 12 },
-      // One block for the whole funnel. Left to itself, a linked axis pointer
-      // emits one section PER panel — the same date printed three times, and
-      // the panels listed bottom-up.
-      formatter: panelsTooltip(unit),
-    },
-    axisPointer: { link: [{ xAxisIndex: 'all' }], lineStyle: { color: INK_MUTED } },
-    grid: series.map((_, index) => ({
-      left: 0,
-      right: 8,
-      top: `${panelTop(index)}%`,
-      height: `${height}%`,
-    })),
-    xAxis: series.map((_, index) => ({
-      type: 'category',
-      gridIndex: index,
-      data: days.map(shortDayLabel),
-      boundaryGap: false,
-      axisLine: { lineStyle: { color: LINE_SUBTLE } },
-      axisTick: { show: false },
-      // Only the bottom panel carries the dates; repeating them three times
-      // would cost a third of the plot to say the same thing twice.
-      axisLabel: {
-        show: index === count - 1,
-        color: INK_MUTED,
-        fontSize: 11,
-        hideOverlap: true,
-      },
-    })),
-    yAxis: series.map((entry, index) => ({
-      ...valueAxis(unit, { scale: true }),
-      gridIndex: index,
-      // The panel's own caption. It rides on the axis rather than on a `title`
-      // component so it stays glued to the panel when the grid is laid out in
-      // percentages.
-      name: entry.name,
-      nameLocation: 'end',
-      nameGap: 10,
-      // Aligned RIGHT, which reads backwards but is what keeps it on screen:
-      // the caption is anchored to the axis line, and the axis line is at the
-      // right-hand edge of the pinned gutter. Aligned left it grows into the
-      // scroller and is clipped to «К».
-      nameTextStyle: { color: INK_MUTED, fontSize: 11, align: 'right' },
-    })),
-    series: series.map((entry, index) => ({
-      ...seriesMark(entry, SERIES_COLORS[entry.colorIndex ?? index], null),
-      xAxisIndex: index,
-      yAxisIndex: index,
-    })),
-  }
-}
-
-/**
  * A complete ECharts option for one chart.
  *
  * Deliberately single-axis: two y-scales on one plot make any crossing look
@@ -482,18 +325,11 @@ function buildPanelsOption({ days, unit, series }) {
  *   series: Array<{name: string, type: string, data: Array<number|null>,
  *   area?: boolean}>}} spec
  */
-export function buildChartOption({
-  days,
-  stack = null,
-  panels = false,
-  indexMode = false,
-  series,
-}) {
+export function buildChartOption({ days, stack = null, indexMode = false, series }) {
   // An index is unitless — every series is «100 at the first day», so they all
   // belong on one axis whatever they measure. That is the whole point of the
   // mode: it exists to make unlike metrics comparable in shape.
   const units = indexMode ? ['index'] : chartUnits(series)
-  if (panels) return buildPanelsOption({ days, unit: units[0], series })
 
   const hasBar = series.some((entry) => entry.type === 'bar')
   // A unit whose marks include a bar is zero-anchored — a bar's length IS its
@@ -543,7 +379,10 @@ export function buildChartOption({
         scale: !barUnits.has(axisUnit) && !stack,
       }),
       position: 'left',
-      offset: index * AXIS_STEP_PX,
+      // Reversed: a bigger offset pushes an axis FURTHER left, so the first
+      // unit must take the biggest one to end up leftmost. Reading the frozen
+      // column left to right then gives ₽, шт, % — the order above.
+      offset: (units.length - 1 - index) * AXIS_STEP_PX,
       // The axis is named by its UNIT, not by a series: it measures everything
       // on the chart that is denominated that way, which is the whole point.
       name: UNIT_LABEL[axisUnit] ?? '',

@@ -5,8 +5,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { isoDaysAgo } from '@/core/utils/dates'
 
 import MatrixEditToolbar from '@/modules/monitoring/components/MatrixEditToolbar.vue'
-import MetricsChartsPanel from '@/modules/monitoring/components/MetricsChartsPanel.vue'
 import MetricsTable from '@/modules/monitoring/components/MetricsTable.vue'
+import MetricsChart from '@/modules/monitoring/components/MetricsChart.vue'
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
 import SkuIdentityHeader from '@/modules/monitoring/components/SkuIdentityHeader.vue'
 import SkuMatchPicker from '@/modules/monitoring/components/SkuMatchPicker.vue'
@@ -17,7 +17,7 @@ import SkuPositionPanel from '@/modules/monitoring/components/SkuPositionPanel.v
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
 import StockComparePanel from '@/modules/monitoring/components/StockComparePanel.vue'
 import { useMonitoringStore } from '@/modules/monitoring/store'
-import { useMatrixHistoryKeys } from '@/modules/monitoring/useMatrixHistoryKeys'
+import { useMatrixEditing } from '@/modules/monitoring/useMatrixEditing'
 import { unionStockSizes } from '@/modules/monitoring/stockCompareSizes'
 import { useSearchQuerySync } from '@/modules/monitoring/useSearchQuerySync'
 import { useSkuClusters } from '@/modules/monitoring/useSkuClusters'
@@ -54,21 +54,6 @@ function togglePin() {
   store.toggleSkuPin(product.value.nm_id, product.value.vendor_code ?? null)
 }
 
-// --- day notes («Комментарий» + its header) ---------------------------------
-// Notes live per DAY inside the metrics table (its collapsible «Комментарии»
-// row), so the view only forwards the commit to the store. The patch carries
-// just the edited field — header and comment save independently.
-function handleCommentEdit({ day, patch }) {
-  store.saveDayComment(day, patch)
-}
-
-// --- day actions («Действия») ----------------------------------------------
-// The per-day РК/price answers live in their own row of the metrics table; the
-// view only forwards each partial change to the store, which merges + saves.
-function handleActionEdit({ day, patch }) {
-  store.saveDayAction(day, patch)
-}
-
 // --- two-day stock comparison ----------------------------------------------
 // Both tables share one row set (see the helper for why).
 const sharedStockSizes = computed(() => unionStockSizes(store.stockCompare))
@@ -77,26 +62,9 @@ function onStockDayChange(side, iso) {
   if (iso) store.fetchStockCompareSide(side, iso)
 }
 
-// Metric rows × day columns for the daily table (workbook replica). The store
-// owns this reactive structure and patches cells in place on edit/undo/redo so
-// the table doesn't fully re-render.
-const metricsMatrix = computed(() => store.matrixView)
-
-// Editing is locked while a save or WB refresh is in flight.
-const editingLocked = computed(() => store.matrixSaving || store.matrixRefreshing)
-
-/** A cell edit: hand the raw value to the store (backend recomputes dependents). */
-function handleCellEdit(edit) {
-  store.applyCellEdit(edit)
-}
-
-// History keys: Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) redoes.
-// Ignored while typing in an input and while a save/refresh is running.
-useMatrixHistoryKeys({
-  undo: () => store.canUndoMatrix && store.undoMatrixEdit(),
-  redo: () => store.canRedoMatrix && store.redoMatrixEdit(),
-  locked: () => editingLocked.value,
-})
+// The daily table's whole editing surface: the rows it renders, the lock, the
+// three commits it can make and the undo/redo keys.
+const { matrix, editingLocked, onCellEdit, onCommentEdit, onActionEdit } = useMatrixEditing(store)
 
 // The page's last two sections: live search positions (typed or pinned) and the
 // advertising-cluster history. Both follow the LOADED SKU and window.
@@ -184,19 +152,19 @@ onMounted(() => store.fetchPins())
 
           <MetricsTable
             class="mt-sm"
-            :days="metricsMatrix.days"
-            :rows="metricsMatrix.rows"
-            :price-rows="metricsMatrix.priceRows"
-            :stock-rows="metricsMatrix.stockRows"
-            :stock-total-rows="metricsMatrix.stockTotalRows"
+            :days="matrix.days"
+            :rows="matrix.rows"
+            :price-rows="matrix.priceRows"
+            :stock-rows="matrix.stockRows"
+            :stock-total-rows="matrix.stockTotalRows"
             :comments="product.comments ?? {}"
             :comment-saving-days="store.commentSavingDays"
             :day-actions="product.day_actions ?? {}"
             :action-saving-days="store.actionSavingDays"
             :editing-disabled="editingLocked"
-            @edit="handleCellEdit"
-            @comment="handleCommentEdit"
-            @action="handleActionEdit"
+            @edit="onCellEdit"
+            @comment="onCommentEdit"
+            @action="onActionEdit"
           />
 
           <MatrixEditToolbar
@@ -211,8 +179,6 @@ onMounted(() => store.fetchPins())
           />
         </section>
 
-        <MetricsChartsPanel :view="metricsMatrix" :totals="product.funnel_totals ?? null" />
-
         <StockComparePanel
           v-if="product.stock"
           :sides="store.stockCompare"
@@ -222,6 +188,8 @@ onMounted(() => store.fetchPins())
           @change-day="onStockDayChange"
           @toggle-mark="store.toggleWarehouseMark"
         />
+
+        <MetricsChart :view="matrix" />
 
         <SkuPositionPanel
           v-bind="clusters.positionPanelProps"

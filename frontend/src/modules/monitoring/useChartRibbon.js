@@ -20,10 +20,11 @@ import { axisOnlyOption, plotOnlyOption } from '@/modules/monitoring/chartOption
  *
  * Squeezing a month into the card is what made the charts unreadable: at ~24px
  * a day two bars have no room to be two bars, and a line's daily moves are
- * sub-pixel. 52px is about the width of a «15.08» label plus air, so the day
- * axis reads without thinning and a line gets a visible dot per day.
+ * sub-pixel. At 72px a day holds three grouped columns with air between the
+ * days — which is the width the chart is actually asked to carry, since
+ * остатки, корзины and заказы stand side by side rather than stacking.
  */
-const DAY_WIDTH_PX = 52
+const DAY_WIDTH_PX = 72
 
 /**
  * @param {import('vue').Ref<{option: object, dayCount: number, key: string}|null>} active
