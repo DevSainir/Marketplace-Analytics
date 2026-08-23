@@ -187,9 +187,18 @@ def _total_cell(
             if stock is None:
                 return None
             return float(stock.quantity + stock.in_way_to_client + stock.in_way_from_client)
+        case "ctr":
+            # The ADVERTISING click-through rate, rolled up across the day's
+            # campaigns — the same clicks over the same показы each ad bucket
+            # divides, summed. It is emitted here even though this column's
+            # «Клики» row shows the FUNNEL's clicks (organic included), so the
+            # two do not reconcile: read it as «CTR рекламы за день», which is
+            # what every ad bucket beside it already means.
+            return None if day_ad is None else _percent(day_ad.clicks, day_ad.views)
         case _:
-            # traffic_share is defined across ad buckets only; CTR/CPM have no
-            # meaning for the mixed «Общая» column.
+            # traffic_share is defined across ad buckets only; CPM stays absent
+            # because CPC campaigns are billed per click and averaging their
+            # thousand-показов price against a CPM campaign's is meaningless.
             return None
 
 
