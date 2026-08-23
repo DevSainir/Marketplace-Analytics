@@ -71,7 +71,7 @@ const axisWidth = computed(() => `${chart.value?.axisGutter ?? 74}px`)
       <template v-if="!chart.empty">
         <!-- Legend in HTML: on the canvas it scrolled away with the days it
              labels. -->
-        <ul class="mt-md flex flex-wrap gap-x-md gap-y-xs">
+        <ul class="mt-md flex flex-wrap gap-x-md gap-y-xs" aria-label="Показано на графике">
           <li
             v-for="entry in chart.legend"
             :key="entry.name"
