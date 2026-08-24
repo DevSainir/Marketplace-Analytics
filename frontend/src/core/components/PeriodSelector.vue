@@ -16,15 +16,9 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import CalendarMonthGrid from '@/core/components/CalendarMonthGrid.vue'
 import { btnClass, effectiveRange, wrapClass } from '@/core/utils/calendarHighlight'
-import {
-  PRESETS,
-  TODAY,
-  TODAY_ISO,
-  presetRange,
-  useCalendarView,
-  WEEKDAYS,
-} from '@/core/utils/calendarModel'
+import { PRESETS, TODAY, TODAY_ISO, presetRange, useCalendarView } from '@/core/utils/calendarModel'
 
 const props = defineProps({
   from: { type: String, required: true },
@@ -202,26 +196,15 @@ onBeforeUnmount(() => {
 
         <!-- Two months side by side -->
         <div class="flex flex-col gap-lg sm:flex-row" @mouseleave="hover = null">
-          <div v-for="(m, mi) in monthsToShow" :key="mi" class="calendar-grid">
-            <div v-for="w in WEEKDAYS" :key="w" class="weekday">{{ w }}</div>
-            <div
-              v-for="cell in m.cells"
-              :key="cell.iso"
-              class="day-wrap"
-              :class="dayWrapClass(cell)"
-            >
-              <button
-                type="button"
-                class="day"
-                :class="dayBtnClass(cell)"
-                :disabled="cell.disabled"
-                @click="pickDay(cell)"
-                @mouseenter="onHover(cell)"
-              >
-                {{ cell.day }}
-              </button>
-            </div>
-          </div>
+          <CalendarMonthGrid
+            v-for="(m, mi) in monthsToShow"
+            :key="mi"
+            :cells="m.cells"
+            :wrap-class="dayWrapClass"
+            :day-class="dayBtnClass"
+            @day-click="pickDay"
+            @day-hover="onHover"
+          />
         </div>
 
         <!-- Footer: quick presets -->

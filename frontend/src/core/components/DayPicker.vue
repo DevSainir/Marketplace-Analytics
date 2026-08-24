@@ -1,8 +1,9 @@
 <script setup>
 /**
  * Single-day picker in the design system's calendar language — the one-date
- * sibling of PeriodSelector.vue (same trigger, popover, month grid, day and
- * nav styles; no native `<input type=date>` — its calendar is off-brand).
+ * sibling of PeriodSelector.vue: the two share `CalendarMonthGrid` outright and
+ * still mirror each other's trigger and nav styling (no native
+ * `<input type=date>` — its calendar is off-brand).
  *
  * Click the field → one month opens on the selected date → click a day →
  * the popover closes and `update:modelValue` fires with the ISO date.
@@ -13,6 +14,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import CalendarMonthGrid from '@/core/components/CalendarMonthGrid.vue'
 import { isoLocalDate } from '@/core/utils/dates'
 
 const props = defineProps({
@@ -31,7 +33,6 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue'])
 
-const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const MONTHS = [
   'Январь',
   'Февраль',
@@ -197,20 +198,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div class="calendar-grid">
-          <div v-for="w in WEEKDAYS" :key="w" class="weekday">{{ w }}</div>
-          <div v-for="cell in month.cells" :key="cell.iso" class="day-wrap">
-            <button
-              type="button"
-              class="day"
-              :class="btnClass(cell)"
-              :disabled="cell.disabled"
-              @click="pickDay(cell)"
-            >
-              {{ cell.day }}
-            </button>
-          </div>
-        </div>
+        <CalendarMonthGrid :cells="month.cells" :day-class="btnClass" @day-click="pickDay" />
       </div>
     </transition>
   </div>
