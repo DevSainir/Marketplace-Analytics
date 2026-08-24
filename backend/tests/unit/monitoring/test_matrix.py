@@ -94,6 +94,30 @@ def test_total_and_organic_use_survivors_only() -> None:
     assert _cell(rows, "orders", 0, "organic") == 7  # 10 - (1+1+1)
 
 
+def test_total_cpm_is_the_days_bill_over_the_days_showings() -> None:
+    """«CPM» in «Общая» is a ratio of sums, like the «CTR» row beside it.
+
+    The two surviving campaigns spent 3 000 + 2 000 + 2 000 = 7 000 ₽ on
+    60 + 40 + 40 = 140 показов, so the day cost 50 000 ₽ per thousand of them.
+    Not the mean of the campaigns' own CPMs — that is the number this column
+    used to withhold, and rightly, because a CPC campaign's is an artefact of
+    per-click billing rather than a rate anyone set.
+    """
+    rows = _two_campaign_rows()
+
+    assert _cell(rows, "cpm", 0, "total") == 50000.0
+    assert _cell(rows, "ctr", 0, "total") == 10.0  # 14 clicks / 140 views
+
+
+def test_total_cpm_is_blank_on_an_unadvertised_day() -> None:
+    """No показы, no price per thousand of them — «—» rather than a zero."""
+    funnel_rows = [_funnel_row(DAY1, open_count=200, cart_count=20, order_count=10)]
+
+    rows = _matrix(campaigns={}, ad_rows=[], funnel_rows=funnel_rows)
+
+    assert _cell(rows, "cpm", 0, "total") is None
+
+
 def test_catalog_column_stays_empty() -> None:
     """The legacy «Каталог» zone no longer exists in the v2 API."""
     rows = _two_campaign_rows()

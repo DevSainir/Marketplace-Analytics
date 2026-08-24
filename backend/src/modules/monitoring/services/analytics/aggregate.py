@@ -35,6 +35,7 @@ _METRIC_KEYS: tuple[str, ...] = (
     "spend",
     "views",
     "clicks",
+    "cpm",
     "carts",
     "cart_conversion",
     "orders",
@@ -186,6 +187,17 @@ def _cell(
             if funnel is None:
                 return None, None
             return float(funnel.open_count), float(_non_negative(funnel.open_count - ad_clicks))
+        case "cpm":
+            # Both halves come from the same advertising totals «Затраты» and
+            # «Показы» are already served from, so this is the account's real
+            # cost per thousand показов — not an average of per-card CPMs, which
+            # would weight a card with 40 показов like one with 40 000.
+            #
+            # CTR has no counterpart here and stays absent: «Клики» on this page
+            # is the funnel's card opens, not advertising clicks.
+            if ad is None or not ad.views:
+                return None, None
+            return round(ad.spend / ad.views * 1000, 2), None
         case "carts":
             if funnel is None:
                 return None, None

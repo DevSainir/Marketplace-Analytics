@@ -195,10 +195,21 @@ def _total_cell(
             # two do not reconcile: read it as «CTR рекламы за день», which is
             # what every ad bucket beside it already means.
             return None if day_ad is None else _percent(day_ad.clicks, day_ad.views)
+        case "cpm":
+            # The day's whole advertising bill over the показы it bought —
+            # built the same way as «CTR» above, as a ratio of SUMS.
+            #
+            # This column used to be blank on the grounds that a CPC campaign's
+            # thousand-показов price cannot be averaged against a CPM one's.
+            # That objection is about averaging the campaigns' own CPMs, which
+            # this is not: spend over показы is what the seller actually paid
+            # per thousand показов that day, and it stays a fact whatever the
+            # billing models underneath it are. Read it as «CPM рекламы за
+            # день», the way the CTR row beside it is read.
+            cpm = _ratio(day_ad.spend if day_ad else None, day_ad.views if day_ad else None)
+            return None if cpm is None else round(cpm * 1000, 2)
         case _:
-            # traffic_share is defined across ad buckets only; CPM stays absent
-            # because CPC campaigns are billed per click and averaging their
-            # thousand-показов price against a CPM campaign's is meaningless.
+            # traffic_share is defined across ad buckets only.
             return None
 
 

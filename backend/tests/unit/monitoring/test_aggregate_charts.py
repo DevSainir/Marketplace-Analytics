@@ -91,6 +91,52 @@ async def test_conversion_is_recomputed_from_the_sums_not_averaged() -> None:
     assert _cell(result, "cart_conversion", "total") == pytest.approx(40.4, abs=0.01)
 
 
+async def test_cpm_is_the_account_bill_over_the_account_showings() -> None:
+    """CPM from the sums, like every other ratio on this page.
+
+    Both halves come from the advertising totals «Затраты» and «Показы» are
+    already served from, so it is what the account really paid per thousand
+    показов — not the mean of its cards' CPMs, which would weight a card with
+    40 показов like one with 40 000.
+    """
+    service, _ = _service(
+        ads=[
+            AdDayTotal(
+                stat_date=DAY, views=40000, clicks=800, add_to_cart=90, orders=20, spend=6000.0
+            )
+        ]
+    )
+
+    result = await service.get_charts(
+        workspace_id=WORKSPACE, date_from=DAY, date_to=DAY, nm_ids=None
+    )
+
+    assert _cell(result, "cpm", "total") == 150.0  # 6 000 ₽ / 40 000 показов x 1000
+
+
+async def test_cpm_is_blank_on_a_day_nothing_was_advertised() -> None:
+    """A day with no показы has no price per thousand of them — «—», not zero."""
+    service, _ = _service(
+        funnel=[
+            FunnelDayTotal(
+                stat_date=DAY,
+                sku_count=1,
+                open_count=100,
+                cart_count=10,
+                order_count=4,
+                buyout_count=3,
+                order_sum=900.0,
+            )
+        ]
+    )
+
+    result = await service.get_charts(
+        workspace_id=WORKSPACE, date_from=DAY, date_to=DAY, nm_ids=None
+    )
+
+    assert _cell(result, "cpm", "total") is None
+
+
 async def test_organic_is_the_day_minus_advertising() -> None:
     """«Органика» is what the funnel did beyond what the ads delivered."""
     service, _ = _service(
