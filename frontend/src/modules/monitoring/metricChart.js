@@ -2,19 +2,33 @@
  * The chart both pages draw: one plot, and whichever metrics the reader picked.
  *
  * It replaced a carousel of ten saved questions. Each page is already a table
- * of every metric by day — what a chart adds is putting two or three of them
- * side by side, and WHICH ones is the reader's question, not ours. So there is
- * no slide list, no titles and no tabs: a set of metrics, and a plot.
+ * of every metric by day — what a chart adds is putting several of them side by
+ * side, and WHICH ones is the reader's question, not ours. So there is no slide
+ * list and no tabs: a set of metrics, and a plot.
  *
  * The pages differ only in which metrics they CAN offer — a per-SKU window has
  * prices and CTR, an account-wide sum does not — so the catalogue is a
  * parameter and everything else is shared.
+ *
+ * Metrics are plotted as an INDEX — rebased to 100 at the window's first
+ * reported day. There is no «Значения» mode any more, because there never was
+ * an honest one: «Заказы, ₽» at 500 000 beside «Затраты, ₽» at 7 000 share a
+ * unit, therefore an axis, and the smaller of the two is a flat line at the
+ * bottom of the plot. What a reader compares here is SHAPE; the real values are
+ * a hover away, and the table above holds every one of them.
+ *
+ * ЗАКАЗЫ are the exception, and the reason the plot is readable at all. The
+ * left-hand scale is a scale of заказов, so a series that counts заказы is
+ * drawn AS IT IS: 120 заказов lands a little above the 120 line. That gives
+ * every other series a real quantity to be a shape against, instead of a ruler
+ * with no relationship to anything on the canvas.
  */
 import {
   AXIS_GUTTER_PX,
-  SERIES_COLORS,
   buildChartOption,
-  gutterFor,
+  colorForMetric,
+  dayWidthFor,
+  niceCeiling,
 } from '@/modules/monitoring/chartOptions'
 import { COLUMNS_PER_DAY, TRAFFIC_COLUMNS } from '@/modules/monitoring/metricsMatrix'
 
@@ -22,11 +36,30 @@ import { COLUMNS_PER_DAY, TRAFFIC_COLUMNS } from '@/modules/monitoring/metricsMa
 const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key, index]))
 
 /**
- * The metrics on offer, grouped for the eye only.
+ * The backend metric the left-hand ruler is a scale of.
  *
- * «Реклама», «Воронка» and «Общие» are where a reader LOOKS for a metric, not
- * how the chart treats it. What the chart treats differently is the unit —
- * metrics sharing one share an axis — and the mark.
+ * Matched on `metric` rather than on the catalogue key, so every entry reading
+ * that row is covered by one rule: «Заказы, шт» on both pages, and «Заказы
+ * органика, шт», which is the same count of the same thing through one traffic
+ * bucket. All three are true on a scale of заказов and are drawn unrebased.
+ *
+ * «Заказы, ₽» is NOT one of them — it reads `order_sum`, and roubles on a scale
+ * of заказов would be a number in the wrong units sitting on a real gridline.
+ */
+const RULER_METRIC = 'orders'
+
+/**
+ * The metrics on offer, in the order everything downstream reads them.
+ *
+ * The order is not cosmetic. It is the order of the chips, of the legend, of
+ * the tooltip rows and — because the columns of a day are drawn in series order
+ * — of the bars themselves, which is why «Корзины», «Заказы», «Остатки» stand
+ * in that sequence on every day of every window. A selection is sorted back
+ * into this order before it is drawn, so ticking the same three metrics in a
+ * different sequence cannot produce a different chart.
+ *
+ * «Реклама», «Воронка» and «Общие» are where a reader LOOKS for a metric. The
+ * chart uses them too, but only to group the hover.
  *
  * `type: 'bar'` on остатки, корзины and заказы, and deliberately no `stack`:
  * they stand side by side as separate columns per day. Stacked they would draw
@@ -36,11 +69,12 @@ export const SKU_METRIC_GROUPS = [
   {
     title: 'Реклама',
     items: [
+      { key: 'spend', metric: 'spend', bucket: 'total', name: 'Затраты, ₽', unit: 'currency' },
       { key: 'views', metric: 'views', bucket: 'total', name: 'Показы', unit: 'number' },
       { key: 'clicks', metric: 'clicks', bucket: 'total', name: 'Клики', unit: 'number' },
-      { key: 'spend', metric: 'spend', bucket: 'total', name: 'Затраты, ₽', unit: 'currency' },
-      { key: 'cpc', metric: 'cpc', bucket: 'total', name: 'CPC, ₽', unit: 'currency' },
       { key: 'ctr', metric: 'ctr', bucket: 'total', name: 'CTR, %', unit: 'percent' },
+      { key: 'cpm', metric: 'cpm', bucket: 'total', name: 'CPM, ₽', unit: 'currency' },
+      { key: 'cpc', metric: 'cpc', bucket: 'total', name: 'CPC, ₽', unit: 'currency' },
       {
         key: 'drr_orders',
         metric: 'drr_orders',
@@ -69,19 +103,19 @@ export const SKU_METRIC_GROUPS = [
         type: 'bar',
       },
       {
+        key: 'cart_conversion',
+        metric: 'cart_conversion',
+        bucket: 'total',
+        name: 'Конверсия в корзину, %',
+        unit: 'percent',
+      },
+      {
         key: 'orders',
         metric: 'orders',
         bucket: 'total',
         name: 'Заказы, шт',
         unit: 'number',
         type: 'bar',
-      },
-      {
-        key: 'cart_conversion',
-        metric: 'cart_conversion',
-        bucket: 'total',
-        name: 'Конверсия в корзину, %',
-        unit: 'percent',
       },
       {
         key: 'order_conversion',
@@ -131,13 +165,16 @@ export const SKU_METRIC_GROUPS = [
   },
 ]
 
-/** Index a group list by metric key, for resolving a selection. */
-function metricsByKey(groups) {
-  return Object.fromEntries(groups.flatMap((group) => group.items.map((item) => [item.key, item])))
-}
-
-/** What the SKU chart opens on: two units, so neither flattens the other. */
-export const SKU_DEFAULT_METRICS = ['spend', 'drr_sales']
+/**
+ * What the chart opens on — one advertising pair, one funnel pair, and the
+ * rate that joins them.
+ *
+ * A blank plot makes the reader do work before the page says anything, and a
+ * plot of everything says nothing. Затраты against показы is where the money
+ * goes, корзины against заказы is what came back, and CTR is the hinge between
+ * them; each of the five is a different colour and only two are columns.
+ */
+export const SKU_DEFAULT_METRICS = ['spend', 'views', 'ctr', 'carts', 'orders']
 
 /**
  * The account-wide catalogue — shorter, because not every metric survives
@@ -153,9 +190,12 @@ export const AGGREGATE_METRIC_GROUPS = [
   {
     title: 'Реклама',
     items: [
+      { key: 'spend', metric: 'spend', bucket: 'total', name: 'Затраты, ₽', unit: 'currency' },
       { key: 'views', metric: 'views', bucket: 'total', name: 'Показы', unit: 'number' },
       { key: 'clicks', metric: 'clicks', bucket: 'total', name: 'Клики', unit: 'number' },
-      { key: 'spend', metric: 'spend', bucket: 'total', name: 'Затраты, ₽', unit: 'currency' },
+      // Where CTR sits on the per-SKU page. CTR itself cannot follow: «Клики»
+      // here is the funnel's card opens, not advertising clicks.
+      { key: 'cpm', metric: 'cpm', bucket: 'total', name: 'CPM, ₽', unit: 'currency' },
       {
         key: 'drr_orders',
         metric: 'drr_orders',
@@ -177,19 +217,19 @@ export const AGGREGATE_METRIC_GROUPS = [
         type: 'bar',
       },
       {
+        key: 'cart_conversion',
+        metric: 'cart_conversion',
+        bucket: 'total',
+        name: 'Конверсия в корзину, %',
+        unit: 'percent',
+      },
+      {
         key: 'orders',
         metric: 'orders',
         bucket: 'total',
         name: 'Заказы, шт',
         unit: 'number',
         type: 'bar',
-      },
-      {
-        key: 'cart_conversion',
-        metric: 'cart_conversion',
-        bucket: 'total',
-        name: 'Конверсия в корзину, %',
-        unit: 'percent',
       },
       {
         key: 'order_conversion',
@@ -229,22 +269,22 @@ export const AGGREGATE_METRIC_GROUPS = [
   },
 ]
 
-/** What the account-wide chart opens on. */
-export const AGGREGATE_DEFAULT_METRICS = ['order_sum', 'drr_orders']
+/** The same opening question as the per-SKU page, minus the CTR it has no data for. */
+export const AGGREGATE_DEFAULT_METRICS = ['spend', 'views', 'carts', 'orders']
 
-/**
- * The two ways of putting unlike metrics on one plot.
- *
- * `absolute` keeps real values, one axis per unit. `index` rebases every series
- * to 100 at the window's first day, so what is compared is SHAPE — the
- * documented answer to metrics whose scales do not fit together. Offered, never
- * default: the baseline day is arbitrary, and the hover reads the real value
- * underneath either way.
- */
-export const CHART_MODES = [
-  { key: 'absolute', label: 'Значения' },
-  { key: 'index', label: 'Индекс' },
-]
+/** Index a group list by metric key, each entry carrying its group's title. */
+function metricsByKey(groups) {
+  return Object.fromEntries(
+    groups.flatMap((group) =>
+      group.items.map((item) => [item.key, { ...item, group: group.title }]),
+    ),
+  )
+}
+
+/** Catalogue position of each key — the one order everything downstream uses. */
+function catalogueOrder(groups) {
+  return new Map(groups.flatMap((group) => group.items).map((item, index) => [item.key, index]))
+}
 
 /**
  * The per-day values of one metric, read straight out of the display matrix's
@@ -269,10 +309,11 @@ const round2 = (value) => Math.round(value * 100) / 100
  * Rebase a series to 100 at its first reported day, keeping the real values.
  *
  * `raw` is what the hover reads: an index is a shape, and a reader who wants to
- * know what «118» meant in roubles must not leave the chart to find out.
+ * know what «118» meant in roubles must not leave the chart to find out. A
+ * series plotted unrebased never gets one — there is no second number to show,
+ * and «374 (374)» reads as a mistake.
  */
-function indexed(data, active) {
-  if (!active) return { data }
+function indexed(data) {
   const base = data.find((value) => value != null && value !== 0)
   if (base == null) return { data }
   return {
@@ -281,45 +322,83 @@ function indexed(data, active) {
   }
 }
 
+/** The largest finite number in a list, or `null` when there is none. */
+function maxOf(values) {
+  const finite = values.filter((value) => value != null && Number.isFinite(value))
+  return finite.length ? Math.max(...finite) : null
+}
+
+/**
+ * Where the left-hand ruler tops out.
+ *
+ * The scale is a scale of ЗАКАЗОВ — the one quantity the page is about, and
+ * the one series drawn against it unrebased. It is read off the window's orders
+ * whether or not «Заказы» is ticked, so ticking a metric never moves the scale
+ * under the others.
+ *
+ * The one thing that does raise it is a series that would otherwise be CUT: a
+ * metric that tripled plots at 300 and a ruler stopping at 150 would draw it as
+ * a line that stops, which is a lie a chart must not tell.
+ */
+function axisCeiling(view, catalogue, series) {
+  const orders = catalogue.orders ? maxOf(readSeries(view, catalogue.orders)) : null
+  const plotted = maxOf(series.flatMap((entry) => entry.data))
+  // `niceCeiling` of nothing is the default ruler — a window with no заказы at
+  // all still needs a scale, and 0-500 is the shape of the ones that do.
+  return Math.max(niceCeiling(orders), plotted == null ? 0 : niceCeiling(plotted))
+}
+
 /**
  * Build the chart from the live display matrix.
  *
  * @param {object} view A display matrix (`matrixView` shape).
- * @param {{metrics?: string[], groups?: Array<object>, mode?: string}} [options]
- *   The reader's picks, and the catalogue to resolve them against.
+ * @param {{metrics?: string[], groups?: Array<object>, hover?: object}} [options]
+ *   The reader's picks, the catalogue to resolve them against, and the live
+ *   holder saying which series the cursor is on (see `focusedPoints`).
  * @returns {object|null} `{dayCount, axisGutter, legend, empty, option}`, or
  *   null when the window has no days at all.
  */
-export function buildMetricChart(view, { metrics = [], groups = [], mode = 'absolute' } = {}) {
+export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}) {
   if (!view?.days?.length) return null
   const days = view.days.map((day) => day.iso)
-  const indexMode = mode === 'index'
   const catalogue = metricsByKey(groups)
+  const order = catalogueOrder(groups)
 
   const series = metrics
-    .map((key) => catalogue[key])
-    .filter(Boolean)
-    .map((entry, index) => ({
-      name: entry.name,
-      type: entry.type ?? 'line',
-      colorIndex: index,
-      unit: entry.unit ?? 'number',
-      ...indexed(readSeries(view, entry), indexMode),
-    }))
+    .filter((key) => catalogue[key])
+    .sort((a, b) => order.get(a) - order.get(b))
+    .map((key) => {
+      const entry = catalogue[key]
+      return {
+        name: entry.name,
+        type: entry.type ?? 'line',
+        unit: entry.unit ?? 'number',
+        group: entry.group,
+        color: colorForMetric(key),
+        // Заказы are what the scale measures, so they are drawn as they are.
+        ...(entry.metric === RULER_METRIC
+          ? { data: readSeries(view, entry) }
+          : indexed(readSeries(view, entry))),
+      }
+    })
 
   return {
     dayCount: days.length,
-    // The frozen column holds ONE column of labels per axis drawn — and in
-    // index mode exactly one axis is drawn, whatever the picked metrics
-    // measure. Sizing it from the metrics' units regardless is what left a
-    // gaping margin beside a single «инд.» scale, and made the margin jump
-    // when a pick added a unit without adding an axis.
-    axisGutter: indexMode || !series.length ? AXIS_GUTTER_PX : gutterFor(series),
-    legend: series.map((entry, index) => ({
-      name: entry.name,
-      color: SERIES_COLORS[index % SERIES_COLORS.length],
-    })),
+    // Pixels per day, so the ribbon and the plot are laid out to one number.
+    dayWidth: dayWidthFor(days.length),
+    // What the ribbon re-pins on: a new window or a new pick is a new question,
+    // and a question is asked of the LAST few days. Derived from the series
+    // rather than counted, so an unrelated re-render does not look like one.
+    key: `${days.length}:${series.map((entry) => entry.name).join('|')}`,
+    // One axis, always — so one column, always.
+    axisGutter: AXIS_GUTTER_PX,
+    legend: series.map((entry) => ({ name: entry.name, color: entry.color })),
     empty: !series.length || series.every((entry) => entry.data.every((value) => value == null)),
-    option: buildChartOption({ days, indexMode, series }),
+    option: buildChartOption({
+      days,
+      axisMax: axisCeiling(view, catalogue, series),
+      hover,
+      series,
+    }),
   }
 }

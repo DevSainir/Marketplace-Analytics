@@ -31,6 +31,16 @@ const props = defineProps({
   height: { type: String, default: '340px' },
 })
 
+/**
+ * `ready` hands the live ECharts instance to the parent, once.
+ *
+ * The instance is what a chart's own events hang off — a caller that needs to
+ * know which mark the cursor is on has no other way to ask. Deliberately not a
+ * prop of handlers: whose events they are, and what they mean, belongs to the
+ * chart's owner, not to this canvas.
+ */
+const emit = defineEmits(['ready'])
+
 const root = ref(null)
 let chart = null
 let observer = null
@@ -46,6 +56,7 @@ function render() {
 onMounted(() => {
   chart = echarts.init(root.value)
   render()
+  emit('ready', chart)
   // The panel is inside a flex/grid card, so a window resize is not the only
   // thing that changes its width — the element itself is what to watch.
   if (typeof ResizeObserver !== 'undefined') {

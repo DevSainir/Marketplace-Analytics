@@ -25,7 +25,9 @@ function matrixView(rows = []) {
 /** Some data for every metric the default selection draws. */
 const POPULATED = [
   row('spend', { total: [100, 200] }),
-  row('drr_sales', { total: [3, 6] }),
+  row('views', { total: [5000, 7000] }),
+  row('ctr', { total: [3, 6] }),
+  row('carts', { total: [40, 60] }),
   row('orders', { total: [4, 8] }),
   row('order_sum', { total: [1000, 2000] }),
 ]
@@ -66,22 +68,42 @@ describe('MetricsChart', () => {
     expect(wrapper.find('section').exists()).toBe(false)
   })
 
-  it('opens on its default metrics rather than on an empty plot', () => {
-    // A chart that starts blank makes the reader do work before it says
-    // anything; the default is the money question.
-    const wrapper = mountChart()
-
-    expect(legend(wrapper)).toEqual(expect.arrayContaining(['Затраты, ₽', 'ДРР от продаж, %']))
+  it('carries its own title', () => {
+    // It sits under two other blocks that name themselves; unnamed, it read as
+    // an appendix to whichever table happened to be above it.
+    expect(mountChart().find('h2').text()).toBe('График')
   })
 
-  it('draws a metric once its chip is ticked', () => {
+  it('opens on its default metrics rather than on an empty plot', () => {
+    // A chart that starts blank makes the reader do work before it says
+    // anything: где деньги (затраты, показы, CTR) and что вернулось (корзины,
+    // заказы).
     const wrapper = mountChart()
+
+    expect(legend(wrapper)).toEqual(['Затраты, ₽', 'Показы', 'CTR, %', 'Корзины, шт', 'Заказы, шт'])
+  })
+
+  it('lists the legend in catalogue order, not in the order chips were clicked', () => {
+    // The order is the plot's order too — the columns of a day are drawn in it
+    // — so a stable legend and a stable chart are the same fact.
+    const wrapper = mountChart({ defaultMetrics: [] })
 
     return chip(wrapper, 'Заказы, шт')
       .trigger('click')
+      .then(() => chip(wrapper, 'Затраты, ₽').trigger('click'))
       .then(() => {
-        expect(legend(wrapper)).toContain('Заказы, шт')
+        expect(legend(wrapper)).toEqual(['Затраты, ₽', 'Заказы, шт'])
       })
+  })
+
+  it('offers no mode switch: everything is an index', async () => {
+    // «Значения» put «Заказы, ₽» at 500 000 beside «Затраты, ₽» at 7 000 on one
+    // axis, which is a flat line and a lie about the smaller of the two.
+    const wrapper = mountChart()
+
+    const labels = wrapper.findAll('button').map((button) => button.text())
+    expect(labels).not.toContain('Значения')
+    expect(labels).not.toContain('Индекс')
   })
 
   it('stops drawing a metric once its chip is unticked', async () => {
@@ -92,41 +114,43 @@ describe('MetricsChart', () => {
     expect(legend(wrapper)).not.toContain('Затраты, ₽')
   })
 
-  it('asks for a selection rather than drawing empty axes', async () => {
-    // Unticking everything is a legitimate state, not an error.
+  it('draws a metric once its chip is ticked', async () => {
     const wrapper = mountChart()
 
-    await chip(wrapper, 'Затраты, ₽').trigger('click')
-    await chip(wrapper, 'ДРР от продаж, %').trigger('click')
+    await chip(wrapper, 'Клики').trigger('click')
+
+    expect(legend(wrapper)).toContain('Клики')
+  })
+
+  it('asks for a selection rather than drawing empty axes', async () => {
+    // Unticking everything is a legitimate state, not an error.
+    const wrapper = mountChart({ defaultMetrics: [] })
 
     expect(wrapper.text()).toContain('Выберите метрики')
     expect(wrapper.findComponent({ name: 'BaseChart' }).exists()).toBe(false)
   })
 
-  it('says so when the period holds nothing for the metrics picked', async () => {
+  it('says so when the period holds nothing for the metrics picked', () => {
     // Different from an empty selection: the reader chose, and the window is
     // simply blank there.
-    const wrapper = mountChart({ view: matrixView([row('spend', { total: [null, null] })]) })
-
-    await chip(wrapper, 'ДРР от продаж, %').trigger('click')
+    const wrapper = mountChart({
+      view: matrixView([row('spend', { total: [null, null] })]),
+      defaultMetrics: ['spend'],
+    })
 
     expect(wrapper.text()).toContain('нет данных')
   })
 
-  it('replots against the index when the mode is switched', async () => {
-    // Behaviour, not wiring: the same metric must reach the plot rebased.
-    const wrapper = mountChart({ view: matrixView([row('spend', { total: [200, 400] })]) })
-    const plotted = () => wrapper.findComponent({ name: 'BaseChart' }).props('option')
+  it('plots the index rather than the raw value', () => {
+    // Behaviour, not wiring: the metric reaches the plot rebased to 100 at the
+    // window's first reported day.
+    const wrapper = mountChart({
+      view: matrixView([row('spend', { total: [200, 400] })]),
+      defaultMetrics: ['spend'],
+    })
 
-    await chip(wrapper, 'ДРР от продаж, %').trigger('click')
-    expect(plotted().series[0].data).toEqual([200, 400])
-
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Индекс')
-      .trigger('click')
-
-    expect(plotted().series[0].data).toEqual([100, 200])
+    const plotted = wrapper.findComponent({ name: 'BaseChart' }).props('option')
+    expect(plotted.series[0].data).toEqual([100, 200])
   })
 
   it('pins the y axis beside the plot rather than inside the scroller', async () => {

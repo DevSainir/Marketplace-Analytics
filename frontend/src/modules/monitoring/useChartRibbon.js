@@ -13,22 +13,12 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-import { axisOnlyOption, plotOnlyOption } from '@/modules/monitoring/chartOptions'
-
-/**
- * Width per day.
- *
- * Squeezing a month into the card is what made the charts unreadable: at ~24px
- * a day two bars have no room to be two bars, and a line's daily moves are
- * sub-pixel. At 72px a day holds three grouped columns with air between the
- * days — which is the width the chart is actually asked to carry, since
- * остатки, корзины and заказы stand side by side rather than stacking.
- */
-const DAY_WIDTH_PX = 72
+import { DAY_WIDTH_PX, axisOnlyOption, plotOnlyOption } from '@/modules/monitoring/chartOptions'
 
 /**
  * @param {import('vue').Ref<{option: object, dayCount: number, key: string}|null>} active
- *   The slide on screen.
+ *   The chart on screen. Its `key` changes whenever the question does — a new
+ *   window, or a new set of metrics.
  * @returns {{
  *   scroller: import('vue').Ref<HTMLElement|null>,
  *   plotWidth: import('vue').ComputedRef<string>,
@@ -39,7 +29,11 @@ const DAY_WIDTH_PX = 72
 export function useChartRibbon(active) {
   const scroller = ref(null)
 
-  const plotWidth = computed(() => `${(active.value?.dayCount ?? 0) * DAY_WIDTH_PX}px`)
+  // The chart decides how wide a day is — a long window draws them tighter so
+  // more of it fits the card (see `dayWidthFor`).
+  const plotWidth = computed(
+    () => `${(active.value?.dayCount ?? 0) * (active.value?.dayWidth ?? DAY_WIDTH_PX)}px`,
+  )
 
   // One chart, rendered twice: the axis stands still, the plot scrolls past it.
   const axisOption = computed(() =>
@@ -93,8 +87,10 @@ export function useChartRibbon(active) {
     steered = true
   }
 
-  // A new slide re-renders the plot at a new width, and is a new question — so
-  // the position is retaken rather than kept, reader or no reader.
+  // A new question is asked of the last few days, so the ribbon goes back to
+  // them — reader or no reader. Ticking a metric is a new question: it is asked
+  // about how things are NOW, and answering it a fortnight back, wherever the
+  // ribbon happened to be parked, hides the days the reader came for.
   watch(
     () => active.value?.key,
     () => {

@@ -1,23 +1,23 @@
 <script setup>
 /**
- * A metric picker and one plot, nothing else — used by both pages.
+ * A titled block: a metric picker and one plot, used by both pages.
  *
  * What it replaced was a carousel of ten titled slides, each a saved question.
  * The table above this block already lists every metric by day, so the value a
- * chart adds is putting a reader's own two or three of them side by side —
- * which makes the picker the feature and the slides scaffolding.
+ * chart adds is putting a reader's own handful of them side by side — which
+ * makes the picker the feature and the slides scaffolding.
  *
- * No heading and no chart title: it sits under the tables whose numbers it
- * draws, and a caption saying «Графики» over a graph is a word doing no work.
+ * Everything is drawn as an index (see `metricChart.js`); there is no mode to
+ * switch, and the left-hand scale is a ruler of заказов rather than a scale
+ * that re-fits itself to whatever was ticked.
  *
  * Dumb by contract: the view hands it the matrix, it emits nothing.
  */
-import { computed, defineAsyncComponent, ref } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
 import ChartMetricPicker from '@/modules/monitoring/components/ChartMetricPicker.vue'
 import {
-  CHART_MODES,
   SKU_DEFAULT_METRICS,
   SKU_METRIC_GROUPS,
   buildMetricChart,
@@ -43,18 +43,55 @@ const props = defineProps({
 })
 
 const metrics = ref([...props.defaultMetrics])
-const mode = ref('absolute')
-const modes = CHART_MODES
+
+/**
+ * Which series the cursor is actually on — a plain object, never a `ref`.
+ *
+ * The tooltip formatter reads it at hover time, so it must be a live holder the
+ * built option closes over: made reactive, every mouse-over would rebuild the
+ * option and re-render the whole plot under the cursor that is reading it.
+ */
+const hover = { index: null }
+
+// A different selection is a different series list, so a remembered index would
+// point at the wrong metric.
+watch(metrics, () => {
+  hover.index = null
+})
 
 const chart = computed(() =>
-  buildMetricChart(props.view, {
-    metrics: metrics.value,
-    groups: props.groups,
-    mode: mode.value,
-  }),
+  buildMetricChart(props.view, { metrics: metrics.value, groups: props.groups, hover }),
 )
 
-/** Height enough for two or three series to have room to move. */
+/**
+ * Tell the chart apart from the day it sits in.
+ *
+ * A hover anywhere in a day's column answers with every metric — that is the
+ * question «what happened on the 5th». A hover that lands ON a line or a bar is
+ * a question about that metric, and ECharts already knows which one: `mouseover`
+ * fires for the mark under the cursor. Re-showing the tooltip at the same pixel
+ * is what makes the narrowed list appear on the frame the mark is entered,
+ * rather than on the next mouse move.
+ */
+function onPlotReady(instance) {
+  /** Re-ask for the tooltip where the cursor already is, with `hover` updated. */
+  const reshow = (params) => {
+    const { offsetX, offsetY } = params.event ?? {}
+    if (offsetX != null) instance.dispatchAction({ type: 'showTip', x: offsetX, y: offsetY })
+  }
+  instance.on('mouseover', (params) => {
+    if (params.componentType !== 'series') return
+    hover.index = params.seriesIndex
+    reshow(params)
+  })
+  instance.on('mouseout', (params) => {
+    if (params.componentType !== 'series') return
+    hover.index = null
+    reshow(params)
+  })
+}
+
+/** Height enough for several series to have room to move. */
 const CHART_HEIGHT = '360px'
 
 // The plot is drawn at its natural width and scrolled sideways; the y axis is
@@ -65,8 +102,12 @@ const axisWidth = computed(() => `${chart.value?.axisGutter ?? 74}px`)
 
 <template>
   <section v-if="chart" class="mt-lg" aria-label="График метрик">
-    <div class="rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md">
-      <ChartMetricPicker v-model="metrics" v-model:mode="mode" :groups="groups" :modes="modes" />
+    <h2 class="text-h3 font-semibold text-primary">График</h2>
+
+    <div
+      class="mt-sm rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
+    >
+      <ChartMetricPicker v-model="metrics" :groups="groups" />
 
       <template v-if="!chart.empty">
         <!-- Legend in HTML: on the canvas it scrolled away with the days it
@@ -98,7 +139,12 @@ const axisWidth = computed(() => `${chart.value?.axisGutter ?? 74}px`)
           />
           <div ref="scroller" v-drag-scroll class="chart-scroll min-w-0 flex-1">
             <div :style="{ minWidth: '100%', width: plotWidth, height: CHART_HEIGHT }">
-              <BaseChart key="plot" :option="plotOption" :height="CHART_HEIGHT" />
+              <BaseChart
+                key="plot"
+                :option="plotOption"
+                :height="CHART_HEIGHT"
+                @ready="onPlotReady"
+              />
             </div>
           </div>
         </div>

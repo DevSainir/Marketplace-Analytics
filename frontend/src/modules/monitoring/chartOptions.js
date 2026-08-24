@@ -5,47 +5,80 @@
  * the HOW (what a chart looks like) stay separately readable — that file is a
  * catalogue, this one is the theme.
  *
- * Ink and surface mirror `tailwind.config.js` (text-muted, border-subtle,
- * bg-surface). They are repeated as hex because ECharts paints onto a canvas
- * and cannot resolve a Tailwind class; when a token moves, it moves here too.
+ * Ink and surface mirror `tailwind.config.js` (text-muted, text-primary,
+ * border-subtle, bg-surface). They are repeated as hex because ECharts paints
+ * onto a canvas and cannot resolve a Tailwind class; when a token moves, it
+ * moves here too.
  */
 import { formatCurrency, formatNumber, formatPercent } from '@/core/utils/format'
 
-/** Tailwind `textColor.muted` / `border.subtle` / `backgroundColor.surface`. */
+/** Tailwind `textColor.muted` / `textColor.primary` / `border.subtle`. */
 const INK_MUTED = '#858585'
 const INK_PRIMARY = '#101010'
 const LINE_SUBTLE = '#E0E0E0'
-const SURFACE = '#F1F1F1'
 
 /**
- * The categorical series palette, in FIXED slot order — slot 1 is always the
- * first series of a chart, never recycled by rank.
+ * Gridline ink — deliberately darker than `border.subtle`.
  *
- * These eight hues are the validated default of the `dataviz` skill, re-checked
- * against THIS app's chart surface (#F1F1F1): lightness band, chroma floor,
- * adjacent-pair CVD separation (worst ΔE 9.1) and normal-vision separation
- * (worst ΔE 19.6) all pass. The app's own semantic tokens are deliberately not
- * used here — `status.*` is reserved for state (good/bad), and reusing it for
- * «series 4» would make a colour mean two things on one screen.
- *
- * Four of the eight sit under 3:1 contrast on this surface, which obliges
- * relief: every chart carries a legend and a hover tooltip with the exact
- * numbers, and the full data table («Метрики по дням») sits directly above.
- * A ninth series is not a generated hue — fold it into a bucket or split the
- * chart.
+ * The subtle border is right for the edge of a card, where the line is only
+ * saying «this block ends». A gridline is read ACROSS the plot to place a mark
+ * against a number, and at #E0E0E0 on #F1F1F1 it disappeared a few pixels from
+ * the axis.
  */
-export const SERIES_COLORS = [
-  '#2a78d6', // blue
-  '#eb6834', // orange
-  '#1baf7a', // aqua
-  '#eda100', // yellow
-  '#e87ba4', // magenta
-  '#008300', // green
-  '#4a3aa7', // violet
-  '#e34948', // red
-]
+const LINE_GRID = '#BFBFBF'
 
-/** Value formatters by the unit a chart's single axis measures. */
+/**
+ * One hue per METRIC, fixed for the life of the app.
+ *
+ * Colour used to be handed out by slot: the first metric ticked took blue, the
+ * second orange. That made the same metric a different colour on every visit —
+ * «Заказы» blue on one reading of the page and orange on the next — so the
+ * legend had to be re-read every time and two screenshots of the same card
+ * could not be compared.
+ *
+ * The four the reader named are fixed by meaning: «Затраты» and «Остатки» are
+ * the two greens, «Корзины» blue, «Заказы» orange. Around those, related
+ * metrics take a lighter shade of their family's hue — конверсия в корзину is
+ * a paler «Корзины» blue, конверсия в заказ a paler «Заказы» orange — so a
+ * funnel reads as a funnel before the legend is consulted.
+ *
+ * Keyed by CATALOGUE key, not by metric: `orders` and `orders_organic` read
+ * the same backend row and must still be told apart.
+ */
+export const METRIC_COLORS = {
+  // Реклама
+  spend: '#1BAF7A', // зелёный — «Затраты»
+  views: '#4A3AA7', // фиолетовый
+  clicks: '#9179E0', // светлее — те же показы, но кликнутые
+  ctr: '#EDA100', // жёлтый
+  cpm: '#8E2F4F', // тёмно-вишнёвый — цена рекламы, как и CPC
+  cpc: '#E34948', // красный
+  drr_orders: '#C14BAD', // пурпурный
+  drr_sales: '#E87BA4', // розовый — тот же ДРР, другая база
+  // Воронка
+  carts: '#2A78D6', // синий — «Корзины»
+  cart_conversion: '#5FA8E8', // светлее — конверсия в те же корзины
+  orders: '#EB6834', // оранжевый — «Заказы»
+  order_conversion: '#F2A25C', // светлее — конверсия в те же заказы
+  buyout_percent: '#8A6D3B', // коричневый
+  // Общие
+  seller_price: '#00838F', // бирюзовый
+  customer_price: '#5B7C99', // серо-синий
+  stock_quantity: '#0B7A3B', // тёмно-зелёный — «Остатки»
+  stock_total: '#0B7A3B', // тот же смысл на сводной странице
+  order_sum: '#B8471F', // тёмно-оранжевый — те же заказы, в рублях
+  orders_organic: '#C98A4B', // «Заказы» без рекламы
+}
+
+/** A metric outside the map is a bug, but a grey line beats no line. */
+const FALLBACK_COLOR = '#6B6B6B'
+
+/** The hue reserved for one catalogue key. */
+export function colorForMetric(key) {
+  return METRIC_COLORS[key] ?? FALLBACK_COLOR
+}
+
+/** Value formatters by the unit a metric measures. */
 const FORMATTERS = {
   currency: formatCurrency,
   number: (value) => formatNumber(Math.round(value)),
@@ -58,36 +91,26 @@ function formatValue(unit, value) {
   return (FORMATTERS[unit] ?? FORMATTERS.number)(value)
 }
 
-/** Axis ticks carry no unit — the chart title states it once. */
-function axisLabel(unit, value) {
-  return unit === 'percent' ? `${formatNumber(value)}%` : formatNumber(value)
-}
-
 /** "2026-07-05" -> "05.07" — the full year would not fit 30 columns. */
 export function shortDayLabel(iso) {
   const [, month, day] = iso.split('-')
   return `${day}.${month}`
 }
 
-/** One series' mark spec: 2px lines, rounded bar ends, a surface gap in stacks. */
-function seriesMark(series, color, stack) {
+/** One series' mark spec: 2px lines, rounded bar ends, its own fixed hue. */
+function seriesMark(series, color, dayWidth) {
   const shared = { name: series.name, data: series.data, color, z: 3 }
   if (series.type === 'bar') {
     return {
       ...shared,
       type: 'bar',
-      stack,
-      // Rounding only the top of a STACK would need the topmost non-null
-      // segment per day, which is a calculation over the data; a stack gets
-      // the surface gap instead and square ends.
-      itemStyle: stack ? { borderColor: SURFACE, borderWidth: 1 } : { borderRadius: [4, 4, 0, 0] },
-      barMaxWidth: 28,
+      itemStyle: { borderRadius: [4, 4, 0, 0] },
+      barMaxWidth: Math.round(dayWidth * BAR_WIDTH_RATIO),
     }
   }
   return {
     ...shared,
     type: 'line',
-    stack,
     smooth: false,
     // Every day gets a dot. The plot is laid out at a fixed width PER DAY and
     // scrolled (see `DAY_WIDTH`), so there is always room for them — and on a
@@ -98,7 +121,10 @@ function seriesMark(series, color, stack) {
     symbolSize: 5,
     emphasis: { scale: 1.8 },
     lineStyle: { width: 2 },
-    areaStyle: series.area ? { opacity: 0.18 } : undefined,
+    // Without this a line only answers a hover on one of its DOTS — the path
+    // between them is inert, and «hovering this line» is a 5px target twenty
+    // times a window rather than the line the reader is pointing at.
+    triggerLineEvent: true,
     // A gap in the data is a day WB served nothing — joining across it would
     // draw a trend that never happened.
     connectNulls: false,
@@ -106,153 +132,173 @@ function seriesMark(series, color, stack) {
 }
 
 /**
- * Headroom above the tallest mark, as a fraction of the axis range.
- *
- * Without it ECharts fits the axis to the data and the peak day touches the
- * top edge of the plot — «Цена» and «Остатки» both ran flush against it, where
- * a line reads as clipped rather than as a maximum, and a tooltip opening near
- * the peak has nowhere to go.
- */
-const AXIS_HEADROOM = '12%'
-
-/**
  * Plot geometry, in pixels and shared by both copies of a chart (see
  * `axisOnlyOption`). `PLOT_BOTTOM` is the strip the day labels sit in.
  */
 const PLOT_TOP = 12
-const PLOT_BOTTOM = 28
+const PLOT_BOTTOM = 30
 
-/** Width of the pinned y-axis column, wide enough for «500 000» and «Корзины». */
+/** Width of the pinned y-axis column, wide enough for «12 000». */
 export const AXIS_GUTTER_PX = 74
 
-/** Extra column each additional unit's axis needs beside the first. */
-const AXIS_STEP_PX = 54
-
 /**
- * What a chart's axes are keyed by: the UNIT, never the series.
+ * Width per day — the plot is laid out at a fixed one and scrolled sideways.
  *
- * A chart may pair metrics that answer one question together — spend against
- * ДРР, price against demand — and those have different units, so one scale
- * cannot carry both. What it must never do is give two metrics of the SAME
- * unit two scales: that is what put клики 439, корзины 215 and заказы 105 on
- * one point of the plot. One axis per unit means everything comparable shares
- * a ruler, and everything that does not is visibly labelled «₽» or «%».
- */
-const UNIT_LABEL = { currency: '₽', number: 'шт', percent: '%', index: 'инд.' }
-
-/**
- * The distinct units a series list carries, in a FIXED order: ₽, шт, %.
+ * Squeezing a month into the card is what made the charts unreadable in the
+ * first place: at ~24px a day two bars have no room to be two bars, and a
+ * line's daily moves are sub-pixel. 72px holds three grouped columns with air
+ * between the days, which is what the chart is actually asked to carry, since
+ * остатки, корзины and заказы stand side by side rather than stacking.
  *
- * Not first-appearance order — that made the axis columns land in whatever
- * sequence the reader happened to tick, so the same three metrics produced a
- * different layout each time. Money, then counts, then rates is the order the
- * metrics themselves are read in.
+ * A quarter is a different question, though. Past two months the reader is
+ * looking for a trend rather than reading Tuesday against Wednesday, and 90
+ * days at 72px is six screens of ribbon to drag through to see one. So a long
+ * window tightens to 44px — still two and a half columns wide, and it fits
+ * about two thirds more days in the card at once.
+ *
+ * One step, not a curve: a width that slid with the day count would redraw the
+ * whole plot at a new scale every time the calendar moved by a day.
  */
-const UNIT_ORDER = ['currency', 'number', 'percent']
-export function chartUnits(series) {
-  const present = new Set(series.map((entry) => entry.unit))
-  const known = UNIT_ORDER.filter((unit) => present.has(unit))
-  // Anything outside the known order (the unitless index) keeps its place.
-  const rest = [...present].filter((unit) => !UNIT_ORDER.includes(unit))
-  return [...known, ...rest]
-}
+export const DAY_WIDTH_PX = 72
+const DENSE_DAY_WIDTH_PX = 44
+const DENSE_FROM_DAYS = 60
 
-/** Pixels the frozen column needs for one axis per unit. */
-export function gutterFor(series) {
-  return AXIS_GUTTER_PX + (chartUnits(series).length - 1) * AXIS_STEP_PX
+/** How wide one day is drawn in a window of `dayCount` days. */
+export function dayWidthFor(dayCount) {
+  return dayCount >= DENSE_FROM_DAYS ? DENSE_DAY_WIDTH_PX : DAY_WIDTH_PX
 }
 
 /**
- * The value-axis spec shared by both layouts (single plot and panels).
+ * A column's cap as a share of its day, so the bars tighten with the ribbon.
  *
- * A note on `splitNumber`, which is deliberately NOT set: ECharts picks the
- * tick interval from it and then snaps the axis minimum DOWN to a multiple of
- * that interval. Asking for two ticks on a «Корзины» panel spanning 90-215
- * bought an interval of 100 and therefore a minimum of 0 — `scale: true`
- * honoured to the letter and useless in practice, with the whole series
- * crushed into the top third and 97 and 118 a hair apart. Left alone, ECharts
- * chooses ~5 ticks, an interval of 30, and a minimum of 90.
+ * Left at a fixed 28px, a dense window would draw three 28px columns into 44px
+ * of day: they would touch their neighbours and the day boundaries would stop
+ * being visible, which is the one thing the tighter layout must not cost.
  */
-function valueAxis(unit, { scale }) {
+const BAR_WIDTH_RATIO = 0.39
+
+/** What the orders ruler falls back to when the window reports no заказы. */
+export const DEFAULT_AXIS_MAX = 500
+
+/**
+ * Round a value up to a readable top tick — 430 -> 450, 512 -> 550, 12 -> 15.
+ *
+ * Half a power of ten is the step, so the ceiling lands on a number a reader
+ * recognises as round without ECharts printing «481 900,432» at the top of the
+ * scale.
+ */
+export function niceCeiling(value) {
+  if (!Number.isFinite(value) || value <= 0) return DEFAULT_AXIS_MAX
+  const step = 10 ** Math.floor(Math.log10(value)) / 2
+  return Math.ceil(value / step) * step
+}
+
+/**
+ * The single value axis: a ruler of ЗАКАЗОВ, and nothing else.
+ *
+ * Every series is drawn as an index (see `metricChart.js`), so no axis can be
+ * true for all of them at once and a scale that re-fitted itself to whatever
+ * was ticked told the reader nothing — the same line landed at a different
+ * height on every visit. The scale is therefore anchored to one quantity the
+ * page is actually about, заказы per day, and carries no unit name: the numbers
+ * are заказы, the marks are shapes, and the hover holds the real values.
+ */
+function ordersAxis(max) {
   return {
     type: 'value',
-    scale,
-    // Head-room above the tallest mark, and the two ways of getting it — which
-    // are mutually exclusive, so each axis takes the one that fits it.
-    //
-    // A ZERO-ANCHORED axis (bars, stacks) uses `boundaryGap`. Not a computed
-    // `max`: padding the extent by hand pins the axis to an arbitrary number
-    // and ECharts prints it as the top tick («481 900,432»), where this pads
-    // the same way and still lets the tick algorithm pick round numbers. Only
-    // the top is padded — padding the bottom sent «ДРР», which never goes
-    // negative, down to a −2% gridline.
-    //
-    // A SCALED axis gets NONE, because any `boundaryGap` on a value axis makes
-    // ECharts include zero again, whatever `scale` says — measured both as
-    // `[0, …]` and `['0%', …]`. That is exactly what flattened the funnel: with
-    // one spike day at 215 the «Корзины» panel ran 0-250 and the 97-118 band
-    // the series actually lives in was a few pixels tall. Without it the panel
-    // fits 30-210, and `scale`'s own rounding-up to the next whole tick leaves
-    // the head-room anyway (verified on «Цены»: a 4 370 ₽ peak under a 4 400 ₽
-    // top tick).
-    boundaryGap: scale ? undefined : ['0%', AXIS_HEADROOM],
-    min: scale ? undefined : 0,
+    min: 0,
+    max,
     axisLine: { show: false },
     axisTick: { show: false },
     axisLabel: {
       color: INK_MUTED,
       fontSize: 11,
-      // A funnel panel is ~90px tall and ECharts sizes its tick count for a
-      // full plot, so «100» and «120» collided into a smudge. Dropping a
-      // colliding label is the right lever — forcing a smaller `splitNumber`
-      // coarsens the interval, and a coarse interval is what snaps the axis
-      // minimum back down to zero.
       hideOverlap: true,
-      formatter: (v) => axisLabel(unit, v),
+      formatter: (value) => formatNumber(value),
     },
-    splitLine: { lineStyle: { color: LINE_SUBTLE, type: 'dashed' } },
+    splitLine: { lineStyle: { color: LINE_GRID, width: 1.5, type: [6, 4] } },
   }
 }
 
 /**
- * A tooltip whose rows each carry their own unit.
+ * A tooltip whose rows are grouped the way the picker above it is grouped.
  *
- * Once a chart may pair «Затраты, ₽» with «ДРР, %», a chart-wide value
- * formatter is not enough — it would print one of the two in the other's
- * units, which is worse than printing none.
+ * Once five or six metrics are on one plot the hover is a list, and a list of
+ * six unlike numbers is read by hunting. «Реклама», «Воронка» and «Общие» are
+ * where the reader already looks for a metric — repeating that split here,
+ * with the same titles and a dotted rule between them, means the eye lands in
+ * the right third before it reads a single number.
+ *
+ * Each row is formatted by ITS OWN unit: with «Затраты, ₽» beside «ДРР, %» a
+ * chart-wide formatter would print one of the two in the other's units.
+ *
+ * @param {Array<object>} series The built series, in chart order.
+ * @param {{index: number|null}} hover Which series the cursor is actually on
+ *   (see `focusedPoints`) — a live holder, read at hover time, never a value
+ *   baked into the option.
  */
-function unitTooltip(series, indexMode = false) {
+function groupedTooltip(series, hover) {
   return (params) => {
-    const points = [...params].sort((a, b) => a.seriesIndex - b.seriesIndex)
+    const points = focusedPoints(
+      [...params].sort((a, b) => a.seriesIndex - b.seriesIndex),
+      hover,
+    )
+    let lastGroup = null
     const rows = points
       .map((point) => {
         const entry = series[point.seriesIndex] ?? {}
-        // In index mode the plotted number is a shape, not a quantity — so the
-        // hover shows what it actually was, with the index beside it.
-        const real = entry.raw?.[point.dataIndex]
-        const value =
-          indexMode && real != null
-            ? `${formatValue(entry.unit, real)} <span style="color:${INK_MUTED}">` +
-              `(${formatValue('number', point.value)})</span>`
-            : formatValue(entry.unit, point.value)
+        // What the hover is FOR: the plotted number is a shape, so the row
+        // shows the quantity underneath it. Only that — the index was on the
+        // canvas already, and printing it again in brackets on every row was a
+        // second column of numbers nobody was reading.
+        const value = formatValue(entry.unit, entry.raw ? entry.raw[point.dataIndex] : point.value)
+        const heading =
+          entry.group && entry.group !== lastGroup
+            ? `<div style="${lastGroup ? `border-top:1px dotted ${LINE_GRID};margin-top:6px;` : ''}` +
+              `padding-top:${lastGroup ? '6px' : '0'};color:${INK_MUTED};font-size:11px">` +
+              `${entry.group}</div>`
+            : ''
+        lastGroup = entry.group ?? lastGroup
         return (
+          heading +
           `<div style="display:flex;gap:24px;justify-content:space-between">` +
           `<span>${point.marker}${point.seriesName}</span><b>${value}</b></div>`
         )
       })
       .join('')
-    return `<div style="color:${INK_MUTED};margin-bottom:4px">${points[0].axisValue}</div>${rows}`
+    return `<div style="color:${INK_MUTED};margin-bottom:4px">${params[0].axisValue}</div>` + rows
   }
+}
+
+/**
+ * Narrow a day's points to the one the cursor is actually on.
+ *
+ * A hover over the whole day is a question about the day and answers with
+ * every metric. A hover that lands ON a line or a column is a question about
+ * THAT metric, and answering it with five others is the reader doing the
+ * filtering the chart could have done. The exception is a crossing: when two
+ * metrics plot at the same point there is no telling which one was aimed at,
+ * so both are shown.
+ *
+ * @param {Array<object>} points The day's points, series-ordered.
+ * @param {{index: number|null}} [hover] The series under the cursor, if any.
+ */
+export function focusedPoints(points, hover) {
+  const focus = hover?.index
+  if (focus == null) return points
+  const focused = points.find((point) => point.seriesIndex === focus)
+  if (!focused) return points
+  const crossing = points.filter((point) => point.value === focused.value)
+  return crossing.length ? crossing : [focused]
 }
 
 /**
  * The same chart with its y axis muted — the copy that scrolls.
  *
- * Its labels and panel captions belong to the pinned copy standing to its left;
- * drawn here too they would scroll away mid-ribbon and collide with the data on
- * the way out.
+ * Its labels belong to the pinned copy standing to its left; drawn here too
+ * they would scroll away mid-ribbon and collide with the data on the way out.
  *
- * @param {object} option A built chart option (either layout).
+ * @param {object} option A built chart option.
  * @returns {object} The same option, minus the y-axis furniture.
  */
 export function plotOnlyOption(option) {
@@ -275,19 +321,15 @@ export function plotOnlyOption(option) {
  * The two agree without any extent arithmetic here, and that is the point of
  * doing it this way: an axis extent is a pure function of the DATA and the axis
  * config, neither of which depends on how wide the canvas is. Give both copies
- * the same series and the same `scale`, give them the same height and the same
- * grid top/bottom, and ECharts independently arrives at the same ticks in the
- * same places. The series are kept (invisible) for exactly that reason —
- * dropping them would drop the extent with them.
+ * the same series, the same height and the same grid top/bottom, and ECharts
+ * independently arrives at the same ticks in the same places. The series are
+ * kept (invisible) for exactly that reason — dropping them would drop the
+ * extent with them.
  *
- * @param {object} option A built chart option (either layout).
+ * @param {object} option A built chart option.
  * @returns {object} The same option, stripped to the axis.
  */
 export function axisOnlyOption(option, gutter = AXIS_GUTTER_PX) {
-  // Both layouts pass through here — one plot or three — so each field keeps
-  // whatever shape it arrived in. ECharts accepts either, but returning an
-  // array where the scrolling copy has a bare object makes the two impossible
-  // to compare, in a test or by eye.
   const mapAxis = (axis, fn) => (Array.isArray(axis) ? axis.map(fn) : fn(axis))
   return {
     ...option,
@@ -300,6 +342,7 @@ export function axisOnlyOption(option, gutter = AXIS_GUTTER_PX) {
       ...axis,
       axisLabel: { ...axis.axisLabel, show: false },
       axisLine: { show: false },
+      splitLine: { show: false },
     })),
     yAxis: mapAxis(option.yAxis, (axis) => ({ ...axis, splitLine: { show: false } })),
     // Present in the data, absent on screen: they set the extent and draw
@@ -309,7 +352,6 @@ export function axisOnlyOption(option, gutter = AXIS_GUTTER_PX) {
       silent: true,
       showSymbol: false,
       lineStyle: { ...entry.lineStyle, opacity: 0 },
-      areaStyle: entry.areaStyle ? { ...entry.areaStyle, opacity: 0 } : undefined,
       itemStyle: { ...entry.itemStyle, opacity: 0, borderWidth: 0 },
     })),
   }
@@ -318,37 +360,27 @@ export function axisOnlyOption(option, gutter = AXIS_GUTTER_PX) {
 /**
  * A complete ECharts option for one chart.
  *
- * Deliberately single-axis: two y-scales on one plot make any crossing look
- * like a relationship, so a second unit gets its own chart instead.
+ * One axis, always: every series is an index, so a second scale would be a
+ * second ruler for the same unitless numbers.
  *
- * @param {{days: string[], unit: string, stack: string|null,
- *   series: Array<{name: string, type: string, data: Array<number|null>,
- *   area?: boolean}>}} spec
+ * @param {{days: string[], axisMax: number, hover?: object,
+ *   series: Array<{name: string, type: string, unit: string, group?: string,
+ *   data: Array<number|null>, raw?: Array<number|null>, color: string}>}} spec
  */
-export function buildChartOption({ days, stack = null, indexMode = false, series }) {
-  // An index is unitless — every series is «100 at the first day», so they all
-  // belong on one axis whatever they measure. That is the whole point of the
-  // mode: it exists to make unlike metrics comparable in shape.
-  const units = indexMode ? ['index'] : chartUnits(series)
-
+export function buildChartOption({ days, axisMax = DEFAULT_AXIS_MAX, hover, series }) {
   const hasBar = series.some((entry) => entry.type === 'bar')
-  // A unit whose marks include a bar is zero-anchored — a bar's length IS its
-  // value, so a cut baseline lies about it. A unit carrying only lines may fit
-  // its own band.
-  const barUnits = new Set(
-    series.filter((entry) => entry.type === 'bar').map((entry) => entry.unit),
-  )
+  // Derived here rather than passed in, so the pinned axis copy and the
+  // scrolling copy cannot disagree about how wide a day is.
+  const dayWidth = dayWidthFor(days.length)
 
   return {
     animationDuration: 300,
-    // A fixed allowance under the plot: one legend row (it is pinned to one
-    // row below, since a wrapping legend would grow into the grid and ECharts
-    // does not reflow it) plus the scroll handle.
-    // Explicit pixels, NOT `containLabel`: this plot is rendered twice — once
-    // wide inside the scroller and once as a narrow pinned axis beside it — and
-    // `containLabel` sizes the grid around whichever labels each copy happens
-    // to show, which would slide the two apart vertically by a few pixels and
-    // leave every gridline off by that much.
+    // A fixed allowance under the plot for the day labels and the scroll
+    // handle. Explicit pixels, NOT `containLabel`: this plot is rendered twice
+    // — once wide inside the scroller and once as a narrow pinned axis beside
+    // it — and `containLabel` sizes the grid around whichever labels each copy
+    // happens to show, which would slide the two apart vertically by a few
+    // pixels and leave every gridline off by that much.
     grid: { left: 0, right: 8, top: PLOT_TOP, bottom: PLOT_BOTTOM },
     tooltip: {
       trigger: 'axis',
@@ -358,9 +390,7 @@ export function buildChartOption({ days, stack = null, indexMode = false, series
       borderWidth: 1,
       padding: [8, 12],
       textStyle: { color: INK_PRIMARY, fontSize: 12 },
-      // Each row formatted by ITS OWN unit: with «Затраты, ₽» and «ДРР, %» on
-      // one chart, a single formatter would print one of them wrong.
-      formatter: unitTooltip(series, indexMode),
+      formatter: groupedTooltip(series, hover),
     },
     xAxis: {
       type: 'category',
@@ -368,38 +398,14 @@ export function buildChartOption({ days, stack = null, indexMode = false, series
       boundaryGap: hasBar,
       axisLine: { lineStyle: { color: LINE_SUBTLE } },
       axisTick: { show: false },
-      axisLabel: { color: INK_MUTED, fontSize: 11, hideOverlap: true },
+      // The date is what every other number on the row is about, so it is read
+      // first and sized for it — not the smallest type on the canvas.
+      axisLabel: { color: INK_PRIMARY, fontSize: 13, fontWeight: 600, hideOverlap: true },
+      // Solid uprights between the days, to go with the dashed horizontals:
+      // at 72px a day the columns of one date drift a long way from its label.
+      splitLine: { show: true, lineStyle: { color: LINE_SUBTLE, width: 1 } },
     },
-    // ONE AXIS PER UNIT, stacked in the frozen column so both stay put while
-    // the days scroll. Two metrics that answer a question together — spend and
-    // ДРР, price and demand — need two rulers; two metrics of the same unit
-    // must never get two, or they stop being comparable.
-    yAxis: units.map((axisUnit, index) => ({
-      ...valueAxis(axisUnit === 'index' ? 'number' : axisUnit, {
-        scale: !barUnits.has(axisUnit) && !stack,
-      }),
-      position: 'left',
-      // Reversed: a bigger offset pushes an axis FURTHER left, so the first
-      // unit must take the biggest one to end up leftmost. Reading the frozen
-      // column left to right then gives ₽, шт, % — the order above.
-      offset: (units.length - 1 - index) * AXIS_STEP_PX,
-      // The axis is named by its UNIT, not by a series: it measures everything
-      // on the chart that is denominated that way, which is the whole point.
-      name: UNIT_LABEL[axisUnit] ?? '',
-      nameLocation: 'end',
-      nameGap: 10,
-      nameTextStyle: { color: INK_MUTED, fontSize: 11, align: 'right' },
-      // Only the first unit rules the plot; a second set of gridlines would
-      // offer the other unit's marks a ruler that is not theirs.
-      splitLine:
-        index === 0 ? { lineStyle: { color: LINE_SUBTLE, type: 'dashed' } } : { show: false },
-    })),
-    // `colorIndex` pins a slot to the ENTITY (a traffic bucket keeps its hue on
-    // every slide it appears on); without one, a series takes the slot its
-    // position implies. Slots are never recycled — see SERIES_COLORS.
-    series: series.map((entry, index) => ({
-      ...seriesMark(entry, SERIES_COLORS[entry.colorIndex ?? index], stack),
-      yAxisIndex: indexMode ? 0 : units.indexOf(entry.unit),
-    })),
+    yAxis: ordersAxis(axisMax),
+    series: series.map((entry) => seriesMark(entry, entry.color, dayWidth)),
   }
 }
