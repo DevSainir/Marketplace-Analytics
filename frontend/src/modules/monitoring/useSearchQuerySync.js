@@ -25,7 +25,8 @@ import { ref, watch } from 'vue'
  * @param {{from: string, to: string}} options.defaults Window defaults, applied
  *   when the URL omits them.
  * @returns {{dateFrom: import('vue').Ref<string>, dateTo: import('vue').Ref<string>,
- *   handleSelect: (item: {nm_id: number}) => void, handleApply: (query: string) => void}}
+ *   handleSelect: (item: {nm_id: number}) => void, handleApply: (query: string) => void,
+ *   applyPeriod: () => void}}
  */
 export function useSearchQuerySync({ route, router, store, defaults }) {
   function readSearchQuery(query) {
@@ -37,7 +38,8 @@ export function useSearchQuerySync({ route, router, store, defaults }) {
     }
   }
 
-  // Draft period: edited freely, takes effect on «Применить» or on picking a SKU.
+  // Draft period: edited freely, takes effect on «Применить», on picking a SKU,
+  // or at once when the calendar's own presets are used (`applyPeriod`).
   const initial = readSearchQuery(route.query)
   const dateFrom = ref(initial.date_from)
   const dateTo = ref(initial.date_to)
@@ -84,6 +86,16 @@ export function useSearchQuerySync({ route, router, store, defaults }) {
     pushSearch(sku)
   }
 
+  /**
+   * A calendar preset: apply the window at once, keeping the SKU on screen.
+   *
+   * Same rule as every other handler — it pushes a query and the watcher
+   * fetches — so Back rewinds the preset the way it rewinds a search.
+   */
+  function applyPeriod() {
+    pushSearch(readSearchQuery(route.query).sku)
+  }
+
   // `push` (not `replace`) keeps every search reachable via the Back button.
   function pushSearch(sku) {
     router.push({
@@ -91,5 +103,5 @@ export function useSearchQuerySync({ route, router, store, defaults }) {
     })
   }
 
-  return { dateFrom, dateTo, handleSelect, handleApply }
+  return { dateFrom, dateTo, handleSelect, handleApply, applyPeriod }
 }

@@ -33,7 +33,7 @@ const DEFAULT_FROM = isoDaysAgo(30)
 const DEFAULT_TO = isoDaysAgo(0)
 
 // Handlers push a query; the watcher inside does all the fetching.
-const { dateFrom, dateTo, handleSelect, handleApply } = useSearchQuerySync({
+const { dateFrom, dateTo, handleSelect, handleApply, applyPeriod } = useSearchQuerySync({
   route,
   router,
   store,
@@ -82,7 +82,7 @@ onMounted(() => store.fetchPins())
       <!-- Period selector, slightly above the search bar; the bulk WB refresh
            sits beside it and stays visible with or without a SKU open. -->
       <div class="mb-sm flex flex-wrap items-start justify-between gap-sm">
-        <PeriodSelector v-model:from="dateFrom" v-model:to="dateTo" />
+        <PeriodSelector v-model:from="dateFrom" v-model:to="dateTo" @apply="applyPeriod" />
         <RefreshAllSkusButton
           :refreshing="store.allRefreshing"
           :error="store.allRefreshError"

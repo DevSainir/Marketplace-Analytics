@@ -3,37 +3,36 @@
  * Custom date-range picker: ONE control that opens a single calendar popover.
  *
  * Flow: click the field → the calendar opens → click the start day → click the
- * end day → the popover closes with the range set (the parent still applies it
- * with «Применить»). Between the two clicks, hovering previews the range. Quick
- * presets (7 / 30 / 90 дней) set a rolling window ending on `presetEnd` —
- * today unless the caller names a last day (it counts as one of the N).
+ * end day → the popover closes with the range set; between the two, hovering
+ * previews. A preset (`presetRange`) also emits `apply` — a hand-picked range
+ * waits for its second click, but «30 дней» is the whole decision already.
  *
  * Lives in `core/`: two modules pick periods with it — monitoring's matrix and
  * the finreports P&L.
  *
  * Fully custom (no native `<input type=date>` — its calendar is off-brand):
- * styled with the design system, action-color endpoints and a soft action
- * range band, on-brand hover/focus. Dates are compared as ISO strings
- * (`YYYY-MM-DD` sorts lexicographically), so no timezone math is needed.
+ * design-system styling, action-color endpoints, a soft action range band.
+ * Dates compare as ISO strings, so no timezone math is needed.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { isoDaysAgo, isoLocalDate } from '@/core/utils/dates'
 import { btnClass, effectiveRange, wrapClass } from '@/core/utils/calendarHighlight'
-import { PRESETS, TODAY, TODAY_ISO, useCalendarView, WEEKDAYS } from '@/core/utils/calendarModel'
+import {
+  PRESETS,
+  TODAY,
+  TODAY_ISO,
+  presetRange,
+  useCalendarView,
+  WEEKDAYS,
+} from '@/core/utils/calendarModel'
 
 const props = defineProps({
   from: { type: String, required: true },
   to: { type: String, required: true },
-  /**
-   * Day the quick presets end on (ISO). Empty = today, which is right for live
-   * traffic data. The P&L passes its newest SETTLED day instead: WB publishes a
-   * settlement week at a time, so «7 дней» ending today would silently include
-   * days no report covers yet and read as a collapse in sales.
-   */
+  /** Day the quick presets end on (ISO); empty = today. See `presetRange`. */
   presetEnd: { type: String, default: '' },
 })
-const emit = defineEmits(['update:from', 'update:to'])
+const emit = defineEmits(['update:from', 'update:to', 'apply'])
 
 // --- popover + view state ----------------------------------------------
 const root = ref(null)
@@ -114,11 +113,10 @@ function onHover(cell) {
 }
 
 function applyPreset(days) {
-  const to = props.presetEnd || isoDaysAgo(0)
-  const end = new Date(`${to}T00:00:00`)
-  const from = isoLocalDate(new Date(end.getTime() - (days - 1) * 86400000))
+  const { from, to } = presetRange(days, props.presetEnd)
   emit('update:from', from)
   emit('update:to', to)
+  emit('apply') // last, so a listener reading the parent's refs sees the new window
   open.value = false
 }
 

@@ -10,7 +10,7 @@
 
 import { computed } from 'vue'
 
-import { isoLocalDate } from '@/core/utils/dates'
+import { isoDaysAgo, isoLocalDate } from '@/core/utils/dates'
 
 /** Monday-first, matching the grid the picker draws. */
 export const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -34,6 +34,27 @@ export const PRESETS = [
   { label: '30 дней', days: 30 },
   { label: '90 дней', days: 90 },
 ]
+
+/**
+ * The rolling window one preset stands for.
+ *
+ * `end` is the day it finishes on — today for live traffic data, or the
+ * caller's newest SETTLED day for the P&L, where «7 дней» ending today would
+ * include days no WB report covers yet and read as a collapse in sales.
+ *
+ * The end day COUNTS as one of the N: «7 дней» to the 10th is the 4th to the
+ * 10th. Off by one here is a whole day appearing or vanishing, which is why it
+ * lives beside `PRESETS` rather than inside a component.
+ *
+ * @param {number} days Length of the window.
+ * @param {string} [end] Last day, ISO. Empty = today.
+ * @returns {{from: string, to: string}} An inclusive ISO range.
+ */
+export function presetRange(days, end = '') {
+  const to = end || isoDaysAgo(0)
+  const last = new Date(`${to}T00:00:00`)
+  return { from: isoLocalDate(new Date(last.getTime() - (days - 1) * 86400000)), to }
+}
 
 /**
  * "Today" as the calendar sees it.
