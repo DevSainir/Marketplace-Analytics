@@ -19,7 +19,7 @@ from datetime import date
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from scripts.seed_e2e_fixtures import _FIXTURE_REPORT_ID, _ensure_finreports_week
+from scripts.seed_e2e_finreports import _FIXTURE_REPORT_ID, ensure_finreports_week
 from src.modules.finreports.models import FinancialReport, LogisticsTransaction
 
 pytestmark = pytest.mark.integration
@@ -45,7 +45,7 @@ async def test_the_fixture_week_is_refused_when_real_settlements_exist(
     )
     await db_session.flush()
 
-    created = await _ensure_finreports_week(db_session, _WS)
+    created = await ensure_finreports_week(db_session, _WS)
 
     assert created is False
     # And it inserted nothing — no fixture report, no fixture rows.
@@ -55,7 +55,7 @@ async def test_the_fixture_week_is_refused_when_real_settlements_exist(
 
 async def test_the_fixture_week_seeds_a_fresh_database(db_session: AsyncSession) -> None:
     """On an empty settlement table (the real e2e case) it still seeds normally."""
-    created = await _ensure_finreports_week(db_session, _WS)
+    created = await ensure_finreports_week(db_session, _WS)
     await db_session.flush()  # the real caller commits; here we just persist
 
     assert created is True
