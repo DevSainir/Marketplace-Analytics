@@ -23,10 +23,17 @@ All four are machine-enforced — `backend/tests/unit/core/test_module_boundarie
 
 The project's rules are skills in `.claude/skills/` — `backend-architecture`, `wildberries-api`,
 `frontend-architecture`, `design-system`, `phone-layout`, `testing`, `git-workflow`,
-`production-access`. Each one's
+`security`, `production-access`. Each one's
 description says when it applies, so they load themselves when the work calls for them rather than
 sitting in every conversation. Read them directly (they are plain markdown) when working without
 that mechanism, and put new project guidance in the relevant skill rather than here.
+
+`docs/security/HARDENING.md` is the live weakness register — what is fixed, what blocks a
+public launch, and what was decided against on purpose. The `security` skill is the standing
+checklist that keeps new code from adding to it.
+
+`docs/monitoring/LIVE_POSITION.md` records the removed organic-position probe: six weeks of
+measurement against WB's storefront edge, kept because the endpoint facts outlive the feature.
 
 `docs/finreports/` holds what no skill covers: how the P&L is derived from WB's weekly
 Read `PNL.md` before changing anything that touches a settlement figure — most of the ways to
