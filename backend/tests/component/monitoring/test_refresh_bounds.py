@@ -145,7 +145,10 @@ async def test_a_workspace_cannot_enqueue_past_its_budget(
 
 
 async def test_the_budget_is_charged_to_the_workspace_not_the_address(
-    client: httpx.AsyncClient, headers: dict[str, str], redis_store: Any
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    redis_store: Any,
+    enqueue: _SpyEnqueue,
 ) -> None:
     """The counter key names the tenant, which is who spends the queue.
 

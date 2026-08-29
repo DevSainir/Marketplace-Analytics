@@ -48,7 +48,7 @@ from redis.exceptions import RedisError
 from src.core.config import settings
 from src.core.logging import get_logger
 from src.core.redis import get_redis
-from src.core.security import decrypt_secret, encrypt_secret
+from src.core.security import SecretDecryptionError, decrypt_secret, encrypt_secret
 
 logger = get_logger(__name__)
 
@@ -81,10 +81,17 @@ async def remember_rotation(*, parent_id: uuid.UUID, refresh_secret: str) -> Non
             encrypt_secret(refresh_secret),
             ex=settings.refresh_replay_grace_seconds,
         )
-    except RedisError:
+    except (RedisError, SecretDecryptionError):
+        # Never let this break the rotation it is describing. Recording the
+        # child is an optimisation over signing multi-tab users out; failing to
+        # record it costs a false positive, while raising here would cost the
+        # refresh itself — the user would be logged out by the very thing meant
+        # to stop that. `SecretDecryptionError` is named because
+        # `encrypt_secret` raises it when FERNET_SECRET_KEY is absent, and a
+        # missing key must degrade this store rather than the login path.
         logger.exception(
-            "Redis unavailable: rotation of token %s not recorded; a concurrent "
-            "tab presenting the same cookie will be treated as a replay.",
+            "Could not record the rotation of token %s; a concurrent tab "
+            "presenting the same cookie will be treated as a replay.",
             parent_id,
         )
 
