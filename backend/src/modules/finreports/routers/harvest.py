@@ -24,6 +24,7 @@ from fastapi import APIRouter, status
 from src.modules.finreports.deps import HarvestControlServiceDep
 from src.modules.finreports.schemas import HarvestStateResponse, HarvestTriggerResponse
 from src.modules.finreports.tasks import harvest_finance
+from src.modules.organizations.contract import WritingAccess
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
 router = APIRouter()
@@ -62,6 +63,7 @@ async def get_harvest_state(
     },
 )
 async def trigger_harvest(
+    _writer: WritingAccess,
     service: HarvestControlServiceDep,
     workspace_id: CurrentWorkspaceId,
 ) -> HarvestTriggerResponse:
@@ -74,9 +76,14 @@ async def trigger_harvest(
     "Already running" is reported as a normal outcome (202) rather than a
     conflict, because it is one: the data the caller wants is being fetched, and
     the only thing that did not happen is a second, redundant run.
+
+    Scoped to the caller's own workspace. It used to enqueue the **fleet** walk:
+    one seller pressing «Обновить» spent every other seller's WB rate budget and
+    held the shared harvest lock for the length of a platform-wide walk, so the
+    cost of one click grew with the number of tenants and landed on all of them.
     """
     state = await service.get_state(workspace_id=workspace_id)
     if state.running:
         return HarvestTriggerResponse(status="already_running")
-    task = harvest_finance.delay()
+    task = harvest_finance.delay(workspace_id=str(workspace_id))
     return HarvestTriggerResponse(status="started", task_id=task.id)

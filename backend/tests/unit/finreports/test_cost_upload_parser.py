@@ -10,6 +10,7 @@ than guess a wrong column (PNL.md §13).
 from __future__ import annotations
 
 import io
+import zipfile
 from decimal import Decimal
 
 import pytest
@@ -17,7 +18,7 @@ import xlwt
 from openpyxl import Workbook
 
 from src.core.exceptions import ValidationError
-from src.modules.finreports.services.cost_upload_parser import parse_cost_upload
+from src.modules.finreports.services.cost_upload_parser import _MAX_ROWS, parse_cost_upload
 
 
 def _xlsx(rows: list[list[object]]) -> bytes:
@@ -29,6 +30,12 @@ def _xlsx(rows: list[list[object]]) -> bytes:
     buffer = io.BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
+
+
+def _csv(rows: list[list[object]]) -> bytes:
+    """A comma-separated sheet from a list of rows (first row is the header)."""
+    lines = [",".join(str(cell) for cell in row) for row in rows]
+    return "\n".join(lines).encode("utf-8")
 
 
 def _xls(rows: list[list[object]]) -> bytes:
@@ -124,3 +131,57 @@ def test_unreadable_bytes_are_rejected() -> None:
     # Act / Assert: raw text claiming to be xlsx is not a workbook.
     with pytest.raises(ValidationError):
         parse_cost_upload("broken.xlsx", b"this is not a workbook")
+
+
+# --------------------------------------------------------------------------- #
+# Resource bounds (register P0.4 / P1.7)
+#
+# The route's size check bounds the COMPRESSED bytes, which bounds nothing about
+# what parsing them costs: .xlsx is a ZIP, and a sheet can declare far more rows
+# than it ships. These pin the two bounds that do hold.
+# --------------------------------------------------------------------------- #
+def test_a_sheet_with_absurdly_many_rows_is_refused() -> None:
+    """A row count no catalogue reaches is refused instead of materialised.
+
+    Enforced while iterating, so the cost is the rows read rather than the rows
+    claimed — the property that makes the bound worth having.
+    """
+    header = [["Артикул WB", "Себестоимость за 1 ед."]]
+    rows = header + [[100 + i, 5] for i in range(_MAX_ROWS + 1)]
+
+    with pytest.raises(ValidationError, match="строк"):
+        parse_cost_upload("costs.csv", _csv(rows))
+
+
+def test_a_catalogue_sized_sheet_still_parses() -> None:
+    """The cap must sit far above any real seller, not near one."""
+    header = [["Артикул WB", "Себестоимость за 1 ед."]]
+    rows = header + [[100 + i, 5] for i in range(2000)]
+
+    parsed = parse_cost_upload("costs.csv", _csv(rows))
+
+    assert len(parsed) == 2000
+
+
+def test_an_xlsx_that_unpacks_to_absurd_size_is_refused() -> None:
+    """A ZIP promising gigabytes of sheet XML is rejected before openpyxl opens it.
+
+    The classic .xlsx bomb: a few compressed megabytes the parser is asked to
+    expand. Refusing on the archive's own declaration is cheap; the row cap above
+    is what holds when the declaration lies.
+    """
+    bomb = io.BytesIO()
+    with zipfile.ZipFile(bomb, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("xl/worksheets/sheet1.xml", b"\0" * (200 * 1024 * 1024))
+
+    with pytest.raises(ValidationError, match="неправдоподобно"):
+        parse_cost_upload("costs.xlsx", bomb.getvalue())
+
+
+def test_an_ordinary_workbook_is_not_mistaken_for_a_bomb() -> None:
+    """A real export compresses well too; the guard must not catch it."""
+    data = _xlsx([["Артикул WB", "Себестоимость за 1 ед."], [12345, 10]])
+
+    parsed = parse_cost_upload("costs.xlsx", data)
+
+    assert len(parsed) == 1

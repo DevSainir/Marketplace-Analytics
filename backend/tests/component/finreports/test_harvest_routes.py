@@ -49,15 +49,17 @@ class _StubHarvestControl:
 
 
 class _SpyTask:
-    """Stands in for ``harvest_finance.delay`` and counts enqueues."""
+    """Stands in for ``harvest_finance.delay``, recording every enqueue."""
 
     def __init__(self) -> None:
         """Start with nothing enqueued."""
         self.enqueued = 0
+        self.calls: list[dict[str, Any]] = []
 
-    def delay(self) -> Any:
+    def delay(self, **kwargs: Any) -> Any:
         """Record an enqueue and hand back a task id."""
         self.enqueued += 1
+        self.calls.append(kwargs)
         return type("_Result", (), {"id": "task-42"})()
 
 
@@ -103,6 +105,24 @@ async def test_pressing_refresh_while_idle_enqueues_a_harvest(
     assert response.status_code == 202
     assert response.json()["status"] == "started"
     assert task.enqueued == 1
+
+
+async def test_the_harvest_is_scoped_to_the_caller_own_workspace(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    task: _SpyTask,
+    workspace: Workspace,
+) -> None:
+    """One tenant's click must not enqueue a walk across every other tenant.
+
+    The button used to enqueue the FLEET harvest: whoever pressed it spent every
+    other seller's WB rate budget and held the shared harvest lock for the length
+    of a platform-wide walk, so the cost of one click grew with the number of
+    customers and was paid by all of them.
+    """
+    await client.post("/api/v1/finreports/harvest", headers=headers)
+
+    assert task.calls == [{"workspace_id": str(workspace.id)}]
 
 
 async def test_pressing_refresh_during_a_harvest_enqueues_nothing(

@@ -410,9 +410,20 @@ async def _harvest_sku_window(
     )
 
 
+#: Tighter than the fleet-wide backstop in ``core/celery_app.py``, because this
+#: is the one harvest a user can start from the browser and therefore the one
+#: that can be started repeatedly. The whole-account nightly ``harvest_all``
+#: measures ~63 s in production (2026-08-29) and this walk is a subset of it —
+#: no sale feed, one workspace — so ten minutes is roughly 10x headroom while
+#: still bounding what a burst of clicks can pin down.
+_INTERACTIVE_SOFT_TIME_LIMIT_SECONDS: int = 10 * 60
+
+
 @celery_app.task(  # type: ignore[untyped-decorator]
     name="monitoring.harvest_sku_window",
     bind=False,
+    soft_time_limit=_INTERACTIVE_SOFT_TIME_LIMIT_SECONDS,
+    time_limit=_INTERACTIVE_SOFT_TIME_LIMIT_SECONDS + 60,
     **_TASK_RETRY_KWARGS,
 )
 def harvest_sku_window(

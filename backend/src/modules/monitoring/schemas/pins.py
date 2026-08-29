@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator
 
+from src.modules.monitoring.constants import MAX_NM_IDS_PER_REQUEST
+
 # Chip tints are stored and exchanged as ``#rrggbb``. The palette itself lives
 # in the frontend — the API only guarantees the shape, so the palette can be
 # retuned without a migration.
@@ -50,7 +52,10 @@ class PinColorUpdateRequest(BaseModel):
 class PinReorderRequest(BaseModel):
     """Body of the reorder endpoint: the chip row's new left-to-right order."""
 
-    nm_ids: list[int] = Field(description="Pinned SKU identifiers in their new order.")
+    nm_ids: list[int] = Field(
+        max_length=MAX_NM_IDS_PER_REQUEST,
+        description="Pinned SKU identifiers in their new order.",
+    )
 
     @field_validator("nm_ids")
     @classmethod

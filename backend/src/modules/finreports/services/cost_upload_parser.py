@@ -23,17 +23,40 @@ from __future__ import annotations
 
 import csv
 import io
+import zipfile
 from dataclasses import dataclass
 
 import openpyxl
 import xlrd
 
 from src.core.exceptions import ValidationError
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 #: Header text (normalised) that identifies the join-key column.
 _NM_ID_HEADERS = {"артикул wb", "nm_id", "nmid"}
 #: Substring a cost header must contain to be the editable per-unit column.
 _COST_MARKER = "себестоимость"
+
+#: Most data rows any upload may contain. This is the bound that actually holds:
+#: the readers below stop **while iterating**, so a sheet that merely declares a
+#: million rows costs the rows we read and not the rows it claims.
+#:
+#: 50 000 is far past any real catalogue (WB's own listings cap well below it)
+#: while keeping the parsed list to something a 512 MB container can hold.
+_MAX_ROWS = 50_000
+
+#: Ceiling on an .xlsx's total *uncompressed* size, and on how far it may
+#: expand. ``.xlsx`` is a ZIP, so a 10 MB upload can carry gigabytes of sheet
+#: XML — the file-size check on the route bounds the compressed bytes and
+#: therefore bounds nothing about what parsing them costs.
+#:
+#: Read as an early, cheap rejection rather than as the guarantee: these figures
+#: come from the archive's own headers, which an adversary writes. The honest
+#: bound is :data:`_MAX_ROWS` above, enforced against rows actually produced.
+_MAX_DECOMPRESSED_BYTES = 128 * 1024 * 1024
+_MAX_COMPRESSION_RATIO = 200
 
 
 @dataclass(frozen=True)
@@ -120,18 +143,58 @@ def _detect_format(filename: str, data: bytes) -> str:
 
 
 def _read_xlsx(data: bytes) -> list[list[object]]:
-    """Read an .xlsx workbook's active sheet into a list of rows."""
+    """Read an .xlsx workbook's active sheet into a list of rows.
+
+    ``read_only=True`` matters here beyond speed: it makes ``iter_rows`` stream
+    the sheet, so the row cap below stops a hostile workbook part-way instead of
+    after openpyxl has built every row in memory.
+    """
+    _reject_expansion_bomb(data)
     try:
         wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except ValidationError:
+        raise
     except Exception as exc:  # openpyxl raises a zoo of types on a bad file.
         raise ValidationError(_UNREADABLE) from exc
     try:
         ws = wb.active
         if ws is None:
             raise ValidationError("В файле нет ни одного листа.")
-        return [list(row) for row in ws.iter_rows(values_only=True)]
+        rows: list[list[object]] = []
+        for row in ws.iter_rows(values_only=True):
+            if len(rows) >= _MAX_ROWS:
+                raise ValidationError(_TOO_MANY_ROWS)
+            rows.append(list(row))
+        return rows
     finally:
         wb.close()
+
+
+def _reject_expansion_bomb(data: bytes) -> None:
+    """Refuse an .xlsx whose archive promises an absurd amount of sheet XML.
+
+    Args:
+        data: The uploaded bytes, already known to start with a ZIP signature.
+
+    Raises:
+        ValidationError: When the archive is unreadable, or declares more
+            uncompressed bytes than :data:`_MAX_DECOMPRESSED_BYTES` or a
+            greater expansion than :data:`_MAX_COMPRESSION_RATIO`.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            declared = sum(entry.file_size for entry in archive.infolist())
+    except zipfile.BadZipFile as exc:
+        raise ValidationError(_UNREADABLE) from exc
+    ratio = declared / len(data) if data else 0
+    if declared > _MAX_DECOMPRESSED_BYTES or ratio > _MAX_COMPRESSION_RATIO:
+        logger.warning(
+            "Refusing a cost upload: %d compressed bytes declaring %d uncompressed (%.0fx).",
+            len(data),
+            declared,
+            ratio,
+        )
+        raise ValidationError(_TOO_LARGE_UNPACKED)
 
 
 def _read_xls(data: bytes) -> list[list[object]]:
@@ -141,6 +204,8 @@ def _read_xls(data: bytes) -> list[list[object]]:
         sheet = book.sheet_by_index(0)
     except Exception as exc:
         raise ValidationError(_UNREADABLE) from exc
+    if sheet.nrows > _MAX_ROWS:
+        raise ValidationError(_TOO_MANY_ROWS)
     return [sheet.row_values(i) for i in range(sheet.nrows)]
 
 
@@ -152,7 +217,12 @@ def _read_csv(data: bytes) -> list[list[object]]:
         dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
     except csv.Error:
         dialect = csv.excel  # A single column, or too little to sniff — comma is fine.
-    return [list(row) for row in csv.reader(io.StringIO(text), dialect)]
+    rows: list[list[object]] = []
+    for row in csv.reader(io.StringIO(text), dialect):
+        if len(rows) >= _MAX_ROWS:
+            raise ValidationError(_TOO_MANY_ROWS)
+        rows.append(list(row))
+    return rows
 
 
 def _decode(data: bytes) -> str:
@@ -197,6 +267,15 @@ def _norm(cell: object) -> str:
         return ""
     return " ".join(str(cell).strip().lower().split())
 
+
+_TOO_MANY_ROWS = (
+    f"В файле больше {_MAX_ROWS} строк — это не похоже на файл себестоимости. "
+    "Загрузите файл, скачанный из этого модуля."
+)
+
+_TOO_LARGE_UNPACKED = (
+    "Файл распаковывается в неправдоподобно большой объём данных и не будет прочитан."
+)
 
 _UNREADABLE = (
     "Не удалось прочитать файл. Поддерживаются .xlsx, .xls и .csv — "

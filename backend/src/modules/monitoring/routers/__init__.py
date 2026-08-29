@@ -7,7 +7,8 @@ and **no** error-to-HTTP mapping — domain errors raised by the service
 ``AppError`` handler in ``main.py``, which maps them to HTTP responses.
 
 Every endpoint requires a valid access token (router-level dependency), and
-every data endpoint additionally requires the ``X-Workspace-Id`` header: the
+every data endpoint additionally requires the ``X-Workspace-Id`` header — which
+is validated against the caller's own organisation, not merely for existence. The
 listing/lookup routes scope their queries by it, while the per-SKU routes pass
 their path ``nm_id`` through the :data:`WorkspaceSku` ownership guard so a SKU
 belonging to another workspace is indistinguishable from a nonexistent one.
@@ -20,7 +21,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, status
 
-from src.core.deps import get_current_user_id
+from src.modules.monitoring.constants import MAX_NM_IDS_PER_REQUEST
 from src.modules.monitoring.deps import AnalyticsServiceDep, CurrentWorkspaceId, WorkspaceSku
 from src.modules.monitoring.routers.clusters import router as clusters_router
 from src.modules.monitoring.routers.refresh import router as refresh_router
@@ -45,12 +46,16 @@ from src.modules.monitoring.schemas import (
     WarehouseMarksResponse,
     WarehouseMarkUpdateRequest,
 )
+from src.modules.organizations.contract import require_member
 
 router = APIRouter(
     prefix="/v1/monitoring",
     tags=["Monitoring"],
-    # Authentication guard applied to every route in this module.
-    dependencies=[Depends(get_current_user_id)],
+    # Membership guard applied to every route in this module. Authentication
+    # alone is no longer enough: registration is open, so a bare account must
+    # not reach a data route at all. The workspace dependency re-checks tenancy
+    # per request on top of this.
+    dependencies=[Depends(require_member)],
 )
 # The WB re-harvest trigger surface (enqueue + poll) lives in its own module;
 # it inherits this router's prefix and access-token dependency.
@@ -107,6 +112,7 @@ async def get_aggregate_charts(
     date_to: date | None = Query(default=None, description="Inclusive end."),
     nm_ids: list[int] | None = Query(
         default=None,
+        max_length=MAX_NM_IDS_PER_REQUEST,
         description=(
             "SKUs to include. Repeat the parameter for several; omit it "
             "entirely for every SKU in the workspace, which is what the page "

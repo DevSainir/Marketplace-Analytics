@@ -22,6 +22,33 @@ celery_app: Celery = Celery(
     backend=settings.redis_url,
 )
 
+#: Backstop against a task that never returns. Not a performance budget — a
+#: bound on how long one hung run may hold a worker slot, of which there are
+#: four (``--concurrency=4``): without it, four stuck tasks are a permanently
+#: blocked queue and no scheduled work runs again until someone notices.
+#:
+#: Sized from what production actually takes, measured over 72 h on
+#: 2026-08-29 — the longest legitimate task by a wide margin is
+#: ``monitoring.refresh_buyout_cohorts`` at ~1 610 s (27 min); the nightly
+#: ``monitoring.harvest_all`` is ~63 s. An hour leaves that longest job better
+#: than 2x headroom to grow into as tenants are added, and still turns "forever"
+#: into "an hour".
+_TASK_SOFT_TIME_LIMIT_SECONDS: int = 60 * 60
+
+#: The hard kill, five minutes after the soft one. The SOFT limit is the control
+#: that is meant to fire: it raises ``SoftTimeLimitExceeded`` *inside* the task,
+#: so the run unwinds, releases its Redis lock and its DB connection, and is
+#: acknowledged as failed. The hard limit SIGKILLs the worker process, and with
+#: ``task_acks_late`` the message is then redelivered — a task that reliably
+#: overran would loop forever. So the gap exists to give the soft limit time to
+#: work, and the hard one only catches a task wedged somewhere that cannot raise
+#: (a C-level call, an uninterruptible syscall).
+#:
+#: This is safe only because no task here autoretries on bare ``Exception``:
+#: both modules' ``_TASK_RETRY_KWARGS`` name ``(IntegrationError,
+#: OperationalError)``, neither of which ``SoftTimeLimitExceeded`` is.
+_TASK_TIME_LIMIT_SECONDS: int = _TASK_SOFT_TIME_LIMIT_SECONDS + 300
+
 celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
@@ -32,6 +59,8 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     result_expires=3600,
+    task_soft_time_limit=_TASK_SOFT_TIME_LIMIT_SECONDS,
+    task_time_limit=_TASK_TIME_LIMIT_SECONDS,
 )
 
 # Nightly refresh: because ``timezone`` is Europe/Moscow, this crontab fires at
@@ -50,29 +79,6 @@ celery_app.conf.beat_schedule = {
         "task": "monitoring.harvest_all",
         "schedule": crontab(hour=6, minute=0),
         "kwargs": {"days": 7},
-    },
-    # Live search positions for pinned phrases, three times a day. The hours are
-    # written in Moscow time because ``timezone`` above is Europe/Moscow, but
-    # they were chosen in the team's own time (Bishkek, UTC+6, three hours
-    # ahead): 06:00/11:00/18:00 MSK == 09:00/14:00/21:00 in Bishkek — start of
-    # their day, mid-afternoon, and last thing at night.
-    #
-    # The first one deliberately coincides with the harvest above rather than
-    # dodging it: this task talks to the PUBLIC storefront, which meters its own
-    # per-IP bucket, so it competes with the harvest for nothing. It is a
-    # separate task with separate transactions for the same reason — a throttled
-    # position must not be able to fail a harvest that succeeded.
-    "pinned-positions-morning": {
-        "task": "monitoring.refresh_pinned_positions",
-        "schedule": crontab(hour=6, minute=0),
-    },
-    "pinned-positions-afternoon": {
-        "task": "monitoring.refresh_pinned_positions",
-        "schedule": crontab(hour=11, minute=0),
-    },
-    "pinned-positions-evening": {
-        "task": "monitoring.refresh_pinned_positions",
-        "schedule": crontab(hour=18, minute=0),
     },
     # «Процент выкупа» inputs: re-read the order-date cohorts that are still
     # maturing (deliveries keep being accepted/refused for ~3 weeks). Runs an

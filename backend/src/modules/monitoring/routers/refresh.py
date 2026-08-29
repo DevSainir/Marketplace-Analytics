@@ -1,5 +1,9 @@
 """The WB re-harvest trigger surface: enqueue a refresh, then poll it.
 
+The two enqueueing routes carry ``WritingAccess`` rather than plain membership:
+a refresh is not a read. It spends the WB rate budget the whole platform shares,
+and a tenant past its grace window must not be able to spend it.
+
 Split from the read/query routes because it answers a different question of the
 same module — "go fetch fresh WB data", not "show me what we have". Three routes:
 one SKU (:func:`refresh_sku`), the whole catalogue (:func:`refresh_all_skus`),
@@ -23,8 +27,15 @@ from src.modules.monitoring.schemas import (
     RefreshEnqueuedResponse,
     RefreshStatusResponse,
 )
-from src.modules.monitoring.services import bind_task_to_workspace, task_belongs_to_workspace
+from src.modules.monitoring.services import (
+    bind_task_to_workspace,
+    remember_running_task,
+    spend_refresh_budget,
+    task_already_running,
+    task_belongs_to_workspace,
+)
 from src.modules.monitoring.tasks import harvest_sku_window
+from src.modules.organizations.contract import WritingAccess
 
 router = APIRouter()
 
@@ -37,9 +48,11 @@ router = APIRouter()
         202: {"description": "A WB refresh for this SKU was enqueued."},
         401: {"description": "Unauthorized access token."},
         404: {"description": "SKU not found in this workspace."},
+        429: {"description": "This workspace's refresh budget is spent."},
     },
 )
 async def refresh_sku(
+    _writer: WritingAccess,
     nm_id: WorkspaceSku,
     workspace_id: CurrentWorkspaceId,
 ) -> RefreshEnqueuedResponse:
@@ -52,9 +65,20 @@ async def refresh_sku(
 
     The task id is bound to the caller's workspace so only that workspace can
     read its status back.
+
+    Bounded two ways. A second press while the first harvest is still in flight
+    gets that task's id back rather than a second run; beyond that, the
+    workspace's enqueue budget applies, because the Celery pool and the WB rate
+    budget it spends are shared with every other tenant and with the scheduled
+    harvests.
     """
+    running = await task_already_running(workspace_id, [nm_id])
+    if running is not None:
+        return RefreshEnqueuedResponse(task_id=running)
+    await spend_refresh_budget(workspace_id)
     task = harvest_sku_window.delay([nm_id])
     await bind_task_to_workspace(task.id, workspace_id)
+    await remember_running_task(workspace_id, [nm_id], task.id)
     return RefreshEnqueuedResponse(task_id=task.id)
 
 
@@ -66,9 +90,11 @@ async def refresh_sku(
         202: {"description": "A WB refresh for every workspace SKU was enqueued."},
         401: {"description": "Unauthorized access token."},
         404: {"description": "The workspace has no SKUs to refresh."},
+        429: {"description": "This workspace's refresh budget is spent."},
     },
 )
 async def refresh_all_skus(
+    _writer: WritingAccess,
     service: AnalyticsServiceDep,
     workspace_id: CurrentWorkspaceId,
 ) -> RefreshEnqueuedResponse:
@@ -86,8 +112,13 @@ async def refresh_all_skus(
     nm_ids = await service.list_workspace_nm_ids(workspace_id=workspace_id)
     if not nm_ids:
         raise NotFoundError("В воркспейсе нет ни одного SKU для обновления.")
+    running = await task_already_running(workspace_id, nm_ids)
+    if running is not None:
+        return RefreshEnqueuedResponse(task_id=running)
+    await spend_refresh_budget(workspace_id)
     task = harvest_sku_window.delay(nm_ids)
     await bind_task_to_workspace(task.id, workspace_id)
+    await remember_running_task(workspace_id, nm_ids, task.id)
     return RefreshEnqueuedResponse(task_id=task.id)
 
 

@@ -3,15 +3,20 @@
 One list, one detail, and the photo endpoints. Every route is scoped by the
 workspace header, and a test belonging to another workspace reads as a 404
 rather than a 403 — a test names a card the caller should not know exists.
+
+The whole module is **internal-only** (``require_internal``): it installs photos
+on a live WB card through the Content API and was built against our own
+catalogue. It is not part of what a customer's subscription buys.
 """
 
 from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, File, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import Response
 
+from src.core.uploads import read_capped
 from src.modules.ab_tests.deps import AbTestCatalogServiceDep, InstallerDep
 from src.modules.ab_tests.schemas import (
     AbTestCreate,
@@ -19,9 +24,18 @@ from src.modules.ab_tests.schemas import (
     AbTestRead,
     AbTestStatusUpdate,
 )
+from src.modules.ab_tests.services.photos import MAX_IMAGE_BYTES
+from src.modules.organizations.contract import require_internal
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
-router = APIRouter(prefix="/ab-tests", tags=["ab-tests"])
+router = APIRouter(
+    prefix="/ab-tests",
+    tags=["ab-tests"],
+    # Internal-only. The rotation writes to a seller's live WB card through the
+    # Content API, and it was built against our own catalogue; it is not a
+    # feature customers have bought. Devs and the primary organisation only.
+    dependencies=[Depends(require_internal)],
+)
 
 
 @router.get(
@@ -142,7 +156,11 @@ async def upload_variant(
     await service.add_variant(
         workspace_id=workspace_id,
         test_id=test_id,
-        content=await file.read(),
+        content=await read_capped(
+            file,
+            max_bytes=MAX_IMAGE_BYTES,
+            too_large="Изображение больше 32 МБ — WB такой файл не примет.",
+        ),
         content_type=file.content_type or "application/octet-stream",
         filename=file.filename or "",
     )

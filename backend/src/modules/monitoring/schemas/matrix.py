@@ -12,6 +12,8 @@ from datetime import date
 
 from pydantic import BaseModel, Field
 
+from src.modules.monitoring.constants import MAX_MATRIX_DAYS
+
 #: Traffic buckets, in column order. ``uni_*`` are the unified-bid campaign
 #: («Единая ставка») zones — split from search-cluster stats; ``manual_*`` are
 #: manual-bid campaigns by their enabled zone (``manual_catalog`` is the
@@ -271,9 +273,16 @@ class MatrixDayBase(BaseModel):
 
 
 class MatrixBaseState(BaseModel):
-    """The full editable working copy for a SKU window (all input facts)."""
+    """The full editable working copy for a SKU window (all input facts).
 
-    days: list[MatrixDayBase] = Field(default_factory=list)
+    ``days`` is capped because this shape is a **request** body on preview and
+    save, not only a response: the server recomputes every cell of whatever
+    working copy it is handed, so an uncapped list is server-side arithmetic a
+    caller can ask for by the megabyte. The ceiling is the widest window the
+    analysis endpoints will resolve, so no legitimate client can reach it.
+    """
+
+    days: list[MatrixDayBase] = Field(default_factory=list, max_length=MAX_MATRIX_DAYS)
 
 
 class MatrixCellEdit(BaseModel):

@@ -10,6 +10,7 @@ and that domain errors arrive with the right status.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 from datetime import date
 from typing import Any, ClassVar
@@ -331,7 +332,7 @@ async def test_a_refresh_task_id_is_only_readable_by_the_workspace_that_enqueued
     it ran and whether it succeeded. A foreign id must be indistinguishable from
     one that never existed.
 
-    The binding itself is REAL here (``refresh_task_store`` backs it with the
+    The binding itself is REAL here (``redis_store`` backs it with the
     in-memory Redis): stubbing `bind_task_to_workspace` /
     `task_belongs_to_workspace` would have left the guard's actual logic — the
     key it writes and the comparison it makes — untested.
@@ -357,18 +358,21 @@ async def test_a_refresh_task_is_invisible_to_a_different_workspace(
     user: Any,
     workspace: Workspace,
     workspace_repo: FakeWorkspaceRepository,
+    organization_id: uuid.UUID,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The same task id polled from ANOTHER workspace is a 404.
 
     The sharper half of the guard: the id exists and is bound, so only the
-    workspace comparison can reject it.
+    workspace comparison can reject it. Both workspaces belong to the SAME
+    organisation on purpose — a second tenant would be refused by the tenancy
+    check one layer up, and this test is about the task binding underneath it.
     """
     monkeypatch.setattr(
         "src.modules.monitoring.routers.refresh.harvest_sku_window.delay",
         lambda nm_ids: type("Task", (), {"id": "task-xyz"})(),
     )
-    other = make_workspace(name="Другое пространство")
+    other = make_workspace(organization_id=organization_id, name="Другое пространство")
     workspace_repo.workspaces[other.id] = other
 
     mine = {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}

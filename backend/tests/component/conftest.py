@@ -14,14 +14,21 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
+from dataclasses import replace
 from typing import Any
 
 import httpx
 import pytest
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
-from src.core import ratelimit
 from src.core.deps import get_db
+from src.modules.organizations.contract import (
+    EffectiveRole,
+    OrganizationAccess,
+    SubscriptionState,
+)
+from src.modules.organizations.deps import get_current_access
+from src.modules.users.deps import get_current_user
 from src.modules.users.models import ROLE_DEV, User
 from src.modules.workspaces.models import Workspace
 from tests.support.auth import make_user
@@ -88,60 +95,33 @@ class _InMemoryRedis:
 
 
 @pytest.fixture(autouse=True)
-def rate_limiter_store(monkeypatch: pytest.MonkeyPatch) -> _InMemoryRedis:
-    """Back the rate limiter with a per-test in-memory counter store.
+def redis_store(monkeypatch: pytest.MonkeyPatch) -> _InMemoryRedis:
+    """Back every Redis-backed control in this tier with one in-memory store.
 
-    Each test starts with a clean budget, so one test's login attempts can never
-    throttle the next. Behaviour against a *real* Redis (shared counters across
-    replicas, window expiry, fail-open on outage) is covered in
-    ``tests/integration/core/test_rate_limiting.py``.
+    ONE fixture, because there is one seam. Every caller resolves the client by
+    calling ``get_redis()``, which reads this module global at call time, so
+    replacing it redirects the rate limiter, the «Обновить» task binding and its
+    enqueue budget, the refresh replay-grace window and the session-revocation
+    watermark together — and, more to the point, redirects the next control
+    somebody adds without anyone remembering to come back here.
 
-    Returns:
-        The store, so a test can inspect or pre-load the counters.
-    """
-    store = _InMemoryRedis()
-    monkeypatch.setattr(ratelimit, "get_redis", lambda: store)
-    return store
+    This used to be four fixtures, one per caller, and the fourth was written
+    only after a new route reached a live Redis and failed as ``Event loop is
+    closed`` from a second event loop. ``get_redis`` is now the single accessor,
+    enforced by ``tests/unit/core/test_redis_single_accessor.py``.
 
-
-@pytest.fixture(autouse=True)
-def position_check_store(monkeypatch: pytest.MonkeyPatch) -> _InMemoryRedis:
-    """Back the position-check marker and probe cache with an in-memory store.
-
-    The marker is what lets «Проверить позицию» survive a reload, and it is
-    deliberately server-side — so without this the tier either reaches for a real
-    Redis (which the fast CI job does not run, though a developer's laptop often
-    has one, making the test pass locally and fail in CI) or silently swallows
-    every write and reports "no check in flight" forever.
-
-    Per test, so one test's queued check cannot appear in the next one's panel.
+    The store is shared rather than partitioned, which is also what production
+    looks like: one Redis, keys namespaced by their owner
+    (``ratelimit:``, ``monitoring:refresh-task:``, ``auth:refresh-grace:``,
+    ``auth:revoked-after:``).
 
     Returns:
-        The store, so a test can inspect the marker it wrote.
+        The store, so a test can pre-load a counter or inspect what was written.
     """
-    from src.modules.monitoring.services.analytics import position_cache
+    from src.core import redis as core_redis
 
     store = _InMemoryRedis()
-    monkeypatch.setattr(position_cache, "get_redis", lambda: store)
-    return store
-
-
-@pytest.fixture(autouse=True)
-def refresh_task_store(monkeypatch: pytest.MonkeyPatch) -> _InMemoryRedis:
-    """Back the «Обновить» task-ownership binding with an in-memory store.
-
-    ``refresh_tracking`` records which workspace enqueued a refresh task so the
-    status endpoint can refuse another tenant's task id. Without this the tier
-    would reach for a real Redis — which the `fast` CI job does not run — and
-    the guard would be untestable here at all.
-
-    Returns:
-        The store, so a test can inspect the recorded bindings.
-    """
-    from src.modules.monitoring.services import refresh_tracking
-
-    store = _InMemoryRedis()
-    monkeypatch.setattr(refresh_tracking, "get_redis", lambda: store)
+    monkeypatch.setattr(core_redis, "_redis", store)
     return store
 
 
@@ -260,15 +240,34 @@ def dev_user() -> User:
 
 
 @pytest.fixture
-def workspace() -> Workspace:
-    """A non-primary workspace (stores a single ``unified`` WB token)."""
-    return make_workspace(name="ИП Тестовый")
+def organization_id() -> uuid.UUID:
+    """The tenant every fixture in this tier belongs to.
+
+    One organisation, shared by the caller and the workspaces, because that is
+    the ordinary case every route is written for. A test proving tenancy uses a
+    SECOND id (see ``foreign_organization_id``) and asserts the request is
+    refused — which only means anything because the default case is wired to
+    succeed.
+    """
+    return uuid.UUID("018f4e2a-0000-7000-8000-0000000000aa")
 
 
 @pytest.fixture
-def primary_workspace() -> Workspace:
+def foreign_organization_id() -> uuid.UUID:
+    """Another tenant's id, for proving a request is scoped and not merely valid."""
+    return uuid.UUID("018f4e2a-0000-7000-8000-0000000000bb")
+
+
+@pytest.fixture
+def workspace(organization_id: uuid.UUID) -> Workspace:
+    """A non-primary workspace (stores a single ``unified`` WB token)."""
+    return make_workspace(organization_id=organization_id, name="ИП Тестовый")
+
+
+@pytest.fixture
+def primary_workspace(organization_id: uuid.UUID) -> Workspace:
     """The primary workspace (stores one token per WB category)."""
-    return make_workspace(name="ИП Демо", is_primary=True)
+    return make_workspace(organization_id=organization_id, name="ИП Демо", is_primary=True)
 
 
 @pytest.fixture
@@ -313,3 +312,72 @@ def authenticated(
 
     override(get_user_repo, user_repo)
     override(get_workspace_repo, workspace_repo)
+
+
+@pytest.fixture
+def access_factory(user: User, organization_id: uuid.UUID) -> Callable[..., OrganizationAccess]:
+    """Build an :class:`OrganizationAccess` with the parts a test cares about.
+
+    Every guard in the application resolves through ``get_current_access``, so
+    overriding that ONE dependency with one of these decides what the caller may
+    do — role, subscription state and internal-feature access all at once.
+    """
+
+    def _build(
+        *,
+        role: EffectiveRole = EffectiveRole.OWNER,
+        subscription: SubscriptionState = SubscriptionState.ACTIVE,
+        is_primary_org: bool = False,
+        org: uuid.UUID | None = organization_id,
+    ) -> OrganizationAccess:
+        return OrganizationAccess(
+            user_id=user.id,
+            organization_id=org,
+            role=role,
+            subscription=subscription,
+            is_primary_org=is_primary_org,
+        )
+
+    return _build
+
+
+@pytest.fixture
+def login_as(
+    override: Callable[[Any, Any], None],
+    access_factory: Callable[..., OrganizationAccess],
+) -> Callable[..., None]:
+    """Decide who the caller is for the rest of the test.
+
+    ``login_as(role=..., subscription=..., is_primary_org=..., org=...)``
+    replaces the ONE dependency every guard resolves through, so a single call
+    decides what the request may do — no per-guard stubbing.
+
+    The replacement still depends on ``CurrentUser``, and that is load-bearing:
+    without it the override would short-circuit AUTHENTICATION too, and every
+    "a bad token is a 401" test would quietly start asserting against a request
+    that was never authenticated at all. Keeping the dependency means the token
+    is still parsed, verified and resolved to a live account exactly as in
+    production — only the membership lookup behind it is replaced.
+    """
+
+    def _apply(**kwargs: Any) -> None:
+        fixed = access_factory(**kwargs)
+
+        async def _provider(user: User = Depends(get_current_user)) -> OrganizationAccess:
+            return replace(fixed, user_id=user.id)
+
+        override(get_current_access, _provider)
+
+    return _apply
+
+
+@pytest.fixture(autouse=True)
+def _wire_access(login_as: Callable[..., None]) -> None:
+    """Default every request in this tier to an owner of the shared organisation.
+
+    Autouse because the alternative is every one of ~200 route tests declaring
+    the same fixture to test something else entirely. A test about a guard calls
+    ``login_as(...)`` again with what it actually wants, and the last override
+    wins.
+    """
+    login_as()
