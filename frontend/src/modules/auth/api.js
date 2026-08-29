@@ -8,16 +8,18 @@
 import apiClient, { AUTH_TIMEOUT_MS } from '@/core/api/axios'
 
 /**
- * POST /v1/auth/register — create a new account (invite-only).
+ * POST /v1/auth/register — create a new account.
  *
- * @param {{email: string, password: string, inviteCode: string}} credentials
+ * Signup is open: the account it creates belongs to no organisation and reaches
+ * nothing until an activation code or an invitation grants it access.
+ *
+ * @param {{email: string, password: string}} credentials
  * @returns {Promise<import('@/core/api/types').UserRead>}
  */
-export async function registerUser({ email, password, inviteCode }) {
+export async function registerUser({ email, password }) {
   const { data } = await apiClient.post('/v1/auth/register', {
     email,
     password,
-    invite_code: inviteCode,
   })
   return data
 }

@@ -9,13 +9,16 @@ error-to-HTTP mapping — domain errors (``ConflictError``, ``AuthenticationErro
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Cookie, Depends, Response, status
 
 from src.core.config import settings
 from src.core.ratelimit import RateLimiter
-from src.modules.users.deps import AuthServiceDep, CurrentUser
+from src.modules.users.deps import AuthServiceDep, CurrentUser, require_dev_role
 from src.modules.users.schemas import (
     IssuedTokens,
+    SessionsRevokedResponse,
     TokenPairResponse,
     UserLoginRequest,
     UserRead,
@@ -68,7 +71,6 @@ def _set_refresh_cookie(response: Response, tokens: IssuedTokens) -> None:
     dependencies=[_auth_rate_limit],
     responses={
         201: {"description": "User account created."},
-        403: {"description": "Registration disabled or invalid invite code."},
         409: {"description": "Email already registered."},
         429: {"description": "Too many attempts; retry later."},
     },
@@ -77,11 +79,10 @@ async def register(
     payload: UserRegisterRequest,
     service: AuthServiceDep,
 ) -> UserRead:
-    """Register a new user account (requires a valid invite code)."""
+    """Register a new user account. Signup is open; the account starts powerless."""
     return await service.register(
         email=payload.email,
         password=payload.password,
-        invite_code=payload.invite_code,
     )
 
 
@@ -150,6 +151,71 @@ async def refresh(
 async def me(user: CurrentUser) -> UserRead:
     """Return the authenticated caller's account (email + role for the UI)."""
     return UserRead.model_validate(user)
+
+
+@router.post(
+    "/logout-all",
+    response_model=SessionsRevokedResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "Every session of the calling account was ended."},
+        401: {"description": "Missing or invalid access token."},
+    },
+)
+async def logout_everywhere(
+    user: CurrentUser,
+    service: AuthServiceDep,
+    response: Response,
+) -> SessionsRevokedResponse:
+    """End every session of the calling account, on every device, now.
+
+    ``/logout`` ends the browser you are in. This ends all of them — the phone
+    left at a customer's office, the session opened on a shared machine, the one
+    whose password you have just changed because you are not sure.
+
+    Unlike ``/logout`` it also stamps the Redis revocation watermark, so the
+    access tokens already handed out stop working immediately rather than
+    surviving up to their 15-minute lifetime. That is the difference between
+    "signed out" and "cannot act", and it is the only place we make it.
+
+    The caller's own session ends too: this is deliberate, since a user who
+    presses it has usually decided the account is not to be trusted right now.
+    The cookie is cleared so the SPA returns to the login screen.
+    """
+    revoked = await service.revoke_all_sessions(user_id=user.id)
+    response.delete_cookie(settings.refresh_cookie_name, path=settings.refresh_cookie_path)
+    return SessionsRevokedResponse(revoked=revoked)
+
+
+@router.post(
+    "/sessions/{user_id}/revoke",
+    response_model=SessionsRevokedResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_dev_role)],
+    responses={
+        200: {"description": "Every session of the named account was ended."},
+        401: {"description": "Missing or invalid access token."},
+        403: {"description": "Developer role required."},
+    },
+)
+async def revoke_account_sessions(
+    user_id: uuid.UUID,
+    service: AuthServiceDep,
+) -> SessionsRevokedResponse:
+    """End every session of another account — the incident-response lever.
+
+    A compromised account has to be stoppable by someone other than whoever
+    controls it, and until now nobody could: the revocation watermark had no
+    caller outside the test suite, so a stolen session simply ran until its
+    tokens expired (register P1.1).
+
+    Answers 200 for an account that does not exist, with ``revoked: 0``,
+    exactly as for one that exists and holds no session. The endpoint is behind
+    the developer role, so this is not much of a secret — but an id oracle costs
+    nothing to avoid and the caller has no use for the distinction.
+    """
+    revoked = await service.revoke_all_sessions(user_id=user_id)
+    return SessionsRevokedResponse(revoked=revoked)
 
 
 @router.post(

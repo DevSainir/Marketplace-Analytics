@@ -12,12 +12,21 @@ both about the *database*, not about the service:
   own transaction is rolled back. A fake would happily "revoke" rows that a
   rollback then restores, and the guarantee would silently not hold in
   production.
+
+Most of the file runs with the **replay grace window disabled** (see the
+``_strict_rotation`` fixture). A replay inside that window is now served the
+rotation's child instead of ending the family — that is register item P0.5, and
+it is covered on its own below. What these tests pin is the behaviour that
+matters for theft: a token replayed once the window has passed still kills the
+lineage. Disabling grace is how they say "later" without sleeping through it.
 """
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 import sqlalchemy as sa
@@ -30,6 +39,18 @@ from src.modules.users.models import RefreshToken, User
 from src.modules.users.repos import RefreshTokenRepository, UserRepository
 from src.modules.users.services import AuthService
 from tests.support.auth import KNOWN_PASSWORD, known_password_hash
+
+
+@pytest.fixture(autouse=True)
+def _strict_rotation(settings_override: Any) -> Iterator[None]:
+    """Run this file outside the replay grace window.
+
+    Zero is the documented "no grace" setting, so this is the real production
+    behaviour for a replay arriving after the window — not a test-only hook. The
+    grace path itself is exercised in ``test_concurrent_tab_refresh.py``.
+    """
+    with settings_override(refresh_replay_grace_seconds=0):
+        yield
 
 
 @pytest.fixture
@@ -63,7 +84,7 @@ def auth_service(
     revocation watermark. Stamping it was account-wide by construction, which is
     precisely the blast radius these tests now pin shut.
     """
-    monkeypatch.setattr("src.modules.users.services.AsyncSessionLocal", session_factory)
+    monkeypatch.setattr("src.modules.users.services.breach.AsyncSessionLocal", session_factory)
     return AuthService(
         user_repo=UserRepository(db_session), token_repo=RefreshTokenRepository(db_session)
     )

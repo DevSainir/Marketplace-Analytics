@@ -245,7 +245,6 @@ jobs:
       REDIS_PORT: '6379'
       REDIS_PASSWORD: ''
       JWT_SECRET_KEY: ci-only-signing-key-not-used-anywhere-else
-      REGISTRATION_INVITE_CODE: ci-invite
 
     steps:
       - uses: actions/checkout@v4
@@ -297,11 +296,6 @@ jobs:
           # dependencies, and the runner's system python has no `cryptography`.
           # A Fernet key is just 32 random bytes in urlsafe base64.
           printf 'FERNET_SECRET_KEY=%s\n' "$(openssl rand 32 | base64 | tr '+/' '-_')" >> .env
-          # .env.example ships REGISTRATION_INVITE_CODE empty, which disables
-          # registration entirely. The tier does not register anyone (the
-          # account is seeded below), but leaving the file's own value blank
-          # would hide a future signup journey behind a 403.
-          printf 'REGISTRATION_INVITE_CODE=%s\n' 'ci-invite' >> .env
 
       # The e2e overlay swaps nginx for a plain-HTTP server. Without it nginx
       # cannot load its config at all — the production one hard-requires the

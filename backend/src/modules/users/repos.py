@@ -29,6 +29,25 @@ class UserRepository:
         """Return a user by primary key, or ``None`` if absent."""
         return await self._session.get(User, user_id)
 
+    async def emails_by_id(self, user_ids: set[uuid.UUID]) -> dict[uuid.UUID, str]:
+        """Return ``{user_id: email}`` for the given accounts.
+
+        One statement rather than a lookup per row: the caller is an
+        organisation's member list, and a per-member query would make the page
+        cost scale with the team.
+
+        Args:
+            user_ids: Accounts to resolve. An empty set short-circuits.
+
+        Returns:
+            A mapping; ids with no row are simply absent.
+        """
+        if not user_ids:
+            return {}
+        stmt = select(User.id, User.email).where(User.id.in_(user_ids))
+        result = await self._session.execute(stmt)
+        return {row.id: row.email for row in result}
+
     async def get_by_email(self, email: str) -> User | None:
         """Return a user by unique email, or ``None`` if absent.
 

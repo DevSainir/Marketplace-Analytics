@@ -853,11 +853,6 @@ export interface components {
        * @description Plaintext password.
        */
       password: string
-      /**
-       * Invite Code
-       * @description Operator-issued registration invite code.
-       */
-      invite_code: string
     }
     /** ValidationError */
     ValidationError: {

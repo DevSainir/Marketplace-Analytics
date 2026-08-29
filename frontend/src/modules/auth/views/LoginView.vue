@@ -15,7 +15,6 @@ const email = ref('')
 const password = ref('')
 // Registration is invite-only: the backend rejects /register without a valid
 // operator-issued code (the platform exposes the whole seller account's data).
-const inviteCode = ref('')
 
 const isLogin = computed(() => mode.value === 'login')
 
@@ -27,7 +26,7 @@ function switchMode(next) {
 async function submit() {
   const ok = isLogin.value
     ? await auth.login(email.value, password.value)
-    : await auth.register(email.value, password.value, inviteCode.value)
+    : await auth.register(email.value, password.value)
 
   if (ok) {
     router.push(safeRedirect(route.query.redirect))
@@ -98,18 +97,6 @@ async function submit() {
               minlength="8"
               :autocomplete="isLogin ? 'current-password' : 'new-password'"
               placeholder="••••••••"
-              class="login-input"
-            />
-          </label>
-
-          <label v-if="!isLogin" class="block">
-            <span class="mb-xs block text-tiny font-medium text-muted">Код приглашения</span>
-            <input
-              v-model="inviteCode"
-              type="text"
-              required
-              autocomplete="off"
-              placeholder="Выдаётся администратором"
               class="login-input"
             />
           </label>

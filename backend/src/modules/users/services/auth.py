@@ -18,23 +18,20 @@ Key security behaviours implemented here:
 from __future__ import annotations
 
 import asyncio
-import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
-import sqlalchemy as sa
-from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.exc import IntegrityError
 
 from src.core.config import settings
-from src.core.database import AsyncSessionLocal
 from src.core.exceptions import (
     AuthenticationError,
     ConflictError,
-    PermissionDeniedError,
     TokenReuseError,
 )
 from src.core.ids import uuid7
 from src.core.logging import get_logger
+from src.core.redis import mark_user_sessions_revoked
 from src.core.security import (
     DUMMY_HASH,
     create_access_token,
@@ -43,8 +40,15 @@ from src.core.security import (
     hash_refresh_secret,
     verify_password,
 )
+from src.modules.users.models import RefreshToken
+from src.modules.users.refresh_grace import (
+    await_rotation,
+    recall_rotation,
+    remember_rotation,
+)
 from src.modules.users.repos import RefreshTokenRepository, UserRepository
 from src.modules.users.schemas import IssuedTokens, UserRead
+from src.modules.users.services.breach import revoke_breached_family
 
 logger = get_logger(__name__)
 
@@ -82,40 +86,36 @@ class AuthService:
     # ------------------------------------------------------------------ #
     # Registration
     # ------------------------------------------------------------------ #
-    async def register(self, *, email: str, password: str, invite_code: str) -> UserRead:
-        """Register a new user account (invite-gated).
+    async def register(self, *, email: str, password: str) -> UserRead:
+        """Register a new user account.
 
-        The platform is single-tenant: every authenticated account can read the
-        seller's business data, so open registration would hand that data to
-        anyone on the internet. A valid invite code (operator-configured) is
-        therefore required; an empty configured code disables registration.
+        **Registration is open, and there is no longer a code that closes it.**
+        A new account is deliberately powerless: it belongs to no organisation,
+        and every data route in the platform sits behind ``require_member``, so
+        a bare signup can reach exactly two things — the activation screen and
+        its own pending invitations. Access is granted afterwards, by redeeming
+        an activation code (becoming an owner) or accepting an invitation
+        (becoming a manager). That is what makes an open form safe here; it is
+        not safe on its own.
+
+        The shared gate code that used to sit in front of this was removed
+        deliberately. It was one secret shared by everyone who had it, guessable
+        against this endpoint, and it made "is signup open?" a question with two
+        answers — the code's and the organisation model's. Closing signup again
+        is now a code change rather than a config change; that is the accepted
+        cost.
 
         Args:
             email: Desired unique login email (normalized to lowercase).
             password: Plaintext password (hashed before persistence).
-            invite_code: The registration invite code presented by the client.
 
         Returns:
             The newly created account as a :class:`UserRead` DTO (the router
             returns it verbatim — no presentation-layer mapping needed).
 
         Raises:
-            PermissionDeniedError: If registration is disabled or the invite
-                code does not match.
             ConflictError: If the email is already registered.
         """
-        configured = settings.registration_invite_code
-        # compare_digest keeps the check constant-time so the code cannot be
-        # guessed byte-by-byte via response latency. Compare the UTF-8 ENCODINGS,
-        # not the strings: on `str` inputs compare_digest requires both operands
-        # to be ASCII-only and raises TypeError otherwise, so a submitted code
-        # containing any non-ASCII character (e.g. Cyrillic) turned this check
-        # into an unauthenticated 500. `bytes` carries no such restriction.
-        if not configured or not secrets.compare_digest(
-            invite_code.encode("utf-8"), configured.encode("utf-8")
-        ):
-            raise PermissionDeniedError("Registration is by invitation only.")
-
         email = _normalize_email(email)
         existing = await self._users.get_by_email(email)
         if existing is not None:
@@ -201,9 +201,18 @@ class AuthService:
         if token is None:
             raise AuthenticationError("Invalid refresh token.")
 
-        # --- Breach (fast path): a consumed token is being replayed. ---
+        # --- Consumed token: a racing tab, or a genuine replay. ---
+        # These are indistinguishable from the token alone, so the difference is
+        # made by WHEN: a presentation within the grace window of the rotation
+        # that consumed it is served that rotation's child (see
+        # :mod:`src.modules.users.refresh_grace`), and everything later is a
+        # breach. Serving the same child rather than issuing a sibling is what
+        # keeps one live leaf per family, so detection still works afterwards.
         if token.is_used:
-            await self._revoke_breached_family(user_id=token.user_id, family_id=token.family_id)
+            replayed = await self._serve_from_grace(token)
+            if replayed is not None:
+                return replayed
+            await revoke_breached_family(user_id=token.user_id, family_id=token.family_id)
             raise TokenReuseError("Refresh token reuse detected. This session has been revoked.")
 
         if token.is_revoked:
@@ -235,86 +244,115 @@ class AuthService:
         # conditional consume, two concurrent presentations of a stolen secret
         # would BOTH rotate successfully and the theft would go undetected.
         if not await self._tokens.consume(token.id):
-            await self._revoke_breached_family(user_id=token.user_id, family_id=token.family_id)
+            # Lost the race rather than replayed: another request consumed this
+            # token between our read and this UPDATE. That is the same two-tab
+            # collision as the fast path, arriving a few milliseconds tighter, so
+            # it gets the same answer — after waiting for the winner to publish
+            # the child it is about to issue.
+            replayed = await self._serve_from_grace(token, wait=True)
+            if replayed is not None:
+                return replayed
+            await revoke_breached_family(user_id=token.user_id, family_id=token.family_id)
             raise TokenReuseError("Refresh token reuse detected. This session has been revoked.")
 
-        return await self._issue_pair(
+        issued = await self._issue_pair(
             user_id=token.user_id,
             family_id=token.family_id,
             parent_id=token.id,
             not_after=session_deadline,
         )
+        await remember_rotation(parent_id=token.id, refresh_secret=issued.refresh_secret)
+        return issued
 
-    async def _revoke_breached_family(self, *, user_id: uuid.UUID, family_id: uuid.UUID) -> None:
-        """Kill the login lineage whose refresh token was replayed — and only it.
+    async def _serve_from_grace(
+        self, token: RefreshToken, *, wait: bool = False
+    ) -> IssuedTokens | None:
+        """Re-serve the child of a just-consumed token to a racing presenter.
 
-        Scope is the FAMILY, not the user. This is what RFC 9700 (OAuth 2.0
-        Security BCP) §4.14.2 prescribes for detected refresh-token reuse:
-        revoke the token chain descended from the replayed token. It is also the
-        only scope this code can justify, because a replay is genuinely
-        ambiguous — the server cannot tell a thief from a client that legitimately
-        holds a superseded token:
+        Args:
+            token: The consumed token that was presented again.
+            wait: Whether to wait briefly for a rotation still in flight. Set on
+                the lost-race path, where the winner may not have recorded its
+                child yet; unset on the replay path, where any rotation of this
+                token finished long ago.
 
-        * a laptop resumed from sleep, or a tab restored days later, replays the
-          token it went to sleep holding;
-        * a rotation that succeeded server-side but timed out client-side is
-          retried by the SPA with the same (now consumed) cookie.
-
-        Revoking every family on that evidence is what turned one such replay
-        into a team-wide outage on 2026-07-27: a tab last used on the 24th woke
-        up, replayed its long-dead token, and signed every other worker sharing
-        the account out mid-task, across all 14 of that user's live families.
-        Family scope still ends the ambiguous lineage — that device does have to
-        log in again — while leaving every other device untouched.
-
-        Revokes in a DEDICATED committed transaction: the calling request ends
-        in a 401 (an exception), which rolls back the request-scoped session, so
-        the revocation must persist independently or it would be silently undone.
-
-        No Redis watermark is stamped: that key is per-user, so using it here
-        would re-introduce exactly the account-wide blast radius this scopes
-        away. The consequence — access tokens already issued on this family stay
-        valid until they expire (15 minutes) — is the same one
-        :meth:`logout` documents and accepts, and it is bounded.
+        Returns:
+            A bundle carrying the child that the rotation already issued, or
+            ``None`` when there is no live grace entry — which puts the caller
+            back on the breach path, exactly as before this existed.
         """
-        logger.warning(
-            "Refresh-token reuse detected for user %s; revoking family %s "
-            "(other sessions of this user are left intact).",
-            user_id,
-            family_id,
+        secret = (
+            await await_rotation(parent_id=token.id)
+            if wait
+            else await recall_rotation(parent_id=token.id)
         )
-        async with AsyncSessionLocal() as breach_session:
-            # Bound the wait for row locks. This revocation runs on a SECOND
-            # connection while the caller's own transaction is still open and
-            # may already hold locks on rows in this very family — so the two
-            # can wait on each other. Unbounded, that wait ends only when
-            # `idle_in_transaction_session_timeout` fires at five minutes, and
-            # the request holds a pool slot for all of it.
-            #
-            # On 2026-07-28 six concurrent refreshes hit this path at once and
-            # sat for 300 s each (measured: 300217-300231 ms, all returning
-            # 401 in the same second). With the pool that starved, every other
-            # user's request queued behind them — the site-wide freeze.
-            #
-            # Two seconds is far beyond a healthy uncontended UPDATE (~1 ms).
-            # Past that, failing the revocation is strictly better than holding
-            # the connection: the token was consumed and cannot rotate again, so
-            # the replay is already dead — this only defers marking its siblings.
-            await breach_session.execute(sa.text("SET LOCAL lock_timeout = '2s'"))
-            try:
-                await RefreshTokenRepository(breach_session).revoke_family(family_id)
-                await breach_session.commit()
-            except DBAPIError:
-                await breach_session.rollback()
-                logger.exception(
-                    "Could not revoke family %s within the lock timeout; the replayed "
-                    "token is already consumed, so the session cannot rotate regardless.",
-                    family_id,
-                )
+        if secret is None:
+            return None
+        child = await self._tokens.get_by_hash(hash_refresh_secret(secret))
+        # The child must still be the family's live leaf. If it has itself been
+        # rotated, revoked or expired inside the grace window, the entry is
+        # stale and re-serving it would hand back a token that cannot be used —
+        # so fall through and let breach detection decide.
+        if (
+            child is None
+            or child.is_used
+            or child.is_revoked
+            or child.expires_at <= datetime.now(UTC)
+        ):
+            return None
+        logger.info(
+            "Concurrent refresh of token %s served the rotation already issued "
+            "(family %s left intact).",
+            token.id,
+            token.family_id,
+        )
+        access_token, access_expires_at = create_access_token(user_id=child.user_id, jti=child.id)
+        return IssuedTokens(
+            access_token=access_token,
+            access_expires_at=access_expires_at,
+            refresh_secret=secret,
+            refresh_expires_at=child.expires_at,
+        )
 
     # ------------------------------------------------------------------ #
     # Logout
     # ------------------------------------------------------------------ #
+    async def revoke_all_sessions(self, *, user_id: uuid.UUID) -> int:
+        """End every session of one account, immediately and on every device.
+
+        The account-wide counterpart of :meth:`logout`, and the one operation
+        that legitimately stamps the Redis watermark. ``logout`` and
+        :func:`revoke_breached_family` both refuse to, because that key is
+        per-user and they are per-family — "log out of this browser" and "end
+        the lineage that leaked" are not "end everything". This is, so it does.
+
+        Both halves are needed and neither is sufficient. Revoking the refresh
+        rows stops new pairs being minted but leaves outstanding **access**
+        tokens valid for up to their 15-minute TTL, which is exactly the window
+        an incident response cannot afford. The watermark closes that window by
+        rejecting any access token issued before this moment
+        (``get_current_user_id`` checks it on every request). It is also why the
+        machinery existed but was unreachable: ``mark_user_sessions_revoked``
+        was called from tests only, so the watermark could never be set and
+        incident response had no lever at all (register P1.1).
+
+        Order matters. The rows are revoked first and the watermark stamped
+        after, so a rotation racing this call finds no live row to rotate. The
+        reverse order would leave a gap in which a fresh pair is minted with an
+        ``iat`` past the watermark and survives.
+
+        Args:
+            user_id: The account whose sessions all end.
+
+        Returns:
+            How many refresh rows were revoked — 0 is a normal answer for an
+            account with no live session, not a failure.
+        """
+        revoked = await self._tokens.revoke_all_for_user(user_id)
+        await mark_user_sessions_revoked(user_id)
+        logger.warning("All sessions revoked for user %s (%d refresh rows).", user_id, revoked)
+        return revoked
+
     async def logout(self, *, refresh_secret: str | None) -> None:
         """Revoke the family associated with a presented refresh token.
 

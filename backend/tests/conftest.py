@@ -77,7 +77,7 @@ def settings_override() -> Iterator[Any]:
     the session (test order then decides the result). Usage::
 
         def test_x(settings_override):
-            with settings_override(registration_invite_code="letmein"):
+            with settings_override(access_token_ttl_seconds=1):
                 ...
 
     Yields:

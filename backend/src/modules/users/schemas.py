@@ -19,11 +19,6 @@ class UserRegisterRequest(BaseModel):
 
     email: EmailStr = Field(description="Unique account email / login.")
     password: str = Field(min_length=8, max_length=128, description="Plaintext password.")
-    invite_code: str = Field(
-        min_length=1,
-        max_length=128,
-        description="Operator-issued registration invite code.",
-    )
 
     @field_validator("password")
     @classmethod
@@ -81,3 +76,15 @@ class IssuedTokens(BaseModel):
     access_expires_at: datetime
     refresh_secret: str
     refresh_expires_at: datetime
+
+
+class SessionsRevokedResponse(BaseModel):
+    """Result of ending every session of one account."""
+
+    revoked: int = Field(
+        description=(
+            "Refresh rows revoked. Zero is a normal answer — an account with no "
+            "live session — not a failure, and deliberately does not say whether "
+            "the account exists."
+        )
+    )

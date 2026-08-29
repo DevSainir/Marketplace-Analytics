@@ -131,20 +131,58 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
         return False
 
 
+def generate_opaque_secret(nbytes: int = 32) -> str:
+    """Return a cryptographically strong, URL-safe random secret.
+
+    The platform's one generator for credentials that are *handed out* rather
+    than chosen: refresh secrets, activation codes, invitation tokens. Each is
+    delivered exactly once and only its :func:`hash_opaque_secret` digest is
+    kept, so the value returned here is the only copy that ever exists in the
+    clear.
+
+    Args:
+        nbytes: Bytes of entropy. The default is 256 bits, far past any
+            brute-force horizon; callers do not need to raise it.
+
+    Returns:
+        A URL-safe base64 string (longer than ``nbytes``, since base64 expands).
+    """
+    return secrets.token_urlsafe(nbytes)
+
+
+def hash_opaque_secret(secret: str) -> str:
+    """Hash a generated high-entropy secret for at-rest storage.
+
+    A fast SHA-256 is correct here, and bcrypt would be wrong: bcrypt's cost
+    exists to slow down guessing a value a HUMAN chose, and these values are
+    256 bits from :func:`generate_opaque_secret`. Paying ~200 ms per lookup
+    would buy nothing against a secret that cannot be guessed, on paths a user
+    is waiting on — every token refresh, every activation, every invitation.
+
+    Lookups are BY digest: the caller hashes what was presented and queries the
+    unique index, so no value comparison happens and there is no timing side
+    channel to defend against.
+
+    Args:
+        secret: The raw secret, as presented by the client.
+
+    Returns:
+        Hex-encoded SHA-256 digest (64 characters).
+    """
+    return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+
 def generate_refresh_secret() -> str:
     """Return a cryptographically strong, URL-safe opaque refresh secret.
 
     The raw secret is delivered to the client (via HttpOnly cookie) exactly
     once; only its :func:`hash_refresh_secret` digest is stored server-side.
     """
-    return secrets.token_urlsafe(48)
+    return generate_opaque_secret(48)
 
 
 def hash_refresh_secret(secret: str) -> str:
     """Hash an opaque refresh secret for at-rest storage.
-
-    A fast SHA-256 is appropriate here (unlike passwords) because the secret is
-    already high-entropy; this avoids paying bcrypt cost on every token refresh.
 
     Args:
         secret: The raw refresh secret.
@@ -152,7 +190,7 @@ def hash_refresh_secret(secret: str) -> str:
     Returns:
         Hex-encoded SHA-256 digest.
     """
-    return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+    return hash_opaque_secret(secret)
 
 
 class SecretDecryptionError(Exception):

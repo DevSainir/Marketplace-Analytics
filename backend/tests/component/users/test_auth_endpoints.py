@@ -21,8 +21,6 @@ from src.modules.users.deps import get_token_repo, get_user_repo
 from tests.support.auth import KNOWN_PASSWORD, auth_headers, make_user
 from tests.support.fakes import FakeRefreshTokenRepository, FakeUserRepository
 
-INVITE = "operator-issued-invite"
-
 
 @pytest.fixture(autouse=True)
 def _wire_auth_repositories(
@@ -39,14 +37,13 @@ def _wire_auth_repositories(
 # POST /register
 # --------------------------------------------------------------------------- #
 async def test_register_returns_201_with_the_public_account(
-    client: httpx.AsyncClient, settings_override
+    client: httpx.AsyncClient,
 ) -> None:
     """A valid signup answers 201 and the account DTO — never a token."""
-    with settings_override(registration_invite_code=INVITE):
-        response = await client.post(
-            "/api/v1/auth/register",
-            json={"email": "new@example.com", "password": "a-long-password", "invite_code": INVITE},
-        )
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "new@example.com", "password": "a-long-password"},
+    )
 
     assert response.status_code == 201
     body = response.json()
@@ -56,33 +53,17 @@ async def test_register_returns_201_with_the_public_account(
     assert "access_token" not in body
 
 
-async def test_register_with_a_bad_invite_is_403(
-    client: httpx.AsyncClient, settings_override
-) -> None:
-    """``PermissionDeniedError`` reaches the client as 403, not 500."""
-    with settings_override(registration_invite_code=INVITE):
-        response = await client.post(
-            "/api/v1/auth/register",
-            json={"email": "x@example.com", "password": "a-long-password", "invite_code": "nope"},
-        )
-
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "forbidden"
-
-
 async def test_register_with_a_taken_email_is_409(
-    client: httpx.AsyncClient, settings_override
+    client: httpx.AsyncClient,
 ) -> None:
     """``ConflictError`` reaches the client as 409 with its machine code."""
-    with settings_override(registration_invite_code=INVITE):
-        response = await client.post(
-            "/api/v1/auth/register",
-            json={
-                "email": "user@example.com",  # seeded by the `user` fixture
-                "password": "a-long-password",
-                "invite_code": INVITE,
-            },
-        )
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "user@example.com",  # seeded by the `user` fixture
+            "password": "a-long-password",
+        },
+    )
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "conflict"
@@ -91,12 +72,17 @@ async def test_register_with_a_taken_email_is_409(
 @pytest.mark.parametrize(
     "payload",
     [
-        {"email": "not-an-email", "password": "a-long-password", "invite_code": INVITE},
-        {"email": "a@example.com", "password": "short", "invite_code": INVITE},
-        {"email": "a@example.com", "password": "a-long-password"},
-        {"email": "a@example.com", "password": "я" * 40, "invite_code": INVITE},
+        {"email": "not-an-email", "password": "a-long-password"},
+        {"email": "a@example.com", "password": "short"},
+        {"email": "a@example.com"},
+        {"email": "a@example.com", "password": "я" * 40},
     ],
-    ids=["malformed-email", "password-too-short", "missing-invite", "password-over-72-bytes"],
+    ids=[
+        "malformed-email",
+        "password-too-short",
+        "missing-password",
+        "password-over-72-bytes",
+    ],
 )
 async def test_register_rejects_malformed_payloads(
     client: httpx.AsyncClient, payload: dict[str, str]

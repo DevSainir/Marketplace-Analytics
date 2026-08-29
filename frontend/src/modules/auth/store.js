@@ -154,12 +154,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** Register a new account (invite-only), then log straight into it. */
-  async function register(email, password, inviteCode) {
+  /** Register a new account, then log straight into it. */
+  async function register(email, password) {
     loading.value = true
     error.value = null
     try {
-      await registerUser({ email, password, inviteCode })
+      await registerUser({ email, password })
     } catch (err) {
       error.value = extractErrorMessage(err)
       loading.value = false
