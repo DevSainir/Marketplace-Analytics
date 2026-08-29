@@ -18,32 +18,21 @@
  * constraint on this tier, so `logInThroughForm` waits the window out and
  * retries once rather than reporting a throttle as a login failure.
  */
-import { expect, test as base } from '@playwright/test'
+import { expect, test as base } from "@playwright/test";
 
 /** Credentials of the seeded end-to-end account. */
 export const CREDENTIALS = {
-  email: process.env.E2E_EMAIL || 'dev-preview@example.com',
-  password: process.env.E2E_PASSWORD || 'dev-preview-password',
-}
+  email: process.env.E2E_EMAIL || "dev-preview@example.com",
+  password: process.env.E2E_PASSWORD || "dev-preview-password",
+};
 
 /** Where a successful login lands. */
-export const AFTER_LOGIN_PATH = '/monitoring'
+export const AFTER_LOGIN_PATH = "/monitoring";
 
 /** The backend's auth rate-limit window, in seconds (AUTH_RATE_LIMIT_WINDOW_SECONDS). */
-const RATE_LIMIT_WINDOW_SECONDS = Number(process.env.E2E_RATE_LIMIT_WINDOW_SECONDS || 60)
-
-/**
- * Open the header's burger dropdown.
- *
- * The app has no persistent desktop navigation: the nav links, the profile
- * link and the logout button all live behind this one control at every
- * viewport. Anything that navigates by menu has to open it first.
- *
- * @param {import('@playwright/test').Page} page
- */
-export async function openMenu(page) {
-  await page.getByRole('button', { name: 'Меню' }).click()
-}
+const RATE_LIMIT_WINDOW_SECONDS = Number(
+  process.env.E2E_RATE_LIMIT_WINDOW_SECONDS || 60,
+);
 
 /**
  * Submit the login form once and report whether the session started.
@@ -52,19 +41,25 @@ export async function openMenu(page) {
  * @returns {Promise<'ok' | 'throttled' | 'rejected'>}
  */
 async function submitLogin(page) {
-  await page.goto('/login')
-  await page.getByPlaceholder('manager@company.ru').fill(CREDENTIALS.email)
-  await page.getByPlaceholder('••••••••').fill(CREDENTIALS.password)
-  await page.getByRole('button', { name: 'Войти' }).click()
+  await page.goto("/login");
+  await page.getByPlaceholder("manager@company.ru").fill(CREDENTIALS.email);
+  await page.getByPlaceholder("••••••••").fill(CREDENTIALS.password);
+  await page.getByRole("button", { name: "Войти" }).click();
 
   const landed = await page
     .waitForURL(new RegExp(`${AFTER_LOGIN_PATH}$`), { timeout: 15_000 })
     .then(() => true)
-    .catch(() => false)
-  if (landed) return 'ok'
+    .catch(() => false);
+  if (landed) return "ok";
 
-  const message = await page.locator('form p').first().textContent().catch(() => '')
-  return /too many requests|слишком много/i.test(message || '') ? 'throttled' : 'rejected'
+  const message = await page
+    .locator("form p")
+    .first()
+    .textContent()
+    .catch(() => "");
+  return /too many requests|слишком много/i.test(message || "")
+    ? "throttled"
+    : "rejected";
 }
 
 /**
@@ -75,26 +70,28 @@ async function submitLogin(page) {
  *   timeout only when a throttle wait is actually needed.
  */
 export async function logInThroughForm(page, testInfo) {
-  const first = await submitLogin(page)
-  if (first === 'ok') return
+  const first = await submitLogin(page);
+  if (first === "ok") return;
 
   expect(
     first,
     `Login was rejected for ${CREDENTIALS.email}. Seed the account or set E2E_EMAIL / E2E_PASSWORD.`,
-  ).toBe('throttled')
+  ).toBe("throttled");
 
   // Only pay for the extra time on the path that needs it.
-  testInfo?.setTimeout(testInfo.timeout + (RATE_LIMIT_WINDOW_SECONDS + 15) * 1000)
-  await page.waitForTimeout((RATE_LIMIT_WINDOW_SECONDS + 5) * 1000)
+  testInfo?.setTimeout(
+    testInfo.timeout + (RATE_LIMIT_WINDOW_SECONDS + 15) * 1000,
+  );
+  await page.waitForTimeout((RATE_LIMIT_WINDOW_SECONDS + 5) * 1000);
 
   expect(
     await submitLogin(page),
-    'Login was still throttled after waiting a full rate-limit window.',
-  ).toBe('ok')
+    "Login was still throttled after waiting a full rate-limit window.",
+  ).toBe("ok");
 }
 
 /** Backwards-compatible alias for specs that log in explicitly. */
-export const signIn = logInThroughForm
+export const signIn = logInThroughForm;
 
 export const test = base.extend({
   /**
@@ -105,16 +102,16 @@ export const test = base.extend({
    * machine.
    */
   signedIn: async ({ page }, use, testInfo) => {
-    await page.goto('/login')
+    await page.goto("/login");
     await expect(
-      page.getByRole('heading', { name: 'Вход в аккаунт' }),
-      'The app did not serve /login. Is the stack up and E2E_BASE_URL correct?',
-    ).toBeVisible()
+      page.getByRole("heading", { name: "Вход в аккаунт" }),
+      "The app did not serve /login. Is the stack up and E2E_BASE_URL correct?",
+    ).toBeVisible();
 
-    await logInThroughForm(page, testInfo)
+    await logInThroughForm(page, testInfo);
 
-    await use(page)
+    await use(page);
   },
-})
+});
 
-export { expect }
+export { expect };
