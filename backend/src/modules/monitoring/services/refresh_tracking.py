@@ -21,11 +21,16 @@ the refresh feature outright.
 
 from __future__ import annotations
 
+import hashlib
 import uuid
+from collections.abc import Sequence
 
 from redis.exceptions import RedisError
 
+from src.core.config import settings
+from src.core.exceptions import RateLimitError
 from src.core.logging import get_logger
+from src.core.ratelimit import consume_budget
 from src.core.redis import get_redis
 
 logger = get_logger(__name__)
@@ -40,6 +45,96 @@ _BINDING_TTL_SECONDS = 15 * 60
 def _binding_key(task_id: str) -> str:
     """Build the per-task ownership key."""
     return f"monitoring:refresh-task:{task_id}"
+
+
+def _inflight_key(workspace_id: uuid.UUID, nm_ids: Sequence[int]) -> str:
+    """Build the key identifying "this workspace already asked for these SKUs".
+
+    The SKU set is hashed rather than listed: a refresh-all in a large catalogue
+    would otherwise build a key thousands of identifiers long. Sorting first
+    makes the key depend on the *set*, so the same request in a different order
+    is recognised as the same request.
+    """
+    digest = hashlib.sha256(",".join(str(nm) for nm in sorted(nm_ids)).encode()).hexdigest()
+    return f"monitoring:refresh-inflight:{workspace_id}:{digest[:32]}"
+
+
+async def spend_refresh_budget(workspace_id: uuid.UUID) -> None:
+    """Charge one «Обновить» enqueue to the workspace's budget.
+
+    The routes had no bound at all: every press enqueued another catalogue walk,
+    so a held-down button (or a loop) could pile arbitrarily many onto a worker
+    pool of four and starve every scheduled harvest behind them. The budget is
+    per workspace because that is who spends the queue and the WB rate budget —
+    keying it on the caller's address would let one tenant multiply its budget
+    by its number of devices, and would make two colleagues behind one office NAT
+    share a single one.
+
+    Args:
+        workspace_id: The workspace asking for a refresh.
+
+    Raises:
+        RateLimitError: When this workspace has spent its window's budget.
+    """
+    within_budget = await consume_budget(
+        scope="monitoring-refresh-enqueue",
+        subject=str(workspace_id),
+        limit=settings.refresh_enqueue_attempts,
+        window_seconds=settings.refresh_enqueue_window_seconds,
+    )
+    if not within_budget:
+        raise RateLimitError(
+            "Слишком много обновлений подряд. Подождите несколько минут и повторите."
+        )
+
+
+async def task_already_running(workspace_id: uuid.UUID, nm_ids: Sequence[int]) -> str | None:
+    """Return the id of an identical refresh still in flight, if there is one.
+
+    Deduplication, not throttling: two presses of «Обновить» on the same card
+    want one harvest and one task id to poll, not two runs racing to write the
+    same rows. The budget above bounds abuse; this keeps ordinary impatience
+    from costing anything at all.
+
+    Args:
+        workspace_id: The caller's active workspace.
+        nm_ids: The SKUs the caller is asking to refresh.
+
+    Returns:
+        The task id to hand back instead of enqueuing, or ``None``.
+    """
+    try:
+        raw = await get_redis().get(_inflight_key(workspace_id, nm_ids))
+    except RedisError:
+        logger.exception("Redis unavailable: cannot deduplicate the refresh; enqueueing.")
+        return None
+    if raw is None:
+        return None
+    return raw.decode("utf-8") if isinstance(raw, bytes) else raw
+
+
+async def remember_running_task(
+    workspace_id: uuid.UUID, nm_ids: Sequence[int], task_id: str
+) -> None:
+    """Record an enqueued refresh so an identical one reuses it.
+
+    Args:
+        workspace_id: The workspace that enqueued it.
+        nm_ids: The SKUs it covers.
+        task_id: The Celery task id to serve to a duplicate request.
+    """
+    try:
+        await get_redis().set(
+            _inflight_key(workspace_id, nm_ids),
+            task_id,
+            ex=settings.refresh_dedup_window_seconds,
+        )
+    except RedisError:
+        logger.exception(
+            "Redis unavailable: refresh task %s not recorded; a repeat press "
+            "will enqueue a second run.",
+            task_id,
+        )
 
 
 async def bind_task_to_workspace(task_id: str, workspace_id: uuid.UUID) -> None:

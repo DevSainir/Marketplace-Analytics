@@ -9,7 +9,6 @@ from src.integrations.wildberries.clients.finance import WBFinanceClient
 from src.integrations.wildberries.clients.marketplace import WBMarketplaceClient
 )
 from src.integrations.wildberries.clients.prices import WBPricesClient
-from src.integrations.wildberries.clients.search import WBPublicSearchClient
 from src.integrations.wildberries.clients.statistics import WBStatisticsClient
 
 __all__ = [
@@ -21,6 +20,5 @@ __all__ = [
     "WBFinanceClient",
     "WBMarketplaceClient",
     "WBPricesClient",
-    "WBPublicSearchClient",
     "WBStatisticsClient",
 ]

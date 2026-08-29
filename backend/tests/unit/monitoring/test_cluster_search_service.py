@@ -1,29 +1,20 @@
-"""Unit tests for «Поиск по кластерам» — one SKU's clusters and its live rank.
+"""Unit tests for «Поиск по кластерам» — one SKU's advertising clusters.
 
-Hand-written fakes stand in for the repository and the WB probe, so these pin the
-service's own decisions: how a sparse day series becomes a drawable trend, what a
-phrase is allowed to be, and the difference between "this SKU ranks nowhere in
-the depth we scanned" and a rank we actually found.
+A hand-written fake stands in for the repository, so these pin the service's own
+decisions: how the derived rates fall out of the window totals, how a sparse day
+series becomes a drawable trend, and that an unreported average ad position stays
+null rather than rendering as rank zero.
 """
 
 from __future__ import annotations
 
-import uuid
 from datetime import date
 from typing import Any
 
-import pytest
-
-from src.core.exceptions import ValidationError
-from src.integrations.wildberries.clients.search import SearchPosition, SearchProbe
-from src.modules.monitoring.models import ProductCard
 from src.modules.monitoring.repos.advertising_clusters import ClusterAggregate, ClusterDayPoint
-from src.modules.monitoring.services.analytics import clusters as clusters_module
 from src.modules.monitoring.services.analytics.clusters import ClusterAnalytics
 
-WORKSPACE = uuid.UUID("018f4e2a-0000-7000-8000-000000000001")
 NM_ID = 953770957
-SIBLING = 144178006
 
 
 class _FakeClusterRepo:
@@ -47,66 +38,9 @@ class _FakeClusterRepo:
         return self._series
 
 
-class _FakeCardRepo:
-    """In-memory stand-in for ProductCardRepository."""
-
-    def __init__(self, *, nm_ids: list[int] | None = None) -> None:
-        self._nm_ids = nm_ids if nm_ids is not None else [NM_ID, SIBLING]
-        self.requested: list[set[int]] = []
-
-    async def get_by_ids(self, nm_ids: Any) -> dict[int, ProductCard]:
-        ids = set(nm_ids)
-        self.requested.append(ids)
-        return {
-            nm_id: ProductCard(nm_id=nm_id, vendor_code=f"M-{nm_id}", title="Носки")
-            for nm_id in ids
-        }
-
-    async def list_workspace_nm_ids(self, workspace_id: uuid.UUID) -> list[int]:
-        return list(self._nm_ids)
-
-
-class _FakeSearchClient:
-    """Records probes it was asked for and replays a canned scan."""
-
-    def __init__(self, probe: SearchProbe | None = None) -> None:
-        self.probe = probe or SearchProbe(
-            query="носки",
-            normalized_query="мужские носки",
-            total_found=1000,
-            pages_scanned=1,
-            positions_scanned=100,
-            truncated=True,
-            positions=[
-                SearchPosition(nm_id=NM_ID, position=7, page=1, position_on_page=7),
-                SearchPosition(nm_id=SIBLING, position=41, page=1, position_on_page=41),
-            ],
-        )
-        self.calls: list[dict[str, Any]] = []
-
-    async def find_positions(self, **kwargs: Any) -> SearchProbe:
-        self.calls.append(kwargs)
-        return self.probe
-
-
-def _service(
-    *,
-    clusters: _FakeClusterRepo | None = None,
-    cards: _FakeCardRepo | None = None,
-    search: _FakeSearchClient | None = None,
-) -> ClusterAnalytics:
-    """Build the service with fakes and the probe cache disabled.
-
-    ``cache_seconds=0`` keeps Redis out of the unit tier entirely — caching is a
-    wiring concern, not arithmetic.
-    """
-    return ClusterAnalytics(
-        cluster_repo=clusters or _FakeClusterRepo(),  # type: ignore[arg-type]
-        product_card_repo=cards or _FakeCardRepo(),  # type: ignore[arg-type]
-        search_client=search or _FakeSearchClient(),  # type: ignore[arg-type]
-        cache_seconds=0,
-        search_dest=-1257786,
-    )
+def _service(*, clusters: _FakeClusterRepo | None = None) -> ClusterAnalytics:
+    """Build the service with a fake repository."""
+    return ClusterAnalytics(cluster_repo=clusters or _FakeClusterRepo())  # type: ignore[arg-type]
 
 
 def _aggregate(**overrides: Any) -> ClusterAggregate:
@@ -193,103 +127,3 @@ async def test_days_wb_reported_nothing_for_are_returned_as_zeros() -> None:
         (date(2026, 8, 2), 0),
         (date(2026, 8, 3), 400),
     ]
-
-
-# --------------------------------------------------------------------------- #
-# Stored: this SKU's rank, as the check task left it
-# --------------------------------------------------------------------------- #
-# The service no longer calls WB on this path — «Проверить позицию» enqueues
-# `monitoring.probe_position`, which does the retried, frequently-refused work and
-# writes the sample. What these pin is the mapping from that stored sample onto
-# the response, and the one thing the panel must never be told: that a phrase
-# nobody has checked "ranks nowhere".
-
-
-def _stored(**overrides: Any) -> dict[str, Any]:
-    """A stored probe payload, in the shape `position_cache` writes."""
-    payload: dict[str, Any] = {
-        "normalized_query": "мужские носки",
-        "total_found": 90000,
-        "positions_scanned": 300,
-        "truncated": True,
-        "checked_at": "2026-08-17T09:00:00+00:00",
-        "positions": [
-            {"nm_id": NM_ID, "position": 7, "page": 1, "position_on_page": 7},
-            {"nm_id": SIBLING, "position": 41, "page": 1, "position_on_page": 41},
-        ],
-    }
-    payload.update(overrides)
-    return payload
-
-
-def _with_stored(monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any] | None) -> None:
-    """Serve ``payload`` as the stored sample for any phrase."""
-
-    async def fake_read(_term: str, *, dest: int, ttl_seconds: int) -> dict[str, Any] | None:
-        return payload
-
-    monkeypatch.setattr(clusters_module, "read_probe_result", fake_read)
-
-
-async def test_the_stored_sample_reports_this_skus_rank_and_its_siblings_separately(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The asked-for SKU is the answer; the others are context from the same scan.
-
-    Mixing them into one list would make the seller hunt for their own card in a
-    ranking that is supposed to be about it.
-    """
-    _with_stored(monkeypatch, _stored())
-
-    response = await _service().cached_position(nm_id=NM_ID, workspace_id=WORKSPACE, query="носки")
-
-    assert response is not None
-    assert (response.position, response.page, response.position_on_page) == (7, 1, 7)
-    assert [other.nm_id for other in response.other_skus] == [SIBLING]
-    assert response.other_skus[0].vendor_code == f"M-{SIBLING}"
-    assert response.normalized_query == "мужские носки"
-
-
-async def test_a_sku_outside_the_scanned_depth_has_no_position(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """None, not a large number: "not in the first N" is not a rank.
-
-    `truncated` is what tells the UI a deeper rank is still possible, so the pair
-    has to survive together.
-    """
-    _with_stored(monkeypatch, _stored(positions=[]))
-
-    response = await _service().cached_position(nm_id=NM_ID, workspace_id=WORKSPACE, query="носки")
-
-    assert response is not None
-    assert response.position is None
-    assert response.positions_scanned == 300
-    assert response.truncated is True
-
-
-async def test_a_phrase_nobody_has_checked_is_absent_not_unranked(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`None` here becomes a 404, which the panel shows as "не проверялось".
-
-    Rendering it as position=None would claim WB does not carry the card — the
-    opposite conclusion, from no evidence at all.
-    """
-    _with_stored(monkeypatch, None)
-
-    assert (
-        await _service().cached_position(nm_id=NM_ID, workspace_id=WORKSPACE, query="носки") is None
-    )
-
-
-@pytest.mark.parametrize("phrase", ["", "   ", "а" * 101])
-async def test_an_unusable_phrase_is_rejected_before_anything_is_read(phrase: str) -> None:
-    """An empty phrase has no ranking, and a pasted paragraph can only find nothing."""
-    with pytest.raises(ValidationError):
-        await _service().cached_position(nm_id=NM_ID, workspace_id=WORKSPACE, query=phrase)
-
-
-def test_a_phrase_is_collapsed_to_single_spaces() -> None:
-    """«носки   мужские» and «носки мужские» are the same query, key and task arg."""
-    assert ClusterAnalytics.normalise_keyword("  носки   мужские ") == "носки мужские"

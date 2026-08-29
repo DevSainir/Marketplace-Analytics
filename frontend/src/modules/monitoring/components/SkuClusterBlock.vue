@@ -4,10 +4,10 @@ import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 /**
  * «Рекламные кластеры» — the search phrases this SKU's ADS served in.
  *
- * Its own section since the live-position half moved to `SkuPositionPanel`. The
- * two used to share one block and one title, which made an empty table here read
- * as a broken position check there — they answer different questions from
- * different sources, and only this one is history.
+ * A window of PAID impressions per search cluster, never an organic rank — the
+ * live position probe that used to sit beside this block was removed on
+ * 2026-08-27 (see `docs/monitoring/LIVE_POSITION.md`). `avg_position` below is
+ * the average AD position inside the cluster, which is a different number.
  *
  * A phrase with no row means the campaign never bid on it: a gap in the
  * campaign, not in demand. Rows appear only for days a harvest has covered,

@@ -41,11 +41,6 @@ from src.integrations.wildberries.schemas.content import WBCard, WBCardDimension
 from src.integrations.wildberries.schemas.finance import WBReportDetailRow
 from src.integrations.wildberries.schemas.marketplace import WBFbsStockRow, WBFbsWarehouse
 from src.integrations.wildberries.schemas.prices import WBPriceGood, WBPriceSize
-from src.integrations.wildberries.schemas.search import (
-    WBSearchMetadata,
-    WBSearchPage,
-    WBSearchProduct,
-)
 from src.integrations.wildberries.schemas.statistics import WBSaleRecord
 )
 
@@ -82,8 +77,5 @@ __all__ = [
     "WBPriceSize",
     "WBReportDetailRow",
     "WBSaleRecord",
-    "WBSearchMetadata",
-    "WBSearchPage",
-    "WBSearchProduct",
     "WBStockRow",
 ]

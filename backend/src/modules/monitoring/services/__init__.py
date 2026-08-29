@@ -25,7 +25,6 @@ insulated from the internal package layout.
 from src.modules.monitoring.services.analytics import (
     AnalyticsService,
     ClusterAnalytics,
-    PinnedKeywordService,
 )
 from src.modules.monitoring.services.exports import (
     AdDay,
@@ -42,6 +41,9 @@ from src.modules.monitoring.services.exports import (
 from src.modules.monitoring.services.ingestion import IngestionService
 from src.modules.monitoring.services.refresh_tracking import (
     bind_task_to_workspace,
+    remember_running_task,
+    spend_refresh_budget,
+    task_already_running,
     task_belongs_to_workspace,
 )
 
@@ -50,7 +52,6 @@ __all__ = [
     "AnalyticsService",
     "ClusterAnalytics",
     "IngestionService",
-    "PinnedKeywordService",
     "WarehouseStock",
     "ad_coverage",
     "bind_task_to_workspace",
@@ -60,6 +61,9 @@ __all__ = [
     "load_orders_by_nm",
     "load_stock_by_warehouse",
     "load_vendor_codes",
+    "remember_running_task",
+    "spend_refresh_budget",
     "stock_day_span",
+    "task_already_running",
     "task_belongs_to_workspace",
 ]

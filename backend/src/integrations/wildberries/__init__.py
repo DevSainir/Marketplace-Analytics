@@ -11,7 +11,6 @@ from src.integrations.wildberries.clients import (
     WBContentClient,
     WBMarketplaceClient,
     WBPricesClient,
-    WBPublicSearchClient,
     WBStatisticsClient,
 )
 from src.integrations.wildberries.factory import (
@@ -20,7 +19,6 @@ from src.integrations.wildberries.factory import (
     build_card_client,
     build_marketplace_client,
     build_prices_client,
-    build_search_client,
     build_statistics_client,
 )
 
@@ -31,13 +29,11 @@ __all__ = [
     "WBContentClient",
     "WBMarketplaceClient",
     "WBPricesClient",
-    "WBPublicSearchClient",
     "WBStatisticsClient",
     "build_advertising_client",
     "build_analytics_client",
     "build_card_client",
     "build_marketplace_client",
     "build_prices_client",
-    "build_search_client",
     "build_statistics_client",
 ]

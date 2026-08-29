@@ -15,10 +15,8 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from src.core.config import settings
 from src.core.deps import DbSession
 from src.core.exceptions import NotFoundError
-from src.integrations.wildberries import build_search_client
 from src.modules.monitoring.repos import (
     AdvertisingClusterRepository,
     AdvertisingRepository,
@@ -26,7 +24,6 @@ from src.modules.monitoring.repos import (
     CampaignRepository,
     FunnelRepository,
     MatrixOverrideRepository,
-    PinnedKeywordRepository,
     PinnedSkuRepository,
     PriceRepository,
     ProductCardRepository,
@@ -37,11 +34,7 @@ from src.modules.monitoring.repos import (
     StockRepository,
     WarehouseMarkRepository,
 )
-from src.modules.monitoring.services import (
-    AnalyticsService,
-    ClusterAnalytics,
-    PinnedKeywordService,
-)
+from src.modules.monitoring.services import AnalyticsService, ClusterAnalytics
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
 
@@ -113,11 +106,6 @@ def get_pinned_sku_repo(session: DbSession) -> PinnedSkuRepository:
     return PinnedSkuRepository(session)
 
 
-def get_pinned_keyword_repo(session: DbSession) -> PinnedKeywordRepository:
-    """Provide a :class:`PinnedKeywordRepository` bound to the request session."""
-    return PinnedKeywordRepository(session)
-
-
 def get_day_comment_repo(session: DbSession) -> SkuDayCommentRepository:
     """Provide a :class:`SkuDayCommentRepository` bound to the request session."""
     return SkuDayCommentRepository(session)
@@ -145,7 +133,6 @@ PriceRepoDep = Annotated[PriceRepository, Depends(get_price_repo)]
 SaleRepoDep = Annotated[SaleRepository, Depends(get_sale_repo)]
 WarehouseMarkRepoDep = Annotated[WarehouseMarkRepository, Depends(get_warehouse_mark_repo)]
 PinnedSkuRepoDep = Annotated[PinnedSkuRepository, Depends(get_pinned_sku_repo)]
-PinnedKeywordRepoDep = Annotated[PinnedKeywordRepository, Depends(get_pinned_keyword_repo)]
 SkuDayCommentRepoDep = Annotated[SkuDayCommentRepository, Depends(get_day_comment_repo)]
 SkuDayActionRepoDep = Annotated[SkuDayActionRepository, Depends(get_day_action_repo)]
 
@@ -188,24 +175,9 @@ def get_analytics_service(
     )
 
 
-def get_cluster_analytics(
-    cluster_repo: AdvertisingClusterRepoDep,
-    product_card_repo: ProductCardRepoDep,
-) -> ClusterAnalytics:
-    """Compose the «Поиск по кластерам» service.
-
-    The live position probe is built here rather than injected as a shared
-    client: it holds no connection (it shells out to ``curl`` per request), and
-    the factory is what swaps in the synthetic ranking under
-    ``WB_FAKE_HARVEST`` so local dev renders the panel without touching WB.
-    """
-    return ClusterAnalytics(
-        cluster_repo=cluster_repo,
-        product_card_repo=product_card_repo,
-        search_client=build_search_client(settings),
-        cache_seconds=settings.wb_search_cache_seconds,
-        search_dest=settings.wb_search_dest,
-    )
+def get_cluster_analytics(cluster_repo: AdvertisingClusterRepoDep) -> ClusterAnalytics:
+    """Compose the «Поиск по кластерам» service (stored advertising history)."""
+    return ClusterAnalytics(cluster_repo=cluster_repo)
 
 
 #: Clean, injectable service type consumed by the presentation layer.
@@ -214,22 +186,6 @@ def get_cluster_analytics(
 AnalyticsServiceDep = Annotated[AnalyticsService, Depends(get_analytics_service)]
 #: The keyword-search service («Поиск по кластерам»), stored + live halves.
 ClusterAnalyticsDep = Annotated[ClusterAnalytics, Depends(get_cluster_analytics)]
-
-
-def get_pinned_keyword_service(
-    pinned_keyword_repo: PinnedKeywordRepoDep,
-) -> PinnedKeywordService:
-    """Compose the «Закрепить» service.
-
-    Takes no search client on purpose: pins are read and written here, but the
-    number on a card is written by the scheduled task, so this surface answers
-    even while WB is refusing the probe half.
-    """
-    return PinnedKeywordService(pinned_keyword_repo=pinned_keyword_repo)
-
-
-#: Pinned phrases and their last known positions («Закрепить»).
-PinnedKeywordServiceDep = Annotated[PinnedKeywordService, Depends(get_pinned_keyword_service)]
 
 
 # --------------------------------------------------------------------------- #
@@ -277,8 +233,6 @@ __all__ = [
     "CurrentWorkspaceId",
     "FunnelRepoDep",
     "MatrixOverrideRepoDep",
-    "PinnedKeywordRepoDep",
-    "PinnedKeywordServiceDep",
     "PinnedSkuRepoDep",
     "PriceRepoDep",
     "ProductCardRepoDep",

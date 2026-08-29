@@ -6,13 +6,15 @@ from datetime import date, timedelta
 
 from src.core.exceptions import ValidationError
 from src.core.timeutils import moscow_today
+from src.modules.monitoring.constants import MAX_WINDOW_DAYS
 
 #: Default look-back window (days) when the caller omits explicit dates.
 _DEFAULT_WINDOW_DAYS = 30
 
-#: Hard ceiling on a requested window. Bounds the work any single request can
-#: demand (an unbounded `date_from=2000-01-01` was a memory/latency DoS).
-_MAX_WINDOW_DAYS = 366
+#: Hard ceiling on a requested window. Shared with the request schemas through
+#: the module's constants, so the days a caller may ASK for and the days a
+#: caller may ASSERT in a matrix body cannot drift apart.
+_MAX_WINDOW_DAYS = MAX_WINDOW_DAYS
 
 
 def resolve_window(date_from: date | None, date_to: date | None) -> tuple[date, date]:

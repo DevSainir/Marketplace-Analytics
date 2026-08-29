@@ -20,9 +20,6 @@ One responsibility per module:
   ``monitoring.refresh_buyout_cohorts`` pass over maturing order-date cohorts.
 * :mod:`~src.modules.monitoring.tasks.day_headers` — the
   ``monitoring.carry_day_headers`` day-boundary carry.
-* :mod:`~src.modules.monitoring.tasks.positions` — the
-  ``monitoring.refresh_pinned_positions`` re-probe of pinned search phrases,
-  three times a day and behind «Проверить все позиции».
 
 This ``__init__`` is the package facade Celery's ``autodiscover_tasks`` imports
 (it looks for ``src.modules.monitoring.tasks``): importing it imports every
@@ -35,14 +32,11 @@ from src.modules.monitoring.tasks.cohorts import COHORT_REFRESH_DAYS, refresh_bu
 from src.modules.monitoring.tasks.day_headers import carry_day_headers
 from src.modules.monitoring.tasks.discovery import harvest_all
 from src.modules.monitoring.tasks.harvest import harvest_sku_window
-from src.modules.monitoring.tasks.positions import probe_position, refresh_pinned_positions
 
 __all__ = [
     "COHORT_REFRESH_DAYS",
     "carry_day_headers",
     "harvest_all",
     "harvest_sku_window",
-    "probe_position",
     "refresh_buyout_cohorts",
-    "refresh_pinned_positions",
 ]

@@ -13,7 +13,6 @@ from src.modules.monitoring.repos.day_actions import SkuDayActionRepository
 from src.modules.monitoring.repos.fbs_warehouses import FbsWarehouseRepository
 from src.modules.monitoring.repos.funnel import FunnelRepository
 from src.modules.monitoring.repos.matrix_override import MatrixOverrideRepository
-from src.modules.monitoring.repos.pinned_keywords import PinnedKeywordRepository
 from src.modules.monitoring.repos.pinned_skus import PinnedSkuRepository
 from src.modules.monitoring.repos.prices import PriceRepository
 from src.modules.monitoring.repos.products import (
@@ -33,7 +32,6 @@ __all__ = [
     "FbsWarehouseRepository",
     "FunnelRepository",
     "MatrixOverrideRepository",
-    "PinnedKeywordRepository",
     "PinnedSkuRepository",
     "PriceRepository",
     "ProductCardRepository",

@@ -48,7 +48,6 @@ from src.modules.monitoring.services.analytics.annotations import DayAnnotationA
 from src.modules.monitoring.services.analytics.clusters import ClusterAnalytics
 from src.modules.monitoring.services.analytics.detail import DetailAnalytics
 from src.modules.monitoring.services.analytics.matrix_editing import MatrixEditingAnalytics
-from src.modules.monitoring.services.analytics.pinned_keywords import PinnedKeywordService
 from src.modules.monitoring.services.analytics.pins import PinnedSkuAnalytics
 from src.modules.monitoring.services.analytics.service import AnalyticsService
 from src.modules.monitoring.services.analytics.stock_view import StockViewAnalytics
@@ -62,7 +61,6 @@ __all__ = [
     "DayAnnotationAnalytics",
     "DetailAnalytics",
     "MatrixEditingAnalytics",
-    "PinnedKeywordService",
     "PinnedSkuAnalytics",
     "StockViewAnalytics",
     "SummaryAnalytics",

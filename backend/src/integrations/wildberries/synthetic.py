@@ -37,11 +37,6 @@ from src.integrations.wildberries.clients.analytics import WBAnalyticsClient
 from src.integrations.wildberries.clients.card import WBCardClient
 from src.integrations.wildberries.clients.marketplace import WBMarketplaceClient
 from src.integrations.wildberries.clients.prices import WBPricesClient
-from src.integrations.wildberries.clients.search import (
-    SearchPosition,
-    SearchProbe,
-    WBPublicSearchClient,
-)
 from src.integrations.wildberries.clients.statistics import WBStatisticsClient
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
@@ -373,47 +368,3 @@ class SyntheticCardClient(_SyntheticWBClient, WBCardClient):
             price = WBCardPrice(basic=kopecks + 5000, product=kopecks, total=kopecks)
             products.append(WBCardProduct(nm_id=nm_id, sizes=[WBCardSizePrice(price=price)]))
         return products
-
-
-class SyntheticSearchClient(_SyntheticWBClient, WBPublicSearchClient):
-    """A deterministic ranking, so the position panel has something to render.
-
-    Roughly every third asked-for SKU is "found", at a position derived from the
-    SKU and the phrase. The misses are the point: the real probe usually finds
-    only a few of a catalogue's SKUs, and a synthetic client that placed them all
-    would hide the empty state the UI has to handle.
-    """
-
-    async def find_positions(
-        self, *, query: str, nm_ids: set[int], max_pages: int | None = None
-    ) -> SearchProbe:
-        """Place a deterministic subset of ``nm_ids`` in a fake result page.
-
-        Page size and depth are read from SETTINGS, not from the real client's
-        attributes: the mixin's ``__init__`` deliberately never runs
-        :meth:`WBPublicSearchClient.__init__` (that would open an httpx client),
-        so those attributes do not exist here.
-        """
-        page_size = self._settings.wb_search_page_size
-        pages = self._settings.wb_search_max_pages if max_pages is None else max_pages
-        phrase = _seed(*(ord(ch) for ch in query[:16]))
-        depth = page_size * pages
-        positions = [
-            SearchPosition(
-                nm_id=nm_id,
-                position=1 + _seed(nm_id, phrase) % depth,
-                page=1 + (_seed(nm_id, phrase) % depth) // page_size,
-                position_on_page=1 + _seed(nm_id, phrase) % page_size,
-            )
-            for nm_id in sorted(nm_ids)
-            if _seed(nm_id, phrase) % 3 == 0
-        ]
-        return SearchProbe(
-            query=query,
-            normalized_query=query.casefold(),
-            total_found=depth * 12,
-            pages_scanned=pages,
-            positions_scanned=depth,
-            truncated=True,
-            positions=sorted(positions, key=lambda position: position.position),
-        )
