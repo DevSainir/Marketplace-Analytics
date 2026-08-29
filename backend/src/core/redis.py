@@ -24,20 +24,40 @@ from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Single client (and therefore one connection pool) per process, shared by the
-# rate limiter and the revocation watermark. ``decode_responses`` keeps the
-# API str-in/str-out.
+# Single client (and therefore one connection pool) per process, shared by every
+# Redis-backed control in the app. ``decode_responses`` keeps the API
+# str-in/str-out.
+#
+# **Read it only through :func:`get_redis`, including inside this module.** That
+# is not style: because callers invoke the function rather than capture the
+# client, the function body is the one place the process resolves "which Redis",
+# and swapping this global therefore redirects every caller at once. Reach past
+# it — ``await _redis.set(...)`` in a helper down the file — and that helper
+# silently opts out of the swap.
+#
+# It has cost real time twice. Both the replay-grace store and "log out
+# everywhere" reached a live Redis from the component tier, which forbids it,
+# and neither failed honestly: they surfaced as ``Event loop is closed`` and
+# ``attached to a different loop`` from a second event loop, minutes of
+# debugging away from the actual cause.
+# ``tests/unit/core/test_redis_single_accessor.py`` now fails the build instead.
 _redis: Redis = Redis.from_url(settings.redis_url, decode_responses=True)
 
 
 def get_redis() -> Redis:
-    """Return the process-wide shared async Redis client."""
+    """Return the process-wide shared async Redis client.
+
+    The single accessor, and therefore the single seam: a test that replaces
+    ``src.core.redis._redis`` redirects every Redis-backed control in the
+    process, because they all resolve the client through this call rather than
+    holding one from import time.
+    """
     return _redis
 
 
 async def close_redis() -> None:
     """Close the shared client's connection pool on application shutdown."""
-    await _redis.aclose()
+    await get_redis().aclose()
 
 
 async def drain_redis_pool() -> None:
@@ -62,7 +82,7 @@ async def drain_redis_pool() -> None:
     Draining rather than closing keeps the singleton reusable: the pool object
     stays, and the next command lazily reconnects on the current loop.
     """
-    await _redis.connection_pool.disconnect()
+    await get_redis().connection_pool.disconnect()
 
 
 def _revocation_key(user_id: uuid.UUID) -> str:
@@ -84,7 +104,7 @@ async def mark_user_sessions_revoked(user_id: uuid.UUID) -> None:
     key = _revocation_key(user_id)
     ttl = settings.access_token_ttl_seconds + 60
     try:
-        await _redis.set(key, str(datetime.now(UTC).timestamp()), ex=ttl)
+        await get_redis().set(key, str(datetime.now(UTC).timestamp()), ex=ttl)
     except RedisError:
         logger.exception(
             "Redis unavailable: could not write session-revocation watermark for user %s; "
@@ -104,7 +124,7 @@ async def sessions_revoked_after(user_id: uuid.UUID) -> datetime | None:
         when no revocation is in force (or Redis is unreachable — fail open).
     """
     try:
-        raw = await _redis.get(_revocation_key(user_id))
+        raw = await get_redis().get(_revocation_key(user_id))
     except RedisError:
         logger.exception(
             "Redis unavailable: skipping session-revocation check for user %s.", user_id

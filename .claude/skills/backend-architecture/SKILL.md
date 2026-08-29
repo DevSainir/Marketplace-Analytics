@@ -68,6 +68,19 @@ One thing in `get_db` that looks removable and is not: the commit-and-close runs
 cleanup leaks `idle in transaction` connections until the pool is exhausted and the SPA hangs
 behind its header. Do not simplify it back.
 
+**Redis has one accessor: `get_redis()`.** The client is a module global in
+`src/core/redis.py`, and callers reach it by *calling* the accessor rather than holding a
+reference from import time — which is what makes one swap of `src.core.redis._redis` redirect
+every Redis-backed control in the process at once. Reach past it (`await _redis.set(...)` in a
+helper, or a second `Redis.from_url`) and that code path silently opts out of the swap: it then
+reaches a **live** Redis from a tier that forbids one, and reports it as `Event loop is closed`
+from a second event loop rather than as anything resembling the cause. That cost real debugging
+time twice before `tests/unit/core/test_redis_single_accessor.py` was written to fail the build
+instead. Taking the client as an argument (`single_flight(..., redis: Redis)`) is equally fine and
+often better — importing the *type* is not the violation, constructing a *client* is. The two
+Celery tasks that build a deliberate **sync** client are a documented exception; their reasoning
+is in the code.
+
 Every I/O path is async — DB sessions, HTTP clients, Celery task bodies. A Celery task must
 never call `asyncio.run` itself; it strands pooled asyncpg connections on a dead loop and kills
 the *next* scheduled task. Use the project's `run_task` helper (pinned by
