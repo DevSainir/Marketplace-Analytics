@@ -34,7 +34,7 @@ from src.modules.monitoring.contract import (
     load_ad_spend_by_nm,
     load_orders_by_nm,
 )
-from src.modules.monitoring.models import AdvertisingStatDaily, SalesFunnelDaily
+from src.modules.monitoring.models import AdvertisingStatDaily, ProductCard, SalesFunnelDaily
 from tests.integration.finreports.conftest import (
     COST_A,
     OTHER_WORKSPACE,
@@ -60,18 +60,35 @@ async def _report(session: AsyncSession):
         workspace_id=WORKSPACE,
         date_from=WINDOW_FROM,
         date_to=WINDOW_TO,
-        orders=await load_orders_by_nm(session, date_from=WINDOW_FROM, date_to=WINDOW_TO),
-        ad_spend=await load_ad_spend_by_nm(session, date_from=WINDOW_FROM, date_to=WINDOW_TO),
-        funnel_span=await funnel_coverage(session, date_from=WINDOW_FROM, date_to=WINDOW_TO),
-        ad_span=await ad_coverage(session, date_from=WINDOW_FROM, date_to=WINDOW_TO),
+        orders=await load_orders_by_nm(
+            session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+        ),
+        ad_spend=await load_ad_spend_by_nm(
+            session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+        ),
+        funnel_span=await funnel_coverage(
+            session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+        ),
+        ad_span=await ad_coverage(
+            session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+        ),
     )
 
 
 @pytest.fixture
 async def monitoring_seeded(db_session: AsyncSession) -> None:
-    """Funnel and advertising history overlapping the seeded week."""
+    """Funnel and advertising history overlapping the seeded week.
+
+    The ``product_card`` rows are not decoration: they are the SKU → workspace
+    registry every monitoring loader scopes through, so a SKU with facts but no
+    card belongs to nobody and its figures reach no statement. That is the
+    production shape too — an orphaned fact is deliberately invisible rather
+    than landing on whichever tenant asks first.
+    """
     db_session.add_all(
         [
+            ProductCard(nm_id=SKU_A, workspace_id=WORKSPACE, vendor_code=f"sku-{SKU_A}"),
+            ProductCard(nm_id=SKU_B, workspace_id=WORKSPACE, vendor_code=f"sku-{SKU_B}"),
             SalesFunnelDaily(
                 stat_date=WINDOW_FROM,
                 nm_id=SKU_A,

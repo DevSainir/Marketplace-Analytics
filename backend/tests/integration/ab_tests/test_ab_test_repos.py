@@ -23,15 +23,18 @@ from src.modules.ab_tests.repos import (
     VariantStatRepository,
 )
 from src.modules.ab_tests.services.attribution import AttributedDay
+from src.modules.organizations.models import Organization
 from src.modules.workspaces.models import Workspace
 
 NM_FLOWER_DRESS = 995716075
 NM_PLAIN_SUIT = 1948347102
 
 
-async def _workspace(session: AsyncSession, name: str = "Демо") -> Workspace:
-    """Persist a workspace to hang tests off."""
-    workspace = Workspace(id=uuid.uuid4(), name=name)
+async def _workspace(
+    session: AsyncSession, organization_id: uuid.UUID, name: str = "Демо"
+) -> Workspace:
+    """Persist a workspace, inside the tenant that owns it."""
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization_id, name=name)
     session.add(workspace)
     await session.flush()
     return workspace
@@ -71,9 +74,11 @@ async def _seed(session: AsyncSession, workspace: Workspace) -> AbTestRepository
 
 
 @pytest.mark.integration
-async def test_search_matches_the_test_name(db_session: AsyncSession) -> None:
+async def test_search_matches_the_test_name(
+    db_session: AsyncSession, organization: Organization
+) -> None:
     """The needle finds a test by its title, case-insensitively."""
-    workspace = await _workspace(db_session)
+    workspace = await _workspace(db_session, organization.id)
     repo = await _seed(db_session, workspace)
 
     found = await repo.search(workspace_id=workspace.id, query="главного")
@@ -82,9 +87,11 @@ async def test_search_matches_the_test_name(db_session: AsyncSession) -> None:
 
 
 @pytest.mark.integration
-async def test_search_matches_the_sellers_article(db_session: AsyncSession) -> None:
+async def test_search_matches_the_sellers_article(
+    db_session: AsyncSession, organization: Organization
+) -> None:
     """Артикул продавца is searchable — it is what the team actually types."""
-    workspace = await _workspace(db_session)
+    workspace = await _workspace(db_session, organization.id)
     repo = await _seed(db_session, workspace)
 
     found = await repo.search(workspace_id=workspace.id, query="ДЖИНСА")
@@ -93,13 +100,15 @@ async def test_search_matches_the_sellers_article(db_session: AsyncSession) -> N
 
 
 @pytest.mark.integration
-async def test_search_matches_a_partial_wb_article(db_session: AsyncSession) -> None:
+async def test_search_matches_a_partial_wb_article(
+    db_session: AsyncSession, organization: Organization
+) -> None:
     """A fragment of the nmID matches, because users paste partial articles.
 
     The column is a bigint, so this only works if the predicate casts it to
     text — an `=` comparison would silently return nothing for a fragment.
     """
-    workspace = await _workspace(db_session)
+    workspace = await _workspace(db_session, organization.id)
     repo = await _seed(db_session, workspace)
 
     found = await repo.search(workspace_id=workspace.id, query="57160")
@@ -108,9 +117,11 @@ async def test_search_matches_a_partial_wb_article(db_session: AsyncSession) -> 
 
 
 @pytest.mark.integration
-async def test_search_matches_the_status(db_session: AsyncSession) -> None:
+async def test_search_matches_the_status(
+    db_session: AsyncSession, organization: Organization
+) -> None:
     """Typing a status filters by it, so one box covers the whole row."""
-    workspace = await _workspace(db_session)
+    workspace = await _workspace(db_session, organization.id)
     repo = await _seed(db_session, workspace)
 
     found = await repo.search(workspace_id=workspace.id, query="paused")
@@ -121,9 +132,10 @@ async def test_search_matches_the_status(db_session: AsyncSession) -> None:
 @pytest.mark.integration
 async def test_a_blank_needle_returns_everything_newest_first(
     db_session: AsyncSession,
+    organization: Organization,
 ) -> None:
     """No search is not an empty search."""
-    workspace = await _workspace(db_session)
+    workspace = await _workspace(db_session, organization.id)
     repo = await _seed(db_session, workspace)
 
     assert len(await repo.search(workspace_id=workspace.id, query="  ")) == 3
@@ -131,14 +143,16 @@ async def test_a_blank_needle_returns_everything_newest_first(
 
 
 @pytest.mark.integration
-async def test_search_never_crosses_workspaces(db_session: AsyncSession) -> None:
+async def test_search_never_crosses_workspaces(
+    db_session: AsyncSession, organization: Organization
+) -> None:
     """A needle that matches a neighbour's test still returns nothing.
 
     Tenancy is in the predicate, not in a later filter — a test rewrites a live
     card, so a leak here changes someone else's storefront.
     """
-    mine = await _workspace(db_session, "Демо")
-    theirs = await _workspace(db_session, "Марат")
+    mine = await _workspace(db_session, organization.id, "Демо")
+    theirs = await _workspace(db_session, organization.id, "Марат")
     await _seed(db_session, theirs)
 
     assert await AbTestRepository(db_session).search(workspace_id=mine.id, query="ЦВЕТОЧЕК") == []
@@ -152,13 +166,14 @@ async def test_search_never_crosses_workspaces(db_session: AsyncSession) -> None
 @pytest.mark.integration
 async def test_photos_are_appended_at_the_end_of_the_rotation(
     db_session: AsyncSession,
+    organization: Organization,
 ) -> None:
     """Positions run 1, 2, 3 — the order the user uploaded them in.
 
     Rotation walks positions ascending, so a repeated or missing number would
     silently reorder or skip a photo.
     """
-    workspace = await _workspace(db_session)
+    workspace = await _workspace(db_session, organization.id)
     test = await AbTestRepository(db_session).create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
@@ -188,13 +203,14 @@ async def test_photos_are_appended_at_the_end_of_the_rotation(
 @pytest.mark.integration
 async def test_a_days_metrics_are_overwritten_by_a_later_reading(
     db_session: AsyncSession,
+    organization: Organization,
 ) -> None:
     """Re-attributing a day updates it rather than duplicating it.
 
     WB restates recent advertising days as conversions settle, so every pass
     re-reads the last month; without the upsert the same day would accumulate.
     """
-    workspace = await _workspace(db_session)
+    workspace = await _workspace(db_session, organization.id)
     tests = AbTestRepository(db_session)
     test = await tests.create(
         workspace_id=workspace.id,
@@ -231,13 +247,14 @@ async def test_a_days_metrics_are_overwritten_by_a_later_reading(
 @pytest.mark.integration
 async def test_an_exposure_is_closed_when_the_next_photo_goes_up(
     db_session: AsyncSession,
+    organization: Organization,
 ) -> None:
     """Closing writes an end to the open window and leaves earlier ones alone.
 
     The windows are what attribution reads; an unclosed one would keep claiming
     every day after the swap for the photo that came off.
     """
-    workspace = await _workspace(db_session)
+    workspace = await _workspace(db_session, organization.id)
     test = await AbTestRepository(db_session).create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
@@ -279,9 +296,10 @@ async def test_an_exposure_is_closed_when_the_next_photo_goes_up(
 @pytest.mark.integration
 async def test_deleting_a_test_takes_its_photos_and_days_with_it(
     db_session: AsyncSession,
+    organization: Organization,
 ) -> None:
     """The cascade is real, so a deleted test leaves no orphan metrics behind."""
-    workspace = await _workspace(db_session)
+    workspace = await _workspace(db_session, organization.id)
     tests = AbTestRepository(db_session)
     test = await tests.create(
         workspace_id=workspace.id,
