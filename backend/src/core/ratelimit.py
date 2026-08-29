@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from fastapi import Request
 
+from src.core.client_ip import resolve_client_ip
 from src.core.exceptions import RateLimitError
 from src.core.logging import get_logger
 from src.core.redis import get_redis
@@ -23,12 +24,14 @@ logger = get_logger(__name__)
 class RateLimiter:
     """Per-client-IP fixed-window counter usable as a route dependency.
 
-    The key is the immediate peer address. Behind a reverse proxy every client
-    shares the proxy's address, so deployments with a proxy must either
-    terminate abuse there or run uvicorn with ``--proxy-headers`` so
-    ``request.client`` reflects ``X-Forwarded-For`` from the trusted hop.
-    ``X-Forwarded-For`` is deliberately not read here: unauthenticated clients
-    can spoof it to dodge the limiter.
+    The key comes from :func:`~src.core.client_ip.resolve_client_ip`, which
+    reads the address nginx wrote and never one the client supplied. That
+    distinction is the control: keying on ``request.client.host`` let anyone
+    reset their own counter with a made-up ``X-Forwarded-For``, since uvicorn
+    runs in always-trust mode and takes the leftmost entry of ``X-Forwarded-For``,
+    which nginx then appended to rather than replaced. nginx no longer forwards
+    that chain at all, but this must not depend on it: either layer alone has to
+    close the hole.
 
     Args:
         scope: Short key namespace identifying the protected surface
@@ -47,30 +50,64 @@ class RateLimiter:
         """Count this request and reject it once the window budget is spent.
 
         Args:
-            request: The incoming request; the peer IP forms the counter key.
+            request: The incoming request; the resolved client IP forms the key.
 
         Raises:
             RateLimitError: When the client exceeded the window budget (429).
         """
-        client_ip = request.client.host if request.client else "unknown"
-        key = f"ratelimit:{self._scope}:{client_ip}"
-        try:
-            redis = get_redis()
-            current = await redis.incr(key)
-            if current == 1:
-                # First hit opens the window; EXPIRE is separate from INCR but
-                # a lost expiry (crash in between) only widens one window.
-                await redis.expire(key, self._window)
-        except Exception:
-            logger.exception("Redis unavailable: rate limiter '%s' failing open.", self._scope)
-            return
-        if current > self._limit:
-            logger.warning(
-                "Rate limit exceeded on '%s' by %s (%d/%d in %ds).",
-                self._scope,
-                client_ip,
-                current,
-                self._limit,
-                self._window,
-            )
+        client_ip = resolve_client_ip(request)
+        within_budget = await consume_budget(
+            scope=self._scope,
+            subject=client_ip,
+            limit=self._limit,
+            window_seconds=self._window,
+        )
+        if not within_budget:
             raise RateLimitError("Too many requests. Please retry later.")
+
+
+async def consume_budget(*, scope: str, subject: str, limit: int, window_seconds: int) -> bool:
+    """Count one use of a fixed-window budget and report whether it fitted.
+
+    The counting half of :class:`RateLimiter`, separated so a caller that keys
+    on something other than the client address can reuse it. The rate limiter
+    keys on the IP; the «Обновить» enqueue guard keys on the workspace, because
+    the resource it protects — the Celery queue and the WB budget behind it — is
+    spent per tenant, and a tenant is not one address.
+
+    It lives here rather than in a module because ``src.core`` may not import a
+    business module; the module supplies the subject and owns the decision about
+    what to do when the answer is ``False``.
+
+    Args:
+        scope: Key namespace; callers sharing one share a budget.
+        subject: What the budget is counted against (an IP, a workspace id).
+        limit: Maximum uses per window.
+        window_seconds: Fixed window length.
+
+    Returns:
+        ``True`` when this use fitted inside the budget — including when Redis
+        is unreachable, matching this module's fail-open policy.
+    """
+    key = f"ratelimit:{scope}:{subject}"
+    try:
+        redis = get_redis()
+        current = await redis.incr(key)
+        if current == 1:
+            # First hit opens the window; EXPIRE is separate from INCR but
+            # a lost expiry (crash in between) only widens one window.
+            await redis.expire(key, window_seconds)
+    except Exception:
+        logger.exception("Redis unavailable: budget '%s' failing open.", scope)
+        return True
+    if current > limit:
+        logger.warning(
+            "Budget exceeded on '%s' by %s (%d/%d in %ds).",
+            scope,
+            subject,
+            current,
+            limit,
+            window_seconds,
+        )
+        return False
+    return True

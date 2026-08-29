@@ -141,9 +141,14 @@ services:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
     # --proxy-headers makes request.client reflect X-Forwarded-For from nginx,
-    # so the per-IP auth rate limiter keys on the real client instead of the
-    # proxy (without it, every user shares ONE auth budget). Trusting any peer
-    # is safe here: the port is never published — nginx is the only ingress.
+    # which is what the request log reports. Trusting any peer is safe here:
+    # the port is never published — nginx is the only ingress.
+    #
+    # Always-trust mode takes the LEFTMOST X-Forwarded-For entry, so this is
+    # only sound because proxy-headers.conf sets that header from $remote_addr
+    # rather than appending to whatever the client sent. The auth rate limiter
+    # does not depend on either: it keys on X-Real-IP via core/client_ip.py, so
+    # a mistake in this flag costs log accuracy, not the control.
     command:
       [
         "uvicorn",
@@ -177,37 +182,6 @@ services:
   # address them individually to rotate them one at a time.
   api_standby:
     <<: *api
-
-  # The daily browser. Not started by `up`: it is a one-shot run, scheduled from
-  # the host crontab beside the backups, and it exits as soon as it has a token.
-  #
-  #   docker compose … run --rm -T session_minter
-  #
-  # `profiles` is what keeps it out of `up -d`; without it the stack would try to
-  # keep a finished container running and Chromium would idle in memory all day.
-  session_minter:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-      target: session_minter
-    profiles: ["tools"]
-    restart: "no"
-    # Chromium is the memory-hungry part of this box for the seconds it runs.
-    # Capped so a runaway page cannot squeeze Postgres or the worker out.
-    mem_limit: 768m
-    cpus: 1.0
-    # Chromium's default /dev/shm inside Docker is 64 MB and it will exhaust it
-    # mid-navigation; the launch flags avoid /dev/shm, this is the belt to that
-    # brace.
-    shm_size: 256m
-    env_file:
-      - .env
-    environment:
-      REDIS_HOST: redis
-      POSTGRES_HOST: postgres
-    depends_on:
-      redis:
-        condition: service_healthy
 
   # Single entry point: nginx serves the built SPA and reverse-proxies /api/
   # to the api container over the internal Docker network (see

@@ -113,6 +113,37 @@ def test_staging_is_hardened_like_production(monkeypatch: pytest.MonkeyPatch) ->
         _settings(env, monkeypatch)
 
 
+def test_only_local_may_publish_its_own_api_surface(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Interactive docs are a development affordance, not a deployed feature.
+
+    ``/openapi.json`` is the complete route inventory with every schema and
+    parameter. The SPA is written against the API and never reads it, so on any
+    reachable deployment it is reconnaissance served for free.
+    """
+    deployed = _settings({**_SECURE_ENV, "ENVIRONMENT": "production"}, monkeypatch)
+
+    assert deployed.api_docs_enabled is False
+
+
+def test_staging_withholds_the_docs_like_production(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The switch is ``local``, not ``is_production`` — staging is reachable too.
+
+    Keying this on :attr:`is_production` would have left staging publishing the
+    whole schema, which is the same disclosure from a box that is usually less
+    watched.
+    """
+    env = {**_SECURE_ENV, "ENVIRONMENT": "staging"}
+
+    assert _settings(env, monkeypatch).api_docs_enabled is False
+
+
+def test_local_development_keeps_the_docs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A developer's own box still gets Swagger; nothing is reachable from it."""
+    local = _settings({"ENVIRONMENT": "local"}, monkeypatch)
+
+    assert local.api_docs_enabled is True
+
+
 def test_all_problems_are_reported_at_once(monkeypatch: pytest.MonkeyPatch) -> None:
     """A misconfigured deploy lists every fault, not just the first.
 

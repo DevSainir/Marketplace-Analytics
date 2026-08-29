@@ -28,3 +28,18 @@ class AppSettings(BaseSettings):
     def is_production(self) -> bool:
         """Return ``True`` when running in the production environment."""
         return self.environment == "production"
+
+    @property
+    def api_docs_enabled(self) -> bool:
+        """Return ``True`` where the interactive API documentation may be served.
+
+        ``/docs``, ``/redoc`` and ``/openapi.json`` publish the complete route
+        inventory with every schema and parameter — a free map of the attack
+        surface, and of no use to the SPA, which is written against the API
+        rather than discovering it.
+
+        The boundary is ``local``, not :attr:`is_production`, for the reason
+        ``_enforce_production_hardening`` uses the same one: staging is
+        internet-reachable too, so it is hardened like production.
+        """
+        return self.environment == "local"

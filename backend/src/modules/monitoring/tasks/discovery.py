@@ -175,7 +175,11 @@ async def _discover_and_harvest(days: int) -> dict[str, int]:
             totals[key] = totals.get(key, 0) + value
 
     if totals["workspaces_harvested"] == 0:
-        raise IntegrationError(f"Every workspace harvest failed ({', '.join(failures)}); see logs.")
+        # Count, not names: this message travels into the Celery result payload
+        # and anywhere that is read from, and the names are every tenant on the
+        # platform. Each failure is already logged individually above, with the
+        # workspace it belongs to.
+        raise IntegrationError(f"Every workspace harvest failed ({len(failures)}); see logs.")
     return totals
 
 
