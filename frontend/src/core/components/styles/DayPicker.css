@@ -12,14 +12,14 @@
   height: 1.75rem;
   width: 1.75rem;
   border-radius: 6px;
-  color: #101010;
+  color: var(--ui-ink);
   transition: background-color 0.12s ease;
 }
 .nav-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-action, #007e76) 12%, transparent);
+  background: color-mix(in srgb, var(--ui-action) 12%, transparent);
 }
 .nav-btn:disabled {
-  color: #d0d0d0;
+  color: var(--ui-faint);
   cursor: not-allowed;
 }
 .nav-btn svg {

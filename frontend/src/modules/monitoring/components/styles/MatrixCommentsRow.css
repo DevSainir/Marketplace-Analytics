@@ -24,9 +24,12 @@
   vertical-align: top;
 }
 /* Frozen label cell: SOLID so the inputs scroll underneath it, not through it. */
-.app-datatable--matrix tbody.matrix-comments tr td:first-child,
-.app-datatable--matrix tbody.matrix-comments tr:hover td:first-child {
-  background: #f1f1f1;
+/* Frozen label cell. NO background here: `skin.css` §"THE MATRIX RAIL" paints
+   these three rails itself, with `!important`, because their fill is a measured
+   value (0.92 opacity — the ribbon's dense figures printed through anything
+   lighter). A background in this file is silently discarded, so declaring one
+   only invites someone to change it and wonder why nothing moved. */
+.app-datatable--matrix tbody.matrix-comments tr td:first-child {
   padding: 9px 8px;
 }
 .app-datatable--matrix tbody.matrix-comments tr.matrix-gap td,
@@ -45,12 +48,12 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: #667085;
+  color: var(--ui-muted);
   cursor: pointer;
 }
 .comment-toggle:hover,
 .comment-toggle:focus-visible {
-  color: #101010;
+  color: var(--ui-ink);
   outline: none;
 }
 .comment-chevron {
@@ -68,20 +71,20 @@
   width: 100%;
   resize: vertical;
   padding: 5px 8px;
-  border: 1px solid var(--color-border-subtle, #e4e4e7);
+  border: 1px solid var(--ui-hairline);
   border-radius: 8px;
-  background: var(--color-canvas, #fafafa);
-  color: #101010;
+  background: var(--ui-canvas);
+  color: var(--ui-ink);
   font: inherit;
   font-size: 12px;
   line-height: 1.35;
 }
 .comment-input::placeholder {
-  color: #98a2b3;
+  color: var(--ui-faint);
 }
 .comment-input:focus {
-  border-color: var(--color-action, #2f7d68);
-  outline: 2px solid color-mix(in srgb, var(--color-action, #2f7d68) 30%, transparent);
+  border-color: var(--ui-action);
+  outline: 2px solid color-mix(in srgb, var(--ui-action) 30%, transparent);
   outline-offset: 0;
 }
 .comment-input:disabled {
@@ -99,23 +102,23 @@
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: #101010;
+  color: var(--ui-ink);
   font: inherit;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.3;
 }
 .comment-header-input::placeholder {
-  color: #b4bcc8;
+  color: var(--ui-faint);
   font-weight: 500;
 }
 .comment-header-input:hover:not(:disabled) {
-  border-color: var(--color-border-subtle, #e4e4e7);
+  border-color: var(--ui-hairline);
 }
 .comment-header-input:focus {
-  border-color: var(--color-action, #2f7d68);
-  background: var(--color-canvas, #fafafa);
-  outline: 2px solid color-mix(in srgb, var(--color-action, #2f7d68) 30%, transparent);
+  border-color: var(--ui-action);
+  background: var(--ui-canvas);
+  outline: 2px solid color-mix(in srgb, var(--ui-action) 30%, transparent);
   outline-offset: 0;
 }
 .comment-header-input:disabled {
@@ -133,7 +136,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  color: #667085;
+  color: var(--ui-muted);
   font-size: 11px;
 }
 .comment-dot-mark {
@@ -141,7 +144,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--color-action, #2f7d68);
+  background: var(--ui-action);
 }
 .comment-dot-header {
   flex: none;
@@ -149,7 +152,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #101010;
+  color: var(--ui-ink);
   font-weight: 600;
 }
 .comment-dot-text {

@@ -104,15 +104,23 @@ const axisWidth = computed(() => `${chart.value?.axisGutter ?? 74}px`)
   <section v-if="chart" class="mt-lg" aria-label="График метрик">
     <h2 class="text-h3 font-semibold text-primary">График</h2>
 
-    <div
-      class="mt-sm rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
-    >
-      <ChartMetricPicker v-model="metrics" :groups="groups" />
+    <ChartMetricPicker v-model="metrics" :groups="groups" class="mt-sm" />
 
+    <!-- The plot is its own block, on the app's card surface rather than on
+         glass: it is the one thing here that is DENSE, and the system's own rule
+         is that a pane with figures behind it stops being readable. The three
+         pickers above it are the glass.
+
+         Absent entirely when nothing is chosen — the picker's own prompt is the
+         whole message then, and an empty card under it is a box of padding. -->
+    <div
+      v-if="metrics.length"
+      class="mt-md rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
+    >
       <template v-if="!chart.empty">
         <!-- Legend in HTML: on the canvas it scrolled away with the days it
              labels. -->
-        <ul class="mt-md flex flex-wrap gap-x-md gap-y-xs" aria-label="Показано на графике">
+        <ul class="flex flex-wrap gap-x-md gap-y-xs" aria-label="Показано на графике">
           <li
             v-for="entry in chart.legend"
             :key="entry.name"

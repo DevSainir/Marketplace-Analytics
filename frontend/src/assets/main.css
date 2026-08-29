@@ -151,9 +151,15 @@
   /* Both lower header rows carry the narrowest labels over the narrowest
      cells, so they take the tighter horizontal padding — a zone column is
      ~52px and «Каталог» does not survive 8px on each side of it (the value
-     rows below take the same relief, for the same reason). */
-  .app-datatable--matrix thead tr:nth-child(2) th,
-  .app-datatable--matrix thead tr:nth-child(3) th {
+     rows below take the same relief, for the same reason).
+
+     NOT the first cell. That one is the frozen label column at `w-48`, where
+     the squeeze buys nothing and costs alignment: «ТИП ПОЛУЧЕНИЯ ТРАФИКА» and
+     «ЗОНЫ ПОКАЗОВ» sat 4px to the left of «ДАТА» above them and every metric
+     name below, so the one column that reads as a vertical list had two of its
+     rows out of line. */
+  .app-datatable--matrix thead tr:nth-child(2) th:not(:first-child),
+  .app-datatable--matrix thead tr:nth-child(3) th:not(:first-child) {
     @apply px-xs;
   }
 
@@ -166,7 +172,8 @@
   }
 
   .app-datatable--matrix thead th:first-child {
-    @apply sticky left-0 z-30 border-r-2 border-[#d9d9d9] text-left;
+    @apply sticky left-0 z-30 border-r-2 text-left;
+    border-right-color: var(--ui-rule);
   }
 
   /* Compact cells (the ribbon is wide): everything drops to the micro size so
@@ -202,7 +209,8 @@
   }
 
   .app-datatable--matrix tbody td:first-child {
-    @apply sticky left-0 z-20 border-r-2 border-[#d9d9d9];
+    @apply sticky left-0 z-20 border-r-2;
+    border-right-color: var(--ui-rule);
   }
 
   /* Hovering any cell highlights the whole row (solid action-over-white
@@ -232,7 +240,8 @@
   .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 2):not(:nth-child(2)),
   .app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 2):not(:nth-child(2)),
   .app-datatable--matrix tbody td:nth-child(10n + 2):not(:nth-child(2)) {
-    @apply border-l-2 border-l-[#101010];
+    @apply border-l-2;
+    border-left-color: var(--ui-daydivider);
   }
 
   /* Promotion-type boundaries WITHIN a day — light, subordinate to the black
@@ -254,7 +263,8 @@
   .app-datatable--matrix tbody td:nth-child(10n + 7),
   .app-datatable--matrix tbody td:nth-child(10n + 8),
   .app-datatable--matrix tbody td:nth-child(10n) {
-    @apply border-l-2 border-l-[#d9d9d9];
+    @apply border-l-2;
+    border-left-color: var(--ui-rule);
   }
 }
 

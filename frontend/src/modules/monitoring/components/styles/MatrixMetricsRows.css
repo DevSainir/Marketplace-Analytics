@@ -30,13 +30,13 @@
   tbody.matrix-metrics
   tr.matrix-row-merged--campaign
   td:nth-child(6n + 2):not(:nth-child(2)) {
-  border-left: 2px solid #101010;
+  border-left: 2px solid var(--ui-daydivider);
 }
 .app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(6n + 3),
 .app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(6n + 4),
 .app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(6n + 5),
 .app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(6n) {
-  border-left: 2px solid #d9d9d9;
+  border-left: 2px solid var(--ui-rule);
 }
 
 /* «Процент выкупа»: ONE cell per day, so every cell after the frozen label
@@ -45,7 +45,7 @@
   tbody.matrix-metrics
   tr.matrix-row-merged--day
   td:not(:first-child):not(:nth-child(2)) {
-  border-left: 2px solid #101010;
+  border-left: 2px solid var(--ui-daydivider);
 }
 
 /* An editable cell reads as plain text but hints affordance on hover/focus.
@@ -76,9 +76,9 @@
   width: 100%;
   min-width: 3.5rem;
   padding: 2px 4px;
-  border: 1px solid var(--color-action, #2f7d68);
+  border: 1px solid var(--ui-action);
   border-radius: 4px;
-  background: var(--color-surface, #fff);
+  background: var(--ui-surface);
   color: inherit;
   font: inherit;
   font-weight: 500;
@@ -86,7 +86,7 @@
   font-variant-numeric: tabular-nums;
 }
 .matrix-cell-input:focus {
-  outline: 2px solid color-mix(in srgb, var(--color-action, #2f7d68) 40%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--ui-action) 40%, transparent);
   outline-offset: 0;
 }
 

@@ -20,9 +20,12 @@
   vertical-align: top;
 }
 /* Frozen label cell: SOLID so the cards scroll underneath it. */
-.app-datatable--matrix tbody.matrix-actions tr td:first-child,
-.app-datatable--matrix tbody.matrix-actions tr:hover td:first-child {
-  background: #f1f1f1;
+/* Frozen label cell. NO background here: `skin.css` §"THE MATRIX RAIL" paints
+   these three rails itself, with `!important`, because their fill is a measured
+   value (0.92 opacity — the ribbon's dense figures printed through anything
+   lighter). A background in this file is silently discarded, so declaring one
+   only invites someone to change it and wonder why nothing moved. */
+.app-datatable--matrix tbody.matrix-actions tr td:first-child {
   padding: 9px 8px;
 }
 .app-datatable--matrix tbody.matrix-actions tr.matrix-gap td,
@@ -47,10 +50,13 @@
   gap: 5px;
   padding: 6px 10px;
   border-radius: 10px;
-  background: rgba(16, 16, 16, 0.045);
+  /* No fill here either: `skin.css` names `.day-action-card` alongside
+     `.day-block` for the glass pane, and a scoped rule in this file outranks it.
+     The ink wash that used to sit here was quietly cancelling that treatment,
+     exactly as the «Цены»/«Остатки» tints did — same bug, same fix. */
 }
 .day-action-question {
-  color: #667085;
+  color: var(--ui-muted);
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
@@ -62,10 +68,10 @@
 .day-action-select {
   width: 100%;
   padding: 2px 6px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--ui-rule);
   border-radius: 6px;
-  background: #fff;
-  color: #667085;
+  background: var(--ui-surface);
+  color: var(--ui-muted);
   font-size: 11px;
   font-weight: 600;
 }
@@ -74,18 +80,18 @@
   opacity: 0.6;
 }
 .day-action-select--positive {
-  color: #179e60;
-  border-color: #179e60;
-  background: rgba(23, 158, 96, 0.12);
+  color: var(--ui-pos);
+  border-color: var(--ui-pos);
+  background: color-mix(in srgb, var(--ui-pos) 12%, transparent);
 }
 .day-action-select--negative {
-  color: #ee522b;
-  border-color: #ee522b;
-  background: rgba(238, 82, 43, 0.12);
+  color: var(--ui-neg);
+  border-color: var(--ui-neg);
+  background: color-mix(in srgb, var(--ui-neg) 12%, transparent);
 }
 /* A type taken by the sibling slot is offered but not pickable. */
 .day-action-select option:disabled {
-  color: #b4bcc8;
+  color: var(--ui-faint);
 }
 
 /* «Бюджет рекламы» / «На сколько»: label left, ₽ input right. */
@@ -96,7 +102,7 @@
   gap: 6px;
 }
 .day-action-amount span {
-  color: #667085;
+  color: var(--ui-muted);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -104,17 +110,17 @@
   width: 5.5rem;
   min-width: 3rem;
   padding: 2px 6px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--ui-rule);
   border-radius: 6px;
-  background: #fff;
-  color: #101010;
+  background: var(--ui-surface);
+  color: var(--ui-ink);
   font-size: 12px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 .day-action-amount input:focus {
-  border-color: var(--color-action, #2f7d68);
-  outline: 2px solid color-mix(in srgb, var(--color-action, #2f7d68) 30%, transparent);
+  border-color: var(--ui-action);
+  outline: 2px solid color-mix(in srgb, var(--ui-action) 30%, transparent);
   outline-offset: 0;
 }
 .day-action-amount input:disabled {

@@ -31,11 +31,21 @@ function toggle(key) {
 
 <template>
   <div>
-    <!-- One row, three columns: `flex-1 min-w-0` lets each group shrink to
-         share the width and wrap its own chips, instead of the widest group
-         pushing the others onto their own lines. Below `sm` they stack. -->
-    <div class="flex flex-wrap items-start gap-lg">
-      <div v-for="group in groups" :key="group.title" class="min-w-0 flex-1 sm:basis-0">
+    <!-- One row, three cards: `flex-1 min-w-0` lets each group shrink to share
+         the width and wrap its own chips, instead of the widest group pushing
+         the others onto their own lines. Below `sm` they stack.
+
+         A card each, rather than three headings inside one: the groups are
+         three separate questions — what the advertising did, what the funnel
+         did, what the card itself is — and the chips only ever combine WITHIN
+         a group in practice. Glass because they are chrome sitting on the
+         ambient ground, which is the surface the system reserves it for. -->
+    <div class="flex flex-wrap items-start gap-md">
+      <div
+        v-for="group in groups"
+        :key="group.title"
+        class="ui-glass min-w-0 flex-1 rounded-card p-md sm:basis-0"
+      >
         <p class="mb-xs text-tiny font-semibold uppercase tracking-wide text-muted">
           {{ group.title }}
         </p>

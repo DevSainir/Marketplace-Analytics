@@ -11,16 +11,18 @@
    so a painted chip could never show hover or selection. Keeping the slot
    free lets the rules below own the chip's background outright. */
 .pin-chip {
-  background-color: var(--pin-tint, #f1f1f1); /* bg-surface */
+  background-color: var(--pin-tint, var(--ui-surface));
 }
 
 /* Hover and selection are the SAME treatment, and both are OPAQUE — a
-   translucent layer would read differently over each of the 13 paint tints,
-   whereas this masks the tint entirely, so every chip highlights alike. */
+   translucent layer would read differently over each paint tint, whereas this
+   masks the tint entirely, so every chip highlights alike.
+   The fill was #E0EFEE, a wash of the PRE-ui-next teal accent, which is why a
+   hovered chip used to turn green in a violet app. */
 .pin-chip:hover,
 .pin-chip.pin-chip--active {
-  border-color: var(--color-action, #007e76);
-  background-color: #e0efee; /* bg-hover: action at ~12% over white */
+  border-color: var(--ui-action);
+  background-color: var(--ui-action-soft);
 }
 
 /* The chip being painted wins over any hover/selection mask so its live tint
@@ -30,9 +32,9 @@
    listed so the mask can't reclaim the background as the cursor sits on it. */
 .pin-chip.pin-chip--target,
 .pin-chip.pin-chip--target:hover {
-  background-color: var(--pin-tint, #f1f1f1);
-  border-color: var(--color-action, #007e76);
-  box-shadow: 0 0 0 2px var(--color-action, #007e76);
+  background-color: var(--pin-tint, var(--ui-surface));
+  border-color: var(--ui-action);
+  box-shadow: 0 0 0 2px var(--ui-action);
 }
 
 /* The pin chip row scrolls horizontally without a visible scrollbar (same

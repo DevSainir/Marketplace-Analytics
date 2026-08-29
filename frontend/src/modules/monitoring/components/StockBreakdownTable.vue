@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 
+import { pivotRows, pivotWarehouses, sizeShare } from '@/modules/monitoring/stockPivot'
 import { useWarehouseOverlays } from '@/modules/monitoring/useWarehouseOverlays'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
@@ -65,57 +66,9 @@ function shortWarehouseName(name) {
   return name.length > 8 ? `${name.slice(0, 8)}…` : name
 }
 
-/**
- * Warehouses ordered by total remaining stock, fullest first (leftmost) —
- * except marked ones, which always come before every unmarked one and are
- * sorted by stock only among themselves.
- */
-const warehouses = computed(() => {
-  const totals = new Map()
-  for (const cell of props.cells) {
-    totals.set(cell.warehouse_name, (totals.get(cell.warehouse_name) ?? 0) + cell.quantity)
-  }
-  return (
-    [...totals]
-      .map(([name, total]) => ({ name, total, marked: markedSet.value.has(name) }))
-      // WB reports every seller warehouse, stubs included, so an empty one is a
-      // column of zeros. A MARKED one stays: «we ship there and it is empty».
-      .filter((w) => w.total > 0 || w.marked)
-      .sort(
-        (a, b) => b.marked - a.marked || b.total - a.total || a.name.localeCompare(b.name, 'ru'),
-      )
-  )
-})
+const warehouses = computed(() => pivotWarehouses(props.cells, markedSet.value))
 
-const rows = computed(() => {
-  const byChrt = new Map()
-  for (const cell of props.cells) {
-    let row = byChrt.get(cell.chrt_id)
-    if (!row) {
-      row = { chrt_id: cell.chrt_id, tech_size: cell.tech_size, total: 0, quantities: {} }
-      byChrt.set(cell.chrt_id, row)
-    }
-    row.quantities[cell.warehouse_name] = (row.quantities[cell.warehouse_name] ?? 0) + cell.quantity
-    row.total += cell.quantity
-  }
-  // Imposed row set (comparison mode): identical rows on both sides, a size
-  // this day never stocked renders blank.
-  if (props.sizeOrder) {
-    return props.sizeOrder.map(
-      (size) =>
-        byChrt.get(size.chrt_id) ?? {
-          chrt_id: size.chrt_id,
-          tech_size: size.tech_size,
-          total: 0,
-          quantities: {},
-        },
-    )
-  }
-  // `numeric` keeps clothing sizes in wear order (42 < 44 < 122).
-  return [...byChrt.values()].sort((a, b) =>
-    sizeLabel(a).localeCompare(sizeLabel(b), 'ru', { numeric: true }),
-  )
-})
+const rows = computed(() => pivotRows(props.cells, props.sizeOrder, sizeLabel))
 
 const grandTotal = computed(() => warehouses.value.reduce((sum, wh) => sum + wh.total, 0))
 
@@ -182,7 +135,10 @@ function isGroupBoundary(index) {
         <tbody>
           <tr v-for="row in rows" :key="row.chrt_id">
             <td class="cell-size font-medium" :title="sizeLabel(row)">{{ sizeLabel(row) }}</td>
-            <td class="cell-total font-semibold tabular-nums">
+            <td
+              class="cell-total cell-total--share font-semibold tabular-nums"
+              :style="{ '--share': sizeShare(row.total, grandTotal) }"
+            >
               {{ row.total ? formatNumber(row.total) : '' }}
             </td>
             <td

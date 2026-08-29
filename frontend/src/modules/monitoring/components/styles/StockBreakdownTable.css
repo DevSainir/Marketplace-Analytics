@@ -65,11 +65,11 @@ tfoot td {
 /* Zebra stripes; the frozen pane keeps its own solid backgrounds (declared
    later, so they win over the stripe). */
 tbody tr:nth-child(even) td {
-  background: #f7f7f7;
+  background: var(--ui-zebra);
 }
 /* Striped cells would otherwise mask the skin's transparent row hover. */
 tbody tr:hover td {
-  background: #e8e8e8;
+  background: var(--ui-sunk);
 }
 
 /* Collapsed borders detach from sticky cells while scrolling — the frozen
@@ -90,25 +90,25 @@ table {
   padding: 0 2px;
   border: none;
   background: transparent;
-  color: #858585;
+  color: var(--ui-muted);
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
 }
 .wh-menu-btn:hover,
 .wh-menu-btn:focus-visible {
-  color: #101010;
+  color: var(--ui-ink);
   outline: none;
 }
 /* Marked («на отгрузку») warehouses carry the action-color underline. */
 .wh-marked {
   text-decoration: underline;
-  text-decoration-color: var(--color-action, #007e76);
+  text-decoration-color: var(--ui-action);
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
 }
 .wh-menu-checkbox {
-  accent-color: var(--color-action, #007e76);
+  accent-color: var(--ui-action);
 }
 
 /* Numbers right-align; their column headers follow (the skin's generic
@@ -134,13 +134,13 @@ thead th.wh-group .wh-group-label {
   display: inline-block;
 }
 thead th.wh-group--marked {
-  color: var(--color-action, #007e76);
+  color: var(--ui-action);
 }
 
 /* The vertical rule between the marked and unmarked groups — same weight as
    the matrix table's day-section boundaries. */
 .wh-divide {
-  border-left: 3px solid #bcbcbc;
+  border-left: 3px solid var(--ui-rule);
 }
 
 /* Frozen pane — the size label and its «Всего» total: sticky on the left
@@ -172,33 +172,52 @@ thead th.col-size,
 thead th.col-total {
   left: 0;
   z-index: 30;
-  background: #f1f1f1;
+  background: var(--ui-surface);
 }
 td.cell-size,
 td.cell-total {
   position: sticky;
   left: 0;
   z-index: 20;
-  background: #f1f1f1;
+  background: var(--ui-surface);
 }
 thead th.col-total,
 td.cell-total {
   left: var(--col-size-w);
-  border-right: 3px solid #e0e0e0;
+  border-right: 3px solid var(--ui-rule);
 }
 /* The skin's row-hover tint sits on the transparent `<tr>`; the solid frozen
    cells would ignore it, so tint them explicitly (matching the skin's
    bg-canvas row hover). */
 tbody tr:hover td.cell-size,
 tbody tr:hover td.cell-total {
-  background: #e8e8e8;
+  background: var(--ui-sunk);
 }
 
 /* Totals row: pinned to the bottom edge, separated like the header. */
 tfoot td {
   position: sticky;
   bottom: 0;
-  border-top: 2px solid #e0e0e0;
-  background: #f1f1f1;
+  border-top: 2px solid var(--ui-rule);
+  background: var(--ui-surface);
   white-space: nowrap;
+}
+
+/* The «Всего» column, as a distribution.
+   A thin bar under each size's total, its width that size's share of the SKU's
+   whole remaining stock. It turns the frozen column from a list of numbers into
+   the shape of the size curve — whether the stock is spread across the sizes
+   that sell or piled on the two that do not. Recessive on purpose: 3px, rounded,
+   under the figure, and it never competes with the digits above it. */
+.cell-total--share::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  bottom: 4px;
+  width: calc((100% - 16px) * var(--share, 0));
+  height: 3px;
+  border-radius: 999px;
+  background: var(--ui-action);
+  opacity: 0.45;
+  pointer-events: none;
 }

@@ -202,7 +202,7 @@ function pinLabel(item) {
       <p class="text-micro font-semibold uppercase tracking-wide text-muted">
         Цвет для «{{ pinLabel(targetItem) }}»
       </p>
-      <div class="mt-xs grid grid-cols-7 gap-xs">
+      <div class="mt-xs grid grid-cols-3 gap-xs">
         <button
           v-for="color in PIN_COLORS"
           :key="color.value"

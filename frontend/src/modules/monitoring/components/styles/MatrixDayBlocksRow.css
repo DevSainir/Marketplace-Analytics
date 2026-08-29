@@ -19,12 +19,13 @@
 }
 /* Section title cell: frozen with the rows, SOLID so it masks the cards
    scrolling underneath it. */
+/* Frozen label cell. NO background here: `skin.css` §"THE MATRIX RAIL" paints
+   these three rails itself, with `!important`, because their fill is a measured
+   value (0.92 opacity — the ribbon's dense figures printed through anything
+   lighter). A background in this file is silently discarded, so declaring one
+   only invites someone to change it and wonder why nothing moved. */
 .app-datatable--matrix tbody.matrix-blocks tr td:first-child {
-  background: #f1f1f1;
   padding: 9px 8px;
-}
-.app-datatable--matrix tbody.matrix-blocks tr:hover td:first-child {
-  background: #f1f1f1;
 }
 /* Spacer rows: pure air between the metric grid and each block. */
 .app-datatable--matrix tbody.matrix-blocks tr.matrix-gap td,
@@ -52,14 +53,19 @@
   padding: 6px 10px;
   border-radius: 10px;
 }
-.day-block--prices {
-  background: rgba(0, 126, 118, 0.08);
-}
-.day-block--stock {
-  background: rgba(79, 70, 229, 0.07);
-}
-/* The «Всего» card: shares the «Остатки» tint (it IS stock data), but only
-   takes the width its number needs — the two main cards shrink around it. */
+/* No tint of their own. `skin.css` gives every `.day-block` a glass pane and
+   puts a colour orb behind the band, so the tile's identity arrives THROUGH
+   the pane rather than painted on it — see the note there.
+
+   These two rules used to defeat that silently. A scoped component rule carries
+   a `[data-v-*]` attribute, so `.day-block--prices[data-v-x]` outranks
+   `.day-block` in `skin.css` no matter the load order: the glass background was
+   being overwritten, and what showed was a flat teal wash (#007E76 at 8% — the
+   PRE-ui-next accent) and an indigo one. Deleting them is what makes the file
+   agree with the design system instead of quietly reverting it. */
+/* The «Всего» card: the same pane as its «Остатки» neighbour (it IS stock
+   data), but only as wide as its number needs — the two main cards shrink
+   around it. */
 .day-block--total {
   flex: 0 1 auto;
   align-items: center;
@@ -67,7 +73,7 @@
   gap: 1px;
 }
 .day-block-total-value {
-  color: #101010;
+  color: var(--ui-ink);
   font-size: 13px;
   font-weight: 600;
 }
@@ -79,13 +85,13 @@
   gap: 8px;
 }
 .day-block-name {
-  color: #667085;
+  color: var(--ui-muted);
   font-size: 11px;
   white-space: nowrap;
 }
 .day-block-value {
   font-weight: 500;
-  color: #101010;
+  color: var(--ui-ink);
   text-align: right;
 }
 /* The generic cell button stretches to 100%; inside a block line it must only

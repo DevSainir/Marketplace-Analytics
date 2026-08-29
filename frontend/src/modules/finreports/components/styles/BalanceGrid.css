@@ -162,7 +162,7 @@ thead th.wh-group .wh-group-label {
   display: inline-block;
 }
 thead th.wh-group--pinned {
-  color: var(--color-action, #007e76);
+  color: var(--ui-action);
 }
 thead th.wh-group--uncounted {
   color: var(--ink-dim);
@@ -177,7 +177,7 @@ thead th.wh-group--uncounted {
   padding: 0 2px;
   border: none;
   background: transparent;
-  color: #858585;
+  color: var(--ui-muted);
   /* A notch above the cell type, so the affordance stays findable now that the
      figures beside it are larger. */
   font-size: 14px;
@@ -186,7 +186,7 @@ thead th.wh-group--uncounted {
 }
 .pin-menu-btn:hover,
 .pin-menu-btn:focus-visible {
-  color: #101010;
+  color: var(--ui-ink);
   outline: none;
 }
 /* Pinned rows and columns carry the action-color underline — drawn as an inset
@@ -196,7 +196,7 @@ thead th.wh-group--uncounted {
    on the element's own bottom edge and takes part in no layout at all, so every
    pinned row keeps the height of every other one. */
 .is-pinned {
-  box-shadow: inset 0 -2px 0 var(--color-action, #007e76);
+  box-shadow: inset 0 -2px 0 var(--ui-action);
 }
 /* Taken out of the count — a warehouse column or a SKU row — still shows its
    stock, because the seller wants to see what is lying there, but it reads as
@@ -225,9 +225,9 @@ tbody tr.is-uncounted .cell-money {
 }
 .cell-sep {
   margin: 0 3px;
-  color: #bcbcbc;
+  color: var(--ui-faint);
 }
 .cell-money {
   text-align: left;
-  color: #4a4a4a;
+  color: var(--ui-muted);
 }
