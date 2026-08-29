@@ -15,6 +15,7 @@ from fastapi import APIRouter, File, Query, Response, UploadFile, status
 
 from src.core.deps import DbSession
 from src.core.exceptions import ValidationError
+from src.core.uploads import read_capped
 from src.modules.finreports.deps import (
     CostPriceServiceDep,
     PnlServiceDep,
@@ -30,6 +31,7 @@ from src.modules.finreports.schemas import (
     PnlResponse,
     PnlSkuReportResponse,
     SkuExclusionInput,
+    WeeksResponse,
 )
 from src.modules.monitoring.contract import (
     ad_coverage,
@@ -37,6 +39,7 @@ from src.modules.monitoring.contract import (
     load_ad_spend_by_nm,
     load_orders_by_nm,
 )
+from src.modules.organizations.contract import WritingAccess
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
 #: The OOXML spreadsheet media type — what browsers map to an ``.xlsx`` download.
@@ -53,6 +56,27 @@ _EXPORT_UTF8_NAME = "P&L себестоимость.xlsx"
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 router = APIRouter()
+
+
+@router.get(
+    "/weeks",
+    response_model=WeeksResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "Harvested weekly report periods (newest first)."},
+        401: {"description": "Unauthorized access token."},
+    },
+)
+async def list_weeks(
+    workspace_id: CurrentWorkspaceId,
+) -> WeeksResponse:
+    """List the WB weekly report periods the seller has data for.
+
+    it is what every finreports page's period selector is built from: the SPA
+    reads the full settlement span from this to pick a default window and to
+    with them left a customer's P&L unable to choose a period at all.
+    """
+    return await service.list_weeks(workspace_id=workspace_id)
 
 
 @router.get(
@@ -113,10 +137,16 @@ async def get_pnl_by_sku(
         workspace_id=workspace_id,
         date_from=start,
         date_to=end,
-        orders=await load_orders_by_nm(session, date_from=start, date_to=end),
-        ad_spend=await load_ad_spend_by_nm(session, date_from=start, date_to=end),
-        funnel_span=await funnel_coverage(session, date_from=start, date_to=end),
-        ad_span=await ad_coverage(session, date_from=start, date_to=end),
+        orders=await load_orders_by_nm(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        ad_spend=await load_ad_spend_by_nm(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        funnel_span=await funnel_coverage(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        ad_span=await ad_coverage(session, workspace_id=workspace_id, date_from=start, date_to=end),
     )
 
 
@@ -129,6 +159,7 @@ async def get_pnl_by_sku(
     },
 )
 async def set_sku_exclusion(
+    _writer: WritingAccess,
     nm_id: int,
     payload: SkuExclusionInput,
     service: SkuReportServiceDep,
@@ -172,6 +203,7 @@ async def list_cost_prices(
     },
 )
 async def save_cost_prices(
+    _writer: WritingAccess,
     payload: CostPriceBulkInput,
     service: CostPriceServiceDep,
     workspace_id: CurrentWorkspaceId,
@@ -193,6 +225,7 @@ async def save_cost_prices(
     },
 )
 async def delete_cost_price(
+    _writer: WritingAccess,
     nm_id: int,
     service: CostPriceServiceDep,
     workspace_id: CurrentWorkspaceId,
@@ -234,10 +267,16 @@ async def export_cost_prices(
         workspace_id=workspace_id,
         date_from=start,
         date_to=end,
-        orders=await load_orders_by_nm(session, date_from=start, date_to=end),
-        ad_spend=await load_ad_spend_by_nm(session, date_from=start, date_to=end),
-        funnel_span=await funnel_coverage(session, date_from=start, date_to=end),
-        ad_span=await ad_coverage(session, date_from=start, date_to=end),
+        orders=await load_orders_by_nm(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        ad_spend=await load_ad_spend_by_nm(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        funnel_span=await funnel_coverage(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        ad_span=await ad_coverage(session, workspace_id=workspace_id, date_from=start, date_to=end),
     )
     disposition = (
         f'attachment; filename="{_EXPORT_ASCII_NAME}"; '
@@ -261,6 +300,7 @@ async def export_cost_prices(
     },
 )
 async def import_cost_prices(
+    _writer: WritingAccess,
     service: CostPriceServiceDep,
     workspace_id: CurrentWorkspaceId,
     file: UploadFile = File(description="Cost sheet (.xlsx, .xls or .csv) with costs filled in."),
@@ -272,11 +312,13 @@ async def import_cost_prices(
     change nothing and every other skip is reported. A file that is not a
     readable cost sheet is a 422, not a partial, guessed import.
     """
-    data = await file.read()
+    data = await read_capped(
+        file,
+        max_bytes=_MAX_UPLOAD_BYTES,
+        too_large="Файл слишком большой для загрузки себестоимости.",
+    )
     if not data:
         raise ValidationError("Файл пуст.")
-    if len(data) > _MAX_UPLOAD_BYTES:
-        raise ValidationError("Файл слишком большой для загрузки себестоимости.")
     return await service.import_workbook(
         workspace_id=workspace_id, filename=file.filename or "", data=data
     )

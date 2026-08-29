@@ -1,0 +1,276 @@
+"""Dependency-injection wiring and the access guards for the whole platform.
+
+Besides the usual repository → service graph, this package owns the four guards
+every protected route in every module is built from. They are declared here
+rather than in ``core/deps.py`` because they are domain decisions — what a role
+means, what a lapsed subscription costs — and ``core`` holds infrastructure
+only.
+
+The guards compose, and each one is strictly narrower than the last:
+
+``CurrentAccess``
+    Resolve the caller. No requirement beyond a valid token; a registered
+    account with no organisation gets through, which is what the activation and
+    invitation routes need.
+``MemberAccess``
+    Require an organisation. This is the one that closes the platform to the
+    ``user`` role — it is on every data router in the application.
+``WritingAccess``
+    Require an organisation AND a subscription that has not fallen past its
+    grace window. On every route that changes something or spends WB budget.
+``OwnerAccess``
+    Require ``owner`` (or ``dev``). Workspaces, tokens, members, billing.
+
+``InternalAccess`` is separate rather than a fifth rung: it is not more
+authority inside a tenant, it is a different question — whether this caller is
+one of *us*.
+"""
+
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import Depends
+
+from src.core.deps import DbSession
+from src.core.exceptions import PermissionDeniedError
+from src.modules.organizations.repos import (
+    ActivationCodeRepository,
+    InvitationRepository,
+    MembershipRepository,
+    OrganizationRepository,
+    SubscriptionRepository,
+)
+from src.modules.organizations.services import (
+    EffectiveRole,
+    OrganizationAccess,
+    resolve_access,
+)
+from src.modules.organizations.services.activation import ActivationService
+from src.modules.organizations.services.invitations import InvitationService
+from src.modules.organizations.services.membership import OrganizationService
+from src.modules.users.contract import CurrentUser
+
+
+# --------------------------------------------------------------------------- #
+# Repositories
+# --------------------------------------------------------------------------- #
+def get_organization_repo(session: DbSession) -> OrganizationRepository:
+    """Provide an :class:`OrganizationRepository` bound to the request session."""
+    return OrganizationRepository(session)
+
+
+def get_membership_repo(session: DbSession) -> MembershipRepository:
+    """Provide a :class:`MembershipRepository` bound to the request session."""
+    return MembershipRepository(session)
+
+
+def get_subscription_repo(session: DbSession) -> SubscriptionRepository:
+    """Provide a :class:`SubscriptionRepository` bound to the request session."""
+    return SubscriptionRepository(session)
+
+
+def get_activation_code_repo(session: DbSession) -> ActivationCodeRepository:
+    """Provide an :class:`ActivationCodeRepository` bound to the request session."""
+    return ActivationCodeRepository(session)
+
+
+def get_invitation_repo(session: DbSession) -> InvitationRepository:
+    """Provide an :class:`InvitationRepository` bound to the request session."""
+    return InvitationRepository(session)
+
+
+OrganizationRepoDep = Annotated[OrganizationRepository, Depends(get_organization_repo)]
+MembershipRepoDep = Annotated[MembershipRepository, Depends(get_membership_repo)]
+SubscriptionRepoDep = Annotated[SubscriptionRepository, Depends(get_subscription_repo)]
+ActivationCodeRepoDep = Annotated[ActivationCodeRepository, Depends(get_activation_code_repo)]
+InvitationRepoDep = Annotated[InvitationRepository, Depends(get_invitation_repo)]
+
+
+# --------------------------------------------------------------------------- #
+# Services
+# --------------------------------------------------------------------------- #
+def get_organization_service(
+    session: DbSession,
+    organization_repo: OrganizationRepoDep,
+    membership_repo: MembershipRepoDep,
+    subscription_repo: SubscriptionRepoDep,
+) -> OrganizationService:
+    """Compose the read/administration service for the caller's organisation."""
+    return OrganizationService(
+        session=session,
+        organization_repo=organization_repo,
+        membership_repo=membership_repo,
+        subscription_repo=subscription_repo,
+    )
+
+
+def get_activation_service(
+    code_repo: ActivationCodeRepoDep,
+    organization_repo: OrganizationRepoDep,
+    membership_repo: MembershipRepoDep,
+    subscription_repo: SubscriptionRepoDep,
+) -> ActivationService:
+    """Compose the activation-code issue/redeem service."""
+    return ActivationService(
+        code_repo=code_repo,
+        organization_repo=organization_repo,
+        membership_repo=membership_repo,
+        subscription_repo=subscription_repo,
+    )
+
+
+def get_invitation_service(
+    invitation_repo: InvitationRepoDep,
+    membership_repo: MembershipRepoDep,
+    organization_repo: OrganizationRepoDep,
+    subscription_repo: SubscriptionRepoDep,
+) -> InvitationService:
+    """Compose the invitation issue/accept service."""
+    return InvitationService(
+        invitation_repo=invitation_repo,
+        membership_repo=membership_repo,
+        organization_repo=organization_repo,
+        subscription_repo=subscription_repo,
+    )
+
+
+OrganizationServiceDep = Annotated[OrganizationService, Depends(get_organization_service)]
+ActivationServiceDep = Annotated[ActivationService, Depends(get_activation_service)]
+InvitationServiceDep = Annotated[InvitationService, Depends(get_invitation_service)]
+
+
+# --------------------------------------------------------------------------- #
+# The access guards
+# --------------------------------------------------------------------------- #
+async def get_current_access(session: DbSession, user: CurrentUser) -> OrganizationAccess:
+    """Resolve the caller's role, tenant and subscription state.
+
+    Depends on ``CurrentUser`` rather than on the token's user id alone,
+    because the platform role has to be read from the LIVE row: a revoked dev
+    role must take effect on the next request, not when the access token
+    happens to expire.
+    """
+    return await resolve_access(session, user_id=user.id, platform_role=user.role)
+
+
+#: The caller's resolved access. No requirement beyond a valid token.
+CurrentAccess = Annotated[OrganizationAccess, Depends(get_current_access)]
+
+
+async def require_member(access: CurrentAccess) -> OrganizationAccess:
+    """Require that the caller belongs to an organisation.
+
+    This is the guard that closes the platform to a bare registered account.
+    Registration is open, so without it every new signup would land inside
+    somebody's data; with it, a fresh account can reach exactly two things —
+    activation and its own pending invitations.
+
+    A dev with no organisation of their own is deliberately NOT let through
+    here: the routes behind this guard are all tenant-scoped, and there is no
+    tenant to scope them to. Devs read a customer's data by belonging to an
+    organisation, not by bypassing the concept.
+
+    Raises:
+        PermissionDeniedError: The caller has no membership.
+    """
+    if access.organization_id is None:
+        raise PermissionDeniedError(
+            "Аккаунт не привязан к организации. Введите ключ активации или примите приглашение."
+        )
+    return access
+
+
+MemberAccess = Annotated[OrganizationAccess, Depends(require_member)]
+
+
+async def require_writer(access: MemberAccess) -> OrganizationAccess:
+    """Require a member whose subscription has not fallen past its grace window.
+
+    Applied to everything that changes state or spends WB rate budget. Reads
+    stay open on purpose — the data is the customer's own, and locking them out
+    of it is a hostage position rather than a payment incentive.
+
+    Raises:
+        PermissionDeniedError: The subscription is in ``read_only``.
+    """
+    if not access.can_write:
+        raise PermissionDeniedError(
+            "Подписка истекла — доступ только для чтения. "
+            "Продлите подписку, чтобы вносить изменения."
+        )
+    return access
+
+
+WritingAccess = Annotated[OrganizationAccess, Depends(require_writer)]
+
+
+async def require_owner(access: MemberAccess) -> OrganizationAccess:
+    """Require the organisation's owner (or a dev).
+
+    Guards the things that change who and what the organisation IS: its
+    workspaces, its WB credentials, its members, its name.
+
+    Raises:
+        PermissionDeniedError: The caller is a manager.
+    """
+    if access.role not in (EffectiveRole.OWNER, EffectiveRole.DEV):
+        raise PermissionDeniedError("Действие доступно только владельцу организации.")
+    return access
+
+
+OwnerAccess = Annotated[OrganizationAccess, Depends(require_owner)]
+
+
+async def require_internal(access: CurrentAccess) -> OrganizationAccess:
+    """Require a caller who is one of us.
+
+    one seller, against our own data and our own legal case. Reachable by devs
+    and by members of the primary organisation, by nobody else.
+
+    Not built on :data:`MemberAccess`: a dev without an organisation still gets
+    through, because these routes are ours rather than a tenant's.
+
+    Raises:
+        PermissionDeniedError: Anyone else. Phrased as "not available" rather
+            than "you are not us", since to a customer this feature does not
+            exist.
+    """
+    if not access.sees_internal_features:
+        raise PermissionDeniedError("Раздел недоступен.")
+    return access
+
+
+InternalAccess = Annotated[OrganizationAccess, Depends(require_internal)]
+
+
+async def require_dev(access: CurrentAccess) -> OrganizationAccess:
+    """Require the platform ``dev`` role (activation-code administration).
+
+    Raises:
+        PermissionDeniedError: Anyone else.
+    """
+    if access.role is not EffectiveRole.DEV:
+        raise PermissionDeniedError("Действие доступно только разработчику.")
+    return access
+
+
+DevAccess = Annotated[OrganizationAccess, Depends(require_dev)]
+
+__all__ = [
+    "ActivationServiceDep",
+    "CurrentAccess",
+    "DevAccess",
+    "InternalAccess",
+    "InvitationServiceDep",
+    "MemberAccess",
+    "OrganizationServiceDep",
+    "OwnerAccess",
+    "WritingAccess",
+    "get_current_access",
+    "require_dev",
+    "require_internal",
+    "require_member",
+    "require_owner",
+    "require_writer",
+]

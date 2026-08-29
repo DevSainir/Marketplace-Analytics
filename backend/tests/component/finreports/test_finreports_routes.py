@@ -127,6 +127,15 @@ def headers(user: Any, workspace: Workspace) -> dict[str, str]:
     return {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
 
 
+@pytest.fixture(autouse=True)
+def _internal_caller(login_as: Any) -> None:
+
+    The guard is proved by ``test_a_customer_cannot_reach_the_claim`` below,
+    which deliberately does not.
+    """
+    login_as(is_primary_org=True)
+
+
 async def test_weeks_are_scoped_to_the_active_workspace(
     client: httpx.AsyncClient,
     headers: dict[str, str],
@@ -219,3 +228,16 @@ async def test_finreports_requires_the_workspace_header(
 ) -> None:
 
     assert response.status_code == 400
+
+
+async def test_a_customer_cannot_reach_the_claim(
+    client: httpx.AsyncClient, headers: dict[str, str], login_as: Any
+) -> None:
+
+    from our settlement history and argued in docs/finreports/. Producing one
+    for a customer would put an unfounded legal claim in their name.
+    """
+    login_as(is_primary_org=False)
+
+
+    assert response.status_code == 403

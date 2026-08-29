@@ -41,14 +41,23 @@ from sqlalchemy.pool import NullPool
 # without this, create_all() would build an empty schema.
 import src.modules.finreports.models
 import src.modules.monitoring.models
+import src.modules.organizations.models
 import src.modules.users.models
 from src.core.config import settings
 from src.core.database import Base
+from src.modules.organizations.models import Organization
 
 import src.modules.workspaces.models  # noqa: F401  isort:skip
 
 #: Logical schemas the monolith owns; mirrors ``alembic/env.py``.
-SCHEMAS: tuple[str, ...] = ("auth", "monitoring", "workspaces", "finreports", "ab_tests")
+SCHEMAS: tuple[str, ...] = (
+    "auth",
+    "monitoring",
+    "workspaces",
+    "finreports",
+    "ab_tests",
+    "organizations",
+)
 
 #: Name of the throwaway database. Overridable so CI can shard runs.
 TEST_DB_NAME: str = os.getenv("TEST_POSTGRES_DB", "marketplace_test")
@@ -234,3 +243,18 @@ async def api_client(
             yield client
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.fixture
+async def organization(db_session: AsyncSession) -> Organization:
+    """A persisted, non-primary organisation to hang a tenant's rows off.
+
+    Every workspace now belongs to one (``organization_id`` is NOT NULL), so a
+    test that needs a workspace needs one of these first. Non-primary by
+    default: the primary flag unlocks the internal-only features, and a test
+    that gets it by accident would be asserting against the wrong tenant.
+    """
+    org = Organization(name="Тестовая организация", is_primary=False)
+    db_session.add(org)
+    await db_session.flush()
+    return org

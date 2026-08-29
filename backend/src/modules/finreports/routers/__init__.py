@@ -10,23 +10,25 @@ questions of the same seller's data:
 * :mod:`.balance` — the other half of the picture: what the goods that have NOT
   moved are worth, by warehouse, on one snapshot day.
 
-All are pure pass-through routers, guarded here by the access-token dependency
-so no individual route can forget it. Domain errors raised by the services
-propagate to the global ``AppError`` handler in ``main.py``.
+All are pure pass-through routers, guarded here by the membership dependency so
+carries a second, narrower guard of its own — it is ours, not a customer's.
+
+Domain errors raised by the services propagate to the global ``AppError``
+handler in ``main.py``.
 """
 
 from fastapi import APIRouter, Depends
 
-from src.core.deps import get_current_user_id
 from src.modules.finreports.routers.balance import router as balance_router
 from src.modules.finreports.routers.harvest import router as harvest_router
 from src.modules.finreports.routers.pnl import router as pnl_router
 from src.modules.finreports.routers.window import DEFAULT_WINDOW_DAYS, resolve_window
+from src.modules.organizations.contract import require_member
 
 router = APIRouter(
     prefix="/v1/finreports",
     tags=["FinReports"],
-    dependencies=[Depends(get_current_user_id)],
+    dependencies=[Depends(require_member)],
 )
 router.include_router(pnl_router)
 router.include_router(damage_router)

@@ -12,6 +12,7 @@ next photo on the card.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Sequence
 from datetime import date, timedelta
 
@@ -73,9 +74,22 @@ async def _advance_all() -> dict[str, int]:
                     )
                     continue
 
-                async def _load_days(nm_id: int, date_from: date, date_to: date) -> Sequence[AdDay]:
+                # `workspace` is bound as a DEFAULT, not captured: this closure
+                # is defined inside the per-test loop, and a free reference to
+                # `test` would resolve to whatever the loop variable holds when
+                # the closure finally runs. It happens to run in the same
+                # iteration today, so the bug would not bite until someone
+                # deferred the call — at which point every test's advertising
+                # would be scoped to the LAST workspace in the batch.
+                async def _load_days(
+                    nm_id: int,
+                    date_from: date,
+                    date_to: date,
+                    workspace: uuid.UUID = test.workspace_id,
+                ) -> Sequence[AdDay]:
                     return await load_ad_days_for_nm(
                         session,
+                        workspace_id=workspace,
                         nm_id=nm_id,
                         date_from=date_from,
                         date_to=date_to,

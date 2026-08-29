@@ -74,6 +74,12 @@ class Workspace(Base):
 
     Attributes:
         id: UUIDv7 primary key (time-ordered, non-enumerable).
+        organization_id: The owning tenant. NOT NULL and without a default: a
+            workspace that belongs to no company is unreachable by any caller
+            (every request resolves its workspaces through the caller's
+            organisation) while still being harvested on the schedule — WB
+            budget spent on data nobody can read. See
+            ``src.modules.organizations``.
         name: Human-readable workspace name (e.g. the seller's legal name).
         is_primary: The main workspace stores a token per WB category (granular
             control); every other workspace stores a single ``unified`` token
@@ -87,6 +93,15 @@ class Workspace(Base):
     __table_args__ = {"schema": _SCHEMA}
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid7)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.organizations.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    # Unique ACROSS tenants, not per tenant. Two companies may legitimately want
+    # the same workspace name, and this will have to become a per-organisation
+    # constraint the first time they do — but a workspace name is also what the
+    # refusing rather than a limitation worth removing.
     name: Mapped[str] = mapped_column(String(256), unique=True, nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

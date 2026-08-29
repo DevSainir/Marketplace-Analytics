@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.workspaces.models import Workspace, WorkspaceToken
@@ -32,22 +32,54 @@ class WorkspaceRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def list_for_organization(self, organization_id: uuid.UUID) -> list[Workspace]:
+        """Return one organisation's workspaces, oldest first.
+
+        The tenant-facing listing. Every caller that is not the harvest uses
+        this one — :meth:`list_all` exists only for the fan-out, which
+        deliberately crosses tenants.
+        """
+        stmt = (
+            select(Workspace)
+            .where(Workspace.organization_id == organization_id)
+            .order_by(Workspace.id)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def count_for_organization(self, organization_id: uuid.UUID) -> int:
+        """Count an organisation's workspaces (for the subscription quota)."""
+        stmt = (
+            select(func.count())
+            .select_from(Workspace)
+            .where(Workspace.organization_id == organization_id)
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar_one())
+
     async def list_all(self) -> list[Workspace]:
-        """Return every workspace, oldest first (UUIDv7 ids are time-ordered)."""
+        """Return EVERY workspace across every tenant, oldest first.
+
+        Cross-tenant on purpose, and the only method here that is: the Celery
+        harvest fans out over all workspaces because WB data has to be fetched
+        for every customer on one schedule. No request-scoped caller may use
+        this — :meth:`list_for_organization` is the one for those.
+        """
         stmt = select(Workspace).order_by(Workspace.id)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def create(self, *, name: str) -> Workspace:
+    async def create(self, *, organization_id: uuid.UUID, name: str) -> Workspace:
         """Insert and flush a new workspace, returning the populated instance.
 
         Args:
+            organization_id: The owning tenant.
             name: Unique workspace name.
 
         Returns:
             The persisted :class:`Workspace` with its generated id populated.
         """
-        workspace = Workspace(name=name)
+        workspace = Workspace(organization_id=organization_id, name=name)
         self._session.add(workspace)
         await self._session.flush()
         return workspace

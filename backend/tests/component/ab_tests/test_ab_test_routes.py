@@ -5,6 +5,9 @@ that the routes exist where the SPA expects them, that the workspace header is
 what scopes them, that an upload arrives as bytes with its content type intact,
 and that the domain's refusals (a full rotation, a photo that is currently live)
 reach the client as 409 rather than as a 500.
+
+The module is internal-only, so ``_internal_caller`` below logs every test in as
+one of us; the guard itself is proved by the one test that deliberately does not.
 """
 
 from __future__ import annotations
@@ -168,6 +171,12 @@ def headers(user: Any, workspace: Workspace) -> dict[str, str]:
     return {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
 
 
+@pytest.fixture(autouse=True)
+def _internal_caller(login_as: Any) -> None:
+    """Call as one of us: A/Б-тесты is not a feature customers have bought."""
+    login_as(is_primary_org=True)
+
+
 async def test_the_list_is_scoped_to_the_header_workspace(
     client: httpx.AsyncClient, headers: dict[str, str], catalog: _StubCatalog, workspace: Workspace
 ) -> None:
@@ -325,3 +334,20 @@ async def test_creating_a_test_validates_the_article(
     )
 
     assert response.status_code == 422
+
+
+async def test_a_customer_cannot_reach_ab_tests(
+    client: httpx.AsyncClient, headers: dict[str, str], login_as: Any
+) -> None:
+    """An ordinary tenant gets 403, not a list of tests.
+
+    A/Б-тесты installs photos on a live WB card through the Content API and was
+    built against our own catalogue — it is not part of what a subscription
+    buys. The guard sits on the router, so one route standing in for the module
+    is the honest scope for this assertion.
+    """
+    login_as(is_primary_org=False)
+
+    response = await client.get("/api/ab-tests", headers=headers)
+
+    assert response.status_code == 403

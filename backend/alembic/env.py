@@ -19,6 +19,7 @@ from sqlalchemy import engine_from_config, pool, text
 import src.modules.ab_tests.models
 import src.modules.finreports.models
 import src.modules.monitoring.models
+import src.modules.organizations.models
 import src.modules.users.models
 import src.modules.workspaces.models
 from alembic import context
@@ -26,7 +27,14 @@ from src.core.config import settings
 from src.core.database import Base
 
 # All logical schemas that must exist before migrations run.
-_SCHEMAS: tuple[str, ...] = ("auth", "monitoring", "workspaces", "finreports", "ab_tests")
+_SCHEMAS: tuple[str, ...] = (
+    "auth",
+    "monitoring",
+    "workspaces",
+    "finreports",
+    "ab_tests",
+    "organizations",
+)
 
 
 def _include_name(name: str | None, type_: str, parent_names: dict[str, object]) -> bool:

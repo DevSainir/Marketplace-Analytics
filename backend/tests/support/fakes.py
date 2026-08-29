@@ -141,12 +141,29 @@ class FakeWorkspaceRepository:
         return next((ws for ws in self.workspaces.values() if ws.name == name), None)
 
     async def list_all(self) -> list[Workspace]:
-        """Return every workspace, oldest first."""
+        """Return every workspace across every tenant, oldest first."""
         return sorted(self.workspaces.values(), key=lambda ws: ws.created_at)
 
-    async def create(self, *, name: str) -> Workspace:
-        """Insert and return a new, non-primary workspace."""
-        workspace = Workspace(id=uuid7(), name=name, is_primary=False, created_at=datetime.now(UTC))
+    async def list_for_organization(self, organization_id: uuid.UUID) -> list[Workspace]:
+        """Return one organisation's workspaces, oldest first."""
+        return sorted(
+            (ws for ws in self.workspaces.values() if ws.organization_id == organization_id),
+            key=lambda ws: ws.created_at,
+        )
+
+    async def count_for_organization(self, organization_id: uuid.UUID) -> int:
+        """Count one organisation's workspaces."""
+        return sum(1 for ws in self.workspaces.values() if ws.organization_id == organization_id)
+
+    async def create(self, *, organization_id: uuid.UUID, name: str) -> Workspace:
+        """Insert and return a new, non-primary workspace in one organisation."""
+        workspace = Workspace(
+            id=uuid7(),
+            organization_id=organization_id,
+            name=name,
+            is_primary=False,
+            created_at=datetime.now(UTC),
+        )
         self.workspaces[workspace.id] = workspace
         return workspace
 
@@ -195,6 +212,7 @@ class FakeWorkspaceTokenRepository:
 
 def make_workspace(
     *,
+    organization_id: uuid.UUID,
     name: str = "ИП Тестовый",
     is_primary: bool = False,
     workspace_id: uuid.UUID | None = None,
@@ -202,6 +220,10 @@ def make_workspace(
     """Build a transient :class:`Workspace` row.
 
     Args:
+        organization_id: The owning tenant. Required, with no default, because
+            the request path now compares it against the caller's own
+            organisation — a fake that invented one would make every tenancy
+            test pass for the wrong reason.
         name: Display name (unique in production).
         is_primary: Primary workspaces store one token per WB category;
             every other workspace stores a single ``unified`` token.
@@ -212,6 +234,7 @@ def make_workspace(
     """
     return Workspace(
         id=workspace_id or uuid7(),
+        organization_id=organization_id,
         name=name,
         is_primary=is_primary,
         created_at=datetime.now(UTC),

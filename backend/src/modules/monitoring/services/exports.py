@@ -19,6 +19,14 @@ report cannot supply:
 
 All of them return plain mappings — no DTOs, no ORM rows — so the consumer stays
 insulated from this module's internals.
+
+**Every loader here takes a ``workspace_id`` and every query is scoped by it,
+through :func:`~src.modules.monitoring.repos.base.workspace_sku_select`.** Four
+of them did not until 2026-08-27, and the consequence was not a missing filter
+in the abstract: ``GET /pnl/skus`` summed EVERY tenant's orders and advertising
+spend into the «Итого» row of whichever tenant asked. A monitoring loader
+without a tenant argument is the bug, so none of them has an optional one — a
+caller that does not know whose numbers it wants must not be able to compile.
 """
 
 from __future__ import annotations
@@ -41,7 +49,7 @@ from src.modules.monitoring.repos.base import workspace_sku_select
 
 
 async def load_orders_by_nm(
-    session: AsyncSession, *, date_from: date, date_to: date
+    session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
 ) -> dict[int, int]:
     """Return ordered units per SKU for the window, from the funnel history.
 
@@ -52,6 +60,7 @@ async def load_orders_by_nm(
 
     Args:
         session: An open async session (caller owns the transaction).
+        workspace_id: Restrict to SKUs owned by this workspace.
         date_from: Inclusive stat-date start.
         date_to: Inclusive stat-date end.
 
@@ -60,14 +69,18 @@ async def load_orders_by_nm(
     """
     stmt = (
         select(SalesFunnelDaily.nm_id, func.sum(SalesFunnelDaily.order_count))
-        .where(SalesFunnelDaily.stat_date >= date_from, SalesFunnelDaily.stat_date <= date_to)
+        .where(
+            SalesFunnelDaily.nm_id.in_(workspace_sku_select(workspace_id)),
+            SalesFunnelDaily.stat_date >= date_from,
+            SalesFunnelDaily.stat_date <= date_to,
+        )
         .group_by(SalesFunnelDaily.nm_id)
     )
     return {int(nm): int(total or 0) for nm, total in (await session.execute(stmt)).all()}
 
 
 async def load_ad_spend_by_nm(
-    session: AsyncSession, *, date_from: date, date_to: date
+    session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
 ) -> dict[int, Decimal]:
     """Return advertising spend per SKU for the window, from the Promotion API.
 
@@ -79,6 +92,7 @@ async def load_ad_spend_by_nm(
 
     Args:
         session: An open async session (caller owns the transaction).
+        workspace_id: Restrict to SKUs owned by this workspace.
         date_from: Inclusive stat-date start.
         date_to: Inclusive stat-date end.
 
@@ -88,6 +102,7 @@ async def load_ad_spend_by_nm(
     stmt = (
         select(AdvertisingStatDaily.nm_id, func.sum(AdvertisingStatDaily.spend))
         .where(
+            AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id)),
             AdvertisingStatDaily.stat_date >= date_from,
             AdvertisingStatDaily.stat_date <= date_to,
         )
@@ -97,7 +112,7 @@ async def load_ad_spend_by_nm(
 
 
 async def funnel_coverage(
-    session: AsyncSession, *, date_from: date, date_to: date
+    session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
 ) -> tuple[date | None, date | None]:
     """Return the funnel days actually on record inside a window.
 
@@ -106,6 +121,7 @@ async def funnel_coverage(
 
     Args:
         session: An open async session (caller owns the transaction).
+        workspace_id: Restrict to SKUs owned by this workspace.
         date_from: Inclusive stat-date start.
         date_to: Inclusive stat-date end.
 
@@ -113,23 +129,31 @@ async def funnel_coverage(
         ``(first, last)`` covered day inside the window, or ``(None, None)``.
     """
     stmt = select(func.min(SalesFunnelDaily.stat_date), func.max(SalesFunnelDaily.stat_date)).where(
-        SalesFunnelDaily.stat_date >= date_from, SalesFunnelDaily.stat_date <= date_to
+        SalesFunnelDaily.nm_id.in_(workspace_sku_select(workspace_id)),
+        SalesFunnelDaily.stat_date >= date_from,
+        SalesFunnelDaily.stat_date <= date_to,
     )
     first, last = (await session.execute(stmt)).one()
     return first, last
 
 
 async def ad_coverage(
-    session: AsyncSession, *, date_from: date, date_to: date
+    session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
 ) -> tuple[date | None, date | None]:
     """Return the advertising days actually on record inside a window.
 
     Same caveat as :func:`funnel_coverage`: the Promotion API history begins
-    2026-05-15, long after the settlement history.
+    2026-05-15, long after the settlement history. Scoped to the workspace for
+    the same reason as the rest — an unscoped span would tell one tenant when
+    ANOTHER tenant's advertising history starts.
     """
     stmt = select(
         func.min(AdvertisingStatDaily.stat_date), func.max(AdvertisingStatDaily.stat_date)
-    ).where(AdvertisingStatDaily.stat_date >= date_from, AdvertisingStatDaily.stat_date <= date_to)
+    ).where(
+        AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id)),
+        AdvertisingStatDaily.stat_date >= date_from,
+        AdvertisingStatDaily.stat_date <= date_to,
+    )
     first, last = (await session.execute(stmt)).one()
     return first, last
 
@@ -254,7 +278,7 @@ class AdDay(NamedTuple):
 
 
 async def load_ad_days_for_nm(
-    session: AsyncSession, *, nm_id: int, date_from: date, date_to: date
+    session: AsyncSession, *, workspace_id: uuid.UUID, nm_id: int, date_from: date, date_to: date
 ) -> list[AdDay]:
     """Return one SKU's advertising days over a window.
 
@@ -264,12 +288,20 @@ async def load_ad_days_for_nm(
 
     Args:
         session: An open async session (caller owns the transaction).
+        workspace_id: The workspace the SKU must belong to. WB ids are globally
+            unique, so filtering by ``nm_id`` alone is *usually* equivalent —
+            but "usually" is not a property to build tenancy on, and a SKU
+            tracked by two workspaces (a demo copy, a migration mid-flight)
+            would silently answer for the wrong one. Every loader here takes a
+            tenant so none of them has to be reasoned about individually.
         nm_id: SKU to report.
         date_from: Inclusive stat-date start.
         date_to: Inclusive stat-date end.
 
     Returns:
-        Days in ascending order; days with no advertising are absent.
+        Days in ascending order; days with no advertising are absent. A SKU
+        that does not belong to this workspace returns an empty list rather
+        than another tenant's advertising.
     """
     stmt = (
         select(
@@ -282,6 +314,7 @@ async def load_ad_days_for_nm(
         )
         .where(
             AdvertisingStatDaily.nm_id == nm_id,
+            AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id)),
             AdvertisingStatDaily.stat_date >= date_from,
             AdvertisingStatDaily.stat_date <= date_to,
         )

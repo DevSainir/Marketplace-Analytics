@@ -19,6 +19,7 @@ import httpx
 import pytest
 from cryptography.fernet import Fernet
 
+from src.modules.organizations.contract import EffectiveRole
 from src.modules.users.deps import get_user_repo
 from src.modules.workspaces.contract import WORKSPACE_HEADER
 from src.modules.workspaces.deps import get_workspace_repo, get_workspace_token_repo
@@ -60,6 +61,22 @@ async def test_any_authenticated_user_can_list_workspaces(
     assert len(response.json()["items"]) == 2
 
 
+@pytest.fixture(autouse=True)
+def _unlimited_quota(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Report an unlimited workspace quota without touching the database.
+
+    Patched at the ROUTER module, the same way the finreports routes fake the
+    monitoring loaders they call: the quota comes from the organizations module
+    through its contract, so it is a plain function rather than an injectable
+    dependency and cannot be reached with a dependency override.
+    """
+
+    async def _no_limit(*_args: Any, **_kwargs: Any) -> int | None:
+        return None
+
+    monkeypatch.setattr("src.modules.workspaces.routers.load_workspace_quota", _no_limit)
+
+
 @pytest.mark.parametrize(
     ("method", "path_template"),
     [
@@ -69,18 +86,23 @@ async def test_any_authenticated_user_can_list_workspaces(
         ("PUT", "/api/v1/workspaces/{workspace_id}/tokens"),
     ],
 )
-async def test_administration_requires_the_dev_role(
+async def test_administration_requires_the_owner_role(
     client: httpx.AsyncClient,
     user: Any,
     workspace: Workspace,
+    login_as: Any,
     method: str,
     path_template: str,
 ) -> None:
-    """A regular account is refused with 403 on every admin route.
+    """A MANAGER is refused with 403 on every admin route.
 
-    These routes read and rotate WB API credentials — a plain user reaching one
-    would be a real credential-exposure bug.
+    Re-pointed from ``dev`` to ``owner`` on 2026-08-27: workspace
+    administration is a tenant's own business, not ours, so it moved from the
+    platform role to the organisation role. The assertion that matters is
+    unchanged — these routes read and rotate WB API credentials, and a caller
+    who is merely inside the organisation must not reach one.
     """
+    login_as(role=EffectiveRole.MANAGER)
     path = path_template.format(workspace_id=workspace.id)
 
     response = await client.request(method, path, headers=auth_headers(user.id), json={})
@@ -89,7 +111,24 @@ async def test_administration_requires_the_dev_role(
     assert response.json()["error"]["code"] == "forbidden"
 
 
-async def test_dev_can_create_a_workspace(client: httpx.AsyncClient, dev_user: Any) -> None:
+async def test_administration_is_refused_to_an_account_with_no_organisation(
+    client: httpx.AsyncClient, user: Any, login_as: Any
+) -> None:
+    """A bare registered account cannot create a workspace anywhere.
+
+    Registration is open, so this is the case that would otherwise let anyone
+    who signed up start provisioning WB credential slots.
+    """
+    login_as(role=EffectiveRole.USER, org=None)
+
+    response = await client.post(
+        "/api/v1/workspaces", headers=auth_headers(user.id), json={"name": "Чужой"}
+    )
+
+    assert response.status_code == 403
+
+
+async def test_the_owner_can_create_a_workspace(client: httpx.AsyncClient, dev_user: Any) -> None:
     """The dev role unlocks creation, answering 201 with the new workspace."""
     response = await client.post(
         "/api/v1/workspaces", headers=auth_headers(dev_user.id), json={"name": "ООО Новый"}

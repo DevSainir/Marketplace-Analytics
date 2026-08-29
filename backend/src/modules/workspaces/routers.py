@@ -1,9 +1,20 @@
 """HTTP presentation layer for the Workspaces module.
 
-Listing is open to any authenticated user (workspace membership/roles arrive
-later); creation, deletion, and token management require the ``dev`` role.
-Domain errors (``ConflictError``, ``NotFoundError``, ``PermissionDeniedError``)
-propagate to the global ``AppError`` handler in ``main.py``.
+Every route here is scoped to the caller's own organisation, and the guards say
+who may do what:
+
+* **listing** needs only membership — a manager has to be able to switch between
+  the workspaces they work in;
+* **creating, deleting and managing WB tokens** need ``owner``. These change
+  what the company IS and what it costs, and a WB token is the credential to a
+  seller's live account.
+
+Until 2026-08-27 the write routes were gated on the ``dev`` role and the list
+returned every workspace on the platform. Both are now tenant-scoped: a
+workspace belonging to another organisation reads as 404, never 403, so these
+endpoints cannot be used to discover other sellers' workspace ids.
+
+Domain errors propagate to the global ``AppError`` handler in ``main.py``.
 """
 
 from __future__ import annotations
@@ -12,7 +23,13 @@ import uuid
 
 from fastapi import APIRouter, Depends, status
 
-from src.modules.users.contract import CurrentUserId, require_dev_role
+from src.core.deps import DbSession
+from src.modules.organizations.contract import (
+    MemberAccess,
+    OwnerAccess,
+    load_workspace_quota,
+    require_owner,
+)
 from src.modules.workspaces.deps import WorkspaceServiceDep
 from src.modules.workspaces.schemas import (
     WorkspaceCreateRequest,
@@ -24,8 +41,8 @@ from src.modules.workspaces.schemas import (
 
 router = APIRouter(prefix="/v1/workspaces", tags=["Workspaces"])
 
-#: Route-level guard for workspace administration (dev role only).
-_dev_only = Depends(require_dev_role)
+#: Route-level guard for workspace administration.
+_owner_only = Depends(require_owner)
 
 
 @router.get(
@@ -33,101 +50,114 @@ _dev_only = Depends(require_dev_role)
     response_model=WorkspaceListResponse,
     status_code=status.HTTP_200_OK,
     responses={
-        200: {"description": "Every workspace (open to any authenticated user)."},
+        200: {"description": "The caller's organisation's workspaces."},
         401: {"description": "Missing or invalid access token."},
+        403: {"description": "The account belongs to no organisation."},
     },
 )
 async def list_workspaces(
-    _user_id: CurrentUserId,
+    access: MemberAccess,
     service: WorkspaceServiceDep,
 ) -> WorkspaceListResponse:
-    """List every workspace the caller can switch into (all, for now)."""
-    return WorkspaceListResponse(items=await service.list_workspaces())
+    """List the workspaces the caller may switch between."""
+    return WorkspaceListResponse(
+        items=await service.list_workspaces(organization_id=access.tenant_id)
+    )
 
 
 @router.post(
     "",
     response_model=WorkspaceRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_dev_only],
+    dependencies=[_owner_only],
     responses={
-        201: {"description": "Workspace created."},
+        201: {"description": "Workspace created inside the caller's organisation."},
         401: {"description": "Missing or invalid access token."},
-        403: {"description": "Developer role required."},
+        403: {"description": "Owner role required."},
         409: {"description": "Workspace name already exists."},
+        422: {"description": "The organisation is at its workspace quota."},
     },
 )
 async def create_workspace(
     payload: WorkspaceCreateRequest,
+    access: OwnerAccess,
+    session: DbSession,
     service: WorkspaceServiceDep,
 ) -> WorkspaceRead:
-    """Create a new workspace (dev only)."""
-    return await service.create_workspace(name=payload.name)
+    """Create a workspace in the caller's organisation (owner only)."""
+    return await service.create_workspace(
+        organization_id=access.tenant_id,
+        name=payload.name,
+        max_workspaces=await load_workspace_quota(session, access.tenant_id),
+    )
 
 
 @router.delete(
     "/{workspace_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_dev_only],
+    dependencies=[_owner_only],
     responses={
         204: {"description": "Workspace and its stored tokens deleted."},
         401: {"description": "Missing or invalid access token."},
-        403: {"description": "Developer role required."},
-        404: {"description": "Workspace not found."},
+        403: {"description": "Owner role required."},
+        404: {"description": "No such workspace in this organisation."},
     },
 )
 async def delete_workspace(
     workspace_id: uuid.UUID,
+    access: OwnerAccess,
     service: WorkspaceServiceDep,
 ) -> None:
-    """Delete a workspace and its WB tokens (dev only)."""
-    await service.delete_workspace(workspace_id)
+    """Delete one of the organisation's workspaces and its WB tokens."""
+    await service.delete_workspace(workspace_id, organization_id=access.tenant_id)
 
 
 @router.get(
     "/{workspace_id}/tokens",
     response_model=WorkspaceTokensStatus,
     status_code=status.HTTP_200_OK,
-    dependencies=[_dev_only],
+    dependencies=[_owner_only],
     responses={
         200: {"description": "Which WB surfaces have a token configured."},
         401: {"description": "Missing or invalid access token."},
-        403: {"description": "Developer role required."},
-        404: {"description": "Workspace not found."},
+        403: {"description": "Owner role required."},
+        404: {"description": "No such workspace in this organisation."},
     },
 )
 async def get_token_status(
     workspace_id: uuid.UUID,
+    access: OwnerAccess,
     service: WorkspaceServiceDep,
 ) -> WorkspaceTokensStatus:
-    """Report the workspace's per-surface token configuration (dev only).
+    """Report the workspace's per-surface token configuration (owner only).
 
-    Token *values* are never returned — only booleans per WB surface.
+    Token *values* are never returned — only which surfaces are configured.
     """
-    return await service.token_status(workspace_id)
+    return await service.token_status(workspace_id, organization_id=access.tenant_id)
 
 
 @router.put(
     "/{workspace_id}/tokens",
     response_model=WorkspaceTokensStatus,
     status_code=status.HTTP_200_OK,
-    dependencies=[_dev_only],
+    dependencies=[_owner_only],
     responses={
         200: {"description": "Tokens updated; resulting configuration status."},
         401: {"description": "Missing or invalid access token."},
-        403: {"description": "Developer role required."},
-        404: {"description": "Workspace not found."},
+        403: {"description": "Owner role required."},
+        404: {"description": "No such workspace in this organisation."},
         422: {"description": "Token kind not valid for this workspace's mode."},
     },
 )
 async def set_tokens(
     workspace_id: uuid.UUID,
     payload: WorkspaceTokensUpdateRequest,
+    access: OwnerAccess,
     service: WorkspaceServiceDep,
 ) -> WorkspaceTokensStatus:
-    """Set/rotate the workspace's WB tokens (dev only).
+    """Set/rotate the workspace's WB tokens (owner only).
 
     Partial update: omitted surfaces are untouched; an empty string deletes
     the stored token for that surface. Values are Fernet-encrypted at rest.
     """
-    return await service.set_tokens(workspace_id, payload)
+    return await service.set_tokens(workspace_id, payload, organization_id=access.tenant_id)

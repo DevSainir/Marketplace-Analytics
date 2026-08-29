@@ -1,0 +1,62 @@
+"""Public contract for the Organizations module.
+
+The stable, import-safe surface other modules may consume. Per the "no
+horizontal imports" rule, external modules import organisation capabilities
+from here only — never from ``services``/``repos``/``models`` internals.
+
+What crosses this boundary is deliberately one idea: **who is asking, and what
+may they do.** Two layers of it:
+
+* the *answer* — :func:`resolve_access` computes it, :class:`OrganizationAccess`
+  carries it, and :class:`EffectiveRole` / :class:`SubscriptionState` are the
+  enums needed to read it;
+* the *guards* — the ``Annotated`` dependencies every other module's routers
+  declare. They are exported here rather than reimplemented per module, which
+  is the point: "what a manager may do" is decided once, and a router that
+  wants a different answer has to change this module rather than quietly
+  disagree with it in its own ``deps``.
+
+Nothing here exposes an ORM model, so the tables underneath stay free to move.
+"""
+
+from src.modules.organizations.deps import (
+    CurrentAccess,
+    DevAccess,
+    InternalAccess,
+    MemberAccess,
+    OwnerAccess,
+    WritingAccess,
+    require_internal,
+    require_member,
+    require_owner,
+    require_writer,
+)
+from src.modules.organizations.services import (
+    WRITING_ROLES,
+    EffectiveRole,
+    OrganizationAccess,
+    SubscriptionState,
+    load_workspace_quota,
+    resolve_access,
+    subscription_state,
+)
+
+__all__ = [
+    "WRITING_ROLES",
+    "CurrentAccess",
+    "DevAccess",
+    "EffectiveRole",
+    "InternalAccess",
+    "MemberAccess",
+    "OrganizationAccess",
+    "OwnerAccess",
+    "SubscriptionState",
+    "WritingAccess",
+    "load_workspace_quota",
+    "require_internal",
+    "require_member",
+    "require_owner",
+    "require_writer",
+    "resolve_access",
+    "subscription_state",
+]

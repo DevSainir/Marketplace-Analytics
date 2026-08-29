@@ -86,42 +86,71 @@ class WorkspaceService:
         self._workspaces = workspace_repo
         self._tokens = token_repo
 
-    async def list_workspaces(self) -> list[WorkspaceRead]:
-        """Return every workspace (visible to any authenticated user, for now)."""
-        return [WorkspaceRead.model_validate(ws) for ws in await self._workspaces.list_all()]
+    async def list_workspaces(self, *, organization_id: uuid.UUID) -> list[WorkspaceRead]:
+        """Return the caller's organisation's workspaces.
 
-    async def create_workspace(self, *, name: str) -> WorkspaceRead:
-        """Create a new workspace with a unique name.
+        Scoped, not filtered client-side: this used to return every workspace
+        on the platform to any authenticated user, which handed out the ids
+        that every other tenant-scoped route keys on.
+        """
+        return [
+            WorkspaceRead.model_validate(ws)
+            for ws in await self._workspaces.list_for_organization(organization_id)
+        ]
+
+    async def create_workspace(
+        self, *, organization_id: uuid.UUID, name: str, max_workspaces: int | None = None
+    ) -> WorkspaceRead:
+        """Create a workspace inside one organisation.
 
         Args:
+            organization_id: The owning tenant.
             name: The workspace display name.
+            max_workspaces: The subscription's cap, or ``None`` for unlimited.
 
         Returns:
             The created workspace.
 
         Raises:
             ConflictError: If a workspace with this name already exists.
+            ValidationError: If the organisation is at its workspace quota.
         """
+        if max_workspaces is not None:
+            current = await self._workspaces.count_for_organization(organization_id)
+            if current >= max_workspaces:
+                raise ValidationError(
+                    f"Достигнут лимит воркспейсов ({max_workspaces}). "
+                    "Удалите один из текущих или продлите подписку."
+                )
+        # Names are unique platform-wide, so a collision with ANOTHER tenant's
+        # workspace lands here too. That is deliberate today (see the model's
+        # comment) and it does leak one bit — "this name is taken somewhere".
+        # The message says only that, and never whose.
         if await self._workspaces.get_by_name(name) is not None:
-            raise ConflictError(f"Workspace '{name}' already exists.")
-        workspace = await self._workspaces.create(name=name)
+            raise ConflictError(f"Воркспейс «{name}» уже существует.")
+        workspace = await self._workspaces.create(organization_id=organization_id, name=name)
         return WorkspaceRead.model_validate(workspace)
 
-    async def delete_workspace(self, workspace_id: uuid.UUID) -> None:
-        """Delete a workspace and its stored tokens.
+    async def delete_workspace(
+        self, workspace_id: uuid.UUID, *, organization_id: uuid.UUID
+    ) -> None:
+        """Delete one of the caller's own workspaces, and its stored tokens.
 
         The workspace's monitoring data is retained but becomes unreachable
         (its SKUs reference a workspace id that no longer resolves).
 
         Args:
             workspace_id: The workspace to delete.
+            organization_id: The caller's tenant. A workspace belonging to a
+                different one is reported as missing rather than forbidden, so
+                this is not an oracle for other tenants' workspace ids.
 
         Raises:
-            NotFoundError: If the workspace does not exist.
+            NotFoundError: No such workspace in this organisation.
         """
         workspace = await self._workspaces.get_by_id(workspace_id)
-        if workspace is None:
-            raise NotFoundError("Workspace not found.")
+        if workspace is None or workspace.organization_id != organization_id:
+            raise NotFoundError("Воркспейс не найден.")
         await self._workspaces.delete(workspace)
 
     def _allowed_kinds(self, workspace: Workspace) -> frozenset[str]:
@@ -142,6 +171,8 @@ class WorkspaceService:
         self,
         workspace_id: uuid.UUID,
         payload: WorkspaceTokensUpdateRequest,
+        *,
+        organization_id: uuid.UUID,
     ) -> WorkspaceTokensStatus:
         """Set/rotate the WB tokens of a workspace (encrypting at rest).
 
@@ -162,8 +193,8 @@ class WorkspaceService:
                 workspace's mode.
         """
         workspace = await self._workspaces.get_by_id(workspace_id)
-        if workspace is None:
-            raise NotFoundError("Workspace not found.")
+        if workspace is None or workspace.organization_id != organization_id:
+            raise NotFoundError("Воркспейс не найден.")
         allowed = self._allowed_kinds(workspace)
         for kind in payload.tokens:
             if kind not in allowed:
@@ -182,9 +213,11 @@ class WorkspaceService:
                 )
             else:
                 await self._tokens.delete_kind(workspace_id=workspace_id, kind=kind)
-        return await self.token_status(workspace_id)
+        return await self.token_status(workspace_id, organization_id=organization_id)
 
-    async def token_status(self, workspace_id: uuid.UUID) -> WorkspaceTokensStatus:
+    async def token_status(
+        self, workspace_id: uuid.UUID, *, organization_id: uuid.UUID
+    ) -> WorkspaceTokensStatus:
         """Report which token kinds are configured (no values).
 
         Args:
@@ -197,8 +230,8 @@ class WorkspaceService:
             NotFoundError: If the workspace does not exist.
         """
         workspace = await self._workspaces.get_by_id(workspace_id)
-        if workspace is None:
-            raise NotFoundError("Workspace not found.")
+        if workspace is None or workspace.organization_id != organization_id:
+            raise NotFoundError("Воркспейс не найден.")
         configured = sorted(row.kind for row in await self._tokens.list_for_workspace(workspace_id))
         return WorkspaceTokensStatus(
             workspace_id=workspace_id,

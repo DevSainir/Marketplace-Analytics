@@ -18,6 +18,7 @@ from cryptography.fernet import Fernet
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.security import SecretDecryptionError, encrypt_secret
+from src.modules.organizations.models import Organization
 from src.modules.workspaces.contract import (
     load_workspace_name,
     load_workspace_token_bundle,
@@ -37,18 +38,18 @@ def _fernet_key(settings_override):
 
 
 @pytest.fixture
-async def primary(db_session: AsyncSession) -> Workspace:
+async def primary(db_session: AsyncSession, organization: Organization) -> Workspace:
     """A persisted primary workspace (one token per WB category)."""
-    workspace = Workspace(name="ИП Демо", is_primary=True)
+    workspace = Workspace(organization_id=organization.id, name="ИП Демо", is_primary=True)
     db_session.add(workspace)
     await db_session.flush()
     return workspace
 
 
 @pytest.fixture
-async def secondary(db_session: AsyncSession) -> Workspace:
+async def secondary(db_session: AsyncSession, organization: Organization) -> Workspace:
     """A persisted non-primary workspace (single ``unified`` token)."""
-    workspace = Workspace(name="ООО Второй", is_primary=False)
+    workspace = Workspace(organization_id=organization.id, name="ООО Второй", is_primary=False)
     db_session.add(workspace)
     await db_session.flush()
     return workspace
