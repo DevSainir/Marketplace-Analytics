@@ -32,10 +32,61 @@ on every page. Use the class, not the literal `mx-auto w-full max-w-[calc(...)] 
 it replaced; the class also carries the horizontal safe area (below), which the literal recipe
 cannot. Views still carry their own `py-*`.
 
-**No glassmorphism.** `backdrop-blur`, `backdrop-saturate` and translucent surfaces
-(`bg-surface/NN`, `bg-white/NN`, rgba surface tokens) are out. A glass UI was built and removed;
-if it ever returns it gets redesigned, not reassembled from leftovers. This is also why `zebra`
-exists as a separate token for the same grey `surface` uses.
+**Glassmorphism is IN, as `ui-next`.** A glass UI was built and removed once, and the rule always
+said that if it returned it got **redesigned, not reassembled from leftovers** — that is what
+happened. It is now the app's look. Everything below still holds about WHERE glass may go; the two
+hard constraints are not stylistic.
+
+## `ui-next` — the design system
+
+`src/core/styles/ui-next/` IS the design system, app-wide. Three files, in load order:
+`tokens.css` (custom properties on `:root`, ground, glass base, motion), `components.css` (the
+`ui-`-prefixed classes that consume them), `skin.css` (re-points the app's existing Tailwind
+utilities and `.app-datatable` rules at those tokens).
+
+**How it applies without touching markup.** Every view already asks for the system by name —
+`bg-surface`, `text-primary`, `shadow-card`. `main.js` imports `assets/main.css` first and the
+three `ui-next` files second, so identical selectors in `skin.css` win on SOURCE ORDER. That also
+makes it reversible: drop the three imports and the app is exactly as it was.
+`tailwind.config.js` still holds the previous palette and is still what `@apply` resolves against —
+**a new colour/shadow/radius token added there must be added to `skin.css` too**, or that one
+utility keeps rendering the old value.
+
+`App.vue` wraps the whole app in `<UiPage>` (ambient ground + content layer) and renders
+`AppHeaderNext`. No route flags, no per-view setup: a new page inherits the system by existing.
+
+What it changes and why — each was measured off shipping products, not guessed:
+
+* **Ground** `#F4F4F8` canvas with **white** cards, inverting the current `#E8E8E8`/`#F1F1F1`.
+  Apple Store measures `#F5F5F7`/`#FFFFFF`, Notion `#FFFFFF`/`#F6F5F4`, Ramp `#FFFFFF`/`#F4F2F0`.
+  White cards give figures their maximum contrast, which is what this app is for.
+* **Depth** layered shadow ramps (Vercel's Geist stacks three at 2/4/6 %) plus a 1px ring instead
+  of a border. Never one big soft blur.
+* **Action** `#715FFF`. **Measured 4.39:1 on white — below the 4.5:1 AA floor for normal text.**
+  It clears AA for large text only (3:1). This was a deliberate choice, but it is now app-wide, so
+  every small violet item inherits it — links, `text-tiny` labels, the SKU id in the identity
+  header. `#6450E8` is the same hue at 5.45:1 and is a one-token swap in `tokens.css`.
+* **Glass** blur 20–28px with `saturate(175–200%)` and a 1px inset white top lip. Opacity is not
+  one value — it tracks **what sits behind the surface**:
+
+  | Behind it | Fill |
+  | --- | --- |
+  | Ambient ground only | 0.55–0.62 (nav, header, tooltip, ⋮ menu) |
+  | Frame + a colour orb | 0.55 (the «Цены/Остатки»/«Действия» tiles) |
+  | Dense figures | 0.92–0.97 (the block label panes, the calendar) |
+
+Two hard constraints, both established by experiment rather than by reading:
+
+* `backdrop-filter` **establishes a containing block for fixed/absolute descendants** and a new
+  stacking context. Glass on the matrix's frozen rail lets the ribbon show through it — the rail
+  exists to MASK. Glass belongs on chrome that floats over scrolling content, never in a data grid.
+* Overrides that target markup **inside** a component whose styles are `<style scoped>` need
+  `!important` or extra specificity: a scoped rule carries a `[data-v-*]` attribute and outranks
+  anything `skin.css` can write. This has bitten the toolbar glass, the zebra rows and the gap rows.
+
+**Reverting** is dropping the three `ui-next` imports from `main.js`. Everything else — the tokens
+in `tailwind.config.js`, the `.app-datatable` skin in `main.css`, every view's classes — is
+untouched and still describes the previous look.
 
 Anything using z-index inside a card (frozen table columns) must be contained by that card —
 `isolation: isolate` on `.app-datatable` — so it can never stack above page chrome.

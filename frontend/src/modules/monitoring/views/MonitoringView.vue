@@ -13,7 +13,8 @@ import SkuMatchPicker from '@/modules/monitoring/components/SkuMatchPicker.vue'
 import PinnedSkuRow from '@/modules/monitoring/components/PinnedSkuRow.vue'
 import RefreshAllSkusButton from '@/modules/monitoring/components/RefreshAllSkusButton.vue'
 import SkuClusterBlock from '@/modules/monitoring/components/SkuClusterBlock.vue'
-import SkuPositionPanel from '@/modules/monitoring/components/SkuPositionPanel.vue'
+import SectionNav from '@/core/components/SectionNav.vue'
+import UiBlockOrbs from '@/core/components/UiBlockOrbs.vue'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
 import StockComparePanel from '@/modules/monitoring/components/StockComparePanel.vue'
 import { useMonitoringStore } from '@/modules/monitoring/store'
@@ -69,6 +70,17 @@ const { matrix, editingLocked, onCellEdit, onCommentEdit, onActionEdit } = useMa
 // The page's last two sections: live search positions (typed or pinned) and the
 // advertising-cluster history. Both follow the LOADED SKU and window.
 const clusters = useSkuClusters()
+
+/**
+ * Targets for the floating section nav. The blocks own their own <section>
+ * markup and take no id prop, so the anchors are wrapper divs in the template.
+ */
+const SECTIONS = [
+  { id: 'sec-matrix', label: 'По дням' },
+  { id: 'sec-stock', label: 'Остатки' },
+  { id: 'sec-chart', label: 'График' },
+  { id: 'sec-clusters', label: 'Кластеры' },
+]
 
 onMounted(() => store.fetchPins())
 </script>
@@ -147,25 +159,31 @@ onMounted(() => store.fetchPins())
           @toggle-pin="togglePin"
         />
 
-        <section class="mt-lg" aria-label="Ежедневные метрики">
+        <section id="sec-matrix" class="mt-lg" aria-label="Ежедневные метрики">
           <h2 class="text-h3 font-semibold text-primary">Метрики по дням</h2>
 
-          <MetricsTable
-            class="mt-sm"
-            :days="matrix.days"
-            :rows="matrix.rows"
-            :price-rows="matrix.priceRows"
-            :stock-rows="matrix.stockRows"
-            :stock-total-rows="matrix.stockTotalRows"
-            :comments="product.comments ?? {}"
-            :comment-saving-days="store.commentSavingDays"
-            :day-actions="product.day_actions ?? {}"
-            :action-saving-days="store.actionSavingDays"
-            :editing-disabled="editingLocked"
-            @edit="onCellEdit"
-            @comment="onCommentEdit"
-            @action="onActionEdit"
-          />
+          <!-- A local light source, so the glass in the block band has a
+                 colour edge to refract rather than a flat ground. -->
+          <div class="ui-matrix-frame">
+            <UiBlockOrbs />
+
+            <MetricsTable
+              class="mt-sm"
+              :days="matrix.days"
+              :rows="matrix.rows"
+              :price-rows="matrix.priceRows"
+              :stock-rows="matrix.stockRows"
+              :stock-total-rows="matrix.stockTotalRows"
+              :comments="product.comments ?? {}"
+              :comment-saving-days="store.commentSavingDays"
+              :day-actions="product.day_actions ?? {}"
+              :action-saving-days="store.actionSavingDays"
+              :editing-disabled="editingLocked"
+              @edit="onCellEdit"
+              @comment="onCommentEdit"
+              @action="onActionEdit"
+            />
+          </div>
 
           <MatrixEditToolbar
             :dirty="store.matrixDirty"
@@ -179,28 +197,21 @@ onMounted(() => store.fetchPins())
           />
         </section>
 
-        <StockComparePanel
-          v-if="product.stock"
-          :sides="store.stockCompare"
-          :marked-warehouses="store.markedWarehouses"
-          :size-order="sharedStockSizes"
-          :max-date="DEFAULT_TO"
-          @change-day="onStockDayChange"
-          @toggle-mark="store.toggleWarehouseMark"
-        />
+        <div id="sec-stock">
+          <StockComparePanel
+            v-if="product.stock"
+            :sides="store.stockCompare"
+            :marked-warehouses="store.markedWarehouses"
+            :size-order="sharedStockSizes"
+            :max-date="DEFAULT_TO"
+            @change-day="onStockDayChange"
+            @toggle-mark="store.toggleWarehouseMark"
+          />
+        </div>
 
-        <MetricsChart :view="matrix" />
+        <div id="sec-chart"><MetricsChart :view="matrix" /></div>
 
-        <SkuPositionPanel
-          v-bind="clusters.positionPanelProps"
-          @check="clusters.checkPosition($event)"
-          @recheck="clusters.checkPosition($event)"
-          @pin="clusters.pin($event)"
-          @unpin="clusters.unpin($event)"
-          @refresh-all="clusters.refreshAllPinned()"
-        />
-
-        <SkuClusterBlock v-bind="clusters.clusterTableProps" />
+        <div id="sec-clusters"><SkuClusterBlock v-bind="clusters.clusterTableProps" /></div>
       </template>
 
       <!-- Initial state: an inviting hint until the first SKU is submitted -->
@@ -214,4 +225,5 @@ onMounted(() => store.fetchPins())
       </div>
     </div>
   </div>
+  <SectionNav :sections="SECTIONS" />
 </template>

@@ -4,6 +4,13 @@ import { createApp } from 'vue'
 
 import App from '@/App.vue'
 import '@/assets/main.css'
+// `ui-next` — the app's design system. Loaded AFTER main.css on purpose: it
+// re-points the same Tailwind utilities and `.app-datatable` rules at its own
+// tokens, and wins on source order rather than specificity. Dropping these
+// three imports reverts the whole app to the previous look.
+import '@/core/styles/ui-next/tokens.css'
+import '@/core/styles/ui-next/components.css'
+import '@/core/styles/ui-next/skin.css'
 import router from '@/core/router'
 import { installAuthGuard } from '@/modules/auth'
 import { installWorkspaceGuard } from '@/modules/profile'

@@ -1,0 +1,303 @@
+/**
+ * UI-NEXT — component classes.
+ *
+ * The second half of `tokens.css`, split off only because the repo caps a file
+ * at 500 lines. Tokens, ground, glass base and motion live there; the classes
+ * that consume them live here, all `ui-`-prefixed, and it is imported
+ * alongside its other half.
+ */
+
+/* --- glass variants ------------------------------------------------------
+   One recipe, three intensities. The popover variant is the most transparent
+   because it always sits over content — that is where the blur is legible and
+   where the effect is worth its cost. */
+
+.ui-glass {
+  background: var(--ui-glass-bg);
+  -webkit-backdrop-filter: var(--ui-glass-filter);
+  backdrop-filter: var(--ui-glass-filter);
+  box-shadow: var(--ui-glass-edge);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .ui-glass {
+    background: rgba(250, 250, 253, 0.96);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .ui-glass {
+    background: #fafafd;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+.ui-glass--pop {
+  background: rgba(245, 245, 251, 0.72);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  backdrop-filter: blur(24px) saturate(190%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 0 0 1px rgba(18, 18, 26, 0.07),
+    0 18px 40px -18px rgba(18, 18, 26, 0.35),
+    0 6px 14px -8px rgba(18, 18, 26, 0.18);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .ui-glass--pop {
+    background: rgba(250, 250, 253, 0.98);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .ui-glass--pop {
+    background: #fafafd;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ==========================================================================
+   SECTION HEADINGS — the page is a stack of titled blocks, same as the original
+   ========================================================================== */
+
+.ui-sec {
+  margin-top: 28px;
+}
+
+.ui-sec__title {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ui-ink);
+}
+
+.ui-sec__note {
+  max-width: 48rem;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ui-muted);
+}
+
+/* ==========================================================================
+   FORM CONTROLS
+   ========================================================================== */
+
+.ui-input {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--ui-r-sm);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-sh-xs);
+  font-size: 0.8125rem;
+  color: var(--ui-ink);
+  outline: none;
+  transition: box-shadow var(--ui-fast) var(--ui-ease);
+}
+
+.ui-input::placeholder {
+  color: var(--ui-faint);
+}
+
+.ui-input:focus {
+  box-shadow:
+    0 0 0 1px var(--ui-action),
+    0 0 0 4px rgba(113, 95, 255, 0.16);
+}
+
+.ui-select {
+  height: 26px;
+  padding: 0 22px 0 8px;
+  border-radius: 5px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-sh-xs);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--ui-ink);
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 8l3-3.5' fill='none' stroke='%239a9aa8' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 12px;
+}
+
+/* Toggle chip — the chart's metric picker and anything else multi-select. */
+.ui-chip {
+  padding: 5px 11px;
+  border-radius: var(--ui-r-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ui-muted);
+  box-shadow: inset 0 0 0 1px var(--ui-hairline);
+  transition:
+    color var(--ui-fast) var(--ui-ease),
+    background var(--ui-fast) var(--ui-ease),
+    box-shadow var(--ui-fast) var(--ui-ease);
+}
+
+.ui-chip:hover {
+  color: var(--ui-ink);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-sh-xs);
+}
+
+.ui-chip.is-on {
+  color: #fff;
+  background: var(--ui-action);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1px 2px rgba(113, 95, 255, 0.3);
+}
+
+.ui-kbd {
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--ui-muted);
+  background: rgba(18, 18, 26, 0.05);
+  box-shadow: inset 0 0 0 1px var(--ui-hairline);
+}
+
+/* ==========================================================================
+   GENERIC TABLE SKIN — shared by the cluster table and the stock breakdown
+   ========================================================================== */
+
+.ui-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.75rem;
+}
+
+.ui-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 9px 12px;
+  text-align: left;
+  white-space: nowrap;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ui-muted);
+  background: var(--ui-surface);
+  border-bottom: 1px solid var(--ui-hairline);
+}
+
+.ui-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-hairline);
+  color: var(--ui-ink);
+  white-space: nowrap;
+}
+
+.ui-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ui-table tbody tr:hover td {
+  background: var(--ui-action-soft);
+}
+
+.ui-table .ta-r {
+  text-align: right;
+}
+
+/* ==========================================================================
+   STICKY PAGE BAR — the period row, made sticky so its glass has a backdrop
+   ========================================================================== */
+
+/* The period bar. Static, and the same width as everything else on the page —
+   it scrolls away with the content rather than following it down. */
+.ui-bar {
+  position: static;
+  /* No negative margin: it used to bleed 10px past the container on each
+     side, which read as a misalignment against every card below it. */
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: var(--ui-r-lg);
+}
+
+.ui-pop {
+  position: absolute;
+  z-index: 50;
+  border-radius: var(--ui-r-md);
+  animation: ui-pop-in 260ms var(--ui-spring) both;
+}
+
+@keyframes ui-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   THE BLOCK BAND'S OWN ORBS
+   Scoped to the matrix section and absolutely positioned, so they scroll with
+   the table instead of staying put like the ambient ones on `.ui-ground`.
+   `z-index: -1` inside the wrapper's own stacking context puts them behind the
+   table but in front of the page ground, which is exactly the sandwich the
+   glass tiles need.
+   ========================================================================== */
+
+.ui-matrix-frame {
+  position: relative;
+  z-index: 0;
+}
+
+.ui-blockorbs {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 320px;
+  z-index: -1;
+  pointer-events: none;
+  filter: blur(46px);
+}
+
+.ui-blockorb {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+}
+
+/* Anchored from the BAND'S bottom edge, not guessed: each orb is placed to
+   land under its own block. They are wide and low — a band of light under a
+   row of tiles, not a ball behind one of them.
+
+   Alpha still runs above the ambient orbs' 0.06 because these are seen through
+   TWO panes — the frame at 0.30 white and the tile at 0.55 on top of it, which
+   together pass only about a quarter of what is behind. */
+.ui-blockorb--orange {
+  left: 10%;
+  bottom: 156px;
+  width: 36%;
+  height: 104px;
+  background: rgba(232, 138, 54, 0.17);
+}
+
+.ui-blockorb--pink {
+  left: 46%;
+  bottom: 54px;
+  width: 34%;
+  height: 98px;
+  background: rgba(230, 88, 152, 0.14);
+}
+
+/* Section targets for `SectionNav`. `scrollIntoView({block: 'start'})` parks a
+   heading flush against the top edge, which reads as clipped rather than as
+   placed; a little margin is the difference. */
+[id^='ui-sec-'] {
+  scroll-margin-top: 16px;
+}

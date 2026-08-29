@@ -1,0 +1,185 @@
+/* Page chrome for `ui-next`. A floating glass bar rather than a canvas strip
+   with a border: it sits ON the ambient ground and lets it show, which is the
+   whole argument of this design — chrome that belongs to the page rather than
+   sitting on top of it. */
+.ui-header {
+  position: relative;
+  z-index: 50;
+  padding: 12px 0 0;
+}
+
+.ui-header__inner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 52px;
+  padding: 0 14px;
+  border-radius: 999px;
+  /* The width comes from the `.app-container` wrapper, gutters included — the
+     pill just fills it. Hard-coding the container's max-width here got the
+     max right but not the padding, so the pill overhung the content by a
+     gutter on each side. */
+  width: 100%;
+}
+
+/* --- brand ---------------------------------------------------------------- */
+.ui-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.ui-header__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 9px;
+  background: var(--ui-action);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 2px 6px -2px rgba(113, 95, 255, 0.6);
+}
+
+.ui-header__word {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ui-ink);
+  white-space: nowrap;
+}
+
+.ui-header__qualifier {
+  color: var(--ui-faint);
+}
+
+/* --- nav ------------------------------------------------------------------ */
+.ui-header__nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ui-header__nav::-webkit-scrollbar {
+  display: none;
+}
+
+.ui-header__link {
+  padding: 6px 11px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ui-muted);
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    color var(--ui-fast) var(--ui-ease),
+    background var(--ui-fast) var(--ui-ease);
+}
+
+.ui-header__link:hover {
+  color: var(--ui-ink);
+  background: rgba(18, 18, 26, 0.05);
+}
+
+/* The active section, in the system's OWN selected-state language — the same
+   solid pill `.ui-chip.is-on` uses for the matrix tab bar (`components.css`).
+
+   It was `--ui-action-soft` (#F0EDFF) on the #F4F4F8 ground: a difference of
+   (12, 1, 7) in RGB. The rule was applying correctly the whole time; the colour
+   it chose simply could not be seen, which reads to anyone using it as a navbar
+   that does not respond to a click. A fill has to clear the surface it sits on,
+   and every soft violet in this palette was built to sit on WHITE cards, not on
+   the ground.
+
+   Reusing the chip treatment rather than inventing a fourth one also means the
+   app has a single answer to "which one is selected". Its white-on-#715FFF is
+   4.39:1 — the app-wide contrast note in `tokens.css` applies here as it does to
+   the tab bar, and is not something this rule introduces. */
+.ui-header__link.is-on {
+  color: #fff;
+  background: var(--ui-action);
+  font-weight: 600;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1px 2px rgba(113, 95, 255, 0.3);
+}
+
+/* Hover must not repaint the active pill grey. */
+.ui-header__link.is-on:hover {
+  color: #fff;
+  background: var(--ui-action-hover);
+}
+
+/* --- right cluster -------------------------------------------------------- */
+.ui-header__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+/* `WorkspaceMenu` is a real component with its own trigger button; the skin's
+   token remap already restyles its internals, so this only has to place it. */
+.ui-header__workspace {
+  flex: none;
+}
+
+.ui-header__login {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--ui-action);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ui-header__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 999px;
+  color: var(--ui-muted);
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(18, 18, 26, 0.07);
+  transition:
+    color var(--ui-fast) var(--ui-ease),
+    box-shadow var(--ui-fast) var(--ui-ease);
+}
+
+.ui-header__avatar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ui-header__avatar:hover {
+  color: var(--ui-action);
+  box-shadow: inset 0 0 0 1px var(--ui-action);
+}
+
+@media (max-width: 900px) {
+  .ui-header__word,
+  .ui-header__workspace {
+    display: none;
+  }
+}

@@ -1,0 +1,443 @@
+/**
+ * UI-NEXT — the app's next design system, tokens layer.
+ *
+ * This is now THE design system. It sits on `:root`, `App.vue` renders its
+ * chrome unconditionally, and `skin.css` re-points the app's existing Tailwind
+ * utilities to these tokens so every page adopts them without its markup being
+ * edited. `tailwind.config.js` and `assets/main.css` still hold the previous
+ * palette; this layer loads after them and wins on source order.
+ *
+ * The four decisions it encodes, and the evidence behind each:
+ *
+ *   GROUND    Apple Store measures #F5F5F7 canvas / #FFFFFF cards; Notion
+ *             #FFFFFF / #F6F5F4; Ramp #FFFFFF / #F4F2F0. All are 25-40 points
+ *             brighter than the app's #E8E8E8, all bias their neutral off pure
+ *             grey, and all put the BRIGHT surface on the card rather than the
+ *             page. We take the Apple model and bias the neutral toward the
+ *             action hue: white cards give the numbers their maximum contrast,
+ *             which is the property this app is actually optimised for.
+ *
+ *   DEPTH     One 32px/10% shadow is the dated tell. Vercel's Geist scale
+ *             stacks three layers at 2%/4%/6%, Linear stacks four; both draw
+ *             the edge with a 1px ring rather than a CSS border, which stays
+ *             crisp at fractional zoom and costs no layout size.
+ *
+ *   GROUND FX Blurred colour orbs over a grain film. A dot grid was tried and
+ *             removed: a regular pattern behind a regular grid of figures read
+ *             as interference, and a blur of evenly spaced dots resolves to
+ *             flat grey anyway. What the glass needs is COLOUR and GRADIENT.
+ *
+ *   GLASS     Measured, not guessed: Apple's nav is blur(20px) over
+ *             rgba(232,232,237,.40); Ramp's is blur(25px) over
+ *             rgba(255,255,255,.50). The two details tutorials omit are
+ *             `saturate()` — blur alone desaturates the backdrop — and the 1px
+ *             inset white top lip that reads as light catching the glass edge.
+ *             Opacity is NOT one value: it tracks what sits behind a surface.
+ *             See the three tiers below.
+ *
+ * The `design-system` skill documents the measured values, the three glass
+ * opacity tiers and the two hard constraints (`backdrop-filter` containing
+ * blocks; scoped `[data-v-*]` outranking this layer). Read it before changing
+ * anything here.
+ */
+/* PROMOTED. These were scoped to `.ui-next` while the system was live on one
+   route; they are on `:root` now, so every page — and every overlay that
+   `<Teleport>`s out to <body> — inherits them. */
+:root {
+  /* --- ground ------------------------------------------------------------ */
+  --ui-canvas: #f4f4f8;
+  --ui-surface: #ffffff;
+  --ui-sunk: #edeef5;
+  --ui-zebra: #fafafd;
+
+  /* --- ink --------------------------------------------------------------- */
+  --ui-ink: #12121a;
+  --ui-muted: #61616f;
+  --ui-faint: #9a9aa8;
+
+  /* --- line -------------------------------------------------------------- */
+  --ui-hairline: #e5e5ef;
+  --ui-rule: #d5d5e2;
+  /* Day-section boundary. The original draws it #101010 so adjacent days
+     read as separate panels; on a white card the same job is done at ink
+     strength without turning the ribbon into a grid of boxes. */
+  --ui-daydivider: #2a2a38;
+
+  /* --- action ------------------------------------------------------------ */
+  /* MEASURED: #715FFF is 4.39:1 on white. That is below the 4.5:1 AA floor
+     for normal text — it clears AA only for large text (3:1). The previous
+     #4F39F6 measured 6.5:1. Nothing on the page becomes unreadable, but the
+     small violet items («SKU 214839021» at text-tiny, the pinned-chip labels)
+     no longer pass. #6450E8 keeps the same hue at 5.45:1 if that matters. */
+  --ui-action: #715fff;
+  --ui-action-hover: #5a47ee;
+  --ui-action-soft: #f0edff;
+  --ui-action-line: #ddd6ff;
+
+  /* --- status ------------------------------------------------------------ */
+  /* Green no longer competes with the action colour for "good", which it did
+     when action was teal (#007E76) and positive was #179E60. */
+  --ui-pos: #067a52;
+  --ui-neg: #d93a2b;
+  --ui-warn: #c2700b;
+
+  /* --- depth: layered, never one big blur -------------------------------- */
+  --ui-ring: 0 0 0 1px rgba(18, 18, 26, 0.06);
+  --ui-sh-xs: 0 0 0 1px rgba(18, 18, 26, 0.06), 0 1px 2px rgba(18, 18, 26, 0.04);
+  --ui-sh-sm:
+    0 0 0 1px rgba(18, 18, 26, 0.055), 0 1px 1px rgba(18, 18, 26, 0.02),
+    0 2px 4px -2px rgba(18, 18, 26, 0.04);
+  --ui-sh-md:
+    0 0 0 1px rgba(18, 18, 26, 0.05), 0 1px 1px rgba(18, 18, 26, 0.02),
+    0 4px 8px -4px rgba(18, 18, 26, 0.04), 0 16px 24px -8px rgba(18, 18, 26, 0.06);
+  --ui-sh-lift:
+    0 0 0 1px rgba(18, 18, 26, 0.05), 0 2px 4px rgba(18, 18, 26, 0.03),
+    0 12px 20px -8px rgba(18, 18, 26, 0.09), 0 28px 44px -18px rgba(18, 18, 26, 0.12);
+
+  /* --- glass (measured off Apple + Ramp) --------------------------------- */
+  --ui-glass-bg: rgba(246, 246, 252, 0.55);
+  /* Three tiers, because "how transparent" depends on what the pane carries.
+
+     The dense tier is nearly opaque, and that is the honest resolution of a
+     real conflict rather than a compromise: over a grid of black-on-white
+     figures, a pane you can see through is a pane you cannot read. At 0.88 the
+     calendar's dates were unusable; at 0.94 a bold heading still ghosted
+     through the middle of it. What survives at 0.97 is the part of glass you
+     actually perceive — the lit top edge, the rim, the way the shadow sits on
+     the content — which is also all that Apple's own light-mode menus keep.
+     The mini tier is the opposite case and gets the opposite answer. */
+  --ui-glass-pop-bg: rgba(249, 249, 253, 0.97); /* calendar, dropdowns */
+  --ui-glass-mini-bg: rgba(248, 248, 253, 0.62); /* tooltip, ⋮ menu */
+  --ui-glass-filter: blur(20px) saturate(180%);
+  --ui-glass-edge:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 0 0 1px rgba(255, 255, 255, 0.45),
+    0 0 0 1px rgba(18, 18, 26, 0.06), 0 10px 26px -14px rgba(18, 18, 26, 0.28);
+
+  /* --- radii ------------------------------------------------------------- */
+  --ui-r-sm: 7px;
+  --ui-r-md: 11px;
+  --ui-r-lg: 16px;
+
+  /* --- motion ------------------------------------------------------------ */
+  --ui-fast: 140ms;
+  --ui-base: 240ms;
+  --ui-ease: cubic-bezier(0.25, 0.8, 0.35, 1);
+  /* A real spring curve. CSS cannot express overshoot with a cubic-bezier;
+     linear() can, and it is what makes a popover feel physical rather than
+     eased. Used on things that appear, never on things that move constantly. */
+  --ui-spring: linear(
+    0,
+    0.009,
+    0.035 2.1%,
+    0.141,
+    0.281 6.7%,
+    0.723 12.9%,
+    0.938 16.7%,
+    1.017,
+    1.077,
+    1.121,
+    1.149 24.3%,
+    1.159,
+    1.163,
+    1.161,
+    1.154 29.9%,
+    1.129 32.8%,
+    1.051 39.6%,
+    1.017 43.1%,
+    0.991,
+    0.977 51%,
+    0.974 53.8%,
+    0.975 57.1%,
+    0.997 69.8%,
+    1.003 76.9%,
+    1
+  );
+}
+
+body {
+  background: var(--ui-canvas);
+  color: var(--ui-ink);
+  font-family: 'Inter Tight', sans-serif;
+  /* Display tracking, the third finding: Tailwind's tracking-tight is -0.025em;
+     Vercel sets -2.4px at 48px and Attio -1.28px at 64px, i.e. about twice
+     that. Inter Tight is drawn for it. */
+  font-feature-settings: 'cv05' 1;
+}
+
+/* ==========================================================================
+   GROUND — the one canvas-enhancing feature, plus its glass fuel
+   ========================================================================== */
+
+/* A fixed layer rather than a background on the scrolling page: an attached
+   background repaints the whole viewport on every scroll frame, which is
+   exactly the cost we are trying not to pay. Fixed also means the orbs stay
+   put while the page moves over them. */
+.ui-ground {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background-color: var(--ui-canvas);
+}
+
+/* --- colour orbs ---------------------------------------------------------
+   The blur goes on the CONTAINER, not on each orb: one filter pass for five
+   shapes instead of five, and the shapes themselves can be crude because a
+   70px blur erases every edge anyway. This is the shape Clerk uses on its own
+   light pages — plain divs at `filter: blur(24–32px)` rather than soft radial
+   gradients, which is what gives an orb a real falloff instead of a smudge.
+
+   Kept faint and small on purpose: they exist to give the glass something with
+   COLOUR and GRADIENT to refract, not to be looked at. The first pass was
+   twice this size at roughly double the alpha and read as a background the
+   figures had to compete with — which is the failure mode for ambient colour
+   on a page whose whole job is numbers. The green is gone entirely: it sat
+   close to the «Остатки» block tint and to the positive status colour, and
+   ambient decoration must never borrow a hue that already means something. */
+.ui-ground__orbs {
+  position: absolute;
+  inset: -10%;
+  filter: blur(56px);
+}
+
+.ui-orb {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+}
+
+.ui-orb--a {
+  top: 4%;
+  right: 10%;
+  width: 22vw;
+  height: 17vw;
+  background: rgba(113, 95, 255, 0.09);
+}
+
+.ui-orb--c {
+  top: 54%;
+  left: 38%;
+  width: 19vw;
+  height: 13vw;
+  background: rgba(124, 58, 237, 0.06);
+}
+
+.ui-orb--d {
+  bottom: 8%;
+  right: 20%;
+  width: 15vw;
+  height: 12vw;
+  background: rgba(194, 112, 11, 0.05);
+}
+
+.ui-orb--e {
+  bottom: -2%;
+  left: 12%;
+  width: 18vw;
+  height: 12vw;
+  background: rgba(113, 95, 255, 0.06);
+}
+
+/* --- grain ---------------------------------------------------------------
+   An `feTurbulence` film over the whole ground. It is the cheapest way to give
+   a blur something to smear: a flat fill blurs to itself and reads as nothing,
+   whereas grain blurs into a soft mottle that says «this pane has depth».
+   Inlined as a data URI, no contrast/brightness filter — that trick costs more
+   than it is worth at this opacity. */
+.ui-ground__grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.ui-page {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+/* ==========================================================================
+   GLASS — chrome only. Never on a card, never inside a table.
+   `backdrop-filter` establishes a containing block for every fixed/absolute
+   descendant and a new stacking context, which is what breaks frozen columns,
+   sticky headers and viewport-anchored dropdowns.
+   ========================================================================== */
+
+.ui-glass {
+  background: var(--ui-glass-bg);
+  -webkit-backdrop-filter: var(--ui-glass-filter);
+  backdrop-filter: var(--ui-glass-filter);
+  box-shadow: var(--ui-glass-edge);
+}
+
+/* Two fallbacks, both required. `backdrop-filter` is a user preference as much
+   as a capability: "Reduce Transparency" is a real OS setting. */
+@supports not (backdrop-filter: blur(1px)) {
+  .ui-glass {
+    background: rgba(250, 250, 253, 0.97);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .ui-glass {
+    background: #fafafd;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ==========================================================================
+   SURFACES
+   ========================================================================== */
+
+.ui-card {
+  background: var(--ui-surface);
+  border-radius: var(--ui-r-lg);
+  box-shadow: var(--ui-sh-md);
+}
+
+.ui-card--flush {
+  overflow: hidden;
+}
+
+/* Hover lift: the shadow ramp gains a layer rather than growing a blur. */
+.ui-card--interactive {
+  transition:
+    box-shadow var(--ui-base) var(--ui-ease),
+    transform var(--ui-base) var(--ui-ease);
+}
+
+.ui-card--interactive:hover {
+  box-shadow: var(--ui-sh-lift);
+  transform: translateY(-2px);
+}
+
+.ui-well {
+  background: var(--ui-sunk);
+  border-radius: var(--ui-r-md);
+}
+
+/* ==========================================================================
+   TYPE
+   ========================================================================== */
+
+.ui-display {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+}
+
+.ui-h2 {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.ui-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ui-muted);
+}
+
+.ui-num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ==========================================================================
+   CONTROLS
+   ========================================================================== */
+
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--ui-r-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: var(--ui-surface);
+  color: var(--ui-ink);
+  box-shadow: var(--ui-sh-xs);
+  transition:
+    box-shadow var(--ui-fast) var(--ui-ease),
+    background var(--ui-fast) var(--ui-ease),
+    transform var(--ui-fast) var(--ui-ease);
+}
+
+.ui-btn:hover {
+  background: #fbfbfe;
+  box-shadow: var(--ui-sh-sm);
+}
+
+.ui-btn:active {
+  transform: translateY(0.5px);
+}
+
+.ui-btn--primary {
+  background: var(--ui-action);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1px 2px rgba(113, 95, 255, 0.28),
+    0 6px 14px -6px rgba(113, 95, 255, 0.5);
+}
+
+.ui-btn--primary:hover {
+  background: var(--ui-action-hover);
+}
+
+.ui-btn--ghost {
+  background: transparent;
+  box-shadow: none;
+  color: var(--ui-muted);
+}
+
+.ui-btn--ghost:hover {
+  background: rgba(18, 18, 26, 0.045);
+  box-shadow: none;
+  color: var(--ui-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ui-action);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ==========================================================================
+   MOTION — every animated property is guarded
+   ========================================================================== */
+
+.ui-reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 520ms var(--ui-ease),
+    transform 520ms var(--ui-ease);
+}
+
+.ui-reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .ui-reveal {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -1,15 +1,22 @@
 import { mount } from '@vue/test-utils'
 
-import AppHeader from '@/core/components/AppHeader.vue'
+import AppHeaderNext from '@/core/components/AppHeaderNext.vue'
 
 function mountHeader(props = {}) {
-  return mount(AppHeader, {
+  return mount(AppHeaderNext, {
     props,
-    global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+    global: {
+      stubs: {
+        RouterLink: { template: '<a><slot /></a>' },
+        // The switcher is a component of its own with its own spec; this suite
+        // is about which cluster the header renders, not what is inside it.
+        WorkspaceMenu: { template: '<div data-test="workspace" />' },
+      },
+    },
   })
 }
 
-describe('AppHeader auth zone', () => {
+describe('AppHeaderNext auth zone', () => {
   it('does NOT show «Войти» while auth is still resolving (no flash)', () => {
     // status 'unknown' → authResolved false: a full reload (e.g. a workspace
     // switch) must not flash the guest state before the silent refresh confirms
@@ -35,5 +42,7 @@ describe('AppHeader auth zone', () => {
     })
 
     expect(wrapper.find('[aria-label="Профиль"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="workspace"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('Войти')
   })
 })

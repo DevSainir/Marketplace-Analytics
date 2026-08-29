@@ -1,0 +1,785 @@
+/**
+ * THE SKIN — what makes the app adopt `ui-next` without its markup changing.
+ *
+ * Every view in this app asks for the design system by NAME: `bg-surface`,
+ * `text-primary`, `shadow-card`, `.app-datatable--matrix` and so on. Rather
+ * than rewriting hundreds of class attributes, this file re-points those same
+ * hooks at the `ui-next` tokens.
+ *
+ * It wins on SOURCE ORDER, not specificity: `main.js` imports `assets/main.css`
+ * (Tailwind's utilities and the `.app-datatable` skin) first and this second,
+ * so identical selectors here take precedence. That makes the override
+ * reversible — drop the three imports and the app is exactly as it was.
+ *
+ * Two consequences worth knowing:
+ *
+ * - Adding a colour/shadow/radius token to `tailwind.config.js` means adding
+ *   it here too, or that one utility keeps rendering the old palette.
+ * - Anything targeting markup INSIDE a component with `<style scoped>` needs
+ *   `!important` or extra specificity: a scoped rule carries a `[data-v-*]`
+ *   attribute and outranks anything this file can write. That has bitten the
+ *   toolbar glass, the zebra rows and the matrix gap rows.
+ */
+/* ==========================================================================
+   1 · SURFACES  — the ground/card relationship, inverted from the app's
+   Apple's light system measures #F5F5F7 canvas / #FFFFFF cards; ours was
+   #E8E8E8 / #F1F1F1, i.e. a mid-grey page with barely-lighter grey cards.
+   White cards give the numbers their maximum contrast, which is the property
+   this app is actually optimised for.
+   ========================================================================== */
+
+.bg-canvas {
+  background-color: var(--ui-canvas);
+}
+
+.bg-surface,
+.bg-white {
+  background-color: var(--ui-surface);
+}
+
+.bg-zebra {
+  background-color: var(--ui-zebra);
+}
+
+.bg-hover,
+.hover\:bg-hover:hover {
+  background-color: var(--ui-action-soft);
+}
+
+.hover\:bg-canvas:hover {
+  background-color: var(--ui-sunk);
+}
+
+/* ==========================================================================
+   2 · INK
+   ========================================================================== */
+
+.text-primary,
+.hover\:text-primary:hover {
+  color: var(--ui-ink);
+}
+
+.text-muted {
+  color: var(--ui-muted);
+}
+
+.text-white {
+  color: #fff;
+}
+
+/* ==========================================================================
+   3 · ACTION — violet replaces teal. 6.5:1 on white against the teal's 4.95:1,
+   which is real headroom at `text-tiny` and on tinted rows.
+   ========================================================================== */
+
+.text-action,
+.hover\:text-action:hover {
+  color: var(--ui-action);
+}
+
+.bg-action {
+  background-color: var(--ui-action);
+}
+
+.bg-action-hover,
+.hover\:bg-action-hover:hover,
+.hover\:bg-action:hover {
+  background-color: var(--ui-action-hover);
+}
+
+.bg-action\/10 {
+  background-color: rgba(113, 95, 255, 0.1);
+}
+
+.bg-action\/20,
+.hover\:bg-action\/20:hover {
+  background-color: rgba(113, 95, 255, 0.2);
+}
+
+.border-action,
+.hover\:border-action:hover,
+.focus\:border-action:focus {
+  border-color: var(--ui-action);
+}
+
+.hover\:border-action\/60:hover {
+  border-color: rgba(113, 95, 255, 0.6);
+}
+
+.ring-action {
+  --tw-ring-color: var(--ui-action);
+}
+
+.ring-action\/20,
+.focus\:ring-action\/20:focus {
+  --tw-ring-color: rgba(113, 95, 255, 0.22);
+}
+
+.outline-action,
+.focus-visible\:outline-action:focus-visible {
+  outline-color: var(--ui-action);
+}
+
+/* The «Корзины» metric accent. Indigo and the new action colour are the same
+   colour to a human eye, so the funnel rows take a distinct teal instead —
+   colour on this page communicates state, and two states cannot share one. */
+.text-accent-indigo {
+  color: #0e9384;
+}
+
+/* ==========================================================================
+   4 · STATUS — green stops competing with the action colour for "good", which
+   it did while action was teal (#007E76) and positive was #179E60.
+   ========================================================================== */
+
+.text-status-positive {
+  color: var(--ui-pos);
+}
+
+.text-status-negative {
+  color: var(--ui-neg);
+}
+
+.text-status-warning {
+  color: var(--ui-warn);
+}
+
+.bg-status-negative\/10 {
+  background-color: rgba(217, 58, 43, 0.09);
+}
+
+/* ==========================================================================
+   5 · LINE, DEPTH, RADIUS
+   One 32px/10% shadow is the dated tell. Vercel's Geist scale stacks three
+   layers at 2%/4%/6% and Linear four; both draw the edge with a 1px ring
+   rather than a border.
+   ========================================================================== */
+
+.border-border-subtle {
+  border-color: var(--ui-hairline);
+}
+
+.divide-border-subtle > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--ui-hairline);
+}
+
+.shadow-card {
+  box-shadow: var(--ui-sh-md);
+}
+
+.shadow-soft {
+  box-shadow: var(--ui-sh-xs);
+}
+
+.rounded-card {
+  border-radius: var(--ui-r-lg);
+}
+
+.rounded-btn {
+  border-radius: var(--ui-r-sm);
+}
+
+.rounded-input {
+  border-radius: var(--ui-r-sm);
+}
+
+/* ==========================================================================
+   6 · TYPE — the display sizes take real negative tracking. Tailwind's
+   `tracking-tight` is −0.025em; Vercel sets −2.4px at 48px and Attio −1.28px
+   at 64px, roughly twice that. Inter Tight is drawn for it.
+   ========================================================================== */
+
+.text-h2 {
+  letter-spacing: -0.035em;
+}
+
+.text-h3 {
+  letter-spacing: -0.02em;
+}
+
+/* ==========================================================================
+   7 · THE DATA TABLE
+   `.app-datatable*` lives in `assets/main.css` as a global component layer.
+   Each rule below re-states one of those, so it wins on source order without a single
+   class name in the markup changing.
+   ========================================================================== */
+
+.app-datatable {
+  border: 0;
+  border-radius: var(--ui-r-lg);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-sh-md);
+}
+
+.app-datatable thead th {
+  border-bottom-color: var(--ui-hairline);
+  background: var(--ui-surface);
+  color: var(--ui-muted);
+  letter-spacing: 0.06em;
+}
+
+.app-datatable tbody td {
+  border-bottom-color: var(--ui-hairline);
+  color: var(--ui-ink);
+}
+
+.app-datatable tbody tr:hover {
+  background: var(--ui-action-soft);
+}
+
+/* --- the matrix variant --------------------------------------------------- */
+
+/* The frozen metric column and both header seams. The original draws these
+   #101010 / #d9d9d9 so adjacent days read as separate panels; on a white card
+   the same job is done at ink strength without turning the ribbon into a grid
+   of boxes. */
+.app-datatable--matrix thead th:first-child,
+.app-datatable--matrix tbody td:first-child {
+  border-right-color: var(--ui-daydivider);
+  background: var(--ui-surface);
+}
+
+.app-datatable--matrix thead tr:first-child th:not(:first-child):not(:nth-child(2)),
+.app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 2):not(:nth-child(2)),
+.app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 2):not(:nth-child(2)),
+.app-datatable--matrix tbody td:nth-child(10n + 2):not(:nth-child(2)) {
+  border-left-color: var(--ui-daydivider);
+}
+
+.app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 3),
+.app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 4),
+.app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 5),
+.app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n),
+.app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 5),
+.app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 7),
+.app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n),
+.app-datatable--matrix tbody td:nth-child(10n + 5),
+.app-datatable--matrix tbody td:nth-child(10n + 7),
+.app-datatable--matrix tbody td:nth-child(10n + 8),
+.app-datatable--matrix tbody td:nth-child(10n) {
+  border-left-color: var(--ui-rule);
+}
+
+/* The date strip: brightest cell of the header, so the eye can anchor on a day
+   while scanning sideways. */
+.app-datatable--matrix thead tr:first-child th:not(:first-child) {
+  background: var(--ui-surface);
+  color: var(--ui-ink);
+}
+
+/* Zebra: odd white, even the tinted surface. Both SOLID — the frozen column
+   has to stay opaque to mask the ribbon scrolling underneath it, which is also
+   why no glass goes anywhere near this table. */
+/* Zebra belongs to the METRIC rows only. Scoping it to `tbody.matrix-metrics`
+   is both more correct and the fix for a specificity collision: unscoped, the
+   `tr:nth-child(even)` selector scores (0,3,3) and quietly out-ranked the
+   (0,3,2) rule further down that makes the block band transparent. */
+.app-datatable--matrix tbody.matrix-metrics tr:nth-child(odd) td {
+  background: var(--ui-surface);
+}
+
+.app-datatable--matrix tbody.matrix-metrics tr:nth-child(even) td {
+  background: var(--ui-zebra);
+}
+
+.app-datatable--matrix tbody.matrix-metrics tr:hover td {
+  background: var(--ui-action-soft);
+}
+
+/* The merged rows restate their own day boundaries on their own stride. */
+.app-datatable--matrix
+  tbody.matrix-metrics
+  tr.matrix-row-merged--campaign
+  td:nth-child(6n + 2):not(:nth-child(2)) {
+  border-left-color: var(--ui-daydivider);
+}
+
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(6n + 3),
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(6n + 4),
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(6n + 5),
+.app-datatable--matrix tbody.matrix-metrics tr.matrix-row-merged--campaign td:nth-child(6n) {
+  border-left-color: var(--ui-rule);
+}
+
+/* --- inputs inside the table ---------------------------------------------- */
+
+.matrix-cell-btn:hover,
+.day-block-value:hover {
+  background: var(--ui-surface);
+  box-shadow:
+    0 0 0 1px var(--ui-action),
+    0 1px 3px rgba(113, 95, 255, 0.18);
+  border-radius: 4px;
+}
+
+.matrix-cell-input:focus,
+.comment-header-input:focus,
+.comment-text-input:focus,
+.day-action-select:focus,
+.day-action-amount input:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--ui-action),
+    0 0 0 3px rgba(113, 95, 255, 0.14);
+}
+
+/* ==========================================================================
+   8 · FORM CONTROLS the copied markup renders with raw utilities
+   ========================================================================== */
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+.text-slate-900 {
+  color: var(--ui-ink);
+}
+
+.text-slate-500,
+.text-slate-400 {
+  color: var(--ui-muted);
+}
+
+.border-slate-200 {
+  border-color: var(--ui-hairline);
+}
+
+.text-indigo-600 {
+  color: var(--ui-action);
+}
+
+.text-emerald-500 {
+  color: var(--ui-pos);
+}
+
+.text-amber-500 {
+  color: var(--ui-warn);
+}
+
+/* ==========================================================================
+   9 · GLASS — every floating surface, in one rule
+   Popovers on this page share a signature: absolutely or fixed positioned,
+   `rounded-card`, `bg-surface`, `shadow-card`. Matching the signature rather
+   than each component's own class means the calendar, the day pickers, the SKU
+   dropdown, the warehouse ⋮ menu and the associative-conversion tooltip all
+   take the treatment without any of them being edited.
+
+   The five-class selector out-specifies the plain `.bg-surface` rule above, so
+   the opaque fill is properly replaced rather than fighting it.
+
+   On the FILL: Apple's 40 % and Ramp's 50 % are measured over photography and
+   scrolling layout, not over a dense grid of black-on-white figures. At those
+   values this page's calendar rendered with the metrics table legible straight
+   through it and the dates became unreadable. Everything matched below is a
+   DENSE pane — a calendar, a SKU list, a day picker — so it takes the heavy
+   film. The small overlays that teleport to <body> take the mini tier in §12
+   instead: opposite problem, opposite answer.
+   ========================================================================== */
+
+.absolute.rounded-card.bg-surface.shadow-card,
+.fixed.rounded-card.bg-surface.shadow-card,
+.calendar-pop,
+.wh-menu,
+.wh-name-tip {
+  background: var(--ui-glass-pop-bg) !important;
+  border-color: transparent !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  backdrop-filter: blur(24px) saturate(190%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 0 0 1px rgba(18, 18, 26, 0.07),
+    0 18px 40px -18px rgba(18, 18, 26, 0.35),
+    0 6px 14px -8px rgba(18, 18, 26, 0.18);
+}
+
+/* Rows inside a glass popover cannot use an opaque hover fill — it would
+   punch a solid hole in the pane. They tint instead. */
+.absolute.rounded-card.bg-surface.shadow-card .hover\:bg-hover:hover,
+.fixed.rounded-card.bg-surface.shadow-card .hover\:bg-hover:hover {
+  background-color: rgba(113, 95, 255, 0.12);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .absolute.rounded-card.bg-surface.shadow-card,
+  .fixed.rounded-card.bg-surface.shadow-card,
+  .calendar-pop,
+  .wh-menu,
+  .wh-name-tip {
+    background: rgba(250, 250, 253, 0.98) !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .absolute.rounded-card.bg-surface.shadow-card,
+  .fixed.rounded-card.bg-surface.shadow-card,
+  .calendar-pop,
+  .wh-menu,
+  .wh-name-tip {
+    background: #fafafd !important;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ==========================================================================
+   10 · THE BLOCK BAND — giving «Цены/Остатки» and «Действия» a real backdrop
+   These tiles sit inside the table card, which is opaque, so glass on them
+   would have had nothing to refract and would have read as milky rectangles.
+   The fix is to give them something behind: the card stops painting its own
+   fill, the metric rows and the header paint theirs, and the block band is
+   left transparent — so the page's ground shows through the table there and
+   the tiles genuinely float above it.
+   ========================================================================== */
+
+/* THE FRAME.
+   The card is now glass in its own right and carries real padding, so the
+   dense grid reads as a plate set INTO a frame rather than as a slab with a
+   hairline drawn round it. Radii are concentric: inner = outer − padding
+   (24 − 14 = 10), which is the only ratio at which the two curves look
+   parallel — mismatched nesting is exactly the "clunky" that was showing. */
+.app-datatable--matrix {
+  padding: 14px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.3);
+  -webkit-backdrop-filter: blur(18px) saturate(175%);
+  backdrop-filter: blur(18px) saturate(175%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 0 0 1px rgba(18, 18, 26, 0.06),
+    0 2px 6px -3px rgba(18, 18, 26, 0.1),
+    0 20px 40px -22px rgba(18, 18, 26, 0.28);
+}
+
+/* The plate. Clipping on the scroll container rather than on the corner cells
+   is what lets the rounding survive a horizontal scroll — the last column is
+   off-screen, so a radius on `td:last-child` would never be seen. */
+@media (prefers-reduced-transparency: reduce) {
+  .app-datatable--matrix {
+    background: #fbfbfe;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+.app-datatable--matrix thead th {
+  background: var(--ui-surface);
+}
+
+.app-datatable--matrix tbody.matrix-blocks td,
+.app-datatable--matrix tbody.matrix-comments td,
+.app-datatable--matrix tbody.matrix-actions td,
+.app-datatable--matrix tbody tr.matrix-gap td {
+  height: 16px;
+  background: transparent;
+}
+
+/* The frozen rail is the one thing that must stay opaque everywhere: the
+   ribbon slides underneath it and has to be masked. */
+.app-datatable--matrix tbody td:first-child,
+.app-datatable--matrix thead th:first-child {
+  background: var(--ui-surface);
+}
+
+/* Now the tiles can be real glass. */
+.day-block,
+.day-action-card {
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  backdrop-filter: blur(14px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px rgba(18, 18, 26, 0.07),
+    0 6px 16px -10px rgba(18, 18, 26, 0.3);
+  border: 0;
+}
+
+/* The «Цены» and «Остатки» tiles carry NO tint of their own any more. Two
+   coloured fills plus the glass plus whatever shows through it was three
+   colour signals stacked on one small tile, and the tints were the least
+   informative of the three — the tiles are already labelled. What identifies
+   them now is what the glass reveals: a blue and a green orb sit behind the
+   band, at the tiles' own position, so the colour arrives THROUGH the pane
+   instead of being painted on it. That is the effect working for its living
+   rather than being decorated over. */
+
+@media (prefers-reduced-transparency: reduce) {
+  .day-block,
+  .day-action-card {
+    background: #fbfbfe;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ==========================================================================
+   11 · THE STOCK TABLE'S FROZEN PANE
+   «Размер»/«Всего» is a sticky pane with the warehouse columns scrolling under
+   it, so it cannot be glass for the same reason the matrix rail cannot: its
+   job is to MASK what passes beneath. It gets the separation without the
+   transparency — the same rim, top highlight and seam shadow the glass panels
+   carry, over an opaque fill.
+   ========================================================================== */
+
+.app-datatable td.col-total,
+.app-datatable th.col-total {
+  box-shadow:
+    8px 0 12px -10px rgba(18, 18, 26, 0.45),
+    inset -1px 0 0 var(--ui-rule);
+}
+
+.app-datatable th.col-size,
+.app-datatable th.col-total {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    8px 0 12px -10px rgba(18, 18, 26, 0.45);
+}
+
+/* ==========================================================================
+   12 · TELEPORTED OVERLAYS
+   The associative-conversion tooltip and the warehouse ⋮ menu teleport to
+   `<body>`, so they live outside `.ui-next` and nothing above reaches them. The
+   tokens now sit on `:root`, so they inherit there like anything else; these
+   rules only have to re-point the utility classes the markup asks for.
+   ========================================================================== */
+
+body > .fixed.rounded-card.bg-surface.shadow-card,
+body > .wh-menu,
+body > .wh-name-tip {
+  /* The MINI tier. These are two- or three-line overlays, and at the
+     popover's fill the blur was invisible — you could not tell the effect was
+     on. Less film, more blur: the pane reads as glass because you can see it
+     working, and there is too little text on it for legibility to suffer. */
+  background: var(--ui-glass-mini-bg, rgba(248, 248, 253, 0.62)) !important;
+  border-color: transparent !important;
+  color: var(--ui-ink);
+  border-radius: var(--ui-r-lg);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  backdrop-filter: blur(28px) saturate(200%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 0 0 1px rgba(18, 18, 26, 0.07),
+    0 18px 40px -18px rgba(18, 18, 26, 0.35),
+    0 6px 14px -8px rgba(18, 18, 26, 0.18);
+}
+
+/* Teleported nodes are outside `.ui-next`, so the token remap misses them. */
+body > .fixed .text-primary,
+body > .wh-menu .text-primary {
+  color: var(--ui-ink);
+}
+
+body > .fixed .text-muted,
+body > .wh-menu .text-muted {
+  color: var(--ui-muted);
+}
+
+body > .fixed .text-action,
+body > .wh-menu .text-action {
+  color: var(--ui-action);
+}
+
+/* ==========================================================================
+   13 · THE BLOCK ROWS' LABEL CELLS
+   «ЦЕНЫ/ОСТАТКИ», «КОММЕНТАРИИ» and «ДЕЙСТВИЯ» sit in the frozen rail, which
+   is opaque everywhere else because the metric ribbon has to be masked as it
+   slides underneath. In THESE three rows what slides under is the block band —
+   the glass tiles themselves — so the rail can join them without a legibility
+   cost: a pale tile ghosting through a pale pane reads as depth rather than as
+   a rendering fault, and the label is one short word in caps.
+
+   The `!important` is the price of overriding §10's blanket rail rule, which
+   has to stay blunt to keep the metric rows safe.
+   ========================================================================== */
+
+.app-datatable--matrix tbody.matrix-blocks td:first-child,
+.app-datatable--matrix tbody.matrix-comments td:first-child,
+.app-datatable--matrix tbody.matrix-actions td:first-child {
+  /* 0.68, not the 0.50 the tiles use. The rail is the one glass surface here
+     with something HIGH-CONTRAST passing under it: at 0.50 a red «Понизили»
+     select from a scrolled-off day printed a visible pink smudge through the
+     word «ДЕЙСТВИЯ». More film and more blur damps that to nothing while the
+     ground behind — orbs and grain, all low-contrast — still reads through. */
+  /* 0.92. These three panes sit over the ribbon, and the ribbon is dense
+     figures — «250», «1 909», a red «Понизили» — which printed straight
+     through at 0.78. This is the same conclusion the calendar reached: a
+     surface with high-contrast content behind it cannot be very transparent
+     and stay readable, so it keeps the blur, the lit edge and the rim, and
+     gives up the see-through. The tiles beside them stay light because what
+     is behind THEM is the frame and an orb, not numbers. */
+  background: var(--ui-surface) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  /* The lit top edge only. The 1px rim that used to ride with it
+     (`inset 0 0 0 1px rgba(18,18,26,0.05)`) traced the whole pane, so each
+     rail read as two outlines — the rim, and the pane's own edge against what
+     is behind it. One is enough to say "this is a surface"; two is a border
+     around a border. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border-right-color: transparent;
+  border-top-color: transparent;
+
+  /* The CELL stays square, and that is what does the masking. It is sticky and
+     the ribbon scrolls underneath it, so every pixel of its box has to be
+     painted: a rounded mask has four holes in it by construction, and the
+     content that was showing in the corners was the ribbon through those holes.
+     The radius is the opening — it cannot both round the mask and hide what is
+     behind it.
+     So the rounding moves off the mask and onto a pane drawn ON it, below. */
+  border-radius: 0;
+}
+
+/* The rounded pane. Same shape the rail used to have, one layer up: the cell
+   underneath stays square and opaque, so the corners now reveal the CELL rather
+   than the ribbon — the radius reads, and nothing leaks through it.
+   `z-index: -1` is what orders the two correctly. A positioned pseudo-element
+   otherwise paints above the cell's text; at -1 it lands between the cell's own
+   background and its content, which is exactly the slot a pane wants. The cell
+   carries `z-index: 20` for the freeze, so that -1 is contained by it and can
+   never fall behind the table. */
+.app-datatable--matrix tbody.matrix-blocks td:first-child::before,
+.app-datatable--matrix tbody.matrix-comments td:first-child::before,
+.app-datatable--matrix tbody.matrix-actions td:first-child::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 10px;
+  background: var(--ui-surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+}
+
+/* ...and the square underneath it takes the page's own tone, so the corners it
+   shows read as the ground continuing past a rounded tile rather than as a grey
+   box behind one. It is opaque — that is the whole job — but it is the colour
+   the eye expects to find there. */
+.app-datatable--matrix tbody.matrix-blocks td:first-child,
+.app-datatable--matrix tbody.matrix-comments td:first-child,
+.app-datatable--matrix tbody.matrix-actions td:first-child {
+  background: var(--ui-canvas) !important;
+  box-shadow: none;
+}
+
+/* The gap rows have no pane — they are air, and their own rule above owns their
+   glass. Without this they would inherit the square mask and the band would
+   read as one tall column again. */
+.app-datatable--matrix tbody tr.matrix-gap td:first-child::before {
+  content: none;
+}
+
+/* The gap rows carry no content, so the rail there stays out of the way
+   entirely — otherwise the three panes read as one tall column. */
+.app-datatable--matrix tbody tr.matrix-gap td:first-child {
+  background: transparent !important;
+  border-right-color: transparent;
+  /* The rim and the radius stay: drawn round a 10px-tall transparent cell that
+     spans the whole table (`colspan=101`), they ARE the dividers between the
+     bands, and the pair of hairlines that produces is the intended look.
+
+     Stated here rather than inherited. The rail rule above used to supply this
+     box-shadow, and the gap simply picked it up; that rule now carries only its
+     lit top edge, so leaving this to inheritance would silently drop the
+     dividers the moment the rail's own outline changed — which is exactly what
+     happened. Written out, the gap owns its appearance. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(18, 18, 26, 0.05);
+  border-radius: 10px;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .app-datatable--matrix tbody.matrix-blocks td:first-child,
+  .app-datatable--matrix tbody.matrix-comments td:first-child,
+  .app-datatable--matrix tbody.matrix-actions td:first-child {
+    background: #fbfbfe !important;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ==========================================================================
+   15 · THE WINDOW
+   The frame is now wide enough to read as a frame: 20px of transparent glass
+   all round the plate, with the radii kept concentric (32 − 20 = 12). The
+   dense grid sits in the middle of it like a pane in a sash, and the three
+   block rows float on the frame below rather than being welded to the grid.
+   ========================================================================== */
+
+.app-datatable--matrix {
+  padding: 20px;
+  border-radius: 32px;
+}
+
+/* The plate's BOTTOM corners. The top two come free — the grid starts at the
+   scroll container's top edge, so the container's own clip rounds them. The
+   bottom does not: the grid ends part-way down, with the block band floating on
+   the frame below it, so the container's clip is nowhere near. The last metric
+   row has to round itself.
+
+   Both ends are named. The left one is the frozen column and is always on
+   screen; the right one is only seen at the end of a horizontal scroll, which
+   is exactly when a square corner there would be noticed. */
+.app-datatable--matrix tbody.matrix-metrics tr:last-child td:first-child {
+  border-bottom-left-radius: 12px;
+}
+.app-datatable--matrix tbody.matrix-metrics tr:last-child td:last-child {
+  border-bottom-right-radius: 12px;
+}
+
+.app-datatable--matrix .matrix-scroll {
+  border-radius: 12px;
+
+  /* `overflow: auto` alone did not round the BOTTOM corners. The frozen column
+     inside is sticky AND carries a `backdrop-filter`, and a backdrop-filter
+     establishes its own containing block — so it paints past a parent that is
+     merely clipping with `overflow`. `clip-path` clips descendants regardless,
+     which is what makes all four corners agree. */
+  clip-path: inset(0 round 12px);
+
+  /* NO background. The plate stays transparent so the frame, the ground and the
+     orbs read through everything transparent that sits on it — the gap rows
+     between the blocks are exactly that, a 10px strip with no fill and a 24px
+     blur, and what makes them read as glass rather than as two grey hairlines
+     is having something behind them to blur.
+
+     This was briefly opaque, to hide the content showing through the rails'
+     rounded corners. That was the wrong lever and it cost the gaps their glass:
+     the corners are a hole in a MASK, and the fix is the mask being square,
+     which is what the rail rule does now. Painting the whole plate to cover four
+     corners flattened every transparent surface on it. */
+}
+
+/* The gap that separates the plate from the blocks below it. This is the
+   single measurement that decides whether the grid reads as "the window" or
+   as "the top of a long table".
+
+   `!important`, because each of the three block components sets `height: 10px`
+   on its own gap row from a SCOPED stylesheet — and a scoped rule carries a
+   `[data-v-*]` attribute, which out-specifies anything this file can write
+   without escalating. Same collision as the toolbar-glass one earlier; scoped
+   component CSS always wins on specificity by construction. */
+.app-datatable--matrix tbody.matrix-blocks tr.matrix-gap td,
+.app-datatable--matrix tbody.matrix-comments tr.matrix-gap td,
+.app-datatable--matrix tbody.matrix-actions tr.matrix-gap td {
+  height: 30px !important;
+}
+
+/* Row labels need air on the left now that the frame gives them room —
+   they were sitting hard against the plate's edge. */
+.app-datatable--matrix thead th:first-child,
+.app-datatable--matrix tbody td:first-child {
+  padding-left: 18px;
+}
+
+/* «ЦЕНЫ/ОСТАТКИ» loses its split colouring. The two words were tinted to
+   match block tints that no longer exist — a label pointing at a signal that
+   has been removed is just noise. */
+.app-datatable--matrix .matrix-blocks .text-action,
+.app-datatable--matrix .matrix-blocks .text-accent-indigo,
+.app-datatable--matrix .matrix-blocks .text-muted {
+  color: var(--ui-muted);
+}

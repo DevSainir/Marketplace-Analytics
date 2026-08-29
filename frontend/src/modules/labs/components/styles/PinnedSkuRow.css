@@ -1,0 +1,36 @@
+/*
+ * Styles for PinnedSkuRow.vue — kept beside the component rather than inside it
+ * so the SFC stays under the 250-line ceiling. Still `scoped`: the component
+ * references this file with `<style scoped src="...">`, so Vue attaches its
+ * scope attribute exactly as it would for an inline block.
+ *
+ * SANDBOX EDIT: the real page paints each chip a per-SKU tint chosen from a
+ * palette. Here a chip has no colour of its own — it takes one only from
+ * STATE, and hover and selection are the same treatment, so the row reads as
+ * one control group instead of a scatter of unrelated badges.
+ */
+
+.pin-chip {
+  background-color: transparent;
+}
+
+.pin-chip:hover {
+  border-color: var(--ui-action);
+  background-color: var(--ui-surface);
+  box-shadow: var(--ui-sh-xs);
+}
+
+.pin-chip.pin-chip--active {
+  border-color: var(--ui-action);
+  background-color: var(--ui-action-soft);
+  color: var(--ui-action);
+}
+
+/* The pin chip row scrolls horizontally without a visible scrollbar (same
+   convention as the matrix/stock scroll containers). */
+.pins-row {
+  scrollbar-width: none;
+}
+.pins-row::-webkit-scrollbar {
+  display: none;
+}

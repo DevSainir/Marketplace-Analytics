@@ -2,7 +2,8 @@
 import { watch } from 'vue'
 import { RouterView, useRouter } from 'vue-router'
 
-import AppHeader from '@/core/components/AppHeader.vue'
+import AppHeaderNext from '@/core/components/AppHeaderNext.vue'
+import UiPage from '@/core/components/UiPage.vue'
 import { useAuthStore } from '@/modules/auth'
 import { useWorkspaceStore } from '@/modules/profile'
 
@@ -34,15 +35,17 @@ function onSelectWorkspace(id) {
   // Reload the CURRENT page, not a redirect to /monitoring: a full reload is the
   // simplest guarantee that every cached per-workspace dataset is dropped, and
   // reloading the same URL leaves the user where they were. The «Войти» flash
-  // this used to show is fixed in AppHeader (it no longer renders the guest
+  // this used to show is fixed in the header (it no longer renders the guest
   // state while auth is still bootstrapping — see :auth-resolved).
   window.location.reload()
 }
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col">
-    <AppHeader
+  <!-- `UiPage` is the design system's shell: it paints the ambient ground and
+       gives the app its content layer. Every route sits inside it. -->
+  <UiPage class="flex min-h-screen flex-col">
+    <AppHeaderNext
       :is-authenticated="auth.isAuthenticated"
       :auth-resolved="auth.status !== 'unknown'"
       :user-email="auth.userEmail"
@@ -57,5 +60,5 @@ function onSelectWorkspace(id) {
     <main class="flex-1 pb-safe">
       <RouterView />
     </main>
-  </div>
+  </UiPage>
 </template>
