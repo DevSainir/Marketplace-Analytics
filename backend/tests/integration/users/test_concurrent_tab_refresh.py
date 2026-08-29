@@ -19,10 +19,13 @@ is ``test_breach_detection.py``, which runs with the window disabled.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 import sqlalchemy as sa
+from cryptography.fernet import Fernet
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.config import settings
@@ -32,6 +35,21 @@ from src.modules.users.models import RefreshToken, User
 from src.modules.users.refresh_grace import recall_rotation
 from src.modules.users.services import AuthService
 from tests.support.auth import KNOWN_PASSWORD, known_password_hash
+
+
+@pytest.fixture(autouse=True)
+def _fernet_key(settings_override: Any) -> Iterator[None]:
+    """Give the grace store a key to encrypt the child secret with.
+
+    It is the only thing in the app that holds a usable refresh secret at rest,
+    so it encrypts — and failing to encrypt degrades the store rather than the
+    refresh, which means without a key these tests would silently exercise the
+    behaviour they exist to prove is gone. CI runs this tier with the key empty
+    (the tenancy tests generate their own the same way), so it has to be set
+    here rather than assumed.
+    """
+    with settings_override(fernet_secret_key=Fernet.generate_key().decode()):
+        yield
 
 
 @pytest.fixture
