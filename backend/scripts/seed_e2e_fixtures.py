@@ -44,12 +44,13 @@ import argparse
 import asyncio
 import uuid
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import settings
 from src.core.database import AsyncSessionLocal, engine
 from src.core.security import hash_password
 from src.modules.finreports.constants import (
@@ -61,6 +62,13 @@ from src.modules.finreports.models import (
     LogisticsTransaction,
 )
 from src.modules.monitoring.models import ProductCard
+from src.modules.organizations.models import (
+    DEFAULT_SUBSCRIPTION_DAYS,
+    MemberRole,
+    Membership,
+    Organization,
+    Subscription,
+)
 from src.modules.users.models import ROLE_DEV, User
 from src.modules.workspaces.models import Workspace
 
@@ -74,6 +82,11 @@ DEFAULT_PASSWORD = "dev-preview-password"  # noqa: S105 — test-stack fixture, 
 #: Workspace names created when the database has fewer than two. The first one
 #: adopts the seeded catalogue; the second exists purely so the workspace-switch
 #: journey has a target.
+#: The tenant the seeded account owns. One is enough: the tier exercises what a
+#: customer sees inside their own company, and a second organisation would only
+#: add a boundary no browser journey crosses.
+E2E_ORGANIZATION_NAME: str = "E2E Company"
+
 DEFAULT_WORKSPACE_NAMES: tuple[str, str] = ("E2E Primary", "E2E Secondary")
 
 #: Synthetic WB identifiers for the finreports week. Deliberately far above any
@@ -119,7 +132,7 @@ class SeedReport:
     finreports_week_created: bool
 
 
-async def _ensure_account(session: AsyncSession, *, email: str, password: str) -> bool:
+async def _ensure_account(session: AsyncSession, *, email: str, password: str) -> tuple[User, bool]:
     """Create the end-to-end account, or reset its password if it exists.
 
     The password is rewritten on every run on purpose: a stack reseeded from a
@@ -133,7 +146,7 @@ async def _ensure_account(session: AsyncSession, *, email: str, password: str) -
         password: Plaintext password to store as a bcrypt digest.
 
     Returns:
-        ``True`` when a new row was inserted, ``False`` when one was updated.
+        The account, and ``True`` when it was inserted rather than updated.
     """
     digest = await asyncio.to_thread(hash_password, password)
     existing = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
@@ -142,16 +155,93 @@ async def _ensure_account(session: AsyncSession, *, email: str, password: str) -
         existing.is_active = True
         # The tier exercises the workspace admin panel, which is dev-gated.
         existing.role = ROLE_DEV
-        return False
-    session.add(User(email=email, hashed_password=digest, is_active=True, role=ROLE_DEV))
-    return True
+        return existing, False
+    account = User(email=email, hashed_password=digest, is_active=True, role=ROLE_DEV)
+    session.add(account)
+    await session.flush()
+    return account, True
 
 
-async def _ensure_workspaces(session: AsyncSession) -> list[Workspace]:
+async def _ensure_organization(session: AsyncSession, *, owner: User) -> Organization:
+    """Guarantee a tenant for the seeded account to own, with a live term.
+
+    Workspaces became NOT NULL on `organization_id`, so there is no longer such
+    a thing as a workspace belonging to nobody — the seed has to create the
+    company before it can create anything the browser tier can see. The account
+    is made its OWNER rather than a manager, because the tier drives the
+    workspace admin panel, and creating a workspace is an owner's right.
+
+    The subscription is reset forward on every run for the same reason the
+    password is: a stack reseeded from a dump of unknown provenance may carry an
+    expired term, and an expired term is read-only — which would fail the
+    write journeys with a message indistinguishable from a real regression.
+
+    Args:
+        session: Open async session (the caller owns the transaction).
+        owner: The seeded account.
+
+    Returns:
+        The organisation, flushed so its id can be referenced.
+    """
+    organization = (
+        (await session.execute(select(Organization).order_by(Organization.created_at)))
+        .scalars()
+        .first()
+    )
+    if organization is None:
+        organization = Organization(name=E2E_ORGANIZATION_NAME, is_primary=True)
+        session.add(organization)
+        await session.flush()
+
+    membership = (
+        await session.execute(select(Membership).where(Membership.user_id == owner.id))
+    ).scalar_one_or_none()
+    if membership is None:
+        session.add(
+            Membership(
+                organization_id=organization.id,
+                user_id=owner.id,
+                role=MemberRole.OWNER.value,
+            )
+        )
+    else:
+        membership.organization_id = organization.id
+        membership.role = MemberRole.OWNER.value
+
+    now = datetime.now(UTC)
+    subscription = (
+        (
+            await session.execute(
+                select(Subscription).where(Subscription.organization_id == organization.id)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if subscription is None:
+        session.add(
+            Subscription(
+                organization_id=organization.id,
+                started_at=now,
+                expires_at=now + timedelta(days=DEFAULT_SUBSCRIPTION_DAYS),
+                grace_days=settings.subscription_grace_days,
+            )
+        )
+    else:
+        subscription.expires_at = now + timedelta(days=DEFAULT_SUBSCRIPTION_DAYS)
+
+    await session.flush()
+    return organization
+
+
+async def _ensure_workspaces(
+    session: AsyncSession, *, organization_id: uuid.UUID
+) -> list[Workspace]:
     """Guarantee at least two workspaces exist, returning them oldest first.
 
     Args:
         session: Open async session (the caller owns the transaction).
+        organization_id: The tenant every seeded workspace belongs to.
 
     Returns:
         Every workspace after the run, ordered by creation so the "primary" one
@@ -163,7 +253,7 @@ async def _ensure_workspaces(session: AsyncSession) -> list[Workspace]:
     for name in DEFAULT_WORKSPACE_NAMES[len(existing) :]:
         if name in taken:
             continue
-        workspace = Workspace(name=name, is_primary=not existing)
+        workspace = Workspace(name=name, is_primary=not existing, organization_id=organization_id)
         session.add(workspace)
         existing.append(workspace)
     await session.flush()
@@ -358,8 +448,11 @@ async def seed(*, email: str, password: str) -> SeedReport:
         A :class:`SeedReport` describing what changed.
     """
     async with AsyncSessionLocal() as session:
-        created = await _ensure_account(session, email=email.strip().lower(), password=password)
-        workspaces = await _ensure_workspaces(session)
+        account, created = await _ensure_account(
+            session, email=email.strip().lower(), password=password
+        )
+        organization = await _ensure_organization(session, owner=account)
+        workspaces = await _ensure_workspaces(session, organization_id=organization.id)
         primary = workspaces[0]
         claimed = await _claim_unowned_cards(session, primary.id)
         visible = await _count_visible_cards(session, primary.id)
