@@ -16,10 +16,18 @@ may they do.** Two layers of it:
   wants a different answer has to change this module rather than quietly
   disagree with it in its own ``deps``.
 
+A third thing crosses too, and it is deliberately narrow: **the audit trail.**
+``AuditTrail`` is a request-scoped recorder with the actor already resolved, and
+``AuditEvent`` is the closed set of things worth recording. Other modules get to
+say *that* a workspace was deleted or a token rotated without learning anything
+about the table underneath — which is why the enum is exported and the ORM model
+is not.
+
 Nothing here exposes an ORM model, so the tables underneath stay free to move.
 """
 
 from src.modules.organizations.deps import (
+    AuditTrail,
     CurrentAccess,
     DevAccess,
     InternalAccess,
@@ -31,6 +39,7 @@ from src.modules.organizations.deps import (
     require_owner,
     require_writer,
 )
+from src.modules.organizations.models import AuditEvent
 from src.modules.organizations.services import (
     WRITING_ROLES,
     EffectiveRole,
@@ -43,6 +52,8 @@ from src.modules.organizations.services import (
 
 __all__ = [
     "WRITING_ROLES",
+    "AuditEvent",
+    "AuditTrail",
     "CurrentAccess",
     "DevAccess",
     "EffectiveRole",

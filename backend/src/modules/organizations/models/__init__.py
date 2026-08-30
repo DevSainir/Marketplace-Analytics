@@ -9,6 +9,8 @@ responsibility rather than by size:
   read-only ramp when that lapses.
 * :mod:`.access` — the two doors in: a single-use activation code (which makes
   an owner) and an invitation (which makes a manager).
+* :mod:`.audit` — the append-only record of what people did, which outlives the
+  rows it describes.
 
 A package rather than a flat ``models.py`` because the three answer different
 questions and are edited for different reasons; callers import the same names
@@ -16,6 +18,7 @@ from here either way.
 """
 
 from src.modules.organizations.models.access import ActivationCode, Invitation
+from src.modules.organizations.models.audit import AuditEvent, AuditLogEntry
 from src.modules.organizations.models.organization import (
     MemberRole,
     Membership,
@@ -29,6 +32,8 @@ from src.modules.organizations.models.subscription import (
 __all__ = [
     "DEFAULT_SUBSCRIPTION_DAYS",
     "ActivationCode",
+    "AuditEvent",
+    "AuditLogEntry",
     "Invitation",
     "MemberRole",
     "Membership",

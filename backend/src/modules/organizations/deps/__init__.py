@@ -30,12 +30,14 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 
+from src.core.client_ip import resolve_client_ip
 from src.core.deps import DbSession
 from src.core.exceptions import PermissionDeniedError
 from src.modules.organizations.repos import (
     ActivationCodeRepository,
+    AuditLogRepository,
     InvitationRepository,
     MembershipRepository,
     OrganizationRepository,
@@ -47,6 +49,7 @@ from src.modules.organizations.services import (
     resolve_access,
 )
 from src.modules.organizations.services.activation import ActivationService
+from src.modules.organizations.services.audit import AuditRecorder
 from src.modules.organizations.services.invitations import InvitationService
 from src.modules.organizations.services.membership import OrganizationService
 from src.modules.users.contract import CurrentUser
@@ -257,8 +260,43 @@ async def require_dev(access: CurrentAccess) -> OrganizationAccess:
 
 DevAccess = Annotated[OrganizationAccess, Depends(require_dev)]
 
+
+# --------------------------------------------------------------------------- #
+# Audit trail
+# --------------------------------------------------------------------------- #
+def get_audit_recorder(
+    session: DbSession,
+    request: Request,
+    user: CurrentUser,
+    access: CurrentAccess,
+) -> AuditRecorder:
+    """Provide a recorder with this request's actor already resolved.
+
+    Declared on ``CurrentAccess`` rather than ``MemberAccess``, because two of
+    the events worth recording — redeeming an activation code and accepting an
+    invitation — happen precisely when the caller has no organisation yet, and a
+    stricter guard would exclude the moment a tenancy is created.
+
+    The address comes from :func:`~src.core.client_ip.resolve_client_ip`, so the
+    trail records what nginx observed and never a value the client chose. An
+    audit log that believes ``X-Forwarded-For`` records the attacker's opinion of
+    where they were.
+    """
+    return AuditRecorder(
+        repo=AuditLogRepository(session),
+        actor_user_id=user.id,
+        actor_email=user.email,
+        organization_id=access.organization_id,
+        ip_address=resolve_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+
+
+AuditTrail = Annotated[AuditRecorder, Depends(get_audit_recorder)]
+
 __all__ = [
     "ActivationServiceDep",
+    "AuditTrail",
     "CurrentAccess",
     "DevAccess",
     "InternalAccess",
@@ -267,6 +305,7 @@ __all__ = [
     "OrganizationServiceDep",
     "OwnerAccess",
     "WritingAccess",
+    "get_audit_recorder",
     "get_current_access",
     "require_dev",
     "require_internal",

@@ -9,6 +9,7 @@ from src.modules.organizations.repos.access import (
     ActivationCodeRepository,
     InvitationRepository,
 )
+from src.modules.organizations.repos.audit import AuditLogRepository
 from src.modules.organizations.repos.organizations import (
     MembershipRepository,
     OrganizationRepository,
@@ -17,6 +18,7 @@ from src.modules.organizations.repos.subscriptions import SubscriptionRepository
 
 __all__ = [
     "ActivationCodeRepository",
+    "AuditLogRepository",
     "InvitationRepository",
     "MembershipRepository",
     "OrganizationRepository",

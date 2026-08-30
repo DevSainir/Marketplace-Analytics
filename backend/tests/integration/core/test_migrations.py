@@ -129,6 +129,42 @@ def test_migrations_apply_cleanly_from_an_empty_database(migrated_database: str)
     assert _OWNED_SCHEMAS.issubset(present)
 
 
+def test_the_audit_log_guard_survives_the_migrated_path(migrated_database: str) -> None:
+    """The append-only trigger must exist however the database was built.
+
+    It is declared twice on purpose — as ``after_create`` DDL on the model, for
+    ``create_all``, and in the migration, for production. The drift guard below
+    compares tables and columns and would not notice a trigger present in one
+    path and missing from the other, which is the divergence that would ship an
+    unprotected audit log to the only database that matters (P1.3).
+    """
+    engine = sa.create_engine(migrated_database, poolclass=NullPool)
+    with engine.connect() as conn:
+        # pg_trigger, not information_schema.triggers: the standard view has no
+        # notion of a TRUNCATE trigger and silently omits it, which made the
+        # first version of this test fail against a database that was correct.
+        triggers = {
+            row[0]
+            for row in conn.execute(
+                sa.text(
+                    """
+                    SELECT t.tgname
+                    FROM pg_trigger t
+                    JOIN pg_class c ON c.oid = t.tgrelid
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = 'organizations'
+                      AND c.relname = 'audit_log'
+                      AND NOT t.tgisinternal
+                    """
+                )
+            )
+        }
+    engine.dispose()
+
+    assert "audit_log_no_rewrite" in triggers
+    assert "audit_log_no_truncate" in triggers
+
+
 def test_the_migrated_schema_matches_the_models(migrated_database: str) -> None:
     """Autogenerate finds nothing left to do — no missing migration.
 

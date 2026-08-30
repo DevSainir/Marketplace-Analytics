@@ -18,10 +18,12 @@ from src.modules.organizations.services.access import (
     resolve_access,
     subscription_state,
 )
+from src.modules.organizations.services.audit import AuditRecorder
 from src.modules.organizations.services.membership import load_workspace_quota
 
 __all__ = [
     "WRITING_ROLES",
+    "AuditRecorder",
     "EffectiveRole",
     "OrganizationAccess",
     "SubscriptionState",
