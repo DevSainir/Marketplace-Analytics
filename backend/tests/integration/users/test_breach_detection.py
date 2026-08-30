@@ -71,6 +71,7 @@ async def stored_user(db_session: AsyncSession) -> User:
 def auth_service(
     db_session: AsyncSession,
     session_factory: async_sessionmaker[AsyncSession],
+    redis_client: Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> AuthService:
     """Build the real service, with the breach handler joining this transaction.
@@ -80,9 +81,14 @@ def auth_service(
     that factory at the test connection keeps the behaviour intact (its commit
     is a savepoint release) while the outer transaction still cleans up.
 
-    No Redis stub is needed: breach handling no longer stamps the per-user
-    revocation watermark. Stamping it was account-wide by construction, which is
-    precisely the blast radius these tests now pin shut.
+    Breach handling itself still touches no Redis — stamping the per-user
+    revocation watermark was account-wide by construction, which is the blast
+    radius these tests pin shut. ``redis_client`` is here for a different
+    reason: ``authenticate`` consults the per-account login backoff (P1.5), so
+    every ``login`` in this file now reaches the shared client. Without a
+    per-test one, the process-wide client hands the second test connections
+    bound to the first test's event loop — which surfaces as "attached to a
+    different loop", several confusing minutes from its cause.
     """
     monkeypatch.setattr("src.modules.users.services.breach.AsyncSessionLocal", session_factory)
     return AuthService(
