@@ -174,3 +174,22 @@ the assertion with a comment saying why, not by deleting the case.
 
 A `@pytest.mark.skip` needs a reason and a linked issue. An unexplained skip is a deleted test
 that still costs a line in the report.
+
+### "attached to a different loop" always means the same thing
+
+If an integration test fails with `Task … got Future attached to a different loop` or
+`Event loop is closed`, and it passes when run alone, the cause is almost never the test
+that failed. Some code it exercises reached the **process-wide** Redis client in
+`src.core.redis` while an earlier test in the same file bound that client's pooled
+connections to its own, now-closed, event loop.
+
+**Fix:** declare the `redis_client` fixture on the test (or an autouse fixture in the
+file). It swaps the shared client for a per-test one on the test index — which is what the
+component tier's `redis_store` does for its own tier.
+
+**Why it keeps happening:** the fixture is opt-in, so a test only has it if somebody
+realised the path touched Redis. Adding a Redis-backed control to an existing code path —
+the login backoff was the last one — silently pulls files into needing it that did not
+before, and the failure surfaces several confusing minutes from its cause. When you put
+Redis behind something that was not behind it, grep for the tests that exercise it before
+assuming the fast tier's green is the whole answer.
