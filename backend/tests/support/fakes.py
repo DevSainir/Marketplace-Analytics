@@ -239,3 +239,38 @@ def make_workspace(
         is_primary=is_primary,
         created_at=datetime.now(UTC),
     )
+
+
+class FakeLoginBackoff:
+    """In-memory stand-in for the per-account login backoff.
+
+    Same surface as :class:`~src.modules.users.services.lockout.LoginBackoff`,
+    counting in a dict instead of Redis. It exists so the unit tier can drive
+    :class:`~src.modules.users.services.auth.AuthService` without a socket, and
+    so a test can put an account into backoff by simply setting
+    :attr:`penalty`.
+
+    Attributes:
+        penalty: Seconds :meth:`penalty_remaining` reports for every account.
+        failures: Per-email count of :meth:`record_failure` calls.
+        cleared: Emails :meth:`clear` was called for, in order.
+    """
+
+    def __init__(self, *, penalty: int = 0) -> None:
+        """Start with no account in backoff unless one is asked for."""
+        self.penalty = penalty
+        self.failures: dict[str, int] = {}
+        self.cleared: list[str] = []
+
+    async def penalty_remaining(self, *, email: str) -> int:
+        """Report the configured penalty for any account."""
+        return self.penalty
+
+    async def record_failure(self, *, email: str) -> None:
+        """Count one failed attempt against this account."""
+        self.failures[email] = self.failures.get(email, 0) + 1
+
+    async def clear(self, *, email: str) -> None:
+        """Forget this account's failures."""
+        self.cleared.append(email)
+        self.failures.pop(email, None)

@@ -13,6 +13,10 @@ Key security behaviours implemented here:
   token's family (login lineage) and raises :class:`TokenReuseError` (HTTP 401).
 * **Timing-attack mitigation:** unknown-user logins still run a bcrypt verify
   against :data:`DUMMY_HASH`, keeping response latency constant.
+* **Per-account backoff:** consecutive login failures make the next attempt on
+  that account wait, independently of the per-IP throttle — the budget a
+  credential-stuffing campaign spread across thousands of addresses never
+  touches (:mod:`.lockout`).
 """
 
 from __future__ import annotations
@@ -49,6 +53,7 @@ from src.modules.users.refresh_grace import (
 from src.modules.users.repos import RefreshTokenRepository, UserRepository
 from src.modules.users.schemas import IssuedTokens, UserRead
 from src.modules.users.services.breach import revoke_breached_family
+from src.modules.users.services.lockout import LoginBackoff, LoginBackoffLike
 
 logger = get_logger(__name__)
 
@@ -73,15 +78,19 @@ class AuthService:
         *,
         user_repo: UserRepository,
         token_repo: RefreshTokenRepository,
+        backoff: LoginBackoffLike | None = None,
     ) -> None:
         """Inject the collaborating repositories.
 
         Args:
             user_repo: Repository for :class:`User` persistence.
             token_repo: Repository for :class:`RefreshToken` persistence.
+            backoff: Per-account login backoff. Injected so a test can drive a
+                fake instead of a socket; defaults to the Redis-backed one.
         """
         self._users = user_repo
         self._tokens = token_repo
+        self._backoff = backoff or LoginBackoff()
 
     # ------------------------------------------------------------------ #
     # Registration
@@ -136,10 +145,16 @@ class AuthService:
     async def authenticate(self, *, email: str, password: str) -> IssuedTokens:
         """Authenticate credentials and issue a fresh token pair.
 
-        The lookup path is deliberately constant-time: when the email is
-        unknown we still execute a bcrypt verification against
-        :data:`DUMMY_HASH` before failing, so an attacker cannot distinguish
-        "no such user" from "wrong password" by measuring latency.
+        The lookup path is deliberately constant-time: whatever the outcome,
+        exactly one bcrypt verification runs — against :data:`DUMMY_HASH` when
+        the email is unknown — so an attacker cannot distinguish "no such
+        user", "wrong password", "disabled account" or "currently backed off"
+        by measuring latency any more than by reading the message.
+
+        Consecutive failures on one account impose a growing delay before the
+        next attempt is considered at all; a success clears it. See
+        :mod:`src.modules.users.services.lockout` for the schedule and for why
+        the denial-of-service this trades against is bounded and accepted.
 
         Args:
             email: Submitted login email.
@@ -149,25 +164,48 @@ class AuthService:
             A fresh :class:`IssuedTokens` bundle.
 
         Raises:
-            AuthenticationError: On unknown user, wrong password, or inactive
-                account (deliberately the same message for all three, so the
-                response is not an account-existence oracle).
+            AuthenticationError: On unknown user, wrong password, inactive
+                account, or an account still inside its backoff (deliberately
+                the same message for all four, so the response is neither an
+                account-existence oracle nor a report on the attack's progress).
         """
-        user = await self._users.get_by_email(_normalize_email(email))
+        email = _normalize_email(email)
+        penalty = await self._backoff.penalty_remaining(email=email)
+        user = await self._users.get_by_email(email)
 
         # bcrypt is CPU-bound (~100-300 ms); to_thread keeps the event loop
         # serving other requests instead of stalling the whole process.
-        if user is None:
-            # Burn an equivalent bcrypt cycle to equalise timing, then fail.
-            await asyncio.to_thread(verify_password, password, DUMMY_HASH)
+        #
+        # The verify below is unconditional, and that is the point. A backed-off
+        # account that returned early would answer in a millisecond where every
+        # other rejection takes a bcrypt cycle, and that gap is an oracle for
+        # *two* facts at once: that the account is under attack, and — since
+        # only a real account accumulates failures — that it exists at all. The
+        # constant-time property this method already had has to survive the new
+        # branch, not just precede it.
+        hashed = user.hashed_password if user is not None else DUMMY_HASH
+        password_matches = await asyncio.to_thread(verify_password, password, hashed)
+
+        if penalty:
+            logger.info(
+                "Login refused during a %ds backoff (consecutive failures on this account).",
+                penalty,
+            )
             raise AuthenticationError("Invalid email or password.")
 
-        if not await asyncio.to_thread(verify_password, password, user.hashed_password):
+        if user is None or not password_matches:
+            await self._backoff.record_failure(email=email)
             raise AuthenticationError("Invalid email or password.")
 
         if not user.is_active:
+            # Counted like any other failure: not doing so would make a disabled
+            # account the one address that never backs off, which is a
+            # difference an attacker can measure.
+            await self._backoff.record_failure(email=email)
             logger.info("Login attempt for disabled account %s.", user.id)
             raise AuthenticationError("Invalid email or password.")
+
+        await self._backoff.clear(email=email)
 
         # A fresh login opens a new token family/lineage.
         return await self._issue_pair(user_id=user.id, family_id=uuid7(), parent_id=None)

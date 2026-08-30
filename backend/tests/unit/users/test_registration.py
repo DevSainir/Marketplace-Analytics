@@ -14,12 +14,16 @@ from sqlalchemy.exc import IntegrityError
 from src.core.exceptions import ConflictError
 from src.modules.users.services import AuthService
 from tests.support.auth import make_user
-from tests.support.fakes import FakeRefreshTokenRepository, FakeUserRepository
+from tests.support.fakes import FakeLoginBackoff, FakeRefreshTokenRepository, FakeUserRepository
 
 
 def _service(user_repo: FakeUserRepository) -> AuthService:
     """Build an AuthService over in-memory repositories."""
-    return AuthService(user_repo=user_repo, token_repo=FakeRefreshTokenRepository())
+    return AuthService(
+        user_repo=user_repo,
+        token_repo=FakeRefreshTokenRepository(),
+        backoff=FakeLoginBackoff(),
+    )
 
 
 async def test_duplicate_email_is_a_conflict() -> None:

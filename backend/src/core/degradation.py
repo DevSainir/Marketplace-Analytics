@@ -64,6 +64,11 @@ CONTROL_AUTH_RATE_LIMIT = "auth-rate-limit"
 #: a revocation performed *during* the outage is silently lost.
 CONTROL_SESSION_REVOCATION = "session-revocation"
 
+#: The per-account login backoff (`src.modules.users.services.lockout`). Failing
+#: open means credential stuffing is bounded only by the per-IP throttle, which
+#: is the budget a distributed campaign never touches.
+CONTROL_LOGIN_BACKOFF = "login-backoff"
+
 #: How often one still-degraded control repeats itself. Long enough that an
 #: hour-long outage produces a readable handful of records rather than a flood;
 #: short enough that the heartbeat proves the outage is ongoing.

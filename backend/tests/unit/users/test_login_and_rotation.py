@@ -23,14 +23,24 @@ from src.core.exceptions import AuthenticationError
 from src.core.security import hash_refresh_secret
 from src.modules.users.services import AuthService
 from tests.support.auth import KNOWN_PASSWORD, make_user
-from tests.support.fakes import FakeRefreshTokenRepository, FakeUserRepository
+from tests.support.fakes import (
+    FakeLoginBackoff,
+    FakeRefreshTokenRepository,
+    FakeUserRepository,
+)
 
 
 def _service(
-    users: FakeUserRepository, tokens: FakeRefreshTokenRepository | None = None
+    users: FakeUserRepository,
+    tokens: FakeRefreshTokenRepository | None = None,
+    backoff: FakeLoginBackoff | None = None,
 ) -> AuthService:
-    """Build an AuthService over in-memory repositories."""
-    return AuthService(user_repo=users, token_repo=tokens or FakeRefreshTokenRepository())
+    """Build an AuthService over in-memory repositories and a fake backoff."""
+    return AuthService(
+        user_repo=users,
+        token_repo=tokens or FakeRefreshTokenRepository(),
+        backoff=backoff or FakeLoginBackoff(),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -77,6 +87,75 @@ async def test_failed_logins_are_indistinguishable(email: str, password: str, ca
         await service.authenticate(email=email, password=password)
 
     assert excinfo.value.message == "Invalid email or password."
+
+
+async def test_a_backed_off_account_is_refused_even_with_the_right_password() -> None:
+    """That is what the backoff is: the correct password stops working too.
+
+    Otherwise it bounds nothing — an attacker whose next guess happens to be
+    right would be let straight in (register P1.5).
+    """
+    user = make_user(email="user@example.com")
+    backoff = FakeLoginBackoff(penalty=42)
+    service = _service(FakeUserRepository([user]), backoff=backoff)
+
+    with pytest.raises(AuthenticationError) as excinfo:
+        await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
+
+    assert excinfo.value.message == "Invalid email or password."
+
+
+async def test_a_backed_off_account_answers_exactly_like_a_wrong_password() -> None:
+    """The backoff must not become the oracle the generic message avoids.
+
+    "You are being rate limited" tells an attacker the account exists AND that
+    the campaign is landing. Both are facts worth withholding.
+    """
+    known = _service(FakeUserRepository([make_user(email="user@example.com")]))
+    with pytest.raises(AuthenticationError) as wrong_password:
+        await known.authenticate(email="user@example.com", password="wrong-password")
+
+    blocked = _service(
+        FakeUserRepository([make_user(email="user@example.com")]),
+        backoff=FakeLoginBackoff(penalty=900),
+    )
+    with pytest.raises(AuthenticationError) as backed_off:
+        await blocked.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
+
+    assert backed_off.value.message == wrong_password.value.message
+    assert type(backed_off.value) is type(wrong_password.value)
+
+
+async def test_a_failed_login_is_counted_against_the_account() -> None:
+    """Counted on the canonical email, so case variants share one budget."""
+    backoff = FakeLoginBackoff()
+    service = _service(FakeUserRepository([make_user(email="user@example.com")]), backoff=backoff)
+
+    with pytest.raises(AuthenticationError):
+        await service.authenticate(email="  USER@Example.com ", password="wrong-password")
+
+    assert backoff.failures == {"user@example.com": 1}
+
+
+async def test_an_unknown_account_is_counted_too() -> None:
+    """Not counting them would make "no failures recorded" mean "no such user"."""
+    backoff = FakeLoginBackoff()
+    service = _service(FakeUserRepository([make_user(email="user@example.com")]), backoff=backoff)
+
+    with pytest.raises(AuthenticationError):
+        await service.authenticate(email="ghost@example.com", password=KNOWN_PASSWORD)
+
+    assert backoff.failures == {"ghost@example.com": 1}
+
+
+async def test_a_successful_login_clears_the_run() -> None:
+    """Four bad tries then a good one must not leave the account one miss from a penalty."""
+    backoff = FakeLoginBackoff()
+    service = _service(FakeUserRepository([make_user(email="user@example.com")]), backoff=backoff)
+
+    await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
+
+    assert backoff.cleared == ["user@example.com"]
 
 
 async def test_disabled_account_cannot_log_in() -> None:
