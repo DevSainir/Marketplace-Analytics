@@ -5,8 +5,12 @@ Implemented as a FastAPI dependency so individual routers opt in explicitly
 from :mod:`src.core.redis` — no extra dependency, and counters are shared
 across API replicas.
 
-Availability policy: fails open on Redis outages (with a loud log) — the
-limiter is an abuse dampener, not a correctness guarantee.
+Availability policy: fails open on Redis outages — the limiter is an abuse
+dampener, not a correctness guarantee. The outage is reported to
+:mod:`src.core.degradation` rather than logged from here, so that one Redis
+failure raises one alertable event instead of one traceback per request, and so
+that something above this module can notice when session revocation is failing
+open at the same time (register P1.2).
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ from __future__ import annotations
 from fastapi import Request
 
 from src.core.client_ip import resolve_client_ip
+from src.core.degradation import CONTROL_AUTH_RATE_LIMIT, report_degraded, report_healthy
 from src.core.exceptions import RateLimitError
 from src.core.logging import get_logger
 from src.core.redis import get_redis
@@ -97,9 +102,10 @@ async def consume_budget(*, scope: str, subject: str, limit: int, window_seconds
             # First hit opens the window; EXPIRE is separate from INCR but
             # a lost expiry (crash in between) only widens one window.
             await redis.expire(key, window_seconds)
-    except Exception:
-        logger.exception("Redis unavailable: budget '%s' failing open.", scope)
+    except Exception as exc:
+        report_degraded(CONTROL_AUTH_RATE_LIMIT, detail=f"{type(exc).__name__}: {exc}")
         return True
+    report_healthy(CONTROL_AUTH_RATE_LIMIT)
     if current > limit:
         logger.warning(
             "Budget exceeded on '%s' by %s (%d/%d in %ds).",

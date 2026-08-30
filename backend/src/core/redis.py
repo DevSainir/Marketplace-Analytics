@@ -7,8 +7,11 @@ already-issued access tokens, not just refresh tokens.
 
 Availability policy: both helpers **fail open** on Redis outages. Blocking all
 authenticated traffic because the cache is down is a worse failure mode than
-temporarily widening the revocation window back to the access-token TTL; every
-degradation is logged loudly so it cannot pass unnoticed.
+temporarily widening the revocation window back to the access-token TTL. The
+degradation is reported to :mod:`src.core.degradation`, which raises one
+alertable event per outage rather than one traceback per request, and which is
+the only thing positioned to notice that the auth rate limiter went down in the
+same instant (register P1.2).
 """
 
 from __future__ import annotations
@@ -20,6 +23,11 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
 from src.core.config import settings
+from src.core.degradation import (
+    CONTROL_SESSION_REVOCATION,
+    report_degraded,
+    report_healthy,
+)
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -105,12 +113,15 @@ async def mark_user_sessions_revoked(user_id: uuid.UUID) -> None:
     ttl = settings.access_token_ttl_seconds + 60
     try:
         await get_redis().set(key, str(datetime.now(UTC).timestamp()), ex=ttl)
-    except RedisError:
-        logger.exception(
-            "Redis unavailable: could not write session-revocation watermark for user %s; "
-            "outstanding access tokens will survive until natural expiry.",
-            user_id,
+    except RedisError as exc:
+        # The lossy direction: this revocation is not merely delayed, it is
+        # gone. Whoever asked for it believes it happened.
+        report_degraded(
+            CONTROL_SESSION_REVOCATION,
+            detail=f"watermark write lost for user {user_id}: {type(exc).__name__}: {exc}",
         )
+        return
+    report_healthy(CONTROL_SESSION_REVOCATION)
 
 
 async def sessions_revoked_after(user_id: uuid.UUID) -> datetime | None:
@@ -125,11 +136,13 @@ async def sessions_revoked_after(user_id: uuid.UUID) -> datetime | None:
     """
     try:
         raw = await get_redis().get(_revocation_key(user_id))
-    except RedisError:
-        logger.exception(
-            "Redis unavailable: skipping session-revocation check for user %s.", user_id
+    except RedisError as exc:
+        report_degraded(
+            CONTROL_SESSION_REVOCATION,
+            detail=f"revocation check skipped: {type(exc).__name__}: {exc}",
         )
         return None
+    report_healthy(CONTROL_SESSION_REVOCATION)
     if raw is None:
         return None
     try:

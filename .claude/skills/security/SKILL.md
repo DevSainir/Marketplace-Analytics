@@ -66,6 +66,16 @@ read-only, not full access. A cache miss on an authorization fact denies. If Red
 and a limiter fails open, that is a deliberate, documented availability trade — say so in a
 comment or do not do it.
 
+**A control that fails open must report it.** Call
+`src.core.degradation.report_degraded(...)` on the failure path and `report_healthy(...)`
+on the success path, with a `CONTROL_*` constant; add a new constant if yours is a new
+control. Do **not** log the outage from inside the control — that is one record per
+request, which is a flood rather than an alert, and it cannot see that a *second* control
+went down in the same instant. The ledger raises
+`SECURITY_CONTROLS_DEGRADED_TOGETHER` when two do, which is the failure mode that made
+this a register item (P1.2) rather than an accepted trade. The `detail` string reaches the
+log verbatim, so it carries an exception class, never a token or a key.
+
 **Decide races in the database (TOCTOU).** Any "only once" rule — redeem a code, accept an
 invitation, consume a token, claim a slot — is a read-then-write, and two requests in the
 same millisecond both pass the read. Use a conditional `UPDATE` (or a unique index) and let
