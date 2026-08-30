@@ -274,3 +274,26 @@ class FakeLoginBackoff:
         """Forget this account's failures."""
         self.cleared.append(email)
         self.failures.pop(email, None)
+
+
+class FakePasswordBreachCheck:
+    """In-memory stand-in for the Have I Been Pwned range query.
+
+    Same surface as
+    :class:`~src.integrations.pwned.PasswordBreachCheck`, answering from a set
+    instead of the network.
+
+    Attributes:
+        breached: Passwords this fake reports as already public.
+        asked: Every password it was asked about, in order.
+    """
+
+    def __init__(self, *, breached: set[str] | None = None) -> None:
+        """Start with nothing breached unless told otherwise."""
+        self.breached = breached or set()
+        self.asked: list[str] = []
+
+    async def is_breached(self, password: str) -> bool:
+        """Report whether this password is in the configured set."""
+        self.asked.append(password)
+        return password in self.breached

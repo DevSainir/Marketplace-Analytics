@@ -68,6 +68,26 @@ def _cheap_password_hashing() -> Iterator[None]:
         yield
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _no_outbound_breach_check() -> Iterator[None]:
+    """Keep the Have I Been Pwned lookup out of every tier by default.
+
+    Registration consults HIBP's range API, which is a real outbound HTTPS call
+    to a third party. A test suite that made it would be neither hermetic nor
+    fast, and would fail on an aeroplane. The setting makes the check a no-op
+    rather than an error, so the registration path still runs end to end — the
+    check's own behaviour is covered directly in
+    ``tests/unit/users/test_password_breach_check.py`` against a stubbed
+    transport, and the service's reaction to a positive answer with an injected
+    fake.
+    """
+    from src.core.config import settings
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(settings, "password_breach_check_enabled", False)
+        yield
+
+
 @pytest.fixture
 def settings_override() -> Iterator[Any]:
     """Yield a context manager that patches settings fields and restores them.

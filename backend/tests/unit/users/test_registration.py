@@ -11,18 +11,27 @@ from __future__ import annotations
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from src.core.exceptions import ConflictError
+from src.core.exceptions import ConflictError, ValidationError
 from src.modules.users.services import AuthService
 from tests.support.auth import make_user
-from tests.support.fakes import FakeLoginBackoff, FakeRefreshTokenRepository, FakeUserRepository
+from tests.support.fakes import (
+    FakeLoginBackoff,
+    FakePasswordBreachCheck,
+    FakeRefreshTokenRepository,
+    FakeUserRepository,
+)
 
 
-def _service(user_repo: FakeUserRepository) -> AuthService:
-    """Build an AuthService over in-memory repositories."""
+def _service(
+    user_repo: FakeUserRepository,
+    breach_check: FakePasswordBreachCheck | None = None,
+) -> AuthService:
+    """Build an AuthService over in-memory repositories and fake collaborators."""
     return AuthService(
         user_repo=user_repo,
         token_repo=FakeRefreshTokenRepository(),
         backoff=FakeLoginBackoff(),
+        breach_check=breach_check or FakePasswordBreachCheck(),
     )
 
 
@@ -89,3 +98,37 @@ async def test_lost_insert_race_becomes_a_conflict_not_a_500() -> None:
 
     with pytest.raises(ConflictError):
         await service.register(email="racer@example.com", password="a-long-password")
+
+
+async def test_a_password_from_a_public_breach_is_refused() -> None:
+    """Length was the only rule; "Password1!" passes it and leads every stuffing list."""
+    breach_check = FakePasswordBreachCheck(breached={"Password1!"})
+    service = _service(FakeUserRepository([]), breach_check=breach_check)
+
+    with pytest.raises(ValidationError) as excinfo:
+        await service.register(email="new@example.com", password="Password1!")
+
+    assert "public data breach" in excinfo.value.message
+
+
+async def test_a_password_not_in_the_corpus_registers_normally() -> None:
+    """The check must not become a second, silent way for signup to fail."""
+    service = _service(FakeUserRepository([]), breach_check=FakePasswordBreachCheck())
+
+    user = await service.register(email="new@example.com", password="a-long-fresh-password")
+
+    assert user.email == "new@example.com"
+
+
+async def test_a_taken_email_is_refused_before_the_password_is_checked() -> None:
+    """No point asking a third party about a signup that cannot succeed anyway."""
+    breach_check = FakePasswordBreachCheck(breached={"Password1!"})
+    service = _service(
+        FakeUserRepository([make_user(email="taken@example.com")]),
+        breach_check=breach_check,
+    )
+
+    with pytest.raises(ConflictError):
+        await service.register(email="taken@example.com", password="Password1!")
+
+    assert breach_check.asked == []

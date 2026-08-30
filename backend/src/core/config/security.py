@@ -57,6 +57,16 @@ class SecuritySettings(BaseSettings):
     # secrets: passwords, invite codes).
     auth_rate_limit_attempts: int = Field(default=10)
     auth_rate_limit_window_seconds: int = Field(default=60)
+    # Refuse passwords that are already public, via Have I Been Pwned's range
+    # API. Only the first five characters of the candidate's SHA-1 leave this
+    # process (k-anonymity) — see src/integrations/pwned.py. Off makes the
+    # check a no-op rather than an error, which is how the test tiers stay
+    # hermetic and how the feature is switched off if HIBP ever goes away.
+    password_breach_check_enabled: bool = Field(default=True)
+    # Short on purpose: this sits in the registration path, so a slow third
+    # party must not become a slow signup form. Exceeding it allows the
+    # password, like every other failure of this check.
+    password_breach_check_timeout_seconds: float = Field(default=2.0)
     # /refresh gets its OWN budget: its secret is an unguessable 256-bit cookie
     # (throttling is abuse damping, not brute-force defense), and every page
     # load fires a silent refresh — sharing the tight login budget bounced

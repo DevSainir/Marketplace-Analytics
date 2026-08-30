@@ -32,6 +32,7 @@ from src.core.exceptions import (
     AuthenticationError,
     ConflictError,
     TokenReuseError,
+    ValidationError,
 )
 from src.core.ids import uuid7
 from src.core.logging import get_logger
@@ -44,6 +45,7 @@ from src.core.security import (
     hash_refresh_secret,
     verify_password,
 )
+from src.integrations.pwned import PasswordBreachCheck, PasswordBreachCheckLike
 from src.modules.users.models import RefreshToken
 from src.modules.users.refresh_grace import (
     await_rotation,
@@ -79,6 +81,7 @@ class AuthService:
         user_repo: UserRepository,
         token_repo: RefreshTokenRepository,
         backoff: LoginBackoffLike | None = None,
+        breach_check: PasswordBreachCheckLike | None = None,
     ) -> None:
         """Inject the collaborating repositories.
 
@@ -87,10 +90,13 @@ class AuthService:
             token_repo: Repository for :class:`RefreshToken` persistence.
             backoff: Per-account login backoff. Injected so a test can drive a
                 fake instead of a socket; defaults to the Redis-backed one.
+            breach_check: "Is this password already public?" check. Injected for
+                the same reason; defaults to the Have I Been Pwned range query.
         """
         self._users = user_repo
         self._tokens = token_repo
         self._backoff = backoff or LoginBackoff()
+        self._breach_check = breach_check or PasswordBreachCheck()
 
     # ------------------------------------------------------------------ #
     # Registration
@@ -124,11 +130,21 @@ class AuthService:
 
         Raises:
             ConflictError: If the email is already registered.
+            ValidationError: If the password is already public — see
+                :mod:`src.integrations.pwned` for what that check does and does
+                not disclose.
         """
         email = _normalize_email(email)
         existing = await self._users.get_by_email(email)
         if existing is not None:
             raise ConflictError("A user with this email already exists.")
+        # Before the bcrypt cost, not after: there is no point spending 200 ms
+        # hashing a password we are about to refuse. The check fails open, so a
+        # HIBP outage costs a round trip and nothing else.
+        if await self._breach_check.is_breached(password):
+            raise ValidationError(
+                "This password has appeared in a public data breach. Please choose another."
+            )
         hashed = await asyncio.to_thread(hash_password, password)
         try:
             user = await self._users.create(email=email, hashed_password=hashed)
