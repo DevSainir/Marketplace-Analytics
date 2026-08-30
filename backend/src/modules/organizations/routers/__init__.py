@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, Response, status
 from src.core.deps import DbSession
 from src.modules.organizations.deps import (
     ActivationServiceDep,
+    AuditTrail,
     CurrentAccess,
     DevAccess,
     InvitationServiceDep,
@@ -32,6 +33,7 @@ from src.modules.organizations.deps import (
     require_dev,
     require_owner,
 )
+from src.modules.organizations.models import AuditEvent
 from src.modules.organizations.schemas import (
     ActivationCodeCreated,
     ActivationCodeCreateRequest,
@@ -99,13 +101,23 @@ async def activate(
     access: CurrentAccess,
     user: CurrentUser,
     service: ActivationServiceDep,
+    audit: AuditTrail,
 ) -> OrganizationRead:
     """Redeem an activation code — «Ключ активации» on the profile page.
 
     Creates the organisation, makes the caller its owner and starts the
     subscription, all in this request's transaction.
     """
-    return await service.redeem(code=payload.code, user_id=access.user_id, email=user.email)
+    organization = await service.redeem(code=payload.code, user_id=access.user_id, email=user.email)
+    # The tenant is passed explicitly: the recorder captured this caller's
+    # context before the redemption, when they belonged to no organisation.
+    await audit.record(
+        AuditEvent.ORG_ACTIVATED,
+        target_type="organization",
+        target_id=organization.id,
+        organization_id=organization.id,
+    )
+    return organization
 
 
 @router.get(
@@ -147,6 +159,7 @@ async def accept_invitation(
     user: CurrentUser,
     invitations: InvitationServiceDep,
     organizations: OrganizationServiceDep,
+    audit: AuditTrail,
 ) -> MeResponse:
     """Accept an invitation and join its organisation as a manager.
 
@@ -159,6 +172,12 @@ async def accept_invitation(
     # would be a second place that has to know how role, tenant and
     # subscription combine — and the first place to drift from `resolve_access`.
     refreshed = await resolve_access(session, user_id=user.id, platform_role=user.role)
+    await audit.record(
+        AuditEvent.MEMBER_JOINED,
+        target_type="membership",
+        target_id=user.id,
+        organization_id=refreshed.organization_id,
+    )
     return await organizations.describe(access=refreshed, email=user.email)
 
 
@@ -221,6 +240,7 @@ async def remove_member(
     user_id: uuid.UUID,
     access: OwnerAccess,
     service: OrganizationServiceDep,
+    audit: AuditTrail,
 ) -> Response:
     """Remove a manager from the organisation.
 
@@ -228,6 +248,11 @@ async def remove_member(
     once someone has joined.
     """
     await service.remove_member(organization_id=access.tenant_id, user_id=user_id)
+    await audit.record(
+        AuditEvent.MEMBER_REMOVED,
+        target_type="membership",
+        target_id=user_id,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -264,6 +289,7 @@ async def create_invitation(
     payload: InvitationCreateRequest,
     access: OwnerAccess,
     service: InvitationServiceDep,
+    audit: AuditTrail,
 ) -> InvitationCreated:
     """Invite a manager, by email or as a bare link.
 
@@ -271,12 +297,21 @@ async def create_invitation(
     profile page, so a colleague who already has an account never needs the
     link. The token is returned once and stored hashed.
     """
-    return await service.invite(
+    invitation = await service.invite(
         organization_id=access.tenant_id,
         owner_user_id=access.user_id,
         email=payload.email,
         valid_for_days=payload.valid_for_days,
     )
+    # The invitee's address, never the token: the token is the credential and
+    # the response above is the only place it is ever shown.
+    await audit.record(
+        AuditEvent.MEMBER_INVITED,
+        target_type="invitation",
+        target_id=invitation.id,
+        metadata={"email": payload.email},
+    )
+    return invitation
 
 
 @router.delete(
@@ -294,9 +329,15 @@ async def revoke_invitation(
     invitation_id: uuid.UUID,
     access: OwnerAccess,
     service: InvitationServiceDep,
+    audit: AuditTrail,
 ) -> Response:
     """Withdraw an outstanding invitation."""
     await service.revoke(organization_id=access.tenant_id, invitation_id=invitation_id)
+    await audit.record(
+        AuditEvent.INVITATION_REVOKED,
+        target_type="invitation",
+        target_id=invitation_id,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -317,14 +358,24 @@ async def create_activation_code(
     payload: ActivationCodeCreateRequest,
     access: DevAccess,
     service: ActivationServiceDep,
+    audit: AuditTrail,
 ) -> ActivationCodeCreated:
     """Generate a single-use activation code to hand to a paying customer."""
-    return await service.generate_code(
+    created = await service.generate_code(
         note=payload.note,
         valid_for_days=payload.valid_for_days,
         subscription_days=payload.subscription_days,
         created_by_user_id=access.user_id,
     )
+    # The note and the term, never the code itself — the code is a credential
+    # that buys a paid account, and this row is readable long after it is spent.
+    await audit.record(
+        AuditEvent.ACTIVATION_CODE_ISSUED,
+        target_type="activation_code",
+        target_id=created.id,
+        metadata={"note": payload.note, "subscription_days": payload.subscription_days},
+    )
+    return created
 
 
 @router.get(

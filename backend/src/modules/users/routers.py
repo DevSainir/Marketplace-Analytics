@@ -15,6 +15,12 @@ from fastapi import APIRouter, Cookie, Depends, Response, status
 
 from src.core.config import settings
 from src.core.ratelimit import RateLimiter
+
+# The audit trail is consumed through the organisations contract, the same
+# door every other module uses. The dependency runs one way at import time:
+# nothing under users/ is imported by organizations/deps beyond
+# users/contract.py, which reaches no further.
+from src.modules.organizations.contract import AuditEvent, AuditTrail
 from src.modules.users.deps import AuthServiceDep, CurrentUser, require_dev_role
 from src.modules.users.schemas import (
     IssuedTokens,
@@ -166,6 +172,7 @@ async def logout_everywhere(
     user: CurrentUser,
     service: AuthServiceDep,
     response: Response,
+    audit: AuditTrail,
 ) -> SessionsRevokedResponse:
     """End every session of the calling account, on every device, now.
 
@@ -183,6 +190,12 @@ async def logout_everywhere(
     The cookie is cleared so the SPA returns to the login screen.
     """
     revoked = await service.revoke_all_sessions(user_id=user.id)
+    await audit.record(
+        AuditEvent.SESSIONS_REVOKED,
+        target_type="user",
+        target_id=user.id,
+        metadata={"scope": "self", "revoked": revoked},
+    )
     response.delete_cookie(settings.refresh_cookie_name, path=settings.refresh_cookie_path)
     return SessionsRevokedResponse(revoked=revoked)
 
@@ -201,6 +214,7 @@ async def logout_everywhere(
 async def revoke_account_sessions(
     user_id: uuid.UUID,
     service: AuthServiceDep,
+    audit: AuditTrail,
 ) -> SessionsRevokedResponse:
     """End every session of another account — the incident-response lever.
 
@@ -215,6 +229,15 @@ async def revoke_account_sessions(
     nothing to avoid and the caller has no use for the distinction.
     """
     revoked = await service.revoke_all_sessions(user_id=user_id)
+    # The actor is the developer who pulled the lever, the target is the account
+    # it was pulled on. Recording only the target would lose the half that
+    # matters when the question is later "who ended that person's sessions".
+    await audit.record(
+        AuditEvent.SESSIONS_REVOKED,
+        target_type="user",
+        target_id=user_id,
+        metadata={"scope": "incident-response", "revoked": revoked},
+    )
     return SessionsRevokedResponse(revoked=revoked)
 
 

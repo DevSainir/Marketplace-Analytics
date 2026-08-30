@@ -25,6 +25,8 @@ from fastapi import APIRouter, Depends, status
 
 from src.core.deps import DbSession
 from src.modules.organizations.contract import (
+    AuditEvent,
+    AuditTrail,
     MemberAccess,
     OwnerAccess,
     load_workspace_quota,
@@ -83,13 +85,21 @@ async def create_workspace(
     access: OwnerAccess,
     session: DbSession,
     service: WorkspaceServiceDep,
+    audit: AuditTrail,
 ) -> WorkspaceRead:
     """Create a workspace in the caller's organisation (owner only)."""
-    return await service.create_workspace(
+    workspace = await service.create_workspace(
         organization_id=access.tenant_id,
         name=payload.name,
         max_workspaces=await load_workspace_quota(session, access.tenant_id),
     )
+    await audit.record(
+        AuditEvent.WORKSPACE_CREATED,
+        target_type="workspace",
+        target_id=workspace.id,
+        metadata={"name": payload.name},
+    )
+    return workspace
 
 
 @router.delete(
@@ -107,9 +117,17 @@ async def delete_workspace(
     workspace_id: uuid.UUID,
     access: OwnerAccess,
     service: WorkspaceServiceDep,
+    audit: AuditTrail,
 ) -> None:
     """Delete one of the organisation's workspaces and its WB tokens."""
     await service.delete_workspace(workspace_id, organization_id=access.tenant_id)
+    # The one event whose subject no longer exists to be asked about, which is
+    # the case this table was built for.
+    await audit.record(
+        AuditEvent.WORKSPACE_DELETED,
+        target_type="workspace",
+        target_id=workspace_id,
+    )
 
 
 @router.get(
@@ -154,10 +172,22 @@ async def set_tokens(
     payload: WorkspaceTokensUpdateRequest,
     access: OwnerAccess,
     service: WorkspaceServiceDep,
+    audit: AuditTrail,
 ) -> WorkspaceTokensStatus:
     """Set/rotate the workspace's WB tokens (owner only).
 
     Partial update: omitted surfaces are untouched; an empty string deletes
     the stored token for that surface. Values are Fernet-encrypted at rest.
     """
-    return await service.set_tokens(workspace_id, payload, organization_id=access.tenant_id)
+    status_after = await service.set_tokens(workspace_id, payload, organization_id=access.tenant_id)
+    # WHICH surfaces were touched, never what they were set to. The values are
+    # Fernet-encrypted at rest precisely so they exist in one place; copying one
+    # into an audit row in the clear would undo that in the row that is kept
+    # longest.
+    await audit.record(
+        AuditEvent.WB_TOKEN_ROTATED,
+        target_type="workspace",
+        target_id=workspace_id,
+        metadata={"kinds": sorted(payload.model_dump(exclude_unset=True))},
+    )
+    return status_after
