@@ -19,7 +19,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import AsyncSessionLocal
-from src.core.redis import sessions_revoked_after
+from src.core.redis import family_revoked_after, sessions_revoked_after
 from src.core.security import TokenType, decode_token
 
 
@@ -91,8 +91,10 @@ async def get_current_user_id(
 
     Raises:
         HTTPException: ``401`` when the token is missing, malformed, expired,
-            is not an access token, or was issued before the user's sessions
-            were force-revoked (breach detection / global logout).
+            is not an access token, or was issued before either revocation
+            watermark — the per-user one (the incident lever, "log out
+            everywhere") or the per-family one (this lineage was logged out, or
+            its refresh token was replayed).
     """
     unauthorized = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -118,6 +120,23 @@ async def get_current_user_id(
     revoked_after = await sessions_revoked_after(user_id)
     if revoked_after is not None and payload.issued_at < revoked_after:
         raise unauthorized
+
+    # And the narrow one: this login lineage alone. A logout revokes the
+    # family's refresh rows, which used to leave the access token already handed
+    # out working for the rest of its TTL (register P1.12).
+    #
+    # A token carrying no `fam` claim predates it and skips this check rather
+    # than being refused. That is what makes the rollout survivable: refusing
+    # them would sign every logged-in user out at deploy, to close a window that
+    # closes itself within the access TTL anyway.
+    if payload.family_id is not None:
+        try:
+            family_id = uuid.UUID(payload.family_id)
+        except ValueError as exc:
+            raise unauthorized from exc
+        family_revoked = await family_revoked_after(family_id)
+        if family_revoked is not None and payload.issued_at < family_revoked:
+            raise unauthorized
 
     return user_id
 

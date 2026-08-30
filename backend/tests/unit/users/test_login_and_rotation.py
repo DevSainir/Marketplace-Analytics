@@ -345,6 +345,57 @@ async def test_logout_revokes_the_whole_family() -> None:
     assert all(token.is_revoked for token in tokens.tokens.values())
 
 
+async def test_logout_ends_the_lineages_access_tokens_too(redis_store) -> None:
+    """The point of P1.12: pressing logout stops the stolen token *now*.
+
+    Revoking the refresh rows alone left the access token already handed out
+    working for up to its full 15-minute TTL — which is exactly the window
+    somebody who presses logout because they think a session is compromised
+    cannot afford.
+    """
+    user = make_user(email="user@example.com")
+    tokens = FakeRefreshTokenRepository()
+    service = _service(FakeUserRepository([user]), tokens)
+    issued = await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
+    family_id = next(iter(tokens.tokens.values())).family_id
+
+    await service.logout(refresh_secret=issued.refresh_secret)
+
+    assert f"auth:family-revoked-after:{family_id}" in redis_store.values
+
+
+async def test_logout_does_not_touch_the_accounts_other_devices(redis_store) -> None:
+    """The per-USER key stays off limits here — that is "log out everywhere"."""
+    user = make_user(email="user@example.com")
+    tokens = FakeRefreshTokenRepository()
+    service = _service(FakeUserRepository([user]), tokens)
+    issued = await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
+
+    await service.logout(refresh_secret=issued.refresh_secret)
+
+    assert f"auth:revoked-after:{user.id}" not in redis_store.values
+
+
+async def test_logging_out_one_browser_leaves_the_other_lineage_alone(redis_store) -> None:
+    """Two logins are two families; ending one must not stamp the other."""
+    user = make_user(email="user@example.com")
+    tokens = FakeRefreshTokenRepository()
+    service = _service(FakeUserRepository([user]), tokens)
+    phone = await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
+    await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
+    families = {token.family_id for token in tokens.tokens.values()}
+    assert len(families) == 2, "the two logins must open two lineages"
+
+    await service.logout(refresh_secret=phone.refresh_secret)
+
+    stamped = {
+        key.removeprefix("auth:family-revoked-after:")
+        for key in redis_store.values
+        if key.startswith("auth:family-revoked-after:")
+    }
+    assert len(stamped) == 1
+
+
 @pytest.mark.parametrize("secret", [None, "", "never-issued-secret"])
 async def test_logout_is_a_silent_no_op_for_unknown_tokens(secret: str | None) -> None:
     """Logout never raises, so it is idempotent and reveals nothing.

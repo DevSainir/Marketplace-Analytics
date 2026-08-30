@@ -73,8 +73,14 @@ class TokenPayload:
         token_type: The custom ``type`` claim distinguishing token kinds.
         jti: The unique token id (``jti`` claim), used to bind an access token
             to its refresh-token family row.
+        family_id: The ``fam`` claim — the login lineage this token belongs to,
+            compared against the per-family revocation watermark. ``None`` for a
+            token minted before the claim existed, which is what makes the
+            rollout survivable: such a token simply skips the family check and
+            expires within the access TTL. See
+            :func:`src.core.redis.family_revoked_after`.
         issued_at: The ``iat`` claim as a timezone-aware datetime; compared
-            against the per-user revocation watermark on every request.
+            against both revocation watermarks on every request.
         expires_at: The ``exp`` claim as a timezone-aware datetime.
     """
 
@@ -83,6 +89,7 @@ class TokenPayload:
     jti: str
     issued_at: datetime
     expires_at: datetime
+    family_id: str | None = None
 
 
 def hash_password(plain_password: str) -> str:
@@ -261,12 +268,17 @@ def create_access_token(
     *,
     user_id: uuid.UUID,
     jti: uuid.UUID | None = None,
+    family_id: uuid.UUID | None = None,
 ) -> tuple[str, datetime]:
     """Mint a signed, short-lived JWT access token.
 
     Args:
         user_id: The subject user's primary key.
         jti: Optional explicit token id; a fresh UUID is generated when omitted.
+        family_id: The login lineage this token belongs to. Carried as the
+            ``fam`` claim so that ending one lineage — a logout, a detected
+            refresh replay — can invalidate the access tokens it already handed
+            out, without touching the user's other devices (register P1.12).
 
     Returns:
         A ``(encoded_jwt, expires_at)`` tuple. ``expires_at`` is timezone-aware
@@ -285,6 +297,8 @@ def create_access_token(
         "iat": int(now.timestamp()),
         "exp": int(expires_at.timestamp()),
     }
+    if family_id is not None:
+        claims["fam"] = str(family_id)
     encoded = jwt.encode(
         claims,
         settings.jwt_secret_key,
@@ -328,10 +342,12 @@ def decode_token(
     if not isinstance(subject, str) or not isinstance(jti, str) or exp is None or iat is None:
         return None
 
+    family = raw.get("fam")
     return TokenPayload(
         subject=subject,
         token_type=expected_type,
         jti=jti,
         issued_at=datetime.fromtimestamp(int(iat), tz=UTC),
         expires_at=datetime.fromtimestamp(int(exp), tz=UTC),
+        family_id=family if isinstance(family, str) else None,
     )

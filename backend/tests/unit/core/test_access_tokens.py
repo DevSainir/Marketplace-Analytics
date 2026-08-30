@@ -140,3 +140,33 @@ def test_issued_at_is_timezone_aware_for_revocation_comparison() -> None:
     assert payload is not None
     assert payload.issued_at.tzinfo is not None
     assert payload.expires_at.tzinfo is not None
+
+
+def test_the_family_claim_survives_the_round_trip() -> None:
+    """The lineage has to be readable from the token, or it cannot be revoked.
+
+    ``fam`` is what lets a logout end the access tokens of *this* browser
+    without touching the account's other devices (register P1.12).
+    """
+    family_id = uuid.uuid4()
+
+    token, _ = create_access_token(user_id=uuid.uuid4(), family_id=family_id)
+    payload = decode_token(token, expected_type=TokenType.ACCESS)
+
+    assert payload is not None
+    assert payload.family_id == str(family_id)
+
+
+def test_a_token_minted_without_a_family_still_decodes() -> None:
+    """Tokens issued before the claim existed must survive the deploy.
+
+    Refusing them would sign every logged-in user out at rollout, to close a
+    window that closes itself within the access TTL anyway. ``None`` is the
+    signal to skip the per-family check, not to reject.
+    """
+    token, _ = create_access_token(user_id=uuid.uuid4())
+
+    payload = decode_token(token, expected_type=TokenType.ACCESS)
+
+    assert payload is not None
+    assert payload.family_id is None

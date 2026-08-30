@@ -33,6 +33,7 @@ from src.modules.users.models import ROLE_DEV, User
 from src.modules.workspaces.models import Workspace
 from tests.support.auth import make_user
 from tests.support.fakes import (
+    FakeRedis,
     FakeRefreshTokenRepository,
     FakeUserRepository,
     FakeWorkspaceRepository,
@@ -49,53 +50,8 @@ def app() -> FastAPI:
     return fastapi_app
 
 
-class _InMemoryRedis:
-    """The four commands this tier's Redis callers actually use.
-
-    Backing them with dicts keeps the *real* caller in the request path — the
-    limiter's counter key, budget comparison and 429; the refresh tracker's
-    ownership key and its comparison — while needing no Redis server. Replacing
-    those callers with stubs would have hidden a whole dependency from every
-    component test, and (worse) stopped exercising the logic under test.
-
-    Note the ``str`` values: the shared client runs with
-    ``decode_responses=True``, so a real ``get`` returns ``str``, not ``bytes``.
-    """
-
-    def __init__(self) -> None:
-        """Start with empty tables."""
-        self.counters: dict[str, int] = {}
-        self.expiries: dict[str, int] = {}
-        self.values: dict[str, str] = {}
-
-    async def incr(self, key: str) -> int:
-        """Increment and return a counter, creating it at 1."""
-        self.counters[key] = self.counters.get(key, 0) + 1
-        return self.counters[key]
-
-    async def expire(self, key: str, seconds: int) -> bool:
-        """Record the window length (never actually elapses within a test)."""
-        self.expiries[key] = seconds
-        return True
-
-    async def set(self, key: str, value: str, ex: int | None = None) -> bool:
-        """Store a value, recording any TTL (which never elapses in a test)."""
-        self.values[key] = value
-        if ex is not None:
-            self.expiries[key] = ex
-        return True
-
-    async def get(self, key: str) -> str | None:
-        """Return a stored value, or ``None`` when the key is absent."""
-        return self.values.get(key)
-
-    async def delete(self, key: str) -> int:
-        """Drop a key, reporting how many were removed (Redis's own contract)."""
-        return 1 if self.values.pop(key, None) is not None else 0
-
-
 @pytest.fixture(autouse=True)
-def redis_store(monkeypatch: pytest.MonkeyPatch) -> _InMemoryRedis:
+def redis_store(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     """Back every Redis-backed control in this tier with one in-memory store.
 
     ONE fixture, because there is one seam. Every caller resolves the client by
@@ -120,7 +76,7 @@ def redis_store(monkeypatch: pytest.MonkeyPatch) -> _InMemoryRedis:
     """
     from src.core import redis as core_redis
 
-    store = _InMemoryRedis()
+    store = FakeRedis()
     monkeypatch.setattr(core_redis, "_redis", store)
     return store
 

@@ -297,3 +297,54 @@ class FakePasswordBreachCheck:
         """Report whether this password is in the configured set."""
         self.asked.append(password)
         return password in self.breached
+
+
+class FakeRedis:
+    """The handful of Redis commands this codebase's callers actually use.
+
+    Backing them with dicts keeps the *real* caller in the request path — the
+    limiter's counter key, budget comparison and 429; the login backoff's
+    schedule; the revocation watermarks and their comparisons — while needing no
+    Redis server. Replacing those callers with stubs would have hidden a whole
+    dependency from every test, and (worse) stopped exercising the logic under
+    test.
+
+    Shared by the component tier (one store behind ``get_redis`` for the whole
+    app) and the unit tier, rather than defined twice: a control added to one
+    tier's fake and not the other is a control that silently reaches a real
+    socket from the tier that forgot.
+
+    Note the ``str`` values: the shared client runs with
+    ``decode_responses=True``, so a real ``get`` returns ``str``, not ``bytes``.
+    """
+
+    def __init__(self) -> None:
+        """Start with empty tables."""
+        self.counters: dict[str, int] = {}
+        self.expiries: dict[str, int] = {}
+        self.values: dict[str, str] = {}
+
+    async def incr(self, key: str) -> int:
+        """Increment and return a counter, creating it at 1."""
+        self.counters[key] = self.counters.get(key, 0) + 1
+        return self.counters[key]
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        """Record the window length (never actually elapses within a test)."""
+        self.expiries[key] = seconds
+        return True
+
+    async def set(self, key: str, value: str, ex: int | None = None) -> bool:
+        """Store a value, recording any TTL (which never elapses in a test)."""
+        self.values[key] = value
+        if ex is not None:
+            self.expiries[key] = ex
+        return True
+
+    async def get(self, key: str) -> str | None:
+        """Return a stored value, or ``None`` when the key is absent."""
+        return self.values.get(key)
+
+    async def delete(self, key: str) -> int:
+        """Drop a key, reporting how many were removed (Redis's own contract)."""
+        return 1 if self.values.pop(key, None) is not None else 0

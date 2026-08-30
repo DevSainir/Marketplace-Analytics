@@ -15,6 +15,7 @@ from sqlalchemy.exc import DBAPIError
 
 from src.core.database import AsyncSessionLocal
 from src.core.logging import get_logger
+from src.core.redis import mark_family_revoked
 from src.modules.users.repos import RefreshTokenRepository
 
 logger = get_logger(__name__)
@@ -46,11 +47,19 @@ async def revoke_breached_family(*, user_id: uuid.UUID, family_id: uuid.UUID) ->
     in a 401 (an exception), which rolls back the request-scoped session, so
     the revocation must persist independently or it would be silently undone.
 
-    No Redis watermark is stamped: that key is per-user, so using it here
-    would re-introduce exactly the account-wide blast radius this scopes
-    away. The consequence — access tokens already issued on this family stay
-    valid until they expire (15 minutes) — is the same one
-    :meth:`logout` documents and accepts, and it is bounded.
+    The per-USER watermark is still never stamped here: that key is
+    account-wide, so using it would re-introduce exactly the blast radius this
+    scopes away. The **per-family** watermark is stamped, and closes what was
+    previously documented as an accepted consequence — access tokens already
+    issued on the replayed lineage staying valid for up to fifteen minutes
+    (register P1.12). A replay is the strongest evidence available that a
+    lineage's tokens are in someone else's hands, so it is the last place worth
+    waiting out a TTL.
+
+    Stamped after the rows are revoked, and outside the `try` that guards the
+    row update: a lock timeout means the siblings were not marked, but the
+    replayed token is already consumed and cannot rotate, so ending the
+    lineage's access tokens is still correct and still worth doing.
     """
     logger.warning(
         "Refresh-token reuse detected for user %s; revoking family %s "
@@ -86,6 +95,7 @@ async def revoke_breached_family(*, user_id: uuid.UUID, family_id: uuid.UUID) ->
                 "token is already consumed, so the session cannot rotate regardless.",
                 family_id,
             )
+    await mark_family_revoked(family_id)
 
 
 __all__ = ["revoke_breached_family"]

@@ -1,9 +1,18 @@
 """Shared async Redis client and security-critical Redis-backed primitives.
 
 Owns the process-wide :class:`redis.asyncio.Redis` connection pool (mirroring
-how :mod:`src.core.database` owns the SQLAlchemy engine) plus the per-user
-session-revocation watermark used to make "log out everywhere" apply to
-already-issued access tokens, not just refresh tokens.
+how :mod:`src.core.database` owns the SQLAlchemy engine) plus the two
+session-revocation watermarks that make revocation apply to already-issued
+access tokens rather than only to refresh rows.
+
+**There are two, and the difference between them is the whole point.** The
+per-*user* watermark ends everything that account has open — the incident lever,
+"log out everywhere". The per-*family* watermark ends one login lineage: this
+browser, or the one whose refresh token was replayed. Using the user key for a
+family-scoped act was never an option — it would sign a customer's colleagues
+and their own phone out because one tab was closed — and its absence is why
+logout left the caller's access token alive for up to fifteen minutes
+(register P1.12). Same mechanism, correct blast radius.
 
 Availability policy: both helpers **fail open** on Redis outages. Blocking all
 authenticated traffic because the cache is down is a worse failure mode than
@@ -98,6 +107,21 @@ def _revocation_key(user_id: uuid.UUID) -> str:
     return f"auth:revoked-after:{user_id}"
 
 
+def _family_revocation_key(family_id: uuid.UUID) -> str:
+    """Build the per-family revocation-watermark key."""
+    return f"auth:family-revoked-after:{family_id}"
+
+
+def _watermark_ttl() -> int:
+    """How long a watermark must outlive the tokens it invalidates.
+
+    Exactly the access-token lifetime plus a clock-skew margin: past that every
+    token it could refuse has expired on its own, so keeping the key would only
+    hold memory.
+    """
+    return settings.access_token_ttl_seconds + 60
+
+
 async def mark_user_sessions_revoked(user_id: uuid.UUID) -> None:
     """Record a revocation watermark invalidating all previously issued tokens.
 
@@ -110,7 +134,7 @@ async def mark_user_sessions_revoked(user_id: uuid.UUID) -> None:
         user_id: The user whose entire session set must be invalidated.
     """
     key = _revocation_key(user_id)
-    ttl = settings.access_token_ttl_seconds + 60
+    ttl = _watermark_ttl()
     try:
         await get_redis().set(key, str(datetime.now(UTC).timestamp()), ex=ttl)
     except RedisError as exc:
@@ -149,4 +173,70 @@ async def sessions_revoked_after(user_id: uuid.UUID) -> datetime | None:
         return datetime.fromtimestamp(float(raw), tz=UTC)
     except (TypeError, ValueError):
         logger.error("Corrupt revocation watermark for user %s: %r", user_id, raw)
+        return None
+
+
+async def mark_family_revoked(family_id: uuid.UUID) -> None:
+    """End one login lineage's access tokens, and only that lineage's.
+
+    The narrow counterpart to :func:`mark_user_sessions_revoked`. Called when a
+    single family is revoked — a logout, or a detected refresh-token replay —
+    so the access tokens already handed out on that lineage stop working now
+    instead of surviving up to their full TTL (register P1.12).
+
+    **Stamp this, never the per-user key, for a family-scoped act.** That
+    distinction is not stylistic: revoking account-wide on a replay is what
+    turned one woken-up laptop into a team-wide sign-out on 2026-07-27, and the
+    same mistake made through this door would look like a logout button that
+    signs out your colleagues.
+
+    Callers must revoke the refresh rows *first* and stamp second, matching
+    :meth:`AuthService.revoke_all_sessions`: the reverse order leaves a gap in
+    which a rotation racing the call mints a pair whose ``iat`` is past the
+    watermark and therefore survives it.
+
+    Args:
+        family_id: The login lineage to end.
+    """
+    try:
+        await get_redis().set(
+            _family_revocation_key(family_id),
+            str(datetime.now(UTC).timestamp()),
+            ex=_watermark_ttl(),
+        )
+    except RedisError as exc:
+        report_degraded(
+            CONTROL_SESSION_REVOCATION,
+            detail=f"family watermark write lost for {family_id}: {type(exc).__name__}: {exc}",
+        )
+        return
+    report_healthy(CONTROL_SESSION_REVOCATION)
+
+
+async def family_revoked_after(family_id: uuid.UUID) -> datetime | None:
+    """Return the lineage's revocation watermark, or ``None`` when unset.
+
+    Args:
+        family_id: The login lineage carried by the presented access token.
+
+    Returns:
+        The UTC instant before which tokens of this lineage are invalid, or
+        ``None`` when none is in force (or Redis is unreachable — fail open,
+        for the same reason :func:`sessions_revoked_after` does).
+    """
+    try:
+        raw = await get_redis().get(_family_revocation_key(family_id))
+    except RedisError as exc:
+        report_degraded(
+            CONTROL_SESSION_REVOCATION,
+            detail=f"family revocation check skipped: {type(exc).__name__}: {exc}",
+        )
+        return None
+    report_healthy(CONTROL_SESSION_REVOCATION)
+    if raw is None:
+        return None
+    try:
+        return datetime.fromtimestamp(float(raw), tz=UTC)
+    except (TypeError, ValueError):
+        logger.error("Corrupt family revocation watermark for %s: %r", family_id, raw)
         return None

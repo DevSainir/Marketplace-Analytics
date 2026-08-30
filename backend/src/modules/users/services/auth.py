@@ -11,6 +11,8 @@ Key security behaviours implemented here:
   and issues a brand-new access+refresh pair.
 * **Breach detection:** replay of an already-consumed token revokes that
   token's family (login lineage) and raises :class:`TokenReuseError` (HTTP 401).
+* **Ending sessions:** delegated to :mod:`.revocation`, because the two scopes
+  and the watermark rules that separate them are a subject of their own.
 * **Timing-attack mitigation:** unknown-user logins still run a bcrypt verify
   against :data:`DUMMY_HASH`, keeping response latency constant.
 * **Per-account backoff:** consecutive login failures make the next attempt on
@@ -36,7 +38,6 @@ from src.core.exceptions import (
 )
 from src.core.ids import uuid7
 from src.core.logging import get_logger
-from src.core.redis import mark_user_sessions_revoked
 from src.core.security import (
     DUMMY_HASH,
     create_access_token,
@@ -56,6 +57,7 @@ from src.modules.users.repos import RefreshTokenRepository, UserRepository
 from src.modules.users.schemas import IssuedTokens, UserRead
 from src.modules.users.services.breach import revoke_breached_family
 from src.modules.users.services.lockout import LoginBackoff, LoginBackoffLike
+from src.modules.users.services.revocation import end_family, revoke_all_sessions
 
 logger = get_logger(__name__)
 
@@ -360,7 +362,9 @@ class AuthService:
             token.id,
             token.family_id,
         )
-        access_token, access_expires_at = create_access_token(user_id=child.user_id, jti=child.id)
+        access_token, access_expires_at = create_access_token(
+            user_id=child.user_id, jti=child.id, family_id=child.family_id
+        )
         return IssuedTokens(
             access_token=access_token,
             access_expires_at=access_expires_at,
@@ -372,69 +376,12 @@ class AuthService:
     # Logout
     # ------------------------------------------------------------------ #
     async def revoke_all_sessions(self, *, user_id: uuid.UUID) -> int:
-        """End every session of one account, immediately and on every device.
-
-        The account-wide counterpart of :meth:`logout`, and the one operation
-        that legitimately stamps the Redis watermark. ``logout`` and
-        :func:`revoke_breached_family` both refuse to, because that key is
-        per-user and they are per-family — "log out of this browser" and "end
-        the lineage that leaked" are not "end everything". This is, so it does.
-
-        Both halves are needed and neither is sufficient. Revoking the refresh
-        rows stops new pairs being minted but leaves outstanding **access**
-        tokens valid for up to their 15-minute TTL, which is exactly the window
-        an incident response cannot afford. The watermark closes that window by
-        rejecting any access token issued before this moment
-        (``get_current_user_id`` checks it on every request). It is also why the
-        machinery existed but was unreachable: ``mark_user_sessions_revoked``
-        was called from tests only, so the watermark could never be set and
-        incident response had no lever at all (register P1.1).
-
-        Order matters. The rows are revoked first and the watermark stamped
-        after, so a rotation racing this call finds no live row to rotate. The
-        reverse order would leave a gap in which a fresh pair is minted with an
-        ``iat`` past the watermark and survives.
-
-        Args:
-            user_id: The account whose sessions all end.
-
-        Returns:
-            How many refresh rows were revoked — 0 is a normal answer for an
-            account with no live session, not a failure.
-        """
-        revoked = await self._tokens.revoke_all_for_user(user_id)
-        await mark_user_sessions_revoked(user_id)
-        logger.warning("All sessions revoked for user %s (%d refresh rows).", user_id, revoked)
-        return revoked
+        """End every session of one account. See :func:`.revocation.revoke_all_sessions`."""
+        return await revoke_all_sessions(tokens=self._tokens, user_id=user_id)
 
     async def logout(self, *, refresh_secret: str | None) -> None:
-        """Revoke the family associated with a presented refresh token.
-
-        Silent no-op for a missing or unknown token so logout is idempotent and
-        cannot be used as a user/token enumeration oracle.
-
-        Family-scoped, and no Redis watermark: that key is per-user, so stamping
-        it would sign every other device of the same user out too — "log out of
-        this browser" is not "log out everywhere". The consequence is that the
-        caller's own access token stays valid until it expires (15 minutes by
-        default). That is acceptable because the SPA drops the token from memory
-        on logout, and because narrowing it further would need a per-family
-        watermark that buys nothing against a threat model where the attacker
-        already holds the access token.
-
-        :meth:`_revoke_breached_family` now uses the same scope and the same
-        reasoning; see its docstring for why reuse detection stopped revoking
-        account-wide.
-
-        Args:
-            refresh_secret: The opaque refresh secret from the client cookie, or
-                ``None`` when the cookie is absent.
-        """
-        if not refresh_secret:
-            return
-        token = await self._tokens.get_by_hash(hash_refresh_secret(refresh_secret))
-        if token is not None:
-            await self._tokens.revoke_family(token.family_id)
+        """End one login lineage. See :func:`.revocation.end_family`."""
+        await end_family(tokens=self._tokens, refresh_secret=refresh_secret)
 
     # ------------------------------------------------------------------ #
     # Internal helpers
@@ -461,7 +408,9 @@ class AuthService:
             The issued token bundle including cookie-ready expiry metadata.
         """
         token_id = uuid7()
-        access_token, access_expires_at = create_access_token(user_id=user_id, jti=token_id)
+        access_token, access_expires_at = create_access_token(
+            user_id=user_id, jti=token_id, family_id=family_id
+        )
 
         refresh_secret = generate_refresh_secret()
         refresh_expires_at = datetime.now(UTC) + timedelta(
