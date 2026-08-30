@@ -69,3 +69,9 @@ tests/performance/**/*.summary.json
 # Wheels pip occasionally leaves in the working directory (e.g. when a
 # hash-checking resolve has to build one). Never an artefact worth keeping.
 *.whl
+
+# ---- Private operational notes ----
+# Host addresses, users and key paths for the production box. The skills that
+# reference them are tracked so the guidance survives; the coordinates are not,
+# so the repository can be published without shipping a map to the server.
+.claude/skills/**/*.local.md
