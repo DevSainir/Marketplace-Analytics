@@ -143,7 +143,7 @@ class AuthService:
         # HIBP outage costs a round trip and nothing else.
         if await self._breach_check.is_breached(password):
             raise ValidationError(
-                "This password has appeared in a public data breach. Please choose another."
+                "Этот пароль встречался в публичных утечках данных. Придумайте другой."
             )
         hashed = await asyncio.to_thread(hash_password, password)
         try:

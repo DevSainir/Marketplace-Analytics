@@ -108,7 +108,7 @@ async def test_a_password_from_a_public_breach_is_refused() -> None:
     with pytest.raises(ValidationError) as excinfo:
         await service.register(email="new@example.com", password="Password1!")
 
-    assert "public data breach" in excinfo.value.message
+    assert "утечках" in excinfo.value.message
 
 
 async def test_a_password_not_in_the_corpus_registers_normally() -> None:
