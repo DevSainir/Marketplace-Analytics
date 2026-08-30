@@ -15,6 +15,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
+from src.core.config import settings
 from src.core.exceptions import ConflictError, NotFoundError, ValidationError
 from src.modules.ab_tests.models import (
     MAX_VARIANTS_PER_TEST,
@@ -167,7 +168,18 @@ class AbTestCatalogService:
 
         Returns:
             The created test as a list row.
+
+        Raises:
+            ValidationError: If the workspace is at its test bound
+                (register P1.13). Finished tests count — they keep their rows,
+                their variants and their uploaded images.
         """
+        cap = settings.max_ab_tests_per_workspace
+        if await self._tests.count_for_workspace(workspace_id) >= cap:
+            raise ValidationError(
+                f"Достигнут лимит А/Б-тестов ({cap} на воркспейс). "
+                "Удалите завершённые тесты, чтобы создать новый."
+            )
         test = await self._tests.create(
             workspace_id=workspace_id,
             nm_id=payload.nm_id,

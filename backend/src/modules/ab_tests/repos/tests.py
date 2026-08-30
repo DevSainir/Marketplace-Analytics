@@ -65,6 +65,22 @@ class AbTestRepository:
         await self._session.flush()
         return test
 
+    async def count_for_workspace(self, workspace_id: uuid.UUID) -> int:
+        """Return how many tests this workspace holds, in any status.
+
+        Draft, running and finished all count: a finished test keeps its rows,
+        its variants and its images, so it is exactly as much stored data as a
+        running one (register P1.13).
+
+        Args:
+            workspace_id: Owning workspace.
+
+        Returns:
+            The test count.
+        """
+        stmt = select(func.count()).select_from(AbTest).where(AbTest.workspace_id == workspace_id)
+        return int((await self._session.execute(stmt)).scalar_one())
+
     async def get(self, *, workspace_id: uuid.UUID, test_id: uuid.UUID) -> AbTest | None:
         """Return one test with its variants loaded, or ``None``.
 

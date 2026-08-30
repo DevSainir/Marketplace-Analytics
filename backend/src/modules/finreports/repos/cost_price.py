@@ -39,6 +39,50 @@ class CostPriceRepository(BaseRepository):
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
+    async def count_for_workspace(self, workspace_id: uuid.UUID) -> int:
+        """Return how many SKUs this workspace has a cost on file for.
+
+        Args:
+            workspace_id: Owning workspace.
+
+        Returns:
+            The row count. Indexed by the primary key's leading column, so this
+            is cheap enough to run on the write path (register P1.13).
+        """
+        stmt = (
+            select(func.count())
+            .select_from(ProductCostPrice)
+            .where(ProductCostPrice.workspace_id == workspace_id)
+        )
+        return int((await self._session.execute(stmt)).scalar_one())
+
+    async def count_existing(self, *, workspace_id: uuid.UUID, nm_ids: Sequence[int]) -> int:
+        """Return how many of these SKUs already have a cost on file.
+
+        The quota check needs to know how many rows a batch would *add*, not
+        how many it touches: overwriting a cost the workspace already stores
+        consumes no new storage, and counting it would refuse a customer
+        re-uploading their own catalogue.
+
+        Args:
+            workspace_id: Owning workspace.
+            nm_ids: The SKUs in the incoming batch.
+
+        Returns:
+            How many of them are already stored.
+        """
+        if not nm_ids:
+            return 0
+        stmt = (
+            select(func.count())
+            .select_from(ProductCostPrice)
+            .where(
+                ProductCostPrice.workspace_id == workspace_id,
+                ProductCostPrice.nm_id.in_(set(nm_ids)),
+            )
+        )
+        return int((await self._session.execute(stmt)).scalar_one())
+
     async def costs_by_nm_id(self, *, workspace_id: uuid.UUID, currency: str) -> dict[int, Decimal]:
         """Return ``{nm_id: cost}`` for the SKUs costed in a given currency.
 

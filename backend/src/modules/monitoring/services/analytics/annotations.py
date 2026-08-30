@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import date
 
+from src.core.config import settings
+from src.core.exceptions import ValidationError
+from src.core.timeutils import moscow_today
 from src.modules.monitoring.repos import SkuDayActionRepository, SkuDayCommentRepository
 from src.modules.monitoring.schemas import (
     DayActionResponse,
@@ -54,7 +57,12 @@ class DayAnnotationAnalytics:
 
         Returns:
             The stored note (``note`` is ``None`` after a full clear).
+
+        Raises:
+            ValidationError: If ``comment_date`` is far outside the window the
+                matrix can show (register P1.13).
         """
+        _refuse_a_meaningless_date(comment_date)
         current = await self._day_comments.get(nm_id=nm_id, comment_date=comment_date)
         new_body = (body if body is not None else (current.body if current else "")).strip()
         new_header = (header if header is not None else (current.header if current else "")).strip()
@@ -122,3 +130,30 @@ class DayAnnotationAnalytics:
             price_change_amount=action.price_change_amount,
         )
         return DayActionResponse(nm_id=nm_id, action_date=action_date, action=action)
+
+
+def _refuse_a_meaningless_date(comment_date: date) -> None:
+    """Reject a note dated far outside the window the matrix can show.
+
+    This is the bound P1.13 asked for on comments, and it is a date check
+    rather than a row count for two reasons.
+
+    These rows carry no workspace column — they are keyed on ``(nm_id,
+    comment_date)`` and are shared by every account, so there is nothing cheap
+    to count a per-tenant quota against. And the bound that actually matters
+    here is meaning rather than volume: a note dated three years out describes
+    nothing anybody will read. Refusing it also caps how many rows one SKU can
+    accumulate at roughly twice the window, structurally, without a COUNT on a
+    path a person hits every time they type in a cell.
+
+    Args:
+        comment_date: The day the note claims to describe.
+
+    Raises:
+        ValidationError: When the date is outside the window.
+    """
+    window = settings.sku_comment_max_days_from_today
+    if abs((comment_date - moscow_today()).days) > window:
+        raise ValidationError(
+            f"Дата заметки выходит за допустимый диапазон (±{window} дней от сегодня)."
+        )

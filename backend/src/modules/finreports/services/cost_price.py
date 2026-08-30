@@ -19,6 +19,8 @@ from decimal import Decimal, InvalidOperation
 
 from pydantic import ValidationError as PydanticValidationError
 
+from src.core.config import settings
+from src.core.exceptions import ValidationError
 from src.core.timeutils import moscow_today
 from src.modules.finreports.repos import CostPriceRepository, PnlRepository, SkuUnits
 from src.modules.finreports.schemas.cost_price import (
@@ -105,7 +107,12 @@ class CostPriceService:
 
         Returns:
             How many rows were written.
+
+        Raises:
+            ValidationError: If the batch would take the workspace past its
+                cost-row bound (register P1.13).
         """
+        await self._refuse_if_over_quota(workspace_id=workspace_id, items=items)
         saved = await self._costs.upsert_many(
             [
                 {
@@ -121,6 +128,38 @@ class CostPriceService:
             ]
         )
         return CostPriceSaveResponse(saved=saved)
+
+    async def _refuse_if_over_quota(
+        self, *, workspace_id: uuid.UUID, items: list[CostPriceInput]
+    ) -> None:
+        """Refuse a batch that would take the workspace past its row bound.
+
+        Counts what the batch would ADD, not what it touches: re-entering a
+        cost for a SKU already on file consumes no new storage, and treating it
+        as new would refuse a customer re-uploading their own catalogue — the
+        single most likely legitimate use of this endpoint.
+
+        Args:
+            workspace_id: Owning workspace.
+            items: The incoming batch.
+
+        Raises:
+            ValidationError: When the bound would be exceeded.
+        """
+        cap = settings.max_cost_price_rows_per_workspace
+        incoming = {item.nm_id for item in items}
+        stored = await self._costs.count_for_workspace(workspace_id)
+        if stored + len(incoming) <= cap:
+            # The common case costs one COUNT: if even treating every incoming
+            # SKU as new stays under the bound, the second query is pointless.
+            return
+        already = await self._costs.count_existing(workspace_id=workspace_id, nm_ids=list(incoming))
+        if stored + (len(incoming) - already) <= cap:
+            return
+        raise ValidationError(
+            f"Достигнут лимит себестоимостей ({cap} SKU на воркспейс). "
+            "Удалите ненужные строки или обратитесь в поддержку."
+        )
 
     async def delete_cost_price(self, *, workspace_id: uuid.UUID, nm_id: int) -> int:
         """Remove one SKU's cost price.

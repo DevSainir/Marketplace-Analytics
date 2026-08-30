@@ -80,6 +80,34 @@ class SecuritySettings(BaseSettings):
     # timeout retry, and is far short of the days-later replay that is the case
     # actually worth revoking a family over.
     refresh_replay_grace_seconds: int = Field(default=30)
+    # --- Per-tenant resource bounds (register P1.13) ---
+    # `max_workspaces` / `max_managers` live on the SUBSCRIPTION row, because
+    # they are what a customer bought. These three do not: they are safety
+    # bounds on shared storage, of the same family as the upload caps in P0.4,
+    # and every value below is far above any real use of the product. A tenant
+    # that reaches one has stopped using the feature and started filling the
+    # database. If any of them ever becomes something a customer *buys*, it
+    # moves to the subscription row and stops being a constant.
+    #
+    # All three are keyed per WORKSPACE rather than per organisation. That is
+    # the key the rows actually carry, and since workspaces are already capped
+    # per organisation, a per-workspace bound composes into a per-organisation
+    # one without a join on every write.
+    #
+    # One row per SKU. A large seller runs tens of thousands; a hundred
+    # thousand is beyond any catalogue we have seen and still bounds a script.
+    max_cost_price_rows_per_workspace: int = Field(default=100_000, ge=1)
+    # A test is a deliberate, weeks-long thing a human sets up. Hundreds is
+    # already generous; thousands means something is generating them.
+    max_ab_tests_per_workspace: int = Field(default=500, ge=1)
+    # Comments are bounded by DATE rather than by count, because they carry no
+    # workspace column to count against (they are keyed on `nm_id`, which
+    # belongs to one seller's catalogue) — and because the bound that matters
+    # is meaning, not volume. A note on a day two years out describes nothing;
+    # refusing it also caps the rows one SKU can hold at roughly twice this,
+    # structurally, with no COUNT on the write path.
+    sku_comment_max_days_from_today: int = Field(default=400, ge=1)
+
     # Per-WORKSPACE budget on enqueueing WB re-harvests («Обновить»). Keyed on
     # the tenant rather than the address because that is who spends the queue
     # and the WB rate budget behind it: one account on one IP can hold several
