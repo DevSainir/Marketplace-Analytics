@@ -100,6 +100,19 @@ jobs:
           uv export --frozen --no-dev --no-emit-project --format requirements-txt -o /tmp/runtime.txt
           uv run pip-audit --requirement /tmp/runtime.txt --strict --disable-pip
 
+      # The dev set too, but informational — same reasoning as the npm pair
+      # below. These packages never reach a server, yet they DO execute on a
+      # runner holding a checkout and a token, so "nobody looks at them" is the
+      # wrong answer; blocking every PR on an advisory in a tool's own
+      # transitive (today: `pip`, pulled in by pip-audit itself) is the other
+      # wrong answer. Read it, do not be gated by it.
+      - name: pip-audit (dev dependencies, informational)
+        working-directory: backend
+        continue-on-error: true
+        run: |
+          uv export --frozen --no-emit-project --format requirements-txt -o /tmp/all.txt
+          uv run pip-audit --requirement /tmp/all.txt --strict --disable-pip
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
