@@ -49,6 +49,15 @@ class FakeUserRepository:
         self.users[user.id] = user
         return user
 
+    async def mark_email_confirmed(self, user: User) -> None:
+        """Stamp the address as proven, keeping any earlier timestamp."""
+        if user.email_confirmed_at is None:
+            user.email_confirmed_at = datetime.now(UTC)
+
+    async def set_password(self, user: User, *, hashed_password: str) -> None:
+        """Replace the stored password digest."""
+        user.hashed_password = hashed_password
+
 
 class FakeRefreshTokenRepository:
     """In-memory :class:`~src.modules.users.repos.RefreshTokenRepository`."""

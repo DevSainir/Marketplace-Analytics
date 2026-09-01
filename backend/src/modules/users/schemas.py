@@ -88,3 +88,58 @@ class SessionsRevokedResponse(BaseModel):
             "the account exists."
         )
     )
+
+
+class EmailConfirmRequest(BaseModel):
+    """Payload proving control of an address with a mailed code."""
+
+    email: EmailStr = Field(description="The address being confirmed.")
+    code: str = Field(min_length=6, max_length=10, description="The code from the message.")
+
+
+class EmailResendRequest(BaseModel):
+    """Payload asking for a fresh confirmation code."""
+
+    email: EmailStr = Field(description="The address to send a new code to.")
+
+
+class PasswordResetRequest(BaseModel):
+    """Payload asking for a password-reset code."""
+
+    email: EmailStr = Field(description="The account's address.")
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    """Payload setting a new password against a mailed code."""
+
+    email: EmailStr = Field(description="The account's address.")
+    code: str = Field(min_length=6, max_length=10, description="The code from the message.")
+    new_password: str = Field(min_length=8, max_length=128, description="The replacement password.")
+
+    @field_validator("new_password")
+    @classmethod
+    def _password_within_bcrypt_limit(cls, value: str) -> str:
+        """Reject passwords bcrypt would silently truncate.
+
+        The same rule registration enforces, applied here because this is the
+        other door a password comes through — and a rule enforced on one of two
+        doors is not enforced.
+        """
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Пароль слишком длинный (максимум 72 байта).")
+        return value
+
+
+class AcceptedResponse(BaseModel):
+    """The uniform answer of an endpoint that must not disclose anything.
+
+    Both recovery request endpoints return this, always, whatever they found.
+    A response that varied — a 404 for an unknown address, a different message
+    for a disabled account — would turn the recovery form into the account
+    enumeration oracle ``/login`` is carefully not.
+    """
+
+    detail: str = Field(
+        default="Если такой адрес зарегистрирован, письмо с кодом отправлено.",
+        description="Deliberately says nothing about whether the address exists.",
+    )

@@ -20,6 +20,7 @@ from pydantic_settings import SettingsConfigDict
 from src.core.config.ab_tests import AbTestsSettings
 from src.core.config.app import AppSettings
 from src.core.config.datastore import DataStoreSettings
+from src.core.config.email import EmailSettings
 from src.core.config.finreports import FinreportsSettings
 from src.core.config.security import PLACEHOLDER_SECRETS, SecuritySettings
 from src.core.config.storefront import StorefrontSettings
@@ -30,6 +31,7 @@ class Settings(
     AppSettings,
     DataStoreSettings,
     SecuritySettings,
+    EmailSettings,
     WildberriesSettings,
     StorefrontSettings,
     FinreportsSettings,
@@ -84,6 +86,11 @@ class Settings(
         # a developer's own box would silently poison a real seller's numbers.
         if self.wb_fake_harvest:
             problems.append("WB_FAKE_HARVEST must be off (it writes fabricated WB data)")
+        # A flow that needs mail, on a deployment that cannot send it, fails at
+        # the registration form rather than at the thing that is broken — and
+        # the people who see it are the ones with no way to report it. Refuse
+        # the combination outright (register P1.6).
+        problems.extend(self._email_configuration_problems())
 
         if problems:
             raise ValueError(
@@ -92,6 +99,36 @@ class Settings(
                 + "."
             )
         return self
+
+    def _email_configuration_problems(self) -> list[str]:
+        """Return the ways this deployment's mail settings contradict themselves.
+
+        Split out because it is a different kind of check from the ones above:
+        those refuse a placeholder secret, this refuses an *incoherent* pair of
+        settings. Both fail the boot, which is the point — a deploy error is
+        cheap and a signup form that silently cannot complete is not.
+
+        Returns:
+            Human-readable problems, empty when the configuration is coherent.
+        """
+        problems: list[str] = []
+        needs_mail = self.email_confirmation_required or self.password_reset_enabled
+        if needs_mail and not self.email_enabled:
+            problems.append(
+                "EMAIL_CONFIRMATION_REQUIRED/PASSWORD_RESET_ENABLED need EMAIL_ENABLED=true "
+                "(a flow that sends no mail cannot be completed by anyone)"
+            )
+        if self.email_enabled:
+            if not self.smtp_host:
+                problems.append("SMTP_HOST is required when EMAIL_ENABLED=true")
+            if not self.email_from:
+                problems.append("EMAIL_FROM is required when EMAIL_ENABLED=true")
+            if not self.smtp_use_tls:
+                problems.append(
+                    "SMTP_USE_TLS must be true outside local: plaintext SMTP hands every "
+                    "reset code to anyone on the path"
+                )
+        return problems
 
 
 @lru_cache(maxsize=1)

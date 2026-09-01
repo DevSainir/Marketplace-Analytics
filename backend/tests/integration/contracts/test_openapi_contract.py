@@ -154,12 +154,24 @@ def test_every_protected_route_declares_a_security_scheme(openapi: dict[str, Any
     # /logout — it authenticates with the refresh *cookie* alone, so a client
     # whose access token has already expired can still end its session instead
     # of leaving a live refresh family behind.
+    #
+    # The recovery routes (register P1.6) are unauthenticated of necessity, not
+    # by oversight: someone who has lost their password cannot authenticate, and
+    # that is the entire circumstance the flow exists for. What stands in for a
+    # token there is proof of control of the mailbox — a single-use, expiring,
+    # attempt-capped code — plus a per-IP throttle on every one of them. Adding
+    # a route to this list is therefore a real decision: it must be one whose
+    # own credential is something other than an access token.
     public = {
         "/health",
         "/api/v1/auth/login",
         "/api/v1/auth/register",
         "/api/v1/auth/refresh",
         "/api/v1/auth/logout",
+        "/api/v1/auth/confirm-email",
+        "/api/v1/auth/resend-confirmation",
+        "/api/v1/auth/password-reset/request",
+        "/api/v1/auth/password-reset/confirm",
     }
     unprotected: list[str] = []
 

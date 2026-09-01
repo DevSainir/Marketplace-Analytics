@@ -50,7 +50,7 @@ from src.modules.organizations.schemas import (
     PendingInvitation,
 )
 from src.modules.organizations.services import resolve_access
-from src.modules.users.contract import CurrentUser
+from src.modules.users.contract import ConfirmedUser, CurrentUser
 
 router = APIRouter(prefix="/v1/organizations", tags=["Organizations"])
 
@@ -99,7 +99,11 @@ async def read_me(
 async def activate(
     payload: ActivationRequest,
     access: CurrentAccess,
-    user: CurrentUser,
+    # ConfirmedUser, not CurrentUser: redeeming a code makes the holder the
+    # OWNER of a company, which is the point at which an unproven address stops
+    # being harmless (register P1.6). A no-op while confirmation is not
+    # required, which is the default.
+    user: ConfirmedUser,
     service: ActivationServiceDep,
     audit: AuditTrail,
 ) -> OrganizationRead:
@@ -156,7 +160,9 @@ async def accept_invitation(
     payload: InvitationAcceptRequest,
     session: DbSession,
     access: CurrentAccess,
-    user: CurrentUser,
+    # Same reasoning as /activate: accepting puts this account inside somebody
+    # else's company, with their data behind it.
+    user: ConfirmedUser,
     invitations: InvitationServiceDep,
     organizations: OrganizationServiceDep,
     audit: AuditTrail,

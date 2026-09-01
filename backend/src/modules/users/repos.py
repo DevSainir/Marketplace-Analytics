@@ -9,13 +9,13 @@ boundary "business logic has no direct database access".
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from sqlalchemy import CursorResult, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.users.models import RefreshToken, User
+from src.modules.users.models import RefreshToken, User, VerificationCode
 
 
 class UserRepository:
@@ -60,6 +60,30 @@ class UserRepository:
         stmt = select(User).where(User.email == email)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def mark_email_confirmed(self, user: User) -> None:
+        """Record that this account's address has been proven.
+
+        Idempotent by intent: re-confirming keeps the ORIGINAL timestamp, so
+        "when was this address proven" cannot be reset by asking again. During
+        an incident the first answer is the one that matters.
+
+        Args:
+            user: The account to stamp.
+        """
+        if user.email_confirmed_at is None:
+            user.email_confirmed_at = datetime.now(UTC)
+            await self._session.flush()
+
+    async def set_password(self, user: User, *, hashed_password: str) -> None:
+        """Replace the account's password digest.
+
+        Args:
+            user: The account.
+            hashed_password: The new bcrypt digest.
+        """
+        user.hashed_password = hashed_password
+        await self._session.flush()
 
     async def create(self, *, email: str, hashed_password: str) -> User:
         """Insert and flush a new user, returning the populated instance.
@@ -216,3 +240,118 @@ class RefreshTokenRepository:
         )
         result = cast("CursorResult[Any]", await self._session.execute(stmt))
         return int(result.rowcount or 0)
+
+
+class VerificationCodeRepository:
+    """The short-lived codes behind email confirmation and password reset."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        """Store the injected request-scoped async session."""
+        self._session = session
+
+    async def create(
+        self,
+        *,
+        user_id: uuid.UUID,
+        purpose: str,
+        code_hash: str,
+        expires_at: datetime,
+    ) -> VerificationCode:
+        """Insert one live code.
+
+        Args:
+            user_id: The account the code belongs to.
+            purpose: What it proves.
+            code_hash: SHA-256 of the code — never the code.
+            expires_at: When it stops being redeemable.
+
+        Returns:
+            The pending row.
+        """
+        row = VerificationCode(
+            user_id=user_id,
+            purpose=purpose,
+            code_hash=code_hash,
+            expires_at=expires_at,
+        )
+        self._session.add(row)
+        await self._session.flush()
+        return row
+
+    async def get_live(self, *, user_id: uuid.UUID, purpose: str) -> VerificationCode | None:
+        """Return this account's redeemable code for a purpose, if any.
+
+        Scoped by ``purpose`` so a confirmation code can never be presented to
+        the reset flow: it is simply not found there.
+
+        Args:
+            user_id: The account presenting a code.
+            purpose: What the code must have been issued for.
+
+        Returns:
+            The newest live row, or ``None``.
+        """
+        stmt = (
+            select(VerificationCode)
+            .where(
+                VerificationCode.user_id == user_id,
+                VerificationCode.purpose == purpose,
+                VerificationCode.consumed_at.is_(None),
+                VerificationCode.expires_at > func.now(),
+            )
+            .order_by(VerificationCode.id.desc())
+            .limit(1)
+        )
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def consume_live_codes(self, *, user_id: uuid.UUID, purpose: str) -> int:
+        """Kill every live code for this account and purpose.
+
+        Called before issuing a new one. Two live codes double an attacker's
+        chances per guess, and an unchecked request endpoint would let them
+        accumulate a pool — which is how a million-candidate space becomes a
+        small one.
+
+        Args:
+            user_id: The account.
+            purpose: The purpose whose codes are superseded.
+
+        Returns:
+            How many rows were killed.
+        """
+        stmt = (
+            update(VerificationCode)
+            .where(
+                VerificationCode.user_id == user_id,
+                VerificationCode.purpose == purpose,
+                VerificationCode.consumed_at.is_(None),
+            )
+            .values(consumed_at=func.now())
+        )
+        result = cast("CursorResult[Any]", await self._session.execute(stmt))
+        return int(result.rowcount or 0)
+
+    async def consume(self, row: VerificationCode) -> None:
+        """Mark one code used.
+
+        Kept rather than deleted, so "this code was already redeemed" stays
+        answerable — a replay is worth being able to see.
+
+        Args:
+            row: The code being spent.
+        """
+        row.consumed_at = datetime.now(UTC)
+        await self._session.flush()
+
+    async def record_attempt(self, row: VerificationCode) -> int:
+        """Count one wrong guess against a code.
+
+        Args:
+            row: The code that was guessed at.
+
+        Returns:
+            The new attempt count.
+        """
+        row.attempts += 1
+        await self._session.flush()
+        return row.attempts

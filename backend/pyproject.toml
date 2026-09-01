@@ -17,6 +17,12 @@ dependencies = [
     "celery[redis]>=5.4",
     "redis>=5.0",
     "httpx>=0.27",
+    # Outbound mail: email confirmation and password reset (register P1.6).
+    # aiosmtplib rather than stdlib smtplib because every I/O path in this
+    # backend is async, and a blocking send inside a request handler would
+    # stall the whole worker's event loop — the same failure the claim
+    # package hit when it rendered inline.
+    "aiosmtplib>=3.0",
     # xlsxwriter, not openpyxl, does the WRITING: the detail sheet is ~30k rows
     # and openpyxl cost 5.43 s of per-cell Python overhead against production
     # data (2.28x slower on the same grid). openpyxl earns its runtime place on
