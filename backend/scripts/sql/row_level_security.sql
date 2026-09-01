@@ -45,6 +45,19 @@
 --     Same mechanism, a second GUC, and worth doing next.
 --   * `monitoring.sku_day_comment`, which has no tenant column at all and is
 --     shared by every account by construction. See the register's P1.13 note.
+--   * `workspaces.workspace_tokens` — DELIBERATELY LEFT OUT, and the reason is
+--     worth reading before adding it back. It carries `workspace_id` and holds
+--     the most sensitive per-tenant data there is (the Fernet-encrypted WB
+--     tokens), so it looks like the first table that should be covered. But its
+--     routes take the workspace from the URL PATH with `OwnerAccess` and scope
+--     by organisation inside the service — they never pass through
+--     `get_current_workspace_id`, which is the only place the tenant is bound.
+--     A policy here would therefore make every token read and write RAISE, on
+--     the owner-only screens, the moment this file is applied. Covering it
+--     needs those three routes to resolve their workspace through a dependency
+--     that validates and binds, which is a refactor rather than a line in this
+--     list. Until then it is protected by application scoping alone, exactly as
+--     it was before.
 --
 -- Re-runnable, and it has to be re-run after a migration adds a table to the
 -- list below — a new table starts with no policy, and the failure direction
@@ -66,8 +79,7 @@ DECLARE
         'finreports.logistics_transaction',
         'finreports.pnl_sku_exclusion',
         'finreports.product_cost_price',
-        'monitoring.product_card',
-        'workspaces.workspace_tokens'
+        'monitoring.product_card'
     ];
     name text;
 BEGIN
