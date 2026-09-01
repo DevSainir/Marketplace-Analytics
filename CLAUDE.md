@@ -29,8 +29,18 @@ sitting in every conversation. Read them directly (they are plain markdown) when
 that mechanism, and put new project guidance in the relevant skill rather than here.
 
 `docs/security/HARDENING.md` is the live weakness register — what is fixed, what blocks a
-public launch, and what was decided against on purpose. The `security` skill is the standing
-checklist that keeps new code from adding to it.
+public launch, and what was decided against on purpose. Read the entry before changing
+anything it names: several of them record *why* a choice was made, including the ones where
+the reasoning was later found wrong and corrected rather than deleted. The `security` skill is
+the standing checklist that keeps new code from adding to it, and
+`docs/security/INCIDENT_RESPONSE.md` is what to reach for when something has already gone
+wrong — every lever it names exists and is tested.
+
+Two controls in that register are **written, tested and not yet applied**, both by design:
+`backend/scripts/sql/least_privilege_role.sql` (the app stops owning its tables) and
+`row_level_security.sql` (tenancy enforced by Postgres). They are an ordered pair — the role
+first, then the flag, then the policies — and each file's header says what happens if that
+order is broken.
 
 `docs/monitoring/LIVE_POSITION.md` records the removed organic-position probe: six weeks of
 measurement against WB's storefront edge, kept because the endpoint facts outlive the feature.
