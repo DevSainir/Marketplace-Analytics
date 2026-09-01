@@ -145,22 +145,39 @@ jobs:
       - name: Scan each pinned base image
         env:
           REFS: ${{ steps.images.outputs.refs }}
+          TRIVY: aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
         run: |
           set -uo pipefail
-          failed=0
+          vulnerable=0
+          broken=0
           while IFS= read -r ref; do
             [ -z "$ref" ] && continue
             echo "::group::${ref}"
-            docker run --rm \
-              -v /tmp/trivy-cache:/root/.cache/ \
-              aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+            docker run --rm -v /tmp/trivy-cache:/root/.cache/ "$TRIVY" \
               image --quiet --scanners vuln --ignore-unfixed \
-              --severity HIGH,CRITICAL --exit-code 1 "$ref" || failed=1
+              --severity HIGH,CRITICAL --exit-code 1 "$ref"
+            status=$?
             echo "::endgroup::"
+            # `--exit-code 1` makes 1 mean "findings". ANY OTHER non-zero means
+            # Trivy itself could not run — a failed pull, an unreachable
+            # vulnerability database, a registry rate limit. Those are opposite
+            # conclusions and must not share a branch: reporting a tool failure
+            # as "vulnerable" sends somebody hunting a CVE nobody reported, and
+            # reporting it as "clean" is worse — it is a green tick over an
+            # image that was never looked at.
+            case "$status" in
+              0) echo "clean    ${ref}" ;;
+              1) vulnerable=1; echo "::error::${ref} has a fixable HIGH/CRITICAL vulnerability." ;;
+              *) broken=1;     echo "::error::Trivy exited ${status} on ${ref} — the scan did not run." ;;
+            esac
           done <<< "$REFS"
-          if [ "$failed" -ne 0 ]; then
-            echo "::error::A pinned base image has a fixable HIGH/CRITICAL vulnerability."
-            echo "Refresh its digest in the Dockerfile — the fix is already published upstream."
+          if [ "$vulnerable" -ne 0 ]; then
+            echo "Refresh that digest in the Dockerfile — the fix is already published upstream."
+          fi
+          if [ "$broken" -ne 0 ]; then
+            echo "At least one image was never scanned; this run proves nothing about it."
+          fi
+          if [ "$vulnerable" -ne 0 ] || [ "$broken" -ne 0 ]; then
             exit 1
           fi
           echo "No fixable HIGH/CRITICAL findings in any pinned base image."
