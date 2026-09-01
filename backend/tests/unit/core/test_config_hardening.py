@@ -199,3 +199,72 @@ def test_redis_url_carries_the_password_and_db_index(
 
     assert "s3cr%23t" in settings.redis_url
     assert settings.redis_url.endswith("/3")
+
+
+# --------------------------------------------------------------------------- #
+# Mail configuration (register P1.6)
+#
+# A different kind of check from the ones above: those refuse a placeholder
+# secret, these refuse an *incoherent pair*. Both fail the boot, and for the
+# same reason — a deploy error is cheap, and a signup form that silently cannot
+# be completed is not. The people who hit that failure are the ones with no way
+# to report it.
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(
+    ("overrides", "case"),
+    [
+        ({"PASSWORD_RESET_ENABLED": "true"}, "reset without a transport"),
+        ({"EMAIL_CONFIRMATION_REQUIRED": "true"}, "confirmation without a transport"),
+        ({"EMAIL_ENABLED": "true"}, "transport without a host"),
+        (
+            {"EMAIL_ENABLED": "true", "SMTP_HOST": "smtp.example.com"},
+            "transport without a from-address",
+        ),
+        (
+            {
+                "EMAIL_ENABLED": "true",
+                "SMTP_HOST": "smtp.example.com",
+                "EMAIL_FROM": "no-reply@example.com",
+                "SMTP_USE_TLS": "false",
+            },
+            "plaintext SMTP, which hands every reset code to the path",
+        ),
+    ],
+    ids=["reset-no-transport", "confirm-no-transport", "no-host", "no-from", "no-tls"],
+)
+def test_an_incoherent_mail_configuration_refuses_to_boot(
+    overrides: dict[str, str], case: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each of these would deploy a flow that cannot work, or works insecurely."""
+    with pytest.raises(ValueError, match="Refusing to start"):
+        _settings({**_SECURE_ENV, **overrides}, monkeypatch)
+
+
+def test_a_fully_configured_mail_setup_boots(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The guard must not be so eager that a correct configuration cannot ship."""
+    settings = _settings(
+        {
+            **_SECURE_ENV,
+            "EMAIL_ENABLED": "true",
+            "SMTP_HOST": "smtp.example.com",
+            "EMAIL_FROM": "no-reply@example.com",
+            "PASSWORD_RESET_ENABLED": "true",
+            "EMAIL_CONFIRMATION_REQUIRED": "true",
+        },
+        monkeypatch,
+    )
+
+    assert settings.email_enabled is True
+
+
+def test_mail_switched_off_entirely_boots(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The shipped default: no relay, no flows, and a production boot regardless.
+
+    This is what the deploy that introduced P1.6 actually ran, so it is the case
+    that must never regress into a refusal — the feature ships dark on purpose.
+    """
+    settings = _settings({**_SECURE_ENV, "EMAIL_ENABLED": "false"}, monkeypatch)
+
+    assert settings.email_enabled is False
+    assert settings.password_reset_enabled is False
+    assert settings.email_confirmation_required is False
