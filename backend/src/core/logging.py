@@ -178,6 +178,15 @@ def adopt_uvicorn_loggers() -> None:
     Removing the handlers rather than reformatting them: with `propagate` on,
     the records reach the root handler this module already configured, so there
     is one formatter to keep correct instead of two.
+
+    **Two lines per container start are still plain**, and they are the two this
+    cannot reach: `Started server process` and `Waiting for application startup`
+    are emitted before the lifespan exists to run anything. Covering them would
+    mean handing uvicorn a `--log-config` file, which cannot express the
+    text-or-JSON switch this module makes from settings — a static file would
+    force JSON on a developer's terminal too. Neither line carries information,
+    so the trade is two unparseable lines per restart against a worse format
+    locally, and the noise wins.
     """
     for name in _UVICORN_LOGGERS:
         logger = logging.getLogger(name)
