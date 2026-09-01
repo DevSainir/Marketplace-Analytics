@@ -24,7 +24,7 @@ from src.core.config import settings
 from src.core.database import dispose_engine
 from src.core.exceptions import AppError
 from src.core.logcontext import bind_request, new_request_id, reset_context
-from src.core.logging import configure_logging, get_logger
+from src.core.logging import adopt_uvicorn_loggers, configure_logging, get_logger
 from src.core.redis import close_redis
 from src.modules.ab_tests.routers import router as ab_tests_router
 from src.modules.finreports.routers import router as finreports_router
@@ -44,6 +44,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     pool and the shared Redis client on shutdown so the process exits cleanly.
     """
     configure_logging()
+    # After uvicorn has installed its own handlers, and before anything it logs
+    # about a failing startup — see the function's docstring.
+    adopt_uvicorn_loggers()
     logger.info("Starting %s (env=%s).", settings.app_name, settings.environment)
     yield
     await dispose_engine()

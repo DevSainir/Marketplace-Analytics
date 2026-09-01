@@ -29,7 +29,7 @@ from typing import Any
 import pytest
 
 from src.core import logcontext
-from src.core.logging import JsonFormatter
+from src.core.logging import JsonFormatter, adopt_uvicorn_loggers
 
 ACTOR = uuid.UUID("01a05300-0000-7000-8000-00000000aaaa")
 TENANT = uuid.UUID("019f657a-a70c-780a-ac98-f010a1916615")
@@ -280,3 +280,32 @@ def test_the_returned_context_is_a_copy() -> None:
 
     # Assert
     assert logcontext.current_context()["request_id"] == "r1"
+
+
+def test_uvicorns_own_lines_are_adopted_into_our_format() -> None:
+    """ "One JSON object per line" is either true of every line or it is not a claim.
+
+    Uvicorn installs its own handlers when the server starts — after this
+    module has configured the root logger — so its startup, shutdown and error
+    lines stay plain text unless they are taken over. Those are exactly the
+    lines that matter when a container will not come up, and a shipper either
+    drops them or files them as unparseable.
+    """
+    # Arrange — stand in for what uvicorn does to its own logger.
+    uvicorn_logger = logging.getLogger("uvicorn.error")
+    original_handlers = list(uvicorn_logger.handlers)
+    original_propagate = uvicorn_logger.propagate
+    uvicorn_logger.handlers = [logging.NullHandler()]
+    uvicorn_logger.propagate = False
+
+    try:
+        # Act
+        adopt_uvicorn_loggers()
+
+        # Assert — nothing of its own left, and records now reach the root
+        # handler this module configures.
+        assert uvicorn_logger.handlers == []
+        assert uvicorn_logger.propagate is True
+    finally:
+        uvicorn_logger.handlers = original_handlers
+        uvicorn_logger.propagate = original_propagate

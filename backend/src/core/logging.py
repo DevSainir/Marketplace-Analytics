@@ -155,6 +155,36 @@ def configure_logging() -> None:
     _CONFIGURED = True
 
 
+#: Uvicorn's own loggers. It installs handlers on these when the server starts,
+#: which is AFTER this module has configured the root logger — so left alone
+#: they keep emitting uvicorn's plain-text format.
+_UVICORN_LOGGERS = ("uvicorn", "uvicorn.error", "uvicorn.access")
+
+
+def adopt_uvicorn_loggers() -> None:
+    """Make uvicorn's own lines go through our formatter too.
+
+    Called from the application lifespan, which is the only moment that works.
+    Uvicorn configures logging inside `Server.serve()` — after this module's
+    `configure_logging()` has run at import time, and before the lifespan
+    starts — so anything done earlier is simply overwritten.
+
+    Why it matters more than tidiness: "one JSON object per line" is a claim a
+    log shipper relies on, and it is either true of every line or it is not a
+    claim. Leaving uvicorn's startup, shutdown and error lines in plain text
+    means a parser drops them or files them as unparseable — and they are
+    exactly the lines that matter when a container will not come up.
+
+    Removing the handlers rather than reformatting them: with `propagate` on,
+    the records reach the root handler this module already configured, so there
+    is one formatter to keep correct instead of two.
+    """
+    for name in _UVICORN_LOGGERS:
+        logger = logging.getLogger(name)
+        logger.handlers.clear()
+        logger.propagate = True
+
+
 def get_logger(name: str) -> logging.Logger:
     """Return a namespaced logger, configuring logging on first use."""
     configure_logging()
