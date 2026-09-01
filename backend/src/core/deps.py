@@ -19,6 +19,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import AsyncSessionLocal
+from src.core.logcontext import bind_actor
 from src.core.redis import family_revoked_after, sessions_revoked_after
 from src.core.security import TokenType, decode_token
 
@@ -138,6 +139,8 @@ async def get_current_user_id(
         if family_revoked is not None and payload.issued_at < family_revoked:
             raise unauthorized
 
+    # Everything this request logs from here on names the account (P2.2).
+    bind_actor(user_id)
     return user_id
 
 

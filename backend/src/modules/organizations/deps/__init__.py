@@ -35,6 +35,7 @@ from fastapi import Depends, Request
 from src.core.client_ip import resolve_client_ip
 from src.core.deps import DbSession
 from src.core.exceptions import PermissionDeniedError
+from src.core.logcontext import bind_tenant
 from src.modules.organizations.repos import (
     ActivationCodeRepository,
     AuditLogRepository,
@@ -154,7 +155,12 @@ async def get_current_access(session: DbSession, user: CurrentUser) -> Organizat
     role must take effect on the next request, not when the access token
     happens to expire.
     """
-    return await resolve_access(session, user_id=user.id, platform_role=user.role)
+    access = await resolve_access(session, user_id=user.id, platform_role=user.role)
+    # From here the request's log lines name the tenant too (register P2.2).
+    # Bound here rather than in the middleware because this is the first point
+    # the tenant is KNOWN — it comes from a membership lookup, not the token.
+    bind_tenant(access.organization_id)
+    return access
 
 
 #: The caller's resolved access. No requirement beyond a valid token.

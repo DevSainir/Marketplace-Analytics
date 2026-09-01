@@ -23,6 +23,13 @@ class AppSettings(BaseSettings):
     environment: Environment = Field(default="local")
     debug: bool = Field(default=False)
     log_level: str = Field(default="INFO")
+    # One JSON object per line instead of the human column format (P2.2).
+    # Structure carried by the encoder rather than by punctuation, which is what
+    # makes a user-controlled value in a log line unable to pretend to be a
+    # field or a line of its own. Off locally, where a person is reading a
+    # terminal; `_enforce_production_hardening` turns it on for deployed
+    # environments, where a shipper is reading instead.
+    log_json: bool = Field(default=False)
 
     @property
     def is_production(self) -> bool:

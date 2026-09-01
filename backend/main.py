@@ -23,6 +23,7 @@ from src.core.client_ip import resolve_client_ip
 from src.core.config import settings
 from src.core.database import dispose_engine
 from src.core.exceptions import AppError
+from src.core.logcontext import bind_request, new_request_id, reset_context
 from src.core.logging import configure_logging, get_logger
 from src.core.redis import close_redis
 from src.modules.ab_tests.routers import router as ab_tests_router
@@ -110,26 +111,48 @@ if settings.cors_enabled:
 async def log_requests(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
-    """Emit one structured line per request (method, path, status, duration).
+    """Emit one line per request, and bind the context every other line uses.
 
     Uvicorn's access log is silenced by :mod:`src.core.logging`; without this
-    middleware the API would have no audit trail of who called what. The
-    liveness probe is skipped to keep orchestrator polling out of the logs.
+    middleware the API would have no record of who called what. The liveness
+    probe is skipped to keep orchestrator polling out of the logs.
+
+    **The binding matters more than the line.** Everything this request goes on
+    to log — a rate-limit trip, a revoked session, a WB failure deep in a
+    service — is attributed to this request id, this address and (once the auth
+    dependency resolves them) this account and tenant, without any of those call
+    sites knowing that logging context exists (register P2.2).
+
+    The id is returned as ``X-Request-Id`` so a customer reporting "it failed at
+    about two" can hand over the one string that finds it.
     """
     if request.url.path == "/health":
         return await call_next(request)
-    started = time.perf_counter()
-    response = await call_next(request)
-    duration_ms = (time.perf_counter() - started) * 1000
-    logger.info(
-        "%s %s -> %d (%.1f ms, client=%s)",
-        request.method,
-        request.url.path,
-        response.status_code,
-        duration_ms,
-        resolve_client_ip(request),
+    request_id = new_request_id()
+    # The address nginx wrote, never one the caller chose — see P0.1.
+    bind_request(
+        request_id=request_id,
+        method=request.method,
+        path=request.url.path,
+        client_ip=resolve_client_ip(request),
     )
-    return response
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - started) * 1000
+        # `extra` rather than an interpolated string: the fields stay fields, so
+        # an alert can bind to `status` instead of parsing prose.
+        logger.info(
+            "request served",
+            extra={"status": response.status_code, "duration_ms": round(duration_ms, 1)},
+        )
+        response.headers["X-Request-Id"] = request_id
+        return response
+    finally:
+        # A worker serves the next request on the same task context; a value
+        # left bound would attribute it to this caller, and a wrong answer is
+        # worse than no answer.
+        reset_context()
 
 
 @app.exception_handler(AppError)

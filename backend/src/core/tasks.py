@@ -14,6 +14,7 @@ import asyncio
 from collections.abc import Coroutine
 
 from src.core.database import dispose_engine
+from src.core.logcontext import reset_context
 from src.core.redis import drain_redis_pool
 
 
@@ -63,4 +64,10 @@ def run_task[T](coro: Coroutine[object, object, T]) -> T:
             finally:
                 await dispose_engine()
 
-    return asyncio.run(_run())
+    try:
+        return asyncio.run(_run())
+    finally:
+        # A worker reuses its process across tasks, so any log context this task
+        # bound would otherwise attribute the NEXT task's lines to this task's
+        # tenant (register P2.2). Mis-attributed evidence is worse than none.
+        reset_context()

@@ -69,6 +69,13 @@ class Settings(
         if self.environment == "local":
             return self
 
+        # Not a "problem" — a default that is only right for a human at a
+        # terminal. A deployed environment is read by a shipper, and the human
+        # format is where a user-controlled value could pretend to be a field
+        # (P2.2). Set rather than refused, because failing a deploy over a log
+        # format would be a worse trade than quietly getting it right.
+        self.log_json = True
+
         problems: list[str] = []
         if self.jwt_secret_key in PLACEHOLDER_SECRETS:
             problems.append("JWT_SECRET_KEY is unset or a known placeholder")
