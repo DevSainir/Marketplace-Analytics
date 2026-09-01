@@ -19,13 +19,25 @@
 # ---------------------------------------------------------------------------
 
 # --------------------------------------------------------------------- builder
-FROM python:3.12-slim AS builder
+# Base images are pinned by DIGEST, not by tag. `python:3.12-slim` is a moving
+# target — the same tag is re-pushed on every patch release — so an image built
+# from it today and one built next week are different images with the same name,
+# and neither the lock file nor CI can tell. The digest makes the base as
+# reproducible as the dependencies uv resolves into it (register P1.8).
+#
+# The cost is that a digest goes stale: pinning opts OUT of the automatic
+# security patches a floating tag delivers. That is why `.github/workflows/
+# base-image-freshness.yml` fails once a week when a pin has drifted from its
+# tag — refreshing is meant to be a deliberate act with a diff, not an accident
+# of whenever a build happened to run.
+FROM python:3.12-slim@sha256:e5c9fa26ffb76e11e0f054f30dc2523a2f9693f0c36c0cf1e39b27e152d899fc AS builder
 
 # uv resolves and installs from uv.lock, so the image gets byte-identical
-# dependencies to CI and to a developer's machine. Pinned by digest-bearing tag:
-# an unpinned `:latest` would make the build non-reproducible in exactly the way
-# the lock file exists to prevent.
-COPY --from=ghcr.io/astral-sh/uv:0.11.32 /uv /uvx /bin/
+# dependencies to CI and to a developer's machine. The uv image carries both a
+# version tag and its digest: the version says what this is, the digest is what
+# actually decides. An unpinned `:latest` would make the build non-reproducible
+# in exactly the way the lock file exists to prevent.
+COPY --from=ghcr.io/astral-sh/uv:0.11.32@sha256:df4cae8f3a96d175e2e5f992e597550000edbe78fdc2594d5cd8de1a217f504c /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -59,7 +71,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ---------------------------------------------------------------- runtime base
 # Everything both images share. Neither `base` nor anything below re-installs a
 # dependency — they only copy the environment the builder resolved.
-FROM python:3.12-slim AS base
+FROM python:3.12-slim@sha256:e5c9fa26ffb76e11e0f054f30dc2523a2f9693f0c36c0cf1e39b27e152d899fc AS base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

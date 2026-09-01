@@ -1,0 +1,102 @@
+# The other half of pinning by digest (register P1.8).
+#
+# Pinning made the build reproducible and, in the same stroke, opted out of the
+# security patches a floating tag delivers for free. `python:3.12-slim` is
+# re-pushed on every patch release; a digest never moves, so a pinned image
+# quietly ages until somebody remembers it exists. Nobody remembers.
+#
+# So this asks the registry, once a week, what each pinned tag resolves to now
+# and fails when it no longer matches what the Dockerfiles hold. A red weekly
+# run is the reminder. Refreshing is then a deliberate act with a diff and a
+# review — which is the whole point of pinning — rather than an accident of
+# whenever a build happened to run.
+#
+# It reads the digests out of the Dockerfiles rather than keeping its own list.
+# A second list would drift from the first, and the failure mode of a drifted
+# freshness check is the worst available: a green tick that means nothing.
+
+name: base image freshness
+
+on:
+  schedule:
+    # 06:00 UTC on Mondays — a working morning in Moscow (09:00), so a failure
+    # is seen on the day it fires rather than over a weekend.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: pinned digests still current
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Compare every pinned digest against its tag
+        run: |
+          set -uo pipefail
+
+          # Resolve the current digest of a tag, anonymously.
+          #   $1 = registry host, $2 = repository, $3 = tag
+          current_digest() {
+            local host=$1 repo=$2 tag=$3 realm token
+            case "$host" in
+              docker.io) realm="https://auth.docker.io/token?service=registry.docker.io&scope=repository:${repo}:pull"; host=registry-1.docker.io ;;
+              ghcr.io)   realm="https://ghcr.io/token?scope=repository:${repo}:pull" ;;
+              *) echo "unknown registry ${host}" >&2; return 1 ;;
+            esac
+            token=$(curl -fsS "$realm" | jq -r '.token')
+            curl -fsSI \
+              -H "Authorization: Bearer ${token}" \
+              -H 'Accept: application/vnd.oci.image.index.v1+json' \
+              -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+              -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
+              "https://${host}/v2/${repo}/manifests/${tag}" \
+              | tr -d '\r' | awk -F': ' 'tolower($1)=="docker-content-digest"{print $2}'
+          }
+
+          stale=0
+          # Every `image:tag@sha256:...` in either Dockerfile, deduplicated.
+          refs=$(grep -rhoE '[a-z0-9./-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}' \
+                   backend/docker/Dockerfile frontend/docker/Dockerfile | sort -u)
+          if [ -z "$refs" ]; then
+            echo "::error::No digest-pinned images found — the grep or the Dockerfiles changed shape."
+            exit 1
+          fi
+
+          for ref in $refs; do
+            pinned="${ref##*@}"
+            name="${ref%@*}"
+            tag="${name##*:}"
+            repo="${name%:*}"
+            case "$repo" in
+              */*/*|ghcr.io/*) host="${repo%%/*}"; repo="${repo#*/}" ;;
+              */*)             host=docker.io ;;
+              *)               host=docker.io; repo="library/${repo}" ;;
+            esac
+            [ "$host" = "docker.io" ] && case "$repo" in */*) : ;; *) repo="library/${repo}" ;; esac
+
+            now=$(current_digest "$host" "$repo" "$tag") || {
+              echo "::warning::Could not resolve ${host}/${repo}:${tag}; skipping."
+              continue
+            }
+            if [ "$now" = "$pinned" ]; then
+              echo "ok       ${host}/${repo}:${tag}"
+            else
+              stale=1
+              echo "::error::${host}/${repo}:${tag} has moved."
+              echo "  pinned:  ${pinned}"
+              echo "  current: ${now}"
+            fi
+          done
+
+          if [ "$stale" -ne 0 ]; then
+            echo
+            echo "A base image has been rebuilt upstream — usually a security patch."
+            echo "Update the digest in the Dockerfile, then let the test suite decide."
+            exit 1
+          fi
+          echo "Every pinned base image is current."

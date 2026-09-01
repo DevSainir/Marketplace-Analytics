@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -82,13 +82,13 @@ jobs:
       # ---------------------------------------------------------------- #
       - name: Check out the release branch
         if: steps.release.outputs.pr
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
 
       - name: Install uv
         if: steps.release.outputs.pr
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           # Keep in step with UV_VERSION in tests.yml — a different resolver
           # here could write a lock that the test workflow then rejects.
@@ -224,7 +224,7 @@ jobs:
       # Everything below runs only on the merge that actually cut a release.
       - name: Check out the tagged commit
         if: steps.release.outputs.release_created && vars.ANNOUNCE_RELEASES == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # Full history + tags: the announcement is built from the commits
           # between the previous tag and this one.

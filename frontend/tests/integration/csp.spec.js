@@ -53,6 +53,30 @@ describe('production Content-Security-Policy', () => {
     expect(sources).toContain("'self'")
   })
 
+  it('names no third-party origin at all', () => {
+    // The strongest CSP is the one that names nobody but us. Until the Inter
+    // Tight typeface was self-hosted this policy carried two Google origins
+    // (register P1.8) — every one of them a host that can serve content to our
+    // users, and a host whose logs learn every visitor's IP.
+    //
+    // This asserts across EVERY directive rather than the two that used to be
+    // widened, because the next CDN somebody reaches for will not be a font.
+    const offenders = Object.entries(directives()).flatMap(([name, sources]) =>
+      sources.filter((source) => source.includes('//')).map((source) => `${name} ${source}`),
+    )
+
+    expect(offenders).toEqual([])
+  })
+
+  it('serves the typeface from our own origin', () => {
+    // Self-hosted, so `font-src` needs no host: `data:` stays for any inline
+    // face a dependency injects.
+    const sources = directives()['font-src']
+
+    expect(sources).toContain("'self'")
+    expect(sources.some((source) => source.includes('fonts.gstatic'))).toBe(false)
+  })
+
   it('keeps the directives the app depends on', () => {
     // A CSP is edited rarely and by hand, so a typo in one directive can
     // disable a feature nobody tests until a user reports it.

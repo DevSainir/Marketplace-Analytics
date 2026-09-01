@@ -1,3 +1,7 @@
+/* Self-hosted Inter Tight — must precede @tailwind base so the faces are
+   declared before anything applies them (register P1.8). */
+@import './fonts.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

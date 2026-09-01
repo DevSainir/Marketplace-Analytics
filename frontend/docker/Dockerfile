@@ -9,7 +9,18 @@
 #   docker build -f docker/Dockerfile .
 # ---------------------------------------------------------------------------
 
-FROM node:22-alpine AS builder
+# Base images are pinned by DIGEST, not by tag. `python:3.12-slim` is a moving
+# target — the same tag is re-pushed on every patch release — so an image built
+# from it today and one built next week are different images with the same name,
+# and neither the lock file nor CI can tell. The digest makes the base as
+# reproducible as the dependencies uv resolves into it (register P1.8).
+#
+# The cost is that a digest goes stale: pinning opts OUT of the automatic
+# security patches a floating tag delivers. That is why `.github/workflows/
+# base-image-freshness.yml` fails once a week when a pin has drifted from its
+# tag — refreshing is meant to be a deliberate act with a diff, not an accident
+# of whenever a build happened to run.
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS builder
 
 WORKDIR /app
 
@@ -23,7 +34,7 @@ COPY . .
 RUN npm run build
 
 # ---------------------------------------------------------------------------
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 AS runtime
 
 # Replace the stock default server with our SPA + reverse-proxy config.
 # The snippets carry the response security headers, which every location that
