@@ -55,9 +55,23 @@ def _ledger(clock: FakeClock) -> DegradationLedger:
     return DegradationLedger(clock=clock, cooldown_seconds=60.0, correlation_window_seconds=120.0)
 
 
-def _events(caplog: pytest.LogCaptureFixture, token: str) -> list[str]:
-    """Return the rendered messages carrying a given event token."""
-    return [r.getMessage() for r in caplog.records if token in r.getMessage()]
+def _events(caplog: pytest.LogCaptureFixture, token: str) -> list[logging.LogRecord]:
+    """Return the records carrying a given event token.
+
+    Matched on the ``event`` FIELD rather than on the rendered sentence. That
+    is the thing an alert rule binds to (register P2.2), so it is the thing
+    worth asserting on — a test that reads the prose would keep passing after a
+    change that left every rule matching nothing.
+    """
+    return [r for r in caplog.records if getattr(r, "event", None) == token]
+
+
+def _controls_in(record: logging.LogRecord) -> list[str]:
+    """Return the control names a record names, however many it carries."""
+    single = getattr(record, "control", None)
+    if single is not None:
+        return [single]
+    return list(getattr(record, "controls", []))
 
 
 def test_first_degradation_is_announced_once(caplog: pytest.LogCaptureFixture) -> None:
@@ -73,7 +87,7 @@ def test_first_degradation_is_announced_once(caplog: pytest.LogCaptureFixture) -
     # Assert
     announcements = _events(caplog, EVENT_DEGRADED)
     assert len(announcements) == 1
-    assert CONTROL_AUTH_RATE_LIMIT in announcements[0]
+    assert _controls_in(announcements[0]) == [CONTROL_AUTH_RATE_LIMIT]
 
 
 def test_a_flood_of_reports_inside_the_cooldown_stays_one_record(
@@ -129,8 +143,9 @@ def test_two_controls_down_together_raise_their_own_event(
     # Assert
     combined = _events(caplog, EVENT_COMBINED)
     assert len(combined) == 1
-    assert CONTROL_AUTH_RATE_LIMIT in combined[0]
-    assert CONTROL_SESSION_REVOCATION in combined[0]
+    named = _controls_in(combined[0])
+    assert CONTROL_AUTH_RATE_LIMIT in named
+    assert CONTROL_SESSION_REVOCATION in named
 
 
 def test_one_control_alone_never_raises_the_combined_event(

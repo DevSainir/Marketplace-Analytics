@@ -30,9 +30,12 @@ The reporting calls sit in the request path, so they must not be able to fail,
 block, or become the next outage. What comes out is a log record at CRITICAL
 carrying a stable, greppable event token — :data:`EVENT_DEGRADED`,
 :data:`EVENT_COMBINED`, :data:`EVENT_RECOVERED` — which is what an alert rule
-binds to. Shipping those records somewhere that pages a human is P2.1/P2.2's
-job; this module's contract is that the record exists, exactly once, and names
-the risk in words.
+binds to. Since P2.2 the tokens are carried as an ``event`` **field** rather
+than interpolated into the sentence, along with ``control`` (or ``controls``),
+so a rule matches on a value instead of parsing prose — and the line still reads
+as English for whoever finds it by eye. Shipping those records somewhere that
+pages a human is P2.1's job; this module's contract is that the record exists,
+exactly once, and names the risk both ways.
 
 State is per-process, so *n* API replicas raise up to *n* alerts for one
 outage. That is the right trade: deduplicating across replicas would need a
@@ -131,10 +134,12 @@ class DegradationLedger:
         if is_new or self._due(self._last_logged.get(control), now):
             self._last_logged[control] = now
             logger.critical(
-                "%s control=%s detail=%s — this control is currently protecting nothing.",
+                "%s: this control is currently protecting nothing.",
                 EVENT_DEGRADED,
-                control,
-                detail,
+                # Fields, not prose. An alert rule binds to `control` and
+                # `event`; parsing them back out of a sentence is what made
+                # the first version of this unalertable (register P2.2).
+                extra={"event": EVENT_DEGRADED, "control": control, "detail": detail},
             )
 
         self._maybe_report_combination(now)
@@ -154,7 +159,11 @@ class DegradationLedger:
         self._last_logged.pop(control, None)
         if not self._last_seen:
             self._combined_logged = None
-        logger.warning("%s control=%s — protection restored.", EVENT_RECOVERED, control)
+        logger.warning(
+            "%s: protection restored.",
+            EVENT_RECOVERED,
+            extra={"event": EVENT_RECOVERED, "control": control},
+        )
 
     def degraded_controls(self) -> tuple[str, ...]:
         """Return the controls that reported degraded inside the window.
@@ -173,10 +182,10 @@ class DegradationLedger:
             return
         self._combined_logged = now
         logger.critical(
-            "%s controls=%s — brute-force protection and session revocation are "
-            "not independent right now; one outage removed both.",
+            "%s: brute-force protection and session revocation are not "
+            "independent right now; one outage removed both.",
             EVENT_COMBINED,
-            ",".join(active),
+            extra={"event": EVENT_COMBINED, "controls": list(active)},
         )
 
     def _due(self, last: float | None, now: float) -> bool:
