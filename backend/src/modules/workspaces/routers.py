@@ -19,8 +19,6 @@ Domain errors propagate to the global ``AppError`` handler in ``main.py``.
 
 from __future__ import annotations
 
-import uuid
-
 from fastapi import APIRouter, Depends, status
 
 from src.core.deps import DbSession
@@ -32,7 +30,7 @@ from src.modules.organizations.contract import (
     load_workspace_quota,
     require_owner,
 )
-from src.modules.workspaces.deps import WorkspaceServiceDep
+from src.modules.workspaces.deps import PathWorkspaceId, WorkspaceServiceDep
 from src.modules.workspaces.schemas import (
     WorkspaceCreateRequest,
     WorkspaceListResponse,
@@ -114,7 +112,7 @@ async def create_workspace(
     },
 )
 async def delete_workspace(
-    workspace_id: uuid.UUID,
+    workspace_id: PathWorkspaceId,
     access: OwnerAccess,
     service: WorkspaceServiceDep,
     audit: AuditTrail,
@@ -143,7 +141,7 @@ async def delete_workspace(
     },
 )
 async def get_token_status(
-    workspace_id: uuid.UUID,
+    workspace_id: PathWorkspaceId,
     access: OwnerAccess,
     service: WorkspaceServiceDep,
 ) -> WorkspaceTokensStatus:
@@ -168,7 +166,7 @@ async def get_token_status(
     },
 )
 async def set_tokens(
-    workspace_id: uuid.UUID,
+    workspace_id: PathWorkspaceId,
     payload: WorkspaceTokensUpdateRequest,
     access: OwnerAccess,
     service: WorkspaceServiceDep,

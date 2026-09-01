@@ -23,7 +23,7 @@ from fastapi.exceptions import HTTPException
 
 from src.core.deps import DbSession
 from src.core.tenancy import set_workspace_context
-from src.modules.organizations.contract import MemberAccess
+from src.modules.organizations.contract import MemberAccess, OwnerAccess
 from src.modules.workspaces.repos import WorkspaceRepository, WorkspaceTokenRepository
 from src.modules.workspaces.services import WorkspaceService
 
@@ -124,6 +124,57 @@ async def get_current_workspace_id(
     # Proven to belong to the caller — only now is it safe to tell the database.
     await set_workspace_context(session, workspace_id)
     return workspace_id
+
+
+async def get_path_workspace_id(
+    workspace_id: uuid.UUID,
+    access: OwnerAccess,
+    workspace_repo: WorkspaceRepoDep,
+    session: DbSession,
+) -> uuid.UUID:
+    """Validate a workspace taken from the URL path, and bind it as the tenant.
+
+    The sibling of :func:`get_current_workspace_id` for the owner-only routes
+    that address a workspace by path (`/{workspace_id}/tokens`) rather than by
+    the `X-Workspace-Id` header. Those routes already scope correctly — the
+    services take `organization_id` and every query filters on it — so this adds
+    no authorization that was missing. What it adds is the **binding**: without
+    passing through here there is nowhere to tell PostgreSQL which tenant is
+    asking, and a row-level-security policy on `workspace_tokens` would make
+    every one of those requests raise (register P2.5).
+
+    The 404-not-403 rule is the same one, and for the same reason: a 403 would
+    confirm the id names a real workspace, turning the path into an oracle for
+    other sellers' workspace ids.
+
+    Args:
+        workspace_id: The path parameter. Named to match the route's own, which
+            is what lets FastAPI hand it to this dependency.
+        access: Owner-level access, which supplies the organisation to check
+            against.
+        workspace_repo: Workspace repository bound to the request session.
+        session: The request's session, so the tenant can be bound to it.
+
+    Returns:
+        The validated workspace id, proven to belong to the caller's tenant.
+
+    Raises:
+        HTTPException: ``404`` when the workspace does not exist or belongs to
+            another organisation — deliberately the same answer.
+    """
+    workspace = await workspace_repo.get_by_id(workspace_id)
+    if workspace is None or workspace.organization_id != access.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found.",
+        )
+    await set_workspace_context(session, workspace_id)
+    return workspace_id
+
+
+#: A path-addressed workspace, validated against the caller's organisation and
+#: bound as the transaction's tenant.
+PathWorkspaceId = Annotated[uuid.UUID, Depends(get_path_workspace_id)]
 
 
 #: Injectable, validated active-workspace id for tenant-scoped routes.

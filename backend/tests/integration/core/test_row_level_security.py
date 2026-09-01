@@ -247,3 +247,67 @@ async def test_the_owner_still_crosses_workspaces(
 
     # Assert
     assert set(rows) == {MINE, THEIRS}
+
+
+async def test_the_token_table_is_covered_too(as_app: AsyncConnection) -> None:
+    """The most sensitive table of the set, and the one that needed a refactor.
+
+    `workspace_tokens` holds the Fernet-encrypted WB tokens. It is covered only
+    because its owner-only routes were changed to resolve the path parameter
+    through a dependency that validates *and* binds — before that they never
+    passed through the choke point, and a policy here would have made every
+    token screen raise instead of scoping.
+    """
+    # Arrange
+    await as_app.begin()
+    await _bind(as_app, MINE)
+
+    # Act — no tenant predicate, again on purpose.
+    visible = await as_app.scalar(
+        sa.text("SELECT count(*) FROM workspaces.workspace_tokens WHERE workspace_id = :ws"),
+        {"ws": THEIRS},
+    )
+
+    # Assert
+    assert visible == 0
+
+
+async def test_every_table_named_in_the_script_really_has_a_policy(
+    isolated: None, db_connection: AsyncConnection
+) -> None:
+    """The list and the database must agree, or the file is documentation.
+
+    Reads the shipped script's table list and asks PostgreSQL. A typo in a
+    schema-qualified name would otherwise fail silently at apply time and leave
+    a table looking covered in review while being wide open in fact.
+    """
+    # Arrange
+    body = _RLS_FILE.read_text()
+    # Only the `targets text[] := ARRAY[...]` block — matching any quoted line
+    # would also pick up the policy SQL below it, which is how the first
+    # version of this test failed.
+    block = body.split("targets text[] := ARRAY[", 1)[1].split("]", 1)[0]
+    named = {
+        line.strip().strip("',") for line in block.splitlines() if line.strip().startswith("'")
+    }
+    assert len(named) >= 10, f"the list could not be parsed ({named}); this must not pass vacuously"
+
+    # Act
+    rows = (
+        (
+            await db_connection.execute(
+                sa.text(
+                    "SELECT n.nspname || '.' || c.relname FROM pg_class c "
+                    "JOIN pg_namespace n ON n.oid = c.relnamespace "
+                    "WHERE c.relrowsecurity AND EXISTS "
+                    "(SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid "
+                    " AND p.polname = 'tenant_isolation')"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    # Assert
+    assert named <= set(rows), f"named but not enforced: {named - set(rows)}"
