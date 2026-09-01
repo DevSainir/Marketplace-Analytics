@@ -1,0 +1,141 @@
+# The recurring security review, made automatic enough to actually happen
+# (register P2.8).
+#
+# "Re-run the audit each quarter" is the kind of intention that survives exactly
+# as long as somebody remembers it. This turns it into a red run, which is a
+# thing that cannot be forgotten — and, more usefully, it does the boring half
+# of the review before anyone sits down to it.
+#
+# TWO THINGS, and the second is the point.
+#
+# It fails when `Last reviewed:` in the hardening register is older than a
+# quarter. The date is already there and already maintained, so this adds no new
+# bookkeeping — it just makes the existing field load-bearing. Clearing the
+# failure means doing the review and stamping the date, which is exactly the
+# behaviour wanted; there is no way to silence it that is not also the work.
+#
+# And it prints WHAT CHANGED in the security-critical paths since that date.
+# The expensive part of a periodic audit is not judgement, it is reconstructing
+# what moved — twenty minutes of `git log` before the thinking starts. The run
+# arrives with that already done, so the review begins at the interesting part.
+# A reminder that also does preparation is one people open; a reminder that only
+# nags is one people mute.
+
+name: security review due
+
+on:
+  schedule:
+    # 07:00 UTC on the 1st of each month — Moscow morning. Monthly rather than
+    # quarterly on purpose: the check is cheap and this way the first warning
+    # lands weeks before the deadline instead of on the day it is missed.
+    - cron: '0 7 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # A quarter, plus a fortnight of slack so a review that slips by a week does
+  # not turn the pipeline red over a scheduling accident.
+  MAX_AGE_DAYS: '105'
+  WARN_AGE_DAYS: '75'
+
+jobs:
+  due:
+    name: hardening register still current
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The whole history: the report below walks commits back to the last
+          # review date, which a shallow clone cannot see.
+          fetch-depth: 0
+
+      - name: Read the last review date
+        id: reviewed
+        run: |
+          set -euo pipefail
+          register=docs/security/HARDENING.md
+          date_str=$(grep -oE 'Last reviewed: [0-9]{4}-[0-9]{2}-[0-9]{2}' "$register" \
+                       | head -1 | awk '{print $3}')
+          if [ -z "${date_str:-}" ]; then
+            echo "::error::No 'Last reviewed: YYYY-MM-DD' line in ${register}."
+            echo "That line is what this check reads; restore it rather than removing this job."
+            exit 1
+          fi
+          age=$(( ( $(date -u +%s) - $(date -u -d "$date_str" +%s) ) / 86400 ))
+          echo "date=$date_str" >> "$GITHUB_OUTPUT"
+          echo "age=$age"       >> "$GITHUB_OUTPUT"
+          echo "Register last reviewed ${date_str} — ${age} days ago."
+
+      # Preparation, not nagging: this runs whatever the age, because the report
+      # is useful on a green run too.
+      - name: What changed in the security-critical paths since then
+        env:
+          SINCE: ${{ steps.reviewed.outputs.date }}
+        run: |
+          set -euo pipefail
+          # The surfaces the register and the `security` skill actually care
+          # about: who the caller is, what they may do, what bounds them, and
+          # what ships. Deliberately not "everything" — a report that lists the
+          # whole repository is one nobody reads to the end.
+          paths=(
+            'backend/src/modules/users'
+            'backend/src/modules/organizations'
+            'backend/src/core/security.py'
+            'backend/src/core/deps.py'
+            'backend/src/core/client_ip.py'
+            'backend/src/core/ratelimit.py'
+            'backend/src/core/redis.py'
+            'backend/src/core/degradation.py'
+            'backend/src/core/config/security.py'
+            'backend/src/core/uploads.py'
+            'backend/alembic/versions'
+            'backend/docker/Dockerfile'
+            'frontend/docker'
+            '.github/workflows'
+          )
+          echo "## Security-critical changes since ${SINCE}" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          total=0
+          for path in "${paths[@]}"; do
+            log=$(git log --since="${SINCE}" --oneline --no-merges -- "$path" || true)
+            [ -z "$log" ] && continue
+            count=$(printf '%s\n' "$log" | wc -l | tr -d ' ')
+            total=$(( total + count ))
+            {
+              echo "<details><summary><code>${path}</code> — ${count} commit(s)</summary>"
+              echo
+              echo '```'
+              printf '%s\n' "$log"
+              echo '```'
+              echo '</details>'
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [ "$total" -eq 0 ]; then
+            echo "_Nothing changed in these paths — the review is a re-read, not a re-audit._" \
+              >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**${total} commit(s) to review.** The checklist is \`.claude/skills/security/\`." \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "Reported ${total} security-critical commit(s) since ${SINCE}."
+
+      - name: Fail once a quarter has passed
+        env:
+          AGE: ${{ steps.reviewed.outputs.age }}
+          REVIEWED: ${{ steps.reviewed.outputs.date }}
+        run: |
+          set -euo pipefail
+          if [ "$AGE" -gt "$MAX_AGE_DAYS" ]; then
+            echo "::error::The hardening register was last reviewed ${AGE} days ago (${REVIEWED})."
+            echo "Re-run the audit against .claude/skills/security/, then stamp 'Last reviewed:'."
+            echo "The summary above lists what changed since — start there."
+            exit 1
+          fi
+          if [ "$AGE" -gt "$WARN_AGE_DAYS" ]; then
+            echo "::warning::Review due soon — ${AGE} days since ${REVIEWED}."
+          fi
+          echo "Register is ${AGE} days old; the limit is ${MAX_AGE_DAYS}."

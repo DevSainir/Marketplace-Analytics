@@ -14,8 +14,16 @@
 # It reads the digests out of the Dockerfiles rather than keeping its own list.
 # A second list would drift from the first, and the failure mode of a drifted
 # freshness check is the worst available: a green tick that means nothing.
+#
+# The second job answers the question the first one cannot (register P2.7). "Has
+# this tag moved?" and "is what we pinned known-vulnerable?" are different
+# facts, and a pin can be perfectly current while carrying a CVE published
+# yesterday — nothing upstream has to move for our image to become a problem. So
+# Trivy scans the same digests, and the two jobs report independently rather
+# than one gating the other: a stale pin and a vulnerable pin want different
+# responses from whoever reads the run.
 
-name: base image freshness
+name: base images
 
 on:
   schedule:
@@ -100,3 +108,59 @@ jobs:
             exit 1
           fi
           echo "Every pinned base image is current."
+
+  scan:
+    name: pinned digests carry no fixable CVE
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # The images to scan come from the Dockerfiles, for the same reason the
+      # freshness job reads them there: one list, or the two drift apart.
+      - name: Collect the pinned images
+        id: images
+        run: |
+          set -euo pipefail
+          refs=$(grep -rhoE '[a-z0-9./-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}' \
+                   backend/docker/Dockerfile frontend/docker/Dockerfile | sort -u)
+          if [ -z "$refs" ]; then
+            echo "::error::No digest-pinned images found — the grep or the Dockerfiles changed shape."
+            exit 1
+          fi
+          echo "$refs"
+          {
+            echo 'refs<<EOF'
+            echo "$refs"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      # --ignore-unfixed is the difference between a gate people act on and one
+      # they mute. A base image always carries open CVEs that Debian has not
+      # patched; we cannot fix those and neither can a rebuild, so failing on
+      # them would make this red permanently and therefore meaningless. A
+      # finding WITH a fix available is actionable by exactly one action —
+      # refresh the digest — which is what the other job already tells us how
+      # to do.
+      - name: Scan each pinned base image
+        env:
+          REFS: ${{ steps.images.outputs.refs }}
+        run: |
+          set -uo pipefail
+          failed=0
+          while IFS= read -r ref; do
+            [ -z "$ref" ] && continue
+            echo "::group::${ref}"
+            docker run --rm \
+              -v /tmp/trivy-cache:/root/.cache/ \
+              aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+              image --quiet --scanners vuln --ignore-unfixed \
+              --severity HIGH,CRITICAL --exit-code 1 "$ref" || failed=1
+            echo "::endgroup::"
+          done <<< "$REFS"
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::A pinned base image has a fixable HIGH/CRITICAL vulnerability."
+            echo "Refresh its digest in the Dockerfile — the fix is already published upstream."
+            exit 1
+          fi
+          echo "No fixable HIGH/CRITICAL findings in any pinned base image."
