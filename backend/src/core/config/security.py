@@ -80,6 +80,22 @@ class SecuritySettings(BaseSettings):
     # timeout retry, and is far short of the days-later replay that is the case
     # actually worth revoking a family over.
     refresh_replay_grace_seconds: int = Field(default=30)
+    # --- Tenancy enforced by the database (register P2.5) ---
+    # Whether `scripts/sql/row_level_security.sql` has been applied. When true
+    # the app binds the caller's workspace to each transaction so the policies
+    # can read it; when false that round trip is skipped, because nothing would
+    # read the value.
+    #
+    # ORDER MATTERS, IN ONE DIRECTION ONLY. Turn this ON first and apply the SQL
+    # second: binding a setting no policy reads is harmless, whereas policies
+    # with nothing binding the setting make every tenant-scoped query RAISE —
+    # which is the fail-closed behaviour working as designed, and a total outage
+    # if it arrives unannounced.
+    #
+    # It also only bites once the app has stopped being the table owner
+    # (P2.4); until then the policies are inert whatever this says.
+    row_level_security_enabled: bool = Field(default=False)
+
     # --- Per-tenant resource bounds (register P1.13) ---
     # `max_workspaces` / `max_managers` live on the SUBSCRIPTION row, because
     # they are what a customer bought. These three do not: they are safety

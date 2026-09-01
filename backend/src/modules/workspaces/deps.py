@@ -22,6 +22,7 @@ from fastapi import Depends, Header, status
 from fastapi.exceptions import HTTPException
 
 from src.core.deps import DbSession
+from src.core.tenancy import set_workspace_context
 from src.modules.organizations.contract import MemberAccess
 from src.modules.workspaces.repos import WorkspaceRepository, WorkspaceTokenRepository
 from src.modules.workspaces.services import WorkspaceService
@@ -59,6 +60,7 @@ WorkspaceServiceDep = Annotated[WorkspaceService, Depends(get_workspace_service)
 async def get_current_workspace_id(
     access: MemberAccess,
     workspace_repo: WorkspaceRepoDep,
+    session: DbSession,
     x_workspace_id: Annotated[
         str | None,
         Header(
@@ -80,10 +82,17 @@ async def get_current_workspace_id(
     are the only thing standing between an attacker and a tenant's data on
     every other route.
 
+    It is also where the tenant is announced to PostgreSQL, for the row-level
+    security policies (register P2.5) — **after** the ownership check and never
+    before it. Binding a tenant the caller has not been shown to belong to would
+    hand the database the very claim this function exists to verify.
+
     Args:
         access: The caller's resolved access; guaranteed to have an
             organisation by ``MemberAccess``.
         workspace_repo: Workspace repository bound to the request session.
+        session: The request's session, so the tenant can be bound to its
+            transaction.
         x_workspace_id: The raw header value.
 
     Returns:
@@ -112,6 +121,8 @@ async def get_current_workspace_id(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Workspace not found.",
         )
+    # Proven to belong to the caller — only now is it safe to tell the database.
+    await set_workspace_context(session, workspace_id)
     return workspace_id
 
 
