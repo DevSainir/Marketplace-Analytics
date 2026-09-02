@@ -73,6 +73,8 @@ class AuditRecorder:
         target_type: str | None = None,
         target_id: object = None,
         organization_id: uuid.UUID | None = None,
+        actor_user_id: uuid.UUID | None = None,
+        actor_email: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Record one event, or log why it could not be recorded.
@@ -85,14 +87,22 @@ class AuditRecorder:
                 events that *create* the tenancy — at activation the actor does
                 not belong to an organisation yet, so the recorder's own context
                 is empty and the new id has to be supplied.
+            actor_user_id: Overrides who acted. For the same reason and on the
+                same terms as ``organization_id``: a password reset is proved by
+                a mailed code rather than an access token, so the recorder built
+                for that request has no actor and the route supplies the one it
+                established. Never pass an id the request did not *prove* —
+                an audit trail that accepts a claimed actor records fiction.
+            actor_email: That actor's address, recorded alongside the id because
+                an id alone is unreadable once the account is gone.
             metadata: Which fields changed. **Never a secret value** — see
                 :mod:`src.modules.organizations.models.audit`.
         """
         try:
             await self._repo.append(
                 event=str(event),
-                actor_user_id=self._actor_user_id,
-                actor_email=self._actor_email,
+                actor_user_id=actor_user_id or self._actor_user_id,
+                actor_email=actor_email or self._actor_email,
                 organization_id=organization_id or self._organization_id,
                 target_type=target_type,
                 target_id=None if target_id is None else str(target_id),
@@ -107,7 +117,7 @@ class AuditRecorder:
             logger.exception(
                 "Could not record audit event %s (actor=%s, target=%s:%s).",
                 event,
-                self._actor_user_id,
+                actor_user_id or self._actor_user_id,
                 target_type,
                 target_id,
             )

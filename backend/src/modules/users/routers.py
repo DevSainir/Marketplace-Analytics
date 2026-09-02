@@ -14,6 +14,7 @@ import uuid
 from fastapi import APIRouter, Cookie, Depends, Response, status
 
 from src.core.config import settings
+from src.core.deps import DbSession
 from src.core.exceptions import ValidationError
 from src.core.logging import get_logger
 from src.core.ratelimit import RateLimiter
@@ -22,7 +23,12 @@ from src.core.ratelimit import RateLimiter
 # door every other module uses. The dependency runs one way at import time:
 # nothing under users/ is imported by organizations/deps beyond
 # users/contract.py, which reaches no further.
-from src.modules.organizations.contract import AuditEvent, AuditTrail
+from src.modules.organizations.contract import (
+    AuditEvent,
+    AuditTrail,
+    UnauthenticatedAuditTrail,
+    resolve_access,
+)
 from src.modules.users.deps import (
     AuthServiceDep,
     CurrentUser,
@@ -415,6 +421,8 @@ async def reset_password(
     payload: PasswordResetConfirmRequest,
     recovery: RecoveryServiceDep,
     service: AuthServiceDep,
+    session: DbSession,
+    audit: UnauthenticatedAuditTrail,
     response: Response,
 ) -> AcceptedResponse:
     """Set a new password against a mailed code, and end every session.
@@ -429,6 +437,20 @@ async def reset_password(
     The caller's own refresh cookie is cleared too: they are one of the sessions
     that just ended, and the SPA should send them to the login screen with the
     password they have just chosen.
+
+    **It is recorded.** ``PASSWORD_CHANGED`` was in the audit vocabulary from the
+    start with nothing emitting it, because there was no route that changed a
+    password (register P1.3). This is that route. A password changing without a
+    login is the single most useful line in the trail when the question is "how
+    did they get in" — and the address it was done from is the part the account
+    holder cannot tell you.
+
+    The actor is passed explicitly because this route is unauthenticated by
+    design: identity here is proved by a code delivered to the mailbox, not by a
+    token, so the recorder arrives with no actor and receives the one the reset
+    established. The organisation is resolved for the same reason — an entry with
+    no tenant is invisible to the owner's audit view, which is the person most
+    likely to be looking.
     """
     if not settings.password_reset_enabled:
         raise ValidationError("Восстановление пароля временно недоступно.")
@@ -437,6 +459,16 @@ async def reset_password(
     )
     if user is None:
         raise ValidationError("Неверный или просроченный код.")
-    await service.revoke_all_sessions(user_id=user.id)
+    revoked = await service.revoke_all_sessions(user_id=user.id)
+    access = await resolve_access(session, user_id=user.id, platform_role=user.role)
+    await audit.record(
+        AuditEvent.PASSWORD_CHANGED,
+        target_type="user",
+        target_id=user.id,
+        organization_id=access.organization_id,
+        actor_user_id=user.id,
+        actor_email=user.email,
+        metadata={"via": "password-reset", "sessions_revoked": revoked},
+    )
     response.delete_cookie(settings.refresh_cookie_name, path=settings.refresh_cookie_path)
     return AcceptedResponse(detail="Пароль изменён. Войдите заново.")

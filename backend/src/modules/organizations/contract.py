@@ -17,8 +17,10 @@ may they do.** Two layers of it:
   disagree with it in its own ``deps``.
 
 A third thing crosses too, and it is deliberately narrow: **the audit trail.**
-``AuditTrail`` is a request-scoped recorder with the actor already resolved, and
-``AuditEvent`` is the closed set of things worth recording. Other modules get to
+``AuditTrail`` is a request-scoped recorder with the actor already resolved,
+``UnauthenticatedAuditTrail`` is the same recorder for a route that has no access
+token to resolve one from, and ``AuditEvent`` is the closed set of things worth
+recording. Other modules get to
 say *that* a workspace was deleted or a token rotated without learning anything
 about the table underneath — which is why the enum is exported and the ORM model
 is not.
@@ -33,6 +35,7 @@ from src.modules.organizations.deps import (
     InternalAccess,
     MemberAccess,
     OwnerAccess,
+    UnauthenticatedAuditTrail,
     WritingAccess,
     require_internal,
     require_member,
@@ -62,6 +65,7 @@ __all__ = [
     "OrganizationAccess",
     "OwnerAccess",
     "SubscriptionState",
+    "UnauthenticatedAuditTrail",
     "WritingAccess",
     "load_workspace_quota",
     "require_internal",

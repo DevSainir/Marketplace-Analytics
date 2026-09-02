@@ -308,6 +308,31 @@ def get_audit_recorder(
 
 AuditTrail = Annotated[AuditRecorder, Depends(get_audit_recorder)]
 
+
+def get_unauthenticated_audit_recorder(session: DbSession, request: Request) -> AuditRecorder:
+    """Provide a recorder for a route with no access token.
+
+    Password reset is the case: the caller proves who they are with a code sent
+    to their mailbox, so :func:`get_audit_recorder` cannot be used — it depends
+    on ``CurrentUser`` and would turn an unauthenticated route into an
+    authenticated one.
+
+    The actor is therefore empty here and the route passes the identity it
+    established to :meth:`AuditRecorder.record`. What this dependency still
+    supplies is the half a route cannot fake: the address nginx observed and the
+    user agent. "Somebody holding that mailbox changed the password, from this
+    IP" is the sentence an incident needs, and none of it is worth having if the
+    route could not record it at all.
+    """
+    return AuditRecorder(
+        repo=AuditLogRepository(session),
+        ip_address=resolve_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+
+
+UnauthenticatedAuditTrail = Annotated[AuditRecorder, Depends(get_unauthenticated_audit_recorder)]
+
 __all__ = [
     "ActivationServiceDep",
     "AuditRepoDep",
@@ -319,10 +344,12 @@ __all__ = [
     "MemberAccess",
     "OrganizationServiceDep",
     "OwnerAccess",
+    "UnauthenticatedAuditTrail",
     "WritingAccess",
     "get_audit_recorder",
     "get_audit_repo",
     "get_current_access",
+    "get_unauthenticated_audit_recorder",
     "require_dev",
     "require_internal",
     "require_member",

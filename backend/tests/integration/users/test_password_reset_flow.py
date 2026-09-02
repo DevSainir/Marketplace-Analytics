@@ -22,6 +22,7 @@ import uuid
 from typing import Any
 
 import pytest
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.security import hash_password
@@ -282,3 +283,89 @@ async def test_the_flow_is_dark_when_it_is_switched_off(
     assert requested.status_code == 202
     assert confirmed.status_code == 422
     assert await _login(api_client, user, PASSWORD)
+
+
+async def test_a_completed_reset_is_recorded_in_the_audit_log(
+    api_client: Any,
+    db_session: AsyncSession,
+    mailbox: CapturingTransport,
+) -> None:
+    """`PASSWORD_CHANGED` had a name in the vocabulary and nothing emitting it.
+
+    A password changing with no login is the most useful line in the trail when
+    the question afterwards is how somebody got in. It is asserted end to end
+    because the actor is the part that could plausibly be lost: the route is
+    unauthenticated, so the recorder arrives with no actor and the identity has
+    to be handed to it. A row with a null actor would look like a working audit
+    trail and answer nothing.
+    """
+    # Arrange
+    user = await _account(db_session)
+    requested = await api_client.post(
+        "/api/v1/auth/password-reset/request", json={"email": user.email}
+    )
+    assert requested.status_code == 202, requested.text
+
+    # Act
+    done = await api_client.post(
+        "/api/v1/auth/password-reset/confirm",
+        json={"email": user.email, "code": mailbox.latest_code(), "new_password": NEW_PASSWORD},
+    )
+
+    # Assert
+    assert done.status_code == 200, done.text
+    row = (
+        (
+            await db_session.execute(
+                sa.text(
+                    "SELECT actor_user_id, actor_email, target_id, ip_address, metadata "
+                    "FROM organizations.audit_log WHERE event = 'PASSWORD_CHANGED' "
+                    "ORDER BY occurred_at DESC LIMIT 1"
+                )
+            )
+        )
+        .mappings()
+        .first()
+    )
+    assert row is not None, "the reset was not recorded"
+    assert row["actor_user_id"] == user.id, "recorded with no actor — the row answers nothing"
+    assert row["actor_email"] == user.email
+    assert str(row["target_id"]) == str(user.id)
+    assert row["ip_address"], "the address is the half the account holder cannot tell you"
+    assert row["metadata"]["via"] == "password-reset"
+
+
+async def test_a_refused_reset_records_nothing(
+    api_client: Any,
+    db_session: AsyncSession,
+    mailbox: CapturingTransport,
+) -> None:
+    """An audit trail that records attempts as if they succeeded is worse than none.
+
+    The wrong-code path returns 422 before the password changes; nothing about
+    it belongs under `PASSWORD_CHANGED`, and a reader scanning for that event
+    during an incident must be able to trust every hit.
+    """
+    # Arrange
+    user = await _account(db_session)
+    await api_client.post("/api/v1/auth/password-reset/request", json={"email": user.email})
+    before = (
+        await db_session.execute(
+            sa.text("SELECT count(*) FROM organizations.audit_log WHERE event = 'PASSWORD_CHANGED'")
+        )
+    ).scalar_one()
+
+    # Act
+    refused = await api_client.post(
+        "/api/v1/auth/password-reset/confirm",
+        json={"email": user.email, "code": "000000", "new_password": NEW_PASSWORD},
+    )
+
+    # Assert
+    assert refused.status_code == 422, refused.text
+    after = (
+        await db_session.execute(
+            sa.text("SELECT count(*) FROM organizations.audit_log WHERE event = 'PASSWORD_CHANGED'")
+        )
+    ).scalar_one()
+    assert after == before
