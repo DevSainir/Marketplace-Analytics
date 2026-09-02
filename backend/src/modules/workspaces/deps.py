@@ -147,6 +147,12 @@ async def get_path_workspace_id(
     confirm the id names a real workspace, turning the path into an oracle for
     other sellers' workspace ids.
 
+    This does look the workspace up a second time — the service that follows
+    scopes its own query too. That duplication is kept: the service's check
+    protects callers that are not routes (a script, a task), and dropping it to
+    save one primary-key lookup on three owner-only admin screens would trade a
+    real guard for nothing measurable.
+
     Args:
         workspace_id: The path parameter. Named to match the route's own, which
             is what lets FastAPI hand it to this dependency.
