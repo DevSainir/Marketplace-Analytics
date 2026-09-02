@@ -397,7 +397,9 @@ async def test_the_message_carries_the_code_and_says_what_to_do() -> None:
 
     body = transport.sent[-1].body
     assert _code_from(transport) in body
-    assert "не запрашивали" in body, "the message must tell an unwitting recipient what it means"
+    # The wording moved to English on 2026-09-02 with the redesign; the
+    # property is unchanged, and is why this assertion exists at all.
+    assert "did not ask" in body, "the message must tell an unwitting recipient what it means"
 
 
 async def test_a_dead_relay_raises_rather_than_lying() -> None:

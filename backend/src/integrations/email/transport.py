@@ -48,13 +48,23 @@ class EmailMessage:
             sends is addressed to one person about their own account, and a
             transport that cannot fan out cannot fan out by mistake.
         subject: Subject line.
-        body: Plain-text body. Plain text on purpose — an HTML mail is a
-            rendering surface, and there is nothing here worth rendering.
+        body: Plain-text body, and always the authoritative one. Every client
+            can render it, it survives an HTML part being stripped, and it is
+            what the logging transport shows a developer.
+        html: Optional HTML alternative, sent alongside ``body`` rather than
+            instead of it. This started as plain-text-only on the argument that
+            an HTML mail is a rendering surface with nothing worth rendering;
+            what changed is that a bare six-digit code from an unfamiliar
+            sender reads as spam, and a message the recipient distrusts is one
+            they do not act on. The HTML here is a logo, a heading and the
+            code — no links, no images, no remote fetches, so the surface it
+            adds is a colour and a font.
     """
 
     to: str
     subject: str
     body: str
+    html: str | None = None
 
 
 class EmailTransport(Protocol):
@@ -139,7 +149,13 @@ class SmtpTransport:
         mime["From"] = f"{self._sender_name} <{self._sender}>"
         mime["To"] = message.to
         mime["Subject"] = message.subject
+        # Plain text first, HTML second: `add_alternative` orders the parts of
+        # a multipart/alternative, and a client picks the LAST one it can
+        # render. Reversing these two lines silently makes the text part the
+        # one everybody sees.
         mime.set_content(message.body)
+        if message.html is not None:
+            mime.add_alternative(message.html, subtype="html")
 
         await aiosmtplib.send(
             mime,

@@ -41,7 +41,7 @@ class EmailSettings(BaseSettings):
     #: sender, or the mail is delivered to spam and the feature silently fails
     #: for the users least able to diagnose it.
     email_from: str = Field(default="")
-    email_from_name: str = Field(default="Аналитика маркетплейса")
+    email_from_name: str = Field(default="Marketplace Analytics")
     #: Whole-operation budget per message. Sending happens inside the request,
     #: so a hung relay must not become a hung signup form.
     smtp_timeout_seconds: float = Field(default=10.0, gt=0)
@@ -59,10 +59,11 @@ class EmailSettings(BaseSettings):
     password_reset_enabled: bool = Field(default=False)
 
     # --- Verification codes ---
-    # Fifteen minutes: long enough for mail to arrive and a person to switch
+    # Twenty minutes: long enough for mail to arrive and a person to switch
     # windows, short enough that a code read over someone's shoulder is
-    # usually already dead.
-    verification_code_ttl_seconds: int = Field(default=900, ge=60)
+    # usually already dead. The wording in the mail is generated from this
+    # value, so the two cannot drift apart.
+    verification_code_ttl_seconds: int = Field(default=1200, ge=60)
     # Six digits is a million possibilities, which is only safe because this cap
     # exists. Five wrong guesses kills the row and a new code must be requested.
     verification_code_max_attempts: int = Field(default=5, ge=1)
