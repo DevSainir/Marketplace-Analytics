@@ -270,6 +270,14 @@ DevAccess = Annotated[OrganizationAccess, Depends(require_dev)]
 # --------------------------------------------------------------------------- #
 # Audit trail
 # --------------------------------------------------------------------------- #
+def get_audit_repo(session: DbSession) -> AuditLogRepository:
+    """Provide the audit repository bound to the request session."""
+    return AuditLogRepository(session)
+
+
+AuditRepoDep = Annotated[AuditLogRepository, Depends(get_audit_repo)]
+
+
 def get_audit_recorder(
     session: DbSession,
     request: Request,
@@ -302,6 +310,7 @@ AuditTrail = Annotated[AuditRecorder, Depends(get_audit_recorder)]
 
 __all__ = [
     "ActivationServiceDep",
+    "AuditRepoDep",
     "AuditTrail",
     "CurrentAccess",
     "DevAccess",
@@ -312,6 +321,7 @@ __all__ = [
     "OwnerAccess",
     "WritingAccess",
     "get_audit_recorder",
+    "get_audit_repo",
     "get_current_access",
     "require_dev",
     "require_internal",

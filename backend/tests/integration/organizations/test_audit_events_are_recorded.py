@@ -180,3 +180,113 @@ async def test_a_rejected_action_records_nothing(
     # Assert
     assert response.status_code == 404, response.text
     assert await _entries(db_session) == []
+
+
+# --------------------------------------------------------------------------- #
+# Reading the trail back — the half that was missing until the route existed
+# --------------------------------------------------------------------------- #
+async def test_an_owner_can_read_their_own_trail(
+    api_client: Any,
+    db_session: AsyncSession,
+    organization: Organization,
+) -> None:
+    """Until this route existed the trail was write-only from the product's view.
+
+    The rows were there and enforced append-only, and the only way to read them
+    was psql on the box — a fine answer for us at 02:00 and no answer at all for
+    an owner asking who removed a manager.
+    """
+    # Arrange
+    owner = await _owner(db_session, organization)
+    await api_client.post(
+        "/api/v1/organizations/invitations",
+        json={"email": "colleague@example.com", "valid_for_days": 7},
+        headers=_auth(owner),
+    )
+
+    # Act
+    response = await api_client.get("/api/v1/organizations/audit-log", headers=_auth(owner))
+
+    # Assert
+    assert response.status_code == 200, response.text
+    entries = response.json()
+    assert [e["event"] for e in entries] == ["MEMBER_INVITED"]
+    assert entries[0]["actor_email"] == owner.email
+    assert entries[0]["target_type"] == "invitation"
+
+
+async def test_the_trail_never_shows_another_organisations_entries(
+    api_client: Any,
+    db_session: AsyncSession,
+    organization: Organization,
+) -> None:
+    """The one mistake worth designing out of an audit trail.
+
+    The foreign tenant is just a UUID, which is possible only because this
+    table deliberately carries no foreign key on `organization_id` — the same
+    denormalisation that lets an entry outlive the organisation it describes.
+    """
+    # Arrange — an entry belonging to somebody else, written directly.
+    owner = await _owner(db_session, organization)
+    foreign_organization_id = uuid.uuid4()
+    await db_session.execute(
+        sa.text(
+            "INSERT INTO organizations.audit_log (id, event, organization_id, actor_email) "
+            "VALUES (gen_random_uuid(), 'MEMBER_REMOVED', :org, 'other@example.com')"
+        ),
+        {"org": foreign_organization_id},
+    )
+    await db_session.flush()
+
+    # Act
+    response = await api_client.get("/api/v1/organizations/audit-log", headers=_auth(owner))
+
+    # Assert
+    assert response.status_code == 200, response.text
+    assert response.json() == []
+
+
+async def test_the_token_a_route_issued_is_not_readable_through_the_trail(
+    api_client: Any,
+    db_session: AsyncSession,
+    organization: Organization,
+) -> None:
+    """The write side promises it; this checks the read side cannot undo it.
+
+    An invitation token is shown exactly once in the response that creates it.
+    If one reached an audit row, this endpoint would hand it back for as long as
+    the row exists — which is the whole point of the "never the secret" rule.
+    """
+    # Arrange
+    owner = await _owner(db_session, organization)
+    created = await api_client.post(
+        "/api/v1/organizations/invitations",
+        json={"email": "colleague@example.com", "valid_for_days": 7},
+        headers=_auth(owner),
+    )
+    token = created.json()["token"]
+
+    # Act
+    response = await api_client.get("/api/v1/organizations/audit-log", headers=_auth(owner))
+
+    # Assert
+    assert token, "the test would be vacuous if no token were issued"
+    assert token not in response.text
+
+
+async def test_the_page_size_is_bounded(
+    api_client: Any,
+    db_session: AsyncSession,
+    organization: Organization,
+) -> None:
+    """This is the one table that only ever grows, so an unbounded read ages badly."""
+    # Arrange
+    owner = await _owner(db_session, organization)
+
+    # Act
+    response = await api_client.get(
+        "/api/v1/organizations/audit-log?limit=5000", headers=_auth(owner)
+    )
+
+    # Assert
+    assert response.status_code == 422

@@ -25,7 +25,7 @@ import uuid
 from typing import Any
 
 from src.core.logging import get_logger
-from src.modules.organizations.models import AuditEvent
+from src.modules.organizations.models import AuditEvent, AuditLogEntry
 from src.modules.organizations.repos.audit import AuditLogRepository
 
 logger = get_logger(__name__)
@@ -113,4 +113,29 @@ class AuditRecorder:
             )
 
 
-__all__ = ["AuditRecorder"]
+async def read_trail(
+    repo: AuditLogRepository, *, organization_id: uuid.UUID, limit: int
+) -> list[AuditLogEntry]:
+    """Return one organisation's audit trail, newest first.
+
+    A module-level function rather than a method on :class:`AuditRecorder`,
+    because reading and writing this table are different acts with different
+    callers: the recorder is bound to one request's actor and exists to append,
+    while this is a query on behalf of an owner looking at their own company.
+
+    There is deliberately **no un-scoped variant**. The one mistake worth
+    designing out of an audit trail is showing one customer another customer's,
+    and the way to design it out is to leave no function that could.
+
+    Args:
+        repo: The audit repository on the request's session.
+        organization_id: The tenant whose trail is being read.
+        limit: Hard cap on rows returned; the caller validates the range.
+
+    Returns:
+        Up to ``limit`` entries, newest first.
+    """
+    return await repo.list_for_organization(organization_id, limit=limit)
+
+
+__all__ = ["AuditRecorder", "read_trail"]

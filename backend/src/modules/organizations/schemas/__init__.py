@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -178,6 +179,41 @@ class InvitationCreated(BaseModel):
         description="The invitation token. Stored hashed, so it can never be shown again."
     )
     expires_at: datetime
+
+
+class AuditLogEntryRead(BaseModel):
+    """One entry of the organisation's own audit trail.
+
+    Every field here is already the tenant's own information: their members'
+    addresses, and what those members did inside their company. Nothing crosses
+    an organisation, because the only loader is scoped to one.
+
+    ``metadata`` is passed through as stored, which is safe by the rule the
+    writers keep rather than by anything done here: an entry records *which*
+    fields changed and never a secret value — not a WB token, not an invitation
+    token, not an activation code. That rule is enforced where entries are
+    written; this schema would happily serialise a leak, so the discipline has
+    to stay at the source.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    occurred_at: datetime
+    event: str
+    #: The actor's address as it was at the time. Kept denormalised precisely so
+    #: it still names a person after the account is deleted.
+    actor_email: str | None
+    actor_user_id: uuid.UUID | None
+    target_type: str | None
+    target_id: str | None
+    ip_address: str | None
+    user_agent: str | None
+    metadata: dict[str, Any] | None = Field(
+        default=None,
+        validation_alias="metadata_",
+        description="Before/after for the fields that changed. Never a secret value.",
+    )
 
 
 class InvitationRead(BaseModel):

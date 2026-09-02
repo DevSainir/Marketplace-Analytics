@@ -18,12 +18,14 @@ Routers are pure pass-through; domain errors propagate to the global
 from __future__ import annotations
 
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from src.core.deps import DbSession
 from src.modules.organizations.deps import (
     ActivationServiceDep,
+    AuditRepoDep,
     AuditTrail,
     CurrentAccess,
     DevAccess,
@@ -39,6 +41,7 @@ from src.modules.organizations.schemas import (
     ActivationCodeCreateRequest,
     ActivationCodeRead,
     ActivationRequest,
+    AuditLogEntryRead,
     InvitationAcceptRequest,
     InvitationCreated,
     InvitationCreateRequest,
@@ -50,6 +53,7 @@ from src.modules.organizations.schemas import (
     PendingInvitation,
 )
 from src.modules.organizations.services import resolve_access
+from src.modules.organizations.services.audit import read_trail
 from src.modules.users.contract import ConfirmedUser, CurrentUser
 
 router = APIRouter(prefix="/v1/organizations", tags=["Organizations"])
@@ -260,6 +264,48 @@ async def remove_member(
         target_id=user_id,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/audit-log",
+    response_model=list[AuditLogEntryRead],
+    status_code=status.HTTP_200_OK,
+    dependencies=[_owner_only],
+    responses={
+        200: {"description": "This organisation's own audit trail, newest first."},
+        403: {"description": "Owner role required."},
+    },
+)
+async def read_audit_log(
+    access: OwnerAccess,
+    repo: AuditRepoDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> list[AuditLogEntryRead]:
+    """Return the organisation's audit trail — who did what, and from where.
+
+    Until this existed the trail was write-only from the product's point of
+    view: the rows were there, append-only and enforced, and the only way to
+    read them was a psql session on the box. That is a fine answer for us at
+    02:00 and no answer at all for an owner asking who removed a manager.
+
+    Owner-scoped, and scoped to their **own** organisation with no un-scoped
+    variant anywhere beneath it. The one mistake worth designing out of an audit
+    trail is showing one customer another customer's.
+
+    `limit` is bounded rather than free: this is the one table that only ever
+    grows, so an unbounded read is a slow query waiting for the tenant who has
+    been with us longest (register P1.13's reasoning, applied to a read).
+
+    Args:
+        access: Owner-level access; supplies the organisation.
+        repo: The audit repository.
+        limit: How many entries to return, newest first.
+
+    Returns:
+        Up to ``limit`` entries.
+    """
+    entries = await read_trail(repo, organization_id=access.tenant_id, limit=limit)
+    return [AuditLogEntryRead.model_validate(entry) for entry in entries]
 
 
 @router.get(
