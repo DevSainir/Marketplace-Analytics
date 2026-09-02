@@ -120,11 +120,14 @@
   outline-color: var(--ui-action);
 }
 
-/* The «Корзины» metric accent. Indigo and the new action colour are the same
-   colour to a human eye, so the funnel rows take a distinct teal instead —
-   colour on this page communicates state, and two states cannot share one. */
+/* The «Корзины» metric accent, back to the indigo it has always been. The teal
+   this briefly became was chosen to keep the funnel rows away from the action
+   colour, but it landed on «Затраты» green instead — the funnel then read as
+   money, which is the one thing it is not. The chart draws «Корзины» blue
+   (#2A78D6) for the same reason; the two blues differ because one sits on a
+   white row and the other on a plotted line, but they say the same thing. */
 .text-accent-indigo {
-  color: #0e9384;
+  color: #4f46e5;
 }
 
 /* ==========================================================================
