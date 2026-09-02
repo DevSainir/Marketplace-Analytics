@@ -30,9 +30,17 @@
 --          -v app_password="$(read -rs P; echo "$P")" \
 --          < least_privilege_role.sql
 --
--- Then point the app at it — `POSTGRES_USER=marketplace_app` and the matching
--- password in backend/.env — and restart the API and worker. LEAVE the migrate
--- service and any psql you run by hand as `marketplace`: they need the owner.
+-- Then point the API at it by setting `APP_POSTGRES_USER=marketplace_app` and
+-- `APP_POSTGRES_PASSWORD=…` in backend/.env, and recreate the api services.
+--
+-- DO NOT change `POSTGRES_USER`. An earlier version of this comment said to,
+-- and it was wrong: every service in docker-compose.yml shares one `.env`, so
+-- that switches `migrate` — which runs `alembic upgrade head` and would lose
+-- the right to — along with `worker` and `beat`, whose nightly harvests cross
+-- every workspace and bind no tenant, so they would begin raising the moment
+-- row_level_security.sql is applied. The compose file therefore gives the api
+-- services their own two variables; unset, they fall through to the shared
+-- value and nothing differs.
 --
 -- Re-runnable. Every statement is idempotent, because the grants have to be
 -- re-applied after a migration creates a new table (see the note at the foot).
@@ -120,4 +128,4 @@ REVOKE UPDATE, DELETE, TRUNCATE ON organizations.audit_log FROM marketplace_app;
 -- the first write, where a missing REVOKE would be silence.
 -- --------------------------------------------------------------------------
 
-SELECT 'marketplace_app configured; point POSTGRES_USER at it and restart the API.' AS result;
+SELECT 'marketplace_app configured. Now set APP_POSTGRES_USER / APP_POSTGRES_PASSWORD in backend/.env (NOT POSTGRES_USER) and recreate the api services.' AS result;

@@ -140,6 +140,23 @@ services:
     environment:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
+      # THE API IS THE ONLY SERVICE THAT MAY RUN AS THE RESTRICTED ROLE.
+      #
+      # Every service here shares one `.env`, so changing POSTGRES_USER in it
+      # would switch `migrate`, `worker` and `beat` too — and both of those
+      # legitimately need what the restricted role refuses. `migrate` runs
+      # `alembic upgrade head`, which is DDL; the worker's nightly harvests
+      # cross every workspace and bind no tenant, so once the row-level
+      # security policies are applied their queries would raise. Pointing the
+      # shared value at `marketplace_app` would therefore break the next deploy
+      # and the next harvest, not just tighten the API (register P2.4/P2.5).
+      #
+      # These two overrides are how the API alone changes identity. Unset, they
+      # fall through to the shared value and nothing differs — so this is inert
+      # until `least_privilege_role.sql` has actually been applied and
+      # APP_POSTGRES_USER / APP_POSTGRES_PASSWORD are set in `.env`.
+      POSTGRES_USER: ${APP_POSTGRES_USER:-${POSTGRES_USER:-marketplace}}
+      POSTGRES_PASSWORD: ${APP_POSTGRES_PASSWORD:-${POSTGRES_PASSWORD}}
     # --proxy-headers makes request.client reflect X-Forwarded-For from nginx,
     # which is what the request log reports. Trusting any peer is safe here:
     # the port is never published — nginx is the only ingress.
