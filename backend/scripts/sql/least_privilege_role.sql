@@ -50,15 +50,20 @@
 -- --------------------------------------------------------------------------
 -- The role
 -- --------------------------------------------------------------------------
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'marketplace_app') THEN
-        EXECUTE format('CREATE ROLE marketplace_app LOGIN PASSWORD %L', :'app_password');
-    ELSE
-        EXECUTE format('ALTER ROLE marketplace_app LOGIN PASSWORD %L', :'app_password');
-    END IF;
-END
-$$;
+-- psql does NOT substitute `:variables` inside a dollar-quoted block — the text
+-- between $$ and $$ reaches the server verbatim, so an earlier version of this
+-- that built the CREATE ROLE inside a DO block failed with `syntax error at or
+-- near ":"`. The password therefore has to be used OUTSIDE any dollar quoting.
+--
+-- `\gexec` runs whatever the query returns as SQL, so the CREATE happens only
+-- when the role is absent and the whole file stays re-runnable.
+SELECT 'CREATE ROLE marketplace_app LOGIN'
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'marketplace_app')
+\gexec
+
+-- Idempotent, and the one statement that needs the variable: setting the
+-- password on every run keeps the role and `.env` from drifting apart.
+ALTER ROLE marketplace_app LOGIN PASSWORD :'app_password';
 
 -- Explicitly not a superuser and unable to create anything, in case the role
 -- already existed with more than it should.
