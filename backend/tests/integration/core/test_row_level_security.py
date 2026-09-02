@@ -311,3 +311,47 @@ async def test_every_table_named_in_the_script_really_has_a_policy(
 
     # Assert
     assert named <= set(rows), f"named but not enforced: {named - set(rows)}"
+
+
+# --------------------------------------------------------------------------- #
+# The binder itself — the cases above call `set_config` directly, so without
+# these the helper the application actually uses is never exercised.
+# --------------------------------------------------------------------------- #
+async def test_the_binder_sets_the_setting_the_policies_read(
+    db_session: Any, settings_override: Any
+) -> None:
+    """Otherwise the policies and the application could disagree about the name."""
+    # Arrange
+    from src.core.tenancy import WORKSPACE_SETTING, set_workspace_context
+
+    # Act
+    with settings_override(row_level_security_enabled=True):
+        await set_workspace_context(db_session, MINE)
+
+    # Assert — read back through PostgreSQL, not through our own constant.
+    bound = await db_session.scalar(
+        sa.text("SELECT current_setting(:name, true)"), {"name": WORKSPACE_SETTING}
+    )
+    assert bound == str(MINE)
+
+
+async def test_the_binder_does_nothing_when_the_policies_are_not_installed(
+    db_session: Any, settings_override: Any
+) -> None:
+    """A round trip per request that no policy reads is worth skipping.
+
+    This is also what keeps the component tier hermetic: that tier forbids
+    touching the database, and the binder sits in a dependency it exercises.
+    """
+    # Arrange
+    from src.core.tenancy import WORKSPACE_SETTING, set_workspace_context
+
+    # Act
+    with settings_override(row_level_security_enabled=False):
+        await set_workspace_context(db_session, MINE)
+
+    # Assert
+    bound = await db_session.scalar(
+        sa.text("SELECT current_setting(:name, true)"), {"name": WORKSPACE_SETTING}
+    )
+    assert bound in (None, "")
