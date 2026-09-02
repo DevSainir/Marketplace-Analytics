@@ -46,10 +46,24 @@ combine. Never read `user.role` directly in a route — it answers only a third 
 **Tenant scoping**:
 
 * Workspace-level: `CurrentWorkspaceId` (validates `X-Workspace-Id` against the caller's own
-  organisation) and `WorkspaceSku` (proves a path `nm_id` belongs to it).
+  organisation) and `WorkspaceSku` (proves a path `nm_id` belongs to it). For a route that
+  takes the workspace from its **URL path** instead of the header, use `PathWorkspaceId` —
+  same validation, and it is the only other place the tenant gets bound (below).
 * Query-level: `workspace_sku_select(workspace_id)` — the semijoin through `product_card`
   that every cross-SKU aggregate must go through.
 * Never `SELECT ... WHERE id = :id` on tenant data. Always `AND <tenant column> = :tenant`.
+
+**Both of those dependencies also bind the tenant for the database** (`set_workspace_context`,
+register P2.5), and that has a consequence worth knowing before it bites: once
+`row_level_security.sql` is applied, a route that reaches a policy-covered table *without*
+going through one of them makes its queries **raise**, not return fewer rows. So:
+
+* Adding a tenant-scoped route? Resolve the workspace through `CurrentWorkspaceId` or
+  `PathWorkspaceId`. Taking a raw `workspace_id` parameter and passing it to a service scopes
+  the query correctly but binds nothing.
+* Adding a table to the policy list? Walk every router that reaches it first and check each
+  one binds. That check is what caught `workspace_tokens`, whose owner-only routes address a
+  workspace by path — the policy would have made every token screen raise.
 
 **Secrets**: `hash_opaque_secret` / `generate_opaque_secret` for anything we hand out
 (codes, invitation tokens, refresh secrets); `encrypt_secret` / `decrypt_secret` (Fernet) for
