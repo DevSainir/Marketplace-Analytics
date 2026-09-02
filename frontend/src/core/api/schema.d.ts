@@ -35,7 +35,17 @@ export interface paths {
     put?: never
     /**
      * Register
-     * @description Register a new user account (requires a valid invite code).
+     * @description Register a new user account, and mail it a confirmation code.
+     *
+     *     Signup is open and the account starts powerless — it belongs to no
+     *     organisation and every data route sits behind `require_member`. The
+     *     confirmation code is what lets it later take an activation code or an
+     *     invitation (register P1.6).
+     *
+     *     The mail is sent inside this request, and a failure to send is NOT allowed
+     *     to fail the registration: the account exists, the password is stored, and
+     *     telling the person "signup failed" would be a lie that also loses their
+     *     password. They can ask for another code from the confirm screen.
      */
     post: operations['register_api_v1_auth_register_post']
     delete?: never
@@ -84,6 +94,89 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/auth/me': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Me
+     * @description Return the authenticated caller's account (email + role for the UI).
+     */
+    get: operations['me_api_v1_auth_me_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/auth/logout-all': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Logout Everywhere
+     * @description End every session of the calling account, on every device, now.
+     *
+     *     ``/logout`` ends the browser you are in. This ends all of them — the phone
+     *     left at a customer's office, the session opened on a shared machine, the one
+     *     whose password you have just changed because you are not sure.
+     *
+     *     Unlike ``/logout`` it also stamps the Redis revocation watermark, so the
+     *     access tokens already handed out stop working immediately rather than
+     *     surviving up to their 15-minute lifetime. That is the difference between
+     *     "signed out" and "cannot act", and it is the only place we make it.
+     *
+     *     The caller's own session ends too: this is deliberate, since a user who
+     *     presses it has usually decided the account is not to be trusted right now.
+     *     The cookie is cleared so the SPA returns to the login screen.
+     */
+    post: operations['logout_everywhere_api_v1_auth_logout_all_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/auth/sessions/{user_id}/revoke': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Revoke Account Sessions
+     * @description End every session of another account — the incident-response lever.
+     *
+     *     A compromised account has to be stoppable by someone other than whoever
+     *     controls it, and until now nobody could: the revocation watermark had no
+     *     caller outside the test suite, so a stolen session simply ran until its
+     *     tokens expired (register P1.1).
+     *
+     *     Answers 200 for an account that does not exist, with ``revoked: 0``,
+     *     exactly as for one that exists and holds no session. The endpoint is behind
+     *     the developer role, so this is not much of a secret — but an id oracle costs
+     *     nothing to avoid and the caller has no use for the distinction.
+     */
+    post: operations['revoke_account_sessions_api_v1_auth_sessions__user_id__revoke_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/auth/logout': {
     parameters: {
       query?: never
@@ -104,6 +197,552 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/auth/confirm-email': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Confirm Email
+     * @description Prove control of an address with the code that was mailed to it.
+     */
+    post: operations['confirm_email_api_v1_auth_confirm_email_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/auth/resend-confirmation': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Resend Confirmation
+     * @description Send a fresh confirmation code, if there is anybody to send one to.
+     *
+     *     Answers 202 whatever it finds — including for an address that was never
+     *     registered, and for one already confirmed.
+     */
+    post: operations['resend_confirmation_api_v1_auth_resend_confirmation_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/auth/password-reset/request': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Request Password Reset
+     * @description Mail a reset code, if the address belongs to a live account.
+     */
+    post: operations['request_password_reset_api_v1_auth_password_reset_request_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/auth/password-reset/confirm': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Reset Password
+     * @description Set a new password against a mailed code, and end every session.
+     *
+     *     **Both halves, in this order, in one transaction.** The case this exists for
+     *     is "somebody else may have my password"; changing it while leaving their
+     *     sessions alive would hand the attacker the very thing the reset was meant to
+     *     take away. `revoke_all_sessions` is the operation that legitimately stamps
+     *     the per-user watermark, so the access tokens already issued die immediately
+     *     rather than surviving their remaining TTL (P1.1, P1.12).
+     *
+     *     The caller's own refresh cookie is cleared too: they are one of the sessions
+     *     that just ended, and the SPA should send them to the login screen with the
+     *     password they have just chosen.
+     */
+    post: operations['reset_password_api_v1_auth_password_reset_confirm_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations/me': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Read Me
+     * @description Return everything the SPA needs to decide what to render.
+     *
+     *     Deliberately reachable without an organisation: a ``null`` organisation is
+     *     the answer that tells the client to show the activation screen.
+     */
+    get: operations['read_me_api_v1_organizations_me_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations/activate': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Activate
+     * @description Redeem an activation code — «Ключ активации» on the profile page.
+     *
+     *     Creates the organisation, makes the caller its owner and starts the
+     *     subscription, all in this request's transaction.
+     */
+    post: operations['activate_api_v1_organizations_activate_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations/invitations/mine': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List My Invitations
+     * @description List invitations waiting for this account — «Вас пригласили».
+     *
+     *     Names the inviting organisation and nothing else about it: the caller is
+     *     not a member yet.
+     */
+    get: operations['list_my_invitations_api_v1_organizations_invitations_mine_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations/invitations/accept': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Accept Invitation
+     * @description Accept an invitation and join its organisation as a manager.
+     *
+     *     Returns the same shape as ``/me`` so the SPA can swap straight from the
+     *     «нет организации» screen into the app without a second round trip.
+     */
+    post: operations['accept_invitation_api_v1_organizations_invitations_accept_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Rename Organization
+     * @description Rename the caller's organisation.
+     *
+     *     The name starts as the owner's email (nothing to type at activation); this
+     *     is where it becomes the company's actual name.
+     */
+    patch: operations['rename_organization_api_v1_organizations_patch']
+    trace?: never
+  }
+  '/api/v1/organizations/members': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Members
+     * @description List the organisation's members.
+     */
+    get: operations['list_members_api_v1_organizations_members_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations/members/{user_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Remove Member
+     * @description Remove a manager from the organisation.
+     *
+     *     This — not revoking their invitation — is what actually withdraws access
+     *     once someone has joined.
+     */
+    delete: operations['remove_member_api_v1_organizations_members__user_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations/audit-log': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Read Audit Log
+     * @description Return the organisation's audit trail — who did what, and from where.
+     *
+     *     Until this existed the trail was write-only from the product's point of
+     *     view: the rows were there, append-only and enforced, and the only way to
+     *     read them was a psql session on the box. That is a fine answer for us at
+     *     02:00 and no answer at all for an owner asking who removed a manager.
+     *
+     *     Owner-scoped, and scoped to their **own** organisation with no un-scoped
+     *     variant anywhere beneath it. The one mistake worth designing out of an audit
+     *     trail is showing one customer another customer's.
+     *
+     *     `limit` is bounded rather than free: this is the one table that only ever
+     *     grows, so an unbounded read is a slow query waiting for the tenant who has
+     *     been with us longest (register P1.13's reasoning, applied to a read).
+     *
+     *     Args:
+     *         access: Owner-level access; supplies the organisation.
+     *         repo: The audit repository.
+     *         limit: How many entries to return, newest first.
+     *
+     *     Returns:
+     *         Up to ``limit`` entries.
+     */
+    get: operations['read_audit_log_api_v1_organizations_audit_log_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations/invitations': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Invitations
+     * @description List the organisation's invitations — pending, accepted and revoked.
+     */
+    get: operations['list_invitations_api_v1_organizations_invitations_get']
+    put?: never
+    /**
+     * Create Invitation
+     * @description Invite a manager, by email or as a bare link.
+     *
+     *     With ``email`` set the invitation also appears on that account's own
+     *     profile page, so a colleague who already has an account never needs the
+     *     link. The token is returned once and stored hashed.
+     */
+    post: operations['create_invitation_api_v1_organizations_invitations_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations/invitations/{invitation_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Revoke Invitation
+     * @description Withdraw an outstanding invitation.
+     */
+    delete: operations['revoke_invitation_api_v1_organizations_invitations__invitation_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations/codes': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Activation Codes
+     * @description List generated codes, newest first, with what each one became.
+     */
+    get: operations['list_activation_codes_api_v1_organizations_codes_get']
+    put?: never
+    /**
+     * Create Activation Code
+     * @description Generate a single-use activation code to hand to a paying customer.
+     */
+    post: operations['create_activation_code_api_v1_organizations_codes_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/workspaces': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Workspaces
+     * @description List the workspaces the caller may switch between.
+     */
+    get: operations['list_workspaces_api_v1_workspaces_get']
+    put?: never
+    /**
+     * Create Workspace
+     * @description Create a workspace in the caller's organisation (owner only).
+     */
+    post: operations['create_workspace_api_v1_workspaces_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/workspaces/{workspace_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Delete Workspace
+     * @description Delete one of the organisation's workspaces and its WB tokens.
+     */
+    delete: operations['delete_workspace_api_v1_workspaces__workspace_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/workspaces/{workspace_id}/tokens': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Token Status
+     * @description Report the workspace's per-surface token configuration (owner only).
+     *
+     *     Token *values* are never returned — only which surfaces are configured.
+     */
+    get: operations['get_token_status_api_v1_workspaces__workspace_id__tokens_get']
+    /**
+     * Set Tokens
+     * @description Set/rotate the workspace's WB tokens (owner only).
+     *
+     *     Partial update: omitted surfaces are untouched; an empty string deletes
+     *     the stored token for that surface. Values are Fernet-encrypted at rest.
+     */
+    put: operations['set_tokens_api_v1_workspaces__workspace_id__tokens_put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/skus/{nm_id}/refresh': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Refresh Sku
+     * @description Enqueue a fresh WB harvest for one SKU (discards its manual edits).
+     *
+     *     Runs the harvest over WB's serviceable recent window (the funnel-history
+     *     endpoint caps at 7 days); older days keep their last-harvested values. The
+     *     harvest ingests fresh facts and clears this SKU's overrides. Poll
+     *     ``GET /refresh/{task_id}`` for completion, then re-fetch the detail.
+     *
+     *     The task id is bound to the caller's workspace so only that workspace can
+     *     read its status back.
+     *
+     *     Bounded two ways. A second press while the first harvest is still in flight
+     *     gets that task's id back rather than a second run; beyond that, the
+     *     workspace's enqueue budget applies, because the Celery pool and the WB rate
+     *     budget it spends are shared with every other tenant and with the scheduled
+     *     harvests.
+     */
+    post: operations['refresh_sku_api_v1_monitoring_skus__nm_id__refresh_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/skus/refresh-all': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Refresh All Skus
+     * @description Enqueue a fresh WB harvest for **every** SKU in the workspace.
+     *
+     *     The bulk counterpart of :func:`refresh_sku`: one task harvests the whole
+     *     catalogue (discarding those SKUs' manual edits), so it is heavier and slower
+     *     than a single-SKU refresh — the account-wide sale feed still stays on the
+     *     nightly run (:func:`harvest_sku_window` skips it), the same as «Обновить».
+     *
+     *     Poll ``GET /refresh/{task_id}`` for completion exactly as for one SKU. The
+     *     task id is bound to the caller's workspace so only that workspace can read
+     *     its status back.
+     */
+    post: operations['refresh_all_skus_api_v1_monitoring_skus_refresh_all_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/refresh/{task_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Refresh Status
+     * @description Report a refresh task's state so the frontend knows when to re-fetch.
+     *
+     *     Scoped to the workspace that enqueued the task: Celery's ``AsyncResult``
+     *     would happily report on any id in the broker, which let one workspace learn
+     *     whether another's harvest had run and whether it succeeded. An id belonging
+     *     to another tenant is indistinguishable from one that never existed.
+     */
+    get: operations['get_refresh_status_api_v1_monitoring_refresh__task_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/skus/{nm_id}/clusters': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Sku Clusters
+     * @description Return the search clusters this SKU's advertising served in.
+     */
+    get: operations['get_sku_clusters_api_v1_monitoring_skus__nm_id__clusters_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/monitoring/summary': {
     parameters: {
       query?: never
@@ -117,6 +756,111 @@ export interface paths {
      */
     get: operations['get_summary_api_v1_monitoring_summary_get']
     put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/charts': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Aggregate Charts
+     * @description Return the «Графики» page's day series, summed over the chosen SKUs.
+     */
+    get: operations['get_aggregate_charts_api_v1_monitoring_charts_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/pins': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Pins
+     * @description Return the workspace's pinned-SKU chip row (shared by every account).
+     */
+    get: operations['list_pins_api_v1_monitoring_pins_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/pins/order': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Reorder Pins
+     * @description Persist the chip row's order after a drag-and-drop (shared by everyone).
+     *
+     *     The body carries every pinned SKU, so the service can reject a reorder
+     *     computed against a list a teammate has since changed. No ``WorkspaceSku``
+     *     guard here — the identifiers are in the body, not the path, so the service
+     *     validates them against the workspace's own pins instead.
+     */
+    put: operations['reorder_pins_api_v1_monitoring_pins_order_put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/skus/{nm_id}/pin': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Set Pin
+     * @description Pin («Закрепить») or unpin («Закреплено» click) a SKU for everyone.
+     */
+    put: operations['set_pin_api_v1_monitoring_skus__nm_id__pin_put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/skus/{nm_id}/pin-color': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Set Pin Color
+     * @description Paint a pinned chip's background, or clear its tint, for everyone.
+     */
+    put: operations['set_pin_color_api_v1_monitoring_skus__nm_id__pin_color_put']
     post?: never
     delete?: never
     options?: never
@@ -167,6 +911,136 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/monitoring/skus/{nm_id}/stock': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Stock Day
+     * @description Return one snapshot day's stock breakdown (two-day comparison view).
+     */
+    get: operations['get_stock_day_api_v1_monitoring_skus__nm_id__stock_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/skus/{nm_id}/warehouse-marks': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Set Warehouse Mark
+     * @description Mark («Отгрузить») or unmark («Разгрузить») a warehouse for this SKU only.
+     */
+    put: operations['set_warehouse_mark_api_v1_monitoring_skus__nm_id__warehouse_marks_put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/skus/{nm_id}/comments/{comment_date}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Set Day Comment
+     * @description Save one day's note on a SKU — its comment, its header, or both.
+     *
+     *     Omitted fields keep their stored value, so the two inputs save
+     *     independently; blanking both clears the day. Notes are shared by everyone.
+     */
+    put: operations['set_day_comment_api_v1_monitoring_skus__nm_id__comments__comment_date__put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/skus/{nm_id}/actions/{action_date}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Set Day Action
+     * @description Save one day's «Действия» row on a SKU (shared by everyone).
+     *
+     *     The body is the WHOLE day state (last write wins); a body with every
+     *     answer null clears the day's row.
+     */
+    put: operations['set_day_action_api_v1_monitoring_skus__nm_id__actions__action_date__put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/skus/{nm_id}/matrix/preview': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Preview Matrix Edit
+     * @description Apply one pending cell-edit to the working copy and recompute (no save).
+     *
+     *     The frontend holds the working copy; this resolves the edit into its inputs
+     *     (setting an input, or reverse-solving one for a derived cell) and returns
+     *     the recomputed matrix. Nothing is persisted — «Сохранить» does that.
+     */
+    post: operations['preview_matrix_edit_api_v1_monitoring_skus__nm_id__matrix_preview_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/monitoring/skus/{nm_id}/matrix': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Save Matrix
+     * @description Persist the manual edits as overrides and return the refreshed detail.
+     */
+    put: operations['save_matrix_api_v1_monitoring_skus__nm_id__matrix_put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/monitoring/funnel/{nm_id}': {
     parameters: {
       query?: never
@@ -187,10 +1061,703 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/finreports/weeks': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Weeks
+     * @description List the WB weekly report periods the seller has data for.
+     *
+     *     it is what every finreports page's period selector is built from: the SPA
+     *     reads the full settlement span from this to pick a default window and to
+     *     with them left a customer's P&L unable to choose a period at all.
+     */
+    get: operations['list_weeks_api_v1_finreports_weeks_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/finreports/pnl': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Pnl
+     * @description Return the profit-and-loss statement for a settlement-date window.
+     *
+     *     Built entirely from WB's weekly report detail plus the seller's own cost
+     *     prices. The response carries its own caveats in ``notes`` — cost coverage,
+     *     unbackfilled columns, operations the taxonomy does not recognise — because
+     *     every one of them changes how the bottom line should be read.
+     */
+    get: operations['get_pnl_api_v1_finreports_pnl_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/finreports/pnl/skus': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Pnl By Sku
+     * @description Return the per-SKU P&L cut for an arbitrary settlement-date window.
+     *
+     *     Two columns come from the monitoring module, resolved here through its
+     *     orders from the funnel history and per-SKU advertising from the Promotion
+     *     API statistics — the settlement report itself carries neither.
+     */
+    get: operations['get_pnl_by_sku_api_v1_finreports_pnl_skus_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/finreports/pnl/skus/{nm_id}/exclusion': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Set Sku Exclusion
+     * @description Mark or clear one SKU's «Не включать в общий счёт» flag.
+     *
+     *     The mark is stored per workspace, so it is shared across the workspace's
+     *     users, and it changes only the dashboard's «общий счёт» — the per-SKU rows
+     *     and the reconciled totals are unaffected. Idempotent in both directions.
+     */
+    put: operations['set_sku_exclusion_api_v1_finreports_pnl_skus__nm_id__exclusion_put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/finreports/cost-prices': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Cost Prices
+     * @description List the seller's per-SKU cost prices and the gaps in them.
+     */
+    get: operations['list_cost_prices_api_v1_finreports_cost_prices_get']
+    /**
+     * Save Cost Prices
+     * @description Insert or overwrite a batch of cost prices.
+     *
+     *     A whole-grid save, so the editor never has to sequence per-row requests and
+     *     a partially-applied save cannot leave the margin half-restated.
+     */
+    put: operations['save_cost_prices_api_v1_finreports_cost_prices_put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/finreports/cost-prices/{nm_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Delete Cost Price
+     * @description Clear one SKU's cost price, returning it to the "uncosted" list.
+     */
+    delete: operations['delete_cost_price_api_v1_finreports_cost_prices__nm_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/finreports/cost-prices/export': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Export Cost Prices
+     * @description Download the per-SKU P&L as an XLSX for bulk offline cost entry.
+     *
+     *     The same «По артикулам» statement the screen shows, with an editable
+     *     «Себестоимость за 1 ед.» column. The seller fills it and uploads the file
+     *     back through ``POST /cost-prices/import``. The two cross-module columns
+     *     (orders, advertising) are resolved here through the monitoring contract, the
+     *     same way ``GET /pnl/skus`` does.
+     */
+    get: operations['export_cost_prices_api_v1_finreports_cost_prices_export_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/finreports/cost-prices/import': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Import Cost Prices
+     * @description Apply the «Себестоимость» column of an uploaded cost sheet.
+     *
+     *     Accepts ``.xlsx``, ``.xls`` and ``.csv``. Costs are written only for SKUs
+     *     this workspace already knows and only in its settlement currency; blanks
+     *     change nothing and every other skip is reported. A file that is not a
+     *     readable cost sheet is a 422, not a partial, guessed import.
+     */
+    post: operations['import_cost_prices_api_v1_finreports_cost_prices_import_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     */
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Sku Evidence
+     */
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     *
+     *     the printable per-report summary, the line-by-line ledger with the
+     */
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/finreports/balance': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Balance
+     * @description Return the stock balance grid for one snapshot day.
+     *
+     *     Stock is a point-in-time snapshot with no carry-over, so the day is picked,
+     *     never a range. Asking for a day WB never reported returns an empty grid
+     *     carrying a note that says so, rather than the previous day's stock under
+     *     today's date.
+     */
+    get: operations['get_balance_api_v1_finreports_balance_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/finreports/balance/pins': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Set Balance Pin
+     * @description Pin («Закрепить») a SKU row or a warehouse column, or clear the pin.
+     *
+     *     Stored per workspace, so the pins are shared across its users. A pin changes
+     *     only what the grid puts first — never a quantity, a cost or a total.
+     *     Idempotent in both directions.
+     */
+    put: operations['set_balance_pin_api_v1_finreports_balance_pins_put']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/finreports/harvest': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Harvest State
+     * @description Report harvest liveness and this workspace's settlement coverage.
+     *
+     *     Polled by «Обновить» while a run is in flight: ``running`` falling to false
+     *     is the signal to re-fetch the statement, and ``latest_settled`` moving is
+     *     what tells the seller a new week actually arrived.
+     */
+    get: operations['get_harvest_state_api_v1_finreports_harvest_get']
+    put?: never
+    /**
+     * Trigger Harvest
+     * @description Ask WB now for any finance report we do not already hold.
+     *
+     *     Enqueues the same task the schedule runs, so the freshness gate still
+     *     applies: a workspace WB has published nothing new for is skipped after one
+     *     request rather than walked.
+     *
+     *     "Already running" is reported as a normal outcome (202) rather than a
+     *     conflict, because it is one: the data the caller wants is being fetched, and
+     *     the only thing that did not happen is a second, redundant run.
+     *
+     *     Scoped to the caller's own workspace. It used to enqueue the **fleet** walk:
+     *     one seller pressing «Обновить» spent every other seller's WB rate budget and
+     *     held the shared harvest lock for the length of a platform-wide walk, so the
+     *     cost of one click grew with the number of tenants and landed on all of them.
+     */
+    post: operations['trigger_harvest_api_v1_finreports_harvest_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/ab-tests': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Список A/Б-тестов
+     * @description Return the workspace's tests, newest first.
+     */
+    get: operations['list_tests_api_ab_tests_get']
+    put?: never
+    /**
+     * Создать тест
+     * @description Create a draft test; photos are uploaded separately.
+     */
+    post: operations['create_test_api_ab_tests_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/ab-tests/{test_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Тест с таблицей результатов
+     * @description Return one test and its per-photo metrics.
+     */
+    get: operations['get_test_api_ab_tests__test_id__get']
+    put?: never
+    post?: never
+    /**
+     * Удалить тест
+     * @description Delete a test and its photos.
+     */
+    delete: operations['delete_test_api_ab_tests__test_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/ab-tests/{test_id}/status': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Запустить, поставить на паузу или отменить
+     * @description Change a test's status; starting installs the first photo on the card.
+     *
+     *     This is the only route that needs a WB token, so it is the only one that
+     *     depends on the installer — reading a test must stay possible for a
+     *     workspace that has not stored its credentials yet.
+     */
+    patch: operations['set_status_api_ab_tests__test_id__status_patch']
+    trace?: never
+  }
+  '/api/ab-tests/{test_id}/variants': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Загрузить фото в тест
+     * @description Append a photo to the rotation and return the refreshed test.
+     *
+     *     The whole test comes back rather than just the new variant: the result
+     *     table has to re-render anyway, and one round trip keeps the upload list and
+     *     the table from disagreeing.
+     */
+    post: operations['upload_variant_api_ab_tests__test_id__variants_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/ab-tests/{test_id}/variants/{variant_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Удалить фото из теста
+     * @description Remove a photo from the rotation.
+     */
+    delete: operations['delete_variant_api_ab_tests__test_id__variants__variant_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/ab-tests/{test_id}/variants/{variant_id}/image': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Изображение варианта
+     * @description Stream a variant's stored original.
+     *
+     *     Served from our own store rather than WB's CDN because a variant that has
+     *     not been installed yet has no WB URL at all, and one that has been replaced
+     *     no longer has one.
+     */
+    get: operations['get_variant_image_api_ab_tests__test_id__variants__variant_id__image_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /**
+     * AbTestCreate
+     * @description Request body for creating a test.
+     */
+    AbTestCreate: {
+      /**
+       * Nm Id
+       * @description Артикул WB, чьё главное фото ротируется
+       */
+      nm_id: number
+      /**
+       * Name
+       * @description Название теста
+       */
+      name: string
+      /**
+       * Vendor Code
+       * @description Артикул продавца
+       * @default
+       */
+      vendor_code: string
+      /**
+       * Impression Budget
+       * @description Сколько рекламных показов должен набрать вариант до смены фото
+       * @default 10000
+       */
+      impression_budget: number
+    }
+    /**
+     * AbTestDetail
+     * @description A test plus the per-photo result table.
+     */
+    AbTestDetail: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Nm Id */
+      nm_id: number
+      /** Vendor Code */
+      vendor_code: string
+      /** Name */
+      name: string
+      /** Status */
+      status: string
+      /** Impression Budget */
+      impression_budget: number
+      /** Active Variant Id */
+      active_variant_id: string | null
+      /** Variant Count */
+      variant_count: number
+      /** Started At */
+      started_at: string | null
+      /** Finished At */
+      finished_at: string | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Leader Variant Id
+       * @description Вариант с лучшим CTR среди набравших хотя бы один полный день. None, пока сравнивать нечего.
+       */
+      leader_variant_id?: string | null
+      /** Variants */
+      variants?: components['schemas']['VariantMetrics'][]
+    }
+    /**
+     * AbTestRead
+     * @description A test as the list and the detail page show it.
+     */
+    AbTestRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Nm Id */
+      nm_id: number
+      /** Vendor Code */
+      vendor_code: string
+      /** Name */
+      name: string
+      /** Status */
+      status: string
+      /** Impression Budget */
+      impression_budget: number
+      /** Active Variant Id */
+      active_variant_id: string | null
+      /** Variant Count */
+      variant_count: number
+      /** Started At */
+      started_at: string | null
+      /** Finished At */
+      finished_at: string | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Leader Variant Id
+       * @description Вариант с лучшим CTR среди набравших хотя бы один полный день. None, пока сравнивать нечего.
+       */
+      leader_variant_id?: string | null
+    }
+    /**
+     * AbTestStatusUpdate
+     * @description Request body for starting, pausing or cancelling a test.
+     */
+    AbTestStatusUpdate: {
+      /**
+       * Status
+       * @description running | paused | cancelled
+       */
+      status: string
+    }
+    /**
+     * AcceptedResponse
+     * @description The uniform answer of an endpoint that must not disclose anything.
+     *
+     *     Both recovery request endpoints return this, always, whatever they found.
+     *     A response that varied — a 404 for an unknown address, a different message
+     *     for a disabled account — would turn the recovery form into the account
+     *     enumeration oracle ``/login`` is carefully not.
+     */
+    AcceptedResponse: {
+      /**
+       * Detail
+       * @description Deliberately says nothing about whether the address exists.
+       * @default Если такой адрес зарегистрирован, письмо с кодом отправлено.
+       */
+      detail: string
+    }
+    /**
+     * ActivationCodeCreateRequest
+     * @description Payload for a dev generating an activation code.
+     */
+    ActivationCodeCreateRequest: {
+      /**
+       * Note
+       * @description Who this was sold to, and for how much — the only record we keep.
+       * @default
+       */
+      note: string
+      /**
+       * Valid For Days
+       * @description How long the code stays redeemable; null = never expires.
+       * @default 30
+       */
+      valid_for_days: number | null
+      /**
+       * Subscription Days
+       * @description Term the code buys when redeemed.
+       * @default 30
+       */
+      subscription_days: number
+    }
+    /**
+     * ActivationCodeCreated
+     * @description A freshly generated code — the ONE response that carries its value.
+     */
+    ActivationCodeCreated: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Code
+       * @description The code to hand over. Stored hashed, so it can never be shown again.
+       */
+      code: string
+      /** Note */
+      note: string
+      /** Expires At */
+      expires_at: string | null
+      /** Subscription Days */
+      subscription_days: number
+    }
+    /**
+     * ActivationCodeRead
+     * @description A generated code as the dev list shows it — never its value.
+     */
+    ActivationCodeRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Note */
+      note: string
+      /** Expires At */
+      expires_at: string | null
+      /** Used At */
+      used_at: string | null
+      /** Organization Id */
+      organization_id: string | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+    }
+    /**
+     * ActivationRequest
+     * @description Payload for redeeming an activation code on ``/profile``.
+     */
+    ActivationRequest: {
+      /**
+       * Code
+       * @description The code we handed over.
+       */
+      code: string
+    }
     /**
      * AdMetrics
      * @description Derived advertising efficiency metrics (computed, not stored).
@@ -223,6 +1790,187 @@ export interface components {
       order_conversion: number
     }
     /**
+     * AggregateChartsResponse
+     * @description Day-by-day metrics for a set of SKUs, summed.
+     */
+    AggregateChartsResponse: {
+      window: components['schemas']['MetricWindow']
+      /**
+       * Nm Ids
+       * @description The SKUs actually included. Empty request means every SKU in the workspace, and this field reports which those turned out to be — so a chart drawn from a stale picker cannot silently claim to cover cards it never saw.
+       */
+      nm_ids?: number[]
+      /**
+       * Sku Count
+       * @description How many SKUs contributed at least one day.
+       */
+      sku_count: number
+      /** @description Day x bucket matrix carrying only «Общая» and «Органика». Every value is computed server-side, exactly like the per-SKU matrix — ratios from the summed totals, never an average of per-SKU ratios. */
+      matrix: components['schemas']['MetricsMatrixRead']
+    }
+    /**
+     * AssocSkuCount
+     * @description One variant's share of a cell's associative conversions.
+     *
+     *     The rows behind the carts/orders hover: ``nm_id`` is the size/colour
+     *     variant WB booked the conversion on — the viewed SKU included, which is
+     *     what makes the listed counts sum to the cell's number.
+     */
+    AssocSkuCount: {
+      /**
+       * Nm Id
+       * @description WB SKU identifier of the variant.
+       */
+      nm_id: number
+      /**
+       * Vendor Code
+       * @description Seller article code.
+       */
+      vendor_code?: string | null
+      /**
+       * Add To Cart
+       * @description Carts booked on this variant.
+       * @default 0
+       */
+      add_to_cart: number
+      /**
+       * Orders
+       * @description Orders booked on this variant.
+       * @default 0
+       */
+      orders: number
+    }
+    /**
+     * AuditLogEntryRead
+     * @description One entry of the organisation's own audit trail.
+     *
+     *     Every field here is already the tenant's own information: their members'
+     *     addresses, and what those members did inside their company. Nothing crosses
+     *     an organisation, because the only loader is scoped to one.
+     *
+     *     ``metadata`` is passed through as stored, which is safe by the rule the
+     *     writers keep rather than by anything done here: an entry records *which*
+     *     fields changed and never a secret value — not a WB token, not an invitation
+     *     token, not an activation code. That rule is enforced where entries are
+     *     written; this schema would happily serialise a leak, so the discipline has
+     *     to stay at the source.
+     */
+    AuditLogEntryRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Occurred At
+       * Format: date-time
+       */
+      occurred_at: string
+      /** Event */
+      event: string
+      /** Actor Email */
+      actor_email: string | null
+      /** Actor User Id */
+      actor_user_id: string | null
+      /** Target Type */
+      target_type: string | null
+      /** Target Id */
+      target_id: string | null
+      /** Ip Address */
+      ip_address: string | null
+      /** User Agent */
+      user_agent: string | null
+      /**
+       * Metadata
+       * @description Before/after for the fields that changed. Never a secret value.
+       */
+      metadata?: {
+        [key: string]: unknown
+      } | null
+    }
+    /**
+     * BalanceCell
+     * @description One SKU's stock at one warehouse, and what it cost to put there.
+     */
+    BalanceCell: {
+      /** Warehouse Name */
+      warehouse_name: string
+      /** Quantity */
+      quantity: number
+      /** In Way */
+      in_way: number
+      /** Balance */
+      balance: string | null
+      /** In Way Balance */
+      in_way_balance: string | null
+    }
+    /**
+     * BalancePinInput
+     * @description Request body for marking a SKU row or a warehouse column.
+     */
+    BalancePinInput: {
+      kind: components['schemas']['BalancePinKind']
+      /** Value */
+      value: string
+      /** Pinned */
+      pinned: boolean
+    }
+    /**
+     * BalancePinKind
+     * @description What a mark is attached to, and what it does to the grid.
+     * @enum {string}
+     */
+    BalancePinKind: 'sku' | 'warehouse' | 'warehouse_uncounted' | 'sku_uncounted'
+    /**
+     * BalanceResponse
+     * @description The whole grid for one snapshot day.
+     */
+    BalanceResponse: {
+      /**
+       * Stat Date
+       * Format: date
+       */
+      stat_date: string
+      /** Available From */
+      available_from: string | null
+      /** Available To */
+      available_to: string | null
+      /** Currency */
+      currency: string
+      /** Rows */
+      rows: components['schemas']['BalanceSkuRow'][]
+      /** Pinned Skus */
+      pinned_skus: number[]
+      /** Pinned Warehouses */
+      pinned_warehouses: string[]
+      /** Uncounted Warehouses */
+      uncounted_warehouses: string[]
+      /** Uncounted Skus */
+      uncounted_skus: number[]
+      /** Uncosted Count */
+      uncosted_count: number
+      /** Notes */
+      notes: string[]
+    }
+    /**
+     * BalanceSkuRow
+     * @description One SKU's row of the grid.
+     */
+    BalanceSkuRow: {
+      /** Nm Id */
+      nm_id: number
+      /** Sa Name */
+      sa_name: string
+      /** Subject Name */
+      subject_name: string
+      /** Brand Name */
+      brand_name: string
+      /** Cost Price */
+      cost_price: string | null
+      /** Cells */
+      cells: components['schemas']['BalanceCell'][]
+    }
+    /**
      * BaselineDemandRead
      * @description Cleansed baseline organic demand for one SKU over a window.
      *
@@ -247,6 +1995,22 @@ export interface components {
        * @description Days that contributed to the average.
        */
       considered_days: number
+    }
+    /** Body_import_cost_prices_api_v1_finreports_cost_prices_import_post */
+    Body_import_cost_prices_api_v1_finreports_cost_prices_import_post: {
+      /**
+       * File
+       * @description Cost sheet (.xlsx, .xls or .csv) with costs filled in.
+       */
+      file: string
+    }
+    /** Body_upload_variant_api_ab_tests__test_id__variants_post */
+    Body_upload_variant_api_ab_tests__test_id__variants_post: {
+      /**
+       * File
+       * @description Изображение до 32 МБ
+       */
+      file: string
     }
     /**
      * CampaignAdvertising
@@ -340,8 +2104,431 @@ export interface components {
       metrics: components['schemas']['AdMetrics']
     }
     /**
+     * ClusterDayStat
+     * @description One day of a cluster's window (the trend behind a row).
+     */
+    ClusterDayStat: {
+      /**
+       * Stat Date
+       * Format: date
+       */
+      stat_date: string
+      /** Views */
+      views: number
+      /** Clicks */
+      clicks: number
+      /** Orders */
+      orders: number
+      /** Spend */
+      spend: number
+    }
+    /**
+     * CommentUpdateRequest
+     * @description Body of the note endpoint: the field(s) the user just edited.
+     *
+     *     Both fields are optional and mean "leave unchanged" when omitted, so the
+     *     header and the comment save independently without either clobbering the
+     *     other. Sending a field as blank clears it; clearing both deletes the day's
+     *     row.
+     */
+    CommentUpdateRequest: {
+      /**
+       * Body
+       * @description New comment text; blank clears it, omitted leaves it as is.
+       */
+      body?: string | null
+      /**
+       * Header
+       * @description New header text; blank clears it, omitted leaves it as is.
+       */
+      header?: string | null
+    }
+    /**
+     * CostPriceBulkInput
+     * @description A batch of cost prices — the editor saves the whole grid at once.
+     */
+    CostPriceBulkInput: {
+      /** Items */
+      items: components['schemas']['CostPriceInput'][]
+    }
+    /**
+     * CostPriceImportIssue
+     * @description One row of an uploaded workbook the import could not apply.
+     *
+     *     Only rows that *looked* intended and failed are reported — a blank cost is
+     *     the norm for an uncosted SKU and is skipped without an issue. Each carries
+     *     the sheet row so the seller can find and fix the offending line.
+     */
+    CostPriceImportIssue: {
+      /** Row */
+      row: number
+      /** Nm Id */
+      nm_id?: number | null
+      /** Reason */
+      reason: string
+    }
+    /**
+     * CostPriceImportResponse
+     * @description Outcome of an XLSX cost-price import.
+     *
+     *     ``applied`` costs were written; ``skipped`` rows were not (a blank cost, an
+     *     unknown SKU, or a value the validator rejected). ``issues`` explains every
+     *     skip that was not simply an empty cell, so a partial import is never silent.
+     */
+    CostPriceImportResponse: {
+      /** Applied */
+      applied: number
+      /** Skipped */
+      skipped: number
+      /** Issues */
+      issues?: components['schemas']['CostPriceImportIssue'][]
+    }
+    /**
+     * CostPriceInput
+     * @description One cost price submitted by the seller.
+     */
+    CostPriceInput: {
+      /**
+       * Nm Id
+       * @description WB SKU identifier.
+       */
+      nm_id: number
+      /**
+       * Cost
+       * @description Cost of one unit including fulfilment.
+       */
+      cost: number | string
+      /**
+       * Currency
+       * @default KGS
+       */
+      currency: string
+      /**
+       * Vendor Code
+       * @default
+       */
+      vendor_code: string
+      /**
+       * Note
+       * @default
+       */
+      note: string
+    }
+    /**
+     * CostPriceItem
+     * @description One SKU's stated cost of goods, as returned to the editor.
+     */
+    CostPriceItem: {
+      /** Nm Id */
+      nm_id: number
+      /** Cost */
+      cost: string
+      /** Currency */
+      currency: string
+      /** Vendor Code */
+      vendor_code: string
+      /** Source */
+      source: string
+      /** Note */
+      note: string
+      /** Updated At */
+      updated_at?: string | null
+      /**
+       * Sold Units
+       * @default 0
+       */
+      sold_units: number
+    }
+    /**
+     * CostPriceListResponse
+     * @description Every cost price on file, plus the SKUs still missing one.
+     */
+    CostPriceListResponse: {
+      /** Currency */
+      currency: string
+      /** Items */
+      items: components['schemas']['CostPriceItem'][]
+      /** Missing */
+      missing: components['schemas']['CostPriceItem'][]
+    }
+    /**
+     * CostPriceSaveResponse
+     * @description Outcome of a bulk save.
+     */
+    CostPriceSaveResponse: {
+      /** Saved */
+      saved: number
+    }
+    /**
+     * @description Dispute-ready evidence bundle for one SKU.
+     */
+      /** Nm Id */
+      nm_id: number
+      /** Sa Name */
+      sa_name: string
+      /**
+       * Date From
+       * Format: date
+       */
+      date_from: string
+      /**
+       * Date To
+       * Format: date
+       */
+      date_to: string
+      /** Declared Volume L */
+      declared_volume_l: string | null
+      /** Volume Ratio */
+      volume_ratio: string | null
+      /** Transactions */
+      transactions: components['schemas']['LogisticsTxnItem'][]
+    }
+    /**
+     *
+     *     so only the penalty component is known for that SKU.
+     */
+      /** Nm Id */
+      nm_id: number
+      /** Sa Name */
+      sa_name: string
+      /** Currency */
+      currency: string
+      /** Declared Volume L */
+      declared_volume_l: string | null
+      /** Volume Ratio */
+      volume_ratio: string | null
+      /** Logistics Billed */
+      logistics_billed: string
+      /** Logistics Fair */
+      logistics_fair: string
+      /** Logistics Overpay */
+      logistics_overpay: string
+      /** Cost Ratio */
+      cost_ratio: string | null
+      /**
+       * Storage Billed
+       * @default 0
+       */
+      storage_billed: string
+      /**
+       * Storage Overpay
+       * @default 0
+       */
+      storage_overpay: string
+      /** Gabarit Penalty */
+      total_damage: string
+      /** Delivery Units */
+      delivery_units: number
+      /** Logistics Rows */
+      logistics_rows: number
+      /** Has Measurement */
+      has_measurement: boolean
+      /** Remeasure Provable */
+    }
+    /**
+     */
+      /**
+       * Date From
+       * Format: date
+       */
+      date_from: string
+      /**
+       * Date To
+       * Format: date
+       */
+      date_to: string
+      /** Skus */
+      /** Notes */
+      notes: string[]
+    }
+    /**
+     * @description Window-level totals across all SKUs.
+     */
+      /** Currency */
+      currency: string
+      /** Logistics Billed */
+      logistics_billed: string
+      /** Logistics Fair */
+      logistics_fair: string
+      /** Logistics Overpay */
+      logistics_overpay: string
+      /**
+       * Storage Billed
+       * @default 0
+       */
+      storage_billed: string
+      /**
+       * Storage Fair
+       * @default 0
+       */
+      storage_fair: string
+      /**
+       * Storage Overpay
+       * @default 0
+       */
+      storage_overpay: string
+      /**
+       * Storage Days
+       * @default 0
+       */
+      storage_days: number
+      /** Gabarit Penalty */
+      total_damage: string
+      /** Overpay Ratio */
+      overpay_ratio: string | null
+    }
+    /**
+     * DayActionResponse
+     * @description One SKU-day's stored action state after a save.
+     *
+     *     ``action`` is ``None`` when the save cleared every answer and the day's
+     *     row was deleted.
+     */
+    DayActionResponse: {
+      /**
+       * Nm Id
+       * @description WB SKU identifier.
+       */
+      nm_id: number
+      /**
+       * Action Date
+       * Format: date
+       * @description The day the actions describe.
+       */
+      action_date: string
+      /** @description The stored state, or null after a full clear. */
+      action?: components['schemas']['DayActionState'] | null
+    }
+    /**
+     * DayActionState
+     * @description The full answered state of one SKU-day's action row.
+     *
+     *     Used both as the update request (the frontend PUTs the WHOLE day state —
+     *     last write wins, same as the comment note) and as the per-day value in the
+     *     detail response's ``day_actions`` map.
+     */
+    DayActionState: {
+      /**
+       * First Rk Type
+       * @description «Первая РК» campaign type, null when unset.
+       */
+      first_rk_type?: ('uni' | 'manual_search' | 'manual_shelves' | 'cpc') | null
+      /**
+       * First Rk Budget
+       * @description First campaign «Бюджет рекламы», rubles.
+       */
+      first_rk_budget?: number | null
+      /**
+       * Second Rk Type
+       * @description «Вторая РК» campaign type, null when unset.
+       */
+      second_rk_type?: ('uni' | 'manual_search' | 'manual_shelves' | 'cpc') | null
+      /**
+       * Second Rk Budget
+       * @description Second campaign «Бюджет рекламы», rubles.
+       */
+      second_rk_budget?: number | null
+      /**
+       * Price Change
+       * @description «Меняли цену?» — up (повысили) / down (понизили).
+       */
+      price_change?: ('up' | 'down') | null
+      /**
+       * Price Change Amount
+       * @description «На сколько» — the price difference, rubles.
+       */
+      price_change_amount?: number | null
+    }
+    /**
+     * DayCommentResponse
+     * @description One SKU-day's note after a save.
+     *
+     *     ``note`` is ``None`` when the save emptied both fields and the day's row
+     *     was deleted.
+     */
+    DayCommentResponse: {
+      /**
+       * Nm Id
+       * @description WB SKU identifier.
+       */
+      nm_id: number
+      /**
+       * Comment Date
+       * Format: date
+       * @description The day the note describes.
+       */
+      comment_date: string
+      /** @description The stored note, or null after a full clear. */
+      note?: components['schemas']['DayNote'] | null
+    }
+    /**
+     * DayNote
+     * @description One day's stored note: the free-text comment and its header.
+     *
+     *     The two are independent. ``body`` is purely per-day; ``header`` is copied
+     *     onto each new day at the day boundary, as a real row, so editing it later
+     *     changes that day alone.
+     */
+    DayNote: {
+      /**
+       * Body
+       * @description The comment text ('' when absent).
+       * @default
+       */
+      body: string
+      /**
+       * Header
+       * @description The note's title ('' when absent).
+       * @default
+       */
+      header: string
+    }
+    /**
+     * EffectiveRole
+     * @description The caller's role as the rest of the application sees it.
+     *
+     *     One value, resolved from the platform role and the membership together, so
+     *     a route guard never has to consult two sources and never has to remember
+     *     which one wins.
+     * @enum {string}
+     */
+    EffectiveRole: 'dev' | 'owner' | 'manager' | 'user'
+    /**
+     * EmailConfirmRequest
+     * @description Payload proving control of an address with a mailed code.
+     */
+    EmailConfirmRequest: {
+      /**
+       * Email
+       * Format: email
+       * @description The address being confirmed.
+       */
+      email: string
+      /**
+       * Code
+       * @description The code from the message.
+       */
+      code: string
+    }
+    /**
+     * EmailResendRequest
+     * @description Payload asking for a fresh confirmation code.
+     */
+    EmailResendRequest: {
+      /**
+       * Email
+       * Format: email
+       * @description The address to send a new code to.
+       */
+      email: string
+    }
+    /**
      * FunnelDetailRead
      * @description A single day of organic funnel metrics for one SKU.
+     *
+     *     ``order_sum``/``buyout_sum`` are no longer stored on the funnel row — they
+     *     are DERIVED (``count x seller_price``) and filled in by the analytics
+     *     service, defaulting to ``0.0`` when no price snapshot is available.
      */
     FunnelDetailRead: {
       /**
@@ -362,14 +2549,16 @@ export interface components {
       order_count: number
       /**
        * Order Sum
-       * @description Ordered value in rubles.
+       * @description Ordered ₽ = order_count x seller_price.
+       * @default 0
        */
       order_sum: number
       /** Buyout Count */
       buyout_count: number
       /**
        * Buyout Sum
-       * @description Buyout value in rubles (WB `buyoutSum`).
+       * @description Buyout ₽ = buyout_count x seller_price.
+       * @default 0
        */
       buyout_sum: number
       /** Add To Wishlist */
@@ -491,6 +2680,490 @@ export interface components {
       detail?: components['schemas']['ValidationError'][]
     }
     /**
+     * HarvestStateResponse
+     * @description Whether a harvest is running, and how far the harvested history reaches.
+     */
+    HarvestStateResponse: {
+      /**
+       * Running
+       * @description True while a harvest (scheduled or manual) holds the lock. Advisory: it can change between this answer and any action taken on it.
+       */
+      running: boolean
+      /**
+       * Latest Settled
+       * @description Last settlement day this workspace's harvested reports cover. Unchanged after a finished run means WB had nothing new — which is a success, not a failure.
+       */
+      latest_settled?: string | null
+    }
+    /**
+     * HarvestTriggerResponse
+     * @description Outcome of pressing «Обновить».
+     */
+    HarvestTriggerResponse: {
+      /**
+       * Status
+       * @description 'started' — a harvest was enqueued; 'already_running' — one was already in flight and nothing was enqueued.
+       * @enum {string}
+       */
+      status: 'started' | 'already_running'
+      /**
+       * Task Id
+       * @description Celery id of the enqueued harvest, absent when none was enqueued.
+       */
+      task_id?: string | null
+    }
+    /**
+     * InvitationAcceptRequest
+     * @description Payload for accepting an invitation by its token (the link flow).
+     */
+    InvitationAcceptRequest: {
+      /** Token */
+      token: string
+    }
+    /**
+     * InvitationCreateRequest
+     * @description Payload for an owner inviting a manager.
+     *
+     *     ``email`` set addresses the invitation to an existing account, which then
+     *     finds it waiting on their own profile page; ``email`` omitted produces a
+     *     bare link the owner passes on themselves. Both forms return a link, because
+     *     an invited user who has not registered yet can only arrive through one.
+     */
+    InvitationCreateRequest: {
+      /**
+       * Email
+       * @description Address to offer it to in-app; omit for a link-only invitation.
+       */
+      email?: string | null
+      /**
+       * Valid For Days
+       * @description How long the invitation stays acceptable.
+       * @default 7
+       */
+      valid_for_days: number
+    }
+    /**
+     * InvitationCreated
+     * @description A freshly issued invitation — the ONE response carrying its token.
+     */
+    InvitationCreated: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Email */
+      email: string | null
+      /**
+       * Token
+       * @description The invitation token. Stored hashed, so it can never be shown again.
+       */
+      token: string
+      /**
+       * Expires At
+       * Format: date-time
+       */
+      expires_at: string
+    }
+    /**
+     * InvitationRead
+     * @description An issued invitation as the owner's list shows it — never its token.
+     */
+    InvitationRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Email */
+      email: string | null
+      /** Status */
+      status: string
+      /**
+       * Expires At
+       * Format: date-time
+       */
+      expires_at: string
+      /** Accepted At */
+      accepted_at: string | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+    }
+    /**
+     * LogisticsTxnItem
+     * @description One raw settlement row, for the SKU evidence drill-down.
+     */
+    LogisticsTxnItem: {
+      /** Rrd Id */
+      rrd_id: number
+      /** Rr Dt */
+      rr_dt: string | null
+      /** Supplier Oper Name */
+      supplier_oper_name: string
+      /** Bonus Type Name */
+      bonus_type_name: string
+      /** Office Name */
+      office_name: string
+      /** Gi Id */
+      gi_id: number | null
+      /** Delivery Amount */
+      delivery_amount: number
+      /** Delivery Rub */
+      delivery_rub: string
+      /** Penalty */
+      penalty: string
+      /** Currency Name */
+      currency_name: string
+    }
+    /**
+     * MatrixAdBucketBase
+     * @description The editable input facts of one ``(day, ad-bucket)`` cell.
+     *
+     *     Every metric here is the CAMPAIGN's, across all the nm_ids it delivered
+     *     for: an advertising column measures a рекламная кампания, so its spend, its
+     *     traffic and its conversions are the campaign's own — including the
+     *     conversions WB booked on associated size/colour variants
+     *     («ассоциированные конверсии»), which are orders the campaign paid for and
+     *     brought.
+     *
+     *     ``order_sum`` is ``None`` for split (unified / dual-placement) campaigns
+     *     whose order revenue cannot be attributed to a single zone — that cell
+     *     renders «—» and is not editable.
+     *
+     *     ``sku`` is the viewed card's own share of all of it (see
+     *     :class:`MatrixAdSkuBase`).
+     *
+     *     ``assoc_skus`` decomposes the conversion totals per variant for the hover,
+     *     and always sums to them. ``assoc_exact`` reports whether that decomposition
+     *     is fact or estimate: the viewed SKU's own counts always split exactly, but a
+     *     campaign running in two zones has its ASSOCIATED variants' counts
+     *     apportioned between them (WB attributes associated conversions per campaign,
+     *     never per zone) — unless one zone took none of them, where the division is
+     *     forced and the counts are exact again.
+     */
+    MatrixAdBucketBase: {
+      /**
+       * Views
+       * @default 0
+       */
+      views: number
+      /**
+       * Clicks
+       * @default 0
+       */
+      clicks: number
+      /**
+       * Add To Cart
+       * @default 0
+       */
+      add_to_cart: number
+      /**
+       * Spend
+       * @default 0
+       */
+      spend: number
+      /**
+       * Orders
+       * @default 0
+       */
+      orders: number
+      /**
+       * Order Sum
+       * @default 0
+       */
+      order_sum: number | null
+      sku?: components['schemas']['MatrixAdSkuBase']
+      /** Assoc Skus */
+      assoc_skus?: components['schemas']['AssocSkuCount'][]
+      /**
+       * Assoc Exact
+       * @default true
+       */
+      assoc_exact: boolean
+    }
+    /**
+     * MatrixAdSkuBase
+     * @description The viewed card's own share of an ad bucket's metrics.
+     *
+     *     An advertising bucket is the whole кампания; these are the part of it
+     *     booked on the card being viewed. «Общая» and «Органика» are built from
+     *     them — the card's own day, and that day minus what the ads brought — and
+     *     the carts/orders hover reports the rest as the associated share.
+     */
+    MatrixAdSkuBase: {
+      /**
+       * Views
+       * @default 0
+       */
+      views: number
+      /**
+       * Clicks
+       * @default 0
+       */
+      clicks: number
+      /**
+       * Add To Cart
+       * @default 0
+       */
+      add_to_cart: number
+      /**
+       * Spend
+       * @default 0
+       */
+      spend: number
+      /**
+       * Orders
+       * @default 0
+       */
+      orders: number
+    }
+    /**
+     * MatrixBaseState
+     * @description The full editable working copy for a SKU window (all input facts).
+     *
+     *     ``days`` is capped because this shape is a **request** body on preview and
+     *     save, not only a response: the server recomputes every cell of whatever
+     *     working copy it is handed, so an uncapped list is server-side arithmetic a
+     *     caller can ask for by the megabyte. The ceiling is the widest window the
+     *     analysis endpoints will resolve, so no legitimate client can reach it.
+     */
+    MatrixBaseState: {
+      /** Days */
+      days?: components['schemas']['MatrixDayBase'][]
+    }
+    /**
+     * MatrixCellEdit
+     * @description A single user edit targeting one matrix cell.
+     */
+    MatrixCellEdit: {
+      /**
+       * Day
+       * Format: date
+       */
+      day: string
+      /**
+       * Bucket
+       * @description Bucket key (see MATRIX_BUCKETS).
+       */
+      bucket: string
+      /**
+       * Metric
+       * @description Metric key (see MATRIX_METRIC_KEYS).
+       */
+      metric: string
+      /**
+       * Value
+       * @description The new displayed value the user typed.
+       */
+      value: number
+    }
+    /**
+     * MatrixDayBase
+     * @description All input facts for a single day column.
+     *
+     *     ``buckets`` holds only the ad buckets that delivered that day; missing ones
+     *     render «—». ``unclassified`` is the ad remainder (campaigns whose settings
+     *     are unsynced) — hidden and read-only, but summed into «Общая»/«Органика» and
+     *     the traffic-share denominator so those stay faithful.
+     *     ``lagged_buyout_percent`` and ``stock`` are precomputed facts and read-only;
+     *     «Выкупы, ₽» is derived order-date («Заказы, ₽» x «Процент выкупа»).
+     *
+     *     ``cell_overrides`` holds DISPLAY overrides for non-invertible cells (a
+     *     derived rollup, the empty «Каталог» zone, a tainted split) keyed by
+     *     ``"<bucket>:<metric>"`` — applied verbatim AFTER the formulas run, so every
+     *     cell is editable without disturbing the dynamic recompute of input cells.
+     */
+    MatrixDayBase: {
+      /**
+       * Day
+       * Format: date
+       */
+      day: string
+      /**
+       * Has Advertising
+       * @default false
+       */
+      has_advertising: boolean
+      /** Buckets */
+      buckets?: {
+        [key: string]: components['schemas']['MatrixAdBucketBase']
+      }
+      unclassified?: components['schemas']['MatrixAdBucketBase']
+      funnel?: components['schemas']['MatrixFunnelBase'] | null
+      /** Lagged Buyout Percent */
+      lagged_buyout_percent?: number | null
+      stock?: components['schemas']['MatrixStockBase'] | null
+      /** Cell Overrides */
+      cell_overrides?: {
+        [key: string]: number
+      }
+    }
+    /**
+     * MatrixFunnelBase
+     * @description The editable organic-funnel inputs for one day (the «Общая» column).
+     *
+     *     ``seller_price``/``customer_price`` are the day's snapshot prices and are
+     *     editable; «Заказы, ₽» and «СПП» derive from them (read-only). Prices are
+     *     ``None`` (rendered «—», not editable) when no snapshot exists for the day.
+     *
+     *     ``has_funnel`` is ``False`` on days WB has not served a funnel row for yet
+     *     (the CURRENT day — prices/stock are snapshotted at harvest time, but the
+     *     funnel always lags a day): the price cells render, while the count cells
+     *     stay blank and read-only (zero counts are not facts there).
+     */
+    MatrixFunnelBase: {
+      /**
+       * Open Count
+       * @default 0
+       */
+      open_count: number
+      /**
+       * Cart Count
+       * @default 0
+       */
+      cart_count: number
+      /**
+       * Order Count
+       * @default 0
+       */
+      order_count: number
+      /** Seller Price */
+      seller_price?: number | null
+      /** Customer Price */
+      customer_price?: number | null
+      /**
+       * Has Funnel
+       * @default true
+       */
+      has_funnel: boolean
+    }
+    /**
+     * MatrixMetricRow
+     * @description One metric row of the matrix, with precomputed per-cell values.
+     *
+     *     ``values`` is flat and day-major: the cell for day index ``d`` and bucket
+     *     index ``b`` (within :data:`MATRIX_BUCKETS`) lives at
+     *     ``values[d * len(buckets) + b]``. ``None`` renders as «—» (metric not
+     *     defined / not computable for that cell).
+     */
+    MatrixMetricRow: {
+      /**
+       * Key
+       * @description Stable metric identifier (see MATRIX_METRIC_KEYS).
+       */
+      key: string
+      /**
+       * Values
+       * @description Flat day-major cell values: values[day * len(buckets) + bucket].
+       */
+      values?: (number | null)[]
+    }
+    /**
+     * MatrixPreviewRequest
+     * @description Body of the preview endpoint: the working copy plus one pending edit.
+     */
+    MatrixPreviewRequest: {
+      base: components['schemas']['MatrixBaseState']
+      edit: components['schemas']['MatrixCellEdit']
+    }
+    /**
+     * MatrixPreviewResponse
+     * @description Result of a preview: the recomputed working copy and display matrix.
+     */
+    MatrixPreviewResponse: {
+      base: components['schemas']['MatrixBaseState']
+      matrix: components['schemas']['MetricsMatrixRead']
+    }
+    /**
+     * MatrixSaveRequest
+     * @description Body of the save endpoint: the working copy to persist as overrides.
+     */
+    MatrixSaveRequest: {
+      base: components['schemas']['MatrixBaseState']
+    }
+    /**
+     * MatrixStockBase
+     * @description The day's stock totals (read-only facts, «Общая» column).
+     *
+     *     Carried from the nearest stock snapshot (see the matrix builder); never
+     *     editable — stock is a harvested fact, not a derivable input.
+     */
+    MatrixStockBase: {
+      /**
+       * Quantity
+       * @default 0
+       */
+      quantity: number
+      /**
+       * In Way To Client
+       * @default 0
+       */
+      in_way_to_client: number
+      /**
+       * In Way From Client
+       * @default 0
+       */
+      in_way_from_client: number
+    }
+    /**
+     * MeResponse
+     * @description Everything the SPA needs to decide what to render, in one call.
+     *
+     *     Deliberately one response rather than three: the router guard blocks the
+     *     first paint until it knows the role, the organisation and the subscription
+     *     state, and three round trips on that path is three chances to show a
+     *     half-configured shell.
+     *
+     *     ``organization``, ``subscription`` and ``members`` are all ``None`` for a
+     *     freshly registered account — which is exactly what tells the SPA to render
+     *     the «введите ключ активации» screen instead of the app.
+     */
+    MeResponse: {
+      /**
+       * User Id
+       * Format: uuid
+       */
+      user_id: string
+      /**
+       * Email
+       * Format: email
+       */
+      email: string
+      role: components['schemas']['EffectiveRole']
+      /** Internal Features */
+      internal_features: boolean
+      /** Can Write */
+      can_write: boolean
+      organization?: components['schemas']['OrganizationRead'] | null
+      subscription?: components['schemas']['SubscriptionRead'] | null
+    }
+    /**
+     * MemberRead
+     * @description One member of the caller's organisation, for the owner's member list.
+     */
+    MemberRead: {
+      /**
+       * User Id
+       * Format: uuid
+       */
+      user_id: string
+      /**
+       * Email
+       * Format: email
+       */
+      email: string
+      /** Role */
+      role: string
+      /**
+       * Joined At
+       * Format: date-time
+       */
+      joined_at: string
+    }
+    /**
      * MetricWindow
      * @description The inclusive date window an aggregate was computed over.
      */
@@ -505,6 +3178,587 @@ export interface components {
        * Format: date
        */
       end: string
+    }
+    /**
+     * MetricsMatrixRead
+     * @description The complete day x bucket metrics matrix for one SKU window.
+     */
+    MetricsMatrixRead: {
+      /**
+       * Days
+       * @description Window days, oldest first.
+       */
+      days?: string[]
+      /**
+       * Buckets
+       * @description Bucket keys in column order (see MATRIX_BUCKETS).
+       */
+      buckets?: string[]
+      /**
+       * Rows
+       * @description Metric rows in workbook order.
+       */
+      rows?: components['schemas']['MatrixMetricRow'][]
+    }
+    /**
+     * OrganizationRead
+     * @description The caller's own organisation.
+     */
+    OrganizationRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Name */
+      name: string | null
+      /** Is Primary */
+      is_primary: boolean
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+    }
+    /**
+     * OrganizationRenameRequest
+     * @description Payload to rename the caller's own organisation (owner only).
+     */
+    OrganizationRenameRequest: {
+      /** Name */
+      name: string
+    }
+    /**
+     * PasswordResetConfirmRequest
+     * @description Payload setting a new password against a mailed code.
+     */
+    PasswordResetConfirmRequest: {
+      /**
+       * Email
+       * Format: email
+       * @description The account's address.
+       */
+      email: string
+      /**
+       * Code
+       * @description The code from the message.
+       */
+      code: string
+      /**
+       * New Password
+       * @description The replacement password.
+       */
+      new_password: string
+    }
+    /**
+     * PasswordResetRequest
+     * @description Payload asking for a password-reset code.
+     */
+    PasswordResetRequest: {
+      /**
+       * Email
+       * Format: email
+       * @description The account's address.
+       */
+      email: string
+    }
+    /**
+     * PendingInvitation
+     * @description An invitation as its RECIPIENT sees it, before accepting.
+     *
+     *     Carries the organisation's name and nothing else about it. Someone who has
+     *     not accepted is not yet a member, and a preview that listed the members or
+     *     the workspaces would leak a customer's roster to whoever was mistyped into
+     *     the email field.
+     */
+    PendingInvitation: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Organization Name */
+      organization_name: string | null
+      /**
+       * Expires At
+       * Format: date-time
+       */
+      expires_at: string
+    }
+    /**
+     * PinColorUpdateRequest
+     * @description Body of the chip-colour endpoint: the desired tint.
+     */
+    PinColorUpdateRequest: {
+      /**
+       * Color
+       * @description Chip tint as #rrggbb, or null to clear it.
+       */
+      color?: string | null
+    }
+    /**
+     * PinReorderRequest
+     * @description Body of the reorder endpoint: the chip row's new left-to-right order.
+     */
+    PinReorderRequest: {
+      /**
+       * Nm Ids
+       * @description Pinned SKU identifiers in their new order.
+       */
+      nm_ids: number[]
+    }
+    /**
+     * PinUpdateRequest
+     * @description Body of the pin endpoint: the desired pinned state.
+     */
+    PinUpdateRequest: {
+      /**
+       * Pinned
+       * @description True to pin the SKU, false to unpin.
+       */
+      pinned: boolean
+    }
+    /**
+     * PinnedSkuItem
+     * @description One pinned SKU, decorated with its catalogue identity for the chip row.
+     *
+     *     ``vendor_code``/``title`` are ``None`` when the catalogue has not been
+     *     synced for the SKU yet — the chip then falls back to the raw ``nm_id``.
+     */
+    PinnedSkuItem: {
+      /**
+       * Nm Id
+       * @description WB SKU identifier.
+       */
+      nm_id: number
+      /**
+       * Vendor Code
+       * @description Seller article code.
+       */
+      vendor_code?: string | null
+      /**
+       * Title
+       * @description Product card title.
+       */
+      title?: string | null
+      /**
+       * Color
+       * @description Chip tint as #rrggbb, or null when unpainted.
+       */
+      color?: string | null
+    }
+    /**
+     * PinnedSkusResponse
+     * @description The global pinned-SKU list, in chip-row order.
+     */
+    PinnedSkusResponse: {
+      /** Items */
+      items?: components['schemas']['PinnedSkuItem'][]
+    }
+    /**
+     * PnlDashboard
+     * @description The dashboard KPIs — exclusion-aware, computed on the backend.
+     *
+     *     Separate from :attr:`PnlSkuReportResponse.totals` on purpose. ``totals`` is
+     *     the full reconciled window (Σ rows + unallocated, to the kopeck — a tested
+     *     invariant). This is what the five cards show, and its four per-SKU figures
+     *     drop the SKUs the seller marked «Не включать в общий счёт». Account-level
+     *     money («Прочие удержания») has no SKU, so it is never affected by a mark.
+     */
+    PnlDashboard: {
+      /** Sales */
+      sales: string
+      /** Paid */
+      paid: string
+      /** Sold Units */
+      sold_units: number
+      /** Return Rate Pct */
+      return_rate_pct: string | null
+      /** Logistics */
+      logistics: string
+      /** Logistics Pct */
+      logistics_pct: string | null
+      /** Cogs */
+      cogs: string
+      /** Uncosted Count */
+      uncosted_count: number
+      /** Payout Net */
+      payout_net: string
+      /** Other Deductions */
+      other_deductions: string
+      /** Advertising */
+      advertising: string
+      /** Excluded Count */
+      excluded_count: number
+    }
+    /**
+     * PnlGrouping
+     * @description How the statement's rows are cut.
+     * @enum {string}
+     */
+    PnlGrouping: 'total' | 'week' | 'month' | 'sku'
+    /**
+     * PnlResponse
+     * @description The statement for a window, plus its per-bucket breakdown.
+     */
+    PnlResponse: {
+      /**
+       * Date From
+       * Format: date
+       */
+      date_from: string
+      /**
+       * Date To
+       * Format: date
+       */
+      date_to: string
+      /** Grouping */
+      grouping: string
+      total: components['schemas']['PnlStatement']
+      /** Buckets */
+      buckets: components['schemas']['PnlStatement'][]
+      /** Notes */
+      notes: string[]
+    }
+    /**
+     * PnlSection
+     * @description One named amount inside a statement block, with its own drill-down.
+     */
+    PnlSection: {
+      /** Label */
+      label: string
+      /** Amount */
+      amount: string
+      /** Share Pct */
+      share_pct?: string | null
+      /**
+       * Breakdown
+       * @default []
+       */
+      breakdown: components['schemas']['ReasonShare'][]
+    }
+    /**
+     * PnlSkuReportResponse
+     * @description The per-SKU report plus its reconciliation frame.
+     */
+    PnlSkuReportResponse: {
+      /**
+       * Date From
+       * Format: date
+       */
+      date_from: string
+      /**
+       * Date To
+       * Format: date
+       */
+      date_to: string
+      /** Currency */
+      currency: string
+      /** Rows */
+      rows: components['schemas']['PnlSkuRow'][]
+      unallocated: components['schemas']['PnlSkuRow'] | null
+      totals: components['schemas']['PnlSkuRow']
+      dashboard: components['schemas']['PnlDashboard']
+      /** Notes */
+      notes: string[]
+    }
+    /**
+     * PnlSkuRow
+     * @description One SKU's slice of the window, every money figure in the row currency.
+     *
+     *     Percentages are shares of :attr:`revenue_paid` (net «Продажи - Возвраты»),
+     *     matching the reference workbook's convention.
+     */
+    PnlSkuRow: {
+      /** Nm Id */
+      nm_id: number
+      /** Sa Name */
+      sa_name: string
+      /** Subject Name */
+      subject_name: string
+      /** Brand Name */
+      brand_name: string
+      /** Is Excluded */
+      is_excluded: boolean
+      /** Orders Units */
+      orders_units: number | null
+      /** Sold Units */
+      sold_units: number
+      /** Returned Units */
+      returned_units: number
+      /** Return Rate Pct */
+      return_rate_pct: string | null
+      /** Sales Amount */
+      sales_amount: string
+      /** Returns Amount */
+      returns_amount: string
+      /** Revenue Paid */
+      revenue_paid: string
+      /** Revenue Seller Price */
+      revenue_seller_price: string
+      /** Spp Amount */
+      spp_amount: string
+      /** Spp Pct */
+      spp_pct: string | null
+      /** Average Cheque */
+      average_cheque: string | null
+      /** Logistics Forward */
+      logistics_forward: string
+      /** Logistics Return */
+      logistics_return: string
+      /** Logistics Total */
+      logistics_total: string
+      /** Logistics Pct */
+      logistics_pct: string | null
+      /** Penalties Total */
+      penalties_total: string
+      /** Penalties */
+      penalties: components['schemas']['SkuPenalty'][]
+      /** Cost Price */
+      cost_price: string | null
+      /** Cogs */
+      cogs: string | null
+      /** Advertising */
+      advertising: string | null
+      /** Advertising Pct */
+      advertising_pct: string | null
+      /** Payout For Goods */
+      payout_for_goods: string
+      /** Payout Net */
+      payout_net: string
+      /** Net Profit */
+      net_profit: string | null
+      /** Net Profit Pct */
+      net_profit_pct: string | null
+      /** Roi Pct */
+      roi_pct: string | null
+      /** Romi Pct */
+      romi_pct: string | null
+    }
+    /**
+     * PnlStatement
+     * @description The full statement for one window or one grouping bucket.
+     *
+     *     The blocks read top to bottom exactly as the numbers compose:
+     *     units → revenue → what WB kept → what WB withheld → к оплате → cost → profit.
+     */
+    PnlStatement: {
+      /** Key */
+      key: string | null
+      /** Label */
+      label: string
+      /** Date From */
+      date_from: string | null
+      /** Date To */
+      date_to: string | null
+      /** Currency */
+      currency: string
+      /** Sold Units */
+      sold_units: number
+      /** Returned Units */
+      returned_units: number
+      /** Net Units */
+      net_units: number
+      /** Return Rate Pct */
+      return_rate_pct: string | null
+      /** Revenue Seller Price */
+      revenue_seller_price: string
+      /** Wb Discount */
+      wb_discount: string
+      /** Revenue Paid */
+      revenue_paid: string
+      /** Average Cheque */
+      average_cheque: string | null
+      /** Wb Commission */
+      wb_commission: string
+      /** Wb Commission Vat */
+      wb_commission_vat: string
+      /** Wb Reward */
+      wb_reward: string
+      /** Acquiring */
+      acquiring: string
+      /** Acquiring Billed Apart */
+      acquiring_billed_apart: string
+      /** Payout From Sales */
+      payout_from_sales: string
+      /** Compensations */
+      compensations: string
+      /** Payout For Goods */
+      payout_for_goods: string
+      logistics: components['schemas']['PnlSection']
+      /** Logistics Forward */
+      logistics_forward: string
+      /** Logistics Return */
+      logistics_return: string
+      /** Logistics Unlegged */
+      logistics_unlegged: string
+      storage: components['schemas']['PnlSection']
+      /** Acceptance */
+      acceptance: string
+      penalties: components['schemas']['PnlSection']
+      deductions: components['schemas']['PnlSection']
+      /** Advertising */
+      advertising: string
+      /** Additional Payments */
+      additional_payments: string
+      /** Rebill Logistic Cost */
+      rebill_logistic_cost: string
+      /** Total Withheld */
+      total_withheld: string
+      /** Payout Total */
+      payout_total: string
+      /** Cogs */
+      cogs: string
+      /** Cogs Units */
+      cogs_units: number
+      /** Cogs Coverage Pct */
+      cogs_coverage_pct: string | null
+      /** Gross Profit */
+      gross_profit: string
+      /** Margin Profit */
+      margin_profit: string
+      /** Margin Pct */
+      margin_pct: string | null
+      /** Agency Vat */
+      agency_vat: string
+      /** Settlement Rows */
+      settlement_rows: number
+    }
+    /**
+     * ReasonShare
+     * @description One WB-authored reason inside a charge line.
+     */
+    ReasonShare: {
+      /** Reason */
+      reason: string
+      /** Amount */
+      amount: string
+      /** Rows */
+      rows: number
+    }
+    /**
+     * RefreshEnqueuedResponse
+     * @description Result of enqueuing a single-SKU WB refresh (poll ``task_id``).
+     */
+    RefreshEnqueuedResponse: {
+      /**
+       * Task Id
+       * @description Celery task id to poll for completion.
+       */
+      task_id: string
+    }
+    /**
+     * RefreshStatusResponse
+     * @description Status of a single-SKU refresh task.
+     */
+    RefreshStatusResponse: {
+      /** Task Id */
+      task_id: string
+      /**
+       * Status
+       * @description Celery state: PENDING/STARTED/SUCCESS/FAILURE/...
+       */
+      status: string
+      /**
+       * Ready
+       * @description True once the task has finished (success or failure).
+       */
+      ready: boolean
+      /**
+       * Successful
+       * @description True only when the task finished successfully.
+       */
+      successful: boolean
+      /**
+       * Failed Sources
+       * @description WB sources that did not answer during an otherwise successful refresh (e.g. 'sales-funnel'). A harvest tolerates a partial WB outage, so 'successful' alone cannot tell the user why the numbers did not move.
+       */
+      failed_sources?: string[]
+    }
+    /**
+     * SessionsRevokedResponse
+     * @description Result of ending every session of one account.
+     */
+    SessionsRevokedResponse: {
+      /**
+       * Revoked
+       * @description Refresh rows revoked. Zero is a normal answer — an account with no live session — not a failure, and deliberately does not say whether the account exists.
+       */
+      revoked: number
+    }
+    /**
+     * SkuClusterItem
+     * @description One search cluster's advertising totals for this SKU over the window.
+     *
+     *     ``avg_position`` is the impression-weighted average AD position inside the
+     *     cluster and is ``None`` when WB reported no position — which is not the same
+     *     as ranking last, so it must never render as 0.
+     */
+    SkuClusterItem: {
+      /**
+       * Cluster
+       * @description Normalized search phrase WB grouped queries under.
+       */
+      cluster: string
+      /** Views */
+      views: number
+      /** Clicks */
+      clicks: number
+      /**
+       * Add To Cart
+       * @description Add-to-cart events (WB `atbs`).
+       */
+      add_to_cart: number
+      /** Orders */
+      orders: number
+      /** Spend */
+      spend: number
+      /**
+       * Ctr
+       * @description clicks / views * 100 (%).
+       */
+      ctr: number
+      /**
+       * Cpc
+       * @description spend / clicks (rubles).
+       */
+      cpc: number
+      /**
+       * Cpm
+       * @description spend / views * 1000 (rubles).
+       */
+      cpm: number
+      /**
+       * Avg Position
+       * @description Impression-weighted average ad position; None = unreported.
+       */
+      avg_position?: number | null
+      /**
+       * Days Count
+       * @description Days in the window with impressions.
+       */
+      days_count: number
+      /**
+       * Campaign Count
+       * @description Distinct campaigns that served the cluster.
+       */
+      campaign_count: number
+      /**
+       * Daily
+       * @description Per-day totals; every day of the window, zero-filled where WB reported none.
+       */
+      daily?: components['schemas']['ClusterDayStat'][]
+    }
+    /**
+     * SkuClustersResponse
+     * @description The SKU's search clusters over the window, most impressions first.
+     */
+    SkuClustersResponse: {
+      /** Nm Id */
+      nm_id: number
+      window: components['schemas']['MetricWindow']
+      /** Items */
+      items?: components['schemas']['SkuClusterItem'][]
     }
     /**
      * SkuDetailResponse
@@ -527,6 +3781,20 @@ export interface components {
        * @description Product card title.
        */
       title?: string | null
+      /**
+       * Comments
+       * @description Per-day notes (comment + header), keyed by day; days without a note are absent. Values are stored facts — the header's day-to-day carry is materialized at the day boundary, not derived here.
+       */
+      comments?: {
+        [key: string]: components['schemas']['DayNote']
+      }
+      /**
+       * Day Actions
+       * @description Per-day manager action rows («Действия»: РК toggles + budgets, price change), keyed by day; untouched days are absent.
+       */
+      day_actions?: {
+        [key: string]: components['schemas']['DayActionState']
+      }
       window: components['schemas']['MetricWindow']
       /** Funnel */
       funnel?: components['schemas']['FunnelDetailRead'][]
@@ -536,7 +3804,19 @@ export interface components {
       baseline_demand: components['schemas']['BaselineDemandRead']
       /** Advertising */
       advertising?: components['schemas']['CampaignAdvertising'][]
+      /** @description Precomputed day x traffic-bucket metrics matrix (the monitoring table renders it verbatim — no frontend math). */
+      matrix: components['schemas']['MetricsMatrixRead']
+      /** @description Editable input working copy behind the matrix (with any saved manual overrides applied) — the frontend edits this. */
+      matrix_base: components['schemas']['MatrixBaseState']
       stock: components['schemas']['StockDetail']
+    }
+    /**
+     * SkuExclusionInput
+     * @description Request body for marking a SKU «Не включать в общий счёт» (or clearing it).
+     */
+    SkuExclusionInput: {
+      /** Excluded */
+      excluded: boolean
     }
     /**
      * SkuLookupItem
@@ -578,12 +3858,38 @@ export interface components {
       items?: components['schemas']['SkuLookupItem'][]
     }
     /**
+     * SkuPenalty
+     * @description One penalty category on one SKU, named by WB's own reason string.
+     */
+    SkuPenalty: {
+      /** Reason */
+      reason: string
+      /** Amount */
+      amount: string
+    }
+    /**
      * SkuSummaryItem
      * @description Compact per-SKU rollup for the summary listing endpoint.
      *
      *     Funnel metrics are window totals (summed across days); the conversion ratios
      *     are recomputed from those totals, not averaged. Advertising and stock keep
      *     their existing rollups.
+     *
+     *     **Two attribution bases meet here, on purpose.** The funnel counts
+     *     (``total_open_count`` … ``total_orders``) are ORDER-date facts from WB's
+     *     analytics feed. The buyout/return figures are SALE-date facts from the
+     *     Statistics ``supplier/sales`` records — real per-item money, which is what
+     *     makes ``total_buyout_sum`` match the manager's Excel «Выкупы, ₽».
+     *
+     *     Consequently there is deliberately **no «Процент выкупа» here**. That metric
+     *     is ``buyouts / (buyouts + refusals-at-pickup)`` over a LAGGED cohort window
+     *     and lives on the SKU matrix (``buyout_percent``). It cannot be answered for
+     *     this endpoint's arbitrary window: refusals never become sale records, and
+     *     ``sales_funnel_daily.cancel_count`` only covers the last 22 days while this
+     *     window defaults to 30 and allows 366. Do not add a buyout-flavoured ratio
+     *     here from ``sale_record`` — its denominator (buyouts + RETURNS) is a
+     *     different, far smaller population, which is exactly how the old
+     *     ``buyout_conversion`` came to report 90% against WB's 30%.
      */
     SkuSummaryItem: {
       /**
@@ -623,14 +3929,19 @@ export interface components {
       total_order_sum: number
       /**
        * Total Buyout Count
-       * @description Total buyouts over the window.
+       * @description Buyouts RECORDED in the window (sale-date, not the window's orders).
        */
       total_buyout_count: number
       /**
        * Total Buyout Sum
-       * @description Total buyout value in rubles.
+       * @description Total buyout value in rubles (sale-date).
        */
       total_buyout_sum: number
+      /**
+       * Total Return Count
+       * @description Post-purchase returns recorded in the window (sale-date) — a buyer sending an item back AFTER buying it. NOT a refusal at pickup (WB `cancelCount`), which never becomes a sale record and drives «Процент выкупа» instead.
+       */
+      total_return_count: number
       /**
        * Total Add To Wishlist
        * @description Total add-to-favourites events.
@@ -646,11 +3957,6 @@ export interface components {
        * @description cart -> order (%), from totals.
        */
       order_conversion: number
-      /**
-       * Buyout Conversion
-       * @description order -> buyout (%), from totals.
-       */
-      buyout_conversion: number
       /**
        * Total Ad Spend
        * @description Advertising expenses over the window.
@@ -728,6 +4034,22 @@ export interface components {
       in_way_from_client: number
     }
     /**
+     * StockDayResponse
+     * @description One exact snapshot day's stock breakdown (the two-day comparison view).
+     *
+     *     ``stock`` is empty (all zeros, no cells) when no snapshot was captured on
+     *     the requested day — snapshots are never carried onto other days.
+     */
+    StockDayResponse: {
+      /**
+       * Stat Date
+       * Format: date
+       * @description The requested snapshot day.
+       */
+      stat_date: string
+      stock: components['schemas']['StockDetail']
+    }
+    /**
      * StockDetail
      * @description Stock summary plus the full size x warehouse breakdown for a SKU.
      *
@@ -760,6 +4082,11 @@ export interface components {
        * @description Per-size, per-warehouse detail.
        */
       cells?: components['schemas']['StockCell'][]
+      /**
+       * Marked Warehouses
+       * @description Warehouses marked «Отгрузить» for THIS SKU (per-SKU scope).
+       */
+      marked_warehouses?: string[]
     }
     /**
      * StockSizeTotal
@@ -776,6 +4103,36 @@ export interface components {
       /** Quantity */
       quantity: number
     }
+    /**
+     * SubscriptionRead
+     * @description An organisation's access term, as its own members see it.
+     */
+    SubscriptionRead: {
+      /**
+       * Started At
+       * Format: date-time
+       */
+      started_at: string
+      /**
+       * Expires At
+       * Format: date-time
+       */
+      expires_at: string
+      state: components['schemas']['SubscriptionState']
+      /** Max Workspaces */
+      max_workspaces?: number | null
+      /** Max Managers */
+      max_managers?: number | null
+    }
+    /**
+     * SubscriptionState
+     * @description Where an organisation sits on the expiry ramp.
+     *
+     *     See :mod:`src.modules.organizations.models.subscription` for why expiry is
+     *     a ramp rather than a cliff.
+     * @enum {string}
+     */
+    SubscriptionState: 'active' | 'grace' | 'read_only'
     /**
      * TokenPairResponse
      * @description Access-token response body.
@@ -831,6 +4188,8 @@ export interface components {
       email: string
       /** Is Active */
       is_active: boolean
+      /** Role */
+      role: string
       /**
        * Created At
        * Format: date-time
@@ -866,6 +4225,205 @@ export interface components {
       input?: unknown
       /** Context */
       ctx?: Record<string, never>
+    }
+    /**
+     * VariantMetrics
+     * @description One photo's row in the result table.
+     *
+     *     The field order mirrors the columns the UI renders, which is the order WB's
+     *     own A/B result screen uses: the three chained ratios first, then the raw
+     *     counts they are derived from.
+     */
+    VariantMetrics: {
+      /**
+       * Variant Id
+       * Format: uuid
+       */
+      variant_id: string
+      /** Position */
+      position: number
+      /**
+       * Image Url
+       * @description Где SPA заберёт само изображение
+       */
+      image_url: string
+      /**
+       * Is Active
+       * @description Это фото сейчас стоит на карточке
+       */
+      is_active: boolean
+      /**
+       * Click Through
+       * @description Доля переходов в карточку, %
+       */
+      click_through: string | null
+      /**
+       * Add To Cart
+       * @description Доля добавлений в корзину, %
+       */
+      add_to_cart: string | null
+      /**
+       * Order Rate
+       * @description Доля оформлений заказов, %
+       */
+      order_rate: string | null
+      /**
+       * Views
+       * @description Показы карточки в выдаче
+       */
+      views: number
+      /**
+       * Clicks
+       * @description Переходы в карточку
+       */
+      clicks: number
+      /**
+       * Atbs
+       * @description Добавления в корзину
+       */
+      atbs: number
+      /**
+       * Orders
+       * @description Оформления заказов
+       */
+      orders: number
+      /**
+       * Spend
+       * @description Расход на рекламу за дни этого варианта
+       */
+      spend: string
+      /**
+       * Days Measured
+       * @description Сколько полных дней зачтено этому фото
+       */
+      days_measured: number
+    }
+    /**
+     * WarehouseMarkUpdateRequest
+     * @description Set or clear the «Отгрузить» mark on one warehouse of one SKU.
+     */
+    WarehouseMarkUpdateRequest: {
+      /**
+       * Warehouse Name
+       * @description WB warehouse name as reported by the stocks report.
+       */
+      warehouse_name: string
+      /**
+       * Marked
+       * @description True to mark («Отгрузить»), False to unmark.
+       */
+      marked: boolean
+    }
+    /**
+     * WarehouseMarksResponse
+     * @description The SKU's marked warehouses after an update.
+     */
+    WarehouseMarksResponse: {
+      /**
+       * Marked Warehouses
+       * @description Marked warehouse names, alphabetically.
+       */
+      marked_warehouses?: string[]
+    }
+    /**
+     * WeekPeriod
+     * @description One WB weekly realization-report period (a selectable "week").
+     */
+    WeekPeriod: {
+      /** Report Id */
+      report_id: number
+      /**
+       * Date From
+       * Format: date
+       */
+      date_from: string
+      /**
+       * Date To
+       * Format: date
+       */
+      date_to: string
+    }
+    /**
+     * WeeksResponse
+     * @description The list of harvested weekly report periods, newest first.
+     */
+    WeeksResponse: {
+      /** Weeks */
+      weeks: components['schemas']['WeekPeriod'][]
+    }
+    /**
+     * WorkspaceCreateRequest
+     * @description Payload to create a new workspace.
+     */
+    WorkspaceCreateRequest: {
+      /**
+       * Name
+       * @description Unique workspace name.
+       */
+      name: string
+    }
+    /**
+     * WorkspaceListResponse
+     * @description Every workspace visible to the caller (all of them, for now).
+     */
+    WorkspaceListResponse: {
+      /** Items */
+      items: components['schemas']['WorkspaceRead'][]
+    }
+    /**
+     * WorkspaceRead
+     * @description Public representation of a workspace.
+     */
+    WorkspaceRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Name */
+      name: string
+      /** Is Primary */
+      is_primary: boolean
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+    }
+    /**
+     * WorkspaceTokensStatus
+     * @description Which token kinds are configured for a workspace (values never leave the DB).
+     */
+    WorkspaceTokensStatus: {
+      /**
+       * Workspace Id
+       * Format: uuid
+       */
+      workspace_id: string
+      /** Is Primary */
+      is_primary: boolean
+      /** Configured */
+      configured: string[]
+    }
+    /**
+     * WorkspaceTokensUpdateRequest
+     * @description Payload to set/rotate a workspace's WB tokens.
+     *
+     *     ``tokens`` maps a token kind (a :class:`~.models.TokenKind` slug — one of
+     *     the 13 WB categories for a primary workspace, or ``"unified"`` for any
+     *     other) to its value. Per entry: a non-empty string sets/rotates the token,
+     *     an empty string deletes it, and an absent kind is left untouched (so one
+     *     token can be rotated without re-entering the rest). The service validates
+     *     the kinds against the workspace's mode.
+     */
+    WorkspaceTokensUpdateRequest: {
+      /**
+       * Tokens
+       * @description Map of token-kind slug -> value ('' deletes, absent = untouched).
+       */
+      tokens?: {
+        [key: string]: string | null
+      }
     }
   }
   responses: never
@@ -919,13 +4477,6 @@ export interface operations {
         content: {
           'application/json': components['schemas']['UserRead']
         }
-      }
-      /** @description Registration disabled or invalid invite code. */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
       }
       /** @description Email already registered. */
       409: {
@@ -1044,6 +4595,105 @@ export interface operations {
       }
     }
   }
+  me_api_v1_auth_me_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The authenticated user's account. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['UserRead']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  logout_everywhere_api_v1_auth_logout_all_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Every session of the calling account was ended. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SessionsRevokedResponse']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  revoke_account_sessions_api_v1_auth_sessions__user_id__revoke_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        user_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Every session of the named account was ended. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SessionsRevokedResponse']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Developer role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
   logout_api_v1_auth_logout_post: {
     parameters: {
       query?: never
@@ -1073,6 +4723,1103 @@ export interface operations {
       }
     }
   }
+  confirm_email_api_v1_auth_confirm_email_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EmailConfirmRequest']
+      }
+    }
+    responses: {
+      /** @description Address confirmed. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AcceptedResponse']
+        }
+      }
+      /** @description The code is wrong, expired, or already used. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Too many attempts; retry later. */
+      429: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  resend_confirmation_api_v1_auth_resend_confirmation_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EmailResendRequest']
+      }
+    }
+    responses: {
+      /** @description Accepted. Says nothing about whether the address exists. */
+      202: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AcceptedResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+      /** @description Too many attempts; retry later. */
+      429: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  request_password_reset_api_v1_auth_password_reset_request_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PasswordResetRequest']
+      }
+    }
+    responses: {
+      /** @description Accepted. Says nothing about whether the address exists. */
+      202: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AcceptedResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+      /** @description Too many attempts; retry later. */
+      429: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  reset_password_api_v1_auth_password_reset_confirm_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PasswordResetConfirmRequest']
+      }
+    }
+    responses: {
+      /** @description Password changed; every session was ended. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AcceptedResponse']
+        }
+      }
+      /** @description The code is wrong, expired, or already used. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Too many attempts; retry later. */
+      429: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  read_me_api_v1_organizations_me_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The caller's role, organisation and subscription. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MeResponse']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  activate_api_v1_organizations_activate_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ActivationRequest']
+      }
+    }
+    responses: {
+      /** @description Organisation created; the caller is now its owner. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['OrganizationRead']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The code is unknown, already used, or expired. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description This account already belongs to an organisation. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_my_invitations_api_v1_organizations_invitations_mine_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Live invitations addressed to the caller's email. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PendingInvitation'][]
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  accept_invitation_api_v1_organizations_invitations_accept_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['InvitationAcceptRequest']
+      }
+    }
+    responses: {
+      /** @description Joined; the refreshed session picture is returned. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MeResponse']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The invitation is invalid, expired, or not yours. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description This account already belongs to an organisation. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  rename_organization_api_v1_organizations_patch: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['OrganizationRenameRequest']
+      }
+    }
+    responses: {
+      /** @description Renamed. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['OrganizationRead']
+        }
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_members_api_v1_organizations_members_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The organisation's members, owner first. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MemberRead'][]
+        }
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  remove_member_api_v1_organizations_members__user_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        user_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Member removed; their account keeps existing. */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such member in this organisation. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The owner cannot be removed. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  read_audit_log_api_v1_organizations_audit_log_get: {
+    parameters: {
+      query?: {
+        limit?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description This organisation's own audit trail, newest first. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AuditLogEntryRead'][]
+        }
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_invitations_api_v1_organizations_invitations_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Every invitation issued, newest first. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['InvitationRead'][]
+        }
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  create_invitation_api_v1_organizations_invitations_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['InvitationCreateRequest']
+      }
+    }
+    responses: {
+      /** @description Issued; the response carries the token exactly once. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['InvitationCreated']
+        }
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The manager quota is full. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  revoke_invitation_api_v1_organizations_invitations__invitation_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        invitation_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Withdrawn (idempotent). */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such invitation in this organisation. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Already accepted — remove the member instead. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_activation_codes_api_v1_organizations_codes_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Every generated code — values are never included. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ActivationCodeRead'][]
+        }
+      }
+      /** @description Developer role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  create_activation_code_api_v1_organizations_codes_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ActivationCodeCreateRequest']
+      }
+    }
+    responses: {
+      /** @description Generated; the response carries the code exactly once. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ActivationCodeCreated']
+        }
+      }
+      /** @description Developer role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_workspaces_api_v1_workspaces_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The caller's organisation's workspaces. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['WorkspaceListResponse']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The account belongs to no organisation. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  create_workspace_api_v1_workspaces_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WorkspaceCreateRequest']
+      }
+    }
+    responses: {
+      /** @description Workspace created inside the caller's organisation. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['WorkspaceRead']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Workspace name already exists. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The organisation is at its workspace quota. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  delete_workspace_api_v1_workspaces__workspace_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        workspace_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Workspace and its stored tokens deleted. */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such workspace in this organisation. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_token_status_api_v1_workspaces__workspace_id__tokens_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        workspace_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Which WB surfaces have a token configured. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['WorkspaceTokensStatus']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such workspace in this organisation. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  set_tokens_api_v1_workspaces__workspace_id__tokens_put: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        workspace_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WorkspaceTokensUpdateRequest']
+      }
+    }
+    responses: {
+      /** @description Tokens updated; resulting configuration status. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['WorkspaceTokensStatus']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such workspace in this organisation. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Token kind not valid for this workspace's mode. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  refresh_sku_api_v1_monitoring_skus__nm_id__refresh_post: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description A WB refresh for this SKU was enqueued. */
+      202: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RefreshEnqueuedResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description SKU not found in this workspace. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+      /** @description This workspace's refresh budget is spent. */
+      429: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  refresh_all_skus_api_v1_monitoring_skus_refresh_all_post: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description A WB refresh for every workspace SKU was enqueued. */
+      202: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RefreshEnqueuedResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The workspace has no SKUs to refresh. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+      /** @description This workspace's refresh budget is spent. */
+      429: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  get_refresh_status_api_v1_monitoring_refresh__task_id__get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        task_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Current state of a single-SKU refresh task. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RefreshStatusResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such refresh task in this workspace. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_sku_clusters_api_v1_monitoring_skus__nm_id__clusters_get: {
+    parameters: {
+      query?: {
+        /** @description Inclusive start. */
+        date_from?: string | null
+        /** @description Inclusive end. */
+        date_to?: string | null
+        /** @description Maximum clusters returned. */
+        limit?: number
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The SKU's search clusters over the window, best first. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SkuClustersResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such SKU in the active workspace. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Invalid date window. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
   get_summary_api_v1_monitoring_summary_get: {
     parameters: {
       query?: {
@@ -1085,7 +5832,10 @@ export interface operations {
         /** @description Page offset (by SKU order). */
         offset?: number
       }
-      header?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
       path?: never
       cookie?: never
     }
@@ -1116,13 +5866,226 @@ export interface operations {
       }
     }
   }
+  get_aggregate_charts_api_v1_monitoring_charts_get: {
+    parameters: {
+      query?: {
+        /** @description Inclusive start. */
+        date_from?: string | null
+        /** @description Inclusive end. */
+        date_to?: string | null
+        /** @description SKUs to include. Repeat the parameter for several; omit it entirely for every SKU in the workspace, which is what the page shows by default. */
+        nm_ids?: number[] | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Account-wide daily series for the window. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AggregateChartsResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Invalid date window. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  list_pins_api_v1_monitoring_pins_get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The global pinned-SKU list, in chip-row order. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PinnedSkusResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  reorder_pins_api_v1_monitoring_pins_order_put: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PinReorderRequest']
+      }
+    }
+    responses: {
+      /** @description Order saved; the reordered pinned list is returned. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PinnedSkusResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The list is not exactly the current pinned set. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  set_pin_api_v1_monitoring_skus__nm_id__pin_put: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PinUpdateRequest']
+      }
+    }
+    responses: {
+      /** @description Pin updated; the full pinned list is returned. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PinnedSkusResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Invalid payload. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  set_pin_color_api_v1_monitoring_skus__nm_id__pin_color_put: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PinColorUpdateRequest']
+      }
+    }
+    responses: {
+      /** @description Chip painted; the full pinned list is returned. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PinnedSkusResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Invalid payload (colour is not #rrggbb). */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
   lookup_skus_api_v1_monitoring_skus_lookup_get: {
     parameters: {
       query: {
         /** @description Seller article code or fragment (e.g. 'M-TRX01' or 'M-TRX01-BLK'). */
         vendor_code: string
       }
-      header?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
       path?: never
       cookie?: never
     }
@@ -1166,7 +6129,10 @@ export interface operations {
         campaign_status?:
           ('active' | 'paused' | 'completed' | 'ready' | 'declined' | 'deleting' | 'unknown') | null
       }
-      header?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
       path: {
         nm_id: number
       }
@@ -1206,6 +6172,270 @@ export interface operations {
       }
     }
   }
+  get_stock_day_api_v1_monitoring_skus__nm_id__stock_get: {
+    parameters: {
+      query: {
+        /** @description Exact snapshot day (empty breakdown when unobserved). */
+        on_date: string
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The day's size x warehouse stock breakdown. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['StockDayResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Invalid date. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  set_warehouse_mark_api_v1_monitoring_skus__nm_id__warehouse_marks_put: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WarehouseMarkUpdateRequest']
+      }
+    }
+    responses: {
+      /** @description Mark updated; the SKU's marked warehouses are returned. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['WarehouseMarksResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Invalid payload. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  set_day_comment_api_v1_monitoring_skus__nm_id__comments__comment_date__put: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        comment_date: string
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CommentUpdateRequest']
+      }
+    }
+    responses: {
+      /** @description Comment saved (or cleared); the stored note is returned. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DayCommentResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Invalid payload (e.g. body too long) or date. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  set_day_action_api_v1_monitoring_skus__nm_id__actions__action_date__put: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        action_date: string
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DayActionState']
+      }
+    }
+    responses: {
+      /** @description Day actions saved (or cleared); the stored state is returned. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DayActionResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Invalid payload (e.g. negative budget) or date. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  preview_matrix_edit_api_v1_monitoring_skus__nm_id__matrix_preview_post: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MatrixPreviewRequest']
+      }
+    }
+    responses: {
+      /** @description Recomputed working copy + matrix after one edit. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MatrixPreviewResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Edit targets a read-only / non-invertible cell. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  save_matrix_api_v1_monitoring_skus__nm_id__matrix_put: {
+    parameters: {
+      query?: {
+        /** @description Inclusive start. */
+        date_from?: string | null
+        /** @description Inclusive end. */
+        date_to?: string | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MatrixSaveRequest']
+      }
+    }
+    responses: {
+      /** @description Overrides saved; the refreshed detail is returned. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SkuDetailResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Invalid date window. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
   get_sku_funnel_api_v1_monitoring_funnel__nm_id__get: {
     parameters: {
       query?: {
@@ -1214,7 +6444,10 @@ export interface operations {
         /** @description Inclusive end. */
         date_to?: string | null
       }
-      header?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
       path: {
         nm_id: number
       }
@@ -1251,6 +6484,1023 @@ export interface operations {
           [name: string]: unknown
         }
         content?: never
+      }
+    }
+  }
+  list_weeks_api_v1_finreports_weeks_get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Harvested weekly report periods (newest first). */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['WeeksResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_pnl_api_v1_finreports_pnl_get: {
+    parameters: {
+      query?: {
+        /** @description Inclusive settlement-date start. */
+        date_from?: string | null
+        /** @description Inclusive settlement-date end. */
+        date_to?: string | null
+        /** @description How the breakdown rows are cut. */
+        grouping?: components['schemas']['PnlGrouping']
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Settlement-basis P&L for the window. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PnlResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_pnl_by_sku_api_v1_finreports_pnl_skus_get: {
+    parameters: {
+      query?: {
+        /** @description Inclusive settlement-date start. */
+        date_from?: string | null
+        /** @description Inclusive settlement-date end. */
+        date_to?: string | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Per-SKU P&L rows for the window («По артикулам»). */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PnlSkuReportResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  set_sku_exclusion_api_v1_finreports_pnl_skus__nm_id__exclusion_put: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SkuExclusionInput']
+      }
+    }
+    responses: {
+      /** @description SKU marked «Не включать в общий счёт», or cleared. */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_cost_prices_api_v1_finreports_cost_prices_get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Cost prices on file, plus SKUs still missing one. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CostPriceListResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  save_cost_prices_api_v1_finreports_cost_prices_put: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CostPriceBulkInput']
+      }
+    }
+    responses: {
+      /** @description Cost prices saved. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CostPriceSaveResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description A negative/absurd cost, or one nm_id twice. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  delete_cost_price_api_v1_finreports_cost_prices__nm_id__delete: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Cost price removed (or was already absent). */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  export_cost_prices_api_v1_finreports_cost_prices_export_get: {
+    parameters: {
+      query?: {
+        /** @description Inclusive settlement-date start. */
+        date_from?: string | null
+        /** @description Inclusive settlement-date end. */
+        date_to?: string | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The cost-price grid as an editable XLSX workbook. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': unknown
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  import_cost_prices_api_v1_finreports_cost_prices_import_post: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_import_cost_prices_api_v1_finreports_cost_prices_import_post']
+      }
+    }
+    responses: {
+      /** @description Costs applied; the summary reports skips and issues. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CostPriceImportResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The upload is not a readable cost-price workbook. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+    parameters: {
+      query?: {
+        /** @description Inclusive settlement-date start. */
+        date_from?: string | null
+        /** @description Inclusive settlement-date end. */
+        date_to?: string | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+    parameters: {
+      query?: {
+        /** @description Inclusive settlement-date start. */
+        date_from?: string | null
+        /** @description Inclusive settlement-date end. */
+        date_to?: string | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+    parameters: {
+      query?: {
+        /** @description Inclusive settlement-date start. */
+        date_from?: string | null
+        /** @description Inclusive settlement-date end. */
+        date_to?: string | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/zip': unknown
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_balance_api_v1_finreports_balance_get: {
+    parameters: {
+      query?: {
+        /** @description Snapshot day; defaults to the newest one on record. */
+        stat_date?: string | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The SKU x warehouse stock balance for one day. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BalanceResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  set_balance_pin_api_v1_finreports_balance_pins_put: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BalancePinInput']
+      }
+    }
+    responses: {
+      /** @description Row or column pinned, or unpinned. */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_harvest_state_api_v1_finreports_harvest_get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Whether a harvest is running and what it has covered. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HarvestStateResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  trigger_harvest_api_v1_finreports_harvest_post: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description A harvest was enqueued, or one was already running. */
+      202: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HarvestTriggerResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_tests_api_ab_tests_get: {
+    parameters: {
+      query?: {
+        /** @description Поиск по названию и артикулам */
+        q?: string | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AbTestRead'][]
+        }
+      }
+      /** @description Не аутентифицирован */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_test_api_ab_tests_post: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AbTestCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AbTestRead']
+        }
+      }
+      /** @description Не аутентифицирован */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_test_api_ab_tests__test_id__get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        test_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AbTestDetail']
+        }
+      }
+      /** @description Тест не найден */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  delete_test_api_ab_tests__test_id__delete: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        test_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Тест не найден */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  set_status_api_ab_tests__test_id__status_patch: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        test_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AbTestStatusUpdate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AbTestRead']
+        }
+      }
+      /** @description Тест не найден */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Переход невозможен в текущем статусе */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Неизвестный статус */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  upload_variant_api_ab_tests__test_id__variants_post: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        test_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_upload_variant_api_ab_tests__test_id__variants_post']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AbTestDetail']
+        }
+      }
+      /** @description Тест не найден */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Достигнут предел в 10 фото */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Файл не является поддерживаемым изображением */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  delete_variant_api_ab_tests__test_id__variants__variant_id__delete: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        test_id: string
+        variant_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Тест или вариант не найден */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Фото сейчас стоит на карточке */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_variant_image_api_ab_tests__test_id__variants__variant_id__image_get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        test_id: string
+        variant_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Файл изображения */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'image/*': unknown
+        }
+      }
+      /** @description Тест, вариант или файл не найден */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
       }
     }
   }
