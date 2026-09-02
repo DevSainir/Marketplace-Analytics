@@ -8,8 +8,13 @@ organisation.
 
 from __future__ import annotations
 
+import asyncio
+import uuid
+
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+import sqlalchemy as sa
+from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from src.core.exceptions import (
     ConflictError,
@@ -196,3 +201,83 @@ async def test_a_link_only_invitation_is_offered_to_nobody(db_session: AsyncSess
     )
 
     assert await service.list_pending_for(email=other.email) == []
+
+
+async def test_two_accounts_racing_one_invitation_admit_exactly_one(
+    engine: AsyncEngine,
+) -> None:
+    """Single use is decided in the database, not by a read-then-write.
+
+    An invitation link is a single-use credential and is *made to be forwarded* —
+    an owner pastes it into a group chat, two colleagues open it in the same
+    second. Every sequential test above passes even against a check-then-write,
+    because the first acceptance has committed by the time the second looks.
+    This one runs both acceptances on their OWN connections, concurrently, so
+    they genuinely interleave the way two requests do.
+
+    Getting it wrong admits two managers on one invitation, over a quota that
+    exists to be enforced — and the register claimed this race was covered when
+    only the activation-code half of it was.
+
+    Deliberately does NOT use ``db_session``: that fixture wraps everything in
+    one rolled-back transaction whose ``commit`` is a savepoint release, so
+    nothing it writes is visible to another connection and the race cannot
+    happen at all. This commits for real and cleans up after itself.
+    """
+    try:
+        async with AsyncSession(engine, expire_on_commit=False) as setup:
+            owner = await persist_user(setup, "race-inv-owner@example.com")
+            organization = await persist_organization(setup, owner)
+            first = await persist_user(setup, "race-inv-first@example.com")
+            second = await persist_user(setup, "race-inv-second@example.com")
+            issued = await invitation_service(setup).invite(
+                organization_id=organization.id,
+                owner_user_id=owner.id,
+                email=None,  # a link-only invitation: the forwardable kind
+                valid_for_days=7,
+            )
+            organization_id = organization.id
+            first_id, second_id = first.id, second.id
+            first_email, second_email = first.email, second.email
+            await setup.commit()
+
+        async def _accept(user_id: uuid.UUID, email: str) -> str:
+            async with AsyncSession(engine, expire_on_commit=False) as session:
+                try:
+                    await invitation_service(session).accept(
+                        token=issued.token, user_id=user_id, email=email
+                    )
+                    await session.commit()
+                except (
+                    PermissionDeniedError,
+                    ConflictError,
+                    NotFoundError,
+                    IntegrityError,
+                    DBAPIError,
+                ):
+                    await session.rollback()
+                    return "refused"
+                return "joined"
+
+        outcomes = await asyncio.gather(
+            _accept(first_id, first_email), _accept(second_id, second_email)
+        )
+
+        async with AsyncSession(engine) as check:
+            members = await check.scalar(
+                sa.text(
+                    "SELECT count(*) FROM organizations.memberships "
+                    "WHERE organization_id = :org AND role = 'manager'"
+                ),
+                {"org": organization_id},
+            )
+
+        assert outcomes.count("joined") == 1, outcomes
+        assert members == 1
+    finally:
+        async with AsyncSession(engine) as cleanup:
+            await cleanup.execute(sa.text("DELETE FROM auth.users WHERE email LIKE 'race-inv-%'"))
+            await cleanup.execute(
+                sa.text("DELETE FROM organizations.organizations WHERE name = 'ООО Ромашка'")
+            )
+            await cleanup.commit()
