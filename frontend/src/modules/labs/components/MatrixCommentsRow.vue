@@ -6,6 +6,10 @@
  * row — opens it, so the table opens on numbers and the notes are there when
  * wanted.
  *
+ * Every day is one card, open or collapsed — the same glass pane the
+ * «Цены/Остатки» and «Действия» rows use, so the three bands below the grid
+ * read as one thing.
+ *
  * Each day has TWO independent fields: a one-line HEADER on top and the
  * free-text comment under it. Both are plain per-day values here — the header's
  * continuation onto a new day is done server-side at the day boundary and
@@ -113,49 +117,56 @@ function commitNote(iso, field) {
         :class="!commentsExpanded && 'comment-cell--collapsed'"
         @click="commentsExpanded || (commentsExpanded = true)"
       >
-        <!-- Header on top, comment under it: the title is what carries
-             onto the next day, the comment stays on its own. -->
-        <template v-if="commentsExpanded">
-          <input
-            v-model="headerDrafts[day.iso]"
-            type="text"
-            maxlength="200"
-            class="comment-header-input"
-            :disabled="commentSavingDays.has(day.iso)"
-            :placeholder="`Заголовок за ${day.label}`"
-            :aria-label="`Заголовок за ${day.label}`"
-            @focus="focusedNote = `${day.iso}:header`"
-            @blur="commitNote(day.iso, 'header')"
-            @keydown.enter.prevent="$event.target.blur()"
-            @keydown.esc.prevent="$event.target.blur()"
-          />
-          <textarea
-            v-model="commentDrafts[day.iso]"
-            rows="2"
-            maxlength="2000"
-            class="comment-input"
-            :disabled="commentSavingDays.has(day.iso)"
-            :placeholder="`Заметка за ${day.label}`"
-            :aria-label="`Комментарий за ${day.label}`"
-            @focus="focusedNote = `${day.iso}:body`"
-            @blur="commitNote(day.iso, 'body')"
-            @keydown.esc.prevent="$event.target.blur()"
-          ></textarea>
-        </template>
-        <!-- Collapsed: a dot marks the days that DO carry a note, so the
-             row still says where to look before it is opened. The header
-             leads, since it is the day's title. -->
-        <span
-          v-else-if="noteOf(day.iso).header || noteOf(day.iso).body"
-          class="comment-dot"
-          :title="[noteOf(day.iso).header, noteOf(day.iso).body].filter(Boolean).join(' — ')"
-        >
-          <span class="comment-dot-mark" aria-hidden="true"></span>
-          <span v-if="noteOf(day.iso).header" class="comment-dot-header">
-            {{ noteOf(day.iso).header }}
+        <!-- Collapsed or open, the day always gets its card: the band has to
+             line up with the «Цены/Остатки» and «Действия» rows above and
+             below it, and a strip of loose text between two rows of panes is
+             what it looked like when it did not. -->
+        <div class="day-comment-card" :class="!commentsExpanded && 'day-comment-card--collapsed'">
+          <!-- Header on top, comment under it: the title is what carries
+               onto the next day, the comment stays on its own. -->
+          <template v-if="commentsExpanded">
+            <input
+              v-model="headerDrafts[day.iso]"
+              type="text"
+              maxlength="200"
+              class="comment-header-input"
+              :disabled="commentSavingDays.has(day.iso)"
+              :placeholder="`Заголовок за ${day.label}`"
+              :aria-label="`Заголовок за ${day.label}`"
+              @focus="focusedNote = `${day.iso}:header`"
+              @blur="commitNote(day.iso, 'header')"
+              @keydown.enter.prevent="$event.target.blur()"
+              @keydown.esc.prevent="$event.target.blur()"
+            />
+            <textarea
+              v-model="commentDrafts[day.iso]"
+              rows="2"
+              maxlength="2000"
+              class="comment-input"
+              :disabled="commentSavingDays.has(day.iso)"
+              :placeholder="`Заметка за ${day.label}`"
+              :aria-label="`Комментарий за ${day.label}`"
+              @focus="focusedNote = `${day.iso}:body`"
+              @blur="commitNote(day.iso, 'body')"
+              @keydown.esc.prevent="$event.target.blur()"
+            ></textarea>
+          </template>
+          <!-- Collapsed: a dot marks the days that DO carry a note, so the
+               row still says where to look before it is opened. The header
+               leads, since it is the day's title. A day with no note keeps its
+               card and leaves it empty — the band stays even. -->
+          <span
+            v-else-if="noteOf(day.iso).header || noteOf(day.iso).body"
+            class="comment-dot"
+            :title="[noteOf(day.iso).header, noteOf(day.iso).body].filter(Boolean).join(' — ')"
+          >
+            <span class="comment-dot-mark" aria-hidden="true"></span>
+            <span v-if="noteOf(day.iso).header" class="comment-dot-header">
+              {{ noteOf(day.iso).header }}
+            </span>
+            <span class="comment-dot-text">{{ noteOf(day.iso).body }}</span>
           </span>
-          <span class="comment-dot-text">{{ noteOf(day.iso).body }}</span>
-        </span>
+        </div>
       </td>
     </tr>
   </tbody>

@@ -317,7 +317,7 @@
 
 .matrix-cell-input:focus,
 .comment-header-input:focus,
-.comment-text-input:focus,
+.comment-input:focus,
 .day-action-select:focus,
 .day-action-amount input:focus {
   outline: none;
@@ -486,9 +486,12 @@ textarea {
   background: var(--ui-surface);
 }
 
-/* Now the tiles can be real glass. */
+/* Now the tiles can be real glass. All three bands under the grid wear the
+   same pane: the «Цены/Остатки» tiles, the «Действия» answer cards and the
+   day-comment cards. */
 .day-block,
-.day-action-card {
+.day-action-card,
+.day-comment-card {
   background: rgba(255, 255, 255, 0.55);
   -webkit-backdrop-filter: blur(14px) saturate(180%);
   backdrop-filter: blur(14px) saturate(180%);
@@ -509,7 +512,8 @@ textarea {
 
 @media (prefers-reduced-transparency: reduce) {
   .day-block,
-  .day-action-card {
+  .day-action-card,
+  .day-comment-card {
     background: #fbfbfe;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;

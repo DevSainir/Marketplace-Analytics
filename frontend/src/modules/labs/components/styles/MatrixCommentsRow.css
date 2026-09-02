@@ -40,6 +40,33 @@
   padding: 0;
 }
 
+/* One card per day, open or collapsed: the same pane the «Цены/Остатки» tiles
+   and the «Действия» answer cards wear, so the three bands under the grid read
+   as one family instead of two card rows and a strip of loose text.
+
+   NO background here. `skin.css` names `.day-comment-card` alongside
+   `.day-block` and `.day-action-card` for the glass, and a scoped rule in this
+   file carries a `[data-v-*]` attribute that would silently outrank it — which
+   is exactly how the «Цены»/«Остатки» tints once cancelled the same treatment.
+
+*/
+.day-comment-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+/* Collapsed, the card carries a single line — the dot summary, or nothing on a
+   day with no note. `min-height` is what holds those two to the same size, so
+   the band stays a row of equal panes instead of a ragged one: 16px of line
+   (pinned on `.comment-dot`, because a font-dependent line box made an empty
+   card 3.5px shorter than a summarised one) plus the card's 6px padding. */
+.day-comment-card--collapsed {
+  justify-content: center;
+  min-height: 28px;
+}
+
 /* The disclosure control IS the row label: chevron + name, one click target. */
 .comment-toggle {
   display: flex;
@@ -71,9 +98,9 @@
   width: 100%;
   resize: vertical;
   padding: 5px 8px;
-  border: 1px solid var(--ui-hairline);
+  border: 1px solid var(--ui-rule);
   border-radius: 8px;
-  background: var(--ui-canvas);
+  background: var(--ui-surface);
   color: var(--ui-ink);
   font: inherit;
   font-size: 12px;
@@ -84,8 +111,6 @@
 }
 .comment-input:focus {
   border-color: var(--ui-action);
-  outline: 2px solid color-mix(in srgb, var(--ui-action) 30%, transparent);
-  outline-offset: 0;
 }
 .comment-input:disabled {
   opacity: 0.6;
@@ -113,13 +138,11 @@
   font-weight: 500;
 }
 .comment-header-input:hover:not(:disabled) {
-  border-color: var(--ui-hairline);
+  border-color: var(--ui-rule);
 }
 .comment-header-input:focus {
   border-color: var(--ui-action);
-  background: var(--ui-canvas);
-  outline: 2px solid color-mix(in srgb, var(--ui-action) 30%, transparent);
-  outline-offset: 0;
+  background: var(--ui-surface);
 }
 .comment-header-input:disabled {
   opacity: 0.6;
@@ -138,6 +161,7 @@
   min-width: 0;
   color: var(--ui-muted);
   font-size: 11px;
+  line-height: 16px; /* see .day-comment-card--collapsed */
 }
 .comment-dot-mark {
   flex: none;
