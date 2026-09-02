@@ -147,3 +147,48 @@ describe('session dying mid-use', () => {
     expect(router.currentRoute.value.query.redirect).toBe('/monitoring')
   })
 })
+
+describe('account recovery routes', () => {
+  it('keeps a signed-in user off the password-reset form', async () => {
+    // Same reasoning as /login: somebody who is already authenticated changes
+    // their password from their profile, not from a code mailed to them.
+    mock.onPost('/v1/auth/refresh').reply(200, session())
+    const router = buildRouter()
+
+    await router.push('/password-reset')
+
+    expect(router.currentRoute.value.name).not.toBe('password-reset')
+  })
+
+  it('lets a signed-in user reach the confirmation screen', async () => {
+    // The one route that must NOT be guest-only. Registration signs the account
+    // in and then sends it here, so a guestOnly guard would bounce every new
+    // user straight off the screen they were just handed.
+    mock.onPost('/v1/auth/refresh').reply(200, session())
+    const router = buildRouter()
+
+    await router.push('/confirm-email?email=someone@example.com')
+
+    expect(router.currentRoute.value.name).toBe('confirm-email')
+  })
+
+  it('lets a guest reach it too', async () => {
+    // Confirming from a different browser than the one that registered is the
+    // ordinary case — the link is in an email.
+    mock.onPost('/v1/auth/refresh').reply(401)
+    const router = buildRouter()
+
+    await router.push('/confirm-email')
+
+    expect(router.currentRoute.value.name).toBe('confirm-email')
+  })
+
+  it('lets a guest reach the password-reset form', async () => {
+    mock.onPost('/v1/auth/refresh').reply(401)
+    const router = buildRouter()
+
+    await router.push('/password-reset')
+
+    expect(router.currentRoute.value.name).toBe('password-reset')
+  })
+})
