@@ -146,6 +146,22 @@ def test_production_refuses_to_start_with_cors_enabled(
         _settings(env, monkeypatch)
 
 
+def test_production_refuses_an_insecure_refresh_cookie(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The refresh token is the week-long credential; `Secure` is what confines it.
+
+    Its default is already `true`, so this catches an active misconfiguration
+    rather than an omission — and that failure is silent, because the cookie
+    keeps working. It is simply no longer restricted to TLS, which is the whole
+    threat the 301 and HSTS exist to remove.
+    """
+    env = {**_SECURE_ENV, "REFRESH_COOKIE_SECURE": "false"}
+
+    with pytest.raises(ValueError, match="REFRESH_COOKIE_SECURE"):
+        _settings(env, monkeypatch)
+
+
 def test_local_may_still_use_cors_for_the_vite_dev_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

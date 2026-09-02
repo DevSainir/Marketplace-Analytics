@@ -102,6 +102,17 @@ class Settings(
             problems.append(
                 "CORS_ENABLED must be false (the SPA and API are same-origin behind nginx)"
             )
+        # The refresh token is the long-lived half of the session — the one an
+        # access token is minted from for a week. Without `Secure` a browser
+        # will send it over plain HTTP, which is the entire threat HSTS and the
+        # 301 exist to remove. The default is already `true`, so this catches an
+        # active misconfiguration rather than an omission; it is cheap, and the
+        # failure it prevents is silent (the cookie still works, it is just no
+        # longer confined to TLS).
+        if not self.refresh_cookie_secure:
+            problems.append(
+                "REFRESH_COOKIE_SECURE must be true (the refresh token would travel in clear)"
+            )
         # Synthetic harvesting fabricates analytics; letting it run anywhere but
         # a developer's own box would silently poison a real seller's numbers.
         if self.wb_fake_harvest:
