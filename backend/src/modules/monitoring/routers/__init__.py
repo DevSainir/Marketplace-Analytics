@@ -46,16 +46,17 @@ from src.modules.monitoring.schemas import (
     WarehouseMarksResponse,
     WarehouseMarkUpdateRequest,
 )
-from src.modules.organizations.contract import require_member
+from src.modules.organizations.contract import require_monitoring
 
 router = APIRouter(
     prefix="/v1/monitoring",
     tags=["Monitoring"],
-    # Membership guard applied to every route in this module. Authentication
-    # alone is no longer enough: registration is open, so a bare account must
-    # not reach a data route at all. The workspace dependency re-checks tenancy
-    # per request on top of this.
-    dependencies=[Depends(require_member)],
+    # Membership AND the module grant, applied to every route in this module.
+    # Authentication alone is no longer enough: registration is open, so a bare
+    # account must not reach a data route at all, and a manager reaches this
+    # section only if their owner granted it. The workspace dependency
+    # re-checks tenancy per request on top of both.
+    dependencies=[Depends(require_monitoring)],
 )
 # The WB re-harvest trigger surface (enqueue + poll) lives in its own module;
 # it inherits this router's prefix and access-token dependency.

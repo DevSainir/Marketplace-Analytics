@@ -25,7 +25,7 @@ from src.modules.ab_tests.schemas import (
     AbTestStatusUpdate,
 )
 from src.modules.ab_tests.services.photos import MAX_IMAGE_BYTES
-from src.modules.organizations.contract import require_internal
+from src.modules.organizations.contract import require_ab_tests
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
 router = APIRouter(
@@ -34,7 +34,7 @@ router = APIRouter(
     # Internal-only. The rotation writes to a seller's live WB card through the
     # Content API, and it was built against our own catalogue; it is not a
     # feature customers have bought. Devs and the primary organisation only.
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_ab_tests)],
 )
 
 

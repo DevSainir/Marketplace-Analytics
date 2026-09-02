@@ -36,6 +36,7 @@ from src.modules.organizations.deps import (
     require_owner,
 )
 from src.modules.organizations.models import AuditEvent
+from src.modules.organizations.routers.members import router as members_router
 from src.modules.organizations.schemas import (
     ActivationCodeCreated,
     ActivationCodeCreateRequest,
@@ -46,7 +47,6 @@ from src.modules.organizations.schemas import (
     InvitationCreated,
     InvitationCreateRequest,
     InvitationRead,
-    MemberRead,
     MeResponse,
     OrganizationRead,
     OrganizationRenameRequest,
@@ -57,6 +57,9 @@ from src.modules.organizations.services.audit import read_trail
 from src.modules.users.contract import ConfirmedUser, CurrentUser
 
 router = APIRouter(prefix="/v1/organizations", tags=["Organizations"])
+
+# The owner's member surface, mounted here so it inherits the prefix.
+router.include_router(members_router)
 
 #: Route-level guards, declared once so a route cannot pick the wrong one by
 #: retyping it.
@@ -218,55 +221,6 @@ async def rename_organization(
 
 
 @router.get(
-    "/members",
-    response_model=list[MemberRead],
-    status_code=status.HTTP_200_OK,
-    dependencies=[_owner_only],
-    responses={
-        200: {"description": "The organisation's members, owner first."},
-        403: {"description": "Owner role required."},
-    },
-)
-async def list_members(
-    access: OwnerAccess,
-    service: OrganizationServiceDep,
-) -> list[MemberRead]:
-    """List the organisation's members."""
-    return await service.list_members(organization_id=access.tenant_id)
-
-
-@router.delete(
-    "/members/{user_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[_owner_only],
-    responses={
-        204: {"description": "Member removed; their account keeps existing."},
-        403: {"description": "Owner role required."},
-        404: {"description": "No such member in this organisation."},
-        422: {"description": "The owner cannot be removed."},
-    },
-)
-async def remove_member(
-    user_id: uuid.UUID,
-    access: OwnerAccess,
-    service: OrganizationServiceDep,
-    audit: AuditTrail,
-) -> Response:
-    """Remove a manager from the organisation.
-
-    This — not revoking their invitation — is what actually withdraws access
-    once someone has joined.
-    """
-    await service.remove_member(organization_id=access.tenant_id, user_id=user_id)
-    await audit.record(
-        AuditEvent.MEMBER_REMOVED,
-        target_type="membership",
-        target_id=user_id,
-    )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get(
     "/audit-log",
     response_model=list[AuditLogEntryRead],
     status_code=status.HTTP_200_OK,
@@ -354,6 +308,7 @@ async def create_invitation(
         owner_user_id=access.user_id,
         email=payload.email,
         valid_for_days=payload.valid_for_days,
+        access=payload.access,
     )
     # The invitee's address, never the token: the token is the credential and
     # the response above is the only place it is ever shown.

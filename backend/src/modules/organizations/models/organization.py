@@ -36,6 +36,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database import Base
@@ -60,9 +61,52 @@ class MemberRole(enum.StrEnum):
     #: Bought the subscription. May create and delete workspaces, invite and
     #: remove managers, and rename the organisation.
     OWNER = "owner"
-    #: Invited by the owner. Full read/write access to the organisation's
-    #: workspaces; no control over workspaces, members or billing.
+    #: Invited by the owner. Reaches the modules the owner granted, at the
+    #: level the owner set; no control over workspaces, members or billing.
     MANAGER = "manager"
+
+
+class AccessLevel(enum.StrEnum):
+    """How much a manager may do in the modules they can reach.
+
+    One level per membership rather than one per module: an owner deciding
+    "this person is here to look, not to touch" is making a single judgement
+    about a person, and splitting it per module produced a matrix nobody could
+    read and few would ever use unevenly.
+
+    The owner has no level of their own — an owner writes everywhere by
+    definition, and giving them a value here would create a representable
+    state ("read-only owner") that nothing means to support.
+    """
+
+    #: May change things in every module they can reach.
+    READ_WRITE = "read_write"
+    #: May look, and nothing more. Refused at the same guard that the expired
+    #: subscription is refused at, so a route never has to check two things.
+    READ_ONLY = "read_only"
+
+
+class ModuleKey(enum.StrEnum):
+    """The product surfaces a manager can be granted or denied.
+
+    Deliberately coarser than the navigation. «Графики» is not here because it
+    renders monitoring's own data: a manager who may not see the monitoring
+    tables must not see the same numbers drawn as lines, and two switches that
+    must always agree are a bug waiting for someone to set them apart.
+    """
+
+    #: Мониторинг, and «Графики» with it.
+    MONITORING = "monitoring"
+    #: Прибыли и убытки — the P&L built from WB's settlement detail.
+    FINREPORTS = "finreports"
+    #: A/Б-тесты.
+    AB_TESTS = "ab_tests"
+
+
+#: Everything there is to grant. The default for a new manager and the value
+#: every pre-existing membership was backfilled with, so nobody's access
+#: narrowed on the deploy that introduced the column.
+ALL_MODULES: tuple[str, ...] = tuple(m.value for m in ModuleKey)
 
 
 class Organization(Base):
@@ -155,6 +199,20 @@ class Membership(Base):
         ForeignKey("auth.users.id", ondelete="CASCADE"), unique=True, index=True
     )
     role: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: Meaningful for a manager only; an owner writes everywhere regardless.
+    access_level: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default=AccessLevel.READ_WRITE.value
+    )
+    #: The :class:`ModuleKey` values this member may reach, as a JSON array.
+    #: A list rather than a column per module because the set is a product
+    #: decision that will change again, and a new surface should be a value to
+    #: write rather than a migration to run. The server default grants
+    #: everything, which is what backfills existing managers untouched.
+    modules: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("""'["monitoring", "finreports", "ab_tests"]'::jsonb"""),
+    )
     invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True
     )

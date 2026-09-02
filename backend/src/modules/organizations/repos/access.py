@@ -167,6 +167,8 @@ class InvitationRepository:
         role: MemberRole,
         created_by_user_id: uuid.UUID,
         expires_at: datetime,
+        access_level: str,
+        modules: list[str],
     ) -> Invitation:
         """Insert and flush a new invitation.
 
@@ -188,6 +190,8 @@ class InvitationRepository:
             role=role.value,
             created_by_user_id=created_by_user_id,
             expires_at=expires_at,
+            access_level=access_level,
+            modules=modules,
         )
         self._session.add(invitation)
         await self._session.flush()

@@ -37,7 +37,13 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import PermissionDeniedError
-from src.modules.organizations.models import MemberRole, Subscription
+from src.modules.organizations.models import (
+    ALL_MODULES,
+    AccessLevel,
+    MemberRole,
+    ModuleKey,
+    Subscription,
+)
 from src.modules.organizations.repos import (
     MembershipRepository,
     OrganizationRepository,
@@ -128,6 +134,14 @@ class OrganizationAccess:
     role: EffectiveRole
     subscription: SubscriptionState
     is_primary_org: bool
+    #: The manager's level. Meaningless for the other three roles, which is
+    #: why nothing outside :attr:`can_write` reads it: an owner writes because
+    #: they are the owner, and a dev because they are a dev.
+    access_level: AccessLevel = AccessLevel.READ_WRITE
+    #: The :class:`ModuleKey` values a manager may reach. A tuple, not a list,
+    #: because this dataclass is frozen for a reason and a mutable field would
+    #: leave a hole in it.
+    modules: tuple[str, ...] = ALL_MODULES
 
     @property
     def tenant_id(self) -> uuid.UUID:
@@ -168,7 +182,37 @@ class OrganizationAccess:
             return True
         if self.role is EffectiveRole.USER:
             return False
-        return self.subscription is not SubscriptionState.READ_ONLY
+        if self.subscription is SubscriptionState.READ_ONLY:
+            return False
+        # A read-only manager is refused here rather than at each route, so a
+        # new writing route inherits the restriction instead of remembering it.
+        # The owner is not subject to it: there is no read-only owner.
+        if self.role is EffectiveRole.MANAGER:
+            return self.access_level is AccessLevel.READ_WRITE
+        return True
+
+    def can_reach(self, module: ModuleKey) -> bool:
+        """Whether this caller may reach one product surface at all.
+
+        Independent of :attr:`can_write`: a manager granted the module at
+        ``read_only`` reaches it and changes nothing, and a manager not granted
+        it does not reach it however much they may write elsewhere.
+
+        Only a manager can be denied. A dev sees everything by definition, an
+        owner bought the thing, and a caller with no membership never gets far
+        enough to ask.
+
+        Args:
+            module: The surface being entered.
+
+        Returns:
+            Whether to let the request through.
+        """
+        if self.role is EffectiveRole.DEV or self.role is EffectiveRole.OWNER:
+            return True
+        if self.role is EffectiveRole.USER:
+            return False
+        return module.value in self.modules
 
     @property
     def sees_internal_features(self) -> bool:
@@ -234,6 +278,15 @@ async def resolve_access(
         role=role,
         subscription=subscription_state(subscription, now=now),
         is_primary_org=bool(organization and organization.is_primary),
+        # Unrecognised values fail closed: a level we cannot parse is read-only,
+        # and a module key that no longer exists simply stops matching. Both
+        # are what a half-finished migration or a rolled-back deploy looks like.
+        access_level=(
+            AccessLevel(membership.access_level)
+            if membership.access_level in tuple(AccessLevel)
+            else AccessLevel.READ_ONLY
+        ),
+        modules=tuple(membership.modules or ()),
     )
 
 
@@ -244,8 +297,10 @@ WRITING_ROLES: frozenset[EffectiveRole] = frozenset(
 
 __all__ = [
     "WRITING_ROLES",
+    "AccessLevel",
     "EffectiveRole",
     "MemberRole",
+    "ModuleKey",
     "OrganizationAccess",
     "SubscriptionState",
     "resolve_access",

@@ -71,3 +71,66 @@ export async function updateTokens(workspaceId, tokens) {
   const { data } = await apiClient.put(`/v1/workspaces/${workspaceId}/tokens`, { tokens })
   return data
 }
+
+/**
+ * GET /v1/organizations/me — the caller's effective role and tenant.
+ *
+ * Separate from `fetchMe`: that one answers "who is this account" (the
+ * PLATFORM role, dev or user), this one answers "what are they inside their
+ * company" (owner or manager). The manager-access panel is gated on the
+ * second, and reading it off the first would show the panel to nobody.
+ *
+ * @returns {Promise<{role: string, can_write: boolean, organization: object|null}>}
+ */
+export async function fetchOrganizationMe() {
+  const { data } = await apiClient.get('/v1/organizations/me')
+  return data
+}
+
+/**
+ * GET /v1/organizations/members — the organisation's members (owner only).
+ *
+ * @returns {Promise<Array<{user_id: string, email: string, role: string,
+ *   joined_at: string, access_level: string, modules: string[]}>>}
+ */
+export async function fetchMembers() {
+  const { data } = await apiClient.get('/v1/organizations/members')
+  return data
+}
+
+/**
+ * PATCH /v1/organizations/members/{id}/access — set one manager's grant.
+ *
+ * The whole grant is sent every time, matching the endpoint: the form shows
+ * the current state, and a partial update from a stale form would silently
+ * keep a module the owner had just switched off.
+ *
+ * @param {string} userId
+ * @param {{accessLevel: string, modules: string[]}} grant
+ * @returns {Promise<object>} The member as it now stands.
+ */
+export async function updateMemberAccess(userId, { accessLevel, modules }) {
+  const { data } = await apiClient.patch(`/v1/organizations/members/${userId}/access`, {
+    access_level: accessLevel,
+    modules,
+  })
+  return data
+}
+
+/**
+ * POST /v1/organizations/invitations — invite a manager with a grant.
+ *
+ * The access travels WITH the invitation rather than being applied after they
+ * join, so a new manager never briefly holds more than the owner intended.
+ *
+ * @param {{email: string|null, validForDays: number, accessLevel: string, modules: string[]}} payload
+ * @returns {Promise<{id: string, email: string|null, token: string, expires_at: string}>}
+ */
+export async function createInvitation({ email, validForDays, accessLevel, modules }) {
+  const { data } = await apiClient.post('/v1/organizations/invitations', {
+    email: email || null,
+    valid_for_days: validForDays,
+    access: { access_level: accessLevel, modules },
+  })
+  return data
+}

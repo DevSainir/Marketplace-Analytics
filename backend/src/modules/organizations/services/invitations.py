@@ -38,6 +38,7 @@ from src.modules.organizations.repos import (
 from src.modules.organizations.schemas import (
     InvitationCreated,
     InvitationRead,
+    MemberAccessFields,
     PendingInvitation,
 )
 
@@ -102,6 +103,7 @@ class InvitationService:
         owner_user_id: uuid.UUID,
         email: str | None,
         valid_for_days: int,
+        access: MemberAccessFields | None = None,
     ) -> InvitationCreated:
         """Issue a manager invitation into the owner's organisation.
 
@@ -110,6 +112,11 @@ class InvitationService:
             owner_user_id: The issuing owner.
             email: Address to offer it to in-app, or ``None`` for a bare link.
             valid_for_days: How long it stays acceptable.
+            access: What the resulting manager may do and see. Defaults to
+                everything, matching what a manager got before the grant
+                existed. Stored on the invitation so acceptance copies it
+                across, rather than being applied afterwards — the gap between
+                joining and being narrowed is a gap with real access in it.
 
         Returns:
             The invitation, in the only response carrying its token.
@@ -128,6 +135,7 @@ class InvitationService:
                 "Удалите одного из текущих или продлите подписку."
             )
 
+        grant = access or MemberAccessFields()
         token = generate_opaque_secret(_TOKEN_BYTES)
         expires_at = datetime.now(UTC) + timedelta(days=valid_for_days)
         row = await self._invitations.create(
@@ -137,6 +145,8 @@ class InvitationService:
             role=MemberRole.MANAGER,
             created_by_user_id=owner_user_id,
             expires_at=expires_at,
+            access_level=grant.access_level.value,
+            modules=[m.value for m in grant.modules],
         )
         logger.info(
             "Invitation %s issued into organisation %s by %s (targeted=%s).",
@@ -266,6 +276,8 @@ class InvitationService:
                 user_id=user_id,
                 role=MemberRole(row.role),
                 invited_by_user_id=row.created_by_user_id,
+                access_level=row.access_level,
+                modules=list(row.modules or []),
             )
         except IntegrityError as exc:
             # The request transaction rolls back, which un-claims the

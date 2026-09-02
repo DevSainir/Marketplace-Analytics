@@ -100,6 +100,25 @@ class MembershipRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_for_organization_member(
+        self, *, organization_id: uuid.UUID, user_id: uuid.UUID
+    ) -> Membership | None:
+        """Return one member's row, looked up by the PAIR.
+
+        Separate from :meth:`get_for_user` because the caller is different in
+        kind: that one resolves *your own* tenancy, this one resolves *someone
+        else's* membership on an owner's behalf. Filtering on both columns is
+        what keeps an owner inside their own organisation — with ``user_id``
+        alone, a guessed id would reach a membership in another company, and
+        the route above would never know.
+        """
+        stmt = select(Membership).where(
+            Membership.organization_id == organization_id,
+            Membership.user_id == user_id,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def count_managers(self, organization_id: uuid.UUID) -> int:
         """Count an organisation's managers (the owner is never included).
 
@@ -124,6 +143,8 @@ class MembershipRepository:
         user_id: uuid.UUID,
         role: MemberRole,
         invited_by_user_id: uuid.UUID | None = None,
+        access_level: str | None = None,
+        modules: list[str] | None = None,
     ) -> Membership:
         """Insert and flush a new membership.
 
@@ -132,6 +153,10 @@ class MembershipRepository:
             user_id: The joining account.
             role: ``owner`` (activation) or ``manager`` (invitation).
             invited_by_user_id: The owner who invited them, where there was one.
+            access_level: The grant carried over from the invitation. ``None``
+                leaves the column default, which is full access — correct for
+                an owner, who is not subject to the grant at all.
+            modules: Likewise, the surfaces the invitation granted.
 
         Returns:
             The persisted :class:`Membership`.
@@ -142,6 +167,12 @@ class MembershipRepository:
             role=role.value,
             invited_by_user_id=invited_by_user_id,
         )
+        # Set only when the caller has a grant to carry. Leaving the attributes
+        # untouched lets the column defaults apply, which is what an owner —
+        # created by activation, subject to no grant — should get.
+        if access_level is not None:
+            membership.access_level = access_level
+            membership.modules = modules or []
         self._session.add(membership)
         await self._session.flush()
         return membership

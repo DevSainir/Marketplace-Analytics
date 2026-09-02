@@ -1,0 +1,102 @@
+<script setup>
+/**
+ * Inviting a manager, with their access chosen up front.
+ *
+ * The grant is part of the invitation rather than something applied after the
+ * person joins: between joining and being narrowed there would be a window
+ * with real access in it, and nobody watching.
+ *
+ * The token is shown exactly once — the server stores only its hash — so the
+ * link stays on screen until the owner dismisses it.
+ */
+import { ref } from 'vue'
+
+import AccessGrantFields from '@/modules/profile/components/AccessGrantFields.vue'
+import { MODULES } from '@/modules/profile/membersStore'
+
+defineProps({ saving: { type: String, default: null } })
+const emit = defineEmits(['invite'])
+
+const email = ref('')
+const validForDays = ref(7)
+const grant = ref({ accessLevel: 'read_write', modules: MODULES.map((m) => m.key) })
+const issued = ref(null)
+
+function onSubmit() {
+  emit('invite', {
+    email: email.value.trim() || null,
+    validForDays: validForDays.value,
+    accessLevel: grant.value.accessLevel,
+    modules: grant.value.modules,
+    onIssued: (invitation) => {
+      issued.value = invitation
+      email.value = ''
+    },
+  })
+}
+</script>
+
+<template>
+  <section class="rounded-card border border-border-subtle bg-surface p-lg shadow-card">
+    <h2 class="text-h2 font-bold text-primary">Пригласить менеджера</h2>
+    <p class="mt-xs text-tiny font-medium text-muted">
+      Доступ выдаётся сразу — менеджер входит уже с этими правами.
+    </p>
+
+    <form class="mt-md flex flex-col gap-md" @submit.prevent="onSubmit">
+      <label class="flex flex-col gap-xs">
+        <span class="text-tiny font-medium text-muted">Email (необязательно)</span>
+        <input
+          v-model="email"
+          type="email"
+          placeholder="Оставьте пустым, чтобы получить ссылку"
+          class="rounded-btn border border-border-subtle bg-surface px-sm py-xs text-base text-primary"
+        />
+      </label>
+
+      <label class="flex flex-col gap-xs">
+        <span class="text-tiny font-medium text-muted">Ссылка действует, дней</span>
+        <input
+          v-model.number="validForDays"
+          type="number"
+          min="1"
+          max="90"
+          class="w-28 rounded-btn border border-border-subtle bg-surface px-sm py-xs text-base text-primary"
+        />
+      </label>
+
+      <AccessGrantFields
+        :access-level="grant.accessLevel"
+        :modules="grant.modules"
+        :disabled="saving === 'invite'"
+        @update="(next) => (grant = next)"
+      />
+
+      <div class="flex justify-end">
+        <button
+          type="submit"
+          class="rounded-btn bg-action px-md py-xs text-base font-semibold text-white transition-opacity disabled:opacity-50"
+          :disabled="saving === 'invite'"
+        >
+          {{ saving === 'invite' ? 'Создаём…' : 'Пригласить' }}
+        </button>
+      </div>
+    </form>
+
+    <div v-if="issued" class="mt-md rounded-card border border-action/30 bg-action/5 p-md">
+      <p class="text-tiny font-medium text-muted">
+        Ссылка показывается один раз — скопируйте её сейчас.
+      </p>
+      <code class="mt-xs block break-all text-base font-medium text-primary">
+        {{ issued.token }}
+      </code>
+      <button
+        type="button"
+        class="mt-sm text-tiny font-semibold text-action"
+        @click="issued = null"
+      >
+        Скрыть
+      </button>
+    </div>
+  </section>
+</template>

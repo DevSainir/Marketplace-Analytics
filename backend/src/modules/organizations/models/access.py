@@ -33,7 +33,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, func, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
@@ -131,6 +132,18 @@ class Invitation(Base):
     email: Mapped[str | None] = mapped_column(String(320), nullable=True, index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: The access the resulting membership starts with, chosen by the owner on
+    #: the invite form and copied across on acceptance. Held here rather than
+    #: set afterwards because the alternative is a window — however short — in
+    #: which a new manager has more access than the owner intended them to.
+    access_level: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="read_write"
+    )
+    modules: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("""'["monitoring", "finreports", "ab_tests"]'::jsonb"""),
+    )
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True
     )

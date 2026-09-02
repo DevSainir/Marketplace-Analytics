@@ -28,6 +28,7 @@ one of *us*.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -45,7 +46,9 @@ from src.modules.organizations.repos import (
     SubscriptionRepository,
 )
 from src.modules.organizations.services import (
+    AccessLevel,
     EffectiveRole,
+    ModuleKey,
     OrganizationAccess,
     resolve_access,
 )
@@ -204,6 +207,14 @@ async def require_writer(access: MemberAccess) -> OrganizationAccess:
         PermissionDeniedError: The subscription is in ``read_only``.
     """
     if not access.can_write:
+        # Two different reasons land here and the person can act on only one of
+        # them. An owner whose term lapsed can renew; a manager the owner set to
+        # read-only cannot, and telling them to renew sends them to support with
+        # the wrong question.
+        if access.access_level is AccessLevel.READ_ONLY and access.role is EffectiveRole.MANAGER:
+            raise PermissionDeniedError(
+                "Доступ только для чтения — изменения вносит владелец организации."
+            )
         raise PermissionDeniedError(
             "Подписка истекла — доступ только для чтения. "
             "Продлите подписку, чтобы вносить изменения."
@@ -212,6 +223,73 @@ async def require_writer(access: MemberAccess) -> OrganizationAccess:
 
 
 WritingAccess = Annotated[OrganizationAccess, Depends(require_writer)]
+
+
+def require_module(
+    module: ModuleKey,
+) -> Callable[[OrganizationAccess], Awaitable[OrganizationAccess]]:
+    """Build the guard that admits callers granted one product surface.
+
+    Declared once on each module's own ``APIRouter`` rather than on its
+    routes, which is what makes it hold: a route added tomorrow inherits the
+    grant instead of having to remember it, and there is exactly one line per
+    module to read when asking what a surface is protected by.
+
+    It gates reachability, not writing — ``require_writer`` already refuses a
+    read-only manager, and stacking the two means a manager needs the module
+    AND the level to change anything in it.
+
+    Args:
+        module: The surface this router serves.
+
+    Returns:
+        A FastAPI dependency.
+    """
+
+    async def _guard(access: MemberAccess) -> OrganizationAccess:
+        if not access.can_reach(module):
+            # Deliberately says the access is missing rather than that the
+            # module is: "нет такого раздела" would be a lie the person cannot
+            # act on, and they need to know who to ask.
+            raise PermissionDeniedError(
+                "Раздел недоступен для вашей учётной записи. Доступ выдаёт владелец организации."
+            )
+        return access
+
+    return _guard
+
+
+#: One per product surface. The bare callables are what a module's router puts
+#: in ``dependencies=[...]``; the annotated forms are for a route that also
+#: wants the resolved access object in its signature.
+require_monitoring = require_module(ModuleKey.MONITORING)
+require_finreports = require_module(ModuleKey.FINREPORTS)
+
+MonitoringAccess = Annotated[OrganizationAccess, Depends(require_monitoring)]
+FinreportsAccess = Annotated[OrganizationAccess, Depends(require_finreports)]
+
+
+async def require_ab_tests(access: InternalAccess) -> OrganizationAccess:
+    """Require a caller who is one of us AND granted the A/Б-тесты module.
+
+    Written out rather than built from :func:`require_module` because that
+    factory goes through :data:`MemberAccess`, and this surface must not: a dev
+    with no organisation of their own reaches the internal features today, and
+    routing this guard through the membership check would quietly take that
+    away. :meth:`OrganizationAccess.can_reach` already answers ``True`` for a
+    dev, so the module grant only ever narrows a manager.
+
+    Raises:
+        PermissionDeniedError: Not one of us, or a manager without the grant.
+    """
+    if not access.can_reach(ModuleKey.AB_TESTS):
+        raise PermissionDeniedError(
+            "Раздел недоступен для вашей учётной записи. Доступ выдаёт владелец организации."
+        )
+    return access
+
+
+AbTestsAccess = Annotated[OrganizationAccess, Depends(require_ab_tests)]
 
 
 async def require_owner(access: MemberAccess) -> OrganizationAccess:
@@ -334,14 +412,17 @@ def get_unauthenticated_audit_recorder(session: DbSession, request: Request) -> 
 UnauthenticatedAuditTrail = Annotated[AuditRecorder, Depends(get_unauthenticated_audit_recorder)]
 
 __all__ = [
+    "AbTestsAccess",
     "ActivationServiceDep",
     "AuditRepoDep",
     "AuditTrail",
     "CurrentAccess",
     "DevAccess",
+    "FinreportsAccess",
     "InternalAccess",
     "InvitationServiceDep",
     "MemberAccess",
+    "MonitoringAccess",
     "OrganizationServiceDep",
     "OwnerAccess",
     "UnauthenticatedAuditTrail",
@@ -350,9 +431,13 @@ __all__ = [
     "get_audit_repo",
     "get_current_access",
     "get_unauthenticated_audit_recorder",
+    "require_ab_tests",
     "require_dev",
+    "require_finreports",
     "require_internal",
     "require_member",
+    "require_module",
+    "require_monitoring",
     "require_owner",
     "require_writer",
 ]

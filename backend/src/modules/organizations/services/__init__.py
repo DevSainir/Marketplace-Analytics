@@ -12,7 +12,9 @@ module's own routers.
 
 from src.modules.organizations.services.access import (
     WRITING_ROLES,
+    AccessLevel,
     EffectiveRole,
+    ModuleKey,
     OrganizationAccess,
     SubscriptionState,
     resolve_access,
@@ -23,8 +25,10 @@ from src.modules.organizations.services.membership import load_workspace_quota
 
 __all__ = [
     "WRITING_ROLES",
+    "AccessLevel",
     "AuditRecorder",
     "EffectiveRole",
+    "ModuleKey",
     "OrganizationAccess",
     "SubscriptionState",
     "load_workspace_quota",

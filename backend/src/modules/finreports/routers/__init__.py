@@ -23,12 +23,13 @@ from src.modules.finreports.routers.balance import router as balance_router
 from src.modules.finreports.routers.harvest import router as harvest_router
 from src.modules.finreports.routers.pnl import router as pnl_router
 from src.modules.finreports.routers.window import DEFAULT_WINDOW_DAYS, resolve_window
-from src.modules.organizations.contract import require_member
+from src.modules.organizations.contract import require_finreports
 
 router = APIRouter(
     prefix="/v1/finreports",
     tags=["FinReports"],
-    dependencies=[Depends(require_member)],
+    # Membership and the «Прибыли и убытки» grant, for every route below.
+    dependencies=[Depends(require_finreports)],
 )
 router.include_router(pnl_router)
 router.include_router(damage_router)

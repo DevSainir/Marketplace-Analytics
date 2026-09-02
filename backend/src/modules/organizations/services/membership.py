@@ -15,12 +15,13 @@ one the caller may act on and it comes from their membership:
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import NotFoundError, ValidationError
 from src.core.logging import get_logger
-from src.modules.organizations.models import MemberRole
+from src.modules.organizations.models import ALL_MODULES, AccessLevel, MemberRole, ModuleKey
 from src.modules.organizations.repos import (
     MembershipRepository,
     OrganizationRepository,
@@ -113,10 +114,65 @@ class OrganizationService:
                 email=emails.get(m.user_id, "—"),
                 role=m.role,
                 joined_at=m.joined_at,
+                access_level=AccessLevel(m.access_level),
+                modules=[ModuleKey(k) for k in m.modules if k in ALL_MODULES],
             )
             for m in memberships
             if m.user_id in emails
         ]
+
+    async def set_member_access(
+        self,
+        *,
+        organization_id: uuid.UUID,
+        user_id: uuid.UUID,
+        access_level: AccessLevel,
+        modules: Sequence[ModuleKey],
+    ) -> MemberRead:
+        """Set one manager's level and module grant.
+
+        Scoped to the caller's organisation on the way in, so an owner cannot
+        reach a membership in another company by guessing a user id — the
+        lookup is by the pair, never by ``user_id`` alone.
+
+        The owner is refused rather than silently ignored: an owner writes
+        everywhere by definition, and a UI that appeared to set them read-only
+        would be showing a state the guards do not honour.
+
+        Args:
+            organization_id: The caller's organisation.
+            user_id: The member being changed.
+            access_level: The new level.
+            modules: The surfaces they may reach.
+
+        Returns:
+            The member as it now stands.
+
+        Raises:
+            NotFoundError: No such member in this organisation.
+            ValidationError: The target is the owner.
+        """
+        membership = await self._memberships.get_for_organization_member(
+            organization_id=organization_id, user_id=user_id
+        )
+        if membership is None:
+            raise NotFoundError("Участник не найден в этой организации.")
+        if membership.role == MemberRole.OWNER.value:
+            raise ValidationError("Доступ владельца изменить нельзя.")
+
+        membership.access_level = access_level.value
+        membership.modules = [m.value for m in modules]
+        await self._session.flush()
+
+        emails = await load_emails(self._session, {membership.user_id})
+        return MemberRead(
+            user_id=membership.user_id,
+            email=emails.get(membership.user_id, "—"),
+            role=membership.role,
+            joined_at=membership.joined_at,
+            access_level=access_level,
+            modules=list(modules),
+        )
 
     async def rename(self, *, organization_id: uuid.UUID, name: str) -> OrganizationRead:
         """Set the organisation's display name.

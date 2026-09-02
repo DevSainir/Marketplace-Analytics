@@ -20,8 +20,9 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from src.modules.organizations.models import ALL_MODULES, AccessLevel, ModuleKey
 from src.modules.organizations.services.access import EffectiveRole, SubscriptionState
 
 
@@ -50,6 +51,38 @@ class OrganizationRead(BaseModel):
     created_at: datetime
 
 
+class MemberAccessFields(BaseModel):
+    """The grant an owner sets on a manager: how much, and where.
+
+    Shared by the member list, the access-change payload and the invite form,
+    so the three cannot describe the grant differently — the bug that shape
+    prevents is an invite form offering a module the guard does not know.
+    """
+
+    access_level: AccessLevel = Field(
+        default=AccessLevel.READ_WRITE,
+        description="read_write may change things; read_only may only look.",
+    )
+    modules: list[ModuleKey] = Field(
+        default_factory=lambda: [ModuleKey(m) for m in ALL_MODULES],
+        description="Product surfaces this manager may reach.",
+    )
+
+    @field_validator("modules")
+    @classmethod
+    def _deduplicate(cls, modules: list[ModuleKey]) -> list[ModuleKey]:
+        """Collapse repeats, keeping the caller's order.
+
+        A list is the honest wire shape for "which of these are on", and a set
+        is what it means. Sending ``monitoring`` twice is not an error worth a
+        422 — it is the same grant said twice.
+        """
+        seen: dict[ModuleKey, None] = {}
+        for module in modules:
+            seen[module] = None
+        return list(seen)
+
+
 class MemberRead(BaseModel):
     """One member of the caller's organisation, for the owner's member list."""
 
@@ -57,6 +90,15 @@ class MemberRead(BaseModel):
     email: EmailStr
     role: str
     joined_at: datetime
+    #: The owner's own row carries the defaults and the UI does not offer to
+    #: change them: an owner reaches everything by being the owner, and a
+    #: "read-only owner" is a state nothing supports.
+    access_level: AccessLevel = AccessLevel.READ_WRITE
+    modules: list[ModuleKey] = Field(default_factory=lambda: [ModuleKey(m) for m in ALL_MODULES])
+
+
+class MemberAccessUpdateRequest(MemberAccessFields):
+    """Payload for an owner changing one manager's grant."""
 
 
 class MeResponse(BaseModel):
@@ -168,6 +210,10 @@ class InvitationCreateRequest(BaseModel):
         le=90,
         description="How long the invitation stays acceptable.",
     )
+    #: The access the manager starts with. Carried on the invitation rather
+    #: than set after they join, so there is no window in which a new manager
+    #: has more than the owner meant to give them.
+    access: MemberAccessFields = Field(default_factory=MemberAccessFields)
 
 
 class InvitationCreated(BaseModel):

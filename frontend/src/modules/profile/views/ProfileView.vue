@@ -12,11 +12,15 @@
  */
 import { onMounted, reactive } from 'vue'
 
+import ManagerAccessPanel from '@/modules/profile/components/ManagerAccessPanel.vue'
+import ManagerInviteForm from '@/modules/profile/components/ManagerInviteForm.vue'
 import WorkspaceAdminPanel from '@/modules/profile/components/WorkspaceAdminPanel.vue'
 import WorkspaceSwitcher from '@/modules/profile/components/WorkspaceSwitcher.vue'
+import { useMembersStore } from '@/modules/profile/membersStore'
 import { useWorkspaceStore } from '@/modules/profile/store'
 
 const store = useWorkspaceStore()
+const members = useMembersStore()
 
 /** Lazily loaded token statuses per workspace id (dev panel). */
 const tokenStatuses = reactive({})
@@ -25,7 +29,19 @@ onMounted(() => {
   store.ensureLoaded().catch(() => {
     // The store keeps the error message; the template renders it.
   })
+  // Its own call, and its own failure: an owner whose members list does not
+  // load should still get the rest of their profile.
+  members.ensureLoaded()
 })
+
+async function onSaveAccess({ userId, grant }) {
+  await members.saveAccess(userId, grant)
+}
+
+async function onInvite({ onIssued, ...payload }) {
+  const invitation = await members.invite(payload)
+  if (invitation) onIssued(invitation)
+}
 
 function onSelect(id) {
   if (id === store.currentWorkspaceId) return
@@ -117,6 +133,21 @@ async function onSaveTokens({ workspaceId, tokens }) {
         :current-id="store.currentWorkspaceId"
         @select="onSelect"
       />
+
+      <template v-if="members.isOwner">
+        <ManagerAccessPanel
+          :managers="members.managers"
+          :saving="members.saving"
+          @save="onSaveAccess"
+        />
+        <ManagerInviteForm :saving="members.saving" @invite="onInvite" />
+        <p
+          v-if="members.error"
+          class="rounded-card border border-status-negative/30 bg-status-negative/10 px-md py-sm text-base font-medium text-status-negative"
+        >
+          {{ members.error }}
+        </p>
+      </template>
 
       <WorkspaceAdminPanel
         v-if="store.isDev"
