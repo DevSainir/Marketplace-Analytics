@@ -1,6 +1,15 @@
 import { createPinia, setActivePinia } from 'pinia'
 
-import { loginUser, logoutUser, refreshSession, registerUser } from '@/modules/auth/api'
+import {
+  confirmEmail,
+  confirmPasswordReset,
+  loginUser,
+  logoutUser,
+  refreshSession,
+  registerUser,
+  requestPasswordReset,
+  resendConfirmation,
+} from '@/modules/auth/api'
 import { useAuthStore } from '@/modules/auth/store'
 
 vi.mock('@/modules/auth/api', () => ({
@@ -8,6 +17,10 @@ vi.mock('@/modules/auth/api', () => ({
   logoutUser: vi.fn(),
   refreshSession: vi.fn(),
   registerUser: vi.fn(),
+  confirmEmail: vi.fn(),
+  resendConfirmation: vi.fn(),
+  requestPasswordReset: vi.fn(),
+  confirmPasswordReset: vi.fn(),
 }))
 
 const TOKENS = { access_token: 'jwt', expires_at: '2026-07-08T12:00:00Z' }
@@ -250,5 +263,86 @@ describe('logout', () => {
     expect(store.status).toBe('guest')
     expect(store.userEmail).toBeNull()
     expect(localStorage.getItem('auth:email')).toBeNull()
+  })
+})
+
+describe('account recovery', () => {
+  it('reports an accepted request without claiming the address exists', async () => {
+    requestPasswordReset.mockResolvedValue({})
+
+    await expect(store.askForPasswordReset('nobody@example.com')).resolves.toBe(true)
+    expect(requestPasswordReset).toHaveBeenCalledWith({ email: 'nobody@example.com' })
+    expect(store.error).toBeNull()
+  })
+
+  it('surfaces a refused code as an error rather than a silent false', async () => {
+    confirmEmail.mockRejectedValue({ response: { data: { detail: 'Неверный код.' } } })
+
+    await expect(store.confirmAddress('a@b.ru', '000000')).resolves.toBe(false)
+    expect(store.error).toBe('Неверный код.')
+  })
+
+  it('drops the local session once a reset succeeds', async () => {
+    // The backend has just ended EVERY session for the account, this browser's
+    // included. Leaving the store believing it is signed in means the next
+    // request is a 401 the user did not ask for.
+    confirmPasswordReset.mockResolvedValue({})
+    loginUser.mockResolvedValue(TOKENS)
+    await store.login('a@b.ru', 'secret-enough')
+    expect(store.isAuthenticated).toBe(true)
+
+    await expect(store.resetPassword('a@b.ru', '123456', 'a-new-password')).resolves.toBe(true)
+
+    expect(confirmPasswordReset).toHaveBeenCalledWith({
+      email: 'a@b.ru',
+      code: '123456',
+      newPassword: 'a-new-password',
+    })
+    expect(store.isAuthenticated).toBe(false)
+    expect(store.userEmail).toBeNull()
+    expect(localStorage.getItem('auth:email')).toBeNull()
+  })
+
+  it('keeps the session when the reset is refused', async () => {
+    confirmPasswordReset.mockRejectedValue({ response: { data: { detail: 'Просрочен.' } } })
+    loginUser.mockResolvedValue(TOKENS)
+    await store.login('a@b.ru', 'secret-enough')
+
+    await expect(store.resetPassword('a@b.ru', '000000', 'a-new-password')).resolves.toBe(false)
+
+    expect(store.isAuthenticated).toBe(true)
+    expect(store.error).toBe('Просрочен.')
+  })
+
+  it('does not report a timeout as a failure when a code was consumed', async () => {
+    // The server consumes the code, changes the password and ends every session
+    // before it answers, so "no response" is not "nothing happened". Saying it
+    // failed sends the user back to a form whose code is already spent.
+    confirmPasswordReset.mockRejectedValue(
+      Object.assign(new Error('timeout of 15000ms exceeded'), {
+        response: undefined,
+      }),
+    )
+
+    await expect(store.resetPassword('a@b.ru', '123456', 'a-new-password')).resolves.toBe(false)
+
+    expect(store.error).toContain('Пароль мог быть изменён')
+    expect(store.error).not.toContain('timeout')
+  })
+
+  it('still reports a refusal from its own message', async () => {
+    confirmPasswordReset.mockRejectedValue({ response: { data: { detail: 'Просрочен.' } } })
+
+    await store.resetPassword('a@b.ru', '000000', 'a-new-password')
+
+    expect(store.error).toBe('Просрочен.')
+  })
+
+  it('clears loading on both paths', async () => {
+    resendConfirmation.mockRejectedValue(new Error('network'))
+
+    await store.askForConfirmationCode('a@b.ru')
+
+    expect(store.loading).toBe(false)
   })
 })

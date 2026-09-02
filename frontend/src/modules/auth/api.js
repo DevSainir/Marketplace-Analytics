@@ -54,3 +54,60 @@ export async function refreshSession() {
 export async function logoutUser() {
   await apiClient.post('/v1/auth/logout')
 }
+
+/**
+ * POST /v1/auth/confirm-email — prove control of an address with a mailed code.
+ *
+ * @param {{email: string, code: string}} payload
+ * @returns {Promise<{detail?: string}>}
+ */
+export async function confirmEmail({ email, code }) {
+  const { data } = await apiClient.post('/v1/auth/confirm-email', { email, code })
+  return data
+}
+
+/**
+ * POST /v1/auth/resend-confirmation — ask for a fresh confirmation code.
+ *
+ * Always resolves (202) whether or not the address exists — the backend refuses
+ * to be an account-existence oracle, so the UI must not present this as a
+ * lookup either.
+ *
+ * @param {{email: string}} payload
+ * @returns {Promise<{detail?: string}>}
+ */
+export async function resendConfirmation({ email }) {
+  const { data } = await apiClient.post('/v1/auth/resend-confirmation', { email })
+  return data
+}
+
+/**
+ * POST /v1/auth/password-reset/request — mail a reset code.
+ *
+ * Same uniformity rule as `resendConfirmation`: 202 for every address.
+ *
+ * @param {{email: string}} payload
+ * @returns {Promise<{detail?: string}>}
+ */
+export async function requestPasswordReset({ email }) {
+  const { data } = await apiClient.post('/v1/auth/password-reset/request', { email })
+  return data
+}
+
+/**
+ * POST /v1/auth/password-reset/confirm — set a new password against the code.
+ *
+ * Succeeding here ends every session the account had, including any this
+ * browser holds, so the caller must send the user back to the login screen.
+ *
+ * @param {{email: string, code: string, newPassword: string}} payload
+ * @returns {Promise<{detail?: string}>}
+ */
+export async function confirmPasswordReset({ email, code, newPassword }) {
+  const { data } = await apiClient.post('/v1/auth/password-reset/confirm', {
+    email,
+    code,
+    new_password: newPassword,
+  })
+  return data
+}

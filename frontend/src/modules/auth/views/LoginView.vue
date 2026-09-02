@@ -24,12 +24,22 @@ function switchMode(next) {
 }
 
 async function submit() {
-  const ok = isLogin.value
-    ? await auth.login(email.value, password.value)
-    : await auth.register(email.value, password.value)
+  if (isLogin.value) {
+    if (await auth.login(email.value, password.value)) {
+      router.push(safeRedirect(route.query.redirect))
+    }
+    return
+  }
 
-  if (ok) {
-    router.push(safeRedirect(route.query.redirect))
+  // Registration signs the account in and then asks it to confirm the address.
+  // Confirmation is deliberately NOT a login gate — it gates activation and
+  // invitation acceptance — so this screen is skippable, and the redirect the
+  // user arrived with is carried through it rather than dropped.
+  if (await auth.register(email.value, password.value)) {
+    router.push({
+      name: 'confirm-email',
+      query: { email: email.value, redirect: route.query.redirect },
+    })
   }
 }
 </script>
@@ -127,6 +137,15 @@ async function submit() {
             {{ auth.loading ? 'Подождите…' : isLogin ? 'Войти' : 'Создать аккаунт' }}
           </button>
         </form>
+
+        <p v-if="isLogin" class="mt-md text-center">
+          <RouterLink
+            class="text-tiny font-medium text-action transition hover:text-action-hover"
+            :to="{ name: 'password-reset' }"
+          >
+            Забыли пароль?
+          </RouterLink>
+        </p>
       </section>
 
       <p class="mt-lg text-center text-tiny text-muted">

@@ -9,7 +9,16 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { clearAccessToken, extractErrorMessage, setAccessToken } from '@/core/api/axios'
-import { loginUser, logoutUser, refreshSession, registerUser } from '@/modules/auth/api'
+import {
+  confirmEmail,
+  confirmPasswordReset,
+  loginUser,
+  logoutUser,
+  refreshSession,
+  registerUser,
+  requestPasswordReset,
+  resendConfirmation,
+} from '@/modules/auth/api'
 
 // Cosmetic only (header display); the session itself is cookie-based.
 const EMAIL_STORAGE_KEY = 'auth:email'
@@ -173,6 +182,82 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
   }
 
+  // --- account recovery (register P1.6) ----------------------------------
+  //
+  // One shape for all four: flip `loading`, clear `error`, return a boolean the
+  // view can branch on. They are separate from `login`/`register` because none
+  // of them establishes a session — two of them deliberately END one.
+  //
+  // The two "request" calls answer 202 for an address that does not exist, on
+  // purpose: a recovery form that says "no such user" is an account-existence
+  // oracle reachable without even a password guess. `true` here therefore means
+  // "the request was accepted", never "that address is registered", and the
+  // views must not phrase it as the latter.
+
+  /**
+   * Run one recovery call, reporting whether it was accepted.
+   *
+   * `noResponseMessage` covers the case an error envelope cannot: no response
+   * at all — a timeout, a dropped connection. For the two calls that CONSUME a
+   * mailed code that is not the same as failing. The server consumes the code,
+   * changes the state and only then answers, so a timeout leaves the user with
+   * a spent code and, quite possibly, the change already made. Reporting the
+   * axios message there ("timeout of 15000ms exceeded") is both untranslated
+   * and wrong about what happened.
+   */
+  async function runRecovery(call, noResponseMessage = null) {
+    loading.value = true
+    error.value = null
+    try {
+      await call()
+      return true
+    } catch (err) {
+      error.value =
+        noResponseMessage && !err.response ? noResponseMessage : extractErrorMessage(err)
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /** Ask for a fresh confirmation code. Accepted for any address. */
+  function askForConfirmationCode(email) {
+    return runRecovery(() => resendConfirmation({ email }))
+  }
+
+  /** Redeem a confirmation code. False means wrong, expired or already used. */
+  function confirmAddress(email, code) {
+    return runRecovery(
+      () => confirmEmail({ email, code }),
+      'Ответ от сервера не получен. Адрес мог быть подтверждён — обновите страницу, и запросите новый код, если нет.',
+    )
+  }
+
+  /** Ask for a password-reset code. Accepted for any address. */
+  function askForPasswordReset(email) {
+    return runRecovery(() => requestPasswordReset({ email }))
+  }
+
+  /**
+   * Set a new password against a mailed code.
+   *
+   * On success the backend has ended EVERY session for the account — this
+   * browser's included — so the local session is dropped here rather than left
+   * to expire against a server that has already stopped honouring it.
+   */
+  async function resetPassword(email, code, newPassword) {
+    const ok = await runRecovery(
+      () => confirmPasswordReset({ email, code, newPassword }),
+      'Ответ от сервера не получен. Пароль мог быть изменён — попробуйте войти с новым паролем, и запросите код заново, если не получится.',
+    )
+    if (ok) {
+      markGuest()
+      userEmail.value = null
+      localStorage.removeItem(EMAIL_STORAGE_KEY)
+    }
+    return ok
+  }
+
   async function logout() {
     try {
       await logoutUser()
@@ -197,5 +282,9 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     markGuest,
     clearError,
+    askForConfirmationCode,
+    confirmAddress,
+    askForPasswordReset,
+    resetPassword,
   }
 })
