@@ -14,7 +14,6 @@ import PinnedSkuRow from '@/modules/monitoring/components/PinnedSkuRow.vue'
 import RefreshAllSkusButton from '@/modules/monitoring/components/RefreshAllSkusButton.vue'
 import SkuClusterBlock from '@/modules/monitoring/components/SkuClusterBlock.vue'
 import SectionNav from '@/core/components/SectionNav.vue'
-import UiBlockOrbs from '@/core/components/UiBlockOrbs.vue'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
 import StockComparePanel from '@/modules/monitoring/components/StockComparePanel.vue'
 import { useMonitoringStore } from '@/modules/monitoring/store'
@@ -162,28 +161,22 @@ onMounted(() => store.fetchPins())
         <section id="sec-matrix" class="mt-lg" aria-label="Ежедневные метрики">
           <h2 class="text-h3 font-semibold text-primary">Метрики по дням</h2>
 
-          <!-- A local light source, so the glass in the block band has a
-                 colour edge to refract rather than a flat ground. -->
-          <div class="ui-matrix-frame">
-            <UiBlockOrbs />
-
-            <MetricsTable
-              class="mt-sm"
-              :days="matrix.days"
-              :rows="matrix.rows"
-              :price-rows="matrix.priceRows"
-              :stock-rows="matrix.stockRows"
-              :stock-total-rows="matrix.stockTotalRows"
-              :comments="product.comments ?? {}"
-              :comment-saving-days="store.commentSavingDays"
-              :day-actions="product.day_actions ?? {}"
-              :action-saving-days="store.actionSavingDays"
-              :editing-disabled="editingLocked"
-              @edit="onCellEdit"
-              @comment="onCommentEdit"
-              @action="onActionEdit"
-            />
-          </div>
+          <MetricsTable
+            class="mt-sm"
+            :days="matrix.days"
+            :rows="matrix.rows"
+            :price-rows="matrix.priceRows"
+            :stock-rows="matrix.stockRows"
+            :stock-total-rows="matrix.stockTotalRows"
+            :comments="product.comments ?? {}"
+            :comment-saving-days="store.commentSavingDays"
+            :day-actions="product.day_actions ?? {}"
+            :action-saving-days="store.actionSavingDays"
+            :editing-disabled="editingLocked"
+            @edit="onCellEdit"
+            @comment="onCommentEdit"
+            @action="onActionEdit"
+          />
 
           <MatrixEditToolbar
             :dirty="store.matrixDirty"

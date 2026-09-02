@@ -54,8 +54,7 @@
   border-radius: 10px;
 }
 /* No tint of their own. `skin.css` gives every `.day-block` a glass pane and
-   puts a colour orb behind the band, so the tile's identity arrives THROUGH
-   the pane rather than painted on it — see the note there.
+   leaves the identity to the label — see the note there.
 
    These two rules used to defeat that silently. A scoped component rule carries
    a `[data-v-*]` attribute, so `.day-block--prices[data-v-x]` outranks

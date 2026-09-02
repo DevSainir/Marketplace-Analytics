@@ -19,7 +19,6 @@ import MatrixEditToolbar from '@/modules/labs/components/MatrixEditToolbar.vue'
 import MetricsChart from '@/modules/labs/components/MetricsChart.vue'
 import MetricsTable from '@/modules/labs/components/MetricsTable.vue'
 import SectionNav from '@/core/components/SectionNav.vue'
-import UiBlockOrbs from '@/core/components/UiBlockOrbs.vue'
 import PinnedSkuRow from '@/modules/labs/components/PinnedSkuRow.vue'
 import RefreshAllSkusButton from '@/modules/labs/components/RefreshAllSkusButton.vue'
 import SkuClusterBlock from '@/modules/labs/components/SkuClusterBlock.vue'
@@ -121,32 +120,22 @@ const SECTIONS = [
       <section id="ui-sec-matrix" class="mt-lg" aria-label="Ежедневные метрики">
         <h2 class="text-h3 font-semibold text-primary">Метрики по дням</h2>
 
-        <!-- The block band's own light source. Unlike the ambient orbs on
-                 `.ui-ground`, these are NOT fixed: they are absolutely placed
-                 inside this section, at the band's own position, and scroll
-                 with it. That is what makes the tiles' transparency legible —
-                 a pane over a flat ground shows nothing, a pane over a colour
-                 edge shows everything. -->
-        <div class="ui-matrix-frame">
-          <UiBlockOrbs />
-
-          <MetricsTable
-            class="mt-sm"
-            :days="matrixView.days"
-            :rows="matrixView.rows"
-            :price-rows="matrixView.priceRows"
-            :stock-rows="matrixView.stockRows"
-            :stock-total-rows="matrixView.stockTotalRows"
-            :comments="product.comments"
-            :comment-saving-days="NO_SAVING_DAYS"
-            :day-actions="product.day_actions"
-            :action-saving-days="NO_SAVING_DAYS"
-            :editing-disabled="false"
-            @edit="noop"
-            @comment="noop"
-            @action="noop"
-          />
-        </div>
+        <MetricsTable
+          class="mt-sm"
+          :days="matrixView.days"
+          :rows="matrixView.rows"
+          :price-rows="matrixView.priceRows"
+          :stock-rows="matrixView.stockRows"
+          :stock-total-rows="matrixView.stockTotalRows"
+          :comments="product.comments"
+          :comment-saving-days="NO_SAVING_DAYS"
+          :day-actions="product.day_actions"
+          :action-saving-days="NO_SAVING_DAYS"
+          :editing-disabled="false"
+          @edit="noop"
+          @comment="noop"
+          @action="noop"
+        />
 
         <MatrixEditToolbar
           :dirty="dirty"

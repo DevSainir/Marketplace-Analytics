@@ -499,14 +499,13 @@ textarea {
   border: 0;
 }
 
-/* The «Цены» and «Остатки» tiles carry NO tint of their own any more. Two
-   coloured fills plus the glass plus whatever shows through it was three
-   colour signals stacked on one small tile, and the tints were the least
-   informative of the three — the tiles are already labelled. What identifies
-   them now is what the glass reveals: a blue and a green orb sit behind the
-   band, at the tiles' own position, so the colour arrives THROUGH the pane
-   instead of being painted on it. That is the effect working for its living
-   rather than being decorated over. */
+/* The «Цены» and «Остатки» tiles carry NO tint of their own. Two coloured
+   fills plus the glass plus whatever shows through it was three colour signals
+   stacked on one small tile, and the tints were the least informative of the
+   three — the tiles are already labelled. The band had its own orbs behind it
+   for a while so the identity could arrive THROUGH the pane; they were pulled
+   because a pink and an orange smudge under a grid of numbers read as a
+   rendering fault, not as a light source. The label does the work. */
 
 @media (prefers-reduced-transparency: reduce) {
   .day-block,
@@ -612,7 +611,7 @@ body > .wh-menu .text-action {
      surface with high-contrast content behind it cannot be very transparent
      and stay readable, so it keeps the blur, the lit edge and the rim, and
      gives up the see-through. The tiles beside them stay light because what
-     is behind THEM is the frame and an orb, not numbers. */
+     is behind THEM is the frame and the page ground, not numbers. */
   background: var(--ui-surface) !important;
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   backdrop-filter: blur(24px) saturate(180%);
