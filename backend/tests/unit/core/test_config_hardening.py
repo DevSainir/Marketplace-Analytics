@@ -25,6 +25,11 @@ _SECURE_ENV: dict[str, str] = {
     "POSTGRES_PASSWORD": "a-real-generated-password",
     "REDIS_PASSWORD": "another-real-password",
     "FERNET_SECRET_KEY": Fernet.generate_key().decode(),
+    # Off on every deployment: nginx serves the SPA and the API from one origin,
+    # so a cross-origin caller is somebody else's page reading our authenticated
+    # responses. It is in this baseline because a deployed environment that omits
+    # it now refuses to boot (register P0.7).
+    "CORS_ENABLED": "false",
 }
 
 
@@ -123,6 +128,31 @@ def test_only_local_may_publish_its_own_api_surface(monkeypatch: pytest.MonkeyPa
     deployed = _settings({**_SECURE_ENV, "ENVIRONMENT": "production"}, monkeypatch)
 
     assert deployed.api_docs_enabled is False
+
+
+def test_production_refuses_to_start_with_cors_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P0.7 was verified by reading the deployed `.env`; nothing made it stay true.
+
+    The default is `true`, so a single dropped line would have re-enabled CORS
+    on production silently — and CORS is what decides whether another origin's
+    page may read our authenticated responses. Refused rather than quietly
+    forced off, matching DEBUG: a control that corrects itself teaches nobody.
+    """
+    env = {**_SECURE_ENV, "CORS_ENABLED": "true"}
+
+    with pytest.raises(ValueError, match="CORS_ENABLED"):
+        _settings(env, monkeypatch)
+
+
+def test_local_may_still_use_cors_for_the_vite_dev_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Locally the SPA runs on :5173 and the API on :8000 — genuinely two origins."""
+    local = _settings({**_SECURE_ENV, "ENVIRONMENT": "local", "CORS_ENABLED": "true"}, monkeypatch)
+
+    assert local.cors_enabled is True
 
 
 def test_a_deployed_environment_logs_json_whatever_the_env_says(

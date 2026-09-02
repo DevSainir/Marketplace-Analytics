@@ -89,6 +89,19 @@ class Settings(
             problems.append("REDIS_PASSWORD is unset or a known placeholder")
         if self.debug:
             problems.append("DEBUG must be false (leaks tracebacks and SQL echo)")
+        # nginx serves the SPA and the API from the SAME origin on every
+        # deployment, so a deployed environment has no legitimate cross-origin
+        # caller — and CORS is what decides whether somebody else's page may
+        # read our authenticated responses. Register P0.7 verified this was off
+        # in production by reading the deployed `.env`; nothing made it STAY
+        # off, and the default is `true`, so one dropped line would have
+        # re-enabled it silently. Refused rather than forced quietly, matching
+        # DEBUG above: a security control that corrects itself teaches nobody,
+        # and this is one line in a file.
+        if self.cors_enabled:
+            problems.append(
+                "CORS_ENABLED must be false (the SPA and API are same-origin behind nginx)"
+            )
         # Synthetic harvesting fabricates analytics; letting it run anywhere but
         # a developer's own box would silently poison a real seller's numbers.
         if self.wb_fake_harvest:
