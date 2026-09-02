@@ -43,32 +43,52 @@ _SQL_FILE = (
 _OWNER = "marketplace"
 
 
-def _split_statements(sql: str) -> list[str]:
-    """Split SQL on semicolons that are not inside a dollar-quoted block.
+def _split_statements(sql: str) -> list[tuple[str, bool]]:
+    """Split SQL into ``(statement, is_gexec)``, respecting dollar quoting.
 
-    The script uses ``DO $$ ... $$`` blocks, whose bodies contain semicolons of
-    their own. Splitting naively cuts them in half and the role is never
-    created — which fails as "role does not exist" three steps later, a long way
-    from the cause.
+    Two psql behaviours have to be emulated, and each one cost a real failure by
+    being absent.
+
+    ``DO $$ ... $$`` blocks contain semicolons of their own, so splitting
+    naively cuts them in half and the role is never created — which surfaces as
+    "role does not exist" several steps later, a long way from the cause.
+
+    ``\\gexec`` runs whatever the preceding query *returned* as SQL. The role
+    script uses it so that `CREATE ROLE` happens only when the role is absent
+    (psql cannot substitute a variable inside a dollar-quoted block, so the
+    guard cannot be a ``DO`` block). Skipping the metacommand silently turns
+    that statement into a plain ``SELECT`` that creates nothing.
     """
-    statements: list[str] = []
+    statements: list[tuple[str, bool]] = []
     current: list[str] = []
     in_dollar = False
     for line in sql.splitlines():
-        if line.strip().startswith("--") or line.startswith("\\"):
+        stripped = line.strip()
+        if stripped.startswith("--"):
             continue
+        if stripped == "\\gexec":
+            # Applies to the statement just collected, which psql accepts
+            # without a trailing semicolon.
+            body = "\n".join(current).strip().rstrip(";")
+            if body:
+                statements.append((body, True))
+            current = []
+            continue
+        if line.startswith("\\"):
+            continue  # any other metacommand (\set) has no effect here
         if line.count("$$") % 2 == 1:
             in_dollar = not in_dollar
         current.append(line)
         if not in_dollar and line.rstrip().endswith(";"):
-            statements.append("\n".join(current).strip())
+            statements.append(("\n".join(current).strip().rstrip(";"), False))
             current = []
-    if current and "\n".join(current).strip():
-        statements.append("\n".join(current).strip())
-    return [s.rstrip(";") for s in statements if s.strip()]
+    tail = "\n".join(current).strip().rstrip(";")
+    if tail:
+        statements.append((tail, False))
+    return [(body, gexec) for body, gexec in statements if body.strip()]
 
 
-def _script_for_tests() -> list[str]:
+def _script_for_tests() -> list[tuple[str, bool]]:
     """Return the shipped script's statements, retargeted at the test role.
 
     The file is READ rather than reimplemented — the point is to test the
@@ -89,6 +109,24 @@ def _script_for_tests() -> list[str]:
     return _split_statements(sql)
 
 
+async def _apply(conn: Any, statements: list[tuple[str, bool]]) -> None:
+    """Run the script the way psql would, including ``\\gexec``.
+
+    A ``\\gexec`` statement is executed and each string it returns is then run
+    as SQL — which is how the role script creates the role only when it is
+    absent. The closing status line is skipped: it exists for a human reading
+    psql output.
+    """
+    for body, is_gexec in statements:
+        if not is_gexec and body.upper().startswith("SELECT '"):
+            continue
+        if is_gexec:
+            for generated in (await conn.execute(sa.text(body))).scalars().all():
+                await conn.execute(sa.text(generated))
+        else:
+            await conn.execute(sa.text(body))
+
+
 @pytest.fixture
 async def app_role(db_connection: AsyncConnection, engine: Any) -> Any:
     """Create the restricted role from the shipped script, and drop it after.
@@ -100,10 +138,7 @@ async def app_role(db_connection: AsyncConnection, engine: Any) -> Any:
     admin = create_async_engine(engine.url, poolclass=NullPool, isolation_level="AUTOCOMMIT")
     try:
         async with admin.connect() as conn:
-            for statement in _script_for_tests():
-                if statement.upper().startswith("SELECT '"):
-                    continue  # the closing status line, for a human at psql
-                await conn.execute(sa.text(statement))
+            await _apply(conn, _script_for_tests())
         yield
     finally:
         async with admin.connect() as conn:

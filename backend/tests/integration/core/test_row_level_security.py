@@ -39,6 +39,7 @@ from sqlalchemy.pool import NullPool
 from tests.integration.core.test_least_privilege_role import (
     APP_PASSWORD,
     APP_ROLE,
+    _apply,
     _split_statements,
 )
 from tests.integration.core.test_least_privilege_role import (
@@ -60,16 +61,16 @@ THEIRS = uuid.UUID("019f657a-0000-7000-8000-00000000bbbb")
 _PROBE_NM_ID = {MINE: 990000001, THEIRS: 990000002}
 
 
-def _rls_statements() -> list[str]:
+def _rls_statements() -> list[tuple[str, bool]]:
     """Return the shipped policy script's statements.
 
     Read rather than restated, so a change to the policies is a change these
     tests see.
     """
     return [
-        s
-        for s in _split_statements(_RLS_FILE.read_text())
-        if not s.upper().startswith("SELECT")  # the closing report, for a human
+        (body, gexec)
+        for body, gexec in _split_statements(_RLS_FILE.read_text())
+        if not body.upper().startswith("SELECT")  # the closing report, for a human
     ]
 
 
@@ -85,12 +86,8 @@ async def isolated(engine: Any) -> Any:
     admin = create_async_engine(engine.url, poolclass=NullPool, isolation_level="AUTOCOMMIT")
     try:
         async with admin.connect() as conn:
-            for statement in _role_script():
-                if statement.upper().startswith("SELECT '"):
-                    continue
-                await conn.execute(sa.text(statement))
-            for statement in _rls_statements():
-                await conn.execute(sa.text(statement))
+            await _apply(conn, _role_script())
+            await _apply(conn, _rls_statements())
             # One product card in each of two workspaces. `product_card` is the
             # table every monitoring read starts from, so it is the one whose
             # leak would be widest.
