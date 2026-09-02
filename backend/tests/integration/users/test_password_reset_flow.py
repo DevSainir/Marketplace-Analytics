@@ -256,15 +256,24 @@ async def test_registration_mails_a_code_that_confirms_the_address(
     assert confirmed.status_code == 200, confirmed.text
 
 
-async def test_the_flow_is_dark_when_it_is_switched_off(
+async def test_the_flow_says_so_when_it_is_switched_off(
     api_client: Any,
     db_session: AsyncSession,
     settings_override: Any,
 ) -> None:
-    """Off must still answer 202 — a different answer says the feature is off.
+    """Off must REFUSE, not answer 202 — and the reversal is the point.
 
-    That is a small disclosure, but the uniform answer costs nothing and this
-    endpoint's entire job is to be uniform.
+    This case originally asserted the opposite: 202 whether or not the feature
+    was on, reasoning that a different answer discloses that it is off and that
+    uniformity "costs nothing". The disclosure part was right. The cost part
+    became wrong the moment the flow got a UI — a 202 makes the form tell the
+    user a code was sent by a deployment that cannot send one, so they wait for
+    mail that will never arrive instead of asking for help.
+
+    The uniformity this endpoint exists to protect is **per address**: that a
+    registered address and an unknown one are indistinguishable. That is
+    asserted separately, and still holds. A deployment-wide switch says nothing
+    about any account.
     """
     # Arrange
     user = await _account(db_session)
@@ -280,9 +289,36 @@ async def test_the_flow_is_dark_when_it_is_switched_off(
         )
 
     # Assert
-    assert requested.status_code == 202
+    assert requested.status_code == 422, requested.text
+    assert "недоступно" in requested.text
     assert confirmed.status_code == 422
     assert await _login(api_client, user, PASSWORD)
+
+
+async def test_the_switch_being_off_does_not_leak_which_addresses_exist(
+    api_client: Any,
+    db_session: AsyncSession,
+    settings_override: Any,
+) -> None:
+    """The refusal above must be the SAME refusal for every address.
+
+    Otherwise the change that made the feature honest about itself would have
+    made it an account-existence oracle instead, which is the trade this
+    endpoint was built to avoid.
+    """
+    # Arrange
+    user = await _account(db_session)
+
+    # Act
+    with settings_override(password_reset_enabled=False):
+        answers = [
+            await api_client.post("/api/v1/auth/password-reset/request", json={"email": address})
+            for address in (user.email, "nobody-at-all@example.com")
+        ]
+
+    # Assert
+    assert {a.status_code for a in answers} == {422}
+    assert len({a.text for a in answers}) == 1
 
 
 async def test_a_completed_reset_is_recorded_in_the_audit_log(

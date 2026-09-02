@@ -386,6 +386,7 @@ async def resend_confirmation(
     dependencies=[_recovery_rate_limit],
     responses={
         202: {"description": "Accepted. Says nothing about whether the address exists."},
+        422: {"description": "Password reset is switched off in this deployment."},
         429: {"description": "Too many attempts; retry later."},
     },
 )
@@ -395,10 +396,19 @@ async def request_password_reset(
 ) -> AcceptedResponse:
     """Mail a reset code, if the address belongs to a live account."""
     if not settings.password_reset_enabled:
-        # Answered identically to a successful request. A 404 here would tell an
-        # attacker the feature is off, which is a small thing, but the uniform
-        # answer costs nothing and this endpoint's whole job is uniformity.
-        return AcceptedResponse()
+        # This used to answer 202 like everything else, reasoning that a 404
+        # would reveal the feature is off and that uniformity "costs nothing".
+        # The reasoning was right about the leak and wrong about the cost, and
+        # what changed is that the flow now has a UI: a 202 makes the form say a
+        # code was sent when the deployment cannot send one, so the user waits
+        # for mail that will never arrive instead of contacting support.
+        #
+        # The uniformity this endpoint exists to protect is PER ADDRESS — that
+        # a registered address and an unknown one are indistinguishable. A
+        # deployment-wide switch reveals nothing about any account, and is
+        # observable anyway by submitting a code and reading `/confirm`'s
+        # answer. So the honest failure is the better trade.
+        raise ValidationError("Восстановление пароля временно недоступно.")
     try:
         await recovery.request_password_reset(email=payload.email)
     except Exception:
