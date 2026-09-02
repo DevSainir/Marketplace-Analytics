@@ -125,6 +125,34 @@ def test_only_local_may_publish_its_own_api_surface(monkeypatch: pytest.MonkeyPa
     assert deployed.api_docs_enabled is False
 
 
+def test_a_deployed_environment_logs_json_whatever_the_env_says(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The format is a deployed fact, not an operator preference.
+
+    A deployed log is read by a shipper, and structure carried by an encoder
+    rather than by punctuation is what stops a user-controlled value — a path,
+    an email, an upstream error — pretending to be a field (register P2.2).
+    Left to a default it would be one forgotten `.env` line away from silently
+    reverting, so the environment decides rather than the file.
+
+    Set rather than refused: failing a deploy over a log format would be the
+    worse trade.
+    """
+    deployed = _settings(
+        {**_SECURE_ENV, "ENVIRONMENT": "production", "LOG_JSON": "false"}, monkeypatch
+    )
+
+    assert deployed.log_json is True
+
+
+def test_local_keeps_the_human_log_format(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A person at a terminal wants columns, not braces."""
+    local = _settings({**_SECURE_ENV, "ENVIRONMENT": "local"}, monkeypatch)
+
+    assert local.log_json is False
+
+
 def test_staging_withholds_the_docs_like_production(monkeypatch: pytest.MonkeyPatch) -> None:
     """The switch is ``local``, not ``is_production`` — staging is reachable too.
 
