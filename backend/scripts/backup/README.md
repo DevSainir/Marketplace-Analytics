@@ -87,6 +87,22 @@ The dump is `--no-owner --no-privileges` and does **not** carry roles: the
 `POSTGRES_PASSWORD`, so a bare-metal recovery is *bring the stack up, then
 restore into it*.
 
+**A bare-metal recovery also needs `scripts/sql/least_privilege_role.sql` re-run
+afterwards.** Checked against a real dump rather than reasoned about: the
+row-level-security policies and their `ENABLE ROW LEVEL SECURITY` *do* survive
+those two flags, but `marketplace_app` and every `GRANT` to it do not — the
+flags exist to suppress exactly that. So a restored database comes back with
+the tenancy policies intact and no role able to use them, and the API fails to
+authenticate at all. That is the safe direction to be wrong in, and it is still
+a step somebody has to know about at 03:00.
+
+The dump itself runs as `POSTGRES_USER` — the owner — which is why the policies
+do not filter it. Running the backup as `marketplace_app` would not quietly
+produce a short dump: with no tenant bound, `current_setting` raises and
+`pg_dump` fails. Loud either way, but the owner is the correct identity here and
+`backend/docker/docker-compose.yml` keeps it that way (see
+`tests/unit/core/test_only_the_api_uses_the_restricted_role.py`).
+
 ## Configuration
 
 All of it lives in `backend/.env` (see `.env.example` for the annotated list).

@@ -111,8 +111,27 @@ async def isolated(engine: Any) -> Any:
             await conn.execute(
                 sa.text("DELETE FROM monitoring.product_card WHERE vendor_code = 'RLS-PROBE'")
             )
-            # Turn the policies back off so the rest of the tier is unaffected.
-            for table in ("monitoring.product_card",):
+            # Undo every table the script touched, not just the seeded one. An
+            # earlier version disabled `product_card` alone and left ten tables
+            # policy-covered for the rest of the session — harmless while the
+            # tier connects as the owner, and exactly the kind of leftover that
+            # makes the next run of this fixture start from a state it did not
+            # choose. Read back from the catalogue rather than restating the
+            # list, so a table added to the script is cleaned up too.
+            covered = (
+                (
+                    await conn.execute(
+                        sa.text(
+                            "SELECT schemaname || '.' || tablename FROM pg_policies "
+                            "WHERE policyname = 'tenant_isolation'"
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for table in covered:
+                await conn.execute(sa.text(f"DROP POLICY tenant_isolation ON {table}"))
                 await conn.execute(sa.text(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY"))
             await conn.execute(sa.text(f"DROP OWNED BY {APP_ROLE} CASCADE"))
             await conn.execute(sa.text(f"REVOKE ALL ON DATABASE marketplace_test FROM {APP_ROLE}"))
