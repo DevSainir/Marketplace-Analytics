@@ -123,7 +123,27 @@ describe('extractErrorMessage', () => {
     expect(extractErrorMessage(err)).toBe('value is not a valid email')
   })
 
-  it('falls back to the transport error message', () => {
-    expect(extractErrorMessage(new Error('Network Error'))).toBe('Network Error')
+  it('answers an Axios transport failure in Russian, not in Axios English', () => {
+    // Reversed on purpose. This used to return `error.message` verbatim, which
+    // put 'Network Error' and 'timeout of 5000ms exceeded' in front of Russian
+    // users — the SPA shows this string unaltered.
+    const err = { isAxiosError: true, message: 'Network Error' }
+    expect(extractErrorMessage(err)).toBe(
+      'Нет связи с сервером. Проверьте подключение и повторите попытку.',
+    )
+  })
+
+  it('distinguishes a server answer it cannot read from no answer at all', () => {
+    const err = { isAxiosError: true, response: { status: 500, data: {} } }
+    expect(extractErrorMessage(err)).toBe('Непредвиденная ошибка. Повторите попытку позже.')
+  })
+
+  it('keeps a message the app raised itself', () => {
+    // Our own throws are already written for the reader, in Russian. Replacing
+    // them with a generic transport line is how the monitoring store's
+    // poll-ceiling explanation got lost.
+    expect(extractErrorMessage(new Error('Обновление не завершилось за отведённое время'))).toBe(
+      'Обновление не завершилось за отведённое время',
+    )
   })
 })

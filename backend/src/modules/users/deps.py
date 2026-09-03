@@ -102,7 +102,7 @@ async def get_current_user(user_id: CurrentUserId, user_repo: UserRepoDep) -> Us
     """
     user = await user_repo.get_by_id(user_id)
     if user is None or not user.is_active:
-        raise AuthenticationError("Account is disabled or no longer exists.")
+        raise AuthenticationError("Аккаунт отключён или больше не существует.")
     return user
 
 
@@ -126,7 +126,7 @@ async def require_dev_role(user: CurrentUser) -> User:
         PermissionDeniedError: If the user does not hold the ``dev`` role.
     """
     if user.role != ROLE_DEV:
-        raise PermissionDeniedError("Developer role required.")
+        raise PermissionDeniedError("Действие доступно только разработчику.")
     return user
 
 

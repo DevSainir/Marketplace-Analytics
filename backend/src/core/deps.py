@@ -99,7 +99,7 @@ async def get_current_user_id(
     """
     unauthorized = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or expired access token.",
+        detail="Сессия недействительна или истекла. Войдите снова.",
         headers={"WWW-Authenticate": "Bearer"},
     )
     if credentials is None:

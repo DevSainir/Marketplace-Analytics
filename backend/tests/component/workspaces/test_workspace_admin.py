@@ -220,7 +220,11 @@ async def test_missing_workspace_header_is_400(client: httpx.AsyncClient, user: 
     response = await client.get("/api/v1/monitoring/summary", headers=auth_headers(user.id))
 
     assert response.status_code == 400
-    assert WORKSPACE_HEADER in response.json()["detail"]
+    # The header NAME is deliberately no longer in the answer. Only our own SPA
+    # calls this API and it sets the header itself, so a missing one is a client
+    # bug rather than something the reader can act on — and `detail` is rendered
+    # to the user verbatim. The name still goes to the log, where it helps.
+    assert response.json()["detail"] == "Не выбрано рабочее пространство."
 
 
 async def test_malformed_workspace_header_is_400(client: httpx.AsyncClient, user: Any) -> None:

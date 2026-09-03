@@ -95,7 +95,7 @@ class PinnedSkuAnalytics:
         current = {row.nm_id for row in rows}
         if set(nm_ids) != current:
             raise ValidationError(
-                "The pinned SKU list changed — refresh the page and reorder again."
+                "Список закреплённых артикулов изменился — обновите страницу и повторите."
             )
         await self._pinned_skus.reorder(nm_ids=nm_ids)
         return await self.list_pinned_skus(workspace_id=workspace_id)

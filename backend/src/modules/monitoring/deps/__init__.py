@@ -216,7 +216,7 @@ async def require_workspace_sku(
             workspace.
     """
     if not await product_card_repo.is_in_workspace(nm_id=nm_id, workspace_id=workspace_id):
-        raise NotFoundError(f"SKU {nm_id} not found.")
+        raise NotFoundError(f"Артикул {nm_id} не найден.")
     return nm_id
 
 

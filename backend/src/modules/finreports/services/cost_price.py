@@ -157,7 +157,7 @@ class CostPriceService:
         if stored + (len(incoming) - already) <= cap:
             return
         raise ValidationError(
-            f"Достигнут лимит себестоимостей ({cap} SKU на воркспейс). "
+            f"Достигнут лимит себестоимостей ({cap} артикулов на пространство). "
             "Удалите ненужные строки или обратитесь в поддержку."
         )
 

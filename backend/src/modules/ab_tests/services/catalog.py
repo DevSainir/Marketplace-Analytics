@@ -177,7 +177,7 @@ class AbTestCatalogService:
         cap = settings.max_ab_tests_per_workspace
         if await self._tests.count_for_workspace(workspace_id) >= cap:
             raise ValidationError(
-                f"Достигнут лимит А/Б-тестов ({cap} на воркспейс). "
+                f"Достигнут лимит А/Б-тестов ({cap} на пространство). "
                 "Удалите завершённые тесты, чтобы создать новый."
             )
         test = await self._tests.create(

@@ -68,7 +68,7 @@ class RateLimiter:
             window_seconds=self._window,
         )
         if not within_budget:
-            raise RateLimitError("Too many requests. Please retry later.")
+            raise RateLimitError("Слишком много запросов. Попробуйте позже.")
 
 
 async def consume_budget(*, scope: str, subject: str, limit: int, window_seconds: int) -> bool:

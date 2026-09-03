@@ -111,7 +111,7 @@ async def refresh_all_skus(
     """
     nm_ids = await service.list_workspace_nm_ids(workspace_id=workspace_id)
     if not nm_ids:
-        raise NotFoundError("В воркспейсе нет ни одного SKU для обновления.")
+        raise NotFoundError("В рабочем пространстве нет ни одного артикула для обновления.")
     running = await task_already_running(workspace_id, nm_ids)
     if running is not None:
         return RefreshEnqueuedResponse(task_id=running)
@@ -166,7 +166,7 @@ async def get_refresh_status(
     to another tenant is indistinguishable from one that never existed.
     """
     if not await task_belongs_to_workspace(task_id, workspace_id):
-        raise NotFoundError(f"Refresh task {task_id} not found.")
+        raise NotFoundError(f"Задача обновления {task_id} не найдена.")
     result: AsyncResult[object] = AsyncResult(task_id, app=celery_app)
     ready = result.ready()
     successful = bool(result.successful()) if ready else False

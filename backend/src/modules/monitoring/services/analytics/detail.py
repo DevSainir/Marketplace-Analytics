@@ -181,7 +181,7 @@ class DetailAnalytics:
         )
 
         if not funnel_rows and not inputs.ad_rows and not inputs.stock_daily:
-            raise NotFoundError(f"No monitoring data found for SKU {nm_id}.")
+            raise NotFoundError(f"Нет данных мониторинга по артикулу {nm_id}.")
 
         # Group + filter the per-campaign advertising view.
         advertising = build_campaign_advertising(inputs.ad_rows, inputs.campaigns)
@@ -264,7 +264,7 @@ class DetailAnalytics:
             nm_id=sku, date_from=date_from, date_to=date_to
         )
         if not funnel_rows:
-            raise NotFoundError(f"No funnel metrics found for SKU {sku}.")
+            raise NotFoundError(f"Нет метрик воронки по артикулу {sku}.")
 
         price_snapshots = await self._prices.list_for_sku(
             nm_id=sku, date_from=date_from, date_to=max(date_to, moscow_today())

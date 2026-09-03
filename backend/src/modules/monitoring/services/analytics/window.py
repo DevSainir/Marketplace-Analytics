@@ -40,7 +40,7 @@ def resolve_window(date_from: date | None, date_to: date | None) -> tuple[date, 
     end = date_to or moscow_today()
     start = date_from or (end - timedelta(days=_DEFAULT_WINDOW_DAYS))
     if start > end:
-        raise ValidationError("`date_from` must not be after `date_to`.")
+        raise ValidationError("Дата начала не может быть позже даты окончания.")
     if (end - start).days > _MAX_WINDOW_DAYS:
-        raise ValidationError(f"The analysis window must not exceed {_MAX_WINDOW_DAYS} days.")
+        raise ValidationError(f"Период анализа не может превышать {_MAX_WINDOW_DAYS} дней.")
     return start, end

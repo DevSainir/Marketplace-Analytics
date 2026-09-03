@@ -162,7 +162,29 @@ export function extractErrorMessage(error) {
   if (data?.error?.message) return data.error.message
   if (typeof data?.detail === 'string') return data.detail
   if (Array.isArray(data?.detail) && data.detail[0]?.msg) return data.detail[0].msg
+  // `error.message` is only safe when the throw is OURS. Axios writes its own
+  // English — 'Network Error', 'timeout of 5000ms exceeded' — and this string
+  // is shown to the user unaltered, so for an Axios failure it is replaced.
+  // Errors the app raises itself already carry Russian written for the reader
+  // (the monitoring store's poll-ceiling message, for one) and must survive.
+  if (error.isAxiosError) {
+    // Worth telling apart: one of these is worth retrying, the other is not.
+    if (!error.response) return 'Нет связи с сервером. Проверьте подключение и повторите попытку.'
+    return 'Непредвиденная ошибка. Повторите попытку позже.'
+  }
   return error.message ?? 'Непредвиденная ошибка'
+}
+
+/**
+ * The backend's machine-readable error code, when the envelope carries one.
+ *
+ * Views branch on this rather than on message text: the message is Russian
+ * prose written for a person and is expected to be reworded, while the code is
+ * the contract. `email_not_confirmed` is the one this exists for — it is the
+ * difference between "your password is wrong" and "finish signing up".
+ */
+export function extractErrorCode(error) {
+  return error.response?.data?.error?.code ?? null
 }
 
 export default apiClient

@@ -79,7 +79,7 @@ class CostPriceBulkInput(BaseModel):
         """
         seen = {item.nm_id for item in items}
         if len(seen) != len(items):
-            raise ValueError("Each nm_id may appear only once in a batch.")
+            raise ValueError("Каждый артикул может встречаться в списке только один раз.")
         return items
 
 

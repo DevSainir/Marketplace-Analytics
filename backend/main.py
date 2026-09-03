@@ -196,6 +196,86 @@ async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
     )
 
 
+#: Pydantic's own ``msg`` is English prose ("String should have at least 8
+#: characters"), and `extractErrorMessage` in the SPA puts it straight in front
+#: of the user. Mapped by error TYPE rather than by matching on its text, which
+#: is not a stable interface.
+#:
+#: Only ``ctx`` limits are interpolated — ``min_length`` and friends are
+#: constants from our own schema, never the submitted value. That distinction
+#: is the whole reason `handle_validation_error` drops ``input`` and ``ctx``
+#: from the response: a rejected password must not come back in the body.
+_RU_VALIDATION: dict[str, str] = {
+    "missing": "Обязательное поле.",
+    "string_too_short": "Слишком короткое значение — минимум {min_length}.",
+    "string_too_long": "Слишком длинное значение — максимум {max_length}.",
+    "string_pattern_mismatch": "Значение имеет недопустимый формат.",
+    "value_error": "Некорректное значение.",
+    "int_parsing": "Ожидается целое число.",
+    "float_parsing": "Ожидается число.",
+    "bool_parsing": "Ожидается «да» или «нет».",
+    "datetime_parsing": "Некорректная дата.",
+    "date_parsing": "Некорректная дата.",
+    "uuid_parsing": "Некорректный идентификатор.",
+    "enum": "Недопустимое значение.",
+    "greater_than": "Значение должно быть больше {gt}.",
+    "greater_than_equal": "Значение должно быть не меньше {ge}.",
+    "less_than": "Значение должно быть меньше {lt}.",
+    "less_than_equal": "Значение должно быть не больше {le}.",
+    "too_short": "Слишком мало элементов.",
+    "too_long": "Слишком много элементов.",
+    "json_invalid": "Тело запроса не является корректным JSON.",
+}
+
+
+def _russian_validation_message(error: dict[str, object]) -> str:
+    """Render one Pydantic error in Russian.
+
+    Args:
+        error: One entry from ``RequestValidationError.errors()``.
+
+    Returns:
+        A Russian sentence. Falls back to a generic one for any error type not
+        listed — a type we have not seen is still not an excuse to show English.
+    """
+    kind = str(error.get("type", ""))
+    # A `value_error` is the one type that can already be OURS: a
+    # `field_validator` raising `ValueError` lands here, and this codebase's
+    # validators write Russian aimed at the person (see
+    # `users/schemas._validate_password`). Pydantic prefixes them with
+    # "Value error, ". Passing those through is the difference between
+    # "Пароль должен содержать хотя бы одну заглавную букву." and a flat
+    # "Некорректное значение." that says nothing.
+    #
+    # Detected by alphabet rather than by a registry: every message pydantic
+    # itself produces is English, and every one we write is Russian. Our
+    # validators never interpolate the submitted value, which is what makes it
+    # safe to forward — the rule the rest of this handler exists to enforce.
+    if kind == "value_error":
+        own = str(error.get("msg", "")).removeprefix("Value error, ").strip()
+        if own and any("а" <= char.lower() <= "я" or char.lower() == "ё" for char in own):
+            return own
+    # An address is the one field where "Некорректное значение." is uselessly
+    # vague, and it is also the commonest thing a person mistypes here.
+    location = error.get("loc", ())
+    if (
+        kind == "value_error"
+        and isinstance(location, (list, tuple))
+        and any("email" in str(part) for part in location)
+    ):
+        return "Некорректный адрес электронной почты."
+    template = _RU_VALIDATION.get(kind, "Некорректное значение.")
+    context = error.get("ctx")
+    if isinstance(context, dict):
+        try:
+            return template.format(**context)
+        except (KeyError, IndexError, ValueError):
+            # A template whose placeholder this error does not carry: the
+            # generic half of the sentence is still true and still Russian.
+            return _RU_VALIDATION.get(kind, "Некорректное значение.").split(" — ")[0]
+    return template
+
+
 @app.exception_handler(RequestValidationError)
 async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Answer a schema violation without echoing what was submitted.
@@ -214,6 +294,9 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
     ``loc`` is kept deliberately, even though it names internal field paths: the
     client needs to know WHICH field it got wrong, and the field names are
     already public in the request schema it just submitted.
+
+    ``msg`` is replaced with a Russian rendering — Pydantic writes English, and
+    the SPA shows this string to the user unaltered.
     """
     logger.info(
         "Validation error on %s %s (%d field(s)).",
@@ -230,7 +313,7 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
                 {
                     "type": error.get("type", "value_error"),
                     "loc": [str(part) for part in error.get("loc", ())],
-                    "msg": error.get("msg", "Invalid value."),
+                    "msg": _russian_validation_message(error),
                 }
                 for error in exc.errors()
             ]

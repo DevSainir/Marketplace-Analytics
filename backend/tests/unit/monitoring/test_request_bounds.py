@@ -67,7 +67,7 @@ def test_a_window_past_the_ceiling_is_still_refused() -> None:
     """Sharing the constant must not have loosened the original guard."""
     end = date(2026, 12, 31)
 
-    with pytest.raises(ValidationError, match="must not exceed"):
+    with pytest.raises(ValidationError, match="не может превышать"):
         resolve_window(end - timedelta(days=MAX_WINDOW_DAYS + 1), end)
 
 

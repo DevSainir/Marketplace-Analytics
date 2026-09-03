@@ -62,5 +62,5 @@ class PinReorderRequest(BaseModel):
     def _reject_duplicates(cls, value: list[int]) -> list[int]:
         """Reject a repeated ``nm_id``, which has no single position."""
         if len(set(value)) != len(value):
-            raise ValueError("nm_ids must not contain duplicates.")
+            raise ValueError("Артикулы не должны повторяться.")
         return value

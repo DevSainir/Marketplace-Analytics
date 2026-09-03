@@ -208,7 +208,7 @@ class SummaryAnalytics:
         """
         fragment = vendor_code.strip()
         if not fragment:
-            raise ValidationError("`vendor_code` must not be blank.")
+            raise ValidationError("Не указан артикул продавца.")
 
         cards = await self._product_cards.search_by_vendor_code(
             fragment, workspace_id=workspace_id, limit=_LOOKUP_LIMIT

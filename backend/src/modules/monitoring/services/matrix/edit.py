@@ -122,7 +122,7 @@ def _find_day(base: MatrixBaseState, day: date) -> MatrixDayBase:
     for candidate in base.days:
         if candidate.day == day:
             return candidate
-    raise ValidationError(f"Day {day.isoformat()} is not in the current window.")
+    raise ValidationError(f"Дата {day.isoformat()} вне текущего периода.")
 
 
 #: The carts/orders fields, whose edit also has a per-variant breakdown to keep
@@ -200,7 +200,9 @@ def _edit_ad_bucket(
     b = day.buckets.get(bucket)
     if b is None:
         # The cell renders «—» (this bucket delivered nothing that day).
-        raise ValidationError(f"No advertising in '{bucket}' on {day.day.isoformat()} to edit.")
+        raise ValidationError(
+            f"За {day.day.isoformat()} нет рекламы в «{bucket}» — нечего изменять."
+        )
     match metric:
         case "views":
             _set_ad_metric(b, "views", value)
@@ -297,7 +299,7 @@ def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
 
     f = day.funnel
     if f is None:
-        raise ValidationError(f"No funnel data on {day.day.isoformat()} to edit.")
+        raise ValidationError(f"За {day.day.isoformat()} нет данных воронки — нечего изменять.")
     # A price-only day (funnel not served yet): counts are not facts there —
     # only the prices are editable.
     counts_editable = f.has_funnel
@@ -339,7 +341,7 @@ def _edit_organic(day: MatrixDayBase, metric: str, value: float) -> None:
     """
     f = day.funnel
     if f is None or not f.has_funnel:
-        raise ValidationError(f"No funnel data on {day.day.isoformat()} to edit.")
+        raise ValidationError(f"За {day.day.isoformat()} нет данных воронки — нечего изменять.")
     day_ad = _day_ad_from_base(day)
     match metric:
         case "clicks":
