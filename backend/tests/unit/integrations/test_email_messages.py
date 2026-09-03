@@ -27,13 +27,36 @@ def test_the_code_is_in_the_text_part_not_only_the_html(build) -> None:
 
 
 @pytest.mark.parametrize("build", _BUILDERS)
-def test_the_html_shows_the_code_spaced_for_reading_back(build) -> None:
+def test_the_html_carries_the_code_as_one_unbroken_token(build) -> None:
+    """The digits are spaced by CSS, never by real spaces.
+
+    This assertion is the reverse of the one it replaces, which required
+    ``8 6 4 3 4 6`` in the markup. Literal spaces did read well and copied
+    badly: selecting the code — the thing every recipient does with it — put
+    ``8 6 4 3 4 6`` on the clipboard, which no code field accepts. Spacing is
+    now `letter-spacing`, so it still reads apart and pastes clean.
+    """
     # Arrange / Act
     message = build(to="seller@example.com", code="864346", ttl_minutes=20)
 
     # Assert
     assert message.html is not None
-    assert "8 6 4 3 4 6" in message.html
+    assert "864346" in message.html
+    assert "8 6 4 3 4 6" not in message.html
+    # One tap selects the whole code and nothing around it — the closest a
+    # mail client gets to a copy button, since none of them run JavaScript.
+    assert "user-select:all" in message.html
+
+
+@pytest.mark.parametrize("build", _BUILDERS)
+def test_the_code_is_still_visually_spaced(build) -> None:
+    """Losing the real spaces must not lose the readability they bought."""
+    # Arrange / Act
+    message = build(to="seller@example.com", code="864346", ttl_minutes=20)
+
+    # Assert
+    assert message.html is not None
+    assert "letter-spacing" in message.html
 
 
 @pytest.mark.parametrize("build", _BUILDERS)

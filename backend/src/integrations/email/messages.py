@@ -19,6 +19,13 @@ drawn with a background colour and a letter rather than fetched, so nothing
 here reports back when the mail is opened and nothing breaks when a client
 blocks remote content by default.
 
+**The code is one unbroken token.** It is spaced apart with `letter-spacing`
+rather than by putting real spaces between the digits, so selecting it yields
+`864346` and not `8 6 4 3 4 6`. Mail clients run no JavaScript, so a
+copy-on-click button is not available in this medium; `user-select:all` is the
+nearest thing that works — one tap or click selects the whole code and nothing
+around it, and the client's own Copy appears.
+
 Each message carries a plain-text body *and* an HTML alternative. The text
 part is authoritative — see :class:`EmailMessage` — and is what a developer
 reads out of the log when the relay is off.
@@ -31,7 +38,7 @@ from html import escape
 from src.integrations.email.transport import EmailMessage
 
 #: The brand mark, matching `AppHeaderNext.vue` and `favicon.svg`: the letter
-#: on the indigo tile, then the wordmark. Drawn in HTML because an <img> in a
+#: on the indigo tile, with the wordmark centred beneath it. Drawn in HTML because an <img> in a
 #: mail is either a remote fetch (blocked by default, and a read receipt for
 #: whoever hosts it) or an attachment (which shows up as a paperclip on a
 #: message that has no files).
@@ -62,7 +69,7 @@ def _shell(*, heading: str, code: str, ttl_minutes: int, footer: str) -> str:
     Returns:
         A complete HTML document.
     """
-    spaced = " ".join(escape(code))
+    safe_code = escape(code)
     return f"""\
 <!DOCTYPE html>
 <html lang="en">
@@ -75,31 +82,32 @@ def _shell(*, heading: str, code: str, ttl_minutes: int, footer: str) -> str:
              style="max-width:560px;background:#ffffff;border:1px solid {_HAIRLINE};
                     border-radius:14px;padding:40px 32px;font-family:-apple-system,
                     BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-        <tr><td align="center" style="padding-bottom:32px;">
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-            <td style="background:{_INDIGO};border-radius:9px;width:34px;height:34px;
+        <tr><td align="center" style="padding-bottom:10px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+                 align="center"><tr>
+            <td style="background:{_INDIGO};border-radius:11px;width:44px;height:44px;
                        text-align:center;vertical-align:middle;color:#ffffff;
-                       font-size:19px;font-weight:700;line-height:34px;">{_MARK}</td>
-            <td style="padding-left:11px;font-size:19px;font-weight:600;color:{_INK};
-                       white-space:nowrap;">Аналитика<span style="color:{_MUTED};
-                       font-weight:500;"> · WB</span></td>
+                       font-size:24px;font-weight:700;line-height:44px;">{_MARK}</td>
           </tr></table>
         </td></tr>
+        <tr><td align="center" style="padding-bottom:32px;font-size:19px;font-weight:600;
+                       color:{_INK};white-space:nowrap;">Аналитика<span
+                       style="color:{_MUTED};font-weight:500;"> · WB</span></td></tr>
         <tr><td align="center"
                 style="font-size:21px;font-weight:700;color:{_INK};padding-bottom:28px;">
           {escape(heading)}
         </td></tr>
-        <tr><td align="center"
-                style="font-size:38px;font-weight:700;color:{_INK};letter-spacing:5px;
-                       padding-bottom:28px;font-variant-numeric:tabular-nums;">
-          {spaced}
+        <tr><td align="center" style="padding-bottom:28px;">
+          <span style="display:inline-block;font-size:38px;font-weight:700;color:{_INK};
+                       letter-spacing:12px;text-indent:12px;font-variant-numeric:tabular-nums;
+                       font-family:'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+                       user-select:all;-webkit-user-select:all;">{safe_code}</span>
         </td></tr>
         <tr><td align="center" style="font-size:15px;color:{_MUTED};">
           The code is valid for {ttl_minutes} minutes.
         </td></tr>
-        <tr><td style="padding-top:28px;border-top:1px solid {_HAIRLINE};
-                       margin-top:28px;"></td></tr>
-        <tr><td align="center" style="font-size:13px;color:{_MUTED};line-height:1.55;">
+        <tr><td align="center" style="padding-top:28px;font-size:13px;color:{_MUTED};
+                       line-height:1.55;">
           {escape(footer)}
         </td></tr>
       </table>
