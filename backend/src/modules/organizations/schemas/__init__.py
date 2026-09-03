@@ -204,11 +204,14 @@ class InvitationCreateRequest(BaseModel):
         default=None,
         description="Address to offer it to in-app; omit for a link-only invitation.",
     )
-    valid_for_days: int = Field(
-        default=7,
+    valid_for_hours: int = Field(
+        default=1,
         ge=1,
-        le=90,
-        description="How long the invitation stays acceptable.",
+        le=720,
+        description=(
+            "How long the link keeps working. Short by default: an invitation is "
+            "reusable until it expires, so the window is what bounds it."
+        ),
     )
     #: The access the manager starts with. Carried on the invitation rather
     #: than set after they join, so there is no window in which a new manager
@@ -267,9 +270,13 @@ class InvitationRead(BaseModel):
 
     id: uuid.UUID
     email: EmailStr | None
-    #: One of ``pending`` / ``accepted`` / ``revoked`` / ``expired``, resolved
-    #: against the server's clock so every viewer reads the same state.
+    #: One of ``pending`` / ``revoked`` / ``expired``, resolved against the
+    #: server's clock so every viewer reads the same state. Acceptance is NOT
+    #: among them: a link stays usable until it expires, so "somebody joined"
+    #: says nothing about whether it still works.
     status: str
+    #: How many people have joined through this link.
+    accepted_count: int = 0
     expires_at: datetime
     accepted_at: datetime | None
     created_at: datetime

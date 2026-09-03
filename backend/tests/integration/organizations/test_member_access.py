@@ -77,7 +77,7 @@ async def test_the_grant_on_the_invitation_is_what_the_manager_joins_with(
         organization_id=org.id,
         owner_user_id=owner.id,
         email=None,
-        valid_for_days=7,
+        valid_for_hours=24,
         access=MemberAccessFields(
             access_level=AccessLevel.READ_ONLY, modules=[ModuleKey.MONITORING]
         ),
@@ -103,7 +103,7 @@ async def test_an_invitation_with_no_grant_still_gives_everything(
 
     # Act
     invitation = await service.invite(
-        organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_days=7
+        organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_hours=24
     )
     await service.accept(token=invitation.token, user_id=joiner.id, email=joiner.email)
 
@@ -125,7 +125,7 @@ async def test_narrowing_a_manager_takes_effect_on_their_next_request(
     await _with_live_subscription(db_session, org.id)
     invites = invitation_service(db_session)
     invitation = await invites.invite(
-        organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_days=7
+        organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_hours=24
     )
     await invites.accept(token=invitation.token, user_id=joiner.id, email=joiner.email)
 
@@ -177,7 +177,7 @@ async def test_an_owner_cannot_narrow_a_manager_in_another_company(
     outsider = await persist_user(db_session, "manager-f@example.com")
     invites = invitation_service(db_session)
     invitation = await invites.invite(
-        organization_id=org_two.id, owner_user_id=owner_two.id, email=None, valid_for_days=7
+        organization_id=org_two.id, owner_user_id=owner_two.id, email=None, valid_for_hours=24
     )
     await invites.accept(token=invitation.token, user_id=outsider.id, email=outsider.email)
 
@@ -207,7 +207,7 @@ async def test_a_manager_with_no_modules_reaches_nothing_but_is_still_a_member(
     await _with_live_subscription(db_session, org.id)
     invites = invitation_service(db_session)
     invitation = await invites.invite(
-        organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_days=7
+        organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_hours=24
     )
     await invites.accept(token=invitation.token, user_id=joiner.id, email=joiner.email)
 
@@ -236,7 +236,7 @@ async def test_a_dev_is_never_narrowed_by_a_grant(db_session: AsyncSession) -> N
     org = await persist_organization(db_session, owner)
     invites = invitation_service(db_session)
     invitation = await invites.invite(
-        organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_days=7
+        organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_hours=24
     )
     await invites.accept(token=invitation.token, user_id=joiner.id, email=joiner.email)
     await _service(db_session).set_member_access(

@@ -307,7 +307,7 @@ async def create_invitation(
         organization_id=access.tenant_id,
         owner_user_id=access.user_id,
         email=payload.email,
-        valid_for_days=payload.valid_for_days,
+        valid_for_hours=payload.valid_for_hours,
         access=payload.access,
     )
     # The invitee's address, never the token: the token is the credential and

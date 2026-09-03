@@ -17,9 +17,11 @@ import { useMembersStore } from '@/modules/profile/membersStore'
 
 const members = useMembersStore()
 
+// `accepted` is deliberately absent: a link is reusable until it expires, so
+// somebody having joined through it says nothing about whether it still works.
+// How many came through is shown separately, as a count.
 const STATUS = {
-  pending: { label: 'Ждёт принятия', tone: 'live' },
-  accepted: { label: 'Принято', tone: 'done' },
+  pending: { label: 'Действует', tone: 'live' },
   revoked: { label: 'Отозвано', tone: 'muted' },
   expired: { label: 'Истекло', tone: 'muted' },
 }
@@ -38,9 +40,17 @@ function describe(status) {
   return STATUS[status] ?? { label: status, tone: 'muted' }
 }
 
-/** Day and month is enough — nobody plans around the minute one expires. */
+/**
+ * Time as well as date: the default window is an hour, so a link that says only
+ * «3 сент.» tells an owner nothing about whether it is still open.
+ */
 function shortDate(value) {
-  return new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+  return new Date(value).toLocaleString('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 </script>
 
@@ -49,8 +59,8 @@ function shortDate(value) {
     <h3 class="text-base font-semibold text-primary">Выданные приглашения</h3>
     <p class="mt-xs text-tiny font-medium text-muted">
       <template v-if="liveCount">
-        Действующих ссылок: {{ liveCount }}. Каждая пускает в компанию одного человека — отзовите
-        те, что вы никому не отправляли.
+        Действующих ссылок: {{ liveCount }}. Пока ссылка действует, по ней может присоединиться
+        любой, у кого она есть — отзовите те, что вы никому не отправляли.
       </template>
       <template v-else>Действующих ссылок нет.</template>
     </p>
@@ -61,15 +71,22 @@ function shortDate(value) {
           <span class="block truncate text-base text-primary">
             {{ row.email ?? 'Ссылка без адреса' }}
           </span>
-          <span class="text-tiny text-muted">до {{ shortDate(row.expires_at) }}</span>
+          <span class="text-tiny text-muted">
+            до {{ shortDate(row.expires_at) }}
+            <template v-if="row.accepted_count">
+              · присоединились: {{ row.accepted_count }}</template
+            >
+          </span>
         </div>
 
         <div class="flex shrink-0 items-center gap-sm">
           <span class="badge" :class="`badge-${describe(row.status).tone}`">
             {{ describe(row.status).label }}
           </span>
-          <!-- Only a live one can be withdrawn: an accepted invitation is a
-               member now, and the API answers 409 rather than removing them. -->
+          <!-- Offered on any live link, INCLUDING one somebody already used:
+               that is the one an owner has evidence about, and revoking stops
+               the next arrival. Removing whoever already joined is a separate
+               act, on the members list. -->
           <button
             v-if="row.status === 'pending'"
             type="button"

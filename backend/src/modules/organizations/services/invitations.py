@@ -67,8 +67,10 @@ def _status(invitation: Invitation, *, now: datetime) -> str:
     state — an "expired" computed in the browser drifts with the device's
     timezone and its owner's patience.
     """
-    if invitation.accepted_at is not None:
-        return "accepted"
+    # Acceptance is deliberately NOT here any more. A link stays usable until it
+    # expires or is withdrawn, so "somebody joined through it" says nothing
+    # about whether it still works — and reporting it as spent would tell an
+    # owner a live link was closed.
     if invitation.revoked_at is not None:
         return "revoked"
     if invitation.expires_at <= now:
@@ -96,13 +98,31 @@ class InvitationService:
     # ------------------------------------------------------------------ #
     # The owner's side
     # ------------------------------------------------------------------ #
+    async def _refuse_if_manager_quota_is_full(self, organization_id: uuid.UUID) -> None:
+        """Refuse when the organisation already holds every manager it may.
+
+        Counted against existing MEMBERS, not against outstanding invitations:
+        an unaccepted invitation costs nothing, and refusing to issue one
+        because five were sent and none accepted would be a quota on optimism.
+
+        Raises:
+            ValidationError: The quota is full.
+        """
+        subscription = await self._subscriptions.get_for_organization(organization_id)
+        limit = subscription.max_managers if subscription else None
+        if limit is not None and await self._memberships.count_managers(organization_id) >= limit:
+            raise ValidationError(
+                f"Достигнут лимит менеджеров ({limit}). "
+                "Удалите одного из текущих или продлите подписку."
+            )
+
     async def invite(
         self,
         *,
         organization_id: uuid.UUID,
         owner_user_id: uuid.UUID,
         email: str | None,
-        valid_for_days: int,
+        valid_for_hours: int,
         access: MemberAccessFields | None = None,
     ) -> InvitationCreated:
         """Issue a manager invitation into the owner's organisation.
@@ -111,7 +131,9 @@ class InvitationService:
             organization_id: The owner's organisation.
             owner_user_id: The issuing owner.
             email: Address to offer it to in-app, or ``None`` for a bare link.
-            valid_for_days: How long it stays acceptable.
+            valid_for_hours: How long it stays acceptable. Short by default
+                (one hour): the link admits anyone who holds it for as long
+                as it lives, so the window IS the control.
             access: What the resulting manager may do and see. Defaults to
                 everything, matching what a manager got before the grant
                 existed. Stored on the invitation so acceptance copies it
@@ -124,20 +146,15 @@ class InvitationService:
         Raises:
             ValidationError: The manager quota for this organisation is full.
         """
-        subscription = await self._subscriptions.get_for_organization(organization_id)
-        limit = subscription.max_managers if subscription else None
-        # Counted against existing MEMBERS, not against outstanding invitations:
-        # an unaccepted invitation costs nothing, and refusing to issue one
-        # because five were sent and none accepted would be a quota on optimism.
-        if limit is not None and await self._memberships.count_managers(organization_id) >= limit:
-            raise ValidationError(
-                f"Достигнут лимит менеджеров ({limit}). "
-                "Удалите одного из текущих или продлите подписку."
-            )
+        # Checked here for a quick refusal, and again at ACCEPTANCE, which is
+        # the only place it can still hold: one link can now admit several
+        # people, so a check that runs once when the link is made would let the
+        # second, third and fourth acceptance walk straight past the limit.
+        await self._refuse_if_manager_quota_is_full(organization_id)
 
         grant = access or MemberAccessFields()
         token = generate_opaque_secret(_TOKEN_BYTES)
-        expires_at = datetime.now(UTC) + timedelta(days=valid_for_days)
+        expires_at = datetime.now(UTC) + timedelta(hours=valid_for_hours)
         row = await self._invitations.create(
             organization_id=organization_id,
             email=_normalize_email(email) if email else None,
@@ -182,17 +199,28 @@ class InvitationService:
                 oracle for other companies' invitation ids.
             invitation_id: The invitation to withdraw.
 
+        Withdrawing stops the LINK; it does not remove anyone who already came
+        through it. Those are two different acts now that one link can admit
+        several people, and this is the one that closes the door — removing a
+        member is how you deal with whoever is already inside.
+
+        Refusing an already-accepted invitation, which this used to do, has
+        become exactly backwards: a link that got out AND was used is the one
+        most urgently in need of revoking, and telling the owner to remove a
+        member instead would leave it working for the next person.
+
+        Args:
+            organization_id: The caller's organisation — an invitation issued by
+                a different one is a 404, not a 403, so the endpoint is not an
+                oracle for other companies' invitation ids.
+            invitation_id: The invitation to withdraw.
+
         Raises:
             NotFoundError: No such invitation in this organisation.
-            ConflictError: It has already been accepted; a membership exists and
-                revoking the invitation would not remove it. Remove the member
-                instead, so the destructive action is the one that was asked for.
         """
         row = await self._invitations.get_by_id(invitation_id)
         if row is None or row.organization_id != organization_id:
             raise NotFoundError("Приглашение не найдено.")
-        if row.accepted_at is not None:
-            raise ConflictError("Приглашение уже принято. Чтобы закрыть доступ, удалите участника.")
         if row.revoked_at is None:
             await self._invitations.mark_revoked(row, revoked_at=datetime.now(UTC))
 
@@ -246,10 +274,14 @@ class InvitationService:
         addressed_to_someone_else = (
             row is not None and row.email is not None and row.email != _normalize_email(email)
         )
+        # `accepted_at` is deliberately NOT a rejection any more: an invitation
+        # is reusable until it expires or is withdrawn. What replaces it as the
+        # bound is the window — one hour by default — and the manager quota
+        # below, which is now the only thing standing between a leaked link and
+        # an unbounded number of managers.
         if (
             row is None
             or row.revoked_at is not None
-            or row.accepted_at is not None
             or row.expires_at <= now
             or addressed_to_someone_else
         ):
@@ -261,14 +293,26 @@ class InvitationService:
             )
             raise PermissionDeniedError("Приглашение недействительно.")
 
-        # Consume BEFORE joining, for the reason the activation code does: the
-        # checks above are a read-then-write, and a link forwarded to two people
-        # who open it in the same second would otherwise admit both. The
-        # conditional UPDATE also re-tests `revoked_at`, so an owner revoking
-        # while someone accepts resolves one way rather than both.
-        if not await self._invitations.claim(row.id, accepted_at=now, accepted_by_user_id=user_id):
-            logger.info("User %s lost the race to accept invitation %s.", user_id, row.id)
-            raise PermissionDeniedError("Приглашение недействительно.")
+        # The quota, re-checked at the moment it is spent. Issuing checked it
+        # too, but a reusable link makes that check historical: five people can
+        # arrive through one link that was legal when it was made.
+        await self._refuse_if_manager_quota_is_full(row.organization_id)
+
+        # NOT consumed — that is the point of the change. Recorded instead: who
+        # came through most recently, and how many have. The count is what lets
+        # an owner notice a link that got out; the timestamps are the last
+        # arrival, not the only one.
+        #
+        # Known and accepted: this is a read-then-write, so two people accepting
+        # in the same instant can both pass a quota with one seat left. The
+        # single-use model closed that with a conditional UPDATE, which no
+        # longer applies to a link meant to admit several. The overshoot is one
+        # seat, it needs simultaneity, and an owner can remove a member; a
+        # database-level constraint on manager count is the real fix if this
+        # ever matters.
+        await self._invitations.record_acceptance(
+            row.id, accepted_at=now, accepted_by_user_id=user_id
+        )
 
         try:
             await self._memberships.create(

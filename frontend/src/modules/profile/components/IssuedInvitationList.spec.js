@@ -45,20 +45,30 @@ describe('IssuedInvitationList', () => {
     const { wrapper } = mountWith([
       invitation({ id: 'a' }),
       invitation({ id: 'b' }),
-      invitation({ id: 'c', status: 'accepted' }),
+      invitation({ id: 'c', status: 'revoked' }),
       invitation({ id: 'd', status: 'expired' }),
     ])
 
     expect(wrapper.text()).toContain('Действующих ссылок: 2')
   })
 
-  it('offers revoke ONLY for a live invitation', () => {
-    // An accepted one is a member now — the API answers 409 rather than
-    // removing them — and revoking something already expired is noise.
+  it('still counts — and can revoke — a link somebody already used', () => {
+    // Reversed with single use. An invitation is reusable until it expires, so
+    // one acceptance neither closes it nor makes it un-revokable; it is in fact
+    // the link an owner has the most reason to withdraw.
+    const { wrapper } = mountWith([invitation({ id: 'used', accepted_count: 3 })])
+
+    expect(wrapper.text()).toContain('Действующих ссылок: 1')
+    expect(wrapper.text()).toContain('присоединились: 3')
+    expect(wrapper.findAll('button')).toHaveLength(1)
+  })
+
+  it('offers revoke ONLY while the link still works', () => {
+    // Withdrawing something already dead is noise, not safety.
     const { wrapper } = mountWith([
       invitation({ id: 'live' }),
-      invitation({ id: 'gone', status: 'accepted' }),
       invitation({ id: 'old', status: 'expired' }),
+      invitation({ id: 'gone', status: 'revoked' }),
     ])
 
     expect(wrapper.findAll('button')).toHaveLength(1)

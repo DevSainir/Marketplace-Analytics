@@ -143,7 +143,7 @@ async def test_a_manager_quota_refuses_a_further_invitation(db_session: AsyncSes
 
     with pytest.raises(ValidationError, match="лимит менеджеров"):
         await invitation_service(db_session).invite(
-            organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_days=7
+            organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_hours=24
         )
 
 
@@ -163,7 +163,7 @@ async def test_the_owner_is_not_counted_against_the_manager_quota(
     )
 
     invitation = await invitation_service(db_session).invite(
-        organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_days=7
+        organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_hours=24
     )
 
     assert invitation.token

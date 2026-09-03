@@ -197,37 +197,38 @@ class InvitationRepository:
         await self._session.flush()
         return invitation
 
-    async def claim(
+    async def record_acceptance(
         self,
         invitation_id: uuid.UUID,
         *,
         accepted_at: datetime,
         accepted_by_user_id: uuid.UUID,
-    ) -> bool:
-        """Atomically accept an invitation, exactly once.
+    ) -> None:
+        """Note that somebody came through this invitation.
 
-        Conditional UPDATE for the same reason as
-        :meth:`ActivationCodeRepository.claim`: a link forwarded to two people
-        who open it in the same second would otherwise admit both. It also
-        re-checks ``revoked_at`` inside the statement, so an owner revoking
-        while someone is accepting resolves one way or the other rather than
-        both.
+        Replaces the conditional-UPDATE `claim` this used to be. That statement
+        existed to admit exactly one person — it required ``accepted_at IS
+        NULL`` — and an invitation is now reusable until it expires, so the
+        condition it enforced is the behaviour we removed.
 
-        Returns:
-            ``True`` if this call consumed the invitation; ``False`` if it was
-            already accepted or revoked.
+        ``revoked_at`` is still re-checked in the statement: an owner
+        withdrawing a link while somebody is accepting should resolve one way,
+        and the count must not move for an acceptance the service is about to
+        treat as refused.
+
+        The counter is incremented in SQL rather than read-modify-written, so
+        two simultaneous arrivals through one link both register.
         """
         stmt = (
             update(Invitation)
-            .where(
-                Invitation.id == invitation_id,
-                Invitation.accepted_at.is_(None),
-                Invitation.revoked_at.is_(None),
+            .where(Invitation.id == invitation_id, Invitation.revoked_at.is_(None))
+            .values(
+                accepted_at=accepted_at,
+                accepted_by_user_id=accepted_by_user_id,
+                accepted_count=Invitation.accepted_count + 1,
             )
-            .values(accepted_at=accepted_at, accepted_by_user_id=accepted_by_user_id)
         )
-        result = cast("CursorResult[Any]", await self._session.execute(stmt))
-        return int(result.rowcount or 0) == 1
+        await self._session.execute(stmt)
 
     async def mark_revoked(self, invitation: Invitation, *, revoked_at: datetime) -> Invitation:
         """Withdraw an outstanding invitation, leaving the row as a record."""

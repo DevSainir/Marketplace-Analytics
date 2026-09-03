@@ -191,13 +191,13 @@ export async function revokeInvitation(invitationId) {
  * The access travels WITH the invitation rather than being applied after they
  * join, so a new manager never briefly holds more than the owner intended.
  *
- * @param {{email: string|null, validForDays: number, accessLevel: string, modules: string[]}} payload
+ * @param {{email: string|null, validForHours: number, accessLevel: string, modules: string[]}} payload
  * @returns {Promise<{id: string, email: string|null, token: string, expires_at: string}>}
  */
-export async function createInvitation({ email, validForDays, accessLevel, modules }) {
+export async function createInvitation({ email, validForHours, accessLevel, modules }) {
   const { data } = await apiClient.post('/v1/organizations/invitations', {
     email: email || null,
-    valid_for_days: validForDays,
+    valid_for_hours: validForHours,
     access: { access_level: accessLevel, modules },
   })
   return data

@@ -114,8 +114,13 @@ class Invitation(Base):
         expires_at: When it stops being acceptable. Never ``NULL``: an
             invitation link that works forever is a permanent back door into a
             customer's data, sitting in a chat log.
-        accepted_at: When it was accepted; ``NULL`` while outstanding.
-        accepted_by_user_id: Who accepted (FK, SET NULL if that account goes).
+        accepted_at: When it was LAST accepted; ``NULL`` while unused. It no
+            longer means "spent" — an invitation is reusable until it expires.
+        accepted_by_user_id: Who accepted most recently (FK, SET NULL if that
+            account goes).
+        accepted_count: How many people came through this link. The question an
+            owner has to be able to ask once one link can admit several, and
+            the only way to notice a link that got out.
         revoked_at: When the owner withdrew it; ``NULL`` while live. Revoking
             marks rather than deletes, so "this link stopped working" has an
             answer.
@@ -151,6 +156,9 @@ class Invitation(Base):
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     accepted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True
+    )
+    accepted_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
     )
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

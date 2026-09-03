@@ -18,7 +18,9 @@ defineProps({ saving: { type: String, default: null } })
 const emit = defineEmits(['invite'])
 
 const email = ref('')
-const validForDays = ref(7)
+// An hour by default. The link is reusable until it expires, so the window is
+// what bounds it — a week-long one that got out is a week-long open door.
+const validForHours = ref(1)
 const grant = ref({ accessLevel: 'read_write', modules: MODULES.map((m) => m.key) })
 const issued = ref(null)
 const copied = ref(false)
@@ -47,7 +49,7 @@ async function copyLink() {
 function onSubmit() {
   emit('invite', {
     email: email.value.trim() || null,
-    validForDays: validForDays.value,
+    validForHours: validForHours.value,
     accessLevel: grant.value.accessLevel,
     modules: grant.value.modules,
     onIssued: (invitation) => {
@@ -77,12 +79,12 @@ function onSubmit() {
       </label>
 
       <label class="flex flex-col gap-xs">
-        <span class="text-tiny font-medium text-muted">Ссылка действует, дней</span>
+        <span class="text-tiny font-medium text-muted">Ссылка действует, часов</span>
         <input
-          v-model.number="validForDays"
+          v-model.number="validForHours"
           type="number"
           min="1"
-          max="90"
+          max="720"
           class="w-28 rounded-btn border border-border-subtle bg-surface px-sm py-xs text-base text-primary"
         />
       </label>
@@ -107,7 +109,8 @@ function onSubmit() {
 
     <div v-if="issued" class="mt-md rounded-card border border-action/30 bg-action/5 p-md">
       <p class="text-tiny font-medium text-muted">
-        Ссылка показывается один раз — скопируйте и отправьте её приглашённому.
+        Ссылка показывается один раз — скопируйте и отправьте её приглашённому. Пока она действует,
+        по ней может присоединиться любой, у кого она есть.
       </p>
       <code class="mt-xs block break-all text-base font-medium text-primary">
         {{ inviteLink }}
