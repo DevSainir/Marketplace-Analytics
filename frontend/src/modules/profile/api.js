@@ -93,6 +93,21 @@ export async function fetchOrganizationMe() {
  * @returns {Promise<Array<{user_id: string, email: string, role: string,
  *   joined_at: string, access_level: string, modules: string[]}>>}
  */
+/**
+ * POST /v1/organizations/activate — redeem an activation code.
+ *
+ * Creates the organisation and makes the caller its owner. 403 for a code that
+ * is unknown, spent or expired; 409 when this account already has an
+ * organisation.
+ *
+ * @param {string} code
+ * @returns {Promise<{id: string, name: string}>}
+ */
+export async function activateOrganization(code) {
+  const { data } = await apiClient.post('/v1/organizations/activate', { code })
+  return data
+}
+
 export async function fetchMembers() {
   const { data } = await apiClient.get('/v1/organizations/members')
   return data

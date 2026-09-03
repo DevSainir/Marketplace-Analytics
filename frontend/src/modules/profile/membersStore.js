@@ -13,7 +13,9 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
+import { extractErrorMessage } from '@/core/api/axios'
 import {
+  activateOrganization,
   createInvitation,
   fetchMembers,
   fetchOrganizationMe,
@@ -29,6 +31,15 @@ export const MODULES = [
 
 export const useMembersStore = defineStore('members', () => {
   const role = ref(null)
+  // against our own data and our own legal case. The API has always answered
+  // with this flag and the SPA never read it, so the routes and the nav link
+  // were open to every signed-in customer — the pages rendered, and only the
+  // XHR behind them came back 403.
+  const internalFeatures = ref(false)
+  // `organization` is null for an account that registered and never redeemed a
+  // code. The API has always said so; the SPA showed such a person the whole
+  // app with every panel empty and no explanation of what was missing.
+  const organization = ref(null)
   const members = ref([])
   const loading = ref(false)
   const saving = ref(null)
@@ -37,6 +48,15 @@ export const useMembersStore = defineStore('members', () => {
 
   /** Only an owner may see or change anyone's access. */
   const isOwner = computed(() => role.value === 'owner')
+
+  /**
+   * Whether this account has been let into a company yet.
+   *
+   * Answers `true` until `ensureLoaded` has run, so the app does not flash the
+   * activation overlay at every member on every cold load. The gate that
+   * matters is the API's, which never guesses.
+   */
+  const hasOrganization = computed(() => !loaded.value || organization.value !== null)
 
   /** The owner's own row is not editable — see the backend's refusal. */
   const managers = computed(() => members.value.filter((m) => m.role !== 'owner'))
@@ -48,6 +68,8 @@ export const useMembersStore = defineStore('members', () => {
     try {
       const me = await fetchOrganizationMe()
       role.value = me.role
+      internalFeatures.value = Boolean(me.internal_features)
+      organization.value = me.organization ?? null
       // Asked for only when it can be answered: /members is owner-only, and a
       // manager opening their profile would otherwise take a guaranteed 403.
       if (me.role === 'owner') members.value = await fetchMembers()
@@ -89,8 +111,34 @@ export const useMembersStore = defineStore('members', () => {
     }
   }
 
+  /**
+   * Redeem an activation code. Returns true when the account is now inside a
+   * company, false with `error` set otherwise.
+   */
+  async function activate(code) {
+    saving.value = 'activation'
+    error.value = ''
+    try {
+      organization.value = await activateOrganization(code)
+      // Everything downstream keyed off the old answer — the role, the module
+      // grants, the workspace list. Re-read rather than patch.
+      loaded.value = false
+      await ensureLoaded()
+      return true
+    } catch (err) {
+      error.value = extractErrorMessage(err)
+      return false
+    } finally {
+      saving.value = null
+    }
+  }
+
   return {
     role,
+    organization,
+    hasOrganization,
+    activate,
+    internalFeatures,
     members,
     managers,
     isOwner,

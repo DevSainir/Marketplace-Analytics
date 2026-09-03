@@ -13,7 +13,7 @@ import '@/core/styles/ui-next/components.css'
 import '@/core/styles/ui-next/skin.css'
 import router from '@/core/router'
 import { installAuthGuard } from '@/modules/auth'
-import { installWorkspaceGuard } from '@/modules/profile'
+import { installInternalGuard, installWorkspaceGuard } from '@/modules/profile'
 
 const app = createApp(App)
 
@@ -29,6 +29,8 @@ installAuthGuard(router)
 // Workspace context (X-Workspace-Id) resolved before any authenticated view
 // fires its first API call. Must come AFTER the auth guard (needs a session).
 installWorkspaceGuard(router)
+// Last: it needs the session (auth guard) and asks /organizations/me itself.
+installInternalGuard(router)
 
 // A deploy replaces every asset with a freshly hashed name, so a tab that has
 // been open across one asks for chunks that no longer exist and dies on the next

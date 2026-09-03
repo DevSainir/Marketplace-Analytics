@@ -4,12 +4,12 @@ export const abTestsRoutes = [
     path: '/ab-tests',
     name: 'ab-tests',
     component: () => import('@/modules/abTests/views/AbTestsView.vue'),
-    meta: { title: 'A/Б-тесты', requiresAuth: true },
+    meta: { title: 'A/Б-тесты', requiresAuth: true, requiresInternal: true },
   },
   {
     path: '/ab-tests/:testId',
     name: 'ab-test-detail',
     component: () => import('@/modules/abTests/views/AbTestDetailView.vue'),
-    meta: { title: 'A/Б-тест', requiresAuth: true },
+    meta: { title: 'A/Б-тест', requiresAuth: true, requiresInternal: true },
   },
 ]

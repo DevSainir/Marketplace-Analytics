@@ -7,4 +7,6 @@
  */
 export { profileRoutes } from '@/modules/profile/routes'
 export { useWorkspaceStore } from '@/modules/profile/store'
-export { installWorkspaceGuard } from '@/modules/profile/guard'
+export { installWorkspaceGuard, installInternalGuard } from '@/modules/profile/guard'
+export { useMembersStore } from '@/modules/profile/membersStore'
+export { default as ActivationGate } from '@/modules/profile/components/ActivationGate.vue'

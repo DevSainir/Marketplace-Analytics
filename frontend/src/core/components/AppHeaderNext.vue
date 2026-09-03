@@ -7,11 +7,12 @@
  * rendered as glass floating over the ambient ground rather than as a flat
  * canvas strip with a border under it.
  */
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import WorkspaceMenu from '@/core/components/WorkspaceMenu.vue'
 
-defineProps({
+const props = defineProps({
   isAuthenticated: { type: Boolean, default: false },
   // False while the session is still bootstrapping. The guest UI renders only
   // once auth RESOLVES as guest — otherwise a reload flashes «Войти» for the
@@ -20,6 +21,9 @@ defineProps({
   userEmail: { type: String, default: null },
   workspaces: { type: Array, default: () => [] },
   currentWorkspaceId: { type: String, default: null },
+  // Whether the viewer is one of us. Governs the links to surfaces built for a
+  // single seller — see `require_internal` on the API side.
+  internalFeatures: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['logout', 'select-workspace'])
@@ -29,8 +33,13 @@ const NAV = [
   { to: '/monitoring', label: 'Мониторинг' },
   { to: '/charts', label: 'Графики' },
   { to: '/finreports', label: 'Прибыли и убытки' },
-  { to: '/ab-tests', label: 'A/Б-тесты' },
+  { to: '/ab-tests', label: 'A/Б-тесты', internal: true },
 ]
+
+// Hiding the link is cosmetic — `installInternalGuard` is what actually
+// refuses the route, and the API refuses it again. This only stops us
+// advertising a section the person is then told does not exist.
+const visibleNav = computed(() => NAV.filter((link) => !link.internal || props.internalFeatures))
 </script>
 
 <template>
@@ -49,7 +58,7 @@ const NAV = [
 
         <nav class="ui-header__nav" aria-label="Разделы">
           <RouterLink
-            v-for="link in NAV"
+            v-for="link in visibleNav"
             :key="link.to"
             :to="link.to"
             class="ui-header__link"

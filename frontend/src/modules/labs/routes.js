@@ -7,6 +7,6 @@ export const labsRoutes = [
     path: '/labs/monitoring',
     name: 'labs-monitoring',
     component: () => import('@/modules/labs/views/LabMonitoringView.vue'),
-    meta: { title: 'Мониторинг · Lab' },
+    meta: { title: 'Мониторинг · Lab', requiresAuth: true, requiresInternal: true },
   },
 ]

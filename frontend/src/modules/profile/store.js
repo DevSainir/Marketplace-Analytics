@@ -61,17 +61,27 @@ export const useWorkspaceStore = defineStore('workspace', () => {
    * one request chain; later calls are no-ops.
    */
   function ensureLoaded() {
-    loadPromise ??= Promise.all([fetchMe(), fetchWorkspaces()])
-      .then(([profile, items]) => {
-        me.value = profile
-        workspaces.value = items
-        reconcileSelection()
-      })
-      .catch((err) => {
+    // `allSettled`, NOT `all`. `/v1/workspaces` sits behind `require_member`,
+    // so it answers 403 for an account that has registered and not yet redeemed
+    // an activation code — and `Promise.all` threw that rejection away together
+    // with the `fetchMe()` result that HAD succeeded. The profile page then
+    // rendered «—» for the email, the role and the workspace of a perfectly
+    // valid session: the account looked broken when it was merely new.
+    loadPromise ??= Promise.allSettled([fetchMe(), fetchWorkspaces()]).then(([profile, items]) => {
+      if (profile.status === 'fulfilled') me.value = profile.value
+      workspaces.value = items.status === 'fulfilled' ? items.value : []
+      reconcileSelection()
+
+      // Only a failure that leaves us unable to say WHO this is deserves the
+      // error banner. An empty workspace list is the normal state of an
+      // account waiting for activation, and the overlay explains it far
+      // better than a red box would.
+      if (profile.status === 'rejected') {
         loadPromise = null // let the next navigation retry
-        error.value = extractErrorMessage(err)
-        throw err
-      })
+        error.value = extractErrorMessage(profile.reason)
+        throw profile.reason
+      }
+    })
     return loadPromise
   }
 
