@@ -58,18 +58,50 @@ describe('login', () => {
 })
 
 describe('register', () => {
-  it('creates the account and logs straight in', async () => {
+  it('creates the account but does NOT sign it in', async () => {
+    // Reversed on purpose. Registration used to log straight in, which meant an
+    // abandoned signup left a usable session behind and the confirmation screen
+    // was skippable by closing it. The account now exists and cannot be used
+    // until the mailed code comes back — so leaving the page leaves nothing.
     registerUser.mockResolvedValue({ id: 'u1', email: 'new@example.com' })
-    loginUser.mockResolvedValue(TOKENS)
 
     const ok = await store.register('new@example.com', 'secret-password')
 
     expect(ok).toBe(true)
-    expect(loginUser).toHaveBeenCalledWith({
-      email: 'new@example.com',
-      password: 'secret-password',
+    expect(loginUser).not.toHaveBeenCalled()
+    expect(store.isAuthenticated).toBe(false)
+    expect(store.needsConfirmation).toBe(true)
+  })
+
+  it('routes an unfinished signup back to confirmation instead of refusing it', async () => {
+    // The same person coming back to an address they never confirmed. A 409
+    // dead end here is the trap this replaced.
+    registerUser.mockRejectedValue({
+      response: {
+        status: 403,
+        data: { error: { code: 'email_not_confirmed', message: 'Аккаунт не активирован.' } },
+      },
     })
-    expect(store.isAuthenticated).toBe(true)
+
+    const ok = await store.register('half@example.com', 'secret-password')
+
+    expect(ok).toBe(false)
+    expect(store.needsConfirmation).toBe(true)
+  })
+
+  it('flags an unconfirmed account on login rather than reporting a bad password', async () => {
+    loginUser.mockRejectedValue({
+      response: {
+        status: 403,
+        data: { error: { code: 'email_not_confirmed', message: 'Аккаунт не активирован.' } },
+      },
+    })
+
+    const ok = await store.login('half@example.com', 'secret-password')
+
+    expect(ok).toBe(false)
+    expect(store.needsConfirmation).toBe(true)
+    expect(store.isAuthenticated).toBe(false)
   })
 
   it('stops on a registration conflict without attempting login', async () => {

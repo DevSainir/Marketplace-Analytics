@@ -2,6 +2,9 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import CodeInput from '@/core/components/CodeInput.vue'
+import PasswordField from '@/core/components/PasswordField.vue'
+import PasswordRules from '@/modules/auth/components/PasswordRules.vue'
 import { useAuthStore } from '@/modules/auth/store'
 
 const auth = useAuthStore()
@@ -29,6 +32,9 @@ async function requestCode() {
 }
 
 async function submitNewPassword() {
+  // The button and CodeInput's `complete` both land here; without the guard a
+  // fast typist spends two of the five attempts the backend allows.
+  if (auth.loading || code.value.length < 6) return
   if (await auth.resetPassword(email.value, code.value, newPassword.value)) {
     step.value = 'done'
   }
@@ -92,29 +98,22 @@ function goToLogin() {
           class="flex flex-col gap-md"
           @submit.prevent="submitNewPassword"
         >
-          <label class="block">
-            <span class="mb-xs block text-tiny font-medium text-muted">Код из письма</span>
-            <input
+          <div>
+            <span class="mb-sm block text-center text-tiny font-medium text-muted">
+              Код из письма
+            </span>
+            <CodeInput
               v-model="code"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              required
-              placeholder="123456"
-              class="auth-input tracking-[0.4em]"
+              autofocus
+              :invalid="Boolean(auth.error)"
+              :disabled="auth.loading"
             />
-          </label>
+          </div>
 
           <label class="block">
             <span class="mb-xs block text-tiny font-medium text-muted">Новый пароль</span>
-            <input
-              v-model="newPassword"
-              type="password"
-              required
-              minlength="8"
-              autocomplete="new-password"
-              placeholder="••••••••"
-              class="auth-input"
-            />
+            <PasswordField v-model="newPassword" autocomplete="new-password" />
+            <PasswordRules :value="newPassword" />
           </label>
 
           <p
@@ -132,11 +131,9 @@ function goToLogin() {
             {{ auth.loading ? 'Подождите…' : 'Сохранить пароль' }}
           </button>
 
-          <button
-            type="button"
-            class="text-tiny font-medium text-action transition hover:text-action-hover"
-            @click="requestCode"
-          >
+          <!-- `self-center`: a <button> in a flex COLUMN stretches to the full
+               row, so hovering anywhere on the line lit the text up. -->
+          <button type="button" class="auth-link self-center" @click="requestCode">
             Отправить код ещё раз
           </button>
         </form>

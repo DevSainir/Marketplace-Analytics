@@ -1,18 +1,19 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { safeRedirect } from '@/modules/auth/guard'
+import CodeInput from '@/core/components/CodeInput.vue'
 import { useAuthStore } from '@/modules/auth/store'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
-// The address comes from the query when registration sends the user here, and
-// falls back to the one the session already knows. Editable either way: the
-// commonest reason to be on this screen with no code is a typo in the address.
-const email = ref(
+// The address is NOT a field on this form any more. It arrives from the query
+// when registration sends the user here, and falls back to the session's own.
+// Asking for it again was asking a person to retype something we already know,
+// beside a code that only we could have sent them.
+const email = computed(() =>
   typeof route.query.email === 'string' ? route.query.email : (auth.userEmail ?? ''),
 )
 const code = ref('')
@@ -20,8 +21,17 @@ const confirmed = ref(false)
 const resent = ref(false)
 
 async function submit() {
+  // `complete` fires on the sixth digit AND the button can be pressed, so both
+  // paths land here; without this guard a fast typist submits twice and spends
+  // two of the five attempts the backend allows.
+  if (auth.loading || code.value.length < 6) return
   if (await auth.confirmAddress(email.value, code.value)) {
     confirmed.value = true
+  } else {
+    // A refused code is cleared rather than left in place: re-pressing with the
+    // same digits burns another attempt for nothing. CodeInput refocuses the
+    // first cell when the model empties.
+    code.value = ''
   }
 }
 
@@ -29,11 +39,22 @@ async function resend() {
   resent.value = await auth.askForConfirmationCode(email.value)
 }
 
+function changeEmail() {
+  // Back to registration rather than "edit the address here". The account was
+  // already created under the address on this screen, so a different one is a
+  // different signup — editing a field in place would suggest otherwise.
+  router.push({
+    name: 'login',
+    query: { mode: 'register', email: email.value, redirect: route.query.redirect },
+  })
+}
+
 function goOn() {
-  // Confirmation is not a login gate — the account is already signed in by the
-  // time it lands here — so "later" and "done" go to the same place, and both
-  // honour whatever the user was originally trying to reach.
-  router.push(safeRedirect(route.query.redirect))
+  // To /login, not onward. Registration issues no session, so nobody arrives
+  // here signed in any more — the confirmed address still has to be used with
+  // the password. The original destination rides along so the login that
+  // follows lands where the person was heading.
+  router.push({ name: 'login', query: { redirect: route.query.redirect } })
 }
 </script>
 
@@ -45,104 +66,101 @@ function goOn() {
           {{ confirmed ? 'Почта подтверждена' : 'Подтвердите почту' }}
         </h1>
         <p class="mt-xs text-tiny font-medium text-muted">
-          <template v-if="confirmed">
-            Теперь можно активировать доступ или принять приглашение в компанию.
-          </template>
-          <template v-else>
-            Мы отправили код на вашу почту. Подтверждение нужно, чтобы активировать доступ или
-            принять приглашение — войти в аккаунт можно и без него.
-          </template>
+          <template v-if="confirmed"> Теперь можно войти в аккаунт. </template>
+          <template v-else> Мы отправили код на вашу почту. </template>
         </p>
       </header>
 
       <section class="mt-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card">
-        <form v-if="!confirmed" class="flex flex-col gap-md" @submit.prevent="submit">
-          <label class="block">
-            <span class="mb-xs block text-tiny font-medium text-muted">Электронная почта</span>
-            <input
-              v-model="email"
-              type="email"
-              required
-              autocomplete="email"
-              placeholder="manager@company.ru"
-              class="auth-input"
-            />
-          </label>
+        <!-- No address, no form: submitting would fail on a value the person
+             cannot see or correct from here. -->
+        <div v-if="!confirmed && !email" class="flex flex-col gap-md text-center">
+          <p class="text-base text-muted">
+            Не удалось определить, какую почту подтверждать. Начните вход или регистрацию заново.
+          </p>
+          <RouterLink class="auth-primary" :to="{ name: 'login' }">Войти</RouterLink>
+        </div>
 
-          <label class="block">
-            <span class="mb-xs block text-tiny font-medium text-muted">Код из письма</span>
-            <input
+        <form v-else-if="!confirmed" class="flex flex-col gap-md" @submit.prevent="submit">
+          <!-- Shown, not editable: the code was mailed to THIS address, so
+               changing it here could only ever invalidate the code being
+               typed. Seeing it is what catches the typo; «Изменить почту»
+               is what fixes it. -->
+          <div class="flex flex-col items-center gap-xs">
+            <span class="text-tiny font-medium text-muted">Код отправлен на</span>
+            <span class="max-w-full truncate text-base font-semibold text-primary">
+              {{ email }}
+            </span>
+            <button type="button" class="auth-link" @click="changeEmail">Изменить почту</button>
+          </div>
+
+          <div>
+            <span class="mb-sm block text-center text-tiny font-medium text-muted">
+              Код из письма
+            </span>
+            <CodeInput
               v-model="code"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              required
-              placeholder="123456"
-              class="auth-input tracking-[0.4em]"
+              autofocus
+              :invalid="Boolean(auth.error)"
+              :disabled="auth.loading"
+              @complete="submit"
             />
-          </label>
+          </div>
 
           <p
             v-if="auth.error"
-            class="rounded-input border border-status-negative/30 bg-status-negative/10 px-md py-sm text-base font-medium text-status-negative"
+            class="rounded-input border border-status-negative/30 bg-status-negative/10 px-md py-sm text-center text-base font-medium text-status-negative"
           >
             {{ auth.error }}
           </p>
           <!-- Deliberately not "the code was sent to that address": the endpoint
                answers the same way for an address that does not exist, and this
                screen must not become the oracle the backend refuses to be. -->
-          <p v-else-if="resent" class="text-tiny font-medium text-muted">
+          <p v-else-if="resent" class="text-center text-tiny font-medium text-muted">
             Если аккаунт с такой почтой существует, новый код отправлен.
           </p>
 
-          <button
-            type="submit"
-            :disabled="auth.loading"
-            class="inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn bg-action text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60 phone:h-11"
-          >
+          <button type="submit" :disabled="auth.loading || code.length < 6" class="auth-primary">
             {{ auth.loading ? 'Подождите…' : 'Подтвердить' }}
           </button>
 
-          <button
-            type="button"
-            class="text-tiny font-medium text-action transition hover:text-action-hover"
-            @click="resend"
-          >
+          <!-- `self-center` is load-bearing: a <button> in a flex COLUMN
+               stretches to the full row, so the hover state fired anywhere on
+               the line, metres from the words. -->
+          <button type="button" class="auth-link self-center" @click="resend">
             Отправить код ещё раз
           </button>
         </form>
 
-        <button
-          v-else
-          type="button"
-          class="inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn bg-action text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60 phone:h-11"
-          @click="goOn"
-        >
-          Продолжить
-        </button>
+        <button v-else type="button" class="auth-primary" @click="goOn">Войти</button>
       </section>
-
-      <p v-if="!confirmed" class="mt-lg text-center text-tiny text-muted">
-        <button
-          type="button"
-          class="text-tiny font-medium text-action transition hover:text-action-hover"
-          @click="goOn"
-        >
-          Подтвердить позже
-        </button>
-      </p>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Only the input recipe, and only because LoginView keeps the same one — three
-   auth pages that differ by a shade read as a bug.
-   Everything else stays inline DELIBERATELY: a scoped rule carries a
-   `[data-v-*]` attribute and outranks `ui-next/skin.css`, so `@apply bg-action`
-   in here resolves the pre-skin teal from tailwind.config while the identical
-   utility in the markup resolves the skinned violet. Measured, not assumed —
-   the link this replaced rendered #007E76 beside a #715FFF button. */
-.auth-input {
-  @apply h-10 w-full rounded-input border border-border-subtle bg-canvas px-md text-base text-primary placeholder:text-muted focus:border-action focus:outline-none focus:ring-2 focus:ring-action/20 phone:h-11;
+/* Shared with LoginView and PasswordResetView — three auth pages that differ by
+   a shade read as a bug.
+   These stay HERE rather than becoming global utilities DELIBERATELY: a scoped
+   rule carries a `[data-v-*]` attribute and outranks `ui-next/skin.css`, so
+   `@apply bg-action` in here resolves the pre-skin teal from tailwind.config
+   while the identical utility in the markup resolves the skinned violet.
+   Measured, not assumed. `--ui-*` variables are read directly for that reason. */
+.auth-primary {
+  @apply inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn text-base font-semibold text-white shadow-soft transition disabled:cursor-not-allowed disabled:opacity-60 phone:h-11;
+  background-color: var(--ui-action);
+}
+
+.auth-primary:hover:not(:disabled) {
+  background-color: var(--ui-action-hover);
+}
+
+.auth-link {
+  @apply rounded-btn text-tiny font-medium transition;
+  color: var(--ui-action);
+}
+
+.auth-link:hover {
+  color: var(--ui-action-hover);
 }
 </style>

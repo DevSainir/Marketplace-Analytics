@@ -77,6 +77,17 @@
   color: var(--ui-action);
 }
 
+/* `hover:text-action-hover` had NO rule here, so it was the one action utility
+   that still resolved against `tailwind.config.js` — where `action.hover` is
+   the pre-skin teal `#17B2A8`. Every link using it went violet → GREEN on
+   hover: the three auth views, five call sites. Fixed once at the token rather
+   than five times in markup, because the next view to copy that class would
+   have inherited the bug too. */
+.text-action-hover,
+.hover\:text-action-hover:hover {
+  color: var(--ui-action-hover);
+}
+
 .bg-action {
   background-color: var(--ui-action);
 }

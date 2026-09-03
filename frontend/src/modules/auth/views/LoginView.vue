@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { safeRedirect } from '@/modules/auth/guard'
+import PasswordField from '@/core/components/PasswordField.vue'
+import PasswordRules from '@/modules/auth/components/PasswordRules.vue'
 import { useAuthStore } from '@/modules/auth/store'
 
 const auth = useAuthStore()
@@ -11,7 +13,10 @@ const router = useRouter()
 
 // Initial tab can be deep-linked from the header (`/login?mode=register`).
 const mode = ref(route.query.mode === 'register' ? 'register' : 'login') // 'login' | 'register'
-const email = ref('')
+// Prefilled when «Изменить почту» sends someone back from the code screen:
+// they are correcting a typo, and retyping the whole address to fix one letter
+// is how the typo happens again.
+const email = ref(typeof route.query.email === 'string' ? route.query.email : '')
 const password = ref('')
 // Registration is invite-only: the backend rejects /register without a valid
 // operator-issued code (the platform exposes the whole seller account's data).
@@ -23,23 +28,37 @@ function switchMode(next) {
   auth.clearError()
 }
 
+/** Send an unconfirmed address to the code screen, asking for a fresh code. */
+function goConfirm() {
+  // Requested here rather than on arrival: the confirm screen is also reached
+  // by following the link in the mail, and a resend on every visit would post a
+  // second code that silently invalidates the one being typed.
+  auth.askForConfirmationCode(email.value)
+  router.push({
+    name: 'confirm-email',
+    query: { email: email.value, redirect: route.query.redirect },
+  })
+}
+
 async function submit() {
   if (isLogin.value) {
     if (await auth.login(email.value, password.value)) {
       router.push(safeRedirect(route.query.redirect))
+      return
     }
+    // The password was right and the address was never proven — an unfinished
+    // signup coming back. Finish it instead of showing them a refusal.
+    if (auth.needsConfirmation) goConfirm()
     return
   }
 
-  // Registration signs the account in and then asks it to confirm the address.
-  // Confirmation is deliberately NOT a login gate — it gates activation and
-  // invitation acceptance — so this screen is skippable, and the redirect the
-  // user arrived with is carried through it rather than dropped.
-  if (await auth.register(email.value, password.value)) {
-    router.push({
-      name: 'confirm-email',
-      query: { email: email.value, redirect: route.query.redirect },
-    })
+  // Registration creates the account and mails a code, but issues NO session:
+  // leaving this screen means not being logged in, which is what makes an
+  // abandoned signup harmless. `register` resolves true once the code is on its
+  // way; a repeat signup for an address that never confirmed lands in the same
+  // place rather than on "already exists".
+  if ((await auth.register(email.value, password.value)) || auth.needsConfirmation) {
+    goConfirm()
   }
 }
 </script>
@@ -100,15 +119,13 @@ async function submit() {
 
           <label class="block">
             <span class="mb-xs block text-tiny font-medium text-muted">Пароль</span>
-            <input
+            <PasswordField
               v-model="password"
-              type="password"
-              required
-              minlength="8"
               :autocomplete="isLogin ? 'current-password' : 'new-password'"
-              placeholder="••••••••"
-              class="login-input"
             />
+            <!-- Registration only: on the login tab the rules are advice about
+                 a password the person already has, which is just noise. -->
+            <PasswordRules v-if="!isLogin" :value="password" />
           </label>
 
           <p
@@ -116,6 +133,18 @@ async function submit() {
             class="rounded-input border border-status-negative/30 bg-status-negative/10 px-md py-sm text-base font-medium text-status-negative"
           >
             {{ auth.error }}
+            <!-- The account being refused is almost always the person's own:
+                 registration creates it before the address is confirmed, so
+                 abandoning that step and coming back lands exactly here. A
+                 message they cannot act on is what makes it a dead end. -->
+            <button
+              v-if="auth.emailTaken"
+              type="button"
+              class="mt-xs block font-semibold underline"
+              @click="switchMode('login')"
+            >
+              Перейти ко входу
+            </button>
           </p>
 
           <button
@@ -147,10 +176,6 @@ async function submit() {
           </RouterLink>
         </p>
       </section>
-
-      <p class="mt-lg text-center text-tiny text-muted">
-        Сессия продлевается автоматически через защищённый HttpOnly-cookie.
-      </p>
     </div>
   </div>
 </template>

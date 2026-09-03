@@ -8,7 +8,12 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-import { clearAccessToken, extractErrorMessage, setAccessToken } from '@/core/api/axios'
+import {
+  clearAccessToken,
+  extractErrorCode,
+  extractErrorMessage,
+  setAccessToken,
+} from '@/core/api/axios'
 import {
   confirmEmail,
   confirmPasswordReset,
@@ -27,6 +32,13 @@ export const useAuthStore = defineStore('auth', () => {
   // --- state -------------------------------------------------------------
   const loading = ref(false)
   const error = ref(null)
+  /** The last register attempt failed because the address is already taken. */
+  const emailTaken = ref(false)
+  /**
+   * The last login or register attempt hit an account that exists but has never
+   * confirmed its address. The view sends the person to the code screen.
+   */
+  const needsConfirmation = ref(false)
   /** 'unknown' until bootstrap resolves, then 'authenticated' | 'guest'. */
   const status = ref('unknown')
   const userEmail = ref(localStorage.getItem(EMAIL_STORAGE_KEY))
@@ -149,6 +161,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(email, password) {
     loading.value = true
     error.value = null
+    needsConfirmation.value = false
     try {
       const tokens = await loginUser({ email, password })
       applySession(tokens)
@@ -157,6 +170,10 @@ export const useAuthStore = defineStore('auth', () => {
       return true
     } catch (err) {
       error.value = extractErrorMessage(err)
+      // Credentials were right; the address was never proven. Not a failure to
+      // report so much as a step to finish, so the view routes rather than
+      // showing a red box.
+      needsConfirmation.value = extractErrorCode(err) === 'email_not_confirmed'
       return false
     } finally {
       loading.value = false
@@ -167,19 +184,39 @@ export const useAuthStore = defineStore('auth', () => {
   async function register(email, password) {
     loading.value = true
     error.value = null
+    emailTaken.value = false
+    needsConfirmation.value = false
     try {
       await registerUser({ email, password })
     } catch (err) {
       error.value = extractErrorMessage(err)
+      // An unfinished signup coming back round. Same destination as the login
+      // case: the code screen, not an error.
+      needsConfirmation.value = extractErrorCode(err) === 'email_not_confirmed'
+      // A 409 is the commonest way this form fails, and it is nearly always
+      // the SAME person coming back: registration creates the account before
+      // the address is confirmed, so anyone who abandoned the confirmation
+      // step meets "already exists" on their second try. Flagged separately
+      // from the message so the form can offer the way out instead of leaving
+      // them to work out that the account they are being refused is theirs.
+      emailTaken.value = err?.response?.status === 409
       loading.value = false
       return false
     }
-    return login(email, password)
+    // NOT `login()`. Registration issues no session by design — the account
+    // exists but cannot be used until the mailed code comes back, so signing
+    // them in here would be inventing the access the backend just withheld.
+    loading.value = false
+    userEmail.value = email
+    needsConfirmation.value = true
+    return true
   }
 
   /** Dismiss the last auth error (e.g. when the user switches login/register). */
   function clearError() {
     error.value = null
+    emailTaken.value = false
+    needsConfirmation.value = false
   }
 
   // --- account recovery (register P1.6) ----------------------------------
@@ -272,6 +309,8 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     loading,
     error,
+    emailTaken,
+    needsConfirmation,
     status,
     userEmail,
     accessExpiresAt,
