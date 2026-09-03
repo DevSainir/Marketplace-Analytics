@@ -41,6 +41,7 @@ from __future__ import annotations
 import asyncio
 
 from src.core.config import settings
+from src.core.exceptions import ValidationError
 from src.core.logging import get_logger
 from src.core.security import hash_password
 from src.integrations.email import (
@@ -48,6 +49,7 @@ from src.integrations.email import (
     confirmation_message,
     password_reset_message,
 )
+from src.integrations.pwned import PasswordBreachCheck, PasswordBreachCheckLike
 from src.modules.users.models import User, VerificationPurpose
 from src.modules.users.repos import UserRepository
 from src.modules.users.services.verification import VerificationService
@@ -69,6 +71,8 @@ class AccountRecoveryService:
         transport: Where a message goes. The logging transport in every
             environment without a relay, so the flow is exercisable end to end
             without one.
+        breach_check: "Is this password already public?" — the same check
+            registration runs. Injected so tests can drive it without HTTP.
     """
 
     def __init__(
@@ -77,11 +81,13 @@ class AccountRecoveryService:
         users: UserRepository,
         verification: VerificationService,
         transport: EmailTransport,
+        breach_check: PasswordBreachCheckLike | None = None,
     ) -> None:
         """Wire the service to its collaborators."""
         self._users = users
         self._verification = verification
         self._transport = transport
+        self._breach_check = breach_check or PasswordBreachCheck()
 
     # ------------------------------------------------------------------ #
     # Address confirmation
@@ -186,7 +192,28 @@ class AccountRecoveryService:
             The account on success, ``None`` for any failure — wrong code,
             expired code, unknown address, disabled account. One answer for all
             of them, for the same reason as everywhere else on this path.
+
+        Raises:
+            ValidationError: The new password appears in a public breach list.
+                A distinct answer on purpose, and safe because it turns on the
+                submitted password alone — see the comment at the check.
         """
+        # FIRST, and before the account is even looked up. Registration
+        # refused breached passwords and this path did not, which left the one
+        # place it matters most unguarded: a person resetting a password is
+        # often doing it BECAUSE the old one leaked, and this was where they
+        # were free to pick another leaked one.
+        #
+        # The ordering is the security-relevant part. Run after the code check
+        # it would answer differently for a real address than an unknown one —
+        # both 422, but with different text — and that difference is an
+        # account-existence oracle, which every other answer on this path is
+        # built to deny. Run first, the outcome depends only on the password
+        # the caller already knows, and it tells them nothing.
+        if await self._breach_check.is_breached(new_password):
+            raise ValidationError(
+                "Этот пароль встречался в публичных утечках данных. Придумайте другой."
+            )
         user = await self._users.get_by_email(_normalize_email(email))
         if user is None or not user.is_active:
             return None

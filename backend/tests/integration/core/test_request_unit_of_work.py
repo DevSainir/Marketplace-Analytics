@@ -21,6 +21,7 @@ checked out.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 
 import pytest
 import sqlalchemy as sa
@@ -58,7 +59,13 @@ async def cleanup_users(
 
 def _user(email: str) -> User:
     """Build a user row tagged so the cleanup fixture can find it."""
-    return User(email=email, hashed_password=known_password_hash(), is_active=True, role="user")
+    return User(
+        email=email,
+        hashed_password=known_password_hash(),
+        is_active=True,
+        role="user",
+        email_confirmed_at=datetime.now(UTC),
+    )
 
 
 async def test_a_successful_request_commits_its_writes(

@@ -21,7 +21,7 @@ class AppError(Exception):
     #: OUR failure rather than the caller's — every status of 500 or more.
     #:
     #: A 4xx message is written for the person who caused it and is meant to be
-    #: read ("Воркспейс «X» уже существует"). A 5xx message is written for
+    #: read ("Рабочее пространство «X» уже существует"). A 5xx message is written for
     #: whoever debugs it, and on this codebase that means upstream text: a
     #: pydantic report naming our WB schema fields, the WB path we called, the
     #: fact that one code path shells out to curl. None of that is the caller's
@@ -86,6 +86,23 @@ class PermissionDeniedError(AppError):
     """Authenticated principal lacks the required permission."""
 
     code = "forbidden"
+    http_status = 403
+
+
+class EmailNotConfirmedError(AppError):
+    """Credentials were right, but the address has never been proven.
+
+    A 403 rather than a 401: the password WAS correct, and the client needs to
+    tell those two cases apart to send the person to the confirmation screen
+    instead of back to the password field.
+
+    Raised only AFTER the password verifies. Answering it on a bad password
+    would turn `/login` into an account-existence oracle — the control P0.1 and
+    P1.5 both paid for — so the uniform refusal still covers every attempt that
+    does not already know the credentials.
+    """
+
+    code = "email_not_confirmed"
     http_status = 403
 
 

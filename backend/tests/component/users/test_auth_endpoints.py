@@ -42,7 +42,7 @@ async def test_register_returns_201_with_the_public_account(
     """A valid signup answers 201 and the account DTO — never a token."""
     response = await client.post(
         "/api/v1/auth/register",
-        json={"email": "new@example.com", "password": "a-long-password"},
+        json={"email": "new@example.com", "password": "A-long-password"},
     )
 
     assert response.status_code == 201
@@ -61,7 +61,7 @@ async def test_register_with_a_taken_email_is_409(
         "/api/v1/auth/register",
         json={
             "email": "user@example.com",  # seeded by the `user` fixture
-            "password": "a-long-password",
+            "password": "A-long-password",
         },
     )
 
@@ -72,16 +72,27 @@ async def test_register_with_a_taken_email_is_409(
 @pytest.mark.parametrize(
     "payload",
     [
-        {"email": "not-an-email", "password": "a-long-password"},
+        {"email": "not-an-email", "password": "A-long-password"},
         {"email": "a@example.com", "password": "short"},
         {"email": "a@example.com"},
         {"email": "a@example.com", "password": "я" * 40},
+        {"email": "a@example.com", "password": "alllowercase"},
+        {"email": "a@example.com", "password": "ALLUPPERCASE"},
+        # Cyrillic satisfies the case rules exactly as Latin does: the check is
+        # `str.islower`/`isupper`, not an A-Z list. A password that is only
+        # refused for being Russian would be a bug, so both halves are pinned.
+        {"email": "a@example.com", "password": "тольконижний"},
+        {"email": "a@example.com", "password": "ТОЛЬКОВЕРХНИЙ"},
     ],
     ids=[
         "malformed-email",
         "password-too-short",
         "missing-password",
         "password-over-72-bytes",
+        "password-without-an-uppercase-letter",
+        "password-without-a-lowercase-letter",
+        "cyrillic-password-without-an-uppercase-letter",
+        "cyrillic-password-without-a-lowercase-letter",
     ],
 )
 async def test_register_rejects_malformed_payloads(
@@ -138,7 +149,7 @@ async def test_login_with_wrong_password_is_401(client: httpx.AsyncClient) -> No
     )
 
     assert response.status_code == 401
-    assert response.json()["error"]["message"] == "Invalid email or password."
+    assert response.json()["error"]["message"] == "Неверная почта или пароль."
 
 
 async def test_login_for_an_unknown_account_is_indistinguishable(
@@ -260,3 +271,26 @@ async def test_logout_without_a_session_still_succeeds(client: httpx.AsyncClient
     response = await client.post("/api/v1/auth/logout")
 
     assert response.status_code == 204
+
+
+@pytest.mark.parametrize(
+    "password",
+    ["ПравильныйПароль", "A-long-password", "пароль-С-Заглавной"],
+    ids=["all-cyrillic", "latin", "mixed-alphabet"],
+)
+async def test_register_accepts_a_password_that_meets_the_policy(
+    client: httpx.AsyncClient, password: str
+) -> None:
+    """The mirror of the refusals above.
+
+    Without this, deleting the validator entirely would still leave the refusal
+    cases red and nothing green to notice a rule that rejects EVERYTHING.
+    """
+    # Arrange / Act
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={"email": f"{abs(hash(password))}@example.com", "password": password},
+    )
+
+    # Assert
+    assert response.status_code == 201, response.text

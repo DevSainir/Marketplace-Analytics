@@ -19,7 +19,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from src.core.exceptions import AuthenticationError
+from src.core.exceptions import AuthenticationError, EmailNotConfirmedError
 from src.core.security import hash_refresh_secret
 from src.modules.users.services import AuthService
 from tests.support.auth import KNOWN_PASSWORD, make_user
@@ -86,7 +86,7 @@ async def test_failed_logins_are_indistinguishable(email: str, password: str, ca
     with pytest.raises(AuthenticationError) as excinfo:
         await service.authenticate(email=email, password=password)
 
-    assert excinfo.value.message == "Invalid email or password."
+    assert excinfo.value.message == "Неверная почта или пароль."
 
 
 async def test_a_backed_off_account_is_refused_even_with_the_right_password() -> None:
@@ -102,7 +102,7 @@ async def test_a_backed_off_account_is_refused_even_with_the_right_password() ->
     with pytest.raises(AuthenticationError) as excinfo:
         await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
 
-    assert excinfo.value.message == "Invalid email or password."
+    assert excinfo.value.message == "Неверная почта или пароль."
 
 
 async def test_a_backed_off_account_answers_exactly_like_a_wrong_password() -> None:
@@ -166,7 +166,7 @@ async def test_disabled_account_cannot_log_in() -> None:
     with pytest.raises(AuthenticationError) as excinfo:
         await service.authenticate(email="fired@example.com", password=KNOWN_PASSWORD)
 
-    assert excinfo.value.message == "Invalid email or password."
+    assert excinfo.value.message == "Неверная почта или пароль."
 
 
 async def test_a_fresh_login_opens_a_new_token_family() -> None:
@@ -250,7 +250,7 @@ async def test_revoked_token_cannot_rotate() -> None:
     issued = await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
     await service.logout(refresh_secret=issued.refresh_secret)
 
-    with pytest.raises(AuthenticationError, match="revoked"):
+    with pytest.raises(AuthenticationError, match="завершена"):
         await service.rotate_refresh_token(refresh_secret=issued.refresh_secret)
 
 
@@ -264,7 +264,7 @@ async def test_expired_token_cannot_rotate() -> None:
     assert stored is not None
     stored.expires_at = datetime.now(UTC) - timedelta(seconds=1)
 
-    with pytest.raises(AuthenticationError, match="expired"):
+    with pytest.raises(AuthenticationError, match="истёк"):
         await service.rotate_refresh_token(refresh_secret=issued.refresh_secret)
 
 
@@ -280,7 +280,7 @@ async def test_disabled_account_cannot_rotate() -> None:
     issued = await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
     user.is_active = False
 
-    with pytest.raises(AuthenticationError, match="disabled"):
+    with pytest.raises(AuthenticationError, match="отключён"):
         await service.rotate_refresh_token(refresh_secret=issued.refresh_secret)
 
 
@@ -302,7 +302,7 @@ async def test_session_cannot_outlive_the_absolute_lifetime(settings_override) -
         settings_override(
             session_absolute_lifetime_seconds=int(timedelta(days=30).total_seconds())
         ),
-        pytest.raises(AuthenticationError, match="Session lifetime exceeded"),
+        pytest.raises(AuthenticationError, match="Срок сессии истёк"),
     ):
         await service.rotate_refresh_token(refresh_secret=issued.refresh_secret)
 
@@ -406,3 +406,56 @@ async def test_logout_is_a_silent_no_op_for_unknown_tokens(secret: str | None) -
     service = _service(FakeUserRepository([make_user()]))
 
     await service.logout(refresh_secret=secret)
+
+
+# --------------------------------------------------------------------------- #
+# The confirmation gate (register P1.6)
+# --------------------------------------------------------------------------- #
+async def test_an_unconfirmed_address_cannot_log_in_even_with_the_right_password() -> None:
+    """Registration creates the account and issues no session.
+
+    Leaving the code screen therefore leaves nothing usable behind, which is the
+    whole point: an abandoned signup must not be a half-open account.
+    """
+    # Arrange
+    user = make_user(email="half@example.com", email_confirmed=False)
+    service = _service(FakeUserRepository([user]))
+
+    # Act / Assert
+    with pytest.raises(EmailNotConfirmedError):
+        await service.authenticate(email="half@example.com", password=KNOWN_PASSWORD)
+
+
+async def test_the_confirmation_gate_is_not_an_account_existence_oracle() -> None:
+    """A WRONG password gets the ordinary uniform refusal, never the gate's.
+
+    This is the assertion that makes the feature safe. `EmailNotConfirmedError`
+    admits an account exists, so it may only ever be raised by someone who has
+    already proved they know the password. Were it raised before the password
+    check, anyone could enumerate registered addresses by watching which ones
+    answer differently — the control P0.1 and P1.5 both paid for.
+    """
+    # Arrange
+    user = make_user(email="half@example.com", email_confirmed=False)
+    service = _service(FakeUserRepository([user]))
+
+    # Act / Assert — indistinguishable from the answer an unknown address gets.
+    with pytest.raises(AuthenticationError) as unconfirmed:
+        await service.authenticate(email="half@example.com", password="wrong-password")
+    with pytest.raises(AuthenticationError) as unknown:
+        await service.authenticate(email="ghost@example.com", password="wrong-password")
+
+    assert not isinstance(unconfirmed.value, EmailNotConfirmedError)
+    assert unconfirmed.value.message == unknown.value.message
+
+
+async def test_a_confirmed_account_logs_in_normally() -> None:
+    """The mirror: a gate that refused everyone would pass the two tests above."""
+    # Arrange
+    service = _service(FakeUserRepository([make_user(email="user@example.com")]))
+
+    # Act
+    issued = await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
+
+    # Assert
+    assert issued.access_token

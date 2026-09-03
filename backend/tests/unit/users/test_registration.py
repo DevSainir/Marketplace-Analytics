@@ -9,9 +9,11 @@ could never log in again, and case-variant duplicates would register freely.
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
 
-from src.core.exceptions import ConflictError, ValidationError
+from src.core.exceptions import ConflictError, EmailNotConfirmedError, ValidationError
+from src.modules.users.schemas import PasswordResetConfirmRequest, UserRegisterRequest
 from src.modules.users.services import AuthService
 from tests.support.auth import make_user
 from tests.support.fakes import (
@@ -132,3 +134,82 @@ async def test_a_taken_email_is_refused_before_the_password_is_checked() -> None
         await service.register(email="taken@example.com", password="Password1!")
 
     assert breach_check.asked == []
+
+
+@pytest.mark.parametrize(
+    "password",
+    ["alllowercase", "ALLUPPERCASE", "тольконижний", "ТОЛЬКОВЕРХНИЙ"],
+    ids=["latin-lower", "latin-upper", "cyrillic-lower", "cyrillic-upper"],
+)
+def test_both_password_doors_apply_the_same_case_rule(password: str) -> None:
+    """Registration and password reset share one validator.
+
+    Pinned at the schema rather than through two endpoints because the point
+    being protected is that there is ONE rule, not two that happen to agree
+    today. This module's own comment puts it best: a rule enforced on one of
+    two doors is not enforced.
+    """
+    # Arrange / Act / Assert
+    for schema, field in (
+        (UserRegisterRequest, "password"),
+        (PasswordResetConfirmRequest, "new_password"),
+    ):
+        payload = {"email": "a@example.com", field: password}
+        if schema is PasswordResetConfirmRequest:
+            payload["code"] = "123456"
+        with pytest.raises(PydanticValidationError):
+            schema(**payload)
+
+
+def test_a_password_with_both_cases_satisfies_both_doors() -> None:
+    """The mirror: a rule that refuses everything would pass the test above."""
+    # Arrange / Act / Assert
+    assert UserRegisterRequest(email="a@example.com", password="ПравильныйПароль")
+    assert PasswordResetConfirmRequest(
+        email="a@example.com", code="123456", new_password="ПравильныйПароль"
+    )
+
+
+async def test_registering_an_unconfirmed_address_resumes_it_instead_of_refusing() -> None:
+    """An unfinished signup is the same person coming back, not a clash.
+
+    Answering 409 here was a dead end: the account blocking them was their own,
+    created by the attempt they abandoned, and nothing on the screen said so.
+    """
+    # Arrange
+    existing = make_user(email="half@example.com", email_confirmed=False)
+    service = _service(FakeUserRepository([existing]))
+
+    # Act / Assert
+    with pytest.raises(EmailNotConfirmedError):
+        await service.register(email="half@example.com", password="A-different-password")
+
+
+async def test_resuming_a_signup_does_not_overwrite_the_password() -> None:
+    """Otherwise anyone could rewrite the credentials of an unconfirmed account.
+
+    It grants no access on its own — the address still has to be confirmed —
+    but it would let a stranger take over an address someone else is mid-way
+    through registering.
+    """
+    # Arrange
+    existing = make_user(email="half@example.com", email_confirmed=False)
+    before = existing.hashed_password
+    service = _service(FakeUserRepository([existing]))
+
+    # Act
+    with pytest.raises(EmailNotConfirmedError):
+        await service.register(email="half@example.com", password="A-different-password")
+
+    # Assert
+    assert existing.hashed_password == before
+
+
+async def test_a_confirmed_address_is_still_a_conflict() -> None:
+    """The gate above must not swallow the real duplicate case."""
+    # Arrange
+    service = _service(FakeUserRepository([make_user(email="taken@example.com")]))
+
+    # Act / Assert
+    with pytest.raises(ConflictError):
+        await service.register(email="taken@example.com", password="A-good-password")

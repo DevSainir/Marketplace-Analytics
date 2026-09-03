@@ -33,6 +33,7 @@ from src.core.config import settings
 from src.core.exceptions import (
     AuthenticationError,
     ConflictError,
+    EmailNotConfirmedError,
     TokenReuseError,
     ValidationError,
 )
@@ -139,7 +140,18 @@ class AuthService:
         email = _normalize_email(email)
         existing = await self._users.get_by_email(email)
         if existing is not None:
-            raise ConflictError("A user with this email already exists.")
+            # An unconfirmed row is an unfinished signup, almost always by the
+            # same person — so this is not a clash to refuse but a flow to
+            # resume. The password is deliberately NOT overwritten: whoever
+            # holds the mailbox finishes with the code, and anyone else has
+            # changed nothing. A confirmed account is a real conflict.
+            if existing.email_confirmed_at is None:
+                raise EmailNotConfirmedError(
+                    "Аккаунт не активирован — подтвердите адрес электронной почты."
+                )
+            raise ConflictError(
+                "Аккаунт с такой почтой уже существует — войдите или восстановите пароль."
+            )
         # Before the bcrypt cost, not after: there is no point spending 200 ms
         # hashing a password we are about to refuse. The check fails open, so a
         # HIBP outage costs a round trip and nothing else.
@@ -154,7 +166,9 @@ class AuthService:
             # Two concurrent registrations for the same email both pass the
             # pre-check; the unique index catches the loser here. Map it to the
             # same 409 as the fast path instead of leaking a raw 500.
-            raise ConflictError("A user with this email already exists.") from exc
+            raise ConflictError(
+                "Аккаунт с такой почтой уже существует — войдите или восстановите пароль."
+            ) from exc
         return UserRead.model_validate(user)
 
     # ------------------------------------------------------------------ #
@@ -209,11 +223,11 @@ class AuthService:
                 "Login refused during a %ds backoff (consecutive failures on this account).",
                 penalty,
             )
-            raise AuthenticationError("Invalid email or password.")
+            raise AuthenticationError("Неверная почта или пароль.")
 
         if user is None or not password_matches:
             await self._backoff.record_failure(email=email)
-            raise AuthenticationError("Invalid email or password.")
+            raise AuthenticationError("Неверная почта или пароль.")
 
         if not user.is_active:
             # Counted like any other failure: not doing so would make a disabled
@@ -221,9 +235,25 @@ class AuthService:
             # difference an attacker can measure.
             await self._backoff.record_failure(email=email)
             logger.info("Login attempt for disabled account %s.", user.id)
-            raise AuthenticationError("Invalid email or password.")
+            raise AuthenticationError("Неверная почта или пароль.")
 
         await self._backoff.clear(email=email)
+
+        # The credentials are now known-good, and ONLY here is it safe to say
+        # anything about the account's state. Registration creates the row and
+        # mails a code but issues no session, so a signup abandoned at the code
+        # screen leaves an account that cannot be logged into — this is where
+        # that person is sent back to finish.
+        #
+        # Placed after the password check on purpose. Answering it earlier
+        # would tell anyone who guessed an address that it is registered, which
+        # is precisely the oracle the identical refusals above exist to deny.
+        # Here it costs nothing: whoever sees it already had the password.
+        if user.email_confirmed_at is None:
+            logger.info("Login refused for an unconfirmed address (account %s).", user.id)
+            raise EmailNotConfirmedError(
+                "Аккаунт не активирован — подтвердите адрес электронной почты."
+            )
 
         # A fresh login opens a new token family/lineage.
         return await self._issue_pair(user_id=user.id, family_id=uuid7(), parent_id=None)
@@ -252,10 +282,10 @@ class AuthService:
             TokenReuseError: If a consumed token is replayed (breach).
         """
         if not refresh_secret:
-            raise AuthenticationError("Missing refresh token.")
+            raise AuthenticationError("Сессия не найдена. Войдите снова.")
         token = await self._tokens.get_by_hash(hash_refresh_secret(refresh_secret))
         if token is None:
-            raise AuthenticationError("Invalid refresh token.")
+            raise AuthenticationError("Сессия недействительна. Войдите снова.")
 
         # --- Consumed token: a racing tab, or a genuine replay. ---
         # These are indistinguishable from the token alone, so the difference is
@@ -269,21 +299,21 @@ class AuthService:
             if replayed is not None:
                 return replayed
             await revoke_breached_family(user_id=token.user_id, family_id=token.family_id)
-            raise TokenReuseError("Refresh token reuse detected. This session has been revoked.")
+            raise TokenReuseError("Сессия завершена в целях безопасности. Войдите снова.")
 
         if token.is_revoked:
-            raise AuthenticationError("This session has been revoked.")
+            raise AuthenticationError("Сессия завершена. Войдите снова.")
 
         now = datetime.now(UTC)
         if token.expires_at <= now:
-            raise AuthenticationError("Refresh token has expired.")
+            raise AuthenticationError("Срок сессии истёк. Войдите снова.")
 
         # Rotation must re-check the account, not just the token row: a
         # disabled user holding a valid refresh cookie would otherwise keep
         # renewing 7-day sessions forever.
         user = await self._users.get_by_id(token.user_id)
         if user is None or not user.is_active:
-            raise AuthenticationError("This account is disabled.")
+            raise AuthenticationError("Аккаунт отключён.")
 
         # Absolute ceiling per login lineage: rotation slides the refresh
         # window, but a family may not outlive the configured session lifetime.
@@ -292,7 +322,7 @@ class AuthService:
             seconds=settings.session_absolute_lifetime_seconds
         )
         if session_deadline <= now:
-            raise AuthenticationError("Session lifetime exceeded. Please log in again.")
+            raise AuthenticationError("Срок сессии истёк. Войдите снова.")
 
         # --- Breach (race path): consume the token atomically. If another
         # request already consumed it between our read and this UPDATE, this is
@@ -309,7 +339,7 @@ class AuthService:
             if replayed is not None:
                 return replayed
             await revoke_breached_family(user_id=token.user_id, family_id=token.family_id)
-            raise TokenReuseError("Refresh token reuse detected. This session has been revoked.")
+            raise TokenReuseError("Сессия завершена в целях безопасности. Войдите снова.")
 
         issued = await self._issue_pair(
             user_id=token.user_id,

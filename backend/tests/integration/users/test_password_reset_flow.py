@@ -19,6 +19,7 @@ body. That is a property of the HTTP response, not of a service return value.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -30,8 +31,8 @@ from src.modules.users.models import ROLE_USER, User
 
 pytestmark = pytest.mark.integration
 
-PASSWORD = "a-long-enough-password"
-NEW_PASSWORD = "an-even-better-password"
+PASSWORD = "A-long-enough-password"
+NEW_PASSWORD = "An-even-better-password"
 PROTECTED = "/api/v1/organizations/me"
 
 
@@ -91,6 +92,9 @@ async def _account(session: AsyncSession, *, active: bool = True) -> User:
     user = User(
         email=f"user-{uuid.uuid4().hex[:8]}@example.com",
         hashed_password=hash_password(PASSWORD),
+        # Confirmed: `/login` refuses an unproven address, so an account a
+        # test authenticates as has to be one.
+        email_confirmed_at=datetime.now(UTC),
         role=ROLE_USER,
         is_active=active,
     )

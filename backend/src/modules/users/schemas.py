@@ -14,24 +14,50 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from src.core.security import PASSWORD_MAX_BYTES
 
 
+def _validate_password(value: str) -> str:
+    """Apply every rule a new password must satisfy.
+
+    One function rather than one per schema, because registration and password
+    reset are two doors into the same thing and a rule enforced on one of them
+    is not enforced. `PasswordRules.vue` states these to the user; the two must
+    be changed together or the form starts promising something the API refuses.
+
+    What is deliberately NOT here: a digit or a punctuation requirement, and any
+    maximum on repeated characters. Length plus the breach check
+    (:mod:`src.integrations.pwned`) is what actually keeps a password out of a
+    wordlist — composition rules mostly produce `Parol1!`.
+
+    Args:
+        value: The submitted plaintext password.
+
+    Returns:
+        The password unchanged.
+
+    Raises:
+        ValueError: Rendered to the client by the 422 handler, in Russian.
+    """
+    # bcrypt reads only the first 72 BYTES and silently ignores the rest, so a
+    # longer password would give a false sense of extra entropy. Bytes, not
+    # characters: Cyrillic is two bytes apiece and reaches the limit at ~36.
+    if len(value.encode("utf-8")) > PASSWORD_MAX_BYTES:
+        raise ValueError(f"Пароль слишком длинный (максимум {PASSWORD_MAX_BYTES} байт).")
+    # `str.islower`/`isupper` are Unicode-aware, so «пароль» and «ПАРОЛЬ» count
+    # exactly as their Latin equivalents do. An all-Cyrillic password is a
+    # first-class one here and must not be refused for being Cyrillic.
+    if not any(char.islower() for char in value):
+        raise ValueError("Пароль должен содержать хотя бы одну строчную букву.")
+    if not any(char.isupper() for char in value):
+        raise ValueError("Пароль должен содержать хотя бы одну заглавную букву.")
+    return value
+
+
 class UserRegisterRequest(BaseModel):
     """Payload to register a new user account."""
 
     email: EmailStr = Field(description="Unique account email / login.")
     password: str = Field(min_length=8, max_length=128, description="Plaintext password.")
 
-    @field_validator("password")
-    @classmethod
-    def _password_within_bcrypt_limit(cls, value: str) -> str:
-        """Reject passwords bcrypt would silently truncate.
-
-        bcrypt only reads the first 72 bytes; accepting longer input would give
-        users a false sense of extra entropy (multi-byte alphabets hit the
-        limit well below 72 *characters*, hence a byte-level check).
-        """
-        if len(value.encode("utf-8")) > PASSWORD_MAX_BYTES:
-            raise ValueError(f"Password must not exceed {PASSWORD_MAX_BYTES} bytes (UTF-8).")
-        return value
+    _check_password = field_validator("password")(staticmethod(_validate_password))
 
 
 class UserLoginRequest(BaseModel):
@@ -116,18 +142,7 @@ class PasswordResetConfirmRequest(BaseModel):
     code: str = Field(min_length=6, max_length=10, description="The code from the message.")
     new_password: str = Field(min_length=8, max_length=128, description="The replacement password.")
 
-    @field_validator("new_password")
-    @classmethod
-    def _password_within_bcrypt_limit(cls, value: str) -> str:
-        """Reject passwords bcrypt would silently truncate.
-
-        The same rule registration enforces, applied here because this is the
-        other door a password comes through — and a rule enforced on one of two
-        doors is not enforced.
-        """
-        if len(value.encode("utf-8")) > 72:
-            raise ValueError("Пароль слишком длинный (максимум 72 байта).")
-        return value
+    _check_password = field_validator("new_password")(staticmethod(_validate_password))
 
 
 class AcceptedResponse(BaseModel):

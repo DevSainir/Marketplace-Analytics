@@ -15,6 +15,8 @@ up to their full lifetime — exactly the window an incident cannot afford.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +36,9 @@ async def stored_user(db_session: AsyncSession) -> User:
     user = User(
         email="compromised@example.com",
         hashed_password=known_password_hash(),
+        # Confirmed: `/login` refuses an unproven address, so an account a
+        # test authenticates as has to be one.
+        email_confirmed_at=datetime.now(UTC),
         is_active=True,
         role="user",
     )
@@ -118,6 +123,9 @@ async def test_it_is_scoped_to_the_named_account(
     other = User(
         email="bystander@example.com",
         hashed_password=known_password_hash(),
+        # Confirmed: `/login` refuses an unproven address, so an account a
+        # test authenticates as has to be one.
+        email_confirmed_at=datetime.now(UTC),
         is_active=True,
         role="user",
     )

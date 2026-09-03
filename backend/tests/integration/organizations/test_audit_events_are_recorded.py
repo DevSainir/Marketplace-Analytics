@@ -16,6 +16,7 @@ hashing.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -34,6 +35,9 @@ async def _owner(session: AsyncSession, organization: Organization) -> User:
     user = User(
         email=f"owner-{uuid.uuid4().hex[:8]}@example.com",
         hashed_password=hash_password("a-long-enough-password"),
+        # Confirmed: `/login` refuses an unproven address, so an account a
+        # test authenticates as has to be one.
+        email_confirmed_at=datetime.now(UTC),
         role=ROLE_USER,
         is_active=True,
     )

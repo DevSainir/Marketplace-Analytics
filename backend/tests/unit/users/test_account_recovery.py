@@ -25,13 +25,14 @@ from typing import Any
 
 import pytest
 
+from src.core.exceptions import ValidationError
 from src.core.security import hash_opaque_secret, verify_password
 from src.integrations.email import EmailMessage
 from src.modules.users.models import VerificationPurpose
 from src.modules.users.services.recovery import AccountRecoveryService
 from src.modules.users.services.verification import VerificationService, generate_code
 from tests.support.auth import KNOWN_PASSWORD, make_user
-from tests.support.fakes import FakeUserRepository
+from tests.support.fakes import FakePasswordBreachCheck, FakeUserRepository
 
 
 class FakeCodeRow:
@@ -113,13 +114,22 @@ class FakeTransport:
 
 
 def _service(
-    users: FakeUserRepository, codes: FakeCodeRepo, transport: FakeTransport
+    users: FakeUserRepository,
+    codes: FakeCodeRepo,
+    transport: FakeTransport,
+    breach_check: FakePasswordBreachCheck | None = None,
 ) -> AccountRecoveryService:
-    """Build the recovery service over in-memory collaborators."""
+    """Build the recovery service over in-memory collaborators.
+
+    The breach check is faked even when a test does not care about it: the
+    real one is an HTTPS range query, and a unit test that reaches the network
+    is slow, offline-fragile, and no longer a unit test.
+    """
     return AccountRecoveryService(
         users=users,
         verification=VerificationService(codes=codes),
         transport=transport,
+        breach_check=breach_check or FakePasswordBreachCheck(),
     )
 
 
@@ -301,7 +311,10 @@ async def test_resetting_an_unknown_address_answers_like_a_wrong_code() -> None:
 # --------------------------------------------------------------------------- #
 async def test_a_mailed_code_confirms_the_address() -> None:
     """The happy path, so every refusal above means something."""
-    user = make_user(email="user@example.com")
+    # `email_confirmed=False` explicitly: the factory now hands out CONFIRMED
+    # accounts, because that is the only state `/login` accepts and most tests
+    # are not about this. A test that confirms an address has to start before it.
+    user = make_user(email="user@example.com", email_confirmed=False)
     transport = FakeTransport()
     service = _service(FakeUserRepository([user]), FakeCodeRepo(), transport)
     await service.send_confirmation(user=user)
@@ -326,7 +339,7 @@ async def test_a_confirmed_address_is_not_mailed_again() -> None:
 
 async def test_re_confirming_keeps_the_original_timestamp() -> None:
     """During an incident the FIRST answer to "when was this proven" is the one."""
-    user = make_user(email="user@example.com")
+    user = make_user(email="user@example.com", email_confirmed=False)
     transport = FakeTransport()
     service = _service(FakeUserRepository([user]), FakeCodeRepo(), transport)
     await service.send_confirmation(user=user)
@@ -409,3 +422,46 @@ async def test_a_dead_relay_raises_rather_than_lying() -> None:
 
     with pytest.raises(OSError, match="relay unreachable"):
         await service.request_password_reset(email="user@example.com")
+
+
+async def test_a_reset_refuses_a_password_from_a_public_breach() -> None:
+    """Registration refused these; the reset path used to accept them.
+
+    This is the path where it matters most — the reason a person is resetting
+    is often that the old password leaked.
+    """
+    # Arrange
+    users = FakeUserRepository()
+    codes = FakeCodeRepo()
+    transport = FakeTransport()
+    breach = FakePasswordBreachCheck(breached={"password123"})
+    service = _service(users, codes, transport, breach)
+    user = await users.create(email="seller@example.com", hashed_password="x")
+    await service.request_password_reset(email=user.email)
+    code = _code_from(transport)
+
+    # Act / Assert
+    with pytest.raises(ValidationError):
+        await service.reset_password(email=user.email, code=code, new_password="password123")
+
+
+async def test_the_breach_refusal_is_not_an_account_existence_oracle() -> None:
+    """A breached password is refused identically for an address we do not have.
+
+    The check runs BEFORE the account lookup precisely so this holds. Were it
+    to run after, a real address would answer "pick another password" and an
+    unknown one would answer "wrong code", and the difference would say which
+    addresses are registered — the one thing this whole flow is built to hide.
+    """
+    # Arrange
+    users = FakeUserRepository()
+    codes = FakeCodeRepo()
+    transport = FakeTransport()
+    breach = FakePasswordBreachCheck(breached={"password123"})
+    service = _service(users, codes, transport, breach)
+
+    # Act / Assert — no such account, and the answer is still the breach one.
+    with pytest.raises(ValidationError):
+        await service.reset_password(
+            email="ghost@example.com", code="000000", new_password="password123"
+        )

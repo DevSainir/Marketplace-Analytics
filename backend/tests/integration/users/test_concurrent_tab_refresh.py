@@ -58,6 +58,9 @@ async def stored_user(db_session: AsyncSession) -> User:
     user = User(
         email="tabs@example.com",
         hashed_password=known_password_hash(),
+        # Confirmed: `/login` refuses an unproven address, so an account a
+        # test authenticates as has to be one.
+        email_confirmed_at=datetime.now(UTC),
         is_active=True,
         role="user",
     )

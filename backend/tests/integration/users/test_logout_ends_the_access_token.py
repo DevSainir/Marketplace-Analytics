@@ -19,6 +19,7 @@ customer's other devices out.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -47,6 +48,9 @@ async def _account(session: AsyncSession) -> User:
     user = User(
         email=f"user-{uuid.uuid4().hex[:8]}@example.com",
         hashed_password=hash_password(PASSWORD),
+        # Confirmed: `/login` refuses an unproven address, so an account a
+        # test authenticates as has to be one.
+        email_confirmed_at=datetime.now(UTC),
         role=ROLE_USER,
         is_active=True,
     )

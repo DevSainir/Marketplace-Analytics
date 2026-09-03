@@ -103,6 +103,7 @@ def make_user(
     role: str = ROLE_USER,
     is_active: bool = True,
     user_id: uuid.UUID | None = None,
+    email_confirmed: bool = True,
 ) -> User:
     """Build an in-memory :class:`User` row (never added to a session here).
 
@@ -111,6 +112,11 @@ def make_user(
         role: ``user`` or ``dev`` (see :mod:`src.modules.users.models`).
         is_active: Whether the account is enabled.
         user_id: Explicit primary key; a fresh UUIDv7 when omitted.
+        email_confirmed: Whether the address has been proven. Defaults to
+            ``True`` because that is the state of every account that can
+            actually be used — `/login` refuses an unconfirmed one — so a test
+            about something else should not have to say so. Pass ``False`` in
+            the tests that are ABOUT the unconfirmed state.
 
     Returns:
         A transient :class:`User` instance with a usable password digest.
@@ -121,5 +127,6 @@ def make_user(
         hashed_password=known_password_hash(),
         is_active=is_active,
         role=role,
+        email_confirmed_at=datetime.now(UTC) if email_confirmed else None,
         created_at=datetime.now(UTC),
     )
