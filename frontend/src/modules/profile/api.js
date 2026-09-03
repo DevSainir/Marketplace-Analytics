@@ -160,6 +160,32 @@ export async function acceptInvitation(token) {
 }
 
 /**
+ * GET /v1/organizations/invitations — every invitation this company has issued.
+ *
+ * Never their tokens: those exist once, in the response that created them.
+ * `status` is resolved against the server's clock so two owners looking at the
+ * same list read the same thing.
+ *
+ * @returns {Promise<Array<{id: string, email: string|null, status: string, expires_at: string}>>}
+ */
+export async function fetchIssuedInvitations() {
+  const { data } = await apiClient.get('/v1/organizations/invitations')
+  return data
+}
+
+/**
+ * DELETE /v1/organizations/invitations/:id — withdraw an unaccepted invitation.
+ *
+ * Idempotent. Answers 409 for one already accepted — that is a member now, and
+ * removing them is a different act.
+ *
+ * @param {string} invitationId
+ */
+export async function revokeInvitation(invitationId) {
+  await apiClient.delete(`/v1/organizations/invitations/${invitationId}`)
+}
+
+/**
  * POST /v1/organizations/invitations — invite a manager with a grant.
  *
  * The access travels WITH the invitation rather than being applied after they

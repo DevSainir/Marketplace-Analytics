@@ -18,9 +18,11 @@ import {
   acceptInvitation,
   activateOrganization,
   createInvitation,
+  fetchIssuedInvitations,
   fetchMembers,
   fetchMyInvitations,
   fetchOrganizationMe,
+  revokeInvitation,
   updateMemberAccess,
 } from '@/modules/profile/api'
 
@@ -45,6 +47,11 @@ export const useMembersStore = defineStore('members', () => {
   //: Invitations addressed to this account's address, loaded only when it has
   //: no organisation — a member has nothing to accept.
   const invitations = ref([])
+  //: Invitations this company has ISSUED, for the owner. Every press of
+  //: «Пригласить» mints another live token and none of them supersedes the
+  //: last, so without this list an owner cannot see — let alone withdraw —
+  //: links that are still working.
+  const issued = ref([])
   const members = ref([])
   const loading = ref(false)
   const saving = ref(null)
@@ -82,7 +89,10 @@ export const useMembersStore = defineStore('members', () => {
       }
       // Asked for only when it can be answered: /members is owner-only, and a
       // manager opening their profile would otherwise take a guaranteed 403.
-      if (me.role === 'owner') members.value = await fetchMembers()
+      if (me.role === 'owner') {
+        members.value = await fetchMembers()
+        issued.value = await fetchIssuedInvitations().catch(() => [])
+      }
       loaded.value = true
     } catch (err) {
       error.value = err?.response?.data?.detail ?? 'Не удалось загрузить участников.'
@@ -167,9 +177,33 @@ export const useMembersStore = defineStore('members', () => {
     }
   }
 
+  /** Withdraw an issued invitation, so its link stops working. */
+  async function revokeInvite(invitationId) {
+    saving.value = invitationId
+    error.value = ''
+    try {
+      await revokeInvitation(invitationId)
+      issued.value = await fetchIssuedInvitations()
+      return true
+    } catch (err) {
+      error.value = extractErrorMessage(err)
+      return false
+    } finally {
+      saving.value = null
+    }
+  }
+
+  /** Re-read the issued list — after minting one, so it appears immediately. */
+  async function refreshIssued() {
+    issued.value = await fetchIssuedInvitations().catch(() => issued.value)
+  }
+
   return {
     role,
     organization,
+    issued,
+    revokeInvite,
+    refreshIssued,
     invitations,
     acceptInvite,
     hasOrganization,
