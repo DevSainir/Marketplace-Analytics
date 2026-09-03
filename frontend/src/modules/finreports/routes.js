@@ -8,7 +8,7 @@ export const finreportsRoutes = [
     path: '/finreports',
     name: 'finreports',
     component: () => import('@/modules/finreports/views/PnlView.vue'),
-    meta: { title: 'Прибыли и убытки', requiresAuth: true },
+    meta: { title: 'Прибыли и убытки', requiresAuth: true, module: 'finreports' },
   },
   {
   },
@@ -16,6 +16,6 @@ export const finreportsRoutes = [
     path: '/finreports/cost-prices',
     name: 'finreports-cost-prices',
     component: () => import('@/modules/finreports/views/CostPricesView.vue'),
-    meta: { title: 'Себестоимость', requiresAuth: true },
+    meta: { title: 'Себестоимость', requiresAuth: true, module: 'finreports' },
   },
 ]

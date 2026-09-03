@@ -1,6 +1,6 @@
 <script setup>
 /**
- * What a registered account sees before it belongs to a company.
+ * What an account sees in front of a surface it cannot reach.
  *
  * Registration is open, and `require_member` closes everything behind it, so
  * there is a real state between "signed up" and "inside a company": the session
@@ -20,24 +20,46 @@
  * The blur is presentation only. The API refuses these surfaces on its own;
  * nothing here is a security control, and it is not written as one.
  */
-import { RouterLink } from 'vue-router'
+import { computed } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
 
 import ActivationKeyForm from '@/modules/profile/components/ActivationKeyForm.vue'
 import { useMembersStore } from '@/modules/profile/membersStore'
 
 const members = useMembersStore()
+const route = useRoute()
+
+// Two reasons to be stopped, one blur. Not belonging to a company is the first;
+// belonging but not being granted this section is the second, and it used to be
+// no blur at all — a narrowed manager saw the page and watched every request on
+// it answer 403.
+const blockedByModule = computed(
+  () =>
+    Boolean(route.meta.module) && members.hasOrganization && !members.canReach(route.meta.module),
+)
+const allowed = computed(() => members.hasOrganization && !blockedByModule.value)
 </script>
 
 <template>
   <div class="relative">
     <!-- `inert` is the load-bearing half: without it the blurred page still
          takes Tab focus, so a keyboard user lands in inputs they cannot see. -->
-    <div :class="members.hasOrganization ? '' : 'gate-blurred'" :inert="!members.hasOrganization">
+    <div :class="allowed ? '' : 'gate-blurred'" :inert="!allowed">
       <slot />
     </div>
 
-    <div v-if="!members.hasOrganization" class="gate-overlay">
-      <section class="gate-card">
+    <div v-if="!allowed" class="gate-overlay">
+      <!-- Narrowed manager: the section exists, they simply may not see it. No
+           form here, because nothing they can type changes it — only their
+           owner can. -->
+      <section v-if="blockedByModule" class="gate-card">
+        <h2 class="text-h2 font-bold tracking-tight text-primary">Раздел недоступен</h2>
+        <p class="mt-xs text-tiny font-medium text-muted">
+          У вас нет доступа к этому разделу. Его открывает владелец компании.
+        </p>
+      </section>
+
+      <section v-else class="gate-card">
         <h2 class="text-h2 font-bold tracking-tight text-primary">Нужен ключ активации</h2>
         <p class="mt-xs text-tiny font-medium text-muted">
           Аккаунт создан, но ещё не привязан к компании. Введите ключ активации — или

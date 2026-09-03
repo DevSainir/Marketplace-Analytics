@@ -15,7 +15,6 @@ import { RouterLink } from 'vue-router'
 
 import ActivationKeyForm from '@/modules/profile/components/ActivationKeyForm.vue'
 import ManagerAccessPanel from '@/modules/profile/components/ManagerAccessPanel.vue'
-import IssuedInvitationList from '@/modules/profile/components/IssuedInvitationList.vue'
 import ManagerInviteForm from '@/modules/profile/components/ManagerInviteForm.vue'
 import WorkspaceAdminPanel from '@/modules/profile/components/WorkspaceAdminPanel.vue'
 import WorkspaceSwitcher from '@/modules/profile/components/WorkspaceSwitcher.vue'
@@ -45,9 +44,6 @@ async function onInvite({ onIssued, ...payload }) {
   const invitation = await members.invite(payload)
   if (!invitation) return
   onIssued(invitation)
-  // The new row belongs in the list below immediately: the whole point of that
-  // list is that pressing this button again adds another working link.
-  await members.refreshIssued()
 }
 
 function onSelect(id) {
@@ -148,7 +144,6 @@ async function onSaveTokens({ workspaceId, tokens }) {
           @save="onSaveAccess"
         />
         <ManagerInviteForm :saving="members.saving" @invite="onInvite" />
-        <IssuedInvitationList />
         <p
           v-if="members.error"
           class="rounded-card border border-status-negative/30 bg-status-negative/10 px-md py-sm text-base font-medium text-status-negative"
@@ -157,8 +152,11 @@ async function onSaveTokens({ workspaceId, tokens }) {
         </p>
       </template>
 
+      <!-- Owners too, not just devs: `POST /v1/workspaces` is `_owner_only` and
+           has been the whole time, so gating the only UI for it on the platform
+           dev role left owners with no way to add one. -->
       <WorkspaceAdminPanel
-        v-if="store.isDev"
+        v-if="store.isDev || members.isOwner"
         :workspaces="store.workspaces"
         :token-statuses="tokenStatuses"
         :busy="store.loading"

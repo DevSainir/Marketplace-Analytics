@@ -122,6 +122,11 @@ class MeResponse(BaseModel):
     internal_features: bool
     #: ``False`` once the subscription is past its grace window.
     can_write: bool
+    #: Which surfaces this caller may reach. The API has always enforced this
+    #: per route; the SPA was never told, so a narrowed manager saw every nav
+    #: link and could open a page that then answered 403 at every request.
+    #: An owner and a dev get everything.
+    modules: list[ModuleKey] = Field(default_factory=list)
     organization: OrganizationRead | None = None
     subscription: SubscriptionRead | None = None
 

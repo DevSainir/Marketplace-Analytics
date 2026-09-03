@@ -24,22 +24,31 @@ const props = defineProps({
   // Whether the viewer is one of us. Governs the links to surfaces built for a
   // single seller — see `require_internal` on the API side.
   internalFeatures: { type: Boolean, default: false },
+  // Which sections this account may reach. A link to one it cannot is not a
+  // shortcut, it is an invitation to a locked door.
+  modules: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['logout', 'select-workspace'])
 
 const NAV = [
   { to: '/', label: 'Главная', exact: true },
-  { to: '/monitoring', label: 'Мониторинг' },
-  { to: '/charts', label: 'Графики' },
-  { to: '/finreports', label: 'Прибыли и убытки' },
-  { to: '/ab-tests', label: 'A/Б-тесты', internal: true },
+  { to: '/monitoring', label: 'Мониторинг', module: 'monitoring' },
+  { to: '/charts', label: 'Графики', module: 'monitoring' },
+  { to: '/finreports', label: 'Прибыли и убытки', module: 'finreports' },
+  { to: '/ab-tests', label: 'A/Б-тесты', module: 'ab_tests', internal: true },
 ]
 
 // Hiding the link is cosmetic — `installInternalGuard` is what actually
 // refuses the route, and the API refuses it again. This only stops us
 // advertising a section the person is then told does not exist.
-const visibleNav = computed(() => NAV.filter((link) => !link.internal || props.internalFeatures))
+const visibleNav = computed(() =>
+  NAV.filter(
+    (link) =>
+      (!link.internal || props.internalFeatures) &&
+      (!link.module || props.modules.includes(link.module)),
+  ),
+)
 </script>
 
 <template>

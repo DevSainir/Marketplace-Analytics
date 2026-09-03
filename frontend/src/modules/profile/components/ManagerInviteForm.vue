@@ -115,16 +115,25 @@ function onSubmit() {
       <code class="mt-xs block break-all text-base font-medium text-primary">
         {{ inviteLink }}
       </code>
-      <button type="button" class="mt-xs text-tiny font-semibold text-action" @click="copyLink">
-        {{ copied ? 'Скопировано' : 'Скопировать ссылку' }}
-      </button>
-      <button
-        type="button"
-        class="mt-sm text-tiny font-semibold text-action"
-        @click="issued = null"
-      >
-        Скрыть
-      </button>
+      <!-- Stacked, and each on its own line: side by side with no separator the
+           two ran together as «СкопированоСкрыть». -->
+      <div class="mt-sm flex flex-col items-start gap-xs">
+        <button type="button" class="invite-action" @click="copyLink">
+          {{ copied ? 'Скопировано' : 'Скопировать ссылку' }}
+        </button>
+        <button type="button" class="invite-action" @click="issued = null">Скрыть</button>
+      </div>
     </div>
   </section>
 </template>
+
+<style scoped>
+.invite-action {
+  @apply text-tiny font-semibold transition;
+  color: var(--ui-action);
+}
+
+.invite-action:hover {
+  color: var(--ui-action-hover);
+}
+</style>

@@ -16,6 +16,9 @@ const route = useRoute()
 // Which routes the activation overlay may cover. Everything behind the session
 // except the profile page, which has to stay legible to somebody who has not
 // been let into a company yet.
+// Wraps every authenticated route except the ones that exist to RESOLVE being
+// blocked (the profile, the invite screen). The gate itself decides which of
+// its two refusals applies, or neither.
 const gated = computed(
   () => Boolean(route.meta.requiresAuth) && !route.meta.allowWithoutOrganization,
 )
@@ -66,6 +69,7 @@ function onSelectWorkspace(id) {
       :workspaces="workspace.workspaces"
       :current-workspace-id="workspace.currentWorkspaceId"
       :internal-features="members.internalFeatures"
+      :modules="members.modules"
       @logout="onLogout"
       @select-workspace="onSelectWorkspace"
     />

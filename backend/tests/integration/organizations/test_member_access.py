@@ -15,7 +15,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import NotFoundError, ValidationError
-from src.modules.organizations.models import AccessLevel, ModuleKey
+from src.modules.organizations.models import AccessLevel, MemberRole, ModuleKey
 from src.modules.organizations.repos import (
     MembershipRepository,
     OrganizationRepository,
@@ -269,3 +269,37 @@ async def test_an_unknown_member_is_a_404_not_a_silent_no_op(db_session: AsyncSe
             access_level=AccessLevel.READ_ONLY,
             modules=[ModuleKey.MONITORING],
         )
+
+
+async def test_the_me_response_reports_the_modules_the_api_would_allow(
+    db_session: AsyncSession,
+) -> None:
+    """What the SPA hides by must be what the API refuses by.
+
+    The response used to carry no module list at all, so a narrowed manager saw
+    every nav link and could open a page whose every request then answered 403.
+    Sending the STORED list instead would break it the other way: dev and owner
+    bypass that list in `can_reach`, so an owner whose row lists no modules
+    would have been shown nothing.
+    """
+    owner = await persist_user(db_session, "owner@example.com")
+    narrowed = await persist_user(db_session, "narrow@example.com")
+    org = await persist_organization(db_session, owner)
+    await MembershipRepository(db_session).create(
+        organization_id=org.id,
+        user_id=narrowed.id,
+        role=MemberRole.MANAGER,
+        access_level=AccessLevel.READ_ONLY.value,
+        modules=[ModuleKey.FINREPORTS.value],
+    )
+
+    owner_access = await resolve_access(db_session, user_id=owner.id, platform_role="user")
+    manager_access = await resolve_access(db_session, user_id=narrowed.id, platform_role="user")
+    service = _service(db_session)
+
+    owner_me = await service.describe(access=owner_access, email=owner.email)
+    manager_me = await service.describe(access=manager_access, email=narrowed.email)
+
+    # The owner reaches everything even though their membership lists nothing.
+    assert set(owner_me.modules) == set(ModuleKey)
+    assert [m.value for m in manager_me.modules] == [ModuleKey.FINREPORTS.value]

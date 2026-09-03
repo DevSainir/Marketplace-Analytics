@@ -78,6 +78,12 @@ class OrganizationService:
             role=access.role,
             internal_features=access.sees_internal_features,
             can_write=access.can_write,
+            # The EFFECTIVE list, not the stored one. `access.modules` holds
+            # what a membership row says, and dev/owner bypass it entirely in
+            # `may_reach` — sending it raw would hide every section from an
+            # owner whose row happens to list none. Asking the same predicate
+            # the API refuses by is what keeps the two from disagreeing.
+            modules=[m for m in ModuleKey if access.can_reach(m)],
         )
         if access.organization_id is None:
             return payload

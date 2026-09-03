@@ -18,11 +18,9 @@ import {
   acceptInvitation,
   activateOrganization,
   createInvitation,
-  fetchIssuedInvitations,
   fetchMembers,
   fetchMyInvitations,
   fetchOrganizationMe,
-  revokeInvitation,
   updateMemberAccess,
 } from '@/modules/profile/api'
 
@@ -44,14 +42,13 @@ export const useMembersStore = defineStore('members', () => {
   // code. The API has always said so; the SPA showed such a person the whole
   // app with every panel empty and no explanation of what was missing.
   const organization = ref(null)
+  //: The surfaces this account may reach, as the API resolves them — owners and
+  //: devs come back with all of them. The SPA showed every nav link regardless
+  //: and let a narrowed manager open a page whose every request then 403'd.
+  const modules = ref([])
   //: Invitations addressed to this account's address, loaded only when it has
   //: no organisation — a member has nothing to accept.
   const invitations = ref([])
-  //: Invitations this company has ISSUED, for the owner. Every press of
-  //: «Пригласить» mints another live token and none of them supersedes the
-  //: last, so without this list an owner cannot see — let alone withdraw —
-  //: links that are still working.
-  const issued = ref([])
   const members = ref([])
   const loading = ref(false)
   const saving = ref(null)
@@ -70,6 +67,18 @@ export const useMembersStore = defineStore('members', () => {
    */
   const hasOrganization = computed(() => !loaded.value || organization.value !== null)
 
+  /**
+   * Whether a section is reachable.
+   *
+   * Answers `true` until the API has spoken, so no cold load flashes a locked
+   * screen at somebody who is allowed in. The gate that decides is the API's;
+   * this only stops us drawing what it would refuse.
+   */
+  function canReach(moduleKey) {
+    if (!loaded.value) return true
+    return modules.value.includes(moduleKey)
+  }
+
   /** The owner's own row is not editable — see the backend's refusal. */
   const managers = computed(() => members.value.filter((m) => m.role !== 'owner'))
 
@@ -82,6 +91,7 @@ export const useMembersStore = defineStore('members', () => {
       role.value = me.role
       internalFeatures.value = Boolean(me.internal_features)
       organization.value = me.organization ?? null
+      modules.value = me.modules ?? []
       // Only for an account with nowhere to be. Asking otherwise spends a round
       // trip on a list that is always empty.
       if (organization.value === null) {
@@ -89,10 +99,7 @@ export const useMembersStore = defineStore('members', () => {
       }
       // Asked for only when it can be answered: /members is owner-only, and a
       // manager opening their profile would otherwise take a guaranteed 403.
-      if (me.role === 'owner') {
-        members.value = await fetchMembers()
-        issued.value = await fetchIssuedInvitations().catch(() => [])
-      }
+      if (me.role === 'owner') members.value = await fetchMembers()
       loaded.value = true
     } catch (err) {
       error.value = err?.response?.data?.detail ?? 'Не удалось загрузить участников.'
@@ -177,33 +184,11 @@ export const useMembersStore = defineStore('members', () => {
     }
   }
 
-  /** Withdraw an issued invitation, so its link stops working. */
-  async function revokeInvite(invitationId) {
-    saving.value = invitationId
-    error.value = ''
-    try {
-      await revokeInvitation(invitationId)
-      issued.value = await fetchIssuedInvitations()
-      return true
-    } catch (err) {
-      error.value = extractErrorMessage(err)
-      return false
-    } finally {
-      saving.value = null
-    }
-  }
-
-  /** Re-read the issued list — after minting one, so it appears immediately. */
-  async function refreshIssued() {
-    issued.value = await fetchIssuedInvitations().catch(() => issued.value)
-  }
-
   return {
     role,
     organization,
-    issued,
-    revokeInvite,
-    refreshIssued,
+    modules,
+    canReach,
     invitations,
     acceptInvite,
     hasOrganization,
