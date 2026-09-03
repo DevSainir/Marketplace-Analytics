@@ -124,7 +124,7 @@ class AccountRecoveryService:
             )
         )
 
-    async def confirm_email(self, *, email: str, code: str) -> bool:
+    async def confirm_email(self, *, email: str, code: str) -> User | None:
         """Redeem a confirmation code.
 
         Args:
@@ -132,19 +132,25 @@ class AccountRecoveryService:
             code: The code as typed.
 
         Returns:
-            Whether the address is now confirmed. ``False`` covers a wrong
-            code, an expired one, and an address that was never registered —
-            deliberately the same answer, so this endpoint is not the
-            account-existence oracle ``/login`` refuses to be.
+            The confirmed account, or ``None`` for a wrong code, an expired one,
+            or an address that was never registered — deliberately one answer
+            for all three, so this endpoint is not the account-existence oracle
+            ``/login`` refuses to be.
+
+            The account rather than a bare ``True`` because the caller opens a
+            session on it: redeeming the code proves the mailbox AND, since the
+            password is bound to that same code, that this is the person who
+            chose it. Making them type the password again immediately afterwards
+            proves nothing further.
         """
         user = await self._users.get_by_email(_normalize_email(email))
         if user is None:
-            return False
+            return None
         redeemed = await self._verification.redeem(
             user_id=user.id, purpose=VerificationPurpose.EMAIL_CONFIRMATION, code=code
         )
         if redeemed is None:
-            return False
+            return None
         # THE PASSWORD IS SET HERE, not at registration, and that is the whole
         # defence. Whoever redeems the code is the one who read the mailbox, so
         # the password that survives is the one typed by that person in the same
@@ -159,7 +165,7 @@ class AccountRecoveryService:
             await self._users.set_password(user, hashed_password=redeemed.pending_password_hash)
         await self._users.mark_email_confirmed(user)
         logger.info("Email confirmed for user %s.", user.id)
-        return True
+        return user
 
     # ------------------------------------------------------------------ #
     # Password reset

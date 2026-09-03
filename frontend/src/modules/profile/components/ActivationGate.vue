@@ -20,17 +20,10 @@
  * The blur is presentation only. The API refuses these surfaces on its own;
  * nothing here is a security control, and it is not written as one.
  */
-import { ref } from 'vue'
-
+import ActivationKeyForm from '@/modules/profile/components/ActivationKeyForm.vue'
 import { useMembersStore } from '@/modules/profile/membersStore'
 
 const members = useMembersStore()
-const code = ref('')
-
-async function submit() {
-  if (!code.value.trim() || members.saving === 'activation') return
-  await members.activate(code.value.trim())
-}
 </script>
 
 <template>
@@ -49,30 +42,7 @@ async function submit() {
           приглашения от владельца.
         </p>
 
-        <form class="mt-md flex flex-col gap-sm" @submit.prevent="submit">
-          <label class="block">
-            <span class="mb-xs block text-tiny font-medium text-muted">Ключ активации</span>
-            <input
-              v-model="code"
-              type="text"
-              required
-              autocomplete="off"
-              spellcheck="false"
-              placeholder="XXXX-XXXX-XXXX"
-              class="gate-input"
-            />
-          </label>
-
-          <p v-if="members.error" class="gate-error">{{ members.error }}</p>
-
-          <button
-            type="submit"
-            :disabled="members.saving === 'activation' || !code.trim()"
-            class="gate-button"
-          >
-            {{ members.saving === 'activation' ? 'Проверяем…' : 'Активировать' }}
-          </button>
-        </form>
+        <ActivationKeyForm class="mt-md" />
       </section>
     </div>
   </div>

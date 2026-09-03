@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import CodeInput from '@/core/components/CodeInput.vue'
+import { safeRedirect } from '@/modules/auth/guard'
 import { useAuthStore } from '@/modules/auth/store'
 
 const auth = useAuthStore()
@@ -50,11 +51,10 @@ function changeEmail() {
 }
 
 function goOn() {
-  // To /login, not onward. Registration issues no session, so nobody arrives
-  // here signed in any more — the confirmed address still has to be used with
-  // the password. The original destination rides along so the login that
-  // follows lands where the person was heading.
-  router.push({ name: 'login', query: { redirect: route.query.redirect } })
+  // Straight into the app: `/confirm-email` signed us in, so there is no login
+  // step left to send anyone to. Honours whatever they were originally trying
+  // to reach.
+  router.push(safeRedirect(route.query.redirect))
 }
 </script>
 
@@ -66,7 +66,7 @@ function goOn() {
           {{ confirmed ? 'Почта подтверждена' : 'Подтвердите почту' }}
         </h1>
         <p class="mt-xs text-tiny font-medium text-muted">
-          <template v-if="confirmed"> Теперь можно войти в аккаунт. </template>
+          <template v-if="confirmed"> Вы вошли в аккаунт. </template>
           <template v-else> Мы отправили код на вашу почту. </template>
         </p>
       </header>
@@ -132,7 +132,7 @@ function goOn() {
           </button>
         </form>
 
-        <button v-else type="button" class="auth-primary" @click="goOn">Войти</button>
+        <button v-else type="button" class="auth-primary" @click="goOn">Продолжить</button>
       </section>
     </div>
   </div>

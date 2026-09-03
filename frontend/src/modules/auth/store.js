@@ -262,12 +262,31 @@ export const useAuthStore = defineStore('auth', () => {
     return runRecovery(() => resendConfirmation({ email }))
   }
 
-  /** Redeem a confirmation code. False means wrong, expired or already used. */
-  function confirmAddress(email, code) {
-    return runRecovery(
-      () => confirmEmail({ email, code }),
-      'Ответ от сервера не получен. Адрес мог быть подтверждён — обновите страницу, и запросите новый код, если нет.',
-    )
+  /**
+   * Redeem a confirmation code, and take the session it answers with.
+   *
+   * `/confirm-email` signs the caller in: registration hands out no tokens, so
+   * this is the moment the account becomes usable, and by now the person has
+   * proved both halves of the credential — the mailbox, and (because the
+   * password is bound to the code) that they chose the password. Sending them
+   * back to the login form to retype it would prove nothing.
+   *
+   * False means the code was wrong, expired or already used.
+   */
+  async function confirmAddress(email, code) {
+    loading.value = true
+    error.value = null
+    try {
+      applySession(await confirmEmail({ email, code }))
+      userEmail.value = email
+      localStorage.setItem(EMAIL_STORAGE_KEY, email)
+      return true
+    } catch (err) {
+      error.value = extractErrorMessage(err)
+      return false
+    } finally {
+      loading.value = false
+    }
   }
 
   /** Ask for a password-reset code. Accepted for any address. */

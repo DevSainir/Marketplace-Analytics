@@ -183,6 +183,28 @@ class AuthService:
         # A fresh login opens a new token family/lineage.
         return await self._issue_pair(user_id=user.id, family_id=uuid7(), parent_id=None)
 
+    async def issue_session(self, *, user_id: uuid.UUID) -> IssuedTokens:
+        """Open a session for an account whose identity is already established.
+
+        For callers that have proved the credential by some route other than a
+        password — today only ``/confirm-email``, where redeeming the mailed
+        code proves the mailbox and, since the password is bound to that code,
+        proves who chose it.
+
+        Deliberately NOT a way around :meth:`authenticate`: it takes a user id,
+        so a caller must already hold one, and every route that reaches it does
+        its own proving first. It runs no backoff and no confirmation check for
+        the same reason — there is no credential here to guess, and the account
+        it is called for has just confirmed.
+
+        Args:
+            user_id: The account to open a session for.
+
+        Returns:
+            A fresh access + refresh pair on a new lineage.
+        """
+        return await self._issue_pair(user_id=user_id, family_id=uuid7(), parent_id=None)
+
     # ------------------------------------------------------------------ #
     # Refresh rotation (with breach detection)
     # ------------------------------------------------------------------ #

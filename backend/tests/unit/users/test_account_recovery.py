@@ -193,7 +193,7 @@ async def test_confirming_an_unknown_address_answers_like_a_wrong_code() -> None
     """Same answer for "no such account" and "wrong code"."""
     service = _service(FakeUserRepository([]), FakeCodeRepo(), FakeTransport())
 
-    assert await service.confirm_email(email="nobody@example.com", code="123456") is False
+    assert await service.confirm_email(email="nobody@example.com", code="123456") is None
 
 
 async def test_resetting_an_unknown_address_answers_like_a_wrong_code() -> None:
@@ -222,7 +222,7 @@ async def test_a_mailed_code_confirms_the_address() -> None:
 
     confirmed = await service.confirm_email(email="user@example.com", code=_code_from(transport))
 
-    assert confirmed is True
+    assert confirmed is not None
     assert user.email_confirmed_at is not None
 
 

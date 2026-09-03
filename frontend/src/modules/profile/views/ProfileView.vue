@@ -12,6 +12,7 @@
  */
 import { onMounted, reactive } from 'vue'
 
+import ActivationKeyForm from '@/modules/profile/components/ActivationKeyForm.vue'
 import ManagerAccessPanel from '@/modules/profile/components/ManagerAccessPanel.vue'
 import ManagerInviteForm from '@/modules/profile/components/ManagerInviteForm.vue'
 import WorkspaceAdminPanel from '@/modules/profile/components/WorkspaceAdminPanel.vue'
@@ -94,23 +95,6 @@ async function onSaveTokens({ workspaceId, tokens }) {
             </dd>
           </div>
           <div
-            class="flex items-center justify-between gap-md phone:flex-col phone:items-start phone:gap-xs"
-          >
-            <dt class="text-tiny font-medium text-muted">Роль</dt>
-            <dd>
-              <span
-                class="rounded-btn px-sm py-xs text-tiny font-semibold"
-                :class="
-                  store.isDev
-                    ? 'bg-accent-indigo/10 text-accent-indigo'
-                    : 'bg-action/10 text-action'
-                "
-              >
-                {{ store.me?.role ?? '—' }}
-              </span>
-            </dd>
-          </div>
-          <div
             class="flex items-center justify-between gap-md phone:flex-col phone:items-start phone:gap-0"
           >
             <dt class="text-tiny font-medium text-muted">Активное пространство</dt>
@@ -119,6 +103,21 @@ async function onSaveTokens({ workspaceId, tokens }) {
             </dd>
           </div>
         </dl>
+      </section>
+
+      <!-- Only while it is the thing standing between them and the app. Once an
+           organisation exists the key is spent, and a form for redeeming
+           another would invite people to try. -->
+      <section
+        v-if="!members.hasOrganization"
+        class="rounded-card border border-border-subtle bg-surface p-lg shadow-card"
+      >
+        <h2 class="text-h2 font-bold text-primary">Ключ активации</h2>
+        <p class="mt-xs text-tiny font-medium text-muted">
+          Аккаунт ещё не привязан к компании. Введите ключ активации — или дождитесь приглашения от
+          владельца.
+        </p>
+        <ActivationKeyForm class="mt-md" align="left" />
       </section>
 
       <p
