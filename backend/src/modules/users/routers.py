@@ -33,6 +33,7 @@ from src.modules.users.deps import (
     AuthServiceDep,
     CurrentUser,
     RecoveryServiceDep,
+    RegistrationServiceDep,
     UserRepoDep,
     require_dev_role,
 )
@@ -118,7 +119,7 @@ def _set_refresh_cookie(response: Response, tokens: IssuedTokens) -> None:
 )
 async def register(
     payload: UserRegisterRequest,
-    service: AuthServiceDep,
+    service: RegistrationServiceDep,
     recovery: RecoveryServiceDep,
     users: UserRepoDep,
 ) -> UserRead:
@@ -134,17 +135,23 @@ async def register(
     telling the person "signup failed" would be a lie that also loses their
     password. They can ask for another code from the confirm screen.
     """
-    created = await service.register(email=payload.email, password=payload.password)
-    account = await users.get_by_email(created.email)
+    outcome = await service.register(email=payload.email, password=payload.password)
+    account = await users.get_by_email(outcome.account.email)
     if account is not None:
         try:
-            await recovery.send_confirmation(user=account)
+            # The password rides on the CODE, not on the account. Whoever
+            # redeems it read the mailbox, and applying it there is what stops a
+            # stranger's signup for this address from becoming a live account
+            # the moment its real owner confirms.
+            await recovery.send_confirmation(
+                user=account, pending_password_hash=outcome.password_hash
+            )
         except Exception:
             logger.exception(
                 "Confirmation mail failed for a new account; registration stands and the "
                 "code can be re-requested."
             )
-    return created
+    return outcome.account
 
 
 @router.post(

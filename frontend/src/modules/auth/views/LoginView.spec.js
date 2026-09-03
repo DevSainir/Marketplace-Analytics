@@ -70,16 +70,14 @@ describe('LoginView — how many codes one signup sends', () => {
     expect(push).toHaveBeenCalledWith(expect.objectContaining({ name: 'confirm-email' }))
   })
 
-  it('asks for a code when a repeat signup is refused as unconfirmed', async () => {
-    // The service raises before the router mails anything, so nothing was sent.
-    auth.register.mockImplementation(async () => {
-      auth.needsConfirmation = true
-      return false
-    })
+  it('sends exactly ONE code when a signup resumes an unconfirmed address', async () => {
+    // `/register` no longer refuses that case — it resumes it and mails a code,
+    // exactly as a fresh signup does. So this path must not ask for one either.
+    auth.register.mockResolvedValue(true)
 
     await submit(mountView(), { mode: 'register' })
 
-    expect(auth.askForConfirmationCode).toHaveBeenCalledTimes(1)
+    expect(auth.askForConfirmationCode).not.toHaveBeenCalled()
   })
 
   it('asks for a code when login is refused as unconfirmed', async () => {

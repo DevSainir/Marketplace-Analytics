@@ -75,7 +75,13 @@ class VerificationService:
         """Inject the code repository."""
         self._codes = codes
 
-    async def issue(self, *, user_id: uuid.UUID, purpose: VerificationPurpose) -> str:
+    async def issue(
+        self,
+        *,
+        user_id: uuid.UUID,
+        purpose: VerificationPurpose,
+        pending_password_hash: str | None = None,
+    ) -> str:
         """Mint a code, replacing any live one for this account and purpose.
 
         Replacing rather than adding is a security property, not tidiness: two
@@ -86,22 +92,33 @@ class VerificationService:
         Args:
             user_id: The account the code is issued to.
             purpose: What it will prove.
+            pending_password_hash: The password this attempt asked for, applied
+                on redemption. When omitted, the candidate on the code being
+                REPLACED is carried forward — a plain "send it again" must not
+                silently drop the password the person typed at signup, which
+                would leave whatever the account was created with standing.
 
         Returns:
             The plaintext code. The caller mails it; nothing else may keep it.
         """
+        if pending_password_hash is None:
+            live = await self._codes.get_live(user_id=user_id, purpose=str(purpose))
+            pending_password_hash = live.pending_password_hash if live else None
         await self._codes.consume_live_codes(user_id=user_id, purpose=str(purpose))
         code = generate_code()
         await self._codes.create(
             user_id=user_id,
             purpose=str(purpose),
             code_hash=hash_opaque_secret(code),
+            pending_password_hash=pending_password_hash,
             expires_at=datetime.now(UTC)
             + timedelta(seconds=settings.verification_code_ttl_seconds),
         )
         return code
 
-    async def redeem(self, *, user_id: uuid.UUID, purpose: VerificationPurpose, code: str) -> bool:
+    async def redeem(
+        self, *, user_id: uuid.UUID, purpose: VerificationPurpose, code: str
+    ) -> VerificationCode | None:
         """Check a presented code and consume it on success.
 
         A wrong guess costs an attempt; the row dies at the cap. An expired or
@@ -117,11 +134,14 @@ class VerificationService:
             code: The plaintext code as typed.
 
         Returns:
-            Whether the code was valid. ``True`` consumes it.
+            The consumed row on success, ``None`` on any failure. The row rather
+            than a bare ``True`` because the caller needs what it carried — the
+            candidate password bound to this attempt. Falsy on failure, so the
+            call still reads as a condition.
         """
         row = await self._codes.get_live(user_id=user_id, purpose=str(purpose))
         if row is None:
-            return False
+            return None
 
         if not secrets.compare_digest(row.code_hash, hash_opaque_secret(code)):
             attempts = await self._codes.record_attempt(row)
@@ -135,10 +155,10 @@ class VerificationService:
                     user_id,
                     purpose,
                 )
-            return False
+            return None
 
         await self._codes.consume(row)
-        return True
+        return row
 
 
 def is_live(row: VerificationCode, *, now: datetime | None = None) -> bool:

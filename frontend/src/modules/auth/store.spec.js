@@ -73,22 +73,6 @@ describe('register', () => {
     expect(store.needsConfirmation).toBe(true)
   })
 
-  it('routes an unfinished signup back to confirmation instead of refusing it', async () => {
-    // The same person coming back to an address they never confirmed. A 409
-    // dead end here is the trap this replaced.
-    registerUser.mockRejectedValue({
-      response: {
-        status: 403,
-        data: { error: { code: 'email_not_confirmed', message: 'Аккаунт не активирован.' } },
-      },
-    })
-
-    const ok = await store.register('half@example.com', 'secret-password')
-
-    expect(ok).toBe(false)
-    expect(store.needsConfirmation).toBe(true)
-  })
-
   it('flags an unconfirmed account on login rather than reporting a bad password', async () => {
     loginUser.mockRejectedValue({
       response: {

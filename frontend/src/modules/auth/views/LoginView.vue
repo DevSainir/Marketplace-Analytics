@@ -63,15 +63,11 @@ async function submit() {
   // abandoned signup harmless. `register` resolves true once the code is on its
   // way; a repeat signup for an address that never confirmed lands in the same
   // place rather than on "already exists".
-  const registered = await auth.register(email.value, password.value)
-  if (registered) {
-    // `/register` has already mailed the code. Asking for another here is what
-    // sent two mails with two codes, of which only the second worked.
+  // `/register` answers the same way for a fresh signup and for one resuming an
+  // address that was never confirmed — it mails a code either way, so there is
+  // one branch here and it must NOT ask for a second.
+  if (await auth.register(email.value, password.value)) {
     goConfirm({ requestCode: false })
-  } else if (auth.needsConfirmation) {
-    // Refused because the address is registered and unconfirmed: nothing was
-    // sent, so this is the path that needs a fresh code.
-    goConfirm({ requestCode: true })
   }
 }
 </script>

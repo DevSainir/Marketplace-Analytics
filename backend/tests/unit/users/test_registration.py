@@ -12,14 +12,12 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
 
-from src.core.exceptions import ConflictError, EmailNotConfirmedError, ValidationError
+from src.core.exceptions import ConflictError, ValidationError
 from src.modules.users.schemas import PasswordResetConfirmRequest, UserRegisterRequest
-from src.modules.users.services import AuthService
+from src.modules.users.services import RegistrationService
 from tests.support.auth import make_user
 from tests.support.fakes import (
-    FakeLoginBackoff,
     FakePasswordBreachCheck,
-    FakeRefreshTokenRepository,
     FakeUserRepository,
 )
 
@@ -27,12 +25,15 @@ from tests.support.fakes import (
 def _service(
     user_repo: FakeUserRepository,
     breach_check: FakePasswordBreachCheck | None = None,
-) -> AuthService:
-    """Build an AuthService over in-memory repositories and fake collaborators."""
-    return AuthService(
+) -> RegistrationService:
+    """Build the registration service over in-memory collaborators.
+
+    Creating an account moved out of `AuthService` when that module reached the
+    500-line ceiling: sessions and account creation are different jobs that
+    happen to share a router.
+    """
+    return RegistrationService(
         user_repo=user_repo,
-        token_repo=FakeRefreshTokenRepository(),
-        backoff=FakeLoginBackoff(),
         breach_check=breach_check or FakePasswordBreachCheck(),
     )
 
@@ -55,9 +56,9 @@ async def test_email_case_and_padding_are_canonicalized() -> None:
     repo = FakeUserRepository()
     service = _service(repo)
 
-    created = await service.register(email="  User@Example.COM  ", password="a-long-password")
+    outcome = await service.register(email="  User@Example.COM  ", password="a-long-password")
 
-    assert created.email == "user@example.com"
+    assert outcome.account.email == "user@example.com"
     assert await repo.get_by_email("user@example.com") is not None
 
 
@@ -76,9 +77,9 @@ async def test_password_is_never_stored_in_plaintext() -> None:
     service = _service(repo)
     password = "a-long-password"
 
-    created = await service.register(email="new@example.com", password=password)
+    outcome = await service.register(email="new@example.com", password=password)
 
-    stored = await repo.get_by_id(created.id)
+    stored = await repo.get_by_id(outcome.account.id)
     assert stored is not None
     assert stored.hashed_password != password
     assert stored.hashed_password.startswith("$2b$")
@@ -117,9 +118,9 @@ async def test_a_password_not_in_the_corpus_registers_normally() -> None:
     """The check must not become a second, silent way for signup to fail."""
     service = _service(FakeUserRepository([]), breach_check=FakePasswordBreachCheck())
 
-    user = await service.register(email="new@example.com", password="a-long-fresh-password")
+    outcome = await service.register(email="new@example.com", password="a-long-fresh-password")
 
-    assert user.email == "new@example.com"
+    assert outcome.account.email == "new@example.com"
 
 
 async def test_a_taken_email_is_refused_before_the_password_is_checked() -> None:
@@ -180,17 +181,21 @@ async def test_registering_an_unconfirmed_address_resumes_it_instead_of_refusing
     existing = make_user(email="half@example.com", email_confirmed=False)
     service = _service(FakeUserRepository([existing]))
 
-    # Act / Assert
-    with pytest.raises(EmailNotConfirmedError):
-        await service.register(email="half@example.com", password="A-different-password")
+    # Act
+    outcome = await service.register(email="half@example.com", password="A-different-password")
+
+    # Assert — resumed, not created, and answering with the same account.
+    assert outcome.created is False
+    assert outcome.account.email == "half@example.com"
 
 
-async def test_resuming_a_signup_does_not_overwrite_the_password() -> None:
-    """Otherwise anyone could rewrite the credentials of an unconfirmed account.
+async def test_a_resumed_signup_leaves_the_stored_password_alone() -> None:
+    """The new password goes to the CODE, not to the account.
 
-    It grants no access on its own — the address still has to be confirmed —
-    but it would let a stranger take over an address someone else is mid-way
-    through registering.
+    This is the account-takeover fix, seen from the registration side. Writing
+    the password here would mean an attacker registering after the victim owns
+    the credentials the victim then confirms; the digest travels on the
+    confirmation code instead and is applied by whoever redeems it.
     """
     # Arrange
     existing = make_user(email="half@example.com", email_confirmed=False)
@@ -198,11 +203,13 @@ async def test_resuming_a_signup_does_not_overwrite_the_password() -> None:
     service = _service(FakeUserRepository([existing]))
 
     # Act
-    with pytest.raises(EmailNotConfirmedError):
-        await service.register(email="half@example.com", password="A-different-password")
+    outcome = await service.register(email="half@example.com", password="A-different-password")
 
-    # Assert
+    # Assert — the account is untouched, and the candidate is handed back for
+    # the caller to bind to the code it is about to mail.
     assert existing.hashed_password == before
+    assert outcome.password_hash != before
+    assert outcome.password_hash.startswith("$2b$")
 
 
 async def test_a_confirmed_address_is_still_a_conflict() -> None:

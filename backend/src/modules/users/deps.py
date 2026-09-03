@@ -24,6 +24,7 @@ from src.modules.users.repos import (
 from src.modules.users.services import (
     AccountRecoveryService,
     AuthService,
+    RegistrationService,
     VerificationService,
 )
 
@@ -52,6 +53,14 @@ def get_auth_service(
 
 #: Clean, injectable service type consumed by the auth routers.
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
+
+def get_registration_service(user_repo: UserRepoDep) -> RegistrationService:
+    """Provide the account-creation service."""
+    return RegistrationService(user_repo=user_repo)
+
+
+RegistrationServiceDep = Annotated[RegistrationService, Depends(get_registration_service)]
 
 
 def get_email_transport_dep() -> EmailTransport:

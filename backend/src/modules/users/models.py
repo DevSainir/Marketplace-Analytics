@@ -155,6 +155,15 @@ class VerificationCode(Base):
             deleted so "this code was already used" is answerable — a replay is
             worth being able to see.
         attempts: Wrong guesses so far, against the cap.
+        pending_password_hash: For a signup confirmation, the bcrypt digest of
+            the password typed in the attempt THIS code was issued for, applied
+            to the account when the code is redeemed. ``NULL`` for a plain
+            resend, which inherits the candidate rather than clearing it, and
+            for a password reset, which carries its new password in the
+            redeeming request instead.
+
+            It is what closes the takeover this table used to allow. See
+            :meth:`AccountRecoveryService.confirm_email`.
         created_at: Issue time (UTC).
     """
 
@@ -176,6 +185,10 @@ class VerificationCode(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    #: A bcrypt digest, never a plaintext password — the same protection the
+    #: account's own column gets, since this row holds a real credential until
+    #: it is redeemed or expires.
+    pending_password_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

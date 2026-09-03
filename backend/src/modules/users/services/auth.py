@@ -27,15 +27,11 @@ import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy.exc import IntegrityError
-
 from src.core.config import settings
 from src.core.exceptions import (
     AuthenticationError,
-    ConflictError,
     EmailNotConfirmedError,
     TokenReuseError,
-    ValidationError,
 )
 from src.core.ids import uuid7
 from src.core.logging import get_logger
@@ -43,7 +39,6 @@ from src.core.security import (
     DUMMY_HASH,
     create_access_token,
     generate_refresh_secret,
-    hash_password,
     hash_refresh_secret,
     verify_password,
 )
@@ -55,7 +50,7 @@ from src.modules.users.refresh_grace import (
     remember_rotation,
 )
 from src.modules.users.repos import RefreshTokenRepository, UserRepository
-from src.modules.users.schemas import IssuedTokens, UserRead
+from src.modules.users.schemas import IssuedTokens
 from src.modules.users.services.breach import revoke_breached_family
 from src.modules.users.services.lockout import LoginBackoff, LoginBackoffLike
 from src.modules.users.services.revocation import end_family, revoke_all_sessions
@@ -100,82 +95,6 @@ class AuthService:
         self._tokens = token_repo
         self._backoff = backoff or LoginBackoff()
         self._breach_check = breach_check or PasswordBreachCheck()
-
-    # ------------------------------------------------------------------ #
-    # Registration
-    # ------------------------------------------------------------------ #
-    async def register(self, *, email: str, password: str) -> UserRead:
-        """Register a new user account.
-
-        **Registration is open, and there is no longer a code that closes it.**
-        A new account is deliberately powerless: it belongs to no organisation,
-        and every data route in the platform sits behind ``require_member``, so
-        a bare signup can reach exactly two things — the activation screen and
-        its own pending invitations. Access is granted afterwards, by redeeming
-        an activation code (becoming an owner) or accepting an invitation
-        (becoming a manager). That is what makes an open form safe here; it is
-        not safe on its own.
-
-        The shared gate code that used to sit in front of this was removed
-        deliberately. It was one secret shared by everyone who had it, guessable
-        against this endpoint, and it made "is signup open?" a question with two
-        answers — the code's and the organisation model's. Closing signup again
-        is now a code change rather than a config change; that is the accepted
-        cost.
-
-        Args:
-            email: Desired unique login email (normalized to lowercase).
-            password: Plaintext password (hashed before persistence).
-
-        Returns:
-            The newly created account as a :class:`UserRead` DTO (the router
-            returns it verbatim — no presentation-layer mapping needed).
-
-        Raises:
-            ConflictError: If the email is already registered.
-            ValidationError: If the password is already public — see
-                :mod:`src.integrations.pwned` for what that check does and does
-                not disclose.
-        """
-        email = _normalize_email(email)
-        existing = await self._users.get_by_email(email)
-        if existing is not None:
-            # An unconfirmed row is an unfinished signup, almost always by the
-            # same person — so this is not a clash to refuse but a flow to
-            # resume. The password is deliberately NOT overwritten: whoever
-            # holds the mailbox finishes with the code, and anyone else has
-            # changed nothing. A confirmed account is a real conflict.
-            if existing.email_confirmed_at is None:
-                # Says the password was ignored, because it was. Silence here
-                # is a trap: someone who signs up twice with two different
-                # passwords confirms the address and then cannot log in with
-                # the one they just typed, and nothing told them which is live.
-                raise EmailNotConfirmedError(
-                    "Этот адрес уже зарегистрирован, но почта не подтверждена. "
-                    "Введите код из письма — пароль остаётся тот, что вы задали "
-                    "при первой регистрации."
-                )
-            raise ConflictError(
-                "Аккаунт с такой почтой уже существует — войдите или восстановите пароль."
-            )
-        # Before the bcrypt cost, not after: there is no point spending 200 ms
-        # hashing a password we are about to refuse. The check fails open, so a
-        # HIBP outage costs a round trip and nothing else.
-        if await self._breach_check.is_breached(password):
-            raise ValidationError(
-                "Этот пароль встречался в публичных утечках данных. Придумайте другой."
-            )
-        hashed = await asyncio.to_thread(hash_password, password)
-        try:
-            user = await self._users.create(email=email, hashed_password=hashed)
-        except IntegrityError as exc:
-            # Two concurrent registrations for the same email both pass the
-            # pre-check; the unique index catches the loser here. Map it to the
-            # same 409 as the fast path instead of leaking a raw 500.
-            raise ConflictError(
-                "Аккаунт с такой почтой уже существует — войдите или восстановите пароль."
-            ) from exc
-        return UserRead.model_validate(user)
 
     # ------------------------------------------------------------------ #
     # Login (with timing-attack mitigation)

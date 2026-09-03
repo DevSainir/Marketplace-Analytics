@@ -256,6 +256,7 @@ class VerificationCodeRepository:
         purpose: str,
         code_hash: str,
         expires_at: datetime,
+        pending_password_hash: str | None = None,
     ) -> VerificationCode:
         """Insert one live code.
 
@@ -264,6 +265,8 @@ class VerificationCodeRepository:
             purpose: What it proves.
             code_hash: SHA-256 of the code — never the code.
             expires_at: When it stops being redeemable.
+            pending_password_hash: bcrypt digest of the password typed in the
+                attempt this code belongs to, applied when it is redeemed.
 
         Returns:
             The pending row.
@@ -273,6 +276,7 @@ class VerificationCodeRepository:
             purpose=purpose,
             code_hash=code_hash,
             expires_at=expires_at,
+            pending_password_hash=pending_password_hash,
         )
         self._session.add(row)
         await self._session.flush()

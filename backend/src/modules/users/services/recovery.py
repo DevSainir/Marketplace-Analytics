@@ -92,7 +92,9 @@ class AccountRecoveryService:
     # ------------------------------------------------------------------ #
     # Address confirmation
     # ------------------------------------------------------------------ #
-    async def send_confirmation(self, *, user: User) -> None:
+    async def send_confirmation(
+        self, *, user: User, pending_password_hash: str | None = None
+    ) -> None:
         """Issue a confirmation code and mail it.
 
         Called at registration and by the resend endpoint. Silently does
@@ -102,11 +104,17 @@ class AccountRecoveryService:
 
         Args:
             user: The account whose address is being confirmed.
+            pending_password_hash: The password this signup attempt asked for.
+                Applied only when the code is redeemed — see
+                :meth:`confirm_email`. Omitted by the resend endpoint, which
+                inherits the candidate already on the live code.
         """
         if user.email_confirmed_at is not None:
             return
         code = await self._verification.issue(
-            user_id=user.id, purpose=VerificationPurpose.EMAIL_CONFIRMATION
+            user_id=user.id,
+            purpose=VerificationPurpose.EMAIL_CONFIRMATION,
+            pending_password_hash=pending_password_hash,
         )
         await self._transport.send(
             confirmation_message(
@@ -132,10 +140,23 @@ class AccountRecoveryService:
         user = await self._users.get_by_email(_normalize_email(email))
         if user is None:
             return False
-        if not await self._verification.redeem(
+        redeemed = await self._verification.redeem(
             user_id=user.id, purpose=VerificationPurpose.EMAIL_CONFIRMATION, code=code
-        ):
+        )
+        if redeemed is None:
             return False
+        # THE PASSWORD IS SET HERE, not at registration, and that is the whole
+        # defence. Whoever redeems the code is the one who read the mailbox, so
+        # the password that survives is the one typed by that person in the same
+        # attempt this code was issued for.
+        #
+        # Setting it at registration meant an attacker could sign up with
+        # somebody else's address, and the victim — believing it their own
+        # signup — would confirm it and hand over an account whose password the
+        # attacker chose. Overwriting on each attempt instead only reverses who
+        # wins; binding the two together is what removes the window.
+        if redeemed.pending_password_hash is not None:
+            await self._users.set_password(user, hashed_password=redeemed.pending_password_hash)
         await self._users.mark_email_confirmed(user)
         logger.info("Email confirmed for user %s.", user.id)
         return True
