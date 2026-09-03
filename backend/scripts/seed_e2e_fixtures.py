@@ -125,8 +125,21 @@ async def _ensure_account(session: AsyncSession, *, email: str, password: str) -
         existing.is_active = True
         # The tier exercises the workspace admin panel, which is dev-gated.
         existing.role = ROLE_DEV
+        # Reset forward like the password, and for the same reason: a stack
+        # reseeded from an older dump carries accounts predating the login
+        # confirmation gate, and `/login` refuses an unproven address.
+        existing.email_confirmed_at = datetime.now(UTC)
         return existing, False
-    account = User(email=email, hashed_password=digest, is_active=True, role=ROLE_DEV)
+    account = User(
+        email=email,
+        hashed_password=digest,
+        is_active=True,
+        role=ROLE_DEV,
+        # A seeded account exists to be logged into, and `/login` now refuses an
+        # unconfirmed address. There is no mailbox in this tier to prove one
+        # from, so the seed asserts it the same way it asserts the password.
+        email_confirmed_at=datetime.now(UTC),
+    )
     session.add(account)
     await session.flush()
     return account, True
