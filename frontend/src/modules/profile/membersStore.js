@@ -15,9 +15,11 @@ import { computed, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
 import {
+  acceptInvitation,
   activateOrganization,
   createInvitation,
   fetchMembers,
+  fetchMyInvitations,
   fetchOrganizationMe,
   updateMemberAccess,
 } from '@/modules/profile/api'
@@ -40,6 +42,9 @@ export const useMembersStore = defineStore('members', () => {
   // code. The API has always said so; the SPA showed such a person the whole
   // app with every panel empty and no explanation of what was missing.
   const organization = ref(null)
+  //: Invitations addressed to this account's address, loaded only when it has
+  //: no organisation — a member has nothing to accept.
+  const invitations = ref([])
   const members = ref([])
   const loading = ref(false)
   const saving = ref(null)
@@ -70,6 +75,11 @@ export const useMembersStore = defineStore('members', () => {
       role.value = me.role
       internalFeatures.value = Boolean(me.internal_features)
       organization.value = me.organization ?? null
+      // Only for an account with nowhere to be. Asking otherwise spends a round
+      // trip on a list that is always empty.
+      if (organization.value === null) {
+        invitations.value = await fetchMyInvitations().catch(() => [])
+      }
       // Asked for only when it can be answered: /members is owner-only, and a
       // manager opening their profile would otherwise take a guaranteed 403.
       if (me.role === 'owner') members.value = await fetchMembers()
@@ -133,9 +143,35 @@ export const useMembersStore = defineStore('members', () => {
     }
   }
 
+  /**
+   * Join a company with the token from an invitation.
+   *
+   * Same shape as `activate`: true on success, false with `error` set. Both
+   * end the same way — re-reading everything, because the role, the module
+   * grants and the workspace list are all downstream of the answer that just
+   * changed.
+   */
+  async function acceptInvite(token) {
+    saving.value = 'invitation'
+    error.value = ''
+    try {
+      await acceptInvitation(token)
+      loaded.value = false
+      await ensureLoaded()
+      return organization.value !== null
+    } catch (err) {
+      error.value = extractErrorMessage(err)
+      return false
+    } finally {
+      saving.value = null
+    }
+  }
+
   return {
     role,
     organization,
+    invitations,
+    acceptInvite,
     hasOrganization,
     activate,
     internalFeatures,

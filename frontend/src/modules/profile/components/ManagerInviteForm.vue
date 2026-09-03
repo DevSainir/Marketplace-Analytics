@@ -9,7 +9,7 @@
  * The token is shown exactly once — the server stores only its hash — so the
  * link stays on screen until the owner dismisses it.
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import AccessGrantFields from '@/modules/profile/components/AccessGrantFields.vue'
 import { MODULES } from '@/modules/profile/membersStore'
@@ -21,6 +21,28 @@ const email = ref('')
 const validForDays = ref(7)
 const grant = ref({ accessLevel: 'read_write', modules: MODULES.map((m) => m.key) })
 const issued = ref(null)
+const copied = ref(false)
+
+// The value the server returns is an opaque token, and it used to be shown as
+// one under the word «ссылка» — which was both untrue and unusable: there was
+// nowhere to put a bare token. It is a link now, pointing at the screen that
+// redeems it.
+const inviteLink = computed(() =>
+  issued.value
+    ? `${window.location.origin}/invite?token=${encodeURIComponent(issued.value.token)}`
+    : '',
+)
+
+async function copyLink() {
+  try {
+    await navigator.clipboard.writeText(inviteLink.value)
+    copied.value = true
+  } catch {
+    // Clipboard access is refused in some browsers and over plain HTTP. The
+    // link is on screen and selectable either way, so this only loses the
+    // convenience.
+  }
+}
 
 function onSubmit() {
   emit('invite', {
@@ -85,11 +107,14 @@ function onSubmit() {
 
     <div v-if="issued" class="mt-md rounded-card border border-action/30 bg-action/5 p-md">
       <p class="text-tiny font-medium text-muted">
-        Ссылка показывается один раз — скопируйте её сейчас.
+        Ссылка показывается один раз — скопируйте и отправьте её приглашённому.
       </p>
       <code class="mt-xs block break-all text-base font-medium text-primary">
-        {{ issued.token }}
+        {{ inviteLink }}
       </code>
+      <button type="button" class="mt-xs text-tiny font-semibold text-action" @click="copyLink">
+        {{ copied ? 'Скопировано' : 'Скопировать ссылку' }}
+      </button>
       <button
         type="button"
         class="mt-sm text-tiny font-semibold text-action"

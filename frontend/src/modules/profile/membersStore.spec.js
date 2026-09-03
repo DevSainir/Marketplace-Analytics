@@ -1,12 +1,19 @@
 import { createPinia, setActivePinia } from 'pinia'
 
-import { activateOrganization, fetchMembers, fetchOrganizationMe } from '@/modules/profile/api'
+import {
+  activateOrganization,
+  fetchMembers,
+  fetchMyInvitations,
+  fetchOrganizationMe,
+} from '@/modules/profile/api'
 import { useMembersStore } from '@/modules/profile/membersStore'
 
 vi.mock('@/modules/profile/api', () => ({
+  acceptInvitation: vi.fn(),
   activateOrganization: vi.fn(),
   createInvitation: vi.fn(),
   fetchMembers: vi.fn(),
+  fetchMyInvitations: vi.fn(),
   fetchOrganizationMe: vi.fn(),
   updateMemberAccess: vi.fn(),
 }))
@@ -32,6 +39,9 @@ describe('membersStore — the account that has not been let in yet', () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     fetchMembers.mockResolvedValue([])
+    // Asked for only when the account has no organisation, which most of these
+    // cases are.
+    fetchMyInvitations.mockResolvedValue([])
   })
 
   it('does not claim the account is blocked before it has asked', async () => {

@@ -20,6 +20,8 @@
  * The blur is presentation only. The API refuses these surfaces on its own;
  * nothing here is a security control, and it is not written as one.
  */
+import { RouterLink } from 'vue-router'
+
 import ActivationKeyForm from '@/modules/profile/components/ActivationKeyForm.vue'
 import { useMembersStore } from '@/modules/profile/membersStore'
 
@@ -38,8 +40,9 @@ const members = useMembersStore()
       <section class="gate-card">
         <h2 class="text-h2 font-bold tracking-tight text-primary">Нужен ключ активации</h2>
         <p class="mt-xs text-tiny font-medium text-muted">
-          Аккаунт создан, но ещё не привязан к компании. Введите ключ активации — или дождитесь
-          приглашения от владельца.
+          Аккаунт создан, но ещё не привязан к компании. Введите ключ активации — или
+          <RouterLink class="gate-link" :to="{ name: 'invite' }">примите приглашение</RouterLink>,
+          если владелец компании вам его прислал.
         </p>
 
         <ActivationKeyForm class="mt-md" />
@@ -63,6 +66,15 @@ const members = useMembersStore()
   /* Not centred on the viewport: the card sits near the top of the content it
      covers, where the eye already is after a navigation. */
   padding-top: clamp(48px, 12vh, 160px);
+}
+
+.gate-link {
+  font-weight: 600;
+  color: var(--ui-action);
+}
+
+.gate-link:hover {
+  color: var(--ui-action-hover);
 }
 
 .gate-card {

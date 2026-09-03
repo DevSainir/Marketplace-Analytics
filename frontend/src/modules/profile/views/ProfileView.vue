@@ -11,6 +11,7 @@
  * caches (monitoring store) must not survive a tenancy switch.
  */
 import { onMounted, reactive } from 'vue'
+import { RouterLink } from 'vue-router'
 
 import ActivationKeyForm from '@/modules/profile/components/ActivationKeyForm.vue'
 import ManagerAccessPanel from '@/modules/profile/components/ManagerAccessPanel.vue'
@@ -114,8 +115,10 @@ async function onSaveTokens({ workspaceId, tokens }) {
       >
         <h2 class="text-h2 font-bold text-primary">Ключ активации</h2>
         <p class="mt-xs text-tiny font-medium text-muted">
-          Аккаунт ещё не привязан к компании. Введите ключ активации — или дождитесь приглашения от
-          владельца.
+          Аккаунт ещё не привязан к компании. Введите ключ активации — или
+          <RouterLink class="font-semibold text-action" :to="{ name: 'invite' }"
+            >примите приглашение</RouterLink
+          >, если владелец компании вам его прислал.
         </p>
         <ActivationKeyForm class="mt-md" align="left" />
       </section>

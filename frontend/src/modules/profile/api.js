@@ -133,6 +133,33 @@ export async function updateMemberAccess(userId, { accessLevel, modules }) {
 }
 
 /**
+ * GET /v1/organizations/invitations/mine — invitations waiting for this account.
+ *
+ * Matched on the signed-in address, and carrying the inviting company's name
+ * and nothing else: someone who has not accepted is not a member yet, so a
+ * preview must not show them a roster.
+ *
+ * @returns {Promise<Array<{id: string, organization_name: string|null, expires_at: string}>>}
+ */
+export async function fetchMyInvitations() {
+  const { data } = await apiClient.get('/v1/organizations/invitations/mine')
+  return data
+}
+
+/**
+ * POST /v1/organizations/invitations/accept — join the inviting company.
+ *
+ * Answers the same shape as `/organizations/me`, so the caller can swap
+ * straight into the app without a second round trip.
+ *
+ * @param {string} token
+ */
+export async function acceptInvitation(token) {
+  const { data } = await apiClient.post('/v1/organizations/invitations/accept', { token })
+  return data
+}
+
+/**
  * POST /v1/organizations/invitations — invite a manager with a grant.
  *
  * The access travels WITH the invitation rather than being applied after they
