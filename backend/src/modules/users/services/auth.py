@@ -146,8 +146,14 @@ class AuthService:
             # holds the mailbox finishes with the code, and anyone else has
             # changed nothing. A confirmed account is a real conflict.
             if existing.email_confirmed_at is None:
+                # Says the password was ignored, because it was. Silence here
+                # is a trap: someone who signs up twice with two different
+                # passwords confirms the address and then cannot log in with
+                # the one they just typed, and nothing told them which is live.
                 raise EmailNotConfirmedError(
-                    "Аккаунт не активирован — подтвердите адрес электронной почты."
+                    "Этот адрес уже зарегистрирован, но почта не подтверждена. "
+                    "Введите код из письма — пароль остаётся тот, что вы задали "
+                    "при первой регистрации."
                 )
             raise ConflictError(
                 "Аккаунт с такой почтой уже существует — войдите или восстановите пароль."

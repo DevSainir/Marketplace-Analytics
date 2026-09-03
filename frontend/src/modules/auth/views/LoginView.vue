@@ -28,12 +28,18 @@ function switchMode(next) {
   auth.clearError()
 }
 
-/** Send an unconfirmed address to the code screen, asking for a fresh code. */
-function goConfirm() {
-  // Requested here rather than on arrival: the confirm screen is also reached
-  // by following the link in the mail, and a resend on every visit would post a
-  // second code that silently invalidates the one being typed.
-  auth.askForConfirmationCode(email.value)
+/**
+ * Send an unconfirmed address to the code screen.
+ *
+ * `requestCode` is NOT a convenience flag — getting it wrong mails two codes,
+ * and the second silently kills the first (issuing a code invalidates the
+ * previous one, by design). So it is false on the one path that has already
+ * sent one: a successful `/register`, which mails the code itself. Every other
+ * way in — a login refused as unconfirmed, a repeat signup refused the same
+ * way — reaches here with nothing sent, and has to ask.
+ */
+function goConfirm({ requestCode }) {
+  if (requestCode) auth.askForConfirmationCode(email.value)
   router.push({
     name: 'confirm-email',
     query: { email: email.value, redirect: route.query.redirect },
@@ -47,8 +53,8 @@ async function submit() {
       return
     }
     // The password was right and the address was never proven — an unfinished
-    // signup coming back. Finish it instead of showing them a refusal.
-    if (auth.needsConfirmation) goConfirm()
+    // signup coming back. `/login` sends no code, so ask for one.
+    if (auth.needsConfirmation) goConfirm({ requestCode: true })
     return
   }
 
@@ -57,8 +63,15 @@ async function submit() {
   // abandoned signup harmless. `register` resolves true once the code is on its
   // way; a repeat signup for an address that never confirmed lands in the same
   // place rather than on "already exists".
-  if ((await auth.register(email.value, password.value)) || auth.needsConfirmation) {
-    goConfirm()
+  const registered = await auth.register(email.value, password.value)
+  if (registered) {
+    // `/register` has already mailed the code. Asking for another here is what
+    // sent two mails with two codes, of which only the second worked.
+    goConfirm({ requestCode: false })
+  } else if (auth.needsConfirmation) {
+    // Refused because the address is registered and unconfirmed: nothing was
+    // sent, so this is the path that needs a fresh code.
+    goConfirm({ requestCode: true })
   }
 }
 </script>
