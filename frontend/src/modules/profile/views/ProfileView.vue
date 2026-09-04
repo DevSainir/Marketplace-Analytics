@@ -47,9 +47,13 @@ async function onInvite({ onIssued, ...payload }) {
 
 function onSelect(id) {
   if (id === store.currentWorkspaceId) return
-  store.select(id)
-  // Full reload: guarantees every cached per-workspace dataset is dropped.
-  window.location.assign('/monitoring')
+  store.select(id) // persists the id (localStorage + X-Workspace-Id header)
+  // Reload THIS page rather than redirecting to /monitoring. The reload is what
+  // guarantees no per-workspace dataset survives the switch; the destination
+  // was incidental, and sending everyone to Мониторинг put a manager who was
+  // not granted it on «Раздел недоступен» for the crime of changing workspace.
+  // The header switcher already worked this way — this copy was left behind.
+  window.location.reload()
 }
 
 async function onExpand(id) {
