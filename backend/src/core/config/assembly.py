@@ -22,6 +22,7 @@ from src.core.config.app import AppSettings
 from src.core.config.datastore import DataStoreSettings
 from src.core.config.email import EmailSettings
 from src.core.config.finreports import FinreportsSettings
+from src.core.config.observability import ObservabilitySettings
 from src.core.config.security import PLACEHOLDER_SECRETS, SecuritySettings
 from src.core.config.storefront import StorefrontSettings
 from src.core.config.wildberries import WildberriesSettings
@@ -36,6 +37,7 @@ class Settings(
     StorefrontSettings,
     FinreportsSettings,
     AbTestsSettings,
+    ObservabilitySettings,
 ):
     """Strongly-typed, validated application settings.
 

@@ -43,6 +43,23 @@ dependencies = [
     "cryptography>=42",
     "python-multipart>=0.0.9",
     "xlsxwriter>=3.2",
+    # --- Observability (register P2.1/P2.2) ------------------------------
+    # structlog is the logging API; stdlib `logging` stays the transport, so
+    # uvicorn's, Celery's and SQLAlchemy's own lines go through the SAME
+    # processor chain as ours — including the redaction filter. A second
+    # pipeline would mean a secret is scrubbed on the lines we write and not
+    # on the lines a library writes about the same request.
+    "structlog>=24.1",
+    # Errors and urgent alerting. The extras are not cosmetic: without them the
+    # Celery worker's exceptions arrive with no task context and the API's with
+    # no request, which is most of what makes a report actionable.
+    "sentry-sdk[celery,fastapi,sqlalchemy]>=2.14",
+    # prometheus-client is a direct dependency, not just the instrumentator's:
+    # the Celery worker is not an ASGI app and exposes its own exporter through
+    # this library's multiprocess mode (the prefork children are separate OS
+    # processes and each would otherwise hold its own counters).
+    "prometheus-client>=0.20",
+    "prometheus-fastapi-instrumentator>=7.0",
 ]
 
 # Development tooling. A PEP 735 dependency-group, not an optional-dependency

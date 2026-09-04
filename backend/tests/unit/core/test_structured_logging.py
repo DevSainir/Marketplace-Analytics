@@ -20,6 +20,7 @@ that says ``403, this account, this tenant, this request`` is an answer.
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import json
 import logging
 import sys
@@ -62,7 +63,14 @@ def test_a_record_is_one_parseable_json_object() -> None:
     assert payload["message"] == "request served"
     assert payload["level"] == "INFO"
     assert payload["logger"] == "src.test"
-    assert payload["ts"].endswith("+00:00"), "timestamps are UTC, so two hosts compare"
+    # The property is UTC, not one of ISO-8601's two ways of spelling it: the
+    # renderer writes `...Z`, the formatter before it wrote `...+00:00`, and
+    # every parser that reads these lines accepts both. Asserting the spelling
+    # is what made this test fail on a change that altered nothing it cares
+    # about.
+    parsed = dt.datetime.fromisoformat(payload["ts"])
+    assert parsed.tzinfo is not None, "a timestamp with no zone cannot be compared across hosts"
+    assert parsed.utcoffset() == dt.timedelta(0), "timestamps are UTC, so two hosts compare"
 
 
 def test_a_newline_in_a_value_cannot_forge_a_second_line() -> None:
