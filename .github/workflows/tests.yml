@@ -96,6 +96,7 @@ jobs:
       # because the export is fully pinned, so pip-audit has nothing to resolve.
       - name: pip-audit (runtime dependencies)
         working-directory: backend
+        timeout-minutes: 5
         run: |
           uv export --frozen --no-dev --no-emit-project --format requirements-txt -o /tmp/runtime.txt
           uv run pip-audit --requirement /tmp/runtime.txt --strict --disable-pip
@@ -109,6 +110,7 @@ jobs:
       - name: pip-audit (dev dependencies, informational)
         working-directory: backend
         continue-on-error: true
+        timeout-minutes: 2
         run: |
           uv export --frozen --no-emit-project --format requirements-txt -o /tmp/all.txt
           uv run pip-audit --requirement /tmp/all.txt --strict --disable-pip
@@ -136,13 +138,28 @@ jobs:
       # via @vue/test-utils — both already on their latest release), and
       # blocking every PR on an unfixable finding just teaches people to ignore
       # the gate. The production tree is audited strictly and is currently clean.
+      #
+      # Every audit step below is timed out, and that is not tidiness. These
+      # four are the only steps in this job that call a third-party service at
+      # run time, so they are the only ones that can HANG rather than fail.
+      # `continue-on-error` does not cover a hang — it swallows a non-zero exit
+      # and nothing else — so on 2026-09-04 the informational npm audit stalled,
+      # ran out the job's 15-minute budget, and GitHub CANCELLED the job. A
+      # cancelled job makes the run `cancelled`, and deploy.yml only fires on
+      # `success`: an advisory lookup nobody is gated on silently held a
+      # production release. A step that outlives its own timeout FAILS instead,
+      # which `continue-on-error` then absorbs — which is what "informational"
+      # was supposed to mean. The gating pair is bounded too, so a registry
+      # stall there is a fast red X rather than a fifteen-minute mystery.
       - name: npm audit (production dependencies)
         working-directory: frontend
+        timeout-minutes: 5
         run: npm audit --omit=dev --audit-level=high
 
       - name: npm audit (dev dependencies, informational)
         working-directory: frontend
         continue-on-error: true
+        timeout-minutes: 2
         run: npm audit --audit-level=high
 
       # The SPA build is part of the product, so a build break is a red
