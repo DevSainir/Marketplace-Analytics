@@ -81,3 +81,9 @@ tests/performance/**/*.summary.json
 # Holds the live Telegram bot token — Alertmanager has no environment-variable
 # substitution, so the config is generated rather than committed.
 backend/docker/observability/alertmanager.yml
+
+# prometheus_client multiprocess mmap files. They should only ever appear under
+# PROMETHEUS_MULTIPROC_DIR (a tmpfs on the worker); one turning up here means
+# the variable was set but empty, which makes the library write to the CWD.
+# That happened once — see tests/unit/core/test_metrics_bootstrap.py.
+*_[0-9]*.db
