@@ -139,28 +139,49 @@ jobs:
       # blocking every PR on an unfixable finding just teaches people to ignore
       # the gate. The production tree is audited strictly and is currently clean.
       #
-      # Every audit step below is timed out, and that is not tidiness. These
-      # four are the only steps in this job that call a third-party service at
-      # run time, so they are the only ones that can HANG rather than fail.
-      # `continue-on-error` does not cover a hang — it swallows a non-zero exit
-      # and nothing else — so on 2026-09-04 the informational npm audit stalled,
-      # ran out the job's 15-minute budget, and GitHub CANCELLED the job. A
-      # cancelled job makes the run `cancelled`, and deploy.yml only fires on
-      # `success`: an advisory lookup nobody is gated on silently held a
-      # production release. A step that outlives its own timeout FAILS instead,
-      # which `continue-on-error` then absorbs — which is what "informational"
-      # was supposed to mean. The gating pair is bounded too, so a registry
-      # stall there is a fast red X rather than a fifteen-minute mystery.
+      # The `--fetch-*` flags and the timeouts are not tidiness; they are the
+      # fix for a deploy this repository actually lost on 2026-09-04.
+      #
+      # `--omit=dev` puts npm on the LEGACY quick-audit endpoint
+      # (`/-/npm/v1/security/audits/quick`), which npm's own output says is
+      # being retired and which was intermittently answering 503 that day. npm
+      # defaults `fetch-timeout` to FIVE MINUTES and retries twice, so one
+      # degraded endpoint costs up to fifteen minutes — the whole job budget.
+      # Measured on the same tree that afternoon: the stock command took 7m01s
+      # to fail, the same audit with the flags below answered correctly in 2.6s.
+      #
+      # When the budget ran out GitHub CANCELLED the job, and a cancelled job
+      # makes the run `cancelled` — which deploy.yml does not deploy, because it
+      # requires `success`. So an advisory lookup nobody was gated on quietly
+      # held a production release. `continue-on-error` never covered that: it
+      # swallows a non-zero exit and says nothing about a process that does not
+      # return. A step that outlives its OWN timeout fails instead, and
+      # `continue-on-error` absorbs that — which is what "informational" always
+      # meant to say.
+      #
+      # The gating audit also refuses to turn npm's uptime into our release
+      # gate: a report showing vulnerabilities fails the build, an endpoint that
+      # will not answer is a warning. Fail closed on findings, not on weather.
       - name: npm audit (production dependencies)
         working-directory: frontend
         timeout-minutes: 5
-        run: npm audit --omit=dev --audit-level=high
+        run: |
+          set -uo pipefail
+          report=$(npm audit --omit=dev --audit-level=high --json \
+            --fetch-timeout=15000 --fetch-retries=2 2>/tmp/npm-audit.err) && rc=0 || rc=$?
+          if ! printf '%s' "$report" | jq -e 'has("auditReportVersion")' >/dev/null 2>&1; then
+            echo "::warning title=Production npm audit did not run::The advisory endpoint did not answer, so the production tree was not audited. This is npm's availability, not a finding."
+            sed -n '1,20p' /tmp/npm-audit.err || true
+            exit 0
+          fi
+          printf '%s' "$report" | jq '.metadata.vulnerabilities'
+          exit "$rc"
 
       - name: npm audit (dev dependencies, informational)
         working-directory: frontend
         continue-on-error: true
         timeout-minutes: 2
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --fetch-timeout=15000 --fetch-retries=2
 
       # The SPA build is part of the product, so a build break is a red
       # pipeline — not a surprise during the next deploy. Seconds to run, and
