@@ -34,7 +34,7 @@ test('monitoring loads and a SKU can be found by vendor code', async ({ signedIn
 
 test('switching workspace re-scopes every subsequent request', async ({ signedIn: page }) => {
   await page.goto('/profile')
-  await expect(page.getByRole('heading', { name: 'Рабочее пространство' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Рабочие пространства' })).toBeVisible()
 
   const before = await page.evaluate(() => localStorage.getItem('workspace:id'))
   expect(before, 'no workspace was selected after login').toBeTruthy()
@@ -46,19 +46,22 @@ test('switching workspace re-scopes every subsequent request', async ({ signedIn
 
   await otherWorkspace.click()
 
-  // Selecting a workspace takes the user straight to the data it scopes.
-  await expect(page).toHaveURL(/\/monitoring$/)
+  // Switching RELOADS this page; it no longer redirects to /monitoring. The
+  // reload is what drops every per-workspace cache — the destination was
+  // incidental, and sending everyone to Мониторинг put a manager not granted it
+  // on «Раздел недоступен» for the crime of changing workspace.
+  await expect(page).toHaveURL(/\/profile$/)
 
   const after = await page.evaluate(() => localStorage.getItem('workspace:id'))
   expect(after).not.toBe(before)
 
   // The assertion that matters: the new tenant reaches the wire, and survives a
-  // reload. A switch that updated only the UI would show the previous tenant's
-  // numbers under the new workspace's name; a selection that did not persist
-  // would silently drop the user back into the first workspace on every reload.
+  // navigation. A switch that updated only the UI would show the previous
+  // tenant's numbers under the new workspace's name; a selection that did not
+  // persist would silently drop the user back into the first workspace.
   const [request] = await Promise.all([
     page.waitForRequest((r) => r.url().includes('/api/v1/monitoring/')),
-    page.reload(),
+    page.goto('/monitoring'),
   ])
   expect(request.headers()['x-workspace-id']).toBe(after)
   expect(await page.evaluate(() => localStorage.getItem('workspace:id'))).toBe(after)
