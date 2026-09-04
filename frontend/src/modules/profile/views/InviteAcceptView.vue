@@ -16,7 +16,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { AFTER_LOGIN_ROUTE } from '@/modules/auth'
 import { useMembersStore } from '@/modules/profile/membersStore'
 
 const members = useMembersStore()
@@ -62,13 +61,8 @@ onMounted(async () => {
       </header>
 
       <section class="mt-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card">
-        <button
-          v-if="joined"
-          type="button"
-          class="invite-button"
-          @click="router.push(AFTER_LOGIN_ROUTE)"
-        >
-          Перейти в аналитику
+        <button v-if="joined" type="button" class="invite-button" @click="router.push('/')">
+          На главную
         </button>
 
         <!-- Already a member: accepting a second invitation is refused by the

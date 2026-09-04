@@ -7,4 +7,4 @@
  */
 export { authRoutes } from '@/modules/auth/routes'
 export { useAuthStore } from '@/modules/auth/store'
-export { installAuthGuard, AFTER_LOGIN_ROUTE } from '@/modules/auth/guard'
+export { installAuthGuard } from '@/modules/auth/guard'

@@ -1,6 +1,6 @@
 <script setup>
 /**
- * Workspace administration panel (dumb component; rendered for devs only).
+ * Workspace administration panel (dumb component; rendered for owners and devs).
  *
  * Create/delete workspaces and manage their WB tokens. All data comes in as
  * props; every action is emitted upward — the smart ProfileView talks to the
@@ -50,14 +50,10 @@ function onRemove(id) {
 
 <template>
   <section class="rounded-card border border-border-subtle bg-surface p-lg shadow-card">
-    <div class="flex items-center gap-sm">
-      <h2 class="text-h2 font-bold text-primary">Управление пространствами</h2>
-      <span
-        class="rounded-btn bg-accent-indigo/10 px-sm py-xs text-tiny font-semibold text-accent-indigo"
-      >
-        dev
-      </span>
-    </div>
+    <!-- No «dev» badge: this panel is an owner's now, not a developer tool.
+         `POST /v1/workspaces` is `_owner_only`, so the label named a role that
+         was never the one the endpoint checks. -->
+    <h2 class="text-h2 font-bold text-primary">Управление пространствами</h2>
     <p class="mt-xs text-tiny font-medium text-muted">
       Создание и удаление рабочих пространств, токены WB API. Токены хранятся в базе в зашифрованном
       виде и никогда не показываются повторно.
