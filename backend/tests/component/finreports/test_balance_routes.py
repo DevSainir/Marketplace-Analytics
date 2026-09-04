@@ -24,6 +24,7 @@ import pytest
 from src.modules.finreports.deps import get_balance_service
 from src.modules.finreports.schemas import BalanceCell, BalanceResponse, BalanceSkuRow
 from src.modules.monitoring.contract import WarehouseStock
+from src.modules.organizations.contract import SubscriptionState
 from src.modules.users.deps import get_user_repo
 from src.modules.workspaces.contract import WORKSPACE_HEADER
 from src.modules.workspaces.deps import get_workspace_repo
@@ -261,4 +262,28 @@ async def test_a_mark_of_an_unknown_kind_is_rejected(
     )
 
     assert response.status_code == 422
+    assert balance.calls == []
+
+
+async def test_a_pin_stops_saving_once_the_term_is_past_grace(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    balance: _StubBalanceService,
+    login_as: Callable[..., None],
+) -> None:
+    """The balance grid's pins are a write like any other.
+
+    They were the last unguarded one in this module — everything here that
+    touches a settlement figure already refused a lapsed term, and a pin
+    slipping through made the rule look arbitrary rather than deliberate.
+    """
+    login_as(subscription=SubscriptionState.READ_ONLY)
+
+    response = await client.put(
+        "/api/v1/finreports/balance/pins",
+        json={"kind": "warehouse", "value": "Тула", "pinned": True},
+        headers=headers,
+    )
+
+    assert response.status_code == 403
     assert balance.calls == []

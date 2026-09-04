@@ -46,7 +46,7 @@ from src.modules.monitoring.schemas import (
     WarehouseMarksResponse,
     WarehouseMarkUpdateRequest,
 )
-from src.modules.organizations.contract import require_monitoring
+from src.modules.organizations.contract import WritingAccess, require_monitoring
 
 router = APIRouter(
     prefix="/v1/monitoring",
@@ -154,10 +154,12 @@ async def list_pins(
     responses={
         200: {"description": "Order saved; the reordered pinned list is returned."},
         401: {"description": "Unauthorized access token."},
+        403: {"description": "Подписка истекла — доступ только для чтения."},
         422: {"description": "The list is not exactly the current pinned set."},
     },
 )
 async def reorder_pins(
+    _writer: WritingAccess,
     body: PinReorderRequest,
     service: AnalyticsServiceDep,
     workspace_id: CurrentWorkspaceId,
@@ -179,10 +181,12 @@ async def reorder_pins(
     responses={
         200: {"description": "Pin updated; the full pinned list is returned."},
         401: {"description": "Unauthorized access token."},
+        403: {"description": "Подписка истекла — доступ только для чтения."},
         422: {"description": "Invalid payload."},
     },
 )
 async def set_pin(
+    _writer: WritingAccess,
     nm_id: WorkspaceSku,
     body: PinUpdateRequest,
     service: AnalyticsServiceDep,
@@ -199,10 +203,12 @@ async def set_pin(
     responses={
         200: {"description": "Chip painted; the full pinned list is returned."},
         401: {"description": "Unauthorized access token."},
+        403: {"description": "Подписка истекла — доступ только для чтения."},
         422: {"description": "Invalid payload (colour is not #rrggbb)."},
     },
 )
 async def set_pin_color(
+    _writer: WritingAccess,
     nm_id: WorkspaceSku,
     body: PinColorUpdateRequest,
     service: AnalyticsServiceDep,
@@ -302,10 +308,12 @@ async def get_stock_day(
     responses={
         200: {"description": "Mark updated; the SKU's marked warehouses are returned."},
         401: {"description": "Unauthorized access token."},
+        403: {"description": "Подписка истекла — доступ только для чтения."},
         422: {"description": "Invalid payload."},
     },
 )
 async def set_warehouse_mark(
+    _writer: WritingAccess,
     nm_id: WorkspaceSku,
     body: WarehouseMarkUpdateRequest,
     service: AnalyticsServiceDep,
@@ -323,10 +331,12 @@ async def set_warehouse_mark(
     responses={
         200: {"description": "Comment saved (or cleared); the stored note is returned."},
         401: {"description": "Unauthorized access token."},
+        403: {"description": "Подписка истекла — доступ только для чтения."},
         422: {"description": "Invalid payload (e.g. body too long) or date."},
     },
 )
 async def set_day_comment(
+    _writer: WritingAccess,
     nm_id: WorkspaceSku,
     comment_date: date,
     body: CommentUpdateRequest,
@@ -349,10 +359,12 @@ async def set_day_comment(
     responses={
         200: {"description": "Day actions saved (or cleared); the stored state is returned."},
         401: {"description": "Unauthorized access token."},
+        403: {"description": "Подписка истекла — доступ только для чтения."},
         422: {"description": "Invalid payload (e.g. negative budget) or date."},
     },
 )
 async def set_day_action(
+    _writer: WritingAccess,
     nm_id: WorkspaceSku,
     action_date: date,
     body: DayActionState,
@@ -397,10 +409,12 @@ async def preview_matrix_edit(
     responses={
         200: {"description": "Overrides saved; the refreshed detail is returned."},
         401: {"description": "Unauthorized access token."},
+        403: {"description": "Подписка истекла — доступ только для чтения."},
         422: {"description": "Invalid date window."},
     },
 )
 async def save_matrix(
+    _writer: WritingAccess,
     nm_id: WorkspaceSku,
     body: MatrixSaveRequest,
     service: AnalyticsServiceDep,

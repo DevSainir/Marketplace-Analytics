@@ -432,3 +432,24 @@ async def test_a_lapsed_subscription_cannot_touch_the_card_either(
 
     assert response.status_code == 403
     assert "Продлите подписку" in response.text
+
+
+async def test_the_grace_window_still_installs_photos(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    catalog: _StubCatalog,
+    login_as: Callable[..., None],
+) -> None:
+    """Expiry is a ramp, not a cliff, and this route is on the ramp too.
+
+    Pinned here as well as in monitoring because a rotation half-way through is
+    the worst possible thing to freeze on a technicality: the card is left
+    wearing whichever photo happened to be up, and the arms stop being
+    comparable. The grace days exist so a clearing bank transfer cannot do that.
+    """
+    login_as(is_primary_org=True, subscription=SubscriptionState.GRACE)
+
+    response = await client.delete(f"/api/ab-tests/{TEST_ID}", headers=headers)
+
+    assert response.status_code == 204
+    assert [name for name, _ in catalog.calls] == ["delete_test"]

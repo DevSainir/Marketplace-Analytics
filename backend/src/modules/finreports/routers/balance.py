@@ -25,6 +25,7 @@ from src.modules.monitoring.contract import (
     load_vendor_codes,
     stock_day_span,
 )
+from src.modules.organizations.contract import WritingAccess
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
 router = APIRouter()
@@ -37,6 +38,7 @@ router = APIRouter()
     responses={
         200: {"description": "The SKU x warehouse stock balance for one day."},
         401: {"description": "Unauthorized access token."},
+        403: {"description": "Подписка истекла — доступ только для чтения."},
     },
 )
 async def get_balance(
@@ -71,9 +73,11 @@ async def get_balance(
     responses={
         204: {"description": "Row or column pinned, or unpinned."},
         401: {"description": "Unauthorized access token."},
+        403: {"description": "Подписка истекла — доступ только для чтения."},
     },
 )
 async def set_balance_pin(
+    _writer: WritingAccess,
     payload: BalancePinInput,
     service: BalanceServiceDep,
     workspace_id: CurrentWorkspaceId,
