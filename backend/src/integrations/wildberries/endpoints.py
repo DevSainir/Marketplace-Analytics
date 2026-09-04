@@ -1,0 +1,46 @@
+"""Turning a WB request path into a bounded metric label.
+
+Lives in its own module because both sides of the WB transport need it and
+neither may import the other: :mod:`~src.integrations.wildberries.clients.base`
+already imports the rate gate, so the gate cannot import back.
+
+**This is a cardinality control, not a formatting helper.** Three WB paths
+interpolate an identifier — ``/api/v3/stocks/{warehouse}`` and the two
+report we ask for. Used raw as a label, one nightly harvest would add a
+permanent Prometheus time series per workspace per night, forever: memory that
+grows with our history rather than with our size, from a code path no user can
+see. Templated, every one of them collapses onto a single series per route,
+which is also the only thing anybody would want to graph.
+
+The same reasoning governs the HTTP metrics on the API side, where an
+unmatched path is grouped as ``handler="none"`` rather than labelled with the
+URL a scanner chose (:mod:`src.core.observability.instrument`). Here the ids
+are ours; there they are the caller's, which makes that one the more urgent of
+the two and this one the easier to forget.
+"""
+
+from __future__ import annotations
+
+import re
+
+#: A path segment that is an identifier rather than a route: an integer id, or
+#: a UUID. Anchored on ``/`` at both ends so a version segment like ``/v3`` and
+#: a word containing digits are left alone.
+_ID_SEGMENT_RE = re.compile(
+    r"/(?:\d+|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?=/|$)"
+)
+
+
+def endpoint_label(path: str) -> str:
+    """Collapse a request path onto the route it belongs to.
+
+    Args:
+        path: The path as sent to WB, identifiers and all.
+
+    Returns:
+        The path with every identifier segment replaced by ``/{id}``.
+    """
+    return _ID_SEGMENT_RE.sub("/{id}", path)
+
+
+__all__ = ["endpoint_label"]

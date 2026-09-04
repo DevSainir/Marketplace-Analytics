@@ -164,6 +164,19 @@ def test_every_protected_route_declares_a_security_scheme(openapi: dict[str, Any
     # own credential is something other than an access token.
     public = {
         "/health",
+        # The readiness probe (register P2.1). Unauthenticated because the thing
+        # that polls it is an external uptime checker outside this network,
+        # which by definition holds no credential — and it is the failure mode
+        # nothing inside the box can observe, since a check that cannot run
+        # reports nothing rather than reporting down.
+        #
+        # It meets this list's bar for a different reason from the recovery
+        # routes: those substitute one credential for another, this one has
+        # nothing to protect. It reads no table, touches no tenant data, and
+        # answers with two booleans and two latencies — never an exception, a
+        # host or a DSN (see `src.core.observability.health`, and P0.3 for why
+        # that last part is spelled out rather than assumed).
+        "/healthz",
         "/api/v1/auth/login",
         "/api/v1/auth/register",
         "/api/v1/auth/refresh",

@@ -14,7 +14,7 @@ What these pin is not the numbers but the two properties that make them safe.
 from __future__ import annotations
 
 from src.core.celery_app import celery_app
-from src.modules.monitoring.tasks.harvest import harvest_sku_window
+from src.modules.monitoring.tasks.refresh import harvest_sku_window
 
 
 def test_every_task_has_a_deadline() -> None:

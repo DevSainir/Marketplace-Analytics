@@ -12,8 +12,10 @@ One responsibility per module:
   the resilient-gather helper.
 * :mod:`~src.modules.monitoring.tasks.planning` — pure selection of the
   campaigns / search pairs a harvest should pull.
-* :mod:`~src.modules.monitoring.tasks.harvest` — the SKU-window harvest core
-  and the interactive ``monitoring.harvest_sku_window`` task.
+* :mod:`~src.modules.monitoring.tasks.harvest` — the SKU-window harvest core:
+  fetch, flatten and persist, in one transaction. Driven by both tasks below.
+* :mod:`~src.modules.monitoring.tasks.refresh` — the interactive
+  ``monitoring.harvest_sku_window`` task («Обновить»).
 * :mod:`~src.modules.monitoring.tasks.discovery` — workspace SKU discovery and
   the nightly ``monitoring.harvest_all`` task.
 * :mod:`~src.modules.monitoring.tasks.cohorts` — the
@@ -31,7 +33,7 @@ endpoint) keep importing the task callables from here.
 from src.modules.monitoring.tasks.cohorts import COHORT_REFRESH_DAYS, refresh_buyout_cohorts
 from src.modules.monitoring.tasks.day_headers import carry_day_headers
 from src.modules.monitoring.tasks.discovery import harvest_all
-from src.modules.monitoring.tasks.harvest import harvest_sku_window
+from src.modules.monitoring.tasks.refresh import harvest_sku_window
 
 __all__ = [
     "COHORT_REFRESH_DAYS",

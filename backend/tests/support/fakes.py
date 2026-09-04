@@ -332,6 +332,11 @@ class FakeRedis:
         self.counters: dict[str, int] = {}
         self.expiries: dict[str, int] = {}
         self.values: dict[str, str] = {}
+        # Read by the queue-depth sampler. Kept as real containers rather than
+        # hard-coded zeros so a test that wants a backed-up queue can put one
+        # here instead of monkeypatching the sampler.
+        self.lists: dict[str, list[str]] = {}
+        self.hashes: dict[str, dict[str, str]] = {}
 
     async def incr(self, key: str) -> int:
         """Increment and return a counter, creating it at 1."""
@@ -357,3 +362,28 @@ class FakeRedis:
     async def delete(self, key: str) -> int:
         """Drop a key, reporting how many were removed (Redis's own contract)."""
         return 1 if self.values.pop(key, None) is not None else 0
+
+    async def ping(self) -> bool:
+        """Answer the readiness probe (``src.core.observability.health``).
+
+        A fake that raises would be the more "honest" default, but this one is
+        stood up precisely where Redis is meant to be reachable — the failure
+        cases drive the probe directly instead, so that a test asserting a 503
+        says so in its own name rather than depending on which commands this
+        fake happens to implement.
+        """
+        return True
+
+    async def llen(self, key: str) -> int:
+        """Length of a list, for the Celery queue-depth gauge.
+
+        Lists are not modelled here: nothing in this codebase pushes to one
+        through this client — Celery talks to the real broker — so the only
+        caller is the scrape-time sampler, and zero is the honest answer for a
+        queue nothing has enqueued to.
+        """
+        return len(self.lists.get(key, []))
+
+    async def hlen(self, key: str) -> int:
+        """Field count of a hash, for Celery's ``unacked`` in-progress set."""
+        return len(self.hashes.get(key, {}))

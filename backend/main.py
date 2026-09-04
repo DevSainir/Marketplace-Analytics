@@ -25,6 +25,9 @@ from src.core.database import dispose_engine
 from src.core.exceptions import AppError
 from src.core.logcontext import bind_request, new_request_id, reset_context
 from src.core.logging import adopt_uvicorn_loggers, configure_logging, get_logger
+from src.core.observability.instrument import instrument_app, register_observability_routes
+from src.core.observability.metrics import set_app_info
+from src.core.observability.sentry import configure_sentry
 from src.core.redis import close_redis
 from src.modules.ab_tests.routers import router as ab_tests_router
 from src.modules.finreports.routers import router as finreports_router
@@ -47,7 +50,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # After uvicorn has installed its own handlers, and before anything it logs
     # about a failing startup — see the function's docstring.
     adopt_uvicorn_loggers()
-    logger.info("Starting %s (env=%s).", settings.app_name, settings.environment)
+    # Reporting on before the first request, so a failure during startup is
+    # itself reported. `configure_sentry` says which of the two happened,
+    # because "Sentry disabled" in the boot log is the fact worth having on
+    # the day errors do not appear in it.
+    reporting = configure_sentry(component="api")
+    set_app_info(version=app.version, environment=settings.environment, component="api")
+    logger.info(
+        "Starting %s (env=%s, error reporting %s).",
+        settings.app_name,
+        settings.environment,
+        "on" if reporting else "off",
+    )
     yield
     await dispose_engine()
     await close_redis()
@@ -95,6 +109,11 @@ app = FastAPI(
     openapi_url=_documentation.openapi_url,
 )
 
+# HTTP metrics middleware, added before the app starts serving. Its own
+# exposition route and the readiness probe are mounted further down, next to
+# the liveness probe they are easy to confuse with.
+instrument_app(app)
+
 # CORS for the browser frontend. ``allow_credentials`` is required so the
 # HttpOnly refresh cookie is accepted; it forbids the ``*`` origin wildcard, so
 # explicit origins are configured via settings. In production the nginx
@@ -108,6 +127,13 @@ if settings.cors_enabled:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+
+#: Paths whose requests are neither logged nor counted. Kept beside the
+#: middleware that skips them and mirrored by `_EXCLUDED` in
+#: `src.core.observability.instrument`, which excludes the same three from the
+#: HTTP metrics for the same reason.
+_UNLOGGED_PATHS: frozenset[str] = frozenset({"/health", "/healthz", settings.metrics_path})
 
 
 @app.middleware("http")
@@ -129,7 +155,10 @@ async def log_requests(
     The id is returned as ``X-Request-Id`` so a customer reporting "it failed at
     about two" can hand over the one string that finds it.
     """
-    if request.url.path == "/health":
+    # Three paths are polled forever by machines — Docker's healthcheck, Better
+    # Stack, and Prometheus — so logging them would make the request log mostly
+    # a record of the monitoring watching the service.
+    if request.url.path in _UNLOGGED_PATHS:
         return await call_next(request)
     request_id = new_request_id()
     # The address nginx wrote, never one the caller chose — see P0.1.
@@ -331,6 +360,13 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
 async def health() -> dict[str, str]:
     """Return a static liveness payload for container/orchestrator probes."""
     return {"status": "ok", "service": settings.app_name}
+
+
+# `/healthz` (readiness: Postgres + Redis) and `/metrics` (Prometheus). Mounted
+# here rather than in `main` so this file keeps one subject; see
+# `src.core.observability.instrument` for why the exposition is guarded and why
+# it is not `Instrumentator.expose()`.
+register_observability_routes(app)
 
 
 # Register module routers under the shared /api prefix.

@@ -9,14 +9,12 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 
-from src.core.celery_app import celery_app
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
-from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries import (
     WBAnalyticsClient,
@@ -48,7 +46,7 @@ from src.modules.monitoring.repos import (
     StockRepository,
 )
 from src.modules.monitoring.services import IngestionService
-from src.modules.monitoring.tasks.common import _TASK_RETRY_KWARGS, _unwrap
+from src.modules.monitoring.tasks.common import _unwrap
 from src.modules.monitoring.tasks.fbs import fetch_fbs_stock_rows, known_warehouse_labels
 from src.modules.monitoring.tasks.planning import (
     _advertising_harvest_ids,
@@ -56,7 +54,6 @@ from src.modules.monitoring.tasks.planning import (
 )
 from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
-    load_workspace_token_bundle,
 )
 
 logger = get_logger(__name__)
@@ -408,88 +405,3 @@ async def _harvest_sku_window(
         },
         failed_sources=failed_sources,
     )
-
-
-#: Tighter than the fleet-wide backstop in ``core/celery_app.py``, because this
-#: is the one harvest a user can start from the browser and therefore the one
-#: that can be started repeatedly. The whole-account nightly ``harvest_all``
-#: measures ~63 s in production (2026-08-29) and this walk is a subset of it —
-#: no sale feed, one workspace — so ten minutes is roughly 10x headroom while
-#: still bounding what a burst of clicks can pin down.
-_INTERACTIVE_SOFT_TIME_LIMIT_SECONDS: int = 10 * 60
-
-
-@celery_app.task(  # type: ignore[untyped-decorator]
-    name="monitoring.harvest_sku_window",
-    bind=False,
-    soft_time_limit=_INTERACTIVE_SOFT_TIME_LIMIT_SECONDS,
-    time_limit=_INTERACTIVE_SOFT_TIME_LIMIT_SECONDS + 60,
-    **_TASK_RETRY_KWARGS,
-)
-def harvest_sku_window(
-    nm_ids: list[int],
-    date_from: str | None = None,
-    date_to: str | None = None,
-) -> dict[str, object]:
-    """Celery entrypoint: harvest and persist WB stats for a SKU window.
-
-    Harvests funnel + stock for ``nm_ids`` and advertising for the campaigns
-    that advertise them, using the credentials of the workspace that **owns**
-    the SKUs (resolved via the ``product_card`` registry). Args are
-    JSON-serializable (dates as ISO strings) to satisfy Celery's JSON task
-    serializer.
-
-    This is the interactive «Обновить» path, so it fetches ONLY what is scoped
-    to ``nm_ids``. The sale/return feed is therefore skipped: WB serves it
-    account-wide only, so refreshing one SKU would re-pull every SKU's sales
-    across the harshest limiter WB exposes — observed live as a 39-second 429
-    backoff that made a ~2-second refresh take 45-70 seconds. Sale-date facts
-    («Выкупы, ₽», «Процент выкупа») are account-wide by nature and stay on the
-    nightly harvest.
-
-    Args:
-        nm_ids: SKU identifiers to harvest funnel + stock for. All must belong
-            to one workspace (in practice the refresh endpoint passes one SKU).
-        date_from: Optional ISO start date; defaults to a 7-day window (the WB
-            funnel-history endpoint rejects windows longer than 7 days).
-        date_to: Optional ISO end date; defaults to Moscow *yesterday* (WB does
-            not serve current-day statistics).
-
-    Returns:
-        The persisted row counts per metric family (``sales_rows`` is always 0 —
-        the feed is not part of a scoped refresh), plus ``failed_sources``: the
-        WB sources that did not answer. The refresh-status endpoint serves that
-        list to the SPA, which is how «Обновить» can say "WB withheld the
-        funnel" instead of silently redrawing the same numbers.
-
-    Raises:
-        IntegrationError: If the SKUs are not registered to any workspace, or
-            the workspace no longer exists (no credentials to harvest with).
-    """
-    # WB rejects the current date, so the default window ends yesterday; the
-    # funnel-history endpoint caps the window at 7 inclusive days.
-    end = date.fromisoformat(date_to) if date_to else moscow_today() - timedelta(days=1)
-    start = date.fromisoformat(date_from) if date_from else end - timedelta(days=6)
-    logger.info("Harvesting SKUs %s for %s..%s", nm_ids, start, end)
-
-    async def _run() -> dict[str, object]:
-        async with AsyncSessionLocal() as session:
-            workspace_id = await ProductCardRepository(session).get_workspace_of_sku(nm_ids[0])
-            if workspace_id is None:
-                raise IntegrationError(
-                    f"SKU {nm_ids[0]} is not registered to any workspace; "
-                    "cannot pick WB credentials for the refresh."
-                )
-            tokens = await load_workspace_token_bundle(session, workspace_id)
-        if tokens is None:
-            raise IntegrationError(f"Workspace {workspace_id} no longer exists; refresh aborted.")
-        outcome = await _harvest_sku_window(
-            tokens=tokens,
-            nm_ids=nm_ids,
-            date_from=start,
-            date_to=end,
-            include_sales=False,
-        )
-        return {**outcome.counts, "failed_sources": list(outcome.failed_sources)}
-
-    return run_task(_run())

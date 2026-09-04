@@ -11,15 +11,13 @@ two" is not a search; ``X-Request-Id: 6f1c2ab90d34`` is.
 
 from __future__ import annotations
 
-import json
-import logging
 from typing import Any
 
 import httpx
 import pytest
 
 from src.core import logcontext
-from src.core.logging import JsonFormatter
+from tests.component.conftest import CapturingHandler
 from tests.support.auth import auth_headers
 
 pytestmark = pytest.mark.component
@@ -31,39 +29,6 @@ def _clean_context() -> Any:
     logcontext.reset_context()
     yield
     logcontext.reset_context()
-
-
-class CapturingHandler(logging.Handler):
-    """Collects records already rendered as JSON, the way production emits."""
-
-    def __init__(self) -> None:
-        """Start with nothing captured."""
-        super().__init__()
-        self.lines: list[str] = []
-        self.setFormatter(JsonFormatter())
-
-    def emit(self, record: logging.LogRecord) -> None:
-        """Render and keep one record."""
-        self.lines.append(self.format(record))
-
-    def payloads(self) -> list[dict[str, Any]]:
-        """Return every captured record, parsed."""
-        return [json.loads(line) for line in self.lines]
-
-
-@pytest.fixture
-def captured_log() -> Any:
-    """Attach a JSON-rendering handler to the request logger."""
-    handler = CapturingHandler()
-    logger = logging.getLogger("main")
-    logger.addHandler(handler)
-    previous = logger.level
-    logger.setLevel(logging.INFO)
-    try:
-        yield handler
-    finally:
-        logger.removeHandler(handler)
-        logger.setLevel(previous)
 
 
 async def test_the_response_carries_an_id_a_customer_can_quote(

@@ -13,8 +13,20 @@ from celery.schedules import crontab
 
 from src.core.config import settings
 from src.core.logging import configure_logging
+from src.core.observability.celery_runtime import prepare_multiprocess_dir
 
 configure_logging()
+
+# Ensures the multiprocess metrics directory exists before any prefork child
+# needs it. It does NOT empty it — a tmpfs mount does that, and the difference
+# is load-bearing: see `prepare_multiprocess_dir` for why wiping here would
+# silently orphan the parent's counter files instead.
+#
+# Importing this module is also what REGISTERS the Celery signal handlers —
+# task context, trace propagation, task metrics and the worker's own exporter.
+# They are connected by decorator at import time, so the import is not
+# incidental and must not be tidied away as unused.
+prepare_multiprocess_dir()
 
 celery_app: Celery = Celery(
     "marketplace",
@@ -61,6 +73,14 @@ celery_app.conf.update(
     result_expires=3600,
     task_soft_time_limit=_TASK_SOFT_TIME_LIMIT_SECONDS,
     task_time_limit=_TASK_TIME_LIMIT_SECONDS,
+    # Celery replaces the root logger's handlers on worker startup, which would
+    # undo `configure_logging()` above and put the worker's lines back into
+    # Celery's plain-text format — unparseable to a shipper, and exactly the
+    # lines being read when a harvest failed. `src.core.observability`
+    # `.celery_runtime` also connects to the `setup_logging` signal, which is
+    # what stops the hijack rather than undoing it afterwards; this flag is the
+    # declarative half of the same decision (register P2.2).
+    worker_hijack_root_logger=False,
 )
 
 # Nightly refresh: because ``timezone`` is Europe/Moscow, this crontab fires at

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from types import TracebackType
@@ -18,6 +19,8 @@ import httpx
 
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
+from src.core.observability.metrics import WB_API_DURATION, WB_API_REQUESTS
+from src.integrations.wildberries.endpoints import endpoint_label
 from src.integrations.wildberries.rate_limit import NullRateGate, RateGate
 
 logger = get_logger(__name__)
@@ -103,6 +106,20 @@ class BaseWBClient:
         async with WBAnalyticsClient(...) as client:
             data = await client.fetch_sales_funnel(...)
     """
+
+    #: The name this surface appears under in metrics. Derived from the class
+    #: name when left unset — ``WBAnalyticsClient`` becomes ``analytics`` — so
+    #: a new client is instrumented the moment it exists rather than the moment
+    #: somebody remembers to label it. Set it explicitly on a subclass whose
+    #: class name is not the name a dashboard should show.
+    WB_SURFACE: str | None = None
+
+    @classmethod
+    def surface(cls) -> str:
+        """Return this client's metric label for the WB surface it talks to."""
+        if cls.WB_SURFACE:
+            return cls.WB_SURFACE
+        return cls.__name__.removeprefix("WB").removesuffix("Client").lower()
 
     def __init__(
         self,
@@ -244,15 +261,35 @@ class BaseWBClient:
                 exhausted.
         """
         last_exc: httpx.HTTPError | None = None
+        # Templated once per call rather than per attempt — see `endpoint_label`
+        # for why the raw path must never reach a metric label.
+        endpoint = endpoint_label(path)
 
         for attempt in range(self._max_retries + 1):
             if not skip_rate_gate:
-                await self._rate_gate.acquire(path)
+                try:
+                    await self._rate_gate.acquire(path)
+                except IntegrationError:
+                    # The gate refused to send at all: WB's stated wait exceeds
+                    # the queue cap. Counted, because it is a real WB failure
+                    # with no HTTP status of its own — and one that is
+                    # invisible in any metric derived from responses, since
+                    # there is no response.
+                    self._count(endpoint, "rate_blocked", None)
+                    raise
+            started = time.perf_counter()
             try:
                 response = await self._client.request(
                     method, path, params=params, json=json_body, headers=headers, files=files
                 )
+                elapsed = time.perf_counter() - started
                 await self._observe_rate_headers(path, response)
+                # Counted BEFORE `raise_for_status`, so a 429 or a 500 is
+                # recorded with its own status rather than collapsing into the
+                # error branch. The status IS the interesting part of a WB
+                # failure — a 429 is a budget problem and a 401 is a rotated
+                # token, and they are fixed by different people.
+                self._count(endpoint, str(response.status_code), elapsed)
                 response.raise_for_status()
                 # An empty 200 body (WB returns one for out-of-range historical
                 # windows) is not valid JSON — treat it as "no data" (``None``)
@@ -296,6 +333,11 @@ class BaseWBClient:
                 await asyncio.sleep(delay)
             except httpx.HTTPError as exc:
                 last_exc = exc
+                # No response, so no status: the connection failed, or WB held
+                # it open until our own read timeout fired — which is exactly
+                # how the analytics surface answers an over-budget request
+                # (measured 2026-07-30).
+                self._count(endpoint, "transport_error", time.perf_counter() - started)
                 if attempt == self._max_retries:
                     # Scrubbed: a proxied surface fails with the tunnel's URL —
                     # credentials and all — inside the exception's own message.
@@ -319,6 +361,27 @@ class BaseWBClient:
 
         # Unreachable: the loop either returns or raises. Guard for type safety.
         raise IntegrationError(f"WildBerries API request failed on {path}.") from last_exc
+
+    def _count(self, endpoint: str, status: str, elapsed: float | None) -> None:
+        """Record one WB attempt.
+
+        Args:
+            endpoint: The templated path.
+            status: The HTTP status as a string, or ``transport_error`` /
+                ``rate_blocked`` for the two failures that produce none.
+            elapsed: Round-trip seconds, or ``None`` when nothing was sent.
+
+        One attempt, not one call: a request that succeeds on its third try
+        counts three times, two of them as failures. That is the intended
+        reading — the retries are load on WB's budget and time on the harvest's
+        clock whether or not the caller ever learns about them, and a metric
+        that only counted final outcomes would show a healthy surface right up
+        until the point retries stopped saving it.
+        """
+        surface = self.surface()
+        WB_API_REQUESTS.labels(surface=surface, endpoint=endpoint, status=status).inc()
+        if elapsed is not None:
+            WB_API_DURATION.labels(surface=surface, endpoint=endpoint).observe(elapsed)
 
     async def _observe_rate_headers(self, path: str, response: httpx.Response) -> None:
         """Teach the gate what WB just said about this endpoint's budget.

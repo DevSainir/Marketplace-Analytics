@@ -36,7 +36,9 @@ from redis.exceptions import RedisError
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
+from src.core.observability.metrics import WB_RATE_LIMIT_REMAINING, WB_RATE_LIMIT_WAIT
 from src.core.redis import get_redis
+from src.integrations.wildberries.endpoints import endpoint_label
 
 logger = get_logger(__name__)
 
@@ -191,6 +193,13 @@ class TokenBucketRateGate:
                 endpoint,
                 wait_seconds,
             )
+            # Recorded before the sleep, so the counter reflects a wait that is
+            # happening rather than only waits that finished. A harvest wedged
+            # behind an empty bucket is exactly the case where the difference
+            # matters — it never reaches the line after the sleep.
+            WB_RATE_LIMIT_WAIT.labels(surface=self._surface, endpoint=endpoint_label(endpoint)).inc(
+                wait_seconds
+            )
             await asyncio.sleep(wait_seconds)
             waited += wait_seconds
 
@@ -237,6 +246,18 @@ class TokenBucketRateGate:
         """
         if remaining is None:
             return
+        # WB's own count, published before it is folded into our bucket. This
+        # is the leading indicator for the whole harvest: it reaches zero
+        # while there is still time to react, whereas every other WB metric
+        # only moves once something has already failed.
+        # Templated, never raw: the marketplace surface paces
+        # `/api/v3/stocks/{warehouse_id}`, so the raw path would add one series
+        # per warehouse per tenant. The Redis bucket KEY keeps the raw path —
+        # WB meters per real endpoint, and collapsing the key would make two
+        # warehouses share one budget they do not share.
+        WB_RATE_LIMIT_REMAINING.labels(
+            surface=self._surface, endpoint=endpoint_label(endpoint)
+        ).set(remaining)
         try:
             await cast(
                 Awaitable[Any],

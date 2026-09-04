@@ -12,6 +12,8 @@ router graph); each test gets its own dependency overrides and its own fakes.
 
 from __future__ import annotations
 
+import json
+import logging
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import replace
@@ -22,6 +24,7 @@ import pytest
 from fastapi import Depends, FastAPI
 
 from src.core.deps import get_db
+from src.core.logging import JsonFormatter
 from src.modules.organizations.contract import (
     EffectiveRole,
     OrganizationAccess,
@@ -132,6 +135,74 @@ def _no_database(app: FastAPI) -> Iterator[None]:
     app.dependency_overrides[get_db] = _tripwire
     yield
     app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.fixture(autouse=True)
+def _no_health_probes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Answer the readiness probes without opening a socket.
+
+    ``/healthz`` deliberately does NOT take its session from ``get_db``: it
+    opens its own, because acquiring a connection from the pool is part of what
+    the probe exists to test — the incident behind those metrics was a pool
+    where every connection was alive and none could be obtained. That is right
+    for production and it walks straight past this tier's ``_no_database``
+    tripwire, which only guards the dependency.
+
+    So the probes are faked here instead. What is left for the component tier
+    to prove is the part that lives in this process: the status mapping, the
+    payload's shape, and that no exception text reaches the response. Whether
+    Postgres and Redis really answer is an integration question and is asked in
+    ``tests/integration/core/test_readiness_probe.py``.
+
+    Individual tests monkeypatch these again to drive the failure paths; a
+    test's own patch is applied after this one and wins.
+    """
+    from src.core.observability import health
+
+    async def _ok() -> None:
+        return None
+
+    monkeypatch.setattr(health, "_ping_postgres", _ok)
+    monkeypatch.setattr(health, "_ping_redis", _ok)
+
+
+class CapturingHandler(logging.Handler):
+    """Collects records already rendered as JSON, the way production emits.
+
+    Shared by the request-logging and observability suites rather than defined
+    in each: the value of asserting on a rendered line is that it goes through
+    the SAME formatter production uses, and two copies of this would be two
+    chances for one of them to stop doing that.
+    """
+
+    def __init__(self) -> None:
+        """Start with nothing captured."""
+        super().__init__()
+        self.lines: list[str] = []
+        self.setFormatter(JsonFormatter())
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Render and keep one record."""
+        self.lines.append(self.format(record))
+
+    def payloads(self) -> list[dict[str, Any]]:
+        """Return every captured record, parsed."""
+        return [json.loads(line) for line in self.lines]
+
+
+@pytest.fixture
+def captured_log() -> Iterator[CapturingHandler]:
+    """Attach a JSON-rendering handler to the request logger."""
+    handler = CapturingHandler()
+    logger = logging.getLogger("main")
+    logger.addHandler(handler)
+    previous = logger.level
+    logger.setLevel(logging.INFO)
+    try:
+        yield handler
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(previous)
 
 
 @pytest.fixture

@@ -22,6 +22,7 @@ from fastapi import Depends, Header, status
 from fastapi.exceptions import HTTPException
 
 from src.core.deps import DbSession
+from src.core.logcontext import bind_workspace
 from src.core.tenancy import set_workspace_context
 from src.modules.organizations.contract import MemberAccess, OwnerAccess
 from src.modules.workspaces.repos import WorkspaceRepository, WorkspaceTokenRepository
@@ -121,8 +122,13 @@ async def get_current_workspace_id(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Рабочее пространство не найдено.",
         )
-    # Proven to belong to the caller — only now is it safe to tell the database.
+    # Proven to belong to the caller — only now is it safe to tell the database,
+    # or the logs. Both announcements sit behind the same check for the same
+    # reason: recording a tenant the caller has not been shown to belong to
+    # would put the claim this function exists to verify into the evidence
+    # somebody would later use to verify it (register P2.2/P2.5).
     await set_workspace_context(session, workspace_id)
+    bind_workspace(workspace_id)
     return workspace_id
 
 

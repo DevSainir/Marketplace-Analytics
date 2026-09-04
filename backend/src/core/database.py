@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from src.core.config import settings
+from src.core.observability.rls_watch import watch_for_tenancy_violations
 
 # Deterministic constraint naming keeps Alembic autogenerate diffs stable and
 # lets migrations drop/alter constraints by predictable names across schemas.
@@ -74,6 +75,20 @@ AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
     expire_on_commit=False,
     autoflush=False,
 )
+
+
+# Count the moments row-level security refuses a query (register P2.5/P2.1).
+#
+# Attached HERE, at the one place the engine is built, rather than in each
+# entrypoint: the API, the Celery worker, Alembic and every script share this
+# engine, and the worker is the runtime where an unscoped query hides best —
+# the nightly harvests deliberately bind no tenant, so "no tenant bound" is
+# sometimes correct there and an incorrect instance looks like the others.
+#
+# `.sync_engine` is not a detail to tidy away: SQLAlchemy's events live on the
+# sync engine, and listening on the async wrapper attaches to nothing at all —
+# which would present as "we have never had a violation".
+watch_for_tenancy_violations(engine.sync_engine)
 
 
 async def dispose_engine() -> None:
