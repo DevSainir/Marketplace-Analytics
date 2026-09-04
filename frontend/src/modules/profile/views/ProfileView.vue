@@ -16,8 +16,7 @@ import { RouterLink } from 'vue-router'
 import ActivationKeyForm from '@/modules/profile/components/ActivationKeyForm.vue'
 import ManagerAccessPanel from '@/modules/profile/components/ManagerAccessPanel.vue'
 import ManagerInviteForm from '@/modules/profile/components/ManagerInviteForm.vue'
-import WorkspaceAdminPanel from '@/modules/profile/components/WorkspaceAdminPanel.vue'
-import WorkspaceSwitcher from '@/modules/profile/components/WorkspaceSwitcher.vue'
+import WorkspacesPanel from '@/modules/profile/components/WorkspacesPanel.vue'
 import { useMembersStore } from '@/modules/profile/membersStore'
 import { useWorkspaceStore } from '@/modules/profile/store'
 
@@ -96,14 +95,6 @@ async function onSaveTokens({ workspaceId, tokens }) {
               {{ store.me?.email ?? '—' }}
             </dd>
           </div>
-          <div
-            class="flex items-center justify-between gap-md phone:flex-col phone:items-start phone:gap-0"
-          >
-            <dt class="text-tiny font-medium text-muted">Активное пространство</dt>
-            <dd class="min-w-0 truncate text-base font-medium text-primary phone:w-full">
-              {{ store.currentWorkspace?.name ?? '—' }}
-            </dd>
-          </div>
         </dl>
       </section>
 
@@ -131,12 +122,6 @@ async function onSaveTokens({ workspaceId, tokens }) {
         {{ store.error }}
       </p>
 
-      <WorkspaceSwitcher
-        :workspaces="store.workspaces"
-        :current-id="store.currentWorkspaceId"
-        @select="onSelect"
-      />
-
       <template v-if="members.isOwner">
         <ManagerAccessPanel
           :managers="members.managers"
@@ -153,14 +138,16 @@ async function onSaveTokens({ workspaceId, tokens }) {
         </p>
       </template>
 
-      <!-- Owners too, not just devs: `POST /v1/workspaces` is `_owner_only` and
-           has been the whole time, so gating the only UI for it on the platform
-           dev role left owners with no way to add one. -->
-      <WorkspaceAdminPanel
-        v-if="store.isDev || members.isOwner"
+      <!-- Rendered for everyone, because switching is everyone's; `can-manage`
+           is what an owner has and a manager does not, matching `_owner_only`
+           on create/delete/tokens. -->
+      <WorkspacesPanel
         :workspaces="store.workspaces"
+        :current-id="store.currentWorkspaceId"
         :token-statuses="tokenStatuses"
         :busy="store.loading"
+        :can-manage="store.isDev || members.isOwner"
+        @select="onSelect"
         @create="onCreate"
         @remove="onRemove"
         @expand="onExpand"
