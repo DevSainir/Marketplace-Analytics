@@ -36,14 +36,24 @@ the standing checklist that keeps new code from adding to it, and
 `docs/security/INCIDENT_RESPONSE.md` is what to reach for when something has already gone
 wrong — every lever it names exists and is tested.
 
-Two controls in that register are **written, tested and not yet applied**, both by design:
-`backend/scripts/sql/least_privilege_role.sql` (the app stops owning its tables) and
-`row_level_security.sql` (tenancy enforced by Postgres). They are an ordered pair — the role
-first, then the flag, then the policies — and each file's header says what happens if that
-order is broken.
+Two controls in that register — `backend/scripts/sql/least_privilege_role.sql` (the app stops
+owning its tables) and `row_level_security.sql` (tenancy enforced by Postgres) — **were
+applied to production on 2026-09-02 and verified on the box**. They are an ordered pair — the
+role first, then the flag, then the policies — and each file's header says what happens if
+that order is broken, which is what to re-read before applying them anywhere else.
 
 `docs/monitoring/LIVE_POSITION.md` records the removed organic-position probe: six weeks of
 measurement against WB's storefront edge, kept because the endpoint facts outlive the feature.
+
+`docs/monitoring/OBSERVABILITY.md` is the observability stack — Prometheus, Grafana, Loki and
+Sentry, plus the structlog pipeline and its redaction filter. Read it before adding a metric
+or a log field: two rules there are enforced by tests rather than by review, and both are
+security controls rather than housekeeping. **No metric may be labelled by tenant** (`/metrics`
+has no tenancy check because it has no tenant), and **no caller-chosen string may reach a
+label** (an unmatched path would otherwise let a stranger create one permanent time series per
+URL they try). Metrics answer "is the system healthy"; the logs, which carry `workspace_id` on
+every line, answer "for whom". The stack is a separate compose overlay — `make obs-up` — so the
+service runs instrumented whether or not anything is watching it.
 
 `docs/finreports/` holds what no skill covers: how the P&L is derived from WB's weekly
 Read `PNL.md` before changing anything that touches a settlement figure — most of the ways to
