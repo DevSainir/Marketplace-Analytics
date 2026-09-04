@@ -8,6 +8,8 @@ reach the client as 409 rather than as a 500.
 
 The module is internal-only, so ``_internal_caller`` below logs every test in as
 one of us; the guard itself is proved by the one test that deliberately does not.
+The writing guard on top of it is proved by the read-only-manager tests at the
+bottom, which are parametrised over every state-changing route.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ import pytest
 from src.core.exceptions import ConflictError, NotFoundError
 from src.modules.ab_tests.deps import get_catalog_service, get_installer
 from src.modules.ab_tests.schemas import AbTestDetail, AbTestRead, VariantMetrics
+from src.modules.organizations.contract import AccessLevel, EffectiveRole, SubscriptionState
 from src.modules.users.deps import get_user_repo
 from src.modules.workspaces.contract import WORKSPACE_HEADER
 from src.modules.workspaces.deps import get_workspace_repo
@@ -351,3 +354,81 @@ async def test_a_customer_cannot_reach_ab_tests(
     response = await client.get("/api/ab-tests", headers=headers)
 
     assert response.status_code == 403
+
+
+async def test_a_read_only_manager_of_ours_still_reads_the_results(
+    client: httpx.AsyncClient, headers: dict[str, str], login_as: Callable[..., None]
+) -> None:
+    """Read-only means read-only, not shut out.
+
+    The owner grants A/Б-тесты at ``read_only`` precisely so someone can watch
+    the rotation without touching the card; a guard that took the results table
+    away with the upload button would make that grant useless.
+    """
+    login_as(
+        role=EffectiveRole.MANAGER,
+        is_primary_org=True,
+        access_level=AccessLevel.READ_ONLY,
+    )
+
+    response = await client.get("/api/ab-tests", headers=headers)
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("POST", "/api/ab-tests"),
+        ("PATCH", f"/api/ab-tests/{TEST_ID}/status"),
+        ("DELETE", f"/api/ab-tests/{TEST_ID}"),
+        ("POST", f"/api/ab-tests/{TEST_ID}/variants"),
+        ("DELETE", f"/api/ab-tests/{TEST_ID}/variants/{VARIANT_ID}"),
+    ],
+)
+async def test_a_read_only_manager_of_ours_changes_nothing(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    catalog: _StubCatalog,
+    login_as: Callable[..., None],
+    method: str,
+    path: str,
+) -> None:
+    """Every state-changing route refuses a read-only manager.
+
+    Parametrised over all five rather than a representative one because the
+    guard is declared per route here — the router-level dependency is the
+    reachability guard, not this one — so a sixth writing route added without
+    it would be invisible to a single-route test.
+
+    The assertion goes as far as the service NOT being called: a 403 that still
+    reached the catalogue would mean the refusal came after the write.
+    """
+    login_as(
+        role=EffectiveRole.MANAGER,
+        is_primary_org=True,
+        access_level=AccessLevel.READ_ONLY,
+    )
+
+    response = await client.request(method, path, headers=headers, json={})
+
+    assert response.status_code == 403
+    assert catalog.calls == []
+
+
+async def test_a_lapsed_subscription_cannot_touch_the_card_either(
+    client: httpx.AsyncClient, headers: dict[str, str], login_as: Callable[..., None]
+) -> None:
+    """The guard's other audience: an owner past the grace window.
+
+    Worth its own test because the two refusals are deliberately different
+    sentences — this one can be acted on by renewing, and a manager's cannot —
+    and a guard that answered both with the same text would send half the
+    callers to support with the wrong question.
+    """
+    login_as(is_primary_org=True, subscription=SubscriptionState.READ_ONLY)
+
+    response = await client.delete(f"/api/ab-tests/{TEST_ID}", headers=headers)
+
+    assert response.status_code == 403
+    assert "Продлите подписку" in response.text

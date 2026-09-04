@@ -47,5 +47,24 @@ awk -v tok="$token" -v chat="$chat" '
   { gsub(/__TELEGRAM_BOT_TOKEN__/, tok); gsub(/__TELEGRAM_CHAT_ID__/, chat); print }
 ' "$template" > "$output"
 
+# The container mounts this read-only and runs as nobody (65534) — the
+# alertmanager image's own default user. A root-owned 0600 file is therefore
+# unreadable to it, and Alertmanager restart-loops with "permission denied";
+# that is exactly how this first went out.
+#
+# Give it away as narrowly as the host allows. Handing the file to 65534 and
+# keeping 0600 is the tightest arrangement that works: readable by the one
+# process that needs it, and by root, and by nobody else. `chown` needs
+# privileges, which the deploy has and a developer's laptop does not — hence
+# the fallback, which widens to 0644 only when there was no other option and
+# says so rather than failing.
+ALERTMANAGER_UID=65534
 chmod 600 "$output"
-echo "render-alertmanager: wrote ${output#"$here"/} (bot token ${#token} chars, chat ${chat})"
+if chown "$ALERTMANAGER_UID:$ALERTMANAGER_UID" "$output" 2>/dev/null; then
+  perms="0600, owned by uid $ALERTMANAGER_UID"
+else
+  chmod 644 "$output"
+  perms="0644 (could not chown; unprivileged host)"
+fi
+
+echo "render-alertmanager: wrote ${output#"$here"/} — $perms (bot token ${#token} chars, chat ${chat})"

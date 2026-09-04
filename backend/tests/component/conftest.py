@@ -26,6 +26,7 @@ from fastapi import Depends, FastAPI
 from src.core.deps import get_db
 from src.core.logging import JsonFormatter
 from src.modules.organizations.contract import (
+    AccessLevel,
     EffectiveRole,
     OrganizationAccess,
     SubscriptionState,
@@ -356,13 +357,18 @@ def access_factory(user: User, organization_id: uuid.UUID) -> Callable[..., Orga
         subscription: SubscriptionState = SubscriptionState.ACTIVE,
         is_primary_org: bool = False,
         org: uuid.UUID | None = organization_id,
+        access_level: AccessLevel = AccessLevel.READ_WRITE,
     ) -> OrganizationAccess:
+        # ``access_level`` only means anything for a manager — see
+        # ``OrganizationAccess.can_write`` — so it defaults to the value the
+        # other three roles carry and only a guard test ever passes it.
         return OrganizationAccess(
             user_id=user.id,
             organization_id=org,
             role=role,
             subscription=subscription,
             is_primary_org=is_primary_org,
+            access_level=access_level,
         )
 
     return _build

@@ -269,6 +269,13 @@ obs-up` runs it first. Start Alertmanager without it and the file is absent and
 the container restart-loops — the loud failure, chosen over an empty config that
 would start cleanly and alert nobody.
 
+The rendered file is handed to uid 65534 at 0600 — the unprivileged user the
+Alertmanager image runs as — rather than left root-owned. A root-owned 0600
+config is unreadable to the container, and Alertmanager restart-loops with
+`permission denied`; that is how this first reached production. On a host where
+`chown` is not available the renderer widens to 0644 and says so, rather than
+failing.
+
 The message template uses **HTML, not Markdown**, and that is not cosmetic:
 Telegram's Markdown parser rejects the whole message when underscores or
 asterisks do not pair up, and metric names like `wb_api_requests_total` are full

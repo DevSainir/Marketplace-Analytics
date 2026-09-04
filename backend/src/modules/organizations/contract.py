@@ -51,6 +51,7 @@ from src.modules.organizations.deps import (
 from src.modules.organizations.models import AuditEvent
 from src.modules.organizations.services import (
     WRITING_ROLES,
+    AccessLevel,
     EffectiveRole,
     OrganizationAccess,
     SubscriptionState,
@@ -62,6 +63,7 @@ from src.modules.organizations.services import (
 __all__ = [
     "WRITING_ROLES",
     "AbTestsAccess",
+    "AccessLevel",
     "AuditEvent",
     "AuditTrail",
     "CurrentAccess",

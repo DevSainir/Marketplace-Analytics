@@ -7,6 +7,12 @@ rather than a 403 — a test names a card the caller should not know exists.
 The whole module is **internal-only** (``require_internal``): it installs photos
 on a live WB card through the Content API and was built against our own
 catalogue. It is not part of what a customer's subscription buys.
+
+The five state-changing routes carry ``require_writer`` on top of that.
+Reachability and writing are separate questions: a manager of the primary
+organisation granted A/Б-тесты at ``read_only`` may read the results table and
+may not install a photo on a live card. Reads stay open, as everywhere else —
+the results of a rotation someone else started are still theirs to look at.
 """
 
 from __future__ import annotations
@@ -25,7 +31,7 @@ from src.modules.ab_tests.schemas import (
     AbTestStatusUpdate,
 )
 from src.modules.ab_tests.services.photos import MAX_IMAGE_BYTES
-from src.modules.organizations.contract import require_ab_tests
+from src.modules.organizations.contract import require_ab_tests, require_writer
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
 router = APIRouter(
@@ -58,7 +64,11 @@ async def list_tests(
     response_model=AbTestRead,
     status_code=status.HTTP_201_CREATED,
     summary="Создать тест",
-    responses={401: {"description": "Не аутентифицирован"}},
+    dependencies=[Depends(require_writer)],
+    responses={
+        401: {"description": "Не аутентифицирован"},
+        403: {"description": "Доступ только для чтения"},
+    },
 )
 async def create_test(
     payload: AbTestCreate,
@@ -88,7 +98,9 @@ async def get_test(
     "/{test_id}/status",
     response_model=AbTestRead,
     summary="Запустить, поставить на паузу или отменить",
+    dependencies=[Depends(require_writer)],
     responses={
+        403: {"description": "Доступ только для чтения"},
         404: {"description": "Тест не найден"},
         409: {"description": "Переход невозможен в текущем статусе"},
         422: {"description": "Неизвестный статус"},
@@ -119,7 +131,11 @@ async def set_status(
     "/{test_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Удалить тест",
-    responses={404: {"description": "Тест не найден"}},
+    dependencies=[Depends(require_writer)],
+    responses={
+        403: {"description": "Доступ только для чтения"},
+        404: {"description": "Тест не найден"},
+    },
 )
 async def delete_test(
     test_id: uuid.UUID,
@@ -135,7 +151,9 @@ async def delete_test(
     response_model=AbTestDetail,
     status_code=status.HTTP_201_CREATED,
     summary="Загрузить фото в тест",
+    dependencies=[Depends(require_writer)],
     responses={
+        403: {"description": "Доступ только для чтения"},
         404: {"description": "Тест не найден"},
         409: {"description": "Достигнут предел в 10 фото"},
         422: {"description": "Файл не является поддерживаемым изображением"},
@@ -171,7 +189,9 @@ async def upload_variant(
     "/{test_id}/variants/{variant_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Удалить фото из теста",
+    dependencies=[Depends(require_writer)],
     responses={
+        403: {"description": "Доступ только для чтения"},
         404: {"description": "Тест или вариант не найден"},
         409: {"description": "Фото сейчас стоит на карточке"},
     },
