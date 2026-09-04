@@ -1051,7 +1051,7 @@ wheels = [
 
 [[package]]
 name = "marketplace-service"
-version = "0.21.10"
+version = "0.22.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiosmtplib" },
