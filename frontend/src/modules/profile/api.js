@@ -160,6 +160,19 @@ export async function acceptInvitation(token) {
 }
 
 /**
+ * DELETE /v1/organizations/members/:userId — remove a manager.
+ *
+ * This, not revoking their invitation, is what withdraws access once somebody
+ * has joined. Their ACCOUNT keeps existing; it simply stops belonging to the
+ * organisation. The owner cannot be removed — 422.
+ *
+ * @param {string} userId
+ */
+export async function removeMember(userId) {
+  await apiClient.delete(`/v1/organizations/members/${userId}`)
+}
+
+/**
  * POST /v1/organizations/invitations — invite a manager with a grant.
  *
  * The access travels WITH the invitation rather than being applied after they

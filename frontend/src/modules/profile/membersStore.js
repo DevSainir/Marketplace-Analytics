@@ -21,6 +21,7 @@ import {
   fetchMembers,
   fetchMyInvitations,
   fetchOrganizationMe,
+  removeMember as removeMemberRequest,
   updateMemberAccess,
 } from '@/modules/profile/api'
 
@@ -184,9 +185,32 @@ export const useMembersStore = defineStore('members', () => {
     }
   }
 
+  /**
+   * Remove a manager from the organisation.
+   *
+   * The list is re-read rather than spliced: the server decides who is a
+   * member, and a local removal that the request did not actually make would
+   * show an owner a roster they cannot act on.
+   */
+  async function removeManager(userId) {
+    saving.value = userId
+    error.value = ''
+    try {
+      await removeMemberRequest(userId)
+      members.value = await fetchMembers()
+      return true
+    } catch (err) {
+      error.value = extractErrorMessage(err)
+      return false
+    } finally {
+      saving.value = null
+    }
+  }
+
   return {
     role,
     organization,
+    removeManager,
     modules,
     canReach,
     invitations,

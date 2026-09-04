@@ -77,3 +77,50 @@ describe('ManagerAccessPanel', () => {
     expect(wrapper.text()).toContain('пока нет менеджеров')
   })
 })
+
+describe('ManagerAccessPanel — removing a manager', () => {
+  /**
+   * There was no way to do this at all: the API has had
+   * `DELETE /organizations/members/:id` the whole time and nothing in the SPA
+   * called it, so an owner could narrow somebody to nothing but never actually
+   * put them out of the company.
+   */
+  const removeButton = (wrapper) => wrapper.find('.remove-member')
+
+  it('does NOT remove on the first press', async () => {
+    // It cannot be undone from this screen — re-inviting is a new invitation
+    // with a new grant — so one stray click must not do it.
+    const wrapper = mountPanel()
+
+    await removeButton(wrapper).trigger('click')
+
+    expect(wrapper.emitted('remove')).toBeUndefined()
+    expect(removeButton(wrapper).text()).toBe('Точно удалить?')
+  })
+
+  it('emits the manager on the second press', async () => {
+    const wrapper = mountPanel()
+
+    await removeButton(wrapper).trigger('click')
+    await removeButton(wrapper).trigger('click')
+
+    expect(wrapper.emitted('remove')).toEqual([['u-1']])
+  })
+
+  it('asks again per manager rather than arming the whole list', async () => {
+    // Confirming one row must not leave another row one click from removal.
+    const wrapper = mountPanel([manager(), manager({ user_id: 'u-2', email: 'other@example.com' })])
+    const [first, other] = wrapper.findAll('.remove-member')
+
+    await first.trigger('click')
+    await other.trigger('click')
+
+    expect(wrapper.emitted('remove')).toBeUndefined()
+  })
+
+  it('offers no control when there is nobody to remove', () => {
+    const wrapper = mountPanel([])
+
+    expect(wrapper.find('.remove-member').exists()).toBe(false)
+  })
+})

@@ -6,7 +6,7 @@
  * flip would fire three requests while an owner set up one person, and the
  * middle one would briefly be a grant they never intended to store.
  */
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 
 import AccessGrantFields from '@/modules/profile/components/AccessGrantFields.vue'
 import { MODULES } from '@/modules/profile/membersStore'
@@ -15,7 +15,21 @@ const props = defineProps({
   managers: { type: Array, required: true },
   saving: { type: String, default: null },
 })
-const emit = defineEmits(['save'])
+const emit = defineEmits(['save', 'remove'])
+
+// Confirm-in-place rather than a modal: the id of the manager awaiting a second
+// press. Removal is not reversible from here — re-inviting is a new invitation
+// and a new grant — so it should not happen on one stray click.
+const confirming = ref(null)
+
+function onRemove(manager) {
+  if (confirming.value !== manager.user_id) {
+    confirming.value = manager.user_id
+    return
+  }
+  confirming.value = null
+  emit('remove', manager.user_id)
+}
 
 /** Staged edits, keyed by user id; absent means "unchanged". */
 const drafts = reactive({})
@@ -84,7 +98,19 @@ const isEmpty = computed(() => props.managers.length === 0)
           />
         </div>
 
-        <div class="mt-md flex justify-end">
+        <div class="mt-md flex items-center justify-between gap-md">
+          <!-- Removing is what actually withdraws access from somebody who has
+               already joined; revoking their invitation would not. Two presses,
+               because it cannot be undone from this screen. -->
+          <button
+            type="button"
+            class="remove-member"
+            :disabled="saving === manager.user_id"
+            @click="onRemove(manager)"
+          >
+            {{ confirming === manager.user_id ? 'Точно удалить?' : 'Удалить из компании' }}
+          </button>
+
           <button
             type="button"
             class="rounded-btn bg-action px-md py-xs text-base font-semibold text-white transition-opacity disabled:opacity-50"
@@ -98,3 +124,10 @@ const isEmpty = computed(() => props.managers.length === 0)
     </ul>
   </section>
 </template>
+
+<style scoped>
+.remove-member {
+  @apply text-tiny font-semibold transition disabled:cursor-not-allowed disabled:opacity-60;
+  color: var(--ui-neg);
+}
+</style>

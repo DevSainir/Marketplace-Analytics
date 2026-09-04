@@ -142,6 +142,7 @@ async function onSaveTokens({ workspaceId, tokens }) {
           :managers="members.managers"
           :saving="members.saving"
           @save="onSaveAccess"
+          @remove="members.removeManager"
         />
         <ManagerInviteForm :saving="members.saving" @invite="onInvite" />
         <p
