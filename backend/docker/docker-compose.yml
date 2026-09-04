@@ -53,10 +53,40 @@
 
 name: marketplace-service
 
+# ---------------------------------------------------------------------------
+# LOG ROTATION, applied to every service below.
+#
+# The layer that actually protects this disk. A container's stdout is written
+# by the Docker daemon, not by the process, so nothing the application does
+# can bound it — Python's own RotatingFileHandler (src/core/logging.py) only
+# covers a process run OUTSIDE Docker. Left at Docker's default, a json-file
+# log grows without limit until the partition is full, and a full partition
+# takes Postgres down with it: the noisy day and the outage are the same
+# event.
+#
+# 20 MB x 3 files = 60 MB per service, ~480 MB across the stack at worst. That
+# is a ceiling, not a reservation; steady state is a few MB. Sized at the top
+# of the 10-20 MB band on purpose — below ~10 MB a single harvest's output can
+# rotate away the startup lines that explain it, which is the pairing you most
+# want to still have.
+#
+# Rotation and shipping are independent, and the order matters: Alloy reads
+# these same files and forwards to Loki
+# (docker-compose.observability.yml), so what is rotated away here has already
+# been shipped and is still searchable for Loki's own retention window. What
+# stays on disk is the fallback for the case where Loki is the broken thing.
+# ---------------------------------------------------------------------------
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *logging
     mem_limit: 384m
     cpus: 1.0
     environment:
@@ -74,6 +104,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *logging
     # No redis `maxmemory` to go with this: Redis is the Celery broker, and an
     # eviction policy there silently drops queued tasks. The container cap is
     # the backstop instead — if Redis ever approaches it, the queue is stuck
@@ -111,6 +142,7 @@ services:
       REDIS_HOST: redis
     command: ["alembic", "upgrade", "head"]
     restart: "no"
+    logging: *logging
     depends_on:
       postgres:
         condition: service_healthy
@@ -132,6 +164,7 @@ services:
       dockerfile: docker/Dockerfile
       target: api
     restart: unless-stopped
+    logging: *logging
     # whole document in memory before it is written to the cache volume.
     mem_limit: 512m
     cpus: 1.5
@@ -208,6 +241,7 @@ services:
       context: ../frontend
       dockerfile: docker/Dockerfile
     restart: unless-stopped
+    logging: *logging
     mem_limit: 64m
     cpus: 0.5
     ports:
@@ -230,6 +264,7 @@ services:
       dockerfile: docker/Dockerfile
       target: worker
     restart: unless-stopped
+    logging: *logging
     # The largest ceiling in the stack: the harvest prices a settlement window,
     # and this is the only service whose working set is driven by data volume
     # rather than by traffic.
@@ -255,6 +290,31 @@ services:
     environment:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
+      # The worker is not an ASGI app, so it serves its own Prometheus
+      # exposition on :9100 (src/core/observability/celery_runtime.py). NOT
+      # published to the host — Prometheus reaches it over this project's
+      # internal network, which is the same control that guards the API's
+      # /metrics.
+      #
+      # The prefork pool means the process answering a scrape is not the
+      # process that counted the harvest, so the counters live in mmap files
+      # both can see. Set here rather than in .env because it is true of the
+      # WORKER and false of the api: switching the api into multiprocess mode
+      # would make its single process aggregate a directory nothing else
+      # writes to, which reads as working and reports subtly different numbers.
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus-multiproc
+    tmpfs:
+      # A tmpfs, and that is the whole staleness control. Counters are
+      # cumulative and their files outlive the process, so a container that
+      # restarts and finds the previous run's files sums its totals onto
+      # them — which Prometheus reads as a traffic spike rather than as a
+      # reset. A tmpfs is created EMPTY at container start, so the stale case
+      # cannot arise; wiping the directory from Python instead looks
+      # equivalent and is not (see `prepare_multiprocess_dir`).
+      #
+      # RAM-backed and capped: these are a few hundred KB of mmap'd floats,
+      # and the cap means a runaway cannot eat into the harvest's 768m.
+      - /tmp/prometheus-multiproc:size=32m,mode=1777
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -271,6 +331,7 @@ services:
       dockerfile: docker/Dockerfile
       target: worker
     restart: unless-stopped
+    logging: *logging
     mem_limit: 192m
     cpus: 0.5
     env_file:

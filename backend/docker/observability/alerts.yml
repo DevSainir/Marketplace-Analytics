@@ -1,0 +1,237 @@
+# ---------------------------------------------------------------------------
+# The rules that page somebody. Register P2.2 named real-time alerting on auth
+# failures, 403 spikes and rate-limit trips as the open half of the logging
+# work, and P2.1 said the fields to bind a rule to already existed. These are
+# those rules.
+#
+# Every alert here obeys two conventions. `for:` is never zero — an alert that
+# fires on one bad scrape fires on a deploy, and an alert that fires on a
+# deploy is one people mute. And every annotation says what to DO, because the
+# person reading it at 03:00 is not the person who wrote it.
+# ---------------------------------------------------------------------------
+
+groups:
+  # -------------------------------------------------------------------------
+  - name: availability
+    rules:
+      - alert: ApiDown
+        expr: up{job="marketplace-api"} == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "API instance {{ $labels.instance }} is not answering scrapes."
+          description: >-
+            nginx fails a refused request over to the other instance, so ONE
+            instance down is degraded rather than an outage — check whether the
+            other is still up before treating this as customer-facing.
+            `make logs` on the box, then look for a failed migrate step.
+
+      - alert: BothApiInstancesDown
+        expr: count(up{job="marketplace-api"} == 1) == 0
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "Neither API instance is answering. The site is down."
+          description: >-
+            The upstream pool has no live member; nginx is answering 502.
+            docs/security/INCIDENT_RESPONSE.md is the runbook.
+
+      - alert: DependencyDown
+        expr: dependency_up == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.dependency }} is not answering its health probe."
+          description: >-
+            Without Postgres nothing serves. Without Redis the API still
+            serves, with the auth rate limiter and session revocation failing
+            OPEN (register P1.2) — which is a security posture change, not just
+            degraded performance.
+
+      - alert: WorkerExporterDown
+        expr: up{job="marketplace-worker"} == 0
+        for: 5m
+        labels:
+          severity: warn
+        annotations:
+          summary: "The Celery worker's metrics exporter is unreachable."
+          description: >-
+            The worker may still be processing. Confirm with celery_queue_length
+            and the harvest counters before assuming the harvests have stopped;
+            the exporter binds on worker_ready and is deliberately non-fatal.
+
+  # -------------------------------------------------------------------------
+  - name: security
+    rules:
+      # This one should never fire. That is the point of it.
+      - alert: RowLevelSecurityViolation
+        expr: increase(security_rls_violations_total{reason="tenant_unset"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: "A query reached tenant data without a tenant bound."
+          description: >-
+            RLS refused it, so no data crossed a boundary — the control worked.
+            What it means is that a code path is reaching tenant tables without
+            going through get_current_workspace_id, which is the defect the
+            policies were installed to catch (register P2.5). Find it in the
+            logs by the ERROR from src.core.observability.rls_watch; the
+            statement is on the line. `for: 0m` deliberately: one occurrence is
+            the alert.
+
+      - alert: SecurityControlDegraded
+        expr: security_degraded_controls == 1
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Security control {{ $labels.control }} is failing open."
+          description: >-
+            It is running its degraded fallback — Redis is unreachable
+            (register P1.2). While this is true, password guessing is bounded
+            only by whatever is still up. Two of these at once is the
+            correlated failure that ledger exists to surface.
+
+      - alert: AuthFailureSpike
+        expr: sum(rate(security_auth_failures_total[5m])) > 2
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Sustained authentication failures ({{ $value | printf \"%.1f\" }}/s)."
+          description: >-
+            Credential stuffing looks like this. P1.5's per-account backoff and
+            P0.1's per-IP limiter are both in the path, so this is usually a
+            campaign being refused rather than one succeeding — check
+            security_auth_failures_total by reason, and the client_ip field in
+            the logs, before acting.
+
+  # -------------------------------------------------------------------------
+  - name: harvest
+    rules:
+      # The alert that would have caught the 2026-07-30 incident, in which
+      # every harvest reported SUCCESS with funnel_rows: 0 for days.
+      - alert: HarvestProducingNoRows
+        expr: |
+          sum by (harvest) (increase(harvest_rows_processed_total[6h])) == 0
+          and on (harvest) (sum by (harvest) (increase(harvest_duration_seconds_count[6h])) > 0)
+        for: 30m
+        labels:
+          severity: page
+        annotations:
+          summary: "Harvest {{ $labels.harvest }} is running and writing nothing."
+          description: >-
+            The second clause is what makes this meaningful: the harvest RAN
+            and produced zero rows, which is a different event from "the
+            harvest did not run". This is the shape of the Redis-pool incident
+            — tasks succeeding, sources silently voided — and it is invisible
+            in any task-level success metric.
+
+      - alert: HarvestPartial
+        expr: increase(harvest_partial_total[1h]) > 3
+        for: 0m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Harvest {{ $labels.harvest }} keeps losing source {{ $labels.source }}."
+          description: >-
+            A partial harvest is tolerated by design so one dead WB surface
+            does not lose the whole run. Repeated partials are not tolerable:
+            the numbers for that source are quietly stale.
+
+      - alert: CeleryQueueBackingUp
+        expr: celery_queue_length{queue_name="celery"} > 50
+        for: 15m
+        labels:
+          severity: warn
+        annotations:
+          summary: "The Celery queue is {{ $value }} messages deep."
+          description: >-
+            Four worker slots. Check whether a task is wedged — celery_queue_length
+            {queue_name="unacked"} staying high with the queue draining means
+            work is taken and not finishing.
+
+      - alert: TaskFailureRate
+        expr: |
+          sum by (task_name) (rate(celery_tasks_total{state="failure"}[15m]))
+          > 0.05
+        for: 15m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Task {{ $labels.task_name }} is failing repeatedly."
+
+  # -------------------------------------------------------------------------
+  - name: wildberries
+    rules:
+      - alert: WbRateBudgetExhausted
+        expr: wb_rate_limit_quota_remaining == 0
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: "WB reports no budget left on {{ $labels.surface }} {{ $labels.endpoint }}."
+          description: >-
+            The leading indicator: WB answers an over-budget request by
+            STALLING the connection rather than with a 429 (measured
+            2026-07-30), so by the time requests fail the harvest has already
+            lost its window. Sustained zero means the pacing parameters no
+            longer match WB's actual bucket.
+
+      - alert: WbErrorRate
+        expr: |
+          sum(rate(wb_api_requests_total{status!~"2.."}[10m]))
+          / clamp_min(sum(rate(wb_api_requests_total[10m])), 0.001) > 0.25
+        for: 15m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Over a quarter of WB calls are failing."
+          description: >-
+            Includes transport_error and rate_blocked, which is deliberate —
+            those are how WB actually fails here, and neither carries an HTTP
+            status. Break down by surface and status before concluding it is
+            WB rather than one rotated token.
+
+  # -------------------------------------------------------------------------
+  - name: saturation
+    rules:
+      - alert: PostgresPoolExhausted
+        expr: postgres_pool_connections_free == 0 and postgres_pool_connections_used > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "The connection pool has no free connections."
+          description: >-
+            This has happened: leaked `idle in transaction` connections held
+            every slot for 22 hours, which is why
+            idle_in_transaction_session_timeout exists in src/core/database.py.
+            If used is pinned at the ceiling while traffic is normal, look for
+            a leak rather than for load.
+
+      - alert: ApiLatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le, handler) (rate(http_request_duration_seconds_bucket[10m]))
+          ) > 3
+        for: 15m
+        labels:
+          severity: warn
+        annotations:
+          summary: "p95 latency on {{ $labels.handler }} is above 3s."
+
+      - alert: ServerErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[10m]))
+          / clamp_min(sum(rate(http_requests_total[10m])), 0.001) > 0.02
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "More than 2% of responses are 5xx."

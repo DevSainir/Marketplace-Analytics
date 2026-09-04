@@ -1,0 +1,114 @@
+// ---------------------------------------------------------------------------
+// Grafana Alloy: reads every container's stdout and ships it to Loki.
+//
+// Alloy rather than Promtail because Promtail reached end of life in early
+// 2026; this is the supported agent for the same job.
+//
+// WHY AN AGENT AND NOT THE LOKI DOCKER DRIVER. The driver plugin would remove
+// this container entirely, and it was refused for one operational reason:
+// with it installed, `docker logs` stops working. On a single VPS, `docker
+// logs` is what you reach for when Loki itself is the thing that is broken,
+// and a log pipeline whose failure mode is "you cannot read the logs" is not
+// one to run alone. The json-file driver stays the source of truth on disk
+// (rotated, capped — see the `logging:` block on every service), and this
+// agent is a reader of it.
+//
+// THE CARDINALITY RULE, which is the whole design of the pipeline below.
+// A Loki stream is one series per label combination, held in memory. So only
+// values from a small closed set become labels: the container, the compose
+// service, and the level. Everything that makes a line an ANSWER —
+// trace_id, request_id, workspace_id, organization_id, user_id — stays inside
+// the JSON line and is searched by content with `| json | trace_id="..."`.
+// Promoting trace_id to a label would create one stream per request and put
+// Loki's memory on a curve that follows traffic.
+// ---------------------------------------------------------------------------
+
+// Every running container on this host.
+discovery.docker "containers" {
+	host             = "unix:///var/run/docker.sock"
+	refresh_interval = "15s"
+}
+
+discovery.relabel "containers" {
+	targets = discovery.docker.containers.targets
+
+	// `/marketplace-service-api-1` -> `marketplace-service-api-1`.
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+
+	// The compose service name — `api`, `worker`, `postgres`. The label
+	// actually worth querying by, because it survives a container being
+	// recreated and the container name does not.
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		target_label  = "service"
+	}
+
+	// Only this project's containers. A co-tenant's logs are not ours to
+	// collect, and they would count against the same ingestion budget.
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+		regex         = "marketplace-service"
+		action        = "keep"
+	}
+}
+
+loki.source.docker "containers" {
+	host       = "unix:///var/run/docker.sock"
+	targets    = discovery.relabel.containers.output
+	labels     = {job = "marketplace"}
+	forward_to = [loki.process.app.receiver]
+}
+
+loki.process "app" {
+	forward_to = [loki.write.default.receiver]
+
+	// Parse the JSON the application emits (src/core/logging.py). A line that
+	// is not JSON — the two uvicorn startup lines that exist before a lifespan
+	// does, and Postgres's and Redis's own output — simply extracts nothing
+	// and passes through with its message intact. That tolerance is deliberate:
+	// dropping unparseable lines would drop exactly the ones written while a
+	// container was failing to start.
+	stage.json {
+		expressions = {
+			level = "level",
+			ts    = "ts",
+		}
+	}
+
+	// The one promoted label. Bounded (five values), and it is what every
+	// "show me the errors" query filters on first, which is the test for
+	// whether a field earns being a label rather than a search.
+	stage.labels {
+		values = {level = ""}
+	}
+
+	// Use the application's own timestamp rather than the moment Alloy read
+	// the line. Without this, a shipper that falls behind rewrites history:
+	// every line it catches up on is stamped "now", and the incident appears
+	// to have happened when the backlog drained.
+	stage.timestamp {
+		source = "ts"
+		format = "RFC3339Nano"
+	}
+}
+
+loki.write "default" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+	// Alloy buffers in memory when Loki is unavailable and drops the oldest
+	// once full. Bounded on purpose: an agent that buffers without limit turns
+	// "Loki is down" into "the host is out of memory", which is the failure
+	// this stack must not be able to cause.
+	external_labels = {}
+}
+
+// Alloy's own health, scraped by Prometheus alongside everything else.
+logging {
+	level  = "warn"
+	format = "logfmt"
+}

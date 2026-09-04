@@ -32,6 +32,13 @@ COMPOSE := docker compose --project-directory backend \
 # Throwaway stacks (CI's browser tier, or any host without a TLS certificate)
 # add the plain-HTTP nginx overlay.
 COMPOSE_E2E := $(COMPOSE) -f backend/docker/docker-compose.e2e.yml
+# The observability stack (Prometheus/Grafana/Loki/Alloy) is an OVERLAY on the
+# same project, not part of `make up`. Same project name means the same Docker
+# network, so Prometheus reaches `api:8000` and Alloy reaches `loki:3100`
+# without publishing anything — while leaving the monitoring separately
+# startable, upgradable and, on a box under memory pressure, stoppable. The
+# application is instrumented either way; nothing here is required to serve.
+COMPOSE_OBS := $(COMPOSE) -f backend/docker/docker-compose.observability.yml
 NPM := npm --prefix frontend
 # Playwright and k6 live with the tests they run, not at the root.
 TESTS_NPM := npm --prefix tests
@@ -41,6 +48,7 @@ TESTS_NPM := npm --prefix tests
         test-frontend test-e2e test-perf test-perf-frontend test-perf-load lint \
         format audit lock typecheck setup-test-db clean-test-db seed-e2e \
         up down ps logs prune rebuild \
+        obs-up obs-down obs-ps obs-logs \
         backup backup-verify backup-list
 
 help: ## Show this help
@@ -158,6 +166,37 @@ ps: ## Status of every service
 
 logs: ## Follow the logs of every service
 	$(COMPOSE) logs -f
+
+# --------------------------------------------------------------------------- #
+# The observability stack — an overlay, started separately on purpose.
+#
+# `make up` does NOT start it, and `make obs-down` does not stop the service.
+# The API and worker export /metrics and /healthz whether or not any of this is
+# running, so turning it off costs visibility and nothing else — which is the
+# property you want on a 3.8 GB box the moment memory gets tight.
+#
+# Alerts go to Telegram (the bot the backup job already uses, unless
+# ALERT_TELEGRAM_* is set separately in backend/.env).
+#
+# Grafana is on 127.0.0.1:3000 only. Reach it with an SSH tunnel:
+#     ssh -L 3000:127.0.0.1:3000 <production alias>
+# --------------------------------------------------------------------------- #
+# The renderer runs FIRST and is not optional: Alertmanager's config carries the
+# Telegram bot token, so it is generated from backend/.env rather than committed.
+# Starting the stack without it leaves the file absent and Alertmanager in a
+# restart loop — which is the loud failure. See the template's header.
+obs-up: ## Start Prometheus + Alertmanager + Grafana + Loki + Alloy alongside a running stack
+	backend/scripts/observability/render_alertmanager_config.sh
+	$(COMPOSE_OBS) up -d prometheus alertmanager grafana loki alloy
+
+obs-down: ## Stop the observability stack, keeping its volumes (and the service up)
+	$(COMPOSE_OBS) stop prometheus alertmanager grafana loki alloy
+
+obs-ps: ## Status of the observability services
+	$(COMPOSE_OBS) ps prometheus alertmanager grafana loki alloy
+
+obs-logs: ## Follow the observability services' logs
+	$(COMPOSE_OBS) logs -f prometheus alertmanager grafana loki alloy
 
 # A backend rebuild writes a fresh image layer set every time; on a small host
 # the accumulated build cache is what fills the disk and flips the Docker VM

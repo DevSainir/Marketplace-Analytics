@@ -1,0 +1,727 @@
+{
+  "uid": "marketplace-health",
+  "title": "Marketplace — service health",
+  "description": "Built from the register's P2.1/P2.2 entries. Metrics answer 'is the system healthy'; logs answer 'for whom' — which is why no panel here is broken down by tenant and every log line is.",
+  "tags": [
+    "marketplace"
+  ],
+  "timezone": "Europe/Moscow",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "editable": true,
+  "panels": [
+    {
+      "id": 101,
+      "type": "row",
+      "title": "Service health — is it up, and is it answering",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 102,
+      "title": "Dependencies",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "The same probe /healthz reports to Better Stack. An external checker saying down while this says up is a network problem, not a service one.",
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "dependency_up",
+          "legendFormat": "{{dependency}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "up",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 103,
+      "title": "Requests per second by status",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "Exact status codes rather than 2xx/4xx buckets: 401, 403 and 429 mean different things and are alerted on separately.",
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 10,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "sum by (status) (rate(http_requests_total[5m]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 104,
+      "title": "Latency p95 by route",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "Unmatched paths are grouped as handler=\"none\" — a URL scanner cannot create a series per URL it tries.",
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, handler) (rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{handler}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 105,
+      "type": "row",
+      "title": "WildBerries — the dependency that fails least visibly",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 106,
+      "title": "WB calls per second by outcome",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "transport_error and rate_blocked are counted alongside HTTP statuses because they are how WB actually fails: an over-budget request is answered by holding the connection open, not with a 429.",
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "sum by (status) (rate(wb_api_requests_total[5m]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 107,
+      "title": "Rate budget WB says is left",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "The leading indicator. This reaches zero while there is still time to react; everything else only moves once a harvest has already lost its window.",
+      "gridPos": {
+        "x": 8,
+        "y": 7,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "wb_rate_limit_quota_remaining",
+          "legendFormat": "{{surface}} {{endpoint}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 108,
+      "title": "Seconds spent waiting on the rate gate",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "Pacing pressure. Rises an hour before a harvest overruns its window.",
+      "gridPos": {
+        "x": 16,
+        "y": 7,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "sum by (surface) (rate(wb_rate_limit_wait_seconds_total[5m]))",
+          "legendFormat": "{{surface}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 109,
+      "type": "row",
+      "title": "Harvests — did the work happen, and did it produce anything",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 110,
+      "title": "Rows ingested per source",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "The panel that would have shown the 2026-07-30 incident on day one: tasks reporting SUCCESS while every funnel source silently returned nothing.",
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "sum by (source) (increase(harvest_rows_processed_total[1h]))",
+          "legendFormat": "{{source}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 111,
+      "title": "Partial harvests (a source withheld data)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "A partial harvest is tolerated by design so one dead surface does not lose the run — which is exactly why it needs counting.",
+      "gridPos": {
+        "x": 8,
+        "y": 14,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "sum by (harvest, source) (increase(harvest_partial_total[1h]))",
+          "legendFormat": "{{harvest}} / {{source}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 112,
+      "title": "Harvest duration p95",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 16,
+        "y": 14,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, harvest) (rate(harvest_duration_seconds_bucket[30m])))",
+          "legendFormat": "{{harvest}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 113,
+      "type": "row",
+      "title": "Queues and pools — saturation",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 114,
+      "title": "Celery queue depth",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "Read from Redis with LLEN at scrape time, never derived from enqueue/dequeue counters. `unacked` staying high while the queue drains means work is taken and not finishing.",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "celery_queue_length",
+          "legendFormat": "{{queue_name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 115,
+      "title": "Task rate by state",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 8,
+        "y": 21,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "sum by (state) (rate(celery_tasks_total[10m]))",
+          "legendFormat": "{{state}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 116,
+      "title": "Postgres pool",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "Exhaustion has happened here: leaked `idle in transaction` connections held every slot for 22 hours. Used pinned at the ceiling with normal traffic is a leak, not load.",
+      "gridPos": {
+        "x": 16,
+        "y": 21,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "postgres_pool_connections_used",
+          "legendFormat": "used",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "postgres_pool_connections_free",
+          "legendFormat": "free",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "postgres_pool_connections_overflow",
+          "legendFormat": "overflow",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 117,
+      "type": "row",
+      "title": "Security — controls, counted where they fire",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 118,
+      "title": "RLS violations",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "This should read zero forever. One increment means a code path reached tenant data without passing the tenancy choke point — the exact defect row-level security was installed to catch.",
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "sum(increase(security_rls_violations_total[24h]))",
+          "legendFormat": "24h",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 119,
+      "title": "Degraded security controls",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "1 while a control runs its fail-open fallback (register P1.2). Two at once is the correlated failure the degradation ledger exists to surface.",
+      "gridPos": {
+        "x": 6,
+        "y": 28,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "security_degraded_controls",
+          "legendFormat": "{{control}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 120,
+      "title": "Authentication failures by reason",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "marketplace-prometheus"
+      },
+      "description": "No account or address is a label — the count is the alert, the identity is in the logs.",
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 12,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "marketplace-prometheus"
+          },
+          "expr": "sum by (reason) (rate(security_auth_failures_total[5m]))",
+          "legendFormat": "{{reason}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 121,
+      "type": "row",
+      "title": "Logs",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 122,
+      "type": "logs",
+      "title": "Errors and warnings, all containers",
+      "datasource": {
+        "type": "loki",
+        "uid": "marketplace-loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 24,
+        "h": 11
+      },
+      "description": "Filtered by the `level` label, which is the only field the shipper promotes. Everything that identifies WHOSE request this was — trace_id, workspace_id, user_id — is inside the JSON line: filter with `| json | workspace_id=\"...\"`. That split is deliberate; a trace_id label would be one Loki stream per request.",
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "marketplace-loki"
+          },
+          "refId": "A",
+          "expr": "{job=\"marketplace\", level=~\"ERROR|WARNING\"}"
+        }
+      ]
+    }
+  ]
+}

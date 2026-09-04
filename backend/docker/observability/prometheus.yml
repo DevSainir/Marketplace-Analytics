@@ -1,0 +1,78 @@
+# ---------------------------------------------------------------------------
+# What Prometheus scrapes, and how long it keeps it (register P2.1).
+#
+# Three targets, all reached over the internal Docker network and none of them
+# published to the host: the two API instances (which share nginx's upstream
+# pool, so both must be scraped or half the traffic is invisible) and the
+# Celery worker's own exporter.
+#
+# Retention is set on the command line, not here — see the `prometheus`
+# service in docker-compose.observability.yml, where it is bounded by SIZE as
+# well as by time. A time-only retention on a 2 vCPU VPS is a disk that fills
+# at whatever rate the series count happens to grow to.
+# ---------------------------------------------------------------------------
+
+global:
+  # 15s is the default and is right here: the fastest thing worth seeing is a
+  # WB rate budget draining, which happens over tens of seconds, and the
+  # cheapest way to make Prometheus the largest process on this box is to
+  # scrape faster than anything changes.
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    # Stamped on every series that leaves this Prometheus, so a future second
+    # environment cannot silently merge into the same graphs.
+    environment: production
+
+# Where a firing rule goes. Without this block the rules still evaluate and
+# still show as firing in the UI — and reach nobody, which is the failure mode
+# that looks most like success.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  # Prometheus watching itself. Cheap, and the first thing to check when a
+  # graph is empty: if this target is up and another is down, the problem is
+  # the target, not the monitoring.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Both API instances. `api` and `api_standby` are interchangeable members of
+  # one nginx upstream, so a request is served by whichever answers — scraping
+  # only one would show half the traffic and, worse, would show it as a clean
+  # halving rather than as missing data.
+  - job_name: marketplace-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000", "api_standby:8000"]
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "([^:]+):.*"
+        target_label: instance
+        replacement: "$1"
+    # If METRICS_TOKEN is set in backend/.env, the exposition answers 404
+    # without this. Write the same value into a file mounted at the path
+    # below and uncomment — the token must not be inline here, because this
+    # file is in git and that one is not.
+    # authorization:
+    #   type: Bearer
+    #   credentials_file: /etc/prometheus/metrics_token
+
+  # The Celery worker's exporter. Not an ASGI app: it serves the aggregate of
+  # every prefork child's counters through prometheus_client's multiprocess
+  # mode (see src/core/observability/celery_runtime.py).
+  - job_name: marketplace-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["worker:9100"]
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "([^:]+):.*"
+        target_label: instance
+        replacement: "$1"

@@ -1,0 +1,74 @@
+# ---------------------------------------------------------------------------
+# Where an alert goes once Prometheus decides it is firing.
+#
+# THIS FILE IS A TEMPLATE, and the reason is the bot token. Alertmanager has no
+# environment-variable substitution of its own and no `chat_id_file` to pair
+# with its `bot_token_file`, so a working config either carries a live
+# credential or is generated. It is generated:
+# `scripts/observability/render_alertmanager_config.sh` renders this into
+# `alertmanager.yml` (gitignored) from backend/.env, and `make obs-up` runs the
+# renderer first. Placeholders below are filled by that script and by nothing
+# else.
+#
+# Telegram, because that is where this team already looks: the backup job has
+# alerted there since it was written, and an alert delivered somewhere nobody
+# reads is indistinguishable from no alert. The renderer falls back to the
+# backup job's own bot when no dedicated one is configured, so this works with
+# the credentials already on the box and can be split onto its own bot later
+# without touching anything here.
+# ---------------------------------------------------------------------------
+
+route:
+  # Group by alert NAME and severity rather than by instance. An outage that
+  # takes both API instances down should arrive as one message naming both, not
+  # as two messages five seconds apart — the second one tells you nothing and
+  # is the one that trains people to swipe the notification away.
+  group_by: ["alertname", "severity"]
+  # Wait this long for siblings before sending the first message. Failures
+  # arrive in clusters here (Redis down takes the rate limiter and session
+  # revocation with it), so half a minute buys a single coherent message.
+  group_wait: 30s
+  # Before sending an update about a group that has already alerted.
+  group_interval: 5m
+  # Before repeating an alert nobody has resolved. Four hours: long enough not
+  # to be noise, short enough that an overnight outage is still shouting in the
+  # morning.
+  repeat_interval: 4h
+  receiver: telegram
+
+  routes:
+    # `severity: page` alerts skip the grouping delay. The difference between
+    # `page` and `warn` in alerts.yml is whether somebody should stop what they
+    # are doing, and a 30-second wait on the RLS-violation alert would be 30
+    # seconds of a tenant boundary being tested unobserved.
+    - matchers: ["severity = page"]
+      receiver: telegram
+      group_wait: 0s
+      repeat_interval: 1h
+
+receivers:
+  - name: telegram
+    telegram_configs:
+      - bot_token: "__TELEGRAM_BOT_TOKEN__"
+        chat_id: __TELEGRAM_CHAT_ID__
+        # HTML rather than Markdown: an alert's description can contain
+        # underscores and asterisks (metric names, label values), and Telegram's
+        # Markdown parser REJECTS the whole message when they do not pair up.
+        # A monitoring system whose alerts fail to send because a metric was
+        # called `wb_api_requests_total` is worse than no formatting.
+        parse_mode: HTML
+        send_resolved: true
+        message: |
+          {{ if eq .Status "firing" }}🔴{{ else }}✅{{ end }} <b>{{ .CommonLabels.alertname }}</b> ({{ .Status }})
+
+          {{ range .Alerts }}{{ .Annotations.summary }}
+          {{ if .Annotations.description }}<i>{{ .Annotations.description }}</i>
+          {{ end }}{{ end }}
+
+inhibit_rules:
+  # When both API instances are down, do not also send the per-instance alert
+  # for each of them. The specific fact ("the site is down") should not arrive
+  # buried between two general ones.
+  - source_matchers: ["alertname = BothApiInstancesDown"]
+    target_matchers: ["alertname = ApiDown"]
+    equal: ["severity"]

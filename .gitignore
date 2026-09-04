@@ -75,3 +75,9 @@ tests/performance/**/*.summary.json
 # reference them are tracked so the guidance survives; the coordinates are not,
 # so the repository can be published without shipping a map to the server.
 .claude/skills/**/*.local.md
+
+# Rendered from backend/docker/observability/alertmanager.yml.template by
+# backend/scripts/observability/render_alertmanager_config.sh at `make obs-up`.
+# Holds the live Telegram bot token — Alertmanager has no environment-variable
+# substitution, so the config is generated rather than committed.
+backend/docker/observability/alertmanager.yml

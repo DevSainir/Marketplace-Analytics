@@ -1,0 +1,94 @@
+# ---------------------------------------------------------------------------
+# Loki, single-binary, on a VPS that cannot spare much for it.
+#
+# This is the "centralised, append-only collection" P2.2 left open. The lines
+# were already in a shape a shipper could consume — one JSON object per line,
+# every field a field (src/core/logging.py) — which was the prerequisite; this
+# is the destination.
+#
+# EVERY limit below exists to bound disk or memory. A log store with default
+# limits on a 3.8 GB box with co-tenants is a disk-full incident waiting for a
+# noisy day, and a disk-full incident takes Postgres with it.
+# ---------------------------------------------------------------------------
+
+auth_enabled: false  # Single tenant. Reachable only on the Docker network.
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  # Loki's own logs, at the level that says something without narrating every
+  # push. `info` here produces a line per flush, which on this volume is noise
+  # that would itself need rotating.
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2026-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # --- The retention decision ---------------------------------------------
+  # 14 days. Long enough to investigate something a customer reports a week
+  # late, short enough that the store's size is bounded by a number we chose
+  # rather than by how long the service has existed.
+  retention_period: 336h
+  # --- The ingestion ceilings ---------------------------------------------
+  # A runaway loop logging in a tight retry is the realistic way this fills a
+  # disk, and it is not hypothetical: this codebase has a WB client that
+  # retries with backoff and a harvest that walks tens of thousands of rows.
+  # Refusing the excess costs some lines during an incident; accepting it
+  # costs the disk.
+  ingestion_rate_mb: 8
+  ingestion_burst_size_mb: 16
+  # Loki's failure mode is cardinality, exactly as Prometheus's is. A stream is
+  # one series per label COMBINATION, so `trace_id` as a label would be one
+  # stream per request — which is why the shipper below promotes only `level`,
+  # `service` and `container`, and leaves trace_id, workspace_id and user_id
+  # inside the line where they are searched by content instead.
+  max_label_names_per_series: 12
+  max_streams_per_user: 2000
+  reject_old_samples: true
+  # Matched to `retention_period` above, deliberately, and the two must move
+  # together. Set SHORTER than retention (it was 168h first), Loki rejects
+  # entries it would happily have kept — which is what happens the first time
+  # the agent starts against containers that have been up for a while: it reads
+  # each log file from the beginning, and every entry older than this window is
+  # refused in a batch that can never succeed, so the agent retries an error
+  # storm on loop. Equal to retention, the only entries dropped are ones that
+  # would have been compacted away the same day.
+  reject_old_samples_max_age: 336h
+
+compactor:
+  working_directory: /loki/compactor
+  # Compaction alone does not delete anything: without `retention_enabled` the
+  # retention_period above is a number Loki ignores, and the disk grows
+  # forever. This is the line that makes retention real.
+  retention_enabled: true
+  delete_request_store: filesystem
+  compaction_interval: 10m
+
+# Query bounds. A careless `{}` over 14 days would otherwise try to load
+# everything into the memory the API needs.
+query_range:
+  align_queries_with_step: true
+
+analytics:
+  # No usage telemetry off this box.
+  reporting_enabled: false

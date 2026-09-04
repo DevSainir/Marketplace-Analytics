@@ -1,0 +1,36 @@
+# Both data sources, provisioned rather than clicked. A dashboard that
+# references a datasource by a UID somebody created by hand in the UI breaks
+# the first time the stack is rebuilt on another box — so the UIDs are fixed
+# here and the dashboard JSON refers to these.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: marketplace-prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      # Must match `scrape_interval` in prometheus.yml, or Grafana picks step
+      # sizes that make rate() over short windows return nothing.
+      timeInterval: 15s
+
+  - name: Loki
+    type: loki
+    uid: marketplace-loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      # Turns a trace_id in a log line into a link to every other line sharing
+      # it. This is the payoff for binding trace_id in the first place: one
+      # click from "this request failed" to the harvest it started, minutes
+      # later, in another container.
+      derivedFields:
+        - name: trace_id
+          matcherType: label
+          matcherRegex: "trace_id"
+          # A Loki query rather than a link to a tracing backend: there is no
+          # tracing backend, and the correlation is the useful half anyway.
+          datasourceUid: marketplace-loki
+          url: '{job="marketplace"} |= "$${__value.raw}"'

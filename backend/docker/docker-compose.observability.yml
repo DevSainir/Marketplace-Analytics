@@ -1,0 +1,232 @@
+# ---------------------------------------------------------------------------
+# The observability stack: Prometheus + Grafana + Loki + Alloy.
+#
+# A SEPARATE OVERLAY, not part of the base topology, and that is a deliberate
+# operational choice rather than a filing decision. The base stack is what
+# serves customers; this one watches it. Keeping them separable means the
+# monitoring can be restarted, upgraded or stopped entirely without touching
+# the API, and — the case that matters — that a box under memory pressure has
+# something to turn off that is not the product.
+#
+#   make obs-up      # start it            make obs-down   # stop it
+#   make obs-logs    # follow its logs
+#
+# The application is instrumented whether or not this file is ever run:
+# /metrics and /healthz exist in the API image, and the counters cost a few
+# hundred floats. Nothing here is required for the service to work.
+#
+# ---------------------------------------------------------------------------
+# THE MEMORY ARITHMETIC, because this box does not have room to be casual.
+#
+# The VPS is 2 vCPU / 3.8 GB with no swap, and it hosts more than this stack.
+# The base topology already commits ~2.4 GB of ceilings (worker 768m, api and
+# api_standby 512m each, postgres 384m, beat 192m, redis 96m, frontend 64m).
+# This overlay adds 832m:
+#
+#   prometheus 320m · grafana 224m · loki 192m · alloy 96m
+#
+# That is ~3.2 GB of CEILING against 3.8 GB of RAM. Ceilings are not
+# reservations — nothing is set aside, and measured steady state for these
+# four is roughly 250-350 MB together — so the over-subscription is intended,
+# exactly as it already is for the base stack. But the headroom is genuinely
+# thinner than it was, and the honest reading is: this fits, and it is the
+# last thing that fits. Two consequences are load-bearing rather than
+# advisory:
+#
+#   * Prometheus retention is bounded by SIZE as well as time (see its
+#     command). A time-only retention lets the disk fill at whatever rate the
+#     series count grows to, and this box's disk is shared with Postgres.
+#   * Loki's ingestion limits (loki-config.yaml) are set low. A retry loop
+#     logging in a tight cycle is the realistic way a log store fills a disk,
+#     and taking Postgres down to keep every line of a runaway would be a poor
+#     trade.
+#
+# If this box gains co-tenants or the customer list grows, the first thing to
+# move off it is Grafana — it is the only one of the four that is idle unless
+# somebody is looking at it, and pointing a hosted Grafana at this Prometheus
+# and Loki costs nothing here.
+#
+# ---------------------------------------------------------------------------
+# EXPOSURE. Not one of these publishes a port to the internet.
+#
+# Grafana binds 127.0.0.1:3000 — reachable over an SSH tunnel and from
+# nowhere else:
+#
+#     ssh -L 3000:127.0.0.1:3000 <the production alias>
+#
+# That is the whole access model, and it is chosen over an nginx location with
+# basic auth because Grafana holds a read view of every metric this service
+# produces, and the base topology's rule — one published port, 443, serving
+# the SPA — is the property that makes the attack surface reviewable. A second
+# authenticated ingress is a second thing to get right.
+#
+# Prometheus, Loki and Alloy publish nothing at all; they talk over the
+# project's internal Docker network. Prometheus reaches `api:8000/metrics` and
+# `worker:9100/metrics` there, which is why the exposition route needs no
+# token by default (see src/core/observability/instrument.py for the second
+# lock, and why it exists anyway).
+# ---------------------------------------------------------------------------
+
+name: marketplace-service
+
+# The same rotation policy the base stack applies to every service, for the same
+# reason: a container's stdout is written by the Docker daemon, so nothing
+# inside the container can bound it, and a full partition takes Postgres with
+# it. Declared again here because a compose OVERLAY cannot see the base file's
+# anchors — YAML anchors are per-document, and silently resolving to nothing is
+# how this would have shipped with four unbounded logs.
+x-obs-logging: &obs_logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    logging: *obs_logging
+    mem_limit: 320m
+    cpus: 0.5
+    user: "65534:65534"  # nobody. It only ever writes its own volume.
+    volumes:
+      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # TWO retention bounds, and the size one is the one that matters. Time
+      # alone bounds how far back you can look; it does not bound the disk,
+      # because the disk is a function of retention MULTIPLIED by series
+      # count — and series count grows when somebody adds a label. 2 GB is the
+      # ceiling this box can give up without threatening Postgres's own.
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=2GB
+      - --web.enable-lifecycle
+      # No admin API: it can delete series and drop the TSDB, and nothing in
+      # this deployment needs it.
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # The last hop: turns a firing rule into a message a person sees.
+  #
+  # Without it the rules evaluate and are visible in Prometheus and Grafana, and
+  # page nobody — which is a monitoring system that only works when somebody is
+  # already looking, i.e. exactly when it is least needed.
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    restart: unless-stopped
+    logging: *obs_logging
+    # The smallest service here by a wide margin: it holds a few alert groups
+    # and a notification schedule, and does nothing at all between alerts.
+    mem_limit: 64m
+    cpus: 0.25
+    user: "65534:65534"
+    volumes:
+      # The RENDERED config, not the template — it carries the Telegram bot
+      # token and is gitignored. `make obs-up` renders it first; starting this
+      # service by hand without doing so leaves the file absent and the
+      # container in a restart loop, which is the loud failure rather than the
+      # quiet one (an empty config would start fine and alert nobody).
+      - ./docker/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:11.5.1
+    restart: unless-stopped
+    logging: *obs_logging
+    mem_limit: 224m
+    cpus: 0.5
+    ports:
+      # LOOPBACK ONLY. See the exposure note in this file's header — the
+      # `127.0.0.1:` prefix is the entire access control, and dropping it
+      # publishes every metric this service produces to the internet.
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in backend/.env}
+      # Nobody signs up for a Grafana reachable only through an SSH tunnel,
+      # and an open sign-up form on it would be the one way in that the tunnel
+      # does not gate.
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # No call home, and no "check for updates" from a box that should make
+      # no outbound connections it was not asked for.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+
+  loki:
+    image: grafana/loki:3.3.2
+    restart: unless-stopped
+    logging: *obs_logging
+    mem_limit: 192m
+    cpus: 0.5
+    user: "10001:10001"
+    volumes:
+      - ./docker/observability/loki-config.yaml:/etc/loki/config.yaml:ro
+      - loki_data:/loki
+    command: ["-config.file=/etc/loki/config.yaml"]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 5s
+      # Generous: Loki answers /ready only once its ingester has joined the
+      # ring, which takes longer than the process takes to start.
+      retries: 10
+      start_period: 60s
+
+  alloy:
+    image: grafana/alloy:v1.6.1
+    restart: unless-stopped
+    logging: *obs_logging
+    mem_limit: 96m
+    cpus: 0.25
+    # Root, and it is worth being explicit about why: reading other
+    # containers' logs means reading /var/lib/docker/containers, which is
+    # root-owned. Both mounts below are READ-ONLY, including the socket —
+    # a writable Docker socket is root on the host, and this agent needs only
+    # to list containers and read their output.
+    user: root
+    volumes:
+      - ./docker/observability/alloy-config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - alloy_data:/var/lib/alloy
+    command:
+      - run
+      - --storage.path=/var/lib/alloy
+      # No UI. It would be a second unauthenticated surface on this network
+      # for a config file that is already in git.
+      - --server.http.listen-addr=127.0.0.1:12345
+      - /etc/alloy/config.alloy
+    depends_on:
+      loki:
+        condition: service_healthy
+
+volumes:
+  alertmanager_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  alloy_data:

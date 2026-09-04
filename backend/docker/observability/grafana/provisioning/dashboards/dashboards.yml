@@ -1,0 +1,16 @@
+# Dashboards are files in git, loaded from disk on start. Editing one in the
+# UI is therefore temporary by design: the file wins on the next restart, so a
+# panel that matters has to be committed rather than left in one browser.
+apiVersion: 1
+
+providers:
+  - name: marketplace
+    orgId: 1
+    folder: Marketplace
+    type: file
+    disableDeletion: false
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
