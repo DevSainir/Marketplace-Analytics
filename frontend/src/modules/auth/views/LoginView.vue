@@ -49,7 +49,14 @@ function goConfirm({ requestCode }) {
 async function submit() {
   if (isLogin.value) {
     if (await auth.login(email.value, password.value)) {
-      router.push(safeRedirect(route.query.redirect))
+      // A full page load, NOT `router.push`. Signing in is an SPA action, so
+      // every Pinia store survived it — and after signing out and in as
+      // somebody else, the previous account's workspaces and their P&L figures
+      // were still on screen, rendered from memory. The server never sent them
+      // (it refuses another tenant's workspace), but whoever sits down next
+      // reads them. The reload is the same guarantee the workspace switcher
+      // relies on: nothing cached survives it.
+      window.location.assign(safeRedirect(route.query.redirect))
       return
     }
     // The password was right and the address was never proven — an unfinished

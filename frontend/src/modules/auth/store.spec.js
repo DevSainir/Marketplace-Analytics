@@ -362,3 +362,33 @@ describe('account recovery', () => {
     expect(store.loading).toBe(false)
   })
 })
+
+describe('ending a session', () => {
+  /**
+   * The workspace id is a TENANT's id, and it used to outlive the session.
+   *
+   * Sign out, sign in as somebody from another company, and the browser kept
+   * stamping every request with the previous tenant's workspace — which the API
+   * refuses, so a perfectly valid new login met «Рабочее пространство не
+   * найдено». Nothing leaked (the server said no), but the app was broken for
+   * the second person to use it.
+   */
+  it('clears the persisted workspace id on logout', async () => {
+    localStorage.setItem('workspace:id', 'ws-belonging-to-someone-else')
+    logoutUser.mockResolvedValue(undefined)
+
+    await store.logout()
+
+    expect(localStorage.getItem('workspace:id')).toBeNull()
+  })
+
+  it('clears it when the session dies on its own, not just on an explicit logout', () => {
+    // A rejected refresh cookie ends the session without anyone pressing
+    // anything, and the next account on this browser inherits whatever is left.
+    localStorage.setItem('workspace:id', 'ws-belonging-to-someone-else')
+
+    store.markGuest()
+
+    expect(localStorage.getItem('workspace:id')).toBeNull()
+  })
+})

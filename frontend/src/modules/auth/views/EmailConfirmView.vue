@@ -54,7 +54,11 @@ function goOn() {
   // Straight into the app: `/confirm-email` signed us in, so there is no login
   // step left to send anyone to. Honours whatever they were originally trying
   // to reach.
-  router.push(safeRedirect(route.query.redirect))
+  //
+  // A full load for the same reason as `/login`: this is a session starting,
+  // and any store still holding the previous account's data must not survive
+  // into it.
+  window.location.assign(safeRedirect(route.query.redirect))
 }
 </script>
 
