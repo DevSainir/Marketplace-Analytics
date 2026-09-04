@@ -293,6 +293,22 @@ describe('A/Б-tests store', () => {
     expect(store.detail.variants).toHaveLength(1)
   })
 
+  it('sends only the setting the chosen trigger actually uses', async () => {
+    // The backend REFUSES a body carrying the other mode's setting rather than
+    // ignoring it, so a form that always sent both fields would 422 on every
+    // submit. The exclusivity is a product rule — a test rotating on
+    // "impressions or time, whichever first" would measure its photos over
+    // different exposures — and the client has to respect it.
+    createTest.mockResolvedValue({ id: TEST_ID })
+    const store = useAbTestsStore()
+
+    await store.create({ nm_id: 1, name: 'Тест', trigger_mode: 'time', slot_minutes: 30 })
+
+    const sent = createTest.mock.calls[0][0]
+    expect(sent.slot_minutes).toBe(30)
+    expect(sent).not.toHaveProperty('impression_budget')
+  })
+
   it('prepends a created test so it is visible without a reload', async () => {
     fetchTests.mockResolvedValue([{ id: 'older' }])
     createTest.mockResolvedValue({ id: TEST_ID })

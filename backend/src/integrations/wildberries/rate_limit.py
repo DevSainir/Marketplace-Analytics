@@ -323,3 +323,40 @@ def marketplace_rate_gate(settings: Settings, *, token: str) -> RateGate:
         refill_seconds=settings.wb_marketplace_bucket_refill_seconds,
         max_wait_seconds=settings.wb_analytics_max_queue_seconds,
     )
+
+
+def advertising_rate_gate(settings: Settings, *, token: str) -> RateGate:
+    """Build the pacing gate for the advertising surface.
+
+    This surface is the one with two independent consumers on the same seller
+    token: the nightly harvest sweeps every campaign, and the A/B rotation
+    poller reads the running tests every few minutes. The bucket lives in
+    Redis, so those two share one budget instead of discovering each other
+    through 429s — which is exactly what happened when the poller was probed
+    against an unpaced client.
+
+    WB's published limit for ``/adv/v3/fullstats`` is 3 requests per minute
+    with a 20-second minimum interval and a burst of ONE, so the default bucket
+    is one token refilling every 20s. The gate is per endpoint, so the looser
+    campaign-discovery and search-cluster calls do not spend the fullstats
+    budget.
+
+    Args:
+        settings: Bucket parameters and the Redis DSN.
+        token: The workspace's advertising token — the bucket is per token, so
+            one workspace's polling never throttles another's.
+
+    Returns:
+        A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`
+        when pacing is switched off (unit tests, or no Redis available).
+    """
+    if not settings.wb_rate_pacing_enabled:
+        return NullRateGate()
+    return TokenBucketRateGate(
+        get_redis(),
+        surface="advertising",
+        token=token,
+        capacity=settings.wb_advertising_bucket_capacity,
+        refill_seconds=settings.wb_advertising_bucket_refill_seconds,
+        max_wait_seconds=settings.wb_analytics_max_queue_seconds,
+    )

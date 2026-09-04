@@ -43,14 +43,45 @@ MAX_VARIANTS_PER_TEST: int = 10
 #: this number can and cannot resolve statistically.
 DEFAULT_IMPRESSION_BUDGET: int = 10_000
 
+#: Minutes one variant stays on the card when the test rotates on time. An hour
+#: is short enough to give every variant several turns a day and long enough
+#: that WB's ~3-minute reporting lag and the photo's own propagation are a small
+#: fraction of the slot.
+DEFAULT_SLOT_MINUTES: int = 60
+
+
+class TriggerMode(enum.StrEnum):
+    """What makes a test advance to its next photo.
+
+    The two are **mutually exclusive** by design, not by accident. A test that
+    rotated on "10 000 impressions OR 2 hours, whichever first" would produce
+    variants measured over different exposures, and the whole point of the
+    budget is that the arms are comparable. Whichever mode is chosen, the other
+    one's setting is ignored — and the API refuses a request that sets it.
+
+    ``IMPRESSIONS`` — equal audience per photo, unequal wall-clock. The
+    statistically sound default: every variant is judged on the same number of
+    chances.
+
+    ``TIME`` — equal wall-clock per photo, unequal audience. Worth having
+    anyway, because it is the only mode that works on a card whose advertising
+    is switched off (nothing accumulates, so an impression budget would never
+    fire), and because a fixed slot cycles variants through the same hours of
+    the day, which balances the time-of-day effect faster.
+    """
+
+    IMPRESSIONS = "impressions"
+    TIME = "time"
+
 
 class AbTestStatus(enum.StrEnum):
     """Lifecycle of a test.
 
     ``DRAFT`` accepts variant uploads and has never touched the card.
-    ``RUNNING`` has a live variant on the card and advances on the daily pass.
+    ``RUNNING`` has a live variant on the card and advances on the polling pass.
     ``PAUSED`` keeps the current photo but stops advancing and stops attributing
-    days — a paused stretch belongs to no variant.
+    traffic — a paused stretch belongs to no variant, because the poller skips
+    the test and no window is opened over it.
     ``COMPLETED`` finished its last round; ``CANCELLED`` was stopped by hand.
     """
 
@@ -76,8 +107,11 @@ class AbTest(Base):
             can be searched by it without joining the monitoring module.
         name: Human title of the test, shown in the list.
         status: See :class:`AbTestStatus`.
+        trigger_mode: What advances the rotation — see :class:`TriggerMode`.
         impression_budget: Ad impressions one variant must gather before the
-            next one is installed.
+            next one is installed. Read only in ``IMPRESSIONS`` mode.
+        slot_minutes: How long one variant stays up. Read only in ``TIME``
+            mode.
         active_variant_id: The variant currently on the card, or ``None`` for a
             test that has not started (or has finished).
         started_at: When the first variant was installed.
@@ -104,8 +138,16 @@ class AbTest(Base):
         String(16), server_default=AbTestStatus.DRAFT.value, index=True, nullable=False
     )
 
+    trigger_mode: Mapped[str] = mapped_column(
+        String(16), server_default=TriggerMode.IMPRESSIONS.value, nullable=False
+    )
+
     impression_budget: Mapped[int] = mapped_column(
         Integer, server_default=str(DEFAULT_IMPRESSION_BUDGET), nullable=False
+    )
+
+    slot_minutes: Mapped[int] = mapped_column(
+        Integer, server_default=str(DEFAULT_SLOT_MINUTES), nullable=False
     )
 
     active_variant_id: Mapped[uuid.UUID | None] = mapped_column(

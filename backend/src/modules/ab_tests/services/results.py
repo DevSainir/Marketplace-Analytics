@@ -12,15 +12,19 @@ import uuid
 from collections.abc import Iterable, Sequence
 from decimal import Decimal
 
-from src.modules.ab_tests.models import AbTest, AbTestVariant, VariantStatDaily
+from src.modules.ab_tests.models import AbTest, AbTestVariant, VariantStatWindow
 from src.modules.ab_tests.schemas import VariantMetrics
-from src.modules.ab_tests.services.metrics import DayCounts, conversions, totals_from_days
+from src.modules.ab_tests.services.metrics import (
+    WindowCounts,
+    conversions,
+    totals_from_windows,
+)
 
 
-def _day_counts(row: VariantStatDaily) -> DayCounts:
-    """Convert a persisted day into the arithmetic's input type."""
-    return DayCounts(
-        stat_date=row.stat_date,
+def _window_counts(row: VariantStatWindow) -> WindowCounts:
+    """Convert a persisted interval into the arithmetic's input type."""
+    return WindowCounts(
+        window_end=row.window_end,
         views=row.views,
         clicks=row.clicks,
         atbs=row.atbs,
@@ -33,7 +37,7 @@ def build_rows(
     *,
     test: AbTest,
     variants: Sequence[AbTestVariant],
-    days: Iterable[VariantStatDaily],
+    windows: Iterable[VariantStatWindow],
     image_url: str,
 ) -> list[VariantMetrics]:
     """Build the per-photo result rows for one test.
@@ -41,7 +45,7 @@ def build_rows(
     Args:
         test: The test being rendered (supplies the live variant).
         variants: Its photos, in rotation order.
-        days: Every attributed day of the test, any order.
+        windows: Every recorded polling interval of the test, any order.
         image_url: A ``str.format`` template taking ``test_id`` and
             ``variant_id`` — the route the SPA fetches the picture from.
 
@@ -50,15 +54,15 @@ def build_rows(
         live still gets a row, with zero counts and ``None`` ratios, so the
         table shows what is queued as well as what has run.
     """
-    by_variant: dict[uuid.UUID, list[DayCounts]] = {variant.id: [] for variant in variants}
-    for row in days:
+    by_variant: dict[uuid.UUID, list[WindowCounts]] = {variant.id: [] for variant in variants}
+    for row in windows:
         if row.variant_id in by_variant:
-            by_variant[row.variant_id].append(_day_counts(row))
+            by_variant[row.variant_id].append(_window_counts(row))
 
     rows: list[VariantMetrics] = []
     for variant in variants:
-        variant_days = by_variant[variant.id]
-        totals = totals_from_days(variant_days)
+        variant_windows = by_variant[variant.id]
+        totals = totals_from_windows(variant_windows)
         ratios = conversions(totals)
         rows.append(
             VariantMetrics(
@@ -74,10 +78,26 @@ def build_rows(
                 atbs=totals.atbs,
                 orders=totals.orders,
                 spend=totals.spend,
-                days_measured=len(variant_days),
+                days_measured=_days_spanned(variant_windows),
             )
         )
     return rows
+
+
+def _days_spanned(windows: Sequence[WindowCounts]) -> int:
+    """How many distinct calendar days a variant's intervals touched.
+
+    Reported instead of a raw interval count because "27 windows" means nothing
+    to a reader while "2 days" does, and because the poll interval is a
+    deployment setting rather than a property of the test.
+
+    Args:
+        windows: The variant's recorded intervals.
+
+    Returns:
+        The number of distinct days.
+    """
+    return len({window.window_end.date() for window in windows})
 
 
 def leader_of(rows: Sequence[VariantMetrics]) -> uuid.UUID | None:

@@ -1,15 +1,16 @@
-"""Data access for variant photos, their exposures and their attributed days.
+"""Data access for variant photos, their exposures, and the polling tables.
 
-Three small tables that always move together, so they share a file rather than
-three near-identical ones. Sole owner of SQL for ``ab_test_variant``,
-``ab_test_variant_exposure`` and ``ab_test_variant_stat_daily``.
+Four small tables that always move together, so they share a file rather than
+four near-identical ones. Sole owner of SQL for ``ab_test_variant``,
+``ab_test_variant_exposure``, ``ab_test_variant_stat_window`` and
+``ab_test_ad_snapshot``.
 """
 
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, cast
 
 from sqlalchemy import delete, func, select
@@ -17,8 +18,14 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.ab_tests.models import AbTestVariant, VariantExposure, VariantStatDaily
-from src.modules.ab_tests.services.attribution import AttributedDay, ExposureWindow
+from src.modules.ab_tests.models import (
+    AbTestVariant,
+    AdCounterSnapshot,
+    VariantExposure,
+    VariantStatWindow,
+)
+from src.modules.ab_tests.services.collection import Counters, counters_from_reading
+from src.modules.ab_tests.services.runner import Snapshot
 
 
 class VariantRepository:
@@ -165,33 +172,49 @@ class ExposureRepository:
             exposure.deactivated_at = deactivated_at
         await self._session.flush()
 
-    async def windows_for_test(self, *, test_id: uuid.UUID) -> list[ExposureWindow]:
-        """Return a test's exposure history as attribution windows.
+    async def active_since(self, *, test_id: uuid.UUID) -> datetime | None:
+        """When the currently installed photo went up.
+
+        This is what the time trigger measures against — the moment WB accepted
+        the upload, not the moment the rotation decided to make one.
 
         Args:
             test_id: Owning test.
 
         Returns:
-            Windows in activation order.
+            The activation time of the open exposure, or ``None`` when nothing
+            is installed.
         """
         stmt = (
-            select(VariantExposure)
-            .where(VariantExposure.test_id == test_id)
-            .order_by(VariantExposure.activated_at)
-        )
-        rows = (await self._session.execute(stmt)).scalars().all()
-        return [
-            ExposureWindow(
-                variant_id=row.variant_id,
-                activated_at=row.activated_at,
-                deactivated_at=row.deactivated_at,
+            select(VariantExposure.activated_at)
+            .where(
+                VariantExposure.test_id == test_id,
+                VariantExposure.deactivated_at.is_(None),
             )
-            for row in rows
-        ]
+            .order_by(VariantExposure.activated_at.desc())
+            .limit(1)
+        )
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def count_for_variant(self, *, variant_id: uuid.UUID) -> int:
+        """How many separate turns a photo has had.
+
+        Args:
+            variant_id: The photo.
+
+        Returns:
+            The number of exposures.
+        """
+        stmt = (
+            select(func.count())
+            .select_from(VariantExposure)
+            .where(VariantExposure.variant_id == variant_id)
+        )
+        return int((await self._session.execute(stmt)).scalar_one())
 
 
-class VariantStatRepository:
-    """Attributed advertising days, one row per variant per day."""
+class WindowRepository:
+    """Per-poll traffic, one row per variant per interval."""
 
     def __init__(self, session: AsyncSession) -> None:
         """Bind the repository to the request-scoped session.
@@ -201,90 +224,154 @@ class VariantStatRepository:
         """
         self._session = session
 
-    async def upsert_days(self, *, test_id: uuid.UUID, days: Sequence[AttributedDay]) -> int:
-        """Write attributed days, overwriting any earlier version of the same day.
+    async def append(
+        self,
+        *,
+        test_id: uuid.UUID,
+        variant_id: uuid.UUID,
+        window_start: datetime,
+        window_end: datetime,
+        counters: Counters,
+    ) -> None:
+        """Record the traffic of one polling interval.
 
-        WB restates recent advertising days as conversions settle, so a day is
-        upserted rather than inserted: the latest reading wins.
+        Idempotent on ``(variant_id, window_start)``: a pass that is retried
+        after a mid-transaction failure must not credit the same interval twice.
 
         Args:
-            test_id: Owning test, denormalised onto every row.
-            days: Attributed rows to persist.
-
-        Returns:
-            How many rows were written.
+            test_id: Owning test.
+            variant_id: The photo that was live for the interval.
+            window_start: Previous poll's timestamp.
+            window_end: This poll's timestamp.
+            counters: Traffic gained over the interval.
         """
-        if not days:
-            return 0
-
-        payload = [
-            {
-                "variant_id": day.variant_id,
-                "stat_date": day.stat_date,
-                "test_id": test_id,
-                "views": day.views,
-                "clicks": day.clicks,
-                "atbs": day.atbs,
-                "orders": day.orders,
-                "spend": day.spend,
-            }
-            for day in days
-        ]
-        stmt = pg_insert(VariantStatDaily).values(payload)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[VariantStatDaily.variant_id, VariantStatDaily.stat_date],
-            set_={
-                "views": stmt.excluded.views,
-                "clicks": stmt.excluded.clicks,
-                "atbs": stmt.excluded.atbs,
-                "orders": stmt.excluded.orders,
-                "spend": stmt.excluded.spend,
-            },
+        stmt = pg_insert(VariantStatWindow).values(
+            test_id=test_id,
+            variant_id=variant_id,
+            window_start=window_start,
+            window_end=window_end,
+            views=counters.views,
+            clicks=counters.clicks,
+            atbs=counters.atbs,
+            orders=counters.orders,
+            spend=counters.spend,
         )
-        await self._session.execute(stmt)
+        await self._session.execute(
+            stmt.on_conflict_do_nothing(
+                index_elements=[VariantStatWindow.variant_id, VariantStatWindow.window_start]
+            )
+        )
         await self._session.flush()
-        return len(payload)
 
     async def impressions_for_variant(self, *, variant_id: uuid.UUID) -> int:
-        """Return every impression attributed to one photo, across all rounds.
+        """Every impression credited to one photo, across all of its turns.
 
         Args:
             variant_id: The photo.
 
         Returns:
-            Summed views; 0 when the photo has no attributed days.
+            Summed views; 0 when the photo has never been live.
         """
-        stmt = select(func.coalesce(func.sum(VariantStatDaily.views), 0)).where(
-            VariantStatDaily.variant_id == variant_id
+        stmt = select(func.coalesce(func.sum(VariantStatWindow.views), 0)).where(
+            VariantStatWindow.variant_id == variant_id
         )
         return int((await self._session.execute(stmt)).scalar_one())
 
-    async def days_for_test(self, *, test_id: uuid.UUID) -> list[VariantStatDaily]:
-        """Return every attributed day of a test.
+    async def windows_for_test(self, *, test_id: uuid.UUID) -> list[VariantStatWindow]:
+        """Every recorded interval of a test.
 
         Args:
             test_id: Owning test.
 
         Returns:
-            Rows ordered by date, then variant.
+            Rows ordered by window start.
         """
         stmt = (
-            select(VariantStatDaily)
-            .where(VariantStatDaily.test_id == test_id)
-            .order_by(VariantStatDaily.stat_date, VariantStatDaily.variant_id)
+            select(VariantStatWindow)
+            .where(VariantStatWindow.test_id == test_id)
+            .order_by(VariantStatWindow.window_start, VariantStatWindow.variant_id)
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
-    async def latest_day(self, *, test_id: uuid.UUID) -> date | None:
-        """Return the most recent attributed day of a test, if any.
+
+class SnapshotRepository:
+    """The poller's memory: the last cumulative reading per test per day."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        """Bind the repository to the request-scoped session.
+
+        Args:
+            session: The request's async SQLAlchemy session.
+        """
+        self._session = session
+
+    async def load(self, *, test_id: uuid.UUID) -> Snapshot | None:
+        """Return the stored reading for a test, or ``None`` if never polled.
 
         Args:
             test_id: Owning test.
 
         Returns:
-            The date, or ``None`` when nothing has been attributed yet.
+            The snapshot, whose ``captured_at`` is the most recent one written —
+            every day of one pass is stamped with the same moment, so this is
+            the boundary the next window starts from.
         """
-        stmt = select(func.max(VariantStatDaily.stat_date)).where(
-            VariantStatDaily.test_id == test_id
+        stmt = select(AdCounterSnapshot).where(AdCounterSnapshot.test_id == test_id)
+        rows = list((await self._session.execute(stmt)).scalars().all())
+        if not rows:
+            return None
+        return Snapshot(
+            captured_at=max(row.captured_at for row in rows),
+            by_day={
+                row.stat_date: counters_from_reading(
+                    views=row.views,
+                    clicks=row.clicks,
+                    atbs=row.atbs,
+                    orders=row.orders,
+                    spend=Decimal(row.spend),
+                )
+                for row in rows
+            },
         )
-        return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def save(
+        self, *, test_id: uuid.UUID, by_day: dict[date, Counters], captured_at: datetime
+    ) -> None:
+        """Overwrite the stored reading with this poll's.
+
+        Args:
+            test_id: Owning test.
+            by_day: Cumulative counters per advertising day.
+            captured_at: The moment of this poll.
+        """
+        if not by_day:
+            return
+
+        payload = [
+            {
+                "test_id": test_id,
+                "stat_date": day,
+                "views": counters.views,
+                "clicks": counters.clicks,
+                "atbs": counters.atbs,
+                "orders": counters.orders,
+                "spend": counters.spend,
+                "captured_at": captured_at,
+            }
+            for day, counters in by_day.items()
+        ]
+        stmt = pg_insert(AdCounterSnapshot).values(payload)
+        await self._session.execute(
+            stmt.on_conflict_do_update(
+                index_elements=[AdCounterSnapshot.test_id, AdCounterSnapshot.stat_date],
+                set_={
+                    "views": stmt.excluded.views,
+                    "clicks": stmt.excluded.clicks,
+                    "atbs": stmt.excluded.atbs,
+                    "orders": stmt.excluded.orders,
+                    "spend": stmt.excluded.spend,
+                    "captured_at": stmt.excluded.captured_at,
+                },
+            )
+        )
+        await self._session.flush()

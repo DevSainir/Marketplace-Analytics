@@ -108,6 +108,16 @@ class WildberriesSettings(BaseSettings):
     # downward on every response, so guessing generously here is safe.
     wb_marketplace_bucket_capacity: int = Field(default=20, ge=1)
     wb_marketplace_bucket_refill_seconds: float = Field(default=3.0, gt=0)
+    # The advertising surface, from WB's own published table (2026-09-04):
+    # ``/adv/v3/fullstats`` allows 3 requests per minute with a MINIMUM
+    # INTERVAL of 20s and a burst of 1 — so the honest model is a one-token
+    # bucket refilling every 20s, not a three-deep one. Sized this way because
+    # the endpoint now has two consumers on the same seller token (the nightly
+    # harvest and the A/B rotation poller); before the shared bucket existed,
+    # three calls spread over eight minutes still collected a 429, which is
+    # what an unpaced second consumer looks like.
+    wb_advertising_bucket_capacity: int = Field(default=1, ge=1)
+    wb_advertising_bucket_refill_seconds: float = Field(default=20.0, gt=0)
     # Escape hatch: disables Redis-backed pacing for EVERY bucket, the
     # storefront's included (tests and any environment with no Redis). The
     # clients then fall back to per-process spacing.

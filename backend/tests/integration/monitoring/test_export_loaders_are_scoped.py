@@ -265,4 +265,8 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
         and callable(getattr(contract, name))
     ]
 
-    assert len(scoped) == 8, f"expected 8 scoped loaders, found {sorted(scoped)}"
+    # 9 since 2026-09-04, when the A/B poller needed `load_campaign_ids_for_workspace`
+    # to name the campaigns that might be serving a card. Bumping this number is
+    # the deliberate step that says a new cross-module loader was reviewed for
+    # tenancy — which is exactly what the four unscoped loaders of August lacked.
+    assert len(scoped) == 9, f"expected 9 scoped loaders, found {sorted(scoped)}"

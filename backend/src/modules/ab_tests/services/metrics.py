@@ -17,18 +17,43 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Protocol
 
 #: Percentages are reported to two decimals, matching WB's own presentation.
 _PERCENT = Decimal("0.01")
 
 
-@dataclass(frozen=True)
-class DayCounts:
-    """One attributed advertising day for one variant."""
+class HasCounts(Protocol):
+    """Anything carrying one interval's counts — a stored row or a fake."""
 
-    stat_date: date
+    @property
+    def views(self) -> int: ...
+
+    @property
+    def clicks(self) -> int: ...
+
+    @property
+    def atbs(self) -> int: ...
+
+    @property
+    def orders(self) -> int: ...
+
+    @property
+    def spend(self) -> Decimal: ...
+
+
+@dataclass(frozen=True)
+class WindowCounts:
+    """One polling interval's traffic for one variant.
+
+    The grain used to be a calendar day, because the numbers came from a
+    once-a-day harvest. It is now a poll, so a photo can turn over several times
+    a day and still be measured on intervals it owned outright.
+    """
+
+    window_end: datetime
     views: int = 0
     clicks: int = 0
     atbs: int = 0
@@ -61,23 +86,23 @@ class VariantConversions:
     order_rate: Decimal | None
 
 
-def totals_from_days(days: Iterable[DayCounts]) -> VariantTotals:
-    """Sum attributed days into one variant total.
+def totals_from_windows(windows: Iterable[HasCounts]) -> VariantTotals:
+    """Sum a variant's polling intervals into one total.
 
     Args:
-        days: The variant's attributed advertising days, in any order.
+        windows: The variant's recorded intervals, in any order.
 
     Returns:
-        The summed counts; all zeroes when there are no days.
+        The summed counts; all zeroes when there are none.
     """
     views = clicks = atbs = orders = 0
     spend = Decimal("0")
-    for day in days:
-        views += day.views
-        clicks += day.clicks
-        atbs += day.atbs
-        orders += day.orders
-        spend += day.spend
+    for window in windows:
+        views += window.views
+        clicks += window.clicks
+        atbs += window.atbs
+        orders += window.orders
+        spend += Decimal(window.spend)
     return VariantTotals(views=views, clicks=clicks, atbs=atbs, orders=orders, spend=spend)
 
 

@@ -91,9 +91,16 @@ celery_app.conf.beat_schedule = {
     # they read. 08:00 MSK leaves the 06:00 harvest and the 07:00 cohort pass
     # room to finish; a rotation that runs on a half-written day would
     # under-count the live photo and delay its swap by a day.
-    "ab-tests-advance-rotations": {
-        "task": "ab_tests.advance_rotations",
-        "schedule": crontab(hour=8, minute=0),
+    # A/B photo rotations. Every five minutes, not nightly: WB's advertising
+    # counters are cumulative and move within minutes, so the difference between
+    # two reads is the traffic of the interval between them — which is what lets
+    # a photo turn over several times a day. One fullstats call covers up to 50
+    # campaigns, so the cost does not grow with the number of tests; at three
+    # requests per minute allowed, this spends about 7% of the budget, and the
+    # rest is shared with the harvest through the Redis bucket.
+    "ab-tests-poll-rotations": {
+        "task": "ab_tests.poll_rotations",
+        "schedule": crontab(minute="*/5"),
     },
     "nightly-harvest-all": {
         "task": "monitoring.harvest_all",

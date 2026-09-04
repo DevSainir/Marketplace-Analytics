@@ -32,13 +32,14 @@ caller that does not know whose numbers it wants must not be able to compile.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import NamedTuple
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.timeutils import moscow_today
 from src.modules.monitoring.models import (
     AdvertisingStatDaily,
     ProductCard,
@@ -332,3 +333,45 @@ async def load_ad_days_for_nm(
         )
         for row in (await session.execute(stmt)).all()
     ]
+
+
+async def load_campaign_ids_for_workspace(
+    session: AsyncSession, *, workspace_id: uuid.UUID, since_days: int = 30
+) -> list[int]:
+    """Return the campaigns that recently served one workspace's SKUs.
+
+    ``monitoring.campaigns`` is a global table — WB campaign ids are not
+    namespaced by tenant and the row carries no workspace — so the tenancy comes
+    from the traffic instead: a campaign belongs to this workspace's world if it
+    served a SKU this workspace owns. That is the same ``product_card`` semijoin
+    every other cross-SKU aggregate here uses.
+
+    The A/B poller asks for this because ``fullstats`` is addressed by campaign
+    id, not by SKU: to read one card's counters you have to name the campaigns
+    that might be serving it.
+
+    A campaign created since the last harvest is absent until the harvest sees
+    it, so a test started on a brand-new campaign reads zero traffic for up to a
+    day. That is a lag in discovery, not in attribution — once the campaign
+    appears, its counters are read cumulatively from midnight and nothing is
+    lost.
+
+    Args:
+        session: An open async session (caller owns the transaction).
+        workspace_id: The workspace whose campaigns to return.
+        since_days: How far back a campaign must have served to count.
+
+    Returns:
+        Campaign ids, ascending.
+    """
+    cutoff = moscow_today() - timedelta(days=since_days)
+    stmt = (
+        select(AdvertisingStatDaily.campaign_id)
+        .where(
+            AdvertisingStatDaily.stat_date >= cutoff,
+            AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id)),
+        )
+        .group_by(AdvertisingStatDaily.campaign_id)
+        .order_by(AdvertisingStatDaily.campaign_id)
+    )
+    return [int(row[0]) for row in (await session.execute(stmt)).all()]

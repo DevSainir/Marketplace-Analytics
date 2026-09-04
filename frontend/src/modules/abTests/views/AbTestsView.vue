@@ -17,7 +17,14 @@ const store = useAbTestsStore()
 const router = useRouter()
 
 const creating = ref(false)
-const form = ref({ name: '', nm_id: '', vendor_code: '', impression_budget: 10000 })
+const form = ref({
+  name: '',
+  nm_id: '',
+  vendor_code: '',
+  trigger_mode: 'impressions',
+  impression_budget: 10000,
+  slot_minutes: 60,
+})
 
 onMounted(() => store.loadTests())
 
@@ -35,15 +42,29 @@ function formatDate(value) {
 }
 
 async function submit() {
+  // Exactly one trigger travels. The backend REFUSES a body carrying the other
+  // mode's setting rather than ignoring it, so sending both would 422 — and
+  // that refusal is deliberate: "10 000 impressions or 2 hours, whichever
+  // first" would measure the photos over different exposures.
   const created = await store.create({
     name: form.value.name.trim(),
     nm_id: Number(form.value.nm_id),
     vendor_code: form.value.vendor_code.trim(),
-    impression_budget: Number(form.value.impression_budget),
+    trigger_mode: form.value.trigger_mode,
+    ...(form.value.trigger_mode === 'impressions'
+      ? { impression_budget: Number(form.value.impression_budget) }
+      : { slot_minutes: Number(form.value.slot_minutes) }),
   })
   if (created) {
     creating.value = false
-    form.value = { name: '', nm_id: '', vendor_code: '', impression_budget: 10000 }
+    form.value = {
+      name: '',
+      nm_id: '',
+      vendor_code: '',
+      trigger_mode: 'impressions',
+      impression_budget: 10000,
+      slot_minutes: 60,
+    }
     router.push({ name: 'ab-test-detail', params: { testId: created.id } })
   }
 }
@@ -62,9 +83,11 @@ async function submit() {
         + Тест
       </button>
       <p class="text-base text-muted">
-        Фото меняется автоматически каждые
-        <b>10 000 рекламных показов</b>. Органических показов WB через API не отдаёт, поэтому тест
-        идёт, пока по карточке крутится реклама.
+        Фото меняется автоматически — либо когда вариант наберёт свои
+        <b>рекламные показы</b>, либо через заданное <b>время</b>. Одно из двух, не оба сразу.
+        Данные снимаются каждые несколько минут, поэтому смена может происходить по нескольку раз в
+        день. Органических показов WB через API не отдаёт, так что режим «по показам» идёт, пока по
+        карточке крутится реклама.
       </p>
     </header>
 
@@ -104,10 +127,35 @@ async function submit() {
         </label>
         <label class="block">
           <span class="text-tiny font-medium uppercase tracking-wide text-muted">
+            Что меняет фото
+          </span>
+          <select
+            v-model="form.trigger_mode"
+            data-testid="trigger-mode"
+            class="mt-xs w-full rounded-control border border-border-subtle px-sm py-xs text-base"
+          >
+            <option value="impressions">По показам</option>
+            <option value="time">По времени</option>
+          </select>
+        </label>
+        <label v-if="form.trigger_mode === 'impressions'" class="block">
+          <span class="text-tiny font-medium uppercase tracking-wide text-muted">
             Показов на вариант
           </span>
           <input
             v-model="form.impression_budget"
+            data-testid="impression-budget"
+            inputmode="numeric"
+            class="mt-xs w-full rounded-control border border-border-subtle px-sm py-xs text-base tabular-nums"
+          />
+        </label>
+        <label v-else class="block">
+          <span class="text-tiny font-medium uppercase tracking-wide text-muted">
+            Минут на вариант
+          </span>
+          <input
+            v-model="form.slot_minutes"
+            data-testid="slot-minutes"
             inputmode="numeric"
             class="mt-xs w-full rounded-control border border-border-subtle px-sm py-xs text-base tabular-nums"
           />

@@ -39,6 +39,14 @@ watch(
 )
 onUnmounted(() => store.releaseImages())
 
+/** How this test rotates, in words — only the setting its mode actually uses. */
+const triggerLabel = computed(() => {
+  if (!test.value) return ''
+  return test.value.trigger_mode === 'time'
+    ? `Смена фото каждые ${count(test.value.slot_minutes)} мин`
+    : `Смена фото каждые ${count(test.value.impression_budget)} показов`
+})
+
 function percent(value) {
   return value === null || value === undefined ? '—' : `${Number(value).toFixed(2)} %`
 }
@@ -70,8 +78,7 @@ async function onFiles(event) {
       <p v-if="test" class="mt-xs text-base text-muted">
         WB артикул: {{ test.nm_id }}
         <span v-if="test.vendor_code"> · Артикул продавца: {{ test.vendor_code }}</span>
-        · Статус: {{ STATUS_LABELS[test.status] || test.status }} · Смена фото каждые
-        {{ count(test.impression_budget) }} показов
+        · Статус: {{ STATUS_LABELS[test.status] || test.status }} · {{ triggerLabel }}
       </p>
     </header>
 
@@ -119,9 +126,10 @@ async function onFiles(event) {
         </button>
       </div>
       <p class="mt-sm text-base text-muted">
-        Первое фото встаёт на карточку сразу при запуске. Дальше вариант меняется, когда наберёт
-        свои показы — данные по рекламе WB отдаёт за прошедшие сутки, поэтому смена происходит на
-        следующий день, а сам день смены не засчитывается ни одному из фото.
+        Первое фото встаёт на карточку сразу при запуске. Дальше вариант меняется, когда сработает
+        выбранный триггер: данные по рекламе снимаются каждые несколько минут, разница между
+        снимками и есть трафик интервала. Смена происходит сразу в том же проходе, поэтому интервал
+        целиком принадлежит одному фото и ничего не выбрасывается.
       </p>
     </section>
 

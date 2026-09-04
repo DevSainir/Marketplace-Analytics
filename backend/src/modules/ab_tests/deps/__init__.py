@@ -23,7 +23,7 @@ from src.modules.ab_tests.repos import (
     AbTestRepository,
     ExposureRepository,
     VariantRepository,
-    VariantStatRepository,
+    WindowRepository,
 )
 from src.modules.ab_tests.services.catalog import AbTestCatalogService
 from src.modules.ab_tests.services.photos import MediaStore, VariantInstaller
@@ -79,16 +79,16 @@ def get_exposure_repo(session: DbSession) -> ExposureRepository:
     return ExposureRepository(session)
 
 
-def get_stat_repo(session: DbSession) -> VariantStatRepository:
-    """Provide a :class:`VariantStatRepository` bound to the request session."""
-    return VariantStatRepository(session)
+def get_stat_repo(session: DbSession) -> WindowRepository:
+    """Provide a :class:`WindowRepository` bound to the request session."""
+    return WindowRepository(session)
 
 
 def get_catalog_service(
     tests: Annotated[AbTestRepository, Depends(get_test_repo)],
     variants: Annotated[VariantRepository, Depends(get_variant_repo)],
     exposures: Annotated[ExposureRepository, Depends(get_exposure_repo)],
-    stats: Annotated[VariantStatRepository, Depends(get_stat_repo)],
+    stats: Annotated[WindowRepository, Depends(get_stat_repo)],
     media_store: MediaStoreDep,
 ) -> AbTestCatalogService:
     """Provide the module's request-scoped service."""

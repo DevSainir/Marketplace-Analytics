@@ -1,20 +1,29 @@
-"""Celery entrypoint for the daily photo rotation.
+"""Celery entrypoint for the rotation poller.
 
-Runs after the monitoring harvest, because it reads the advertising rows that
-harvest writes. It makes no WB *read* calls of its own for exactly that reason —
-``fullstats`` allows roughly one request a minute per seller, and a second
-caller on the same token pushes the bucket over, which WB answers with a 500 or
-a hung socket rather than a clean 429.
+Runs every few minutes, not once a night. WB's advertising report has a one-day
+*reporting* grain — ``fullstats`` refuses a shorter interval — but it serves the
+CURRENT day and moves within minutes, so the traffic of any interval is the
+difference between two reads. That is what lets a photo turn over several times
+a day.
 
-It does make one WB *write* per rotating test: the media upload that puts the
-next photo on the card.
+**Why a fixed interval rather than one adapted to traffic.** One fullstats call
+carries up to 50 campaign ids and answers for every SKU inside them, so the cost
+of a pass does not grow with the number of tests or with how fast they are
+gathering impressions — it grows only with the number of workspaces. WB's
+published budget for the endpoint is 3 requests per minute per seller; polling
+every five minutes spends about 7% of it. Adapting the cadence to impressions
+would save nothing measurable and would make the trigger's resolution vary
+between tests.
+
+The budget is shared with the nightly harvest through a Redis token bucket
+(``advertising_rate_gate``), so the two queue against one allowance instead of
+discovering each other through 429s.
 """
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import Sequence
-from datetime import date, timedelta
+from datetime import UTC, date, datetime
 
 from src.core.celery_app import celery_app
 from src.core.config import settings
@@ -23,33 +32,138 @@ from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
-from src.integrations.wildberries import WBContentClient
+from src.integrations.wildberries import WBAdvertisingClient, WBContentClient
 from src.modules.ab_tests.deps import get_media_store
+from src.modules.ab_tests.models import AbTest
 from src.modules.ab_tests.repos import (
     AbTestRepository,
     ExposureRepository,
-    VariantStatRepository,
+    SnapshotRepository,
+    WindowRepository,
 )
+from src.modules.ab_tests.services.collection import Counters, counters_by_day, days_to_read
 from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.runner import RotationRunner
-from src.modules.monitoring.contract import AdDay, load_ad_days_for_nm
+from src.modules.monitoring.contract import load_campaign_ids_for_workspace
 from src.modules.workspaces.contract import load_workspace_token_bundle
 
 logger = get_logger(__name__)
 
+#: WB caps ``ids`` at 50 per fullstats request.
+_CAMPAIGN_BATCH = 50
 
-async def _advance_all() -> dict[str, int]:
-    """Advance every running test by one pass.
 
-    One session and one transaction per test, so a WB failure on one test
-    cannot roll back the days already attributed to another.
+async def _read_counters(
+    client: WBAdvertisingClient,
+    campaign_ids: Sequence[int],
+    nm_id: int,
+    days: Sequence[date],
+) -> dict[date, Counters]:
+    """Read one SKU's cumulative counters for the given days.
+
+    Args:
+        client: Advertising client, already paced by the shared gate.
+        campaign_ids: Campaigns to ask about; chunked to WB's 50-id limit.
+        nm_id: The SKU under test.
+        days: Advertising days to cover.
+
+    Returns:
+        ``{day: cumulative counters}`` for this SKU.
+    """
+    if not campaign_ids or not days:
+        return {}
+
+    totals: dict[date, Counters] = {}
+    for start in range(0, len(campaign_ids), _CAMPAIGN_BATCH):
+        chunk = list(campaign_ids[start : start + _CAMPAIGN_BATCH])
+        campaigns = await client.fetch_full_stats(
+            campaign_ids=chunk, date_from=min(days), date_to=max(days)
+        )
+        for day, counters in counters_by_day(campaigns, nm_id=nm_id).items():
+            totals[day] = totals.get(day, Counters()) + counters
+    return totals
+
+
+async def _poll_one(test: AbTest, *, now: datetime, days: Sequence[date]) -> str | None:
+    """Run one polling pass for one test in its own transaction.
+
+    A transaction per test so a WB failure on one cannot roll back the window
+    another has just recorded.
+
+    Args:
+        test: The running test, as listed by the sweep.
+        now: The moment of this pass.
+        days: Advertising days to read.
+
+    Returns:
+        The action taken, or ``None`` when the test was skipped.
+    """
+    async with AsyncSessionLocal() as session:
+        repo = AbTestRepository(session)
+        loaded = await repo.get(workspace_id=test.workspace_id, test_id=test.id)
+        if loaded is None:  # deleted between the listing and now
+            return None
+
+        bundle = await load_workspace_token_bundle(session, workspace_id=test.workspace_id)
+        advertising = (bundle.advertising or "") if bundle else ""
+        content = ((bundle.content or bundle.analytics) if bundle else "") or ""
+        if not advertising or not content:
+            logger.warning(
+                "ab_tests: workspace %s lacks an advertising or content token; skipping %s",
+                test.workspace_id,
+                test.id,
+            )
+            return None
+
+        campaign_ids = await load_campaign_ids_for_workspace(
+            session, workspace_id=test.workspace_id
+        )
+
+        async with (
+            WBAdvertisingClient(settings, token=advertising) as adv_client,
+            WBContentClient(settings, token=content) as content_client,
+        ):
+
+            async def _reader(
+                nm_id: int,
+                wanted: Sequence[date],
+                client: WBAdvertisingClient = adv_client,
+                ids: Sequence[int] = campaign_ids,
+            ) -> dict[date, Counters]:
+                """Read this test's counters, with its own client and campaigns.
+
+                Both are bound as DEFAULTS rather than captured: the closure
+                outlives the loop iteration it was defined in, and a free
+                reference would resolve to whichever test the sweep reached
+                last.
+                """
+                return await _read_counters(client, ids, nm_id, wanted)
+
+            runner = RotationRunner(
+                tests=repo,
+                exposures=ExposureRepository(session),
+                windows=WindowRepository(session),
+                snapshots=SnapshotRepository(session),
+                installer=VariantInstaller(
+                    content_client=content_client, media_store=get_media_store()
+                ),
+                read_counters=_reader,
+            )
+            outcome = await runner.poll(loaded, days=days, now=now)
+
+        await session.commit()
+
+    return str(outcome.action)
+
+
+async def _poll_all() -> dict[str, int]:
+    """Poll every running test once.
 
     Returns:
         ``{"tests": n, "rotated": n, "completed": n, "failed": n}``.
     """
-    # Yesterday: WB serves no advertising for the current day, and a partial
-    # day would under-count the live photo and delay its rotation.
-    through = moscow_today() - timedelta(days=1)
+    now = datetime.now(UTC)
+    days = list(days_to_read(moscow_today()))
 
     async with AsyncSessionLocal() as session:
         tests = await AbTestRepository(session).list_advanceable()
@@ -58,80 +172,33 @@ async def _advance_all() -> dict[str, int]:
 
     for test in tests:
         try:
-            async with AsyncSessionLocal() as session:
-                repo = AbTestRepository(session)
-                loaded = await repo.get(workspace_id=test.workspace_id, test_id=test.id)
-                if loaded is None:  # deleted between the listing and now
-                    continue
-
-                bundle = await load_workspace_token_bundle(session, workspace_id=test.workspace_id)
-                token = (bundle.content or bundle.analytics) if bundle else ""
-                if not token:
-                    logger.warning(
-                        "ab_tests: workspace %s has no content token; skipping test %s",
-                        test.workspace_id,
-                        test.id,
-                    )
-                    continue
-
-                # `workspace` is bound as a DEFAULT, not captured: this closure
-                # is defined inside the per-test loop, and a free reference to
-                # `test` would resolve to whatever the loop variable holds when
-                # the closure finally runs. It happens to run in the same
-                # iteration today, so the bug would not bite until someone
-                # deferred the call — at which point every test's advertising
-                # would be scoped to the LAST workspace in the batch.
-                async def _load_days(
-                    nm_id: int,
-                    date_from: date,
-                    date_to: date,
-                    workspace: uuid.UUID = test.workspace_id,
-                ) -> Sequence[AdDay]:
-                    return await load_ad_days_for_nm(
-                        session,
-                        workspace_id=workspace,
-                        nm_id=nm_id,
-                        date_from=date_from,
-                        date_to=date_to,
-                    )
-
-                async with WBContentClient(settings, token=token) as client:
-                    runner = RotationRunner(
-                        tests=repo,
-                        exposures=ExposureRepository(session),
-                        stats=VariantStatRepository(session),
-                        installer=VariantInstaller(
-                            content_client=client, media_store=get_media_store()
-                        ),
-                        load_ad_days=_load_days,
-                    )
-                    outcome = await runner.advance(loaded, through=through)
-
-                await session.commit()
-
-            if outcome.installed_variant_id is not None:
-                counters["rotated"] += 1
-            if outcome.action.value == "complete":
-                counters["completed"] += 1
+            action = await _poll_one(test, now=now, days=days)
         except IntegrationError as exc:
             counters["failed"] += 1
-            logger.warning("ab_tests: test %s could not advance: %s", test.id, exc)
+            logger.warning("ab_tests: test %s could not be polled: %s", test.id, exc)
+            continue
 
-    logger.info("ab_tests: rotation pass %s", counters)
+        if action in {"install", "advance"}:
+            counters["rotated"] += 1
+        elif action == "complete":
+            counters["completed"] += 1
+
+    if counters["tests"]:
+        logger.info("ab_tests: polling pass %s", counters)
     return counters
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
-    name="ab_tests.advance_rotations",
+    name="ab_tests.poll_rotations",
     bind=False,
 )
-def advance_rotations() -> dict[str, int]:
-    """Scheduled entrypoint: attribute yesterday and rotate the tests that are due.
+def poll_rotations() -> dict[str, int]:
+    """Scheduled entrypoint: close each running test's interval and rotate if due.
 
     Returns:
-        Per-pass counters, as :func:`_advance_all` returns them.
+        Per-pass counters, as :func:`_poll_all` returns them.
     """
-    return run_task(_advance_all())
+    return run_task(_poll_all())
 
 
-__all__ = ["advance_rotations"]
+__all__ = ["poll_rotations"]

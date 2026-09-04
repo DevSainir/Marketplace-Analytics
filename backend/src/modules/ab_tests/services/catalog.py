@@ -27,7 +27,7 @@ from src.modules.ab_tests.repos import (
     AbTestRepository,
     ExposureRepository,
     VariantRepository,
-    VariantStatRepository,
+    WindowRepository,
 )
 from src.modules.ab_tests.schemas import AbTestCreate, AbTestDetail, AbTestRead
 from src.modules.ab_tests.services.photos import MediaStore, VariantInstaller, validate_image
@@ -49,7 +49,7 @@ class AbTestCatalogService:
         tests: AbTestRepository,
         variants: VariantRepository,
         exposures: ExposureRepository,
-        stats: VariantStatRepository,
+        stats: WindowRepository,
         media_store: MediaStore,
     ) -> None:
         """Wire the service to its repositories and the WB installer.
@@ -58,7 +58,7 @@ class AbTestCatalogService:
             tests: Test repository.
             variants: Variant repository.
             exposures: Exposure repository.
-            stats: Attributed-day repository.
+            stats: Per-interval traffic repository.
             media_store: Where variant originals are written and read.
         """
         self._tests = tests
@@ -88,7 +88,9 @@ class AbTestCatalogService:
                 vendor_code=test.vendor_code,
                 name=test.name,
                 status=test.status,
+                trigger_mode=test.trigger_mode,
                 impression_budget=test.impression_budget,
+                slot_minutes=test.slot_minutes,
                 active_variant_id=test.active_variant_id,
                 variant_count=len(test.variants),
                 started_at=test.started_at,
@@ -112,9 +114,9 @@ class AbTestCatalogService:
             NotFoundError: If the test does not exist in this workspace.
         """
         test = await self._require(workspace_id=workspace_id, test_id=test_id)
-        days = await self._stats.days_for_test(test_id=test.id)
+        windows = await self._stats.windows_for_test(test_id=test.id)
         rows = build_rows(
-            test=test, variants=test.variants, days=days, image_url=IMAGE_URL_TEMPLATE
+            test=test, variants=test.variants, windows=windows, image_url=IMAGE_URL_TEMPLATE
         )
         return AbTestDetail(
             id=test.id,
@@ -122,7 +124,9 @@ class AbTestCatalogService:
             vendor_code=test.vendor_code,
             name=test.name,
             status=test.status,
+            trigger_mode=test.trigger_mode,
             impression_budget=test.impression_budget,
+            slot_minutes=test.slot_minutes,
             active_variant_id=test.active_variant_id,
             variant_count=len(test.variants),
             started_at=test.started_at,
@@ -185,7 +189,9 @@ class AbTestCatalogService:
             nm_id=payload.nm_id,
             vendor_code=payload.vendor_code,
             name=payload.name,
-            impression_budget=payload.impression_budget,
+            trigger_mode=payload.trigger_mode.value,
+            impression_budget=payload.impression_budget or 0,
+            slot_minutes=payload.slot_minutes or 0,
         )
         return AbTestRead(
             id=test.id,
@@ -193,7 +199,9 @@ class AbTestCatalogService:
             vendor_code=test.vendor_code,
             name=test.name,
             status=test.status,
+            trigger_mode=test.trigger_mode,
             impression_budget=test.impression_budget,
+            slot_minutes=test.slot_minutes,
             active_variant_id=None,
             variant_count=0,
             started_at=None,
@@ -328,7 +336,9 @@ class AbTestCatalogService:
             vendor_code=test.vendor_code,
             name=test.name,
             status=test.status,
+            trigger_mode=test.trigger_mode,
             impression_budget=test.impression_budget,
+            slot_minutes=test.slot_minutes,
             active_variant_id=test.active_variant_id,
             variant_count=len(test.variants),
             started_at=test.started_at,

@@ -1,20 +1,28 @@
 """What each variant was exposed to, and what it earned.
 
-Two tables, deliberately separate:
+Three tables, and the shape of them is the answer to "why can a photo rotate
+several times a day".
 
-* :class:`VariantExposure` is the **audit trail of the rotation** — when a photo
-  was actually installed on the card and when it came off. It is written by the
-  code that talks to WB, so it records what happened rather than what was
-  planned; a failed install leaves no row and the test does not advance.
-* :class:`VariantStatDaily` is the **attributed advertising day**. Its grain is
-  one variant per day, summed across every campaign and platform that served the
-  card that day.
+WB's advertising report has a one-day *reporting* grain — ``fullstats`` refuses
+an interval shorter than a day — but not a one-day *observation* grain. Verified
+live on 2026-09-04: the endpoint serves the CURRENT day and the numbers move
+within minutes (four campaigns gained 75-112 impressions over an eight-minute
+gap). So the counters are cumulative-since-midnight, and the difference between
+two reads is the traffic of the interval between them.
 
-The join between them is a whole-day rule: a day belongs to a variant only if
-that variant was live for the entire day. WB reports advertising by calendar day
-and nothing finer, so the day a photo is swapped is split between two variants
-and cannot be honestly assigned to either — it is attributed to neither. See
-:mod:`.services.attribution`.
+That is what these tables record:
+
+* :class:`AdCounterSnapshot` — the last cumulative reading per test per day. The
+  poller's memory; nothing else reads it.
+* :class:`VariantStatWindow` — one row per poll: the DIFFERENCE since the
+  previous snapshot, credited to the photo that was live over that interval.
+  This replaced a per-day table, and with it the rule that the day of a swap
+  belonged to nobody: the poller swaps immediately after closing a window, so a
+  swap always lands on a window boundary and no traffic is discarded.
+* :class:`VariantExposure` — when a photo was actually installed and removed.
+  Written by the code that talks to WB, so it records what happened rather than
+  what was planned; a failed install leaves no row and the test does not
+  advance.
 """
 
 from __future__ import annotations
@@ -30,6 +38,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -76,36 +85,83 @@ class VariantExposure(Base):
     wb_photo_number: Mapped[int] = mapped_column(Integer, server_default="1", nullable=False)
 
 
-class VariantStatDaily(Base):
-    """One advertising day attributed to one variant.
+class AdCounterSnapshot(Base):
+    """The last cumulative advertising reading for one test on one day.
 
-    The counts are copied verbatim from ``/adv/v3/fullstats`` and summed over the
-    campaigns and platforms that served this SKU that day. Ratios are **not**
-    stored: CTR and the two conversions are derived on read from these counts,
-    the same discipline «Процент выкупа» follows in the monitoring module — a
-    stored percentage cannot be re-aggregated across days without lying.
+    WB's counters restart at Moscow midnight, so the snapshot is keyed by day as
+    well as by test: at a rollover the poller compares today's reading against
+    today's snapshot (absent — so the delta is the whole reading) and yesterday's
+    against yesterday's, which also picks up WB's late restatements of a day
+    already closed.
 
     Attributes:
-        variant_id: Which photo was live that day (composite PK).
-        stat_date: The advertising day, Moscow time (composite PK).
-        views: Impressions of the card in ad placements («Показы»).
-        clicks: Clicks through to the card («Переходы в карточку»).
-        atbs: Add-to-basket events («Добавления в корзину»).
-        orders: Orders placed («Оформления заказов»).
-        spend: Ad spend for the day, in the account's currency.
+        test_id: Owning test (composite PK).
+        stat_date: The advertising day the counters belong to (composite PK).
+        views / clicks / atbs / orders: Cumulative counts as last read.
+        spend: Cumulative spend as last read.
+        captured_at: When the reading was taken — this is what bounds the next
+            window, so it is the poller's clock rather than WB's.
     """
 
-    __tablename__ = "ab_test_variant_stat_daily"
+    __tablename__ = "ab_test_ad_snapshot"
     __table_args__ = {"schema": _SCHEMA}
 
-    variant_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey(f"{_SCHEMA}.ab_test_variant.id", ondelete="CASCADE"), primary_key=True
+    test_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{_SCHEMA}.ab_test.id", ondelete="CASCADE"), primary_key=True
     )
     stat_date: Mapped[date] = mapped_column(Date, primary_key=True)
+
+    views: Mapped[int] = mapped_column(BigInteger, server_default="0", nullable=False)
+    clicks: Mapped[int] = mapped_column(BigInteger, server_default="0", nullable=False)
+    atbs: Mapped[int] = mapped_column(BigInteger, server_default="0", nullable=False)
+    orders: Mapped[int] = mapped_column(BigInteger, server_default="0", nullable=False)
+    spend: Mapped[float] = mapped_column(Numeric(14, 2), server_default="0", nullable=False)
+
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class VariantStatWindow(Base):
+    """One polling interval's traffic, credited to the photo that was live.
+
+    The grain is a poll, not a day: ``window_start`` is the previous snapshot's
+    ``captured_at`` and ``window_end`` is this one's. Because the rotation swaps
+    the photo immediately after a window closes, exactly one variant was live
+    for the whole of any window — which is why nothing here has to be thrown
+    away, and why a test can turn over several times a day.
+
+    Counts are stored, ratios are not: CTR and the two conversions are derived
+    on read from summed counts, the same discipline «Процент выкупа» follows in
+    the monitoring module. A stored percentage cannot be re-aggregated across
+    windows without lying.
+
+    Attributes:
+        id: UUIDv7 primary key.
+        test_id: Owning test.
+        variant_id: The photo that was live for this window.
+        window_start / window_end: The interval, in UTC.
+        views / clicks / atbs / orders: Traffic gained during the interval.
+        spend: Ad spend during the interval.
+    """
+
+    __tablename__ = "ab_test_variant_stat_window"
+    __table_args__ = (
+        UniqueConstraint(
+            "variant_id", "window_start", name="uq_ab_test_variant_stat_window_variant_start"
+        ),
+        {"schema": _SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid7)
 
     test_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey(f"{_SCHEMA}.ab_test.id", ondelete="CASCADE"), index=True, nullable=False
     )
+    variant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{_SCHEMA}.ab_test_variant.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     views: Mapped[int] = mapped_column(BigInteger, server_default="0", nullable=False)
     clicks: Mapped[int] = mapped_column(BigInteger, server_default="0", nullable=False)
@@ -115,6 +171,6 @@ class VariantStatDaily(Base):
 
     currency: Mapped[str] = mapped_column(String(8), server_default="RUB", nullable=False)
 
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )

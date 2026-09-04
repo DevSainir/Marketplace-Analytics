@@ -39,7 +39,9 @@ class AbTestRepository:
         nm_id: int,
         vendor_code: str,
         name: str,
+        trigger_mode: str,
         impression_budget: int,
+        slot_minutes: int,
     ) -> AbTest:
         """Insert a draft test.
 
@@ -48,7 +50,10 @@ class AbTestRepository:
             nm_id: The card whose main photo will rotate.
             vendor_code: Артикул продавца, denormalised for search.
             name: Human title.
-            impression_budget: Impressions one variant must gather.
+            trigger_mode: Which trigger advances the rotation.
+            impression_budget: Impressions one variant must gather, in
+                ``impressions`` mode.
+            slot_minutes: Minutes one variant stays up, in ``time`` mode.
 
         Returns:
             The persisted test, flushed so its id is available.
@@ -59,7 +64,9 @@ class AbTestRepository:
             vendor_code=vendor_code,
             name=name,
             status=AbTestStatus.DRAFT.value,
+            trigger_mode=trigger_mode,
             impression_budget=impression_budget,
+            slot_minutes=slot_minutes,
         )
         self._session.add(test)
         await self._session.flush()

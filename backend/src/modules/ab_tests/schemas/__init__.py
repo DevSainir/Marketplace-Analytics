@@ -12,23 +12,65 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from src.modules.ab_tests.models import DEFAULT_IMPRESSION_BUDGET
+from src.modules.ab_tests.models import (
+    DEFAULT_IMPRESSION_BUDGET,
+    DEFAULT_SLOT_MINUTES,
+    TriggerMode,
+)
 
 
 class AbTestCreate(BaseModel):
-    """Request body for creating a test."""
+    """Request body for creating a test.
+
+    The two triggers are mutually exclusive, and the model enforces it rather
+    than quietly ignoring the unused one: sending ``slot_minutes`` with
+    ``trigger_mode="impressions"`` is a 422, not a silently dropped field. A
+    test that rotated on "either, whichever first" would measure its variants
+    over different exposures, which is the one thing a budget exists to prevent.
+    """
 
     nm_id: int = Field(gt=0, description="Артикул WB, чьё главное фото ротируется")
     name: str = Field(min_length=1, max_length=255, description="Название теста")
     vendor_code: str = Field(default="", max_length=255, description="Артикул продавца")
-    impression_budget: int = Field(
-        default=DEFAULT_IMPRESSION_BUDGET,
+    trigger_mode: TriggerMode = Field(
+        default=TriggerMode.IMPRESSIONS,
+        description="Что двигает ротацию: показы или время",
+    )
+    impression_budget: int | None = Field(
+        default=None,
         ge=100,
         le=10_000_000,
-        description="Сколько рекламных показов должен набрать вариант до смены фото",
+        description="Показов на вариант. Только для режима «по показам»",
     )
+    slot_minutes: int | None = Field(
+        default=None,
+        ge=5,
+        le=20_160,
+        description="Минут на вариант. Только для режима «по времени»",
+    )
+
+    @model_validator(mode="after")
+    def _one_trigger_only(self) -> AbTestCreate:
+        """Refuse the setting that belongs to the other mode, then fill defaults."""
+        if self.trigger_mode is TriggerMode.IMPRESSIONS:
+            if self.slot_minutes is not None:
+                raise ValueError(
+                    "В режиме «по показам» время на вариант не задаётся — уберите slot_minutes."
+                )
+            object.__setattr__(
+                self, "impression_budget", self.impression_budget or DEFAULT_IMPRESSION_BUDGET
+            )
+            object.__setattr__(self, "slot_minutes", DEFAULT_SLOT_MINUTES)
+        else:
+            if self.impression_budget is not None:
+                raise ValueError(
+                    "В режиме «по времени» бюджет показов не задаётся — уберите impression_budget."
+                )
+            object.__setattr__(self, "slot_minutes", self.slot_minutes or DEFAULT_SLOT_MINUTES)
+            object.__setattr__(self, "impression_budget", DEFAULT_IMPRESSION_BUDGET)
+        return self
 
 
 class VariantMetrics(BaseModel):
@@ -69,7 +111,9 @@ class AbTestRead(BaseModel):
     vendor_code: str
     name: str
     status: str
+    trigger_mode: str
     impression_budget: int
+    slot_minutes: int
     active_variant_id: uuid.UUID | None
     variant_count: int
     started_at: datetime | None

@@ -12,6 +12,7 @@ from datetime import date
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.base import BaseWBClient
+from src.integrations.wildberries.rate_limit import advertising_rate_gate
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
     WBAdvertV2,
@@ -43,6 +44,11 @@ class WBAdvertisingClient(BaseWBClient):
             max_retries=settings.wb_max_retries,
             backoff_base_seconds=settings.wb_retry_backoff_seconds,
             backoff_max_seconds=settings.wb_retry_max_backoff_seconds,
+            # Two consumers share this token — the nightly harvest and the A/B
+            # rotation poller — and fullstats allows one request per 20s. The
+            # gate is Redis-backed so they queue against ONE budget instead of
+            # finding each other through 429s.
+            rate_gate=advertising_rate_gate(settings, token=token),
         )
 
     #: Max campaign ids per fullstats request (WB caps the ``ids`` list).

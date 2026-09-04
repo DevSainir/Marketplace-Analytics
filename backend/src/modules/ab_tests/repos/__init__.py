@@ -3,13 +3,15 @@
 from src.modules.ab_tests.repos.tests import AbTestRepository
 from src.modules.ab_tests.repos.variants import (
     ExposureRepository,
+    SnapshotRepository,
     VariantRepository,
-    VariantStatRepository,
+    WindowRepository,
 )
 
 __all__ = [
     "AbTestRepository",
     "ExposureRepository",
+    "SnapshotRepository",
     "VariantRepository",
-    "VariantStatRepository",
+    "WindowRepository",
 ]

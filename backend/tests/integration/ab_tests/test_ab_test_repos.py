@@ -15,14 +15,15 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.ab_tests.models import AbTestStatus
+from src.modules.ab_tests.models import AbTestStatus, TriggerMode
 from src.modules.ab_tests.repos import (
     AbTestRepository,
     ExposureRepository,
+    SnapshotRepository,
     VariantRepository,
-    VariantStatRepository,
+    WindowRepository,
 )
-from src.modules.ab_tests.services.attribution import AttributedDay
+from src.modules.ab_tests.services.collection import Counters
 from src.modules.organizations.models import Organization
 from src.modules.workspaces.models import Workspace
 
@@ -48,21 +49,27 @@ async def _seed(session: AsyncSession, workspace: Workspace) -> AbTestRepository
         nm_id=NM_FLOWER_DRESS,
         vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
         name="Тест главного фото",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
+        slot_minutes=60,
     )
     await repo.create(
         workspace_id=workspace.id,
         nm_id=NM_PLAIN_SUIT,
         vendor_code="ДЕТ_КОСТЮМ_ДВОЙКА_ОДНОТОН",
         name="Костюм: фон против модели",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
+        slot_minutes=60,
     )
     paused = await repo.create(
         workspace_id=workspace.id,
         nm_id=953770957,
         vendor_code="ДЖН_КОСТЮМ_ДЖИНСА",
         name="Джинса, крупный план",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=25_000,
+        slot_minutes=60,
     )
     await repo.set_status(test=paused, status=AbTestStatus.PAUSED)
     return repo
@@ -179,7 +186,9 @@ async def test_photos_are_appended_at_the_end_of_the_rotation(
         nm_id=NM_FLOWER_DRESS,
         vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
         name="Тест",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
+        slot_minutes=60,
     )
     variants = VariantRepository(db_session)
 
@@ -201,14 +210,16 @@ async def test_photos_are_appended_at_the_end_of_the_rotation(
 
 
 @pytest.mark.integration
-async def test_a_days_metrics_are_overwritten_by_a_later_reading(
+async def test_an_interval_is_recorded_once_even_if_the_pass_is_retried(
     db_session: AsyncSession,
     organization: Organization,
 ) -> None:
-    """Re-attributing a day updates it rather than duplicating it.
+    """A window is idempotent on (variant, start), so a retry cannot double-count.
 
-    WB restates recent advertising days as conversions settle, so every pass
-    re-reads the last month; without the upsert the same day would accumulate.
+    The polling pass can fail mid-transaction — a WB timeout on the swap after
+    the window was written — and Celery retries it. Without the conflict clause
+    the same five minutes of traffic would be credited twice, and the rotation
+    would advance early on nothing.
     """
     workspace = await _workspace(db_session, organization.id)
     tests = AbTestRepository(db_session)
@@ -217,7 +228,9 @@ async def test_a_days_metrics_are_overwritten_by_a_later_reading(
         nm_id=NM_FLOWER_DRESS,
         vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
         name="Тест",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
+        slot_minutes=60,
     )
     variant = await VariantRepository(db_session).add(
         test_id=test.id,
@@ -226,33 +239,39 @@ async def test_a_days_metrics_are_overwritten_by_a_later_reading(
         content_type="image/jpeg",
         original_filename="a.jpg",
     )
-    stats = VariantStatRepository(db_session)
-    day = date(2026, 8, 2)
+    windows = WindowRepository(db_session)
+    start = datetime(2026, 9, 4, 12, 0, tzinfo=UTC)
 
-    await stats.upsert_days(
+    counters = Counters(views=112, clicks=7, atbs=4, orders=1, spend=Decimal("18.00"))
+    await windows.append(
         test_id=test.id,
-        days=[AttributedDay(variant.id, day, 1_000, 90, 8, 3, Decimal("1500.00"))],
+        variant_id=variant.id,
+        window_start=start,
+        window_end=datetime(2026, 9, 4, 12, 5, tzinfo=UTC),
+        counters=counters,
     )
-    await stats.upsert_days(
+    await windows.append(
         test_id=test.id,
-        days=[AttributedDay(variant.id, day, 1_050, 95, 9, 5, Decimal("1600.00"))],
+        variant_id=variant.id,
+        window_start=start,
+        window_end=datetime(2026, 9, 4, 12, 5, tzinfo=UTC),
+        counters=counters,
     )
 
-    rows = await stats.days_for_test(test_id=test.id)
+    rows = await windows.windows_for_test(test_id=test.id)
     assert len(rows) == 1
-    assert (rows[0].views, rows[0].orders) == (1_050, 5)
-    assert await stats.impressions_for_variant(variant_id=variant.id) == 1_050
+    assert await windows.impressions_for_variant(variant_id=variant.id) == 112
 
 
 @pytest.mark.integration
-async def test_an_exposure_is_closed_when_the_next_photo_goes_up(
+async def test_impressions_accumulate_across_a_variants_intervals(
     db_session: AsyncSession,
     organization: Organization,
 ) -> None:
-    """Closing writes an end to the open window and leaves earlier ones alone.
+    """The rotation counter is the sum of every window the photo owned.
 
-    The windows are what attribution reads; an unclosed one would keep claiming
-    every day after the swap for the photo that came off.
+    A photo rotating several times a day earns many small windows rather than
+    one big day, so the trigger has to read their total.
     """
     workspace = await _workspace(db_session, organization.id)
     test = await AbTestRepository(db_session).create(
@@ -260,7 +279,96 @@ async def test_an_exposure_is_closed_when_the_next_photo_goes_up(
         nm_id=NM_FLOWER_DRESS,
         vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
         name="Тест",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
+        slot_minutes=60,
+    )
+    variant = await VariantRepository(db_session).add(
+        test_id=test.id,
+        image_path="a.jpg",
+        image_sha256="0" * 64,
+        content_type="image/jpeg",
+        original_filename="a.jpg",
+    )
+    windows = WindowRepository(db_session)
+
+    for minute in range(0, 15, 5):
+        await windows.append(
+            test_id=test.id,
+            variant_id=variant.id,
+            window_start=datetime(2026, 9, 4, 12, minute, tzinfo=UTC),
+            window_end=datetime(2026, 9, 4, 12, minute + 5, tzinfo=UTC),
+            counters=Counters(views=100),
+        )
+
+    assert await windows.impressions_for_variant(variant_id=variant.id) == 300
+
+
+@pytest.mark.integration
+async def test_the_snapshot_round_trips_and_is_overwritten_each_poll(
+    db_session: AsyncSession,
+    organization: Organization,
+) -> None:
+    """The baseline stores one row per day and moves forward on every poll.
+
+    It is the poller's whole memory: a snapshot that failed to advance would
+    make the next window re-count everything since the last successful one.
+    """
+    workspace = await _workspace(db_session, organization.id)
+    test = await AbTestRepository(db_session).create(
+        workspace_id=workspace.id,
+        nm_id=NM_FLOWER_DRESS,
+        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
+        name="Тест",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
+        impression_budget=10_000,
+        slot_minutes=60,
+    )
+    snapshots = SnapshotRepository(db_session)
+    yesterday, today = date(2026, 9, 3), date(2026, 9, 4)
+    first_read = datetime(2026, 9, 4, 12, 0, tzinfo=UTC)
+    second_read = datetime(2026, 9, 4, 12, 5, tzinfo=UTC)
+
+    assert await snapshots.load(test_id=test.id) is None
+
+    await snapshots.save(
+        test_id=test.id,
+        by_day={yesterday: Counters(views=20_000), today: Counters(views=6_937)},
+        captured_at=first_read,
+    )
+    await snapshots.save(
+        test_id=test.id,
+        by_day={yesterday: Counters(views=20_050), today: Counters(views=7_049)},
+        captured_at=second_read,
+    )
+
+    stored = await snapshots.load(test_id=test.id)
+    assert stored is not None
+    assert stored.captured_at == second_read
+    assert stored.by_day[today].views == 7_049
+    assert stored.by_day[yesterday].views == 20_050
+
+
+@pytest.mark.integration
+async def test_an_exposure_is_closed_when_the_next_photo_goes_up(
+    db_session: AsyncSession,
+    organization: Organization,
+) -> None:
+    """Closing ends the open exposure and leaves the earlier ones alone.
+
+    The open exposure is what the time trigger reads, so an unclosed one would
+    keep reporting the outgoing photo's install time and the rotation would
+    either stall or fire immediately, depending on how long ago that was.
+    """
+    workspace = await _workspace(db_session, organization.id)
+    test = await AbTestRepository(db_session).create(
+        workspace_id=workspace.id,
+        nm_id=NM_FLOWER_DRESS,
+        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
+        name="Тест",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
+        impression_budget=10_000,
+        slot_minutes=60,
     )
     variants = VariantRepository(db_session)
     first = await variants.add(
@@ -287,10 +395,11 @@ async def test_an_exposure_is_closed_when_the_next_photo_goes_up(
         test_id=test.id, variant_id=second.id, activated_at=datetime(2026, 8, 5, tzinfo=UTC)
     )
 
-    windows = await exposures.windows_for_test(test_id=test.id)
-    assert [w.variant_id for w in windows] == [first.id, second.id]
-    assert windows[0].deactivated_at is not None
-    assert windows[1].deactivated_at is None
+    # `active_since` is what the time trigger measures against, so what matters
+    # is that it now reports the SECOND photo's install rather than the first's.
+    assert await exposures.active_since(test_id=test.id) == datetime(2026, 8, 5, tzinfo=UTC)
+    assert await exposures.count_for_variant(variant_id=first.id) == 1
+    assert await exposures.count_for_variant(variant_id=second.id) == 1
 
 
 @pytest.mark.integration
@@ -306,7 +415,9 @@ async def test_deleting_a_test_takes_its_photos_and_days_with_it(
         nm_id=NM_FLOWER_DRESS,
         vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
         name="Тест",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
+        slot_minutes=60,
     )
     variant = await VariantRepository(db_session).add(
         test_id=test.id,
@@ -315,13 +426,16 @@ async def test_deleting_a_test_takes_its_photos_and_days_with_it(
         content_type="image/jpeg",
         original_filename="a.jpg",
     )
-    stats = VariantStatRepository(db_session)
-    await stats.upsert_days(
+    windows = WindowRepository(db_session)
+    await windows.append(
         test_id=test.id,
-        days=[AttributedDay(variant.id, date(2026, 8, 2), 10, 1, 0, 0, Decimal("0.00"))],
+        variant_id=variant.id,
+        window_start=datetime(2026, 9, 4, 12, 0, tzinfo=UTC),
+        window_end=datetime(2026, 9, 4, 12, 5, tzinfo=UTC),
+        counters=Counters(views=10, clicks=1),
     )
 
     assert await tests.delete(workspace_id=workspace.id, test_id=test.id) is True
 
-    assert await stats.days_for_test(test_id=test.id) == []
+    assert await windows.windows_for_test(test_id=test.id) == []
     assert await tests.get(workspace_id=workspace.id, test_id=test.id) is None
