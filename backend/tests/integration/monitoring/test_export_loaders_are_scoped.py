@@ -36,6 +36,12 @@ pytestmark = pytest.mark.integration
 MINE = 111111111
 THEIRS = 222222222
 
+#: Name prefixes a cross-module loader is expected to use. Widened with
+#: ``search_`` on 2026-09-05, when `search_workspace_cards` was added and this
+#: guard could not see it — a loader that matches no prefix is not exempt from
+#: taking a tenant, it is invisible to the check that says so.
+_LOADER_PREFIXES = ("load_", "search_", "funnel_", "ad_", "stock_")
+
 WINDOW_FROM = date(2026, 8, 1)
 WINDOW_TO = date(2026, 8, 31)
 
@@ -237,8 +243,7 @@ def test_every_export_loader_demands_a_workspace() -> None:
     scoped = [
         name
         for name in contract.__all__
-        if name.startswith(("load_", "funnel_", "ad_", "stock_"))
-        and callable(getattr(contract, name))
+        if name.startswith(_LOADER_PREFIXES) and callable(getattr(contract, name))
     ]
     assert scoped, "the loaders moved; this guard needs re-pointing"
 
@@ -261,12 +266,14 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     scoped = [
         name
         for name in contract.__all__
-        if name.startswith(("load_", "funnel_", "ad_", "stock_"))
-        and callable(getattr(contract, name))
+        if name.startswith(_LOADER_PREFIXES) and callable(getattr(contract, name))
     ]
 
-    # 9 since 2026-09-04, when the A/B poller needed `load_campaign_ids_for_workspace`
-    # to name the campaigns that might be serving a card. Bumping this number is
-    # the deliberate step that says a new cross-module loader was reviewed for
-    # tenancy — which is exactly what the four unscoped loaders of August lacked.
-    assert len(scoped) == 9, f"expected 9 scoped loaders, found {sorted(scoped)}"
+    # 11 since 2026-09-05: `load_workspace_card` and `search_workspace_cards`
+    # back the A/B article picker, and both take the tenant because WB article
+    # numbers are global — "does this article exist" and "does it belong to the
+    # caller" are different questions and only the second is safe to act on.
+    # Bumping this number is the deliberate step that says a new cross-module
+    # loader was reviewed for tenancy, which the four unscoped loaders of August
+    # never were.
+    assert len(scoped) == 11, f"expected 11 scoped loaders, found {sorted(scoped)}"

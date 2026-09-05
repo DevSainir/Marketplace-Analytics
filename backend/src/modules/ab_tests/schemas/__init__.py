@@ -22,6 +22,10 @@ from src.modules.ab_tests.services.triggers import resolve as resolve_trigger
 class AbTestCreate(BaseModel):
     """Request body for creating a test.
 
+    ``vendor_code`` is deliberately absent: it is read off the catalogue card the
+    ``nm_id`` resolves to. Taking it from the client would let the two disagree,
+    and the seller article is what the list is searched by.
+
     The two triggers are mutually exclusive, and the model enforces it rather
     than quietly ignoring the unused one: sending ``slot_minutes`` with
     ``trigger_mode="impressions"`` is a 422, not a silently dropped field. A
@@ -31,7 +35,6 @@ class AbTestCreate(BaseModel):
 
     nm_id: int = Field(gt=0, description="Артикул WB, чьё главное фото ротируется")
     name: str = Field(min_length=1, max_length=255, description="Название теста")
-    vendor_code: str = Field(default="", max_length=255, description="Артикул продавца")
     trigger_mode: TriggerMode = Field(
         default=TriggerMode.IMPRESSIONS,
         description="Что двигает ротацию: показы или время",
@@ -71,6 +74,14 @@ class AbTestCreate(BaseModel):
         object.__setattr__(self, "impression_budget", resolved.impression_budget)
         object.__setattr__(self, "slot_minutes", resolved.slot_minutes)
         return self
+
+
+class SkuOption(BaseModel):
+    """One catalogue card a test may be created against."""
+
+    nm_id: int = Field(description="Артикул WB")
+    vendor_code: str = Field(description="Артикул продавца")
+    title: str = Field(description="Название карточки")
 
 
 class AbTestSettingsUpdate(BaseModel):

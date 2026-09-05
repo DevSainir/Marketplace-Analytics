@@ -42,6 +42,7 @@ from src.modules.ab_tests.services.photos import MediaStore, VariantInstaller, v
 from src.modules.ab_tests.services.results import build_rows, leader_of
 from src.modules.ab_tests.services.triggers import TriggerSettings
 from src.modules.ab_tests.services.triggers import resolve as resolve_trigger
+from src.modules.monitoring.contract import WorkspaceCard
 
 #: Route template the result rows point at for the picture itself.
 IMAGE_URL_TEMPLATE = "/api/ab-tests/{test_id}/variants/{variant_id}/image"
@@ -156,21 +157,36 @@ class AbTestCatalogService:
 
     # ---------------------------------------------------------------- writes
 
-    async def create_test(self, *, workspace_id: uuid.UUID, payload: AbTestCreate) -> AbTestRead:
+    async def create_test(
+        self, *, workspace_id: uuid.UUID, payload: AbTestCreate, card: WorkspaceCard | None
+    ) -> AbTestRead:
         """Create a draft test.
 
         Args:
             workspace_id: Owning workspace.
             payload: Validated request body.
+            card: The catalogue card ``payload.nm_id`` resolved to, or ``None``
+                when the workspace owns no such article. Resolved by the router,
+                which is where this repository's cross-module loaders are called
+                from, so the service keeps no session of its own.
 
         Returns:
             The created test as a list row.
 
         Raises:
-            ValidationError: If the workspace is at its test bound
+            ValidationError: If the article is not in the workspace's catalogue,
+                or if the workspace is at its test bound
                 (register P1.13). Finished tests count — they keep their rows,
                 their variants and their uploaded images.
         """
+        # An article the workspace does not own cannot be rotated: it would send
+        # a media upload at somebody else's card, or at nothing. The body was
+        # trusted until 2026-09-05, when a test was created against article `1`.
+        if card is None:
+            raise ValidationError(
+                f"Артикул {payload.nm_id} не найден в каталоге рабочего пространства."
+            )
+
         cap = settings.max_ab_tests_per_workspace
         if await self._tests.count_for_workspace(workspace_id) >= cap:
             raise ValidationError(
@@ -180,7 +196,7 @@ class AbTestCatalogService:
         test = await self._tests.create(
             workspace_id=workspace_id,
             nm_id=payload.nm_id,
-            vendor_code=payload.vendor_code,
+            vendor_code=card.vendor_code,
             name=payload.name,
             trigger_mode=payload.trigger_mode.value,
             # The create schema's validator has already resolved both numbers,

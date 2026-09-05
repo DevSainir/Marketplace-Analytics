@@ -29,6 +29,7 @@ from src.modules.monitoring.services.analytics import (
 from src.modules.monitoring.services.exports import (
     AdDay,
     WarehouseStock,
+    WorkspaceCard,
     ad_coverage,
     funnel_coverage,
     load_ad_days_for_nm,
@@ -37,6 +38,8 @@ from src.modules.monitoring.services.exports import (
     load_orders_by_nm,
     load_stock_by_warehouse,
     load_vendor_codes,
+    load_workspace_card,
+    search_workspace_cards,
     stock_day_span,
 )
 from src.modules.monitoring.services.ingestion import IngestionService
@@ -54,6 +57,7 @@ __all__ = [
     "ClusterAnalytics",
     "IngestionService",
     "WarehouseStock",
+    "WorkspaceCard",
     "ad_coverage",
     "bind_task_to_workspace",
     "funnel_coverage",
@@ -63,7 +67,9 @@ __all__ = [
     "load_orders_by_nm",
     "load_stock_by_warehouse",
     "load_vendor_codes",
+    "load_workspace_card",
     "remember_running_task",
+    "search_workspace_cards",
     "spend_refresh_budget",
     "stock_day_span",
     "task_already_running",

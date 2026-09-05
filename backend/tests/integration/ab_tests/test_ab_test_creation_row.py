@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.exceptions import ValidationError
 from src.modules.ab_tests.repos import (
     AbTestRepository,
     ExposureRepository,
@@ -29,10 +30,16 @@ from src.modules.ab_tests.repos import (
 from src.modules.ab_tests.schemas import AbTestCreate
 from src.modules.ab_tests.services.catalog import AbTestCatalogService
 from src.modules.ab_tests.services.photos import MediaStore
+from src.modules.monitoring.contract import WorkspaceCard
 from src.modules.organizations.models import Organization
 from src.modules.workspaces.models import Workspace
 
 NM_FLOWER_DRESS = 995716075
+
+#: The catalogue card the article resolves to. Creating a test needs one.
+_CARD = WorkspaceCard(
+    nm_id=NM_FLOWER_DRESS, vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК", title="Платье в цветочек"
+)
 
 
 def _service(session: AsyncSession, tmp_path: Path) -> AbTestCatalogService:
@@ -63,6 +70,7 @@ async def test_creating_a_test_returns_a_row_with_no_variants(
     row = await _service(db_session, tmp_path).create_test(
         workspace_id=workspace.id,
         payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Тест главного фото"),
+        card=_CARD,
     )
 
     assert row.variant_count == 0
@@ -88,8 +96,36 @@ async def test_the_new_test_is_listed_immediately_after_creation(
     created = await service.create_test(
         workspace_id=workspace.id,
         payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Тест главного фото"),
+        card=_CARD,
     )
     listed = await service.list_tests(workspace_id=workspace.id, query=None)
 
     assert [row.id for row in listed] == [created.id]
     assert listed[0].variant_count == created.variant_count
+
+
+@pytest.mark.integration
+async def test_an_article_outside_the_catalogue_cannot_start_a_test(
+    db_session: AsyncSession, organization: Organization, tmp_path: Path
+) -> None:
+    """An unresolved article is refused, and nothing is written.
+
+    `nm_id=1` was accepted until 2026-09-05. Nothing downstream would have
+    worked: the poller reads advertising for that article and finds none, and a
+    rotation would send a media upload at somebody else's card, or at nothing.
+    The refusal has to happen before the row exists, because a test that cannot
+    rotate is worse than no test — it looks like it is running.
+    """
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Демо")
+    db_session.add(workspace)
+    await db_session.flush()
+    service = _service(db_session, tmp_path)
+
+    with pytest.raises(ValidationError, match="1"):
+        await service.create_test(
+            workspace_id=workspace.id,
+            payload=AbTestCreate(nm_id=1, name="Тест"),
+            card=None,
+        )
+
+    assert await service.list_tests(workspace_id=workspace.id, query=None) == []

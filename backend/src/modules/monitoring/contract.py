@@ -20,6 +20,7 @@ from src.modules.monitoring.services import (
     AdDay,
     AnalyticsService,
     WarehouseStock,
+    WorkspaceCard,
     ad_coverage,
     funnel_coverage,
     load_ad_days_for_nm,
@@ -28,6 +29,8 @@ from src.modules.monitoring.services import (
     load_orders_by_nm,
     load_stock_by_warehouse,
     load_vendor_codes,
+    load_workspace_card,
+    search_workspace_cards,
     stock_day_span,
 )
 
@@ -38,6 +41,7 @@ __all__ = [
     "SkuSummaryItem",
     "SkuSummaryListResponse",
     "WarehouseStock",
+    "WorkspaceCard",
     "ad_coverage",
     "funnel_coverage",
     "load_ad_days_for_nm",
@@ -46,5 +50,7 @@ __all__ = [
     "load_orders_by_nm",
     "load_stock_by_warehouse",
     "load_vendor_codes",
+    "load_workspace_card",
+    "search_workspace_cards",
     "stock_day_span",
 ]

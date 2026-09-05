@@ -27,7 +27,13 @@ from src.modules.ab_tests.schemas import AbTestCreate
 from src.modules.ab_tests.services.catalog import AbTestCatalogService
 from src.modules.finreports.schemas.cost_price import CostPriceInput
 from src.modules.finreports.services.cost_price import CostPriceService
+from src.modules.monitoring.contract import WorkspaceCard
 from src.modules.monitoring.services.analytics.annotations import DayAnnotationAnalytics
+
+#: A resolved catalogue card. Creating a test now requires one, because the
+#: article is checked against the workspace catalogue before anything is
+#: written — `nm_id=1` used to be accepted straight off the body.
+_CARD = WorkspaceCard(nm_id=995716075, vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК", title="Брюки")
 
 
 class FakeCostRepo:
@@ -248,7 +254,11 @@ async def test_a_workspace_at_its_test_bound_cannot_create_another(
     ):
         await _catalog(repo).create_test(
             workspace_id=uuid.uuid4(),
-            payload=AbTestCreate(nm_id=1, vendor_code="A-1", name="проверка"),
+            payload=AbTestCreate(nm_id=_CARD.nm_id, name="проверка"),
+            # A resolved card: the bound is about how many tests exist, not which
+            # article they name. `nm_id=1` used to be accepted here and in
+            # production, which is why the article is now resolved first.
+            card=_CARD,
         )
 
     assert "лимит А/Б-тестов" in excinfo.value.message

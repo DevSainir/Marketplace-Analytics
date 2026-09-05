@@ -11,7 +11,7 @@ import httpx
 
 from src.core.exceptions import ConflictError
 from src.core.exceptions import ValidationError as DomainValidationError
-from tests.component.ab_tests.conftest import NM_ID, TEST_ID, _StubCatalog
+from tests.component.ab_tests.conftest import CARD, NM_ID, TEST_ID, _StubCatalog, _StubCatalogue
 
 
 async def test_the_two_triggers_are_mutually_exclusive(
@@ -150,3 +150,81 @@ async def test_the_patch_rejects_a_setting_from_the_other_mode(
     )
 
     assert response.status_code == 422
+
+
+async def test_an_unknown_article_reaches_the_service_as_no_card(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    catalog: _StubCatalog,
+    catalogue: _StubCatalogue,
+) -> None:
+    """The route resolves the article and hands the answer down, `None` included.
+
+    The refusal itself is the service's, and is pinned against a real database
+    in `tests/integration/ab_tests/test_ab_test_creation_row.py` — a stubbed
+    service cannot demonstrate a rule it does not implement. What belongs here
+    is the wiring: that the route looks the article up at all, which it did not
+    until 2026-09-05, when `nm_id=1` was accepted straight off the body.
+    """
+    catalogue.card = None
+
+    await client.post("/api/ab-tests", headers=headers, json={"nm_id": 1, "name": "Тест"})
+
+    assert catalogue.resolved == [1]
+    card = next(call[1]["card"] for call in catalog.calls if call[0] == "create_test")
+    assert card is None
+
+
+async def test_the_seller_article_comes_from_the_card_not_the_body(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    catalog: _StubCatalog,
+) -> None:
+    """The two identifiers cannot disagree, because only one of them is sent.
+
+    The body no longer carries a vendor code at all — the list is searched by it,
+    so a client-supplied value that drifted from the card would make a test
+    unfindable by the article it is actually running on.
+    """
+    response = await client.post(
+        "/api/ab-tests",
+        headers=headers,
+        json={"nm_id": NM_ID, "name": "Тест", "vendor_code": "ПОДДЕЛКА"},
+    )
+
+    assert response.status_code == 201
+    card = next(call[1]["card"] for call in catalog.calls if call[0] == "create_test")
+    assert card.vendor_code == CARD.vendor_code
+
+
+async def test_the_picker_lists_the_workspaces_catalogue(
+    client: httpx.AsyncClient, headers: dict[str, str]
+) -> None:
+    """The article field is a picker, so it needs something to pick from.
+
+    A blank query returns the first page rather than nothing, so the control
+    opens with content instead of looking broken.
+    """
+    blank = await client.get("/api/ab-tests/skus", headers=headers)
+    by_nm = await client.get("/api/ab-tests/skus", params={"q": str(NM_ID)[:5]}, headers=headers)
+    by_vendor = await client.get("/api/ab-tests/skus", params={"q": "ПЛАТЬЕ"}, headers=headers)
+
+    assert blank.status_code == 200
+    assert blank.json()[0]["nm_id"] == NM_ID
+    # Both identifiers reach the same card: a picker that accepted only one
+    # would make typing the other read as "this SKU does not exist".
+    assert by_nm.json()[0]["vendor_code"] == CARD.vendor_code
+    assert by_vendor.json()[0]["nm_id"] == NM_ID
+
+
+async def test_the_picker_is_not_swallowed_by_the_test_id_route(
+    client: httpx.AsyncClient, headers: dict[str, str]
+) -> None:
+    """`/skus` is a static path competing with `/{test_id}`.
+
+    Declared first for that reason; if the order ever flips, this asks for a
+    UUID and answers 422 instead of listing the catalogue.
+    """
+    response = await client.get("/api/ab-tests/skus", headers=headers)
+
+    assert response.status_code == 200

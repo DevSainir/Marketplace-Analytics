@@ -20,8 +20,9 @@ from typing import Any
 
 import pytest
 
-from src.modules.ab_tests.deps import get_catalog_service, get_installer
+from src.modules.ab_tests.deps import get_catalog_service, get_installer, get_sku_catalogue
 from src.modules.ab_tests.schemas import AbTestDetail, AbTestRead, VariantMetrics
+from src.modules.monitoring.contract import WorkspaceCard
 from src.modules.users.deps import get_user_repo
 from src.modules.workspaces.contract import WORKSPACE_HEADER
 from src.modules.workspaces.deps import get_workspace_repo
@@ -79,6 +80,30 @@ def _detail() -> AbTestDetail:
             )
         ],
     )
+
+
+#: The catalogue card every stubbed lookup resolves to. A test may only name an
+#: article its workspace owns, so the component tier has to supply one.
+CARD = WorkspaceCard(nm_id=NM_ID, vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК", title="Брюки бананы")
+
+
+class _StubCatalogue:
+    """Stands in for the workspace catalogue the article is checked against."""
+
+    def __init__(self) -> None:
+        self.resolved: list[int] = []
+        #: Set to None to model an article this workspace does not own.
+        self.card: WorkspaceCard | None = CARD
+
+    async def resolve(self, *, workspace_id: Any, nm_id: int) -> WorkspaceCard | None:
+        self.resolved.append(nm_id)
+        return self.card
+
+    async def search(
+        self, *, workspace_id: Any, needle: str, limit: int = 20
+    ) -> list[WorkspaceCard]:
+        matches = not needle or needle in CARD.vendor_code or needle in str(CARD.nm_id)
+        return [CARD] if matches else []
 
 
 class _StubInstaller:
@@ -152,6 +177,12 @@ class _StubCatalog:
 
 
 @pytest.fixture
+def catalogue() -> _StubCatalogue:
+    """The stubbed workspace catalogue the create route resolves against."""
+    return _StubCatalogue()
+
+
+@pytest.fixture
 def catalog() -> _StubCatalog:
     """The stub service the routes are wired to."""
     return _StubCatalog()
@@ -163,12 +194,14 @@ def _wire(
     user_repo: FakeUserRepository,
     workspace_repo: FakeWorkspaceRepository,
     catalog: _StubCatalog,
+    catalogue: _StubCatalogue,
 ) -> None:
     """Wire identity, tenancy and the stubbed service."""
     override(get_user_repo, user_repo)
     override(get_workspace_repo, workspace_repo)
     override(get_catalog_service, catalog)
     override(get_installer, _StubInstaller())
+    override(get_sku_catalogue, catalogue)
 
 
 @pytest.fixture

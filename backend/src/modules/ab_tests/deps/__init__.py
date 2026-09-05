@@ -27,6 +27,7 @@ from src.modules.ab_tests.repos import (
 )
 from src.modules.ab_tests.services.catalog import AbTestCatalogService
 from src.modules.ab_tests.services.photos import MediaStore, VariantInstaller
+from src.modules.ab_tests.services.skus import SkuCatalogue
 from src.modules.workspaces.contract import CurrentWorkspaceId, load_workspace_token_bundle
 
 
@@ -62,6 +63,14 @@ async def get_installer(
 
 
 InstallerDep = Annotated[VariantInstaller, Depends(get_installer)]
+
+
+def get_sku_catalogue(session: DbSession) -> SkuCatalogue:
+    """Provide the module's catalogue lookup, bound to the request session."""
+    return SkuCatalogue(session)
+
+
+SkuCatalogueDep = Annotated[SkuCatalogue, Depends(get_sku_catalogue)]
 
 
 def get_test_repo(session: DbSession) -> AbTestRepository:
@@ -107,7 +116,9 @@ __all__ = [
     "AbTestCatalogServiceDep",
     "InstallerDep",
     "MediaStoreDep",
+    "SkuCatalogueDep",
     "get_catalog_service",
     "get_installer",
     "get_media_store",
+    "get_sku_catalogue",
 ]

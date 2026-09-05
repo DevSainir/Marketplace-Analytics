@@ -23,13 +23,14 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import Response
 
 from src.core.uploads import read_capped
-from src.modules.ab_tests.deps import AbTestCatalogServiceDep, InstallerDep
+from src.modules.ab_tests.deps import AbTestCatalogServiceDep, InstallerDep, SkuCatalogueDep
 from src.modules.ab_tests.schemas import (
     AbTestCreate,
     AbTestDetail,
     AbTestRead,
     AbTestSettingsUpdate,
     AbTestStatusUpdate,
+    SkuOption,
 )
 from src.modules.ab_tests.services.photos import MAX_IMAGE_BYTES
 from src.modules.organizations.contract import WritingAccess, require_ab_tests
@@ -74,10 +75,47 @@ async def create_test(
     _writer: WritingAccess,
     payload: AbTestCreate,
     service: AbTestCatalogServiceDep,
+    catalogue: SkuCatalogueDep,
     workspace_id: CurrentWorkspaceId,
 ) -> AbTestRead:
-    """Create a draft test; photos are uploaded separately."""
-    return await service.create_test(workspace_id=workspace_id, payload=payload)
+    """Create a draft test; photos are uploaded separately.
+
+    The article is resolved against the workspace's catalogue before anything is
+    written, and the seller article is read off that card rather than taken from
+    the body — the two could otherwise disagree.
+    """
+    return await service.create_test(
+        workspace_id=workspace_id,
+        payload=payload,
+        card=await catalogue.resolve(workspace_id=workspace_id, nm_id=payload.nm_id),
+    )
+
+
+@router.get(
+    "/skus",
+    response_model=list[SkuOption],
+    summary="Каталог для выбора артикула",
+    responses={401: {"description": "Не аутентифицирован"}},
+)
+async def search_skus(
+    catalogue: SkuCatalogueDep,
+    workspace_id: CurrentWorkspaceId,
+    q: str = Query(default="", description="Часть артикула WB, артикула продавца или названия"),
+) -> list[SkuOption]:
+    """Return the cards a test may be created against.
+
+    Declared before ``/{test_id}`` so the static path is not swallowed by the
+    UUID path parameter — the same ordering trap monitoring's own lookup route
+    documents.
+
+    A blank query returns the first page rather than nothing, so the picker
+    opens with something in it instead of looking broken.
+    """
+    cards = await catalogue.search(workspace_id=workspace_id, needle=q)
+    return [
+        SkuOption(nm_id=card.nm_id, vendor_code=card.vendor_code, title=card.title)
+        for card in cards
+    ]
 
 
 @router.get(
