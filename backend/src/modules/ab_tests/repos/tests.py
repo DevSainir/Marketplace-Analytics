@@ -67,6 +67,12 @@ class AbTestRepository:
             trigger_mode=trigger_mode,
             impression_budget=impression_budget,
             slot_minutes=slot_minutes,
+            # Marks the collection LOADED and empty, which it is. Without it the
+            # first read of `test.variants` on the flushed instance emits a lazy
+            # SELECT, and a lazy SELECT on an async session raises
+            # MissingGreenlet — so building the response row for a test we had
+            # just created answered 500.
+            variants=[],
         )
         self._session.add(test)
         await self._session.flush()
