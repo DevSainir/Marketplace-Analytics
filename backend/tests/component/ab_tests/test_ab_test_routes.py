@@ -16,6 +16,7 @@ import httpx
 import pytest
 
 from src.core.exceptions import ConflictError, NotFoundError
+from src.modules.ab_tests.routers import router as ab_tests_router
 from src.modules.organizations.contract import AccessLevel, EffectiveRole, SubscriptionState
 from src.modules.workspaces.models import Workspace
 from tests.component.ab_tests.conftest import JPEG, TEST_ID, VARIANT_ID, _StubCatalog
@@ -206,17 +207,24 @@ async def test_a_read_only_manager_of_ours_still_reads_the_results(
     assert response.status_code == 200
 
 
-@pytest.mark.parametrize(
-    ("method", "path"),
-    [
-        ("POST", "/api/ab-tests"),
-        ("PATCH", f"/api/ab-tests/{TEST_ID}/status"),
-        ("DELETE", f"/api/ab-tests/{TEST_ID}"),
-        ("POST", f"/api/ab-tests/{TEST_ID}/variants"),
-        ("DELETE", f"/api/ab-tests/{TEST_ID}/variants/{VARIANT_ID}"),
-    ],
-)
-async def test_a_read_only_manager_of_ours_changes_nothing(
+def _writing_routes() -> list[tuple[str, str]]:
+    """Every state-changing route on the module's router, read from the router.
+
+    Derived rather than listed because a hand-written list only ever proves the
+    routes someone remembered: `PATCH /{test_id}` shipped without the guard and
+    the five-entry list that preceded this could not see it. Anything that is
+    not a GET has to answer for itself here.
+    """
+    routes = []
+    for route in ab_tests_router.routes:
+        methods = getattr(route, "methods", set()) - {"HEAD", "OPTIONS"}
+        for method in sorted(methods - {"GET"}):
+            routes.append((method, "/api" + route.path))
+    return routes
+
+
+@pytest.mark.parametrize(("method", "path"), _writing_routes())
+async def test_every_writing_route_refuses_a_read_only_manager(
     client: httpx.AsyncClient,
     headers: dict[str, str],
     catalog: _StubCatalog,
@@ -224,15 +232,10 @@ async def test_a_read_only_manager_of_ours_changes_nothing(
     method: str,
     path: str,
 ) -> None:
-    """Every state-changing route refuses a read-only manager.
+    """No route that changes anything may be reachable read-only.
 
-    Parametrised over all five rather than a representative one because the
-    guard is declared per route here — the router-level dependency is the
-    reachability guard, not this one — so a sixth writing route added without
-    it would be invisible to a single-route test.
-
-    The assertion goes as far as the service NOT being called: a 403 that still
-    reached the catalogue would mean the refusal came after the write.
+    The assertion goes as far as the service NOT being called: a 403 that had
+    still reached the catalogue would mean the refusal came after the write.
     """
     login_as(
         role=EffectiveRole.MANAGER,
@@ -240,7 +243,12 @@ async def test_a_read_only_manager_of_ours_changes_nothing(
         access_level=AccessLevel.READ_ONLY,
     )
 
-    response = await client.request(method, path, headers=headers, json={})
+    response = await client.request(
+        method,
+        path.replace("{test_id}", str(TEST_ID)).replace("{variant_id}", str(VARIANT_ID)),
+        headers=headers,
+        json={},
+    )
 
     assert response.status_code == 403
     assert catalog.calls == []

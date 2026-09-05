@@ -100,12 +100,14 @@ async def get_test(
     response_model=AbTestRead,
     summary="Изменить название или триггер ротации",
     responses={
+        403: {"description": "Доступ только для чтения"},
         404: {"description": "Тест не найден"},
         409: {"description": "Тест уже завершён"},
         422: {"description": "Настройка не от того режима"},
     },
 )
 async def update_settings(
+    _writer: WritingAccess,
     test_id: uuid.UUID,
     payload: AbTestSettingsUpdate,
     service: AbTestCatalogServiceDep,
