@@ -148,9 +148,47 @@ async def refresh_sampled_metrics() -> None:
     sample_pool()
     sample_degraded_controls()
     await sample_queue_depth()
+    await probe_dependencies()
+
+
+async def probe_dependencies() -> None:
+    """Ping Postgres and Redis so ``dependency_up`` exists between health checks.
+
+    :func:`~src.core.observability.health.check_health` writes ``dependency_up``
+    and ``dependency_probe_duration_seconds`` as a side effect, so this drives
+    the same probe the readiness endpoint does and throws the report away.
+
+    **Why the scrape has to do this itself.** Those gauges were written only
+    when something called ``/healthz`` — which meant the ``DependencyDown``
+    alert (``dependency_up == 0``) silently depended on an external uptime
+    checker existing and polling. With nobody polling, the series is simply
+    absent after a container restart, and an alert with no series never fires:
+    the rule reads as covering Postgres and Redis while covering nothing at
+    all. That is a worse state than having no rule, because the dashboard is
+    green either way. Found on the deployed box, where a deploy had recreated
+    the API and nothing had asked it for its readiness since.
+
+    Driving it from the scrape makes the alert self-sufficient: Prometheus asks
+    every 15 s whether these are reachable, whether or not Better Stack is
+    configured, and the two now answer the same question independently rather
+    than one depending on the other.
+
+    The cost is one ``SELECT 1`` and one ``PING`` per scrape per API instance —
+    a handful a minute, on the same pools a request would use. Both probes are
+    already bounded by their own timeout and cannot raise, so a dead dependency
+    slows the scrape rather than failing it.
+    """
+    # Imported here rather than at module scope: `health` imports this module's
+    # own metrics, and the exposition route imports both. Keeping the edge
+    # local to the one function that needs it avoids widening the import graph
+    # of a package whose `__init__` is deliberately thin.
+    from src.core.observability.health import check_health
+
+    await check_health()
 
 
 __all__ = [
+    "probe_dependencies",
     "refresh_sampled_metrics",
     "sample_degraded_controls",
     "sample_pool",

@@ -24,6 +24,7 @@ import pytest
 from fastapi import FastAPI
 
 from src.core.observability import health
+from src.core.observability.metrics import DEPENDENCY_UP
 from tests.component.conftest import CapturingHandler
 
 
@@ -149,6 +150,40 @@ async def test_metrics_reports_the_pool_as_it_is_at_the_moment_of_asking(
     # Assert
     assert "postgres_pool_connections_used" in response.text
     assert "security_degraded_controls" in response.text
+
+
+async def test_the_scrape_itself_reports_dependency_health(
+    client: httpx.AsyncClient,
+) -> None:
+    """`dependency_up` must exist without anyone having called `/healthz`.
+
+    The regression. These gauges used to be written only by the readiness
+    endpoint, which made the `DependencyDown` alert (`dependency_up == 0`)
+    quietly conditional on an external uptime checker existing and polling —
+    with nobody polling, the series is absent after a restart, and an alert
+    with no series never fires. The rule read as covering Postgres and Redis
+    while covering nothing, and the dashboard was green either way.
+
+    Found on the deployed box, where a deploy had recreated the API and
+    nothing had asked it for its readiness since.
+    """
+    # Arrange — clear the gauge first, and that is the whole test.
+    #
+    # Prometheus metrics are process-global and outlive a test, so without this
+    # the assertion is satisfied by whichever earlier test in the session
+    # happened to call /healthz — and it passed with the fix reverted, which is
+    # how this was caught. Clearing reproduces the state that matters: a
+    # freshly started container nobody has asked for its readiness.
+    # (Asserting it is absent here is not possible, and the reason is the
+    # point: the very scrape that would check repopulates it.)
+    DEPENDENCY_UP.clear()
+
+    # Act — a scrape, and deliberately no request to /healthz before it.
+    response = await client.get("/metrics")
+
+    # Assert
+    assert 'dependency_up{dependency="postgres"}' in response.text
+    assert 'dependency_up{dependency="redis"}' in response.text
 
 
 async def test_a_url_a_stranger_invents_cannot_create_a_series(
