@@ -182,6 +182,15 @@ Conflating the last two is the tempting mistake and it is a bad one: a liveness
 probe that fails because Postgres is down would have Docker restart every
 healthy API process in the middle of a database outage.
 
+**The scrape runs the same probe, and that is not redundancy.** `dependency_up`
+used to be written only by `/healthz`, which made the `DependencyDown` alert
+(`dependency_up == 0`) quietly conditional on Better Stack existing and polling:
+with nobody polling, the series is absent after a restart, and an alert with no
+series never fires. The rule read as covering Postgres and Redis while covering
+nothing, and the dashboard was green either way. Prometheus now drives the probe
+itself every 15 s, so the internal alert and the external check answer the same
+question independently instead of one depending on the other.
+
 The readiness probe never carries an exception, a host or a DSN — P0.3 removed
 that class of disclosure from the API's error path, and a public probe is the
 easiest place to put it back without noticing. It runs both checks concurrently
