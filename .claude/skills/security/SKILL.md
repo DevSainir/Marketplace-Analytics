@@ -1,6 +1,6 @@
 ---
 name: security
-description: Threat-model this repo's code before writing it — tenancy scoping, access guards, resource bounds, fail-closed defaults, and what must never reach a response. Use whenever you add or change an API route, a database query, a Celery task, an upload handler, a migration, auth or session logic, an error message, or anything touching WB tokens, activation codes or invitations — and whenever asked to review, audit or harden. Names the exact guard and scoping helper to use, so a new route inherits the controls instead of reinventing them.
+description: READ THIS BEFORE WRITING ANY ROUTE — every new or changed endpoint must name its access guard and its tenant scoping here before the handler is written, including a one-line PATCH that only edits a setting. Also for a database query, a Celery task, an upload handler, a migration, auth or session logic, an error message, anything touching WB tokens, activation codes or invitations, and any request to review, audit or harden. Threat-models this repo's code — tenancy scoping, access guards, resource bounds, fail-closed defaults, and what must never reach a response — and names the exact guard and scoping helper, so a new route inherits the controls instead of reinventing them.
 ---
 
 # Security
@@ -24,6 +24,30 @@ Before writing any route, query, task or handler, answer four questions. If any 
    decide single-use races in the database.
 4. **What does the failure path return?** → 404 over 403 for existence, never an internal
    string, and never the value that was rejected.
+
+## Writing a route: answer these in the code, not in your head
+
+The four questions above are the general form. A route is where they get forgotten, because a
+route can look like plumbing — `PATCH /ab-tests/{test_id}` changes one number and shipped with
+no guard at all, which let a read-only manager retune a running test and swap the photo
+customers see. Nothing about that diff *looked* dangerous.
+
+So for every endpoint, before writing the handler:
+
+1. **Name the guard in the signature.** Pick from the ladder below and write it as a
+   parameter (`_writer: WritingAccess`) or a router dependency. "Authenticated" is not a
+   guard. A route with none is a decision you are making, so make it out loud.
+2. **Say why the next-weaker guard is wrong.** One clause, in the docstring or a comment:
+   *"owner-only — this rotates a WB token"*. If you cannot finish that sentence, you have not
+   chosen a guard, you have copied one.
+3. **Ask what the route changes for someone else.** Not "does it write a row" — does it
+   change what a customer sees, what a competitor could infer, what a bill will say. A
+   setting that alters a live storefront is a write in every sense that matters, whatever its
+   verb.
+4. **Bind the tenant through a dependency**, never through a raw `workspace_id` parameter —
+   see the tenancy note below for why that silently breaks under row-level security.
+5. **If the verb is GET but it writes, or POST but it only reads**, say so in a comment. The
+   machine check keys on the verb and will be wrong in exactly those two cases.
 
 ## What is machine-enforced, and what still needs you
 
@@ -142,6 +166,9 @@ passwords in clear in the response body until `main.py` overrode it.
 
 ## Self-audit before you finish
 
+0. **Every route you touched** — re-read its signature and say the guard's name aloud. Not
+   "I added a guard" but "this one takes `WritingAccess`". A guard that was never written is
+   invisible in a diff you have read four times; a guard you have to *name* is not.
 1. **Access control** — is there a guard, and is it the narrowest that works? Does every
    query carry the tenant?
 2. **Data exposure** — could this response contain another tenant's row, an internal path, a
