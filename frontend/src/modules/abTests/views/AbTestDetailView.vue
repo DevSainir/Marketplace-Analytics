@@ -2,22 +2,20 @@
 /**
  * One A/Б-тест: upload the photos, then read what each of them earned.
  *
- * The result table is transposed relative to WB's own A/Б screen. WB compares
- * exactly two images, so it can afford variants as columns and metrics as rows;
- * a rotation runs up to ten, so **photos are the rows** — the picture itself in
- * the first cell — and the metrics are the columns. Otherwise the table grows
- * sideways off the page.
- *
- * A ratio reads «—» rather than 0 % when its denominator is empty: a photo that
- * has not been live yet has not converted nobody, it has not been measured.
+ * Three blocks on the canvas — identity, the rotation panel, the results — the
+ * same stack `MonitoringView` uses, so the page reads as part of the app rather
+ * than as a form someone bolted on. The result table is its own component; see
+ * it for why photos are rows.
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import { MAX_VARIANTS, STATUS_LABELS, useAbTestsStore } from '@/modules/abTests'
 import TriggerEditor from '@/modules/abTests/components/TriggerEditor.vue'
+import VariantResultsTable from '@/modules/abTests/components/VariantResultsTable.vue'
 
 const route = useRoute()
+const router = useRouter()
 const store = useAbTestsStore()
 const fileInput = ref(null)
 
@@ -54,14 +52,21 @@ const canEditTrigger = computed(
 )
 
 const editing = ref(false)
+const armedDelete = ref(false)
 
 async function saveTrigger(payload) {
   const ok = await store.updateSettings(route.params.testId, payload)
   if (ok) editing.value = false
 }
 
-function percent(value) {
-  return value === null || value === undefined ? '—' : `${Number(value).toFixed(2)} %`
+/** Two-click confirm, then back to the list — the test is gone from under us. */
+async function removeTest() {
+  if (!armedDelete.value) {
+    armedDelete.value = true
+    return
+  }
+  armedDelete.value = false
+  if (await store.remove(route.params.testId)) router.push({ name: 'ab-tests' })
 }
 
 function count(value) {
@@ -83,19 +88,39 @@ async function onFiles(event) {
     <header class="mb-lg">
       <RouterLink
         :to="{ name: 'ab-tests' }"
-        class="text-base font-medium text-action hover:underline"
+        class="text-tiny font-medium text-action hover:underline"
       >
         ← Ко всем A/Б-тестам
       </RouterLink>
-      <h1 v-if="test" class="mt-sm text-h2 font-bold text-primary">{{ test.name }}</h1>
-      <p v-if="test" class="mt-xs text-base text-muted">
-        WB артикул: {{ test.nm_id }}
-        <span v-if="test.vendor_code"> · Артикул продавца: {{ test.vendor_code }}</span>
-        · Статус: {{ STATUS_LABELS[test.status] || test.status }} · {{ triggerLabel }}
+
+      <div v-if="test" class="mt-sm flex flex-wrap items-center gap-x-md gap-y-xs">
+        <h1 class="text-h2 font-bold text-primary">{{ test.name }}</h1>
+        <span class="text-tiny font-semibold text-action">WB {{ test.nm_id }}</span>
+        <span v-if="test.vendor_code" class="text-tiny text-muted">{{ test.vendor_code }}</span>
+        <button
+          type="button"
+          class="ml-auto rounded-btn px-sm py-xs text-micro font-semibold transition"
+          :class="
+            armedDelete
+              ? 'bg-status-negative/10 text-status-negative'
+              : 'text-muted hover:bg-hover hover:text-status-negative'
+          "
+          :disabled="store.saving"
+          data-testid="delete-test"
+          @click="removeTest"
+        >
+          {{ armedDelete ? 'Точно удалить тест?' : 'Удалить тест' }}
+        </button>
+      </div>
+
+      <p v-if="test" class="mt-xs flex flex-wrap items-center gap-x-sm text-tiny text-muted">
+        <span>{{ STATUS_LABELS[test.status] || test.status }}</span>
+        <span>·</span>
+        <span>{{ triggerLabel }}</span>
         <button
           v-if="canEditTrigger"
           type="button"
-          class="ml-xs text-base text-action hover:underline"
+          class="rounded-btn px-xs py-px text-micro font-semibold text-action transition hover:bg-action/10"
           data-testid="edit-trigger"
           @click="editing = true"
         >
@@ -112,28 +137,43 @@ async function onFiles(event) {
       />
     </header>
 
-    <section
-      v-if="test"
-      class="mb-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
-    >
+    <p v-if="store.error" class="mb-md text-base text-status-negative">{{ store.error }}</p>
+
+    <section v-if="test" class="mb-lg rounded-card bg-surface p-lg shadow-card phone:p-md">
       <div class="flex flex-wrap items-center gap-md">
-        <label class="text-base font-medium text-primary">
+        <span class="text-base font-semibold text-primary">
           Фото в ротации: {{ test.variants.length }} из {{ MAX_VARIANTS }}
+        </span>
+        <!-- The native control renders «Choose Files / No file chosen» in the
+             browser's own language and cannot be restyled past the button; the
+             input is hidden behind a real one instead. It stays in the DOM —
+             `sr-only`, not `v-if` — because that is what the file dialog and
+             the browser tier both drive. -->
+        <label
+          class="inline-flex h-10 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition"
+          :class="
+            !store.canUpload || store.saving
+              ? 'cursor-not-allowed opacity-50'
+              : 'cursor-pointer hover:bg-hover'
+          "
+        >
+          Добавить фото
+          <input
+            ref="fileInput"
+            type="file"
+            accept="image/*"
+            multiple
+            data-testid="upload"
+            :disabled="!store.canUpload || store.saving"
+            class="sr-only"
+            @change="onFiles"
+          />
         </label>
-        <input
-          ref="fileInput"
-          type="file"
-          accept="image/*"
-          multiple
-          data-testid="upload"
-          :disabled="!store.canUpload || store.saving"
-          class="text-base"
-          @change="onFiles"
-        />
+        <span class="min-w-0 flex-1"></span>
         <button
           v-if="test.status === 'draft' || test.status === 'paused'"
           type="button"
-          class="rounded-control bg-action px-md py-sm text-base font-medium text-white hover:opacity-90 disabled:opacity-50"
+          class="inline-flex h-10 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
           :disabled="store.saving || !test.variants.length"
           data-testid="start"
           @click="store.changeStatus(test.id, 'running')"
@@ -143,7 +183,7 @@ async function onFiles(event) {
         <button
           v-if="test.status === 'running'"
           type="button"
-          class="rounded-control border border-border-subtle px-md py-sm text-base font-medium text-primary hover:bg-zebra"
+          class="inline-flex h-10 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover disabled:opacity-50"
           :disabled="store.saving"
           data-testid="pause"
           @click="store.changeStatus(test.id, 'paused')"
@@ -151,7 +191,7 @@ async function onFiles(event) {
           Пауза
         </button>
       </div>
-      <p class="mt-sm text-base text-muted">
+      <p class="mt-md text-tiny text-muted">
         Первое фото встаёт на карточку сразу при запуске. Дальше вариант меняется, когда сработает
         выбранный триггер: данные по рекламе снимаются каждые несколько минут, разница между
         снимками и есть трафик интервала. Смена происходит сразу в том же проходе, поэтому интервал
@@ -159,81 +199,15 @@ async function onFiles(event) {
       </p>
     </section>
 
-    <section
+    <VariantResultsTable
       v-if="test && test.variants.length"
-      class="rounded-card border border-border-subtle bg-surface shadow-card"
-    >
-      <table class="app-datatable w-full" data-testid="results">
-        <thead>
-          <tr class="text-left text-tiny font-medium uppercase tracking-wide text-muted">
-            <th class="px-lg py-md">Фото</th>
-            <th class="px-lg py-md">Доля переходов в карточку</th>
-            <th class="px-lg py-md">Доля добавлений в корзину</th>
-            <th class="px-lg py-md">Доля оформлений заказов</th>
-            <th class="px-lg py-md">Показы карточки в выдаче</th>
-            <th class="px-lg py-md">Переходы в карточку</th>
-            <th class="px-lg py-md">Добавления в корзину</th>
-            <th class="px-lg py-md">Оформления заказов</th>
-            <th class="px-lg py-md">Дней в тесте</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="variant in test.variants"
-            :key="variant.variant_id"
-            class="border-t border-border-subtle"
-            :class="variant.variant_id === test.leader_variant_id ? 'bg-zebra' : ''"
-            data-testid="variant-row"
-          >
-            <td class="px-lg py-md">
-              <div class="flex items-center gap-sm">
-                <img
-                  v-if="store.imageUrls[variant.variant_id]"
-                  :src="store.imageUrls[variant.variant_id]"
-                  :alt="`Вариант ${variant.position}`"
-                  class="h-20 w-16 rounded-control object-cover"
-                />
-                <div>
-                  <div class="text-base font-medium text-primary">
-                    Вариант {{ variant.position }}
-                  </div>
-                  <div v-if="variant.is_active" class="text-tiny text-status-positive">
-                    Сейчас на карточке
-                  </div>
-                  <div
-                    v-else-if="variant.variant_id === test.leader_variant_id"
-                    class="text-tiny text-status-positive"
-                  >
-                    Лидер по CTR
-                  </div>
-                  <button
-                    v-if="!variant.is_active"
-                    type="button"
-                    class="mt-xs text-tiny text-muted hover:underline"
-                    :disabled="store.saving"
-                    @click="store.removePhoto(test.id, variant.variant_id)"
-                  >
-                    Удалить
-                  </button>
-                </div>
-              </div>
-            </td>
-            <td class="px-lg py-md text-base tabular-nums" data-testid="ctr">
-              {{ percent(variant.click_through) }}
-            </td>
-            <td class="px-lg py-md text-base tabular-nums">{{ percent(variant.add_to_cart) }}</td>
-            <td class="px-lg py-md text-base tabular-nums">{{ percent(variant.order_rate) }}</td>
-            <td class="px-lg py-md text-base tabular-nums">{{ count(variant.views) }}</td>
-            <td class="px-lg py-md text-base tabular-nums">{{ count(variant.clicks) }}</td>
-            <td class="px-lg py-md text-base tabular-nums">{{ count(variant.atbs) }}</td>
-            <td class="px-lg py-md text-base tabular-nums">{{ count(variant.orders) }}</td>
-            <td class="px-lg py-md text-base tabular-nums">{{ count(variant.days_measured) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
+      :test="test"
+      :image-urls="store.imageUrls"
+      :saving="store.saving"
+      @remove="store.removePhoto(test.id, $event)"
+    />
 
-    <p v-else-if="test" class="text-base text-muted">
+    <p v-else-if="test" class="rounded-card bg-surface p-lg text-base text-muted shadow-card">
       Загрузите до {{ MAX_VARIANTS }} вариантов главного фото — они будут сменять друг друга по мере
       набора показов, и здесь появится их сравнение.
     </p>

@@ -1,0 +1,88 @@
+/*
+ * The result table's own rules — everything Tailwind has no token for.
+ *
+ * Lives here rather than in a `<style scoped>` block because the component is
+ * near the 250-line ceiling; it is imported with `<style scoped src>`, so it
+ * still gets the component's scope attribute and still outranks `skin.css`.
+ */
+
+/* The photo column carries the only non-compact cell in the table, so it sets
+   its own padding rather than inheriting `.ui-table`'s 8px/12px. */
+.ab-results__photo-col {
+  /* A preference, not a cap: the table is `width: 100%`, and without it the
+     first column absorbs every spare pixel and leaves the figures huddled
+     against the right edge. */
+  width: 300px;
+  padding-left: 16px;
+  padding-right: 20px;
+}
+
+.ab-results tbody .ab-results__photo-col {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+/* Bigger than the old 64x80: this is the thing being compared. 3:4 is WB's own
+   card aspect, so a photo uploaded for a card is never letterboxed here. */
+.ab-photo {
+  width: 72px;
+  height: 96px;
+  flex: none;
+  object-fit: cover;
+  border-radius: var(--ui-r-md);
+  box-shadow: var(--ui-sh-sm);
+}
+
+.ab-photo--empty {
+  background: var(--ui-sunk);
+}
+
+/* Ratios and absolute counts are two different kinds of number; a hairline
+   between the groups is enough to say so without drawing a grid. */
+.ab-results :is(th, td).ab-results__group {
+  border-left: 1px solid var(--ui-hairline);
+}
+
+/* The leader is tinted rather than bolded — the row is already all figures.
+   The hover fill is the same tint, so the leader also takes an accent rule down
+   its left edge: two rows that look identical when one is merely under the
+   cursor is exactly the confusion the highlight exists to prevent. */
+.ab-results tbody tr.is-leader td {
+  background: var(--ui-action-soft);
+}
+
+.ab-results tbody tr.is-leader td:first-child {
+  box-shadow: inset 3px 0 0 var(--ui-action);
+}
+
+/* --- the phone card ------------------------------------------------------
+   Nine columns do not fit 402px, and a table the reader scrolls sideways is
+   not adapted — they lose the photo they were comparing. One card per photo,
+   the figures as label/value pairs beside it. */
+.ab-card + .ab-card {
+  border-top: 1px solid var(--ui-hairline);
+}
+
+.ab-card.is-leader {
+  background: var(--ui-action-soft);
+  box-shadow: inset 3px 0 0 var(--ui-action);
+}
+
+.ab-card__figures {
+  display: grid;
+  /* Column-major, so the eight figures do not interleave: the ratios stay
+     together down the left column and the counts down the right. Row-major put
+     «Заказы, %» next to «Показы», which reads as a pair and is not one. */
+  grid-auto-flow: column;
+  grid-template-rows: repeat(4, auto);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 12px;
+}
+
+.ab-card__figure {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}

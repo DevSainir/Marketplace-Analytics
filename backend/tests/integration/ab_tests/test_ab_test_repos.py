@@ -439,3 +439,43 @@ async def test_deleting_a_test_takes_its_photos_and_days_with_it(
 
     assert await windows.windows_for_test(test_id=test.id) == []
     assert await tests.get(workspace_id=workspace.id, test_id=test.id) is None
+
+
+@pytest.mark.integration
+async def test_a_running_test_can_be_deleted_with_its_photo_still_on_the_card(
+    db_session: AsyncSession,
+    organization: Organization,
+) -> None:
+    """The two tables point at each other, and the delete has to survive it.
+
+    ``ab_test.active_variant_id`` references a variant `ON DELETE SET NULL`
+    while ``ab_test_variant.test_id`` references the test `ON DELETE CASCADE`.
+    The cycle only closes once a test has actually started, so every earlier
+    delete test — all of which used drafts — passed without touching it.
+    """
+    workspace = await _workspace(db_session, organization.id)
+    tests = AbTestRepository(db_session)
+    test = await tests.create(
+        workspace_id=workspace.id,
+        nm_id=NM_FLOWER_DRESS,
+        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
+        name="Запущенный",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
+        impression_budget=10_000,
+        slot_minutes=60,
+    )
+    variant = await VariantRepository(db_session).add(
+        test_id=test.id,
+        image_path="a.jpg",
+        image_sha256="0" * 64,
+        content_type="image/jpeg",
+        original_filename="a.jpg",
+    )
+    await tests.set_active_variant(test=test, variant_id=variant.id)
+    await ExposureRepository(db_session).open(
+        test_id=test.id, variant_id=variant.id, activated_at=datetime(2026, 9, 4, tzinfo=UTC)
+    )
+
+    assert await tests.delete(workspace_id=workspace.id, test_id=test.id) is True
+
+    assert await tests.get(workspace_id=workspace.id, test_id=test.id) is None

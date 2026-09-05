@@ -43,15 +43,13 @@ function save() {
 </script>
 
 <template>
-  <div
-    class="mt-md flex flex-wrap items-end gap-md rounded-card border border-border-subtle bg-surface p-md shadow-card"
-  >
+  <div class="mt-md flex flex-wrap items-end gap-md rounded-card bg-surface p-md shadow-card">
     <label class="block">
       <span class="text-tiny font-medium uppercase tracking-wide text-muted">Что меняет фото</span>
       <select
         v-model="draft.trigger_mode"
         data-testid="edit-trigger-mode"
-        class="mt-xs rounded-control border border-border-subtle px-sm py-xs text-base"
+        class="mt-xs h-10 rounded-input bg-surface px-md text-base text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
       >
         <option value="impressions">По показам</option>
         <option value="time">По времени</option>
@@ -65,7 +63,7 @@ function save() {
         v-model="draft.impression_budget"
         data-testid="edit-impression-budget"
         inputmode="numeric"
-        class="mt-xs rounded-control border border-border-subtle px-sm py-xs text-base tabular-nums"
+        class="mt-xs h-10 rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
       />
     </label>
     <label v-else class="block">
@@ -76,12 +74,12 @@ function save() {
         v-model="draft.slot_minutes"
         data-testid="edit-slot-minutes"
         inputmode="numeric"
-        class="mt-xs rounded-control border border-border-subtle px-sm py-xs text-base tabular-nums"
+        class="mt-xs h-10 rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
       />
     </label>
     <button
       type="button"
-      class="rounded-control bg-action px-md py-sm text-base font-medium text-white hover:opacity-90 disabled:opacity-50"
+      class="inline-flex h-10 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:opacity-50"
       :disabled="saving"
       data-testid="save-trigger"
       @click="save"
@@ -90,12 +88,12 @@ function save() {
     </button>
     <button
       type="button"
-      class="rounded-control border border-border-subtle px-md py-sm text-base text-primary hover:bg-zebra"
+      class="inline-flex h-10 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover"
       @click="emit('cancel')"
     >
       Отмена
     </button>
-    <p class="w-full text-base text-muted">
+    <p class="w-full text-tiny text-muted">
       Новый триггер читается ближайшим проходом. Если снизить бюджет ниже того, что текущее фото уже
       набрало, оно сменится в течение нескольких минут; в режиме «по времени» слот считается с
       момента установки фото, а не с момента правки.
