@@ -188,7 +188,16 @@ class BaseWBClient:
         self._backoff_base = backoff_base_seconds
         self._backoff_max = backoff_max_seconds
         self._retry_after_ceiling = retry_after_ceiling_seconds
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        # NO default `Content-Type`. httpx derives it from the body it is
+        # actually sending — `application/json` for `json=`, and
+        # `multipart/form-data; boundary=…` for `files=` — but ONLY when the
+        # header is absent, and a client-level default is never absent. A
+        # default of `application/json` therefore mislabelled every multipart
+        # upload, which is one endpoint: `POST /content/v3/media/file`, the only
+        # write the A/Б photo rotation makes. WB answered 400 to all of them.
+        # Measured live on 2026-09-05 — same client, same bytes, same token,
+        # eight seconds apart: 400 with the header, 200 without it.
+        headers = {"Accept": "application/json"}
         if token:
             headers["Authorization"] = token
         if extra_headers:
