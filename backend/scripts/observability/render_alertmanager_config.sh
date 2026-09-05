@@ -26,12 +26,29 @@ read_var() {
 token="$(read_var ALERT_TELEGRAM_BOT_TOKEN)"
 chat="$(read_var ALERT_TELEGRAM_CHAT_ID)"
 
-# Fall back to the backup job's bot, which has alerted this team since it was
-# written. Reusing it means alerting works with the credentials already on the
-# box; setting the dedicated pair splits them later without touching anything
-# else.
-[[ -n "$token" ]] || token="$(read_var BACKUP_ALERT_TELEGRAM_BOT_TOKEN)"
-[[ -n "$chat" ]] || chat="$(read_var BACKUP_ALERT_TELEGRAM_CHAT_ID)"
+# A token and a chat id are a PAIR, and mixing halves from different pairs is
+# the one failure this script must not produce. A Telegram chat id is per-BOT
+# in effect: a bot can only message a chat that has started it, so the backup
+# job's chat is unreachable to a freshly created alerting bot. Pairing a new
+# token with the old chat id yields a config that loads cleanly, fires
+# correctly, and delivers nothing — the worst outcome available here, because
+# it looks exactly like a quiet system.
+#
+# So each pair falls back as a WHOLE or not at all: a dedicated token demands a
+# dedicated chat id, and only when neither is set does the backup job's pair —
+# which has alerted this team since it was written — get used entire.
+if [[ -n "$token" || -n "$chat" ]]; then
+  if [[ -z "$token" || -z "$chat" ]]; then
+    echo "render-alertmanager: ALERT_TELEGRAM_BOT_TOKEN and ALERT_TELEGRAM_CHAT_ID" >&2
+    echo "  must be set together. One without the other would pair a bot with a chat" >&2
+    echo "  it cannot message, and Telegram reports that as a delivery failure long" >&2
+    echo "  after the alert was supposed to arrive." >&2
+    exit 1
+  fi
+else
+  token="$(read_var BACKUP_ALERT_TELEGRAM_BOT_TOKEN)"
+  chat="$(read_var BACKUP_ALERT_TELEGRAM_CHAT_ID)"
+fi
 
 if [[ -z "$token" || -z "$chat" ]]; then
   echo "render-alertmanager: no Telegram credentials in $env_file." >&2

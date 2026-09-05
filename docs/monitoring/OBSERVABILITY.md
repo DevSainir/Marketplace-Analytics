@@ -45,6 +45,23 @@ and `/healthz` are in the API image and the counters cost a few hundred floats,
 so turning the monitoring off costs visibility and nothing else — which is the
 property you want on a 3.8 GB box the moment memory gets tight.
 
+**Two compose projects, not one, and this was learned the hard way.** The
+monitoring started as an overlay on the application's project, which put it in
+reach of the deploy's `docker compose ... up -d --remove-orphans`: a service
+that belongs to the project but is absent from the file compose is handed is by
+definition an orphan, so **every deploy silently deleted the whole stack**,
+volumes left behind, nothing said. Two deploys did exactly that on 2026-09-05
+before anyone looked — the failure mode monitoring exists to catch, and the one
+it structurally cannot catch about itself.
+
+It now runs as `marketplace-observability`, joining the application's network as
+`external`. `--remove-orphans` on the app's project cannot see it. Service-name
+DNS still works across the boundary because Compose gives every container a
+network alias equal to its service name and Docker's embedded DNS resolves those
+for anything on the network, project or no project. If the application stack is
+down, the monitoring refuses to start with "network not found" — the right
+answer, since there would be nothing to watch.
+
 ---
 
 ## The rule that governs every design choice here

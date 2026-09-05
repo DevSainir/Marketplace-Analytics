@@ -32,13 +32,20 @@ COMPOSE := docker compose --project-directory backend \
 # Throwaway stacks (CI's browser tier, or any host without a TLS certificate)
 # add the plain-HTTP nginx overlay.
 COMPOSE_E2E := $(COMPOSE) -f backend/docker/docker-compose.e2e.yml
-# The observability stack (Prometheus/Grafana/Loki/Alloy) is an OVERLAY on the
-# same project, not part of `make up`. Same project name means the same Docker
-# network, so Prometheus reaches `api:8000` and Alloy reaches `loki:3100`
-# without publishing anything — while leaving the monitoring separately
-# startable, upgradable and, on a box under memory pressure, stoppable. The
-# application is instrumented either way; nothing here is required to serve.
-COMPOSE_OBS := $(COMPOSE) -f backend/docker/docker-compose.observability.yml
+# The observability stack (Prometheus/Alertmanager/Grafana/Loki/Alloy) is its
+# OWN compose project, joined to the application's network from outside. It is
+# not part of `make up`, and the deploy cannot touch it — which is the point:
+# as an overlay on the app's project it was an orphan to every
+# `--remove-orphans`, and every deploy deleted it. Prometheus still reaches
+# `api:8000` and Alloy still reaches `loki:3100` because they share the
+# network. The application is instrumented either way; nothing here is required
+# to serve.
+# NOT built on $(COMPOSE): the observability stack is its own compose PROJECT
+# now, joined to the application's network from outside. It was an overlay on
+# the app's project at first, and the deploy's `--remove-orphans` deleted the
+# whole thing on every run — see the header of the file itself.
+COMPOSE_OBS := docker compose --project-directory backend \
+	-f backend/docker/docker-compose.observability.yml
 NPM := npm --prefix frontend
 # Playwright and k6 live with the tests they run, not at the root.
 TESTS_NPM := npm --prefix tests

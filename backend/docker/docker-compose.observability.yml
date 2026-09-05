@@ -67,7 +67,35 @@
 # lock, and why it exists anyway).
 # ---------------------------------------------------------------------------
 
-name: marketplace-service
+# A SEPARATE COMPOSE PROJECT, sharing the application's network.
+#
+# It was in the application's project at first, and that was wrong in a way
+# that only production could show: the deploy runs
+# `docker compose -f docker-compose.yml up -d --remove-orphans`, and a service
+# that belongs to the project but is absent from the file compose was handed is
+# by definition an orphan. So every deploy silently deleted the entire
+# monitoring stack — quietly, with the volumes left behind, which is precisely
+# the failure mode monitoring exists to catch and the one it cannot catch about
+# itself. Two deploys on 2026-09-05 removed it before anybody looked.
+#
+# Its own project name puts it out of reach: `--remove-orphans` on the app's
+# project cannot see services that are not in it. That also makes the separate
+# lifecycle real rather than merely intended — the monitoring is now genuinely
+# startable, upgradable and stoppable without the deploy having an opinion.
+#
+# The network is joined as EXTERNAL, which is what keeps `api:8000` and
+# `loki:3100` resolvable across the two projects: Compose gives every container
+# a network alias equal to its service name, and Docker's embedded DNS resolves
+# those for anything attached to the same network, project boundaries included.
+# If the application stack is not up, this file fails to start with a clear
+# "network not found" — which is the right answer, because there would be
+# nothing to watch.
+name: marketplace-observability
+
+networks:
+  default:
+    name: marketplace-service_default
+    external: true
 
 # The same rotation policy the base stack applies to every service, for the same
 # reason: a container's stdout is written by the Docker daemon, so nothing

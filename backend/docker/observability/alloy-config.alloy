@@ -47,11 +47,23 @@ discovery.relabel "containers" {
 		target_label  = "service"
 	}
 
-	// Only this project's containers. A co-tenant's logs are not ours to
+	// Our two projects and nothing else. A co-tenant's logs are not ours to
 	// collect, and they would count against the same ingestion budget.
+	//
+	// BOTH projects, deliberately. The monitoring lives in its own compose
+	// project (`marketplace-observability`) so the application's deploy cannot
+	// delete it, and a rule naming only the application would have quietly
+	// stopped collecting Loki's, Alertmanager's and Alloy's own output as a
+	// side effect of that split — the logs you want when the monitoring is what
+	// is broken.
+	//
+	// It is not circular in the way it first looks: Alloy shipping its own
+	// output to Loki is useful right up until Loki is the thing that is down,
+	// at which point nothing here can help and `docker logs` is the fallback
+	// the json-file driver is kept for.
 	rule {
 		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
-		regex         = "marketplace-service"
+		regex         = "marketplace-service|marketplace-observability"
 		action        = "keep"
 	}
 }
