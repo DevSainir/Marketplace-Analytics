@@ -56,7 +56,17 @@ def _resolve_bundle(workspace: Workspace, tokens: dict[str, str]) -> WorkspaceTo
     return WorkspaceTokenBundle(
         workspace_id=workspace.id,
         name=workspace.name,
-        content=pick(TokenKind.CONTENT, TokenKind.ANALYTICS),
+        # NOT `pick(CONTENT, ANALYTICS)`. That fallback rested on the belief
+        # that WB's analytics scope also serves the Content API; measured on
+        # 2026-09-05 it does not, and WB says so in as many words —
+        # `403 {"detail":"scope is not allowed for this resource"}`. The
+        # fallback did not make the analytics token work, it only turned "this
+        # workspace has no content token" into a 403 three layers away: the
+        # catalogue refresh caught it, fell back to yesterday's SKU list and
+        # logged a warning, so `Демо` ran on a three-week-old catalogue
+        # unnoticed, and «Запустить» on an A/Б test failed with a raw
+        # integration error instead of the message that names the missing token.
+        content=pick(TokenKind.CONTENT),
         analytics=pick(TokenKind.ANALYTICS),
         advertising=pick(TokenKind.PROMOTION),
         prices=pick(TokenKind.PRICES),
