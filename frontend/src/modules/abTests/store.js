@@ -23,6 +23,7 @@ import {
   fetchTests,
   fetchVariantImage,
   setTestStatus,
+  updateTestSettings,
   uploadVariant,
 } from '@/modules/abTests/api'
 
@@ -247,6 +248,34 @@ export const useAbTestsStore = defineStore('abTests', () => {
   }
 
   /**
+   * Change a test's name or rotation trigger, including while it runs.
+   *
+   * Only the setting the chosen mode uses may travel — see `api.js`. The
+   * refreshed test replaces both the list row and the open detail, so the
+   * trigger shown on screen is the one the next poll will actually read.
+   *
+   * @param {string} testId Test identifier.
+   * @param {{name?: string, trigger_mode?: 'impressions'|'time',
+   *          impression_budget?: number, slot_minutes?: number}} payload
+   * @returns {Promise<boolean>} Whether the change was accepted.
+   */
+  async function updateSettings(testId, payload) {
+    saving.value = true
+    error.value = ''
+    try {
+      const updated = await updateTestSettings(testId, payload)
+      tests.value = tests.value.map((row) => (row.id === testId ? updated : row))
+      if (detail.value?.id === testId) detail.value = await fetchTest(testId)
+      return true
+    } catch (err) {
+      error.value = extractErrorMessage(err)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /**
    * Delete a test and drop it from the list.
    *
    * @param {string} testId Test identifier.
@@ -286,6 +315,7 @@ export const useAbTestsStore = defineStore('abTests', () => {
     addPhoto,
     removePhoto,
     changeStatus,
+    updateSettings,
     remove,
     loadImages,
     releaseImages,

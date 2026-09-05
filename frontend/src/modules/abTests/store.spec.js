@@ -8,6 +8,7 @@ import {
   fetchTests,
   fetchVariantImage,
   setTestStatus,
+  updateTestSettings,
   uploadVariant,
 } from '@/modules/abTests/api'
 import { MAX_VARIANTS, useAbTestsStore } from '@/modules/abTests/store'
@@ -20,6 +21,7 @@ vi.mock('@/modules/abTests/api', () => ({
   fetchTests: vi.fn(),
   fetchVariantImage: vi.fn(),
   setTestStatus: vi.fn(),
+  updateTestSettings: vi.fn(),
   uploadVariant: vi.fn(),
 }))
 
@@ -307,6 +309,41 @@ describe('A/Б-tests store', () => {
     const sent = createTest.mock.calls[0][0]
     expect(sent.slot_minutes).toBe(30)
     expect(sent).not.toHaveProperty('impression_budget')
+  })
+
+  it('refreshes the open test after its trigger changes', async () => {
+    // The trigger is shown in the page header, so a stale copy would tell the
+    // user the rotation is still counting impressions after they moved it onto
+    // a clock — and the next poll would disagree with the screen.
+    fetchTests.mockResolvedValue([{ id: TEST_ID, trigger_mode: 'impressions' }])
+    fetchTest.mockResolvedValue({ ...detail(1), trigger_mode: 'time', slot_minutes: 30 })
+    updateTestSettings.mockResolvedValue({ id: TEST_ID, trigger_mode: 'time' })
+    const store = useAbTestsStore()
+    await store.loadTests()
+    await store.loadTest(TEST_ID)
+
+    const ok = await store.updateSettings(TEST_ID, { trigger_mode: 'time', slot_minutes: 30 })
+
+    expect(ok).toBe(true)
+    expect(store.rows[0].trigger_mode).toBe('time')
+    expect(store.detail.slot_minutes).toBe(30)
+  })
+
+  it('surfaces a refused trigger change and leaves the test as it was', async () => {
+    // The backend refuses a body carrying the other mode's setting. Showing
+    // nothing would leave the user believing the change landed.
+    fetchTests.mockResolvedValue([{ id: TEST_ID, trigger_mode: 'impressions' }])
+    updateTestSettings.mockRejectedValue({
+      response: { data: { detail: 'В режиме «по показам» время на вариант не задаётся.' } },
+    })
+    const store = useAbTestsStore()
+    await store.loadTests()
+
+    const ok = await store.updateSettings(TEST_ID, { slot_minutes: 30 })
+
+    expect(ok).toBe(false)
+    expect(store.error).toContain('по показам')
+    expect(store.rows[0].trigger_mode).toBe('impressions')
   })
 
   it('prepends a created test so it is visible without a reload', async () => {

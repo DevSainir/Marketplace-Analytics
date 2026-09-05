@@ -18,10 +18,13 @@ from datetime import UTC, datetime
 from src.core.config import settings
 from src.core.exceptions import ConflictError, NotFoundError, ValidationError
 from src.modules.ab_tests.models import (
+    DEFAULT_IMPRESSION_BUDGET,
+    DEFAULT_SLOT_MINUTES,
     MAX_VARIANTS_PER_TEST,
     AbTest,
     AbTestStatus,
     AbTestVariant,
+    TriggerMode,
 )
 from src.modules.ab_tests.repos import (
     AbTestRepository,
@@ -29,9 +32,16 @@ from src.modules.ab_tests.repos import (
     VariantRepository,
     WindowRepository,
 )
-from src.modules.ab_tests.schemas import AbTestCreate, AbTestDetail, AbTestRead
+from src.modules.ab_tests.schemas import (
+    AbTestCreate,
+    AbTestDetail,
+    AbTestRead,
+    AbTestSettingsUpdate,
+)
 from src.modules.ab_tests.services.photos import MediaStore, VariantInstaller, validate_image
 from src.modules.ab_tests.services.results import build_rows, leader_of
+from src.modules.ab_tests.services.triggers import TriggerSettings
+from src.modules.ab_tests.services.triggers import resolve as resolve_trigger
 
 #: Route template the result rows point at for the picture itself.
 IMAGE_URL_TEMPLATE = "/api/ab-tests/{test_id}/variants/{variant_id}/image"
@@ -81,24 +91,7 @@ class AbTestCatalogService:
             List rows for the table.
         """
         tests = await self._tests.search(workspace_id=workspace_id, query=query)
-        return [
-            AbTestRead(
-                id=test.id,
-                nm_id=test.nm_id,
-                vendor_code=test.vendor_code,
-                name=test.name,
-                status=test.status,
-                trigger_mode=test.trigger_mode,
-                impression_budget=test.impression_budget,
-                slot_minutes=test.slot_minutes,
-                active_variant_id=test.active_variant_id,
-                variant_count=len(test.variants),
-                started_at=test.started_at,
-                finished_at=test.finished_at,
-                created_at=test.created_at,
-            )
-            for test in tests
-        ]
+        return [self._as_row(test) for test in tests]
 
     async def get_detail(self, *, workspace_id: uuid.UUID, test_id: uuid.UUID) -> AbTestDetail:
         """Return one test with its per-photo result table.
@@ -190,24 +183,12 @@ class AbTestCatalogService:
             vendor_code=payload.vendor_code,
             name=payload.name,
             trigger_mode=payload.trigger_mode.value,
-            impression_budget=payload.impression_budget or 0,
-            slot_minutes=payload.slot_minutes or 0,
+            # The create schema's validator has already resolved both numbers,
+            # so neither is None by the time it reaches here.
+            impression_budget=payload.impression_budget or DEFAULT_IMPRESSION_BUDGET,
+            slot_minutes=payload.slot_minutes or DEFAULT_SLOT_MINUTES,
         )
-        return AbTestRead(
-            id=test.id,
-            nm_id=test.nm_id,
-            vendor_code=test.vendor_code,
-            name=test.name,
-            status=test.status,
-            trigger_mode=test.trigger_mode,
-            impression_budget=test.impression_budget,
-            slot_minutes=test.slot_minutes,
-            active_variant_id=None,
-            variant_count=0,
-            started_at=None,
-            finished_at=None,
-            created_at=test.created_at,
-        )
+        return self._as_row(test)
 
     async def add_variant(
         self,
@@ -282,6 +263,66 @@ class AbTestCatalogService:
         if never_measured:
             self._media.delete(path)
 
+    async def update_settings(
+        self, *, workspace_id: uuid.UUID, test_id: uuid.UUID, payload: AbTestSettingsUpdate
+    ) -> AbTestRead:
+        """Change a test's name or its rotation trigger, including mid-flight.
+
+        Editing a RUNNING test is allowed on purpose — the point of being able
+        to change the budget is to change it once you have seen how fast the
+        card is actually gathering impressions. Two consequences the caller
+        should know rather than discover:
+
+        * Impressions already credited to the live photo are kept. Lowering the
+          budget below what it has gathered therefore rotates on the very next
+          poll, which is what "make it move faster, now" should do.
+        * Switching to time mode measures the slot from when the photo was
+          INSTALLED, not from when the mode changed, so a photo that has been up
+          longer than the new slot also rotates on the next poll.
+
+        A finished test is refused: its settings are the record of how its
+        results were produced, and rewriting them would silently restate what
+        the numbers on the page mean.
+
+        Args:
+            workspace_id: Tenancy guard.
+            test_id: Test identifier.
+            payload: The fields to change; every one is optional.
+
+        Returns:
+            The updated test.
+
+        Raises:
+            NotFoundError: If the test does not exist in this workspace.
+            ConflictError: If the test has already finished.
+            ValidationError: If the change carries the setting belonging to the
+                mode that will not be in force.
+        """
+        test = await self._require(workspace_id=workspace_id, test_id=test_id)
+
+        if test.status in {AbTestStatus.COMPLETED.value, AbTestStatus.CANCELLED.value}:
+            raise ConflictError("Настройки завершённого теста менять нельзя.")
+
+        resolved = resolve_trigger(
+            mode=payload.trigger_mode,
+            impression_budget=payload.impression_budget,
+            slot_minutes=payload.slot_minutes,
+            current=TriggerSettings(
+                mode=TriggerMode(test.trigger_mode),
+                impression_budget=test.impression_budget,
+                slot_minutes=test.slot_minutes,
+            ),
+        )
+
+        await self._tests.update_settings(
+            test=test,
+            name=payload.name.strip() if payload.name else None,
+            trigger_mode=resolved.mode.value,
+            impression_budget=resolved.impression_budget,
+            slot_minutes=resolved.slot_minutes,
+        )
+        return self._as_row(test)
+
     async def set_status(
         self,
         *,
@@ -330,21 +371,7 @@ class AbTestCatalogService:
         else:
             await self._tests.set_status(test=test, status=target)
 
-        return AbTestRead(
-            id=test.id,
-            nm_id=test.nm_id,
-            vendor_code=test.vendor_code,
-            name=test.name,
-            status=test.status,
-            trigger_mode=test.trigger_mode,
-            impression_budget=test.impression_budget,
-            slot_minutes=test.slot_minutes,
-            active_variant_id=test.active_variant_id,
-            variant_count=len(test.variants),
-            started_at=test.started_at,
-            finished_at=test.finished_at,
-            created_at=test.created_at,
-        )
+        return self._as_row(test)
 
     async def delete_test(self, *, workspace_id: uuid.UUID, test_id: uuid.UUID) -> None:
         """Delete a test and its variants.
@@ -385,6 +412,35 @@ class AbTestCatalogService:
             test=test,
             status=AbTestStatus.RUNNING,
             started_at=test.started_at or now,
+        )
+
+    def _as_row(self, test: AbTest) -> AbTestRead:
+        """Project a test onto the list row the SPA renders.
+
+        One builder rather than one per caller: every field added to the row
+        since — the trigger mode, the slot length — would otherwise have to be
+        remembered in four places.
+
+        Args:
+            test: A loaded test with its variants.
+
+        Returns:
+            The list row.
+        """
+        return AbTestRead(
+            id=test.id,
+            nm_id=test.nm_id,
+            vendor_code=test.vendor_code,
+            name=test.name,
+            status=test.status,
+            trigger_mode=test.trigger_mode,
+            impression_budget=test.impression_budget,
+            slot_minutes=test.slot_minutes,
+            active_variant_id=test.active_variant_id,
+            variant_count=len(test.variants),
+            started_at=test.started_at,
+            finished_at=test.finished_at,
+            created_at=test.created_at,
         )
 
     async def _require(self, *, workspace_id: uuid.UUID, test_id: uuid.UUID) -> AbTest:

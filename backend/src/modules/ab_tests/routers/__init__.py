@@ -28,6 +28,7 @@ from src.modules.ab_tests.schemas import (
     AbTestCreate,
     AbTestDetail,
     AbTestRead,
+    AbTestSettingsUpdate,
     AbTestStatusUpdate,
 )
 from src.modules.ab_tests.services.photos import MAX_IMAGE_BYTES
@@ -92,6 +93,33 @@ async def get_test(
 ) -> AbTestDetail:
     """Return one test and its per-photo metrics."""
     return await service.get_detail(workspace_id=workspace_id, test_id=test_id)
+
+
+@router.patch(
+    "/{test_id}",
+    response_model=AbTestRead,
+    summary="Изменить название или триггер ротации",
+    responses={
+        404: {"description": "Тест не найден"},
+        409: {"description": "Тест уже завершён"},
+        422: {"description": "Настройка не от того режима"},
+    },
+)
+async def update_settings(
+    test_id: uuid.UUID,
+    payload: AbTestSettingsUpdate,
+    service: AbTestCatalogServiceDep,
+    workspace_id: CurrentWorkspaceId,
+) -> AbTestRead:
+    """Change a running test's trigger without restarting it.
+
+    Needs no WB token: nothing here touches the card. The next polling pass
+    reads the new setting, so lowering a budget below what the live photo has
+    already gathered rotates within minutes rather than at some later reset.
+    """
+    return await service.update_settings(
+        workspace_id=workspace_id, test_id=test_id, payload=payload
+    )
 
 
 @router.patch(

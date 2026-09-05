@@ -15,6 +15,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
 import { MAX_VARIANTS, STATUS_LABELS, useAbTestsStore } from '@/modules/abTests'
+import TriggerEditor from '@/modules/abTests/components/TriggerEditor.vue'
 
 const route = useRoute()
 const store = useAbTestsStore()
@@ -46,6 +47,18 @@ const triggerLabel = computed(() => {
     ? `Смена фото каждые ${count(test.value.slot_minutes)} мин`
     : `Смена фото каждые ${count(test.value.impression_budget)} показов`
 })
+
+/** Whether the trigger may still be edited — a finished test's is history. */
+const canEditTrigger = computed(
+  () => !!test.value && !['completed', 'cancelled'].includes(test.value.status),
+)
+
+const editing = ref(false)
+
+async function saveTrigger(payload) {
+  const ok = await store.updateSettings(route.params.testId, payload)
+  if (ok) editing.value = false
+}
 
 function percent(value) {
   return value === null || value === undefined ? '—' : `${Number(value).toFixed(2)} %`
@@ -79,12 +92,25 @@ async function onFiles(event) {
         WB артикул: {{ test.nm_id }}
         <span v-if="test.vendor_code"> · Артикул продавца: {{ test.vendor_code }}</span>
         · Статус: {{ STATUS_LABELS[test.status] || test.status }} · {{ triggerLabel }}
+        <button
+          v-if="canEditTrigger"
+          type="button"
+          class="ml-xs text-base text-action hover:underline"
+          data-testid="edit-trigger"
+          @click="editing = true"
+        >
+          изменить
+        </button>
       </p>
-    </header>
 
-    <p v-if="store.error" class="mb-md text-base text-status-negative" data-testid="error">
-      {{ store.error }}
-    </p>
+      <TriggerEditor
+        v-if="editing"
+        :test="test"
+        :saving="store.saving"
+        @save="saveTrigger"
+        @cancel="editing = false"
+      />
+    </header>
 
     <section
       v-if="test"

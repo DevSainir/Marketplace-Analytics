@@ -14,11 +14,9 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from src.modules.ab_tests.models import (
-    DEFAULT_IMPRESSION_BUDGET,
-    DEFAULT_SLOT_MINUTES,
-    TriggerMode,
-)
+from src.core.exceptions import ValidationError as DomainValidationError
+from src.modules.ab_tests.models import TriggerMode
+from src.modules.ab_tests.services.triggers import resolve as resolve_trigger
 
 
 class AbTestCreate(BaseModel):
@@ -53,24 +51,55 @@ class AbTestCreate(BaseModel):
 
     @model_validator(mode="after")
     def _one_trigger_only(self) -> AbTestCreate:
-        """Refuse the setting that belongs to the other mode, then fill defaults."""
-        if self.trigger_mode is TriggerMode.IMPRESSIONS:
-            if self.slot_minutes is not None:
-                raise ValueError(
-                    "В режиме «по показам» время на вариант не задаётся — уберите slot_minutes."
-                )
-            object.__setattr__(
-                self, "impression_budget", self.impression_budget or DEFAULT_IMPRESSION_BUDGET
+        """Apply the module's trigger rule, then fill in what was not supplied.
+
+        The rule itself lives in :mod:`.services.triggers` because the settings
+        PATCH has to apply the identical one against a stored test; a second
+        copy here would drift the moment either path changed.
+        """
+        try:
+            resolved = resolve_trigger(
+                mode=self.trigger_mode,
+                impression_budget=self.impression_budget,
+                slot_minutes=self.slot_minutes,
             )
-            object.__setattr__(self, "slot_minutes", DEFAULT_SLOT_MINUTES)
-        else:
-            if self.impression_budget is not None:
-                raise ValueError(
-                    "В режиме «по времени» бюджет показов не задаётся — уберите impression_budget."
-                )
-            object.__setattr__(self, "slot_minutes", self.slot_minutes or DEFAULT_SLOT_MINUTES)
-            object.__setattr__(self, "impression_budget", DEFAULT_IMPRESSION_BUDGET)
+        except DomainValidationError as exc:
+            # Pydantic turns a ValueError into a 422; an AppError raised here
+            # would escape as a 500 instead.
+            raise ValueError(str(exc)) from exc
+
+        object.__setattr__(self, "impression_budget", resolved.impression_budget)
+        object.__setattr__(self, "slot_minutes", resolved.slot_minutes)
         return self
+
+
+class AbTestSettingsUpdate(BaseModel):
+    """Request body for changing a test's name or its rotation trigger.
+
+    Every field is optional: sending only ``impression_budget`` keeps the mode
+    the test already has. The exclusivity is checked against the *resolved*
+    mode — the one in the body if it names one, otherwise the stored one — so
+    "set slot_minutes on a test that is still counting impressions" is refused
+    even though the body never mentions a mode. That check needs the stored
+    test, so it happens in the service rather than here.
+    """
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    trigger_mode: TriggerMode | None = Field(
+        default=None, description="Сменить режим: показы или время"
+    )
+    impression_budget: int | None = Field(
+        default=None,
+        ge=100,
+        le=10_000_000,
+        description="Показов на вариант. Только для режима «по показам»",
+    )
+    slot_minutes: int | None = Field(
+        default=None,
+        ge=5,
+        le=20_160,
+        description="Минут на вариант. Только для режима «по времени»",
+    )
 
 
 class VariantMetrics(BaseModel):

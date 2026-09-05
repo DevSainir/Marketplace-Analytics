@@ -115,6 +115,12 @@ class _StubCatalog:
         self.calls.append(("create_test", kwargs))
         return _read()
 
+    async def update_settings(self, **kwargs: Any) -> AbTestRead:
+        self.calls.append(("update_settings", kwargs))
+        if self.error is not None:
+            raise self.error
+        return _read()
+
     async def set_status(self, **kwargs: Any) -> AbTestRead:
         self.calls.append(("set_status", kwargs))
         if self.error is not None:

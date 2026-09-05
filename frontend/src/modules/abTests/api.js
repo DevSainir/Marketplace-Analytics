@@ -62,6 +62,23 @@ export async function setTestStatus(testId, status) {
 }
 
 /**
+ * PATCH /ab-tests/{id} — change the name or the rotation trigger.
+ *
+ * Send only the setting the chosen mode uses: the backend REFUSES a body
+ * carrying the other mode's field rather than ignoring it, and when the body
+ * names no mode it resolves one from the stored test.
+ *
+ * @param {string} testId Test identifier.
+ * @param {{name?: string, trigger_mode?: 'impressions'|'time',
+ *          impression_budget?: number, slot_minutes?: number}} payload
+ * @returns {Promise<object>} The updated test.
+ */
+export async function updateTestSettings(testId, payload) {
+  const { data } = await apiClient.patch(`/ab-tests/${testId}`, payload)
+  return data
+}
+
+/**
  * DELETE /ab-tests/{id} — remove a test and its photos.
  *
  * @param {string} testId Test identifier.

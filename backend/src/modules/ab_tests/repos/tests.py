@@ -168,6 +168,34 @@ class AbTestRepository:
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
+    async def update_settings(
+        self,
+        *,
+        test: AbTest,
+        name: str | None,
+        trigger_mode: str,
+        impression_budget: int,
+        slot_minutes: int,
+    ) -> None:
+        """Write a test's name and resolved trigger settings.
+
+        Both numbers are written even though only one is in force, so switching
+        modes back and forth does not lose what the other was set to.
+
+        Args:
+            test: The test to update (already loaded and tenancy-checked).
+            name: New title, or ``None`` to leave it.
+            trigger_mode: The resolved mode.
+            impression_budget: The resolved budget.
+            slot_minutes: The resolved slot length.
+        """
+        if name is not None:
+            test.name = name
+        test.trigger_mode = trigger_mode
+        test.impression_budget = impression_budget
+        test.slot_minutes = slot_minutes
+        await self._session.flush()
+
     async def set_status(
         self,
         *,
