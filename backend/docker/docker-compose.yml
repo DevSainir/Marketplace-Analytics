@@ -257,6 +257,12 @@ services:
         condition: service_healthy
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      # The ACME challenge webroot. A HOST directory, because certbot runs on
+      # the host and nginx runs in here — a webroot inside the image is one
+      # certbot can never write into, which is why renewals were configured
+      # `standalone` and would have failed against an nginx already holding
+      # port 80. Read-only: nginx serves these files, certbot writes them.
+      - /var/www/certbot:/var/www/certbot:ro
 
   worker:
     build:

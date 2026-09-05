@@ -178,11 +178,38 @@ services:
     mem_limit: 224m
     cpus: 0.5
     ports:
-      # LOOPBACK ONLY. See the exposure note in this file's header — the
-      # `127.0.0.1:` prefix is the entire access control, and dropping it
-      # publishes every metric this service produces to the internet.
+      # LOOPBACK ONLY, and it stays that way even though Grafana is now
+      # reachable on a public host. The public path goes through the app's
+      # nginx over the internal network, which is where TLS, the security
+      # headers and the login rate limit live; this published port is the
+      # bypass around all three, so it must never leave `127.0.0.1:`.
+      #
+      # Kept rather than removed because it is the way in when nginx itself is
+      # the broken thing: `ssh -L 3001:127.0.0.1:3000 <host>`.
       - "127.0.0.1:3000:3000"
     environment:
+      # Reachable on its own public host, proxied by the app's nginx over this
+      # shared network (frontend/docker/nginx.conf). Grafana needs to KNOW its
+      # public URL: it builds absolute links — password-reset, OAuth callbacks,
+      # panel share links, and the Live WebSocket endpoint — and without this it
+      # would emit `http://localhost:3000` ones that go nowhere from a browser.
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://grafana.example.com}
+      GF_SERVER_DOMAIN: ${GRAFANA_DOMAIN:-grafana.example.com}
+      # Session cookies, now that they travel over the internet rather than
+      # down an SSH tunnel. `lax` rather than `strict`: strict drops the cookie
+      # on any cross-site navigation, so following a dashboard link from
+      # somewhere else lands you on a login form every time.
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_COOKIE_SAMESITE: lax
+      # Grafana emits its OWN Content-Security-Policy, maintained against its
+      # own bundle. nginx deliberately does not apply the app's policy here —
+      # see snippets/grafana-headers.conf for why that would be worse than it
+      # sounds.
+      GF_SECURITY_CONTENT_SECURITY_POLICY: "true"
+      GF_SECURITY_STRICT_TRANSPORT_SECURITY: "true"
+      # No embedding, which also makes Grafana send its own X-Frame-Options —
+      # the reason nginx does not add a second, conflicting one.
+      GF_SECURITY_ALLOW_EMBEDDING: "false"
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in backend/.env}
       # Nobody signs up for a Grafana reachable only through an SSH tunnel,
