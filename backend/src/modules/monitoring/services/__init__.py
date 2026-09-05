@@ -9,6 +9,8 @@ Three sub-packages plus one pure module, each with a single responsibility and
 * :mod:`~src.modules.monitoring.services.analytics` —
   :class:`AnalyticsService` and its read sub-services: read persisted rows and
   render summary/detail DTOs.
+* :mod:`~src.modules.monitoring.services.cards` — the catalogue-card loaders
+  the A/B-tests article picker resolves and ranks its options with.
 * :mod:`~src.modules.monitoring.services.matrix` — pure builders for the
   day x traffic-bucket metrics matrix (derive, build, edit, overrides).
 * :mod:`~src.modules.monitoring.services.normalization` — pure functions
@@ -26,10 +28,14 @@ from src.modules.monitoring.services.analytics import (
     AnalyticsService,
     ClusterAnalytics,
 )
+from src.modules.monitoring.services.cards import (
+    WorkspaceCard,
+    load_workspace_card,
+    search_workspace_cards,
+)
 from src.modules.monitoring.services.exports import (
     AdDay,
     WarehouseStock,
-    WorkspaceCard,
     ad_coverage,
     funnel_coverage,
     load_ad_days_for_nm,
@@ -38,8 +44,6 @@ from src.modules.monitoring.services.exports import (
     load_orders_by_nm,
     load_stock_by_warehouse,
     load_vendor_codes,
-    load_workspace_card,
-    search_workspace_cards,
     stock_day_span,
 )
 from src.modules.monitoring.services.ingestion import IngestionService

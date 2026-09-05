@@ -59,7 +59,10 @@ class SkuCatalogue:
             limit: Maximum cards to return.
 
         Returns:
-            Matching cards, ordered by seller article.
+            Matching cards, ranked by the monitoring loader: advertised cards
+            first, then last week's ordered units descending. Both are
+            properties of the card the picker cannot see, which is why the
+            ordering is the loader's job and not the router's.
         """
         return await search_workspace_cards(
             self._session, workspace_id=workspace_id, needle=needle, limit=limit

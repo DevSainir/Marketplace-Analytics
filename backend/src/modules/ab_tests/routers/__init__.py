@@ -109,11 +109,20 @@ async def search_skus(
     documents.
 
     A blank query returns the first page rather than nothing, so the picker
-    opens with something in it instead of looking broken.
+    opens with something in it instead of looking broken — and the order it
+    opens in is advertised cards first, then last week's orders descending, so
+    the top of an unfiltered list is the cards worth testing rather than
+    whichever article happens to sort first alphabetically.
     """
     cards = await catalogue.search(workspace_id=workspace_id, needle=q)
     return [
-        SkuOption(nm_id=card.nm_id, vendor_code=card.vendor_code, title=card.title)
+        SkuOption(
+            nm_id=card.nm_id,
+            vendor_code=card.vendor_code,
+            title=card.title,
+            orders_7d=card.orders_7d,
+            has_ads=card.has_ads,
+        )
         for card in cards
     ]
 

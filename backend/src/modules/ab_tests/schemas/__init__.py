@@ -77,11 +77,18 @@ class AbTestCreate(BaseModel):
 
 
 class SkuOption(BaseModel):
-    """One catalogue card a test may be created against."""
+    """One catalogue card a test may be created against.
+
+    The two ranking fields are what the picker is ORDERED by, and they are
+    returned rather than kept server-side so the list can say why a card is near
+    the top — an order with no visible reason reads as an arbitrary one.
+    """
 
     nm_id: int = Field(description="Артикул WB")
     vendor_code: str = Field(description="Артикул продавца")
     title: str = Field(description="Название карточки")
+    orders_7d: int = Field(default=0, description="Заказов за последнюю неделю")
+    has_ads: bool = Field(default=False, description="Есть реклама за последнюю неделю")
 
 
 class AbTestSettingsUpdate(BaseModel):

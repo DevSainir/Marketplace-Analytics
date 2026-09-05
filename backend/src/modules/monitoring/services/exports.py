@@ -18,7 +18,9 @@ report cannot supply:
   ``(day, SKU, warehouse, size)``.
 
 All of them return plain mappings — no DTOs, no ORM rows — so the consumer stays
-insulated from this module's internals.
+insulated from this module's internals. The catalogue-card loaders that used to
+live here — "which SKU is this", rather than "what did this SKU earn" — moved to
+:mod:`.cards` on 2026-09-05 under the same rules.
 
 **Every loader here takes a ``workspace_id`` and every query is scoped by it,
 through :func:`~src.modules.monitoring.repos.base.workspace_sku_select`.** Four
@@ -36,7 +38,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import NamedTuple
 
-from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.timeutils import moscow_today
@@ -375,85 +377,3 @@ async def load_campaign_ids_for_workspace(
         .order_by(AdvertisingStatDaily.campaign_id)
     )
     return [int(row[0]) for row in (await session.execute(stmt)).all()]
-
-
-class WorkspaceCard(NamedTuple):
-    """One catalogue card, as another module needs to identify a SKU.
-
-    The A/B-tests module picks a card before it will let a test be created: a
-    test names a WB article, and an article that is not in the workspace's
-    catalogue cannot be rotated, cannot be advertised, and would send a media
-    upload at somebody else's card — or at nothing.
-    """
-
-    nm_id: int
-    vendor_code: str
-    title: str
-
-
-async def load_workspace_card(
-    session: AsyncSession, *, workspace_id: uuid.UUID, nm_id: int
-) -> WorkspaceCard | None:
-    """Resolve one SKU inside a workspace's catalogue.
-
-    The tenant is part of the question, not a filter applied afterwards: WB
-    article numbers are global, so "does this article exist" and "does this
-    article belong to the caller" are different questions and only the second
-    one is safe to act on.
-
-    Args:
-        session: An open async session (caller owns the transaction).
-        workspace_id: The workspace the card must belong to.
-        nm_id: WB article to resolve.
-
-    Returns:
-        The card, or ``None`` when this workspace has no such SKU.
-    """
-    stmt = select(ProductCard.nm_id, ProductCard.vendor_code, ProductCard.title).where(
-        ProductCard.workspace_id == workspace_id, ProductCard.nm_id == nm_id
-    )
-    row = (await session.execute(stmt)).first()
-    if row is None:
-        return None
-    return WorkspaceCard(nm_id=int(row[0]), vendor_code=str(row[1] or ""), title=str(row[2] or ""))
-
-
-async def search_workspace_cards(
-    session: AsyncSession, *, workspace_id: uuid.UUID, needle: str, limit: int = 20
-) -> list[WorkspaceCard]:
-    """Find a workspace's cards by seller article **or** WB article.
-
-    Widened from the vendor-code-only search because a picker that accepts one
-    of the two identifiers still lets somebody type the other and get nothing,
-    which reads as "this SKU does not exist". The WB article is matched as text
-    so a pasted fragment works, the same way the A/B list's own search does.
-
-    Args:
-        session: An open async session (caller owns the transaction).
-        workspace_id: Restrict to SKUs owned by this workspace.
-        needle: Fragment of either article, or of the title.
-        limit: Maximum cards to return.
-
-    Returns:
-        Matching cards ordered by vendor code, capped at ``limit``. An empty
-        needle returns the first page of the catalogue rather than nothing, so
-        the picker can open with something in it.
-    """
-    fragment = needle.strip()
-    stmt = select(ProductCard.nm_id, ProductCard.vendor_code, ProductCard.title).where(
-        ProductCard.workspace_id == workspace_id
-    )
-    if fragment:
-        pattern = f"%{fragment}%"
-        stmt = stmt.where(
-            or_(
-                ProductCard.vendor_code.ilike(pattern),
-                ProductCard.title.ilike(pattern),
-                cast(ProductCard.nm_id, String).like(f"%{fragment}%"),
-            )
-        )
-    stmt = stmt.order_by(ProductCard.vendor_code, ProductCard.nm_id).limit(limit)
-    return [
-        WorkspaceCard(nm_id=int(row[0]), vendor_code=str(row[1] or ""), title=str(row[2] or ""))
-        for row in (await session.execute(stmt)).all()
-    ]
