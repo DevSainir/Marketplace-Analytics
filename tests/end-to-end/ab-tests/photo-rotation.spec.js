@@ -44,7 +44,13 @@ test("a test is created, takes photos, and shows them as rows of the result tabl
 
   await page.getByTestId("new-test").click();
   await page.getByTestId("test-name").fill(name);
-  await page.getByTestId("test-nm-id").fill("995716075");
+  // The article is picked from the workspace's catalogue, never typed: a
+  // free-text field let a test be created against article `1`, which nothing
+  // downstream could rotate, advertise, or upload a photo to.
+  await page.getByTestId("sku-search").click();
+  await page.getByTestId("sku-search").fill("995716075");
+  await page.getByTestId("sku-option").first().click();
+  await expect(page.getByTestId("picked-sku")).toContainText("995716075");
 
   // The two triggers are mutually exclusive, and the form has to send only the
   // one in use: the API refuses a body carrying the other mode's setting, so a

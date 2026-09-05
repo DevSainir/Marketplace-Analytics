@@ -78,8 +78,15 @@ export async function logInThroughForm(page, testInfo) {
     `Login was rejected for ${CREDENTIALS.email}. Seed the account or set E2E_EMAIL / E2E_PASSWORD.`,
   ).toBe("throttled");
 
-  // Only pay for the extra time on the path that needs it.
-  testInfo?.setTimeout(
+  // Only pay for the extra time on the path that needs it — and refuse to wait
+  // at all when the budget cannot be extended. Without `testInfo` this would
+  // sleep 65 seconds inside a 60-second timeout and fail with a timeout that
+  // says nothing about the throttling that caused it.
+  expect(
+    testInfo,
+    "logInThroughForm needs testInfo to wait out a rate-limit window; pass it from the test",
+  ).toBeDefined();
+  testInfo.setTimeout(
     testInfo.timeout + (RATE_LIMIT_WINDOW_SECONDS + 15) * 1000,
   );
   await page.waitForTimeout((RATE_LIMIT_WINDOW_SECONDS + 5) * 1000);

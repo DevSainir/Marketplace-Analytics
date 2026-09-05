@@ -60,11 +60,16 @@ test("the session survives a full page reload", async ({ signedIn: page }) => {
 
 test("the refresh cookie is HttpOnly and scoped to the auth path", async ({
   page,
-}) => {
+}, testInfo) => {
   // Asserted from the browser's own cookie jar, which is the only place the
   // real flags can be observed. Without HttpOnly a single XSS owns the session
   // for seven days.
-  await signIn(page);
+  // `testInfo` is not decoration: without it `logInThroughForm` cannot extend
+  // this test's budget before waiting out a rate-limit window, and a 65-second
+  // wait inside a 60-second timeout can only fail. It bites whenever another
+  // spec fails and its retries burn the login allowance — which is how one red
+  // test turned into two on 2026-09-05.
+  await signIn(page, testInfo);
 
   const cookies = await page.context().cookies();
   const refresh = cookies.find((cookie) => cookie.name === "refresh_token");
