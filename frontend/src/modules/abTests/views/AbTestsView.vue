@@ -12,6 +12,7 @@ import { onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 
 import { STATUS_LABELS, useAbTestsStore } from '@/modules/abTests'
+import SkuPicker from '@/modules/abTests/components/SkuPicker.vue'
 
 const store = useAbTestsStore()
 const router = useRouter()
@@ -19,12 +20,20 @@ const router = useRouter()
 const creating = ref(false)
 const form = ref({
   name: '',
-  nm_id: '',
-  vendor_code: '',
   trigger_mode: 'impressions',
   impression_budget: 10000,
   slot_minutes: 60,
 })
+
+// The picked catalogue card. A test may only name an article its workspace
+// owns, so the article is chosen from the catalogue rather than typed — the
+// seller article comes off the card, which is why there is no field for it.
+const pickedSku = ref(null)
+
+function openForm() {
+  creating.value = !creating.value
+  if (creating.value) store.loadSkuOptions('')
+}
 
 onMounted(() => store.loadTests())
 
@@ -48,8 +57,7 @@ async function submit() {
   // first" would measure the photos over different exposures.
   const created = await store.create({
     name: form.value.name.trim(),
-    nm_id: Number(form.value.nm_id),
-    vendor_code: form.value.vendor_code.trim(),
+    nm_id: pickedSku.value.nm_id,
     trigger_mode: form.value.trigger_mode,
     ...(form.value.trigger_mode === 'impressions'
       ? { impression_budget: Number(form.value.impression_budget) }
@@ -59,12 +67,11 @@ async function submit() {
     creating.value = false
     form.value = {
       name: '',
-      nm_id: '',
-      vendor_code: '',
       trigger_mode: 'impressions',
       impression_budget: 10000,
       slot_minutes: 60,
     }
+    pickedSku.value = null
     router.push({ name: 'ab-test-detail', params: { testId: created.id } })
   }
 }
@@ -78,7 +85,7 @@ async function submit() {
         type="button"
         class="rounded-control bg-action px-md py-sm text-base font-medium text-white hover:opacity-90"
         data-testid="new-test"
-        @click="creating = !creating"
+        @click="openForm"
       >
         + Тест
       </button>
@@ -105,26 +112,7 @@ async function submit() {
             placeholder="Тест главного фото"
           />
         </label>
-        <label class="block">
-          <span class="text-tiny font-medium uppercase tracking-wide text-muted">Артикул WB</span>
-          <input
-            v-model="form.nm_id"
-            data-testid="test-nm-id"
-            inputmode="numeric"
-            class="mt-xs w-full rounded-control border border-border-subtle px-sm py-xs text-base tabular-nums"
-            placeholder="995716075"
-          />
-        </label>
-        <label class="block">
-          <span class="text-tiny font-medium uppercase tracking-wide text-muted">
-            Артикул продавца
-          </span>
-          <input
-            v-model="form.vendor_code"
-            class="mt-xs w-full rounded-control border border-border-subtle px-sm py-xs text-base"
-            placeholder="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК"
-          />
-        </label>
+        <SkuPicker v-model="pickedSku" :options="store.skuOptions" @search="store.loadSkuOptions" />
         <label class="block">
           <span class="text-tiny font-medium uppercase tracking-wide text-muted">
             Что меняет фото
@@ -164,7 +152,7 @@ async function submit() {
       <button
         type="button"
         class="mt-md rounded-control bg-action px-md py-sm text-base font-medium text-white hover:opacity-90 disabled:opacity-50"
-        :disabled="store.saving || !form.name.trim() || !form.nm_id"
+        :disabled="store.saving || !form.name.trim() || !pickedSku"
         data-testid="create-test"
         @click="submit"
       >

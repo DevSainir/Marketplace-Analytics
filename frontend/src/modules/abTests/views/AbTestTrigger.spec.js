@@ -11,12 +11,19 @@ vi.mock('@/modules/abTests/api', () => ({
   fetchTest: vi.fn(),
   fetchTests: vi.fn(),
   fetchVariantImage: vi.fn(),
+  searchSkus: vi.fn(),
   setTestStatus: vi.fn(),
   updateTestSettings: vi.fn(),
   uploadVariant: vi.fn(),
 }))
 
-import { createTest, fetchTest, fetchTests, fetchVariantImage } from '@/modules/abTests/api'
+import {
+  createTest,
+  fetchTest,
+  fetchTests,
+  fetchVariantImage,
+  searchSkus,
+} from '@/modules/abTests/api'
 
 const TEST_ID = 'aaaaaaaa-0000-7000-8000-000000000001'
 
@@ -66,6 +73,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   fetchTests.mockResolvedValue([])
   fetchVariantImage.mockResolvedValue(new Blob(['jpeg']))
+  searchSkus.mockResolvedValue([
+    { nm_id: 995716075, vendor_code: 'ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК', title: 'Платье' },
+  ])
 })
 
 // These two assertions used to live only in the browser tier, where they were
@@ -94,7 +104,10 @@ describe('the creation form sends one trigger, never both', () => {
     const wrapper = mountView(AbTestsView)
     await wrapper.get('[data-testid="new-test"]').trigger('click')
     await wrapper.get('[data-testid="test-name"]').setValue('Тест')
-    await wrapper.get('[data-testid="test-nm-id"]').setValue('995716075')
+    // The list only opens on focus, the way it does for a user.
+    await wrapper.get('[data-testid="sku-search"]').trigger('focus')
+    await flushPromises()
+    await wrapper.get('[data-testid="sku-option"]').trigger('click')
     await wrapper.get('[data-testid="trigger-mode"]').setValue('time')
     await wrapper.get('[data-testid="slot-minutes"]').setValue('30')
 
@@ -102,6 +115,10 @@ describe('the creation form sends one trigger, never both', () => {
     await flushPromises()
 
     const sent = createTest.mock.calls[0][0]
+    // The article travels as the picked card's nm_id, and no seller article is
+    // sent at all — the backend reads that off the card it resolved.
+    expect(sent.nm_id).toBe(995716075)
+    expect(sent).not.toHaveProperty('vendor_code')
     expect(sent.trigger_mode).toBe('time')
     expect(sent.slot_minutes).toBe(30)
     expect(sent).not.toHaveProperty('impression_budget')
@@ -149,5 +166,56 @@ describe('the detail page reports the trigger in force', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="edit-trigger"]').exists()).toBe(false)
+  })
+})
+
+describe('the article is picked, not typed', () => {
+  it('cannot submit until a card is chosen', async () => {
+    // A free-text field let a test be created against article `1` — an article
+    // no workspace owns, which the poller finds no advertising for and a
+    // rotation would try to upload a photo to.
+    const wrapper = mountView(AbTestsView)
+    await wrapper.get('[data-testid="new-test"]').trigger('click')
+    await wrapper.get('[data-testid="test-name"]').setValue('Тест')
+
+    expect(wrapper.get('[data-testid="create-test"]').attributes('disabled')).toBeDefined()
+
+    await wrapper.get('[data-testid="sku-search"]').trigger('focus')
+    await flushPromises()
+    await wrapper.get('[data-testid="sku-option"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="create-test"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('has no separate seller-article field to disagree with the card', async () => {
+    // Both identifiers reach the same card and the seller article is read off
+    // it; a second field could drift and make the test unfindable by the
+    // article it actually runs on.
+    const wrapper = mountView(AbTestsView)
+    await wrapper.get('[data-testid="new-test"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="test-nm-id"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Артикул продавца')
+  })
+
+  it('searches the catalogue as the user types', async () => {
+    const wrapper = mountView(AbTestsView)
+    await wrapper.get('[data-testid="new-test"]').trigger('click')
+    await wrapper.get('[data-testid="sku-search"]').setValue('ЦВЕТОЧЕК')
+    await flushPromises()
+
+    expect(searchSkus).toHaveBeenCalledWith('ЦВЕТОЧЕК', expect.anything())
+  })
+
+  it('says so when the catalogue has no such article', async () => {
+    // The alternative is an empty dropdown, which reads as "still loading".
+    searchSkus.mockResolvedValue([])
+    const wrapper = mountView(AbTestsView)
+    await wrapper.get('[data-testid="new-test"]').trigger('click')
+    await wrapper.get('[data-testid="sku-search"]').trigger('focus')
+    await wrapper.get('[data-testid="sku-search"]').setValue('нет-такого')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="sku-empty"]').text()).toContain('нет')
   })
 })

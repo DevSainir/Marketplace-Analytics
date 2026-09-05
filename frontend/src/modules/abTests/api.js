@@ -35,6 +35,22 @@ export async function fetchTest(testId, signal) {
 }
 
 /**
+ * GET /ab-tests/skus — the workspace's catalogue, for the article picker.
+ *
+ * Matches either article or the title, so typing a seller code or a WB number
+ * reaches the same card. A blank query returns the first page rather than
+ * nothing, so the picker opens with content.
+ *
+ * @param {string} [q] Fragment of either article, or of the title.
+ * @param {AbortSignal} [signal] Cancels the request when a newer one starts.
+ * @returns {Promise<Array<{nm_id: number, vendor_code: string, title: string}>>}
+ */
+export async function searchSkus(q = '', signal) {
+  const { data } = await apiClient.get('/ab-tests/skus', { params: q ? { q } : {}, signal })
+  return data
+}
+
+/**
  * POST /ab-tests — create a draft test. Photos are uploaded separately.
  *
  * @param {{nm_id: number, name: string, vendor_code?: string,

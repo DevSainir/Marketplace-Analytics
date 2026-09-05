@@ -21,6 +21,7 @@ import {
   deleteVariant,
   fetchTest,
   fetchTests,
+  searchSkus,
   fetchVariantImage,
   setTestStatus,
   updateTestSettings,
@@ -47,11 +48,13 @@ export const useAbTestsStore = defineStore('abTests', () => {
   // send neither the access token nor the workspace header on its own.
   const imageUrls = ref({})
   const query = ref('')
+  const skuOptions = ref([])
   const loading = ref(false)
   const saving = ref(false)
   const error = ref('')
 
   let listController = null
+  let skuController = null
 
   /** Tests as the list renders them (the backend already ordered them). */
   const rows = computed(() => tests.value)
@@ -84,6 +87,26 @@ export const useAbTestsStore = defineStore('abTests', () => {
       if (err.code !== 'ERR_CANCELED') error.value = extractErrorMessage(err)
     } finally {
       loading.value = false
+    }
+  }
+
+  /**
+   * Load catalogue options for the article picker.
+   *
+   * A test may only name an article its workspace owns — the API refuses the
+   * rest — so the field is a picker rather than free text. Cancels the previous
+   * request, because this runs on every keystroke.
+   *
+   * @param {string} needle Fragment of either article, or of the title.
+   * @returns {Promise<void>}
+   */
+  async function loadSkuOptions(needle) {
+    skuController?.abort()
+    skuController = new AbortController()
+    try {
+      skuOptions.value = await searchSkus(needle, skuController.signal)
+    } catch (err) {
+      if (err.code !== 'ERR_CANCELED') skuOptions.value = []
     }
   }
 
@@ -302,6 +325,7 @@ export const useAbTestsStore = defineStore('abTests', () => {
     detail,
     imageUrls,
     query,
+    skuOptions,
     loading,
     saving,
     error,
@@ -310,6 +334,7 @@ export const useAbTestsStore = defineStore('abTests', () => {
     remainingSlots,
     loadTests,
     loadTest,
+    loadSkuOptions,
     search,
     create,
     addPhoto,
