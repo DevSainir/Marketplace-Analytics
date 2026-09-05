@@ -62,12 +62,17 @@ class _FakeContentClient:
 
 
 class _FakeMediaStore:
-    """In-memory stand-in for the on-disk media store."""
+    """In-memory stand-in for the media store.
+
+    ``read`` is async because the real one is: the originals live in object
+    storage now, shared by the api that writes them and the worker that reads
+    them back.
+    """
 
     def __init__(self, files: dict[str, bytes]) -> None:
         self.files = files
 
-    def read(self, relative_path: str) -> bytes:
+    async def read(self, relative_path: str) -> bytes:
         return self.files[relative_path]
 
 

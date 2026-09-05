@@ -1,10 +1,7 @@
-"""Storing variant images and putting one on the card.
+"""Validating an uploaded photo and putting one on the card.
 
-Images live on disk rather than in Postgres or S3. Postgres because a rotation
-carries up to ten multi-megabyte originals per test and the ORM would drag them
-through every query that touches a variant; S3 because this backend has no
-precedent of a configured directory, and a bind mount replaces it without a code
-change.
+Where the bytes are kept is :mod:`.storage`; this is what may be stored and what
+happens when one goes up.
 
 Installing writes **slot 1**, the main photo, through
 ``POST /content/v3/media/file``. The alternative (``media/save``) replaces the
@@ -14,10 +11,6 @@ image on the card and losing any this module does not know about.
 
 from __future__ import annotations
 
-import hashlib
-import uuid
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Protocol
 
 from src.core.exceptions import ValidationError
@@ -35,14 +28,6 @@ ALLOWED_CONTENT_TYPES: frozenset[str] = frozenset(
 
 #: WB numbers gallery slots from 1, and slot 1 is the main photo.
 MAIN_PHOTO_NUMBER: int = 1
-
-_SUFFIX_BY_TYPE: dict[str, str] = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-    "image/bmp": ".bmp",
-    "image/gif": ".gif",
-}
 
 
 def validate_image(*, content: bytes, content_type: str) -> None:
@@ -66,79 +51,10 @@ def validate_image(*, content: bytes, content_type: str) -> None:
         raise ValidationError("Изображение больше 32 МБ — WB такой файл не примет.")
 
 
-@dataclass(frozen=True)
-class StoredImage:
-    """An image written to the media root."""
-
-    relative_path: str
-    sha256: str
-    size_bytes: int
-
-
-class MediaStore:
-    """Reads and writes variant originals under a configured root.
-
-    Paths are stored relative so the root can move (a different mount, a
-    different host) without rewriting rows.
-    """
-
-    def __init__(self, root: Path) -> None:
-        """Bind the store to its root directory.
-
-        Args:
-            root: Directory holding every variant image.
-        """
-        self._root = root
-
-    def save(self, *, content: bytes, content_type: str, test_id: uuid.UUID) -> StoredImage:
-        """Write an uploaded image and return its identity.
-
-        Args:
-            content: Raw image bytes, already validated.
-            content_type: MIME type, used to pick the file suffix.
-            test_id: Owning test — one directory per test keeps the root
-                browsable when something needs to be inspected by hand.
-
-        Returns:
-            The stored path (relative to the root), digest and size.
-        """
-        digest = hashlib.sha256(content).hexdigest()
-        suffix = _SUFFIX_BY_TYPE.get(content_type, ".bin")
-        relative = f"{test_id}/{digest}{suffix}"
-
-        target = self._root / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(content)
-
-        return StoredImage(relative_path=relative, sha256=digest, size_bytes=len(content))
-
-    def read(self, relative_path: str) -> bytes:
-        """Return the stored bytes of one image.
-
-        Args:
-            relative_path: Path as stored on the variant row.
-
-        Returns:
-            The image bytes.
-
-        Raises:
-            FileNotFoundError: If the file is missing from the media root.
-        """
-        return (self._root / relative_path).read_bytes()
-
-    def delete(self, relative_path: str) -> None:
-        """Remove a stored image, tolerating one that is already gone.
-
-        Args:
-            relative_path: Path as stored on the variant row.
-        """
-        (self._root / relative_path).unlink(missing_ok=True)
-
-
 class _MediaReader(Protocol):
-    """The part of :class:`MediaStore` the installer needs."""
+    """The part of the media store the installer needs."""
 
-    def read(self, relative_path: str) -> bytes: ...
+    async def read(self, relative_path: str) -> bytes: ...
 
 
 class _MediaUploader(Protocol):
@@ -184,7 +100,7 @@ class VariantInstaller:
                 because a caller that recorded an exposure anyway would attribute
                 the next days to a photo that never went live.
         """
-        content = self._store.read(variant.image_path)
+        content = await self._store.read(variant.image_path)
         await self._client.upload_media_file(
             nm_id=nm_id,
             photo_number=MAIN_PHOTO_NUMBER,

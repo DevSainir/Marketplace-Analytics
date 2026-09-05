@@ -29,7 +29,7 @@ from src.modules.ab_tests.repos import (
 )
 from src.modules.ab_tests.schemas import AbTestCreate
 from src.modules.ab_tests.services.catalog import AbTestCatalogService
-from src.modules.ab_tests.services.photos import MediaStore
+from src.modules.ab_tests.services.storage import LocalMediaStore
 from src.modules.monitoring.contract import WorkspaceCard
 from src.modules.organizations.models import Organization
 from src.modules.workspaces.models import Workspace
@@ -49,7 +49,7 @@ def _service(session: AsyncSession, tmp_path: Path) -> AbTestCatalogService:
         variants=VariantRepository(session),
         exposures=ExposureRepository(session),
         stats=WindowRepository(session),
-        media_store=MediaStore(tmp_path),
+        media_store=LocalMediaStore(tmp_path),
     )
 
 

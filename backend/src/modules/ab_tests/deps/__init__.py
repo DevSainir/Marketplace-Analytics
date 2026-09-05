@@ -10,7 +10,6 @@ tenancy check as the data.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends
@@ -26,14 +25,15 @@ from src.modules.ab_tests.repos import (
     WindowRepository,
 )
 from src.modules.ab_tests.services.catalog import AbTestCatalogService
-from src.modules.ab_tests.services.photos import MediaStore, VariantInstaller
+from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.skus import SkuCatalogue
+from src.modules.ab_tests.services.storage import MediaStore, build_media_store
 from src.modules.workspaces.contract import CurrentWorkspaceId, load_workspace_token_bundle
 
 
 def get_media_store() -> MediaStore:
-    """Provide the media store rooted at the configured directory."""
-    return MediaStore(Path(settings.ab_tests_media_dir))
+    """Provide the configured media store — object storage, or a local fallback."""
+    return build_media_store(settings)
 
 
 MediaStoreDep = Annotated[MediaStore, Depends(get_media_store)]

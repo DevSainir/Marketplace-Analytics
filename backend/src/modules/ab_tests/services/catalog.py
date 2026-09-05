@@ -38,8 +38,9 @@ from src.modules.ab_tests.schemas import (
     AbTestRead,
     AbTestSettingsUpdate,
 )
-from src.modules.ab_tests.services.photos import MediaStore, VariantInstaller, validate_image
+from src.modules.ab_tests.services.photos import VariantInstaller, validate_image
 from src.modules.ab_tests.services.results import build_rows, leader_of
+from src.modules.ab_tests.services.storage import MediaStore
 from src.modules.ab_tests.services.triggers import TriggerSettings
 from src.modules.ab_tests.services.triggers import resolve as resolve_trigger
 from src.modules.monitoring.contract import WorkspaceCard
@@ -151,7 +152,7 @@ class AbTestCatalogService:
         if variant is None:
             raise NotFoundError("Вариант не найден.")
         try:
-            return self._media.read(variant.image_path), variant.content_type
+            return await self._media.read(variant.image_path), variant.content_type
         except FileNotFoundError as exc:  # pragma: no cover - disk-level failure
             raise NotFoundError("Файл изображения отсутствует в хранилище.") from exc
 
@@ -238,7 +239,7 @@ class AbTestCatalogService:
         if await self._variants.count_for_test(test_id=test.id) >= MAX_VARIANTS_PER_TEST:
             raise ConflictError(f"В тесте не может быть больше {MAX_VARIANTS_PER_TEST} фото.")
 
-        stored = self._media.save(content=content, content_type=content_type, test_id=test.id)
+        stored = await self._media.save(content=content, content_type=content_type, test_id=test.id)
         return await self._variants.add(
             test_id=test.id,
             image_path=stored.relative_path,
@@ -277,7 +278,7 @@ class AbTestCatalogService:
 
         await self._variants.delete(test_id=test_id, variant_id=variant_id)
         if never_measured:
-            self._media.delete(path)
+            await self._media.delete(path)
 
     async def update_settings(
         self, *, workspace_id: uuid.UUID, test_id: uuid.UUID, payload: AbTestSettingsUpdate

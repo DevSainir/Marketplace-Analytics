@@ -23,6 +23,13 @@ dependencies = [
     # stall the whole worker's event loop — the same failure the claim
     # package hit when it rendered inline.
     "aiosmtplib>=3.0",
+    # Object storage for A/B variant photos. Not a nicety: the upload happens in
+    # the api container and the rotation reads the file back in the WORKER, so a
+    # container-local directory means the poller cannot find what the user
+    # uploaded — and a named volume would still be wiped by a rebuild. aioboto3
+    # rather than boto3 because every I/O path here is async, and a blocking
+    # S3 read inside a Celery task body stalls the same loop the WB calls use.
+    "aioboto3>=13.0",
     # xlsxwriter, not openpyxl, does the WRITING: the detail sheet is ~30k rows
     # and openpyxl cost 5.43 s of per-cell Python overhead against production
     # data (2.28x slower on the same grid). openpyxl earns its runtime place on
@@ -135,6 +142,13 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["openpyxl.*", "docx.*", "xlsxwriter.*", "xlrd.*"]
+ignore_missing_imports = true
+
+# The async S3 client for A/B variant photos ships no py.typed marker. Its
+# surface here is three calls (put/get/delete), wrapped behind this repo's own
+# MediaStore protocol, so the untyped edge stops at one module.
+[[tool.mypy.overrides]]
+module = ["aioboto3.*", "botocore.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
