@@ -25,6 +25,29 @@ Before writing any route, query, task or handler, answer four questions. If any 
 4. **What does the failure path return?** → 404 over 403 for existence, never an internal
    string, and never the value that was rejected.
 
+## What is machine-enforced, and what still needs you
+
+Two invariants no longer depend on anyone remembering them. Both walk the real
+app and resolve each route's dependency tree, so a new route is covered the
+moment it exists rather than when someone adds it to a list:
+
+* `tests/unit/core/test_every_covered_route_binds_a_tenant.py` — every route in a
+  module owning a policy-covered table resolves a workspace binder.
+* `tests/unit/core/test_every_writing_route_is_guarded.py` — every POST/PATCH/
+  PUT/DELETE resolves a guard at least as strong as `WritingAccess`. Added after
+  `PATCH /ab-tests/{test_id}` shipped without one and a read-only manager could
+  retune a running test.
+
+Both keep an **exemption list with a reason per entry**, and both assert the
+exemptions still name live routes — a stale entry would silently pre-approve
+whatever later takes that path.
+
+**What they cannot decide for you.** They prove a guard is *present*, never that
+it is the *right* one: a route that should be owner-only passes with a writer
+guard. A GET that writes passes too, because the verb is the trigger. Choosing
+the guard is still this checklist's job — the tests only make "nobody remembered
+any guard" impossible to ship.
+
 ## Use the controls that already exist
 
 Do not invent a new check. This repo has exactly one of each, and a route that reinvents one
