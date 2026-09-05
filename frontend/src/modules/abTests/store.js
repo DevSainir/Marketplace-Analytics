@@ -55,6 +55,8 @@ export const useAbTestsStore = defineStore('abTests', () => {
 
   let listController = null
   let skuController = null
+  // Generation counter for `loadImages` — see it for why the runs overlap.
+  let imagesRun = 0
 
   /** Tests as the list renders them (the backend already ordered them). */
   const rows = computed(() => tests.value)
@@ -251,10 +253,19 @@ export const useAbTestsStore = defineStore('abTests', () => {
    * failing the whole table: the row still carries the metrics, which is most
    * of what the table is for.
    *
+   * Runs are generation-guarded, because they OVERLAP. Selecting three files
+   * uploads them one after another, each upload replaces the whole detail, and
+   * each replacement starts a fresh run — so the run that fetched one photo can
+   * finish after the run that fetched three and overwrite it. That is exactly
+   * what happened: a three-photo upload left two rows with no thumbnail. A
+   * superseded run throws its own URLs away rather than installing them, so
+   * losing the race costs nothing and leaks nothing.
+   *
    * @param {string} testId Test identifier.
    * @returns {Promise<void>}
    */
   async function loadImages(testId) {
+    const run = ++imagesRun
     const variants = detail.value?.variants ?? []
     const next = {}
     for (const variant of variants) {
@@ -265,6 +276,10 @@ export const useAbTestsStore = defineStore('abTests', () => {
       } catch {
         // Left out of the map; the row renders without its thumbnail.
       }
+    }
+    if (run !== imagesRun) {
+      for (const url of Object.values(next)) URL.revokeObjectURL(url)
+      return
     }
     releaseImages()
     imageUrls.value = next

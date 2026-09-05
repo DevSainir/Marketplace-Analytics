@@ -110,6 +110,30 @@ describe('A/Б-tests photo object URLs', () => {
     expect(store.imageUrls.v0).not.toBe(first)
   })
 
+  it('lets the newest load win when a slower older one finishes after it', async () => {
+    // Selecting three files uploads them one at a time, and each upload
+    // replaces the whole detail — so several loads are in flight at once. The
+    // run that fetched a single photo used to finish last and overwrite the run
+    // that fetched three, leaving two rows with no thumbnail at all.
+    let arriveLate
+    const slow = new Promise((resolve) => {
+      arriveLate = () => resolve(new Blob(['jpeg']))
+    })
+    fetchTest.mockResolvedValue(detail(1))
+    fetchVariantImage.mockReturnValueOnce(slow).mockResolvedValue(new Blob(['jpeg']))
+    const store = useAbTestsStore()
+    await store.loadTest(TEST_ID)
+    const stale = store.loadImages(TEST_ID)
+    store.detail = detail(3)
+    const fresh = store.loadImages(TEST_ID)
+    await fresh
+
+    arriveLate()
+    await stale
+
+    expect(Object.keys(store.imageUrls)).toEqual(['v0', 'v1', 'v2'])
+  })
+
   it('releases every URL when the view goes away', async () => {
     fetchTest.mockResolvedValue(detail(2))
     fetchVariantImage.mockResolvedValue(new Blob(['jpeg']))
