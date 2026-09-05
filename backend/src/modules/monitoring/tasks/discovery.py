@@ -11,7 +11,9 @@ from src.core.celery_app import celery_app
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
+from src.core.logcontext import bind_workspace
 from src.core.logging import get_logger
+from src.core.observability.harvest import harvest_timer, record_harvest_outcome
 from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries import WBContentClient
@@ -25,6 +27,12 @@ from src.modules.workspaces.contract import (
 )
 
 logger = get_logger(__name__)
+
+#: Metric label for the nightly whole-account pass. A constant for the same
+#: reason as its siblings in `harvest.py` and `finreports/tasks/harvest.py`: a
+#: label that differs by a character between the timer and the row counter
+#: produces two unrelated series that each look half-broken.
+HARVEST_NIGHTLY = "monitoring.nightly"
 
 #: Distributed-lock name preventing overlapping full harvests (the WB
 #: advertising surface allows ~1 req/min — two concurrent harvests starve
@@ -117,10 +125,26 @@ async def _discover_and_harvest_workspace(
     if not nm_ids:
         return {}
 
+    # Every line from here on names the seller this run is working for. The
+    # nightly pass walks every workspace inside one task, so the task-level
+    # context names none of them (register P2.2).
+    bind_workspace(tokens.workspace_id)
+
     end = moscow_today() - timedelta(days=1)  # WB serves no current-day data
     start = end - timedelta(days=days - 1)
-    outcome = await _harvest_sku_window(
-        tokens=tokens, nm_ids=nm_ids, date_from=start, date_to=end, cards=cards
+    with harvest_timer(HARVEST_NIGHTLY):
+        outcome = await _harvest_sku_window(
+            tokens=tokens, nm_ids=nm_ids, date_from=start, date_to=end, cards=cards
+        )
+    # The nightly run is the one the row counters exist FOR. It is this pass
+    # that reported SUCCESS with `funnel_rows: 0` for days in the 2026-07-30
+    # incident, and the `HarvestProducingNoRows` alert is written against
+    # exactly this metric — so a nightly harvest that recorded nothing would
+    # leave that alert unable to fire for the harvest it was designed around.
+    record_harvest_outcome(
+        HARVEST_NIGHTLY,
+        counts=outcome.counts,
+        failed_sources=outcome.failed_sources,
     )
     # A partial WB outage must be visible in the nightly run's own log line, not
     # only inferable from a suspiciously round zero in the counts.

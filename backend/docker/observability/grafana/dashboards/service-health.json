@@ -7,7 +7,7 @@
   ],
   "timezone": "Europe/Moscow",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "time": {
     "from": "now-6h",
@@ -36,7 +36,7 @@
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "The same probe /healthz reports to Better Stack. An external checker saying down while this says up is a network problem, not a service one.",
+      "description": "The same probe /healthz reports to Better Stack, refreshed by the scrape itself so it exists whether or not anything external is polling. min across instances: down anywhere is down.",
       "gridPos": {
         "x": 0,
         "y": 1,
@@ -49,7 +49,7 @@
             "type": "prometheus",
             "uid": "marketplace-prometheus"
           },
-          "expr": "dependency_up",
+          "expr": "min by (dependency) (dependency_up)",
           "legendFormat": "{{dependency}}",
           "refId": "A"
         }
@@ -211,7 +211,7 @@
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "The leading indicator. This reaches zero while there is still time to react; everything else only moves once a harvest has already lost its window.",
+      "description": "Empty until a harvest calls a PACED surface (analytics, marketplace). The leading indicator: it reaches zero while there is still time to react.",
       "gridPos": {
         "x": 8,
         "y": 7,
@@ -245,7 +245,7 @@
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "Pacing pressure. Rises an hour before a harvest overruns its window.",
+      "description": "Pacing pressure. Zero is the healthy reading — it only rises when WB's bucket is empty and we are queueing rather than sending.",
       "gridPos": {
         "x": 16,
         "y": 7,
@@ -292,7 +292,7 @@
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "The panel that would have shown the 2026-07-30 incident on day one: tasks reporting SUCCESS while every funnel source silently returned nothing.",
+      "description": "The panel that would have shown the 2026-07-30 incident on day one: tasks reporting SUCCESS while every funnel source silently returned nothing. Populated by the nightly pass (06:00 MSK), the interactive «Обновить», and the hourly finreports walk — so it is legitimately empty between runs.",
       "gridPos": {
         "x": 0,
         "y": 14,
@@ -326,7 +326,7 @@
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "A partial harvest is tolerated by design so one dead surface does not lose the run — which is exactly why it needs counting.",
+      "description": "A partial harvest is tolerated by design so one dead surface does not lose the run — which is exactly why it needs counting. Empty is the good reading.",
       "gridPos": {
         "x": 8,
         "y": 14,
@@ -407,7 +407,7 @@
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "Read from Redis with LLEN at scrape time, never derived from enqueue/dequeue counters. `unacked` staying high while the queue drains means work is taken and not finishing.",
+      "description": "Read from Redis with LLEN at scrape time, never derived from enqueue/dequeue counters. `unacked` staying high while the queue drains means work is taken and not finishing. Aggregated across instances — they read one Redis, so summing would multiply one queue by the number of scrapers.",
       "gridPos": {
         "x": 0,
         "y": 21,
@@ -420,7 +420,7 @@
             "type": "prometheus",
             "uid": "marketplace-prometheus"
           },
-          "expr": "celery_queue_length",
+          "expr": "max by (queue_name) (celery_queue_length)",
           "legendFormat": "{{queue_name}}",
           "refId": "A"
         }
@@ -475,7 +475,7 @@
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "Exhaustion has happened here: leaked `idle in transaction` connections held every slot for 22 hours. Used pinned at the ceiling with normal traffic is a leak, not load.",
+      "description": "Each API instance and the worker keep their own pool, so these stay per-instance: collapsing them would hide an exhausted pool behind two idle ones. Exhaustion has happened here — leaked `idle in transaction` connections held every slot for 22 hours.",
       "gridPos": {
         "x": 16,
         "y": 21,
@@ -489,7 +489,7 @@
             "uid": "marketplace-prometheus"
           },
           "expr": "postgres_pool_connections_used",
-          "legendFormat": "used",
+          "legendFormat": "{{instance}} used",
           "refId": "A"
         },
         {
@@ -498,7 +498,7 @@
             "uid": "marketplace-prometheus"
           },
           "expr": "postgres_pool_connections_free",
-          "legendFormat": "free",
+          "legendFormat": "{{instance}} free",
           "refId": "B"
         },
         {
@@ -507,7 +507,7 @@
             "uid": "marketplace-prometheus"
           },
           "expr": "postgres_pool_connections_overflow",
-          "legendFormat": "overflow",
+          "legendFormat": "{{instance}} overflow",
           "refId": "C"
         }
       ],
@@ -534,13 +534,13 @@
     },
     {
       "id": 118,
-      "title": "RLS violations",
+      "title": "RLS violations (24h)",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "This should read zero forever. One increment means a code path reached tenant data without passing the tenancy choke point — the exact defect row-level security was installed to catch.",
+      "description": "Should read 0 forever. One increment means a code path reached tenant data without passing the tenancy choke point — the exact defect row-level security was installed to catch. Shows 0 rather than \"No data\" when the counter has never fired, because on a security panel those two must not look alike.",
       "gridPos": {
         "x": 0,
         "y": 28,
@@ -553,7 +553,7 @@
             "type": "prometheus",
             "uid": "marketplace-prometheus"
           },
-          "expr": "sum(increase(security_rls_violations_total[24h]))",
+          "expr": "sum(increase(security_rls_violations_total[24h])) or vector(0)",
           "legendFormat": "24h",
           "refId": "A"
         }
@@ -596,7 +596,7 @@
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "1 while a control runs its fail-open fallback (register P1.2). Two at once is the correlated failure the degradation ledger exists to surface.",
+      "description": "1 while a control runs its fail-open fallback (register P1.2). max across instances: degraded anywhere is degraded. Two at once is the correlated failure the ledger exists to surface.",
       "gridPos": {
         "x": 6,
         "y": 28,
@@ -609,7 +609,7 @@
             "type": "prometheus",
             "uid": "marketplace-prometheus"
           },
-          "expr": "security_degraded_controls",
+          "expr": "max by (control) (security_degraded_controls)",
           "legendFormat": "{{control}}",
           "refId": "A"
         }
@@ -652,7 +652,7 @@
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "No account or address is a label — the count is the alert, the identity is in the logs.",
+      "description": "No account or address is a label — the count is the alert, the identity is in the logs. Empty until a login is refused.",
       "gridPos": {
         "x": 12,
         "y": 28,
@@ -703,9 +703,9 @@
         "x": 0,
         "y": 34,
         "w": 24,
-        "h": 11
+        "h": 10
       },
-      "description": "Filtered by the `level` label, which is the only field the shipper promotes. Everything that identifies WHOSE request this was — trace_id, workspace_id, user_id — is inside the JSON line: filter with `| json | workspace_id=\"...\"`. That split is deliberate; a trace_id label would be one Loki stream per request.",
+      "description": "Filters on `detected_level`, which Loki derives for EVERY line, rather than on our own `level` label. That is not a preference: `level` exists only on lines the application emits as JSON, so a query using it structurally excludes Postgres, Redis and nginx — it could never show a Postgres FATAL. Everything identifying WHOSE request a line belongs to (trace_id, workspace_id, user_id) is inside the JSON: filter with `| json | workspace_id=\"...\"`. Those are deliberately not labels — a trace_id label would be one Loki stream per request.",
       "options": {
         "showTime": true,
         "wrapLogMessage": true,
@@ -719,7 +719,39 @@
             "uid": "marketplace-loki"
           },
           "refId": "A",
-          "expr": "{job=\"marketplace\", level=~\"ERROR|WARNING\"}"
+          "expr": "{job=\"marketplace\"} | detected_level =~ \"error|warn|critical|fatal\""
+        }
+      ]
+    },
+    {
+      "id": 123,
+      "type": "logs",
+      "title": "Everything, all containers (live)",
+      "datasource": {
+        "type": "loki",
+        "uid": "marketplace-loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 44,
+        "w": 24,
+        "h": 12
+      },
+      "description": "Unfiltered, and it earns its space by answering a question the panel above cannot: is the log pipeline working, or is there simply nothing wrong? An errors-only panel reads identically in both cases, which is how an 'everything is fine' dashboard and a broken shipper look the same.",
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "marketplace-loki"
+          },
+          "refId": "A",
+          "expr": "{job=\"marketplace\"}"
         }
       ]
     }
