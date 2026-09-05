@@ -214,16 +214,47 @@ published port, 443, serving the SPA — is unchanged.
   for the day that topology is loosened; it is compared in constant time and
   answers **404**, not 401, so the route is not confirmed to exist.
 * The worker's exporter binds `:9100` inside the network only.
-* **Grafana binds `127.0.0.1:3000`.** Reach it over an SSH tunnel:
+* **Grafana is served on its own host**, `https://grafana.example.com`,
+  proxied by the app's nginx over the shared Docker network.
+
+  A **subdomain rather than a path**, and the reason is the cookie jar. As
+  `example.com/grafana/` it would share a browser origin with the
+  customer-facing SPA — so a flaw in Grafana would sit inside the same origin as
+  the sessions that authenticate real sellers, and the app's CSP
+  (`script-src 'self'`) would have to be loosened to let Grafana's own bundle
+  run at all. A separate host costs one DNS record and one name on the existing
+  certificate, and buys a boundary the browser enforces.
+
+  In front of it: TLS, `Secure`/`SameSite=lax` session cookies, HSTS, no
+  sign-up, no anonymous access, and an nginx rate limit of 1 r/s with a burst of
+  5 on `/login` answering **429**. The limit is on `/login` alone — on `/` it
+  would throttle a signed-in session refreshing panels every 30 s. Grafana emits
+  its own CSP; nginx deliberately does not apply the app's, because the tempting
+  shortcut when the page comes up blank is to loosen the *shared* snippet, which
+  weakens the customer site to make a dashboard load.
+
+  Grafana still publishes `127.0.0.1:3000`, which is the way in when nginx
+  itself is the broken thing:
 
   ```bash
-  ssh -L 3000:127.0.0.1:3000 <the production alias>
+  ssh -L 3001:127.0.0.1:3000 <the production alias>
   ```
 
-  That is the whole access model, chosen over an nginx location with basic auth
-  because Grafana holds a read view of every metric this service produces, and a
-  second authenticated ingress is a second thing to get right.
-* Prometheus, Loki and Alloy publish nothing at all.
+  That port must never lose its `127.0.0.1:` prefix — it is the bypass around
+  the TLS, the headers and the rate limit.
+
+* **The certificate covers all three names and renews by `webroot`.** It was
+  configured `standalone`, which asks certbot to bind port 80 while nginx holds
+  it: every automatic renewal would have failed, from around 2026-09-12, for a
+  certificate expiring 2026-10-12 — a month between cause and symptom, nothing
+  reporting it in between, and the symptom is the whole site being unreachable.
+  `backend/scripts/tls/issue_certificate.sh` fixes the method and adds the name
+  in one run. The webroot is a host directory bind-mounted into the frontend
+  container read-only: certbot writes on the host, nginx reads in the container,
+  and a webroot inside the image is one certbot could never reach — presumably
+  how the mismatch arose.
+
+* Prometheus, Loki, Alertmanager and Alloy publish nothing at all.
 * Alloy's Docker socket mount is **read-only** — a writable one is root on the
   host, and it only needs to list containers and read their output.
 
