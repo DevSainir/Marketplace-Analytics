@@ -96,6 +96,7 @@ onMounted(() => store.fetchPins())
         <PeriodSelector v-model:from="dateFrom" v-model:to="dateTo" @apply="applyPeriod" />
         <RefreshAllSkusButton
           :refreshing="store.allRefreshing"
+          :progress="store.allRefreshProgress"
           :error="store.allRefreshError"
           :warning="store.allRefreshWarning"
           @refresh="store.refreshAllFromWb()"
@@ -182,6 +183,7 @@ onMounted(() => store.fetchPins())
             :dirty="store.matrixDirty"
             :saving="store.matrixSaving"
             :refreshing="store.matrixRefreshing"
+            :progress="store.refreshProgress"
             :loading="store.loading"
             :error="store.actionError"
             :warning="store.actionWarning"

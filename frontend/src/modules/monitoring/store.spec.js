@@ -444,6 +444,72 @@ describe('refreshFromWb', () => {
     expect(store.actionError).toBeNull()
   })
 
+  it('puts stage-1 data on screen without waiting for the buyout pass', async () => {
+    // THE POINT OF STAGING. The backend commits advertising, funnel, stocks and
+    // prices before it starts the ~7-minute buyout-cohort pass, and reports the
+    // stage boundary. Redrawing there is what lets the seller read the numbers
+    // they came for while the slow half is still running — waiting for `ready`
+    // would put the whole wait in front of data that is already in the database.
+    refreshSku.mockResolvedValue({ task_id: 'task-staged' })
+    let redrawsBeforeCompletion = null
+    getRefreshStatus
+      .mockResolvedValueOnce({ ready: false, stage: 1, percent: 0, message: 'Собираем…' })
+      .mockResolvedValueOnce({
+        ready: false,
+        stage: 2,
+        percent: 40,
+        message: 'Считаем проценты выкупа…',
+      })
+      .mockImplementationOnce(async () => {
+        // Sampled on the poll that ENDS the run: anything counted here was
+        // drawn while the buyout pass was still going.
+        redrawsBeforeCompletion = fetchSkuDetail.mock.calls.length
+        return { ready: true, successful: true, failed_sources: [] }
+      })
+
+    vi.useFakeTimers()
+    try {
+      const pending = store.refreshFromWb()
+      await vi.advanceTimersByTimeAsync(5_000)
+      await pending
+    } finally {
+      vi.useRealTimers()
+    }
+
+    // The stage boundary redrew the table before the task was done.
+    expect(redrawsBeforeCompletion).toBe(1)
+    // And again at the end, when the buyout percentages land.
+    expect(fetchSkuDetail.mock.calls.length).toBe(2)
+    expect(store.actionError).toBeNull()
+  })
+
+  it('surfaces the backend’s own progress line rather than inventing one', async () => {
+    // The message is rendered verbatim under the button, so it must come from
+    // the task. Assembling it here would let the UI claim a stage is running
+    // that the backend has not reached.
+    refreshSku.mockResolvedValue({ task_id: 'task-progress' })
+    let seen = null
+    getRefreshStatus
+      .mockResolvedValueOnce({ ready: false, stage: 2, percent: 40, message: 'Считаем выкупы…' })
+      .mockImplementationOnce(async () => {
+        seen = { ...store.refreshProgress }
+        return { ready: true, successful: true, failed_sources: [] }
+      })
+
+    vi.useFakeTimers()
+    try {
+      const pending = store.refreshFromWb()
+      await vi.advanceTimersByTimeAsync(5_000)
+      await pending
+    } finally {
+      vi.useRealTimers()
+    }
+
+    expect(seen).toEqual({ percent: 40, message: 'Считаем выкупы…' })
+    // Cleared when the run ends, so a finished refresh leaves no stale bar.
+    expect(store.refreshProgress).toBeNull()
+  })
+
   it('says which WB sources were withheld when the harvest was partial', async () => {
     // A harvest tolerates a partial WB outage, so `successful` stays true while
     // the funnel never arrived and the table redraws its previous numbers. Left

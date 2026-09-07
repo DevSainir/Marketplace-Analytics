@@ -143,6 +143,39 @@ async def refresh_all_skus(
     return RefreshEnqueuedResponse(task_id=task.id)
 
 
+def _progress(result: AsyncResult[object]) -> dict[str, object]:
+    """Read the progress payload a running refresh publishes about itself.
+
+    The refresh tasks write a custom ``PROGRESS`` state whose meta carries the
+    stage, percentage and the Russian line the SPA renders. Defensive about the
+    shape for the same reason as :func:`_failed_sources`: a task enqueued by a
+    previous deploy, or one that has not reached its first checkpoint, has no
+    such payload and must read as "no progress yet" rather than a 500.
+
+    ``AsyncResult.info`` is also where a FAILED task's exception lands, so the
+    type check is doing real work — without it a traceback would be served to
+    the client as if it were a status line.
+
+    Args:
+        result: The task's ``AsyncResult``.
+
+    Returns:
+        The published fields that are present, ready to splat into the
+        response model.
+    """
+    if result.state != "PROGRESS":
+        return {}
+    info = result.info
+    if not isinstance(info, dict):
+        return {}
+    published: dict[str, object] = {}
+    for key, expected in (("stage", int), ("stages", int), ("percent", int), ("message", str)):
+        value = info.get(key)
+        if isinstance(value, expected):
+            published[key] = value
+    return published
+
+
 def _failed_sources(result: AsyncResult[object]) -> list[str]:
     """Read the ``failed_sources`` list out of a finished harvest's return value.
 
@@ -181,6 +214,12 @@ async def get_refresh_status(
 ) -> RefreshStatusResponse:
     """Report a refresh task's state so the frontend knows when to re-fetch.
 
+    While the task runs this also carries ``stage``/``percent``/``message``, so
+    the SPA can show a progress bar and say what is being collected rather than
+    spinning silently for the ~8 minutes a first refresh can take. The stage
+    number is actionable, not decorative: stage 1's rows are committed before
+    stage 2 starts, so the client redraws the table on that transition.
+
     Scoped to the workspace that enqueued the task: Celery's ``AsyncResult``
     would happily report on any id in the broker, which let one workspace learn
     whether another's harvest had run and whether it succeeded. An id belonging
@@ -197,4 +236,5 @@ async def get_refresh_status(
         ready=ready,
         successful=successful,
         failed_sources=_failed_sources(result) if successful else [],
+        **_progress(result),
     )

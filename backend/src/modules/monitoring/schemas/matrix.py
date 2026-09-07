@@ -336,3 +336,29 @@ class RefreshStatusResponse(BaseModel):
             "did not move."
         ),
     )
+    stage: int | None = Field(
+        default=None,
+        description=(
+            "Which stage of the refresh is running: 1 = advertising, funnel, "
+            "stocks and prices; 2 = buyout percentages. Stage 1's rows are "
+            "already committed when stage 2 begins, so the client may redraw "
+            "the table on the transition instead of waiting for the whole run."
+        ),
+    )
+    stages: int | None = Field(
+        default=None, description="How many stages this refresh has in total."
+    )
+    percent: int | None = Field(
+        default=None,
+        description=(
+            "How far along the refresh is, 0-100. Present only while running; "
+            "a finished task reports its outcome through 'ready'/'successful'."
+        ),
+    )
+    message: str | None = Field(
+        default=None,
+        description=(
+            "Russian, user-facing description of what is happening right now, "
+            "rendered verbatim under the refresh button."
+        ),
+    )

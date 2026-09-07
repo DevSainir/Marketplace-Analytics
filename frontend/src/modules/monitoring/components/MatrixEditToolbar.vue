@@ -9,6 +9,8 @@
  *
  * Dumb by contract: every button reports intent and the view owns the store.
  */
+import RefreshProgress from '@/core/components/RefreshProgress.vue'
+
 defineProps({
   /** Whether the working copy carries unsaved manual edits. */
   dirty: { type: Boolean, default: false },
@@ -16,6 +18,12 @@ defineProps({
   saving: { type: Boolean, default: false },
   /** A WB re-harvest («Обновить») is in flight. */
   refreshing: { type: Boolean, default: false },
+  /**
+   * Staged progress of the in-flight refresh, `{ percent, message }` or null.
+   * A first run can take ~8 minutes, and a disabled button for that long reads
+   * as a hung request rather than a slow one.
+   */
+  progress: { type: Object, default: null },
   /** A detail fetch is in flight (blocks the refresh alongside the others). */
   loading: { type: Boolean, default: false },
   /** Transient message from the last failed action, if any. */
@@ -72,6 +80,15 @@ defineEmits(['save', 'refresh'])
         {{ refreshing ? 'Обновляем из Wildberries…' : 'Обновить' }}
       </button>
     </div>
+  </div>
+
+  <!--
+    Under the buttons, like the unsaved-changes caption above: a bar that
+    appeared between the hint and the actions would shift the button the user
+    is waiting to press again.
+  -->
+  <div v-if="refreshing" class="mt-xs flex justify-end">
+    <RefreshProgress :percent="progress?.percent ?? null" :message="progress?.message ?? ''" />
   </div>
 
   <p v-if="error" class="mt-xs text-tiny text-status-negative" role="alert">

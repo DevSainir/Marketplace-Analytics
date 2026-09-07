@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import timedelta
 
+from celery import Task
 from redis import Redis as SyncRedis
 from redis.exceptions import LockError
 
@@ -21,7 +22,11 @@ from src.integrations.wildberries import WBContentClient
 from src.integrations.wildberries.schemas import WBCard
 from src.modules.monitoring.repos import ProductCardRepository
 from src.modules.monitoring.tasks.common import _TASK_RETRY_KWARGS
-from src.modules.monitoring.tasks.full_refresh import refresh_workspace_data
+from src.modules.monitoring.tasks.full_refresh import (
+    ProgressReporter,
+    celery_progress,
+    refresh_workspace_data,
+)
 from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
     load_workspace_token_bundle,
@@ -47,7 +52,11 @@ _HARVEST_LOCK_TIMEOUT_SECONDS = 2 * 60 * 60
 
 
 async def _discover_and_harvest_workspace(
-    tokens: WorkspaceTokenBundle, days: int, *, include_cohorts: bool = True
+    tokens: WorkspaceTokenBundle,
+    days: int,
+    *,
+    include_cohorts: bool = True,
+    progress: ProgressReporter | None = None,
 ) -> dict[str, int]:
     """Discover one workspace's SKUs and harvest a rolling ``days``-day window.
 
@@ -147,6 +156,7 @@ async def _discover_and_harvest_workspace(
             date_to=end,
             cards=cards,
             include_cohorts=include_cohorts,
+            progress=progress,
         )
     # The nightly run is the one the row counters exist FOR. It is this pass
     # that reported SUCCESS with `funnel_rows: 0` for days in the 2026-07-30
@@ -239,12 +249,14 @@ _DISCOVER_SOFT_TIME_LIMIT_SECONDS: int = 25 * 60
 
 @celery_app.task(  # type: ignore[untyped-decorator]
     name="monitoring.discover_workspace",
-    bind=False,
+    bind=True,
     soft_time_limit=_DISCOVER_SOFT_TIME_LIMIT_SECONDS,
     time_limit=_DISCOVER_SOFT_TIME_LIMIT_SECONDS + 60,
     **_TASK_RETRY_KWARGS,
 )
-def discover_workspace(workspace_id: str, days: int = 7) -> dict[str, object]:
+def discover_workspace(
+    self: Task[object, object], workspace_id: str, days: int = 7
+) -> dict[str, object]:
     """Interactive entrypoint: discover ONE workspace's SKUs, then harvest them.
 
     The single-tenant counterpart of :func:`harvest_all`, and the answer to a
@@ -285,7 +297,9 @@ def discover_workspace(workspace_id: str, days: int = 7) -> dict[str, object]:
         # from its first line, and a discovery that fails against the Content
         # API must still say whose discovery it was.
         bind_workspace(tokens.workspace_id)
-        return dict(await _discover_and_harvest_workspace(tokens, days))
+        return dict(
+            await _discover_and_harvest_workspace(tokens, days, progress=celery_progress(self))
+        )
 
     return run_task(_run())
 

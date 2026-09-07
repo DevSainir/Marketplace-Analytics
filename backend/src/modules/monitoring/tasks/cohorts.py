@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import timedelta
 
 from redis import Redis as SyncRedis
@@ -52,7 +53,11 @@ _COHORT_LOCK_NAME = "monitoring:refresh_buyout_cohorts:lock"
 _COHORT_LOCK_TIMEOUT_SECONDS = 2 * 60 * 60
 
 
-async def _refresh_workspace_cohorts(tokens: WorkspaceTokenBundle, days: int) -> int:
+async def _refresh_workspace_cohorts(
+    tokens: WorkspaceTokenBundle,
+    days: int,
+    on_day: Callable[[int, int], None] | None = None,
+) -> int:
     """Re-read one workspace's maturing buyout/cancel cohorts, day by day.
 
     The aggregate endpoint takes a period, not a series, so one call per cohort
@@ -76,6 +81,12 @@ async def _refresh_workspace_cohorts(tokens: WorkspaceTokenBundle, days: int) ->
     Args:
         tokens: The workspace's decrypted WB credentials.
         days: How many days back from yesterday to re-read.
+        on_day: Called after each cohort day is attempted, with ``(done,
+            total)``. This loop is the long pole in an interactive refresh —
+            22 paced requests, ~7 minutes — so it is the only place that can
+            say how far along it is. Called for failed days too: the pass moves
+            on from them, and a bar that stalled on a WB hiccup would report a
+            run as stuck when it is not.
 
     Returns:
         The number of cohort days refreshed across the window.
@@ -100,12 +111,16 @@ async def _refresh_workspace_cohorts(tokens: WorkspaceTokenBundle, days: int) ->
                 rows = await analytics_client.fetch_funnel_cohort_day(day=day)
             except Exception as exc:  # isolate one cohort day from the rest
                 logger.warning("Cohort refresh failed for %s: %s", day, exc)
+                if on_day is not None:
+                    on_day(offset + 1, days)
                 continue
             served += 1
             async with AsyncSessionLocal() as session:
                 service = _cohort_ingestion_service(session)
                 refreshed += await service.ingest_funnel_cohorts(day, rows)
                 await session.commit()
+            if on_day is not None:
+                on_day(offset + 1, days)
     if served == 0:
         raise IntegrationError(
             f"WB served none of the {days} cohort days for workspace '{tokens.name}'; "

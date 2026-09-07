@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from celery import Task
+
 from src.core.celery_app import celery_app
 from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
@@ -27,7 +29,10 @@ from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
 from src.modules.monitoring.repos import ProductCardRepository
 from src.modules.monitoring.tasks.common import _TASK_RETRY_KWARGS
-from src.modules.monitoring.tasks.full_refresh import refresh_workspace_data
+from src.modules.monitoring.tasks.full_refresh import (
+    celery_progress,
+    refresh_workspace_data,
+)
 from src.modules.workspaces.contract import load_workspace_token_bundle
 
 logger = get_logger(__name__)
@@ -60,12 +65,13 @@ _HARVEST_SKU_WINDOW = "monitoring.sku_window"
 
 @celery_app.task(  # type: ignore[untyped-decorator]
     name="monitoring.harvest_sku_window",
-    bind=False,
+    bind=True,
     soft_time_limit=_INTERACTIVE_SOFT_TIME_LIMIT_SECONDS,
     time_limit=_INTERACTIVE_SOFT_TIME_LIMIT_SECONDS + 60,
     **_TASK_RETRY_KWARGS,
 )
 def harvest_sku_window(
+    self: Task[object, object],
     nm_ids: list[int],
     date_from: str | None = None,
     date_to: str | None = None,
@@ -135,6 +141,7 @@ def harvest_sku_window(
                 nm_ids=nm_ids,
                 date_from=start,
                 date_to=end,
+                progress=celery_progress(self),
             )
         record_harvest_outcome(
             _HARVEST_SKU_WINDOW,

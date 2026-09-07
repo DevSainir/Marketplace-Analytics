@@ -160,6 +160,17 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   /** A WB re-harvest («Обновить») is in flight (enqueue + poll). */
   const matrixRefreshing = ref(false)
   /**
+   * How far the in-flight «Обновить» has got: `{ percent, message }`, or null
+   * when nothing is running.
+   *
+   * A first refresh can run ~8 minutes — it includes the account-wide sale feed
+   * and the 22-day buyout-cohort pass — and eight silent minutes behind a
+   * disabled button reads as a hung request. The message is the backend's own
+   * Russian line, not one assembled here, so the stages can change without the
+   * two descriptions drifting apart.
+   */
+  const refreshProgress = ref(null)
+  /**
    * Transient message for ANY failed user action on the detail page, not just
    * matrix edits: a rejected cell edit (422 on a read-only cell), a failed
    * save/refresh, and every optimistic toggle that had to roll back — pins,
@@ -178,6 +189,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
 
   /** A bulk «Обновить все SKU» harvest is in flight (enqueue + poll). */
   const allRefreshing = ref(false)
+  /** How far the in-flight bulk refresh has got; see {@link refreshProgress}. */
+  const allRefreshProgress = ref(null)
   /**
    * Error/partial-outcome messages for the BULK refresh, kept separate from
    * `actionError`/`actionWarning`: the bulk button lives beside the period
@@ -706,8 +719,58 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   }
 
   /**
+   * Poll one refresh task to completion, surfacing its staged progress.
+   *
+   * Shared by «Обновить» and «Обновить все SKU», which differ only in what they
+   * redraw and which ceiling they use. It was duplicated once and the two
+   * copies had already drifted on how they reported a partial outcome.
+   *
+   * `onStageComplete` is the interesting part. The backend runs a refresh in
+   * two stages and COMMITS the first before starting the second, so when the
+   * reported stage advances, the previous stage's rows are durable — the caller
+   * can put advertising and funnel data on screen while buyout percentages are
+   * still being counted, instead of making the seller wait out the slow half
+   * to see the fast half.
+   *
+   * @param {string} taskId
+   * @param {number} ceilingMs Give up after this; see REFRESH_POLL_CEILING_MS.
+   * @param {{onProgress: Function, onStageComplete: Function}} handlers
+   * @returns {Promise<string[]|null>} Withheld WB sources, or null on timeout.
+   */
+  async function pollRefreshTask(taskId, ceilingMs, { onProgress, onStageComplete }) {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+    const startedAt = Date.now()
+    let lastStage = 0
+    while (Date.now() - startedAt < ceilingMs) {
+      const status = await getRefreshStatus(taskId)
+      if (typeof status.percent === 'number' || status.message) {
+        onProgress({ percent: status.percent ?? null, message: status.message ?? '' })
+      }
+      if (typeof status.stage === 'number' && status.stage > lastStage) {
+        // Redraw with what the FINISHED stage wrote, never the one now running.
+        if (lastStage > 0) await onStageComplete(lastStage)
+        lastStage = status.stage
+      }
+      if (status.ready) {
+        if (!status.successful) throw new Error('Не удалось обновить данные из Wildberries.')
+        return status.failed_sources ?? []
+      }
+      const elapsed = Date.now() - startedAt
+      await wait(
+        elapsed < REFRESH_POLL_RELAX_AFTER_MS
+          ? REFRESH_POLL_INTERVAL_MS
+          : REFRESH_POLL_SLOW_INTERVAL_MS,
+      )
+    }
+    return null
+  }
+
+  /**
    * «Обновить»: re-harvest this SKU from WB (discarding manual edits), poll the
    * task to completion, then re-fetch the detail so the table shows fresh data.
+   *
+   * The table is redrawn TWICE on a full run: once when the advertising/funnel
+   * stage commits, and again at the end when buyout percentages land.
    */
   async function refreshFromWb() {
     const product = currentProduct.value
@@ -717,6 +780,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       ? { date_from: product.window.start, date_to: product.window.end }
       : {}
     matrixRefreshing.value = true
+    refreshProgress.value = null
     actionError.value = null
     actionWarning.value = null
     try {
@@ -724,29 +788,20 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       // Poll tightly at first (the harvest is usually seconds), then relax —
       // and keep going until the backend's own worst case has elapsed, never
       // less. See REFRESH_POLL_CEILING_MS.
-      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-      const startedAt = Date.now()
-      let ready = false
-      let failedSources = []
-      while (Date.now() - startedAt < REFRESH_POLL_CEILING_MS) {
-        const status = await getRefreshStatus(taskId)
-        if (status.ready) {
-          if (!status.successful) throw new Error('Не удалось обновить данные из Wildberries.')
-          ready = true
-          failedSources = status.failed_sources ?? []
-          break
-        }
-        const elapsed = Date.now() - startedAt
-        await wait(
-          elapsed < REFRESH_POLL_RELAX_AFTER_MS
-            ? REFRESH_POLL_INTERVAL_MS
-            : REFRESH_POLL_SLOW_INTERVAL_MS,
-        )
-      }
+      const failedSources = await pollRefreshTask(taskId, REFRESH_POLL_CEILING_MS, {
+        onProgress: (progress) => {
+          refreshProgress.value = progress
+        },
+        // Advertising, funnel, stocks and prices are committed by now. Putting
+        // them on screen here is the whole point of staging the refresh: the
+        // seller reads the numbers they came for while the ~7-minute buyout
+        // pass is still running behind the bar.
+        onStageComplete: () => fetchProductData(nmId, params),
+      })
       // Exhausting the ceiling is a FAILURE, not a silent success: falling
       // through here would clear the spinner and re-fetch unchanged data,
       // presenting stale numbers as a completed refresh.
-      if (!ready) {
+      if (failedSources === null) {
         throw new Error(
           'Обновление из Wildberries не завершилось за отведённое время. ' +
             'Данные могут обновиться позже — попробуйте ещё раз.',
@@ -765,6 +820,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       actionError.value = extractErrorMessage(err)
     } finally {
       matrixRefreshing.value = false
+      refreshProgress.value = null
     }
   }
 
@@ -778,40 +834,31 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   async function refreshAllFromWb() {
     if (allRefreshing.value) return
     allRefreshing.value = true
+    allRefreshProgress.value = null
     allRefreshError.value = null
     allRefreshWarning.value = null
     try {
       const { task_id: taskId } = await refreshAllSkus()
-      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-      const startedAt = Date.now()
-      let ready = false
-      let failedSources = []
-      while (Date.now() - startedAt < REFRESH_ALL_POLL_CEILING_MS) {
-        const status = await getRefreshStatus(taskId)
-        if (status.ready) {
-          if (!status.successful) throw new Error('Не удалось обновить данные из Wildberries.')
-          ready = true
-          failedSources = status.failed_sources ?? []
-          break
+      // Reflect the fresh data: the list always, and the open SKU if any.
+      const redraw = async () => {
+        await fetchSkuList(lastParams)
+        if (currentProduct.value) {
+          await fetchProductData(currentProduct.value.nm_id, lastParams)
         }
-        const elapsed = Date.now() - startedAt
-        await wait(
-          elapsed < REFRESH_POLL_RELAX_AFTER_MS
-            ? REFRESH_POLL_INTERVAL_MS
-            : REFRESH_POLL_SLOW_INTERVAL_MS,
-        )
       }
-      if (!ready) {
+      const failedSources = await pollRefreshTask(taskId, REFRESH_ALL_POLL_CEILING_MS, {
+        onProgress: (progress) => {
+          allRefreshProgress.value = progress
+        },
+        onStageComplete: redraw,
+      })
+      if (failedSources === null) {
         throw new Error(
           'Обновление всех SKU не завершилось за отведённое время. ' +
             'Данные могут обновиться позже — попробуйте ещё раз.',
         )
       }
-      // Reflect the fresh data: the list always, and the open SKU if any.
-      await fetchSkuList(lastParams)
-      if (currentProduct.value) {
-        await fetchProductData(currentProduct.value.nm_id, lastParams)
-      }
+      await redraw()
       allRefreshWarning.value = failedSources.length
         ? `Wildberries не отдал: ${failedSources.map(sourceLabel).join(', ')}. ` +
           'Эти данные остались прежними — попробуйте позже.'
@@ -820,6 +867,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       allRefreshError.value = extractErrorMessage(err)
     } finally {
       allRefreshing.value = false
+      allRefreshProgress.value = null
     }
   }
 
@@ -884,6 +932,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     matrixDirty,
     matrixSaving,
     matrixRefreshing,
+    refreshProgress,
     actionError,
     actionWarning,
     canUndoMatrix,
@@ -895,6 +944,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     refreshFromWb,
     // bulk «Обновить все SKU»
     allRefreshing,
+    allRefreshProgress,
     allRefreshError,
     allRefreshWarning,
     refreshAllFromWb,

@@ -73,7 +73,7 @@ async def test_a_refresh_pulls_the_sale_feed_and_the_cohorts(
     old behaviour — a green refresh with «Выкупы, ₽» standing still.
     """
 
-    async def _cohorts(_tokens: WorkspaceTokenBundle, _days: int) -> int:
+    async def _cohorts(_tokens: WorkspaceTokenBundle, _days: int, _on_day: Any = None) -> int:
         return 44
 
     monkeypatch.setattr(full_refresh, "_refresh_workspace_cohorts", _cohorts)
@@ -98,7 +98,7 @@ async def test_a_failed_cohort_pass_is_reported_not_raised(
     the database.
     """
 
-    async def _explode(_tokens: WorkspaceTokenBundle, _days: int) -> int:
+    async def _explode(_tokens: WorkspaceTokenBundle, _days: int, _on_day: Any = None) -> int:
         raise RuntimeError("WB served none of the 22 cohort days")
 
     monkeypatch.setattr(full_refresh, "_refresh_workspace_cohorts", _explode)
@@ -126,7 +126,7 @@ async def test_a_recently_covered_workspace_skips_the_cohort_pass(
     async def _denied(_workspace_id: uuid.UUID) -> bool:
         return False
 
-    async def _must_not_run(_tokens: WorkspaceTokenBundle, _days: int) -> int:
+    async def _must_not_run(_tokens: WorkspaceTokenBundle, _days: int, _on_day: Any = None) -> int:
         raise AssertionError("the cohort pass must not run when the claim is denied")
 
     monkeypatch.setattr(full_refresh, "claim_cohort_pass", _denied)
@@ -157,7 +157,7 @@ async def test_the_nightly_fleet_walk_leaves_cohorts_to_their_own_pass(
     async def _must_not_claim(_workspace_id: uuid.UUID) -> bool:
         raise AssertionError("the fleet walk must not claim the cohort pass")
 
-    async def _must_not_run(_tokens: WorkspaceTokenBundle, _days: int) -> int:
+    async def _must_not_run(_tokens: WorkspaceTokenBundle, _days: int, _on_day: Any = None) -> int:
         raise AssertionError("the fleet walk must not run the cohort pass")
 
     monkeypatch.setattr(full_refresh, "claim_cohort_pass", _must_not_claim)
@@ -170,3 +170,69 @@ async def test_the_nightly_fleet_walk_leaves_cohorts_to_their_own_pass(
     assert outcome.counts["funnel_rows"] == 287
     assert outcome.counts["cohort_rows"] == 0
     assert outcome.failed_sources == ()
+
+
+async def test_progress_walks_the_two_stages_and_ends_at_a_hundred(
+    monkeypatch: pytest.MonkeyPatch, harvest: dict[str, Any], claim_granted: None
+) -> None:
+    """The sequence a seller watches under the button, in order.
+
+    Pinned because it is the contract the SPA renders verbatim, and because the
+    STAGE NUMBER is load-bearing rather than decorative: stage 1's rows are
+    committed before stage 2 begins, so the client redraws the table on that
+    transition instead of waiting out the ~7-minute cohort pass. A refresh that
+    stopped reporting the boundary would silently make the table wait again.
+
+    The bar must also reach 100 exactly. Ending at 97 because of integer
+    rounding leaves a progress bar visibly short of full on a run that
+    succeeded, which reads as a failure.
+    """
+    seen: list[tuple[int, int, str]] = []
+
+    async def _cohorts(_tokens: WorkspaceTokenBundle, days: int, on_day: Any = None) -> int:
+        for day in range(days):
+            on_day(day + 1, days)
+        return 44
+
+    monkeypatch.setattr(full_refresh, "_refresh_workspace_cohorts", _cohorts)
+
+    await refresh_workspace_data(
+        tokens=WORKSPACE,
+        nm_ids=[1],
+        cohort_days=3,
+        progress=lambda stage, percent, message: seen.append((stage, percent, message)),
+        **WINDOW,
+    )
+
+    assert seen[0] == (1, 0, full_refresh.MSG_HARVEST)
+    # The boundary: stage 2 announced BEFORE the slow pass starts, so the
+    # seller reads "воронка собрана" while the cohorts are still running.
+    assert seen[1] == (2, 40, full_refresh.MSG_COHORTS)
+    assert [percent for _stage, percent, _msg in seen[2:-1]] == [60, 80, 100]
+    assert seen[-1] == (2, 100, full_refresh.MSG_DONE)
+
+
+async def test_a_skipped_cohort_pass_still_finishes_the_bar(
+    monkeypatch: pytest.MonkeyPatch, harvest: dict[str, Any]
+) -> None:
+    """A refresh that skips the claimed pass must not leave the bar at 40.
+
+    This is the ordinary case for every «Обновить» after the first in an hour,
+    so a bar stuck below full here would be what most sellers see most of the
+    time.
+    """
+    seen: list[tuple[int, int, str]] = []
+
+    async def _denied(_workspace_id: uuid.UUID) -> bool:
+        return False
+
+    monkeypatch.setattr(full_refresh, "claim_cohort_pass", _denied)
+
+    await refresh_workspace_data(
+        tokens=WORKSPACE,
+        nm_ids=[1],
+        progress=lambda stage, percent, message: seen.append((stage, percent, message)),
+        **WINDOW,
+    )
+
+    assert seen[-1] == (2, 100, full_refresh.MSG_DONE)
