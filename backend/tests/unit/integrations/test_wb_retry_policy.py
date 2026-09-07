@@ -277,3 +277,33 @@ async def test_blank_token_omits_the_header_entirely() -> None:
     client = BaseWBClient(base_url="https://card.wb.test", token="", timeout=5.0)
 
     assert "Authorization" not in client._client.headers
+
+
+async def test_a_client_ceiling_below_the_default_is_the_one_that_applies(
+    slept: list[float],
+) -> None:
+    """The override existed and was ignored, which cost a harvest.
+
+    `BaseWBClient` compared WB's demanded wait against the module default
+    rather than against the instance's own ceiling, so the finance walk — which
+    lowers it precisely because it retries inside an open transaction — slept
+    off an 897 s block on 2026-09-07 and had PostgreSQL close the connection
+    under it. A demanded wait above the client's ceiling must raise, not sleep.
+    """
+    client = BaseWBClient(
+        base_url="https://wb.test",
+        token="a-token",
+        timeout=5.0,
+        max_retries=3,
+        retry_after_ceiling_seconds=45.0,
+    )
+    client._client = httpx.AsyncClient(
+        base_url="https://wb.test",
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(429, headers={"X-Ratelimit-Retry": "897"})
+        ),
+    )
+
+    with pytest.raises(IntegrationError):
+        await client._request("GET", "/api/v5/supplier/reportDetailByPeriod")
+    assert slept == []

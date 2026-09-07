@@ -118,21 +118,28 @@ class WildberriesSettings(BaseSettings):
     # what an unpaced second consumer looks like.
     wb_advertising_bucket_capacity: int = Field(default=1, ge=1)
     wb_advertising_bucket_refill_seconds: float = Field(default=20.0, gt=0)
-    # The statistics surface's settlement report, measured live on 2026-09-07:
-    # `reportDetailByPeriod` served the freshness probe and the walk's first
-    # page back to back, then answered the SECOND page — 26 s later — with a
-    # 429 demanding a 934 s wait. Nothing paced it, because until a seller
-    # large enough to need a second page appeared, one request per window was
-    # all the walk ever made. A one-token bucket refilling every 61 s is WB's
-    # own published figure for this surface and the only shape that cannot
-    # trip it: the penalty block is fifteen minutes, so guessing high costs
-    # one minute per page and guessing low costs the whole report.
+    # The statistics surface's settlement report, measured live on 2026-09-07
+    # from WB's own headers: `x-ratelimit-limit: 1`, `x-ratelimit-reset: 917`.
+    # ONE request per ~15 minutes per seller token — not the per-minute budget
+    # the rest of this file is used to, and not something a walk can page
+    # through. Worse, a request made while the bucket is empty RESTARTS the
+    # window: two probes 15 minutes apart both answered 429, the second
+    # demanding a fresh 917 s. So the bucket's job here is not to pace, it is
+    # to make sure the request is not sent at all.
+    #
+    # Nothing paced it before because no seller had ever needed a second page:
+    # at `limit=10000` a one-page window is the normal case, and the first
+    # customer to exceed it (2026-09-07) found the 429, then the 897 s
+    # retry-sleep INSIDE the harvest's open transaction, then PostgreSQL
+    # closing the connection under it.
     wb_statistics_bucket_capacity: int = Field(default=1, ge=1)
-    wb_statistics_bucket_refill_seconds: float = Field(default=61.0, gt=0)
-    # A page may queue this long for a token. Longer than the analytics
-    # ceiling because one refill here IS 61 s, and a walk that gave up at 120 s
-    # would fail on its third page every time.
-    wb_statistics_max_queue_seconds: float = Field(default=180.0, gt=0)
+    wb_statistics_bucket_refill_seconds: float = Field(default=900.0, gt=0)
+    # A page may queue this long for a token before the walk gives up. It is
+    # deliberately FAR below one refill: the walk pages inside an open
+    # transaction that PostgreSQL kills after 300 s idle, so waiting out a real
+    # block here would trade a failure the harvest reports for one it cannot.
+    # Failing fast leaves the window for the next tick and costs WB nothing.
+    wb_statistics_max_queue_seconds: float = Field(default=45.0, gt=0)
     # Escape hatch: disables Redis-backed pacing for EVERY bucket, the
     # storefront's included (tests and any environment with no Redis). The
     # clients then fall back to per-process spacing.

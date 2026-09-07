@@ -316,9 +316,19 @@ class BaseWBClient:
                 # A server-demanded wait beyond the ceiling is a PENALTY BLOCK
                 # (e.g. the statistics limiter answers with X-Ratelimit-Retry
                 # in the thousands of seconds). Retrying inside the block only
-                # extends it — fail fast and let the next scheduled run try.
+                # extends it — measured on 2026-09-07, a request made while
+                # `x-ratelimit-remaining` is 0 restarts the 15-minute window
+                # rather than queueing behind it — so fail fast and let the
+                # next scheduled run try.
+                #
+                # Against the INSTANCE's ceiling, not the module default. This
+                # read the constant until 2026-09-07, which silently discarded
+                # every client's override: the finance walk, whose whole reason
+                # for lowering it is that it retries inside an open transaction,
+                # slept off an 897 s wait and had PostgreSQL close the
+                # connection under it at 300 s idle.
                 demanded = _server_demanded_wait(exc.response)
-                if demanded is not None and demanded > _RETRY_AFTER_CEILING_SECONDS:
+                if demanded is not None and demanded > self._retry_after_ceiling:
                     logger.warning(
                         "WB API %s on %s %s demands a %.0fs wait (penalty block); not retrying.",
                         status,

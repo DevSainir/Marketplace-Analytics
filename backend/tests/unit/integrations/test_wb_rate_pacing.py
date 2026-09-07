@@ -231,24 +231,24 @@ def test_pacing_can_be_switched_off_without_touching_call_sites() -> None:
     assert isinstance(gate, NullRateGate)
 
 
-async def test_the_settlement_walk_will_not_send_two_pages_within_a_minute(
+async def test_the_settlement_walk_gives_up_rather_than_wait_out_a_block(
     slept: list[float],
 ) -> None:
-    """The gate that exists because a second page cost a fifteen-minute block.
+    """One request per ~15 minutes, and the walk must not sit in the queue.
 
-    `reportDetailByPeriod` served the freshness probe and the walk's first page
-    back to back on 2026-09-07, then answered the second page — 26 s later —
-    with a 429 demanding 934 s. No backoff ladder can wait that out from inside
-    the harvest's open transaction, so the second request must not be sent
-    until a token exists.
+    WB's own headers say it: `x-ratelimit-limit: 1`, `x-ratelimit-reset: 917`
+    (measured 2026-09-07). A second page therefore cannot be paced into the
+    same run — and waiting for it is worse than failing, because the walk pages
+    inside a transaction PostgreSQL closes after 300 s idle. So the gate
+    refuses instead of sleeping, and the window falls to the next tick.
     """
     gate = statistics_rate_gate(Settings(), token="a-statistics-token")
 
     await gate.acquire("/api/v5/supplier/reportDetailByPeriod")
-    await gate.acquire("/api/v5/supplier/reportDetailByPeriod")
 
-    assert len(slept) == 1
-    assert slept[0] >= 60.0
+    with pytest.raises(IntegrationError):
+        await gate.acquire("/api/v5/supplier/reportDetailByPeriod")
+    assert slept == []
 
 
 def test_a_finance_client_is_paced_unless_pacing_is_switched_off() -> None:

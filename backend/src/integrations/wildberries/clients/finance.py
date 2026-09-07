@@ -65,10 +65,19 @@ class WBFinanceClient(BaseWBClient):
             backoff_base_seconds=20.0,
             backoff_max_seconds=120.0,
             # The ladder alone was never enough. A 429 here is a fifteen-minute
-            # penalty block, which no backoff this side of the transaction's
-            # own timeout can wait out — the gate's job is that the second page
-            # is not SENT until a token exists.
+            # block, which no backoff this side of the transaction's own
+            # timeout can wait out — the gate's job is that the second page is
+            # not SENT until a token exists.
             rate_gate=statistics_rate_gate(settings, token=token),
+            # And when one is answered anyway, the ladder must NOT honour the
+            # wait WB names. The shared default tolerates a demanded wait up to
+            # 900 s; on 2026-09-07 a 429 demanding 897 s was duly slept off
+            # inside the harvest's open transaction, and PostgreSQL closed the
+            # connection at 300 s idle — turning a source the harvest reports
+            # as failed into a task that dies with an InterfaceError and takes
+            # the other sources' rows with it. Anything past this is somebody
+            # else's tick.
+            retry_after_ceiling_seconds=45.0,
         )
 
     async def fetch_first_row(self, *, date_from: date, date_to: date) -> WBReportDetailRow | None:
