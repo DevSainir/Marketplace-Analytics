@@ -10,10 +10,40 @@
 
 name: tests
 
+# NOT on `pull_request`, and dropping it is the fix for a red ✗ on every
+# release. The trigger looked free and was not.
+#
+# Development here is trunk-based (see the `git-workflow` skill): work goes
+# straight to `main` and no PR is opened for it. The only pull request this
+# repository ever sees is the one Release Please opens — and a PR opened by
+# GITHUB_TOKEN has its workflow runs HELD at `action_required` until a human
+# clicks «Approve and run». Nobody ever does: `release` merges that PR seconds
+# later, deliberately, without waiting for it.
+#
+# An unapproved run does not stay politely pending. GitHub EXPIRES it the
+# moment it is superseded — release-please pushes twice, the version bump and
+# then the uv.lock sync — or the PR closes, and an expired run's conclusion is
+# `failure`: twelve seconds, zero jobs, and the banner "This run likely failed
+# because of a workflow file issue", which points at this file and is a lie.
+# The annotation underneath is the true one: "This workflow run required
+# approval but was not approved before it expired."
+#
+# So every release cut two red checks beside a release that was fine. Nothing
+# was ever broken by it — `deploy` gates on the `main` run, not the PR's — but
+# a red build that everyone is told to ignore is a red build nobody reads, and
+# that is the part worth fixing.
+#
+# Nothing is lost. The release PR's contents land on `main` in the merge commit
+# seconds later and are tested there in full, before anything deploys. To test
+# a branch by hand, dispatch this workflow against it — which also offers
+# `run_slow_tiers`, more than a PR run ever gave.
+#
+# The head branch cannot be filtered out instead: `pull_request.branches`
+# matches the BASE branch, and the approval is held at run level, so no job-
+# level `if:` is ever reached to decline the work.
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
     inputs:
       run_slow_tiers:

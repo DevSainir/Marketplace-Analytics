@@ -27,11 +27,17 @@
 #
 # Note on CI for the release PR: it is opened by GITHUB_TOKEN, and GitHub holds
 # workflow runs for Actions-opened PRs at `action_required` until a human
-# approves them — so that PR shows a pending `tests` run, not a failed or
-# missing one. That pending run is why the merge is not gated on the PR's own
-# checks: they never start, so waiting for them would wait forever. Nothing is
-# lost by it — the PR only touches CHANGELOG.md and the version files, and the
-# merge commit lands on main and runs the full pipeline, which is what gates
+# approves them. That hold is why the merge is not gated on the PR's own
+# checks: they never start, so waiting for them would wait forever.
+#
+# The half of that which was written down wrong, corrected 2026-09-07: the held
+# run does NOT sit there pending. GitHub expires it as soon as it is superseded
+# or the PR closes — both of which this workflow causes, within seconds — and an
+# expired run's conclusion is `failure`. Every release therefore cut two red ✗,
+# blamed on "a workflow file issue", for an approval nobody was ever going to
+# give. `tests` no longer runs on `pull_request` at all; its header says why.
+# Nothing is lost — the PR only touches CHANGELOG.md and the version files, and
+# the merge commit lands on main and runs the full pipeline, which is what gates
 # the deploy.
 
 name: release

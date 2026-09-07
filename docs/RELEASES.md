@@ -26,6 +26,8 @@ workflow and merges it then). Leaving it open is no longer enough on its own.
 The merge is deliberately not gated on the PR's own checks — they never run. GitHub holds workflow
 runs for Actions-opened PRs at `action_required`, so waiting for green there would wait forever.
 The gate is the merge commit on `main`, which runs the full pipeline before anything deploys.
+(`tests` no longer runs on `pull_request`, so the release PR now carries no checks at all — see
+[Known wrinkle](#known-wrinkle) for what that replaced.)
 
 ### Which number you get
 
@@ -195,9 +197,34 @@ member of the group). Until they do, their id is unreachable no matter what is d
 ## Known wrinkle
 
 The release PR is opened by `GITHUB_TOKEN`, and GitHub holds workflow runs for PRs that Actions
-opened at **`action_required`** until a human approves them. So the PR shows a `tests` run with an
-*Approve and run* button rather than a green tick — it has not failed, it has not started. Nothing
-waits on it: the merge commit lands on `main` where the full pipeline runs and gates the deploy.
+opened at **`action_required`** until a human approves them. Nothing waits on it: the merge commit
+lands on `main` where the full pipeline runs and gates the deploy.
+
+**What this section used to claim, and why it was wrong (corrected 2026-09-07).** It said the PR
+simply shows a run with an *Approve and run* button — "it has not failed, it has not started". The
+second half was true and the first was not. A held run is not held indefinitely: GitHub **expires**
+it as soon as something supersedes it or the PR closes, and an expired run's conclusion is
+`failure`. This workflow causes both, within seconds — release-please pushes twice (the bump, then
+the `uv.lock` sync), and then the merge step closes the PR. So every release left two red ✗ on
+`tests`, each one twelve seconds long, with **zero jobs executed** and the banner:
+
+> This run likely failed because of a workflow file issue.
+
+That banner is misleading — it sends you to the YAML, which is fine and passes on `main` minutes
+later. The annotation below it is the true one:
+
+> This workflow run required approval but was not approved before it expired.
+
+Nothing was ever broken by this: `deploy` reads the `main` run, so releases shipped normally. The
+cost was that every release trained people to read a red check as noise.
+
+**The fix**: `tests` no longer triggers on `pull_request` at all. In a trunk-based repository the
+release PR is the only PR there is, its contents reach `main` in the merge commit seconds later,
+and they are tested there in full before anything deploys. The head branch could not be filtered
+out instead — `pull_request.branches` matches the *base* branch, and the approval is held at run
+level, so no job-level `if:` is ever reached. To run the pipeline against a branch by hand,
+dispatch `tests` at it; that also offers `run_slow_tiers`, which a PR run never did.
+`backend/tests/unit/core/test_no_workflow_runs_on_pull_request.py` fails if the trigger comes back.
 
 The same rule has a sharper edge on the automatic merge, and it is the reason that step does more
 than call `gh pr merge`. **A merge performed with `GITHUB_TOKEN` pushes to `main` without
