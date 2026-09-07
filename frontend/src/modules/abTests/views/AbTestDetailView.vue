@@ -11,6 +11,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import { MAX_VARIANTS, STATUS_LABELS, useAbTestsStore } from '@/modules/abTests'
+import RotationProgress from '@/modules/abTests/components/RotationProgress.vue'
 import TriggerEditor from '@/modules/abTests/components/TriggerEditor.vue'
 import VariantResultsTable from '@/modules/abTests/components/VariantResultsTable.vue'
 
@@ -37,6 +38,27 @@ watch(
   { immediate: true },
 )
 onUnmounted(() => store.releaseImages())
+
+// A live rotation moves on a Celery pass every five minutes, and the figures
+// it moves — the live variant, its impressions — only change on a re-read. A
+// page left open would otherwise go stale silently, which is the exact
+// impression this screen exists to stop. One quiet minute is a cheap price and
+// well inside the poll interval; `refreshDetail` never touches `loading`, so
+// nothing blinks under the reader.
+const REFRESH_MS = 60_000
+let refreshing = null
+
+watch(
+  () => test.value?.status,
+  (status) => {
+    clearInterval(refreshing)
+    refreshing = null
+    if (status !== 'running') return
+    refreshing = setInterval(() => store.refreshDetail(route.params.testId), REFRESH_MS)
+  },
+  { immediate: true },
+)
+onUnmounted(() => clearInterval(refreshing))
 
 /** How this test rotates, in words — only the setting its mode actually uses. */
 const triggerLabel = computed(() => {
@@ -139,10 +161,13 @@ async function onFiles(event) {
 
     <p v-if="store.error" class="mb-md text-base text-status-negative">{{ store.error }}</p>
 
+    <RotationProgress v-if="test" :test="test" :image-urls="store.imageUrls" />
+
     <section v-if="test" class="mb-lg rounded-card bg-surface p-lg shadow-card phone:p-md">
       <div class="flex flex-wrap items-center gap-md">
         <span class="text-base font-semibold text-primary">
-          Фото в ротации: {{ test.variants.length }} из {{ MAX_VARIANTS }}
+          Фото в ротации: {{ test.variants.length }} · загружено {{ store.uploadedCount }} из
+          {{ MAX_VARIANTS }}
         </span>
         <!-- The native control renders «Choose Files / No file chosen» in the
              browser's own language and cannot be restyled past the button; the

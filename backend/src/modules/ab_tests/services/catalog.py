@@ -114,6 +114,11 @@ class AbTestCatalogService:
         """
         test = await self._require(workspace_id=workspace_id, test_id=test_id)
         windows = await self._stats.windows_for_test(test_id=test.id)
+        # The open exposure's activation, not ``started_at``: the slot is
+        # measured from when THIS photo went up, which is also exactly what the
+        # time trigger compares against. Anything the UI derives from a
+        # different clock would count down to a swap that happens elsewhere.
+        active_since = await self._exposures.active_since(test_id=test.id)
         rows = build_rows(
             test=test, variants=test.variants, windows=windows, image_url=IMAGE_URL_TEMPLATE
         )
@@ -133,6 +138,7 @@ class AbTestCatalogService:
             created_at=test.created_at,
             leader_variant_id=leader_of(rows),
             variants=rows,
+            active_since=active_since,
         )
 
     async def read_variant_image(

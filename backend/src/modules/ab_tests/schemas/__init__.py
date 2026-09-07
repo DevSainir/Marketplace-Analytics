@@ -185,6 +185,14 @@ class AbTestDetail(AbTestRead):
 
     variants: list[VariantMetrics] = Field(default_factory=list)
 
+    active_since: datetime | None = Field(
+        default=None,
+        description=(
+            "Когда текущее фото встало на карточку. Начало отсчёта слота в режиме "
+            "«по времени»; null, пока ничего не установлено."
+        ),
+    )
+
 
 class AbTestStatusUpdate(BaseModel):
     """Request body for starting, pausing or cancelling a test."""

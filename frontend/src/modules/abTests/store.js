@@ -61,12 +61,23 @@ export const useAbTestsStore = defineStore('abTests', () => {
   /** Tests as the list renders them (the backend already ordered them). */
   const rows = computed(() => tests.value)
 
+  /**
+   * How many photos the seller has uploaded to the open test.
+   *
+   * The card's own photo is not one of them. It was captured, not chosen, and
+   * `MAX_VARIANTS` bounds uploads — counting it here would silently cost the
+   * seller a slot, which is the backend's rule read the wrong way round.
+   */
+  const uploadedCount = computed(
+    () => (detail.value?.variants ?? []).filter((variant) => !variant.is_original).length,
+  )
+
   /** True while the open test still has room for another photo. */
-  const canUpload = computed(() => !!detail.value && detail.value.variants.length < MAX_VARIANTS)
+  const canUpload = computed(() => !!detail.value && uploadedCount.value < MAX_VARIANTS)
 
   /** How many more photos the open test accepts. */
   const remainingSlots = computed(() =>
-    detail.value ? Math.max(0, MAX_VARIANTS - detail.value.variants.length) : 0,
+    detail.value ? Math.max(0, MAX_VARIANTS - uploadedCount.value) : 0,
   )
 
   /**
@@ -139,6 +150,27 @@ export const useAbTestsStore = defineStore('abTests', () => {
       detail.value = null
     } finally {
       loading.value = false
+    }
+  }
+
+  /**
+   * Re-read the open test without disturbing the page.
+   *
+   * Deliberately not `loadTest`: this runs on a timer while a rotation is
+   * live, and flipping `loading` every minute would blank the results under
+   * the reader's cursor. A failure is swallowed for the same reason — a
+   * background poll that paints an error banner over a working page is worse
+   * than a figure that is one minute stale.
+   *
+   * @param {string} testId Test identifier.
+   * @returns {Promise<void>}
+   */
+  async function refreshDetail(testId) {
+    try {
+      const fresh = await fetchTest(testId)
+      if (detail.value?.id === fresh.id) detail.value = fresh
+    } catch {
+      // Keep what is on screen.
     }
   }
 
@@ -347,7 +379,9 @@ export const useAbTestsStore = defineStore('abTests', () => {
     rows,
     canUpload,
     remainingSlots,
+    uploadedCount,
     loadTests,
+    refreshDetail,
     loadTest,
     loadSkuOptions,
     search,
