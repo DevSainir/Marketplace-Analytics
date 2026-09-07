@@ -35,11 +35,15 @@ from src.core.redis import get_redis
 
 logger = get_logger(__name__)
 
-#: How long a task id stays attributable. Comfortably longer than both the
-#: harvest itself and the frontend's ~2-minute poll ceiling, and shorter than
-#: Celery's own ``result_expires`` (1 h) so a binding never outlives the result
-#: it points at.
-_BINDING_TTL_SECONDS = 15 * 60
+#: How long a task id stays attributable. Must outlive the harvest it names:
+#: a refresh now includes the sale feed and the 22-day buyout-cohort pass, whose
+#: paced requests take ~7 minutes on their own, so the task's own ceiling is 25
+#: minutes. At the previous 15 the binding could expire mid-run and the poll
+#: would answer "unknown task" for a harvest that was still working — the same
+#: visible failure as the 2026-07-30 poll-ceiling bug, from the other end.
+#: Still under Celery's ``result_expires`` (1 h), so a binding never outlives
+#: the result it points at.
+_BINDING_TTL_SECONDS = 45 * 60
 
 
 def _binding_key(task_id: str) -> str:
@@ -179,3 +183,49 @@ async def task_belongs_to_workspace(task_id: str, workspace_id: uuid.UUID) -> bo
     # the comparison correct whichever the stub says.
     owner = raw.decode("utf-8") if isinstance(raw, bytes) else raw
     return owner == str(workspace_id)
+
+
+#: How long one workspace's buyout-cohort pass stays claimed. Cohorts mature
+#: over ~3 weeks, so two passes minutes apart write identical rows — and each
+#: costs 22 sequential rate-limited requests (~7 min). An hour is short enough
+#: that a seller who waited out a WB outage can still force fresh cohorts, and
+#: long enough that clicking «Обновить» on six SKUs in a row costs one pass
+#: rather than six.
+_COHORT_CLAIM_TTL_SECONDS = 60 * 60
+
+
+def _cohort_claim_key(workspace_id: uuid.UUID) -> str:
+    """Build the per-workspace cohort-pass claim key."""
+    return f"monitoring:cohort-pass:{workspace_id}"
+
+
+async def claim_cohort_pass(workspace_id: uuid.UUID) -> bool:
+    """Claim the right to run this workspace's cohort pass, if it is free.
+
+    The cohort surface is the most expensive thing a refresh touches and the
+    least urgent: it re-reads order-date cohorts that keep maturing for about
+    three weeks, so running it twice within the hour writes the same rows for
+    the price of another 22 rate-limited requests. Refreshing several SKUs in
+    a row is the ordinary case, and each of those refreshes would otherwise
+    repeat the whole pass.
+
+    Args:
+        workspace_id: The workspace whose cohorts are about to be re-read.
+
+    Returns:
+        ``True`` when the caller should run the pass, ``False`` when a recent
+        one already covers it. A Redis outage answers ``True`` — the pass is
+        idempotent, so the failure that matters is skipping it, not repeating
+        it.
+    """
+    try:
+        claimed = await get_redis().set(
+            _cohort_claim_key(workspace_id), "1", ex=_COHORT_CLAIM_TTL_SECONDS, nx=True
+        )
+    except RedisError:
+        logger.exception(
+            "Redis unavailable: cannot deduplicate the cohort pass for workspace %s; running it.",
+            workspace_id,
+        )
+        return True
+    return bool(claimed)

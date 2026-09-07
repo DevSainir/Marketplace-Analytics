@@ -40,6 +40,19 @@ logger = get_logger(__name__)
 #: why this is a string and what guards it.
 DISCOVERY_TASK_NAME = "monitoring.discover_workspace"
 
+#: The registered name of the per-workspace finance walk
+#: (``src.modules.finreports.tasks``). Enqueued alongside discovery because a
+#: seller who has just connected WB expects their P&L to fill in too, and the
+#: two read different WB surfaces — monitoring the analytics and advertising
+#: hosts, finance the statistics one — so they do not contend and there is no
+#: reason to make one wait for the other.
+FINANCE_TASK_NAME = "finreports.harvest_finance"
+
+#: The tasks a newly credentialed workspace needs, in the order they are
+#: enqueued. Both are addressed by name for the reason in the module docstring;
+#: both are idempotent, so a redelivered message costs time, not correctness.
+_BOOTSTRAP_TASKS = (DISCOVERY_TASK_NAME, FINANCE_TASK_NAME)
+
 #: How long one workspace's bootstrap claim stands. A primary workspace holds
 #: thirteen token kinds, and an owner pasting them one at a time saves the form
 #: repeatedly — each save legitimately adding a kind that was not there before.
@@ -56,7 +69,7 @@ def _claim_key(workspace_id: uuid.UUID) -> str:
 
 
 async def enqueue_catalogue_bootstrap(workspace_id: uuid.UUID) -> str | None:
-    """Enqueue a discovery harvest for a workspace that just gained a token.
+    """Enqueue the first monitoring and finance harvests for new credentials.
 
     Debounced per workspace: the first caller within the TTL claims the run and
     every other one is told it is already covered, so a burst of saves costs one
@@ -71,10 +84,13 @@ async def enqueue_catalogue_bootstrap(workspace_id: uuid.UUID) -> str | None:
             and would happily harvest any id it is handed.
 
     Returns:
-        The enqueued task's id, or ``None`` when nothing was enqueued — either
-        a recent bootstrap already covers this workspace, or the broker could
-        not be reached. Both are ordinary outcomes, not failures: the nightly
-        harvest remains the backstop in either case.
+        The DISCOVERY task's id when anything was enqueued, or ``None`` when
+        nothing was — either a recent bootstrap already covers this workspace,
+        or the broker could not be reached. Both are ordinary outcomes, not
+        failures: the scheduled harvests remain the backstop in either case.
+        The id is returned for logging and tests; the caller does not wait on
+        it, and the finance walk's id is deliberately not plumbed out, because
+        nothing polls it.
     """
     try:
         claimed = await get_redis().set(
@@ -98,23 +114,28 @@ async def enqueue_catalogue_bootstrap(workspace_id: uuid.UUID) -> str | None:
         )
         return None
 
-    try:
-        result = celery_app.send_task(
-            DISCOVERY_TASK_NAME, kwargs={"workspace_id": str(workspace_id)}
-        )
-    except Exception:
-        # Broad on purpose. Every exception Celery's transport can raise on
-        # enqueue is one the seller must not see: their token IS saved, and
-        # this call is the courtesy attached to it.
-        logger.exception(
-            "Could not enqueue the token-triggered harvest for workspace %s; "
-            "the nightly harvest will pick it up.",
+    enqueued: list[str] = []
+    for task_name in _BOOTSTRAP_TASKS:
+        try:
+            result = celery_app.send_task(task_name, kwargs={"workspace_id": str(workspace_id)})
+        except Exception:
+            # Broad on purpose, and per task rather than around the loop: the
+            # monitoring and finance walks are independent, and a broker that
+            # refused one has no bearing on whether the other was accepted.
+            # Every exception Celery's transport can raise on enqueue is one
+            # the seller must not see — their token IS saved, and these calls
+            # are the courtesy attached to it.
+            logger.exception(
+                "Could not enqueue %s for workspace %s; its scheduled run will pick it up.",
+                task_name,
+                workspace_id,
+            )
+            continue
+        enqueued.append(str(result.id))
+        logger.info(
+            "New WB credentials for workspace %s; enqueued %s as task %s.",
             workspace_id,
+            task_name,
+            result.id,
         )
-        return None
-    logger.info(
-        "New WB credentials for workspace %s; enqueued discovery task %s.",
-        workspace_id,
-        result.id,
-    )
-    return str(result.id)
+    return enqueued[0] if enqueued else None

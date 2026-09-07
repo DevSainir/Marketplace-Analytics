@@ -103,8 +103,9 @@ async def refresh_all_skus(
 
     The bulk counterpart of :func:`refresh_sku`: one task harvests the whole
     catalogue (discarding those SKUs' manual edits), so it is heavier and slower
-    than a single-SKU refresh — the account-wide sale feed still stays on the
-    nightly run (:func:`harvest_sku_window` skips it), the same as «Обновить».
+    than a single-SKU refresh. Both now refresh the same FAMILIES of data —
+    funnel, stocks, advertising, prices, the account-wide sale feed and the
+    buyout cohorts — and differ only in how many SKUs the per-SKU sources cover.
 
     A workspace with an empty catalogue gets ``monitoring.discover_workspace``
     instead: it reads the SKU list from the Content API with the workspace's own

@@ -80,7 +80,7 @@ def harvested(monkeypatch: pytest.MonkeyPatch, settings_override: Any) -> Iterat
         return HarvestOutcome(counts={"funnel_rows": 287, "advertising_rows": 24})
 
     monkeypatch.setattr(discovery, "WBContentClient", _RefusingContentClient)
-    monkeypatch.setattr(discovery, "_harvest_sku_window", _fake_harvest)
+    monkeypatch.setattr(discovery, "refresh_workspace_data", _fake_harvest)
     monkeypatch.setattr(discovery, "moscow_today", lambda: date(2026, 8, 21))
 
     @asynccontextmanager

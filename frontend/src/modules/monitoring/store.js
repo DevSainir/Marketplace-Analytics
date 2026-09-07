@@ -38,30 +38,40 @@ const REFRESH_POLL_INTERVAL_MS = 600
  * How long to keep polling a «Обновить» harvest before calling it failed.
  *
  * This is a CEILING ON THE BACKEND'S WORST CASE, not a guess at a comfortable
- * wait, and it is why the number looks large. A refresh makes two calls to
- * WB's analytics surface, each of which may queue up to
- * `wb_analytics_max_queue_seconds` (120s) for a rate token, so the task itself
- * can legitimately run ~4 minutes when a nightly cohort pass is competing for
- * the same WB budget.
+ * wait, and it is why the number looks large. It must stay ABOVE the task's own
+ * soft time limit (25 min, `_INTERACTIVE_SOFT_TIME_LIMIT_SECONDS` in
+ * `backend/src/modules/monitoring/tasks/refresh.py`), so the task is killed and
+ * reports failure before the poller gives up guessing.
  *
- * The old ceiling was 120s — BELOW that worst case. On 2026-07-30 harvests
- * that genuinely succeeded in 144-198s were all reported to the user as
- * "не завершилось за отведённое время", which is why «Обновить» appeared never
- * to work. A ceiling under the backend's own limit turns every slow success
- * into a visible failure.
+ * The worst case grew when «Обновить» stopped being a subset of the nightly
+ * pass: it now pulls the account-wide sale feed and the 22-day buyout-cohort
+ * pass, and the cohort pass alone is 22 sequential rate-limited requests
+ * measuring ~7 minutes. The common case is far shorter — the cohort pass is
+ * claimed per workspace for an hour, so only the first refresh in that window
+ * pays for it.
+ *
+ * The old ceiling was 120s — BELOW the worst case of the day. On 2026-07-30
+ * harvests that genuinely succeeded in 144-198s were all reported to the user
+ * as "не завершилось за отведённое время", which is why «Обновить» appeared
+ * never to work. A ceiling under the backend's own limit turns every slow
+ * success into a visible failure.
  */
-const REFRESH_POLL_CEILING_MS = 6 * 60 * 1000
+const REFRESH_POLL_CEILING_MS = 30 * 60 * 1000
 
 /**
  * Ceiling for the bulk «Обновить все SKU» harvest, which covers the whole
- * catalogue in one task. It is not many-times the single-SKU worst case — the
- * funnel is fetched in chunks of 20 nmIDs, so a 50-SKU account is a handful of
- * extra analytics calls, not 50× — but each of those can still queue behind
- * WB's rate budget, so the ceiling is doubled to keep a genuinely slow bulk run
- * from being reported as a failure. (Locally, under WB_FAKE_HARVEST, it returns
- * in well under a second.)
+ * catalogue in one task — and, on a workspace with no catalogue yet, discovers
+ * it from the Content API first.
+ *
+ * The same value as the single-SKU ceiling rather than a multiple of it. The
+ * two now run the identical body (`refresh_workspace_data`), and the expensive
+ * parts of it — the account-wide sale feed and the buyout-cohort pass — cost
+ * the same whether one SKU or the whole catalogue is being refreshed. What
+ * scales with SKU count is the funnel, fetched in chunks of 20 nmIDs, so a
+ * 50-SKU account is a handful of extra analytics calls, not 50×. (Locally,
+ * under WB_FAKE_HARVEST, it returns in well under a second.)
  */
-const REFRESH_ALL_POLL_CEILING_MS = 12 * 60 * 1000
+const REFRESH_ALL_POLL_CEILING_MS = 30 * 60 * 1000
 
 /**
  * Interval the poll relaxes to after the first few seconds. The harvest is

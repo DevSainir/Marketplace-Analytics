@@ -21,7 +21,7 @@ from src.integrations.wildberries import WBContentClient
 from src.integrations.wildberries.schemas import WBCard
 from src.modules.monitoring.repos import ProductCardRepository
 from src.modules.monitoring.tasks.common import _TASK_RETRY_KWARGS
-from src.modules.monitoring.tasks.harvest import _harvest_sku_window
+from src.modules.monitoring.tasks.full_refresh import refresh_workspace_data
 from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
     load_workspace_token_bundle,
@@ -47,7 +47,7 @@ _HARVEST_LOCK_TIMEOUT_SECONDS = 2 * 60 * 60
 
 
 async def _discover_and_harvest_workspace(
-    tokens: WorkspaceTokenBundle, days: int
+    tokens: WorkspaceTokenBundle, days: int, *, include_cohorts: bool = True
 ) -> dict[str, int]:
     """Discover one workspace's SKUs and harvest a rolling ``days``-day window.
 
@@ -69,6 +69,11 @@ async def _discover_and_harvest_workspace(
     Args:
         tokens: The workspace's decrypted WB credentials.
         days: Length of the inclusive window ending yesterday (Moscow time).
+        include_cohorts: Whether to re-read the buyout cohorts in the same pass.
+            The nightly fleet walk passes ``False`` because
+            ``monitoring.refresh_buyout_cohorts`` owns that hour; the
+            single-workspace entrypoint leaves it ``True``, because the person
+            who triggered it is waiting for «Процент выкупа» to move.
 
     Returns:
         A mapping of persisted row counts per metric family.
@@ -135,8 +140,13 @@ async def _discover_and_harvest_workspace(
     end = moscow_today() - timedelta(days=1)  # WB serves no current-day data
     start = end - timedelta(days=days - 1)
     with harvest_timer(HARVEST_NIGHTLY):
-        outcome = await _harvest_sku_window(
-            tokens=tokens, nm_ids=nm_ids, date_from=start, date_to=end, cards=cards
+        outcome = await refresh_workspace_data(
+            tokens=tokens,
+            nm_ids=nm_ids,
+            date_from=start,
+            date_to=end,
+            cards=cards,
+            include_cohorts=include_cohorts,
         )
     # The nightly run is the one the row counters exist FOR. It is this pass
     # that reported SUCCESS with `funnel_rows: 0` for days in the 2026-07-30
@@ -190,7 +200,11 @@ async def _discover_and_harvest(days: int) -> dict[str, int]:
     failures: list[str] = []
     for bundle in bundles:
         try:
-            result = await _discover_and_harvest_workspace(bundle, days)
+            # No cohorts here: ``monitoring.refresh_buyout_cohorts`` sweeps
+            # every workspace at 07:00 MSK, an hour after this pass. Running
+            # them in both would spend 22 rate-limited requests per workspace
+            # to write rows the 07:00 pass immediately rewrites.
+            result = await _discover_and_harvest_workspace(bundle, days, include_cohorts=False)
         except Exception as exc:  # isolate workspaces from each other
             logger.warning("Harvest failed for workspace '%s': %s", bundle.name, exc)
             failures.append(bundle.name)
@@ -209,16 +223,18 @@ async def _discover_and_harvest(days: int) -> dict[str, int]:
     return totals
 
 
-#: Ceiling on the interactive discovery bootstrap — the same 10 minutes the
-#: interactive SKU refresh gets, and for the same reason: a person is waiting,
-#: so this must not hold a worker slot for the fleet-wide hour.
+#: Ceiling on the discovery bootstrap — the same 25 minutes the interactive SKU
+#: refresh gets, and for the same reason: the two now run the identical body
+#: (:func:`~src.modules.monitoring.tasks.full_refresh.refresh_workspace_data`),
+#: so a different ceiling would only mean one of them being killed at a point
+#: the other survives.
 #:
-#: It must also stay UNDER the SPA's bulk-refresh poll ceiling (12 min in
+#: It must stay UNDER the SPA's bulk-refresh poll ceiling (30 min in
 #: ``frontend/src/modules/monitoring/store.js``). A backend limit above that
 #: ceiling turns every slow run into a task the poller abandons while it is
 #: still working — the 2026-07-30 failure mode, where harvests that genuinely
 #: succeeded were all reported as «не завершилось за отведённое время».
-_DISCOVER_SOFT_TIME_LIMIT_SECONDS: int = 10 * 60
+_DISCOVER_SOFT_TIME_LIMIT_SECONDS: int = 25 * 60
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]

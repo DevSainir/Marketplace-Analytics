@@ -27,7 +27,7 @@ from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
 from src.modules.monitoring.repos import ProductCardRepository
 from src.modules.monitoring.tasks.common import _TASK_RETRY_KWARGS
-from src.modules.monitoring.tasks.harvest import _harvest_sku_window
+from src.modules.monitoring.tasks.full_refresh import refresh_workspace_data
 from src.modules.workspaces.contract import load_workspace_token_bundle
 
 logger = get_logger(__name__)
@@ -35,11 +35,20 @@ logger = get_logger(__name__)
 
 #: Tighter than the fleet-wide backstop in ``core/celery_app.py``, because this
 #: is the one harvest a user can start from the browser and therefore the one
-#: that can be started repeatedly. The whole-account nightly ``harvest_all``
-#: measures ~63 s in production (2026-08-29) and this walk is a subset of it —
-#: no sale feed, one workspace — so ten minutes is roughly 10x headroom while
-#: still bounding what a burst of clicks can pin down.
-_INTERACTIVE_SOFT_TIME_LIMIT_SECONDS: int = 10 * 60
+#: that can be started repeatedly.
+#:
+#: Raised from ten minutes when this task stopped being a subset of the nightly
+#: pass and became equal to it: it now pulls the account-wide sale feed and the
+#: 22-day buyout-cohort pass, and the cohort pass alone is 22 sequential
+#: rate-limited requests measuring ~7 minutes. Twenty-five leaves that room to
+#: queue behind a scheduled pass competing for the same WB budget, and still
+#: bounds what a burst of clicks can pin down.
+#:
+#: Two other numbers are downstream of this one and must stay above it: the
+#: task-ownership binding in ``services/refresh_tracking.py`` (45 min) and the
+#: SPA's poll ceilings in ``frontend/src/modules/monitoring/store.js`` (30 min).
+#: A ceiling below this one turns a slow success into a visible failure.
+_INTERACTIVE_SOFT_TIME_LIMIT_SECONDS: int = 25 * 60
 
 
 #: Metric label for the interactive refresh. A constant rather than a literal
@@ -69,13 +78,14 @@ def harvest_sku_window(
     JSON-serializable (dates as ISO strings) to satisfy Celery's JSON task
     serializer.
 
-    This is the interactive «Обновить» path, so it fetches ONLY what is scoped
-    to ``nm_ids``. The sale/return feed is therefore skipped: WB serves it
-    account-wide only, so refreshing one SKU would re-pull every SKU's sales
-    across the harshest limiter WB exposes — observed live as a 39-second 429
-    backoff that made a ~2-second refresh take 45-70 seconds. Sale-date facts
-    («Выкупы, ₽», «Процент выкупа») are account-wide by nature and stay on the
-    nightly harvest.
+    This is the interactive «Обновить» path, and it now refreshes everything
+    the nightly pass does — including the account-wide sale feed and the
+    buyout-cohort pass. It used to skip both, on the sound reasoning that WB
+    serves them account-wide only and charges its harshest limiter for them
+    (a 39-second 429 backoff, measured live). The cost was real; what it bought
+    was «Выкупы, ₽» and «Процент выкупа» standing still behind a green tick
+    while the seller watched, which is worse. The cohort pass is claimed per
+    workspace, so refreshing six SKUs in a row still costs one pass.
 
     Args:
         nm_ids: SKU identifiers to harvest funnel + stock for. All must belong
@@ -86,11 +96,11 @@ def harvest_sku_window(
             not serve current-day statistics).
 
     Returns:
-        The persisted row counts per metric family (``sales_rows`` is always 0 —
-        the feed is not part of a scoped refresh), plus ``failed_sources``: the
-        WB sources that did not answer. The refresh-status endpoint serves that
-        list to the SPA, which is how «Обновить» can say "WB withheld the
-        funnel" instead of silently redrawing the same numbers.
+        The persisted row counts per metric family — including ``sales_rows``
+        and ``cohort_rows`` — plus ``failed_sources``: the WB sources that did
+        not answer. The refresh-status endpoint serves that list to the SPA,
+        which is how «Обновить» can say "WB withheld the funnel" instead of
+        silently redrawing the same numbers.
 
     Raises:
         IntegrationError: If the SKUs are not registered to any workspace, or
@@ -120,12 +130,11 @@ def harvest_sku_window(
         if tokens is None:
             raise IntegrationError(f"Workspace {workspace_id} no longer exists; refresh aborted.")
         with harvest_timer(_HARVEST_SKU_WINDOW):
-            outcome = await _harvest_sku_window(
+            outcome = await refresh_workspace_data(
                 tokens=tokens,
                 nm_ids=nm_ids,
                 date_from=start,
                 date_to=end,
-                include_sales=False,
             )
         record_harvest_outcome(
             _HARVEST_SKU_WINDOW,

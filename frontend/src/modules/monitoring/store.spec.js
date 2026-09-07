@@ -397,7 +397,10 @@ describe('refreshFromWb', () => {
       getRefreshStatus.mockResolvedValue({ ready: false, successful: false })
 
       const pending = store.refreshFromWb()
-      await vi.advanceTimersByTimeAsync(7 * 60_000)
+      // Past the 30-minute ceiling. It grew from 6 when «Обновить» stopped
+      // being a subset of the nightly pass: it now pulls the account-wide sale
+      // feed and the 22-day cohort pass, whose paced requests take ~7 minutes.
+      await vi.advanceTimersByTimeAsync(31 * 60_000)
       await pending
     } finally {
       vi.useRealTimers()
@@ -419,14 +422,19 @@ describe('refreshFromWb', () => {
     try {
       refreshSku.mockResolvedValue({ task_id: 'task-slow' })
       let elapsed = 0
+      // Ten minutes: past the OLD 6-minute ceiling, and a realistic duration
+      // now that one refresh includes the cohort pass. A test that only proved
+      // the store waits 200s would no longer prove anything about the ceiling
+      // it is named after.
+      const slowHarvestMs = 10 * 60_000
       getRefreshStatus.mockImplementation(async () => {
         elapsed = Date.now() - startedAt
-        return elapsed < 200_000 ? { ready: false } : { ready: true, successful: true }
+        return elapsed < slowHarvestMs ? { ready: false } : { ready: true, successful: true }
       })
       const startedAt = Date.now()
 
       const pending = store.refreshFromWb()
-      await vi.advanceTimersByTimeAsync(210_000)
+      await vi.advanceTimersByTimeAsync(slowHarvestMs + 10_000)
       await pending
     } finally {
       vi.useRealTimers()

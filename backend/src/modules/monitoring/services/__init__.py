@@ -49,6 +49,7 @@ from src.modules.monitoring.services.exports import (
 from src.modules.monitoring.services.ingestion import IngestionService
 from src.modules.monitoring.services.refresh_tracking import (
     bind_task_to_workspace,
+    claim_cohort_pass,
     remember_running_task,
     spend_refresh_budget,
     task_already_running,
@@ -64,6 +65,7 @@ __all__ = [
     "WorkspaceCard",
     "ad_coverage",
     "bind_task_to_workspace",
+    "claim_cohort_pass",
     "funnel_coverage",
     "load_ad_days_for_nm",
     "load_ad_spend_by_nm",

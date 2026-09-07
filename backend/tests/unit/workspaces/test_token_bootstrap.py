@@ -21,33 +21,41 @@ from typing import Any
 import pytest
 
 from src.core.celery_app import celery_app
-from src.modules.workspaces.bootstrap import DISCOVERY_TASK_NAME, enqueue_catalogue_bootstrap
+from src.modules.workspaces.bootstrap import (
+    DISCOVERY_TASK_NAME,
+    FINANCE_TASK_NAME,
+    enqueue_catalogue_bootstrap,
+)
 from tests.support.fakes import FakeRedis
 
 
-def test_the_bootstrap_addresses_a_task_that_actually_exists() -> None:
-    """The name in ``bootstrap.py`` must resolve to a registered Celery task.
+def test_every_bootstrap_task_name_resolves_to_a_registered_task() -> None:
+    """Both names in ``bootstrap.py`` must resolve to registered Celery tasks.
 
-    Importing the monitoring task package is what registers it, and is exactly
-    what the worker does at startup — so this asserts the same condition the
-    worker would, without needing one.
+    Importing the task packages is what registers them, and is exactly what the
+    worker does at startup — so this asserts the same condition the worker
+    would, without needing one.
     """
+    import src.modules.finreports.tasks
     import src.modules.monitoring.tasks  # noqa: F401  (import registers the tasks)
 
     assert DISCOVERY_TASK_NAME in celery_app.tasks
+    assert FINANCE_TASK_NAME in celery_app.tasks
 
 
-def test_the_discovery_task_accepts_the_keyword_the_bootstrap_sends() -> None:
+def test_both_bootstrap_tasks_accept_the_keyword_the_bootstrap_sends() -> None:
     """``send_task`` cannot type-check its kwargs, so pin the parameter name.
 
-    The bootstrap sends ``workspace_id`` as a string. A task that renamed the
-    parameter would fail inside the worker — far from the change that broke it,
-    and only for real sellers, since nothing enqueues this task in a test run.
+    The bootstrap sends ``workspace_id`` as a string to both tasks. One that
+    renamed the parameter would fail inside the worker — far from the change
+    that broke it, and only for real sellers, since nothing enqueues these
+    tasks in a test run.
     """
+    from src.modules.finreports.tasks import harvest_finance
     from src.modules.monitoring.tasks import discover_workspace
 
-    parameters = discover_workspace.__wrapped__.__code__.co_varnames
-    assert "workspace_id" in parameters
+    for task in (discover_workspace, harvest_finance):
+        assert "workspace_id" in task.__wrapped__.__code__.co_varnames
 
 
 @pytest.fixture
@@ -88,7 +96,8 @@ async def test_a_burst_of_saves_costs_one_harvest(redis: FakeRedis, enqueued: li
 
     assert first is not None
     assert second is None
-    assert enqueued == [str(workspace_id)]
+    # Once, for each of the two walks a new workspace needs.
+    assert enqueued == [str(workspace_id), str(workspace_id)]
 
 
 async def test_the_claim_is_per_workspace(redis: FakeRedis, enqueued: list[str]) -> None:
@@ -104,7 +113,7 @@ async def test_the_claim_is_per_workspace(redis: FakeRedis, enqueued: list[str])
     await enqueue_catalogue_bootstrap(one)
     await enqueue_catalogue_bootstrap(two)
 
-    assert enqueued == [str(one), str(two)]
+    assert enqueued == [str(one), str(one), str(two), str(two)]
 
 
 async def test_a_redis_that_is_gone_neither_raises_nor_enqueues(
