@@ -115,8 +115,15 @@ FROM base AS worker
 # A distinct uid from the API's: the two containers share no writable state, and
 # keeping them apart means a compromised worker cannot touch anything the API
 # process owns.
-RUN useradd --create-home --uid 10002 celeryuser \
-    && chown -R celeryuser:celeryuser /app
+#
+# NO `chown -R /app`. It used to be here, and `docker history` priced it at
+# 265 MB — overlayfs copies a file up on an ownership change, so recursing over
+# the venv duplicated all of it into one layer, twice over (worker and beat).
+# Nothing needs it: the worker only READS /app, and beat's one writable file is
+# `--schedule=/tmp/celerybeat-schedule` (see the compose command). Root-owned,
+# world-readable code that the runtime user cannot rewrite is also the stronger
+# arrangement of the two.
+RUN useradd --create-home --uid 10002 celeryuser
 USER celeryuser
 
 # Liveness via Celery's own ping to the broker-connected worker.

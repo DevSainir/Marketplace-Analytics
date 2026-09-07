@@ -133,6 +133,14 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: api
+    # Same NAME as the api service's image, deliberately. Without it compose
+    # tags one image per service, so three services built from `target: api`
+    # produced three independent layer sets on disk — and two from
+    # `target: worker` produced two. On the containerd image store those layers
+    # are extracted, not compressed, which is how 6.9 GB of images became 18 GB
+    # of snapshots and eventually a deploy that died on `no space left on
+    # device` (2026-09-05).
+    image: marketplace-service-api:latest
     mem_limit: 384m
     cpus: 1.0
     env_file:
@@ -163,6 +171,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: api
+    # Shared with `migrate` and, through the anchor, with `api_standby`.
+    image: marketplace-service-api:latest
     restart: unless-stopped
     logging: *logging
     # whole document in memory before it is written to the cache volume.
@@ -269,6 +279,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: worker
+    # Shared with `beat`, which runs the same image with a different command.
+    image: marketplace-service-worker:latest
     restart: unless-stopped
     logging: *logging
     # The largest ceiling in the stack: the harvest prices a settlement window,
@@ -336,6 +348,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: worker
+    image: marketplace-service-worker:latest
     restart: unless-stopped
     logging: *logging
     mem_limit: 192m
