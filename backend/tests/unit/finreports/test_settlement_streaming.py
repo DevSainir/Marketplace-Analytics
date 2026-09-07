@@ -78,10 +78,18 @@ def _paged_transport(pages: Sequence[list[dict[str, Any]]]) -> httpx.MockTranspo
 
 
 def _client(transport: httpx.MockTransport, *, page_limit: int = _PAGE) -> WBFinanceClient:
-    """A finance client whose transport is fake and whose page size is tiny."""
+    """A finance client whose transport is fake and whose page size is tiny.
+
+    Pacing off: the settlement walk takes one token per page from a bucket
+    that refills every 61 s, so a paced multi-page test would spend minutes
+    asleep proving nothing about the walk. The gate has its own tests in
+    ``tests/unit/integrations/test_wb_rate_pacing.py``.
+    """
     from src.core.config import settings
 
-    client = WBFinanceClient(settings, token="stat-token")
+    client = WBFinanceClient(
+        settings.model_copy(update={"wb_rate_pacing_enabled": False}), token="stat-token"
+    )
     client._PAGE_LIMIT = page_limit  # type: ignore[misc]
     client._client = httpx.AsyncClient(base_url="https://wb.test", transport=transport)
     return client

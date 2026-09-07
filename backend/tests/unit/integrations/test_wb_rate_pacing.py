@@ -29,6 +29,7 @@ from src.integrations.wildberries.rate_limit import (
     NullRateGate,
     TokenBucketRateGate,
     analytics_rate_gate,
+    statistics_rate_gate,
 )
 
 
@@ -228,3 +229,39 @@ def test_pacing_can_be_switched_off_without_touching_call_sites() -> None:
     gate = analytics_rate_gate(Settings(wb_rate_pacing_enabled=False), token="a-token")
 
     assert isinstance(gate, NullRateGate)
+
+
+async def test_the_settlement_walk_will_not_send_two_pages_within_a_minute(
+    slept: list[float],
+) -> None:
+    """The gate that exists because a second page cost a fifteen-minute block.
+
+    `reportDetailByPeriod` served the freshness probe and the walk's first page
+    back to back on 2026-09-07, then answered the second page — 26 s later —
+    with a 429 demanding 934 s. No backoff ladder can wait that out from inside
+    the harvest's open transaction, so the second request must not be sent
+    until a token exists.
+    """
+    gate = statistics_rate_gate(Settings(), token="a-statistics-token")
+
+    await gate.acquire("/api/v5/supplier/reportDetailByPeriod")
+    await gate.acquire("/api/v5/supplier/reportDetailByPeriod")
+
+    assert len(slept) == 1
+    assert slept[0] >= 60.0
+
+
+def test_a_finance_client_is_paced_unless_pacing_is_switched_off() -> None:
+    """The wiring, not the gate: a client built without one pages unguarded.
+
+    Asserted here because nothing else would notice — an unpaced walk works
+    perfectly for every seller small enough to fit one page, which is how this
+    reached production in the first place.
+    """
+    from src.integrations.wildberries.clients.finance import WBFinanceClient
+
+    paced = WBFinanceClient(Settings(), token="a-statistics-token")
+    unpaced = WBFinanceClient(Settings(wb_rate_pacing_enabled=False), token="a-statistics-token")
+
+    assert isinstance(paced._rate_gate, TokenBucketRateGate)
+    assert isinstance(unpaced._rate_gate, NullRateGate)

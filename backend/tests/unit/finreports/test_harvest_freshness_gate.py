@@ -46,7 +46,9 @@ def _client(handler: Any) -> WBFinanceClient:
     """Build a finance client whose transport is driven by ``handler``."""
     from src.core.config import settings
 
-    client = WBFinanceClient(settings, token="stat-token")
+    client = WBFinanceClient(
+        settings.model_copy(update={"wb_rate_pacing_enabled": False}), token="stat-token"
+    )
     client._client = httpx.AsyncClient(
         base_url="https://wb.test",
         transport=httpx.MockTransport(handler),

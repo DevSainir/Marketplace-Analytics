@@ -325,6 +325,35 @@ def marketplace_rate_gate(settings: Settings, *, token: str) -> RateGate:
     )
 
 
+def statistics_rate_gate(settings: Settings, *, token: str) -> RateGate:
+    """Build the pacing gate for the statistics surface's settlement report.
+
+    Sized from a live 429 on 2026-09-07 (see the settings comment): the walk's
+    pages must be at least a minute apart, and WB answers a violation with a
+    fifteen-minute penalty block rather than a Retry-After the ladder could
+    honour — so the request must not be sent, not merely retried.
+
+    Args:
+        settings: Bucket parameters and the Redis DSN.
+        token: The workspace's statistics token — the bucket is per token, so
+            one seller's settlement walk never throttles another's.
+
+    Returns:
+        A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`
+        when pacing is switched off (unit tests, or no Redis available).
+    """
+    if not settings.wb_rate_pacing_enabled:
+        return NullRateGate()
+    return TokenBucketRateGate(
+        get_redis(),
+        surface="statistics",
+        token=token,
+        capacity=settings.wb_statistics_bucket_capacity,
+        refill_seconds=settings.wb_statistics_bucket_refill_seconds,
+        max_wait_seconds=settings.wb_statistics_max_queue_seconds,
+    )
+
+
 def advertising_rate_gate(settings: Settings, *, token: str) -> RateGate:
     """Build the pacing gate for the advertising surface.
 

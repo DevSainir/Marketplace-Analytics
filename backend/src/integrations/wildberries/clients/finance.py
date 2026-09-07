@@ -19,6 +19,7 @@ from datetime import date
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.base import BaseWBClient
+from src.integrations.wildberries.rate_limit import statistics_rate_gate
 from src.integrations.wildberries.schemas import WBReportDetailRow
 
 
@@ -63,6 +64,11 @@ class WBFinanceClient(BaseWBClient):
             # Retry-After, so the shared 2/4/8/16s ladder is too tight.
             backoff_base_seconds=20.0,
             backoff_max_seconds=120.0,
+            # The ladder alone was never enough. A 429 here is a fifteen-minute
+            # penalty block, which no backoff this side of the transaction's
+            # own timeout can wait out — the gate's job is that the second page
+            # is not SENT until a token exists.
+            rate_gate=statistics_rate_gate(settings, token=token),
         )
 
     async def fetch_first_row(self, *, date_from: date, date_to: date) -> WBReportDetailRow | None:
