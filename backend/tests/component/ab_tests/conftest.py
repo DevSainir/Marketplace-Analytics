@@ -20,7 +20,12 @@ from typing import Any
 
 import pytest
 
-from src.modules.ab_tests.deps import get_catalog_service, get_installer, get_sku_catalogue
+from src.modules.ab_tests.deps import (
+    get_catalog_service,
+    get_installer,
+    get_original_capture,
+    get_sku_catalogue,
+)
 from src.modules.ab_tests.schemas import AbTestDetail, AbTestRead, VariantMetrics
 from src.modules.monitoring.contract import WorkspaceCard
 from src.modules.users.deps import get_user_repo
@@ -116,6 +121,21 @@ class _StubInstaller:
         self.installed.append(nm_id)
 
 
+class _StubCapture:
+    """Stands in for the read of the card's own main photo.
+
+    Captures nothing: at this tier the question is whether the route reaches the
+    service with a capture in hand, not what WB's CDN served. What it captures
+    is the launcher's contract, proved in tests/unit/ab_tests/test_launch.py.
+    """
+
+    def __init__(self) -> None:
+        self.asked: list[int] = []
+
+    async def capture(self, *, test: Any, variants: Any) -> None:
+        self.asked.append(test.nm_id)
+
+
 class _StubCatalog:
     """Answers every route, recording what it was asked."""
 
@@ -201,6 +221,7 @@ def _wire(
     override(get_workspace_repo, workspace_repo)
     override(get_catalog_service, catalog)
     override(get_installer, _StubInstaller())
+    override(get_original_capture, _StubCapture())
     override(get_sku_catalogue, catalogue)
 
 

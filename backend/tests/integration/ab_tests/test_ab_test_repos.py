@@ -3,7 +3,7 @@
 These cannot go lower. The search predicate is SQL — four `OR`ed matches, one of
 them a cast of a bigint to text — and a fake repository would assert nothing but
 its own `in` operator. The same goes for the composite-key upsert of attributed
-days and for the append-at-the-end position of a new photo.
+days. The rotation's ordering lives next door in test_rotation_order.py.
 """
 
 from __future__ import annotations
@@ -168,45 +168,6 @@ async def test_search_never_crosses_workspaces(
 # --------------------------------------------------------------------------- #
 # Variants, exposures and attributed days
 # --------------------------------------------------------------------------- #
-
-
-@pytest.mark.integration
-async def test_photos_are_appended_at_the_end_of_the_rotation(
-    db_session: AsyncSession,
-    organization: Organization,
-) -> None:
-    """Positions run 1, 2, 3 — the order the user uploaded them in.
-
-    Rotation walks positions ascending, so a repeated or missing number would
-    silently reorder or skip a photo.
-    """
-    workspace = await _workspace(db_session, organization.id)
-    test = await AbTestRepository(db_session).create(
-        workspace_id=workspace.id,
-        nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест",
-        trigger_mode=TriggerMode.IMPRESSIONS.value,
-        impression_budget=10_000,
-        slot_minutes=60,
-    )
-    variants = VariantRepository(db_session)
-
-    positions = [
-        (
-            await variants.add(
-                test_id=test.id,
-                image_path=f"{test.id}/{index}.jpg",
-                image_sha256=f"{index:064d}",
-                content_type="image/jpeg",
-                original_filename=f"{index}.jpg",
-            )
-        ).position
-        for index in range(3)
-    ]
-
-    assert positions == [1, 2, 3]
-    assert await variants.count_for_test(test_id=test.id) == 3
 
 
 @pytest.mark.integration

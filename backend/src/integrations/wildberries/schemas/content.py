@@ -50,11 +50,43 @@ class WBCardSize(RawBase):
     skus: list[str] = Field(default_factory=list)
 
 
+class WBCardPhoto(RawBase):
+    """One gallery image of a card, as WB's own CDN serves it.
+
+    WB returns a URL per rendition rather than the seller's original upload —
+    everything here is a transcoded ``.webp`` on ``basket-NN.wbbasket.ru``,
+    public and unauthenticated. Verified live 2026-09-07 on the ``Демо``
+    workspace: ``hq``, ``big``, ``c516x688``, ``c246x328``, ``square`` and
+    ``tm`` were present on every card, and ``big`` fetched as ``image/webp``.
+
+    ``hq`` is the largest rendition and the one the A/Б module captures, because
+    it is the closest thing to the seller's original that the API exposes; it is
+    optional because WB only produces it above a source resolution we do not
+    control, so ``big`` is the fallback.
+    """
+
+    hq: str = Field(default="")
+    big: str = Field(default="")
+    square: str = Field(default="")
+    tm: str = Field(default="")
+
+    @property
+    def best(self) -> str:
+        """The largest rendition available, or ``""`` when WB sent none."""
+        return self.hq or self.big or self.square or self.tm
+
+
 class WBCard(RawBase):
-    """A product card: nmID identity, seller vendor code, title, and sizes."""
+    """A product card: nmID identity, seller vendor code, title, photos, sizes.
+
+    ``photos`` is in **gallery slot order** — ``photos[0]`` is the card's main
+    photo, the slot ``POST /content/v3/media/file`` writes with
+    ``photo_number=1``. Empty for a card WB holds no images for.
+    """
 
     nm_id: int = Field(alias="nmID")
     vendor_code: str = Field(default="", alias="vendorCode")
     title: str = Field(default="", alias="title")
     dimensions: WBCardDimensions | None = None
+    photos: list[WBCardPhoto] = Field(default_factory=list)
     sizes: list[WBCardSize] = Field(default_factory=list)

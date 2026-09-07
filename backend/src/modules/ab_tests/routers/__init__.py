@@ -23,7 +23,12 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import Response
 
 from src.core.uploads import read_capped
-from src.modules.ab_tests.deps import AbTestCatalogServiceDep, InstallerDep, SkuCatalogueDep
+from src.modules.ab_tests.deps import (
+    AbTestCatalogServiceDep,
+    InstallerDep,
+    OriginalCaptureDep,
+    SkuCatalogueDep,
+)
 from src.modules.ab_tests.schemas import (
     AbTestCreate,
     AbTestDetail,
@@ -188,19 +193,23 @@ async def set_status(
     payload: AbTestStatusUpdate,
     service: AbTestCatalogServiceDep,
     installer: InstallerDep,
+    capture: OriginalCaptureDep,
     workspace_id: CurrentWorkspaceId,
 ) -> AbTestRead:
-    """Change a test's status; starting installs the first photo on the card.
+    """Change a test's status; starting opens the rotation on the card's photo.
 
     This is the only route that needs a WB token, so it is the only one that
-    depends on the installer — reading a test must stay possible for a
-    workspace that has not stored its credentials yet.
+    depends on the installer and the capture — reading a test must stay possible
+    for a workspace that has not stored its credentials yet. Starting reads the
+    card's current main photo into the rotation before installing anything, so
+    the uploads are compared against the image they would replace.
     """
     return await service.set_status(
         workspace_id=workspace_id,
         test_id=test_id,
         status=payload.status,
         installer=installer,
+        capture=capture,
     )
 
 

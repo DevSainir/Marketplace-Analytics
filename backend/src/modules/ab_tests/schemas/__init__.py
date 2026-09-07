@@ -134,6 +134,10 @@ class VariantMetrics(BaseModel):
     position: int
     image_url: str = Field(description="Где SPA заберёт само изображение")
     is_active: bool = Field(description="Это фото сейчас стоит на карточке")
+    is_original: bool = Field(
+        default=False,
+        description="Фото, которое стояло на карточке до теста; в ротации на позиции 0",
+    )
 
     click_through: Decimal | None = Field(description="Доля переходов в карточку, %")
     add_to_cart: Decimal | None = Field(description="Доля добавлений в корзину, %")

@@ -67,11 +67,23 @@ function cell(variant, metric) {
   return metric.ratio ? percent(variant[metric.key]) : count(variant[metric.key])
 }
 
+/**
+ * What the photo is called in its row.
+ *
+ * The card's own photo is at position 0 and was never uploaded, so «Вариант 0»
+ * would be both wrong and confusing — it is the baseline the rest are read
+ * against, and saying so is the whole reason it is in the table.
+ */
+function title(variant) {
+  return variant.is_original ? 'Текущее фото' : `Вариант ${variant.position}`
+}
+
 /** What the photo's caption says about its place in the rotation. */
 function standing(variant, test) {
   if (variant.is_active) return { text: 'Сейчас на карточке', class: 'text-status-positive' }
   if (variant.variant_id === test.leader_variant_id)
     return { text: 'Лидер по CTR', class: 'font-semibold text-action' }
+  if (variant.is_original) return { text: 'Было до теста', class: 'text-muted' }
   return null
 }
 </script>
@@ -106,13 +118,13 @@ function standing(variant, test) {
                 <img
                   v-if="imageUrls[variant.variant_id]"
                   :src="imageUrls[variant.variant_id]"
-                  :alt="`Вариант ${variant.position}`"
+                  :alt="title(variant)"
                   class="ab-photo"
                 />
                 <div v-else class="ab-photo ab-photo--empty"></div>
                 <div class="min-w-0">
                   <div class="text-tiny font-semibold text-primary">
-                    Вариант {{ variant.position }}
+                    {{ title(variant) }}
                   </div>
                   <div
                     v-if="standing(variant, test)"
@@ -122,7 +134,7 @@ function standing(variant, test) {
                     {{ standing(variant, test).text }}
                   </div>
                   <button
-                    v-if="!variant.is_active"
+                    v-if="!variant.is_active && !variant.is_original"
                     type="button"
                     class="mt-xs rounded-btn px-xs py-px text-micro text-muted transition hover:bg-hover hover:text-status-negative"
                     :disabled="saving"
@@ -161,7 +173,7 @@ function standing(variant, test) {
           <img
             v-if="imageUrls[variant.variant_id]"
             :src="imageUrls[variant.variant_id]"
-            :alt="`Вариант ${variant.position}`"
+            :alt="title(variant)"
             class="ab-photo"
           />
           <div v-else class="ab-photo ab-photo--empty"></div>
@@ -169,10 +181,10 @@ function standing(variant, test) {
         <div class="min-w-0 flex-1">
           <div class="flex items-baseline justify-between gap-sm">
             <span class="text-tiny font-semibold text-primary">
-              Вариант {{ variant.position }}
+              {{ title(variant) }}
             </span>
             <button
-              v-if="!variant.is_active"
+              v-if="!variant.is_active && !variant.is_original"
               type="button"
               class="flex-none rounded-btn px-xs py-px text-micro text-muted"
               :disabled="saving"

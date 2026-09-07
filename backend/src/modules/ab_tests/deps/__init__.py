@@ -25,6 +25,10 @@ from src.modules.ab_tests.repos import (
     WindowRepository,
 )
 from src.modules.ab_tests.services.catalog import AbTestCatalogService
+from src.modules.ab_tests.services.original import (
+    HttpPhotoDownloader,
+    OriginalPhotoCapture,
+)
 from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.skus import SkuCatalogue
 from src.modules.ab_tests.services.storage import MediaStore, build_media_store
@@ -63,6 +67,37 @@ async def get_installer(
 
 
 InstallerDep = Annotated[VariantInstaller, Depends(get_installer)]
+
+
+async def get_original_capture(
+    session: DbSession,
+    workspace_id: CurrentWorkspaceId,
+    media_store: MediaStoreDep,
+) -> OriginalPhotoCapture:
+    """Provide the capture of the card's live main photo.
+
+    Built from the same token as the installer and refused on the same terms:
+    a workspace with no Content-scope token cannot read its own card, so there
+    is nothing to be gained by letting this one through and failing later.
+
+    Raises:
+        ValidationError: If the workspace has no token reaching the Content
+            surface.
+    """
+    bundle = await load_workspace_token_bundle(session, workspace_id=workspace_id)
+    token = (bundle.content or bundle.analytics) if bundle else ""
+    if not token:
+        raise ValidationError(
+            "Для А/Б-тестов нужен токен с доступом к «Контенту» — укажите токен в настройках."
+        )
+    return OriginalPhotoCapture(
+        content_client=WBContentClient(settings, token=token),
+        downloader=HttpPhotoDownloader(),
+        media_store=media_store,
+    )
+
+
+OriginalCaptureDep = Annotated[OriginalPhotoCapture, Depends(get_original_capture)]
 
 
 def get_sku_catalogue(session: DbSession) -> SkuCatalogue:
@@ -116,9 +151,11 @@ __all__ = [
     "AbTestCatalogServiceDep",
     "InstallerDep",
     "MediaStoreDep",
+    "OriginalCaptureDep",
     "SkuCatalogueDep",
     "get_catalog_service",
     "get_installer",
     "get_media_store",
+    "get_original_capture",
     "get_sku_catalogue",
 ]

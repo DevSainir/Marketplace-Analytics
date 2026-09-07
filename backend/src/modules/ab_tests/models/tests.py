@@ -20,6 +20,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -36,6 +37,11 @@ _SCHEMA: str = "ab_tests"
 
 #: WB refuses a card with no images, and the cabinet's own tool caps a gallery
 #: well below this; ten is the product limit the upload endpoint enforces.
+#:
+#: It bounds **uploads**. The card's own photo is enrolled on top of it, because
+#: it is not a choice the user made: a test whose tenth upload silently pushed
+#: the current image out of the comparison would answer a question nobody asked.
+#: A full test therefore rotates eleven photos.
 MAX_VARIANTS_PER_TEST: int = 10
 
 #: Impressions one variant must accumulate before the rotation advances. The
@@ -175,6 +181,12 @@ class AbTest(Base):
 class AbTestVariant(Base):
     """One candidate main photo inside a test.
 
+    Two kinds of row, distinguished by ``is_original``: the photos the user
+    uploaded, and the one that was already on the card. The second is captured
+    from WB at start and joins the rotation ahead of the uploads, so every test
+    measures its candidates against the image they would be replacing rather
+    than only against each other.
+
     The image bytes live on disk (see :mod:`.services.photos`) rather than in
     the row: they are pushed to WB as multipart, and streaming them back to the
     SPA from a file is cheaper than carrying megabytes through the ORM.
@@ -182,7 +194,15 @@ class AbTestVariant(Base):
     Attributes:
         id: UUIDv7 primary key.
         test_id: Owning test.
-        position: 1-based rotation order. Rotation walks these ascending.
+        position: Rotation order; the rotation walks these ascending. Uploads
+            are numbered from 1 in the order they arrived. **Position 0 is
+            reserved for the card's own photo** — see ``is_original`` — so that
+            enrolling it needs no renumbering of rows a running test is already
+            attributing traffic to.
+        is_original: True for the photo that was already the card's main image
+            when the test started. It is captured from WB rather than uploaded,
+            it always sorts first, and it is the one variant the rotation does
+            not have to install: it is what the card is showing.
         image_path: Path of the stored original, relative to the media root.
         image_sha256: Digest of the stored bytes — identifies a re-upload of the
             same picture and proves what was actually sent to WB.
@@ -210,6 +230,8 @@ class AbTestVariant(Base):
         String(64), server_default="image/jpeg", nullable=False
     )
     original_filename: Mapped[str] = mapped_column(String(255), server_default="", nullable=False)
+
+    is_original: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

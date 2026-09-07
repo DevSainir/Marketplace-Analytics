@@ -48,7 +48,10 @@ class VariantRepository:
         content_type: str,
         original_filename: str,
     ) -> AbTestVariant:
-        """Append a photo to the end of a test's rotation.
+        """Append an uploaded photo to the end of a test's rotation.
+
+        Uploads are numbered from 1. The card's own photo takes position 0 and
+        is written by :meth:`add_original`.
 
         Args:
             test_id: Owning test.
@@ -76,6 +79,48 @@ class VariantRepository:
         await self._session.flush()
         return variant
 
+    async def add_original(
+        self,
+        *,
+        test_id: uuid.UUID,
+        image_path: str,
+        image_sha256: str,
+        content_type: str,
+        original_filename: str,
+    ) -> AbTestVariant:
+        """Put the card's own photo at the head of a test's rotation.
+
+        Written at **position 0**, which is why this is a separate method rather
+        than an argument to :meth:`add`. Inserting at position 1 would mean
+        renumbering every upload, and ``uq_ab_test_variant_test_position`` is
+        not deferrable: a single ``SET position = position + 1`` over rows
+        1, 2, 3 collides with itself row by row. Position 0 is free by
+        construction, so the head of the rotation costs one INSERT and touches
+        nothing a running test is already attributing traffic to.
+
+        Args:
+            test_id: Owning test.
+            image_path: Stored path of the captured bytes.
+            image_sha256: Digest of those bytes.
+            content_type: MIME type WB's CDN served them as.
+            original_filename: A display name, since the user chose none.
+
+        Returns:
+            The persisted variant.
+        """
+        variant = AbTestVariant(
+            test_id=test_id,
+            position=0,
+            image_path=image_path,
+            image_sha256=image_sha256,
+            content_type=content_type,
+            original_filename=original_filename,
+            is_original=True,
+        )
+        self._session.add(variant)
+        await self._session.flush()
+        return variant
+
     async def get(self, *, test_id: uuid.UUID, variant_id: uuid.UUID) -> AbTestVariant | None:
         """Return one variant of a test, or ``None``.
 
@@ -93,16 +138,23 @@ class VariantRepository:
         return (await self._session.execute(stmt)).scalars().one_or_none()
 
     async def count_for_test(self, *, test_id: uuid.UUID) -> int:
-        """Return how many photos a test already carries.
+        """Return how many photos the user has uploaded to a test.
+
+        The card's own photo is excluded, because this count is what
+        ``MAX_VARIANTS_PER_TEST`` bounds and that limit is on uploads: a seller
+        who uploaded ten must not be refused the eleventh slot the capture
+        needs, nor lose the comparison against the image being replaced.
 
         Args:
             test_id: Owning test.
 
         Returns:
-            The variant count.
+            The number of uploaded variants.
         """
         stmt = (
-            select(func.count()).select_from(AbTestVariant).where(AbTestVariant.test_id == test_id)
+            select(func.count())
+            .select_from(AbTestVariant)
+            .where(AbTestVariant.test_id == test_id, AbTestVariant.is_original.is_(False))
         )
         return int((await self._session.execute(stmt)).scalar_one())
 

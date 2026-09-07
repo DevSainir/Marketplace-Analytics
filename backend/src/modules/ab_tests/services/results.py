@@ -50,7 +50,8 @@ def build_rows(
             ``variant_id`` — the route the SPA fetches the picture from.
 
     Returns:
-        One row per variant, in rotation order. A photo that has never been
+        One row per variant, in rotation order — which puts the card's own
+        photo first, since it holds position 0. A photo that has never been
         live still gets a row, with zero counts and ``None`` ratios, so the
         table shows what is queued as well as what has run.
     """
@@ -70,6 +71,7 @@ def build_rows(
                 position=variant.position,
                 image_url=image_url.format(test_id=test.id, variant_id=variant.id),
                 is_active=test.active_variant_id == variant.id,
+                is_original=variant.is_original,
                 click_through=ratios.click_through,
                 add_to_cart=ratios.add_to_cart,
                 order_rate=ratios.order_rate,

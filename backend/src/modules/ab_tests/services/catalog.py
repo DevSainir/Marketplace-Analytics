@@ -5,8 +5,9 @@ start / pause / cancel it, and read the result table. The rotation itself runs
 without a request (see :mod:`.runner`), and the two meet at
 :class:`~src.modules.ab_tests.services.photos.VariantInstaller`.
 
-Starting a test installs its first photo **synchronously**. It is one WB call,
-and doing it in the background would leave the user looking at a «Запущен» test
+Starting a test is its own sequence and lives in :mod:`.launch`; it runs
+**synchronously** inside the request because it is a couple of WB calls, and
+doing it in the background would leave the user looking at a «Запущен» test
 whose card still shows the old image, with the failure buried in a worker log.
 """
 
@@ -38,6 +39,8 @@ from src.modules.ab_tests.schemas import (
     AbTestRead,
     AbTestSettingsUpdate,
 )
+from src.modules.ab_tests.services.launch import Launcher
+from src.modules.ab_tests.services.original import OriginalPhotoCapture
 from src.modules.ab_tests.services.photos import VariantInstaller, validate_image
 from src.modules.ab_tests.services.results import build_rows, leader_of
 from src.modules.ab_tests.services.storage import MediaStore
@@ -78,6 +81,7 @@ class AbTestCatalogService:
         self._exposures = exposures
         self._stats = stats
         self._media = media_store
+        self._launcher = Launcher(tests=tests, variants=variants, exposures=exposures)
 
     # ----------------------------------------------------------------- reads
 
@@ -263,7 +267,10 @@ class AbTestCatalogService:
 
         Raises:
             NotFoundError: If the test or the variant does not exist.
-            ConflictError: If the variant is the one currently on the card.
+            ConflictError: If the variant is the one currently on the card, or
+                is the card's own photo — that one is the baseline every other
+                row is read against, and a table without it compares the
+                candidates only to each other.
         """
         test = await self._require(workspace_id=workspace_id, test_id=test_id)
         if test.active_variant_id == variant_id:
@@ -272,6 +279,10 @@ class AbTestCatalogService:
         variant = await self._variants.get(test_id=test_id, variant_id=variant_id)
         if variant is None:
             raise NotFoundError("Вариант не найден.")
+        if variant.is_original:
+            raise ConflictError(
+                "Текущее фото карточки убрать из ротации нельзя — с ним сравниваются остальные."
+            )
 
         never_measured = await self._stats.impressions_for_variant(variant_id=variant_id) == 0
         path = variant.image_path
@@ -347,11 +358,13 @@ class AbTestCatalogService:
         test_id: uuid.UUID,
         status: str,
         installer: VariantInstaller,
+        capture: OriginalPhotoCapture,
     ) -> AbTestRead:
         """Start, pause or cancel a test.
 
-        Starting installs the first photo on the card before the test is marked
-        running, so a WB failure leaves the test exactly as it was.
+        Starting enrols the card's own photo, then installs whichever variant
+        leads the rotation before the test is marked running — so a WB failure
+        leaves the test exactly as it was.
 
         Args:
             workspace_id: Tenancy guard.
@@ -361,6 +374,8 @@ class AbTestCatalogService:
                 rather than held on the service because building it needs the
                 workspace's WB token, and reading a test must not require one —
                 a workspace with no token can still look at its results.
+            capture: Copies the card's current main photo into the rotation.
+                Per call for the same reason as ``installer``.
 
         Returns:
             The updated test.
@@ -381,7 +396,9 @@ class AbTestCatalogService:
             raise ValidationError(f"Статус {status} выставляется автоматически.")
 
         if target is AbTestStatus.RUNNING:
-            await self._start(test, installer)
+            await self._launcher.launch(
+                test=test, installer=installer, capture=capture, now=datetime.now(UTC)
+            )
         elif target is AbTestStatus.CANCELLED:
             await self._exposures.close_open(test_id=test.id, deactivated_at=datetime.now(UTC))
             await self._tests.set_status(test=test, status=target, finished_at=datetime.now(UTC))
@@ -404,32 +421,6 @@ class AbTestCatalogService:
             raise NotFoundError("Тест не найден.")
 
     # --------------------------------------------------------------- private
-
-    async def _start(self, test: AbTest, installer: VariantInstaller) -> None:
-        """Put the first photo up and mark the test running.
-
-        A paused test resumes on whatever photo is already installed rather
-        than restarting the rotation.
-        """
-        if test.status == AbTestStatus.RUNNING.value:
-            raise ConflictError("Тест уже запущен.")
-        if test.status in {AbTestStatus.COMPLETED.value, AbTestStatus.CANCELLED.value}:
-            raise ConflictError("Завершённый тест нельзя запустить повторно.")
-        if not test.variants:
-            raise ConflictError("Загрузите хотя бы одно фото, прежде чем запускать тест.")
-
-        now = datetime.now(UTC)
-        if test.active_variant_id is None:
-            first = test.variants[0]
-            await installer.install(nm_id=test.nm_id, variant=first)
-            await self._exposures.open(test_id=test.id, variant_id=first.id, activated_at=now)
-            await self._tests.set_active_variant(test=test, variant_id=first.id)
-
-        await self._tests.set_status(
-            test=test,
-            status=AbTestStatus.RUNNING,
-            started_at=test.started_at or now,
-        )
 
     def _as_row(self, test: AbTest) -> AbTestRead:
         """Project a test onto the list row the SPA renders.

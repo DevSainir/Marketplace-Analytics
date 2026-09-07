@@ -86,6 +86,52 @@ class WBContentClient(BaseWBClient):
             }
         return cards
 
+    async def fetch_card_photos(self, *, nm_id: int) -> list[str]:
+        """Return one card's gallery image URLs, in slot order.
+
+        Endpoint: the same ``POST /content/v2/get/cards/list``, narrowed with
+        ``filter.textSearch``. That filter is a **text** search — it matches the
+        vendor code and the title as well as the article — so the card is picked
+        out of the page by ``nmID`` rather than trusting WB to have returned
+        exactly one. Verified live 2026-09-07: searching an article returned
+        that card alone, but a vendor code that is a prefix of another's would
+        not.
+
+        ``withPhoto: -1`` (any) rather than ``1``: a card with no images must
+        come back as an empty photo list, not as a missing card, so the caller
+        can tell "this article has nothing to capture" from "this article is not
+        yours".
+
+        Args:
+            nm_id: The card to read.
+
+        Returns:
+            The best rendition of each gallery slot, index 0 being the main
+            photo. Empty when the card carries no images. The URLs are public
+            and unauthenticated — they are WB CDN links, not API calls.
+
+        Raises:
+            IntegrationError: If the response is not the documented shape, or if
+                WB has no such card. A silently empty list would be read as "the
+                card has no main photo", which is a different fact.
+        """
+        body: dict[str, Any] = {
+            "settings": {
+                "cursor": {"limit": _CARDS_PAGE},
+                "filter": {"withPhoto": -1, "textSearch": str(nm_id)},
+            }
+        }
+        payload = await self._request("POST", "/content/v2/get/cards/list", json_body=body)
+        if not isinstance(payload, dict) or not isinstance(payload.get("cards"), list):
+            raise IntegrationError(
+                "Unexpected cards/list response shape (expected an object with a 'cards' list)."
+            )
+        for raw in payload["cards"]:
+            card = WBCard.model_validate(raw)
+            if card.nm_id == nm_id:
+                return [photo.best for photo in card.photos if photo.best]
+        raise IntegrationError(f"WB returned no card for article {nm_id}.")
+
     async def upload_media_file(
         self,
         *,
