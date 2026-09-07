@@ -7,6 +7,7 @@ batch fan-out, the partial-vs-total failure policy, and the Pydantic guard.
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any
 
@@ -145,3 +146,34 @@ def test_scrub_redacts_proxy_credentials() -> None:
 
     assert "secretpass" not in _scrub(dirty)
     assert "//***@1.2.3.4:443" in _scrub(dirty)
+
+
+async def test_no_more_than_two_batches_are_in_flight_at_once() -> None:
+    """The proxy will not open more than a couple of tunnels at a time.
+
+    Measured from the worker on 2026-09-07: sequential and 2-concurrent
+    requests all answered 200 in about a second; at 4 one batch of four never
+    got a tunnel at all and died on the connect timeout, and at 8 two did. The
+    cost is invisible downstream — a dropped batch leaves those SKUs without a
+    customer price, which reads exactly like a SKU WB has no price for — so the
+    ceiling is pinned here rather than left to a comment.
+    """
+    client = WBCardClient(_settings())
+    client._DETAIL_BATCH = 1  # type: ignore[misc]  # one batch per SKU
+    in_flight = 0
+    peak = 0
+
+    async def fake(url: str) -> Any:
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        await asyncio.sleep(0)  # yield, so overlapping calls actually overlap
+        in_flight -= 1
+        return _envelope([int(url.split("nm=")[1])])
+
+    client._curl_get_json = fake  # type: ignore[method-assign]
+
+    products = await client.fetch_customer_prices([1, 2, 3, 4, 5, 6, 7, 8])
+
+    assert len(products) == 8
+    assert peak <= 2

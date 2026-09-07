@@ -42,7 +42,14 @@ class StorefrontSettings(BaseSettings):
     # Strict connect timeout for the (slow, fragile) proxy tunnel — separate
     # from the whole-request cap so a dead tunnel fails fast instead of burning
     # the full timeout budget (bounds proxy traffic/cost on failure).
-    wb_card_connect_timeout_seconds: float = Field(default=15.0)
+    #
+    # Five, measured on 2026-09-07: a tunnel the proxy is willing to open is
+    # open in ~0.01 s (worst of ten runs from the worker: 0.02 s), and one it
+    # refuses is never opened at all — it sits until this timeout fires. So
+    # every second here is spent only on requests that were already lost, and
+    # at 15 s a batch's three attempts spent 45 s before giving up, inside a
+    # harvest that is holding its place in a queue of other work.
+    wb_card_connect_timeout_seconds: float = Field(default=5.0)
     # Tighter retry cap than the rate-limited seller APIs: a broken proxy must
     # give up quickly instead of spinning (protects the proxy balance).
     wb_card_max_retries: int = Field(default=3)

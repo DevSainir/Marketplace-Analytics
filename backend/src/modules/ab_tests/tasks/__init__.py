@@ -22,6 +22,7 @@ discovering each other through 429s.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime
 
@@ -33,6 +34,7 @@ from src.core.logging import get_logger
 from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries import WBAdvertisingClient, WBContentClient
+from src.integrations.wildberries.schemas import WBAdvertV2
 from src.modules.ab_tests.deps import get_media_store
 from src.modules.ab_tests.models import AbTest
 from src.modules.ab_tests.repos import (
@@ -41,6 +43,7 @@ from src.modules.ab_tests.repos import (
     SnapshotRepository,
     WindowRepository,
 )
+from src.modules.ab_tests.services.campaigns import campaigns_for_sku
 from src.modules.ab_tests.services.collection import Counters, counters_by_day, days_to_read
 from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.runner import RotationRunner
@@ -84,7 +87,13 @@ async def _read_counters(
     return totals
 
 
-async def _poll_one(test: AbTest, *, now: datetime, days: Sequence[date]) -> str | None:
+async def _poll_one(
+    test: AbTest,
+    *,
+    now: datetime,
+    days: Sequence[date],
+    adverts_by_workspace: dict[uuid.UUID, list[WBAdvertV2]],
+) -> str | None:
     """Run one polling pass for one test in its own transaction.
 
     A transaction per test so a WB failure on one cannot roll back the window
@@ -115,14 +124,20 @@ async def _poll_one(test: AbTest, *, now: datetime, days: Sequence[date]) -> str
             )
             return None
 
-        campaign_ids = await load_campaign_ids_for_workspace(
-            session, workspace_id=test.workspace_id
-        )
+        harvested = await load_campaign_ids_for_workspace(session, workspace_id=test.workspace_id)
 
         async with (
             WBAdvertisingClient(settings, token=advertising) as adv_client,
             WBContentClient(settings, token=content) as content_client,
         ):
+            # WB's own campaign listing, once per workspace per pass. Cached
+            # because the cost of a pass is meant not to grow with the number of
+            # tests — the listing is account-wide, so one answer serves them all.
+            if test.workspace_id not in adverts_by_workspace:
+                adverts_by_workspace[test.workspace_id] = await adv_client.list_adverts()
+            campaign_ids = campaigns_for_sku(
+                adverts_by_workspace[test.workspace_id], nm_id=test.nm_id, known=harvested
+            )
 
             async def _reader(
                 nm_id: int,
@@ -169,10 +184,16 @@ async def _poll_all() -> dict[str, int]:
         tests = await AbTestRepository(session).list_advanceable()
 
     counters = {"tests": len(tests), "rotated": 0, "completed": 0, "failed": 0}
+    # One WB campaign listing per workspace, shared by every test in it and
+    # dropped when the pass ends: a campaign started between two passes must be
+    # visible to the next one.
+    adverts_by_workspace: dict[uuid.UUID, list[WBAdvertV2]] = {}
 
     for test in tests:
         try:
-            action = await _poll_one(test, now=now, days=days)
+            action = await _poll_one(
+                test, now=now, days=days, adverts_by_workspace=adverts_by_workspace
+            )
         except IntegrationError as exc:
             counters["failed"] += 1
             logger.warning("ab_tests: test %s could not be polled: %s", test.id, exc)

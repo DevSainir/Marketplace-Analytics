@@ -62,7 +62,17 @@ class WBCardClient:
 
     #: Bounded fan-out over batches: fetch several concurrently (the proxy adds
     #: latency), but never flood a fragile tunnel.
-    _MAX_CONCURRENCY = 4
+    #:
+    #: **Two, measured, not four.** The proxy caps concurrent CONNECTs, and past
+    #: that cap it does not answer at all — the tunnel is never established and
+    #: the request dies on `--connect-timeout`, or the provider refuses the
+    #: CONNECT with its own `response 472`. Ten runs from the worker on
+    #: 2026-09-07: sequential and 2-concurrent came back 200 in ~0.5-1.4 s;
+    #: 4-concurrent lost one batch of four; 8-concurrent lost two and dragged
+    #: two more out to 24-27 s. At four this cost a real seller 86 of 231
+    #: customer prices on their first harvest — one whole batch, dropped after
+    #: its retries, indistinguishable downstream from a SKU WB has no price for.
+    _MAX_CONCURRENCY = 2
 
     #: Browser-like request headers. These do NOT clear the anti-bot filter on
     #: their own (the TLS fingerprint does — see the module docstring); they are
