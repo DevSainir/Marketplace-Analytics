@@ -16,8 +16,9 @@ One responsibility per module:
   fetch, flatten and persist, in one transaction. Driven by both tasks below.
 * :mod:`~src.modules.monitoring.tasks.refresh` — the interactive
   ``monitoring.harvest_sku_window`` task («Обновить»).
-* :mod:`~src.modules.monitoring.tasks.discovery` — workspace SKU discovery and
-  the nightly ``monitoring.harvest_all`` task.
+* :mod:`~src.modules.monitoring.tasks.discovery` — workspace SKU discovery:
+  the nightly ``monitoring.harvest_all`` task and its single-tenant
+  ``monitoring.discover_workspace`` counterpart.
 * :mod:`~src.modules.monitoring.tasks.cohorts` — the
   ``monitoring.refresh_buyout_cohorts`` pass over maturing order-date cohorts.
 * :mod:`~src.modules.monitoring.tasks.day_headers` — the
@@ -32,12 +33,13 @@ endpoint) keep importing the task callables from here.
 
 from src.modules.monitoring.tasks.cohorts import COHORT_REFRESH_DAYS, refresh_buyout_cohorts
 from src.modules.monitoring.tasks.day_headers import carry_day_headers
-from src.modules.monitoring.tasks.discovery import harvest_all
+from src.modules.monitoring.tasks.discovery import discover_workspace, harvest_all
 from src.modules.monitoring.tasks.refresh import harvest_sku_window
 
 __all__ = [
     "COHORT_REFRESH_DAYS",
     "carry_day_headers",
+    "discover_workspace",
     "harvest_all",
     "harvest_sku_window",
     "refresh_buyout_cohorts",

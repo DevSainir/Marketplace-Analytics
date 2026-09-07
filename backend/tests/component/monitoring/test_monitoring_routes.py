@@ -372,24 +372,41 @@ async def test_refresh_all_enqueues_a_harvest_over_every_workspace_sku(
     assert captured["nm_ids"] == [NM_ID, 424242]
 
 
-async def test_refresh_all_on_an_empty_workspace_is_a_404(
+async def test_refresh_all_on_an_empty_workspace_discovers_instead(
     client: httpx.AsyncClient,
     headers: dict[str, str],
+    workspace: Any,
     analytics: _StubAnalyticsService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With no SKUs there is nothing to harvest, and enqueuing an empty task
-    would crash the worker (it indexes ``nm_ids[0]`` to resolve the workspace),
-    so the route refuses up front instead."""
+    """An empty catalogue enqueues discovery, not a 404.
+
+    A workspace whose WB token was set today has no SKUs yet, and only the
+    Content API can say which exist. The route used to refuse — leaving the
+    seller with no button that could bootstrap them before the nightly pass at
+    06:00 MSK. It now enqueues ``monitoring.discover_workspace`` for the
+    caller's own workspace, and still must not enqueue an empty SKU harvest
+    (that task indexes ``nm_ids[0]`` to resolve the workspace and would crash).
+    """
     analytics.workspace_nm_ids = []
+    captured: dict[str, Any] = {}
 
     def _must_not_enqueue(nm_ids: list[int]) -> Any:  # pragma: no cover - must not run
-        raise AssertionError("no harvest should be enqueued for an empty workspace")
+        raise AssertionError("no SKU harvest should be enqueued for an empty workspace")
+
+    def _capture_discovery(workspace_id: str) -> Any:
+        captured["workspace_id"] = workspace_id
+        return type("Task", (), {"id": "task-discover"})()
 
     monkeypatch.setattr(
         "src.modules.monitoring.routers.refresh.harvest_sku_window.delay", _must_not_enqueue
     )
+    monkeypatch.setattr(
+        "src.modules.monitoring.routers.refresh.discover_workspace.delay", _capture_discovery
+    )
 
     response = await client.post("/api/v1/monitoring/skus/refresh-all", headers=headers)
 
-    assert response.status_code == 404
+    assert response.status_code == 202
+    assert response.json()["task_id"] == "task-discover"
+    assert captured["workspace_id"] == str(workspace.id)

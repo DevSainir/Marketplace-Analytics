@@ -34,7 +34,7 @@ from src.modules.monitoring.services import (
     task_already_running,
     task_belongs_to_workspace,
 )
-from src.modules.monitoring.tasks import harvest_sku_window
+from src.modules.monitoring.tasks import discover_workspace, harvest_sku_window
 from src.modules.organizations.contract import WritingAccess
 
 router = APIRouter()
@@ -87,9 +87,10 @@ async def refresh_sku(
     response_model=RefreshEnqueuedResponse,
     status_code=status.HTTP_202_ACCEPTED,
     responses={
-        202: {"description": "A WB refresh for every workspace SKU was enqueued."},
+        202: {
+            "description": "A WB refresh, or a SKU discovery when the catalogue is empty.",
+        },
         401: {"description": "Unauthorized access token."},
-        404: {"description": "The workspace has no SKUs to refresh."},
         429: {"description": "This workspace's refresh budget is spent."},
     },
 )
@@ -105,13 +106,32 @@ async def refresh_all_skus(
     than a single-SKU refresh — the account-wide sale feed still stays on the
     nightly run (:func:`harvest_sku_window` skips it), the same as «Обновить».
 
+    A workspace with an empty catalogue gets ``monitoring.discover_workspace``
+    instead: it reads the SKU list from the Content API with the workspace's own
+    token and harvests what comes back. Both answer 202 with a task id, so the
+    SPA polls one route either way and needs no knowledge of which ran.
+
     Poll ``GET /refresh/{task_id}`` for completion exactly as for one SKU. The
     task id is bound to the caller's workspace so only that workspace can read
     its status back.
     """
     nm_ids = await service.list_workspace_nm_ids(workspace_id=workspace_id)
     if not nm_ids:
-        raise NotFoundError("В рабочем пространстве нет ни одного артикула для обновления.")
+        # An empty catalogue is a workspace whose WB token was set recently, not
+        # a mistake: nothing but the Content API can say which SKUs exist, and
+        # the only pass that read it was the nightly one. So this answered 404
+        # — «нет ни одного артикула» — until 06:00 MSK, with no button anywhere
+        # that could fix it. Discovery is what "refresh everything" MEANS here.
+        # The same budget and in-flight guard apply; an empty SKU set is a
+        # stable, distinct dedup key, so a second press rejoins the first run.
+        running = await task_already_running(workspace_id, [])
+        if running is not None:
+            return RefreshEnqueuedResponse(task_id=running)
+        await spend_refresh_budget(workspace_id)
+        task = discover_workspace.delay(workspace_id=str(workspace_id))
+        await bind_task_to_workspace(task.id, workspace_id)
+        await remember_running_task(workspace_id, [], task.id)
+        return RefreshEnqueuedResponse(task_id=task.id)
     running = await task_already_running(workspace_id, nm_ids)
     if running is not None:
         return RefreshEnqueuedResponse(task_id=running)

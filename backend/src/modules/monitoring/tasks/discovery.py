@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import timedelta
 
 from redis import Redis as SyncRedis
@@ -23,6 +24,7 @@ from src.modules.monitoring.tasks.common import _TASK_RETRY_KWARGS
 from src.modules.monitoring.tasks.harvest import _harvest_sku_window
 from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
+    load_workspace_token_bundle,
     load_workspace_token_bundles,
 )
 
@@ -205,6 +207,71 @@ async def _discover_and_harvest(days: int) -> dict[str, int]:
         # workspace it belongs to.
         raise IntegrationError(f"Every workspace harvest failed ({len(failures)}); see logs.")
     return totals
+
+
+#: Ceiling on the interactive discovery bootstrap — the same 10 minutes the
+#: interactive SKU refresh gets, and for the same reason: a person is waiting,
+#: so this must not hold a worker slot for the fleet-wide hour.
+#:
+#: It must also stay UNDER the SPA's bulk-refresh poll ceiling (12 min in
+#: ``frontend/src/modules/monitoring/store.js``). A backend limit above that
+#: ceiling turns every slow run into a task the poller abandons while it is
+#: still working — the 2026-07-30 failure mode, where harvests that genuinely
+#: succeeded were all reported as «не завершилось за отведённое время».
+_DISCOVER_SOFT_TIME_LIMIT_SECONDS: int = 10 * 60
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="monitoring.discover_workspace",
+    bind=False,
+    soft_time_limit=_DISCOVER_SOFT_TIME_LIMIT_SECONDS,
+    time_limit=_DISCOVER_SOFT_TIME_LIMIT_SECONDS + 60,
+    **_TASK_RETRY_KWARGS,
+)
+def discover_workspace(workspace_id: str, days: int = 7) -> dict[str, object]:
+    """Interactive entrypoint: discover ONE workspace's SKUs, then harvest them.
+
+    The single-tenant counterpart of :func:`harvest_all`, and the answer to a
+    workspace whose token was set today: its catalogue is empty, so «Обновить
+    все SKU» had no ``nm_id`` to pass to ``monitoring.harvest_sku_window`` and
+    answered 404 until the nightly pass ran at 06:00 MSK. Discovery IS the
+    refresh for that workspace — the Content API is the only source that can
+    say which SKUs exist, and until this task it was reachable from no button.
+
+    Deliberately does NOT take ``_HARVEST_LOCK_NAME``. That lock exists so two
+    FLEET walks cannot starve each other of WB's advertising budget; taking it
+    here would let one tenant's first click block the nightly harvest for every
+    other tenant, and would make this task silently no-op whenever the nightly
+    pass happened to be running. The enqueue budget and the in-flight guard on
+    the route bound it instead, exactly as they bound ``harvest_sku_window``.
+
+    Args:
+        workspace_id: The workspace UUID **as a string** — Celery is configured
+            for JSON-only serialization, which has no UUID type.
+        days: Rolling window length (default 7 — the funnel-history cap).
+
+    Returns:
+        The persisted row counts per metric family, empty when the workspace
+        genuinely has no SKUs.
+
+    Raises:
+        IntegrationError: If the workspace no longer exists (no credentials to
+            discover with), or if discovery failed and it has no SKUs on file.
+    """
+
+    async def _run() -> dict[str, object]:
+        async with AsyncSessionLocal() as session:
+            tokens = await load_workspace_token_bundle(session, uuid.UUID(workspace_id))
+        if tokens is None:
+            raise IntegrationError(f"Workspace {workspace_id} no longer exists; discovery aborted.")
+        # Bound before the first WB call rather than inside the shared helper,
+        # which only binds once it knows the SKU list. This task is one tenant
+        # from its first line, and a discovery that fails against the Content
+        # API must still say whose discovery it was.
+        bind_workspace(tokens.workspace_id)
+        return dict(await _discover_and_harvest_workspace(tokens, days))
+
+    return run_task(_run())
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
