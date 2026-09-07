@@ -41,17 +41,20 @@ logger = get_logger(__name__)
 DISCOVERY_TASK_NAME = "monitoring.discover_workspace"
 
 #: The registered name of the per-workspace finance walk
-#: (``src.modules.finreports.tasks``). Enqueued alongside discovery because a
-#: seller who has just connected WB expects their P&L to fill in too, and the
-#: two read different WB surfaces — monitoring the analytics and advertising
-#: hosts, finance the statistics one — so they do not contend and there is no
-#: reason to make one wait for the other.
+#: (``src.modules.finreports.tasks``). Chained BEHIND discovery rather than
+#: enqueued alongside it.
+#:
+#: They were enqueued together on the reasoning that they read different WB
+#: surfaces and therefore do not contend. They contend for something else: the
+#: worker's 768 MB cgroup, whose ceiling was measured for one harvest at a time
+#: (see the `mem_limit` note in docker-compose.yml). On 2026-09-07 the first
+#: outside signup's two first-run harvests overlapped and the kernel OOM-killed
+#: the finance child 15 s in — `WorkerLostError: signal 9`, no retry, and a
+#: workspace left with a full catalogue and an empty P&L. Nothing else in the
+#: schedule overlaps: the hourly finance tick already skips 05:00-07:00 MSK so
+#: it cannot meet the nightly monitoring harvest. This was the one place two
+#: heavy walks were started in the same second, and it is now a queue of two.
 FINANCE_TASK_NAME = "finreports.harvest_finance"
-
-#: The tasks a newly credentialed workspace needs, in the order they are
-#: enqueued. Both are addressed by name for the reason in the module docstring;
-#: both are idempotent, so a redelivered message costs time, not correctness.
-_BOOTSTRAP_TASKS = (DISCOVERY_TASK_NAME, FINANCE_TASK_NAME)
 
 #: How long one workspace's bootstrap claim stands. A primary workspace holds
 #: thirteen token kinds, and an owner pasting them one at a time saves the form
@@ -114,28 +117,35 @@ async def enqueue_catalogue_bootstrap(workspace_id: uuid.UUID) -> str | None:
         )
         return None
 
-    enqueued: list[str] = []
-    for task_name in _BOOTSTRAP_TASKS:
-        try:
-            result = celery_app.send_task(task_name, kwargs={"workspace_id": str(workspace_id)})
-        except Exception:
-            # Broad on purpose, and per task rather than around the loop: the
-            # monitoring and finance walks are independent, and a broker that
-            # refused one has no bearing on whether the other was accepted.
-            # Every exception Celery's transport can raise on enqueue is one
-            # the seller must not see — their token IS saved, and these calls
-            # are the courtesy attached to it.
-            logger.exception(
-                "Could not enqueue %s for workspace %s; its scheduled run will pick it up.",
-                task_name,
-                workspace_id,
-            )
-            continue
-        enqueued.append(str(result.id))
-        logger.info(
-            "New WB credentials for workspace %s; enqueued %s as task %s.",
-            workspace_id,
-            task_name,
-            result.id,
+    kwargs = {"workspace_id": str(workspace_id)}
+    # The finance walk is attached as a callback, not sent now: `link` fires it
+    # when discovery finishes, so the two never hold memory at the same time.
+    # `immutable=True` because discovery returns its row counts and a mutable
+    # signature would prepend them to the finance task's arguments.
+    #
+    # `link_error` carries the same signature, so a discovery that FAILS still
+    # leaves the seller with a P&L. The two are mutually exclusive — Celery
+    # fires one or the other — so this cannot double-enqueue the walk.
+    finance = celery_app.signature(FINANCE_TASK_NAME, kwargs=kwargs, immutable=True)
+    try:
+        result = celery_app.send_task(
+            DISCOVERY_TASK_NAME, kwargs=kwargs, link=finance, link_error=finance
         )
-    return enqueued[0] if enqueued else None
+    except Exception:
+        # Broad on purpose: every exception Celery's transport can raise on
+        # enqueue is one the seller must not see — their token IS saved, and
+        # this call is the courtesy attached to it.
+        logger.exception(
+            "Could not enqueue %s for workspace %s; its scheduled run will pick it up.",
+            DISCOVERY_TASK_NAME,
+            workspace_id,
+        )
+        return None
+    logger.info(
+        "New WB credentials for workspace %s; enqueued %s as task %s, with %s chained behind it.",
+        workspace_id,
+        DISCOVERY_TASK_NAME,
+        result.id,
+        FINANCE_TASK_NAME,
+    )
+    return str(result.id)

@@ -62,15 +62,15 @@ def enqueued(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     """
     calls: list[dict[str, Any]] = []
 
-    def _send_task(name: str, kwargs: dict[str, Any] | None = None, **_: Any) -> Any:
-        calls.append({"name": name, "kwargs": kwargs or {}})
+    def _send_task(name: str, kwargs: dict[str, Any] | None = None, **options: Any) -> Any:
+        calls.append({"name": name, "kwargs": kwargs or {}, "link": options.get("link")})
         return type("Task", (), {"id": f"task-{len(calls)}"})()
 
     monkeypatch.setattr("src.modules.workspaces.bootstrap.celery_app.send_task", _send_task)
     return calls
 
 
-async def test_a_first_token_enqueues_both_the_monitoring_and_finance_walks(
+async def test_a_first_token_starts_the_catalogue_walk_with_finance_behind_it(
     client: httpx.AsyncClient,
     dev_user: Any,
     workspace: Workspace,
@@ -78,9 +78,11 @@ async def test_a_first_token_enqueues_both_the_monitoring_and_finance_walks(
 ) -> None:
     """The event this feature exists for: WB is connected, so go and look.
 
-    Both walks, not just the catalogue one. A seller who has connected WB
-    expects their P&L to fill in too, and finance reads a different WB surface
-    from monitoring, so there is nothing to gain by making one wait.
+    Both walks, not just the catalogue one — a seller who has connected WB
+    expects their P&L to fill in too. One send, though: the finance walk is
+    chained behind discovery rather than started beside it, because the two
+    together exceed the worker's memory ceiling and the kernel picks the
+    casualty (2026-09-07).
 
     Each task must be addressed to the workspace whose token was stored — a
     harvest pointed anywhere else would read another seller's account with
@@ -93,11 +95,10 @@ async def test_a_first_token_enqueues_both_the_monitoring_and_finance_walks(
     )
 
     assert response.status_code == 200
-    assert [call["name"] for call in enqueued] == [
-        "monitoring.discover_workspace",
-        "finreports.harvest_finance",
-    ]
-    assert all(call["kwargs"] == {"workspace_id": str(workspace.id)} for call in enqueued)
+    assert [call["name"] for call in enqueued] == ["monitoring.discover_workspace"]
+    assert enqueued[0]["kwargs"] == {"workspace_id": str(workspace.id)}
+    assert enqueued[0]["link"].task == "finreports.harvest_finance"
+    assert enqueued[0]["link"].kwargs == {"workspace_id": str(workspace.id)}
 
 
 async def test_re_saving_the_same_surface_does_not_enqueue_a_second_harvest(
@@ -120,8 +121,8 @@ async def test_re_saving_the_same_surface_does_not_enqueue_a_second_harvest(
 
     assert first.status_code == 200
     assert second.status_code == 200
-    # The first save's pair, and nothing from the second.
-    assert len(enqueued) == 2
+    # The first save's chain, and nothing from the second.
+    assert len(enqueued) == 1
 
 
 async def test_a_broker_that_refuses_still_stores_the_token(

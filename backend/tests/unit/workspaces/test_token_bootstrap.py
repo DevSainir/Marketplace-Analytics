@@ -67,12 +67,24 @@ def redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
 
 
 @pytest.fixture
-def enqueued(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Capture the workspace ids handed to Celery, without a broker."""
-    calls: list[str] = []
+def enqueued(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """Capture what was handed to Celery, without a broker.
 
-    def _send_task(name: str, kwargs: dict[str, Any] | None = None, **_: Any) -> Any:
-        calls.append((kwargs or {})["workspace_id"])
+    One entry per ``send_task``, carrying the task name, the workspace id and
+    the callbacks — the chain lives in those, so a fixture that dropped them
+    could not tell "sent behind discovery" from "not sent at all".
+    """
+    calls: list[dict[str, Any]] = []
+
+    def _send_task(name: str, kwargs: dict[str, Any] | None = None, **options: Any) -> Any:
+        calls.append(
+            {
+                "name": name,
+                "workspace_id": (kwargs or {})["workspace_id"],
+                "link": options.get("link"),
+                "link_error": options.get("link_error"),
+            }
+        )
         return type("Task", (), {"id": f"task-{len(calls)}"})()
 
     monkeypatch.setattr("src.modules.workspaces.bootstrap.celery_app.send_task", _send_task)
@@ -96,8 +108,8 @@ async def test_a_burst_of_saves_costs_one_harvest(redis: FakeRedis, enqueued: li
 
     assert first is not None
     assert second is None
-    # Once, for each of the two walks a new workspace needs.
-    assert enqueued == [str(workspace_id), str(workspace_id)]
+    # One send: the finance walk rides on the discovery task's callback.
+    assert [call["workspace_id"] for call in enqueued] == [str(workspace_id)]
 
 
 async def test_the_claim_is_per_workspace(redis: FakeRedis, enqueued: list[str]) -> None:
@@ -113,7 +125,7 @@ async def test_the_claim_is_per_workspace(redis: FakeRedis, enqueued: list[str])
     await enqueue_catalogue_bootstrap(one)
     await enqueue_catalogue_bootstrap(two)
 
-    assert enqueued == [str(one), str(one), str(two), str(two)]
+    assert [call["workspace_id"] for call in enqueued] == [str(one), str(two)]
 
 
 async def test_a_redis_that_is_gone_neither_raises_nor_enqueues(
@@ -135,3 +147,46 @@ async def test_a_redis_that_is_gone_neither_raises_nor_enqueues(
 
     assert await enqueue_catalogue_bootstrap(uuid.uuid4()) is None
     assert enqueued == []
+
+
+async def test_the_finance_walk_waits_for_discovery_to_finish(
+    redis: FakeRedis, enqueued: list[dict[str, Any]]
+) -> None:
+    """The two first-run harvests must not be in flight at the same time.
+
+    Started together they were, and the worker's 768 MB cgroup — sized for one
+    harvest at a time — had the kernel OOM-kill the finance child on the first
+    outside signup (2026-09-07). Celery does not retry a ``WorkerLostError``,
+    so the workspace kept a full catalogue and an empty P&L.
+
+    The chain is what prevents it, and the callback carries the workspace id:
+    a signature built without it would run the finance walk over every tenant.
+    """
+    workspace_id = uuid.uuid4()
+
+    await enqueue_catalogue_bootstrap(workspace_id)
+
+    (call,) = enqueued
+    assert call["name"] == DISCOVERY_TASK_NAME
+    assert call["link"].task == FINANCE_TASK_NAME
+    assert call["link"].kwargs == {"workspace_id": str(workspace_id)}
+    # Immutable, or discovery's returned row counts arrive as the finance
+    # task's first positional argument and it fails on an unexpected argument.
+    assert call["link"].immutable
+
+
+async def test_a_failed_discovery_still_leaves_the_seller_a_p_and_l(
+    redis: FakeRedis, enqueued: list[dict[str, Any]]
+) -> None:
+    """``link`` alone would make the finance walk hostage to the other one.
+
+    Discovery walks WB's advertising and analytics surfaces; the finance walk
+    reads the statistics host and needs nothing discovery produces. A WB outage
+    on one must not cost the seller the other, so the same signature is
+    attached to both outcomes — Celery fires exactly one of them.
+    """
+    await enqueue_catalogue_bootstrap(uuid.uuid4())
+
+    (call,) = enqueued
+    assert call["link_error"].task == FINANCE_TASK_NAME
+    assert call["link_error"].kwargs == call["link"].kwargs
