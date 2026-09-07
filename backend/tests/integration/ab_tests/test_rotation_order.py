@@ -115,8 +115,12 @@ async def test_the_cards_own_photo_leads_the_rotation_without_renumbering_it(
     # The upload cap is on uploads: the captured photo must not spend a slot.
     assert await variants.count_for_test(test_id=test.id) == 2
 
+    # Read the identifiers off before expiring: `expire_all` makes every loaded
+    # attribute a lazy refresh, and a lazy refresh from a sync attribute access
+    # is a `MissingGreenlet` on an async session rather than a query.
+    workspace_id, test_id = workspace.id, test.id
     db_session.expire_all()
-    reloaded = await tests.get(workspace_id=workspace.id, test_id=test.id)
+    reloaded = await tests.get(workspace_id=workspace_id, test_id=test_id)
     assert reloaded is not None
     assert [variant.position for variant in reloaded.variants] == [0, 1, 2]
     assert [variant.is_original for variant in reloaded.variants] == [True, False, False]
