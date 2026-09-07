@@ -140,6 +140,11 @@ class WildberriesSettings(BaseSettings):
     # block here would trade a failure the harvest reports for one it cannot.
     # Failing fast leaves the window for the next tick and costs WB nothing.
     wb_statistics_max_queue_seconds: float = Field(default=45.0, gt=0)
+    # What the settlement WALK may wait, as opposed to what a request inside a
+    # transaction may. The walk takes its token before it opens a transaction,
+    # so it can afford to sit out a whole refill — and must, because the window
+    # it is waiting for is a week of a seller's money.
+    wb_statistics_walk_queue_seconds: float = Field(default=1000.0, gt=0)
     # Escape hatch: disables Redis-backed pacing for EVERY bucket, the
     # storefront's included (tests and any environment with no Redis). The
     # clients then fall back to per-process spacing.

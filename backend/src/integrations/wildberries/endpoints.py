@@ -31,6 +31,13 @@ _ID_SEGMENT_RE = re.compile(
 )
 
 
+#: WB's weekly realization report. Named here rather than at its two call sites
+#: because the walk now takes its rate token by path, outside the client that
+#: sends the request — and a bucket keyed on a typo would pace nothing at all,
+#: silently.
+SETTLEMENT_REPORT_PATH = "/api/v5/supplier/reportDetailByPeriod"
+
+
 def endpoint_label(path: str) -> str:
     """Collapse a request path onto the route it belongs to.
 
@@ -43,4 +50,4 @@ def endpoint_label(path: str) -> str:
     return _ID_SEGMENT_RE.sub("/{id}", path)
 
 
-__all__ = ["endpoint_label"]
+__all__ = ["SETTLEMENT_REPORT_PATH", "endpoint_label"]

@@ -19,7 +19,8 @@ from datetime import date
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.base import BaseWBClient
-from src.integrations.wildberries.rate_limit import statistics_rate_gate
+from src.integrations.wildberries.endpoints import SETTLEMENT_REPORT_PATH
+from src.integrations.wildberries.rate_limit import RateGate, statistics_rate_gate
 from src.integrations.wildberries.schemas import WBReportDetailRow
 
 
@@ -45,7 +46,14 @@ class WBFinanceClient(BaseWBClient):
     #: window is empty, so one row is the whole answer.
     _PROBE_LIMIT = 1
 
-    def __init__(self, settings: Settings, *, token: str, max_retries: int | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        token: str,
+        max_retries: int | None = None,
+        rate_gate: RateGate | None = None,
+    ) -> None:
         """Build the finance client against the Statistics surface.
 
         Args:
@@ -53,7 +61,11 @@ class WBFinanceClient(BaseWBClient):
             token: The workspace's «Статистика»-scope bearer token.
             max_retries: Override for the retry ladder. The harvest lowers it
                 because it pages **inside an open transaction** — see
-                :func:`~src.modules.finreports.tasks.harvest.harvest_workspace`.
+                :mod:`src.modules.finreports.tasks.settlement`.
+            rate_gate: Pacing gate override. The settlement walk passes a gate
+                it has ALREADY taken this request's token from, outside the
+                transaction; taking a second one here would double the wait for
+                a budget of one request per fifteen minutes.
         """
         super().__init__(
             base_url=settings.wb_statistics_base_url,
@@ -68,7 +80,7 @@ class WBFinanceClient(BaseWBClient):
             # block, which no backoff this side of the transaction's own
             # timeout can wait out — the gate's job is that the second page is
             # not SENT until a token exists.
-            rate_gate=statistics_rate_gate(settings, token=token),
+            rate_gate=rate_gate or statistics_rate_gate(settings, token=token),
             # And when one is answered anyway, the ladder must NOT honour the
             # wait WB names. The shared default tolerates a demanded wait up to
             # 900 s; on 2026-09-07 a 429 demanding 897 s was duly slept off
@@ -103,7 +115,7 @@ class WBFinanceClient(BaseWBClient):
         """
         payload = await self._request(
             "GET",
-            "/api/v5/supplier/reportDetailByPeriod",
+            SETTLEMENT_REPORT_PATH,
             params={
                 "dateFrom": date_from.isoformat(),
                 "dateTo": date_to.isoformat(),
@@ -160,7 +172,7 @@ class WBFinanceClient(BaseWBClient):
         while True:
             payload = await self._request(
                 "GET",
-                "/api/v5/supplier/reportDetailByPeriod",
+                SETTLEMENT_REPORT_PATH,
                 params={
                     "dateFrom": date_from.isoformat(),
                     "dateTo": date_to.isoformat(),

@@ -147,10 +147,17 @@ celery_app.conf.beat_schedule = {
     # Ticking hourly is affordable only because of the freshness gate
     # (src/modules/finreports/tasks/freshness.py): a tick with nothing new costs
     # one `limit=1` request per workspace and stops there. Only a tick that
-    # finds an unharvested report pays for the walk — minutes of paced
-    # the next tick cannot start a second copy alongside it. The rolling 28-day
-    # window keeps recent reports fresh and is upsert-idempotent, so re-running
-    # is always safe.
+    # finds an unharvested report pays for the walk, and harvest_all_workspaces
+    # holds a Redis lock so the next tick cannot start a second copy alongside
+    # it.
+    #
+    # What a tick may spend is set by WB, not by us: `reportDetailByPeriod`
+    # serves ONE request per ~15 minutes per seller token (measured 2026-09-07,
+    # `x-ratelimit-reset: 917`). An hourly tick's probe is one of the four
+    # tokens that hour, and a tick that harvests spends one more per week it
+    # walks — see src/modules/finreports/tasks/settlement.py, which is why the
+    # walk covers a week per request and no longer re-reads a rolling 28 days
+    # it already holds.
     #
     # harvest and cohort refresh own those hours, and the walk competes with
     # them for the same rate-limited analytics surfaces.

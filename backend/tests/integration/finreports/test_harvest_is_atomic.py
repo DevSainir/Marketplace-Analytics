@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.exceptions import IntegrationError
 from src.modules.finreports.tasks import harvest as harvest_module
+from src.modules.finreports.tasks import settlement as settlement_module
 from src.modules.finreports.tasks.harvest import harvest_workspace
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
@@ -71,6 +72,21 @@ def _settlement(index: int) -> WBReportDetailRow:
     )
 
 
+class _OpenGate:
+    """A rate gate with a token always available.
+
+    The real one waits for WB's next quarter-hour, which this test has no
+    interest in: what is under test is the transaction boundary around a week,
+    not the wait in front of it.
+    """
+
+    async def acquire(self, endpoint: str) -> None:
+        return None
+
+    async def observe(self, endpoint: str, remaining: int | None) -> None:
+        return None
+
+
 class _FakeFinanceClient:
     """Serves settlement pages, optionally dying part-way through the walk.
 
@@ -78,9 +94,17 @@ class _FakeFinanceClient:
     method fails this test instead of being silently accepted.
     """
 
-    def __init__(self, _settings: Any, *, token: str, max_retries: int | None = None) -> None:
+    def __init__(
+        self,
+        _settings: Any,
+        *,
+        token: str,
+        max_retries: int | None = None,
+        rate_gate: Any = None,
+    ) -> None:
         self.token = token
         self.max_retries = max_retries
+        self.rate_gate = rate_gate
 
     async def __aenter__(self) -> Self:
         return self
@@ -193,7 +217,13 @@ def wb(
     property under test.
     """
     monkeypatch.setattr(harvest_module, "AsyncSessionLocal", session_factory)
-    monkeypatch.setattr(harvest_module, "WBFinanceClient", _FakeFinanceClient)
+    # The settlement walk keeps its own session and its own client: it commits
+    # a week at a time, outside the transaction the rest of the harvest shares.
+    monkeypatch.setattr(settlement_module, "AsyncSessionLocal", session_factory)
+    monkeypatch.setattr(settlement_module, "WBFinanceClient", _FakeFinanceClient)
+    monkeypatch.setattr(
+        settlement_module, "settlement_walk_rate_gate", lambda *_a, **_kw: _OpenGate()
+    )
     monkeypatch.setattr(harvest_module, "WBContentClient", _EmptyContentClient)
 
     async def no_warming(*, workspace_id: uuid.UUID, name: str) -> None:
@@ -241,8 +271,10 @@ async def test_a_walk_that_dies_mid_page_leaves_no_settlement_rows(
 ) -> None:
     """The page written before the failure is rolled back; the harvest is not.
 
-    Without the savepoint this commits two of the window's three rows and
+    Without the savepoint this commits two of the week's three rows and
     reports success — a settlement week that is 33 % short and reads as real.
+    The savepoint is per WEEK now rather than per harvest, which narrows what
+    a failure discards but not what it must never leave behind.
     """
     wb.fail_mid_walk = True
 
@@ -278,5 +310,5 @@ async def test_the_walk_inside_the_transaction_retries_less_than_the_default(
     finally:
         _FakeFinanceClient.__init__ = original  # type: ignore[method-assign]
 
-    assert [client.max_retries for client in built] == [harvest_module._FINANCE_MAX_RETRIES]
-    assert harvest_module._FINANCE_MAX_RETRIES < 4
+    assert [client.max_retries for client in built] == [settlement_module.MAX_RETRIES]
+    assert settlement_module.MAX_RETRIES < 4
