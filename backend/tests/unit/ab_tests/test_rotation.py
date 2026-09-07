@@ -149,6 +149,64 @@ def test_a_minute_short_of_the_slot_holds() -> None:
     assert decision.action is RotationAction.HOLD
 
 
+def test_a_slot_a_hair_short_still_counts() -> None:
+    """The poll that lands milliseconds early must not cost a whole period.
+
+    Both the install and this question are stamped with their Celery pass's
+    start time, so a slot that is a whole number of poll periods — 5, 10, 30,
+    60 minutes, every value anyone picks — is decided by which of two passes
+    started later. Measured on production 2026-09-07, consecutive passes drift
+    by up to ~14 ms. Losing that coin flip made an observed five-minute slot run
+    ten minutes.
+    """
+    decision = decide(
+        _state(
+            active=VARIANTS[0],
+            mode=TriggerMode.TIME,
+            active_since=NOW - timedelta(minutes=60) + timedelta(milliseconds=14),
+        )
+    )
+
+    assert decision.action is RotationAction.ADVANCE
+
+
+def test_the_tolerance_does_not_swallow_a_real_wait() -> None:
+    """It absorbs scheduling jitter, not a slot that genuinely has not run.
+
+    Half a minute short is a photo still serving its turn; only the last few
+    seconds are forgiven, and they are two orders of magnitude below the poll
+    period, so nothing rotates a pass early.
+    """
+    decision = decide(
+        _state(
+            active=VARIANTS[0],
+            mode=TriggerMode.TIME,
+            active_since=NOW - timedelta(seconds=30),
+            slot_minutes=5,
+        )
+    )
+
+    assert decision.action is RotationAction.HOLD
+
+
+def test_an_impression_budget_gets_no_tolerance() -> None:
+    """Only the clock is forgiven. Impressions are counted, not scheduled.
+
+    A budget that fired early would measure the arms over different exposures,
+    which is the one thing the budget exists to prevent — and unlike a slot,
+    nothing about a counter drifts with when the poll happened to run.
+    """
+    decision = decide(
+        _state(
+            active=VARIANTS[0],
+            impressions=BUDGET - 1,
+            mode=TriggerMode.IMPRESSIONS,
+        )
+    )
+
+    assert decision.action is RotationAction.HOLD
+
+
 def test_a_time_test_ignores_the_impression_counter_entirely() -> None:
     """A photo far past the impression budget does NOT rotate in time mode.
 

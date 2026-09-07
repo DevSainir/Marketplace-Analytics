@@ -79,6 +79,26 @@ class RotationDecision:
     variant_id: uuid.UUID | None
 
 
+#: How early a poll may still count a time slot as finished.
+#:
+#: The rotation is not a timer; a Celery pass wakes every five minutes and asks
+#: whether the live photo has served its slot. Both the install and the question
+#: are stamped with the pass's own start time, so for any slot that is a whole
+#: number of poll periods — 5, 10, 30, 60 minutes, i.e. every value anyone
+#: actually picks — the comparison comes down to which of two passes started a
+#: few milliseconds later. Measured on production 2026-09-07: beat sends within
+#: 0.2-5.3 ms of the minute, the queue hop adds 6.3-19.4 ms, so consecutive
+#: passes drift by up to ~14 ms in either direction. Lose that coin flip and the
+#: photo waits a whole extra period — a 5-minute slot ran 10 minutes, observed.
+#:
+#: Ten seconds is ~700x that jitter, which also leaves room for the seconds of
+#: queue latency a busy worker adds during a nightly harvest. It costs at most
+#: 10 s of a slot: 3 % of the five-minute minimum, 0.3 % of an hour, and never
+#: anything close to the five-minute poll period, so no photo can rotate a whole
+#: pass early.
+SLOT_TOLERANCE: timedelta = timedelta(seconds=10)
+
+
 def _trigger_met(state: RotationState) -> bool:
     """Has the live photo finished its turn?
 
@@ -87,12 +107,16 @@ def _trigger_met(state: RotationState) -> bool:
 
     Returns:
         ``True`` when the configured trigger — and only the configured one —
-        has been reached.
+        has been reached. The time trigger allows :data:`SLOT_TOLERANCE`; the
+        impression budget does not, because impressions are counted, not
+        clocked, and a budget that fires early would measure the arms over
+        different exposures.
     """
     if state.trigger_mode == TriggerMode.TIME:
         if state.active_since is None:
             return False
-        return state.now - state.active_since >= timedelta(minutes=state.slot_minutes)
+        slot = timedelta(minutes=state.slot_minutes) - SLOT_TOLERANCE
+        return state.now - state.active_since >= slot
 
     return state.impressions_for_active >= state.impression_budget
 
