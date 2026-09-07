@@ -92,9 +92,10 @@ async def create_test(
 
     The card's current main photo is copied into the test here, so the seller
     opens a brand-new test and sees the thing their uploads will be compared
-    against already in the rotation. That needs the workspace's Content token,
-    which is why creating a test now asks for one — a test cannot run without it
-    anyway, and finding that out at «Создать» beats finding it out at «Запустить».
+    against already in the rotation. It needs the workspace's Content token and
+    does without one rather than refusing: a test may be set up before the WB
+    credentials are pasted, and the start — which actually writes to the card —
+    is where the missing token is refused.
     """
     return await service.create_test(
         workspace_id=workspace_id,

@@ -27,7 +27,9 @@ from src.modules.ab_tests.repos import (
 from src.modules.ab_tests.services.catalog import AbTestCatalogService
 from src.modules.ab_tests.services.original import (
     HttpPhotoDownloader,
+    NullPhotoCapture,
     OriginalPhotoCapture,
+    PhotoEnroller,
 )
 from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.skus import SkuCatalogue
@@ -73,23 +75,20 @@ async def get_original_capture(
     session: DbSession,
     workspace_id: CurrentWorkspaceId,
     media_store: MediaStoreDep,
-) -> OriginalPhotoCapture:
-    """Provide the capture of the card's live main photo.
+) -> PhotoEnroller:
+    """Provide the enrolment of the card's live main photo.
 
-    Built from the same token as the installer and refused on the same terms:
-    a workspace with no Content-scope token cannot read its own card, so there
-    is nothing to be gained by letting this one through and failing later.
-
-    Raises:
-        ValidationError: If the workspace has no token reaching the Content
-            surface.
+    Built from the same token as the installer but **not refused** without one,
+    unlike :func:`get_installer`. This one hangs off the create route, and a
+    workspace must be able to set a test up before it has pasted its WB
+    credentials — the refusal belongs where the test is started and the card is
+    actually written to. With no token the enrolment is a no-op and the test is
+    created without a baseline, which the start then fills in.
     """
     bundle = await load_workspace_token_bundle(session, workspace_id=workspace_id)
     token = (bundle.content or bundle.analytics) if bundle else ""
     if not token:
-        raise ValidationError(
-            "Для А/Б-тестов нужен токен с доступом к «Контенту» — укажите токен в настройках."
-        )
+        return NullPhotoCapture()
     return OriginalPhotoCapture(
         content_client=WBContentClient(settings, token=token),
         downloader=HttpPhotoDownloader(),
@@ -97,7 +96,7 @@ async def get_original_capture(
     )
 
 
-OriginalCaptureDep = Annotated[OriginalPhotoCapture, Depends(get_original_capture)]
+OriginalCaptureDep = Annotated[PhotoEnroller, Depends(get_original_capture)]
 
 
 def get_sku_catalogue(session: DbSession) -> SkuCatalogue:

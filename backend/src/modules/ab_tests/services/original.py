@@ -156,6 +156,35 @@ class _VariantSink(Protocol):
     ) -> AbTestVariant: ...
 
 
+class PhotoEnroller(Protocol):
+    """Whatever puts the card's own photo in a test — or knowingly does not."""
+
+    async def enrol(self, *, test: AbTest, variants: _VariantSink) -> AbTestVariant | None: ...
+
+
+class NullPhotoCapture:
+    """The enroller for a workspace with no Content-scope WB token.
+
+    Creating a test must not require one. The token is needed to *run* a test —
+    the status route asks for it and refuses without it — but refusing the
+    creation too would mean a seller could not even set one up before pasting
+    their credentials, and it would break every flow that makes a test before
+    connecting WB. Such a test simply has no baseline until it is started.
+    """
+
+    async def enrol(self, *, test: AbTest, variants: _VariantSink) -> AbTestVariant | None:
+        """Enrol nothing.
+
+        Args:
+            test: Ignored.
+            variants: Ignored.
+
+        Returns:
+            ``None``, always.
+        """
+        return None
+
+
 class OriginalPhotoCapture:
     """Copies a card's live main photo into a test as its first variant."""
 
@@ -266,6 +295,8 @@ __all__ = [
     "ORIGINAL_FILENAME",
     "CardPhotoSource",
     "HttpPhotoDownloader",
+    "NullPhotoCapture",
     "OriginalPhotoCapture",
     "PhotoDownloader",
+    "PhotoEnroller",
 ]

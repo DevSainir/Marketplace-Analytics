@@ -20,10 +20,12 @@ from dataclasses import dataclass
 
 import pytest
 
+import src.modules.ab_tests.deps as ab_deps
 from src.core.ids import uuid7
 from src.modules.ab_tests.models import AbTest, AbTestVariant
 from src.modules.ab_tests.services.original import (
     ORIGINAL_FILENAME,
+    NullPhotoCapture,
     OriginalPhotoCapture,
     _host_allowed,
 )
@@ -235,3 +237,29 @@ def test_wb_image_hosts_are_fetchable(url: str) -> None:
 def test_everything_else_is_refused(url: str) -> None:
     """A URL named by an upstream is not a licence to issue the request."""
     assert _host_allowed(url) is False
+
+
+async def test_a_workspace_with_no_wb_token_still_gets_an_enroller(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Creating a test may not require credentials the seller has not pasted yet.
+
+    The refusal belongs on the start route, which writes to the live card. This
+    one only reads, and a test with no baseline is a working test — the start
+    fills it in. Requiring the token here broke the end-to-end flow that creates
+    a test on a fresh workspace, which is how it was caught.
+    """
+
+    async def _no_tokens(session: object, *, workspace_id: uuid.UUID) -> None:
+        return None
+
+    monkeypatch.setattr(ab_deps, "load_workspace_token_bundle", _no_tokens)
+
+    enroller = await ab_deps.get_original_capture(
+        session=None,  # type: ignore[arg-type]
+        workspace_id=uuid7(),
+        media_store=_FakeStore(),
+    )
+
+    assert isinstance(enroller, NullPhotoCapture)
+    assert await enroller.enrol(test=_test(), variants=_FakeVariants()) is None

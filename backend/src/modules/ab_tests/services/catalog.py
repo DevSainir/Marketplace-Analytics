@@ -40,7 +40,7 @@ from src.modules.ab_tests.schemas import (
     AbTestSettingsUpdate,
 )
 from src.modules.ab_tests.services.launch import Launcher
-from src.modules.ab_tests.services.original import OriginalPhotoCapture
+from src.modules.ab_tests.services.original import PhotoEnroller
 from src.modules.ab_tests.services.photos import VariantInstaller, validate_image
 from src.modules.ab_tests.services.results import build_rows, leader_of
 from src.modules.ab_tests.services.storage import MediaStore
@@ -168,7 +168,7 @@ class AbTestCatalogService:
         workspace_id: uuid.UUID,
         payload: AbTestCreate,
         card: WorkspaceCard | None,
-        capture: OriginalPhotoCapture,
+        capture: PhotoEnroller,
     ) -> AbTestRead:
         """Create a draft test carrying the card's current main photo.
 
@@ -378,7 +378,7 @@ class AbTestCatalogService:
         test_id: uuid.UUID,
         status: str,
         installer: VariantInstaller,
-        capture: OriginalPhotoCapture,
+        capture: PhotoEnroller,
     ) -> AbTestRead:
         """Start, pause or cancel a test.
 

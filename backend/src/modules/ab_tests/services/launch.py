@@ -19,7 +19,7 @@ from datetime import datetime
 from src.core.exceptions import ConflictError
 from src.modules.ab_tests.models import AbTest, AbTestStatus
 from src.modules.ab_tests.repos import AbTestRepository, ExposureRepository, VariantRepository
-from src.modules.ab_tests.services.original import OriginalPhotoCapture
+from src.modules.ab_tests.services.original import PhotoEnroller
 from src.modules.ab_tests.services.photos import VariantInstaller
 
 
@@ -53,7 +53,7 @@ class Launcher:
         *,
         test: AbTest,
         installer: VariantInstaller,
-        capture: OriginalPhotoCapture,
+        capture: PhotoEnroller,
         now: datetime,
     ) -> None:
         """Put the first photo up and mark the test running.
