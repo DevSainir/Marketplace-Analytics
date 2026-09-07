@@ -41,12 +41,17 @@ _FROM, _TO = date(2026, 7, 13), date(2026, 7, 15)
 
 
 def _tokens() -> WorkspaceTokenBundle:
-    """A workspace with both scopes, so every source in the harvest runs."""
+    """A workspace with both scopes, so every source in the harvest runs.
+
+    organisation alone, and this test needs a source other than finance in the
+    same transaction to have anything to say about atomicity.
+    """
     return WorkspaceTokenBundle(
         workspace_id=_WORKSPACE,
         name="Демо",
         statistics="stat-token",
         analytics="analytics-token",
+        internal_features=True,
     )
 
 
