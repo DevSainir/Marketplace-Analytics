@@ -3,22 +3,29 @@
 A test used to compare only what the seller uploaded, which answers the wrong
 question. «Фото Б набрало 4 % CTR» is not a reason to change anything unless the
 photo it would replace is in the same table — the one number every seller
-already has, and the only baseline the decision is actually against. So at start
-the card's current main photo is captured from WB and rotated like any other
-variant.
+already has, and the only baseline the decision is actually against. So
+**creating** a test captures the card's current main photo from WB and rotates
+it like any other variant.
+
+Creating, not starting. The seller is choosing photos for a circle, and a
+baseline that only materialises once the test is running is one they never see
+themselves choosing against — and one whose row in the result table arrives as a
+surprise. Enrolling it at creation is what makes «Главное» a thing on the screen
+rather than an implementation detail.
 
 It is not an upload, so three things about it differ:
 
 * **It is captured, not chosen.** WB serves renditions, not the seller's
   original file, so what is stored is a transcoded ``.webp`` off
   ``basket-NN.wbbasket.ru`` — the largest one the card offers.
-* **It goes first**, at position 0. It is already on the card, so its turn costs
-  no upload and no moderation pass; the rotation opens by measuring the status
-  quo and then starts replacing it.
-* **Failing to capture it is not failing to start.** WB being unreachable, or a
-  card with no images at all, leaves the test to run over the uploads alone —
-  the old behaviour. Refusing to start would trade a complete answer for no
-  answer.
+* **It goes first**, at position 0, and it is marked «Главное» in the table
+  rather than numbered. It is already on the card, so its turn costs no upload
+  and no moderation pass; the rotation opens by measuring the status quo and
+  then starts replacing it.
+* **Failing to capture it fails nothing.** WB being unreachable, or a card with
+  no images at all, leaves a test that runs over the uploads alone — the old
+  behaviour. The start tries again for a test created while WB was down.
+  Refusing to create, or to start, would trade a complete answer for no answer.
 """
 
 from __future__ import annotations
@@ -171,6 +178,35 @@ class OriginalPhotoCapture:
         self._client = content_client
         self._downloader = downloader
         self._store = media_store
+
+    async def enrol(self, *, test: AbTest, variants: _VariantSink) -> AbTestVariant | None:
+        """Put the card's photo in the rotation if it is not already there.
+
+        Idempotent, and that matters twice. Creating a test enrols it, so the
+        seller sees it in the list before uploading anything; starting one
+        enrols it again for the test whose creation happened while WB was out of
+        reach. Neither may produce a second copy at a position that is taken.
+
+        The loaded ``variants`` collection is kept in step with the INSERT,
+        because the caller has to report ``variant_count`` in the same request.
+
+        Args:
+            test: The test, with its variants loaded.
+            variants: Repository the new row is written through.
+
+        Returns:
+            The card's photo as a variant — the one already enrolled, the one
+            just captured, or ``None`` when there was nothing to capture.
+        """
+        existing = next((variant for variant in test.variants if variant.is_original), None)
+        if existing is not None:
+            return existing
+
+        captured = await self.capture(test=test, variants=variants)
+        if captured is not None:
+            # Front of the list, because that is where position 0 sorts.
+            test.variants.insert(0, captured)
+        return captured
 
     async def capture(self, *, test: AbTest, variants: _VariantSink) -> AbTestVariant | None:
         """Enrol the card's current main photo, or return ``None``.

@@ -183,9 +183,10 @@ class AbTestVariant(Base):
 
     Two kinds of row, distinguished by ``is_original``: the photos the user
     uploaded, and the one that was already on the card. The second is captured
-    from WB at start and joins the rotation ahead of the uploads, so every test
-    measures its candidates against the image they would be replacing rather
-    than only against each other.
+    from WB when the test is created and joins the rotation ahead of the
+    uploads, so every test measures its candidates against the image they would
+    be replacing rather than only against each other — and so the seller can see
+    that baseline in the list while they are still choosing what to compare.
 
     The image bytes live on disk (see :mod:`.services.photos`) rather than in
     the row: they are pushed to WB as multipart, and streaming them back to the
@@ -199,10 +200,10 @@ class AbTestVariant(Base):
             reserved for the card's own photo** — see ``is_original`` — so that
             enrolling it needs no renumbering of rows a running test is already
             attributing traffic to.
-        is_original: True for the photo that was already the card's main image
-            when the test started. It is captured from WB rather than uploaded,
-            it always sorts first, and it is the one variant the rotation does
-            not have to install: it is what the card is showing.
+        is_original: True for the photo that was the card's main image when the
+            test was created. It is captured from WB rather than uploaded, it
+            always sorts first, and it is the one variant the rotation does not
+            have to install: it is what the card is showing.
         image_path: Path of the stored original, relative to the media root.
         image_sha256: Digest of the stored bytes — identifies a re-upload of the
             same picture and proves what was actually sent to WB.

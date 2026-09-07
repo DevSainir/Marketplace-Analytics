@@ -81,18 +81,26 @@ async def create_test(
     payload: AbTestCreate,
     service: AbTestCatalogServiceDep,
     catalogue: SkuCatalogueDep,
+    capture: OriginalCaptureDep,
     workspace_id: CurrentWorkspaceId,
 ) -> AbTestRead:
-    """Create a draft test; photos are uploaded separately.
+    """Create a draft test already carrying the card's main photo.
 
     The article is resolved against the workspace's catalogue before anything is
     written, and the seller article is read off that card rather than taken from
     the body — the two could otherwise disagree.
+
+    The card's current main photo is copied into the test here, so the seller
+    opens a brand-new test and sees the thing their uploads will be compared
+    against already in the rotation. That needs the workspace's Content token,
+    which is why creating a test now asks for one — a test cannot run without it
+    anyway, and finding that out at «Создать» beats finding it out at «Запустить».
     """
     return await service.create_test(
         workspace_id=workspace_id,
         payload=payload,
         card=await catalogue.resolve(workspace_id=workspace_id, nm_id=payload.nm_id),
+        capture=capture,
     )
 
 

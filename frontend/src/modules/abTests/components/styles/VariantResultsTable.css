@@ -86,3 +86,22 @@
   gap: 6px;
   min-width: 0;
 }
+
+/* The card's own photo, marked rather than merely named.
+ *
+ * It sits in the same list, at the same size, with the same columns — the
+ * comparison only reads if the baseline is one of the candidates. The pill is
+ * the whole difference, and it is the action colour because it is the row the
+ * eye should find first when the table is opened. */
+.ab-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--ui-action-soft);
+  border: 1px solid var(--ui-action-line);
+  color: var(--ui-action);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+}

@@ -86,14 +86,24 @@ class _FakeInstaller:
 
 
 class _FakeCapture:
-    """Returns a prepared original, or nothing."""
+    """Enrols a prepared original, or nothing.
+
+    Mirrors the real service's idempotence, because that is exactly what the
+    launcher leans on: by the time a test is started its photo is normally
+    already enrolled, having been captured when the test was created.
+    """
 
     def __init__(self, original: AbTestVariant | None) -> None:
         self._original = original
         self.calls = 0
 
-    async def capture(self, *, test: AbTest, variants: object) -> AbTestVariant | None:
+    async def enrol(self, *, test: AbTest, variants: object) -> AbTestVariant | None:
+        existing = next((variant for variant in test.variants if variant.is_original), None)
+        if existing is not None:
+            return existing
         self.calls += 1
+        if self._original is not None:
+            test.variants.insert(0, self._original)
         return self._original
 
 

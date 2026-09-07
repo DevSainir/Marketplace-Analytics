@@ -259,6 +259,9 @@ async def test_a_workspace_at_its_test_bound_cannot_create_another(
             # article they name. `nm_id=1` used to be accepted here and in
             # production, which is why the article is now resolved first.
             card=_CARD,
+            # Never reached: the bound is checked before anything is written, so
+            # a workspace at its limit costs neither a WB read nor an S3 write.
+            capture=None,  # type: ignore[arg-type]
         )
 
     assert "лимит А/Б-тестов" in excinfo.value.message

@@ -71,11 +71,14 @@ function cell(variant, metric) {
  * What the photo is called in its row.
  *
  * The card's own photo is at position 0 and was never uploaded, so «Вариант 0»
- * would be both wrong and confusing — it is the baseline the rest are read
- * against, and saying so is the whole reason it is in the table.
+ * would be both wrong and confusing. It reads «Главное» — the same word the
+ * seller cabinet uses for the slot it occupies — and it is otherwise an
+ * ordinary row: same size photo, same columns, same place in the circle. That
+ * is the point. A baseline shown apart from the candidates is a baseline the
+ * reader has to be told to compare against.
  */
 function title(variant) {
-  return variant.is_original ? 'Текущее фото' : `Вариант ${variant.position}`
+  return variant.is_original ? 'Главное' : `Вариант ${variant.position}`
 }
 
 /** What the photo's caption says about its place in the rotation. */
@@ -83,7 +86,7 @@ function standing(variant, test) {
   if (variant.is_active) return { text: 'Сейчас на карточке', class: 'text-status-positive' }
   if (variant.variant_id === test.leader_variant_id)
     return { text: 'Лидер по CTR', class: 'font-semibold text-action' }
-  if (variant.is_original) return { text: 'Было до теста', class: 'text-muted' }
+  if (variant.is_original) return { text: 'Фото до теста', class: 'text-muted' }
   return null
 }
 </script>
@@ -123,8 +126,11 @@ function standing(variant, test) {
                 />
                 <div v-else class="ab-photo ab-photo--empty"></div>
                 <div class="min-w-0">
-                  <div class="text-tiny font-semibold text-primary">
-                    {{ title(variant) }}
+                  <div>
+                    <span v-if="variant.is_original" class="ab-badge">Главное</span>
+                    <span v-else class="text-tiny font-semibold text-primary">
+                      {{ title(variant) }}
+                    </span>
                   </div>
                   <div
                     v-if="standing(variant, test)"
@@ -180,8 +186,9 @@ function standing(variant, test) {
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex items-baseline justify-between gap-sm">
-            <span class="text-tiny font-semibold text-primary">
-              {{ title(variant) }}
+            <span>
+              <span v-if="variant.is_original" class="ab-badge">Главное</span>
+              <span v-else class="text-tiny font-semibold text-primary">{{ title(variant) }}</span>
             </span>
             <button
               v-if="!variant.is_active && !variant.is_original"

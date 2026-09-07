@@ -124,15 +124,16 @@ class _StubInstaller:
 class _StubCapture:
     """Stands in for the read of the card's own main photo.
 
-    Captures nothing: at this tier the question is whether the route reaches the
-    service with a capture in hand, not what WB's CDN served. What it captures
-    is the launcher's contract, proved in tests/unit/ab_tests/test_launch.py.
+    Enrols nothing: at this tier the question is whether the create and status
+    routes reach the service with a capture in hand, not what WB's CDN served.
+    What it actually captures is proved in tests/unit/ab_tests/test_original.py
+    and tests/integration/ab_tests/test_ab_test_creation_row.py.
     """
 
     def __init__(self) -> None:
         self.asked: list[int] = []
 
-    async def capture(self, *, test: Any, variants: Any) -> None:
+    async def enrol(self, *, test: Any, variants: Any) -> None:
         self.asked.append(test.nm_id)
 
 

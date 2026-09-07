@@ -17,7 +17,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from src.core.exceptions import ConflictError
-from src.modules.ab_tests.models import AbTest, AbTestStatus, AbTestVariant
+from src.modules.ab_tests.models import AbTest, AbTestStatus
 from src.modules.ab_tests.repos import AbTestRepository, ExposureRepository, VariantRepository
 from src.modules.ab_tests.services.original import OriginalPhotoCapture
 from src.modules.ab_tests.services.photos import VariantInstaller
@@ -69,6 +69,11 @@ class Launcher:
         reach — the rotation opens on the first upload, which is what it did
         before the capture existed.
 
+        The photo is normally already enrolled — creating the test does it, so
+        the seller can see it in the list before uploading anything. Enrolling
+        again here is the retry for the test whose creation ran while WB was out
+        of reach; :meth:`OriginalPhotoCapture.enrol` is idempotent.
+
         A paused test resumes on whatever photo is already installed rather than
         restarting the rotation, and never re-captures: by then the card is
         showing a variant, not its original.
@@ -94,7 +99,7 @@ class Launcher:
             raise ConflictError("Загрузите хотя бы одно фото, прежде чем запускать тест.")
 
         if test.active_variant_id is None:
-            original = await self._enrol_original(test=test, capture=capture)
+            original = await capture.enrol(test=test, variants=self._variants)
             first = original or test.variants[0]
             if original is None:
                 await installer.install(nm_id=test.nm_id, variant=first)
@@ -106,37 +111,6 @@ class Launcher:
             status=AbTestStatus.RUNNING,
             started_at=test.started_at or now,
         )
-
-    async def _enrol_original(
-        self, *, test: AbTest, capture: OriginalPhotoCapture
-    ) -> AbTestVariant | None:
-        """Add the card's current main photo to the rotation, once.
-
-        Guarded on the flag rather than on the status: a start that captured the
-        photo and then died on the WB install leaves a DRAFT test that already
-        carries its original, and a second attempt must not file a second copy
-        of the same picture at a position that is taken.
-
-        Args:
-            test: The test being started.
-            capture: The capture service.
-
-        Returns:
-            The card's photo as a variant, or ``None`` when there was nothing to
-            capture and the rotation opens on an upload instead.
-        """
-        existing = next((variant for variant in test.variants if variant.is_original), None)
-        if existing is not None:
-            return existing
-
-        captured = await capture.capture(test=test, variants=self._variants)
-        if captured is not None:
-            # The relationship was loaded before the INSERT, so the freshly
-            # written row is invisible to it — and this request still has to
-            # report ``variant_count``. Front of the list, because that is where
-            # position 0 sorts.
-            test.variants.insert(0, captured)
-        return captured
 
 
 __all__ = ["Launcher"]

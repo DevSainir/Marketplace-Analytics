@@ -163,9 +163,27 @@ class AbTestCatalogService:
     # ---------------------------------------------------------------- writes
 
     async def create_test(
-        self, *, workspace_id: uuid.UUID, payload: AbTestCreate, card: WorkspaceCard | None
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        payload: AbTestCreate,
+        card: WorkspaceCard | None,
+        capture: OriginalPhotoCapture,
     ) -> AbTestRead:
-        """Create a draft test.
+        """Create a draft test carrying the card's current main photo.
+
+        The photo is enrolled **here**, not at start, and that is a product
+        decision rather than a convenience. The rotation is a circle the seller
+        is choosing photos for: if the image already on the card only appeared
+        once the test was running, there would be no moment at which they could
+        see what they are comparing against, and no way to read the result table
+        as anything but the uploads against each other.
+
+        It is a WB read and an S3 write inside «Создать», which is why it cannot
+        be allowed to fail the creation — see
+        :meth:`OriginalPhotoCapture.capture`. A creation that ran while WB was
+        unreachable produces a test with no original, and starting it tries
+        again.
 
         Args:
             workspace_id: Owning workspace.
@@ -174,9 +192,10 @@ class AbTestCatalogService:
                 when the workspace owns no such article. Resolved by the router,
                 which is where this repository's cross-module loaders are called
                 from, so the service keeps no session of its own.
+            capture: Copies the card's live main photo into the new test.
 
         Returns:
-            The created test as a list row.
+            The created test as a list row, counting the captured photo.
 
         Raises:
             ValidationError: If the article is not in the workspace's catalogue,
@@ -209,6 +228,7 @@ class AbTestCatalogService:
             impression_budget=payload.impression_budget or DEFAULT_IMPRESSION_BUDGET,
             slot_minutes=payload.slot_minutes or DEFAULT_SLOT_MINUTES,
         )
+        await capture.enrol(test=test, variants=self._variants)
         return self._as_row(test)
 
     async def add_variant(

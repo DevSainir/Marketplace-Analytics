@@ -29,12 +29,44 @@ from src.modules.ab_tests.repos import (
 )
 from src.modules.ab_tests.schemas import AbTestCreate
 from src.modules.ab_tests.services.catalog import AbTestCatalogService
+from src.modules.ab_tests.services.original import OriginalPhotoCapture
 from src.modules.ab_tests.services.storage import LocalMediaStore
 from src.modules.monitoring.contract import WorkspaceCard
 from src.modules.organizations.models import Organization
 from src.modules.workspaces.models import Workspace
 
 NM_FLOWER_DRESS = 995716075
+
+#: The shape WB serves, verified live 2026-09-07.
+MAIN_PHOTO = "https://basket-44.wbbasket.ru/vol9957/part995716/995716075/images/hq/1.webp"
+WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"0" * 512
+
+
+class _FakeCardPhotos:
+    """WB's card read, or its absence."""
+
+    def __init__(self, photos: list[str]) -> None:
+        self._photos = photos
+
+    async def fetch_card_photos(self, *, nm_id: int) -> list[str]:
+        return self._photos
+
+
+class _FakeDownloader:
+    """WB's image CDN."""
+
+    async def download(self, url: str) -> tuple[bytes, str]:
+        return WEBP, "image/webp"
+
+
+def _capture(tmp_path: Path, *, photos: list[str] | None = None) -> OriginalPhotoCapture:
+    """The real capture over a fake WB and a real local store."""
+    return OriginalPhotoCapture(
+        content_client=_FakeCardPhotos(photos if photos is not None else [MAIN_PHOTO]),
+        downloader=_FakeDownloader(),
+        media_store=LocalMediaStore(tmp_path),
+    )
+
 
 #: The catalogue card the article resolves to. Creating a test needs one.
 _CARD = WorkspaceCard(
@@ -71,6 +103,9 @@ async def test_creating_a_test_returns_a_row_with_no_variants(
         workspace_id=workspace.id,
         payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Тест главного фото"),
         card=_CARD,
+        # A card WB holds no images for: this case is about the projection over
+        # an unloaded collection, and an empty rotation is the harder shape.
+        capture=_capture(tmp_path, photos=[]),
     )
 
     assert row.variant_count == 0
@@ -97,6 +132,7 @@ async def test_the_new_test_is_listed_immediately_after_creation(
         workspace_id=workspace.id,
         payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Тест главного фото"),
         card=_CARD,
+        capture=_capture(tmp_path),
     )
     listed = await service.list_tests(workspace_id=workspace.id, query=None)
 
@@ -126,6 +162,59 @@ async def test_an_article_outside_the_catalogue_cannot_start_a_test(
             workspace_id=workspace.id,
             payload=AbTestCreate(nm_id=1, name="Тест"),
             card=None,
+            capture=_capture(tmp_path),
         )
 
     assert await service.list_tests(workspace_id=workspace.id, query=None) == []
+
+
+@pytest.mark.integration
+async def test_a_new_test_already_carries_the_cards_main_photo(
+    db_session: AsyncSession, organization: Organization, tmp_path: Path
+) -> None:
+    """The seller opens a brand-new test and the baseline is already in it.
+
+    Enrolled at creation rather than at start on purpose: the rotation is a
+    circle the seller is picking photos for, and a baseline that only appears
+    once the test is running is one they can never see themselves choosing
+    against — nor read the result table against.
+    """
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Демо")
+    db_session.add(workspace)
+    await db_session.flush()
+    service = _service(db_session, tmp_path)
+
+    created = await service.create_test(
+        workspace_id=workspace.id,
+        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Тест главного фото"),
+        card=_CARD,
+        capture=_capture(tmp_path),
+    )
+
+    assert created.variant_count == 1
+    detail = await service.get_detail(workspace_id=workspace.id, test_id=created.id)
+    assert [row.is_original for row in detail.variants] == [True]
+    assert detail.variants[0].position == 0
+    # It is a row like any other, so the SPA renders it in the same list.
+    assert detail.variants[0].image_url.endswith("/image")
+    assert detail.variants[0].views == 0
+
+
+@pytest.mark.integration
+async def test_a_card_wb_has_no_photo_for_still_creates_the_test(
+    db_session: AsyncSession, organization: Organization, tmp_path: Path
+) -> None:
+    """The capture is a WB read inside «Создать», and it may not fail one."""
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Демо")
+    db_session.add(workspace)
+    await db_session.flush()
+
+    created = await _service(db_session, tmp_path).create_test(
+        workspace_id=workspace.id,
+        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Тест главного фото"),
+        card=_CARD,
+        capture=_capture(tmp_path, photos=[]),
+    )
+
+    assert created.variant_count == 0
+    assert created.status == "draft"
