@@ -13,6 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import ConflictError, NotFoundError, ValidationError
 from src.core.security import decrypt_secret, encrypt_secret
+from src.modules.organizations.contract import (
+    is_internal_organization,
+    load_primary_organization_id,
+)
 from src.modules.workspaces.models import CATEGORY_KINDS, TokenKind, Workspace
 from src.modules.workspaces.repos import WorkspaceRepository, WorkspaceTokenRepository
 from src.modules.workspaces.schemas import (
@@ -26,7 +30,9 @@ from src.modules.workspaces.schemas import (
 _CATEGORY_SLUGS: frozenset[str] = frozenset(kind.value for kind in CATEGORY_KINDS)
 
 
-def _resolve_bundle(workspace: Workspace, tokens: dict[str, str]) -> WorkspaceTokenBundle:
+def _resolve_bundle(
+    workspace: Workspace, tokens: dict[str, str], *, internal_features: bool = False
+) -> WorkspaceTokenBundle:
     """Resolve stored token kinds into the per-surface tokens the harvest needs.
 
     A primary workspace stores a token per category, so each surface uses its
@@ -40,6 +46,9 @@ def _resolve_bundle(workspace: Workspace, tokens: dict[str, str]) -> WorkspaceTo
             keeps the mapping's intent explicit and future-proofs per-mode
             resolution).
         tokens: Decrypted ``{kind slug: token}`` for that workspace.
+        internal_features: Whether the owning organisation is the primary one.
+            Resolved by the caller, which has the session this pure function
+            deliberately does not.
 
     Returns:
         A bundle whose fields are the resolved tokens (empty string = none).
@@ -56,6 +65,7 @@ def _resolve_bundle(workspace: Workspace, tokens: dict[str, str]) -> WorkspaceTo
     return WorkspaceTokenBundle(
         workspace_id=workspace.id,
         name=workspace.name,
+        internal_features=internal_features,
         # NOT `pick(CONTENT, ANALYTICS)`. That fallback rested on the belief
         # that WB's analytics scope also serves the Content API; measured on
         # 2026-09-05 it does not, and WB says so in as many words —
@@ -273,7 +283,11 @@ async def load_workspace_token_bundle(
         return None
     rows = await WorkspaceTokenRepository(session).list_for_workspace(workspace_id)
     tokens = {row.kind: decrypt_secret(row.token_encrypted) for row in rows}
-    return _resolve_bundle(workspace, tokens)
+    return _resolve_bundle(
+        workspace,
+        tokens,
+        internal_features=await is_internal_organization(session, workspace.organization_id),
+    )
 
 
 async def load_workspace_name(session: AsyncSession, workspace_id: uuid.UUID) -> str:
@@ -319,4 +333,15 @@ async def load_workspace_token_bundles(session: AsyncSession) -> list[WorkspaceT
         by_workspace.setdefault(row.workspace_id, {})[row.kind] = decrypt_secret(
             row.token_encrypted
         )
-    return [_resolve_bundle(ws, by_workspace.get(ws.id, {})) for ws in workspaces]
+    # One question for the whole fan-out rather than one per workspace: at most
+    # one organisation carries the flag, so the answer is a single id compared
+    # in memory.
+    primary_id = await load_primary_organization_id(session)
+    return [
+        _resolve_bundle(
+            ws,
+            by_workspace.get(ws.id, {}),
+            internal_features=primary_id is not None and ws.organization_id == primary_id,
+        )
+        for ws in workspaces
+    ]

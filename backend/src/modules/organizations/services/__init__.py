@@ -17,6 +17,8 @@ from src.modules.organizations.services.access import (
     ModuleKey,
     OrganizationAccess,
     SubscriptionState,
+    is_internal_organization,
+    load_primary_organization_id,
     resolve_access,
     subscription_state,
 )
@@ -31,6 +33,8 @@ __all__ = [
     "ModuleKey",
     "OrganizationAccess",
     "SubscriptionState",
+    "is_internal_organization",
+    "load_primary_organization_id",
     "load_workspace_quota",
     "resolve_access",
     "subscription_state",

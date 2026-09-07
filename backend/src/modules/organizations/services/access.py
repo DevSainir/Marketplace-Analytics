@@ -290,6 +290,47 @@ async def resolve_access(
     )
 
 
+async def load_primary_organization_id(session: AsyncSession) -> uuid.UUID | None:
+    """Return the id of OUR organisation, or ``None`` when there is not one.
+
+    A lookup rather than a search: a partial unique index allows at most one
+    row to carry the flag. Exposed for the fan-out callers that would otherwise
+    ask :func:`is_internal_organization` once per row and re-read the same
+    single organisation each time.
+
+    Args:
+        session: An open async session (caller owns the transaction).
+
+    Returns:
+        The primary organisation's id, or ``None`` on a database that has none.
+    """
+    primary = await OrganizationRepository(session).get_primary()
+    return primary.id if primary is not None else None
+
+
+async def is_internal_organization(session: AsyncSession, organization_id: uuid.UUID) -> bool:
+    """Whether an organisation is OURS — the task-side internal-feature gate.
+
+    :attr:`OrganizationAccess.sees_internal_features` answers this for a
+    request, from a resolved caller. A Celery harvest has no caller and no
+    request, so it asks here instead: the same question, decided by the same
+    ``is_primary`` flag, so a surface cannot be reachable to one and not the
+    other.
+
+    Args:
+        session: An open async session (caller owns the transaction).
+        organization_id: The tenant being asked about.
+
+    Returns:
+        ``True`` only for the single primary organisation. A missing primary
+        row — a fresh database, a restore that has not run the seed — answers
+        ``False``, which withholds an internal-only source rather than
+        harvesting it for everyone.
+    """
+    primary_id = await load_primary_organization_id(session)
+    return primary_id is not None and primary_id == organization_id
+
+
 #: Roles permitted to act inside an organisation's workspaces at all.
 WRITING_ROLES: frozenset[EffectiveRole] = frozenset(
     {EffectiveRole.DEV, EffectiveRole.OWNER, EffectiveRole.MANAGER}
@@ -303,6 +344,8 @@ __all__ = [
     "ModuleKey",
     "OrganizationAccess",
     "SubscriptionState",
+    "is_internal_organization",
+    "load_primary_organization_id",
     "resolve_access",
     "subscription_state",
 ]
