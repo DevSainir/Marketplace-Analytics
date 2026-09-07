@@ -16,7 +16,7 @@ PostgreSQL has savepoints, not that the harvest uses one.
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncGenerator, Iterator
+from collections.abc import Iterator
 from datetime import date
 from types import TracebackType
 from typing import Any, Self
@@ -120,14 +120,20 @@ class _FakeFinanceClient:
     #: Set by the test: True makes the second page raise, as a WB timeout does.
     fail_mid_walk = False
 
-    async def iter_report_pages(
-        self, *, date_from: date, date_to: date
-    ) -> AsyncGenerator[list[WBReportDetailRow], None]:
-        """Yield one page, then either a second page or WB giving up."""
-        yield [_settlement(1), _settlement(2)]
+    @property
+    def page_limit(self) -> int:
+        """Small, so this test's three rows still make a multi-page walk."""
+        return 2
+
+    async def fetch_report_page(
+        self, *, date_from: date, date_to: date, cursor: int = 0
+    ) -> list[WBReportDetailRow]:
+        """Serve a full page, then either the last page or WB giving up."""
+        if cursor == 0:
+            return [_settlement(1), _settlement(2)]
         if self.fail_mid_walk:
             raise IntegrationError("reportDetailByPeriod timed out on page 2.")
-        yield [_settlement(3)]
+        return [_settlement(3)]
 
 
 class _FakeStorageClient:
@@ -262,6 +268,7 @@ async def test_a_completed_harvest_commits_every_page(
     counts = await harvest_workspace(tokens=_tokens(), date_from=_FROM, date_to=_TO, on_date=_TO)
 
     assert counts["finance"] == 3
+    assert counts["finance_windows_failed"] == 0
     assert await _settled_rows(db_session) == 3
     assert await _storage_rows(db_session) == 1
 
@@ -269,19 +276,22 @@ async def test_a_completed_harvest_commits_every_page(
 async def test_a_walk_that_dies_mid_page_leaves_no_settlement_rows(
     wb: type[_FakeFinanceClient], db_session: AsyncSession
 ) -> None:
-    """The page written before the failure is rolled back; the harvest is not.
+    """The page that failed leaves nothing behind; the pages before it stand.
 
-    Without the savepoint this commits two of the week's three rows and
-    reports success — a settlement week that is 33 % short and reads as real.
-    The savepoint is per WEEK now rather than per harvest, which narrows what
-    a failure discards but not what it must never leave behind.
+    Atomicity is per PAGE now, not per window: WB serves this endpoint once
+    per quarter of an hour, and no transaction may be held open across that
+    wait. So the first page's two rows are committed and kept, the failed page
+    contributes nothing, and the week is reported incomplete — which is what
+    `finance_windows_failed` is for. What must never happen is a page torn in
+    half, and the savepoint is still what prevents it.
     """
     wb.fail_mid_walk = True
 
     counts = await harvest_workspace(tokens=_tokens(), date_from=_FROM, date_to=_TO, on_date=_TO)
 
-    assert counts["finance"] == 0
-    assert await _settled_rows(db_session) == 0
+    assert counts["finance"] == 2
+    assert counts["finance_windows_failed"] == 1
+    assert await _settled_rows(db_session) == 2
     # The rest of the harvest still committed — a failed WB source has never
     # been a reason to throw away the sources that worked.
     assert await _storage_rows(db_session) == 1

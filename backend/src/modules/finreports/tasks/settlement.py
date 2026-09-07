@@ -16,21 +16,29 @@ inside the transaction until PostgreSQL closed the connection under it.
 So the window is now split at the grain WB itself publishes on: **one week per
 request**, each week its own transaction.
 
-* **A week is one request, not one page.** WB forms one realization report a
-  week; a week of settlement rows fits inside a page for any seller we have
-  seen, so the paging loop stays as the safety net rather than the mechanism.
-* **The wait happens between weeks, with no transaction open.** The token is
-  taken before the session exists (:func:`_take_token`), so a fifteen-minute
-  wait costs wall-clock and nothing else. Inside the transaction the walk holds
-  a gate it has already paid, precisely so it cannot wait there.
-* **Each week commits on its own.** A backfill that dies in its third week
-  keeps the first two, and the next tick resumes from what is now the last
-  settled day. All-or-nothing still holds where it matters — within a week,
-  under a SAVEPOINT — but it no longer spans a month of somebody's money.
+* **A week per window, and one REQUEST per page of it.** WB forms one
+  realization report a week, so a week is the natural window — but a week is
+  not automatically one page: the first seller measured (2026-09-07) has weeks
+  past the 10 000-row page limit, and a second page is a second quarter-hour.
+  So the walk paces itself per page, not per week.
+* **The wait happens with no transaction open.** The token for each page is
+  taken before the session exists, so a fifteen-minute wait costs wall-clock
+  and nothing else. Inside the transaction the walk holds a gate it has already
+  paid, precisely so it cannot wait there.
+* **Each page commits on its own.** All-or-nothing cannot span a wait longer
+  than PostgreSQL will hold a transaction, so it is the page that is atomic
+  now, not the week. That is safe because every row is upserted by `rrd_id`
+  and the report header is written with the page it came in on: a week left
+  half-loaded is completed by the next tick, whose span starts at the last
+  settled day. What must never happen — a page torn in half — still cannot,
+  under the SAVEPOINT each one runs in.
+* **An incomplete week is reported, not inferred.** A window whose walk stops
+  early is counted, and the harvest turns that count into a failed source.
 """
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from datetime import date, timedelta
 
 from src.core.config import settings
@@ -39,7 +47,8 @@ from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.integrations.wildberries.clients import WBFinanceClient
 from src.integrations.wildberries.endpoints import SETTLEMENT_REPORT_PATH
-from src.integrations.wildberries.rate_limit import settlement_walk_rate_gate
+from src.integrations.wildberries.rate_limit import RateGate, settlement_walk_rate_gate
+from src.integrations.wildberries.schemas import WBReportDetailRow
 from src.modules.finreports.services import IngestionService
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
@@ -113,35 +122,20 @@ async def walk_settlement_windows(
     rows = 0
     failed = 0
     for window_from, window_to in windows:
-        try:
-            # Before the session exists. This is the whole point: the wait for
-            # WB's next token is minutes long, and a transaction may not be
-            # open across it.
-            await gate.acquire(SETTLEMENT_REPORT_PATH)
-        except IntegrationError as exc:
-            failed += 1
-            logger.warning(
-                "finreports: settlement %s..%s for %s never got a rate token: %s",
-                window_from,
-                window_to,
-                tokens.name,
-                exc,
-            )
-            continue
-        window_rows = await _harvest_window(
+        window_rows, complete = await _harvest_window(
             tokens=tokens,
             window_from=window_from,
             window_to=window_to,
+            gate=gate,
             build_ingestion=build_ingestion,
         )
-        if window_rows is None:
-            failed += 1
-            continue
         rows += window_rows
+        if not complete:
+            failed += 1
     if failed:
         logger.error(
-            "finreports: settlement incomplete for %s — %d of %d weeks failed (%s..%s); "
-            "the P&L is missing those days until a later tick asks again.",
+            "finreports: settlement incomplete for %s — %d of %d weeks stopped early "
+            "(%s..%s); the P&L is short those days until a later tick asks again.",
             tokens.name,
             failed,
             len(windows),
@@ -156,18 +150,87 @@ async def _harvest_window(
     tokens: WorkspaceTokenBundle,
     window_from: date,
     window_to: date,
+    gate: RateGate,
     build_ingestion: object,
-) -> int | None:
-    """Fetch and commit one week, or return ``None`` when WB withheld it.
+) -> tuple[int, bool]:
+    """Harvest one week, a page per request, and say whether it finished.
 
-    The pages are streamed into the transaction rather than collected first: a
-    settlement row costs ~9.7 KB while it is being validated, and holding a
-    whole window is what OOM-killed the 2026-08-11 harvest. A SAVEPOINT keeps
-    the week all-or-nothing even so.
+    Args:
+        tokens: The workspace's decrypted WB credentials.
+        window_from: Inclusive first settlement day of this week.
+        window_to: Inclusive last settlement day of this week.
+        gate: The walk's rate gate. A token is taken per PAGE, and always
+            before the page's session is opened.
+        build_ingestion: Factory taking a session and returning an
+            :class:`IngestionService`.
 
-    The client is handed a gate whose token this window has already taken —
-    a second acquire here would wait out another full refill, inside the very
+    Returns:
+        ``(rows, complete)``. ``complete`` is False when WB withheld a page or
+        the walk ran out of rate budget part-way — the rows already committed
+        stay committed, and the week's remainder falls to a later tick.
+    """
+    rows = 0
+    cursor = 0
+    while True:
+        try:
+            # Outside the session, and this is the whole point: the wait for
+            # WB's next token is minutes long, and PostgreSQL closes a
+            # transaction left idle for 300 s.
+            await gate.acquire(SETTLEMENT_REPORT_PATH)
+        except IntegrationError as exc:
+            logger.warning(
+                "finreports: settlement %s..%s for %s stopped — no rate token: %s",
+                window_from,
+                window_to,
+                tokens.name,
+                exc,
+            )
+            return rows, False
+        page = await _ingest_one_page(
+            tokens=tokens,
+            window_from=window_from,
+            window_to=window_to,
+            cursor=cursor,
+            build_ingestion=build_ingestion,
+        )
+        if page is None:
+            return rows, False
+        page_rows, next_cursor = page
+        rows += page_rows
+        if next_cursor is None:
+            logger.info(
+                "finreports: settlement %s..%s ingested %d rows for %s.",
+                window_from,
+                window_to,
+                rows,
+                tokens.name,
+            )
+            return rows, True
+        cursor = next_cursor
+
+
+async def _ingest_one_page(
+    *,
+    tokens: WorkspaceTokenBundle,
+    window_from: date,
+    window_to: date,
+    cursor: int,
+    build_ingestion: object,
+) -> tuple[int, int | None] | None:
+    """Fetch one page, commit it, and report where the walk stands.
+
+    The page is streamed into the transaction rather than collected first: a
+    settlement row costs ~9.7 KB while it is being validated, and holding more
+    than a page is what OOM-killed the 2026-08-11 harvest. The SAVEPOINT keeps
+    the page all-or-nothing.
+
+    The client is handed a gate whose token this page has already taken — a
+    second acquire here would wait out another full refill, inside the very
     transaction the outer wait exists to protect.
+
+    Returns:
+        ``(rows, next_cursor)`` with ``next_cursor`` ``None`` when this was the
+        window's last page, or ``None`` when WB withheld the page.
     """
     async with AsyncSessionLocal() as session:
         ingestion: IngestionService = build_ingestion(session)  # type: ignore[operator]
@@ -181,9 +244,12 @@ async def _harvest_window(
                     rate_gate=_SpentToken(),
                 ) as client,
             ):
+                page = await client.fetch_report_page(
+                    date_from=window_from, date_to=window_to, cursor=cursor
+                )
+                page_limit = client.page_limit
                 rows = await ingestion.ingest_finance_report(
-                    client.iter_report_pages(date_from=window_from, date_to=window_to),
-                    workspace_id=tokens.workspace_id,
+                    _one_page(page), workspace_id=tokens.workspace_id
                 )
         except IntegrationError as exc:
             logger.warning(
@@ -195,14 +261,31 @@ async def _harvest_window(
             )
             return None
         await session.commit()
-    logger.info(
-        "finreports: settlement %s..%s ingested %d rows for %s.",
-        window_from,
-        window_to,
-        rows,
-        tokens.name,
-    )
-    return rows
+    # A short page is the last one. A full page whose cursor does not advance
+    # would loop forever asking WB the same question every fifteen minutes, so
+    # it ends the window instead.
+    if len(page) < page_limit:
+        return rows, None
+    next_cursor = page[-1].rrd_id
+    if next_cursor <= cursor:
+        logger.error(
+            "finreports: settlement %s..%s for %s stalled — a full page did not advance "
+            "rrd_id past %d.",
+            window_from,
+            window_to,
+            tokens.name,
+            cursor,
+        )
+        return rows, None
+    return rows, next_cursor
+
+
+async def _one_page(
+    page: list[WBReportDetailRow],
+) -> AsyncGenerator[list[WBReportDetailRow], None]:
+    """Adapt a single page to the paginated shape the ingestion consumes."""
+    if page:
+        yield page
 
 
 class _SpentToken:
