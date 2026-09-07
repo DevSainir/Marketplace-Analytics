@@ -22,6 +22,7 @@ import pytest
 
 import src.modules.ab_tests.deps as ab_deps
 from src.core.ids import uuid7
+from src.integrations.wildberries.schemas import WBCardPhoto
 from src.modules.ab_tests.models import AbTest, AbTestVariant
 from src.modules.ab_tests.services.original import (
     ORIGINAL_FILENAME,
@@ -33,9 +34,10 @@ from src.modules.ab_tests.services.storage import StoredImage
 
 NM_FLOWER_DRESS = 995716075
 
-#: The shape WB actually serves, verified live 2026-09-07.
-MAIN_PHOTO = "https://basket-44.wbbasket.ru/vol19355/part1935545/1935545812/images/hq/1.webp"
-SECOND_PHOTO = "https://basket-44.wbbasket.ru/vol19355/part1935545/1935545812/images/hq/2.webp"
+#: The rendition WB actually serves — `hq` is advertised and 404s. See
+#: `WBCardPhoto`, and the live measurement behind it (2026-09-07).
+MAIN_PHOTO = "https://basket-44.wbbasket.ru/vol19355/part1935545/1935545812/images/big/1.webp"
+SECOND_PHOTO = "https://basket-44.wbbasket.ru/vol19355/part1935545/1935545812/images/big/2.webp"
 
 WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"0" * 2048
 
@@ -263,3 +265,21 @@ async def test_a_workspace_with_no_wb_token_still_gets_an_enroller(
 
     assert isinstance(enroller, NullPhotoCapture)
     assert await enroller.enrol(test=_test(), variants=_FakeVariants()) is None
+
+
+def test_the_main_photo_takes_the_rendition_wb_actually_serves() -> None:
+    """`hq` is in every payload and 404s on the CDN; `big` is the real file.
+
+    Measured across three cards on 2026-09-07. Getting this backwards is not an
+    error anywhere — the capture reads a failed fetch as "no baseline" — so it
+    would have shipped as every test quietly running without one.
+    """
+    photo = WBCardPhoto.model_validate(
+        {
+            "hq": "https://basket-44.wbbasket.ru/x/images/hq/1.webp",
+            "big": "https://basket-44.wbbasket.ru/x/images/big/1.webp",
+            "square": "https://basket-44.wbbasket.ru/x/images/square/1.webp",
+        }
+    )
+
+    assert photo.best.endswith("/big/1.webp")

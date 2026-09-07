@@ -55,14 +55,17 @@ class WBCardPhoto(RawBase):
 
     WB returns a URL per rendition rather than the seller's original upload —
     everything here is a transcoded ``.webp`` on ``basket-NN.wbbasket.ru``,
-    public and unauthenticated. Verified live 2026-09-07 on the ``Демо``
-    workspace: ``hq``, ``big``, ``c516x688``, ``c246x328``, ``square`` and
-    ``tm`` were present on every card, and ``big`` fetched as ``image/webp``.
+    public and unauthenticated.
 
-    ``hq`` is the largest rendition and the one the A/Б module captures, because
-    it is the closest thing to the seller's original that the API exposes; it is
-    optional because WB only produces it above a source resolution we do not
-    control, so ``big`` is the fallback.
+    **``hq`` is advertised and not served.** Measured 2026-09-07 across three
+    cards of the ``Демо`` catalogue: every payload carried an ``hq`` URL and
+    every one answered ``404 text/html``, while ``big``, ``c516x688``,
+    ``c246x328``, ``square`` and ``tm`` all answered ``200 image/webp``. A URL
+    being present therefore says nothing about the file existing, and ``big`` —
+    68-118 KB, the largest that does — is what to take. Preferring ``hq``
+    because it sounds bigger cost a silent capture failure: the A/Б module reads
+    a failed fetch as "this card has no baseline", so every test would have
+    quietly run without one.
     """
 
     hq: str = Field(default="")
@@ -72,8 +75,13 @@ class WBCardPhoto(RawBase):
 
     @property
     def best(self) -> str:
-        """The largest rendition available, or ``""`` when WB sent none."""
-        return self.hq or self.big or self.square or self.tm
+        """The largest rendition WB actually serves, or ``""`` when it sent none.
+
+        ``big`` first, deliberately — see the class docstring for the ``hq``
+        404. The rest are fallbacks for a payload shaped unlike the ones
+        measured, in descending size.
+        """
+        return self.big or self.square or self.tm or self.hq
 
 
 class WBCard(RawBase):

@@ -38,7 +38,7 @@ from src.modules.workspaces.models import Workspace
 NM_FLOWER_DRESS = 995716075
 
 #: The shape WB serves, verified live 2026-09-07.
-MAIN_PHOTO = "https://basket-44.wbbasket.ru/vol9957/part995716/995716075/images/hq/1.webp"
+MAIN_PHOTO = "https://basket-44.wbbasket.ru/vol9957/part995716/995716075/images/big/1.webp"
 WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"0" * 512
 
 
