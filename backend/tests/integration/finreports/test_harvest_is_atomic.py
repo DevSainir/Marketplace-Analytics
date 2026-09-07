@@ -300,12 +300,13 @@ async def test_a_walk_that_dies_mid_page_leaves_no_settlement_rows(
 async def test_the_walk_inside_the_transaction_retries_less_than_the_default(
     wb: type[_FakeFinanceClient], db_session: AsyncSession
 ) -> None:
-    """The client is built with a bounded ladder, because the transaction is open.
+    """Every client is built with a bounded ladder, because a transaction is open.
 
     PostgreSQL kills a session left idle in a transaction for 5 minutes. The
     default ladder sleeps longer than that between attempts on one page, so the
-    server would terminate the harvest's connection mid-window rather than the
-    harvest recording a failed source.
+    server would terminate the harvest's connection mid-page rather than the
+    harvest recording a failed source — which is exactly what happened on
+    2026-09-07, when a 429's demanded 897 s was slept off inside one.
     """
     built: list[_FakeFinanceClient] = []
     original = _FakeFinanceClient.__init__
@@ -320,5 +321,9 @@ async def test_the_walk_inside_the_transaction_retries_less_than_the_default(
     finally:
         _FakeFinanceClient.__init__ = original  # type: ignore[method-assign]
 
-    assert [client.max_retries for client in built] == [settlement_module.MAX_RETRIES]
+    # One client per page, and every one of them bounded — the walk builds a
+    # fresh client for each request now that each request has its own
+    # transaction, so a ladder set on only the first would still park the rest.
+    assert built
+    assert {client.max_retries for client in built} == {settlement_module.MAX_RETRIES}
     assert settlement_module.MAX_RETRIES < 4
