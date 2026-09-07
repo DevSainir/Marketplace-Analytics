@@ -348,8 +348,20 @@ class FakeRedis:
         self.expiries[key] = seconds
         return True
 
-    async def set(self, key: str, value: str, ex: int | None = None) -> bool:
-        """Store a value, recording any TTL (which never elapses in a test)."""
+    async def set(
+        self, key: str, value: str, ex: int | None = None, nx: bool = False
+    ) -> bool | None:
+        """Store a value, recording any TTL (which never elapses in a test).
+
+        ``nx`` models Redis's atomic claim: the write happens only when the key
+        is absent, and an occupied key answers ``None`` rather than ``True``.
+        That distinction is the whole mechanism behind the token-bootstrap
+        debounce (``workspaces/bootstrap.py``), so a fake that ignored the flag
+        would report every caller as the first one and let a test pass while
+        production enqueued a harvest per save.
+        """
+        if nx and key in self.values:
+            return None
         self.values[key] = value
         if ex is not None:
             self.expiries[key] = ex

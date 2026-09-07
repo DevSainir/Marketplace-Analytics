@@ -30,6 +30,7 @@ from src.modules.organizations.contract import (
     load_workspace_quota,
     require_owner,
 )
+from src.modules.workspaces.bootstrap import enqueue_catalogue_bootstrap
 from src.modules.workspaces.deps import PathWorkspaceId, WorkspaceServiceDep
 from src.modules.workspaces.schemas import (
     WorkspaceCreateRequest,
@@ -176,7 +177,18 @@ async def set_tokens(
 
     Partial update: omitted surfaces are untouched; an empty string deletes
     the stored token for that surface. Values are Fernet-encrypted at rest.
+
+    Storing a token a workspace did not have also enqueues a catalogue
+    discovery for it, so a seller who has just connected WB sees their SKUs
+    within minutes instead of after the next nightly harvest. The enqueue is
+    best-effort and debounced per workspace; it can neither fail this request
+    nor be provoked into a second run by re-saving the same token.
     """
+    # Read the configured set BEFORE the write, so the harvest below can be
+    # triggered by a surface becoming available rather than by the form being
+    # saved. Re-pasting a token that was already there changes nothing the
+    # catalogue could not already see, and must not spend the WB rate budget.
+    before = await service.token_status(workspace_id, organization_id=access.tenant_id)
     status_after = await service.set_tokens(workspace_id, payload, organization_id=access.tenant_id)
     # WHICH surfaces were touched, never what they were set to. The values are
     # Fernet-encrypted at rest precisely so they exist in one place; copying one
@@ -188,4 +200,13 @@ async def set_tokens(
         target_id=workspace_id,
         metadata={"kinds": sorted(payload.model_dump(exclude_unset=True))},
     )
+    if set(status_after.configured) - set(before.configured):
+        # A surface this workspace could not reach a moment ago is now reachable
+        # — which for a newly onboarded seller is every surface, over an empty
+        # catalogue. Discovery is what turns that into something to look at, and
+        # before this call the only thing that ran it was the 06:00 MSK nightly
+        # pass. Deliberately not awaited for a result: the seller's request is
+        # "store my token", and it succeeds whether or not the queue accepts the
+        # harvest (see :mod:`~src.modules.workspaces.bootstrap`).
+        await enqueue_catalogue_bootstrap(workspace_id)
     return status_after
