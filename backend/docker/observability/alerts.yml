@@ -131,6 +131,29 @@ groups:
             — tasks succeeding, sources silently voided — and it is invisible
             in any task-level success metric.
 
+      # The settlement walk gets its own rule, ahead of the general one and at
+      # a threshold of ONE. A finance window that stops early is not a degraded
+      # source that will heal on the next tick: WB serves this endpoint once per
+      # ~917 s, so the week is left part-walked, and until 2026-09-08 the
+      # harvest's watermark then advanced past the missing days off the report
+      # header and nothing ever asked for them again. The general rule below
+      # could not see it — three partials spread over three days never reach
+      # `> 3` in an hour, and once the days were skipped the counter went quiet,
+      # which reads exactly like recovery.
+      - alert: SettlementWalkIncomplete
+        expr: increase(harvest_partial_total{harvest="finreports.finance",source="finance"}[1h]) > 0
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: "A settlement week was left part-walked for at least one seller."
+          description: >-
+            The P&L is short those days until a later tick covers them. Check
+            `settled_through` in finreports.settlement_watermark against the
+            report headers: the walk should ask again from the watermark, and a
+            watermark that has run past days with no rows is the 2026-09-07
+            failure returning.
+
       - alert: HarvestPartial
         expr: increase(harvest_partial_total[1h]) > 3
         for: 0m
