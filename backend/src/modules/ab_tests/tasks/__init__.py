@@ -9,17 +9,20 @@ a day.
 **One advertising read per workspace, not per test.** A fullstats answer covers
 every SKU inside the campaigns it was asked about — the per-day rows carry an
 ``nms[]`` breakdown — so one call serves every test in a workspace and each test
-takes its own slice of it. This used to be a call per test, which read the same
-answer over and over and, worse, did not scale: the endpoint's bucket is one
-token per 20 seconds PER SELLER TOKEN, so around the seventh test in a cabinet
-the queue passed the 120-second cap and the rest were simply not polled that
-pass. They did not fail visibly — they just stopped advancing, which on the
-screen looks like a test that has stalled for no reason.
+takes its own slice of it.
 
-So the cost of a pass grows with the number of **workspaces**, and with the
-number of campaigns only in 50-id steps. WB's published budget for the endpoint
-is 3 requests per minute per seller; a pass now spends one or two of them
-whether the cabinet holds one test or two hundred.
+This used to be a call per test, and the cost was wall-clock rather than
+failure. The bucket is one token per 20 seconds PER SELLER TOKEN, and the sweep
+is sequential, so a hundred tests in one cabinet did not error — they took a
+hundred turns of the bucket, about half an hour, for a pass scheduled every
+five minutes. Passes then overlap and every test's window stretches to whenever
+the sweep next reaches it.
+
+What actually bounds a pass is therefore the number of **50-id batches** it
+sends, not the number of tests. The first batch on each token is free — the
+bucket starts full and every cabinet has its own — and each further batch costs
+20 seconds of the pass's five minutes. A cabinet whose campaigns fit in one
+batch costs no waiting at all, however many tests it holds.
 
 **Why a fixed interval rather than one adapted to traffic.** Adapting the
 cadence to impressions would save nothing measurable now that the cost is flat

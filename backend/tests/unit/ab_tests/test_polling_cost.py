@@ -6,9 +6,10 @@ between a cabinet that works and one that silently stops.
 `/adv/v3/fullstats` is paced by a token bucket of ONE token refilling every
 20 seconds, and the bucket is per **seller token**, not per test. So every test
 in a cabinet queues behind every other one. When the reads were made per test,
-the seventh test in a cabinet pushed the queue past its 120-second cap and the
-rest were simply not polled that pass — not an error the seller could see, just
-tests that stopped advancing.
+a hundred tests took a hundred turns of that bucket — about half an hour for a
+pass scheduled every five minutes. Nothing errored; the passes just overlapped
+and every test's measurement window stretched to whenever the sweep next
+reached it.
 
 The fix is that a fullstats answer already carries a per-SKU breakdown of every
 campaign it was asked about, so one call serves the whole cabinet. That makes
