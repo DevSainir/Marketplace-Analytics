@@ -1,0 +1,99 @@
+/*
+ * The narrow-screen rendering of the result grid: one photo, its figures below.
+ *
+ * Imported with `<style scoped src>` like its siblings. Everything here is
+ * about giving the figures the full width of the screen — which is the whole
+ * reason this exists instead of a scrolled table.
+ */
+
+/* 44px, the tap target the phone-layout skill asks for; the desktop 32px arrow
+   is a miss with a thumb. */
+.ab-pager__step {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--ui-r-md);
+  border: 1px solid var(--ui-hairline);
+  background: var(--ui-surface);
+  color: var(--ui-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ab-pager__step:hover {
+  color: var(--ui-action);
+  border-color: var(--ui-action-line);
+}
+
+/* Smaller than the table's 96px: here the photo shares a line with the pager
+   arrows and the label, and the figures below are what the screen is for. */
+.ab-pager__photo {
+  width: 56px;
+  height: 74px;
+  object-fit: cover;
+  border-radius: var(--ui-r-md);
+  box-shadow: var(--ui-sh-sm);
+  display: block;
+}
+
+.ab-pager__photo.is-excluded {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+.ab-pager__photo--empty {
+  background: var(--ui-sunk);
+}
+
+/* Label left, figure right, hairline between — the same two-column reading the
+   record lists use elsewhere in the app. */
+.ab-pager__figure {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--ui-hairline);
+}
+
+.ab-pager__figure:last-child {
+  border-bottom: 0;
+}
+
+.ab-pager__figure:nth-child(even) {
+  background: var(--ui-sunk);
+}
+
+.ab-pager__figure dt {
+  font-size: 12px;
+  color: var(--ui-muted);
+  min-width: 0;
+}
+
+.ab-pager__figure dd {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text);
+  white-space: nowrap;
+}
+
+.ab-pager__hint {
+  font-size: 11px;
+  opacity: 0.65;
+  cursor: help;
+}
+
+/* The «Главное» pill, matching the table's. */
+.ab-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--ui-action-soft);
+  border: 1px solid var(--ui-action-line);
+  color: var(--ui-action);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+}

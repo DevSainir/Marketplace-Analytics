@@ -11,7 +11,9 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import { MAX_VARIANTS, STATUS_LABELS, useAbTestsStore } from '@/modules/abTests'
+import RotationHistory from '@/modules/abTests/components/RotationHistory.vue'
 import RotationProgress from '@/modules/abTests/components/RotationProgress.vue'
+import TestControls from '@/modules/abTests/components/TestControls.vue'
 import TriggerEditor from '@/modules/abTests/components/TriggerEditor.vue'
 import VariantResultsTable from '@/modules/abTests/components/VariantResultsTable.vue'
 
@@ -72,6 +74,20 @@ const triggerLabel = computed(() => {
 const canEditTrigger = computed(
   () => !!test.value && !['completed', 'cancelled'].includes(test.value.status),
 )
+
+/**
+ * Which lap the tables show; 0 is «Все».
+ *
+ * A filter rather than a separate screen because the question it answers —
+ * «was that photo always ahead, or only in one lap» — is asked while looking at
+ * the totals, and having to navigate away to check breaks the comparison.
+ */
+const round = ref(0)
+
+const roundOptions = computed(() => {
+  const total = test.value?.rounds_completed ?? 0
+  return Array.from({ length: total }, (_, index) => total - index)
+})
 
 const editing = ref(false)
 const armedDelete = ref(false)
@@ -163,76 +179,42 @@ async function onFiles(event) {
 
     <RotationProgress v-if="test" :test="test" :image-urls="store.imageUrls" />
 
-    <section v-if="test" class="mb-lg rounded-card bg-surface p-lg shadow-card phone:p-md">
-      <div class="flex flex-wrap items-center gap-md">
-        <span class="text-base font-semibold text-primary">
-          Фото в ротации: {{ test.variants.length }} · загружено {{ store.uploadedCount }} из
-          {{ MAX_VARIANTS }}
-        </span>
-        <!-- The native control renders «Choose Files / No file chosen» in the
-             browser's own language and cannot be restyled past the button; the
-             input is hidden behind a real one instead. It stays in the DOM —
-             `sr-only`, not `v-if` — because that is what the file dialog and
-             the browser tier both drive. -->
-        <label
-          class="inline-flex h-10 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition"
-          :class="
-            !store.canUpload || store.saving
-              ? 'cursor-not-allowed opacity-50'
-              : 'cursor-pointer hover:bg-hover'
-          "
-        >
-          Добавить фото
-          <input
-            ref="fileInput"
-            type="file"
-            accept="image/*"
-            multiple
-            data-testid="upload"
-            :disabled="!store.canUpload || store.saving"
-            class="sr-only"
-            @change="onFiles"
-          />
-        </label>
-        <span class="min-w-0 flex-1"></span>
-        <button
-          v-if="test.status === 'draft' || test.status === 'paused'"
-          type="button"
-          class="inline-flex h-10 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="store.saving || !test.variants.length"
-          data-testid="start"
-          @click="store.changeStatus(test.id, 'running')"
-        >
-          Запустить
-        </button>
-        <button
-          v-if="test.status === 'running'"
-          type="button"
-          class="inline-flex h-10 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover disabled:opacity-50"
-          :disabled="store.saving"
-          data-testid="pause"
-          @click="store.changeStatus(test.id, 'paused')"
-        >
-          Пауза
-        </button>
-      </div>
-      <p class="mt-md text-tiny text-muted">
-        «Главное» — фото, которое стояло на карточке при создании теста. Оно крутится в ротации
-        наравне с загруженными и первым выходит на карточку при запуске: менять его не нужно, оно и
-        так на месте. Дальше вариант меняется, когда сработает выбранный триггер: данные по рекламе
-        снимаются каждые несколько минут, разница между снимками и есть трафик интервала. Смена
-        происходит сразу в том же проходе, поэтому интервал целиком принадлежит одному фото и ничего
-        не выбрасывается.
-      </p>
-    </section>
-
-    <VariantResultsTable
-      v-if="test && test.variants.length"
+    <TestControls
+      v-if="test"
       :test="test"
-      :image-urls="store.imageUrls"
+      :can-upload="store.canUpload"
+      :uploaded-count="store.uploadedCount"
       :saving="store.saving"
-      @remove="store.removePhoto(test.id, $event)"
+      @upload="onFiles"
+      @status="store.changeStatus(test.id, $event)"
     />
+
+    <template v-if="test && test.variants.length">
+      <div class="mb-md flex flex-wrap items-center justify-between gap-md">
+        <h2 class="text-h3 font-semibold text-primary">Тестирование</h2>
+        <label class="flex items-center gap-sm text-tiny text-muted">
+          <span>Круг</span>
+          <select v-model.number="round" class="ui-select" data-testid="round-filter">
+            <option :value="0">Все</option>
+            <option v-for="option in roundOptions" :key="option" :value="option">
+              {{ option }}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      <VariantResultsTable
+        :test="test"
+        :image-urls="store.imageUrls"
+        :saving="store.saving"
+        :round="round"
+        @exclude="(id, excluded) => store.toggleExclusion(test.id, id, excluded)"
+      />
+
+      <div class="mt-lg">
+        <RotationHistory :test="test" :image-urls="store.imageUrls" :round="round" />
+      </div>
+    </template>
 
     <p v-else-if="test" class="rounded-card bg-surface p-lg text-base text-muted shadow-card">
       Загрузите до {{ MAX_VARIANTS }} вариантов главного фото — они будут сменять друг друга по мере

@@ -34,7 +34,7 @@ const JPEG = Buffer.from(
   "base64",
 );
 
-test("a test is created, takes photos, and shows them as rows of the result table", async ({
+test("a test is created, takes photos, and shows them as columns of the result table", async ({
   signedIn: page,
 }) => {
   const name = `E2E ротация ${Date.now()}`;
@@ -76,10 +76,17 @@ test("a test is created, takes photos, and shows them as rows of the result tabl
     { name: "variant-2.jpg", mimeType: "image/jpeg", buffer: JPEG },
   ]);
 
-  // Photos are ROWS here, not the two fixed columns WB's own screen uses: a
-  // rotation runs up to ten, and the metrics are the columns.
-  const rows = page.getByTestId("variant-row");
-  await expect(rows).toHaveCount(2, { timeout: 30_000 });
+  // Photos are COLUMNS and metrics are rows. Every row of the table is a
+  // comparison across photos, and a comparison reads along a line — «Показов»
+  // as a row puts the numbers side by side instead of ten rows apart. The width
+  // that costs is paid for with one horizontal scroll inside the card.
+  //
+  // Two columns for two uploads. A workspace with a WB token would carry a
+  // third — the card's own photo, enrolled at creation — but this one has
+  // pasted no credentials, and creating a test deliberately does not require
+  // them. That is the case being exercised here as well.
+  const columns = page.getByTestId("variant-column");
+  await expect(columns).toHaveCount(2, { timeout: 30_000 });
 
   // The thumbnail is served by our own image route. A queued variant has no WB
   // URL at all, so this is the only place the picture can come from.
@@ -92,7 +99,7 @@ test("a test is created, takes photos, and shows them as rows of the result tabl
   // hands `<img>` a blob — the same route the finreports downloads take. What
   // is worth pinning is unchanged and asserted below: a picture arrived, and
   // its bytes came from our own store rather than from WB.
-  const thumbnail = rows.first().getByRole("img").first();
+  const thumbnail = columns.first().getByRole("img").first();
   await expect(thumbnail).toBeVisible();
   const source = await thumbnail.getAttribute("src");
   expect(source).toMatch(/^blob:/);

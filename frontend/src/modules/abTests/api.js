@@ -123,6 +123,23 @@ export async function uploadVariant(testId, file) {
 }
 
 /**
+ * PATCH /ab-tests/{id}/variants/{variantId} — exclude a photo, or bring it back.
+ *
+ * Not a delete: the photo keeps its row, its image and everything it has
+ * already earned, and simply stops being dealt from the next pass on. The whole
+ * test comes back because the result table re-renders either way.
+ *
+ * @param {string} testId Test identifier.
+ * @param {string} variantId Variant identifier.
+ * @param {boolean} excluded True to take it out of the rotation.
+ * @returns {Promise<object>} The refreshed test.
+ */
+export async function setVariantExcluded(testId, variantId, excluded) {
+  const { data } = await apiClient.patch(`/ab-tests/${testId}/variants/${variantId}`, { excluded })
+  return data
+}
+
+/**
  * GET /ab-tests/{id}/variants/{variantId}/image — the stored original.
  *
  * Fetched through the API client rather than pointed at from an `<img src>`:

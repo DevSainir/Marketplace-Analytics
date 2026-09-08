@@ -1,98 +1,181 @@
 /*
- * The result table's own rules — everything Tailwind has no token for.
+ * The result grid — photos across the top, metrics down the side.
  *
  * Lives here rather than in a `<style scoped>` block because the component is
  * near the 250-line ceiling; it is imported with `<style scoped src>`, so it
  * still gets the component's scope attribute and still outranks `skin.css`.
+ *
+ * The layout problem this file solves is that the table is deliberately wider
+ * than the page. Ten photo columns cannot fit 1280px, so the table scrolls
+ * inside its card — and the metric labels are STICKY, because a figure you have
+ * scrolled three columns to reach is meaningless if the word naming it has
+ * scrolled off the other side.
  */
 
-/* The photo column carries the only non-compact cell in the table, so it sets
-   its own padding rather than inheriting `.ui-table`'s 8px/12px. */
-.ab-results__photo-col {
-  /* A preference, not a cap: the table is `width: 100%`, and without it the
-     first column absorbs every spare pixel and leaves the figures huddled
-     against the right edge. */
-  width: 300px;
-  padding-left: 16px;
-  padding-right: 20px;
+.ab-grid__scroll {
+  overflow-x: auto;
+  /* The card clips the scroll rather than the page: a table that made the whole
+     document scroll sideways would take the header and the nav with it. */
+  max-width: 100%;
 }
 
-.ab-results tbody .ab-results__photo-col {
-  padding-top: 10px;
-  padding-bottom: 10px;
+.ab-grid {
+  border-collapse: collapse;
+  /* Not `width: 100%` — the columns set the width, and the table is allowed to
+     exceed the card. Stretching to fit would squeeze ten photos into thumbnails
+     and defeat the point of showing them. */
+  min-width: 100%;
 }
 
-/* Bigger than the old 64x80: this is the thing being compared. 3:4 is WB's own
-   card aspect, so a photo uploaded for a card is never letterboxed here. */
-.ab-photo {
-  width: 72px;
-  height: 96px;
-  flex: none;
-  object-fit: cover;
-  border-radius: var(--ui-r-md);
-  box-shadow: var(--ui-sh-sm);
+/* ------------------------------------------------------------------ labels */
+
+.ab-grid__label-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 220px;
+  min-width: 220px;
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ui-muted);
+  background: var(--ui-surface);
+  /* The seam between the frozen column and the scrolling ones. Without it the
+     numbers slide under the labels with nothing to say they are separate. */
+  box-shadow: inset -1px 0 0 var(--ui-hairline);
+  white-space: nowrap;
 }
 
-.ab-photo--empty {
+.ab-grid tbody tr:not(:last-child) .ab-grid__label-col,
+.ab-grid tbody tr:not(:last-child) .ab-grid__value {
+  border-bottom: 1px solid var(--ui-hairline);
+}
+
+/* Zebra by row, since a row is the unit being compared along. */
+.ab-grid tbody tr:nth-child(even) .ab-grid__label-col,
+.ab-grid tbody tr:nth-child(even) .ab-grid__value {
   background: var(--ui-sunk);
 }
 
-/* Ratios and absolute counts are two different kinds of number; a hairline
-   between the groups is enough to say so without drawing a grid. */
-.ab-results :is(th, td).ab-results__group {
-  border-left: 1px solid var(--ui-hairline);
+.ab-grid__hint {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--ui-muted);
+  cursor: help;
+  opacity: 0.65;
 }
 
-/* The leader is tinted rather than bolded — the row is already all figures.
-   The hover fill is the same tint, so the leader also takes an accent rule down
-   its left edge: two rows that look identical when one is merely under the
-   cursor is exactly the confusion the highlight exists to prevent. */
-.ab-results tbody tr.is-leader td {
-  background: var(--ui-action-soft);
+/* ------------------------------------------------------------------ photos */
+
+.ab-grid__photo-cell {
+  width: 132px;
+  min-width: 132px;
+  padding: 16px 10px 12px;
+  vertical-align: top;
+  text-align: center;
+  border-bottom: 1px solid var(--ui-hairline);
+  background: var(--ui-surface);
 }
 
-.ab-results tbody tr.is-leader td:first-child {
-  box-shadow: inset 3px 0 0 var(--ui-action);
+.ab-grid__photo-wrap {
+  position: relative;
+  display: inline-block;
 }
 
-/* --- the phone card ------------------------------------------------------
-   Nine columns do not fit 402px, and a table the reader scrolls sideways is
-   not adapted — they lose the photo they were comparing. One card per photo,
-   the figures as label/value pairs beside it. */
-.ab-card + .ab-card {
-  border-top: 1px solid var(--ui-hairline);
+/* 3:4 is WB's own card aspect, so a photo uploaded for a card is never
+   letterboxed here. */
+.ab-grid__photo {
+  width: 96px;
+  height: 128px;
+  object-fit: cover;
+  border-radius: var(--ui-r-md);
+  box-shadow: var(--ui-sh-sm);
+  display: block;
 }
 
-.ab-card.is-leader {
-  background: var(--ui-action-soft);
-  box-shadow: inset 3px 0 0 var(--ui-action);
+.ab-grid__photo--empty {
+  background: var(--ui-sunk);
 }
 
-.ab-card__figures {
-  display: grid;
-  /* Column-major, so the eight figures do not interleave: the ratios stay
-     together down the left column and the counts down the right. Row-major put
-     «Заказы, %» next to «Показы», which reads as a pair and is not one. */
-  grid-auto-flow: column;
-  grid-template-rows: repeat(4, auto);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2px 12px;
+/* The exclusion control. Sits ON the photo — the thing being excluded — rather
+   than in a menu, and is only drawn on hover so nine idle crosses do not read
+   as nine pending actions. */
+.ab-grid__cross {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-hairline);
+  background: var(--ui-surface);
+  color: var(--ui-muted);
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: var(--ui-sh-sm);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
 }
 
-.ab-card__figure {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-  min-width: 0;
+.ab-grid__cross:hover:not(:disabled) {
+  color: #ee522b;
+  border-color: #ee522b;
 }
 
-/* The card's own photo, marked rather than merely named.
- *
- * It sits in the same list, at the same size, with the same columns — the
- * comparison only reads if the baseline is one of the candidates. The pill is
- * the whole difference, and it is the action colour because it is the row the
- * eye should find first when the table is opened. */
+.ab-grid__cross.is-restore:hover:not(:disabled) {
+  color: var(--ui-action);
+  border-color: var(--ui-action);
+}
+
+.ab-grid__cross:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ab-grid__caption {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+
+.ab-grid__standing {
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--ui-muted);
+}
+
+.ab-grid__standing.is-live {
+  color: #179e60;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ values */
+
+.ab-grid__value {
+  padding: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ui-text);
+  white-space: nowrap;
+  background: var(--ui-surface);
+}
+
+/* An excluded photo is greyed, not hidden. Its numbers are why it was excluded,
+   so removing them would remove the evidence for the decision. */
+.ab-grid__photo-cell.is-excluded,
+.ab-grid__value.is-excluded {
+  opacity: 0.42;
+}
+
+.ab-grid__photo-cell.is-excluded .ab-grid__photo {
+  filter: grayscale(1);
+}
+
+/* The «Главное» pill, the one column marked rather than merely named. */
 .ab-badge {
   display: inline-block;
   padding: 1px 8px;
@@ -104,4 +187,29 @@
   font-weight: 600;
   line-height: 16px;
   white-space: nowrap;
+}
+
+/* On a phone the frozen label column would leave about 150px for the figures,
+   so it stops being frozen and the whole table scrolls as one. Narrower photos
+   keep two columns visible at a time, which is the minimum a comparison needs. */
+@media (max-width: 430px) {
+  .ab-grid__label-col {
+    position: static;
+    width: 150px;
+    min-width: 150px;
+    padding: 8px 12px;
+    box-shadow: none;
+    border-right: 1px solid var(--ui-hairline);
+    white-space: normal;
+  }
+
+  .ab-grid__photo-cell {
+    width: 108px;
+    min-width: 108px;
+  }
+
+  .ab-grid__photo {
+    width: 78px;
+    height: 104px;
+  }
 }

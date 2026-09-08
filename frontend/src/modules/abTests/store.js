@@ -21,9 +21,10 @@ import {
   deleteVariant,
   fetchTest,
   fetchTests,
-  searchSkus,
   fetchVariantImage,
+  searchSkus,
   setTestStatus,
+  setVariantExcluded,
   updateTestSettings,
   uploadVariant,
 } from '@/modules/abTests/api'
@@ -240,6 +241,32 @@ export const useAbTestsStore = defineStore('abTests', () => {
   }
 
   /**
+   * Take a photo out of the rotation, or put it back.
+   *
+   * Allowed while the test is running — that is the whole point of it. Nothing
+   * is deleted, so the result table goes on showing what the photo earned; it
+   * just stops being dealt.
+   *
+   * @param {string} testId Test identifier.
+   * @param {string} variantId Variant identifier.
+   * @param {boolean} excluded True to take it out.
+   * @returns {Promise<boolean>} True when the change stuck.
+   */
+  async function toggleExclusion(testId, variantId, excluded) {
+    saving.value = true
+    error.value = ''
+    try {
+      detail.value = await setVariantExcluded(testId, variantId, excluded)
+      return true
+    } catch (err) {
+      error.value = extractErrorMessage(err)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /**
    * Start, pause or cancel a test.
    *
    * Starting installs the first photo on the seller's card, so a failure here
@@ -388,6 +415,7 @@ export const useAbTestsStore = defineStore('abTests', () => {
     create,
     addPhoto,
     removePhoto,
+    toggleExclusion,
     changeStatus,
     updateSettings,
     remove,

@@ -1,0 +1,93 @@
+/*
+ * «История действий» — the log of turns.
+ *
+ * Its own stylesheet, imported with `<style scoped src>`, for the same reason
+ * the result grid has one: the component is close to the 250-line ceiling.
+ *
+ * The one structural decision here is that the panel scrolls internally. A test
+ * running for days has hundreds of turns, and a log that grows the page would
+ * push the results — the thing the page is for — further off the screen the
+ * longer the test stays useful.
+ */
+
+.ab-history__scroll {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.ab-history {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+/* The header stays put while the log scrolls under it: eight columns of bare
+   numbers are unreadable the moment their titles leave the viewport. */
+.ab-history thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 12px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-muted);
+  background: var(--ui-surface);
+  border-bottom: 1px solid var(--ui-hairline);
+  white-space: nowrap;
+}
+
+.ab-history tbody td {
+  padding: 6px 12px;
+  color: var(--ui-text);
+  border-bottom: 1px solid var(--ui-hairline);
+  vertical-align: middle;
+}
+
+.ab-history tbody tr:nth-child(even) td {
+  background: var(--ui-sunk);
+}
+
+.ab-history tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Small, because the picture here is an identifier rather than the thing being
+   judged — that job belongs to the result grid above. */
+.ab-history__thumb {
+  width: 24px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: var(--ui-r-sm, 4px);
+  display: block;
+}
+
+.ab-history__thumb--empty {
+  background: var(--ui-sunk);
+}
+
+.ta-l {
+  text-align: left;
+}
+
+.ta-r {
+  text-align: right;
+}
+
+/* On a phone the two widest columns go: the seconds-level timestamp and the
+   turn length. What is left — which photo, and what it earned — is the reason
+   anyone opens this on a phone at all. */
+@media (max-width: 430px) {
+  .ab-history thead th:nth-child(8),
+  .ab-history tbody td:nth-child(8),
+  .ab-history thead th:nth-child(7),
+  .ab-history tbody td:nth-child(7) {
+    display: none;
+  }
+
+  .ab-history thead th,
+  .ab-history tbody td {
+    padding: 6px 8px;
+  }
+}
