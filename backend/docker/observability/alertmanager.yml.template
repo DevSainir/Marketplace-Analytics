@@ -29,7 +29,17 @@ route:
   # revocation with it), so half a minute buys a single coherent message.
   group_wait: 30s
   # Before sending an update about a group that has already alerted.
-  group_interval: 5m
+  #
+  # Half an hour, not five minutes, and the difference is not taste. A group is
+  # re-notified whenever its MEMBERSHIP changes, not only when it first fires,
+  # so an alert whose instance set churns re-sends the entire group every time
+  # one endpoint joins or leaves. On 2026-09-07 that produced seven identical
+  # three-endpoint messages in ten hours from a service with nothing wrong with
+  # it: `WbRateBudgetExhausted` was built on a gauge that vanished and returned
+  # with each Celery child recycle (see the long note in alerts.yml). The rule
+  # is fixed, but the amplifier was this interval, and any future flapping rule
+  # would find it again.
+  group_interval: 30m
   # Before repeating an alert nobody has resolved. Four hours: long enough not
   # to be noise, short enough that an overnight outage is still shouting in the
   # morning.
@@ -44,6 +54,12 @@ route:
     - matchers: ["severity = page"]
       receiver: telegram
       group_wait: 0s
+      # And keeps the SHORT group interval the default route gave up. That
+      # interval delays every update to a group that has already alerted, and
+      # a resolution is an update — so inheriting 30m here would hold "the site
+      # is back" for half an hour after it was. Page alerts are rare enough
+      # that throttling them is not what the interval is for.
+      group_interval: 5m
       repeat_interval: 1h
 
 receivers:
@@ -58,12 +74,33 @@ receivers:
         # called `wb_api_requests_total` is worse than no formatting.
         parse_mode: HTML
         send_resolved: true
+        # The shape of this message is deliberate, and the thing it is
+        # avoiding is a wall of repeated prose. `description` is a constant per
+        # RULE while `summary` is templated per instance, so a three-endpoint
+        # group used to arrive as the same five-line paragraph three times with
+        # one distinguishing line buried in each copy. Read on a phone that is
+        # indistinguishable from one long alert, which is how a real one gets
+        # swiped away.
+        #
+        # So: a headline that says which alert and how many instances, the
+        # instances as a scannable list, and the explanation ONCE at the
+        # bottom. `.CommonAnnotations` holds an annotation only when every
+        # alert in the group agrees on it — which is exactly the condition
+        # under which printing it once is correct — and the `else` branch
+        # falls back to per-alert descriptions for a rule that templates
+        # labels into one.
+        #
+        # The severity emoji splits 🔴 from 🟡 because `page` and `warn` mean
+        # different things (stop what you are doing / look before the end of
+        # the day) and arrived looking identical.
         message: |
-          {{ if eq .Status "firing" }}🔴{{ else }}✅{{ end }} <b>{{ .CommonLabels.alertname }}</b> ({{ .Status }})
+          {{ if eq .Status "firing" }}{{ if eq .CommonLabels.severity "page" }}🔴{{ else }}🟡{{ end }}{{ else }}✅{{ end }} <b>{{ .CommonLabels.alertname }}</b>
+          {{ .Status }}{{ with .CommonLabels.severity }} · {{ . }}{{ end }} · {{ len .Alerts }} {{ if eq (len .Alerts) 1 }}instance{{ else }}instances{{ end }}
 
-          {{ range .Alerts }}{{ .Annotations.summary }}
-          {{ if .Annotations.description }}<i>{{ .Annotations.description }}</i>
-          {{ end }}{{ end }}
+          {{ range .Alerts }}• {{ .Annotations.summary }}
+          {{ end }}
+          {{ with .CommonAnnotations.description }}<i>{{ . }}</i>{{ else }}{{ range .Alerts }}{{ with .Annotations.description }}<i>{{ . }}</i>
+          {{ end }}{{ end }}{{ end }}
 
 inhibit_rules:
   # When both API instances are down, do not also send the per-instance alert

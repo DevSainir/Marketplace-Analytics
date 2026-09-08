@@ -75,14 +75,29 @@ WB_API_DURATION: Final[Histogram] = Histogram(
 )
 
 #: What WB last said was left in this endpoint's bucket
-#: (`x-ratelimit-remaining`). The leading indicator for the whole harvest: it
-#: reaches zero before anything fails, so an alert on it fires while there is
-#: still time to do something, rather than after a night's data is missing.
+#: (`x-ratelimit-remaining`). A last-observation for humans to read on a
+#: dashboard, and **not something to alert on** — the second paragraph is the
+#: correction to a claim this comment used to make.
 #:
 #: `livemostrecent` because the truthful answer is "what the most recent
 #: observation from a process that is still alive said" — summing across
 #: workers would invent budget WB never granted, and `max` would report the
 #: luckiest worker's view right up to the moment everything stalls.
+#:
+#: It was described here as the leading indicator for the whole harvest, on the
+#: reasoning that it reaches zero before anything fails. The first half is true
+#: and the conclusion does not follow. The gauge is written only where it is
+#: set — inside `RateGate.observe`, i.e. only when a WB response arrives — and
+#: nothing decays it. WB's bucket refills on a timer; this value does not. The
+#: last request of any burst therefore reports `remaining: 0` legitimately, and
+#: that zero persists until the next harvest happens to touch the same
+#: endpoint, which on a rarely-called one is hours. Measured on prod
+#: 2026-09-07: `/adv/v3/fullstats` sat at 0 for over 24 hours while all 14 of
+#: its requests returned 200. `livemostrecent` compounds it for alerting: when
+#: a prefork child is recycled its file is removed, so the series stops
+#: existing and any alert on it RESOLVES, then fires again from the next child.
+#: `WbRateBudgetExhausted` and `WbRatePacingPressure` are built on counters for
+#: exactly these reasons; see the note above them in `alerts.yml`.
 WB_RATE_LIMIT_REMAINING: Final[Gauge] = Gauge(
     "wb_rate_limit_quota_remaining",
     "Tokens WB reported remaining in this endpoint's bucket.",
