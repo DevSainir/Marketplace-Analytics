@@ -196,5 +196,6 @@ resolving to the design gutter is the part you *can* check.
 | `/login` | done — and moved onto the design-system tokens on the way, which it had never been on |
 | `/finreports` (P&L) | done — the 18-column SKU table and the SKU × warehouse balance grid both become card lists below `sm` |
 | `/finreports/cost-prices` | done — the editable grid becomes rows with the input still on screen |
+| `/ab-tests/:id` | done — the photos × metrics grid pages its photo axis (`VariantMetricsPager`), one photo and its seven figures per screen; the turn log keeps its table and drops its two widest columns |
 
 Keep this table honest; it is how the next session knows where to pick up.
