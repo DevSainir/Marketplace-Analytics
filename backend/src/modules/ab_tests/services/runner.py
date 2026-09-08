@@ -39,7 +39,7 @@ from typing import Protocol
 
 from src.core.logging import get_logger
 from src.modules.ab_tests.models import AbTest, AbTestStatus, AbTestVariant
-from src.modules.ab_tests.services.budget import BudgetState
+from src.modules.ab_tests.services.budget import AdsState
 from src.modules.ab_tests.services.collection import Counters, window_delta
 from src.modules.ab_tests.services.rotation import (
     RotationAction,
@@ -52,9 +52,9 @@ logger = get_logger(__name__)
 #: Reads today's counters and, so a rollover closes cleanly, yesterday's too.
 CounterReader = Callable[[int, Sequence[date]], Awaitable[dict[date, Counters]]]
 
-#: Asks whether the advertising behind one card can still pay for a turn.
-#: Called at most once per slot — see the module docstring.
-BudgetReader = Callable[[int], Awaitable[BudgetState]]
+#: Asks what the advertising behind one card is doing. Called at most once
+#: per slot — see the module docstring.
+AdsReader = Callable[[int], Awaitable[AdsState]]
 
 
 @dataclass(frozen=True)
@@ -73,6 +73,8 @@ class _Snapshots(Protocol):
     async def save(
         self, *, test_id: uuid.UUID, by_day: dict[date, Counters], captured_at: datetime
     ) -> None: ...
+
+    async def clear(self, *, test_id: uuid.UUID) -> None: ...
 
 
 class _Windows(Protocol):
@@ -115,6 +117,8 @@ class _Tests(Protocol):
 
     async def set_active_variant(self, *, test: AbTest, variant_id: uuid.UUID | None) -> None: ...
 
+    async def pause_for_ads(self, *, test: AbTest) -> None: ...
+
     async def set_status(
         self,
         *,
@@ -153,7 +157,7 @@ class RotationRunner:
         windows: _Windows,
         snapshots: _Snapshots,
         installer: _Installer,
-        read_budget: BudgetReader,
+        read_ads: AdsReader,
         read_counters: CounterReader,
     ) -> None:
         """Wire the runner to its collaborators.
@@ -164,8 +168,8 @@ class RotationRunner:
             windows: Per-interval traffic repository.
             snapshots: Cumulative-counter memory between polls.
             installer: Puts a variant's image on the card.
-            read_budget: Answers whether the card's advertising can still
-                pay for another turn. Called only when a swap is due.
+            read_ads: Answers what the card's advertising is doing — serving,
+                paused, or spent. Called only when a swap is due.
             read_counters: Reads WB's cumulative counters for a SKU over the
                 given days. Injected so the pass can be tested without WB and
                 so the caller owns the shared rate budget.
@@ -176,7 +180,7 @@ class RotationRunner:
         self._snapshots = snapshots
         self._installer = installer
         self._read_counters = read_counters
-        self._read_budget = read_budget
+        self._read_ads = read_ads
 
     async def poll(self, test: AbTest, *, days: Sequence[date], now: datetime) -> PollOutcome:
         """Close the interval since the last poll and rotate if it is due.
@@ -237,12 +241,21 @@ class RotationRunner:
         action = decision.action
         installed: uuid.UUID | None = None
         if action in {RotationAction.INSTALL, RotationAction.ADVANCE}:
-            if await self._budget_is_spent(test):
+            ads = await self._read_ads(test.nm_id)
+            if ads is AdsState.EXHAUSTED:
                 # The promise the seller was made: the photo that is up serves
                 # out its turn, and nothing replaces it. So the swap that was
                 # due becomes the end of the test instead of happening first.
+                logger.info(
+                    "ab_tests: advertising budget spent on nm %s; test %s stops here",
+                    test.nm_id,
+                    test.id,
+                )
                 await self._complete(test, now=now)
                 action = RotationAction.COMPLETE
+            elif ads is AdsState.PAUSED:
+                await self._pause_with_ads(test)
+                action = RotationAction.HOLD
             else:
                 installed = await self._swap(test, variant_id=decision.variant_id, now=now)
 
@@ -254,29 +267,31 @@ class RotationRunner:
             seeded=seeded,
         )
 
-    async def _budget_is_spent(self, test: AbTest) -> bool:
-        """Has the advertising behind this card run out?
+    async def _pause_with_ads(self, test: AbTest) -> None:
+        """Stop advancing because nothing is advertising the card.
 
-        Only ``EXHAUSTED`` stops a test. ``UNKNOWN`` — WB unreachable, or a card
-        nobody is advertising — is not evidence the money ran out, and ending an
-        experiment for a reason the seller cannot see is worse than one more
-        slot of a test they can stop by hand.
+        Not a completion: the money is still there and the seller can switch the
+        campaign back on, at which point the rotation picks up by itself. What
+        it costs to get wrong is a table of zeros — a test that kept dealing
+        photos through dead air would record each one's turn as no impressions,
+        and ten such rows read exactly like a result.
+
+        The counter snapshot is dropped so the pause cannot be paid for by the
+        photo that happens to be up when the campaign returns: the baseline
+        would be hours stale and the whole gap would land in one window. With no
+        snapshot, the first pass after resuming seeds a fresh one and credits
+        nothing, which is what a pause is supposed to mean.
 
         Args:
-            test: The test whose card is being advertised.
-
-        Returns:
-            ``True`` only when every campaign that could serve the card reports
-            a zero budget.
+            test: The running test to pause.
         """
-        state = await self._read_budget(test.nm_id)
-        if state is BudgetState.EXHAUSTED:
-            logger.info(
-                "ab_tests: advertising budget spent on nm %s; test %s stops here",
-                test.nm_id,
-                test.id,
-            )
-        return state is BudgetState.EXHAUSTED
+        await self._snapshots.clear(test_id=test.id)
+        await self._tests.pause_for_ads(test=test)
+        logger.info(
+            "ab_tests: no running campaign on nm %s; test %s pauses with the advertising",
+            test.nm_id,
+            test.id,
+        )
 
     async def _swap(
         self, test: AbTest, *, variant_id: uuid.UUID | None, now: datetime

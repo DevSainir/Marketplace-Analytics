@@ -1,32 +1,31 @@
-"""When a test has run out of advertising to be measured by.
+"""What the advertising behind a card says the rotation should do next.
 
 A rotation used to stop after one lap, which is arbitrary: one lap of a
 ten-photo test is ten slots, and whether that is enough traffic to tell the
-photos apart has nothing to do with the number ten. So the rotation now cycles,
-and the thing that stops it is the thing that was ever really paying for it —
-**the advertising budget behind the card**. Budget left: another lap. Budget at
-zero: the photo that is up finishes its turn and nothing replaces it.
+photos apart has nothing to do with the number ten. So the rotation cycles, and
+the advertising decides — because the advertising is the only thing that was
+ever paying for it, and the only thing that makes a photo measurable at all.
 
-That rule is only worth having if it can be trusted, so the pieces of it are
-spelled out here rather than spread through the poller.
+Four answers, and the distinctions between them are the whole design:
 
-**What counts as "the budget behind the card".** Every campaign that names this
-SKU and could still serve it — WB status «идут показы» or «на паузе». A finished
-campaign is excluded because it cannot spend whatever it might report, and a
-paused one is included because the seller can resume it and its money is still
-there.
+* **SERVING** — a campaign is running with money in it. Carry on.
+* **PAUSED** — the money is there but nothing is running. The seller paused
+  their campaigns, so the test pauses too. It is not over: the photo stays on
+  the card, nothing advances, no interval is credited to anybody, and the
+  rotation picks up by itself when the campaign does. A test that kept rotating
+  here would deal photo after photo through dead air and record each one's turn
+  as zero impressions — a full table of zeros that reads like a result.
+* **EXHAUSTED** — every campaign that could serve this card reports a zero
+  budget. That is the end: the photo that is up serves out its turn, and
+  nothing replaces it.
+* **UNKNOWN** — WB could not be asked, or nobody is advertising this card at
+  all. Neither means the money ran out, so neither stops or pauses anything.
 
 **Why a zero is believable.** Measured live 2026-09-07 across the account's
 campaigns: running ones reported 3818, 3504 and 14929, a paused one 350, and
 every finished one 0. The endpoint answers with real numbers, so a zero is an
 answer rather than the shape of a failure. See
 ``WBAdvertisingClient.fetch_campaign_budget``.
-
-**What is NOT a reason to stop.** WB being unreachable, a malformed answer, or a
-card with no campaigns at all. None of those mean the money ran out, and a
-rotation that stopped on them would end tests for reasons the seller cannot see
-or fix. They resolve to :data:`BudgetState.UNKNOWN` and the test keeps going —
-the failure that costs a slot is better than the one that ends the experiment.
 """
 
 from __future__ import annotations
@@ -40,24 +39,28 @@ from src.integrations.wildberries.schemas import WBAdvertV2
 
 logger = get_logger(__name__)
 
-#: WB campaign statuses that can still spend money.
-#:
-#: 9 is «идут показы» and 11 is «на паузе»; 7 is «завершена» and 4 «готова к
-#: запуску». Observed on the live account 2026-09-07: 261 campaigns at 7 all
-#: reporting a zero budget, 6 at 9 all reporting a positive one, and 47 at 11
-#: reporting a mix — which is exactly why a paused campaign counts as money that
-#: still exists.
-SPENDABLE_STATUSES: frozenset[int] = frozenset({9, 11})
+#: WB status for «идут показы» — the campaign is actually serving right now.
+SERVING_STATUS: int = 9
+
+#: WB status for «на паузе» — switched off, but the money is still in it.
+PAUSED_STATUS: int = 11
+
+#: Statuses whose campaigns can still spend. A finished campaign (7) cannot, and
+#: 261 of the live account's campaigns are finished and all report zero — so
+#: counting them would make every test look out of money.
+SPENDABLE_STATUSES: frozenset[int] = frozenset({SERVING_STATUS, PAUSED_STATUS})
 
 
-class BudgetState(enum.StrEnum):
-    """Whether a test's advertising can still pay for another turn."""
+class AdsState(enum.StrEnum):
+    """What the card's advertising says about the rotation."""
 
-    #: At least one campaign has money left.
-    AVAILABLE = "available"
-    #: Every campaign that could serve this card reports zero.
+    #: A running campaign has money. Keep rotating.
+    SERVING = "serving"
+    #: Money exists, but every campaign is switched off. Pause with them.
+    PAUSED = "paused"
+    #: Nothing can spend any more. The test is over.
     EXHAUSTED = "exhausted"
-    #: WB could not be asked. Not a reason to stop.
+    #: WB could not be asked, or nobody advertises this card. Change nothing.
     UNKNOWN = "unknown"
 
 
@@ -67,8 +70,26 @@ class _BudgetReader(Protocol):
     async def fetch_campaign_budget(self, campaign_id: int) -> int: ...
 
 
+def campaigns_by_status(adverts: Iterable[WBAdvertV2], *, nm_id: int, status: int) -> list[int]:
+    """Campaign ids naming this SKU that are in one WB status.
+
+    Args:
+        adverts: WB's campaign listing.
+        nm_id: The card under test.
+        status: The WB status to select.
+
+    Returns:
+        Campaign ids, ascending.
+    """
+    return sorted(
+        advert.campaign_id
+        for advert in adverts
+        if advert.status == status and any(setting.nm_id == nm_id for setting in advert.nm_settings)
+    )
+
+
 def spendable_campaigns(adverts: Iterable[WBAdvertV2], *, nm_id: int) -> list[int]:
-    """Campaigns that name this SKU and are not already finished.
+    """Every campaign naming this SKU that is not already finished.
 
     Args:
         adverts: WB's campaign listing.
@@ -78,60 +99,92 @@ def spendable_campaigns(adverts: Iterable[WBAdvertV2], *, nm_id: int) -> list[in
         Campaign ids, ascending. Empty when nothing can serve this card.
     """
     return sorted(
-        advert.campaign_id
-        for advert in adverts
-        if advert.status in SPENDABLE_STATUSES
-        and any(setting.nm_id == nm_id for setting in advert.nm_settings)
+        {
+            *campaigns_by_status(adverts, nm_id=nm_id, status=SERVING_STATUS),
+            *campaigns_by_status(adverts, nm_id=nm_id, status=PAUSED_STATUS),
+        }
     )
 
 
-async def read_state(
-    *, client: _BudgetReader, campaign_ids: Sequence[int], nm_id: int
-) -> BudgetState:
-    """Ask WB whether any of these campaigns still has budget.
+async def _any_funded(
+    client: _BudgetReader, campaign_ids: Sequence[int], nm_id: int
+) -> bool | None:
+    """Does any of these campaigns still have budget?
 
-    Stops at the first campaign with money: one is enough to keep the rotation
-    going, and each id costs a request on a shallow bucket.
+    Stops at the first one that does: one is enough, and each id costs a request
+    on a bucket shared with the nightly harvest.
 
     Args:
         client: Advertising client, already paced by the shared gate.
-        campaign_ids: Campaigns that could still serve the card.
+        campaign_ids: Campaigns to ask about.
         nm_id: The card, for the log line only.
 
     Returns:
-        ``AVAILABLE`` on the first positive budget, ``EXHAUSTED`` when every one
-        answered zero, and ``UNKNOWN`` when there was nothing to ask or WB could
-        not answer.
+        ``True``/``False``, or ``None`` when WB would not answer for one of
+        them — the others being empty does not prove the unreadable one is.
     """
-    if not campaign_ids:
-        # No campaign can serve this card. That is not "the budget ran out" —
-        # it is a card nobody is advertising, which the seller may be about to
-        # fix. Stopping here would end a test for a reason the budget rule does
-        # not cover, so it does not.
-        logger.info("ab_tests: nm %s has no spendable campaigns; budget unknown", nm_id)
-        return BudgetState.UNKNOWN
-
-    seen_zero = False
     for campaign_id in campaign_ids:
         try:
-            total = await client.fetch_campaign_budget(campaign_id)
+            if await client.fetch_campaign_budget(campaign_id) > 0:
+                return True
         except Exception as exc:
             logger.warning(
                 "ab_tests: budget unreadable for campaign %s on nm %s: %s", campaign_id, nm_id, exc
             )
-            # One unreadable campaign poisons the whole answer on purpose: the
-            # others being empty does not prove this one is.
-            return BudgetState.UNKNOWN
-        if total > 0:
-            return BudgetState.AVAILABLE
-        seen_zero = True
+            return None
+    return False
 
-    return BudgetState.EXHAUSTED if seen_zero else BudgetState.UNKNOWN
+
+async def read_state(
+    *, client: _BudgetReader, adverts: Iterable[WBAdvertV2], nm_id: int
+) -> AdsState:
+    """Ask WB what the advertising behind one card is doing.
+
+    Running campaigns are asked about first, so the common case — the test is
+    fine, carry on — costs one request and stops.
+
+    Args:
+        client: Advertising client, already paced by the shared gate.
+        adverts: WB's campaign listing for the account.
+        nm_id: The card under test.
+
+    Returns:
+        See :class:`AdsState`.
+    """
+    listing = list(adverts)
+    serving = campaigns_by_status(listing, nm_id=nm_id, status=SERVING_STATUS)
+    paused = campaigns_by_status(listing, nm_id=nm_id, status=PAUSED_STATUS)
+
+    if not serving and not paused:
+        # Nobody is advertising this card. That is not «the money ran out» —
+        # there was never any to run out — and it is not a pause the seller
+        # made either. Stopping or pausing here would act on a rule that does
+        # not cover the case.
+        logger.info("ab_tests: nm %s has no spendable campaigns; ads state unknown", nm_id)
+        return AdsState.UNKNOWN
+
+    serving_funded = await _any_funded(client, serving, nm_id)
+    if serving_funded is None:
+        return AdsState.UNKNOWN
+    if serving_funded:
+        return AdsState.SERVING
+
+    paused_funded = await _any_funded(client, paused, nm_id)
+    if paused_funded is None:
+        return AdsState.UNKNOWN
+    if paused_funded:
+        logger.info("ab_tests: nm %s has budget but no running campaign; pausing with it", nm_id)
+        return AdsState.PAUSED
+
+    return AdsState.EXHAUSTED
 
 
 __all__ = [
+    "PAUSED_STATUS",
+    "SERVING_STATUS",
     "SPENDABLE_STATUSES",
-    "BudgetState",
+    "AdsState",
+    "campaigns_by_status",
     "read_state",
     "spendable_campaigns",
 ]

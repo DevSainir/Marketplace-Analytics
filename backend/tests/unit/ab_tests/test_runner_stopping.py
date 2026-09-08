@@ -14,7 +14,7 @@ things: one is the end of the experiment, the other is a blip.
 from __future__ import annotations
 
 from src.modules.ab_tests.models import AbTestStatus
-from src.modules.ab_tests.services.budget import BudgetState
+from src.modules.ab_tests.services.budget import AdsState
 from src.modules.ab_tests.services.collection import Counters
 from src.modules.ab_tests.services.rotation import RotationAction
 from src.modules.ab_tests.services.runner import Snapshot
@@ -51,7 +51,7 @@ async def test_a_spent_budget_ends_the_test_instead_of_swapping() -> None:
         exposures=FakeExposures(active_since=T0),
         installer=installer,
         tests=tests,
-        budget=BudgetState.EXHAUSTED,
+        ads=AdsState.EXHAUSTED,
     )
 
     outcome = await runner.poll(test, days=[DAY], now=T1)
@@ -78,7 +78,7 @@ async def test_a_budget_wb_could_not_be_asked_about_does_not_end_the_test() -> N
         exposures=FakeExposures(active_since=T0),
         installer=installer,
         tests=tests,
-        budget=BudgetState.UNKNOWN,
+        ads=AdsState.UNKNOWN,
     )
 
     outcome = await runner.poll(test, days=[DAY], now=T1)
@@ -130,3 +130,38 @@ async def test_a_mid_round_swap_stays_in_the_same_round() -> None:
     await runner.poll(test, days=[DAY], now=T1)
 
     assert exposures.rounds == [3]
+
+
+async def test_a_switched_off_campaign_pauses_the_test_and_drops_its_baseline() -> None:
+    """The seller paused their advertising; the test waits rather than finishes.
+
+    Two things have to happen together. The status becomes PAUSED — not
+    COMPLETED, because the money is still there and the campaign can come back.
+    And the counter baseline is dropped, because WB's counters are cumulative
+    since midnight: a baseline left behind over a three-hour pause makes the
+    first window after it three hours wide and credits the lot to whichever
+    photo happens to be up when the campaign returns.
+    """
+    first, second = make_variant(1), make_variant(2)
+    test = running_test([first, second], active=first)
+    installer = FakeInstaller()
+    tests = FakeTests()
+    snapshots = FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)}))
+    poller = build_runner(
+        reading={DAY: Counters(views=10_000)},
+        windows=FakeWindows(),
+        snapshots=snapshots,
+        exposures=FakeExposures(active_since=T0),
+        installer=installer,
+        tests=tests,
+        ads=AdsState.PAUSED,
+    )
+
+    outcome = await poller.poll(test, days=[DAY], now=T1)
+
+    assert outcome.action is RotationAction.HOLD
+    assert tests.status_writes == [AbTestStatus.PAUSED]
+    assert test.paused_by_ads is True
+    assert snapshots.cleared is True
+    # The photo that was up stays up. Pausing is not taking the card down.
+    assert installer.installed == []

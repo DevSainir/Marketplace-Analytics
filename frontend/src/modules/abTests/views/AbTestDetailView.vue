@@ -211,7 +211,10 @@ async function onFiles(event) {
         @exclude="(id, excluded) => store.toggleExclusion(test.id, id, excluded)"
       />
 
-      <div class="mt-lg">
+      <!-- Deliberately a lot of air: the grid is what the page is for and
+           the log is a separate question about it, so the gap has to read
+           as «different section» rather than «next row». -->
+      <div class="mt-[4rem] phone:mt-[2.5rem]">
         <RotationHistory :test="test" :image-urls="store.imageUrls" :round="round" />
       </div>
     </template>

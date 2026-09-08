@@ -238,7 +238,7 @@ class FakeTestRepo:
 def _catalog(repo: FakeTestRepo) -> AbTestCatalogService:
     """Build the service with only the collaborator these cases exercise."""
     return AbTestCatalogService(
-        tests=repo, variants=None, exposures=None, stats=None, media_store=None
+        tests=repo, variants=None, exposures=None, stats=None, snapshots=None, media_store=None
     )
 
 

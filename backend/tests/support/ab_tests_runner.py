@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from src.modules.ab_tests.models import AbTest, AbTestStatus, AbTestVariant, TriggerMode
-from src.modules.ab_tests.services.budget import BudgetState
+from src.modules.ab_tests.services.budget import AdsState
 from src.modules.ab_tests.services.collection import Counters
 from src.modules.ab_tests.services.runner import RotationRunner, Snapshot
 
@@ -98,6 +98,7 @@ class FakeSnapshots:
 
     def __init__(self, snapshot: Snapshot | None = None) -> None:
         self.snapshot = snapshot
+        self.cleared = False
         self.saves: list[datetime] = []
 
     async def load(self, *, test_id: uuid.UUID) -> Snapshot | None:
@@ -108,6 +109,10 @@ class FakeSnapshots:
     ) -> None:
         self.saves.append(captured_at)
         self.snapshot = Snapshot(captured_at=captured_at, by_day=by_day)
+
+    async def clear(self, *, test_id: uuid.UUID) -> None:
+        self.snapshot = None
+        self.cleared = True
 
 
 class FakeExposures:
@@ -151,6 +156,11 @@ class FakeTests:
         self.active_writes: list[uuid.UUID | None] = []
         self.status_writes: list[AbTestStatus] = []
 
+    async def pause_for_ads(self, *, test: AbTest) -> None:
+        test.status = AbTestStatus.PAUSED.value
+        test.paused_by_ads = True
+        self.status_writes.append(AbTestStatus.PAUSED)
+
     async def set_active_variant(self, *, test: AbTest, variant_id: uuid.UUID | None) -> None:
         test.active_variant_id = variant_id
         self.active_writes.append(variant_id)
@@ -188,19 +198,19 @@ def build_runner(
     exposures: FakeExposures,
     installer: FakeInstaller,
     tests: FakeTests,
-    budget: BudgetState = BudgetState.AVAILABLE,
+    ads: AdsState = AdsState.SERVING,
 ) -> RotationRunner:
     """A runner wired entirely to fakes.
 
-    ``budget`` defaults to money in the account, because that is the state a
-    test spends almost all of its life in; the cases about running out say so.
+    ``ads`` defaults to a campaign that is serving, because that is the state a
+    test spends almost all of its life in; the cases about it stopping say so.
     """
 
     async def _read(nm_id: int, days: object) -> dict[date, Counters]:
         return reading
 
-    async def _budget(nm_id: int) -> BudgetState:
-        return budget
+    async def _ads(nm_id: int) -> AdsState:
+        return ads
 
     return RotationRunner(
         tests=tests,
@@ -209,7 +219,7 @@ def build_runner(
         snapshots=snapshots,
         installer=installer,
         read_counters=_read,
-        read_budget=_budget,
+        read_ads=_ads,
     )
 
 

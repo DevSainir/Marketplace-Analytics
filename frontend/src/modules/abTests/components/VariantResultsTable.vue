@@ -31,6 +31,7 @@
  */
 import { computed, ref } from 'vue'
 
+import MetricHint from '@/modules/abTests/components/MetricHint.vue'
 import VariantMetricsPager from '@/modules/abTests/components/VariantMetricsPager.vue'
 import {
   METRICS,
@@ -131,7 +132,7 @@ function cell(variant, metric) {
           <tr v-for="metric in METRICS" :key="metric.key">
             <th class="ab-grid__label-col" scope="row">
               <span>{{ metric.label }}</span>
-              <span v-if="metric.hint" class="ab-grid__hint" :title="metric.hint">ⓘ</span>
+              <MetricHint v-if="metric.hint" :text="metric.hint" />
             </th>
             <td
               v-for="variant in columns"

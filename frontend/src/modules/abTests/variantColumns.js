@@ -13,43 +13,80 @@
 /**
  * How far behind the leader still counts as close.
  *
- * Thresholds rather than a gradient, because the column answers a yes/no
+ * Thresholds rather than a gradient, because the figure answers a yes/no
  * question — is this photo still a contender — and a gradient makes every value
  * look like a slightly different shade of the same answer. Ten percent is
  * inside the noise of a few thousand impressions; past thirty, no amount of
  * further data is going to rescue the photo.
+ *
+ * **The same three bands colour «Результат» and «Отклонение».** They are one
+ * number written two ways — a relative gap and the same gap in points — so a
+ * photo that reads «still close» on one line and «hopeless» on the other is the
+ * table contradicting itself. Colouring every non-leader red, which is what
+ * this did first, threw the distinction away entirely.
  */
 const CLOSE_ENOUGH = -10
 const CLEARLY_BEHIND = -30
 
-/** The rows of the grid, in the order they are read. */
+/**
+ * How many laps a photo has to have led to read as a winner.
+ *
+ * Relative to the best record rather than equal to it: a photo on 4 wins where
+ * the leader has 5 is not in the same category as one on 0, and rank alone
+ * would paint it the same amber as a photo that won once in fifteen laps.
+ */
+const WINNING_SHARE = 0.5
+
+/**
+ * The rows of the grid, in the order they are read.
+ *
+ * Every derived row carries a hint, because none of them is self-explanatory
+ * from its label alone: two of them are the same difference written two ways,
+ * and two are about the whole test while the filter above the table says a
+ * single lap. A reader who guesses wrong at either reads the table backwards.
+ */
 export const METRICS = [
-  { key: 'views', label: 'Показов', kind: 'count' },
-  { key: 'clicks', label: 'Кликов', kind: 'count', hint: 'Переходы в карточку из выдачи' },
-  { key: 'click_through', label: 'CTR', kind: 'percent', hint: 'Доля переходов в карточку' },
+  {
+    key: 'views',
+    label: 'Показов',
+    kind: 'count',
+    hint: 'Сколько раз карточку показали в рекламе, пока это фото стояло главным. Органические показы WB не отдаёт ни в одном API, поэтому здесь только реклама.',
+  },
+  {
+    key: 'clicks',
+    label: 'Кликов',
+    kind: 'count',
+    hint: 'Сколько раз из этих показов перешли в карточку.',
+  },
+  {
+    key: 'click_through',
+    label: 'CTR',
+    kind: 'percent',
+    hint: 'Клики, делённые на показы. Главная метрика теста: она про само фото, а не про то, сколько ему досталось трафика.',
+  },
   {
     key: 'ctr_result',
     label: 'Результат',
     kind: 'result',
-    hint: 'Насколько CTR отличается от лучшего, в процентах',
+    hint: 'На сколько процентов CTR этого фото ниже, чем у лучшего. «-50%» значит вдвое меньше переходов при том же числе показов.',
   },
   {
     key: 'ctr_gap',
     label: 'Отклонение CTR от лучшего',
     kind: 'gap',
-    hint: 'Та же разница, но в процентных пунктах',
+    hint: 'Та же разница, но в процентных пунктах — на сколько буквально отличаются числа в строке CTR.',
   },
   {
     key: 'rounds_won',
     label: 'Побед в раундах по CTR',
     kind: 'wins',
-    hint: 'Считается по всему тесту, а не по выбранному кругу',
+    hint: 'В скольких кругах у этого фото был лучший CTR. Устойчивее итогового CTR: один удачный час не вытягивает весь тест. Считается по всему тесту, а не по выбранному кругу.',
   },
   {
     key: 'rounds_played',
     label: 'Кругов',
     kind: 'count',
-    hint: 'В скольких кругах фото участвовало. Считается по всему тесту',
+    hint: 'Сколько кругов фото отработало. Нужно, чтобы «0 побед» у фото из одного круга не читалось так же, как у фото из пятнадцати. Считается по всему тесту.',
   },
 ]
 
@@ -174,27 +211,21 @@ export function cellFor(variant, metric, { leaderId, bestWins }) {
   if (metric.kind === 'count') return { text: count(value), class: '' }
   if (metric.kind === 'percent') return { text: percent(value), class: '' }
 
+  // «Результат» — the gap as a share of the leader's click-through. The leader
+  // shows a plain green zero: it is exactly zero behind itself, and the word
+  // belongs on the other line.
   if (metric.kind === 'result') {
-    if (variant.variant_id === leaderId) {
-      return { text: 'Лучший', class: 'text-status-positive font-semibold' }
-    }
     if (value === null || value === undefined) return { text: '—', class: 'text-muted' }
-    const gap = Number(value)
-    return {
-      text: wholePercent(gap),
-      class:
-        gap >= CLOSE_ENOUGH
-          ? 'text-status-positive'
-          : gap >= CLEARLY_BEHIND
-            ? 'text-status-warning'
-            : 'text-status-negative',
-    }
+    return { text: wholePercent(value), class: band(value) }
   }
 
+  // «Отклонение» — the same gap in points, and where the leader is NAMED. One
+  // row carries the number, the other carries the verdict; putting both on the
+  // same line leaves the other with nothing to say.
   if (metric.kind === 'gap') {
-    if (variant.variant_id === leaderId) return { text: '0%', class: 'text-status-positive' }
+    if (variant.variant_id === leaderId) return { text: 'Лучший', class: 'font-semibold' }
     if (value === null || value === undefined) return { text: '—', class: 'text-muted' }
-    return { text: `${percent(value)} ↓`, class: 'text-status-negative' }
+    return { text: `${percent(value)} ↓`, class: band(variant.ctr_result) }
   }
 
   const wins = Number(value ?? 0)
@@ -203,10 +234,24 @@ export function cellFor(variant, metric, { leaderId, bestWins }) {
     class:
       wins === 0
         ? 'text-status-negative'
-        : wins === bestWins
+        : wins >= bestWins * WINNING_SHARE
           ? 'text-status-positive'
           : 'text-status-warning',
   }
+}
+
+/**
+ * Green, amber or red for one gap.
+ *
+ * @param {number|null} gap Click-through relative to the leader, in percent.
+ * @returns {string} The colour class, or none when there is nothing to colour.
+ */
+function band(gap) {
+  if (gap === null || gap === undefined) return 'text-muted'
+  const value = Number(gap)
+  if (value >= CLOSE_ENOUGH) return 'text-status-positive'
+  if (value >= CLEARLY_BEHIND) return 'text-status-warning'
+  return 'text-status-negative'
 }
 
 /** The highest lap count any photo has won, for colouring «Побед». */

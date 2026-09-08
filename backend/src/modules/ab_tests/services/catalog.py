@@ -29,6 +29,7 @@ from src.modules.ab_tests.models import (
 from src.modules.ab_tests.repos import (
     AbTestRepository,
     ExposureRepository,
+    SnapshotRepository,
     VariantRepository,
     WindowRepository,
 )
@@ -64,6 +65,7 @@ class AbTestCatalogService:
         variants: VariantRepository,
         exposures: ExposureRepository,
         stats: WindowRepository,
+        snapshots: SnapshotRepository,
         media_store: MediaStore,
     ) -> None:
         """Wire the service to its repositories and the WB installer.
@@ -73,12 +75,15 @@ class AbTestCatalogService:
             variants: Variant repository.
             exposures: Exposure repository.
             stats: Per-interval traffic repository.
+            snapshots: The poller's counter baseline, dropped on a pause so
+                the paused stretch is not credited to anyone.
             media_store: Where variant originals are written and read.
         """
         self._tests = tests
         self._variants = variants
         self._exposures = exposures
         self._stats = stats
+        self._snapshots = snapshots
         self._media = media_store
         self._launcher = Launcher(tests=tests, variants=variants, exposures=exposures)
 
@@ -310,6 +315,13 @@ class AbTestCatalogService:
             await self._exposures.close_open(test_id=test.id, deactivated_at=datetime.now(UTC))
             await self._tests.set_status(test=test, status=target, finished_at=datetime.now(UTC))
         else:
+            # Dropping the counter baseline is what makes a pause a pause. WB's
+            # counters are cumulative since midnight, so a baseline left behind
+            # over a three-hour pause makes the first window after it three
+            # hours wide and credits the lot to whichever photo is up — the
+            # paused stretch would be paid for by the photo that did not serve
+            # it. With no snapshot the next pass seeds and credits nothing.
+            await self._snapshots.clear(test_id=test.id)
             await self._tests.set_status(test=test, status=target)
 
         return self._as_row(test)

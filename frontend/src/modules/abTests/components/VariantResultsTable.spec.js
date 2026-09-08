@@ -71,14 +71,17 @@ function row(wrapper, label) {
 }
 
 describe('what the table says about a photo', () => {
-  it('names the leader rather than printing it a zero', () => {
+  it('names the leader on the points line and zeroes it on the relative one', () => {
+    // Two lines, two jobs: «Результат» carries the number and «Отклонение»
+    // carries the verdict. Putting «Лучший» on both would leave one of them
+    // with nothing of its own to say.
     const wrapper = build([
       variant(MAIN, { is_original: true, click_through: 3.34, ctr_result: 0, ctr_gap: 0 }),
       variant(ONE, { click_through: 2.09, ctr_result: -37, ctr_gap: 1.25 }),
     ])
 
-    expect(row(wrapper, 'Результат')).toEqual(['Лучший', '-37%'])
-    expect(row(wrapper, 'Отклонение')).toEqual(['0%', '1,25% ↓'])
+    expect(row(wrapper, 'Результат')).toEqual(['0%', '-37%'])
+    expect(row(wrapper, 'Отклонение')).toEqual(['Лучший', '1,25% ↓'])
   })
 
   it('calls the captured photo «Главное» instead of «Вариант 0»', () => {
@@ -111,6 +114,21 @@ describe('what the table says about a photo', () => {
 
     expect(row(wrapper, 'Побед')).toEqual(['1 раз', '4 раза', '0 раз'])
   })
+
+  it('counts a near-best record as a win rather than an also-ran', () => {
+    // 4 wins against a leader's 5 is not the same category as 1 against 5, and
+    // colouring by rank alone would paint both the same amber.
+    const wrapper = build([
+      variant(MAIN, { rounds_won: 5 }),
+      variant(ONE, { rounds_won: 4 }),
+      variant(TWO, { rounds_won: 1 }),
+    ])
+
+    const wins = wrapper.findAll('tbody tr')[5].findAll('td')
+    expect(wins[0].classes()).toContain('text-status-positive')
+    expect(wins[1].classes()).toContain('text-status-positive')
+    expect(wins[2].classes()).toContain('text-status-warning')
+  })
 })
 
 describe('an excluded photo', () => {
@@ -131,7 +149,7 @@ describe('an excluded photo', () => {
       variant(ONE, { is_excluded: true, click_through: 9 }),
     ])
 
-    expect(row(wrapper, 'Результат')[0]).toBe('Лучший')
+    expect(row(wrapper, 'Отклонение')[0]).toBe('Лучший')
   })
 
   it('offers to come back, without needing a hover to find the control', () => {
@@ -173,7 +191,7 @@ describe('filtering to one lap', () => {
 
     expect(row(wrapper, 'Показов')).toEqual(['1 000', '1 000'].map((s) => s.replace(' ', ' ')))
     expect(row(wrapper, 'CTR')).toEqual(['5,00%', '1,00%'])
-    expect(row(wrapper, 'Результат')).toEqual(['Лучший', '-80%'])
+    expect(row(wrapper, 'Результат')).toEqual(['0%', '-80%'])
   })
 
   it('leaves the whole-test columns alone', () => {

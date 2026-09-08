@@ -29,13 +29,21 @@
 
 /* ------------------------------------------------------------------ labels */
 
+/*
+ * Shrink-to-fit rather than a guessed width.
+ *
+ * `width: 1%` with `white-space: nowrap` is the table-layout idiom for «as
+ * narrow as the content allows»: the browser cannot honour 1 %, so it falls
+ * back to the widest unbreakable cell — «Отклонение CTR от лучшего» — and every
+ * pixel it does not take goes to the photos, which are the thing being
+ * compared. A fixed 220px was 40px of empty gutter on every row.
+ */
 .ab-grid__label-col {
   position: sticky;
   left: 0;
   z-index: 1;
-  width: 220px;
-  min-width: 220px;
-  padding: 10px 16px;
+  width: 1%;
+  padding: 10px 20px 10px 16px;
   text-align: left;
   font-size: 12px;
   font-weight: 500;

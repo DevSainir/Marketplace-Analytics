@@ -23,6 +23,7 @@
  */
 import { computed, ref, watch } from 'vue'
 
+import MetricHint from '@/modules/abTests/components/MetricHint.vue'
 import {
   METRICS,
   bestWinsOf,
@@ -126,7 +127,7 @@ function cell(metric) {
       <div v-for="metric in METRICS" :key="metric.key" class="ab-pager__figure">
         <dt>
           {{ metric.label }}
-          <span v-if="metric.hint" class="ab-pager__hint" :title="metric.hint">ⓘ</span>
+          <MetricHint v-if="metric.hint" :text="metric.hint" />
         </dt>
         <dd class="tabular-nums" :class="cell(metric).class">{{ cell(metric).text }}</dd>
       </div>

@@ -21,6 +21,7 @@ from src.integrations.wildberries import WBContentClient
 from src.modules.ab_tests.repos import (
     AbTestRepository,
     ExposureRepository,
+    SnapshotRepository,
     VariantRepository,
     WindowRepository,
 )
@@ -123,6 +124,11 @@ def get_exposure_repo(session: DbSession) -> ExposureRepository:
     return ExposureRepository(session)
 
 
+def get_snapshot_repo(session: DbSession) -> SnapshotRepository:
+    """Provide a :class:`SnapshotRepository` bound to the request session."""
+    return SnapshotRepository(session)
+
+
 def get_stat_repo(session: DbSession) -> WindowRepository:
     """Provide a :class:`WindowRepository` bound to the request session."""
     return WindowRepository(session)
@@ -133,6 +139,7 @@ def get_catalog_service(
     variants: Annotated[VariantRepository, Depends(get_variant_repo)],
     exposures: Annotated[ExposureRepository, Depends(get_exposure_repo)],
     stats: Annotated[WindowRepository, Depends(get_stat_repo)],
+    snapshots: Annotated[SnapshotRepository, Depends(get_snapshot_repo)],
     media_store: MediaStoreDep,
 ) -> AbTestCatalogService:
     """Provide the module's request-scoped service."""
@@ -141,6 +148,7 @@ def get_catalog_service(
         variants=variants,
         exposures=exposures,
         stats=stats,
+        snapshots=snapshots,
         media_store=media_store,
     )
 

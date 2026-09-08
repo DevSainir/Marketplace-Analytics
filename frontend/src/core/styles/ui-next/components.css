@@ -248,3 +248,52 @@
 [id^='ui-sec-'] {
   scroll-margin-top: 16px;
 }
+
+/*
+ * An inline explanation, opened by its own ⓘ.
+ *
+ * Replaces the native `title`, which waits about a second, renders in the OS
+ * font wherever the cursor is, cannot be styled, and does not exist on touch —
+ * «навожу, ничего нет» is what that delay feels like.
+ *
+ * The bubble is NOT a descendant of the icon: it is teleported to `<body>` and
+ * placed in fixed coordinates, because the metric labels live inside the result
+ * grid's horizontal scroller and `overflow-x: auto` clips its children on both
+ * axes. See `MetricHint.vue`.
+ */
+.ab-tip {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--ui-muted);
+  opacity: 0.7;
+  cursor: help;
+}
+
+.ab-tip:hover,
+.ab-tip:focus {
+  opacity: 1;
+  color: var(--ui-action);
+}
+
+.ab-tip__bubble {
+  position: fixed;
+  z-index: 60;
+  /* The anchor's own top is passed in; this lifts the bubble clear of it. */
+  transform: translateY(-100%);
+  width: max-content;
+  max-width: min(320px, 78vw);
+  padding: 8px 10px;
+  border-radius: var(--ui-r-md);
+  background: #1f2030;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 6px 20px rgb(15 15 30 / 22%);
+  pointer-events: none;
+}

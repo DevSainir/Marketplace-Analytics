@@ -94,6 +94,51 @@ class AbTestRepository:
         stmt = select(func.count()).select_from(AbTest).where(AbTest.workspace_id == workspace_id)
         return int((await self._session.execute(stmt)).scalar_one())
 
+    async def pause_for_ads(self, *, test: AbTest) -> None:
+        """Pause a test because its advertising stopped, flagging why.
+
+        The flag is the whole point. A test paused by hand and one paused by the
+        rotation are the same ``status``, and only one of them may start itself
+        again — resuming the other would override the seller's own decision on
+        the next polling pass.
+
+        Args:
+            test: The running test to pause.
+        """
+        test.status = AbTestStatus.PAUSED.value
+        test.paused_by_ads = True
+        await self._session.flush()
+
+    async def resume_after_ads(self, *, test: AbTest) -> None:
+        """Put an ads-paused test back to running.
+
+        Args:
+            test: The test whose campaign is serving again.
+        """
+        test.status = AbTestStatus.RUNNING.value
+        test.paused_by_ads = False
+        await self._session.flush()
+
+    async def list_ads_paused(self) -> list[AbTest]:
+        """Tests the rotation paused, across every workspace.
+
+        The polling sweep walks these alongside the running ones so a campaign
+        coming back on brings its test with it, with no one having to notice.
+        A test the SELLER paused is deliberately absent.
+
+        Returns:
+            Paused tests carrying the flag, with their variants loaded.
+        """
+        stmt = (
+            select(AbTest)
+            .where(
+                AbTest.status == AbTestStatus.PAUSED.value,
+                AbTest.paused_by_ads.is_(True),
+            )
+            .options(selectinload(AbTest.variants))
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
+
     async def get(self, *, workspace_id: uuid.UUID, test_id: uuid.UUID) -> AbTest | None:
         """Return one test with its variants loaded, or ``None``.
 

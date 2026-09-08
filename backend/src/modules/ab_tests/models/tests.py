@@ -120,6 +120,11 @@ class AbTest(Base):
             mode.
         active_variant_id: The variant currently on the card, or ``None`` for a
             test that has not started (or has finished).
+        paused_by_ads: True when the ROTATION paused this test because nothing
+            was advertising the card, as opposed to the seller pausing it by
+            hand. The two look identical in ``status`` and must not be: a test
+            the seller paused stays paused until they say otherwise, while this
+            one resumes on its own the moment the campaign does.
         started_at: When the first variant was installed.
         finished_at: When the last variant's budget was met, or the test was
             cancelled.
@@ -159,6 +164,8 @@ class AbTest(Base):
     active_variant_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey(f"{_SCHEMA}.ab_test_variant.id", ondelete="SET NULL"), nullable=True
     )
+
+    paused_by_ads: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
 
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

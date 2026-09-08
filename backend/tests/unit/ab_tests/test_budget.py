@@ -1,9 +1,9 @@
-"""Unit tests for the stop rule (services/budget.py).
+"""Unit tests for the rule that decides a test's fate (services/budget.py).
 
 This is the trigger a seller was told to trust, so what is pinned here is not
-arithmetic but the three-way distinction the whole rule rests on: WB said there
-is money, WB said there is none, and WB did not say. The middle one ends an
-experiment; the other two must never be mistaken for it.
+arithmetic but the four-way distinction the whole rule rests on: the campaign is
+running, the campaign is switched off, the money is gone, and WB did not say.
+Two of those change a test's status and two must never be mistaken for them.
 
 The failure that would hurt most has no exception in it. If an unreadable budget
 resolved to «exhausted», every test would end the first time WB hiccuped, and
@@ -16,7 +16,9 @@ import pytest
 
 from src.integrations.wildberries.schemas import WBAdvertV2
 from src.modules.ab_tests.services.budget import (
-    BudgetState,
+    PAUSED_STATUS,
+    SERVING_STATUS,
+    AdsState,
     read_state,
     spendable_campaigns,
 )
@@ -25,10 +27,10 @@ NM_TROUSERS = 1944299862
 NM_OTHER = 995716075
 
 #: WB's own status codes, as observed on the live account 2026-09-07.
-RUNNING, PAUSED, FINISHED, READY = 9, 11, 7, 4
+FINISHED, READY = 7, 4
 
 
-def _advert(campaign_id: int, *nm_ids: int, status: int = RUNNING) -> WBAdvertV2:
+def _advert(campaign_id: int, *nm_ids: int, status: int = SERVING_STATUS) -> WBAdvertV2:
     """One campaign descriptor, shaped as WB's v2 listing sends it."""
     return WBAdvertV2.model_validate(
         {
@@ -56,15 +58,15 @@ class _FakeBudgets:
 
 
 # --------------------------------------------------------------------------- #
-# Which campaigns count
+# Which campaigns count at all
 # --------------------------------------------------------------------------- #
 
 
 @pytest.mark.parametrize(
     ("status", "counts"),
     [
-        pytest.param(RUNNING, True, id="идут показы — spending now"),
-        pytest.param(PAUSED, True, id="на паузе — money still there, resumable"),
+        pytest.param(SERVING_STATUS, True, id="идут показы — spending now"),
+        pytest.param(PAUSED_STATUS, True, id="на паузе — money still there, resumable"),
         pytest.param(FINISHED, False, id="завершена — cannot spend whatever it reports"),
         pytest.param(READY, False, id="готова к запуску — never served"),
     ],
@@ -80,7 +82,7 @@ def test_only_campaigns_that_can_still_spend_are_asked(status: int, counts: bool
     assert bool(spendable_campaigns(adverts, nm_id=NM_TROUSERS)) is counts
 
 
-def test_campaigns_for_another_sku_are_not_this_tests_budget() -> None:
+def test_campaigns_for_another_sku_are_not_this_tests_advertising() -> None:
     """Money on a different card cannot keep this rotation going."""
     adverts = [_advert(1, NM_OTHER), _advert(2, NM_TROUSERS)]
 
@@ -88,30 +90,54 @@ def test_campaigns_for_another_sku_are_not_this_tests_budget() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# The three answers
+# The four answers
 # --------------------------------------------------------------------------- #
 
 
-async def test_one_funded_campaign_keeps_the_rotation_going() -> None:
-    """Any money anywhere is enough — and the rest are not even asked.
+async def test_a_running_funded_campaign_keeps_the_rotation_going() -> None:
+    """The common case costs one request and stops there.
 
-    Each id costs a request on a bucket shared with the nightly harvest.
+    Running campaigns are asked first for exactly this reason: each id spends
+    from a bucket shared with the nightly harvest.
     """
+    adverts = [
+        _advert(10, NM_TROUSERS),
+        _advert(20, NM_TROUSERS),
+        _advert(30, NM_TROUSERS, status=PAUSED_STATUS),
+    ]
     client = _FakeBudgets({10: 3818, 20: 0, 30: 0})
 
-    assert await read_state(client=client, campaign_ids=[10, 20, 30], nm_id=NM_TROUSERS) is (
-        BudgetState.AVAILABLE
-    )
+    assert await read_state(client=client, adverts=adverts, nm_id=NM_TROUSERS) is AdsState.SERVING
     assert client.asked == [10]
+
+
+async def test_switching_the_campaign_off_pauses_the_test_rather_than_ending_it() -> None:
+    """The money is still there, so this is a pause and not a result.
+
+    A test that kept rotating here would deal photo after photo through dead
+    air and record each turn as zero impressions — ten rows of zeros that read
+    exactly like a finding.
+    """
+    adverts = [_advert(10, NM_TROUSERS, status=PAUSED_STATUS)]
+    client = _FakeBudgets({10: 350})
+
+    assert await read_state(client=client, adverts=adverts, nm_id=NM_TROUSERS) is AdsState.PAUSED
+
+
+async def test_a_running_campaign_with_no_money_is_not_serving() -> None:
+    """«Идут показы» with a zero budget serves nothing, whatever WB calls it."""
+    adverts = [_advert(10, NM_TROUSERS), _advert(20, NM_TROUSERS, status=PAUSED_STATUS)]
+    client = _FakeBudgets({10: 0, 20: 350})
+
+    assert await read_state(client=client, adverts=adverts, nm_id=NM_TROUSERS) is AdsState.PAUSED
 
 
 async def test_every_campaign_at_zero_is_the_end_of_the_test() -> None:
     """The rule as promised: budget in nought, the test stops."""
+    adverts = [_advert(10, NM_TROUSERS), _advert(20, NM_TROUSERS, status=PAUSED_STATUS)]
     client = _FakeBudgets({10: 0, 20: 0})
 
-    assert await read_state(client=client, campaign_ids=[10, 20], nm_id=NM_TROUSERS) is (
-        BudgetState.EXHAUSTED
-    )
+    assert await read_state(client=client, adverts=adverts, nm_id=NM_TROUSERS) is AdsState.EXHAUSTED
 
 
 async def test_a_campaign_wb_will_not_answer_for_poisons_the_whole_answer() -> None:
@@ -120,21 +146,21 @@ async def test_a_campaign_wb_will_not_answer_for_poisons_the_whole_answer() -> N
     Returning EXHAUSTED here would end the test on a network blip — silently,
     and with a result table the seller has no reason to distrust.
     """
+    adverts = [_advert(10, NM_TROUSERS), _advert(20, NM_TROUSERS)]
     client = _FakeBudgets({10: 0, 20: 0}, fail_on=20)
 
-    assert await read_state(client=client, campaign_ids=[10, 20], nm_id=NM_TROUSERS) is (
-        BudgetState.UNKNOWN
-    )
+    assert await read_state(client=client, adverts=adverts, nm_id=NM_TROUSERS) is AdsState.UNKNOWN
 
 
-async def test_a_card_nobody_is_advertising_is_unknown_rather_than_exhausted() -> None:
-    """No campaigns is not «the money ran out» — there was never any to run out.
+async def test_a_card_nobody_is_advertising_is_unknown_rather_than_paused() -> None:
+    """No campaigns is neither «switched off» nor «out of money».
 
-    Vacuous truth would make this EXHAUSTED and stop a test the seller may be
-    about to start a campaign for, for a reason the budget rule does not cover.
+    Both would act on a rule that does not cover the case: there is no campaign
+    to come back on, and there was never any budget to spend.
     """
     client = _FakeBudgets({})
 
-    assert await read_state(client=client, campaign_ids=[], nm_id=NM_TROUSERS) is (
-        BudgetState.UNKNOWN
+    assert (
+        await read_state(client=client, adverts=[_advert(1, NM_OTHER)], nm_id=NM_TROUSERS)
+        is AdsState.UNKNOWN
     )

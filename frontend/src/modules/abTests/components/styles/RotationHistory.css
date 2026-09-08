@@ -19,6 +19,20 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  /* Fixed layout so the seven figure columns share the leftover width equally
+     instead of each being sized by whatever happens to be in it — «Вариант» is
+     three times the width of «Круг» under auto layout, and the eye reads that
+     as a hierarchy the columns do not have. */
+  table-layout: fixed;
+}
+
+/* The timestamp is the exception: it is the widest thing in the table and the
+   column everything else is read against, so it keeps its own width and its
+   right-hand gutter rather than being squeezed into an equal share. */
+.ab-history th:first-child,
+.ab-history td:first-child {
+  width: 190px;
+  padding-right: 24px;
 }
 
 /* The header stays put while the log scrolls under it: eight columns of bare
