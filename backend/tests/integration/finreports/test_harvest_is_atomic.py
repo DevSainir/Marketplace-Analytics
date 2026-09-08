@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.core.exceptions import IntegrationError
 from src.modules.finreports.tasks import harvest as harvest_module
 from src.modules.finreports.tasks import settlement as settlement_module
+from src.modules.finreports.tasks import storage as storage_module
 from src.modules.finreports.tasks.harvest import harvest_workspace
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
@@ -37,7 +38,7 @@ _WORKSPACE = uuid.UUID("019f657a-a70c-780a-ac98-f010a1916616")
 _REPORT = 969371539
 _RRD_BASE = 920_000_000_000
 
-#: never waits out `_STORAGE_PACE_SECONDS`.
+#: never waits out `storage._STORAGE_PACE_SECONDS`.
 _FROM, _TO = date(2026, 7, 13), date(2026, 7, 15)
 
 
@@ -52,6 +53,7 @@ def _tokens() -> WorkspaceTokenBundle:
         name="Демо",
         statistics="stat-token",
         analytics="analytics-token",
+        content="content-token",
         internal_features=True,
     )
 

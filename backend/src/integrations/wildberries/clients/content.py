@@ -2,7 +2,8 @@
 
 The Content API is the authoritative source for the account's product catalogue
 (nmID -> card metadata). The Monitoring harvest uses it to discover *which* SKUs
-to pull funnel + stock for. Authenticated with the analytics token.
+to pull funnel + stock for. Authenticated with the workspace's **«Контент»**
+token — see :class:`WBContentClient` for why that is not the analytics one.
 """
 
 from __future__ import annotations
@@ -26,8 +27,13 @@ class WBContentClient(BaseWBClient):
 
         Args:
             settings: Transport configuration (base URL, timeouts, retries).
-            token: The workspace's Analytics-scope bearer token (the Content
-                surface accepts it; no separate content token exists).
+            token: The workspace's **Content**-scope bearer token
+                (``WorkspaceTokenBundle.content``). An analytics-scope token is
+                refused here — `403 {"detail":"scope is not allowed for this
+                resource"}`, measured 2026-09-05 — and a single ``unified``
+                token serves this surface like any other, which is why the
+                mistake only ever showed on the one workspace holding
+                per-surface tokens.
         """
         super().__init__(
             base_url=settings.wb_content_base_url,
