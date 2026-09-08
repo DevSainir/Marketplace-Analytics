@@ -1,7 +1,7 @@
 """A/B tests: pause with the advertising
 
 Revision ID: c4d9e6b13a72
-Revises: b7e4a2f19c30
+Revises: c3f8a1d20e47
 Create Date: 2026-09-08 14:20:00.000000
 
 """
@@ -16,7 +16,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "c4d9e6b13a72"
-down_revision: str | None = "b7e4a2f19c30"
+down_revision: str | None = "c3f8a1d20e47"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

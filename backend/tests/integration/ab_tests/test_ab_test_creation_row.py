@@ -24,6 +24,7 @@ from src.core.exceptions import ValidationError
 from src.modules.ab_tests.repos import (
     AbTestRepository,
     ExposureRepository,
+    SnapshotRepository,
     VariantRepository,
     WindowRepository,
 )
@@ -81,6 +82,7 @@ def _service(session: AsyncSession, tmp_path: Path) -> AbTestCatalogService:
         variants=VariantRepository(session),
         exposures=ExposureRepository(session),
         stats=WindowRepository(session),
+        snapshots=SnapshotRepository(session),
         media_store=LocalMediaStore(tmp_path),
     )
 
