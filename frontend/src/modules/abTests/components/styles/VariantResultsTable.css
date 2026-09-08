@@ -172,6 +172,42 @@
   background: var(--ui-surface);
 }
 
+/*
+ * The colour of a figure — through this sheet's own modifiers, never a
+ * `text-status-*` utility.
+ *
+ * `.ab-grid__value` above already sets `color` and carries the scope attribute,
+ * so it outranks a bare utility class on the same element and the colour
+ * silently does not apply. That is exactly what happened: the whole grid
+ * rendered in plain black while every cell carried a `text-status-*` class that
+ * did nothing. The design system records this trap for the record lists; it
+ * applies to any scoped sheet that sets a colour.
+ *
+ * Written after the base rule so equal specificity resolves in their favour.
+ */
+.ab-grid__value--positive {
+  color: #179e60;
+}
+
+.ab-grid__value--warning {
+  color: #e8814f;
+}
+
+.ab-grid__value--negative {
+  color: #ee522b;
+}
+
+.ab-grid__value--muted {
+  color: var(--ui-muted);
+}
+
+/* The leader is named rather than coloured: «Лучший» is a word, and a word in
+   green next to nine coloured numbers reads as one more measurement. */
+.ab-grid__value--best {
+  font-weight: 600;
+  color: var(--ui-text);
+}
+
 /* An excluded photo is greyed, not hidden. Its numbers are why it was excluded,
    so removing them would remove the evidence for the decision. */
 .ab-grid__photo-cell.is-excluded,

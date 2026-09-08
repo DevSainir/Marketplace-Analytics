@@ -84,6 +84,29 @@
   cursor: help;
 }
 
+/* Colours through this sheet's own modifiers — `.ab-pager__figure dd` sets a
+   colour above and would outrank a `text-status-*` utility. See the grid's
+   stylesheet for the full story. */
+.ab-pager__value--positive {
+  color: #179e60;
+}
+
+.ab-pager__value--warning {
+  color: #e8814f;
+}
+
+.ab-pager__value--negative {
+  color: #ee522b;
+}
+
+.ab-pager__value--muted {
+  color: var(--ui-muted);
+}
+
+.ab-pager__value--best {
+  color: var(--ui-text);
+}
+
 /* The «Главное» pill, matching the table's. */
 .ab-badge {
   display: inline-block;

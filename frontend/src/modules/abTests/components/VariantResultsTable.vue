@@ -64,6 +64,18 @@ const hovered = ref(null)
 function cell(variant, metric) {
   return cellFor(variant, metric, { leaderId: leaderId.value, bestWins: bestWins.value })
 }
+
+/**
+ * The class that colours one figure.
+ *
+ * Through this sheet's own modifier, never a `text-status-*` utility: the
+ * scoped `.ab-grid__value` sets a colour and outranks the utility, so a bare
+ * one silently does nothing. See `cellFor`.
+ */
+function tone(variant, metric) {
+  const name = cell(variant, metric).tone
+  return name ? `ab-grid__value--${name}` : ''
+}
 </script>
 
 <template>
@@ -138,7 +150,7 @@ function cell(variant, metric) {
               v-for="variant in columns"
               :key="variant.variant_id"
               class="ab-grid__value tabular-nums"
-              :class="[variant.is_excluded ? 'is-excluded' : '', cell(variant, metric).class]"
+              :class="[variant.is_excluded ? 'is-excluded' : '', tone(variant, metric)]"
               :data-testid="metric.key === 'click_through' ? 'ctr' : null"
             >
               {{ cell(variant, metric).text }}

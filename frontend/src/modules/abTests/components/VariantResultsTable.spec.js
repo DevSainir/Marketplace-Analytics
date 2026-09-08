@@ -15,6 +15,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
 import VariantResultsTable from '@/modules/abTests/components/VariantResultsTable.vue'
+import { METRICS, cellFor } from '@/modules/abTests/variantColumns'
 
 const MAIN = '00000000-0000-7000-8000-00000000000a'
 const ONE = '00000000-0000-7000-8000-00000000000b'
@@ -92,10 +93,10 @@ describe('what the table says about a photo', () => {
   })
 
   it.each([
-    ['-5', -5, 'text-status-positive'],
-    ['-20', -20, 'text-status-warning'],
-    ['-51', -51, 'text-status-negative'],
-  ])('shows a %s%% gap as %s', (_label, result, expected) => {
+    ['-5', -5, 'ab-grid__value--positive'],
+    ['-20', -20, 'ab-grid__value--warning'],
+    ['-51', -51, 'ab-grid__value--negative'],
+  ])('shows a %s%% gap in the %s band', (_label, result, expected) => {
     const wrapper = build([
       variant(MAIN, { click_through: 10, ctr_result: 0 }),
       variant(ONE, { click_through: 5, ctr_result: result }),
@@ -125,9 +126,9 @@ describe('what the table says about a photo', () => {
     ])
 
     const wins = wrapper.findAll('tbody tr')[5].findAll('td')
-    expect(wins[0].classes()).toContain('text-status-positive')
-    expect(wins[1].classes()).toContain('text-status-positive')
-    expect(wins[2].classes()).toContain('text-status-warning')
+    expect(wins[0].classes()).toContain('ab-grid__value--positive')
+    expect(wins[1].classes()).toContain('ab-grid__value--positive')
+    expect(wins[2].classes()).toContain('ab-grid__value--warning')
   })
 })
 
@@ -211,5 +212,29 @@ describe('filtering to one lap', () => {
     // этом круге» is one or nothing, which is not a column worth having.
     expect(row(wrapper, 'Побед')).toEqual(['3 раза'])
     expect(row(wrapper, 'Кругов')).toEqual(['5'])
+  })
+})
+
+describe('how a figure is coloured', () => {
+  it('hands back a tone, never a utility class', () => {
+    // The regression this exists for was invisible: every cell carried a
+    // `text-status-*` class, every class-presence assertion passed, and the
+    // whole grid rendered in plain black — because the scoped
+    // `.ab-grid__value` sets `color` and outranks a utility on the same
+    // element. The colour has to come from the sheet's own modifier, so what
+    // this function returns must be a tone name and nothing else.
+    const variant = {
+      variant_id: MAIN,
+      click_through: 1,
+      ctr_result: -50,
+      ctr_gap: 1,
+      rounds_won: 0,
+    }
+    const tones = METRICS.map(
+      (metric) => cellFor(variant, metric, { leaderId: null, bestWins: 5 }).tone,
+    )
+
+    expect(tones.some((tone) => tone.includes('text-'))).toBe(false)
+    expect(new Set(tones)).toEqual(new Set(['', 'negative']))
   })
 })

@@ -197,46 +197,50 @@ function plural(n) {
 }
 
 /**
- * One figure: its text, and the class that says how to read it.
+ * One figure: its text, and the tone it should be read in.
+ *
+ * A **tone**, not a class. Each rendering owns its own stylesheet and colours
+ * the value through that sheet's modifier — `.ab-grid__value--negative` and so
+ * on. Handing back a bare `text-status-*` utility here is what this did first,
+ * and it silently did nothing: the scoped `.ab-grid__value` already sets a
+ * colour and carries the scope attribute, so it outranks the utility and the
+ * table rendered every figure in plain black. The design system records this
+ * trap; it is worth not walking into twice.
  *
  * @param {object} variant A projected photo.
  * @param {object} metric One entry of {@link METRICS}.
  * @param {{leaderId: string|null, bestWins: number}} context The comparison the
  *   figure is read against.
- * @returns {{text: string, class: string}}
+ * @returns {{text: string, tone: string}} `tone` is one of `''`, `'positive'`,
+ *   `'warning'`, `'negative'`, `'muted'` or `'best'`.
  */
 export function cellFor(variant, metric, { leaderId, bestWins }) {
   const value = variant[metric.key]
 
-  if (metric.kind === 'count') return { text: count(value), class: '' }
-  if (metric.kind === 'percent') return { text: percent(value), class: '' }
+  if (metric.kind === 'count') return { text: count(value), tone: '' }
+  if (metric.kind === 'percent') return { text: percent(value), tone: '' }
 
   // «Результат» — the gap as a share of the leader's click-through. The leader
   // shows a plain green zero: it is exactly zero behind itself, and the word
   // belongs on the other line.
   if (metric.kind === 'result') {
-    if (value === null || value === undefined) return { text: '—', class: 'text-muted' }
-    return { text: wholePercent(value), class: band(value) }
+    if (value === null || value === undefined) return { text: '—', tone: 'muted' }
+    return { text: wholePercent(value), tone: band(value) }
   }
 
   // «Отклонение» — the same gap in points, and where the leader is NAMED. One
   // row carries the number, the other carries the verdict; putting both on the
   // same line leaves the other with nothing to say.
   if (metric.kind === 'gap') {
-    if (variant.variant_id === leaderId) return { text: 'Лучший', class: 'font-semibold' }
-    if (value === null || value === undefined) return { text: '—', class: 'text-muted' }
-    return { text: `${percent(value)} ↓`, class: band(variant.ctr_result) }
+    if (variant.variant_id === leaderId) return { text: 'Лучший', tone: 'best' }
+    if (value === null || value === undefined) return { text: '—', tone: 'muted' }
+    return { text: `${percent(value)} ↓`, tone: band(variant.ctr_result) }
   }
 
   const wins = Number(value ?? 0)
   return {
     text: `${count(wins)} ${plural(wins)}`,
-    class:
-      wins === 0
-        ? 'text-status-negative'
-        : wins >= bestWins * WINNING_SHARE
-          ? 'text-status-positive'
-          : 'text-status-warning',
+    tone: wins === 0 ? 'negative' : wins >= bestWins * WINNING_SHARE ? 'positive' : 'warning',
   }
 }
 
@@ -244,14 +248,14 @@ export function cellFor(variant, metric, { leaderId, bestWins }) {
  * Green, amber or red for one gap.
  *
  * @param {number|null} gap Click-through relative to the leader, in percent.
- * @returns {string} The colour class, or none when there is nothing to colour.
+ * @returns {string} The tone name, or `'muted'` when there is nothing to say.
  */
 function band(gap) {
-  if (gap === null || gap === undefined) return 'text-muted'
+  if (gap === null || gap === undefined) return 'muted'
   const value = Number(gap)
-  if (value >= CLOSE_ENOUGH) return 'text-status-positive'
-  if (value >= CLEARLY_BEHIND) return 'text-status-warning'
-  return 'text-status-negative'
+  if (value >= CLOSE_ENOUGH) return 'positive'
+  if (value >= CLEARLY_BEHIND) return 'warning'
+  return 'negative'
 }
 
 /** The highest lap count any photo has won, for colouring «Побед». */

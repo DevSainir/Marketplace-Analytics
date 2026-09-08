@@ -66,6 +66,12 @@ function step(delta) {
 function cell(metric) {
   return cellFor(current.value, metric, { leaderId: leaderId.value, bestWins: bestWins.value })
 }
+
+/** This sheet's own colour modifier — see the table for why not a utility. */
+function tone(metric) {
+  const name = cell(metric).tone
+  return name ? `ab-pager__value--${name}` : ''
+}
 </script>
 
 <template>
@@ -129,7 +135,7 @@ function cell(metric) {
           {{ metric.label }}
           <MetricHint v-if="metric.hint" :text="metric.hint" />
         </dt>
-        <dd class="tabular-nums" :class="cell(metric).class">{{ cell(metric).text }}</dd>
+        <dd class="tabular-nums" :class="tone(metric)">{{ cell(metric).text }}</dd>
       </div>
     </dl>
   </section>
