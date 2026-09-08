@@ -20,13 +20,14 @@ per-test loop breaks something loud.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date
 
 import pytest
 
 from src.integrations.wildberries.schemas import WBAdvCampaignStats
 from src.modules.ab_tests.services.collection import counters_by_day
-from src.modules.ab_tests.tasks import _CAMPAIGN_BATCH, _read_all_stats
+from src.modules.ab_tests.tasks import _CAMPAIGN_BATCH, _gather_bounded, _read_all_stats
 
 DAYS = [date(2026, 9, 7), date(2026, 9, 8)]
 
@@ -115,3 +116,37 @@ def test_one_answer_serves_every_test_in_the_cabinet() -> None:
 
     assert [c.views for c in trousers.values()] == [500]
     assert [c.views for c in dress.values()] == [300]
+
+
+async def test_no_more_cabinets_run_at_once_than_the_pool_can_carry() -> None:
+    """The bound, not the concurrency, is what this guards.
+
+    Cabinets are independent as far as WB is concerned — the rate bucket is per
+    seller token — so running them together is free there. They are NOT
+    independent as far as our database is: each holds a session while it reads
+    its tokens, and an unbounded gather over five hundred of them would ask this
+    process's pool (ten connections plus twenty of overflow) for five hundred at
+    once and stall every one behind the pool's own timeout.
+    """
+    live = 0
+    peak = 0
+
+    async def _run(item: int) -> int:
+        nonlocal live, peak
+        live += 1
+        peak = max(peak, live)
+        await asyncio.sleep(0)
+        live -= 1
+        return item
+
+    results = await _gather_bounded(list(range(50)), _run, limit=4)
+
+    assert peak <= 4
+    # Order is the caller's, not completion order: the sweep adds up tallies
+    # positionally and would credit the wrong cabinet otherwise.
+    assert results == list(range(50))
+
+
+async def test_a_pass_with_no_cabinets_does_nothing_rather_than_hanging() -> None:
+    """An empty gather is a real case: every test paused, or none exists."""
+    assert await _gather_bounded([], lambda item: item, limit=4) == []

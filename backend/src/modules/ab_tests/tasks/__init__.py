@@ -36,9 +36,10 @@ discovering each other through 429s.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
@@ -69,8 +70,41 @@ from src.modules.workspaces.contract import load_workspace_token_bundle
 
 logger = get_logger(__name__)
 
+
 #: WB caps ``ids`` at 50 per fullstats request.
 _CAMPAIGN_BATCH = 50
+
+
+async def _gather_bounded[T, R](
+    items: Sequence[T],
+    run: Callable[[T], Awaitable[R]],
+    *,
+    limit: int,
+) -> list[R]:
+    """Run ``run`` over ``items`` concurrently, at most ``limit`` at a time.
+
+    The bound is the point, not the concurrency. Cabinets are independent as far
+    as WB is concerned, but they are not independent as far as our database is:
+    each one holds a session while it reads its tokens, and an unbounded
+    ``gather`` over five hundred of them would ask this process's pool — ten
+    connections plus twenty of overflow — for five hundred at once and stall
+    every one of them behind the pool's own timeout.
+
+    Args:
+        items: What to run over.
+        run: The coroutine function to run for each.
+        limit: How many may be in flight at once.
+
+    Returns:
+        The results, in the order the items were given.
+    """
+    gate = asyncio.Semaphore(limit)
+
+    async def _guarded(item: T) -> R:
+        async with gate:
+            return await run(item)
+
+    return list(await asyncio.gather(*(_guarded(item) for item in items)))
 
 
 @dataclass(frozen=True)
@@ -148,7 +182,15 @@ async def _prepare_cabinet(
                 len(tests),
             )
             return None
-        harvested = await load_campaign_ids_for_workspace(session, workspace_id=workspace_id)
+        # Only the cards under test. A cabinet advertising four hundred SKUs
+        # while testing three of them was pulling in every campaign it had ever
+        # run, and every fifty of those is another fullstats batch and another
+        # twenty seconds of the pass.
+        harvested = await load_campaign_ids_for_workspace(
+            session,
+            workspace_id=workspace_id,
+            nm_ids=sorted({test.nm_id for test in tests}),
+        )
 
     async with WBAdvertisingClient(settings, token=advertising) as client:
         adverts = await client.list_adverts()
@@ -339,31 +381,58 @@ async def _poll_all() -> dict[str, int]:
     # be visible to the next one.
     adverts_by_workspace: dict[uuid.UUID, list[WBAdvertV2]] = {}
 
-    for workspace_id, workspace_tests in by_workspace.items():
+    async def _sweep_cabinet(
+        workspace_id: uuid.UUID, workspace_tests: list[AbTest]
+    ) -> dict[str, int]:
+        """Poll one cabinet's tests, reporting what happened to them.
+
+        Returns its own counters rather than mutating shared ones: the caller
+        runs these concurrently, and a dict updated from several coroutines is
+        a race waiting for the first slow WB call to expose it.
+        """
+        tally = {"rotated": 0, "paused": 0, "failed": 0}
         try:
             cabinet = await _prepare_cabinet(workspace_id, workspace_tests, days)
         except IntegrationError as exc:
-            counters["failed"] += len(workspace_tests)
             logger.warning("ab_tests: workspace %s could not be read: %s", workspace_id, exc)
-            continue
+            tally["failed"] += len(workspace_tests)
+            return tally
 
         if cabinet is None:
-            counters["failed"] += len(workspace_tests)
-            continue
+            tally["failed"] += len(workspace_tests)
+            return tally
         adverts_by_workspace[workspace_id] = cabinet.adverts
 
+        # Tests WITHIN a cabinet stay sequential. They share one rate
+        # bucket and one transaction-per-test discipline, so running them
+        # concurrently would win nothing and would put several of this
+        # cabinet's sessions in flight at once.
         for test in workspace_tests:
             try:
                 action = await _poll_one(test, cabinet=cabinet, now=now, days=days)
             except IntegrationError as exc:
-                counters["failed"] += 1
+                tally["failed"] += 1
                 logger.warning("ab_tests: test %s could not be polled: %s", test.id, exc)
                 continue
 
             if action in {"install", "advance"}:
-                counters["rotated"] += 1
+                tally["rotated"] += 1
             elif action == "paused":
-                counters["paused"] += 1
+                tally["paused"] += 1
+        return tally
+
+    # Concurrently, because the rate buckets are independent — one per seller
+    # token — so a cabinet's twenty-second wait for a token is twenty seconds
+    # during which every other cabinet can be working. A sequential loop turned
+    # independent waits into a queue nothing asked for.
+    tallies = await _gather_bounded(
+        list(by_workspace.items()),
+        lambda pair: _sweep_cabinet(*pair),
+        limit=settings.ab_tests_poll_concurrency,
+    )
+    for tally in tallies:
+        for key, value in tally.items():
+            counters[key] += value
 
     # After the sweep, not before: a test paused by this very pass must not be
     # resumed by it, and the listing cache is warm by now.

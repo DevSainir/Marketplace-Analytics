@@ -34,6 +34,7 @@ caller that does not know whose numbers it wants must not be able to compile.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import NamedTuple
@@ -338,7 +339,11 @@ async def load_ad_days_for_nm(
 
 
 async def load_campaign_ids_for_workspace(
-    session: AsyncSession, *, workspace_id: uuid.UUID, since_days: int = 30
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    since_days: int = 30,
+    nm_ids: Sequence[int] | None = None,
 ) -> list[int]:
     """Return the campaigns that recently served one workspace's SKUs.
 
@@ -358,20 +363,36 @@ async def load_campaign_ids_for_workspace(
     appears, its counters are read cumulatively from midnight and nothing is
     lost.
 
+    **Narrow it with ``nm_ids`` when you know which cards you care about.** The
+    result is what a fullstats request is addressed by, and that request takes
+    fifty ids at a time on a bucket refilling once every twenty seconds — so an
+    id that cannot possibly carry the traffic being asked for is not free, it is
+    a share of a fifty-slot batch and potentially a twenty-second wait. A
+    cabinet advertising four hundred SKUs while testing three of them was
+    sending eight batches where one would do.
+
     Args:
         session: An open async session (caller owns the transaction).
         workspace_id: The workspace whose campaigns to return.
         since_days: How far back a campaign must have served to count.
+        nm_ids: Restrict to campaigns that served these cards. ``None`` keeps
+            the whole workspace's catalogue, which is what the exports want and
+            what the A/Б poller deliberately does not.
 
     Returns:
         Campaign ids, ascending.
     """
     cutoff = moscow_today() - timedelta(days=since_days)
+    served = (
+        AdvertisingStatDaily.nm_id.in_(list(nm_ids))
+        if nm_ids is not None
+        else AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id))
+    )
     stmt = (
         select(AdvertisingStatDaily.campaign_id)
         .where(
             AdvertisingStatDaily.stat_date >= cutoff,
-            AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id)),
+            served,
         )
         .group_by(AdvertisingStatDaily.campaign_id)
         .order_by(AdvertisingStatDaily.campaign_id)

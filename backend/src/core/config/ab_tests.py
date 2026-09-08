@@ -52,6 +52,22 @@ class AbTestsSettings(BaseSettings):
         default="",
         validation_alias=AliasChoices("AB_TESTS_S3_SECRET_KEY", "S3_HOSTER_SECRET_ACCESS_KEY"),
     )
+    # How many cabinets one polling pass reads at the same time.
+    #
+    # The pass used to walk them one at a time, and that turned independent
+    # waits into a queue: WB's rate bucket is per SELLER TOKEN, so two cabinets
+    # never compete, but a sequential loop still sleeps through one cabinet's
+    # twenty seconds before starting the next one's. Twenty cabinets needing one
+    # extra batch each cost four hundred seconds of a three-hundred-second pass
+    # for no reason WB imposed.
+    #
+    # Sixteen because the ceiling is the database, not WB: a cabinet holds at
+    # most one session at a time and only briefly — the token read is closed
+    # before the WB calls begin — so sixteen sits inside this process's pool of
+    # ten plus twenty overflow with room to spare, and four prefork workers
+    # cannot together outrun Postgres's hundred connections.
+    ab_tests_poll_concurrency: int = Field(default=16, ge=1, le=64)
+
     # Local fallback for tests and for a developer with no bucket: when the
     # bucket is unset the store writes to this directory instead. It is NOT a
     # deployment option — a deployed api and worker do not share one.
