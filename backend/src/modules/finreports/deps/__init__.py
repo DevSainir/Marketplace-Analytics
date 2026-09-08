@@ -101,13 +101,11 @@ BalancePinRepoDep = Annotated[BalancePinRepository, Depends(get_balance_pin_repo
 
 
     transaction_repo: TransactionRepoDep,
-    baseline_repo: BaselineRepoDep,
     billed_repo: BilledRepoDep,
     report_repo: ReportRepoDep,
     penalty_repo: PenaltyRepoDep,
     measurement_repo: MeasurementRepoDep,
         transaction_repo=transaction_repo,
-        baseline_repo=baseline_repo,
         billed_repo=billed_repo,
         report_repo=report_repo,
         penalty_repo=penalty_repo,
@@ -176,14 +174,12 @@ def get_ingestion_service(
 
 
     transaction_repo: TransactionRepoDep,
-    baseline_repo: BaselineRepoDep,
     billed_repo: BilledRepoDep,
     report_repo: ReportRepoDep,
     penalty_repo: PenaltyRepoDep,
     measurement_repo: MeasurementRepoDep,
         package_cache=_package_cache(),
             transaction_repo=transaction_repo,
-            baseline_repo=baseline_repo,
             billed_repo=billed_repo,
             report_repo=report_repo,
             penalty_repo=penalty_repo,
