@@ -179,7 +179,7 @@ async def test_each_page_is_one_request_and_one_commit(journal: list[str]) -> No
     one page: the first seller measured has weeks past the 10 000-row limit,
     and a second page is a second quarter-hour of WB's budget.
     """
-    rows, failed = await walk_settlement_windows(
+    rows, failed, _through = await walk_settlement_windows(
         tokens=_tokens(),
         date_from=_FROM,
         date_to=_TO,
@@ -239,7 +239,7 @@ async def test_a_week_wb_withholds_does_not_cost_the_weeks_that_worked(
     """
     settlement_module.WBFinanceClient.failing = {date(2026, 8, 24)}  # type: ignore[attr-defined]
 
-    rows, failed = await walk_settlement_windows(
+    rows, failed, _through = await walk_settlement_windows(
         tokens=_tokens(),
         date_from=_FROM,
         date_to=_TO,
@@ -271,7 +271,7 @@ async def test_a_window_that_never_gets_a_token_is_counted_not_skipped(
         settlement_module, "settlement_walk_rate_gate", lambda *_a, **_k: _RefusingGate()
     )
 
-    rows, failed = await walk_settlement_windows(
+    rows, failed, _through = await walk_settlement_windows(
         tokens=_tokens(),
         date_from=_FROM,
         date_to=_TO,
@@ -286,7 +286,7 @@ async def test_a_workspace_without_the_settlement_scope_asks_for_nothing(
     journal: list[str],
 ) -> None:
     """No token, no request — and no rate budget spent proving it."""
-    rows, failed = await walk_settlement_windows(
+    rows, failed, _through = await walk_settlement_windows(
         tokens=WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="Асель"),
         date_from=_FROM,
         date_to=_TO,
@@ -310,7 +310,7 @@ async def test_a_second_page_costs_a_second_token_and_a_second_transaction(
     """
     settlement_module.WBFinanceClient.paged = {date(2026, 8, 24)}  # type: ignore[attr-defined]
 
-    rows, failed = await walk_settlement_windows(
+    rows, failed, _through = await walk_settlement_windows(
         tokens=_tokens(),
         date_from=_FROM,
         date_to=date(2026, 8, 30),  # one week, served as two pages
@@ -338,7 +338,7 @@ async def test_a_page_committed_before_a_failure_is_kept(journal: list[str]) -> 
         date(2026, 8, 24)
     }
 
-    rows, failed = await walk_settlement_windows(
+    rows, failed, _through = await walk_settlement_windows(
         tokens=_tokens(),
         date_from=_FROM,
         date_to=date(2026, 8, 30),

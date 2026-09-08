@@ -34,12 +34,19 @@ request**, each week its own transaction.
   under the SAVEPOINT each one runs in.
 * **An incomplete week is reported, not inferred.** A window whose walk stops
   early is counted, and the harvest turns that count into a failed source.
+* **The walk certifies only what it finished.** `SettlementWalk.completed_through`
+  stops at the first window that did not complete, and it is that — never the
+  period WB stamps on the report header — that moves the harvest's watermark.
+  The header is written from the first page that lands and already claims the
+  whole stated week, so trusting it skipped five of six days on 2026-09-07 and
+  then told the freshness gate there was nothing left to ask for.
 """
 
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from datetime import date, timedelta
+from typing import NamedTuple
 
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
@@ -92,13 +99,29 @@ def settlement_windows(*, date_from: date, date_to: date) -> list[tuple[date, da
     return windows
 
 
+class SettlementWalk(NamedTuple):
+    """What one workspace's settlement walk achieved.
+
+    Attributes:
+        rows: Settlement rows ingested across every window.
+        windows_failed: Windows that stopped early — WB withheld a page, or the
+            walk ran out of rate budget part-way.
+        completed_through: Last day of the **unbroken prefix** of completed
+            windows, or ``None`` when the very first window stopped early.
+    """
+
+    rows: int
+    windows_failed: int
+    completed_through: date | None
+
+
 async def walk_settlement_windows(
     *,
     tokens: WorkspaceTokenBundle,
     date_from: date,
     date_to: date,
     build_ingestion: object,
-) -> tuple[int, int]:
+) -> SettlementWalk:
     """Harvest one workspace's settlement span, a week per request.
 
     Args:
@@ -110,17 +133,21 @@ async def walk_settlement_windows(
             module does not reach back into the harvest that calls it.
 
     Returns:
-        ``(rows, windows_failed)``. A non-zero second element means the span is
-        only partly covered: those weeks are missing from the P&L until a later
-        tick, whose window starts from the last settled day and so asks again.
+        A :class:`SettlementWalk`. ``completed_through`` is the only safe basis
+        for a watermark: it stops at the **first** window that did not finish,
+        so a later window that happened to succeed can never certify the days
+        before it. A high-water date cannot describe a gap, so the walk must not
+        hand one out that has a gap behind it.
     """
     if not tokens.statistics:
-        return 0, 0
+        return SettlementWalk(0, 0, None)
 
     windows = settlement_windows(date_from=date_from, date_to=date_to)
     gate = settlement_walk_rate_gate(settings, token=tokens.statistics)
     rows = 0
     failed = 0
+    completed_through: date | None = None
+    prefix_intact = True
     for window_from, window_to in windows:
         window_rows, complete = await _harvest_window(
             tokens=tokens,
@@ -130,8 +157,15 @@ async def walk_settlement_windows(
             build_ingestion=build_ingestion,
         )
         rows += window_rows
-        if not complete:
+        if complete:
+            # Only while every window before this one also finished. The rows
+            # from a later window still land — they are real and upserted — but
+            # they must not move a mark that would then claim the gap too.
+            if prefix_intact:
+                completed_through = window_to
+        else:
             failed += 1
+            prefix_intact = False
     if failed:
         logger.error(
             "finreports: settlement incomplete for %s — %d of %d weeks stopped early "
@@ -142,7 +176,7 @@ async def walk_settlement_windows(
             date_from,
             date_to,
         )
-    return rows, failed
+    return SettlementWalk(rows, failed, completed_through)
 
 
 async def _harvest_window(

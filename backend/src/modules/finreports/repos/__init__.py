@@ -16,6 +16,7 @@ from src.modules.finreports.repos.pnl import (
     SettlementAggregate,
     SkuUnits,
 )
+from src.modules.finreports.repos.settlement_watermark import SettlementWatermarkRepository
 from src.modules.finreports.repos.sku_exclusion import SkuExclusionRepository
 from src.modules.finreports.repos.transaction import (
     LogisticsTransactionRepository,
@@ -33,6 +34,7 @@ __all__ = [
     "PnlRepository",
     "ReasonAmount",
     "SettlementAggregate",
+    "SettlementWatermarkRepository",
     "SkuExclusionRepository",
     "SkuLogisticsAggregate",
     "SkuRepricingPlan",
