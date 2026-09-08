@@ -6,12 +6,13 @@ counters, writing the exposure row, calling WB, asking whether the advertising
 budget is spent — lives in :mod:`.runner` around this.
 
 **The rotation is a circle, not a queue.** After the last photo it comes back to
-the first and starts another lap. What ends a test is not a lap count but the
-money behind it: see :mod:`.budget`. This function never returns ``COMPLETE`` on
-its own — it says which photo should be up next, and the runner turns that into
-a stop when the budget is gone. Keeping the two apart is what stops «which photo
-is next» and «should there be a next photo at all» from being tangled in one
-condition.
+the first and starts another lap, and nothing here ever ends a test. When the
+advertising stops the runner PAUSES it (see :mod:`.budget`) and the sweep starts
+it again when a campaign serves; finishing one for good is the seller's decision
+and nobody else's. So this function only ever says which photo should be up
+next — «is there a next photo» and «should this test still exist» are different
+questions with different owners, and tangling them in one condition is how «the
+test stopped and I don't know why» happens.
 
 **An excluded photo is skipped, not removed.** The seller can take a photo out
 mid-test; it keeps its rows and its measurements and simply stops being dealt.
@@ -54,10 +55,6 @@ class RotationAction(enum.StrEnum):
     ADVANCE = "advance"
     #: Nothing to do; the live photo is still gathering.
     HOLD = "hold"
-    #: The last variant met its trigger — the test is over. Never returned by
-    #: :func:`decide`; the runner substitutes it for an ``ADVANCE`` once the
-    #: advertising budget is spent.
-    COMPLETE = "complete"
 
 
 @dataclass(frozen=True)
@@ -149,9 +146,9 @@ def _trigger_met(state: RotationState) -> bool:
 def decide(state: RotationState) -> RotationDecision:
     """Decide which photo should be on the card next.
 
-    Never returns ``COMPLETE``. Whether the test should end is a question about
-    the advertising budget, which this function cannot see and the runner asks
-    separately — see :mod:`.budget`. Here the rotation is an endless circle.
+    The rotation is an endless circle here. Whether it should still be turning
+    is a question about the advertising, which this function cannot see and the
+    runner asks separately — see :mod:`.budget`.
 
     Args:
         state: The test's remaining variants, live photo, counters and clock.

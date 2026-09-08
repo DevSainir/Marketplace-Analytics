@@ -88,7 +88,13 @@ class AbTestStatus(enum.StrEnum):
     ``PAUSED`` keeps the current photo but stops advancing and stops attributing
     traffic — a paused stretch belongs to no variant, because the poller skips
     the test and no window is opened over it.
-    ``COMPLETED`` finished its last round; ``CANCELLED`` was stopped by hand.
+    ``CANCELLED`` was stopped by hand — the only way a test ends now.
+
+    ``COMPLETED`` is **legacy**. It used to be set when the advertising budget
+    reached zero, and nothing sets it any more: a spent budget is a pause,
+    because a campaign that empties overnight is topped up in the morning and
+    the test should still be there. Rows that already carry it keep it, and it
+    stays terminal for them; see :mod:`..services.budget`.
     """
 
     DRAFT = "draft"

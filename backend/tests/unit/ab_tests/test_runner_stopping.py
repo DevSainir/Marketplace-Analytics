@@ -1,14 +1,14 @@
-"""When a polling pass swaps the photo, wraps the circle, or ends the test.
+"""When a polling pass swaps the photo, wraps the circle, or pauses the test.
 
 Split from ``test_runner.py``, which is about what a pass credits and in what
 order. These are about what it does next, and the rule they pin is the one a
-seller was promised: the rotation goes round and round until the advertising
-paying for it is spent, and then the photo that is up serves out its turn and
-nothing replaces it.
+seller was promised: the rotation goes round and round while the advertising
+runs, and when it stops the photo that is up serves out its turn and the test
+waits — it does not end. Ending one is the seller's decision.
 
-The distinction that matters most here is EXHAUSTED versus UNKNOWN. «WB said
-zero» and «WB did not answer» look identical at the call site and mean opposite
-things: one is the end of the experiment, the other is a blip.
+The distinction that matters most here is PAUSED versus UNKNOWN. «Nothing is
+serving» and «WB did not answer» look identical at the call site and mean
+opposite things: one stops the rotation, the other is a blip.
 """
 
 from __future__ import annotations
@@ -33,39 +33,43 @@ from tests.support.ab_tests_runner import (
 )
 
 
-async def test_a_spent_budget_ends_the_test_instead_of_swapping() -> None:
-    """The promise «Запустить» makes: the photo that is up serves out its turn.
+async def test_a_spent_budget_pauses_at_the_swap_rather_than_ending_the_test() -> None:
+    """The trigger is met, so a swap is due — and it becomes a pause instead.
 
-    The trigger is met here, so a swap is due — and it does not happen. Nothing
-    new goes on the card, and the test is finished rather than left running with
-    a photo it will never replace.
+    Nothing the rotation can see is a reason to finish a test: a campaign that
+    emptied overnight is topped up in the morning. Completing here made a
+    routine event permanent and cost the seller every measurement the test had
+    gathered.
     """
     first, second = make_variant(1), make_variant(2)
     test = running_test([first, second], active=first)
     installer = FakeInstaller()
     tests = FakeTests()
-    runner = build_runner(
+    poller = build_runner(
         reading={DAY: Counters(views=10_000)},
         windows=FakeWindows(),
         snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)})),
         exposures=FakeExposures(active_since=T0),
         installer=installer,
         tests=tests,
-        ads=AdsState.EXHAUSTED,
+        ads=AdsState.PAUSED,
     )
 
-    outcome = await runner.poll(test, days=[DAY], now=T1)
+    outcome = await poller.poll(test, days=[DAY], now=T1)
 
-    assert outcome.action is RotationAction.COMPLETE
-    assert tests.status_writes == [AbTestStatus.COMPLETED]
+    assert outcome.paused is True
+    assert tests.status_writes == [AbTestStatus.PAUSED]
+    assert test.status == AbTestStatus.PAUSED.value
+    # The photo that was up stays up: pausing is not taking the card down.
     assert installer.installed == []
 
 
-async def test_a_budget_wb_could_not_be_asked_about_does_not_end_the_test() -> None:
-    """UNKNOWN is not EXHAUSTED, and the difference is a whole experiment.
+async def test_a_blip_wb_could_not_answer_does_not_stop_the_rotation() -> None:
+    """UNKNOWN is not PAUSED, and the difference is a stalled experiment.
 
-    WB being unreachable is not evidence the money ran out. Treating the two the
-    same would end tests for a reason the seller can neither see nor fix.
+    WB being unreachable is not evidence that nothing is serving. Treating the
+    two the same would stop live tests for a reason the seller would go hunting
+    for in a campaign that is working fine.
     """
     first, second = make_variant(1), make_variant(2)
     test = running_test([first, second], active=first)
@@ -84,6 +88,7 @@ async def test_a_budget_wb_could_not_be_asked_about_does_not_end_the_test() -> N
     outcome = await runner.poll(test, days=[DAY], now=T1)
 
     assert outcome.action is RotationAction.ADVANCE
+    assert outcome.paused is False
     assert tests.status_writes == []
     assert installer.installed == [(test.nm_id, second.id)]
 

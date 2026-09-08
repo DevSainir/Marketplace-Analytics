@@ -301,12 +301,12 @@ def test_the_last_variant_wraps_to_the_first_and_starts_another_lap() -> None:
     assert decision.variant_id == VARIANTS[0]
 
 
-def test_decide_never_ends_a_test_on_its_own() -> None:
+def test_the_decision_is_only_ever_about_which_photo_is_next() -> None:
     """A guard on the split, not a restatement of the case above.
 
-    COMPLETE is the runner's word, substituted once WB says the budget is gone.
-    If this function ever learns to say it too there will be two places that can
-    end a test, and they will disagree.
+    Whether a test should still be turning is a question about the advertising,
+    which this function cannot see. If it ever learns to stop one there will be
+    two places that can, and they will disagree.
     """
     states = [
         _state(active=VARIANTS[0], impressions=10_000),
@@ -317,7 +317,11 @@ def test_decide_never_ends_a_test_on_its_own() -> None:
         _state(active=uuid.uuid4(), impressions=10_000),
     ]
 
-    assert all(decide(state).action is not RotationAction.COMPLETE for state in states)
+    assert all(
+        decide(state).action
+        in {RotationAction.INSTALL, RotationAction.ADVANCE, RotationAction.HOLD}
+        for state in states
+    )
 
 
 def test_a_test_with_no_variants_cannot_start() -> None:

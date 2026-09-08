@@ -1,13 +1,13 @@
-"""Unit tests for the rule that decides a test's fate (services/budget.py).
+"""Unit tests for the rule that decides whether a rotation turns (budget.py).
 
-This is the trigger a seller was told to trust, so what is pinned here is not
-arithmetic but the four-way distinction the whole rule rests on: the campaign is
-running, the campaign is switched off, the money is gone, and WB did not say.
-Two of those change a test's status and two must never be mistaken for them.
+Three answers and **none of them ends a test** — finishing one is the seller's
+decision. So what is pinned here is the boundary between «wait» and «carry on»,
+and the one case that must never be mistaken for either: WB not answering.
 
 The failure that would hurt most has no exception in it. If an unreadable budget
-resolved to «exhausted», every test would end the first time WB hiccuped, and
-the seller would see a finished test with a plausible-looking table.
+resolved to «nothing is serving», every test would pause the first time WB
+hiccuped, and a seller watching a live campaign would see it stop for no reason
+they could find.
 """
 
 from __future__ import annotations
@@ -111,8 +111,8 @@ async def test_a_running_funded_campaign_keeps_the_rotation_going() -> None:
     assert client.asked == [10]
 
 
-async def test_switching_the_campaign_off_pauses_the_test_rather_than_ending_it() -> None:
-    """The money is still there, so this is a pause and not a result.
+async def test_switching_the_campaign_off_pauses_the_test() -> None:
+    """The money is still there, so this is a wait and not a result.
 
     A test that kept rotating here would deal photo after photo through dead
     air and record each turn as zero impressions — ten rows of zeros that read
@@ -126,25 +126,45 @@ async def test_switching_the_campaign_off_pauses_the_test_rather_than_ending_it(
 
 async def test_a_running_campaign_with_no_money_is_not_serving() -> None:
     """«Идут показы» with a zero budget serves nothing, whatever WB calls it."""
-    adverts = [_advert(10, NM_TROUSERS), _advert(20, NM_TROUSERS, status=PAUSED_STATUS)]
-    client = _FakeBudgets({10: 0, 20: 350})
+    adverts = [_advert(10, NM_TROUSERS)]
+    client = _FakeBudgets({10: 0})
 
     assert await read_state(client=client, adverts=adverts, nm_id=NM_TROUSERS) is AdsState.PAUSED
 
 
-async def test_every_campaign_at_zero_is_the_end_of_the_test() -> None:
-    """The rule as promised: budget in nought, the test stops."""
+async def test_a_spent_budget_pauses_rather_than_ends() -> None:
+    """A campaign that empties overnight is topped up in the morning.
+
+    Completing here made a routine event permanent: the test could not be
+    continued afterwards, and the seller had to build a new one and re-upload
+    every photo with none of the measurements carried over. Nothing about a
+    zero budget is irreversible, so nothing about it is final.
+    """
     adverts = [_advert(10, NM_TROUSERS), _advert(20, NM_TROUSERS, status=PAUSED_STATUS)]
     client = _FakeBudgets({10: 0, 20: 0})
 
-    assert await read_state(client=client, adverts=adverts, nm_id=NM_TROUSERS) is AdsState.EXHAUSTED
+    assert await read_state(client=client, adverts=adverts, nm_id=NM_TROUSERS) is AdsState.PAUSED
+
+
+async def test_paused_campaigns_are_not_asked_about_their_money() -> None:
+    """Once nothing is serving, the answer is the same either way.
+
+    Switched off and switched off with an empty wallet are one state to a test
+    that has no traffic to measure, so the extra requests would buy nothing on
+    a bucket shared with the nightly harvest.
+    """
+    adverts = [_advert(10, NM_TROUSERS), _advert(20, NM_TROUSERS, status=PAUSED_STATUS)]
+    client = _FakeBudgets({10: 0, 20: 350})
+
+    assert await read_state(client=client, adverts=adverts, nm_id=NM_TROUSERS) is AdsState.PAUSED
+    assert client.asked == [10]
 
 
 async def test_a_campaign_wb_will_not_answer_for_poisons_the_whole_answer() -> None:
     """The others being empty does not prove the unreadable one is.
 
-    Returning EXHAUSTED here would end the test on a network blip — silently,
-    and with a result table the seller has no reason to distrust.
+    Returning PAUSED here would stop a live test on a network blip, and the
+    seller would go looking for a campaign problem that does not exist.
     """
     adverts = [_advert(10, NM_TROUSERS), _advert(20, NM_TROUSERS)]
     client = _FakeBudgets({10: 0, 20: 0}, fail_on=20)

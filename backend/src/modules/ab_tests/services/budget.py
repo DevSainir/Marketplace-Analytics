@@ -6,20 +6,28 @@ photos apart has nothing to do with the number ten. So the rotation cycles, and
 the advertising decides — because the advertising is the only thing that was
 ever paying for it, and the only thing that makes a photo measurable at all.
 
-Four answers, and the distinctions between them are the whole design:
+Three answers, and **none of them ends a test**. Finishing one is the seller's
+decision and nothing else's:
 
 * **SERVING** — a campaign is running with money in it. Carry on.
-* **PAUSED** — the money is there but nothing is running. The seller paused
-  their campaigns, so the test pauses too. It is not over: the photo stays on
-  the card, nothing advances, no interval is credited to anybody, and the
-  rotation picks up by itself when the campaign does. A test that kept rotating
-  here would deal photo after photo through dead air and record each one's turn
-  as zero impressions — a full table of zeros that reads like a result.
-* **EXHAUSTED** — every campaign that could serve this card reports a zero
-  budget. That is the end: the photo that is up serves out its turn, and
-  nothing replaces it.
-* **UNKNOWN** — WB could not be asked, or nobody is advertising this card at
-  all. Neither means the money ran out, so neither stops or pauses anything.
+* **PAUSED** — nothing is serving the card: the campaigns are switched off, or
+  they have run their budget down to zero. Either way the test pauses, the photo
+  stays on the card, nothing advances, no interval is credited to anybody, and
+  the rotation picks up by itself the moment a campaign serves again.
+* **UNKNOWN** — WB could not be asked, or nobody advertises this card at all.
+  Change nothing.
+
+**A spent budget is a pause, not an ending, and that is a correction.** It used
+to complete the test, which made a routine event permanent: a campaign that
+empties overnight is topped up in the morning, and a test that died at 3am could
+not be continued — the seller had to build a new one and re-upload every photo,
+with none of the measurements carried over. The asymmetry gave it away — turning
+a campaign off was recoverable while letting it run dry was not, though nothing
+irreversible had happened in either case.
+
+What a test that keeps rotating through dead air produces is the reason the
+pause exists at all: photo after photo dealt, each turn recorded as zero
+impressions, and ten rows of zeros read exactly like a finding.
 
 **Why a zero is believable.** Measured live 2026-09-07 across the account's
 campaigns: running ones reported 3818, 3504 and 14929, a paused one 350, and
@@ -56,10 +64,8 @@ class AdsState(enum.StrEnum):
 
     #: A running campaign has money. Keep rotating.
     SERVING = "serving"
-    #: Money exists, but every campaign is switched off. Pause with them.
+    #: Nothing is serving the card — switched off, or out of money. Wait.
     PAUSED = "paused"
-    #: Nothing can spend any more. The test is over.
-    EXHAUSTED = "exhausted"
     #: WB could not be asked, or nobody advertises this card. Change nothing.
     UNKNOWN = "unknown"
 
@@ -169,14 +175,12 @@ async def read_state(
     if serving_funded:
         return AdsState.SERVING
 
-    paused_funded = await _any_funded(client, paused, nm_id)
-    if paused_funded is None:
-        return AdsState.UNKNOWN
-    if paused_funded:
-        logger.info("ab_tests: nm %s has budget but no running campaign; pausing with it", nm_id)
-        return AdsState.PAUSED
-
-    return AdsState.EXHAUSTED
+    # Nothing is serving. Whether that is because the campaigns are switched off
+    # or because they are empty makes no difference to the test — it has no
+    # traffic to measure either way, and both are things the seller can undo.
+    # There is no need to ask about the paused campaigns' budgets to know that.
+    logger.info("ab_tests: nothing is serving nm %s; the test pauses with it", nm_id)
+    return AdsState.PAUSED
 
 
 __all__ = [

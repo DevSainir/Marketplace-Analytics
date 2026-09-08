@@ -182,7 +182,9 @@ async def _poll_one(
 
         await session.commit()
 
-    return str(outcome.action)
+    # «Paused» is not an action — it is a HOLD with a reason — so it is reported
+    # separately rather than by overloading the word the sweep counts by.
+    return "paused" if outcome.paused else str(outcome.action)
 
 
 async def _resume_paused(adverts_by_workspace: dict[uuid.UUID, list[WBAdvertV2]]) -> int:
@@ -240,8 +242,7 @@ async def _poll_all() -> dict[str, int]:
     """Poll every running test once, and wake the ones waiting on a campaign.
 
     Returns:
-        ``{"tests": n, "rotated": n, "completed": n, "paused": n, "resumed": n,
-        "failed": n}``.
+        ``{"tests": n, "rotated": n, "paused": n, "resumed": n, "failed": n}``.
     """
     now = datetime.now(UTC)
     days = list(days_to_read(moscow_today()))
@@ -252,7 +253,6 @@ async def _poll_all() -> dict[str, int]:
     counters = {
         "tests": len(tests),
         "rotated": 0,
-        "completed": 0,
         "paused": 0,
         "resumed": 0,
         "failed": 0,
@@ -274,8 +274,8 @@ async def _poll_all() -> dict[str, int]:
 
         if action in {"install", "advance"}:
             counters["rotated"] += 1
-        elif action == "complete":
-            counters["completed"] += 1
+        elif action == "paused":
+            counters["paused"] += 1
 
     # After the sweep, not before: a test paused by this very pass must not be
     # resumed by it, and the listing cache is warm by now.

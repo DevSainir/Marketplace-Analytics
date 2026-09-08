@@ -21,12 +21,15 @@ A test with no snapshot yet gets one and no window: without that rule, a test
 started at noon would credit its first photo with everything the card earned
 since midnight.
 
-**What ends a test.** Not a lap count — the rotation is a circle (see
-:mod:`.rotation`) and keeps going. A test ends when the advertising paying for
-it is spent, and that is checked **only when a swap is due**: at most once per
-slot rather than once per pass, which keeps the check off a shallow rate bucket
-and gives the seller exactly the promise the button makes — the photo that is up
-finishes its turn, and nothing replaces it.
+**Nothing here ends a test.** The rotation is a circle (see :mod:`.rotation`)
+and keeps going; when the advertising stops — switched off or out of money — the
+test PAUSES and waits, and the sweep starts it again when a campaign serves. A
+finished test is the seller's decision and only theirs, because every reason the
+rotation could have for stopping is one they can undo in the WB cabinet.
+
+The advertising is read **only when a swap is due**: at most once per slot rather
+than once per pass, which keeps the check off a shallow rate bucket and gives the
+photo that is up its full turn before anything reacts.
 """
 
 from __future__ import annotations
@@ -34,7 +37,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import Protocol
 
 from src.core.logging import get_logger
@@ -143,6 +146,10 @@ class PollOutcome:
     action: RotationAction
     window_views: int
     installed_variant_id: uuid.UUID | None
+    #: True when this pass paused the test because nothing was advertising the
+    #: card. Distinct from an ordinary HOLD, which is simply «the slot is not
+    #: over yet» and is what most passes of a healthy test return.
+    paused: bool = False
     seeded: bool = False
 
 
@@ -240,22 +247,15 @@ class RotationRunner:
 
         action = decision.action
         installed: uuid.UUID | None = None
+        paused = False
         if action in {RotationAction.INSTALL, RotationAction.ADVANCE}:
-            ads = await self._read_ads(test.nm_id)
-            if ads is AdsState.EXHAUSTED:
-                # The promise the seller was made: the photo that is up serves
-                # out its turn, and nothing replaces it. So the swap that was
-                # due becomes the end of the test instead of happening first.
-                logger.info(
-                    "ab_tests: advertising budget spent on nm %s; test %s stops here",
-                    test.nm_id,
-                    test.id,
-                )
-                await self._complete(test, now=now)
-                action = RotationAction.COMPLETE
-            elif ads is AdsState.PAUSED:
+            # The promise the seller was made: the photo that is up serves out
+            # its turn, and only then does the rotation react. So the ads are
+            # read at the swap, not on every pass.
+            if await self._read_ads(test.nm_id) is AdsState.PAUSED:
                 await self._pause_with_ads(test)
                 action = RotationAction.HOLD
+                paused = True
             else:
                 installed = await self._swap(test, variant_id=decision.variant_id, now=now)
 
@@ -265,6 +265,7 @@ class RotationRunner:
             window_views=window_views,
             installed_variant_id=installed,
             seeded=seeded,
+            paused=paused,
         )
 
     async def _pause_with_ads(self, test: AbTest) -> None:
@@ -335,16 +336,3 @@ class RotationRunner:
             test.trigger_mode,
         )
         return variant.id
-
-    async def _complete(self, test: AbTest, *, now: datetime) -> None:
-        """Close the last exposure and finish the test.
-
-        The final photo stays on the card: taking it down would mean choosing a
-        replacement, and the point of the test is that the seller makes that
-        call from the results.
-        """
-        await self._exposures.close_open(test_id=test.id, deactivated_at=now)
-        await self._tests.set_status(
-            test=test, status=AbTestStatus.COMPLETED, finished_at=now or datetime.now(UTC)
-        )
-        logger.info("ab_tests: test %s completed on nm %s", test.id, test.nm_id)
