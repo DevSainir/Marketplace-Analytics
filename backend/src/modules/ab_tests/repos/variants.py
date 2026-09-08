@@ -158,6 +158,26 @@ class VariantRepository:
         )
         return int((await self._session.execute(stmt)).scalar_one())
 
+    async def set_excluded(
+        self, *, variant: AbTestVariant, excluded_at: datetime | None
+    ) -> AbTestVariant:
+        """Take a photo out of the rotation, or put it back.
+
+        Nothing is deleted — not the row, not the image, not a single window
+        already credited to it. The result table goes on showing what it earned;
+        it just stops being dealt.
+
+        Args:
+            variant: The photo to change.
+            excluded_at: When it left the rotation, or ``None`` to return it.
+
+        Returns:
+            The updated variant.
+        """
+        variant.excluded_at = excluded_at
+        await self._session.flush()
+        return variant
+
     async def delete(self, *, test_id: uuid.UUID, variant_id: uuid.UUID) -> bool:
         """Remove a photo from a test.
 
@@ -188,7 +208,12 @@ class ExposureRepository:
         self._session = session
 
     async def open(
-        self, *, test_id: uuid.UUID, variant_id: uuid.UUID, activated_at: datetime
+        self,
+        *,
+        test_id: uuid.UUID,
+        variant_id: uuid.UUID,
+        activated_at: datetime,
+        round_number: int = 1,
     ) -> VariantExposure:
         """Record that a photo has just gone up.
 
@@ -199,12 +224,16 @@ class ExposureRepository:
             test_id: Owning test.
             variant_id: The photo now on the card.
             activated_at: When WB accepted it.
+            round_number: Which lap of the rotation this turn belongs to.
 
         Returns:
             The new exposure row.
         """
         exposure = VariantExposure(
-            test_id=test_id, variant_id=variant_id, activated_at=activated_at
+            test_id=test_id,
+            variant_id=variant_id,
+            activated_at=activated_at,
+            round_number=round_number,
         )
         self._session.add(exposure)
         await self._session.flush()
@@ -247,6 +276,37 @@ class ExposureRepository:
             .limit(1)
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def current_round(self, *, test_id: uuid.UUID) -> int:
+        """The highest lap number a test has reached, or 0 before it starts.
+
+        Args:
+            test_id: Owning test.
+
+        Returns:
+            The current round, counting from 1 once the first photo is up.
+        """
+        stmt = select(func.coalesce(func.max(VariantExposure.round_number), 0)).where(
+            VariantExposure.test_id == test_id
+        )
+        return int((await self._session.execute(stmt)).scalar_one())
+
+    async def history(self, *, test_id: uuid.UUID) -> list[VariantExposure]:
+        """Every turn a test has served, newest first.
+
+        Args:
+            test_id: Owning test.
+
+        Returns:
+            Exposure rows, most recent installation first — the order the
+            «История действий» table reads in.
+        """
+        stmt = (
+            select(VariantExposure)
+            .where(VariantExposure.test_id == test_id)
+            .order_by(VariantExposure.activated_at.desc())
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
 
     async def count_for_variant(self, *, variant_id: uuid.UUID) -> int:
         """How many separate turns a photo has had.

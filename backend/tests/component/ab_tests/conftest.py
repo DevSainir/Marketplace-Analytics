@@ -25,6 +25,7 @@ from src.modules.ab_tests.deps import (
     get_installer,
     get_original_capture,
     get_sku_catalogue,
+    get_variant_service,
 )
 from src.modules.ab_tests.schemas import AbTestDetail, AbTestRead, VariantMetrics
 from src.modules.monitoring.contract import WorkspaceCard
@@ -137,6 +138,44 @@ class _StubCapture:
         self.asked.append(test.nm_id)
 
 
+class _StubVariants:
+    """Stands in for the photo-side service the variant routes now use.
+
+    Split out of ``_StubCatalog`` when the service was: the routes ask two
+    collaborators now, and a stub that answered for both would keep passing if
+    a route asked the wrong one.
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.error: Exception | None = None
+        self.uploaded: list[tuple[bytes, str, str]] = []
+
+    async def add_variant(self, **kwargs: Any) -> Any:
+        self.calls.append(("add_variant", kwargs))
+        if self.error is not None:
+            raise self.error
+        self.uploaded.append((kwargs["content"], kwargs["content_type"], kwargs["filename"]))
+        return None
+
+    async def delete_variant(self, **kwargs: Any) -> None:
+        self.calls.append(("delete_variant", kwargs))
+        if self.error is not None:
+            raise self.error
+
+    async def set_variant_excluded(self, **kwargs: Any) -> Any:
+        self.calls.append(("set_variant_excluded", kwargs))
+        if self.error is not None:
+            raise self.error
+        return None
+
+    async def read_variant_image(self, **kwargs: Any) -> tuple[bytes, str]:
+        self.calls.append(("read_variant_image", kwargs))
+        if self.error is not None:
+            raise self.error
+        return JPEG, "image/jpeg"
+
+
 class _StubCatalog:
     """Answers every route, recording what it was asked."""
 
@@ -204,6 +243,12 @@ def catalogue() -> _StubCatalogue:
 
 
 @pytest.fixture
+def photos() -> _StubVariants:
+    """The stub photo service the variant routes are wired to."""
+    return _StubVariants()
+
+
+@pytest.fixture
 def catalog() -> _StubCatalog:
     """The stub service the routes are wired to."""
     return _StubCatalog()
@@ -216,6 +261,7 @@ def _wire(
     workspace_repo: FakeWorkspaceRepository,
     catalog: _StubCatalog,
     catalogue: _StubCatalogue,
+    photos: _StubVariants,
 ) -> None:
     """Wire identity, tenancy and the stubbed service."""
     override(get_user_repo, user_repo)
@@ -224,6 +270,7 @@ def _wire(
     override(get_installer, _StubInstaller())
     override(get_original_capture, _StubCapture())
     override(get_sku_catalogue, catalogue)
+    override(get_variant_service, photos)
 
 
 @pytest.fixture

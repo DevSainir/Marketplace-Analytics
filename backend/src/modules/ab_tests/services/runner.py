@@ -20,6 +20,13 @@ design, and each step exists because of a specific way the alternative lies:
 A test with no snapshot yet gets one and no window: without that rule, a test
 started at noon would credit its first photo with everything the card earned
 since midnight.
+
+**What ends a test.** Not a lap count — the rotation is a circle (see
+:mod:`.rotation`) and keeps going. A test ends when the advertising paying for
+it is spent, and that is checked **only when a swap is due**: at most once per
+slot rather than once per pass, which keeps the check off a shallow rate bucket
+and gives the seller exactly the promise the button makes — the photo that is up
+finishes its turn, and nothing replaces it.
 """
 
 from __future__ import annotations
@@ -32,6 +39,7 @@ from typing import Protocol
 
 from src.core.logging import get_logger
 from src.modules.ab_tests.models import AbTest, AbTestStatus, AbTestVariant
+from src.modules.ab_tests.services.budget import BudgetState
 from src.modules.ab_tests.services.collection import Counters, window_delta
 from src.modules.ab_tests.services.rotation import (
     RotationAction,
@@ -43,6 +51,10 @@ logger = get_logger(__name__)
 
 #: Reads today's counters and, so a rollover closes cleanly, yesterday's too.
 CounterReader = Callable[[int, Sequence[date]], Awaitable[dict[date, Counters]]]
+
+#: Asks whether the advertising behind one card can still pay for a turn.
+#: Called at most once per slot — see the module docstring.
+BudgetReader = Callable[[int], Awaitable[BudgetState]]
 
 
 @dataclass(frozen=True)
@@ -85,8 +97,15 @@ class _Exposures(Protocol):
     async def active_since(self, *, test_id: uuid.UUID) -> datetime | None: ...
 
     async def open(
-        self, *, test_id: uuid.UUID, variant_id: uuid.UUID, activated_at: datetime
+        self,
+        *,
+        test_id: uuid.UUID,
+        variant_id: uuid.UUID,
+        activated_at: datetime,
+        round_number: int,
     ) -> object: ...
+
+    async def current_round(self, *, test_id: uuid.UUID) -> int: ...
 
     async def close_open(self, *, test_id: uuid.UUID, deactivated_at: datetime) -> None: ...
 
@@ -134,6 +153,7 @@ class RotationRunner:
         windows: _Windows,
         snapshots: _Snapshots,
         installer: _Installer,
+        read_budget: BudgetReader,
         read_counters: CounterReader,
     ) -> None:
         """Wire the runner to its collaborators.
@@ -144,6 +164,8 @@ class RotationRunner:
             windows: Per-interval traffic repository.
             snapshots: Cumulative-counter memory between polls.
             installer: Puts a variant's image on the card.
+            read_budget: Answers whether the card's advertising can still
+                pay for another turn. Called only when a swap is due.
             read_counters: Reads WB's cumulative counters for a SKU over the
                 given days. Injected so the pass can be tested without WB and
                 so the caller owns the shared rate budget.
@@ -154,6 +176,7 @@ class RotationRunner:
         self._snapshots = snapshots
         self._installer = installer
         self._read_counters = read_counters
+        self._read_budget = read_budget
 
     async def poll(self, test: AbTest, *, days: Sequence[date], now: datetime) -> PollOutcome:
         """Close the interval since the last poll and rotate if it is due.
@@ -192,10 +215,11 @@ class RotationRunner:
         # this one ended and the rotation lands on the boundary between them.
         await self._snapshots.save(test_id=test.id, by_day=current, captured_at=now)
 
+        active = next((v for v in test.variants if v.id == test.active_variant_id), None)
         decision = decide(
             RotationState(
                 active_variant_id=test.active_variant_id,
-                variant_ids=[variant.id for variant in test.variants],
+                variant_ids=[v.id for v in test.variants if not v.is_excluded],
                 trigger_mode=test.trigger_mode,
                 impressions_for_active=(
                     await self._windows.impressions_for_variant(variant_id=test.active_variant_id)
@@ -206,27 +230,64 @@ class RotationRunner:
                 active_since=await self._exposures.active_since(test_id=test.id),
                 slot_minutes=test.slot_minutes,
                 now=now,
+                active_is_excluded=active is not None and active.is_excluded,
             )
         )
 
+        action = decision.action
         installed: uuid.UUID | None = None
-        if decision.action in {RotationAction.INSTALL, RotationAction.ADVANCE}:
-            installed = await self._swap(test, variant_id=decision.variant_id, now=now)
-        elif decision.action is RotationAction.COMPLETE:
-            await self._complete(test, now=now)
+        if action in {RotationAction.INSTALL, RotationAction.ADVANCE}:
+            if await self._budget_is_spent(test):
+                # The promise the seller was made: the photo that is up serves
+                # out its turn, and nothing replaces it. So the swap that was
+                # due becomes the end of the test instead of happening first.
+                await self._complete(test, now=now)
+                action = RotationAction.COMPLETE
+            else:
+                installed = await self._swap(test, variant_id=decision.variant_id, now=now)
 
         return PollOutcome(
             test_id=test.id,
-            action=decision.action,
+            action=action,
             window_views=window_views,
             installed_variant_id=installed,
             seeded=seeded,
         )
 
+    async def _budget_is_spent(self, test: AbTest) -> bool:
+        """Has the advertising behind this card run out?
+
+        Only ``EXHAUSTED`` stops a test. ``UNKNOWN`` — WB unreachable, or a card
+        nobody is advertising — is not evidence the money ran out, and ending an
+        experiment for a reason the seller cannot see is worse than one more
+        slot of a test they can stop by hand.
+
+        Args:
+            test: The test whose card is being advertised.
+
+        Returns:
+            ``True`` only when every campaign that could serve the card reports
+            a zero budget.
+        """
+        state = await self._read_budget(test.nm_id)
+        if state is BudgetState.EXHAUSTED:
+            logger.info(
+                "ab_tests: advertising budget spent on nm %s; test %s stops here",
+                test.nm_id,
+                test.id,
+            )
+        return state is BudgetState.EXHAUSTED
+
     async def _swap(
         self, test: AbTest, *, variant_id: uuid.UUID | None, now: datetime
     ) -> uuid.UUID | None:
-        """Install a variant, then record that it went up."""
+        """Install a variant, then record that it went up.
+
+        The round advances when the rotation comes back to the photo that leads
+        it — the first one still in the rotation. Counting laps that way rather
+        than dividing turns by photos survives a photo being excluded or added
+        mid-test, which is exactly when the two answers differ.
+        """
         variant = next((item for item in test.variants if item.id == variant_id), None)
         if variant is None:  # pragma: no cover - decide() only names real variants
             return None
@@ -235,15 +296,27 @@ class RotationRunner:
         # card, and an exception here must leave the test exactly as it was.
         await self._installer.install(nm_id=test.nm_id, variant=variant)
 
+        leader = next((v for v in test.variants if not v.is_excluded), None)
+        current = await self._exposures.current_round(test_id=test.id)
+        # The very first install opens round 1; coming back round to the leader
+        # opens the next one.
+        round_number = 1 if current == 0 else current + (1 if leader is variant else 0)
+
         await self._exposures.close_open(test_id=test.id, deactivated_at=now)
-        await self._exposures.open(test_id=test.id, variant_id=variant.id, activated_at=now)
+        await self._exposures.open(
+            test_id=test.id,
+            variant_id=variant.id,
+            activated_at=now,
+            round_number=round_number,
+        )
         await self._tests.set_active_variant(test=test, variant_id=variant.id)
 
         logger.info(
-            "ab_tests: nm %s rotated to variant %s (position %s, trigger %s)",
+            "ab_tests: nm %s rotated to variant %s (position %s, round %s, trigger %s)",
             test.nm_id,
             variant.id,
             variant.position,
+            round_number,
             test.trigger_mode,
         )
         return variant.id

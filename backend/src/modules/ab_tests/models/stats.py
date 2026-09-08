@@ -65,6 +65,11 @@ class VariantExposure(Base):
         wb_photo_number: Which gallery slot was written — always 1 (the main
             photo) today, stored because WB's numbering is what we would need to
             reproduce to undo a rotation.
+        round_number: Which lap of the rotation this turn belonged to, from 1.
+            Stored rather than derived: a photo excluded mid-test, or added
+            after the first lap, makes «how many turns have there been divided
+            by how many photos» wrong, and the round is what the result table
+            groups by.
     """
 
     __tablename__ = "ab_test_variant_exposure"
@@ -83,6 +88,8 @@ class VariantExposure(Base):
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     wb_photo_number: Mapped[int] = mapped_column(Integer, server_default="1", nullable=False)
+
+    round_number: Mapped[int] = mapped_column(Integer, server_default="1", nullable=False)
 
 
 class AdCounterSnapshot(Base):

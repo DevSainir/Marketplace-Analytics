@@ -43,6 +43,11 @@ from src.modules.ab_tests.repos import (
     SnapshotRepository,
     WindowRepository,
 )
+from src.modules.ab_tests.services.budget import (
+    BudgetState,
+    read_state,
+    spendable_campaigns,
+)
 from src.modules.ab_tests.services.campaigns import campaigns_for_sku
 from src.modules.ab_tests.services.collection import Counters, counters_by_day, days_to_read
 from src.modules.ab_tests.services.photos import VariantInstaller
@@ -154,6 +159,22 @@ async def _poll_one(
                 """
                 return await _read_counters(client, ids, nm_id, wanted)
 
+            async def _budget(
+                nm_id: int,
+                client: WBAdvertisingClient = adv_client,
+                adverts: list[WBAdvertV2] = adverts_by_workspace[test.workspace_id],
+            ) -> BudgetState:
+                """Ask whether this card's advertising can pay for another turn.
+
+                Bound as defaults for the same reason ``_reader`` is: the
+                closure outlives the loop iteration that made it.
+                """
+                return await read_state(
+                    client=client,
+                    campaign_ids=spendable_campaigns(adverts, nm_id=nm_id),
+                    nm_id=nm_id,
+                )
+
             runner = RotationRunner(
                 tests=repo,
                 exposures=ExposureRepository(session),
@@ -163,6 +184,7 @@ async def _poll_one(
                     content_client=content_client, media_store=get_media_store()
                 ),
                 read_counters=_reader,
+                read_budget=_budget,
             )
             outcome = await runner.poll(loaded, days=days, now=now)
 

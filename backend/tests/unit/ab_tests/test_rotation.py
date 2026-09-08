@@ -43,6 +43,7 @@ def _state(
     active_since: datetime | None = None,
     slot_minutes: int = SLOT_MINUTES,
     now: datetime = NOW,
+    excluded: bool = False,
 ) -> RotationState:
     """A rotation state with the module's defaults."""
     return RotationState(
@@ -54,6 +55,7 @@ def _state(
         active_since=active_since,
         slot_minutes=slot_minutes,
         now=now,
+        active_is_excluded=excluded,
     )
 
 
@@ -237,8 +239,8 @@ def test_a_time_test_with_no_open_exposure_holds() -> None:
     assert decision.action is RotationAction.HOLD
 
 
-def test_a_time_test_completes_after_its_last_slot() -> None:
-    """Time mode ends the test the same way impressions mode does."""
+def test_a_time_test_starts_a_new_lap_after_its_last_slot() -> None:
+    """Time mode closes the circle the same way impressions mode does."""
     decision = decide(
         _state(
             active=VARIANTS[-1],
@@ -247,7 +249,8 @@ def test_a_time_test_completes_after_its_last_slot() -> None:
         )
     )
 
-    assert decision.action is RotationAction.COMPLETE
+    assert decision.action is RotationAction.ADVANCE
+    assert decision.variant_id == VARIANTS[0]
 
 
 @pytest.mark.parametrize("slot", [5, 30, 60, 1440])
@@ -284,16 +287,37 @@ def test_a_test_with_no_active_photo_installs_the_first_variant(mode: TriggerMod
     assert decision.variant_id == VARIANTS[0]
 
 
-def test_the_last_variant_completes_the_test_instead_of_wrapping() -> None:
-    """After the final photo meets its trigger the test is finished.
+def test_the_last_variant_wraps_to_the_first_and_starts_another_lap() -> None:
+    """The rotation is a circle: past the last photo comes the first again.
 
-    Wrapping around silently would keep rewriting the seller's card forever; a
-    second round has to be started deliberately.
+    Nothing here ends a test, and that is the point of the split. One lap of a
+    ten-photo test is ten slots, and whether ten slots is enough traffic to tell
+    the photos apart has nothing to do with the number ten — the advertising
+    budget decides, and the runner asks about it. See services/budget.py.
     """
     decision = decide(_state(active=VARIANTS[-1], impressions=10_000))
 
-    assert decision.action is RotationAction.COMPLETE
-    assert decision.variant_id is None
+    assert decision.action is RotationAction.ADVANCE
+    assert decision.variant_id == VARIANTS[0]
+
+
+def test_decide_never_ends_a_test_on_its_own() -> None:
+    """A guard on the split, not a restatement of the case above.
+
+    COMPLETE is the runner's word, substituted once WB says the budget is gone.
+    If this function ever learns to say it too there will be two places that can
+    end a test, and they will disagree.
+    """
+    states = [
+        _state(active=VARIANTS[0], impressions=10_000),
+        _state(active=VARIANTS[-1], impressions=10_000),
+        _state(active=VARIANTS[0], impressions=0),
+        _state(active=None),
+        _state(active=None, variants=[]),
+        _state(active=uuid.uuid4(), impressions=10_000),
+    ]
+
+    assert all(decide(state).action is not RotationAction.COMPLETE for state in states)
 
 
 def test_a_test_with_no_variants_cannot_start() -> None:
@@ -304,23 +328,56 @@ def test_a_test_with_no_variants_cannot_start() -> None:
     assert decision.variant_id is None
 
 
-def test_a_single_variant_test_completes_at_its_trigger() -> None:
-    """One photo is a valid, if pointless, test — it must still terminate."""
+def test_a_single_variant_test_reinstalls_the_only_photo_it_has() -> None:
+    """One photo is a valid, if pointless, test: the circle is one step long.
+
+    It ends when the budget does, like any other — not by running out of photos.
+    """
     decision = decide(_state(active=VARIANTS[0], impressions=10_000, variants=VARIANTS[:1]))
 
-    assert decision.action is RotationAction.COMPLETE
+    assert decision.action is RotationAction.ADVANCE
+    assert decision.variant_id == VARIANTS[0]
 
 
-def test_an_active_variant_missing_from_the_list_reinstalls_from_the_start() -> None:
-    """Deleting the live variant leaves the test recoverable.
+def test_an_active_variant_missing_from_the_list_moves_on_immediately() -> None:
+    """The live photo left the rotation — deleted, or excluded while it was up.
 
-    The alternative — raising — would wedge the polling pass for every other
-    test behind one that a user edited mid-flight.
+    Both mean the same thing to the seller who just did it: take it off the
+    card. Its slot is not waited out. The alternative — raising — would wedge
+    the polling pass for every other test behind one that was edited mid-flight.
     """
     decision = decide(_state(active=uuid.uuid4(), impressions=50_000))
 
-    assert decision.action is RotationAction.INSTALL
+    assert decision.action is RotationAction.ADVANCE
     assert decision.variant_id == VARIANTS[0]
+
+
+def test_excluding_the_live_photo_takes_it_off_without_finishing_its_slot() -> None:
+    """«Убрать» during a photo's own turn has to mean now, not in 18 minutes."""
+    assert decide(_state(active=VARIANTS[0], impressions=0)).action is RotationAction.HOLD
+
+    excluded = decide(_state(active=VARIANTS[0], impressions=0, excluded=True))
+
+    assert excluded.action is RotationAction.ADVANCE
+    assert excluded.variant_id == VARIANTS[1]
+
+
+def test_an_excluded_photo_is_simply_not_dealt() -> None:
+    """The caller filters them out; the circle closes over what is left."""
+    remaining = [VARIANTS[0], VARIANTS[2]]
+
+    decision = decide(_state(active=VARIANTS[2], impressions=10_000, variants=remaining))
+
+    assert decision.action is RotationAction.ADVANCE
+    assert decision.variant_id == VARIANTS[0]
+
+
+def test_a_test_whose_every_photo_is_excluded_holds_rather_than_rotating() -> None:
+    """Nothing left to deal is the same state as nothing ever uploaded."""
+    decision = decide(_state(active=VARIANTS[0], impressions=10_000, variants=[]))
+
+    assert decision.action is RotationAction.HOLD
+    assert decision.variant_id is None
 
 
 @pytest.mark.parametrize("budget", [100, 500, 10_000, 250_000])

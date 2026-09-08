@@ -34,6 +34,7 @@ from src.modules.ab_tests.services.original import (
 from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.skus import SkuCatalogue
 from src.modules.ab_tests.services.storage import MediaStore, build_media_store
+from src.modules.ab_tests.services.variants import VariantCatalogService
 from src.modules.workspaces.contract import CurrentWorkspaceId, load_workspace_token_bundle
 
 
@@ -146,15 +147,32 @@ def get_catalog_service(
 
 AbTestCatalogServiceDep = Annotated[AbTestCatalogService, Depends(get_catalog_service)]
 
+
+def get_variant_service(
+    tests: Annotated[AbTestRepository, Depends(get_test_repo)],
+    variants: Annotated[VariantRepository, Depends(get_variant_repo)],
+    stats: Annotated[WindowRepository, Depends(get_stat_repo)],
+    media_store: MediaStoreDep,
+) -> VariantCatalogService:
+    """Provide the photo-side service, bound to the request session."""
+    return VariantCatalogService(
+        tests=tests, variants=variants, stats=stats, media_store=media_store
+    )
+
+
+VariantServiceDep = Annotated[VariantCatalogService, Depends(get_variant_service)]
+
 __all__ = [
     "AbTestCatalogServiceDep",
     "InstallerDep",
     "MediaStoreDep",
     "OriginalCaptureDep",
     "SkuCatalogueDep",
+    "VariantServiceDep",
     "get_catalog_service",
     "get_installer",
     "get_media_store",
     "get_original_capture",
     "get_sku_catalogue",
+    "get_variant_service",
 ]

@@ -68,11 +68,18 @@ class _FakeExposures:
 
     def __init__(self) -> None:
         self.opened: list[uuid.UUID] = []
+        self.rounds: list[int] = []
 
     async def open(
-        self, *, test_id: uuid.UUID, variant_id: uuid.UUID, activated_at: datetime
+        self,
+        *,
+        test_id: uuid.UUID,
+        variant_id: uuid.UUID,
+        activated_at: datetime,
+        round_number: int = 1,
     ) -> None:
         self.opened.append(variant_id)
+        self.rounds.append(round_number)
 
 
 class _FakeInstaller:

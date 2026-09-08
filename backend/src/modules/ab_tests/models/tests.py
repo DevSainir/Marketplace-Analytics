@@ -204,6 +204,11 @@ class AbTestVariant(Base):
             test was created. It is captured from WB rather than uploaded, it
             always sorts first, and it is the one variant the rotation does not
             have to install: it is what the card is showing.
+        excluded_at: When the seller took this photo out of the rotation, or
+            ``None`` while it is still in. Excluding is **not** deleting: the
+            row, the image and every window already credited to it stay, so the
+            result table keeps showing what it earned. It is simply skipped from
+            the next round on. Reversible.
         image_path: Path of the stored original, relative to the media root.
         image_sha256: Digest of the stored bytes — identifies a re-upload of the
             same picture and proves what was actually sent to WB.
@@ -233,6 +238,18 @@ class AbTestVariant(Base):
     original_filename: Mapped[str] = mapped_column(String(255), server_default="", nullable=False)
 
     is_original: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
+
+    excluded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    @property
+    def is_excluded(self) -> bool:
+        """Is this photo out of the rotation?
+
+        A property rather than a second column: two fields that must agree are
+        two fields that can disagree, and the timestamp answers both «is it
+        out» and «since when».
+        """
+        return self.excluded_at is not None
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

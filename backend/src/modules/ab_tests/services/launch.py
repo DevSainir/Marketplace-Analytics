@@ -95,15 +95,19 @@ class Launcher:
             raise ConflictError("Завершённый тест нельзя запустить повторно.")
         # The card's own photo does not count towards this: a test rotating
         # nothing but the image already on the card compares it to itself.
-        if not any(not variant.is_original for variant in test.variants):
+        if not any(
+            not variant.is_original and not variant.is_excluded for variant in test.variants
+        ):
             raise ConflictError("Загрузите хотя бы одно фото, прежде чем запускать тест.")
 
         if test.active_variant_id is None:
             original = await capture.enrol(test=test, variants=self._variants)
-            first = original or test.variants[0]
+            first = original or next(v for v in test.variants if not v.is_excluded)
             if original is None:
                 await installer.install(nm_id=test.nm_id, variant=first)
-            await self._exposures.open(test_id=test.id, variant_id=first.id, activated_at=now)
+            await self._exposures.open(
+                test_id=test.id, variant_id=first.id, activated_at=now, round_number=1
+            )
             await self._tests.set_active_variant(test=test, variant_id=first.id)
 
         await self._tests.set_status(

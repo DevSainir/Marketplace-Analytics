@@ -6,6 +6,11 @@ for those, the way WB's own result table does, because 0 % and "not measured
 yet" are different answers.
 """
 
+# ruff: noqa: RUF001 — field descriptions are the Russian labels the SPA
+# renders, and they sit next to Latin terms ("CTR", "WB"), which makes the
+# confusable-character check fire on ordinary Cyrillic. The constants that are
+# actually compared against WB responses live elsewhere and are covered by
+# tests/unit/finreports/test_wb_labels_are_pure_cyrillic.py.
 from __future__ import annotations
 
 import uuid
@@ -138,6 +143,19 @@ class VariantMetrics(BaseModel):
         default=False,
         description="Фото, которое стояло на карточке до теста; в ротации на позиции 0",
     )
+    is_excluded: bool = Field(
+        default=False,
+        description="Убрано из ротации: в следующих кругах не участвует, метрики сохранены",
+    )
+
+    rounds_played: int = Field(default=0, description="В скольких кругах фото участвовало")
+    rounds_won: int = Field(default=0, description="В скольких кругах у него был лучший CTR")
+    ctr_gap: Decimal | None = Field(
+        default=None, description="Отставание CTR от лучшего, в процентных пунктах"
+    )
+    ctr_result: Decimal | None = Field(
+        default=None, description="То же отставание относительно лучшего, в процентах"
+    )
 
     click_through: Decimal | None = Field(description="Доля переходов в карточку, %")
     add_to_cart: Decimal | None = Field(description="Доля добавлений в корзину, %")
@@ -181,9 +199,13 @@ class AbTestRead(BaseModel):
 
 
 class AbTestDetail(AbTestRead):
-    """A test plus the per-photo result table."""
+    """A test plus the per-photo result table and the log of its turns."""
 
     variants: list[VariantMetrics] = Field(default_factory=list)
+    history: list[ExposureRow] = Field(
+        default_factory=list, description="Каждая установка фото, новые сверху"
+    )
+    rounds_completed: int = Field(default=0, description="Сколько кругов ротация уже прошла")
 
     active_since: datetime | None = Field(
         default=None,
@@ -192,6 +214,31 @@ class AbTestDetail(AbTestRead):
             "«по времени»; null, пока ничего не установлено."
         ),
     )
+
+
+class VariantExclusionUpdate(BaseModel):
+    """Request body for taking a photo out of the rotation, or putting it back."""
+
+    excluded: bool = Field(description="true — убрать из ротации, false — вернуть")
+
+
+class ExposureRow(BaseModel):
+    """One turn in «История действий»: a photo installed, and what it earned."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    variant_id: uuid.UUID
+    position: int
+    is_original: bool
+    image_url: str
+    round_number: int = Field(description="Круг, к которому относится установка")
+    activated_at: datetime = Field(description="Когда WB принял загрузку")
+    deactivated_at: datetime | None = Field(default=None, description="Когда фото сняли")
+    minutes: int | None = Field(default=None, description="Сколько минут фото простояло")
+
+    views: int = 0
+    clicks: int = 0
+    click_through: Decimal | None = Field(default=None, description="CTR за эту установку, %")
 
 
 class AbTestStatusUpdate(BaseModel):

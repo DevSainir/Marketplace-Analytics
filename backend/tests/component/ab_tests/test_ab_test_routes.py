@@ -19,7 +19,13 @@ from src.core.exceptions import ConflictError, NotFoundError
 from src.modules.ab_tests.routers import router as ab_tests_router
 from src.modules.organizations.contract import AccessLevel, EffectiveRole, SubscriptionState
 from src.modules.workspaces.models import Workspace
-from tests.component.ab_tests.conftest import JPEG, TEST_ID, VARIANT_ID, _StubCatalog
+from tests.component.ab_tests.conftest import (
+    JPEG,
+    TEST_ID,
+    VARIANT_ID,
+    _StubCatalog,
+    _StubVariants,
+)
 
 
 async def test_the_list_is_scoped_to_the_header_workspace(
@@ -83,7 +89,7 @@ async def test_the_detail_carries_the_result_table(
 
 
 async def test_uploading_a_photo_passes_the_bytes_and_type_through(
-    client: httpx.AsyncClient, headers: dict[str, str], catalog: _StubCatalog
+    client: httpx.AsyncClient, headers: dict[str, str], photos: _StubVariants
 ) -> None:
     """The multipart part arrives intact — bytes, MIME type and file name.
 
@@ -97,14 +103,14 @@ async def test_uploading_a_photo_passes_the_bytes_and_type_through(
     )
 
     assert response.status_code == 201
-    assert catalog.uploaded == [(JPEG, "image/jpeg", "dress.jpg")]
+    assert photos.uploaded == [(JPEG, "image/jpeg", "dress.jpg")]
 
 
 async def test_a_full_rotation_refuses_the_eleventh_photo_with_409(
-    client: httpx.AsyncClient, headers: dict[str, str], catalog: _StubCatalog
+    client: httpx.AsyncClient, headers: dict[str, str], photos: _StubVariants
 ) -> None:
     """The ten-photo cap surfaces as a conflict, not a 500."""
-    catalog.error = ConflictError("В тесте не может быть больше 10 фото.")
+    photos.error = ConflictError("В тесте не может быть больше 10 фото.")
 
     response = await client.post(
         f"/api/ab-tests/{TEST_ID}/variants",
@@ -116,10 +122,10 @@ async def test_a_full_rotation_refuses_the_eleventh_photo_with_409(
 
 
 async def test_the_live_photo_cannot_be_deleted(
-    client: httpx.AsyncClient, headers: dict[str, str], catalog: _StubCatalog
+    client: httpx.AsyncClient, headers: dict[str, str], photos: _StubVariants
 ) -> None:
     """Removing the installed photo would leave the card pointing at nothing."""
-    catalog.error = ConflictError("Нельзя удалить фото, которое сейчас стоит на карточке.")
+    photos.error = ConflictError("Нельзя удалить фото, которое сейчас стоит на карточке.")
 
     response = await client.delete(
         f"/api/ab-tests/{TEST_ID}/variants/{VARIANT_ID}", headers=headers

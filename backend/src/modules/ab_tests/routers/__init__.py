@@ -28,6 +28,7 @@ from src.modules.ab_tests.deps import (
     InstallerDep,
     OriginalCaptureDep,
     SkuCatalogueDep,
+    VariantServiceDep,
 )
 from src.modules.ab_tests.schemas import (
     AbTestCreate,
@@ -36,6 +37,7 @@ from src.modules.ab_tests.schemas import (
     AbTestSettingsUpdate,
     AbTestStatusUpdate,
     SkuOption,
+    VariantExclusionUpdate,
 )
 from src.modules.ab_tests.services.photos import MAX_IMAGE_BYTES
 from src.modules.organizations.contract import WritingAccess, require_ab_tests
@@ -257,6 +259,7 @@ async def upload_variant(
     _writer: WritingAccess,
     test_id: uuid.UUID,
     service: AbTestCatalogServiceDep,
+    photos: VariantServiceDep,
     workspace_id: CurrentWorkspaceId,
     file: UploadFile = File(description="Изображение до 32 МБ"),
 ) -> AbTestDetail:
@@ -266,7 +269,7 @@ async def upload_variant(
     table has to re-render anyway, and one round trip keeps the upload list and
     the table from disagreeing.
     """
-    await service.add_variant(
+    await photos.add_variant(
         workspace_id=workspace_id,
         test_id=test_id,
         content=await read_capped(
@@ -294,11 +297,50 @@ async def delete_variant(
     _writer: WritingAccess,
     test_id: uuid.UUID,
     variant_id: uuid.UUID,
-    service: AbTestCatalogServiceDep,
+    photos: VariantServiceDep,
     workspace_id: CurrentWorkspaceId,
 ) -> None:
     """Remove a photo from the rotation."""
-    await service.delete_variant(workspace_id=workspace_id, test_id=test_id, variant_id=variant_id)
+    await photos.delete_variant(workspace_id=workspace_id, test_id=test_id, variant_id=variant_id)
+
+
+@router.patch(
+    "/{test_id}/variants/{variant_id}",
+    response_model=AbTestDetail,
+    summary="Убрать фото из ротации или вернуть",
+    responses={
+        403: {"description": "Доступ только для чтения"},
+        404: {"description": "Тест или вариант не найден"},
+        409: {"description": "Это последнее фото в ротации"},
+    },
+)
+async def set_variant_excluded(
+    _writer: WritingAccess,
+    test_id: uuid.UUID,
+    variant_id: uuid.UUID,
+    payload: VariantExclusionUpdate,
+    service: AbTestCatalogServiceDep,
+    photos: VariantServiceDep,
+    workspace_id: CurrentWorkspaceId,
+) -> AbTestDetail:
+    """Take a photo out of the running rotation, or put it back.
+
+    Deliberately allowed while the test is running — that is the point. Nothing
+    is deleted: the photo keeps its row, its image and every window already
+    credited to it, so the result table goes on showing what it did. It simply
+    stops being dealt, from the next pass on.
+
+    Returns the whole test for the same reason the upload route does: the table
+    re-renders anyway, and one round trip keeps the photo list and the figures
+    from disagreeing.
+    """
+    await photos.set_variant_excluded(
+        workspace_id=workspace_id,
+        test_id=test_id,
+        variant_id=variant_id,
+        excluded=payload.excluded,
+    )
+    return await service.get_detail(workspace_id=workspace_id, test_id=test_id)
 
 
 @router.get(
@@ -313,7 +355,7 @@ async def delete_variant(
 async def get_variant_image(
     test_id: uuid.UUID,
     variant_id: uuid.UUID,
-    service: AbTestCatalogServiceDep,
+    photos: VariantServiceDep,
     workspace_id: CurrentWorkspaceId,
 ) -> Response:
     """Stream a variant's stored original.
@@ -322,7 +364,7 @@ async def get_variant_image(
     not been installed yet has no WB URL at all, and one that has been replaced
     no longer has one.
     """
-    content, content_type = await service.read_variant_image(
+    content, content_type = await photos.read_variant_image(
         workspace_id=workspace_id, test_id=test_id, variant_id=variant_id
     )
     # Immutable: the path contains the content digest, so a cached copy can

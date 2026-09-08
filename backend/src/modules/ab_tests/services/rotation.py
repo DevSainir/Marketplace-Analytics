@@ -2,8 +2,22 @@
 
 Kept as a pure function so the rule can be pinned by fast tests and read without
 following a session through three layers. Everything stateful — reading the
-counters, writing the exposure row, calling WB — lives in :mod:`.runner` around
-this.
+counters, writing the exposure row, calling WB, asking whether the advertising
+budget is spent — lives in :mod:`.runner` around this.
+
+**The rotation is a circle, not a queue.** After the last photo it comes back to
+the first and starts another lap. What ends a test is not a lap count but the
+money behind it: see :mod:`.budget`. This function never returns ``COMPLETE`` on
+its own — it says which photo should be up next, and the runner turns that into
+a stop when the budget is gone. Keeping the two apart is what stops «which photo
+is next» and «should there be a next photo at all» from being tangled in one
+condition.
+
+**An excluded photo is skipped, not removed.** The seller can take a photo out
+mid-test; it keeps its rows and its measurements and simply stops being dealt.
+The decision therefore walks the photos still in the rotation, and treats the
+live photo being excluded as a reason to move on now rather than at the end of
+its slot — that is what excluding it during its own turn has to mean.
 
 **The two triggers are mutually exclusive.** A test advances either on the
 impressions its live photo has gathered, or on how long that photo has been up,
@@ -40,7 +54,9 @@ class RotationAction(enum.StrEnum):
     ADVANCE = "advance"
     #: Nothing to do; the live photo is still gathering.
     HOLD = "hold"
-    #: The last variant met its trigger — the test is over.
+    #: The last variant met its trigger — the test is over. Never returned by
+    #: :func:`decide`; the runner substitutes it for an ``ADVANCE`` once the
+    #: advertising budget is spent.
     COMPLETE = "complete"
 
 
@@ -50,7 +66,13 @@ class RotationState:
 
     Attributes:
         active_variant_id: The photo currently on the card, if any.
-        variant_ids: Every variant in rotation order (``position`` ascending).
+        variant_ids: The variants still in the rotation, in order (``position``
+            ascending). Excluded photos are absent — the caller filters them,
+            because "is this photo still being dealt" is a property of the row
+            and not of the decision.
+        active_is_excluded: Whether the photo on the card has just been taken
+            out of the rotation. It then moves on the next pass rather than
+            finishing a slot nobody wants it to finish.
         trigger_mode: Which of the two rules applies.
         impressions_for_active: Ad impressions attributed to the live photo
             across all of its exposures. Read only in ``IMPRESSIONS`` mode.
@@ -69,6 +91,9 @@ class RotationState:
     active_since: datetime | None
     slot_minutes: int
     now: datetime
+    # Defaulted so every existing construction site stays valid; a test whose
+    # photos are all still in the rotation is the ordinary case.
+    active_is_excluded: bool = False
 
 
 @dataclass(frozen=True)
@@ -122,14 +147,19 @@ def _trigger_met(state: RotationState) -> bool:
 
 
 def decide(state: RotationState) -> RotationDecision:
-    """Decide whether the card's photo should change.
+    """Decide which photo should be on the card next.
+
+    Never returns ``COMPLETE``. Whether the test should end is a question about
+    the advertising budget, which this function cannot see and the runner asks
+    separately — see :mod:`.budget`. Here the rotation is an endless circle.
 
     Args:
-        state: The test's variants, live photo, counters and clock.
+        state: The test's remaining variants, live photo, counters and clock.
 
     Returns:
         The action for the polling pass. ``HOLD`` with no variant means the test
-        is not runnable (nothing uploaded) rather than merely waiting.
+        is not runnable — every photo is excluded, or none was ever uploaded —
+        rather than merely waiting.
     """
     if not state.variant_ids:
         return RotationDecision(RotationAction.HOLD, None)
@@ -140,17 +170,22 @@ def decide(state: RotationState) -> RotationDecision:
     try:
         position = state.variant_ids.index(state.active_variant_id)
     except ValueError:
-        # The live variant was deleted mid-flight. Recover by restarting the
-        # rotation rather than raising: one edited test must not wedge the pass
-        # for every other test behind it.
-        return RotationDecision(RotationAction.INSTALL, state.variant_ids[0])
+        # The live photo is no longer in the rotation — deleted, or excluded
+        # while it was up. Both mean the same thing to the seller who did it:
+        # take it off now. Its slot is not waited out.
+        return RotationDecision(RotationAction.ADVANCE, state.variant_ids[0])
+
+    if state.active_is_excluded:
+        return RotationDecision(
+            RotationAction.ADVANCE, state.variant_ids[(position + 1) % len(state.variant_ids)]
+        )
 
     if not _trigger_met(state):
         return RotationDecision(RotationAction.HOLD, state.active_variant_id)
 
     # Advance exactly one step even when a single interval overshot the budget
     # several times over — proportional skipping would leave photos untested.
-    if position + 1 < len(state.variant_ids):
-        return RotationDecision(RotationAction.ADVANCE, state.variant_ids[position + 1])
-
-    return RotationDecision(RotationAction.COMPLETE, None)
+    # Past the last photo the circle closes and a new lap starts.
+    return RotationDecision(
+        RotationAction.ADVANCE, state.variant_ids[(position + 1) % len(state.variant_ids)]
+    )

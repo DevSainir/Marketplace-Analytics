@@ -11,6 +11,7 @@ doing it in the background would leave the user looking at a «Запущен» 
 whose card still shows the old image, with the failure buried in a worker log.
 """
 
+# Russian, and the confusable-character check fires on ordinary Cyrillic.
 from __future__ import annotations
 
 import uuid
@@ -21,10 +22,8 @@ from src.core.exceptions import ConflictError, NotFoundError, ValidationError
 from src.modules.ab_tests.models import (
     DEFAULT_IMPRESSION_BUDGET,
     DEFAULT_SLOT_MINUTES,
-    MAX_VARIANTS_PER_TEST,
     AbTest,
     AbTestStatus,
-    AbTestVariant,
     TriggerMode,
 )
 from src.modules.ab_tests.repos import (
@@ -39,10 +38,10 @@ from src.modules.ab_tests.schemas import (
     AbTestRead,
     AbTestSettingsUpdate,
 )
+from src.modules.ab_tests.services.detail import assemble_detail
 from src.modules.ab_tests.services.launch import Launcher
 from src.modules.ab_tests.services.original import PhotoEnroller
-from src.modules.ab_tests.services.photos import VariantInstaller, validate_image
-from src.modules.ab_tests.services.results import build_rows, leader_of
+from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.storage import MediaStore
 from src.modules.ab_tests.services.triggers import TriggerSettings
 from src.modules.ab_tests.services.triggers import resolve as resolve_trigger
@@ -119,52 +118,14 @@ class AbTestCatalogService:
         # time trigger compares against. Anything the UI derives from a
         # different clock would count down to a swap that happens elsewhere.
         active_since = await self._exposures.active_since(test_id=test.id)
-        rows = build_rows(
-            test=test, variants=test.variants, windows=windows, image_url=IMAGE_URL_TEMPLATE
-        )
-        return AbTestDetail(
-            id=test.id,
-            nm_id=test.nm_id,
-            vendor_code=test.vendor_code,
-            name=test.name,
-            status=test.status,
-            trigger_mode=test.trigger_mode,
-            impression_budget=test.impression_budget,
-            slot_minutes=test.slot_minutes,
-            active_variant_id=test.active_variant_id,
-            variant_count=len(test.variants),
-            started_at=test.started_at,
-            finished_at=test.finished_at,
-            created_at=test.created_at,
-            leader_variant_id=leader_of(rows),
-            variants=rows,
+        exposures = await self._exposures.history(test_id=test.id)
+        return assemble_detail(
+            test=test,
+            windows=windows,
+            exposures=exposures,
             active_since=active_since,
+            image_url=IMAGE_URL_TEMPLATE,
         )
-
-    async def read_variant_image(
-        self, *, workspace_id: uuid.UUID, test_id: uuid.UUID, variant_id: uuid.UUID
-    ) -> tuple[bytes, str]:
-        """Return one variant's stored image and its MIME type.
-
-        Args:
-            workspace_id: Tenancy guard.
-            test_id: Owning test.
-            variant_id: Variant identifier.
-
-        Returns:
-            ``(bytes, content_type)``.
-
-        Raises:
-            NotFoundError: If the test, the variant, or the file is missing.
-        """
-        await self._require(workspace_id=workspace_id, test_id=test_id)
-        variant = await self._variants.get(test_id=test_id, variant_id=variant_id)
-        if variant is None:
-            raise NotFoundError("Вариант не найден.")
-        try:
-            return await self._media.read(variant.image_path), variant.content_type
-        except FileNotFoundError as exc:  # pragma: no cover - disk-level failure
-            raise NotFoundError("Файл изображения отсутствует в хранилище.") from exc
 
     # ---------------------------------------------------------------- writes
 
@@ -236,86 +197,6 @@ class AbTestCatalogService:
         )
         await capture.enrol(test=test, variants=self._variants)
         return self._as_row(test)
-
-    async def add_variant(
-        self,
-        *,
-        workspace_id: uuid.UUID,
-        test_id: uuid.UUID,
-        content: bytes,
-        content_type: str,
-        filename: str,
-    ) -> AbTestVariant:
-        """Store an uploaded photo and append it to the rotation.
-
-        Args:
-            workspace_id: Tenancy guard.
-            test_id: Owning test.
-            content: Raw image bytes.
-            content_type: MIME type declared by the browser.
-            filename: The user's own file name.
-
-        Returns:
-            The new variant.
-
-        Raises:
-            NotFoundError: If the test does not exist in this workspace.
-            ValidationError: If the file is not an image WB would accept.
-            ConflictError: If the test already carries the maximum photos.
-        """
-        test = await self._require(workspace_id=workspace_id, test_id=test_id)
-        validate_image(content=content, content_type=content_type)
-
-        if await self._variants.count_for_test(test_id=test.id) >= MAX_VARIANTS_PER_TEST:
-            raise ConflictError(f"В тесте не может быть больше {MAX_VARIANTS_PER_TEST} фото.")
-
-        stored = await self._media.save(content=content, content_type=content_type, test_id=test.id)
-        return await self._variants.add(
-            test_id=test.id,
-            image_path=stored.relative_path,
-            image_sha256=stored.sha256,
-            content_type=content_type,
-            original_filename=filename,
-        )
-
-    async def delete_variant(
-        self, *, workspace_id: uuid.UUID, test_id: uuid.UUID, variant_id: uuid.UUID
-    ) -> None:
-        """Remove a photo from a test.
-
-        The stored file stays on disk when the variant was ever live: its bytes
-        are the evidence behind the metrics already attributed to it.
-
-        Args:
-            workspace_id: Tenancy guard.
-            test_id: Owning test.
-            variant_id: Variant identifier.
-
-        Raises:
-            NotFoundError: If the test or the variant does not exist.
-            ConflictError: If the variant is the one currently on the card, or
-                is the card's own photo — that one is the baseline every other
-                row is read against, and a table without it compares the
-                candidates only to each other.
-        """
-        test = await self._require(workspace_id=workspace_id, test_id=test_id)
-        if test.active_variant_id == variant_id:
-            raise ConflictError("Нельзя удалить фото, которое сейчас стоит на карточке.")
-
-        variant = await self._variants.get(test_id=test_id, variant_id=variant_id)
-        if variant is None:
-            raise NotFoundError("Вариант не найден.")
-        if variant.is_original:
-            raise ConflictError(
-                "Текущее фото карточки убрать из ротации нельзя — с ним сравниваются остальные."
-            )
-
-        never_measured = await self._stats.impressions_for_variant(variant_id=variant_id) == 0
-        path = variant.image_path
-
-        await self._variants.delete(test_id=test_id, variant_id=variant_id)
-        if never_measured:
-            await self._media.delete(path)
 
     async def update_settings(
         self, *, workspace_id: uuid.UUID, test_id: uuid.UUID, payload: AbTestSettingsUpdate

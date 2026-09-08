@@ -157,6 +157,40 @@ class WBAdvertisingClient(BaseWBClient):
     #: Max (campaign, SKU) pairs per normquery-stats request (WB caps ``items``).
     _NORMQUERY_BATCH = 100
 
+    async def fetch_campaign_budget(self, campaign_id: int) -> int:
+        """Return one campaign's remaining budget, in the account's currency.
+
+        Endpoint: ``GET /adv/v1/budget?id=<advertId>`` → ``{"cash", "netting",
+        "total", "currency"}``. ``total`` is the whole remaining budget and the
+        only field worth reading; ``cash``/``netting`` split it by funding
+        source and were 0/0 on every campaign sampled.
+
+        **A zero here is trustworthy, and that took checking.** Every campaign
+        this account has finished (status 7) answers ``total: 0`` with an empty
+        ``currency`` — which on its own is indistinguishable from an endpoint
+        that simply does not work for our campaign types. Measured live
+        2026-09-07 across statuses: running campaigns (status 9) answered 3818,
+        3504 and 14929 KGS, and a paused one (11) answered 350. So the endpoint
+        reports real numbers and ``0`` means the budget is spent, which is what
+        lets the A/Б rotation stop on it.
+
+        Args:
+            campaign_id: WB advert id.
+
+        Returns:
+            Remaining budget. Rounded to whole units — WB reports it that way.
+
+        Raises:
+            IntegrationError: If the response is not the documented shape. NOT
+                raised for a zero: that is an answer, not a failure.
+        """
+        payload = await self._request("GET", "/adv/v1/budget", params={"id": campaign_id})
+        if not isinstance(payload, dict) or "total" not in payload:
+            raise IntegrationError(
+                "Unexpected adv/v1/budget response shape (expected an object with 'total')."
+            )
+        return int(payload["total"])
+
     async def fetch_search_zone_stats(
         self,
         *,
