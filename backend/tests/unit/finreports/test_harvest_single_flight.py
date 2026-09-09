@@ -24,6 +24,7 @@ from src.modules.finreports.services import HarvestControlService
 from src.modules.finreports.services.freshness_record import NullFreshnessRecordStore
 from src.modules.finreports.tasks import harvest
 from src.modules.finreports.tasks.harvest import harvest_all_workspaces
+from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
 
@@ -107,6 +108,17 @@ async def test_the_lock_is_freed_for_the_next_tick(
     assert redis.store == {}
 
 
+async def _no_tokens(workspace_id: uuid.UUID) -> WorkspaceTokenBundle | None:
+    """A workspace with no WB credentials — these tests are about the lock only.
+
+    The rate-limit peek reads the settlement bucket, which is named after the
+    seller token; without one there is no bucket to consult and the service
+    answers "ask now", which is the fail-open behaviour these tests want out of
+    the way.
+    """
+    return None
+
+
 class _StubReportRepo:
     """Answers the one coverage question the control service asks."""
 
@@ -132,6 +144,7 @@ async def test_the_button_sees_a_harvest_that_is_already_running() -> None:
         report_repo=_StubReportRepo(date(2026, 8, 9)),  # type: ignore[arg-type]
         redis=_HeldRedis(),  # type: ignore[arg-type]
         freshness_records=NullFreshnessRecordStore(),
+        load_tokens=_no_tokens,
     )
 
     state = await service.get_state(workspace_id=WORKSPACE)
@@ -148,6 +161,7 @@ async def test_an_idle_lock_reads_as_not_running() -> None:
         report_repo=_StubReportRepo(None),  # type: ignore[arg-type]
         redis=redis,  # type: ignore[arg-type]
         freshness_records=NullFreshnessRecordStore(),
+        load_tokens=_no_tokens,
     )
 
     state = await service.get_state(workspace_id=WORKSPACE)
@@ -171,6 +185,7 @@ async def test_an_unreachable_redis_does_not_block_the_button() -> None:
         report_repo=_StubReportRepo(None),  # type: ignore[arg-type]
         redis=_BrokenRedis(),  # type: ignore[arg-type]
         freshness_records=NullFreshnessRecordStore(),
+        load_tokens=_no_tokens,
     )
 
     state = await service.get_state(workspace_id=WORKSPACE)

@@ -391,6 +391,75 @@ describe('«Обновить» — the manual WB harvest', () => {
     await running
   }
 
+  it('answers a rate-limited click at once and enqueues nothing', async () => {
+    // The case the whole refactor is for. WB meters the settlement report at
+    // one request per ~15 minutes, so a click inside that window used to
+    // enqueue a harvest whose first act was to sit still for most of it —
+    // seven minutes of «Обновляем…» over a walk doing nothing (prod
+    // 2026-09-09). There is no version of waiting that helps, so the page says
+    // when to come back and stops.
+    triggerHarvest.mockResolvedValue({
+      status: 'rate_limited',
+      task_id: null,
+      retry_after_seconds: 391,
+    })
+
+    await store.refreshFromWb()
+
+    expect(store.harvestBusy).toBe(false)
+    expect(store.harvestNotice).toBe(
+      'Ограничение по запросам от Wildberries — попробуйте через 7 мин.',
+    )
+    expect(fetchHarvestState).not.toHaveBeenCalled()
+    expect(localStorage.getItem('finreports:pending-refresh')).toBeNull()
+  })
+
+  it('never tells a seller to come back in zero minutes', async () => {
+    // A click inside WB's window restarts it, so «через 0 минут» would invite
+    // exactly the mistake the message exists to prevent.
+    triggerHarvest.mockResolvedValue({
+      status: 'rate_limited',
+      task_id: null,
+      retry_after_seconds: 4,
+    })
+
+    await store.refreshFromWb()
+
+    expect(store.harvestNotice).toContain('1 мин')
+  })
+
+  it('gives the button back as soon as the trigger answers', async () => {
+    // No timers advanced: the click resolves in one round trip. It used to be
+    // awaited for the length of the harvest, which is what made a slow WB read
+    // as a broken page.
+    triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
+    fetchHarvestState.mockResolvedValue({ running: true, latest_settled: '2026-07-19' })
+
+    await store.refreshFromWb()
+
+    expect(store.harvestBusy).toBe(false)
+    expect(store.harvestNotice).toContain('идёт в фоне')
+  })
+
+  it('keeps watching in the background after the click has answered', async () => {
+    // The click is over, but the statement still refreshes itself when the week
+    // lands — that is what makes "no waiting" honest rather than a shrug.
+    await store.loadWeeks()
+    triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
+    fetchHarvestState
+      .mockResolvedValueOnce({ running: true, latest_settled: '2026-07-19' })
+      .mockResolvedValue({ running: false, latest_settled: '2026-07-26' })
+    fetchWeeks.mockResolvedValue({
+      weeks: [{ report_id: 786, date_from: '2026-07-20', date_to: '2026-07-26' }, ...WEEKS],
+    })
+
+    await store.refreshFromWb()
+    await vi.runAllTimersAsync()
+
+    expect(store.harvestNotice).toContain('2026-07-26')
+    expect(store.dateTo).toBe('2026-07-26')
+  })
+
   it('reports a new week and reloads the statement when one arrives', async () => {
     await store.loadWeeks()
     triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
@@ -403,7 +472,7 @@ describe('«Обновить» — the manual WB harvest', () => {
 
     await settle(() => store.refreshFromWb())
 
-    expect(store.harvestRunning).toBe(false)
+    expect(store.harvestBusy).toBe(false)
     expect(store.harvestNotice).toContain('2026-07-26')
     expect(store.dateTo).toBe('2026-07-26')
   })
@@ -462,7 +531,7 @@ describe('«Обновить» — the manual WB harvest', () => {
 
     await store.loadHarvestState()
 
-    expect(store.harvestRunning).toBe(false)
+    expect(store.harvestBusy).toBe(false)
     expect(store.harvestNotice).toContain('2026-07-26')
   })
 
@@ -479,7 +548,6 @@ describe('«Обновить» — the manual WB harvest', () => {
     await reloaded.loadHarvestState()
 
     expect(reloaded.harvestNotice).toBe('')
-    expect(reloaded.harvestRunning).toBe(false)
   })
 
   it('gives the button back when the note is older than the poll ever waits', async () => {
@@ -494,7 +562,6 @@ describe('«Обновить» — the manual WB harvest', () => {
 
     await store.loadHarvestState()
 
-    expect(store.harvestRunning).toBe(false)
     expect(store.harvestNotice).toBe('')
   })
 
@@ -513,7 +580,6 @@ describe('«Обновить» — the manual WB harvest', () => {
 
     await store.loadHarvestState()
 
-    expect(store.harvestRunning).toBe(true)
     expect(store.harvestNotice).toContain('Обновление уже идёт')
   })
 
@@ -524,7 +590,6 @@ describe('«Обновить» — the manual WB harvest', () => {
 
     await settle(() => store.loadHarvestState())
 
-    expect(store.harvestRunning).toBe(false)
     expect(store.harvestNotice).toBe('Новых отчётов у Wildberries пока нет.')
   })
 
@@ -555,7 +620,7 @@ describe('«Обновить» — the manual WB harvest', () => {
     await clicked
 
     expect(triggerHarvest).toHaveBeenCalledTimes(1)
-    expect(store.harvestRunning).toBe(false)
+    expect(fetchWeeks).not.toHaveBeenCalled()
   })
 
   it('ignores a second click while one refresh is still in flight', async () => {
@@ -591,7 +656,7 @@ describe('«Обновить» — the manual WB harvest', () => {
 
     await settle(() => store.refreshFromWb())
 
-    expect(store.harvestRunning).toBe(false)
+    expect(store.harvestBusy).toBe(false)
     expect(store.harvestError).toBeTruthy()
     expect(fetchHarvestState).not.toHaveBeenCalled()
   })

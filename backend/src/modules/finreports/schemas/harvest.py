@@ -91,17 +91,27 @@ class HarvestStateResponse(BaseModel):
 
 
 class HarvestTriggerResponse(BaseModel):
-    """Outcome of pressing «Обновить»."""
+    """Outcome of pressing «Обновить» — always an answer, never a wait."""
 
-    status: Literal["started", "already_running"] = Field(
+    status: Literal["started", "already_running", "rate_limited"] = Field(
         description=(
             "'started' — a harvest was enqueued; 'already_running' — one was "
-            "already in flight and nothing was enqueued."
+            "already in flight and nothing was enqueued; 'rate_limited' — WB "
+            "would not accept a settlement request yet, so nothing was "
+            "enqueued and the caller is told when to come back."
         )
     )
     task_id: str | None = Field(
         default=None,
         description="Celery id of the enqueued harvest, absent when none was enqueued.",
+    )
+    retry_after_seconds: int | None = Field(
+        default=None,
+        description=(
+            "Only on 'rate_limited': seconds until WB's settlement endpoint "
+            "would accept a request. Read from the shared rate bucket, so it "
+            "costs no WB request to produce."
+        ),
     )
 
 

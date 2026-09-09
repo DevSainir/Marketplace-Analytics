@@ -60,6 +60,13 @@ class _StubHarvestControl:
         self.calls: list[dict[str, Any]] = []
         self.latest_report: LatestReportHeader | None = LATEST_REPORT
         self.last_check: FreshnessVerdict | None = LAST_CHECK
+        #: Seconds WB's settlement bucket says to wait; 0 means "ask now".
+        self.retry_after = 0.0
+
+    async def settlement_retry_after(self, **kwargs: Any) -> float:
+        """Echo the canned WB rate-limit wait."""
+        self.calls.append(kwargs)
+        return self.retry_after
 
     async def get_state(self, **kwargs: Any) -> HarvestState:
         """Echo the caller's scope back through a canned state."""
@@ -147,6 +154,61 @@ async def test_the_harvest_is_scoped_to_the_caller_own_workspace(
     await client.post("/api/v1/finreports/harvest", headers=headers)
 
     assert task.calls == [{"workspace_id": str(workspace.id)}]
+
+
+async def test_a_click_inside_wbs_rate_window_answers_instead_of_queueing_a_wait(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    control: _StubHarvestControl,
+    task: _SpyTask,
+) -> None:
+    """WB will not take a settlement request, so nothing is enqueued to wait for it.
+
+    Prod 2026-09-09: a click landed inside the endpoint's ~15-minute window, the
+    harvest was enqueued anyway, and its first act was to sit still for 383
+    seconds before asking. Seven minutes of «Обновляем…» over a walk that could
+    not have done anything sooner. The bucket knew the number before any of that,
+    and the wait is worth more to the caller than to the queue.
+    """
+    control.retry_after = 391.0
+
+    response = await client.post("/api/v1/finreports/harvest", headers=headers)
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "rate_limited"
+    assert response.json()["retry_after_seconds"] == 391
+    assert task.enqueued == 0
+
+
+async def test_a_running_harvest_is_reported_ahead_of_the_rate_limit(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    control: _StubHarvestControl,
+) -> None:
+    """The running harvest is usually what emptied the bucket, and it is the better news.
+
+    Both are true at once for most of a run — the walk holds the lock and has
+    just spent the token. «Ограничение по запросам» alone would say only that
+    nothing can start, where «уже идёт» says the work the caller wants is
+    already happening.
+    """
+    control.running = True
+    control.retry_after = 391.0
+
+    response = await client.post("/api/v1/finreports/harvest", headers=headers)
+
+    assert response.json()["status"] == "already_running"
+
+
+async def test_an_open_bucket_enqueues_the_harvest_as_before(
+    client: httpx.AsyncClient, headers: dict[str, str], task: _SpyTask
+) -> None:
+    """The rate check is a gate, not a new refusal: an open bucket still harvests."""
+    response = await client.post("/api/v1/finreports/harvest", headers=headers)
+
+    assert response.json()["status"] == "started"
+    assert response.json()["retry_after_seconds"] is None
+    assert task.enqueued == 1
 
 
 async def test_pressing_refresh_during_a_harvest_enqueues_nothing(

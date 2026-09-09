@@ -19,6 +19,8 @@ the lock held and returns without touching WB.
 
 from __future__ import annotations
 
+import math
+
 from fastapi import APIRouter, status
 
 from src.modules.finreports.deps import HarvestControlServiceDep
@@ -116,9 +118,23 @@ async def trigger_harvest(
     applies: a workspace WB has published nothing new for is skipped after one
     request rather than walked.
 
-    "Already running" is reported as a normal outcome (202) rather than a
-    conflict, because it is one: the data the caller wants is being fetched, and
-    the only thing that did not happen is a second, redundant run.
+    **Every outcome is an answer, and none of them is a wait.** WB meters the
+    settlement report at one request per ~15 minutes, so a click shortly after
+    the hourly tick used to enqueue a harvest whose first act was to sit still
+    for most of that window — seven minutes of «Обновляем…» during which nothing
+    could possibly happen (prod 2026-09-09). The bucket already knows, in shared
+    Redis, so that case is now refused here with the wait attached instead of
+    being discovered minutes later on a worker.
+
+    "Already running" and "rate limited" are reported as normal outcomes (202)
+    rather than conflicts, because they are: in the first the data the caller
+    wants is already being fetched, and in the second there is nothing anyone
+    could do differently for another quarter of an hour.
+
+    Order matters — a run in flight is reported ahead of the rate limit. The
+    running harvest is very often what emptied the bucket, and "уже идёт" is the
+    more useful half of that pair: it says the work is happening, where the rate
+    limit alone would say only that it cannot start.
 
     Scoped to the caller's own workspace. It used to enqueue the **fleet** walk:
     one seller pressing «Обновить» spent every other seller's WB rate budget and
@@ -128,5 +144,10 @@ async def trigger_harvest(
     state = await service.get_state(workspace_id=workspace_id)
     if state.running:
         return HarvestTriggerResponse(status="already_running")
+    retry_after = await service.settlement_retry_after(workspace_id=workspace_id)
+    if retry_after > 0:
+        return HarvestTriggerResponse(
+            status="rate_limited", retry_after_seconds=math.ceil(retry_after)
+        )
     task = harvest_finance.delay(workspace_id=str(workspace_id))
     return HarvestTriggerResponse(status="started", task_id=task.id)

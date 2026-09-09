@@ -67,10 +67,14 @@ export async function fetchHarvestState() {
 /**
  * POST /v1/finreports/harvest — ask WB now for any report we do not hold.
  *
- * Guarded server-side: a click while a harvest is already running enqueues
- * nothing and comes back as `already_running`.
+ * Answers in one round trip, always. A click while a harvest is running
+ * enqueues nothing and comes back as `already_running`; one made while WB's
+ * settlement endpoint is still inside its ~15-minute window enqueues nothing
+ * either and comes back as `rate_limited` with the wait attached — read from
+ * the shared rate bucket, so producing it costs no WB request.
  *
- * @returns {Promise<{status: 'started'|'already_running', task_id: string|null}>}
+ * @returns {Promise<{status: 'started'|'already_running'|'rate_limited',
+ *   task_id: string|null, retry_after_seconds: number|null}>}
  */
 export async function triggerHarvest() {
   const { data } = await apiClient.post('/v1/finreports/harvest')

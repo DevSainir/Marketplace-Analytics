@@ -95,17 +95,21 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
       <div class="flex items-center gap-sm phone:w-full">
         <!--
           The schedule asks WB hourly; this covers the hours it cannot — a report
-          published overnight, or an hour the worker was down for. Disabled while
-          a harvest runs: the backend refuses a second one anyway, and a button
-          that looks clickable but changes nothing reads as broken.
+          published overnight, or an hour the worker was down for.
+
+          Disabled for one round trip and no longer: the click's job is to come
+          back with an answer, not to sit on the page for the length of a
+          harvest. It used to stay disabled until the run finished, which on a
+          WB rate-limit block meant seven minutes of «Обновляем…» over a walk
+          that was doing nothing but waiting.
         -->
         <button
           type="button"
-          :disabled="store.harvestRunning"
+          :disabled="store.harvestBusy"
           class="rounded-btn border border-border-subtle bg-surface px-md py-sm text-base font-medium text-primary transition hover:border-action hover:text-action disabled:cursor-not-allowed disabled:text-muted disabled:hover:border-border-subtle disabled:hover:text-muted phone:min-h-11 phone:flex-1"
           @click="store.refreshFromWb()"
         >
-          {{ store.harvestRunning ? 'Обновляем…' : 'Обновить' }}
+          {{ store.harvestBusy ? 'Обновляем…' : 'Обновить' }}
         </button>
         <RouterLink
           :to="{ name: 'finreports-cost-prices' }"

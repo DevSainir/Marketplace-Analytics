@@ -30,18 +30,23 @@ nothing downstream may treat it as a guarantee.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date
 
 from redis.asyncio import Redis
 
+from src.core.config import settings
 from src.core.locks import is_held
+from src.integrations.wildberries.endpoints import SETTLEMENT_REPORT_PATH
+from src.integrations.wildberries.rate_limit import statistics_rate_gate
 from src.modules.finreports.constants import HARVEST_LOCK_KEY
 from src.modules.finreports.repos import FinancialReportRepository, LatestReportHeader
 from src.modules.finreports.services.freshness_record import (
     FreshnessRecordStore,
     FreshnessVerdict,
 )
+from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 
 @dataclass(frozen=True)
@@ -76,17 +81,51 @@ class HarvestControlService:
         report_repo: FinancialReportRepository,
         redis: Redis,
         freshness_records: FreshnessRecordStore,
+        load_tokens: Callable[[uuid.UUID], Awaitable[WorkspaceTokenBundle | None]],
     ) -> None:
-        """Wire the service to its three sources.
+        """Wire the service to its sources.
 
         Args:
             report_repo: Source of the newest harvested report header.
             redis: The client holding the harvest lock.
             freshness_records: Where the harvest task records what it found.
+            load_tokens: Resolves a workspace's WB credentials. Only the
+                statistics token is used, and only to name the rate bucket —
+                see :meth:`settlement_retry_after`.
         """
         self._report_repo = report_repo
         self._redis = redis
         self._freshness_records = freshness_records
+        self._load_tokens = load_tokens
+
+    async def settlement_retry_after(self, *, workspace_id: uuid.UUID) -> float:
+        """Seconds before WB would accept a settlement request for this workspace.
+
+        WB meters ``reportDetailByPeriod`` at one request per ~15 minutes, so a
+        click shortly after the hourly tick used to enqueue a harvest whose
+        first act was to sit still for most of a quarter of an hour — seven
+        minutes of «Обновляем…» with nothing happening (prod 2026-09-09). The
+        bucket already knows the number, and it is in shared Redis, so the
+        answer costs a Redis round trip and **no WB request**: asking WB whether
+        WB will accept a request is the one thing that cannot be done here.
+
+        Read-only in every sense — it takes no token from the bucket, so the
+        page may ask as often as it likes without spending the harvest's budget.
+
+        Args:
+            workspace_id: Whose bucket to inspect. The bucket is per seller
+                token, so one tenant's block says nothing about another's.
+
+        Returns:
+            Seconds to wait, or ``0.0`` when a request may go out now —
+            including when the workspace has no statistics token or the bucket
+            cannot be read. Fails open: an unknown block is not a block.
+        """
+        tokens = await self._load_tokens(workspace_id)
+        if tokens is None or not tokens.statistics:
+            return 0.0
+        gate = statistics_rate_gate(settings, token=tokens.statistics)
+        return await gate.retry_after(SETTLEMENT_REPORT_PATH)
 
     async def get_state(self, *, workspace_id: uuid.UUID) -> HarvestState:
         """Return liveness, coverage and the last freshness verdict.

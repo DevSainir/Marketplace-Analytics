@@ -7,6 +7,7 @@ session or repository (router -> service -> repo -> model).
 from __future__ import annotations
 
 import pathlib
+import uuid
 from functools import lru_cache
 from typing import Annotated
 
@@ -35,6 +36,10 @@ from src.modules.finreports.services import (
 )
 )
 from src.modules.finreports.services.freshness_record import RedisFreshnessRecordStore
+from src.modules.workspaces.contract import (
+    WorkspaceTokenBundle,
+    load_workspace_token_bundle,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -190,7 +195,9 @@ def get_ingestion_service(
     )
 
 
-def get_harvest_control_service(report_repo: ReportRepoDep) -> HarvestControlService:
+def get_harvest_control_service(
+    session: DbSession, report_repo: ReportRepoDep
+) -> HarvestControlService:
     """Compose the :class:`HarvestControlService` behind «Обновить».
 
     Takes the shared Redis directly for the lock — it reads one key and holds no
@@ -198,12 +205,23 @@ def get_harvest_control_service(report_repo: ReportRepoDep) -> HarvestControlSer
     freshness line. Both fail open: an unreachable Redis costs the page its
     footnote and the button its «уже выполняется», never the statement.
     """
+
+    async def _load_tokens(workspace_id: uuid.UUID) -> WorkspaceTokenBundle | None:
+        """Resolve one workspace's WB credentials on the request's own session.
+
+        Scoped deliberately: «Обновить» needs the caller's statistics token to
+        name their rate bucket, and decrypting every tenant's secrets to answer
+        one tenant's click would be a poor trade.
+        """
+        return await load_workspace_token_bundle(session, workspace_id)
+
     return HarvestControlService(
         report_repo=report_repo,
         redis=get_redis(),
         freshness_records=RedisFreshnessRecordStore(
             get_redis(), ttl_seconds=FRESHNESS_RECORD_TTL_SECONDS
         ),
+        load_tokens=_load_tokens,
     )
 
 

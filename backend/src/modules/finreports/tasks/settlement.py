@@ -367,5 +367,14 @@ class _SpentToken:
         """Forward WB's stated block to the bucket every process shares."""
         await self._shared.penalise(endpoint, seconds)
 
+    async def retry_after(self, endpoint: str) -> float:
+        """Ask the shared bucket, which is the one that knows.
+
+        Forwarded rather than answered with 0: this wrapper says "my token is
+        already paid for", not "this endpoint is open". Anyone asking how long
+        the endpoint stays shut wants the shared bucket's answer.
+        """
+        return await self._shared.retry_after(endpoint)
+
 
 __all__ = ["MAX_RETRIES", "WINDOW_DAYS", "settlement_windows", "walk_settlement_windows"]

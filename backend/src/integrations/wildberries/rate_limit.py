@@ -39,87 +39,14 @@ from src.core.logging import get_logger
 from src.core.observability.metrics import WB_RATE_LIMIT_REMAINING, WB_RATE_LIMIT_WAIT
 from src.core.redis import get_redis
 from src.integrations.wildberries.endpoints import endpoint_label
+from src.integrations.wildberries.rate_limit_lua import (
+    ACQUIRE_SLOT_LUA,
+    CLAMP_SLOTS_LUA,
+    PEEK_SLOT_LUA,
+    PENALISE_LUA,
+)
 
 logger = get_logger(__name__)
-
-#: Take a token, or report how many milliseconds until one exists. The Redis
-#: server clock (``TIME``) is the reference so every process agrees without
-#: trusting container clocks.
-_ACQUIRE_SLOT_LUA = """
-local now = redis.call('TIME')
-local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
-local capacity = tonumber(ARGV[1])
-local refill_ms = tonumber(ARGV[2])
-local ttl_ms = tonumber(ARGV[3])
-local state = redis.call('HMGET', KEYS[1], 'tokens', 'ts', 'blocked_until')
--- A penalty block is WB's own number and outranks every estimate below it:
--- while it stands no token exists, however much time has passed. Without this
--- the bucket reopened after `refill_ms` — our guess — and the request landed
--- inside a block that WB then restarted (see `penalise`).
-local blocked_until = tonumber(state[3])
-if blocked_until ~= nil and blocked_until > now_ms then
-  return blocked_until - now_ms
-end
-local tokens = tonumber(state[1])
-local ts = tonumber(state[2])
-if tokens == nil or ts == nil then
-  tokens = capacity
-  ts = now_ms
-end
-local elapsed = now_ms - ts
-if elapsed > 0 then
-  tokens = math.min(capacity, tokens + elapsed / refill_ms)
-  ts = now_ms
-end
-local wait = 0
-if tokens >= 1 then
-  tokens = tokens - 1
-else
-  wait = math.ceil((1 - tokens) * refill_ms)
-end
-redis.call('HSET', KEYS[1], 'tokens', tokens, 'ts', ts)
-redis.call('PEXPIRE', KEYS[1], ttl_ms)
-return wait
-"""
-
-#: Clamp our bucket to what WB just said it has left. Never raises our estimate
-#: above WB's: a header of 0 empties the bucket, so the next caller waits a
-#: full refill instead of walking into a 500.
-_CLAMP_SLOTS_LUA = """
-local now = redis.call('TIME')
-local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
-local remaining = tonumber(ARGV[1])
-local ttl_ms = tonumber(ARGV[2])
-local state = redis.call('HMGET', KEYS[1], 'tokens', 'ts')
-local tokens = tonumber(state[1])
-if tokens == nil or remaining < tokens then
-  tokens = remaining
-end
-redis.call('HSET', KEYS[1], 'tokens', tokens, 'ts', now_ms)
-redis.call('PEXPIRE', KEYS[1], ttl_ms)
-return tostring(tokens)
-"""
-
-
-#: Shut this endpoint until WB says it reopens. Called with the wait WB itself
-#: demanded (`X-Ratelimit-Retry`), which is the only trustworthy number here:
-#: measured on prod 2026-09-09, a 429 demanding 1594 s was followed 900 s later
-#: — one local refill — by a second 429 demanding exactly 694 s, the remainder.
-#:
-#: `tokens` is restored to capacity as of the moment the block lifts, because
-#: WB's reset IS the start of a fresh window; trickling from a refill estimate
-#: would keep punishing the caller after WB had stopped.
-_PENALISE_LUA = """
-local now = redis.call('TIME')
-local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
-local block_ms = tonumber(ARGV[1])
-local capacity = tonumber(ARGV[2])
-local ttl_ms = tonumber(ARGV[3])
-local until_ms = now_ms + block_ms
-redis.call('HSET', KEYS[1], 'tokens', capacity, 'ts', until_ms, 'blocked_until', until_ms)
-redis.call('PEXPIRE', KEYS[1], ttl_ms)
-return tostring(until_ms)
-"""
 
 
 class RateGate(Protocol):
@@ -131,6 +58,10 @@ class RateGate(Protocol):
 
     async def observe(self, endpoint: str, remaining: int | None) -> None:
         """Fold WB's ``x-ratelimit-remaining`` back into the bucket."""
+        ...
+
+    async def retry_after(self, endpoint: str) -> float:
+        """Seconds until this endpoint would let a request through, 0 if now."""
         ...
 
     async def penalise(self, endpoint: str, seconds: float) -> None:
@@ -148,6 +79,10 @@ class NullRateGate:
     async def observe(self, endpoint: str, remaining: int | None) -> None:
         """Ignore WB's rate headers; nothing is being paced."""
         return
+
+    async def retry_after(self, endpoint: str) -> float:
+        """Always available; this surface is not paced."""
+        return 0.0
 
     async def penalise(self, endpoint: str, seconds: float) -> None:
         """Ignore WB's penalty; nothing is being paced."""
@@ -246,7 +181,7 @@ class TokenBucketRateGate:
             result = await cast(
                 Awaitable[Any],
                 self._redis.eval(
-                    _ACQUIRE_SLOT_LUA,
+                    ACQUIRE_SLOT_LUA,
                     1,
                     self._key(endpoint),
                     str(self._capacity),
@@ -272,6 +207,43 @@ class TokenBucketRateGate:
             self._local_next_allowed[endpoint] = now + self._refill_ms / 1000.0
             return 0.0
         return (next_allowed - now) * 1000.0
+
+    async def retry_after(self, endpoint: str) -> float:
+        """How long this endpoint stays shut, **without spending a token**.
+
+        The question «Обновить» has to answer before it enqueues anything: the
+        settlement bucket refills once every fifteen minutes, so a click soon
+        after the hourly tick would otherwise queue a harvest whose first act is
+        to sit still for most of a quarter of an hour. Knowing the number here
+        turns that into an immediate «попробуйте через N минут».
+
+        Read-only by construction. A peek that took a token would spend the
+        harvest's budget every time somebody looked at the page, which is the
+        opposite of the point.
+
+        Args:
+            endpoint: Request path whose bucket to inspect.
+
+        Returns:
+            Seconds until a request may go out; ``0.0`` when one may go now, and
+            also when Redis is unreachable — an unknown block is not a block,
+            and refusing a harvest on a cache outage would be failing closed on
+            the one control that exists to keep harvests running.
+        """
+        try:
+            result = await cast(
+                Awaitable[Any],
+                self._redis.eval(
+                    PEEK_SLOT_LUA,
+                    1,
+                    self._key(endpoint),
+                    str(self._capacity),
+                    str(self._refill_ms),
+                ),
+            )
+        except RedisError:
+            return 0.0
+        return max(float(result) / 1000.0, 0.0)
 
     async def observe(self, endpoint: str, remaining: int | None) -> None:
         """Clamp the bucket to WB's own count of what is left.
@@ -299,7 +271,7 @@ class TokenBucketRateGate:
             await cast(
                 Awaitable[Any],
                 self._redis.eval(
-                    _CLAMP_SLOTS_LUA,
+                    CLAMP_SLOTS_LUA,
                     1,
                     self._key(endpoint),
                     str(max(remaining, 0)),
@@ -339,7 +311,7 @@ class TokenBucketRateGate:
             await cast(
                 Awaitable[Any],
                 self._redis.eval(
-                    _PENALISE_LUA,
+                    PENALISE_LUA,
                     1,
                     self._key(endpoint),
                     str(block_ms),

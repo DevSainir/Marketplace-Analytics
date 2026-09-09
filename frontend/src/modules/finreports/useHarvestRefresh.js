@@ -1,6 +1,5 @@
 /**
- * «Обновить» — ask WB now for a settlement report we do not already hold, then
- * wait for the harvest to finish.
+ * «Обновить» — ask WB now for a settlement report we do not already hold.
  *
  * The schedule asks WB hourly, which covers most of the gap between a report
  * being published and the P&L showing it — but not all of it. A report
@@ -8,15 +7,24 @@
  * for is an hour nobody asked. In both cases the seller can already see the
  * report on WB's own site, and «подождите до утра» is not an answer.
  *
- * Two things this deliberately does NOT do. It does not decide whether a
- * harvest may run — the backend refuses to start a second one on top of a
- * running one, and this only reflects that back. And it does not decide what to
- * do with new data: the caller's `onNewReports` owns that, because what a new
- * week means for the visible period is a question about the period, not about
- * harvesting.
+ * **The click answers in one round trip and then gets out of the way.** It used
+ * to hold the button and a spinner for as long as the harvest ran, which on
+ * 2026-09-09 meant seven minutes — of which six were the walk sitting still
+ * waiting out WB's fifteen-minute settlement block, an outcome that was already
+ * knowable before anything was enqueued. Three answers, all immediate:
  *
- * A refresh in progress survives a reload, and that takes **two** sources,
- * because neither covers the whole wait on its own:
+ * * WB will not take a settlement request yet → say when it will, enqueue
+ *   nothing. There is no version of waiting that helps here.
+ * * A harvest is already running → say so. The work is happening.
+ * * Otherwise → enqueued, and it runs in the background.
+ *
+ * What the seller learns *afterwards* is the freshness line's job, not the
+ * button's: a quiet watcher keeps polling, refreshes the line for free, and
+ * reloads the statement if a week actually lands. It never disables anything,
+ * so a slow harvest can no longer hold the page hostage.
+ *
+ * That watcher survives a reload, and it takes **two** sources, because neither
+ * covers the whole run on its own:
  *
  * * The server's `running` flag — the harvest lock — which is the only thing
  *   that knows about a run somebody ELSE started. The lock is platform-wide, so
@@ -26,12 +34,16 @@
  *   lock is held by the TASK and the task is not the click. Nothing holds it
  *   between the POST returning and the worker picking the job up, and nothing
  *   holds it after the task ends — yet in both windows the seller is still
- *   waiting for what they asked for, and a reload landing in either one saw
- *   `running: false` and dropped the state.
+ *   owed an answer, and a reload landing in either one saw `running: false` and
+ *   dropped the state.
  *
  * `resumeWatch` reads both, which is also why a reload after the run finished
- * shows the OUTCOME rather than a blank header: the note carries the settlement
- * day the click was measured against, so the answer is still computable.
+ * reports the OUTCOME rather than nothing: the note carries the settlement day
+ * the click was measured against, so the answer is still computable.
+ *
+ * One thing this deliberately does NOT decide: what to do with new data. The
+ * caller's `onNewReports` owns that, because what a new week means for the
+ * visible period is a question about the period, not about harvesting.
  */
 import { ref } from 'vue'
 
@@ -43,32 +55,49 @@ import {
   writePendingRefresh,
 } from '@/modules/finreports/pendingRefresh'
 
-/** How often to ask whether the harvest has finished. */
+/** How often the background watcher asks whether the harvest has finished. */
 const POLL_MS = 5000
 
 /**
- * How many polls before we stop watching. The walk paces itself against WB's
- * ~1 req/min surfaces, so a fleet-wide run is minutes long; 20 minutes is past
- * any run we have measured. Giving up stops only the *watching* — the harvest
- * keeps going on the worker, which is what the closing message says.
+ * How many polls before the watcher gives up. The walk paces itself against
+ * WB's ~1 req/min surfaces, so a run is minutes long; 20 minutes is past any we
+ * have measured. Giving up stops only the *watching* — the harvest keeps going
+ * on the worker, and nothing on screen was waiting on it anyway.
  */
 const POLL_LIMIT = 240
 
 /**
- * What the page says while somebody else's harvest — or your own, from before
- * a reload — is in flight.
+ * What the page says while a harvest is in flight.
  *
- * It says WHO, because «уже идёт» on its own reads as "you already clicked
+ * It names WHO, because «уже идёт» on its own reads as "you already clicked
  * this" and left a seller wondering how long ago that was. The harvest lock is
- * platform-wide and the schedule takes it hourly, so the run being waited on is
+ * platform-wide and the schedule takes it hourly, so the run being reported is
  * very often not the reader's at all.
  */
 const RUNNING_NOTICE =
-  'Обновление уже идёт — его запустили вы или расписание. Ждём окончания, это несколько минут.'
+  'Обновление уже идёт — его запустили вы или расписание. Отчёты появятся сами.'
+
+/** Confirmation that a harvest was enqueued and is now somebody else's problem. */
+const STARTED_NOTICE = 'Запустили обновление — оно идёт в фоне, отчёты появятся сами.'
 
 /** Resolves after `ms`, so the poll below reads as a loop rather than a chain. */
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * WB's block, in the units a person waits in.
+ *
+ * Always rounded UP and never below one minute: telling somebody to come back
+ * in «0 минут» invites the click that restarts WB's window, which is the exact
+ * mistake this message exists to prevent.
+ *
+ * @param {number} seconds Seconds until WB accepts a settlement request.
+ * @returns {string} A minutes phrase.
+ */
+export function formatRetryAfter(seconds) {
+  const minutes = Math.max(1, Math.ceil((Number(seconds) || 0) / 60))
+  return `${minutes} мин`
 }
 
 /**
@@ -80,30 +109,38 @@ function delay(ms) {
  * @param {() => Promise<void>} options.onNewReports Called once, after a run
  *   that moved the settlement day, to reload what it changed.
  * @param {(state: object) => void} [options.onState] Called with every state
- *   the poll reads. The P&L's freshness line is built from exactly this answer,
- *   so reusing the poll is what keeps the line describing the run the seller
- *   just watched finish rather than the situation before it.
+ *   the watcher reads. The P&L's freshness line is built from exactly this
+ *   answer, so reusing the poll is what keeps the line describing the run the
+ *   seller just started rather than the situation before it.
  */
 export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
-  const harvestRunning = ref(false)
+  /**
+   * Whether the button's own request is in flight.
+   *
+   * The ONLY thing that disables the button, and it lasts one round trip. It
+   * used to stay true for the length of the harvest, which is what made a
+   * fifteen-minute WB block look like a broken page.
+   */
+  const harvestBusy = ref(false)
   const harvestNotice = ref('')
   const harvestError = ref('')
 
   /**
-   * Whether a poll loop is already in flight.
+   * Whether a watcher loop is already running.
    *
-   * Not the same question as `harvestRunning`, and not derivable from it: a
-   * click sets `harvestRunning` before the POST resolves, and the mounted view
-   * may adopt a running harvest in the same tick. Two loops polling the same
-   * harvest would fire `onNewReports` twice over one arrival.
+   * Not derivable from anything on screen, and that is the point: the watcher
+   * is invisible now. Two loops over one harvest would fire `onNewReports`
+   * twice for one arrival — two statement reloads, and the period jumping
+   * forward twice.
    */
   let watching = false
 
-  /** Poll until the harvest stops, then report which ending it was. */
+  /** Watch a harvest to its end, in the background. Never awaited by a click. */
   async function watchHarvest(settledBefore) {
+    if (watching) return
     watching = true
     try {
-      return await pollUntilIdle(settledBefore)
+      await pollUntilIdle(settledBefore)
     } finally {
       watching = false
     }
@@ -125,11 +162,9 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
       await concludeHarvest(state, settledBefore)
       return
     }
-    harvestRunning.value = false
-    // The note goes too: the page has stopped claiming to watch this run, so
-    // the next reload must not resume a wait nothing is reporting on.
+    // The note goes too: nothing is watching this run any more, so the next
+    // reload must not resume a wait nobody is reporting on.
     clearPendingRefresh()
-    harvestNotice.value = 'Обновление идёт дольше обычного — оно продолжится в фоне.'
   }
 
   /**
@@ -143,9 +178,12 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
    * @param {string} settledBefore Settlement day when the refresh was asked for.
    */
   async function concludeHarvest(state, settledBefore) {
-    harvestRunning.value = false
     clearPendingRefresh()
-    if (state?.latest_settled && state.latest_settled !== settledBefore) {
+    // An EMPTY baseline is "we did not know", not "we knew it was nothing" —
+    // a click that beat the weeks onto the page has no day to compare against,
+    // and every real day differs from an empty string, so announcing on that
+    // comparison would report an ordinary quiet run as a new report.
+    if (settledBefore && state?.latest_settled && state.latest_settled !== settledBefore) {
       await onNewReports()
       harvestNotice.value = `Загружен отчёт по ${state.latest_settled}.`
     } else {
@@ -156,12 +194,10 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
   /**
    * Pick a refresh back up after a page load.
    *
-   * Three endings, and which one applies is decided by the server's `running`
-   * flag together with this browser's note (see the module docstring on why
-   * neither is enough alone):
+   * Three endings, decided by the server's `running` flag together with this
+   * browser's note (see the module docstring on why neither is enough alone):
    *
-   * * A harvest is running — adopt it, so the reload comes back to the same
-   *   disabled button and notice instead of pretending nothing is happening.
+   * * A harvest is running — watch it in the background and say so.
    * * Nothing is running but this browser asked for one — it finished while the
    *   tab was away, so report how it ended rather than silently dropping it.
    * * Neither — an ordinary page load, and nothing to say.
@@ -174,7 +210,7 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
    * @param {{running: boolean, latest_settled: string|null}|null} state
    */
   async function resumeWatch(state) {
-    if (harvestRunning.value || watching) return
+    if (watching) return
     const pending = readPendingRefresh()
     if (!state?.running && !pending) return
     // The click's own baseline wins over the state we just read: by the time a
@@ -184,45 +220,59 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
     // asked for, where there is no click to have a baseline.
     const settledBefore = pending?.settled_before ?? state?.latest_settled ?? ''
     if (!state?.running) {
-      // Asked for, and already over — the tab was closed for it. Nothing to
-      // wait on, so report how it ended instead of spinning for five seconds
-      // to rediscover that it is finished. Awaited, unlike the branch below:
-      // this one resolves in a round trip, not in minutes.
+      // Asked for, and already over — the tab was closed for it. Awaited,
+      // unlike the branch below: this one resolves in a round trip.
       await concludeHarvest(state, settledBefore)
       return
     }
-    harvestRunning.value = true
-    harvestError.value = ''
     harvestNotice.value = RUNNING_NOTICE
-    // Not awaited: the caller is a page load, and the wait is minutes long.
     void watchHarvest(settledBefore)
   }
 
-  /** Trigger a harvest (unless one is running) and wait it out. */
+  /**
+   * Ask for a harvest and report, immediately, what came of asking.
+   *
+   * Returns as soon as the trigger answers. Whatever happens next happens in
+   * `watchHarvest`, which nothing on screen is waiting on.
+   */
   async function refreshFromWb() {
-    if (harvestRunning.value) return
+    if (harvestBusy.value) return
     // Claimed before the first await, not after the trigger returns: two clicks
     // in the same tick would otherwise both get past the check and POST twice.
-    // The second harvest would find the lock held and do nothing, but a button
-    // that queues work it knows is redundant is a bug on this side of the wire.
-    harvestRunning.value = true
+    harvestBusy.value = true
     harvestError.value = ''
     harvestNotice.value = ''
     const settledBefore = currentSettled()
+    let status
+    let taskId
+    let retryAfter
     try {
-      const { status, task_id: taskId } = await triggerHarvest()
-      // Written before the wait, not after it: the whole point is to survive a
-      // reload, and a reload during the wait is the case this covers.
-      writePendingRefresh(taskId, settledBefore)
-      harvestNotice.value =
-        status === 'already_running' ? RUNNING_NOTICE : 'Спрашиваем Wildberries о новых отчётах…'
+      ;({ status, task_id: taskId, retry_after_seconds: retryAfter } = await triggerHarvest())
     } catch (error) {
-      harvestRunning.value = false
       harvestError.value = extractErrorMessage(error)
       return
+    } finally {
+      harvestBusy.value = false
     }
-    await watchHarvest(settledBefore)
+    if (status === 'rate_limited') {
+      // Nothing was enqueued and nothing is coming, so there is nothing to
+      // watch and no note to leave. WB will not take a settlement request until
+      // its window rolls over, and a click inside that window restarts it.
+      harvestNotice.value = `Ограничение по запросам от Wildberries — попробуйте через ${formatRetryAfter(retryAfter)}.`
+      return
+    }
+    // Written before the watching starts, so a reload during the run — or after
+    // it — still knows this browser asked and what day it was measured against.
+    writePendingRefresh(taskId, settledBefore)
+    harvestNotice.value = status === 'already_running' ? RUNNING_NOTICE : STARTED_NOTICE
+    void watchHarvest(settledBefore)
   }
 
-  return { harvestRunning, harvestNotice, harvestError, refreshFromWb, resumeWatch }
+  return {
+    harvestBusy,
+    harvestNotice,
+    harvestError,
+    refreshFromWb,
+    resumeWatch,
+  }
 }

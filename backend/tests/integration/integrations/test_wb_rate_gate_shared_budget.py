@@ -1,4 +1,4 @@
-"""The WB rate gate against a live Redis: one budget, many workers.
+"""The WB rate gate against a live Redis: one budget, many workers — and a peek.
 
 The unit tier proves the transport consults the gate. What it cannot prove is
 the part that actually broke on 2026-07-30: the budget has to be shared between
@@ -7,6 +7,12 @@ for the same workspace are different OS processes holding one WB token, and each
 pacing itself politely still overruns WB's bucket by however many processes are
 running. Only shared state fixes that, so it is tested against real Redis and
 its real Lua execution.
+
+The peek (`retry_after`) is here for the same reason: it is a second Lua script
+that has to agree with the first about the same bucket while writing nothing to
+it. «Обновить» answers a seller out of that number instead of enqueueing a
+harvest that would sit still waiting for WB, so a peek that lied — or that spent
+a token — would be worse than not having one.
 """
 
 from __future__ import annotations
@@ -200,3 +206,76 @@ async def test_a_penalty_survives_longer_than_the_keys_ordinary_lifetime(
     ttl_ms = await redis_client.pttl(gate._key(ENDPOINT))
 
     assert ttl_ms > 4_000
+
+
+# --- retry_after: the read-only peek -------------------------------------
+
+
+async def test_an_open_bucket_peeks_as_available_now(redis_client: Any) -> None:
+    """Nothing spent, nothing to wait for — «Обновить» goes straight through."""
+    gate = _gate(redis_client)
+
+    assert await gate.retry_after(ENDPOINT) == 0.0
+
+
+async def test_a_peek_never_spends_a_token(redis_client: Any) -> None:
+    """Looking at the page must not cost the harvest its budget.
+
+    The page may ask this on every load and every poll. If the peek took a
+    token, a seller watching the P&L would drain the bucket the settlement walk
+    is metered against — turning a status line into the cause of the outage it
+    reports.
+    """
+    gate = _gate(redis_client, capacity=1, max_wait=5.0)
+
+    for _ in range(5):
+        await gate.retry_after(ENDPOINT)
+
+    started = asyncio.get_running_loop().time()
+    await gate.acquire(ENDPOINT)
+
+    assert asyncio.get_running_loop().time() - started < 0.15
+
+
+async def test_an_emptied_bucket_peeks_as_the_wait_it_will_impose(redis_client: Any) -> None:
+    """The number the seller is told to come back after is the real one.
+
+    Same bucket, same arithmetic as `acquire`: whatever the peek reports is what
+    the next request would actually have queued for.
+    """
+    gate = _gate(redis_client, capacity=1, max_wait=5.0)
+    await gate.acquire(ENDPOINT)
+
+    peeked = await gate.retry_after(ENDPOINT)
+
+    assert 0 < peeked <= 0.2
+
+
+async def test_a_penalty_block_outranks_the_refill_in_the_peek_too(redis_client: Any) -> None:
+    """WB's own stated wait is what the seller is told, not our refill estimate.
+
+    The two disagree badly on the settlement surface — a measured penalty ran to
+    1594 s against a 900 s refill (prod 2026-09-09). Reporting the refill would
+    send the seller back exactly early enough to restart WB's window.
+    """
+    gate = _gate(redis_client, capacity=3, max_wait=5.0)
+
+    await gate.penalise(ENDPOINT, 30.0)
+    peeked = await gate.retry_after(ENDPOINT)
+
+    assert 29.0 <= peeked <= 30.0
+
+
+async def test_one_gate_peeks_at_what_another_process_spent(redis_client: Any) -> None:
+    """The whole point of a shared bucket, applied to the answer a click gives.
+
+    The API container answers the click; the worker spends the budget. If the
+    peek were per-process the page would cheerfully enqueue a harvest into a
+    window the worker had already closed.
+    """
+    worker = _gate(redis_client, capacity=1, max_wait=5.0)
+    api = _gate(redis_client, capacity=1, max_wait=5.0)
+
+    await worker.acquire(ENDPOINT)
+
+    assert await api.retry_after(ENDPOINT) > 0
