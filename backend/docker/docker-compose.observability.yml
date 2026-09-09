@@ -47,18 +47,26 @@
 # and Loki costs nothing here.
 #
 # ---------------------------------------------------------------------------
-# EXPOSURE. Not one of these publishes a port to the internet.
+# EXPOSURE. Not one of these publishes a port to the internet DIRECTLY, and
+# exactly one of them is reachable from it.
 #
-# Grafana binds 127.0.0.1:3000 — reachable over an SSH tunnel and from
-# nowhere else:
+# Grafana is served on its own host, `https://grafana.example.com`, by the
+# application's nginx over this shared network — a subdomain rather than a path
+# under the app, so a flaw in Grafana cannot sit in the same browser origin as
+# the session that authenticates real sellers (frontend/docker/nginx.conf holds
+# the reasoning and the login rate limit).
 #
-#     ssh -L 3000:127.0.0.1:3000 <the production alias>
+# This block used to say the SSH tunnel was "the whole access model". It is not,
+# and has not been since Grafana was given its own host; the tunnel survives as
+# the way in when nginx itself is the broken thing:
 #
-# That is the whole access model, and it is chosen over an nginx location with
-# basic auth because Grafana holds a read view of every metric this service
-# produces, and the base topology's rule — one published port, 443, serving
-# the SPA — is the property that makes the attack surface reviewable. A second
-# authenticated ingress is a second thing to get right.
+#     ssh -L 3001:127.0.0.1:3000 <the production alias>
+#
+# The published port stays bound to `127.0.0.1:` for that reason and no other —
+# it is the bypass around TLS, the security headers and the login throttle, so
+# it must never be allowed to listen on a routable address. The port-443 rule
+# the base topology is built on still holds: 443 is the only port the internet
+# can reach, and everything public arrives through that one nginx.
 #
 # Prometheus, Loki and Alloy publish nothing at all; they talk over the
 # project's internal Docker network. Prometheus reaches `api:8000/metrics` and

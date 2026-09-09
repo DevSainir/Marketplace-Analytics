@@ -21,7 +21,7 @@ a flag that can disagree with one.
       (:8000/metrics)   └──────┬───────┘
                                │  scrape 15s · 15d / 2GB retention
                         ┌──────▼───────┐
-  every container ─────►│   Grafana    │  127.0.0.1:3000, SSH tunnel only
+  every container ─────►│   Grafana    │  grafana.example.com (nginx)
    (stdout, JSON)       └──────▲───────┘
         │                      │
         │   ┌───────┐   ┌──────┴──┐
@@ -243,16 +243,57 @@ published port, 443, serving the SPA — is unchanged.
   That port must never lose its `127.0.0.1:` prefix — it is the bypass around
   the TLS, the headers and the rate limit.
 
-* **The certificate covers all three names and renews by `webroot`.** It was
-  configured `standalone`, which asks certbot to bind port 80 while nginx holds
-  it: every automatic renewal would have failed, from around 2026-09-12, for a
-  certificate expiring 2026-10-12 — a month between cause and symptom, nothing
-  reporting it in between, and the symptom is the whole site being unreachable.
-  `backend/scripts/tls/issue_certificate.sh` fixes the method and adds the name
-  in one run. The webroot is a host directory bind-mounted into the frontend
+* **The certificate must cover all three names and renew by `webroot`.**
+  Written as a requirement, not a description, because on **2026-09-08 neither
+  half was true on the box** — the paragraph that used to stand here described
+  the intended end state as though it had been applied:
+
+  ```
+  Domains: example.com www.example.com     ← two names, not three
+  authenticator = standalone                          ← in the renewal config
+  ```
+
+  `standalone` asks certbot to bind port 80 while nginx holds it, so every
+  automatic renewal fails. `certbot.timer` is active and `renew_before_expiry`
+  is 30 days against an expiry of **2026-10-12**, which puts the first failing
+  attempt around **2026-09-12**. Nothing reports it; the symptom, a month later,
+  is the whole site becoming unreachable. This is a live countdown, independent
+  of Grafana.
+
+  `backend/scripts/tls/issue_certificate.sh` fixes the method, adds the name,
+  installs the deploy hook and reloads nginx in one run — see the procedure
+  below. The webroot is a host directory bind-mounted into the frontend
   container read-only: certbot writes on the host, nginx reads in the container,
   and a webroot inside the image is one certbot could never reach — presumably
   how the mismatch arose.
+
+  The pairing is guarded by `frontend/tests/integration/tls-domains.spec.js`,
+  which asserts every name in the script's `DOMAINS` is answerable by the
+  port-80 server and that the ACME location is not swept into the HTTPS
+  redirect.
+
+### Bringing a public subdomain up, in order
+
+The order is not a preference. Each step is a precondition for the next, and
+the middle of it is a window in which the name is **hard down** rather than
+degraded — HSTS `includeSubDomains` is already promised for the apex, so a
+browser will not offer a click-through on the certificate mismatch and will not
+fall back to plain HTTP.
+
+1. **DNS first.** An `A` record for the subdomain pointing at the host. HTTP-01
+   validation reaches the box by resolving the name, so the certificate cannot
+   be requested before this exists — `issue_certificate.sh` checks with
+   `getent hosts` and refuses rather than half-rewriting the renewal config.
+2. **Certificate second**, from the server as root:
+   `bash backend/scripts/tls/issue_certificate.sh`. It expands the existing
+   lineage (`--cert-name`, so the paths nginx references do not move), switches
+   renewal to `webroot`, installs the reload hook, and reloads nginx.
+3. **Verify on the wire**, not on disk. A renewed file and a served certificate
+   are different facts — that gap is what the deploy hook exists to close.
+
+Nothing in nginx or Grafana's compose config needs editing for a subdomain that
+is already configured: the server block, the login rate limit, `GF_SERVER_ROOT_URL`
+and the secure-cookie settings are all in place and were never the blocker.
 
 * Prometheus, Loki, Alertmanager and Alloy publish nothing at all.
 * Alloy's Docker socket mount is **read-only** — a writable one is root on the

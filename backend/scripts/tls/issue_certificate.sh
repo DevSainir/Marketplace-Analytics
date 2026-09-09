@@ -64,13 +64,28 @@ certbot certonly \
   --keep-until-expiring \
   "${args[@]}"
 
+# Install the deploy hook, so EVERY FUTURE renewal reloads nginx too.
+#
+# Renewing the file is only half the job: nginx holds its certificate in memory
+# from the moment it started and will keep serving the old one off a perfectly
+# correct file. Doing this here rather than leaving it as a manual step is the
+# point of the script — a fix that depends on somebody remembering it in sixty
+# days is the same class of bug as the `standalone` authenticator above.
+HOOK_DIR=/etc/letsencrypt/renewal-hooks/deploy
+mkdir -p "$HOOK_DIR"
+install -m 0755 "$(dirname "$0")/reload_nginx_hook.sh" "$HOOK_DIR/reload-nginx.sh"
+echo "Deploy hook installed at $HOOK_DIR/reload-nginx.sh"
+
 echo
 echo "Names now on the certificate:"
 openssl x509 -in /etc/letsencrypt/live/example.com/fullchain.pem -noout -text \
   | grep -A1 "Subject Alternative Name" | tail -1 | sed 's/^/  /'
 echo "Renewal method now:"
 grep -E "^authenticator|^webroot_path" /etc/letsencrypt/renewal/example.com.conf | sed 's/^/  /'
+
+# Reload now, through the very hook just installed — so this run both serves the
+# new name immediately AND proves the hook works, rather than leaving its first
+# real execution to an unattended renewal two months from now.
 echo
-echo "nginx must re-read the certificate before it serves the new name:"
-echo "  docker compose --project-directory backend -f backend/docker/docker-compose.yml \\"
-echo "    exec frontend nginx -s reload"
+echo "Reloading nginx via the deploy hook:"
+"$HOOK_DIR/reload-nginx.sh"
