@@ -121,7 +121,7 @@ async def get_aggregate_charts(
         ),
     ),
 ) -> AggregateChartsResponse:
-    """Return the «Графики» page's day series, summed over the chosen SKUs."""
+    """Return the «Сравнение SKU» page's day series, summed over the chosen SKUs."""
     return await service.get_aggregate_charts(
         workspace_id=workspace_id,
         date_from=date_from,

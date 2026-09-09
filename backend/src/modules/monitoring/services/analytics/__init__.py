@@ -10,7 +10,7 @@ One responsibility per module:
 * :mod:`~src.modules.monitoring.services.analytics.window` — analysis-window
   resolution and validation.
 * :mod:`~src.modules.monitoring.services.analytics.aggregate` — the
-  account-wide daily series behind the «Графики» page.
+  account-wide daily series behind the «Сравнение SKU» page.
 * :mod:`~src.modules.monitoring.services.analytics.presenters` — pure DTO
   builders shared by the read services.
 * :mod:`~src.modules.monitoring.services.analytics.summary` — the per-SKU

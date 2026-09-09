@@ -18,7 +18,7 @@ test("the dashboard renders its cards and the per-SKU table", async ({
   await page.goto("/finreports");
 
   await expect(
-    page.getByRole("heading", { name: /Прибыли и убытки/ }),
+    page.getByRole("heading", { name: /P&L/ }),
   ).toBeVisible();
 
   // The four cards the page exists for. `.first()` because «Логистика» and

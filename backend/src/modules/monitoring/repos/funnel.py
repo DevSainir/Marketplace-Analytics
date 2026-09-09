@@ -164,7 +164,7 @@ class FunnelRepository(BaseRepository):
 
         The sibling of :meth:`aggregate_window`, grouped the other way: that one
         answers «what did each SKU do over the window», this one «what did the
-        whole account do on each day» — the series the «Графики» page draws.
+        whole account do on each day» — the series the «Сравнение SKU» page draws.
 
         ``order_sum`` is ``Σ(order_count x seller_price)`` over the SKUs of a
         day, not ``Σorders x some price``: each card is worth its own price, so

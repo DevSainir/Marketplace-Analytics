@@ -1,4 +1,4 @@
-"""Account-wide daily series for the «Графики» page.
+"""Account-wide daily series for the «Сравнение SKU» page.
 
 Sums the SKUs in scope day by day, then derives the ratios FROM THOSE SUMS.
 That last part is the whole reason this lives on the server rather than being
@@ -68,7 +68,7 @@ def _non_negative(value: int) -> int:
 
 
 class AggregateAnalytics:
-    """Builds the account-wide day series the «Графики» page draws."""
+    """Builds the account-wide day series the «Сравнение SKU» page draws."""
 
     def __init__(
         self,

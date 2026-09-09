@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Графики» — the account-wide charts page.
+ * «Сравнение SKU» — the account-wide charts page.
  *
  * The monitoring page answers «how is this card doing»; this one answers «how
  * is the account doing», over the same days and the same metric names. It is a
@@ -62,7 +62,7 @@ const scope = computed(() =>
 <template>
   <div class="app-container py-lg">
     <div class="w-full">
-      <h1 class="text-h2 font-bold text-primary">Графики</h1>
+      <h1 class="text-h2 font-bold text-primary">Сравнение SKU</h1>
       <p class="mt-xs max-w-3xl text-tiny font-medium text-muted">
         Сводные показатели по всем артикулам за выбранный период. Метрики суммируются по дням, а
         конверсии и ДРР считаются от этих сумм — не как среднее по артикулам.

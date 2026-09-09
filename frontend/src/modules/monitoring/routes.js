@@ -8,7 +8,7 @@ export const monitoringRoutes = [
     path: '/charts',
     name: 'charts',
     component: () => import('@/modules/monitoring/views/ChartsView.vue'),
-    meta: { title: 'Графики', requiresAuth: true, module: 'monitoring' },
+    meta: { title: 'Сравнение SKU', requiresAuth: true, module: 'monitoring' },
   },
   {
     path: '/monitoring',

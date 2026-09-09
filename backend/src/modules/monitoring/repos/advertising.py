@@ -300,7 +300,7 @@ class AdvertisingRepository(BaseRepository):
         classifying a CAMPAIGN-day (bid type, placements, payment model, its
         normquery slice, and which campaigns delivered enough to count) — a
         per-SKU judgement that does not survive being summed over an account.
-        The «Графики» page therefore aggregates the totals only, and the
+        The «Сравнение SKU» page therefore aggregates the totals only, and the
         per-SKU page keeps the bucket columns.
 
         The rows are the campaigns' own numbers for these cards, so a campaign

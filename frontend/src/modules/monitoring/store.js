@@ -121,8 +121,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   const skuListLoading = ref(false)
   const skuListError = ref(null)
 
-  // --- account-wide charts («Графики») -----------------------------------
-  /** The aggregate display matrix the «Графики» page draws, or an empty one. */
+  // --- account-wide charts («Сравнение SKU») -----------------------------------
+  /** The aggregate display matrix the «Сравнение SKU» page draws, or an empty one. */
   const aggregateView = ref({
     days: [],
     rows: [],
@@ -529,7 +529,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   let aggregateController = null
 
   /**
-   * Load the account-wide day series for «Графики».
+   * Load the account-wide day series for «Сравнение SKU».
    *
    * An empty `nmIds` means every SKU in the workspace — the page's default.
    * The response is a matrix in the SAME shape the per-SKU detail serves, so it

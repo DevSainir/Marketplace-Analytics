@@ -62,7 +62,7 @@ export function useChartRibbon(active) {
    * Once is not enough: at mount the flex row has not settled — the pinned
    * axis has not taken its column and the async chart has not loaded — so the
    * scroller measures wider than it ends up (1108px against a final 628px on
-   * the «Графики» page). `scrollLeft = scrollWidth` clamps to the maximum THAT
+   * the «Сравнение SKU» page). `scrollLeft = scrollWidth` clamps to the maximum THAT
    * width implies, which left the chart parked mid-window looking like the
    * recent days were missing.
    */

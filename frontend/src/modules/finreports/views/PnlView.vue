@@ -81,7 +81,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
   <main class="app-container py-xl phone:py-lg">
     <header class="mb-lg flex flex-wrap items-end justify-between gap-md">
       <div>
-        <h1 class="text-h2 font-bold text-primary">Прибыли и убытки</h1>
+        <h1 class="text-h2 font-bold text-primary">P&amp;L</h1>
         <p class="mt-xs max-w-3xl text-base text-muted">
           По еженедельной детализации финансовых отчётов WB, построчно. Отчёт по артикулам — только
           из строк самого артикула; общие удержания счёта показаны отдельной строкой.

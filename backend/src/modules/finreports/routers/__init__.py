@@ -28,7 +28,7 @@ from src.modules.organizations.contract import require_finreports
 router = APIRouter(
     prefix="/v1/finreports",
     tags=["FinReports"],
-    # Membership and the «Прибыли и убытки» grant, for every route below.
+    # Membership and the «P&L» grant, for every route below.
     dependencies=[Depends(require_finreports)],
 )
 router.include_router(pnl_router)

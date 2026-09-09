@@ -1,4 +1,4 @@
-"""Account-wide chart series DTOs (the «Графики» page).
+"""Account-wide chart series DTOs (the «Сравнение SKU» page).
 
 The per-SKU page answers «how is this card doing». This one answers «how is the
 account doing», over the same days and the same metric names, for any subset of

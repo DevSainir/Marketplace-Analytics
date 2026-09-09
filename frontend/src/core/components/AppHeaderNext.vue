@@ -34,8 +34,8 @@ const emit = defineEmits(['logout', 'select-workspace'])
 const NAV = [
   { to: '/', label: 'Главная', exact: true },
   { to: '/monitoring', label: 'Мониторинг', module: 'monitoring' },
-  { to: '/charts', label: 'Графики', module: 'monitoring' },
-  { to: '/finreports', label: 'Прибыли и убытки', module: 'finreports' },
+  { to: '/charts', label: 'Сравнение SKU', module: 'monitoring' },
+  { to: '/finreports', label: 'P&L', module: 'finreports' },
   { to: '/ab-tests', label: 'A/Б-тесты', module: 'ab_tests', internal: true },
 ]
 
