@@ -78,8 +78,8 @@ jobs:
       # `uv.lock` records the project's OWN version, not just its
       # dependencies. So the moment Release Please bumps
       # backend/pyproject.toml, the committed lock is one line stale and
-      # `uv sync --locked` fails — taking `lint + typecheck` and
-      # `unit + component` down with it, and with them the deploy gate.
+      # `uv sync --locked` fails — taking the `lint + types + fast tiers` job
+      # down with it, and with it the deploy gate.
       #
       # v0.1.1 is the worked example: it was tagged and released, its tests
       # went red on that single line, and the deploy correctly refused to

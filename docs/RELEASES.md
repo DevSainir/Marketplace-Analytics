@@ -79,7 +79,7 @@ do not remove it.
 
 There is a fifth file nobody thinks of: **`backend/uv.lock` records the project's own version**,
 not just its dependencies. A version bump therefore leaves the committed lock one line stale, and
-`uv sync --locked` fails — which takes out `lint + typecheck`, `unit + component` and, through
+`uv sync --locked` fails — which takes out `lint + types + fast tiers` and, through
 them, the deploy gate. v0.1.1 was tagged and released and production never saw it, for exactly
 that one line.
 

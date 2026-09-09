@@ -148,11 +148,10 @@ forever and warns nobody. Never point this tier at production or the dev databas
 `.github/workflows/tests.yml`, staged so the cheapest gate fails first:
 
 ```
-quality (lint, mypy, eslint)
-   └── fast (unit + component + frontend)
-          └── integration (postgres + redis services)
-                 ├── end-to-end        main branch / manual only
-                 └── performance       manual only
+verify (lint, mypy, eslint, unit + component, frontend)
+   └── integration (postgres + redis services)
+          ├── end-to-end        nightly 23:30 UTC / manual only
+          └── performance       manual only
 ```
 
 Rules for keeping it that way:

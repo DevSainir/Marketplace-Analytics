@@ -90,33 +90,45 @@ jobs:
   # ------------------------------------------------------------------ #
   # WHERE THESE JOBS RUN
   #
-  # `quality`, `fast` and `integration` run on the self-hosted runner on the
+  # Everything except `performance` runs on the self-hosted runner on the
   # production VPS (label `prod-vps`). There is exactly ONE runner, and that is
   # a resource decision rather than an oversight: two vCPUs are shared with the
   # live API and the Celery worker, so jobs QUEUE instead of competing. The
-  # systemd unit caps the runner at 130% CPU and 1400 MiB and gives it idle I/O
-  # priority, so CI loses every contest it enters with production.
+  # systemd unit caps the runner at 130% CPU and 1400 MiB, runs it at Nice=10,
+  # and gives it best-effort I/O at the lowest priority — not the idle class,
+  # which was tried first and starved a checkout outright when a large prune
+  # ran beside it (2026-09-09).
   #
-  # `end-to-end` and `performance` deliberately do NOT move here:
+  # `performance` is the one tier that does NOT move here, and it is not a
+  # capacity judgement: the tier exists to overload whatever it points at, and
+  # its own contract says it must never run against anything shared. A box
+  # serving production is the most shared thing available.
   #
-  #   * end-to-end publishes ports 80 and 443, which the production frontend
-  #     already owns on this box. Compose MERGES `ports`, so the e2e overlay
-  #     cannot take them back (see the header of docker-compose.e2e.yml).
-  #   * performance exists to overload the service it points at. Its own tier
-  #     contract says it must never run against anything shared, and a box
-  #     serving production is the most shared thing available.
+  # `end-to-end` DOES run here, but only on the nightly schedule and only
+  # behind the isolation in docker-compose.e2e.yml — a separate compose
+  # project, `:e2e` image tags and ports 8080/8443, because the base file names
+  # the production project and a careless invocation would recreate the live
+  # stack. A `docker build` also escapes this runner's cgroup (it runs under
+  # dockerd), which is why that job's limits are enforced by Compose instead.
+  # ------------------------------------------------------------------ #
+  # Gate 0+1 — style, types and the fast tiers, in ONE job.
   #
-  # A `docker build` also escapes the runner's cgroup — it runs under dockerd,
-  # not under this unit — which is the second reason the image-building job is
-  # not here.
+  # These were two jobs, `quality` and `fast`, ordered so that a lint failure
+  # stopped the pipeline before the slower tests ran. That ordering bought
+  # nothing once CI moved to a single self-hosted runner: the two jobs already
+  # serialised, so the "cheap feedback first" property now comes from step
+  # ORDER inside this job, which is the same guarantee for free. What the split
+  # did still cost was real — a second checkout, a second `uv sync`, a second
+  # `npm ci` and an inter-job gap, about 50s of a 7m31s run (measured
+  # 2026-09-09) spent doing setup twice.
+  #
+  # Steps are ordered cheapest-first for the same reason the jobs used to be:
+  # ruff answers in seconds, mypy in twenty, and the test tiers last.
   # ------------------------------------------------------------------ #
-  # ------------------------------------------------------------------ #
-  # Gate 0 — style and types. Seconds, no infrastructure.
-  # ------------------------------------------------------------------ #
-  quality:
-    name: lint + typecheck
+  verify:
+    name: lint + types + fast tiers
     runs-on: [self-hosted, prod-vps]
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       # Persistent, and outside `_work` so a job cleanup cannot take them.
       # These are the whole point of a long-lived runner: the second run
@@ -126,8 +138,8 @@ jobs:
 
     steps:
       # A persistent runner accumulates what a hosted one throws away. This box
-      # has 48 GB shared with production and was 79% full the day CI moved onto
-      # it, and a full disk has already taken this host down once.
+      # has 48 GB shared with production, and a full disk has already taken it
+      # down once.
       #
       # BEFORE the work, not after: a job that fails or is cancelled never
       # reaches an "after" step, and the next run is exactly when the space is
@@ -157,7 +169,7 @@ jobs:
           # dropping it is NOT sufficient on its own — setup-uv then points
           # UV_CACHE_DIR at `_work/_temp/setup-uv-cache`, which the runner
           # clears per job, so the cache was simply gone rather than local.
-          # `UV_CACHE_DIR` in the job env below is what actually makes it
+          # `UV_CACHE_DIR` in the job env above is what actually makes it
           # persist. (The performance job keeps enable-cache: it runs hosted,
           # where nothing survives the job either way.)
 
@@ -202,6 +214,12 @@ jobs:
 
       # Audits the RUNTIME set only — what actually ships. `--disable-pip`
       # because the export is fully pinned, so pip-audit has nothing to resolve.
+      #
+      # Stays on EVERY push while its informational twin moved to the nightly
+      # run. The two are not the same kind of check: this one gates, and the
+      # eight seconds it costs are the price of not shipping a known CVE in
+      # something that runs on the server. Cadence is a security control, so it
+      # is not traded for pipeline time.
       - name: pip-audit (runtime dependencies)
         working-directory: backend
         timeout-minutes: 5
@@ -209,13 +227,16 @@ jobs:
           uv export --frozen --no-dev --no-emit-project --format requirements-txt -o /tmp/runtime.txt
           uv run pip-audit --requirement /tmp/runtime.txt --strict --disable-pip
 
-      # The dev set too, but informational — same reasoning as the npm pair
-      # below. These packages never reach a server, yet they DO execute on a
-      # runner holding a checkout and a token, so "nobody looks at them" is the
-      # wrong answer; blocking every PR on an advisory in a tool's own
-      # transitive (today: `pip`, pulled in by pip-audit itself) is the other
-      # wrong answer. Read it, do not be gated by it.
+      # The dev set too, but informational — these packages never reach a
+      # server, yet they DO execute on a runner holding a checkout and a token,
+      # so "nobody looks at them" is the wrong answer; blocking every push on an
+      # advisory in a tool's own transitive (today: `pip`, pulled in by
+      # pip-audit itself) is the other wrong answer.
+      #
+      # NIGHTLY, since 2026-09-09. Nothing is gated on it, so running it on
+      # every push only spent budget to tell us the same thing four times a day.
       - name: pip-audit (dev dependencies, informational)
+        if: github.event_name == 'schedule' || inputs.run_slow_tiers
         working-directory: backend
         continue-on-error: true
         timeout-minutes: 2
@@ -226,7 +247,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          # Same reasoning as uv above: ~/.npm persists between runs here.
+          # Same reasoning as uv above: the npm cache persists between runs
+          # here, and `npm_config_cache` in the job env pins where.
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -243,8 +265,11 @@ jobs:
       # Gate on what actually SHIPS. The dev tree carries advisories with no
       # fixed version available (js-yaml via @redocly/openapi-core, js-beautify
       # via @vue/test-utils — both already on their latest release), and
-      # blocking every PR on an unfixable finding just teaches people to ignore
-      # the gate. The production tree is audited strictly and is currently clean.
+      # blocking every push on an unfixable finding just teaches people to
+      # ignore the gate. The production tree is audited strictly.
+      #
+      # Kept on every push for the same reason as the runtime pip-audit: it
+      # gates, and with the flags below it answers in about two seconds.
       #
       # The `--fetch-*` flags and the timeouts are not tidiness; they are the
       # fix for a deploy this repository actually lost on 2026-09-04.
@@ -284,11 +309,46 @@ jobs:
           printf '%s' "$report" | jq '.metadata.vulnerabilities'
           exit "$rc"
 
+      # Nightly, for the same reason as the dev pip-audit: informational.
       - name: npm audit (dev dependencies, informational)
+        if: github.event_name == 'schedule' || inputs.run_slow_tiers
         working-directory: frontend
         continue-on-error: true
         timeout-minutes: 2
         run: npm audit --audit-level=high --fetch-timeout=15000 --fetch-retries=2
+
+      # Coverage is measured on the NIGHTLY run now, not on every push.
+      # Instrumentation is most of the difference between this tier taking ~21s
+      # on a developer's machine and 91s here (measured 2026-09-09), which on a
+      # two-core box shared with production is a large slice of the whole
+      # push-to-deploy budget spent computing a number that moves a few times a
+      # month.
+      #
+      # The floor is UNCHANGED and still a ratchet — 68% today, raise it as the
+      # suite grows, never lower it to make a red build green. It is simply
+      # enforced by the 23:30 UTC run, so a coverage regression is caught the
+      # next morning rather than at push. Everything about which tiers carry
+      # the pyramid's weight is unaffected: the same tests run either way.
+      - name: Backend unit + component tiers
+        working-directory: backend
+        env:
+          COVERAGE: >-
+            ${{ (github.event_name == 'schedule' || inputs.run_slow_tiers)
+            && '--cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=68'
+            || '' }}
+        run: uv run pytest tests/unit tests/component -m "unit or component" ${COVERAGE}
+
+      - name: Upload the coverage report
+        if: always() && (github.event_name == 'schedule' || inputs.run_slow_tiers)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          retention-days: 7
+
+      - name: Frontend unit + integration specs
+        working-directory: frontend
+        run: npm run test
 
       # The SPA build is part of the product, so a build break is a red
       # pipeline — not a surprise during the next deploy. Seconds to run, and
@@ -299,83 +359,13 @@ jobs:
         run: npm run build
 
   # ------------------------------------------------------------------ #
-  # Gate 1 — the fast tiers. No database, no browser. Under a minute.
-  # ------------------------------------------------------------------ #
-  fast:
-    name: unit + component
-    runs-on: [self-hosted, prod-vps]
-    timeout-minutes: 15
-    env:
-      # Persistent, and outside `_work` so a job cleanup cannot take them.
-      # These are the whole point of a long-lived runner: the second run
-      # resolves nothing and downloads nothing.
-      UV_CACHE_DIR: /home/gha/.cache/uv
-      npm_config_cache: /home/gha/.cache/npm
-
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          python-version: ${{ env.PYTHON_VERSION }}
-          # No `enable-cache`. That option round-trips the cache through
-          # GitHub's cache service on every run; this runner's disk PERSISTS,
-          # so uv's own ~/.cache/uv is already warm and the upload/download is
-          # pure network cost. (The performance job below keeps it — it runs on
-          # a hosted runner, where nothing survives the job.)
-
-      # `--locked` fails rather than silently re-resolving, so CI can never
-      # install a dependency set the committed uv.lock does not describe.
-      - name: Install backend dependencies
-        working-directory: backend
-        run: uv sync --locked
-
-      # Coverage is measured on the fast tiers only: they are the ones that are
-      # supposed to carry the pyramid's weight, so a number that drops here is
-      # the signal worth acting on. (Repositories look thin as a result — they
-      # are covered by the integration tier against a real database, which is
-      # the right place for them.)
-      #
-      # The floor is a RATCHET: today's measured figure is 70%, and 68 leaves
-      # just enough slack that an unrelated refactor does not fail the build on
-      # a rounding wobble. Raise it as the suite grows; never lower it to make a
-      # red build green.
-      - name: Backend unit + component tiers
-        working-directory: backend
-        run: >-
-          uv run pytest tests/unit tests/component -m "unit or component"
-          --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=68
-
-      - name: Upload the coverage report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: backend-coverage
-          path: backend/coverage.xml
-          retention-days: 7
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          # Same reasoning as uv above: ~/.npm persists between runs here.
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Frontend unit + integration specs
-        working-directory: frontend
-        run: npm run test
-
-  # ------------------------------------------------------------------ #
   # Gate 2 — integration. Real PostgreSQL + Redis as services.
   # ------------------------------------------------------------------ #
   integration:
     name: integration
     runs-on: [self-hosted, prod-vps]
     timeout-minutes: 20
-    needs: fast
+    needs: verify
 
     services:
       postgres:
@@ -700,7 +690,7 @@ jobs:
     # its dependants — so leaving it here would have silently stopped every
     # release from reaching deploy, which is the failure this job exists to
     # prevent in the first place.
-    needs: [quality, fast, integration]
+    needs: [verify, integration]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     # A job-level `permissions:` REPLACES the workflow's, it does not add to
     # it, so naming only `actions: write` dropped `contents: read` and the
