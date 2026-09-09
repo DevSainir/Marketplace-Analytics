@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import os
 from collections.abc import AsyncIterator, Iterator
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -45,7 +46,7 @@ import src.modules.organizations.models
 import src.modules.users.models
 from src.core.config import settings
 from src.core.database import Base
-from src.modules.organizations.models import Organization
+from src.modules.organizations.models import Organization, Subscription
 
 import src.modules.workspaces.models  # noqa: F401  isort:skip
 
@@ -253,8 +254,27 @@ async def organization(db_session: AsyncSession) -> Organization:
     test that needs a workspace needs one of these first. Non-primary by
     default: the primary flag unlocks the internal-only features, and a test
     that gets it by accident would be asserting against the wrong tenant.
+
+    It comes **paid up**, because activation always leaves a subscription row
+    and since 2026-09-09 an organisation without one reaches nothing at all:
+    the ramp reads a missing row as ``expired``, and every tenant-scoped route
+    then refuses. A fixture without a term would not be a plain organisation —
+    it would be a lapsed tenant, and a test using it for something else (an
+    audit entry, a workspace, an A/B row) would be asserting against a 403 it
+    never meant to ask for. A test that wants the lapsed case says so, by
+    moving ``expires_at`` back the way ``test_token_persistence`` does.
     """
     org = Organization(name="Тестовая организация", is_primary=False)
     db_session.add(org)
+    await db_session.flush()
+    now = datetime.now(UTC)
+    db_session.add(
+        Subscription(
+            organization_id=org.id,
+            started_at=now - timedelta(days=1),
+            expires_at=now + timedelta(days=30),
+            grace_days=settings.subscription_grace_days,
+        )
+    )
     await db_session.flush()
     return org

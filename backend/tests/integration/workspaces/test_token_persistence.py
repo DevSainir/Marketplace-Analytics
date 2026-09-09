@@ -41,27 +41,6 @@ def _fernet_key(settings_override):
         yield
 
 
-@pytest.fixture(autouse=True)
-async def paid_up(db_session: AsyncSession, organization: Organization) -> None:
-    """Give the tenant a live subscription, because activation always does.
-
-    Autouse rather than opt-in: since 2026-09-09 the harvest fan-out drops a
-    tenant whose term is past its grace window, and an organisation with no
-    subscription row at all is the fail-closed case. A fixture without one
-    would silently make every fan-out assertion here read as empty — which is
-    exactly the shape of the bug the gate exists to prevent, so the fixture has
-    to look like a real tenant rather than a convenient one.
-    """
-    now = datetime.now(UTC)
-    await SubscriptionRepository(db_session).create(
-        organization_id=organization.id,
-        started_at=now - timedelta(days=1),
-        expires_at=now + timedelta(days=30),
-        grace_days=3,
-    )
-    await db_session.flush()
-
-
 @pytest.fixture
 async def primary(db_session: AsyncSession, organization: Organization) -> Workspace:
     """A persisted primary workspace (one token per WB category)."""
