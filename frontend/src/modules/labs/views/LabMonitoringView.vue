@@ -21,7 +21,6 @@ import MetricsTable from '@/modules/labs/components/MetricsTable.vue'
 import SectionNav from '@/core/components/SectionNav.vue'
 import PinnedSkuRow from '@/modules/labs/components/PinnedSkuRow.vue'
 import RefreshAllSkusButton from '@/modules/labs/components/RefreshAllSkusButton.vue'
-import SkuClusterBlock from '@/modules/labs/components/SkuClusterBlock.vue'
 import SkuIdentityHeader from '@/modules/labs/components/SkuIdentityHeader.vue'
 import SkuSearchSelect from '@/modules/labs/components/SkuSearchSelect.vue'
 import StockComparePanel from '@/modules/labs/components/StockComparePanel.vue'
@@ -29,7 +28,7 @@ import {
   MARKED_WAREHOUSES,
   SIZE_ORDER,
   WINDOW,
-  clusterTableProps,
+  // clusterTableProps,  // dormant — see the «Рекламные кластеры» note below
   matrixView,
   pinnedSkus,
   product,
@@ -74,7 +73,7 @@ const SECTIONS = [
   { id: 'ui-sec-matrix', label: 'По дням' },
   { id: 'ui-sec-stock', label: 'Остатки' },
   { id: 'ui-sec-chart', label: 'График' },
-  { id: 'ui-sec-clusters', label: 'Кластеры' },
+  // `ui-sec-clusters` («Кластеры») belongs here when the block comes back.
 ]
 </script>
 
@@ -162,7 +161,10 @@ const SECTIONS = [
 
       <div id="ui-sec-chart"><MetricsChart :view="matrixView" /></div>
 
-      <div id="ui-sec-clusters"><SkuClusterBlock v-bind="clusterTableProps" /></div>
+      <!-- «Рекламные кластеры» — DORMANT here too, so this sandbox stays a
+           faithful mirror of MonitoringView.vue, which stopped rendering it on
+           2026-09-09. Not dead code. Restore alongside the real page with:
+           <div id="ui-sec-clusters"><SkuClusterBlock v-bind="clusterTableProps" /></div> -->
     </div>
   </div>
 

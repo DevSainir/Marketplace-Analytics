@@ -1,5 +1,13 @@
 """«Поиск по кластерам» — the SKU's advertising clusters.
 
+**The SPA no longer calls this.** «Рекламные кластеры» was hidden from the UI on
+2026-09-09 as a product decision, and the block behind it is dormant, not
+deleted — see the note in ``frontend/src/modules/monitoring/views/MonitoringView.vue``.
+The route, the analytics service and the ingestion that fills
+``advertising_cluster_stat_daily`` all stay live on purpose: the history has no
+backfill (WB serves none), so switching the block back on must not start from an
+empty table. Do not remove any of it in a cleanup pass.
+
 One route: the per-cluster history, two indexed aggregates that load with the
 SKU. It takes its ``nm_id`` through the :data:`WorkspaceSku` guard, so another
 workspace's SKU is indistinguishable from a nonexistent one.

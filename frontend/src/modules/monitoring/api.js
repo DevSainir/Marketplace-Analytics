@@ -21,7 +21,7 @@ export async function fetchSkuSummary(params = {}, signal) {
 }
 
 /**
- * GET /v1/monitoring/charts — the account-wide daily series behind «Графики».
+ * GET /v1/monitoring/charts — the account-wide daily series behind «Сравнение SKU».
  *
  * `nmIds` empty means EVERY SKU in the workspace, which is what the page shows
  * until a selection is made. Axios serialises an array parameter as repeated
@@ -289,6 +289,10 @@ export async function getRefreshStatus(taskId) {
  *
  * Harvested history, so it answers instantly and covers only phrases the seller
  * PAID to appear for.
+ *
+ * DORMANT — nothing calls this today: «Рекламные кластеры» was hidden from the
+ * UI on 2026-09-09 (see `MonitoringView.vue`). Kept, not deleted; the route it
+ * calls is live and the block is one template change away from returning.
  *
  * @param {number|string} nmId WB SKU identifier.
  * @param {{date_from?: string, date_to?: string, limit?: number}} [params]

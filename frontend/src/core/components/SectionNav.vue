@@ -5,10 +5,10 @@
  * The one component on this page that is NOT a copy of a monitoring one: the
  * real page has no equivalent. It earns its place twice over — it is the best
  * glass surface available (fixed over whatever is scrolling, always a live
- * backdrop, no positioned children), and the page is five tall blocks deep, so
- * without it the only way back from «Рекламные кластеры» is the wheel.
+ * backdrop, no positioned children), and the page is several tall blocks deep, so
+ * without it the only way back from the bottom of the page is the wheel.
  *
- * Takes the MINI glass tier: it carries five short words, so it can afford to
+ * Takes the MINI glass tier: it carries a handful of short words, so it can afford to
  * be transparent enough that you can see the effect working.
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'

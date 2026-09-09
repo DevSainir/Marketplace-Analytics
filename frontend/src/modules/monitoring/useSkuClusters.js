@@ -1,4 +1,10 @@
 /**
+ * DORMANT — «Рекламные кластеры» is deliberately not rendered anywhere in the
+ * app (hidden 2026-09-09; see the note in `MonitoringView.vue`). This is NOT
+ * dead code and must survive a cleanup pass: the feature is finished and kept
+ * warm behind an off switch, the backend keeps ingesting the data, and turning
+ * it back on is a template change with no work here.
+ *
  * Keeps the SKU page's cluster block in step with the SKU and window on screen.
  *
  * Extracted from `MonitoringView` for the same reason `useSearchQuerySync` was:
