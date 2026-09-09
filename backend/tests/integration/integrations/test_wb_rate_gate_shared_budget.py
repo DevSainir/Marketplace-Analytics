@@ -143,3 +143,60 @@ async def test_a_budget_that_will_not_refill_in_time_refuses_to_send(
 
     with pytest.raises(IntegrationError, match="rate budget"):
         await gate.acquire(ENDPOINT)
+
+
+async def test_a_penalty_block_outlasts_every_refill_it_covers(redis_client: Any) -> None:
+    """WB's stated wait beats our refill arithmetic, however many refills pass.
+
+    This is the 2026-09-09 finance incident in miniature. `observe(0)` can only
+    empty the bucket, which reopens one refill later; when WB's real block is
+    several refills long, that reopening sends a request inside the block, and
+    WB answers it by RESTARTING the window. So the hourly tick kept re-blocking
+    itself: a 429 demanding 1594s, then exactly one 900s refill later a second
+    demanding the remaining 694s. The block has to outrank the estimate.
+    """
+    gate = _gate(redis_client, capacity=3, max_wait=0.05)
+
+    await gate.penalise(ENDPOINT, 5.0)
+    await asyncio.sleep(0.5)
+
+    with pytest.raises(IntegrationError, match="rate budget"):
+        await gate.acquire(ENDPOINT)
+
+
+async def test_a_lifted_block_returns_the_whole_window(redis_client: Any) -> None:
+    """Once WB's wait expires the budget is whole, not trickling back.
+
+    ``x-ratelimit-reset`` names the start of a fresh window, so the seller is
+    owed the full burst at that instant. Trickling from a refill estimate would
+    keep charging for a penalty WB had already lifted — and on a 15-minute
+    surface that costs another harvest cycle.
+    """
+    gate = _gate(redis_client, capacity=3, max_wait=0.05)
+
+    await gate.penalise(ENDPOINT, 0.3)
+    await asyncio.sleep(0.4)
+    started = asyncio.get_running_loop().time()
+    for _ in range(3):
+        await gate.acquire(ENDPOINT)
+    burst = asyncio.get_running_loop().time() - started
+
+    assert burst < 0.15
+
+
+async def test_a_penalty_survives_longer_than_the_keys_ordinary_lifetime(
+    redis_client: Any,
+) -> None:
+    """The key must outlive the block it records, or the block is forgotten.
+
+    The standing TTL is sized for a refill; a penalty can be many times that.
+    If the key expired mid-block the next caller would find no state at all,
+    read it as a full bucket, and send straight into WB's window — the same
+    failure the block exists to prevent, only harder to see.
+    """
+    gate = _gate(redis_client, capacity=3, max_wait=0.05)
+
+    await gate.penalise(ENDPOINT, 4.0)
+    ttl_ms = await redis_client.pttl(gate._key(ENDPOINT))
+
+    assert ttl_ms > 4_000

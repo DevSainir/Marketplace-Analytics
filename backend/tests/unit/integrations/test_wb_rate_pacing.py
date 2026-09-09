@@ -40,6 +40,7 @@ class FakeRateGate:
         """Start with empty call logs."""
         self.acquired: list[str] = []
         self.observed: list[tuple[str, int | None]] = []
+        self.penalised: list[tuple[str, float]] = []
 
     async def acquire(self, endpoint: str) -> None:
         """Record one pre-flight acquisition."""
@@ -48,6 +49,10 @@ class FakeRateGate:
     async def observe(self, endpoint: str, remaining: int | None) -> None:
         """Record one rate-header observation."""
         self.observed.append((endpoint, remaining))
+
+    async def penalise(self, endpoint: str, seconds: float) -> None:
+        """Record one penalty block handed down by WB."""
+        self.penalised.append((endpoint, seconds))
 
 
 class BrokenRedis:
@@ -233,6 +238,7 @@ def test_pacing_can_be_switched_off_without_touching_call_sites() -> None:
 
 async def test_the_settlement_walk_gives_up_rather_than_wait_out_a_block(
     slept: list[float],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """One request per ~15 minutes, and the walk must not sit in the queue.
 
@@ -241,7 +247,16 @@ async def test_the_settlement_walk_gives_up_rather_than_wait_out_a_block(
     same run — and waiting for it is worse than failing, because the walk pages
     inside a transaction PostgreSQL closes after 300 s idle. So the gate
     refuses instead of sleeping, and the window falls to the next tick.
+
+    Redis is broken on purpose here. The factory reaches for the process-wide
+    client, so on a developer's machine with Docker up this unit test used to
+    drain the REAL statistics bucket — a bucket that then refuses for a quarter
+    of an hour, failing this test and every later one that shares the key. It
+    passed in CI, where nothing answers on 6379, which is the worst version of
+    a broken test. The fail-open fallback paces per process with the same
+    numbers, so the behaviour under test is unchanged.
     """
+    monkeypatch.setattr("src.integrations.wildberries.rate_limit.get_redis", lambda: BrokenRedis())
     gate = statistics_rate_gate(Settings(), token="a-statistics-token")
 
     await gate.acquire("/api/v5/supplier/reportDetailByPeriod")
@@ -265,3 +280,72 @@ def test_a_finance_client_is_paced_unless_pacing_is_switched_off() -> None:
 
     assert isinstance(paced._rate_gate, TokenBucketRateGate)
     assert isinstance(unpaced._rate_gate, NullRateGate)
+
+
+async def test_a_penalty_block_is_handed_to_the_gate_and_not_only_logged(
+    slept: list[float],
+) -> None:
+    """WB's demanded wait must reach the bucket, or the next caller repeats it.
+
+    The gate could previously learn only `x-ratelimit-remaining`, which empties
+    the bucket for exactly one local refill. On the statistics surface that
+    refill is minutes shorter than the block WB actually imposes, so the next
+    request went out inside the block — and each such request RESTARTS WB's
+    window. Measured on prod 2026-09-09: a 429 demanding 1594s was followed one
+    900s refill later by a second 429 demanding precisely the remaining 694s.
+    """
+    gate = FakeRateGate()
+    client = _client(
+        lambda _request: httpx.Response(429, headers={"X-Ratelimit-Retry": "1594"}),
+        gate,
+        max_retries=3,
+    )
+
+    with pytest.raises(IntegrationError, match="rate-limit block"):
+        await client._request("GET", "/api/v5/supplier/reportDetailByPeriod")
+
+    assert gate.penalised == [("/api/v5/supplier/reportDetailByPeriod", 1594.0)]
+
+
+async def test_a_wait_short_enough_to_retry_does_not_penalise_the_bucket(
+    slept: list[float],
+) -> None:
+    """Only a penalty block shuts the gate; an ordinary Retry-After is slept off.
+
+    The retry branch already honours the demanded wait by sleeping it, so
+    blocking the bucket as well would charge the caller for the same wait twice
+    and turn a two-attempt recovery into a failed harvest.
+    """
+    gate = FakeRateGate()
+    responses = [httpx.Response(429, headers={"X-Ratelimit-Retry": "2"}), httpx.Response(200)]
+    client = _client(lambda _request: responses.pop(0), gate, max_retries=3)
+
+    await client._request("GET", "/api/analytics/v3/sales-funnel/products")
+
+    assert gate.penalised == []
+
+
+async def test_a_penalised_endpoint_stays_shut_past_our_own_refill(
+    slept: list[float],
+) -> None:
+    """A block outlasting the refill keeps refusing, rather than reopening early.
+
+    Pins the arithmetic that produced the incident: with a 900s refill and a
+    1594s block, the bucket used to hand out a token at 900s. It must not — the
+    request it would allow is 694s early, and WB answers it by restarting the
+    window.
+    """
+    gate = TokenBucketRateGate(
+        BrokenRedis(),
+        surface="statistics",
+        token="a-statistics-token",
+        capacity=1,
+        refill_seconds=900.0,
+        max_wait_seconds=45.0,
+    )
+
+    await gate.penalise("/api/v5/supplier/reportDetailByPeriod", 1594.0)
+
+    with pytest.raises(IntegrationError, match="rate budget"):
+        await gate.acquire("/api/v5/supplier/reportDetailByPeriod")
+    assert slept == []

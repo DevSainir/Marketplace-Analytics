@@ -132,8 +132,17 @@ class WildberriesSettings(BaseSettings):
     # customer to exceed it (2026-09-07) found the 429, then the 897 s
     # retry-sleep INSIDE the harvest's open transaction, then PostgreSQL
     # closing the connection under it.
+    #
+    # The refill is 960 s rather than the 900 it was until 2026-09-09, and the
+    # 60 s of slack is the point: WB's measured reset is 917 s, so a 900 s
+    # bucket handed out its token 17 s before WB would honour it and bought a
+    # 429 for the trouble. Since that 429 also RESTARTS the window, an interval
+    # slightly too short is far more expensive than one slightly too long.
+    # This governs only the ordinary path now — after a 429 the gate is driven
+    # by WB's own `X-Ratelimit-Retry` through `RateGate.penalise`, so the
+    # constant no longer has to be right about a penalty it cannot see.
     wb_statistics_bucket_capacity: int = Field(default=1, ge=1)
-    wb_statistics_bucket_refill_seconds: float = Field(default=900.0, gt=0)
+    wb_statistics_bucket_refill_seconds: float = Field(default=960.0, gt=0)
     # A page may queue this long for a token before the walk gives up. It is
     # deliberately FAR below one refill: the walk pages inside an open
     # transaction that PostgreSQL kills after 300 s idle, so waiting out a real

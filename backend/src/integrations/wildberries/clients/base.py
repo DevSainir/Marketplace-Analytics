@@ -329,6 +329,19 @@ class BaseWBClient:
                 # connection under it at 300 s idle.
                 demanded = _server_demanded_wait(exc.response)
                 if demanded is not None and demanded > self._retry_after_ceiling:
+                    # Tell the GATE before giving up, or the next caller repeats
+                    # this. `_observe_rate_headers` above has only been able to
+                    # clamp the bucket to empty, which reopens it one local
+                    # refill later — and that refill is a constant with no
+                    # knowledge of the block WB just imposed. On the statistics
+                    # surface the two disagreed by minutes: a 429 demanding
+                    # 1594s was followed, exactly one 900s refill later, by a
+                    # second 429 demanding the remaining 694s (prod
+                    # 2026-09-09). Every such early request restarts WB's
+                    # window, so the hourly finance tick kept re-blocking
+                    # itself. The retry branch below needs no equivalent: it
+                    # already sleeps the demanded wait.
+                    await self._rate_gate.penalise(path, demanded)
                     logger.warning(
                         "WB API %s on %s %s demands a %.0fs wait (penalty block); not retrying.",
                         status,

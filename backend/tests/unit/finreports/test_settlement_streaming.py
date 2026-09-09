@@ -279,3 +279,47 @@ async def test_a_walk_that_fails_part_way_surfaces_the_failure() -> None:
         )
 
     assert len(transactions.batches) == 1
+
+
+async def test_the_walks_inner_gate_forwards_a_penalty_but_not_the_budget_header() -> None:
+    """A block reaches the shared bucket; a spent page's header does not.
+
+    The walk hands its client a gate that says "this page already paid" — it
+    must stay silent about `x-ratelimit-remaining`, or a page the walk has
+    bought would clamp the shared bucket to zero underneath every other caller.
+    A penalty block is the opposite case and has to travel: it describes a
+    window nobody may enter, and the walk is precisely the caller that collects
+    those 429s. Swallowing it here is how the hourly finance tick spent
+    2026-09-08 re-entering a block it had already been told about.
+    """
+    from src.modules.finreports.tasks.settlement import _SpentToken
+
+    shared = _RecordingGate()
+    gate = _SpentToken(shared)
+
+    await gate.observe("/api/v5/supplier/reportDetailByPeriod", 0)
+    await gate.penalise("/api/v5/supplier/reportDetailByPeriod", 694.0)
+
+    assert shared.observed == []
+    assert shared.penalised == [("/api/v5/supplier/reportDetailByPeriod", 694.0)]
+
+
+class _RecordingGate:
+    """A stand-in for the walk's shared bucket that only remembers what it was told."""
+
+    def __init__(self) -> None:
+        """Start with empty logs."""
+        self.observed: list[tuple[str, int | None]] = []
+        self.penalised: list[tuple[str, float]] = []
+
+    async def acquire(self, endpoint: str) -> None:
+        """Never wait; this gate exists to be inspected, not to pace."""
+        return
+
+    async def observe(self, endpoint: str, remaining: int | None) -> None:
+        """Record a budget-header observation that reached the shared bucket."""
+        self.observed.append((endpoint, remaining))
+
+    async def penalise(self, endpoint: str, seconds: float) -> None:
+        """Record a penalty block that reached the shared bucket."""
+        self.penalised.append((endpoint, seconds))

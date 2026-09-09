@@ -226,6 +226,7 @@ async def _harvest_window(
             window_to=window_to,
             cursor=cursor,
             build_ingestion=build_ingestion,
+            gate=gate,
         )
         if page is None:
             return rows, False
@@ -250,6 +251,7 @@ async def _ingest_one_page(
     window_to: date,
     cursor: int,
     build_ingestion: object,
+    gate: RateGate,
 ) -> tuple[int, int | None] | None:
     """Fetch one page, commit it, and report where the walk stands.
 
@@ -275,7 +277,7 @@ async def _ingest_one_page(
                     settings,
                     token=tokens.statistics,
                     max_retries=MAX_RETRIES,
-                    rate_gate=_SpentToken(),
+                    rate_gate=_SpentToken(gate),
                 ) as client,
             ):
                 page = await client.fetch_report_page(
@@ -330,7 +332,23 @@ class _SpentToken:
     is paced so tightly that the pacing had to happen somewhere the caller could
     afford to wait, and passing the real gate here would charge the same request
     twice.
+
+    It withholds the budget HEADER from the shared bucket and forwards a
+    PENALTY BLOCK to it, which is not an inconsistency: the header describes a
+    window this page has already paid for, while the block describes a window
+    nobody may enter. Swallowing the block here would leave the walk — the one
+    caller that actually collected the 429s of 2026-09-09 — teaching the shared
+    bucket nothing at all.
     """
+
+    def __init__(self, shared: RateGate) -> None:
+        """Wrap the walk's real gate.
+
+        Args:
+            shared: The gate holding this endpoint's cross-process bucket, to
+                which a penalty block is forwarded.
+        """
+        self._shared = shared
 
     async def acquire(self, endpoint: str) -> None:
         """Let the request through — its token was taken before the session."""
@@ -344,6 +362,10 @@ class _SpentToken:
         after the walk had already paid for the page it is reading.
         """
         return
+
+    async def penalise(self, endpoint: str, seconds: float) -> None:
+        """Forward WB's stated block to the bucket every process shares."""
+        await self._shared.penalise(endpoint, seconds)
 
 
 __all__ = ["MAX_RETRIES", "WINDOW_DAYS", "settlement_windows", "walk_settlement_windows"]

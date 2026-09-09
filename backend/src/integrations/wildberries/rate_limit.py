@@ -51,7 +51,15 @@ local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
 local capacity = tonumber(ARGV[1])
 local refill_ms = tonumber(ARGV[2])
 local ttl_ms = tonumber(ARGV[3])
-local state = redis.call('HMGET', KEYS[1], 'tokens', 'ts')
+local state = redis.call('HMGET', KEYS[1], 'tokens', 'ts', 'blocked_until')
+-- A penalty block is WB's own number and outranks every estimate below it:
+-- while it stands no token exists, however much time has passed. Without this
+-- the bucket reopened after `refill_ms` — our guess — and the request landed
+-- inside a block that WB then restarted (see `penalise`).
+local blocked_until = tonumber(state[3])
+if blocked_until ~= nil and blocked_until > now_ms then
+  return blocked_until - now_ms
+end
 local tokens = tonumber(state[1])
 local ts = tonumber(state[2])
 if tokens == nil or ts == nil then
@@ -93,6 +101,27 @@ return tostring(tokens)
 """
 
 
+#: Shut this endpoint until WB says it reopens. Called with the wait WB itself
+#: demanded (`X-Ratelimit-Retry`), which is the only trustworthy number here:
+#: measured on prod 2026-09-09, a 429 demanding 1594 s was followed 900 s later
+#: — one local refill — by a second 429 demanding exactly 694 s, the remainder.
+#:
+#: `tokens` is restored to capacity as of the moment the block lifts, because
+#: WB's reset IS the start of a fresh window; trickling from a refill estimate
+#: would keep punishing the caller after WB had stopped.
+_PENALISE_LUA = """
+local now = redis.call('TIME')
+local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
+local block_ms = tonumber(ARGV[1])
+local capacity = tonumber(ARGV[2])
+local ttl_ms = tonumber(ARGV[3])
+local until_ms = now_ms + block_ms
+redis.call('HSET', KEYS[1], 'tokens', capacity, 'ts', until_ms, 'blocked_until', until_ms)
+redis.call('PEXPIRE', KEYS[1], ttl_ms)
+return tostring(until_ms)
+"""
+
+
 class RateGate(Protocol):
     """A pre-flight gate a WB client passes before every HTTP attempt."""
 
@@ -102,6 +131,10 @@ class RateGate(Protocol):
 
     async def observe(self, endpoint: str, remaining: int | None) -> None:
         """Fold WB's ``x-ratelimit-remaining`` back into the bucket."""
+        ...
+
+    async def penalise(self, endpoint: str, seconds: float) -> None:
+        """Hold this endpoint shut for the wait WB itself demanded."""
         ...
 
 
@@ -114,6 +147,10 @@ class NullRateGate:
 
     async def observe(self, endpoint: str, remaining: int | None) -> None:
         """Ignore WB's rate headers; nothing is being paced."""
+        return
+
+    async def penalise(self, endpoint: str, seconds: float) -> None:
+        """Ignore WB's penalty; nothing is being paced."""
         return
 
 
@@ -272,6 +309,46 @@ class TokenBucketRateGate:
         except RedisError:
             if remaining <= 0:
                 self._local_next_allowed[endpoint] = time.monotonic() + self._refill_ms / 1000.0
+
+    async def penalise(self, endpoint: str, seconds: float) -> None:
+        """Shut this endpoint for the wait WB demanded, overriding our refill.
+
+        ``observe`` can only clamp the bucket to empty, after which it reopens
+        one ``refill_seconds`` later — a local constant that has no way of
+        knowing what WB actually imposed. On the statistics surface those two
+        numbers disagree badly: the refill is 15 minutes and a measured penalty
+        ran to 1594 s, so the next request went out 694 s early, collected its
+        own 429, and restarted the window (prod, 2026-09-09). WB states the
+        remainder in ``X-Ratelimit-Retry``; this is where that number is
+        believed instead of guessed at.
+
+        Args:
+            endpoint: Request path whose bucket WB has blocked.
+            seconds: The wait WB demanded. Non-positive values are ignored —
+                a block that has already expired is not a block.
+        """
+        if seconds <= 0:
+            return
+        block_ms = seconds * 1000.0
+        # The key must outlive the block it is recording. The standing TTL is
+        # sized for a refill, and a penalty can be twice that: letting the key
+        # expire mid-block would restore a full bucket and send the next
+        # request straight back into WB's window.
+        ttl_ms = int(max(self._ttl_ms, block_ms + 60_000.0))
+        try:
+            await cast(
+                Awaitable[Any],
+                self._redis.eval(
+                    _PENALISE_LUA,
+                    1,
+                    self._key(endpoint),
+                    str(block_ms),
+                    str(self._capacity),
+                    str(ttl_ms),
+                ),
+            )
+        except RedisError:
+            self._local_next_allowed[endpoint] = time.monotonic() + seconds
 
 
 def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
