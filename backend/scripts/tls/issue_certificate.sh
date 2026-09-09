@@ -35,15 +35,45 @@ command -v certbot >/dev/null || { echo "certbot is not installed." >&2; exit 1;
 mkdir -p "$WEBROOT/.well-known/acme-challenge"
 chmod 755 "$WEBROOT" "$WEBROOT/.well-known" "$WEBROOT/.well-known/acme-challenge"
 
-# Every name must resolve, or the ACME server cannot reach the challenge and
-# certbot fails partway — leaving the EXISTING certificate untouched but the
-# renewal config half-rewritten. Checked first so the failure is a clear
-# message rather than a confusing one.
+# Every name must resolve FROM THE INTERNET, or the ACME server cannot reach the
+# challenge and certbot fails partway — leaving the EXISTING certificate
+# untouched but the renewal config half-rewritten. Checked first so the failure
+# is a clear message rather than a confusing one.
+#
+# Asked of PUBLIC resolvers, and deliberately not of this box via `getent hosts`
+# — that is the wrong vantage point, in both directions:
+#
+#   * False negative, observed on 2026-09-09 and the reason this is written out.
+#     The record was live at the registrar and correct on every public resolver,
+#     while this host's upstream still served NXDOMAIN with ~12 minutes left on
+#     the zone's 3601 s negative TTL, cached because the name had been looked up
+#     BEFORE it existed. Nothing local fixes that: `resolvectl flush-caches`
+#     clears the stub's cache, not the provider resolver's. The box's two
+#     upstreams even disagreed with each other, so the answer depended on which
+#     one systemd-resolved happened to be using.
+#   * False positive, the same coin: a name resolvable only from inside this
+#     network would pass the check and then fail validation.
+#
+# Let's Encrypt resolves from the public internet, so that is what to ask. Any
+# one resolver answering is enough — this is a pre-flight sanity check, not a
+# propagation audit.
+PUBLIC_RESOLVERS=(1.1.1.1 8.8.8.8 9.9.9.9)
+
+command -v dig >/dev/null || { echo "dig is not installed (apt install dnsutils)." >&2; exit 1; }
+
 for domain in "${DOMAINS[@]}"; do
-  if ! getent hosts "$domain" >/dev/null; then
-    echo "DNS: $domain does not resolve yet. Add its A record first." >&2
+  resolved=""
+  for resolver in "${PUBLIC_RESOLVERS[@]}"; do
+    if [ -n "$(dig +short +time=3 +tries=1 "@$resolver" "$domain" A 2>/dev/null)" ]; then
+      resolved=$resolver
+      break
+    fi
+  done
+  if [ -z "$resolved" ]; then
+    echo "DNS: $domain does not resolve on any public resolver. Add its A record first." >&2
     exit 1
   fi
+  echo "DNS: $domain resolves (asked $resolved)."
 done
 
 args=()

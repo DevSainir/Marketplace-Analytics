@@ -27,6 +27,20 @@ const ISSUE_SCRIPT = readFileSync(
   'utf8',
 )
 
+/**
+ * The script with its comments removed.
+ *
+ * Assertions that something is ABSENT need this: the script explains at length
+ * why it does not use `getent hosts` and does not pass `--standalone`, so a
+ * naive search finds both phrases in the prose that exists to warn against
+ * them, and the test passes or fails on the documentation rather than the code.
+ */
+function scriptCode() {
+  return ISSUE_SCRIPT.split('\n')
+    .filter((line) => !/^\s*#/.test(line))
+    .join('\n')
+}
+
 /** The domains the certificate is issued for — the script is the source of truth. */
 function certificateDomains() {
   const list = ISSUE_SCRIPT.match(/^DOMAINS=\(([^)]+)\)/m)?.[1]
@@ -69,8 +83,8 @@ describe('certificate domains and ACME reachability', () => {
     // `standalone` asks certbot to bind port 80, which nginx holds. It is the
     // configuration this deployment actually shipped with, so it is named here
     // rather than merely implied.
-    expect(ISSUE_SCRIPT).toMatch(/--webroot\s+-w\s+"?\$WEBROOT"?/)
-    expect(ISSUE_SCRIPT).not.toContain('--standalone')
+    expect(scriptCode()).toMatch(/--webroot\s+-w\s+"?\$WEBROOT"?/)
+    expect(scriptCode()).not.toContain('--standalone')
   })
 
   it('keeps the certificate lineage nginx already points at', () => {
@@ -80,6 +94,16 @@ describe('certificate domains and ACME reachability', () => {
 
     const certPath = NGINX.match(/ssl_certificate\s+(\S+);/)?.[1]
     expect(certPath).toContain('/live/example.com/')
+  })
+
+  it('checks resolution from the public internet, not from the box', () => {
+    // `getent hosts` asks this host's own resolver, which is the wrong vantage
+    // point: on 2026-09-09 it reported NXDOMAIN for a name that was live on
+    // every public resolver, because the box's upstream had cached the negative
+    // answer from a lookup made before the record existed. The inverse is worse
+    // — a name resolvable only internally would pass and then fail validation.
+    expect(scriptCode()).not.toMatch(/getent\s+hosts/)
+    expect(scriptCode()).toContain('PUBLIC_RESOLVERS=')
   })
 
   it('installs the deploy hook that reloads nginx after a renewal', () => {
