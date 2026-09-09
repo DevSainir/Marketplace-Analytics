@@ -264,6 +264,32 @@ async def load_vendor_codes(session: AsyncSession, *, workspace_id: uuid.UUID) -
     return {int(nm_id): str(code) for nm_id, code in (await session.execute(stmt)).all()}
 
 
+async def load_card_photos(session: AsyncSession, *, workspace_id: uuid.UUID) -> dict[int, str]:
+    """Return the workspace's catalogue thumbnails («главное фото» per SKU).
+
+    The finreports P&L shows one row per SKU and has no catalogue of its own —
+    the settlement report carries an article string and nothing else. This is
+    the same shape as :func:`load_vendor_codes`, and for the same reason: the
+    identity a seller recognises lives in monitoring's catalogue dimension.
+
+    One query for the whole window rather than a join onto the settlement
+    aggregates: the P&L route already fans out to several of these loaders, and
+    a workspace's catalogue is hundreds of rows, not millions.
+
+    Args:
+        session: An open async session (caller owns the transaction).
+        workspace_id: Restrict to SKUs owned by this workspace.
+
+    Returns:
+        ``{nm_id: photo_url}``; SKUs whose card has no stored photo are absent,
+        so a caller's ``.get()`` returns ``None`` for "no thumbnail".
+    """
+    stmt = select(ProductCard.nm_id, ProductCard.photo_url).where(
+        ProductCard.workspace_id == workspace_id, ProductCard.photo_url != ""
+    )
+    return {int(nm_id): str(url) for nm_id, url in (await session.execute(stmt)).all()}
+
+
 class AdDay(NamedTuple):
     """One SKU's advertising day, summed over campaigns and platforms.
 

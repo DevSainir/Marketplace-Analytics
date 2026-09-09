@@ -44,28 +44,33 @@ describe('production Content-Security-Policy', () => {
     expect(directives()['img-src']).toContain('blob:')
   })
 
-  it('still refuses images from anywhere off-origin', () => {
-    // The point of the directive survives: `blob:` is same-origin content the
-    // page itself created. A remote host here would be a real widening.
-    const sources = directives()['img-src']
-
-    expect(sources.some((source) => source.includes('//'))).toBe(false)
-    expect(sources).toContain("'self'")
+  it('lets the SKU thumbnails load from WB’s own image CDN', () => {
+    // The monitoring SKU search, «Сравнение SKU» and the per-SKU P&L show the
+    // seller's card photos. Those are public, unauthenticated links on
+    // `basket-NN.wbbasket.ru`, so `<img>` loads them directly rather than
+    // through the API the way the A/Б variants are — proxying hundreds of
+    // table rows would buy nothing, since the images are public either way.
+    // Without this source they are blank in production only (see the header).
+    expect(directives()['img-src']).toContain('https://*.wbbasket.ru')
   })
 
-  it('names no third-party origin at all', () => {
-    // The strongest CSP is the one that names nobody but us. Until the Inter
-    // Tight typeface was self-hosted this policy carried two Google origins
-    // (register P1.8) — every one of them a host that can serve content to our
-    // users, and a host whose logs learn every visitor's IP.
+  it('names WB’s image CDN and nothing else, anywhere in the policy', () => {
+    // The strongest CSP is the one that names nobody but us, and this one was
+    // that until the SKU thumbnails landed. Until the Inter Tight typeface was
+    // self-hosted it carried two Google origins (register P1.8) — every one of
+    // them a host that can serve content to our users, and a host whose logs
+    // learn every visitor's IP.
     //
-    // This asserts across EVERY directive rather than the two that used to be
-    // widened, because the next CDN somebody reaches for will not be a font.
+    // WB is the deliberate exception and this is the whole of it: the seller's
+    // own marketplace, serving the seller's own product photos, as images
+    // only. The assertion is an exact list rather than a "no new hosts" rule
+    // so that widening it to a second origin — or letting WB into `script-src`
+    // or `connect-src` — is a decision somebody has to write down here.
     const offenders = Object.entries(directives()).flatMap(([name, sources]) =>
       sources.filter((source) => source.includes('//')).map((source) => `${name} ${source}`),
     )
 
-    expect(offenders).toEqual([])
+    expect(offenders).toEqual(['img-src https://*.wbbasket.ru'])
   })
 
   it('serves the typeface from our own origin', () => {

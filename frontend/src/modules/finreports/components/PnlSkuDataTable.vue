@@ -3,7 +3,7 @@
  * The per-SKU P&L as a table — the desktop projection of `PnlSkuTable`.
  *
  * One row per SKU with the money columns of the reference workbook plus WB's
- * catalogue identity (Артикул WB / Тип предмета / Бренд) and the efficiency
+ * catalogue identity (the card photo / Артикул WB / Тип предмета / Бренд) and the efficiency
  * ratios (Средний чек, ROI, ROMI). «Продажи» is shown NET of returns, matching
  * WB's finance page; percentages are shares of that net paid revenue.
  *
@@ -24,6 +24,7 @@ import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import { ref } from 'vue'
 
+import SkuThumb from '@/core/components/SkuThumb.vue'
 import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 
 /** Page-size choices. A native select, not the paginator's built-in dropdown:
@@ -71,10 +72,16 @@ function onToggle(data, checked) {
       <div class="px-md py-xl text-center text-base text-muted">Нет продаж за период</div>
     </template>
 
+    <!-- The photo lives in the frozen identity column rather than a column of
+         its own: this table scrolls sideways past twenty money columns, and a
+         picture that scrolls away from its article stops being an identity. -->
     <Column field="saName" header="Артикул" sortable frozen>
       <template #body="{ data }">
-        <span :class="data.isBucket ? 'text-muted' : 'font-medium text-primary'">
-          {{ data.saName }}
+        <span class="flex items-center gap-sm">
+          <SkuThumb v-if="!data.isBucket" :src="data.photoUrl" :label="data.saName" size="sm" />
+          <span :class="data.isBucket ? 'text-muted' : 'font-medium text-primary'">
+            {{ data.saName }}
+          </span>
         </span>
       </template>
     </Column>

@@ -17,7 +17,10 @@ It is not an upload, so three things about it differ:
 
 * **It is captured, not chosen.** WB serves renditions, not the seller's
   original file, so what is stored is a transcoded ``.webp`` off
-  ``basket-NN.wbbasket.ru`` — the largest one the card offers.
+  ``basket-NN.wbbasket.ru`` — the largest one the card offers. Which hosts
+  count as WB's is :func:`~src.integrations.wildberries.photos.is_wb_photo_url`:
+  the URL comes out of a WB response, and a fetch of a host named by an
+  upstream is SSRF whether or not that upstream is hostile today.
 * **It goes first**, at position 0, and it is marked «Главное» in the table
   rather than numbered. It is already on the card, so its turn costs no upload
   and no moderation pass; the rotation opens by measuring the status quo and
@@ -32,25 +35,16 @@ from __future__ import annotations
 
 import uuid
 from typing import Protocol
-from urllib.parse import urlparse
 
 import httpx
 
 from src.core.logging import get_logger
+from src.integrations.wildberries.photos import is_wb_photo_url
 from src.modules.ab_tests.models import AbTest, AbTestVariant
 from src.modules.ab_tests.services.photos import MAX_IMAGE_BYTES, validate_image
 from src.modules.ab_tests.services.storage import MediaStore
 
 logger = get_logger(__name__)
-
-#: Hosts a captured photo may be fetched from.
-#:
-#: The URL comes out of a WB API response, which is outside the trust boundary
-#: however well authenticated it was: a fetch of a host named by an upstream is
-#: SSRF whether or not that upstream is hostile today. WB serves every card
-#: image from ``basket-NN.wbbasket.ru``, verified live 2026-09-07, so the
-#: allowlist costs nothing and bounds what this code can be made to request.
-ALLOWED_PHOTO_HOSTS: frozenset[str] = frozenset({"wbbasket.ru", "wb.ru"})
 
 #: How long the CDN has to answer. Short: this runs inside the «Запустить»
 #: request, and a slow capture must not hold the user on a spinner — the
@@ -62,24 +56,6 @@ _CHUNK_BYTES = 512 * 1024
 
 #: Shown in the UI where an upload would show the user's own file name.
 ORIGINAL_FILENAME = "Текущее фото карточки"
-
-
-def _host_allowed(url: str) -> bool:
-    """Is ``url`` an https link to a WB image host?
-
-    Args:
-        url: Candidate photo URL from WB's card payload.
-
-    Returns:
-        ``True`` when the scheme is https and the host is, or is a subdomain
-        of, an entry in :data:`ALLOWED_PHOTO_HOSTS`. Suffix matching is on a
-        dot boundary, so ``notwbbasket.ru`` does not pass.
-    """
-    parsed = urlparse(url)
-    if parsed.scheme != "https" or not parsed.hostname:
-        return False
-    host = parsed.hostname.lower()
-    return any(host == allowed or host.endswith(f".{allowed}") for allowed in ALLOWED_PHOTO_HOSTS)
 
 
 class PhotoDownloader(Protocol):
@@ -116,7 +92,7 @@ class HttpPhotoDownloader:
                 success, or the body runs past the ceiling.
             httpx.HTTPError: If the CDN cannot be reached.
         """
-        if not _host_allowed(url):
+        if not is_wb_photo_url(url):
             raise ValueError(f"Refusing to fetch a card photo from an unexpected host: {url}")
 
         async with (
@@ -290,7 +266,6 @@ class OriginalPhotoCapture:
 
 
 __all__ = [
-    "ALLOWED_PHOTO_HOSTS",
     "DOWNLOAD_TIMEOUT_SECONDS",
     "ORIGINAL_FILENAME",
     "CardPhotoSource",

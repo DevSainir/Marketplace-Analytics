@@ -49,6 +49,7 @@ def build_sku_row(
     subject_name: str = "",
     brand_name: str = "",
     is_excluded: bool = False,
+    photo_url: str | None = None,
 ) -> PnlSkuRow:
     """Compose one SKU's row from its aggregate and the cross-module figures.
 
@@ -63,6 +64,9 @@ def build_sku_row(
         subject_name: WB's Тип предмета (blank on the totals/bucket rows).
         brand_name: WB's Бренд (blank on the totals/bucket rows).
         is_excluded: Whether the seller marked the SKU «Не включать в общий счёт».
+        photo_url: The card's main image on WB's CDN, ``None`` when the
+            monitoring catalogue holds none — and on the totals and
+            account-level rows, which are not a product.
 
     Returns:
         The row, with every derived figure computed.
@@ -96,6 +100,7 @@ def build_sku_row(
     return PnlSkuRow(
         nm_id=nm_id,
         sa_name=sa_name,
+        photo_url=photo_url,
         subject_name=subject_name,
         brand_name=brand_name,
         is_excluded=is_excluded,
@@ -143,6 +148,7 @@ def build_sku_report(
     ad_spend: dict[int, Decimal] | None,
     penalties: list[tuple[int, str, Decimal]],
     excluded: set[int] | None = None,
+    photos: dict[int, str] | None = None,
 ) -> tuple[list[PnlSkuRow], PnlSkuRow | None, PnlSkuRow]:
     """Assemble the report's rows, its unallocated bucket and its totals row.
 
@@ -156,11 +162,16 @@ def build_sku_report(
         excluded: ``nm_id``s marked «Не включать в общий счёт». Only flags the
             rows; ``totals`` stays the full reconciled window regardless (the
             exclusion-aware figures live in :func:`build_dashboard`).
+        photos: Card thumbnails per ``nm_id``, from the monitoring catalogue.
+            Absent ids simply get no thumbnail: a SKU can be in a settlement
+            and not yet in the catalogue (a fresh workspace whose first harvest
+            has not run), and that must cost a picture, not a row.
 
     Returns:
         ``(rows sorted by net revenue, unallocated row or None, totals row)``.
     """
     excluded = excluded or set()
+    photos = photos or {}
     penalty_map: dict[int, list[SkuPenalty]] = {}
     for nm_id, reason, amount in penalties:
         penalty_map.setdefault(nm_id, []).append(SkuPenalty(reason=reason, amount=amount))
@@ -180,6 +191,7 @@ def build_sku_report(
             subject_name=aggregate.subject_name if nm_id else "",
             brand_name=aggregate.brand_name if nm_id else "",
             is_excluded=nm_id in excluded,
+            photo_url=photos.get(nm_id) if nm_id else None,
         )
         if nm_id == 0:
             row.sa_name = UNALLOCATED_NAME

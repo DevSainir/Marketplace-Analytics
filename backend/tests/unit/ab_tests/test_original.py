@@ -22,13 +22,13 @@ import pytest
 
 import src.modules.ab_tests.deps as ab_deps
 from src.core.ids import uuid7
+from src.integrations.wildberries.photos import is_wb_photo_url
 from src.integrations.wildberries.schemas import WBCardPhoto
 from src.modules.ab_tests.models import AbTest, AbTestVariant
 from src.modules.ab_tests.services.original import (
     ORIGINAL_FILENAME,
     NullPhotoCapture,
     OriginalPhotoCapture,
-    _host_allowed,
 )
 from src.modules.ab_tests.services.storage import StoredImage
 
@@ -222,7 +222,7 @@ async def test_a_failed_capture_degrades_instead_of_raising(
 )
 def test_wb_image_hosts_are_fetchable(url: str) -> None:
     """The URLs WB really returns pass the allowlist."""
-    assert _host_allowed(url) is True
+    assert is_wb_photo_url(url) is True
 
 
 @pytest.mark.parametrize(
@@ -238,7 +238,7 @@ def test_wb_image_hosts_are_fetchable(url: str) -> None:
 )
 def test_everything_else_is_refused(url: str) -> None:
     """A URL named by an upstream is not a licence to issue the request."""
-    assert _host_allowed(url) is False
+    assert is_wb_photo_url(url) is False
 
 
 async def test_a_workspace_with_no_wb_token_still_gets_an_enroller(

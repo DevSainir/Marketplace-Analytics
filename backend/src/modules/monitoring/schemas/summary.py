@@ -61,6 +61,14 @@ class SkuSummaryItem(BaseModel):
         default=None, description="Seller article code (WB 'Артикул продавца')."
     )
     title: str | None = Field(default=None, description="Product card title.")
+    photo_url: str | None = Field(
+        default=None,
+        description=(
+            "The card's main image on WB's public CDN, or null when the catalogue "
+            "holds none. A direct https link — the browser fetches it from WB, not "
+            "from us."
+        ),
+    )
     # --- Organic funnel totals over the window (ORDER-date) ---
     total_open_count: int = Field(description="Total card opens over the window.")
     total_cart_count: int = Field(description="Total add-to-cart events.")

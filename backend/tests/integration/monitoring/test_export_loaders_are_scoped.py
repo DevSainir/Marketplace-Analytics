@@ -25,6 +25,7 @@ from src.modules.monitoring.contract import (
     ad_coverage,
     funnel_coverage,
     load_ad_spend_by_nm,
+    load_card_photos,
     load_orders_by_nm,
 )
 from src.modules.monitoring.models import AdvertisingStatDaily, ProductCard, SalesFunnelDaily
@@ -64,6 +65,14 @@ async def _workspace(session: AsyncSession, name: str) -> Workspace:
 async def _sku(session: AsyncSession, workspace: Workspace, nm_id: int) -> None:
     """Register a SKU to a workspace — the registry every scope query joins."""
     session.add(ProductCard(nm_id=nm_id, workspace_id=workspace.id, vendor_code=f"A-{nm_id}"))
+    await session.flush()
+
+
+async def _photo(session: AsyncSession, nm_id: int, url: str) -> None:
+    """Give an already-registered card its main photo."""
+    card = await session.get(ProductCard, nm_id)
+    assert card is not None
+    card.photo_url = url
     await session.flush()
 
 
@@ -173,6 +182,35 @@ async def test_ad_coverage_reports_only_this_tenants_days(db_session: AsyncSessi
     assert (first, last) == (date(2026, 8, 20), date(2026, 8, 20))
 
 
+async def test_card_photos_exclude_another_tenants_skus(db_session: AsyncSession) -> None:
+    """The P&L's thumbnails carry one seller's catalogue only.
+
+    A leak here is not a wrong number but a picture: another seller's product
+    photo rendered next to your own article, on a page about your money. Both
+    SKUs carry a photo, so an unscoped query returns both.
+    """
+    mine, _ = await _two_tenants(db_session)
+    await _photo(db_session, MINE, "https://basket-44.wbbasket.ru/vol1/images/big/1.webp")
+    await _photo(db_session, THEIRS, "https://basket-44.wbbasket.ru/vol2/images/big/1.webp")
+
+    photos = await load_card_photos(db_session, workspace_id=mine.id)
+
+    assert photos == {MINE: "https://basket-44.wbbasket.ru/vol1/images/big/1.webp"}
+
+
+async def test_a_card_without_a_photo_is_absent_rather_than_blank(
+    db_session: AsyncSession,
+) -> None:
+    """A photo-less card yields no key, so callers read ``.get()`` as "no photo".
+
+    The column is non-nullable and defaults to "", so an unfiltered query would
+    hand every caller an empty string to special-case instead.
+    """
+    mine, _ = await _two_tenants(db_session)
+
+    assert await load_card_photos(db_session, workspace_id=mine.id) == {}
+
+
 async def test_a_tenant_with_no_data_gets_nothing_rather_than_everything(
     db_session: AsyncSession,
 ) -> None:
@@ -273,7 +311,13 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     # back the A/B article picker, and both take the tenant because WB article
     # numbers are global — "does this article exist" and "does it belong to the
     # caller" are different questions and only the second is safe to act on.
+    #
+    # 12 since 2026-09-09: `load_card_photos` gives the P&L its SKU thumbnails.
+    # It is scoped on `product_card.workspace_id`, the same registry column
+    # `load_vendor_codes` uses, and `test_card_photos_exclude_another_tenants_skus`
+    # is what actually proves it — this count only forces somebody to look.
+    #
     # Bumping this number is the deliberate step that says a new cross-module
     # loader was reviewed for tenancy, which the four unscoped loaders of August
     # never were.
-    assert len(scoped) == 11, f"expected 11 scoped loaders, found {sorted(scoped)}"
+    assert len(scoped) == 12, f"expected 12 scoped loaders, found {sorted(scoped)}"

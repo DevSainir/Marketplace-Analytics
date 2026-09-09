@@ -146,6 +146,7 @@ class SummaryAnalytics:
                     nm_id=nm_id,
                     vendor_code=card.vendor_code if card else None,
                     title=card.title if card else None,
+                    photo_url=(card.photo_url or None) if card else None,
                     total_open_count=open_count,
                     total_cart_count=cart_count,
                     total_orders=order_count,

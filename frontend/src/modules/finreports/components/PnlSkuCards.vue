@@ -5,8 +5,9 @@
  * Eighteen money columns per SKU cannot be narrowed into a 402pt screen, and a
  * sideways-scrolling table hides the two columns anyone opens this page for
  * («Чистая прибыль» and «Продажи») behind four swipes. So each SKU becomes a
- * two-line ROW — identity and profit on the first, the margin and the revenue
- * behind it on the second — with the other fifteen columns behind the row.
+ * two-line ROW — the card photo, identity and profit on the first, the margin
+ * and the revenue behind it on the second — with the other fifteen columns
+ * behind the row.
  *
  * A row rather than a padded card on purpose: with card chrome per SKU the list
  * ran to one screen every two records, which is not a report anyone scrolls.
@@ -21,6 +22,7 @@
  */
 import { computed, ref, watch } from 'vue'
 
+import SkuThumb from '@/core/components/SkuThumb.vue'
 import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 
 const props = defineProps({
@@ -143,6 +145,7 @@ function toggle(nmId) {
           :aria-expanded="expanded.has(row.nmId)"
           @click="toggle(row.nmId)"
         >
+          <SkuThumb v-if="!row.isBucket" :src="row.photoUrl" :label="row.saName" size="sm" />
           <span class="record-main">
             <span class="record-title" :class="row.isBucket && 'font-normal text-muted'">
               {{ row.saName }}

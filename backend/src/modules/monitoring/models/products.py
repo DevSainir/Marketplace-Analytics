@@ -49,6 +49,15 @@ class ProductCard(Base):
         vendor_code: Seller article code (the "Артикул продавца", e.g.
             ``"M-TRX01-BLK"``).
         title: Card title (may be blank if the seller left it empty).
+        photo_url: The card's main gallery image on WB's public CDN, or ``""``
+            when the card carries none — and also when WB named a host that is
+            not WB's, because this value is rendered straight into an
+            ``<img src>`` (see
+            :func:`~src.integrations.wildberries.photos.is_wb_photo_url`).
+            Stored rather than fetched per request: it changes only when the
+            seller re-shoots the card, and the three screens that show it would
+            otherwise cost a Content API call each — an endpoint whose page is
+            100 cards and whose rate limit the harvest already spends.
         synced_at: Timestamp of the last sync from WB.
     """
 
@@ -59,6 +68,13 @@ class ProductCard(Base):
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(index=True, nullable=True)
     vendor_code: Mapped[str] = mapped_column(String(256), default="", nullable=False)
     title: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    # `server_default` as well as `default`, unlike the two columns above: the
+    # migration adds the column with one, so a model without it makes
+    # `create_all` (the integration tier's schema) disagree with the migrated
+    # schema (production's) about what an INSERT omitting this column does.
+    photo_url: Mapped[str] = mapped_column(
+        String(512), default="", server_default="", nullable=False
+    )
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

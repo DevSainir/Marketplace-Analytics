@@ -18,6 +18,9 @@ export function toRow(r, isBucket = false) {
   return {
     nmId: r.nm_id,
     saName: formatSku(r.sa_name),
+    // Null on the account-level bucket and on any SKU the monitoring catalogue
+    // has not harvested yet; `SkuThumb` renders its own placeholder for both.
+    photoUrl: r.photo_url ?? null,
     subject: r.subject_name || '',
     brand: r.brand_name || '',
     isBucket,

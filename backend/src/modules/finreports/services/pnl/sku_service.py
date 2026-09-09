@@ -63,6 +63,7 @@ class SkuReportService:
         ad_spend: dict[int, Decimal],
         funnel_span: tuple[date | None, date | None],
         ad_span: tuple[date | None, date | None],
+        photos: dict[int, str] | None = None,
     ) -> PnlSkuReportResponse:
         """Return the per-SKU report for the window.
 
@@ -74,6 +75,8 @@ class SkuReportService:
             ad_spend: Promotion-API spend per ``nm_id`` (router-resolved).
             funnel_span: ``(first, last)`` funnel day on record in the window.
             ad_span: ``(first, last)`` advertising day on record in the window.
+            photos: Card thumbnails per ``nm_id`` (router-resolved through the
+                monitoring contract, like ``orders`` and ``ad_spend``).
 
         Returns:
             Rows + unallocated bucket + totals + caveats.
@@ -103,6 +106,7 @@ class SkuReportService:
                 workspace_id=workspace_id, date_from=date_from, date_to=date_to
             ),
             excluded=await self._exclusions.excluded_nm_ids(workspace_id),
+            photos=photos,
         )
         dashboard = build_dashboard(rows=rows, totals=totals, total_aggregate=total_aggregate)
         notes = await self._notes(

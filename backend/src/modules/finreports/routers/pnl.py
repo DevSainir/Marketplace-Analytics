@@ -37,6 +37,7 @@ from src.modules.monitoring.contract import (
     ad_coverage,
     funnel_coverage,
     load_ad_spend_by_nm,
+    load_card_photos,
     load_orders_by_nm,
 )
 from src.modules.organizations.contract import WritingAccess
@@ -128,9 +129,10 @@ async def get_pnl_by_sku(
 ) -> PnlSkuReportResponse:
     """Return the per-SKU P&L cut for an arbitrary settlement-date window.
 
-    Two columns come from the monitoring module, resolved here through its
-    orders from the funnel history and per-SKU advertising from the Promotion
-    API statistics — the settlement report itself carries neither.
+    Three things come from the monitoring module, resolved here through its
+    orders from the funnel history, per-SKU advertising from the Promotion API
+    statistics, and the card thumbnails — the settlement report carries an
+    article string and no catalogue at all.
     """
     start, end = resolve_window(date_from, date_to)
     return await service.get_report(
@@ -147,6 +149,7 @@ async def get_pnl_by_sku(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
         ad_span=await ad_coverage(session, workspace_id=workspace_id, date_from=start, date_to=end),
+        photos=await load_card_photos(session, workspace_id=workspace_id),
     )
 
 

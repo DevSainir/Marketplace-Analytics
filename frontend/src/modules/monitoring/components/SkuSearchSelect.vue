@@ -9,6 +9,7 @@
  */
 import { computed, ref } from 'vue'
 
+import SkuThumb from '@/core/components/SkuThumb.vue'
 import { formatSku } from '@/core/utils/format'
 
 const props = defineProps({
@@ -143,10 +144,15 @@ function onApply() {
               type="button"
               role="option"
               :aria-selected="item.nm_id === selectedId"
-              class="flex w-full items-baseline gap-sm px-md py-sm text-left transition hover:bg-action/10"
+              class="flex w-full items-center gap-sm px-md py-sm text-left transition hover:bg-action/10"
               :class="item.nm_id === selectedId ? 'bg-action/10' : ''"
               @click="onSelect(item)"
             >
+              <SkuThumb
+                :src="item.photo_url"
+                :label="formatSku(item.vendor_code) || String(item.nm_id)"
+                size="md"
+              />
               <span class="text-base font-semibold text-primary">
                 {{ formatSku(item.vendor_code) || item.nm_id }}
               </span>

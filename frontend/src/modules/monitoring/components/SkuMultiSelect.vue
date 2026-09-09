@@ -15,10 +15,11 @@
  */
 import { computed, ref } from 'vue'
 
+import SkuThumb from '@/core/components/SkuThumb.vue'
 import { formatSku } from '@/core/utils/format'
 
 const props = defineProps({
-  /** @type {Array<{nm_id: number, vendor_code?: string, title?: string}>} */
+  /** @type {Array<{nm_id: number, vendor_code?: string, title?: string, photo_url?: string}>} */
   items: { type: Array, default: () => [] },
   /** Selected nm_ids; EMPTY means every SKU (see above). */
   modelValue: { type: Array, default: () => [] },
@@ -135,6 +136,11 @@ function selectAll() {
             >
               <span v-if="selected.has(item.nm_id)" class="text-micro leading-none">✓</span>
             </span>
+            <SkuThumb
+              :src="item.photo_url"
+              :label="formatSku(item.vendor_code) ?? `SKU ${item.nm_id}`"
+              size="sm"
+            />
             <span class="min-w-0 flex-1">
               <span class="block truncate text-base text-primary">
                 {{ formatSku(item.vendor_code) ?? `SKU ${item.nm_id}` }}

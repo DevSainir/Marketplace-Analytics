@@ -24,6 +24,37 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/healthz': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Readiness probe
+     * @description Report whether this process can reach Postgres and Redis.
+     *
+     *     Distinct from ``/health``, which is static and answers whether the
+     *     process is alive. Docker restarts a container that fails *that* one, so
+     *     it must not depend on a database — see
+     *     :mod:`src.core.observability.health` for why conflating the two turns a
+     *     database outage into a restart loop.
+     *
+     *     Returns:
+     *         200 with a per-dependency breakdown, or 503 with the same shape.
+     *         The body never carries an exception, a host or a DSN (register
+     *         P0.3).
+     */
+    get: operations['healthz_healthz_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/auth/register': {
     parameters: {
       query?: never
@@ -208,7 +239,15 @@ export interface paths {
     put?: never
     /**
      * Confirm Email
-     * @description Prove control of an address with the code that was mailed to it.
+     * @description Prove control of an address, and sign the caller in.
+     *
+     *     **The session is issued here rather than sending them back to /login.**
+     *     Registration deliberately hands out no tokens, so this is the first moment
+     *     an account becomes usable — and by this point the caller has proved both
+     *     halves of the credential: control of the mailbox, and, because the password
+     *     is bound to the code being redeemed, that they are the person who chose it.
+     *     Asking for the password again immediately afterwards would prove nothing
+     *     and lose everyone who set a long one.
      */
     post: operations['confirm_email_api_v1_auth_confirm_email_post']
     delete?: never
@@ -283,12 +322,96 @@ export interface paths {
      *     The caller's own refresh cookie is cleared too: they are one of the sessions
      *     that just ended, and the SPA should send them to the login screen with the
      *     password they have just chosen.
+     *
+     *     **It is recorded.** ``PASSWORD_CHANGED`` was in the audit vocabulary from the
+     *     start with nothing emitting it, because there was no route that changed a
+     *     password (register P1.3). This is that route. A password changing without a
+     *     login is the single most useful line in the trail when the question is "how
+     *     did they get in" — and the address it was done from is the part the account
+     *     holder cannot tell you.
+     *
+     *     The actor is passed explicitly because this route is unauthenticated by
+     *     design: identity here is proved by a code delivered to the mailbox, not by a
+     *     token, so the recorder arrives with no actor and receives the one the reset
+     *     established. The organisation is resolved for the same reason — an entry with
+     *     no tenant is invisible to the owner's audit view, which is the person most
+     *     likely to be looking.
      */
     post: operations['reset_password_api_v1_auth_password_reset_confirm_post']
     delete?: never
     options?: never
     head?: never
     patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations/members': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Members
+     * @description List the organisation's members.
+     */
+    get: operations['list_members_api_v1_organizations_members_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations/members/{user_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Remove Member
+     * @description Remove a manager from the organisation.
+     *
+     *     This — not revoking their invitation — is what actually withdraws access
+     *     once someone has joined.
+     */
+    delete: operations['remove_member_api_v1_organizations_members__user_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/organizations/members/{user_id}/access': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Set Member Access
+     * @description Set what one manager may do, and which sections they may open.
+     *
+     *     The whole grant is sent every time rather than patched field by field: the
+     *     owner is looking at a form showing the current state, and a partial update
+     *     from a stale form would silently keep a module they had just switched off.
+     *
+     *     Recorded in the audit trail with the resulting grant, because "who could
+     *     read the P&L in July" is a question that gets asked after somebody leaves.
+     */
+    patch: operations['set_member_access_api_v1_organizations_members__user_id__access_patch']
     trace?: never
   }
   '/api/v1/organizations/me': {
@@ -404,49 +527,6 @@ export interface paths {
      *     is where it becomes the company's actual name.
      */
     patch: operations['rename_organization_api_v1_organizations_patch']
-    trace?: never
-  }
-  '/api/v1/organizations/members': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     * List Members
-     * @description List the organisation's members.
-     */
-    get: operations['list_members_api_v1_organizations_members_get']
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/v1/organizations/members/{user_id}': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    /**
-     * Remove Member
-     * @description Remove a manager from the organisation.
-     *
-     *     This — not revoking their invitation — is what actually withdraws access
-     *     once someone has joined.
-     */
-    delete: operations['remove_member_api_v1_organizations_members__user_id__delete']
-    options?: never
-    head?: never
-    patch?: never
     trace?: never
   }
   '/api/v1/organizations/audit-log': {
@@ -626,6 +706,12 @@ export interface paths {
      *
      *     Partial update: omitted surfaces are untouched; an empty string deletes
      *     the stored token for that surface. Values are Fernet-encrypted at rest.
+     *
+     *     Storing a token a workspace did not have also enqueues a catalogue
+     *     discovery for it, so a seller who has just connected WB sees their SKUs
+     *     within minutes instead of after the next nightly harvest. The enqueue is
+     *     best-effort and debounced per workspace; it can neither fail this request
+     *     nor be provoked into a second run by re-saving the same token.
      */
     put: operations['set_tokens_api_v1_workspaces__workspace_id__tokens_put']
     post?: never
@@ -684,8 +770,14 @@ export interface paths {
      *
      *     The bulk counterpart of :func:`refresh_sku`: one task harvests the whole
      *     catalogue (discarding those SKUs' manual edits), so it is heavier and slower
-     *     than a single-SKU refresh — the account-wide sale feed still stays on the
-     *     nightly run (:func:`harvest_sku_window` skips it), the same as «Обновить».
+     *     than a single-SKU refresh. Both now refresh the same FAMILIES of data —
+     *     funnel, stocks, advertising, prices, the account-wide sale feed and the
+     *     buyout cohorts — and differ only in how many SKUs the per-SKU sources cover.
+     *
+     *     A workspace with an empty catalogue gets ``monitoring.discover_workspace``
+     *     instead: it reads the SKU list from the Content API with the workspace's own
+     *     token and harvests what comes back. Both answer 202 with a task id, so the
+     *     SPA polls one route either way and needs no knowledge of which ran.
      *
      *     Poll ``GET /refresh/{task_id}`` for completion exactly as for one SKU. The
      *     task id is bound to the caller's workspace so only that workspace can read
@@ -708,6 +800,12 @@ export interface paths {
     /**
      * Get Refresh Status
      * @description Report a refresh task's state so the frontend knows when to re-fetch.
+     *
+     *     While the task runs this also carries ``stage``/``percent``/``message``, so
+     *     the SPA can show a progress bar and say what is being collected rather than
+     *     spinning silently for the ~8 minutes a first refresh can take. The stage
+     *     number is actionable, not decorative: stage 1's rows are committed before
+     *     stage 2 starts, so the client redraws the table on that transition.
      *
      *     Scoped to the workspace that enqueued the task: Celery's ``AsyncResult``
      *     would happily report on any id in the broker, which let one workspace learn
@@ -1121,9 +1219,10 @@ export interface paths {
      * Get Pnl By Sku
      * @description Return the per-SKU P&L cut for an arbitrary settlement-date window.
      *
-     *     Two columns come from the monitoring module, resolved here through its
-     *     orders from the funnel history and per-SKU advertising from the Promotion
-     *     API statistics — the settlement report itself carries neither.
+     *     Three things come from the monitoring module, resolved here through its
+     *     orders from the funnel history, per-SKU advertising from the Promotion API
+     *     statistics, and the card thumbnails — the settlement report carries an
+     *     article string and no catalogue at all.
      */
     get: operations['get_pnl_by_sku_api_v1_finreports_pnl_skus_get']
     put?: never
@@ -1365,11 +1464,24 @@ export interface paths {
     }
     /**
      * Get Harvest State
-     * @description Report harvest liveness and this workspace's settlement coverage.
+     * @description Report harvest liveness, settlement coverage and freshness.
      *
      *     Polled by «Обновить» while a run is in flight: ``running`` falling to false
      *     is the signal to re-fetch the statement, and ``latest_settled`` moving is
-     *     what tells the seller a new week actually arrived.
+     *     what tells the seller a new week actually arrived. It is also read on every
+     *     load of the P&L, which renders ``latest_report`` and ``last_check`` as the
+     *     line saying why the statement stops where it does.
+     *
+     *     Read-only despite spending nothing: **this route never asks WB anything.**
+     *     It relays what the hourly task recorded. A page load may not spend the WB
+     *     request budget the schedule is metered against, and the freshness answer is
+     *     only meaningful *because* it says when somebody else last asked.
+     *
+     *     Guard: the module's router-level ``MemberAccess`` — the paywall every
+     *     finreports data route sits behind. Nothing weaker would do: the answer names
+     *     a tenant's settlement weeks and harvest timings. Scoped by
+     *     ``CurrentWorkspaceId``, which validates the header against the caller's own
+     *     organisation and binds the tenant for row-level security.
      */
     get: operations['get_harvest_state_api_v1_finreports_harvest_get']
     put?: never
@@ -1412,9 +1524,50 @@ export interface paths {
     put?: never
     /**
      * Создать тест
-     * @description Create a draft test; photos are uploaded separately.
+     * @description Create a draft test already carrying the card's main photo.
+     *
+     *     The article is resolved against the workspace's catalogue before anything is
+     *     written, and the seller article is read off that card rather than taken from
+     *     the body — the two could otherwise disagree.
+     *
+     *     The card's current main photo is copied into the test here, so the seller
+     *     opens a brand-new test and sees the thing their uploads will be compared
+     *     against already in the rotation. It needs the workspace's Content token and
+     *     does without one rather than refusing: a test may be set up before the WB
+     *     credentials are pasted, and the start — which actually writes to the card —
+     *     is where the missing token is refused.
      */
     post: operations['create_test_api_ab_tests_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/ab-tests/skus': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Каталог для выбора артикула
+     * @description Return the cards a test may be created against.
+     *
+     *     Declared before ``/{test_id}`` so the static path is not swallowed by the
+     *     UUID path parameter — the same ordering trap monitoring's own lookup route
+     *     documents.
+     *
+     *     A blank query returns the first page rather than nothing, so the picker
+     *     opens with something in it instead of looking broken — and the order it
+     *     opens in is advertised cards first, then last week's orders descending, so
+     *     the top of an unfiltered list is the cards worth testing rather than
+     *     whichever article happens to sort first alphabetically.
+     */
+    get: operations['search_skus_api_ab_tests_skus_get']
+    put?: never
+    post?: never
     delete?: never
     options?: never
     head?: never
@@ -1442,7 +1595,15 @@ export interface paths {
     delete: operations['delete_test_api_ab_tests__test_id__delete']
     options?: never
     head?: never
-    patch?: never
+    /**
+     * Изменить название или триггер ротации
+     * @description Change a running test's trigger without restarting it.
+     *
+     *     Needs no WB token: nothing here touches the card. The next polling pass
+     *     reads the new setting, so lowering a budget below what the live photo has
+     *     already gathered rotates within minutes rather than at some later reset.
+     */
+    patch: operations['update_settings_api_ab_tests__test_id__patch']
     trace?: never
   }
   '/api/ab-tests/{test_id}/status': {
@@ -1460,11 +1621,13 @@ export interface paths {
     head?: never
     /**
      * Запустить, поставить на паузу или отменить
-     * @description Change a test's status; starting installs the first photo on the card.
+     * @description Change a test's status; starting opens the rotation on the card's photo.
      *
      *     This is the only route that needs a WB token, so it is the only one that
-     *     depends on the installer — reading a test must stay possible for a
-     *     workspace that has not stored its credentials yet.
+     *     depends on the installer and the capture — reading a test must stay possible
+     *     for a workspace that has not stored its credentials yet. Starting reads the
+     *     card's current main photo into the rotation before installing anything, so
+     *     the uploads are compared against the image they would replace.
      */
     patch: operations['set_status_api_ab_tests__test_id__status_patch']
     trace?: never
@@ -1510,7 +1673,20 @@ export interface paths {
     delete: operations['delete_variant_api_ab_tests__test_id__variants__variant_id__delete']
     options?: never
     head?: never
-    patch?: never
+    /**
+     * Убрать фото из ротации или вернуть
+     * @description Take a photo out of the running rotation, or put it back.
+     *
+     *     Deliberately allowed while the test is running — that is the point. Nothing
+     *     is deleted: the photo keeps its row, its image and every window already
+     *     credited to it, so the result table goes on showing what it did. It simply
+     *     stops being dealt, from the next pass on.
+     *
+     *     Returns the whole test for the same reason the upload route does: the table
+     *     re-renders anyway, and one round trip keeps the photo list and the figures
+     *     from disagreeing.
+     */
+    patch: operations['set_variant_excluded_api_ab_tests__test_id__variants__variant_id__patch']
     trace?: never
   }
   '/api/ab-tests/{test_id}/variants/{variant_id}/image': {
@@ -1544,6 +1720,16 @@ export interface components {
     /**
      * AbTestCreate
      * @description Request body for creating a test.
+     *
+     *     ``vendor_code`` is deliberately absent: it is read off the catalogue card the
+     *     ``nm_id`` resolves to. Taking it from the client would let the two disagree,
+     *     and the seller article is what the list is searched by.
+     *
+     *     The two triggers are mutually exclusive, and the model enforces it rather
+     *     than quietly ignoring the unused one: sending ``slot_minutes`` with
+     *     ``trigger_mode="impressions"`` is a 422, not a silently dropped field. A
+     *     test that rotated on "either, whichever first" would measure its variants
+     *     over different exposures, which is the one thing a budget exists to prevent.
      */
     AbTestCreate: {
       /**
@@ -1557,21 +1743,24 @@ export interface components {
        */
       name: string
       /**
-       * Vendor Code
-       * @description Артикул продавца
-       * @default
+       * @description Что двигает ротацию: показы или время
+       * @default impressions
        */
-      vendor_code: string
+      trigger_mode: components['schemas']['TriggerMode']
       /**
        * Impression Budget
-       * @description Сколько рекламных показов должен набрать вариант до смены фото
-       * @default 10000
+       * @description Показов на вариант. Только для режима «по показам»
        */
-      impression_budget: number
+      impression_budget?: number | null
+      /**
+       * Slot Minutes
+       * @description Минут на вариант. Только для режима «по времени»
+       */
+      slot_minutes?: number | null
     }
     /**
      * AbTestDetail
-     * @description A test plus the per-photo result table.
+     * @description A test plus the per-photo result table and the log of its turns.
      */
     AbTestDetail: {
       /**
@@ -1587,8 +1776,12 @@ export interface components {
       name: string
       /** Status */
       status: string
+      /** Trigger Mode */
+      trigger_mode: string
       /** Impression Budget */
       impression_budget: number
+      /** Slot Minutes */
+      slot_minutes: number
       /** Active Variant Id */
       active_variant_id: string | null
       /** Variant Count */
@@ -1609,6 +1802,22 @@ export interface components {
       leader_variant_id?: string | null
       /** Variants */
       variants?: components['schemas']['VariantMetrics'][]
+      /**
+       * History
+       * @description Каждая установка фото, новые сверху
+       */
+      history?: components['schemas']['ExposureRow'][]
+      /**
+       * Rounds Completed
+       * @description Сколько кругов ротация уже прошла
+       * @default 0
+       */
+      rounds_completed: number
+      /**
+       * Active Since
+       * @description Когда текущее фото встало на карточку. Начало отсчёта слота в режиме «по времени»; null, пока ничего не установлено.
+       */
+      active_since?: string | null
     }
     /**
      * AbTestRead
@@ -1628,8 +1837,12 @@ export interface components {
       name: string
       /** Status */
       status: string
+      /** Trigger Mode */
+      trigger_mode: string
       /** Impression Budget */
       impression_budget: number
+      /** Slot Minutes */
+      slot_minutes: number
       /** Active Variant Id */
       active_variant_id: string | null
       /** Variant Count */
@@ -1648,6 +1861,33 @@ export interface components {
        * @description Вариант с лучшим CTR среди набравших хотя бы один полный день. None, пока сравнивать нечего.
        */
       leader_variant_id?: string | null
+    }
+    /**
+     * AbTestSettingsUpdate
+     * @description Request body for changing a test's name or its rotation trigger.
+     *
+     *     Every field is optional: sending only ``impression_budget`` keeps the mode
+     *     the test already has. The exclusivity is checked against the *resolved*
+     *     mode — the one in the body if it names one, otherwise the stored one — so
+     *     "set slot_minutes on a test that is still counting impressions" is refused
+     *     even though the body never mentions a mode. That check needs the stored
+     *     test, so it happens in the service rather than here.
+     */
+    AbTestSettingsUpdate: {
+      /** Name */
+      name?: string | null
+      /** @description Сменить режим: показы или время */
+      trigger_mode?: components['schemas']['TriggerMode'] | null
+      /**
+       * Impression Budget
+       * @description Показов на вариант. Только для режима «по показам»
+       */
+      impression_budget?: number | null
+      /**
+       * Slot Minutes
+       * @description Минут на вариант. Только для режима «по времени»
+       */
+      slot_minutes?: number | null
     }
     /**
      * AbTestStatusUpdate
@@ -1677,6 +1917,21 @@ export interface components {
        */
       detail: string
     }
+    /**
+     * AccessLevel
+     * @description How much a manager may do in the modules they can reach.
+     *
+     *     One level per membership rather than one per module: an owner deciding
+     *     "this person is here to look, not to touch" is making a single judgement
+     *     about a person, and splitting it per module produced a matrix nobody could
+     *     read and few would ever use unevenly.
+     *
+     *     The owner has no level of their own — an owner writes everywhere by
+     *     definition, and giving them a value here would create a representable
+     *     state ("read-only owner") that nothing means to support.
+     * @enum {string}
+     */
+    AccessLevel: 'read_write' | 'read_only'
     /**
      * ActivationCodeCreateRequest
      * @description Payload for a dev generating an activation code.
@@ -2523,6 +2778,87 @@ export interface components {
       email: string
     }
     /**
+     * ExposureRow
+     * @description One turn in «История действий»: a photo installed, and what it earned.
+     */
+    ExposureRow: {
+      /**
+       * Variant Id
+       * Format: uuid
+       */
+      variant_id: string
+      /** Position */
+      position: number
+      /** Is Original */
+      is_original: boolean
+      /** Image Url */
+      image_url: string
+      /**
+       * Round Number
+       * @description Круг, к которому относится установка
+       */
+      round_number: number
+      /**
+       * Activated At
+       * Format: date-time
+       * @description Когда WB принял загрузку
+       */
+      activated_at: string
+      /**
+       * Deactivated At
+       * @description Когда фото сняли
+       */
+      deactivated_at?: string | null
+      /**
+       * Minutes
+       * @description Сколько минут фото простояло
+       */
+      minutes?: number | null
+      /**
+       * Views
+       * @default 0
+       */
+      views: number
+      /**
+       * Clicks
+       * @default 0
+       */
+      clicks: number
+      /**
+       * Click Through
+       * @description CTR за эту установку, %
+       */
+      click_through?: string | null
+    }
+    /**
+     * FreshnessCheckOut
+     * @description What the hourly gate found the last time it asked WB for something newer.
+     */
+    FreshnessCheckOut: {
+      /**
+       * Outcome
+       * @description 'wb_empty' is the only one that means «нового ничего нет». 'probe_failed' means WB did not answer — an unanswered question, never to be rendered as reassurance.
+       * @enum {string}
+       */
+      outcome: 'never_harvested' | 'up_to_date' | 'wb_empty' | 'wb_has_new' | 'probe_failed'
+      /**
+       * Checked At
+       * Format: date-time
+       * @description When the verdict was reached (UTC instant). Staleness is the signal: a confident 'nothing new' from six hours ago is what a dead harvester looks like.
+       */
+      checked_at: string
+      /**
+       * Probe From
+       * @description Start of the settlement window asked about; null when no request was made.
+       */
+      probe_from?: string | null
+      /**
+       * Probe To
+       * @description End of that window.
+       */
+      probe_to?: string | null
+    }
+    /**
      * FunnelDetailRead
      * @description A single day of organic funnel metrics for one SKU.
      *
@@ -2681,7 +3017,7 @@ export interface components {
     }
     /**
      * HarvestStateResponse
-     * @description Whether a harvest is running, and how far the harvested history reaches.
+     * @description Whether a harvest is running, how far the history reaches, and how fresh it is.
      */
     HarvestStateResponse: {
       /**
@@ -2694,6 +3030,10 @@ export interface components {
        * @description Last settlement day this workspace's harvested reports cover. Unchanged after a finished run means WB had nothing new — which is a success, not a failure.
        */
       latest_settled?: string | null
+      /** @description The newest report on file, or null for a never-harvested workspace. */
+      latest_report?: components['schemas']['LatestReportOut'] | null
+      /** @description The last recorded freshness verdict, or null when there is none — never checked, expired, or an unreadable record. All three mean «мы не проверяли», which is the honest answer. */
+      last_check?: components['schemas']['FreshnessCheckOut'] | null
     }
     /**
      * HarvestTriggerResponse
@@ -2736,11 +3076,12 @@ export interface components {
        */
       email?: string | null
       /**
-       * Valid For Days
-       * @description How long the invitation stays acceptable.
-       * @default 7
+       * Valid For Hours
+       * @description How long the link keeps working. Short by default: an invitation is reusable until it expires, so the window is what bounds it.
+       * @default 1
        */
-      valid_for_days: number
+      valid_for_hours: number
+      access?: components['schemas']['MemberAccessFields']
     }
     /**
      * InvitationCreated
@@ -2780,6 +3121,11 @@ export interface components {
       /** Status */
       status: string
       /**
+       * Accepted Count
+       * @default 0
+       */
+      accepted_count: number
+      /**
        * Expires At
        * Format: date-time
        */
@@ -2791,6 +3137,33 @@ export interface components {
        * Format: date-time
        */
       created_at: string
+    }
+    /**
+     * LatestReportOut
+     * @description The newest WB report on file — what we hold, and when we pulled it.
+     */
+    LatestReportOut: {
+      /**
+       * Report Id
+       * @description WB realizationreport_id.
+       */
+      report_id: number
+      /**
+       * Date From
+       * @description Start of the period WB states the report covers. Null on the occasional header WB serves with no stated period.
+       */
+      date_from?: string | null
+      /**
+       * Date To
+       * @description End of the stated period; null for the same reason.
+       */
+      date_to?: string | null
+      /**
+       * Harvested At
+       * Format: date-time
+       * @description When this header was ingested (UTC instant, not a calendar day).
+       */
+      harvested_at: string
     }
     /**
      * LogisticsTxnItem
@@ -3120,6 +3493,11 @@ export interface components {
      *     ``organization``, ``subscription`` and ``members`` are all ``None`` for a
      *     freshly registered account — which is exactly what tells the SPA to render
      *     the «введите ключ активации» screen instead of the app.
+     *
+     *     This response stays reachable for a caller every other route refuses. That
+     *     is the point of it: an account with no organisation and a tenant past its
+     *     grace window both need something to load, and this is the only thing that
+     *     tells them which of the two they are.
      */
     MeResponse: {
       /**
@@ -3139,8 +3517,46 @@ export interface components {
       has_access: boolean
       /** Can Write */
       can_write: boolean
+      /** Modules */
+      modules?: components['schemas']['ModuleKey'][]
       organization?: components['schemas']['OrganizationRead'] | null
       subscription?: components['schemas']['SubscriptionRead'] | null
+    }
+    /**
+     * MemberAccessFields
+     * @description The grant an owner sets on a manager: how much, and where.
+     *
+     *     Shared by the member list, the access-change payload and the invite form,
+     *     so the three cannot describe the grant differently — the bug that shape
+     *     prevents is an invite form offering a module the guard does not know.
+     */
+    MemberAccessFields: {
+      /**
+       * @description read_write may change things; read_only may only look.
+       * @default read_write
+       */
+      access_level: components['schemas']['AccessLevel']
+      /**
+       * Modules
+       * @description Product surfaces this manager may reach.
+       */
+      modules?: components['schemas']['ModuleKey'][]
+    }
+    /**
+     * MemberAccessUpdateRequest
+     * @description Payload for an owner changing one manager's grant.
+     */
+    MemberAccessUpdateRequest: {
+      /**
+       * @description read_write may change things; read_only may only look.
+       * @default read_write
+       */
+      access_level: components['schemas']['AccessLevel']
+      /**
+       * Modules
+       * @description Product surfaces this manager may reach.
+       */
+      modules?: components['schemas']['ModuleKey'][]
     }
     /**
      * MemberRead
@@ -3164,6 +3580,10 @@ export interface components {
        * Format: date-time
        */
       joined_at: string
+      /** @default read_write */
+      access_level: components['schemas']['AccessLevel']
+      /** Modules */
+      modules?: components['schemas']['ModuleKey'][]
     }
     /**
      * MetricWindow
@@ -3202,6 +3622,17 @@ export interface components {
        */
       rows?: components['schemas']['MatrixMetricRow'][]
     }
+    /**
+     * ModuleKey
+     * @description The product surfaces a manager can be granted or denied.
+     *
+     *     Deliberately coarser than the navigation. «Сравнение SKU» is not here because it
+     *     renders monitoring's own data: a manager who may not see the monitoring
+     *     tables must not see the same numbers drawn as lines, and two switches that
+     *     must always agree are a bug waiting for someone to set them apart.
+     * @enum {string}
+     */
+    ModuleKey: 'monitoring' | 'finreports' | 'ab_tests'
     /**
      * OrganizationRead
      * @description The caller's own organisation.
@@ -3476,6 +3907,8 @@ export interface components {
       nm_id: number
       /** Sa Name */
       sa_name: string
+      /** Photo Url */
+      photo_url?: string | null
       /** Subject Name */
       subject_name: string
       /** Brand Name */
@@ -3676,6 +4109,26 @@ export interface components {
        * @description WB sources that did not answer during an otherwise successful refresh (e.g. 'sales-funnel'). A harvest tolerates a partial WB outage, so 'successful' alone cannot tell the user why the numbers did not move.
        */
       failed_sources?: string[]
+      /**
+       * Stage
+       * @description Which stage of the refresh is running: 1 = advertising, funnel, stocks and prices; 2 = buyout percentages. Stage 1's rows are already committed when stage 2 begins, so the client may redraw the table on the transition instead of waiting for the whole run.
+       */
+      stage?: number | null
+      /**
+       * Stages
+       * @description How many stages this refresh has in total.
+       */
+      stages?: number | null
+      /**
+       * Percent
+       * @description How far along the refresh is, 0-100. Present only while running; a finished task reports its outcome through 'ready'/'successful'.
+       */
+      percent?: number | null
+      /**
+       * Message
+       * @description Russian, user-facing description of what is happening right now, rendered verbatim under the refresh button.
+       */
+      message?: string | null
     }
     /**
      * SessionsRevokedResponse
@@ -3860,6 +4313,43 @@ export interface components {
       items?: components['schemas']['SkuLookupItem'][]
     }
     /**
+     * SkuOption
+     * @description One catalogue card a test may be created against.
+     *
+     *     The two ranking fields are what the picker is ORDERED by, and they are
+     *     returned rather than kept server-side so the list can say why a card is near
+     *     the top — an order with no visible reason reads as an arbitrary one.
+     */
+    SkuOption: {
+      /**
+       * Nm Id
+       * @description Артикул WB
+       */
+      nm_id: number
+      /**
+       * Vendor Code
+       * @description Артикул продавца
+       */
+      vendor_code: string
+      /**
+       * Title
+       * @description Название карточки
+       */
+      title: string
+      /**
+       * Orders 7D
+       * @description Заказов за последнюю неделю
+       * @default 0
+       */
+      orders_7d: number
+      /**
+       * Has Ads
+       * @description Есть реклама за последнюю неделю
+       * @default false
+       */
+      has_ads: boolean
+    }
+    /**
      * SkuPenalty
      * @description One penalty category on one SKU, named by WB's own reason string.
      */
@@ -3909,6 +4399,11 @@ export interface components {
        * @description Product card title.
        */
       title?: string | null
+      /**
+       * Photo Url
+       * @description The card's main image on WB's public CDN, or null when the catalogue holds none. A direct https link — the browser fetches it from WB, not from us.
+       */
+      photo_url?: string | null
       /**
        * Total Open Count
        * @description Total card opens over the window.
@@ -4162,6 +4657,28 @@ export interface components {
       expires_at: string
     }
     /**
+     * TriggerMode
+     * @description What makes a test advance to its next photo.
+     *
+     *     The two are **mutually exclusive** by design, not by accident. A test that
+     *     rotated on "10 000 impressions OR 2 hours, whichever first" would produce
+     *     variants measured over different exposures, and the whole point of the
+     *     budget is that the arms are comparable. Whichever mode is chosen, the other
+     *     one's setting is ignored — and the API refuses a request that sets it.
+     *
+     *     ``IMPRESSIONS`` — equal audience per photo, unequal wall-clock. The
+     *     statistically sound default: every variant is judged on the same number of
+     *     chances.
+     *
+     *     ``TIME`` — equal wall-clock per photo, unequal audience. Worth having
+     *     anyway, because it is the only mode that works on a card whose advertising
+     *     is switched off (nothing accumulates, so an impression budget would never
+     *     fire), and because a fixed slot cycles variants through the same hours of
+     *     the day, which balances the time-of-day effect faster.
+     * @enum {string}
+     */
+    TriggerMode: 'impressions' | 'time'
+    /**
      * UserLoginRequest
      * @description Payload to authenticate with email + password.
      */
@@ -4230,6 +4747,17 @@ export interface components {
       ctx?: Record<string, never>
     }
     /**
+     * VariantExclusionUpdate
+     * @description Request body for taking a photo out of the rotation, or putting it back.
+     */
+    VariantExclusionUpdate: {
+      /**
+       * Excluded
+       * @description true — убрать из ротации, false — вернуть
+       */
+      excluded: boolean
+    }
+    /**
      * VariantMetrics
      * @description One photo's row in the result table.
      *
@@ -4255,6 +4783,40 @@ export interface components {
        * @description Это фото сейчас стоит на карточке
        */
       is_active: boolean
+      /**
+       * Is Original
+       * @description Фото, которое стояло на карточке до теста; в ротации на позиции 0
+       * @default false
+       */
+      is_original: boolean
+      /**
+       * Is Excluded
+       * @description Убрано из ротации: в следующих кругах не участвует, метрики сохранены
+       * @default false
+       */
+      is_excluded: boolean
+      /**
+       * Rounds Played
+       * @description В скольких кругах фото участвовало
+       * @default 0
+       */
+      rounds_played: number
+      /**
+       * Rounds Won
+       * @description В скольких кругах у него был лучший CTR
+       * @default 0
+       */
+      rounds_won: number
+      /**
+       * Ctr Gap
+       * @description Отставание CTR от лучшего, в процентных пунктах
+       */
+      ctr_gap?: string | null
+      /**
+       * Ctr Result
+       * @description То же отставание относительно лучшего, в процентах
+       */
+      ctr_result?: string | null
       /**
        * Click Through
        * @description Доля переходов в карточку, %
@@ -4456,6 +5018,33 @@ export interface operations {
             [key: string]: string
           }
         }
+      }
+    }
+  }
+  healthz_healthz_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Every dependency answered. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description At least one dependency did not. */
+      503: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
       }
     }
   }
@@ -4739,13 +5328,13 @@ export interface operations {
       }
     }
     responses: {
-      /** @description Address confirmed. */
+      /** @description Address confirmed; the caller is signed in. */
       200: {
         headers: {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['AcceptedResponse']
+          'application/json': components['schemas']['TokenPairResponse']
         }
       }
       /** @description The code is wrong, expired, or already used. */
@@ -4826,14 +5415,12 @@ export interface operations {
           'application/json': components['schemas']['AcceptedResponse']
         }
       }
-      /** @description Validation Error */
+      /** @description Password reset is switched off in this deployment. */
       422: {
         headers: {
           [name: string]: unknown
         }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
+        content?: never
       }
       /** @description Too many attempts; retry later. */
       429: {
@@ -4875,6 +5462,121 @@ export interface operations {
       }
       /** @description Too many attempts; retry later. */
       429: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  list_members_api_v1_organizations_members_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The organisation's members, owner first. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MemberRead'][]
+        }
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  remove_member_api_v1_organizations_members__user_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        user_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Member removed; their account keeps existing. */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such member in this organisation. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The owner cannot be removed. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  set_member_access_api_v1_organizations_members__user_id__access_patch: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        user_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MemberAccessUpdateRequest']
+      }
+    }
+    responses: {
+      /** @description The member's grant as it now stands. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MemberRead']
+        }
+      }
+      /** @description Owner role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such member in this organisation. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The owner's own access cannot be changed. */
+      422: {
         headers: {
           [name: string]: unknown
         }
@@ -5081,74 +5783,6 @@ export interface operations {
         content: {
           'application/json': components['schemas']['HTTPValidationError']
         }
-      }
-    }
-  }
-  list_members_api_v1_organizations_members_get: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description The organisation's members, owner first. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['MemberRead'][]
-        }
-      }
-      /** @description Owner role required. */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  remove_member_api_v1_organizations_members__user_id__delete: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        user_id: string
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Member removed; their account keeps existing. */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Owner role required. */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description No such member in this organisation. */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description The owner cannot be removed. */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
       }
     }
   }
@@ -5681,7 +6315,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description A WB refresh for every workspace SKU was enqueued. */
+      /** @description A WB refresh, or a SKU discovery when the catalogue is empty. */
       202: {
         headers: {
           [name: string]: unknown
@@ -5692,13 +6326,6 @@ export interface operations {
       }
       /** @description Unauthorized access token. */
       401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description The workspace has no SKUs to refresh. */
-      404: {
         headers: {
           [name: string]: unknown
         }
@@ -5984,6 +6611,13 @@ export interface operations {
         }
         content?: never
       }
+      /** @description Подписка истекла — доступ только для чтения. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
       /** @description The list is not exactly the current pinned set. */
       422: {
         headers: {
@@ -6027,6 +6661,13 @@ export interface operations {
         }
         content?: never
       }
+      /** @description Подписка истекла — доступ только для чтения. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
       /** @description Invalid payload. */
       422: {
         headers: {
@@ -6065,6 +6706,13 @@ export interface operations {
       }
       /** @description Unauthorized access token. */
       401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Подписка истекла — доступ только для чтения. */
+      403: {
         headers: {
           [name: string]: unknown
         }
@@ -6251,6 +6899,13 @@ export interface operations {
         }
         content?: never
       }
+      /** @description Подписка истекла — доступ только для чтения. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
       /** @description Invalid payload. */
       422: {
         headers: {
@@ -6295,6 +6950,13 @@ export interface operations {
         }
         content?: never
       }
+      /** @description Подписка истекла — доступ только для чтения. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
       /** @description Invalid payload (e.g. body too long) or date. */
       422: {
         headers: {
@@ -6334,6 +6996,13 @@ export interface operations {
       }
       /** @description Unauthorized access token. */
       401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Подписка истекла — доступ только для чтения. */
+      403: {
         headers: {
           [name: string]: unknown
         }
@@ -6425,6 +7094,13 @@ export interface operations {
       }
       /** @description Unauthorized access token. */
       401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Подписка истекла — доступ только для чтения. */
+      403: {
         headers: {
           [name: string]: unknown
         }
@@ -7023,6 +7699,13 @@ export interface operations {
         }
         content?: never
       }
+      /** @description Подписка истекла — доступ только для чтения. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
       /** @description Validation Error */
       422: {
         headers: {
@@ -7059,6 +7742,13 @@ export interface operations {
       }
       /** @description Unauthorized access token. */
       401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Подписка истекла — доступ только для чтения. */
+      403: {
         headers: {
           [name: string]: unknown
         }
@@ -7227,6 +7917,55 @@ export interface operations {
         }
         content?: never
       }
+      /** @description Доступ только для чтения */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  search_skus_api_ab_tests_skus_get: {
+    parameters: {
+      query?: {
+        /** @description Часть артикула WB, артикула продавца или названия */
+        q?: string
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SkuOption'][]
+        }
+      }
+      /** @description Не аутентифицирован */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
       /** @description Validation Error */
       422: {
         headers: {
@@ -7300,6 +8039,13 @@ export interface operations {
         }
         content?: never
       }
+      /** @description Доступ только для чтения */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
       /** @description Тест не найден */
       404: {
         headers: {
@@ -7315,6 +8061,63 @@ export interface operations {
         content: {
           'application/json': components['schemas']['HTTPValidationError']
         }
+      }
+    }
+  }
+  update_settings_api_ab_tests__test_id__patch: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        test_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AbTestSettingsUpdate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AbTestRead']
+        }
+      }
+      /** @description Доступ только для чтения */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Тест не найден */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Тест уже завершён */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Настройка не от того режима */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
       }
     }
   }
@@ -7344,6 +8147,13 @@ export interface operations {
         content: {
           'application/json': components['schemas']['AbTestRead']
         }
+      }
+      /** @description Доступ только для чтения */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
       }
       /** @description Тест не найден */
       404: {
@@ -7395,6 +8205,13 @@ export interface operations {
           'application/json': components['schemas']['AbTestDetail']
         }
       }
+      /** @description Доступ только для чтения */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
       /** @description Тест не найден */
       404: {
         headers: {
@@ -7440,6 +8257,13 @@ export interface operations {
         }
         content?: never
       }
+      /** @description Доступ только для чтения */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
       /** @description Тест или вариант не найден */
       404: {
         headers: {
@@ -7448,6 +8272,66 @@ export interface operations {
         content?: never
       }
       /** @description Фото сейчас стоит на карточке */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  set_variant_excluded_api_ab_tests__test_id__variants__variant_id__patch: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        test_id: string
+        variant_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['VariantExclusionUpdate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AbTestDetail']
+        }
+      }
+      /** @description Доступ только для чтения */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Тест или вариант не найден */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Это последнее фото в ротации */
       409: {
         headers: {
           [name: string]: unknown

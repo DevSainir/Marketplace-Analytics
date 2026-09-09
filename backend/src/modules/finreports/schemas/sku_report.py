@@ -51,6 +51,11 @@ class PnlSkuRow(BaseModel):
 
     nm_id: int
     sa_name: str
+    #: The card's main image on WB's public CDN, or ``None`` when the monitoring
+    #: catalogue holds none for this SKU — including on the totals and
+    #: account-level rows, which are not a product. A direct https link: the
+    #: browser fetches it from WB, not from us.
+    photo_url: str | None = None
     #: WB's catalogue identity for the SKU (Тип предмета / Бренд). "" on the
     #: totals and account-level bucket rows, which span many subjects/brands.
     subject_name: str
