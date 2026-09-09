@@ -13,11 +13,16 @@ The guards compose, and each one is strictly narrower than the last:
     account with no organisation gets through, which is what the activation and
     invitation routes need.
 ``MemberAccess``
-    Require an organisation. This is the one that closes the platform to the
-    ``user`` role — it is on every data router in the application.
-``WritingAccess``
     Require an organisation AND a subscription that has not fallen past its
-    grace window. On every route that changes something or spends WB budget.
+    grace window. This is the one that closes the platform — to the ``user``
+    role, and to a tenant that has stopped paying. It is on every data router
+    in the application, which is what makes the paywall total rather than a
+    per-route decision somebody has to remember.
+``WritingAccess``
+    Require all of the above AND a role that writes. On every route that
+    changes something or spends WB budget. Narrower than ``MemberAccess`` only
+    for a manager the owner set to read-only — the subscription half is already
+    decided one rung down.
 ``OwnerAccess``
     Require ``owner`` (or ``dev``). Workspaces, tokens, members, billing.
 
@@ -171,24 +176,51 @@ CurrentAccess = Annotated[OrganizationAccess, Depends(get_current_access)]
 
 
 async def require_member(access: CurrentAccess) -> OrganizationAccess:
-    """Require that the caller belongs to an organisation.
+    """Require an organisation whose subscription has not run out.
 
-    This is the guard that closes the platform to a bare registered account.
-    Registration is open, so without it every new signup would land inside
-    somebody's data; with it, a fresh account can reach exactly two things —
-    activation and its own pending invitations.
+    Two refusals, one guard, because they are the same question — *may this
+    caller reach the product at all* — and separating them is how a route ends
+    up covered by one and not the other.
+
+    **Membership.** This is what closes the platform to a bare registered
+    account. Registration is open, so without it every new signup would land
+    inside somebody's data; with it, a fresh account can reach exactly two
+    things — activation and its own pending invitations.
+
+    **Payment.** Past the grace window the service closes completely: no reads
+    either. This was a read-only landing until 2026-09-09, on the reasoning
+    that the data is the customer's own and locking them out of it is a hostage
+    position. It is now a paywall — an expired tenant that keeps its dashboards
+    has no deadline, and the renewal it was supposed to prompt never comes. The
+    three grace days are still there, and are still where a clearing bank
+    transfer is protected; what follows them is now a door rather than a
+    dimmer.
 
     A dev with no organisation of their own is deliberately NOT let through
     here: the routes behind this guard are all tenant-scoped, and there is no
     tenant to scope them to. Devs read a customer's data by belonging to an
-    organisation, not by bypassing the concept.
+    organisation, not by bypassing the concept — and a dev inside a lapsed
+    tenant still gets through, so our own billing rows cannot lock out the
+    people who would fix them.
+
+    ``/me``, ``/activate`` and ``/invitations/mine`` sit in front of this guard
+    on ``CurrentAccess``, which is what leaves a blocked caller something to
+    load: the SPA reads the state from ``/me`` and draws the paywall instead of
+    an app full of failed requests.
 
     Raises:
-        PermissionDeniedError: The caller has no membership.
+        PermissionDeniedError: No membership, or a subscription past grace.
     """
     if access.organization_id is None:
         raise PermissionDeniedError(
             "Аккаунт не привязан к организации. Введите ключ активации или примите приглашение."
+        )
+    if not access.has_access:
+        # Checked AFTER the membership: an account with nowhere to be is not
+        # behind on a payment, and telling them to renew sends them to support
+        # with the wrong question.
+        raise PermissionDeniedError(
+            "Подписка истекла — доступ к сервису закрыт. Продлите подписку, чтобы вернуть доступ."
         )
     return access
 
@@ -197,14 +229,21 @@ MemberAccess = Annotated[OrganizationAccess, Depends(require_member)]
 
 
 async def require_writer(access: MemberAccess) -> OrganizationAccess:
-    """Require a member whose subscription has not fallen past its grace window.
+    """Require a member who may change things.
 
-    Applied to everything that changes state or spends WB rate budget. Reads
-    stay open on purpose — the data is the customer's own, and locking them out
-    of it is a hostage position rather than a payment incentive.
+    Applied to everything that changes state or spends WB rate budget. Since
+    2026-09-09 the subscription half of this is already settled by
+    :func:`require_member` — a lapsed tenant never reaches a route at all — so
+    in practice this rung narrows one caller: the manager their owner granted
+    the section at ``read_only``.
+
+    The subscription check stays anyway. It costs a comparison, and a guard
+    that quietly depends on a rung below it being applied is a guard that stops
+    holding the day somebody wires a writing route past that rung.
 
     Raises:
-        PermissionDeniedError: The subscription is in ``read_only``.
+        PermissionDeniedError: A read-only manager, or (defensively) a
+            subscription past grace.
     """
     if not access.can_write:
         # Two different reasons land here and the person can act on only one of
@@ -216,8 +255,7 @@ async def require_writer(access: MemberAccess) -> OrganizationAccess:
                 "Доступ только для чтения — изменения вносит владелец организации."
             )
         raise PermissionDeniedError(
-            "Подписка истекла — доступ только для чтения. "
-            "Продлите подписку, чтобы вносить изменения."
+            "Подписка истекла — доступ к сервису закрыт. Продлите подписку, чтобы вернуть доступ."
         )
     return access
 

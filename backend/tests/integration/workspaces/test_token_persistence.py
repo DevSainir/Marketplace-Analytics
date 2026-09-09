@@ -7,10 +7,13 @@ Three things can only be proved with a real database here:
 * the ``(workspace_id, kind)`` unique constraint makes ``upsert`` a rotation
   rather than a second row;
 * the contract functions the Celery harvest calls — which take a raw session,
-  not a service — return correctly resolved bundles.
+  not a service — return correctly resolved bundles, and drop the tenants whose
+  subscription has run out.
 """
 
 from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import sqlalchemy as sa
@@ -19,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.security import SecretDecryptionError, encrypt_secret
 from src.modules.organizations.models import Organization
+from src.modules.organizations.repos import SubscriptionRepository
 from src.modules.workspaces.contract import (
     load_workspace_name,
     load_workspace_token_bundle,
@@ -35,6 +39,27 @@ def _fernet_key(settings_override):
     """Give the module a real, disposable encryption key."""
     with settings_override(fernet_secret_key=Fernet.generate_key().decode()):
         yield
+
+
+@pytest.fixture(autouse=True)
+async def paid_up(db_session: AsyncSession, organization: Organization) -> None:
+    """Give the tenant a live subscription, because activation always does.
+
+    Autouse rather than opt-in: since 2026-09-09 the harvest fan-out drops a
+    tenant whose term is past its grace window, and an organisation with no
+    subscription row at all is the fail-closed case. A fixture without one
+    would silently make every fan-out assertion here read as empty — which is
+    exactly the shape of the bug the gate exists to prevent, so the fixture has
+    to look like a real tenant rather than a convenient one.
+    """
+    now = datetime.now(UTC)
+    await SubscriptionRepository(db_session).create(
+        organization_id=organization.id,
+        started_at=now - timedelta(days=1),
+        expires_at=now + timedelta(days=30),
+        grace_days=3,
+    )
+    await db_session.flush()
 
 
 @pytest.fixture
@@ -184,6 +209,46 @@ async def test_the_fan_out_returns_one_bundle_per_workspace(
     assert {primary.id, secondary.id} <= set(by_id)
     assert by_id[secondary.id].prices == "unified-t"
     assert by_id[primary.id].prices == ""
+
+
+async def test_the_fan_out_drops_a_tenant_whose_term_ran_out(
+    db_session: AsyncSession, secondary: Workspace, organization: Organization
+) -> None:
+    """The paywall reaches the schedule here, and nowhere else.
+
+    Every fleet-wide harvest starts from this one call, so a tenant past its
+    grace window stops costing WB budget in one place rather than in each task.
+    Asserted against a real database because the join it rests on — workspace →
+    organisation → subscription — is the part a pure unit test cannot prove.
+    """
+    subscription = await SubscriptionRepository(db_session).get_for_organization(organization.id)
+    assert subscription is not None
+    # Past expiry AND past the three grace days.
+    subscription.expires_at = datetime.now(UTC) - timedelta(days=10)
+    await db_session.flush()
+
+    bundles = await load_workspace_token_bundles(db_session)
+
+    assert [bundle.workspace_id for bundle in bundles] == []
+
+
+async def test_the_fan_out_still_harvests_inside_the_grace_window(
+    db_session: AsyncSession, secondary: Workspace, organization: Organization
+) -> None:
+    """A lapsed term still harvests while its grace days last.
+
+    The gap WB leaves is not backfillable, so stopping a harvest during the days
+    a bank transfer is clearing would punch a permanent hole in the data of a
+    customer who did pay.
+    """
+    subscription = await SubscriptionRepository(db_session).get_for_organization(organization.id)
+    assert subscription is not None
+    subscription.expires_at = datetime.now(UTC) - timedelta(days=1)
+    await db_session.flush()
+
+    bundles = await load_workspace_token_bundles(db_session)
+
+    assert [bundle.workspace_id for bundle in bundles] == [secondary.id]
 
 
 async def test_an_unknown_workspace_yields_no_bundle(db_session: AsyncSession) -> None:

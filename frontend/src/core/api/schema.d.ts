@@ -772,7 +772,7 @@ export interface paths {
     }
     /**
      * Get Aggregate Charts
-     * @description Return the «Графики» page's day series, summed over the chosen SKUs.
+     * @description Return the «Сравнение SKU» page's day series, summed over the chosen SKUs.
      */
     get: operations['get_aggregate_charts_api_v1_monitoring_charts_get']
     put?: never
@@ -3135,6 +3135,8 @@ export interface components {
       role: components['schemas']['EffectiveRole']
       /** Internal Features */
       internal_features: boolean
+      /** Has Access */
+      has_access: boolean
       /** Can Write */
       can_write: boolean
       organization?: components['schemas']['OrganizationRead'] | null
@@ -4128,11 +4130,12 @@ export interface components {
      * SubscriptionState
      * @description Where an organisation sits on the expiry ramp.
      *
-     *     See :mod:`src.modules.organizations.models.subscription` for why expiry is
-     *     a ramp rather than a cliff.
+     *     See :mod:`src.modules.organizations.models.subscription` for what each
+     *     state costs. The ramp is short — three days of grace, then the service
+     *     closes.
      * @enum {string}
      */
-    SubscriptionState: 'active' | 'grace' | 'read_only'
+    SubscriptionState: 'active' | 'grace' | 'expired'
     /**
      * TokenPairResponse
      * @description Access-token response body.

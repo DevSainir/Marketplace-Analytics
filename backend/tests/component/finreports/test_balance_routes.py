@@ -277,7 +277,7 @@ async def test_a_pin_stops_saving_once_the_term_is_past_grace(
     touches a settlement figure already refused a lapsed term, and a pin
     slipping through made the rule look arbitrary rather than deliberate.
     """
-    login_as(subscription=SubscriptionState.READ_ONLY)
+    login_as(subscription=SubscriptionState.EXPIRED)
 
     response = await client.put(
         "/api/v1/finreports/balance/pins",

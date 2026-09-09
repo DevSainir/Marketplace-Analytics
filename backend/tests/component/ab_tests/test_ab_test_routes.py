@@ -270,7 +270,7 @@ async def test_a_lapsed_subscription_cannot_touch_the_card_either(
     and a guard that answered both with the same text would send half the
     callers to support with the wrong question.
     """
-    login_as(is_primary_org=True, subscription=SubscriptionState.READ_ONLY)
+    login_as(is_primary_org=True, subscription=SubscriptionState.EXPIRED)
 
     response = await client.delete(f"/api/ab-tests/{TEST_ID}", headers=headers)
 

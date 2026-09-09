@@ -40,7 +40,7 @@ pytestmark = pytest.mark.integration
 async def _with_live_subscription(session: AsyncSession, organization_id: uuid.UUID) -> None:
     """Give the organisation a term that has not lapsed.
 
-    Without one the subscription ramp reports ``read_only``, which would refuse
+    Without one the subscription ramp reports ``expired``, which would refuse
     the write for a completely different reason and let a test claiming to
     isolate the manager's own level pass while proving nothing.
     """
@@ -145,7 +145,7 @@ async def test_narrowing_a_manager_takes_effect_on_their_next_request(
     assert not access.can_reach(ModuleKey.AB_TESTS)
     # Read-only bites even though the subscription is healthy: the two reasons
     # a write is refused are independent, and this is the manager one.
-    assert access.subscription is not SubscriptionState.READ_ONLY
+    assert access.subscription is not SubscriptionState.EXPIRED
     assert not access.can_write
 
 

@@ -4,7 +4,7 @@ One row per organisation, created when its activation code is redeemed. Payment
 itself happens outside this system — we are handed money and hand back a code —
 so this table records the *consequence* of a payment, never the payment.
 
-**Expiry is a ramp, not a cliff.** Three states, in order:
+**Expiry is a short ramp onto a closed door.** Three states, in order:
 
 ``active``
     ``now < expires_at``. Everything works.
@@ -15,12 +15,22 @@ so this table records the *consequence* of a payment, never the payment.
     the failure it prevents — a seller locked out of their own numbers on the
     morning the payment is still clearing — is far worse than a few extra days
     of access.
-``read_only``
-    Past the grace period. Every read still answers; every write and every WB
-    refresh is refused. Deliberately not a full block: the data is the
-    customer's own, locking them out of it is a hostage position rather than a
-    payment incentive, and a customer who can still see what they are missing
-    is the one who renews.
+``expired``
+    Past the grace period. **The service closes.** Every tenant-scoped route
+    refuses, reads included, and the SPA draws a paywall over the whole app —
+    ``/v1/organizations/me`` is left reachable precisely so it has something to
+    draw it from, and the header stays usable so nobody is trapped without a
+    logout.
+
+    This was a read-only landing until 2026-09-09. The reasoning was that the
+    data is the customer's own and withholding it is a hostage position; what
+    that missed is that a tenant which keeps its dashboards has no deadline,
+    so the state it was meant to be — an uncomfortable prompt to renew — was
+    just a cheaper product. Nothing is deleted and nothing is lost: renewing
+    restores every row, because expiry gates access and never storage.
+
+    The grace days are what protects a customer who is actually paying. Past
+    them, the honest reading is that they are not.
 
 The limits are nullable and ``NULL`` means unlimited, which is what every
 organisation gets today. They exist as columns now because retrofitting a quota
@@ -57,7 +67,8 @@ class Subscription(Base):
             company paid up?" a question with two answers.
         started_at: When the term began (the activation, or the last renewal).
         expires_at: When it ends. The ramp above starts here.
-        grace_days: How long full access survives past ``expires_at``. A column
+        grace_days: How long full access survives past ``expires_at``, and
+            therefore how long there is before the service closes. A column
             rather than a constant so a specific customer can be given more
             without a deploy — the default comes from settings.
         max_workspaces: Cap on the organisation's workspaces; ``NULL`` =

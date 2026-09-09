@@ -27,8 +27,8 @@ import {
 
 /** Every grantable surface, in the order the UI lists them. */
 export const MODULES = [
-  { key: 'monitoring', label: 'Мониторинг', hint: 'Включая «Графики»' },
-  { key: 'finreports', label: 'Прибыли и убытки', hint: 'P&L и себестоимость' },
+  { key: 'monitoring', label: 'Мониторинг', hint: 'Включая «Сравнение SKU»' },
+  { key: 'finreports', label: 'P&L', hint: 'Отчёт о прибылях и убытках, себестоимость' },
   { key: 'ab_tests', label: 'A/Б-тесты', hint: 'Ротация фото' },
 ]
 
@@ -47,6 +47,14 @@ export const useMembersStore = defineStore('members', () => {
   //: devs come back with all of them. The SPA showed every nav link regardless
   //: and let a narrowed manager open a page whose every request then 403'd.
   const modules = ref([])
+  //: The organisation's term, as `/me` reports it: `{ state, expires_at, ... }`
+  //: or null. `state` is 'active' | 'grace' | 'expired'.
+  const subscription = ref(null)
+  //: Whether the tenant may reach the service AT ALL. False once the term is
+  //: past its grace window, at which point every tenant-scoped route answers
+  //: 403 and the app draws the paywall instead of a shell full of failures.
+  //: The API decides this (`require_member`); the flag only lets us say so.
+  const hasAccess = ref(true)
   //: Invitations addressed to this account's address, loaded only when it has
   //: no organisation — a member has nothing to accept.
   const invitations = ref([])
@@ -67,6 +75,15 @@ export const useMembersStore = defineStore('members', () => {
    * matters is the API's, which never guesses.
    */
   const hasOrganization = computed(() => !loaded.value || organization.value !== null)
+
+  /**
+   * Whether the subscription has lapsed past its grace window.
+   *
+   * Answers `false` until `ensureLoaded` has run, for the same reason
+   * `hasOrganization` answers `true`: a cold load must not flash a paywall at
+   * somebody who has paid. The gate that decides is the API's.
+   */
+  const subscriptionExpired = computed(() => loaded.value && !hasAccess.value)
 
   /**
    * Whether a section is reachable.
@@ -93,6 +110,10 @@ export const useMembersStore = defineStore('members', () => {
       internalFeatures.value = Boolean(me.internal_features)
       organization.value = me.organization ?? null
       modules.value = me.modules ?? []
+      subscription.value = me.subscription ?? null
+      // `?? true` rather than `Boolean(...)`: an API that has not yet learned
+      // to send the field must not read as "everyone is locked out".
+      hasAccess.value = me.has_access ?? true
       // Only for an account with nowhere to be. Asking otherwise spends a round
       // trip on a list that is always empty.
       if (organization.value === null) {
@@ -100,7 +121,11 @@ export const useMembersStore = defineStore('members', () => {
       }
       // Asked for only when it can be answered: /members is owner-only, and a
       // manager opening their profile would otherwise take a guaranteed 403.
-      if (me.role === 'owner') members.value = await fetchMembers()
+      // `hasAccess` is the second half of the same rule — /members sits behind
+      // `require_member`, which refuses a lapsed tenant outright, and letting
+      // that 403 throw here would leave `loaded` false and the paywall
+      // undrawn: the one state the flag exists to render.
+      if (me.role === 'owner' && hasAccess.value) members.value = await fetchMembers()
       loaded.value = true
     } catch (err) {
       error.value = err?.response?.data?.detail ?? 'Не удалось загрузить участников.'
@@ -210,6 +235,9 @@ export const useMembersStore = defineStore('members', () => {
   return {
     role,
     organization,
+    subscription,
+    hasAccess,
+    subscriptionExpired,
     removeManager,
     modules,
     canReach,

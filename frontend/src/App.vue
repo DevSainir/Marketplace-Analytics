@@ -13,15 +13,14 @@ const members = useMembersStore()
 const router = useRouter()
 const route = useRoute()
 
-// Which routes the activation overlay may cover. Everything behind the session
-// except the profile page, which has to stay legible to somebody who has not
-// been let into a company yet.
-// Wraps every authenticated route except the ones that exist to RESOLVE being
-// blocked (the profile, the invite screen). The gate itself decides which of
-// its two refusals applies, or neither.
-const gated = computed(
-  () => Boolean(route.meta.requiresAuth) && !route.meta.allowWithoutOrganization,
-)
+// Which routes the overlay may cover: every authenticated one, without
+// exception. The gate itself decides which of its three refusals applies, or
+// none — and it is the gate rather than this line that knows the profile and
+// invite screens must stay legible to somebody waiting for an activation key.
+// That exception moved in there when the paywall arrived: a lapsed tenant has
+// nothing to do on the profile page either, so a route-level opt-out here
+// would have punched a hole straight through the paywall.
+const gated = computed(() => Boolean(route.meta.requiresAuth))
 
 // The header switcher needs the list on every authed route, not just the ones
 // the workspace guard covers. `ensureLoaded` is idempotent, so this is cheap.

@@ -12,9 +12,11 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import ConflictError, NotFoundError, ValidationError
+from src.core.logging import get_logger
 from src.core.security import decrypt_secret, encrypt_secret
 from src.modules.organizations.contract import (
     is_internal_organization,
+    load_harvestable_organization_ids,
     load_primary_organization_id,
 )
 from src.modules.workspaces.models import CATEGORY_KINDS, TokenKind, Workspace
@@ -25,6 +27,8 @@ from src.modules.workspaces.schemas import (
     WorkspaceTokensStatus,
     WorkspaceTokensUpdateRequest,
 )
+
+logger = get_logger(__name__)
 
 #: Slugs a primary workspace may store (the 13 real WB categories).
 _CATEGORY_SLUGS: frozenset[str] = frozenset(kind.value for kind in CATEGORY_KINDS)
@@ -308,18 +312,32 @@ async def load_workspace_name(session: AsyncSession, workspace_id: uuid.UUID) ->
 
 
 async def load_workspace_token_bundles(session: AsyncSession) -> list[WorkspaceTokenBundle]:
-    """Load and decrypt every workspace's WB tokens (harvest fan-out input).
+    """Load and decrypt the WB tokens of every workspace a harvest may touch.
 
     A module-level function (not a service method) because the Celery harvest
     composes its own session outside the FastAPI DI graph; exposed to other
     modules exclusively via ``contract.py``.
 
+    **This is where the paywall reaches the schedule.** Every fleet-wide
+    harvest — ``monitoring.harvest_all``, ``monitoring.refresh_buyout_cohorts``,
+    ``finreports.harvest_finance`` — starts here, so a tenant past its grace
+    window is dropped once, in one place, and a harvest written tomorrow
+    inherits the gate instead of having to remember it. Gating each task
+    separately is how one of them ends up still calling WB on an unpaid
+    tenant's tokens and spending a rate budget the paying ones share.
+
+    A skipped tenant is skipped, not broken: the filter is recomputed every
+    run, so a renewal resumes the harvest on its next tick with nothing to
+    reset. What it cannot undo is the gap — WB serves no history for the
+    advertising and cluster surfaces — which is the honest cost of not paying
+    and is stated in the log line rather than left to be discovered.
+
     Args:
         session: An open async session (caller owns the transaction).
 
     Returns:
-        One bundle per workspace, oldest first. Surfaces without a stored
-        token are empty strings.
+        One bundle per harvestable workspace, oldest first. Surfaces without a
+        stored token are empty strings.
 
     Raises:
         SecretDecryptionError: If ``FERNET_SECRET_KEY`` cannot decrypt a
@@ -333,15 +351,28 @@ async def load_workspace_token_bundles(session: AsyncSession) -> list[WorkspaceT
         by_workspace.setdefault(row.workspace_id, {})[row.kind] = decrypt_secret(
             row.token_encrypted
         )
-    # One question for the whole fan-out rather than one per workspace: at most
-    # one organisation carries the flag, so the answer is a single id compared
-    # in memory.
+    # Two questions for the whole fan-out rather than two per workspace: at most
+    # one organisation carries the primary flag, and subscriptions are one row
+    # per company, so both answers are sets compared in memory.
     primary_id = await load_primary_organization_id(session)
-    return [
+    harvestable = await load_harvestable_organization_ids(session)
+    bundles = [
         _resolve_bundle(
             ws,
             by_workspace.get(ws.id, {}),
             internal_features=primary_id is not None and ws.organization_id == primary_id,
         )
         for ws in workspaces
+        if ws.organization_id in harvestable
     ]
+    skipped = len(workspaces) - len(bundles)
+    if skipped:
+        # Said out loud on every run. A harvest that quietly returns fewer
+        # workspaces than the fleet has is indistinguishable from a broken one,
+        # and "0 rows for that seller" is the shape of both.
+        logger.info(
+            "Harvest fan-out: skipping %d of %d workspaces whose subscription is past grace.",
+            skipped,
+            len(workspaces),
+        )
+    return bundles

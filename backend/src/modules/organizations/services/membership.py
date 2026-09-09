@@ -71,12 +71,19 @@ class OrganizationService:
             organisation and its subscription. All three are ``None`` for a
             freshly registered account, which is what tells the SPA to render
             the «введите ключ активации» screen instead of the app.
+
+            ``has_access`` is the other screen: ``False`` means the tenant is
+            past its grace window and the SPA draws the paywall. Both answers
+            come from the same predicates the guards refuse by, so the app can
+            never draw a door the API would have opened, or an app behind a
+            door the API keeps shut.
         """
         payload = MeResponse(
             user_id=access.user_id,
             email=email,
             role=access.role,
             internal_features=access.sees_internal_features,
+            has_access=access.has_access,
             can_write=access.can_write,
             # The EFFECTIVE list, not the stored one. `access.modules` holds
             # what a membership row says, and dev/owner bypass it entirely in

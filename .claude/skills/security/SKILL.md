@@ -82,13 +82,19 @@ is a route that will disagree with the others.
 | Guard | Requires | Use for |
 | --- | --- | --- |
 | `CurrentAccess` | a valid token only | activation, own invitations — the only surfaces a bare account may reach |
-| `MemberAccess` | belongs to an organisation | **every data router** |
-| `WritingAccess` | + subscription not past grace | any write, any WB call, any Celery enqueue |
+| `MemberAccess` | belongs to an organisation, and its subscription is not past grace | **every data router** — this is the paywall, so a route behind it needs no separate one |
+| `WritingAccess` | + a role that writes (not a read-only manager) | any write, any WB call, any Celery enqueue |
 | `OwnerAccess` | owner (or dev) | workspaces, WB tokens, members, billing |
 | `DevAccess` | platform `dev` role | activation codes |
 
 `resolve_access()` is the ONE place platform role, membership role and subscription state
 combine. Never read `user.role` directly in a route — it answers only a third of the question.
+
+**A background task has no caller**, so it cannot use the ladder. Every fleet-wide harvest
+takes its tenants from `load_workspace_token_bundles`, which already drops an organisation
+past its grace window (`load_harvestable_organization_ids` — the task-side twin of
+`OrganizationAccess.has_access`). Write a new harvest through that loader and it inherits the
+gate; enumerate workspaces yourself and you have re-opened a paywall that costs WB budget.
 
 **Tenant scoping**:
 

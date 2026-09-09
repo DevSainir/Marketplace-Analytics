@@ -103,14 +103,15 @@ async def test_a_customers_manager_does_not_see_internal_features(
     assert access.sees_internal_features is False
 
 
-async def test_a_tenant_with_no_subscription_row_cannot_write(
+async def test_a_tenant_with_no_subscription_row_reaches_nothing(
     db_session: AsyncSession,
 ) -> None:
     """Fail closed on a row that should exist and does not.
 
     Activation writes it in the same transaction as the organisation, so this
     should be unreachable — which is exactly why it is worth pinning that the
-    unreachable case denies rather than permits.
+    unreachable case denies rather than permits. Since 2026-09-09 that denial
+    is the whole service, not just its writes.
     """
     owner = await persist_user(db_session, "owner@example.com")
     org = await OrganizationRepository(db_session).create(name="ООО Без подписки")
@@ -121,6 +122,7 @@ async def test_a_tenant_with_no_subscription_row_cannot_write(
     access = await resolve_access(db_session, user_id=owner.id, platform_role=owner.role)
 
     assert access.role is EffectiveRole.OWNER
+    assert access.has_access is False
     assert access.can_write is False
 
 

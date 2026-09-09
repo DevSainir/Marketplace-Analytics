@@ -12,6 +12,19 @@
  * So the page behind is blurred and made inert, and the card in front carries
  * the one thing that changes the situation: the activation code.
  *
+ * THREE refusals now share the blur, in priority order:
+ *   1. the subscription is past its grace window — the paywall;
+ *   2. the account belongs to no company — the activation key;
+ *   3. the company has not granted this section — nothing to type.
+ *
+ * The paywall is first because it is the widest: it covers a person who IS in
+ * a company and DOES have the section, and telling them about a module grant
+ * when the company has simply stopped paying sends them to the wrong person.
+ * It is also the one refusal that ignores `allowWithoutOrganization` — the
+ * profile page stays legible to somebody waiting for a key, because there is
+ * something there for them to do, but there is nothing on it for a lapsed
+ * tenant that renewing does not fix first.
+ *
  * **The header is deliberately NOT blurred.** It is outside this component, and
  * it must stay usable — somebody who cannot activate needs to be able to log
  * out, and trapping them behind a form they cannot complete is worse than
@@ -29,15 +42,40 @@ import { useMembersStore } from '@/modules/profile/membersStore'
 const members = useMembersStore()
 const route = useRoute()
 
-// Two reasons to be stopped, one blur. Not belonging to a company is the first;
-// belonging but not being granted this section is the second, and it used to be
-// no blur at all — a narrowed manager saw the page and watched every request on
-// it answer 403.
+// The routes that exist to RESOLVE being blocked — the profile page, the invite
+// screen. They skip the first two refusals and never skip the paywall.
+const isEscapeHatch = computed(() => Boolean(route.meta.allowWithoutOrganization))
+
+// The subscription ran out. Covers every authenticated route, this component's
+// own escape hatches included: past grace the API answers 403 everywhere, and
+// an app that keeps rendering over that is an app that looks broken.
+const paywalled = computed(() => members.subscriptionExpired)
+
+// Not belonging to a company. `hasOrganization` answers true until the API has
+// spoken, so no cold load flashes this at a member.
+const needsActivation = computed(() => !isEscapeHatch.value && !members.hasOrganization)
+
+// Belonging, but not granted this section. Used to be no blur at all — a
+// narrowed manager saw the page and watched every request on it answer 403.
 const blockedByModule = computed(
   () =>
-    Boolean(route.meta.module) && members.hasOrganization && !members.canReach(route.meta.module),
+    !isEscapeHatch.value &&
+    Boolean(route.meta.module) &&
+    members.hasOrganization &&
+    !members.canReach(route.meta.module),
 )
-const allowed = computed(() => members.hasOrganization && !blockedByModule.value)
+
+const allowed = computed(() => !paywalled.value && !needsActivation.value && !blockedByModule.value)
+
+/** «до 9 сентября 2026 г.» — the date the term ran out, when we know it. */
+const lapsedOn = computed(() => {
+  const iso = members.subscription?.expires_at
+  if (!iso) return ''
+  const parsed = new Date(iso)
+  return Number.isNaN(parsed.getTime())
+    ? ''
+    : parsed.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+})
 </script>
 
 <template>
@@ -49,10 +87,30 @@ const allowed = computed(() => members.hasOrganization && !blockedByModule.value
     </div>
 
     <div v-if="!allowed" class="gate-overlay">
+      <!-- The paywall. No form: renewal is a manual transfer between two
+           humans, so the only honest next step is «напишите нам». An owner is
+           told to renew; a manager is told who to ask, because they cannot. -->
+      <section v-if="paywalled" class="gate-card">
+        <h2 class="text-h2 font-bold tracking-tight text-primary">Подписка истекла</h2>
+        <p v-if="lapsedOn" class="mt-xs text-tiny font-medium text-muted">
+          Срок действия закончился {{ lapsedOn }}, льготные дни израсходованы.
+        </p>
+        <p class="mt-sm text-tiny font-medium text-muted">
+          <template v-if="members.isOwner">
+            Доступ к сервису закрыт до продления. Напишите нам, чтобы продлить подписку — данные
+            компании сохранены и вернутся сразу после оплаты.
+          </template>
+          <template v-else>
+            Доступ к сервису закрыт: подписка компании не продлена. Обратитесь к владельцу компании
+            — продлить её может только он.
+          </template>
+        </p>
+      </section>
+
       <!-- Narrowed manager: the section exists, they simply may not see it. No
            form here, because nothing they can type changes it — only their
            owner can. -->
-      <section v-if="blockedByModule" class="gate-card">
+      <section v-else-if="blockedByModule" class="gate-card">
         <h2 class="text-h2 font-bold tracking-tight text-primary">Раздел недоступен</h2>
         <p class="mt-xs text-tiny font-medium text-muted">
           У вас нет доступа к этому разделу. Его открывает владелец компании.

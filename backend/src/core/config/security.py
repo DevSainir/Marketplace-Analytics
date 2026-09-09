@@ -149,8 +149,8 @@ class SecuritySettings(BaseSettings):
     cors_origins: list[str] = Field(default=["http://localhost:5173", "http://localhost:3000"])
 
     # --- Subscriptions ---
-    # Days of FULL access after a subscription's expiry, before it drops to
-    # read-only. Renewal is a manual bank transfer between two humans in two
+    # Days of FULL access after a subscription's expiry, before the service
+    # closes. Renewal is a manual bank transfer between two humans in two
     # countries, and the failure this prevents — a seller locked out of their
     # own numbers on the morning their payment is still clearing — is far worse
     # than a few extra days of access. Stored per subscription so one customer

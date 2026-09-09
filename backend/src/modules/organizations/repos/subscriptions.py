@@ -31,6 +31,17 @@ class SubscriptionRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def list_all(self) -> list[Subscription]:
+        """Return every subscription row, for the harvest's fleet-wide gate.
+
+        One query rather than one per organisation: the Celery fan-out asks
+        "which tenants may I spend WB budget for" once per run, and the answer
+        is a set it compares in memory. There are as many rows here as there
+        are paying companies, so the whole table is small by construction.
+        """
+        result = await self._session.execute(select(Subscription))
+        return list(result.scalars().all())
+
     async def create(
         self,
         *,

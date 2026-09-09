@@ -1,11 +1,16 @@
 """The expiry ramp, seen from the monitoring HTTP surface.
 
 Its own module because it is a different subject from "do these routes work":
-these assertions are about *when a working route stops writing*, and they are
-the executable statement of a product promise — that expiry is a ramp and not a
-cliff. Keeping them together is what makes the pair legible: the refusals and
-the grace-window write have to be read next to each other or neither means
-anything."""
+these assertions are about *when a working route stops answering*, and they are
+the executable statement of a product promise — three days of grace, then the
+service closes. Keeping them together is what makes the set legible: the
+refusals and the grace-window write have to be read next to each other or
+neither means anything.
+
+Until 2026-09-09 the far end of the ramp was a read-only landing, and the reads
+below were expected to keep answering. They are now expected to refuse, and
+that reversal is the reason the read test is spelled out rather than folded
+into the write one."""
 
 from __future__ import annotations
 
@@ -51,11 +56,44 @@ async def test_a_lapsed_workspace_past_grace_cannot_write(
     unguarded; they still write to the seller's workspace, and the rule the
     guard states is "everything that changes state", not "everything expensive".
     """
-    login_as(subscription=SubscriptionState.READ_ONLY)
+    login_as(subscription=SubscriptionState.EXPIRED)
 
     response = await client.request(method, path, headers=headers, json=body)
 
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/monitoring/summary",
+        f"/api/v1/monitoring/skus/{NM_ID}",
+        "/api/v1/monitoring/pins",
+    ],
+)
+async def test_a_lapsed_workspace_past_grace_cannot_read_either(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    analytics: _StubAnalyticsService,
+    login_as: Callable[..., None],
+    path: str,
+) -> None:
+    """Past grace the service is CLOSED, not read-only. This is the paywall.
+
+    The assertion that matters is the second one: the guard has to refuse
+    before the service is reached, or the app would be serving a lapsed tenant
+    its data and merely declining to show it.
+
+    Changed on 2026-09-09. The previous rule kept every read answering, on the
+    reasoning that the data is the customer's own; what that produced was a
+    lapsed tenant with working dashboards and no reason to renew.
+    """
+    login_as(subscription=SubscriptionState.EXPIRED)
+
+    response = await client.get(path, headers=headers)
+
+    assert response.status_code == 403
+    assert analytics.calls == []
 
 
 async def test_the_grace_window_still_writes(

@@ -112,6 +112,11 @@ class MeResponse(BaseModel):
     ``organization``, ``subscription`` and ``members`` are all ``None`` for a
     freshly registered account — which is exactly what tells the SPA to render
     the «введите ключ активации» screen instead of the app.
+
+    This response stays reachable for a caller every other route refuses. That
+    is the point of it: an account with no organisation and a tenant past its
+    grace window both need something to load, and this is the only thing that
+    tells them which of the two they are.
     """
 
     user_id: uuid.UUID
@@ -120,7 +125,13 @@ class MeResponse(BaseModel):
     role: EffectiveRole
     #: ``True`` when the internal-only surfaces should be shown.
     internal_features: bool
-    #: ``False`` once the subscription is past its grace window.
+    #: ``False`` once the subscription is past its grace window — the flag the
+    #: SPA draws its paywall from. Every tenant-scoped route already refuses
+    #: such a caller (``require_member``); this is what lets the app say so
+    #: instead of rendering a shell whose every request comes back 403.
+    has_access: bool
+    #: ``False`` when this caller may not change anything — a lapsed tenant, or
+    #: a manager granted their sections at ``read_only``.
     can_write: bool
     #: Which surfaces this caller may reach. The API has always enforced this
     #: per route; the SPA was never told, so a narrowed manager saw every nav

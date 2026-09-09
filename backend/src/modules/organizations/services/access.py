@@ -22,15 +22,16 @@ route ever has to remember to check both.
 
 **Fail closed.** Every ambiguity here resolves toward less access: no
 membership is :attr:`EffectiveRole.USER` (which reaches nothing), and a missing
-subscription row is :attr:`SubscriptionState.READ_ONLY` rather than an
-exception. A tenant seeing a stale paywall is a support message; a tenant
-reading another company's settlement report is not recoverable.
+subscription row is :attr:`SubscriptionState.EXPIRED` rather than an exception.
+A tenant seeing a stale paywall is a support message; a tenant reading another
+company's settlement report is not recoverable.
 """
 
 from __future__ import annotations
 
 import enum
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -42,6 +43,7 @@ from src.modules.organizations.models import (
     AccessLevel,
     MemberRole,
     ModuleKey,
+    Organization,
     Subscription,
 )
 from src.modules.organizations.repos import (
@@ -72,16 +74,18 @@ class EffectiveRole(enum.StrEnum):
 class SubscriptionState(enum.StrEnum):
     """Where an organisation sits on the expiry ramp.
 
-    See :mod:`src.modules.organizations.models.subscription` for why expiry is
-    a ramp rather than a cliff.
+    See :mod:`src.modules.organizations.models.subscription` for what each
+    state costs. The ramp is short — three days of grace, then the service
+    closes.
     """
 
     #: Paid up. Everything works.
     ACTIVE = "active"
     #: Lapsed, inside the grace window. Everything still works; the UI warns.
     GRACE = "grace"
-    #: Past grace. Reads answer; writes and WB refreshes are refused.
-    READ_ONLY = "read_only"
+    #: Past grace. NOTHING tenant-scoped answers — reads included. The SPA is
+    #: left with ``/me``, which is what tells it to draw the paywall.
+    EXPIRED = "expired"
 
 
 def subscription_state(
@@ -97,18 +101,18 @@ def subscription_state(
         now: The instant to judge against; defaults to the current UTC time.
 
     Returns:
-        The state. ``None`` in means :attr:`SubscriptionState.READ_ONLY` —
-        a tenant with no term has not paid, and the safe reading of a row that
-        should exist and does not is "no access to write", never "full access".
+        The state. ``None`` in means :attr:`SubscriptionState.EXPIRED` — a
+        tenant with no term has not paid, and the safe reading of a row that
+        should exist and does not is "no access", never "full access".
     """
     if subscription is None:
-        return SubscriptionState.READ_ONLY
+        return SubscriptionState.EXPIRED
     moment = now or datetime.now(UTC)
     if moment < subscription.expires_at:
         return SubscriptionState.ACTIVE
     if moment < subscription.expires_at + timedelta(days=subscription.grace_days):
         return SubscriptionState.GRACE
-    return SubscriptionState.READ_ONLY
+    return SubscriptionState.EXPIRED
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,20 +173,39 @@ class OrganizationAccess:
         return self.role is EffectiveRole.DEV
 
     @property
+    def has_access(self) -> bool:
+        """Whether this tenant may reach the service AT ALL.
+
+        The paywall, in one property. Past the grace window the answer is no —
+        not "no writes", no anything: every tenant-scoped route is closed and
+        the SPA is left with ``/me``, which is what tells it to draw the
+        renewal screen. See the subscription model for why this stopped being
+        a read-only landing.
+
+        A dev is exempt for the same reason they are exempt from
+        :attr:`can_write` — our own access must not depend on our own billing
+        rows, or a bad backfill locks out the people who would fix it.
+        """
+        if self.role is EffectiveRole.DEV:
+            return True
+        return self.subscription is not SubscriptionState.EXPIRED
+
+    @property
     def can_write(self) -> bool:
         """Whether this request may change anything.
 
         Two independent conditions, both required: the caller must hold a role
-        that writes at all, and their tenant must not have fallen past its
-        grace window. A dev is exempt from the second — our own access must not
-        depend on our own billing rows, or a bad backfill locks out the people
-        who would fix it.
+        that writes at all, and their tenant must still have access at all.
+        Past grace :attr:`has_access` is already ``False`` and the request never
+        reaches a writing route — this stays the narrower of the two so a route
+        cannot be guarded on the wrong one, and so a read-only MANAGER inside a
+        paid-up tenant is still refused.
         """
         if self.role is EffectiveRole.DEV:
             return True
         if self.role is EffectiveRole.USER:
             return False
-        if self.subscription is SubscriptionState.READ_ONLY:
+        if not self.has_access:
             return False
         # A read-only manager is refused here rather than at each route, so a
         # new writing route inherits the restriction instead of remembering it.
@@ -254,13 +277,15 @@ async def resolve_access(
     if membership is None:
         # A dev with no membership still sees everything; anyone else sees
         # nothing. Subscription is irrelevant either way — there is no tenant to
-        # bill — so it reports READ_ONLY, which is what "may not write tenant
-        # data" means for a caller with no tenant.
+        # bill — so it reports EXPIRED, which is what "reaches no tenant data"
+        # means for a caller with no tenant. `require_member` refuses these
+        # callers on the missing organisation first, with a message they can
+        # act on (a key, or an invitation), rather than on the paywall.
         return OrganizationAccess(
             user_id=user_id,
             organization_id=None,
             role=EffectiveRole.DEV if is_dev else EffectiveRole.USER,
-            subscription=SubscriptionState.READ_ONLY,
+            subscription=SubscriptionState.EXPIRED,
             is_primary_org=False,
         )
 
@@ -308,6 +333,82 @@ async def load_primary_organization_id(session: AsyncSession) -> uuid.UUID | Non
     return primary.id if primary is not None else None
 
 
+def harvestable_organization_ids(
+    organizations: Iterable[Organization],
+    subscriptions: Iterable[Subscription],
+    *,
+    now: datetime | None = None,
+) -> frozenset[uuid.UUID]:
+    """Decide which organisations a harvest may spend WB budget for.
+
+    Pure, and takes its clock as an argument, for the same reason
+    :func:`subscription_state` is: this is a rule, and a rule that can only be
+    exercised through a database is a rule nobody exercises. The async wrapper
+    below is the part that reads rows.
+
+    Args:
+        organizations: Every organisation on the platform.
+        subscriptions: Every subscription row. Matched to organisations by
+            ``organization_id``; an organisation with no row is not matched,
+            and that is the case this fails closed on.
+        now: The instant to judge against; defaults to the current UTC time.
+
+    Returns:
+        The ids a harvest may touch — the primary organisation always, and
+        every other one whose term is inside ``active`` or ``grace``.
+    """
+    states = {
+        subscription.organization_id: subscription_state(subscription, now=now)
+        for subscription in subscriptions
+    }
+    return frozenset(
+        organization.id
+        for organization in organizations
+        # `.get` defaults to EXPIRED rather than to "unknown, allow": a missing
+        # row must not buy a harvest the tenant has not paid for.
+        if organization.is_primary
+        or states.get(organization.id, SubscriptionState.EXPIRED) is not SubscriptionState.EXPIRED
+    )
+
+
+async def load_harvestable_organization_ids(session: AsyncSession) -> frozenset[uuid.UUID]:
+    """Read the rows :func:`harvestable_organization_ids` decides on.
+
+    The task-side twin of :attr:`OrganizationAccess.has_access`. A request asks
+    that property; a Celery harvest has no request and no caller, so it asks
+    here — the same question, decided by the same :func:`subscription_state`,
+    so a tenant cannot be closed to its own owner and still be harvested on the
+    schedule.
+
+    Without this the paywall had a hole with a bill attached: an expired tenant
+    reached nothing in the app while ``monitoring.harvest_all`` and
+    ``finreports.harvest_finance`` kept calling WB on its tokens every night —
+    spending a rate budget shared with paying customers to keep filling tables
+    nobody could open.
+
+    **The primary organisation is always harvestable**, for the reason a dev is
+    always let in: our own data collection must not depend on our own billing
+    rows, and the gap a stopped harvest leaves is one WB will not serve back.
+
+    Answered as one set rather than a question per workspace: at most one row
+    per company, so the whole thing is two reads and an in-memory comparison,
+    and a fan-out over N workspaces stays two queries rather than 2N.
+
+    Args:
+        session: An open async session (caller owns the transaction).
+
+    Returns:
+        The ids a harvest may touch. An organisation whose subscription row is
+        missing is NOT in the set — the same fail-closed reading
+        :func:`subscription_state` gives a request, and the safer error for a
+        harvest, which spends money.
+    """
+    return harvestable_organization_ids(
+        await OrganizationRepository(session).list_all(),
+        await SubscriptionRepository(session).list_all(),
+    )
+
+
 async def is_internal_organization(session: AsyncSession, organization_id: uuid.UUID) -> bool:
     """Whether an organisation is OURS — the task-side internal-feature gate.
 
@@ -344,7 +445,9 @@ __all__ = [
     "ModuleKey",
     "OrganizationAccess",
     "SubscriptionState",
+    "harvestable_organization_ids",
     "is_internal_organization",
+    "load_harvestable_organization_ids",
     "load_primary_organization_id",
     "resolve_access",
     "subscription_state",
