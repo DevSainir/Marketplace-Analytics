@@ -97,7 +97,11 @@ export const useFinReportsStore = defineStore('finreports', () => {
    */
   async function loadHarvestState() {
     try {
-      harvestState.value = await fetchHarvestState()
+      const state = await fetchHarvestState()
+      harvestState.value = state
+      // A harvest in flight is server state, so a reload lands back in it
+      // rather than showing an idle button over a run that is still going.
+      resumeWatch(state)
     } catch {
       // Silent by design — see above.
     }
@@ -403,16 +407,17 @@ export const useFinReportsStore = defineStore('finreports', () => {
   // The manual «Обновить» trigger. It owns the request and the waiting; the
   // store keeps the one decision that is about the period rather than about
   // harvesting — what a newly arrived week does to the window on screen.
-  const { harvestRunning, harvestNotice, harvestError, refreshFromWb } = useHarvestRefresh({
-    currentSettled: () => fullSpan.value?.date_to ?? '',
-    onNewReports: adoptNewReports,
-    // Every poll refreshes the freshness line for free. Without this the line
-    // would still describe the situation from before the run the seller just
-    // watched finish — the one moment they are certainly looking at it.
-    onState: (state) => {
-      harvestState.value = state
-    },
-  })
+  const { harvestRunning, harvestNotice, harvestError, refreshFromWb, resumeWatch } =
+    useHarvestRefresh({
+      currentSettled: () => fullSpan.value?.date_to ?? '',
+      onNewReports: adoptNewReports,
+      // Every poll refreshes the freshness line for free. Without this the line
+      // would still describe the situation from before the run the seller just
+      // watched finish — the one moment they are certainly looking at it.
+      onState: (state) => {
+        harvestState.value = state
+      },
+    })
 
   return {
     weeks,

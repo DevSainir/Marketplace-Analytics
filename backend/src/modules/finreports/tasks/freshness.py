@@ -30,15 +30,22 @@ nothing without «и мы спросили 12 минут назад».
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, date, datetime, timedelta
 
 from src.core.config import settings
+from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
+from src.core.redis import get_redis
 from src.integrations.wildberries.clients import WBFinanceClient
+from src.modules.finreports.constants import FRESHNESS_RECORD_TTL_SECONDS
+from src.modules.finreports.repos import FinancialReportRepository
 from src.modules.finreports.services.freshness_record import (
     FreshnessOutcome,
+    FreshnessRecordStore,
     FreshnessVerdict,
+    RedisFreshnessRecordStore,
 )
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
@@ -156,4 +163,56 @@ async def check_freshness(
     )
 
 
-__all__ = ["check_freshness", "probe_window"]
+def freshness_record_store() -> FreshnessRecordStore:
+    """The store the harvest records its verdicts in.
+
+    A function rather than a module-level instance for the same reason
+    :func:`src.core.redis.get_redis` is one: the client is resolved per call, so
+    a test that swaps the shared Redis redirects this too.
+    """
+    return RedisFreshnessRecordStore(get_redis(), ttl_seconds=FRESHNESS_RECORD_TTL_SECONDS)
+
+
+async def verdict_from_walk(
+    *,
+    workspace_id: uuid.UUID,
+    settled_before: date | None,
+    date_from: date,
+    date_to: date,
+) -> FreshnessVerdict:
+    """Turn a completed settlement walk into the freshness verdict it proves.
+
+    Only called when every finance window came back, so WB *did* answer about
+    the walked span. What it answered is read off the settlement coverage: a day
+    past where the history stood is a report we did not hold, and no movement
+    means WB had nothing past it.
+
+    Args:
+        workspace_id: The workspace just harvested.
+        settled_before: Its settlement coverage before this walk.
+        date_from / date_to: The span the walk covered — the days WB was asked
+            about, which is what the verdict's window means.
+
+    Returns:
+        ``WB_HAS_NEW`` when the walk moved the settlement coverage forward,
+        ``WB_EMPTY`` when it did not.
+    """
+    async with AsyncSessionLocal() as session:
+        settled_after = await FinancialReportRepository(session).latest_settled_date(
+            workspace_id=workspace_id
+        )
+    moved = settled_after is not None and (settled_before is None or settled_after > settled_before)
+    return FreshnessVerdict(
+        outcome=FreshnessOutcome.WB_HAS_NEW if moved else FreshnessOutcome.WB_EMPTY,
+        checked_at=datetime.now(UTC),
+        probe_from=date_from,
+        probe_to=date_to,
+    )
+
+
+__all__ = [
+    "check_freshness",
+    "freshness_record_store",
+    "probe_window",
+    "verdict_from_walk",
+]

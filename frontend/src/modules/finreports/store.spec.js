@@ -415,6 +415,66 @@ describe('«Обновить» — the manual WB harvest', () => {
     expect(fetchHarvestState).toHaveBeenCalled()
   })
 
+  it('comes back to a running harvest after a page reload', async () => {
+    // The state that matters here is the SERVER's, not the click's. It lived
+    // only in the store, so reloading mid-run put «Обновить» back on an
+    // enabled button over a harvest that was still going — clicking it again
+    // did nothing, and the seller had no way to tell whether their refresh was
+    // still happening.
+    fetchHarvestState.mockResolvedValue({
+      running: true,
+      latest_settled: '2026-07-19',
+      latest_report: null,
+      last_check: null,
+    })
+
+    await store.loadHarvestState()
+
+    expect(store.harvestRunning).toBe(true)
+    expect(store.harvestNotice).toContain('Обновление уже идёт')
+  })
+
+  it('resolves a resumed harvest the same way a clicked one resolves', async () => {
+    fetchHarvestState
+      .mockResolvedValueOnce({ running: true, latest_settled: '2026-07-19' })
+      .mockResolvedValue({ running: false, latest_settled: '2026-07-19' })
+
+    await settle(() => store.loadHarvestState())
+
+    expect(store.harvestRunning).toBe(false)
+    expect(store.harvestNotice).toBe('Новых отчётов у Wildberries пока нет.')
+  })
+
+  it('does not announce a new week for a run it only joined halfway', async () => {
+    // The baseline is the settlement day the resumed state itself carries. It
+    // used to be the store's own span, which is still empty this early in a
+    // page load — and every non-empty day differs from an empty string, so a
+    // run that brought nothing would be announced as «Загружен отчёт по …».
+    fetchHarvestState
+      .mockResolvedValueOnce({ running: true, latest_settled: '2026-07-19' })
+      .mockResolvedValue({ running: false, latest_settled: '2026-07-19' })
+
+    await settle(() => store.loadHarvestState())
+
+    expect(store.harvestNotice).not.toContain('Загружен')
+    expect(fetchWeeks).not.toHaveBeenCalled()
+  })
+
+  it('does not start a second poll loop for a harvest it is already watching', async () => {
+    // Two loops over one harvest fire `onNewReports` twice for one arrival —
+    // two statement reloads, and the period jumping forward twice.
+    triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
+    fetchHarvestState.mockResolvedValue({ running: false, latest_settled: '2026-07-19' })
+
+    const clicked = store.refreshFromWb()
+    await store.loadHarvestState()
+    await vi.runAllTimersAsync()
+    await clicked
+
+    expect(triggerHarvest).toHaveBeenCalledTimes(1)
+    expect(store.harvestRunning).toBe(false)
+  })
+
   it('ignores a second click while one refresh is still in flight', async () => {
     await store.loadWeeks()
     triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })

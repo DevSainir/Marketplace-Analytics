@@ -28,7 +28,7 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessVerdict,
     freshness_key,
 )
-from src.modules.finreports.tasks import harvest
+from src.modules.finreports.tasks import freshness, harvest
 from src.modules.finreports.tasks.harvest import harvest_all_workspaces
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
@@ -43,6 +43,10 @@ class _FakeRedis:
 
     def __init__(self) -> None:
         self.store: dict[str, str] = {}
+        #: Every value written to the freshness key, in order. The run records
+        #: twice — before the branch and again from the walk — and which came
+        #: first is a property in its own right.
+        self.freshness_writes: list[str] = []
 
     async def exists(self, key: str) -> int:
         return 1 if key in self.store else 0
@@ -62,6 +66,8 @@ class _FakeRedis:
         if nx and key in self.store:
             return None
         self.store[key] = value
+        if key == freshness_key(WORKSPACE):
+            self.freshness_writes.append(value)
         return True
 
     async def eval(self, script: str, numkeys: int, *args: str) -> int:
@@ -114,9 +120,30 @@ class _FakeWatermarkRepo:
         return SETTLED
 
 
+class _FakeReportRepo:
+    """Reports the settlement coverage the walk left behind."""
+
+    #: Rebound per test — what ``latest_settled_date`` answers after the walk.
+    settled_after: date | None = SETTLED
+
+    def __init__(self, _session: object) -> None:
+        pass
+
+    async def latest_settled_date(self, *, workspace_id: uuid.UUID) -> date | None:
+        return _FakeReportRepo.settled_after
+
+
 def _bundle() -> WorkspaceTokenBundle:
     """One workspace with a usable statistics token."""
     return WorkspaceTokenBundle(workspace_id=WORKSPACE, name="Демо", statistics="stat-token")
+
+
+@pytest.fixture(autouse=True)
+def _settled_after_the_walk() -> Any:
+    """Default: the walk moved nothing, which is the ordinary quiet week."""
+    _FakeReportRepo.settled_after = SETTLED
+    yield
+    _FakeReportRepo.settled_after = SETTLED
 
 
 @pytest.fixture
@@ -127,8 +154,13 @@ def redis_and_walk(monkeypatch: pytest.MonkeyPatch) -> Any:
     should reach, and giving back ``(redis, walked)``.
     """
 
-    def _run(redis: _FakeRedis, verdict: FreshnessVerdict) -> tuple[_FakeRedis, list[uuid.UUID]]:
+    def _run(
+        redis: _FakeRedis,
+        verdict: FreshnessVerdict,
+        walk_counts: dict[str, int] | None = None,
+    ) -> tuple[_FakeRedis, list[uuid.UUID]]:
         walked: list[uuid.UUID] = []
+        counts = {"finance_windows_failed": 0} if walk_counts is None else walk_counts
 
         async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
             return [_bundle()]
@@ -138,11 +170,16 @@ def redis_and_walk(monkeypatch: pytest.MonkeyPatch) -> Any:
 
         async def _walk(*, tokens: WorkspaceTokenBundle, **_kwargs: object) -> dict[str, int]:
             walked.append(tokens.workspace_id)
-            return {}
+            return counts
 
+        # The lock lives in `harvest`; the freshness record and the walk's own
+        # verdict live in `freshness`. Both reach Redis through `get_redis`.
         monkeypatch.setattr(harvest, "get_redis", lambda: redis)
+        monkeypatch.setattr(freshness, "get_redis", lambda: redis)
         monkeypatch.setattr(harvest, "AsyncSessionLocal", _FakeSession)
+        monkeypatch.setattr(freshness, "AsyncSessionLocal", _FakeSession)
         monkeypatch.setattr(harvest, "SettlementWatermarkRepository", _FakeWatermarkRepo)
+        monkeypatch.setattr(freshness, "FinancialReportRepository", _FakeReportRepo)
         monkeypatch.setattr(harvest, "load_workspace_token_bundles", _bundles)
         monkeypatch.setattr(harvest, "check_freshness", _check)
         monkeypatch.setattr(harvest, "harvest_workspace", _walk)
@@ -189,12 +226,15 @@ async def test_a_tick_that_harvests_records_the_same_way(redis_and_walk: Any) ->
         probe_from=date(2026, 9, 7),
         probe_to=date(2026, 9, 8),
     )
+    _FakeReportRepo.settled_after = date(2026, 9, 13)
     redis, walked = redis_and_walk(_FakeRedis(), verdict)
 
     await harvest_all_workspaces(days=28)
 
+    stored = _stored(redis)
     assert walked == [WORKSPACE]
-    assert _stored(redis) == verdict
+    assert stored is not None
+    assert stored.outcome is FreshnessOutcome.WB_HAS_NEW
 
 
 async def test_a_failed_probe_is_recorded_as_a_failure_and_still_harvests(
@@ -202,9 +242,11 @@ async def test_a_failed_probe_is_recorded_as_a_failure_and_still_harvests(
 ) -> None:
     """WB not answering may never be stored as «нового ничего нет».
 
-    The stored outcome is what the page reads; if a failed probe were recorded
-    as an empty answer, the page would report silence as reassurance — the exact
-    failure this feature exists to prevent.
+    Recorded at the moment of the branch, before the walk it fails open into has
+    proved anything. If a failed probe went down as an empty answer the page
+    would report silence as reassurance — the exact failure this feature exists
+    to prevent — and a harvest that then died would leave that reassurance
+    standing.
     """
     verdict = FreshnessVerdict(
         outcome=FreshnessOutcome.PROBE_FAILED,
@@ -216,10 +258,65 @@ async def test_a_failed_probe_is_recorded_as_a_failure_and_still_harvests(
 
     await harvest_all_workspaces(days=28)
 
+    first = FreshnessVerdict.from_json(json.loads(redis.freshness_writes[0]))
+    assert first is not None
+    assert first.outcome is FreshnessOutcome.PROBE_FAILED
+    assert walked == [WORKSPACE]
+
+
+async def test_a_completed_walk_supersedes_the_failed_probe_that_let_it_run(
+    redis_and_walk: Any,
+) -> None:
+    """The walk asked the same days and got an answer — the probe's silence is stale.
+
+    Prod, 2026-09-09: the probe hit the settlement endpoint's 15-minute block
+    and 429'd, the gate failed open, and seven minutes later the walk asked the
+    same window and got 204 — proof there was nothing new. Left at
+    `probe_failed` the page warns «данные могут быть неполными» over a statement
+    that has just been confirmed complete, until the next tick happens to
+    succeed.
+    """
+    redis, walked = redis_and_walk(
+        _FakeRedis(),
+        FreshnessVerdict(
+            outcome=FreshnessOutcome.PROBE_FAILED,
+            checked_at=datetime(2026, 9, 9, 6, 14, tzinfo=UTC),
+            probe_from=date(2026, 9, 7),
+            probe_to=date(2026, 9, 8),
+        ),
+    )
+
+    await harvest_all_workspaces(days=28)
+
+    stored = _stored(redis)
+    assert walked == [WORKSPACE]
+    assert stored is not None
+    assert stored.outcome is FreshnessOutcome.WB_EMPTY
+
+
+async def test_a_walk_that_lost_a_window_leaves_the_failure_standing(
+    redis_and_walk: Any,
+) -> None:
+    """A partly-failed walk proves nothing, so it may not overwrite a warning.
+
+    This is the direction that must never be got wrong: upgrading an incomplete
+    walk to «нового ничего нет» would report a gap in the data as reassurance —
+    the same failure as narrating a failed probe that way.
+    """
+    redis, _ = redis_and_walk(
+        _FakeRedis(),
+        FreshnessVerdict(
+            outcome=FreshnessOutcome.PROBE_FAILED,
+            checked_at=datetime(2026, 9, 9, 6, 14, tzinfo=UTC),
+        ),
+        {"finance_windows_failed": 1},
+    )
+
+    await harvest_all_workspaces(days=28)
+
     stored = _stored(redis)
     assert stored is not None
     assert stored.outcome is FreshnessOutcome.PROBE_FAILED
-    assert walked == [WORKSPACE]
 
 
 async def test_a_redis_outage_does_not_reach_the_harvest_it_annotates(
