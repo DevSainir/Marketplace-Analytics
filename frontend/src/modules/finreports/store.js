@@ -100,8 +100,9 @@ export const useFinReportsStore = defineStore('finreports', () => {
       const state = await fetchHarvestState()
       harvestState.value = state
       // A harvest in flight is server state, so a reload lands back in it
-      // rather than showing an idle button over a run that is still going.
-      resumeWatch(state)
+      // rather than showing an idle button over a run that is still going —
+      // and a refresh this browser asked for is picked up either way.
+      await resumeWatch(state)
     } catch {
       // Silent by design — see above.
     }

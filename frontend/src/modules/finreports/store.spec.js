@@ -14,6 +14,7 @@ import {
   setSkuExclusion,
   triggerHarvest,
 } from '@/modules/finreports/api'
+import { writePendingRefresh } from '@/modules/finreports/pendingRefresh'
 import { useFinReportsStore } from '@/modules/finreports/store'
 
 vi.mock('@/modules/finreports/api', () => ({
@@ -40,6 +41,20 @@ const WEEKS = [
 const REPORT = { totals: { payout_net: '2010193.84' }, rows: [], unallocated: null, notes: [] }
 
 let store
+
+/**
+ * A store as a fresh page load sees it — new Pinia, nothing in memory, and
+ * whatever the browser wrote down still in `localStorage`. This is the whole
+ * subject of the reload tests, so it has to be a real second store rather than
+ * the same one with its refs poked.
+ */
+function freshStore() {
+  setActivePinia(createPinia())
+  return useFinReportsStore()
+}
+
+/** A click older than the poll ever waits, so its note no longer counts. */
+const OLD_CLICK = new Date(Date.now() - 21 * 60 * 1000).toISOString()
 
 beforeEach(() => {
   localStorage.clear()
@@ -413,6 +428,74 @@ describe('«Обновить» — the manual WB harvest', () => {
 
     expect(triggerHarvest).toHaveBeenCalledTimes(1)
     expect(fetchHarvestState).toHaveBeenCalled()
+  })
+
+  it('measures a resumed run against the day of the click, not of the reload', async () => {
+    // The comparison that decides «Загружен отчёт по …» vs «новых отчётов нет»
+    // is against the moment of the CLICK. A reload has forgotten that moment,
+    // and by then the history may already have moved — comparing the new day
+    // against itself reports a week that did arrive as nothing new. The note
+    // is what carries the baseline across.
+    writePendingRefresh('task-1', '2026-07-19')
+    fetchHarvestState
+      .mockResolvedValueOnce({ running: true, latest_settled: '2026-07-26' })
+      .mockResolvedValue({ running: false, latest_settled: '2026-07-26' })
+    fetchWeeks.mockResolvedValue({
+      weeks: [{ report_id: 786, date_from: '2026-07-20', date_to: '2026-07-26' }, ...WEEKS],
+    })
+
+    await settle(() => store.loadHarvestState())
+
+    expect(store.harvestNotice).toContain('2026-07-26')
+  })
+
+  it('reports how a refresh ended when it finished while the tab was away', async () => {
+    // The other end of the same gap: nothing holds the lock after the task
+    // finishes either, so a reload a minute later found `running: false` and
+    // said nothing at all — the click just vanished. The note carries the day
+    // the click was measured against, so the answer is still computable.
+    writePendingRefresh('task-1', '2026-07-19')
+    fetchHarvestState.mockResolvedValue({ running: false, latest_settled: '2026-07-26' })
+    fetchWeeks.mockResolvedValue({
+      weeks: [{ report_id: 786, date_from: '2026-07-20', date_to: '2026-07-26' }, ...WEEKS],
+    })
+
+    await store.loadHarvestState()
+
+    expect(store.harvestRunning).toBe(false)
+    expect(store.harvestNotice).toContain('2026-07-26')
+  })
+
+  it('does not resurrect a refresh once it has been resolved', async () => {
+    // The note is cleared at the ending, so the next reload is an ordinary
+    // page load. Left behind, it would re-announce the same result on every
+    // visit for the rest of its lifetime.
+    await store.loadWeeks()
+    triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
+    fetchHarvestState.mockResolvedValue({ running: false, latest_settled: '2026-07-19' })
+    await settle(() => store.refreshFromWb())
+
+    const reloaded = freshStore()
+    await reloaded.loadHarvestState()
+
+    expect(reloaded.harvestNotice).toBe('')
+    expect(reloaded.harvestRunning).toBe(false)
+  })
+
+  it('gives the button back when the note is older than the poll ever waits', async () => {
+    // A worker killed mid-task holds no lock and finishes nothing. A note with
+    // no expiry would disable «Обновить» for good — a worse failure than the
+    // one it exists to fix.
+    localStorage.setItem(
+      'finreports:pending-refresh',
+      JSON.stringify({ task_id: 'task-1', settled_before: '2026-07-19', asked_at: OLD_CLICK }),
+    )
+    fetchHarvestState.mockResolvedValue({ running: false, latest_settled: '2026-07-19' })
+
+    await store.loadHarvestState()
+
+    expect(store.harvestRunning).toBe(false)
+    expect(store.harvestNotice).toBe('')
   })
 
   it('comes back to a running harvest after a page reload', async () => {

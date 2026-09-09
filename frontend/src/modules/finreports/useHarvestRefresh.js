@@ -15,19 +15,33 @@
  * week means for the visible period is a question about the period, not about
  * harvesting.
  *
- * The "is a harvest running" half is **server state, not a click**. It used to
- * live only in this ref, so reloading the page mid-run put the button back to
- * «Обновить» over a harvest that was still going: clicking it again did
- * nothing, and the seller had no way to tell whether their refresh was still
- * happening. `resumeWatch` adopts what the server reports instead, which is
- * also what makes the state correct for a run somebody ELSE started — the
- * harvest lock is platform-wide, so a colleague's refresh, or the hourly
- * schedule, is exactly as much "a harvest is running" as your own click.
+ * A refresh in progress survives a reload, and that takes **two** sources,
+ * because neither covers the whole wait on its own:
+ *
+ * * The server's `running` flag — the harvest lock — which is the only thing
+ *   that knows about a run somebody ELSE started. The lock is platform-wide, so
+ *   a colleague's click, or the hourly schedule, is exactly as much "a harvest
+ *   is running" as your own.
+ * * A note this browser writes at the click (`pendingRefresh.js`), because the
+ *   lock is held by the TASK and the task is not the click. Nothing holds it
+ *   between the POST returning and the worker picking the job up, and nothing
+ *   holds it after the task ends — yet in both windows the seller is still
+ *   waiting for what they asked for, and a reload landing in either one saw
+ *   `running: false` and dropped the state.
+ *
+ * `resumeWatch` reads both, which is also why a reload after the run finished
+ * shows the OUTCOME rather than a blank header: the note carries the settlement
+ * day the click was measured against, so the answer is still computable.
  */
 import { ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
 import { fetchHarvestState, triggerHarvest } from '@/modules/finreports/api'
+import {
+  clearPendingRefresh,
+  readPendingRefresh,
+  writePendingRefresh,
+} from '@/modules/finreports/pendingRefresh'
 
 /** How often to ask whether the harvest has finished. */
 const POLL_MS = 5000
@@ -108,40 +122,80 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
       }
       onState?.(state)
       if (state.running) continue
-      harvestRunning.value = false
-      if (state.latest_settled && state.latest_settled !== settledBefore) {
-        await onNewReports()
-        harvestNotice.value = `Загружен отчёт по ${state.latest_settled}.`
-      } else {
-        harvestNotice.value = 'Новых отчётов у Wildberries пока нет.'
-      }
+      await concludeHarvest(state, settledBefore)
       return
     }
     harvestRunning.value = false
+    // The note goes too: the page has stopped claiming to watch this run, so
+    // the next reload must not resume a wait nothing is reporting on.
+    clearPendingRefresh()
     harvestNotice.value = 'Обновление идёт дольше обычного — оно продолжится в фоне.'
   }
 
   /**
-   * Adopt a harvest the server says is already running.
+   * Say how a finished harvest ended, and stop calling it pending.
    *
-   * Called with the state the page reads on load, so a reload mid-run comes
-   * back to the same disabled button and the same notice instead of pretending
-   * nothing is happening.
+   * Both endings are successes and only the settlement day tells them apart,
+   * which is why the baseline is threaded this far rather than read off the
+   * store: by the time this runs, the store may already hold the new week.
    *
-   * The baseline is the settlement day carried by THAT state, not
-   * `currentSettled()`: this runs before the weeks are loaded, so the store's
-   * span is still empty, and comparing against an empty string would announce
-   * «Загружен отчёт по …» for a run that brought nothing.
+   * @param {{latest_settled: string|null}|null} state The state that showed it idle.
+   * @param {string} settledBefore Settlement day when the refresh was asked for.
+   */
+  async function concludeHarvest(state, settledBefore) {
+    harvestRunning.value = false
+    clearPendingRefresh()
+    if (state?.latest_settled && state.latest_settled !== settledBefore) {
+      await onNewReports()
+      harvestNotice.value = `Загружен отчёт по ${state.latest_settled}.`
+    } else {
+      harvestNotice.value = 'Новых отчётов у Wildberries пока нет.'
+    }
+  }
+
+  /**
+   * Pick a refresh back up after a page load.
+   *
+   * Three endings, and which one applies is decided by the server's `running`
+   * flag together with this browser's note (see the module docstring on why
+   * neither is enough alone):
+   *
+   * * A harvest is running — adopt it, so the reload comes back to the same
+   *   disabled button and notice instead of pretending nothing is happening.
+   * * Nothing is running but this browser asked for one — it finished while the
+   *   tab was away, so report how it ended rather than silently dropping it.
+   * * Neither — an ordinary page load, and nothing to say.
+   *
+   * The baseline is never `currentSettled()`: this runs before the weeks are
+   * loaded, so the store's span is still empty, and every real day differs from
+   * an empty string — a run that brought nothing would be announced as
+   * «Загружен отчёт по …».
    *
    * @param {{running: boolean, latest_settled: string|null}|null} state
    */
-  function resumeWatch(state) {
-    if (!state?.running || harvestRunning.value || watching) return
+  async function resumeWatch(state) {
+    if (harvestRunning.value || watching) return
+    const pending = readPendingRefresh()
+    if (!state?.running && !pending) return
+    // The click's own baseline wins over the state we just read: by the time a
+    // reload happens the history may already have moved, and comparing the new
+    // day against itself would report a week that DID arrive as «новых отчётов
+    // нет». Falling back to the state's day covers a run this browser never
+    // asked for, where there is no click to have a baseline.
+    const settledBefore = pending?.settled_before ?? state?.latest_settled ?? ''
+    if (!state?.running) {
+      // Asked for, and already over — the tab was closed for it. Nothing to
+      // wait on, so report how it ended instead of spinning for five seconds
+      // to rediscover that it is finished. Awaited, unlike the branch below:
+      // this one resolves in a round trip, not in minutes.
+      await concludeHarvest(state, settledBefore)
+      return
+    }
     harvestRunning.value = true
     harvestError.value = ''
     harvestNotice.value = RUNNING_NOTICE
     // Not awaited: the caller is a page load, and the wait is minutes long.
-    void watchHarvest(state.latest_settled ?? '')
+    void watchHarvest(settledBefore)
   }
 
   /** Trigger a harvest (unless one is running) and wait it out. */
@@ -156,7 +210,10 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
     harvestNotice.value = ''
     const settledBefore = currentSettled()
     try {
-      const { status } = await triggerHarvest()
+      const { status, task_id: taskId } = await triggerHarvest()
+      // Written before the wait, not after it: the whole point is to survive a
+      // reload, and a reload during the wait is the case this covers.
+      writePendingRefresh(taskId, settledBefore)
       harvestNotice.value =
         status === 'already_running' ? RUNNING_NOTICE : 'Спрашиваем Wildberries о новых отчётах…'
     } catch (error) {
