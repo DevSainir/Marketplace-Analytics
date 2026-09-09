@@ -8,7 +8,10 @@ the idempotent :class:`BaseRepository.bulk_upsert` (re-harvest overwrites).
 from src.modules.finreports.repos.balance_pin import BalancePinRepository
 from src.modules.finreports.repos.base import BaseRepository
 from src.modules.finreports.repos.cost_price import CostPriceRepository
-from src.modules.finreports.repos.financial_report import FinancialReportRepository
+from src.modules.finreports.repos.financial_report import (
+    FinancialReportRepository,
+    LatestReportHeader,
+)
 from src.modules.finreports.repos.pnl import (
     PnlGrouping,
     PnlRepository,
@@ -29,6 +32,7 @@ __all__ = [
     "BaseRepository",
     "CostPriceRepository",
     "FinancialReportRepository",
+    "LatestReportHeader",
     "LogisticsTransactionRepository",
     "PnlGrouping",
     "PnlRepository",

@@ -16,14 +16,19 @@ be raced) is proved in ``tests/unit/finreports/test_harvest_single_flight.py``.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any
 
 import httpx
 import pytest
 
 from src.modules.finreports.deps import get_harvest_control_service
+from src.modules.finreports.repos import LatestReportHeader
 from src.modules.finreports.services import HarvestState
+from src.modules.finreports.services.freshness_record import (
+    FreshnessOutcome,
+    FreshnessVerdict,
+)
 from src.modules.users.deps import get_user_repo
 from src.modules.workspaces.contract import WORKSPACE_HEADER
 from src.modules.workspaces.deps import get_workspace_repo
@@ -32,6 +37,18 @@ from tests.support.auth import auth_headers
 from tests.support.fakes import FakeUserRepository, FakeWorkspaceRepository
 
 SETTLED_THROUGH = date(2026, 8, 9)
+LATEST_REPORT = LatestReportHeader(
+    report_id=969371534,
+    date_from=date(2026, 8, 3),
+    date_to=SETTLED_THROUGH,
+    harvested_at=datetime(2026, 8, 11, 6, 14, tzinfo=UTC),
+)
+LAST_CHECK = FreshnessVerdict(
+    outcome=FreshnessOutcome.WB_EMPTY,
+    checked_at=datetime(2026, 8, 12, 9, 0, tzinfo=UTC),
+    probe_from=date(2026, 8, 10),
+    probe_to=date(2026, 8, 11),
+)
 
 
 class _StubHarvestControl:
@@ -41,11 +58,18 @@ class _StubHarvestControl:
         """Start idle, settled through :data:`SETTLED_THROUGH`."""
         self.running = False
         self.calls: list[dict[str, Any]] = []
+        self.latest_report: LatestReportHeader | None = LATEST_REPORT
+        self.last_check: FreshnessVerdict | None = LAST_CHECK
 
     async def get_state(self, **kwargs: Any) -> HarvestState:
         """Echo the caller's scope back through a canned state."""
         self.calls.append(kwargs)
-        return HarvestState(running=self.running, latest_settled=SETTLED_THROUGH)
+        return HarvestState(
+            running=self.running,
+            latest_settled=SETTLED_THROUGH,
+            latest_report=self.latest_report,
+            last_check=self.last_check,
+        )
 
 
 class _SpyTask:
@@ -175,7 +199,72 @@ async def test_the_status_poll_reports_liveness_and_coverage(
     response = await client.get("/api/v1/finreports/harvest", headers=headers)
 
     assert response.status_code == 200
-    assert response.json() == {"running": True, "latest_settled": "2026-08-09"}
+    assert response.json()["running"] is True
+    assert response.json()["latest_settled"] == "2026-08-09"
+
+
+async def test_the_poll_carries_what_we_hold_and_when_we_last_asked(
+    client: httpx.AsyncClient, headers: dict[str, str]
+) -> None:
+    """Both halves of the freshness line, or neither is worth showing.
+
+    «Новых отчётов нет» means nothing without «и мы спросили 12 минут назад»: a
+    confident "nothing new" that is six hours stale is a dead harvester wearing
+    the same words. So the report we hold and the last verdict travel together.
+    """
+    response = await client.get("/api/v1/finreports/harvest", headers=headers)
+
+    body = response.json()
+    assert body["latest_report"] == {
+        "report_id": 969371534,
+        "date_from": "2026-08-03",
+        "date_to": "2026-08-09",
+        "harvested_at": "2026-08-11T06:14:00Z",
+    }
+    assert body["last_check"] == {
+        "outcome": "wb_empty",
+        "checked_at": "2026-08-12T09:00:00Z",
+        "probe_from": "2026-08-10",
+        "probe_to": "2026-08-11",
+    }
+
+
+async def test_a_failed_probe_travels_as_a_failure(
+    client: httpx.AsyncClient, headers: dict[str, str], control: _StubHarvestControl
+) -> None:
+    """WB not answering must never reach the page as «нового ничего нет».
+
+    The endpoint relays the outcome verbatim rather than collapsing it to a
+    boolean: an unanswered question dressed as reassurance is the exact failure
+    this surface exists to prevent.
+    """
+    control.last_check = FreshnessVerdict(
+        outcome=FreshnessOutcome.PROBE_FAILED,
+        checked_at=datetime(2026, 8, 12, 9, 0, tzinfo=UTC),
+        probe_from=date(2026, 8, 10),
+        probe_to=date(2026, 8, 11),
+    )
+
+    response = await client.get("/api/v1/finreports/harvest", headers=headers)
+
+    assert response.json()["last_check"]["outcome"] == "probe_failed"
+
+
+async def test_nothing_recorded_reads_as_nothing_recorded(
+    client: httpx.AsyncClient, headers: dict[str, str], control: _StubHarvestControl
+) -> None:
+    """Never checked, expired, or a corrupt record all arrive as null.
+
+    The page renders that as «мы не проверяли» — the honest answer, and a
+    warning rather than a reassurance.
+    """
+    control.last_check = None
+    control.latest_report = None
+
+    response = await client.get("/api/v1/finreports/harvest", headers=headers)
+
+    assert response.json()["last_check"] is None
+    assert response.json()["latest_report"] is None
 
 
 async def test_the_state_is_scoped_to_the_active_workspace(

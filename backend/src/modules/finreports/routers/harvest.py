@@ -22,7 +22,12 @@ from __future__ import annotations
 from fastapi import APIRouter, status
 
 from src.modules.finreports.deps import HarvestControlServiceDep
-from src.modules.finreports.schemas import HarvestStateResponse, HarvestTriggerResponse
+from src.modules.finreports.schemas import (
+    FreshnessCheckOut,
+    HarvestStateResponse,
+    HarvestTriggerResponse,
+    LatestReportOut,
+)
 from src.modules.finreports.tasks import harvest_finance
 from src.modules.organizations.contract import WritingAccess
 from src.modules.workspaces.contract import CurrentWorkspaceId
@@ -43,14 +48,52 @@ async def get_harvest_state(
     service: HarvestControlServiceDep,
     workspace_id: CurrentWorkspaceId,
 ) -> HarvestStateResponse:
-    """Report harvest liveness and this workspace's settlement coverage.
+    """Report harvest liveness, settlement coverage and freshness.
 
     Polled by «Обновить» while a run is in flight: ``running`` falling to false
     is the signal to re-fetch the statement, and ``latest_settled`` moving is
-    what tells the seller a new week actually arrived.
+    what tells the seller a new week actually arrived. It is also read on every
+    load of the P&L, which renders ``latest_report`` and ``last_check`` as the
+    line saying why the statement stops where it does.
+
+    Read-only despite spending nothing: **this route never asks WB anything.**
+    It relays what the hourly task recorded. A page load may not spend the WB
+    request budget the schedule is metered against, and the freshness answer is
+    only meaningful *because* it says when somebody else last asked.
+
+    Guard: the module's router-level ``MemberAccess`` — the paywall every
+    finreports data route sits behind. Nothing weaker would do: the answer names
+    a tenant's settlement weeks and harvest timings. Scoped by
+    ``CurrentWorkspaceId``, which validates the header against the caller's own
+    organisation and binds the tenant for row-level security.
     """
     state = await service.get_state(workspace_id=workspace_id)
-    return HarvestStateResponse(running=state.running, latest_settled=state.latest_settled)
+    report = state.latest_report
+    check = state.last_check
+    return HarvestStateResponse(
+        running=state.running,
+        latest_settled=state.latest_settled,
+        latest_report=(
+            LatestReportOut(
+                report_id=report.report_id,
+                date_from=report.date_from,
+                date_to=report.date_to,
+                harvested_at=report.harvested_at,
+            )
+            if report is not None
+            else None
+        ),
+        last_check=(
+            FreshnessCheckOut(
+                outcome=check.outcome.value,
+                checked_at=check.checked_at,
+                probe_from=check.probe_from,
+                probe_to=check.probe_to,
+            )
+            if check is not None
+            else None
+        ),
+    )
 
 
 @router.post(

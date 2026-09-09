@@ -44,8 +44,12 @@ function delay(ms) {
  *   and this is the only thing that tells them apart.
  * @param {() => Promise<void>} options.onNewReports Called once, after a run
  *   that moved the settlement day, to reload what it changed.
+ * @param {(state: object) => void} [options.onState] Called with every state
+ *   the poll reads. The P&L's freshness line is built from exactly this answer,
+ *   so reusing the poll is what keeps the line describing the run the seller
+ *   just watched finish rather than the situation before it.
  */
-export function useHarvestRefresh({ currentSettled, onNewReports }) {
+export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
   const harvestRunning = ref(false)
   const harvestNotice = ref('')
   const harvestError = ref('')
@@ -61,6 +65,7 @@ export function useHarvestRefresh({ currentSettled, onNewReports }) {
         // A dropped poll says nothing about the harvest — keep watching.
         continue
       }
+      onState?.(state)
       if (state.running) continue
       harvestRunning.value = false
       if (state.latest_settled && state.latest_settled !== settledBefore) {

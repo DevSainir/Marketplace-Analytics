@@ -13,6 +13,7 @@ import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import PnlDashboardCards from '@/modules/finreports/components/PnlDashboardCards.vue'
+import ReportFreshnessLine from '@/modules/finreports/components/ReportFreshnessLine.vue'
 import { useFinReportsStore } from '@/modules/finreports/store'
 
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
@@ -69,6 +70,10 @@ function isPresetActive(days) {
 }
 
 onMounted(async () => {
+  // Deliberately not awaited, and started first: the freshness line is a
+  // footnote on the statement, so fetching it must not delay a single figure —
+  // and if it fails, the line is simply absent.
+  store.loadHarvestState()
   if (!store.weeks.length) await store.loadWeeks()
   if (!store.report) await store.loadReport()
 })
@@ -110,6 +115,14 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
         </RouterLink>
       </div>
     </header>
+
+    <!--
+      Why the statement stops where it does, on every load rather than only
+      after «Обновить». WB publishes on no fixed day, so a P&L ending nine days
+      ago is usually a quiet week and occasionally a dead harvester — and
+      without this line the page shows the two identically.
+    -->
+    <ReportFreshnessLine :state="store.harvestState" class="mb-md" />
 
     <p v-if="store.harvestError" class="mb-md text-base text-status-negative">
       {{ store.harvestError }}

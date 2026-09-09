@@ -31,6 +31,15 @@ HARVEST_LOCK_KEY: str = "finreports:harvest_finance"
 #: that the next hourly tick recovers on its own.
 HARVEST_LOCK_TTL_SECONDS: int = 600
 
+#: How long a recorded freshness verdict survives — 30 days, deliberately long.
+#:
+#: The entry expiring is indistinguishable from "we never checked", and a STALE
+#: probe is precisely the evidence that the harvester stopped. A few-hour TTL
+#: would erase the one signal the P&L's freshness line exists to show: it would
+#: turn "nobody has asked since Tuesday" into a blank, which reads as a page
+#: that simply has no such feature.
+FRESHNESS_RECORD_TTL_SECONDS: int = 30 * 24 * 60 * 60
+
 #: WB ``supplier_oper_name`` for a logistics (delivery) charge.
 LOGISTICS_OPER: str = "Логистика"
 

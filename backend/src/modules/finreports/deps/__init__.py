@@ -15,6 +15,7 @@ from fastapi import Depends
 from src.core.config import settings
 from src.core.deps import DbSession
 from src.core.redis import get_redis
+from src.modules.finreports.constants import FRESHNESS_RECORD_TTL_SECONDS
 from src.modules.finreports.repos import (
     BalancePinRepository,
     CostPriceRepository,
@@ -33,6 +34,7 @@ from src.modules.finreports.services import (
 )
 )
 )
+from src.modules.finreports.services.freshness_record import RedisFreshnessRecordStore
 
 
 # --------------------------------------------------------------------------- #
@@ -191,10 +193,18 @@ def get_ingestion_service(
 def get_harvest_control_service(report_repo: ReportRepoDep) -> HarvestControlService:
     """Compose the :class:`HarvestControlService` behind «Обновить».
 
-    Takes the shared Redis directly rather than through a cache object: it reads
-    one key and holds no state worth caching.
+    Takes the shared Redis directly for the lock — it reads one key and holds no
+    state worth caching — and a Redis-backed freshness record store for the P&L's
+    freshness line. Both fail open: an unreachable Redis costs the page its
+    footnote and the button its «уже выполняется», never the statement.
     """
-    return HarvestControlService(report_repo=report_repo, redis=get_redis())
+    return HarvestControlService(
+        report_repo=report_repo,
+        redis=get_redis(),
+        freshness_records=RedisFreshnessRecordStore(
+            get_redis(), ttl_seconds=FRESHNESS_RECORD_TTL_SECONDS
+        ),
+    )
 
 
 IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]

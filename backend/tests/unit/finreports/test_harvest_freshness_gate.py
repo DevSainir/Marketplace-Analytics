@@ -23,8 +23,9 @@ import pytest
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.finance import WBFinanceClient
 from src.integrations.wildberries.schemas.finance import WBReportDetailRow
+from src.modules.finreports.services.freshness_record import FreshnessOutcome
 from src.modules.finreports.tasks import freshness
-from src.modules.finreports.tasks.freshness import has_unharvested_report, probe_window
+from src.modules.finreports.tasks.freshness import check_freshness, probe_window
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
@@ -122,7 +123,7 @@ def test_a_report_settling_past_yesterday_still_yields_no_window() -> None:
     assert window is None
 
 
-# --- has_unharvested_report ----------------------------------------------
+# --- check_freshness ------------------------------------------------------
 
 
 async def test_a_never_harvested_workspace_is_harvested_without_asking_wb(
@@ -132,9 +133,10 @@ async def test_a_never_harvested_workspace_is_harvested_without_asking_wb(
     fake = _FakeFinanceClient()
     monkeypatch.setattr(freshness, "WBFinanceClient", fake)
 
-    decision = await has_unharvested_report(tokens=_tokens(), latest_settled=None, today=TODAY)
+    verdict = await check_freshness(tokens=_tokens(), latest_settled=None, today=TODAY)
 
-    assert decision is True
+    assert verdict.outcome is FreshnessOutcome.NEVER_HARVESTED
+    assert verdict.should_harvest is True
     assert fake.windows == []
 
 
@@ -145,11 +147,10 @@ async def test_an_empty_probe_window_skips_the_harvest(
     fake = _FakeFinanceClient(row=None)
     monkeypatch.setattr(freshness, "WBFinanceClient", fake)
 
-    decision = await has_unharvested_report(
-        tokens=_tokens(), latest_settled=date(2026, 8, 2), today=TODAY
-    )
+    verdict = await check_freshness(tokens=_tokens(), latest_settled=date(2026, 8, 2), today=TODAY)
 
-    assert decision is False
+    assert verdict.outcome is FreshnessOutcome.WB_EMPTY
+    assert verdict.should_harvest is False
     assert fake.windows == [(date(2026, 8, 3), date(2026, 8, 3))]
 
 
@@ -162,11 +163,10 @@ async def test_a_row_past_our_history_triggers_the_harvest(
     )
     monkeypatch.setattr(freshness, "WBFinanceClient", fake)
 
-    decision = await has_unharvested_report(
-        tokens=_tokens(), latest_settled=date(2026, 7, 26), today=TODAY
-    )
+    verdict = await check_freshness(tokens=_tokens(), latest_settled=date(2026, 7, 26), today=TODAY)
 
-    assert decision is True
+    assert verdict.outcome is FreshnessOutcome.WB_HAS_NEW
+    assert verdict.should_harvest is True
 
 
 async def test_a_failed_probe_harvests_anyway(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -179,11 +179,54 @@ async def test_a_failed_probe_harvests_anyway(monkeypatch: pytest.MonkeyPatch) -
     fake = _FakeFinanceClient(error=IntegrationError("429 from WB"))
     monkeypatch.setattr(freshness, "WBFinanceClient", fake)
 
-    decision = await has_unharvested_report(
-        tokens=_tokens(), latest_settled=date(2026, 8, 2), today=TODAY
-    )
+    verdict = await check_freshness(tokens=_tokens(), latest_settled=date(2026, 8, 2), today=TODAY)
 
-    assert decision is True
+    assert verdict.outcome is FreshnessOutcome.PROBE_FAILED
+    assert verdict.should_harvest is True
+
+
+async def test_a_history_reaching_yesterday_records_that_nothing_was_asked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The verdict has to say WHY it skipped, not just that it did.
+
+    "Nothing was asked because there was nothing to ask about" and "WB was asked
+    and answered empty" are both correct reasons to skip, and the page words
+    them differently — the first is not a statement about what WB published.
+    """
+    fake = _FakeFinanceClient()
+    monkeypatch.setattr(freshness, "WBFinanceClient", fake)
+
+    verdict = await check_freshness(tokens=_tokens(), latest_settled=date(2026, 8, 3), today=TODAY)
+
+    assert verdict.outcome is FreshnessOutcome.UP_TO_DATE
+    assert verdict.should_harvest is False
+    assert fake.windows == []
+
+
+async def test_a_verdict_from_a_real_request_carries_the_window_it_asked_about(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The window is what makes «спросили» checkable rather than a claim."""
+    fake = _FakeFinanceClient(row=None)
+    monkeypatch.setattr(freshness, "WBFinanceClient", fake)
+
+    verdict = await check_freshness(tokens=_tokens(), latest_settled=date(2026, 7, 26), today=TODAY)
+
+    assert (verdict.probe_from, verdict.probe_to) == (date(2026, 7, 27), date(2026, 8, 3))
+
+
+async def test_a_verdict_reached_without_a_request_names_no_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No request was made, so there is no window — and none may be implied."""
+    fake = _FakeFinanceClient()
+    monkeypatch.setattr(freshness, "WBFinanceClient", fake)
+
+    verdict = await check_freshness(tokens=_tokens(), latest_settled=None, today=TODAY)
+
+    assert verdict.probe_from is None
+    assert verdict.probe_to is None
 
 
 # --- WBFinanceClient.fetch_first_row -------------------------------------

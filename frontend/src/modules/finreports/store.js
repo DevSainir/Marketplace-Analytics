@@ -21,6 +21,7 @@ import {
   downloadCostPricesXlsx,
   fetchBalance,
   fetchCostPrices,
+  fetchHarvestState,
   fetchSkuPnl,
   fetchWeeks,
   importCostPricesXlsx,
@@ -64,6 +65,14 @@ export const useFinReportsStore = defineStore('finreports', () => {
   const balanceLoading = ref(false)
   const balanceError = ref('')
 
+  // --- report freshness ---------------------------------------------------
+  // What the P&L's freshness line is built from: the newest report on file and
+  // what the hourly gate found the last time it asked WB for something newer.
+  // Deliberately has no `loading` or `error` of its own — the line is a
+  // footnote on the statement, and a footnote that fails must go quiet rather
+  // than shout over what it annotates.
+  const harvestState = ref(null)
+
   // --- cost prices --------------------------------------------------------
   const costPrices = ref(null)
   const costsLoading = ref(false)
@@ -78,6 +87,21 @@ export const useFinReportsStore = defineStore('finreports', () => {
       date_to: weeks.value.reduce((a, w) => (a > w.date_to ? a : w.date_to), '0000'),
     }
   })
+
+  /**
+   * Read the harvest state for the freshness line.
+   *
+   * Fired alongside the report rather than after it, and never awaited by
+   * anything that renders a figure: this must not gate the numbers. A failure
+   * leaves `harvestState` as it was and the line simply does not appear.
+   */
+  async function loadHarvestState() {
+    try {
+      harvestState.value = await fetchHarvestState()
+    } catch {
+      // Silent by design — see above.
+    }
+  }
 
   async function loadWeeks() {
     weeksLoading.value = true
@@ -382,6 +406,12 @@ export const useFinReportsStore = defineStore('finreports', () => {
   const { harvestRunning, harvestNotice, harvestError, refreshFromWb } = useHarvestRefresh({
     currentSettled: () => fullSpan.value?.date_to ?? '',
     onNewReports: adoptNewReports,
+    // Every poll refreshes the freshness line for free. Without this the line
+    // would still describe the situation from before the run the seller just
+    // watched finish — the one moment they are certainly looking at it.
+    onState: (state) => {
+      harvestState.value = state
+    },
   })
 
   return {
@@ -401,10 +431,12 @@ export const useFinReportsStore = defineStore('finreports', () => {
     costsLoading,
     costsError,
     costsSaving,
+    harvestState,
     harvestRunning,
     harvestNotice,
     harvestError,
     refreshFromWb,
+    loadHarvestState,
     loadWeeks,
     loadReport,
     toggleExclusion,

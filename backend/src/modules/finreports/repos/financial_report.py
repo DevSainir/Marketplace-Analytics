@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, datetime
 
 from sqlalchemy import func, or_, select
 
@@ -11,10 +12,72 @@ from src.modules.finreports.models import FinancialReport
 from src.modules.finreports.repos.base import BaseRepository
 
 
+@dataclass(frozen=True)
+class LatestReportHeader:
+    """The newest report on file: which one, what it covers, when we pulled it.
+
+    A plain record rather than the ORM row — the P&L's freshness line is the
+    only reader, it needs four scalars, and handing a detached model out of the
+    repository would let a lazy attribute load on a closed session become a
+    500 on a footnote.
+
+    Attributes:
+        report_id: WB ``realizationreport_id``.
+        date_from / date_to: The period WB states the report covers. Either can
+            be ``None`` — WB has served headers with no stated period.
+        harvested_at: When the header was ingested (UTC).
+    """
+
+    report_id: int
+    date_from: date | None
+    date_to: date | None
+    harvested_at: datetime
+
+
 class FinancialReportRepository(BaseRepository):
     """Registry of harvested weekly WB realization reports."""
 
     model = FinancialReport
+
+    async def latest_report(self, *, workspace_id: uuid.UUID) -> LatestReportHeader | None:
+        """Return the newest report on file, or ``None`` for a fresh workspace.
+
+        **Ordered by the settlement period, not by ingestion time.** A backfill
+        pulls old reports long after the current one, so ``ORDER BY
+        harvested_at`` would label a 2024 week as the newest thing WB published
+        — on the one page whose job is to say how current the statement is.
+
+        Headers with no stated period sort last (``NULLS LAST``): WB has served
+        such headers, and they carry nothing the page could name. One is
+        returned only when it is all this workspace has, and then the caller
+        renders the period as unknown rather than inventing one.
+
+        Args:
+            workspace_id: Tenancy scope.
+
+        Returns:
+            The newest report's header, or ``None`` when none is harvested.
+        """
+        stmt = (
+            select(
+                FinancialReport.report_id,
+                FinancialReport.date_from,
+                FinancialReport.date_to,
+                FinancialReport.harvested_at,
+            )
+            .where(FinancialReport.workspace_id == workspace_id)
+            .order_by(
+                FinancialReport.date_to.desc().nullslast(),
+                FinancialReport.harvested_at.desc(),
+            )
+            .limit(1)
+        )
+        row = (await self._session.execute(stmt)).first()
+        if row is None:
+            return None
+        return LatestReportHeader(
+            report_id=row[0], date_from=row[1], date_to=row[2], harvested_at=row[3]
+        )
 
     async def latest_settled_date(self, *, workspace_id: uuid.UUID) -> date | None:
         """Return the last settlement day any harvested report covers.

@@ -21,16 +21,25 @@ What the gate does NOT catch, by design: WB amending a report we already hold.
 Its rows settle on days we have already covered, so the probe window excludes
 them, and the amendment lands on the next harvest a genuinely new report
 triggers.
+
+The verdict it reaches is not thrown away: it is recorded per workspace (see
+:mod:`src.modules.finreports.services.freshness_record`) so the P&L page can say
+in words why the statement stops where it does. «Новых отчётов нет» means
+nothing without «и мы спросили 12 минут назад».
 """
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from src.core.config import settings
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.integrations.wildberries.clients import WBFinanceClient
+from src.modules.finreports.services.freshness_record import (
+    FreshnessOutcome,
+    FreshnessVerdict,
+)
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 logger = get_logger(__name__)
@@ -56,10 +65,20 @@ def probe_window(*, latest_settled: date, today: date) -> tuple[date, date] | No
     return (date_from, date_to) if date_from <= date_to else None
 
 
-async def has_unharvested_report(
+async def check_freshness(
     *, tokens: WorkspaceTokenBundle, latest_settled: date | None, today: date
-) -> bool:
-    """Whether WB holds a settlement report this workspace has not harvested.
+) -> FreshnessVerdict:
+    """Ask whether WB holds a settlement report this workspace has not harvested.
+
+    Returns a *recorded* verdict rather than a bare ``bool``. The bool was
+    enough for the branch and nothing else: a run that asked and found nothing
+    left exactly the trace a run that never happened did, which is why three
+    days of a crashed harvest in August 2026 looked like a quiet week on the
+    P&L. The verdict carries the instant it was reached and the window asked
+    about, so the page can say *why* the statement stops where it does.
+
+    Whether the caller may skip is :attr:`FreshnessVerdict.should_harvest`, not
+    a comparison written here — the fail-open rule lives in one place.
 
     Args:
         tokens: The workspace's decrypted WB credentials.
@@ -68,12 +87,13 @@ async def has_unharvested_report(
         today: Today in Moscow time.
 
     Returns:
-        ``True`` when the harvest should run — including when the workspace has
-        never been harvested, and when the probe itself failed.
+        The :class:`FreshnessVerdict` for this workspace, right now.
     """
     if latest_settled is None:
         logger.info("finreports: %s has no reports yet — harvesting.", tokens.name)
-        return True
+        return FreshnessVerdict(
+            outcome=FreshnessOutcome.NEVER_HARVESTED, checked_at=datetime.now(UTC)
+        )
 
     window = probe_window(latest_settled=latest_settled, today=today)
     if window is None:
@@ -82,7 +102,7 @@ async def has_unharvested_report(
             tokens.name,
             latest_settled,
         )
-        return False
+        return FreshnessVerdict(outcome=FreshnessOutcome.UP_TO_DATE, checked_at=datetime.now(UTC))
 
     date_from, date_to = window
     try:
@@ -90,7 +110,10 @@ async def has_unharvested_report(
             row = await client.fetch_first_row(date_from=date_from, date_to=date_to)
     except IntegrationError as exc:
         # Fail open: an unanswered question is not a "no". Skipping here would
-        # postpone a settlement day on nothing but a transient WB error.
+        # postpone a settlement day on nothing but a transient WB error — and
+        # the recorded verdict says the question went unanswered, so the page
+        # can admit the data may be incomplete instead of reporting the silence
+        # as "nothing new".
         logger.warning(
             "finreports: freshness probe failed for %s (%s..%s) — harvesting anyway: %s",
             tokens.name,
@@ -98,7 +121,12 @@ async def has_unharvested_report(
             date_to,
             exc,
         )
-        return True
+        return FreshnessVerdict(
+            outcome=FreshnessOutcome.PROBE_FAILED,
+            checked_at=datetime.now(UTC),
+            probe_from=date_from,
+            probe_to=date_to,
+        )
 
     if row is None:
         logger.info(
@@ -107,7 +135,12 @@ async def has_unharvested_report(
             date_from,
             date_to,
         )
-        return False
+        return FreshnessVerdict(
+            outcome=FreshnessOutcome.WB_EMPTY,
+            checked_at=datetime.now(UTC),
+            probe_from=date_from,
+            probe_to=date_to,
+        )
 
     logger.info(
         "finreports: WB report %s (created %s) is new for %s — harvesting.",
@@ -115,7 +148,12 @@ async def has_unharvested_report(
         row.create_dt,
         tokens.name,
     )
-    return True
+    return FreshnessVerdict(
+        outcome=FreshnessOutcome.WB_HAS_NEW,
+        checked_at=datetime.now(UTC),
+        probe_from=date_from,
+        probe_to=date_to,
+    )
 
 
-__all__ = ["has_unharvested_report", "probe_window"]
+__all__ = ["check_freshness", "probe_window"]

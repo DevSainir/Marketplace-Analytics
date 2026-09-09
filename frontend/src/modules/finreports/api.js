@@ -48,8 +48,16 @@ export async function setSkuExclusion(nmId, excluded) {
  *
  * Polled while «Обновить» is in flight: `running` falling to false ends the
  * wait, and `latest_settled` moving is what says a new report actually arrived.
+ * Also read on every load of the P&L, for the freshness line under its header:
+ * `latest_report` is what we hold, `last_check` is what the hourly gate found
+ * the last time it asked WB for something newer. Both are nullable, and the
+ * route never asks WB anything itself.
  *
- * @returns {Promise<{running: boolean, latest_settled: string|null}>}
+ * @returns {Promise<{running: boolean, latest_settled: string|null,
+ *   latest_report: {report_id: number, date_from: string|null,
+ *     date_to: string|null, harvested_at: string}|null,
+ *   last_check: {outcome: string, checked_at: string,
+ *     probe_from: string|null, probe_to: string|null}|null}>}
  */
 export async function fetchHarvestState() {
   const { data } = await apiClient.get('/v1/finreports/harvest')

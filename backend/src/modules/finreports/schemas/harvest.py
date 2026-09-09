@@ -1,15 +1,66 @@
-"""DTOs for the manual «Обновить» trigger and its status poll."""
+"""DTOs for the manual «Обновить» trigger and its status poll.
+
+The poll carries the P&L's freshness line as well as the button's spinner: the
+same two facts answer "has the run finished?" and "why does the statement stop
+where it does?", and serving them together is what keeps every poll refreshing
+the line for free.
+"""
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 
+class LatestReportOut(BaseModel):
+    """The newest WB report on file — what we hold, and when we pulled it."""
+
+    report_id: int = Field(description="WB realizationreport_id.")
+    date_from: date | None = Field(
+        default=None,
+        description=(
+            "Start of the period WB states the report covers. Null on the "
+            "occasional header WB serves with no stated period."
+        ),
+    )
+    date_to: date | None = Field(
+        default=None, description="End of the stated period; null for the same reason."
+    )
+    harvested_at: datetime = Field(
+        description="When this header was ingested (UTC instant, not a calendar day)."
+    )
+
+
+class FreshnessCheckOut(BaseModel):
+    """What the hourly gate found the last time it asked WB for something newer."""
+
+    outcome: Literal["never_harvested", "up_to_date", "wb_empty", "wb_has_new", "probe_failed"] = (
+        Field(
+            description=(
+                "'wb_empty' is the only one that means «нового ничего нет». "
+                "'probe_failed' means WB did not answer — an unanswered question, "
+                "never to be rendered as reassurance."
+            )
+        )
+    )
+    checked_at: datetime = Field(
+        description=(
+            "When the verdict was reached (UTC instant). Staleness is the "
+            "signal: a confident 'nothing new' from six hours ago is what a "
+            "dead harvester looks like."
+        )
+    )
+    probe_from: date | None = Field(
+        default=None,
+        description="Start of the settlement window asked about; null when no request was made.",
+    )
+    probe_to: date | None = Field(default=None, description="End of that window.")
+
+
 class HarvestStateResponse(BaseModel):
-    """Whether a harvest is running, and how far the harvested history reaches."""
+    """Whether a harvest is running, how far the history reaches, and how fresh it is."""
 
     running: bool = Field(
         description=(
@@ -23,6 +74,18 @@ class HarvestStateResponse(BaseModel):
             "Last settlement day this workspace's harvested reports cover. "
             "Unchanged after a finished run means WB had nothing new — which is "
             "a success, not a failure."
+        ),
+    )
+    latest_report: LatestReportOut | None = Field(
+        default=None,
+        description="The newest report on file, or null for a never-harvested workspace.",
+    )
+    last_check: FreshnessCheckOut | None = Field(
+        default=None,
+        description=(
+            "The last recorded freshness verdict, or null when there is none — "
+            "never checked, expired, or an unreadable record. All three mean "
+            "«мы не проверяли», which is the honest answer."
         ),
     )
 
@@ -42,4 +105,9 @@ class HarvestTriggerResponse(BaseModel):
     )
 
 
-__all__ = ["HarvestStateResponse", "HarvestTriggerResponse"]
+__all__ = [
+    "FreshnessCheckOut",
+    "HarvestStateResponse",
+    "HarvestTriggerResponse",
+    "LatestReportOut",
+]

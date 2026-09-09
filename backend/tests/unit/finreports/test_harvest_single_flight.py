@@ -13,13 +13,15 @@ special-case it.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from redis.exceptions import RedisError
 
 from src.modules.finreports.constants import HARVEST_LOCK_KEY
+from src.modules.finreports.repos import LatestReportHeader
 from src.modules.finreports.services import HarvestControlService
+from src.modules.finreports.services.freshness_record import NullFreshnessRecordStore
 from src.modules.finreports.tasks import harvest
 from src.modules.finreports.tasks.harvest import harvest_all_workspaces
 
@@ -109,10 +111,19 @@ class _StubReportRepo:
     """Answers the one coverage question the control service asks."""
 
     def __init__(self, settled: date | None) -> None:
-        self._settled = settled
+        self._header = (
+            LatestReportHeader(
+                report_id=969371534,
+                date_from=settled - timedelta(days=6),
+                date_to=settled,
+                harvested_at=datetime(2026, 8, 11, 6, 14, tzinfo=UTC),
+            )
+            if settled is not None
+            else None
+        )
 
-    async def latest_settled_date(self, *, workspace_id: uuid.UUID) -> date | None:
-        return self._settled
+    async def latest_report(self, *, workspace_id: uuid.UUID) -> LatestReportHeader | None:
+        return self._header
 
 
 async def test_the_button_sees_a_harvest_that_is_already_running() -> None:
@@ -120,6 +131,7 @@ async def test_the_button_sees_a_harvest_that_is_already_running() -> None:
     service = HarvestControlService(
         report_repo=_StubReportRepo(date(2026, 8, 9)),  # type: ignore[arg-type]
         redis=_HeldRedis(),  # type: ignore[arg-type]
+        freshness_records=NullFreshnessRecordStore(),
     )
 
     state = await service.get_state(workspace_id=WORKSPACE)
@@ -135,6 +147,7 @@ async def test_an_idle_lock_reads_as_not_running() -> None:
     service = HarvestControlService(
         report_repo=_StubReportRepo(None),  # type: ignore[arg-type]
         redis=redis,  # type: ignore[arg-type]
+        freshness_records=NullFreshnessRecordStore(),
     )
 
     state = await service.get_state(workspace_id=WORKSPACE)
@@ -157,6 +170,7 @@ async def test_an_unreachable_redis_does_not_block_the_button() -> None:
     service = HarvestControlService(
         report_repo=_StubReportRepo(None),  # type: ignore[arg-type]
         redis=_BrokenRedis(),  # type: ignore[arg-type]
+        freshness_records=NullFreshnessRecordStore(),
     )
 
     state = await service.get_state(workspace_id=WORKSPACE)
