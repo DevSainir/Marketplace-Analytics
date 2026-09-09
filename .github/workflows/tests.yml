@@ -117,6 +117,13 @@ jobs:
     name: lint + typecheck
     runs-on: [self-hosted, prod-vps]
     timeout-minutes: 15
+    env:
+      # Persistent, and outside `_work` so a job cleanup cannot take them.
+      # These are the whole point of a long-lived runner: the second run
+      # resolves nothing and downloads nothing.
+      UV_CACHE_DIR: /home/gha/.cache/uv
+      npm_config_cache: /home/gha/.cache/npm
+
     steps:
       # A persistent runner accumulates what a hosted one throws away. This box
       # has 48 GB shared with production and was 79% full the day CI moved onto
@@ -145,11 +152,14 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
-          # No `enable-cache`. That option round-trips the cache through
-          # GitHub's cache service on every run; this runner's disk PERSISTS,
-          # so uv's own ~/.cache/uv is already warm and the upload/download is
-          # pure network cost. (The performance job below keeps it — it runs on
-          # a hosted runner, where nothing survives the job.)
+          # No `enable-cache`: that round-trips the cache through GitHub's
+          # cache service every run, and this runner's disk persists. But
+          # dropping it is NOT sufficient on its own — setup-uv then points
+          # UV_CACHE_DIR at `_work/_temp/setup-uv-cache`, which the runner
+          # clears per job, so the cache was simply gone rather than local.
+          # `UV_CACHE_DIR` in the job env below is what actually makes it
+          # persist. (The performance job keeps enable-cache: it runs hosted,
+          # where nothing survives the job either way.)
 
       # `--locked` fails rather than silently re-resolving, so CI can never
       # install a dependency set the committed uv.lock does not describe.
@@ -295,6 +305,13 @@ jobs:
     name: unit + component
     runs-on: [self-hosted, prod-vps]
     timeout-minutes: 15
+    env:
+      # Persistent, and outside `_work` so a job cleanup cannot take them.
+      # These are the whole point of a long-lived runner: the second run
+      # resolves nothing and downloads nothing.
+      UV_CACHE_DIR: /home/gha/.cache/uv
+      npm_config_cache: /home/gha/.cache/npm
+
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -384,6 +401,10 @@ jobs:
           --health-retries 5
 
     env:
+      # See the note on the uv setup step: without these the caches land in
+      # `_work/_temp`, which is cleared per job.
+      UV_CACHE_DIR: /home/gha/.cache/uv
+      npm_config_cache: /home/gha/.cache/npm
       ENVIRONMENT: local
       DEBUG: 'false'
       POSTGRES_HOST: localhost
