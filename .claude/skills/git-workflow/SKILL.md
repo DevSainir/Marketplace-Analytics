@@ -1,33 +1,86 @@
 ---
 name: git-workflow
-description: How work reaches this repository — trunk-based development (commit straight to `main`, no feature branches, no PRs for ordinary work) and which conventional-commit type to use, including the project's own `feat-minor` for features too small to deserve a minor version. Use this before committing, branching, pushing, opening a PR, or writing a commit message, and whenever deciding whether a change is a `feat`, a `feat-minor` or a `fix`. The release machinery those types drive — Release Please, the changelog, the Telegram announcement — is documented in docs/RELEASES.md.
+description: How work reaches this repository — trunk-based development (commit straight to `main`, no feature branches, no PRs for ordinary work) and which conventional-commit type to use, including the project's own `feat-minor` for features too small to deserve a minor version. Use this before committing, branching, pushing, opening a PR, or writing a commit message; whenever a session finds itself on a branch or in a git worktree; and whenever deciding whether a change is a `feat`, a `feat-minor` or a `fix`. The release machinery those types drive — Release Please, the changelog, the Telegram announcement — is documented in docs/RELEASES.md.
 ---
 
 # Git workflow
 
 ## Trunk-based: commit to `main`
 
-**Do not create feature branches.** Work lands on `main`, in small commits, pushed as it is
-finished. No PR is opened for ordinary work and nothing waits for review to be merged.
+**Do not create branches, and do not work in an isolated worktree.** Work lands on
+`main`, in small commits, pushed as it is finished. No PR is opened for ordinary work and
+nothing waits for review to be merged.
 
-That means the usual "branch first if you are on the default branch" reflex is **wrong here** —
-`main` is the working branch. If you find yourself on a branch, it is either the release bot's
-(`release-please--branches--main--...`, which nobody commits to by hand) or a leftover; land the
-work on `main` and delete it.
+`main` **is** the working branch. Committing to it is the workflow, not a hazard to be
+managed — so the generic reflex "you are on the default branch, branch first to protect
+it" is **wrong here**, and so is every softer version of it: no `git checkout -b`, no
+`git switch -c`, no `git branch <name>`, no `git worktree add`. There is nothing to
+protect `main` from; keeping work off it is the failure this repo is arranged to avoid.
 
-What trunk-based development asks in return, and what actually matters day to day:
+**Worktree isolation is the same prohibition, and it is the one that actually bites.**
+A branch under `claude/<adjective-name-hash>` in `.claude/worktrees/` is not something a
+model types — it is the harness isolating a session, and it happens *before* the first
+message, so no rule phrased as "do not run `git checkout -b`" can catch it. Read "no
+feature branches" as covering it: do not request isolation for work in this repo, and do
+not accept it silently when you are handed it. That includes spawning a subagent with
+`isolation: "worktree"`, calling `EnterWorktree`, and any command that isolates by
+default. Four such branches accumulated here unnoticed; one of them held a 24-file
+feature that sat uncommitted for 16 days on a base that drifted 489 commits, invisible to
+every later session.
 
-* **Small commits, pushed often.** A branch's job — keeping unfinished work out of everyone's
-  way — now falls to commit size. If a change cannot be committed without breaking `main`, it is
-  too big; split it so each commit stands on its own.
-* **`main` stays green.** The pre-commit hooks (ruff, `mypy --strict`, eslint, prettier, the
-  commit-message check) are the gate, and they run on every commit. Do not push past a failing
-  one — there is no branch to hide the breakage on.
+**When isolation feels warranted, commit instead.** The usual trigger is parallel edits
+to the same files by more than one worker. The answer is the one above: small commits,
+each standing on its own, pushed as they are finished, with anything unfinished behind a
+flag. That keeps other workers unblocked; a worktree only hides the work from them.
+
+The one legitimate branch is the release bot's,
+`release-please--branches--main--components--marketplace-service`. Nobody commits to it
+by hand — Release Please owns it, and merging its PR cuts the release (`docs/RELEASES.md`).
+
+### If you are on a branch anyway
+
+Land the work first, delete second, and treat uncommitted work as the fragile case — a
+worktree's working tree has no reflog behind it, so removing the worktree destroys it
+outright, while a commit could still be recovered.
+
+1. Commit whatever is uncommitted, right where you are — even as a rough checkpoint.
+   This is the step that cannot be redone later.
+2. From the primary checkout on `main`, land it: `git cherry-pick <sha>` (or
+   `git merge --ff-only <branch>` when `main` has not moved), then run the pre-commit
+   gate and push.
+3. Only once it is on `main` and pushed, remove the leftovers:
+   `git worktree remove <path>` then `git branch -D <branch>`.
+4. Say what happened to whoever asked, including how far the branch's base had drifted.
+
+### What trunk-based development asks in return
+
+* **Small commits, pushed often.** A branch's job — keeping unfinished work out of
+  everyone's way — now falls to commit size. If a change cannot be committed without
+  breaking `main`, it is too big; split it so each commit stands on its own.
+* **`main` stays green.** The pre-commit hooks (ruff, `mypy --strict`, eslint, prettier,
+  the commit-message check) are the gate, and they run on every commit. Do not push past
+  a failing one — there is no branch to hide the breakage on.
 * **Unfinished features go behind a flag, not behind a branch.**
 
-The single exception is a change that genuinely cannot be split and would leave `main` broken
-mid-way. That is rare enough to be worth saying out loud to whoever asked, rather than quietly
-opening a branch.
+The single exception is a change that genuinely cannot be split and would leave `main`
+broken mid-way. That is rare enough to be worth saying out loud to whoever asked, rather
+than quietly opening a branch.
+
+### The mechanical guard
+
+Prose alone did not hold — this section already said "do not create feature branches" and
+four branches appeared regardless. Two hooks in `.claude/settings.json` now back it:
+
+* `.claude/hooks/no_branching.py` (PreToolUse on `Bash`) denies the branch-*creating* git
+  commands. Deleting a branch and removing a worktree stay allowed — that is the recovery
+  procedure above, not the mistake.
+* `.claude/hooks/trunk_check.py` (SessionStart) fires in a session that starts on any
+  branch other than `main` or the Release Please branch, names the worktree it is sitting
+  in, and points back here. This is the half that covers harness isolation, which no
+  command-level check can see.
+
+`worktree.bgIsolation` is set to `none` in the same file so background sessions edit this
+checkout directly instead of being handed a worktree.
 
 ## Which type
 
