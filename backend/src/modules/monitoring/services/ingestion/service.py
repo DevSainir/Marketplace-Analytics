@@ -12,6 +12,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
+from src.core.config import settings
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
     WBAdvertV2,
@@ -240,11 +241,19 @@ class IngestionService:
             # The same payload at its per-cluster grain (see the method's
             # docstring): the zone aggregate above sums the cluster texts away,
             # and «Поиск по кластерам» needs them.
-            cluster_count = await self.ingest_search_clusters(
-                search_stats,
-                window=advertising_window,
-                requested_campaign_ids=search_requested_campaign_ids,
-            )
+            #
+            # DORMANT (2026-09-09): gated off with the UI that read it. The
+            # ingest costs no extra WB request — the payload is already in
+            # hand — so the flag only decides whether the per-cluster rows are
+            # written. Re-reading the flag's comment in core/config/
+            # wildberries.py before flipping it is worth the minute: the
+            # cluster series cannot be backfilled.
+            if settings.wb_search_cluster_harvest_enabled:
+                cluster_count = await self.ingest_search_clusters(
+                    search_stats,
+                    window=advertising_window,
+                    requested_campaign_ids=search_requested_campaign_ids,
+                )
         stock_count = await self.ingest_stocks(
             stocks,
             snapshot_date=snapshot_date,

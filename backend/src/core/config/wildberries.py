@@ -40,6 +40,17 @@ class WildberriesSettings(BaseSettings):
     # Every FBS warehouse WB lists for the seller is discovered and read, so a
     # warehouse opened in the portal needs no deploy. ``False`` switches FBS off.
     wb_fbs_harvest_enabled: bool = True
+    # Search clusters («Поиск по кластерам»): the per-cluster grain of the SAME
+    # ``normquery`` response the search-ZONE split is built from, so switching
+    # it off saves no WB request — only the writes into
+    # ``monitoring.advertising_cluster_stat_daily``. DORMANT since 2026-09-09:
+    # the UI that read the table was hidden (see the DORMANT headers in
+    # monitoring/routers/clusters.py and the frontend cluster block), and the
+    # ingest is off with it. Note what that costs: WB serves no cluster
+    # HISTORY, so every day this stays ``False`` is a day that can never be
+    # backfilled — turning the feature back on starts the series from zero.
+    # ``True`` here is the only line needed to resume accruing it.
+    wb_search_cluster_harvest_enabled: bool = False
     # Column headers by warehouse id, written «<точка> - <город> (FBS)»: the
     # warehouse's own name first, because that is what distinguishes it from
     # its neighbours, then the city. The header is truncated to its first

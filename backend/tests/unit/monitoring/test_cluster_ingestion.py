@@ -10,11 +10,13 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from src.core.config import settings
 from src.integrations.wildberries.schemas import (
     WBNormQueryDaily,
     WBNormQueryItem,
     WBNormQueryStat,
 )
+from src.modules.monitoring.services.ingestion import IngestionService
 from src.modules.monitoring.services.ingestion.advertising import AdvertisingIngestion
 
 CAMPAIGN = 63214674
@@ -190,3 +192,91 @@ async def test_the_window_is_swept_for_every_requested_campaign_before_insert() 
             "campaign_ids": [CAMPAIGN, 999],
         }
     ]
+
+
+# --------------------------------------------------------------------------- #
+# The dormancy gate
+# --------------------------------------------------------------------------- #
+class _CapturingSearchRepo:
+    """Stands in for AdvertisingSearchRepository (the zone aggregate)."""
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, Any]] = []
+
+    async def upsert_many(self, rows: list[dict[str, Any]]) -> int:
+        self.rows = rows
+        return len(rows)
+
+    async def delete_window_for_campaigns(
+        self, *, date_from: date, date_to: date, campaign_ids: Any
+    ) -> int:
+        return 0
+
+
+class _QuietRepo:
+    """Accepts and counts nothing — for the families this harvest carries none of."""
+
+    async def upsert_many(self, rows: list[dict[str, Any]]) -> int:
+        return len(rows)
+
+    async def delete_window_for_campaigns(self, **_: Any) -> int:
+        return 0
+
+    async def delete_snapshot_day(self, **_: Any) -> int:
+        return 0
+
+
+def _service(cluster_repo: Any, search_repo: Any) -> IngestionService:
+    """Build an IngestionService with only the two search repos wired."""
+    return IngestionService(
+        funnel_repo=_QuietRepo(),  # type: ignore[arg-type]
+        advertising_repo=_QuietRepo(),  # type: ignore[arg-type]
+        stock_repo=_QuietRepo(),  # type: ignore[arg-type]
+        campaign_repo=None,  # type: ignore[arg-type]
+        product_card_repo=None,  # type: ignore[arg-type]
+        product_size_repo=None,  # type: ignore[arg-type]
+        advertising_search_repo=search_repo,
+        advertising_cluster_repo=cluster_repo,
+        price_repo=None,  # type: ignore[arg-type]
+        sale_repo=None,  # type: ignore[arg-type]
+    )
+
+
+async def _harvest(cluster_repo: Any, search_repo: Any) -> Any:
+    """Run a full-harvest ingest carrying nothing but one normquery item."""
+    return await _service(cluster_repo, search_repo).ingest_all(
+        funnel=[],
+        advertising=[],
+        stocks=[],
+        snapshot_date=DAY,
+        search_stats=[_item(_stat("носки мужские", views=300))],
+    )
+
+
+async def test_harvest_writes_no_cluster_rows_while_the_feature_is_dormant(
+    monkeypatch: Any,
+) -> None:
+    """Flag off: the zone aggregate still lands, the per-cluster rows do not."""
+    monkeypatch.setattr(settings, "wb_search_cluster_harvest_enabled", False)
+    cluster_repo, search_repo = _CapturingClusterRepo(), _CapturingSearchRepo()
+
+    result = await _harvest(cluster_repo, search_repo)
+
+    assert result.search_cluster_rows == 0
+    assert cluster_repo.rows == []
+    assert cluster_repo.swept == []
+    # The zone split feeds the matrix and is NOT part of what went dormant.
+    assert result.search_zone_rows == 1
+
+
+async def test_harvest_resumes_cluster_rows_when_the_flag_is_flipped_back(
+    monkeypatch: Any,
+) -> None:
+    """Flag on: the same payload's per-cluster grain is persisted again."""
+    monkeypatch.setattr(settings, "wb_search_cluster_harvest_enabled", True)
+    cluster_repo, search_repo = _CapturingClusterRepo(), _CapturingSearchRepo()
+
+    result = await _harvest(cluster_repo, search_repo)
+
+    assert result.search_cluster_rows == 1
+    assert [row["cluster"] for row in cluster_repo.rows] == ["носки мужские"]
