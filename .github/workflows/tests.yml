@@ -111,30 +111,80 @@ jobs:
   # stack. A `docker build` also escapes this runner's cgroup (it runs under
   # dockerd), which is why that job's limits are enforced by Compose instead.
   # ------------------------------------------------------------------ #
-  # Gate 0+1 — style, types and the fast tiers, in ONE job.
+  # Gates 0-2 — style, types, the fast tiers and integration, in ONE job.
   #
-  # These were two jobs, `quality` and `fast`, ordered so that a lint failure
-  # stopped the pipeline before the slower tests ran. That ordering bought
-  # nothing once CI moved to a single self-hosted runner: the two jobs already
-  # serialised, so the "cheap feedback first" property now comes from step
-  # ORDER inside this job, which is the same guarantee for free. What the split
-  # did still cost was real — a second checkout, a second `uv sync`, a second
-  # `npm ci` and an inter-job gap, about 50s of a 7m31s run (measured
-  # 2026-09-09) spent doing setup twice.
+  # These were three jobs — `quality`, `fast`, `integration` — ordered so that a
+  # lint failure stopped the pipeline before the slower tests ran. That ordering
+  # bought nothing once CI moved to a single self-hosted runner: they already
+  # serialised, so the "cheap feedback first" property now comes from step ORDER
+  # inside this job, which is the same guarantee for free. What the split did
+  # still cost was real — a repeated checkout, `uv sync` and `npm ci`, plus a
+  # ~25s gap between each pair, roughly 85s of a 7m31s run (measured 2026-09-09)
+  # spent setting the same machine up three times.
   #
-  # Steps are ordered cheapest-first for the same reason the jobs used to be:
-  # ruff answers in seconds, mypy in twenty, and the test tiers last.
+  # Steps stay ordered cheapest-first for the reason the jobs used to be: ruff
+  # answers in seconds, then mypy, then the fast tiers, and integration — which
+  # needs Postgres and Redis — last.
+  #
+  # The cost of merging is granularity: one red X now covers lint, types and
+  # every tier below e2e, so the step name is what tells you which gate failed.
   # ------------------------------------------------------------------ #
   verify:
-    name: lint + types + fast tiers
+    name: lint + types + fast + integration
     runs-on: [self-hosted, prod-vps]
-    timeout-minutes: 25
+    timeout-minutes: 30
+
+    # Hoisted from the integration job this absorbed. They idle through the
+    # lint and fast steps, which costs a few tens of MB and saves starting them
+    # in a second job — along with that job's checkout, its `uv sync` and the
+    # ~25s gap between the two.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: marketplace
+          POSTGRES_USER: marketplace
+          POSTGRES_PASSWORD: ci-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U marketplace"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       # Persistent, and outside `_work` so a job cleanup cannot take them.
       # These are the whole point of a long-lived runner: the second run
       # resolves nothing and downloads nothing.
+      #
+      # `_work` is not a safe place for any of it. `actions/checkout` defaults
+      # to `clean: true`, which runs `git clean -ffdx` — and that removes
+      # IGNORED files too, so `.venv`, `node_modules` and `.mypy_cache` are
+      # deleted before every run. That is why mypy was always doing a cold
+      # check: measured locally 2026-09-09, `mypy --strict` over this tree is
+      # 8.1s cold and 0.35s incremental, and CI paid the cold price every time.
+      # mypy validates its cache against file contents, so a stale entry is
+      # re-checked rather than trusted.
       UV_CACHE_DIR: /home/gha/.cache/uv
       npm_config_cache: /home/gha/.cache/npm
+      # The resolved virtualenv itself, not just the package cache. `uv sync`
+      # then relinks an existing environment instead of building one.
+      UV_PROJECT_ENVIRONMENT: /home/gha/.venvs/marketplace-backend
+      # Two caches, not one: the backend is checked under the settings in
+      # backend/pyproject.toml and the CI scripts under an explicit `--strict`.
+      # Sharing a directory between two option sets makes mypy invalidate one
+      # with the other and quietly hands back the cold time this is here to
+      # avoid.
+      MYPY_CACHE_BACKEND: /home/gha/.cache/mypy/backend
+      MYPY_CACHE_CI: /home/gha/.cache/mypy/ci-scripts
 
     steps:
       # A persistent runner accumulates what a hosted one throws away. This box
@@ -206,11 +256,11 @@ jobs:
         run: |
           uv run --project backend ruff check --config backend/pyproject.toml .github/scripts
           uv run --project backend ruff format --check --config backend/pyproject.toml .github/scripts
-          uv run --project backend mypy --strict .github/scripts
+          uv run --project backend mypy --strict --cache-dir "$MYPY_CACHE_CI" .github/scripts
 
       - name: mypy (strict)
         working-directory: backend
-        run: uv run mypy src main.py scripts
+        run: uv run mypy --cache-dir "$MYPY_CACHE_BACKEND" src main.py scripts
 
       # Audits the RUNTIME set only — what actually ships. `--disable-pip`
       # because the export is fully pinned, so pip-audit has nothing to resolve.
@@ -358,85 +408,35 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-  # ------------------------------------------------------------------ #
-  # Gate 2 — integration. Real PostgreSQL + Redis as services.
-  # ------------------------------------------------------------------ #
-  integration:
-    name: integration
-    runs-on: [self-hosted, prod-vps]
-    timeout-minutes: 20
-    needs: verify
-
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: marketplace
-          POSTGRES_USER: marketplace
-          POSTGRES_PASSWORD: ci-password
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U marketplace"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      redis:
-        image: redis:7-alpine
-        ports: ['6379:6379']
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      # See the note on the uv setup step: without these the caches land in
-      # `_work/_temp`, which is cleared per job.
-      UV_CACHE_DIR: /home/gha/.cache/uv
-      npm_config_cache: /home/gha/.cache/npm
-      ENVIRONMENT: local
-      DEBUG: 'false'
-      POSTGRES_HOST: localhost
-      POSTGRES_PORT: '5432'
-      POSTGRES_DB: marketplace
-      POSTGRES_USER: marketplace
-      POSTGRES_PASSWORD: ci-password
-      REDIS_HOST: localhost
-      REDIS_PORT: '6379'
-      REDIS_PASSWORD: ''
-      JWT_SECRET_KEY: ci-only-signing-key-not-used-anywhere-else
-
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          python-version: ${{ env.PYTHON_VERSION }}
-          # No `enable-cache`. That option round-trips the cache through
-          # GitHub's cache service on every run; this runner's disk PERSISTS,
-          # so uv's own ~/.cache/uv is already warm and the upload/download is
-          # pure network cost. (The performance job below keeps it — it runs on
-          # a hosted runner, where nothing survives the job.)
-
-      # `--locked` fails rather than silently re-resolving, so CI can never
-      # install a dependency set the committed uv.lock does not describe.
-      - name: Install backend dependencies
-        working-directory: backend
-        run: uv sync --locked
-
-      # `openssl`, not a bare `python -c "from cryptography..."`. That form
-      # depended on the ambient interpreter happening to carry `cryptography`,
-      # which is true of a hosted image and NOT of this runner — the e2e job
-      # below had already learned the same lesson and says so. A Fernet key is
-      # 32 random bytes in urlsafe base64, so openssl produces it exactly.
+      # ---------------------------------------------------------------- #
+      # The integration tier, formerly its own job.
+      #
+      # Its environment is declared per STEP rather than on the job, and that
+      # is the point of the merge rather than an afterthought: hoisting
+      # ENVIRONMENT, the POSTGRES_*/REDIS_* pair and a JWT signing key to job
+      # level would hand them to the unit and component tiers too, which have
+      # never run with them. Those tiers are supposed to be unable to reach a
+      # database; giving them the credentials for one is how a unit test
+      # quietly starts depending on Postgres and nobody notices for a month.
+      # ---------------------------------------------------------------- #
       - name: Generate an ephemeral encryption key
         run: |
           printf 'FERNET_SECRET_KEY=%s\n' "$(openssl rand 32 | base64 | tr '+/' '-_')" >> "$GITHUB_ENV"
 
       - name: Integration tier
         working-directory: backend
+        env:
+          ENVIRONMENT: local
+          DEBUG: 'false'
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: '5432'
+          POSTGRES_DB: marketplace
+          POSTGRES_USER: marketplace
+          POSTGRES_PASSWORD: ci-password
+          REDIS_HOST: localhost
+          REDIS_PORT: '6379'
+          REDIS_PASSWORD: ''
+          JWT_SECRET_KEY: ci-only-signing-key-not-used-anywhere-else
         run: uv run pytest tests/integration -m integration
 
   # ------------------------------------------------------------------ #
@@ -446,7 +446,7 @@ jobs:
     name: end-to-end
     runs-on: [self-hosted, prod-vps]
     timeout-minutes: 30
-    needs: integration
+    needs: verify
     # No longer on every push to main. It ran there for the reassurance rather
     # than the gate — it fires AFTER the code is already on main, and deploy
     # keys off the run's conclusion — and each run now costs the production
@@ -619,7 +619,7 @@ jobs:
     name: performance probes
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: integration
+    needs: verify
     if: inputs.run_slow_tiers
 
     services:
@@ -690,7 +690,7 @@ jobs:
     # its dependants — so leaving it here would have silently stopped every
     # release from reaching deploy, which is the failure this job exists to
     # prevent in the first place.
-    needs: [verify, integration]
+    needs: verify
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     # A job-level `permissions:` REPLACES the workflow's, it does not add to
     # it, so naming only `actions: write` dropped `contents: read` and the
