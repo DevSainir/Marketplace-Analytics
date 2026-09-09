@@ -44,6 +44,27 @@ name: tests
 on:
   push:
     branches: [main]
+  # The browser tier, nightly. The hour is MEASURED, not assumed: four days of
+  # Prometheus history bucketed by hour of day put the trough at 21:00-02:00
+  # UTC (00:00-05:00 MSK), where total process CPU sits at a p95 of 0.007 core
+  # against 0.027 at the 11:00 MSK peak, and HTTP traffic is flat zero. Any
+  # hour in that band is equally quiet, so the beat schedule breaks the tie.
+  #
+  # 23:30 UTC = 02:30 MSK sits in the widest gap in that schedule
+  # (src/core/celery_app.py, whose crontabs are Europe/Moscow):
+  #
+  #   02:00 MSK  finreports.harvest_finance  — hourly at :00, MSK 0-4 and 8-23
+  #   [ 02:30 MSK — this run, 30 minutes clear on either side ]
+  #   03:00 MSK  finreports.harvest_finance
+  #   04:30 MSK  auth.purge_expired_refresh_tokens
+  #   06:00 MSK  monitoring.harvest_all        — the heavy one
+  #   07:00 MSK  monitoring.refresh_buyout_cohorts
+  #
+  # Only ab_tests.poll_rotations (every 5 minutes, sub-second) overlaps at all,
+  # and the job is capped below so that even an overrun cannot reach the 06:00
+  # harvest with anything the kernel has not already bounded.
+  schedule:
+    - cron: '30 23 * * *'
   workflow_dispatch:
     inputs:
       run_slow_tiers:
@@ -67,21 +88,68 @@ env:
 
 jobs:
   # ------------------------------------------------------------------ #
+  # WHERE THESE JOBS RUN
+  #
+  # `quality`, `fast` and `integration` run on the self-hosted runner on the
+  # production VPS (label `prod-vps`). There is exactly ONE runner, and that is
+  # a resource decision rather than an oversight: two vCPUs are shared with the
+  # live API and the Celery worker, so jobs QUEUE instead of competing. The
+  # systemd unit caps the runner at 130% CPU and 1400 MiB and gives it idle I/O
+  # priority, so CI loses every contest it enters with production.
+  #
+  # `end-to-end` and `performance` deliberately do NOT move here:
+  #
+  #   * end-to-end publishes ports 80 and 443, which the production frontend
+  #     already owns on this box. Compose MERGES `ports`, so the e2e overlay
+  #     cannot take them back (see the header of docker-compose.e2e.yml).
+  #   * performance exists to overload the service it points at. Its own tier
+  #     contract says it must never run against anything shared, and a box
+  #     serving production is the most shared thing available.
+  #
+  # A `docker build` also escapes the runner's cgroup — it runs under dockerd,
+  # not under this unit — which is the second reason the image-building job is
+  # not here.
+  # ------------------------------------------------------------------ #
+  # ------------------------------------------------------------------ #
   # Gate 0 — style and types. Seconds, no infrastructure.
   # ------------------------------------------------------------------ #
   quality:
     name: lint + typecheck
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, prod-vps]
     timeout-minutes: 15
     steps:
+      # A persistent runner accumulates what a hosted one throws away. This box
+      # has 48 GB shared with production and was 79% full the day CI moved onto
+      # it, and a full disk has already taken this host down once.
+      #
+      # BEFORE the work, not after: a job that fails or is cancelled never
+      # reaches an "after" step, and the next run is exactly when the space is
+      # needed. Only build cache and DANGLING images are touched — a plain
+      # `prune -a` would be judged against running containers alone, and this
+      # host keeps images (the migrate one) whose container has legitimately
+      # exited.
+      - name: Reclaim disk if it is tight
+        run: |
+          avail=$(df --output=avail -BG / | tail -1 | tr -dc '0-9')
+          echo "${avail}G available on /."
+          if [ "${avail:-99}" -lt 8 ]; then
+            echo "Below the 8G floor — reclaiming."
+            docker builder prune -af || true
+            docker image prune -f || true
+            df -h /
+          fi
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
+          # No `enable-cache`. That option round-trips the cache through
+          # GitHub's cache service on every run; this runner's disk PERSISTS,
+          # so uv's own ~/.cache/uv is already warm and the upload/download is
+          # pure network cost. (The performance job below keeps it — it runs on
+          # a hosted runner, where nothing survives the job.)
 
       # `--locked` fails rather than silently re-resolving, so CI can never
       # install a dependency set the committed uv.lock does not describe.
@@ -148,8 +216,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          # Same reasoning as uv above: ~/.npm persists between runs here.
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -226,7 +293,7 @@ jobs:
   # ------------------------------------------------------------------ #
   fast:
     name: unit + component
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, prod-vps]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -235,8 +302,11 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
+          # No `enable-cache`. That option round-trips the cache through
+          # GitHub's cache service on every run; this runner's disk PERSISTS,
+          # so uv's own ~/.cache/uv is already warm and the upload/download is
+          # pure network cost. (The performance job below keeps it — it runs on
+          # a hosted runner, where nothing survives the job.)
 
       # `--locked` fails rather than silently re-resolving, so CI can never
       # install a dependency set the committed uv.lock does not describe.
@@ -271,8 +341,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          # Same reasoning as uv above: ~/.npm persists between runs here.
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -287,7 +356,7 @@ jobs:
   # ------------------------------------------------------------------ #
   integration:
     name: integration
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, prod-vps]
     timeout-minutes: 20
     needs: fast
 
@@ -334,8 +403,11 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
+          # No `enable-cache`. That option round-trips the cache through
+          # GitHub's cache service on every run; this runner's disk PERSISTS,
+          # so uv's own ~/.cache/uv is already warm and the upload/download is
+          # pure network cost. (The performance job below keeps it — it runs on
+          # a hosted runner, where nothing survives the job.)
 
       # `--locked` fails rather than silently re-resolving, so CI can never
       # install a dependency set the committed uv.lock does not describe.
@@ -343,9 +415,14 @@ jobs:
         working-directory: backend
         run: uv sync --locked
 
+      # `openssl`, not a bare `python -c "from cryptography..."`. That form
+      # depended on the ambient interpreter happening to carry `cryptography`,
+      # which is true of a hosted image and NOT of this runner — the e2e job
+      # below had already learned the same lesson and says so. A Fernet key is
+      # 32 random bytes in urlsafe base64, so openssl produces it exactly.
       - name: Generate an ephemeral encryption key
         run: |
-          echo "FERNET_SECRET_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
+          printf 'FERNET_SECRET_KEY=%s\n' "$(openssl rand 32 | base64 | tr '+/' '-_')" >> "$GITHUB_ENV"
 
       - name: Integration tier
         working-directory: backend
@@ -356,10 +433,37 @@ jobs:
   # ------------------------------------------------------------------ #
   end-to-end:
     name: end-to-end
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, prod-vps]
     timeout-minutes: 30
     needs: integration
-    if: github.ref == 'refs/heads/main' || inputs.run_slow_tiers
+    # No longer on every push to main. It ran there for the reassurance rather
+    # than the gate — it fires AFTER the code is already on main, and deploy
+    # keys off the run's conclusion — and each run now costs the production
+    # box's own capacity rather than a hosted runner's. Nightly in the measured
+    # trough gives the same signal at a time when nothing is competing for it.
+    if: github.event_name == 'schedule' || inputs.run_slow_tiers
+
+    # THE THREE FACTS THAT KEEP THIS OFF PRODUCTION'S TOES. The base compose
+    # file declares `name: marketplace-service`, so a bare `docker compose -f
+    # ... up --build` on this host targets the LIVE project: it would recreate
+    # the running containers with the plain-HTTP CI nginx config, aimed at a
+    # throwaway database. Hence:
+    #
+    #   COMPOSE_PROJECT_NAME  a separate project — separate containers,
+    #                         networks and volumes
+    #   FRONTEND_HTTP_PORT    8080/8443, because production is serving on
+    #                         80/443 and Compose merges `ports` rather than
+    #                         replacing them
+    #   (and docker-compose.e2e.yml retags every built image `:e2e`, because
+    #    image tags are global to the daemon and would otherwise overwrite the
+    #    image production restarts from)
+    #
+    # The guard step below fails the job if the first of these is ever lost.
+    env:
+      COMPOSE_PROJECT_NAME: marketplace-e2e
+      FRONTEND_HTTP_PORT: '8080'
+      FRONTEND_HTTPS_PORT: '8443'
+      E2E_BASE_URL: http://localhost:8080
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -378,6 +482,30 @@ jobs:
           # A Fernet key is just 32 random bytes in urlsafe base64.
           printf 'FERNET_SECRET_KEY=%s\n' "$(openssl rand 32 | base64 | tr '+/' '-_')" >> .env
 
+      # Belt and braces, because the failure mode here is an OUTAGE rather than
+      # a red build: ask Compose what it actually resolved, and refuse to
+      # continue if it names the production project or the production port.
+      # Placed after the step above because `config` interpolates backend/.env
+      # and cannot resolve anything until it exists.
+      - name: Refuse to run against the production project
+        run: |
+          set -euo pipefail
+          cfg=$(docker compose --project-directory backend \
+            -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml \
+            config --format json)
+          resolved=$(printf '%s' "$cfg" | jq -r '.name')
+          echo "Compose resolved the project to: ${resolved}"
+          printf '%s' "$cfg" | jq -r '.services.frontend.ports[] | "  frontend publishes \(.published) -> \(.target)"'
+          if [ "$resolved" != "marketplace-e2e" ]; then
+            echo "::error::Refusing to start: this would target '${resolved}', not marketplace-e2e." >&2
+            exit 1
+          fi
+          if printf '%s' "$cfg" | jq -e '.services.frontend.ports[] | select((.published|tostring) == "80")' >/dev/null; then
+            echo "::error::Refusing to start: the e2e frontend would bind port 80, which production serves on." >&2
+            exit 1
+          fi
+          echo "Isolation checks passed."
+
       # The e2e overlay swaps nginx for a plain-HTTP server. Without it nginx
       # cannot load its config at all — the production one hard-requires the
       # Let's Encrypt key pair, which no runner has — so the container
@@ -395,7 +523,7 @@ jobs:
         working-directory: backend
         run: |
           for _ in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost/ || true)
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${E2E_BASE_URL}/" || true)
             if [ "$code" = "200" ]; then
               echo "Stack is serving (HTTP $code)."
               exit 0
@@ -424,16 +552,23 @@ jobs:
           -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml
           exec -T api python -m scripts.seed_e2e_fixtures
 
+      # No `--with-deps`. That flag shells out to apt, which the unprivileged
+      # runner user cannot do; the system libraries were installed once, by
+      # hand, when the runner was provisioned. The browser download itself is
+      # cached in ~/.cache/ms-playwright and persists between runs here, so
+      # this is a no-op after the first night.
       - name: Install Playwright and its browser
         working-directory: tests
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
 
+      # `E2E_BASE_URL` comes from the job env now; repeating it here with the
+      # production port is exactly the sort of drift the guard step exists for.
+      # `--workers=1` is already the config's default (see playwright.config.js
+      # for why serial is both cheaper and more correct), so nothing is passed.
       - name: End-to-end tier
         working-directory: tests
-        env:
-          E2E_BASE_URL: http://localhost
         run: npm run test:e2e
 
       - name: Upload traces and video on failure
@@ -452,6 +587,18 @@ jobs:
           docker compose --project-directory backend
           -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml
           logs --tail=200
+
+      # ALWAYS, and this step did not need to exist on a hosted runner because
+      # the whole machine was thrown away afterwards. Here the box keeps
+      # running: a stack left up would hold ~1 GB and two published ports until
+      # somebody noticed, and the next night's run would find its own volumes
+      # already populated. `-v` because the throwaway database is the point.
+      - name: Tear the stack down
+        if: always()
+        run: >-
+          docker compose --project-directory backend
+          -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml
+          down -v --remove-orphans
 
   # ------------------------------------------------------------------ #
   # Separate layer — performance. Opt-in only: it deliberately overloads
@@ -525,9 +672,14 @@ jobs:
   # ------------------------------------------------------------------ #
   deploy-after-dispatch:
     name: hand off to deploy
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, prod-vps]
     timeout-minutes: 5
-    needs: [quality, fast, integration, end-to-end]
+    # `end-to-end` is deliberately NOT a dependency any more. It now runs only
+    # on the nightly schedule or an explicit dispatch, and a SKIPPED need skips
+    # its dependants — so leaving it here would have silently stopped every
+    # release from reaching deploy, which is the failure this job exists to
+    # prevent in the first place.
+    needs: [quality, fast, integration]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     # A job-level `permissions:` REPLACES the workflow's, it does not add to
     # it, so naming only `actions: write` dropped `contents: read` and the

@@ -61,7 +61,10 @@ permissions:
 jobs:
   release:
     name: version + changelog + announcement
-    runs-on: ubuntu-latest
+    # On the VPS runner: this workflow is what cuts a version, and a version
+    # that cannot be cut is a change that cannot ship. Its scripts are stdlib
+    # `python3` and `gh` only, both of which the box already has.
+    runs-on: [self-hosted, prod-vps]
     timeout-minutes: 15
     steps:
       - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4

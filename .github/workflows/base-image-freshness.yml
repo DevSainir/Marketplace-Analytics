@@ -32,6 +32,13 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+# A weekly check that opens an issue. Two of them racing would file the same
+# issue twice, and cancelling the older one loses nothing — the newer run reads
+# the same registry.
+concurrency:
+  group: base-image-freshness
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

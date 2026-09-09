@@ -27,7 +27,59 @@
 # a security incident. This overlay has to be named on the command line.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# ISOLATION, added 2026-09-09 when the browser tier moved onto the production
+# VPS's own runner. Read this before running the stack anywhere that matters.
+#
+# The base file declares `name: marketplace-service`, so `docker compose -f
+# docker-compose.yml -f docker-compose.e2e.yml up --build` targets THE
+# PRODUCTION PROJECT. On the VPS that recreates the live containers with the
+# plain-HTTP nginx config below, pointed at a throwaway database — an outage
+# dressed as a test run. The command must therefore always carry an explicit
+# `-p marketplace-e2e`, and tests.yml asserts that it does.
+#
+# A distinct project is necessary but NOT sufficient. Image tags are global to
+# the daemon, so a build that kept the base file's `marketplace-service-api:
+# latest` would overwrite the image production restarts from, whatever project
+# built it. Hence the `:e2e` tags below — scalars, which an overlay REPLACES
+# (unlike `ports` and `volumes`, which it merges).
+#
+# The caps are the third leg. Compose limits are enforced by the kernel on the
+# container, so unlike the runner's own systemd limits they also bound a
+# `docker build`'s children and anything the stack spawns. Sized to leave the
+# live stack its working set on a 4 GB box: the whole e2e topology is allowed
+# ~1 GB and one of the two cores.
+# ---------------------------------------------------------------------------
+
 services:
   frontend:
+    image: marketplace-service-frontend:e2e
+    mem_limit: 64m
+    cpus: 0.25
     volumes:
       - ../frontend/docker/nginx.ci.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # The four Python services share one image each in the base file; both tags
+  # are redirected so neither production image can be rebuilt from here.
+  api:
+    image: marketplace-service-api:e2e
+    mem_limit: 320m
+    cpus: 0.4
+
+  api_standby:
+    image: marketplace-service-api:e2e
+    mem_limit: 256m
+    cpus: 0.25
+
+  migrate:
+    image: marketplace-service-api:e2e
+
+  worker:
+    image: marketplace-service-worker:e2e
+    mem_limit: 320m
+    cpus: 0.4
+
+  beat:
+    image: marketplace-service-worker:e2e
+    mem_limit: 96m
+    cpus: 0.1

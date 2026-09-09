@@ -25,11 +25,15 @@ export default defineConfig({
   // directory so `--project` selects a tier.
   outputDir: './.artifacts',
 
-  // A single worker by default: these tests share one backend and one seeded
-  // account, and parallel logins would rotate each other's refresh cookies —
+  // ONE worker, everywhere. This was two under CI, which was affordable on a
+  // hosted runner with four idle cores and is not on the self-hosted one: that
+  // box serves production, has two vCPUs, and a second Chromium is another
+  // ~250 MB resident competing with the live API and the Celery worker. Serial
+  // is also what these tests already wanted — they share one backend and one
+  // seeded account, and parallel logins rotate each other's refresh cookies,
   // which the backend correctly reads as token reuse and answers by revoking
-  // every session. CI overrides this per shard.
-  workers: process.env.CI ? 2 : 1,
+  // every session.
+  workers: 1,
   fullyParallel: false,
 
   // Flakiness is a bug in an end-to-end test, not a fact of life. One retry in
@@ -49,6 +53,27 @@ export default defineConfig({
 
   use: {
     baseURL: BASE_URL,
+    launchOptions: {
+      // Chromium's shared-memory segment defaults to 64 MB on a trimmed host;
+      // exhausting it kills tabs as "Target closed", which reads as a flaky
+      // test rather than as the memory pressure it is. Writing that buffer to
+      // /tmp costs a little speed and removes the need for the memory.
+      //
+      // The rest stop the browser reaching for what this box has to keep for
+      // production: no GPU process, no extensions, and nothing running in the
+      // background between tests. The heap cap is the backstop the runner's
+      // own cgroup cannot provide — Chromium is a child of the test process,
+      // so a runaway renderer would otherwise be bounded only by the box.
+      args: [
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--js-flags=--max-old-space-size=256',
+      ],
+    },
     // Evidence only for failures: traces and video on every run would make the
     // artifacts larger than the repository.
     trace: 'retain-on-failure',

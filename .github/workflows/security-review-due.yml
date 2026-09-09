@@ -31,6 +31,13 @@ on:
     - cron: '0 7 1 * *'
   workflow_dispatch:
 
+# Scheduled, and its output is a reminder rather than an artefact. A pile-up
+# after an outage should collapse to the most recent run, not replay the
+# backlog one issue at a time.
+concurrency:
+  group: security-review-due
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
