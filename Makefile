@@ -54,7 +54,7 @@ TESTS_NPM := npm --prefix tests
 .PHONY: help test test-fast test-unit test-component test-integration test-backend \
         test-frontend test-e2e test-perf test-perf-frontend test-perf-load lint \
         format audit lock typecheck setup-test-db clean-test-db seed-e2e \
-        up down ps logs prune rebuild \
+        up down stop start ps logs prune rebuild \
         obs-up obs-down obs-ps obs-logs \
         backup backup-verify backup-list
 
@@ -165,8 +165,18 @@ lock: ## Re-resolve backend/uv.lock (run after changing a dependency in pyprojec
 up: ## Build and start the whole stack (this is also the production deploy)
 	$(COMPOSE) up -d --build
 
-down: ## Stop the stack, keeping the Postgres/Redis volumes
+down: ## Stop the stack and REMOVE its containers, keeping the Postgres/Redis volumes
 	$(COMPOSE) down
+
+# `stop`/`start` rather than `down`/`up` for the daily rhythm: `down` removes the
+# containers, so the next `up` rebuilds. Parking them keeps the start to seconds.
+# Neither frees the 2 GiB Docker Desktop reserves for its VM — quit the app for
+# that; on an 8 GiB machine it is the difference between swapping and not.
+stop: ## Park the stack, keeping the containers so `start` is instant
+	$(COMPOSE) stop
+
+start: ## Wake a parked stack — NOT a rebuild; run `up` after editing backend code
+	$(COMPOSE) start
 
 ps: ## Status of every service
 	$(COMPOSE) ps
