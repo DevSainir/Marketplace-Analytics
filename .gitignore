@@ -87,3 +87,8 @@ backend/docker/observability/alertmanager.yml
 # the variable was set but empty, which makes the library write to the CWD.
 # That happened once — see tests/unit/core/test_metrics_bootstrap.py.
 *_[0-9]*.db
+
+# Frontend releases installed by the deploy (see .github/workflows/deploy.yml).
+# Server-side state: the built bundle plus the nginx config that serves it,
+# kept beside the running one so a deploy is a symlink flip and a reload.
+.frontend-releases/

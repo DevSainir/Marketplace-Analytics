@@ -535,10 +535,14 @@ jobs:
           echo "Seed will target: ${SEED_PG_CONTAINER} (compose postgres: ${seed_pg})"
           echo "Isolation checks passed."
 
-      # The e2e overlay swaps nginx for a plain-HTTP server. Without it nginx
-      # cannot load its config at all — the production one hard-requires the
-      # Let's Encrypt key pair, which no runner has — so the container
-      # restart-loops and nothing is ever served.
+      # The e2e overlay builds the frontend's self-contained `e2e` target,
+      # which carries a plain-HTTP config and its own copy of the bundle.
+      # Without it nginx cannot load its config at all — the production one
+      # hard-requires the Let's Encrypt key pair, which no runner has — so the
+      # container restart-loops and nothing is ever served. Production's
+      # frontend instead reads its config and bundle from a release directory
+      # the deploy installs on the host, which is why this needs a distinct
+      # image rather than a mounted config file.
       - name: Start the stack
         run: >-
           docker compose --project-directory backend

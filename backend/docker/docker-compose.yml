@@ -198,6 +198,19 @@ services:
     # whole document in memory before it is written to the cache volume.
     mem_limit: 512m
     cpus: 1.5
+    # How long Docker waits between SIGTERM and SIGKILL. The default is 10s,
+    # and it was in force here until 2026-09-10 — which is why a deploy used to
+    # cut requests that were mid-flight on the instance being recreated.
+    #
+    # 30s so uvicorn's own 20s drain always finishes first and the SIGKILL is
+    # never reached in practice. What this buys is narrow and worth stating:
+    # nginx opens a FRESH connection per proxied request (there is no
+    # `upstream{}` block and so no keepalive pool — see
+    # frontend/docker/snippets/api-proxy.conf), so the moment uvicorn closes
+    # its listener every new request is refused instantly and fails over to the
+    # twin. The drain covers only requests already accepted. A request that
+    # legitimately runs longer than 20s is still cut, and none do: the slowest
+    stop_grace_period: 30s
     env_file:
       - .env
     environment:
@@ -229,6 +242,15 @@ services:
     # rather than appending to whatever the client sent. The auth rate limiter
     # does not depend on either: it keys on X-Real-IP via core/client_ip.py, so
     # a mistake in this flag costs log accuracy, not the control.
+    # --timeout-graceful-shutdown is half of the drain; `stop_grace_period`
+    # below is the other, and the two are only correct as a PAIR. On SIGTERM
+    # uvicorn closes the listening socket at once and finishes the requests it
+    # already accepted. Without a timeout it would wait for them forever, so a
+    # single wedged request would still be holding the process when Docker's
+    # grace period ran out — and the SIGKILL that follows drops every
+    # connection being drained, which is the failure the drain exists to
+    # prevent. The timeout must therefore stay BELOW `stop_grace_period`, and
+    # `test_graceful_shutdown.py` fails if that ordering is ever inverted.
     command:
       [
         "uvicorn",
@@ -240,6 +262,8 @@ services:
         "--proxy-headers",
         "--forwarded-allow-ips",
         "*",
+        "--timeout-graceful-shutdown",
+        "20",
       ]
     volumes:
       # from. A named volume rather than the container filesystem so a deploy
@@ -270,6 +294,12 @@ services:
     build:
       context: ../frontend
       dockerfile: docker/Dockerfile
+      # NAMED, and it must stay named. An omitted target builds the Dockerfile's
+      # LAST stage, which is `e2e` — the self-contained plain-HTTP variant for
+      # throwaway stacks. Production would then serve the CI config: no TLS, and
+      # a document root pointing at a bundle baked into the image instead of the
+      # release directory. It builds and starts cleanly, which is the problem.
+      target: runtime
     restart: unless-stopped
     logging: *logging
     mem_limit: 64m
@@ -292,6 +322,25 @@ services:
       api_standby:
         condition: service_healthy
     volumes:
+      # The release this nginx serves: the built SPA plus the config that
+      # serves it, installed by the deploy as `releases/<sha>/` with a
+      # `current` symlink pointing at one of them
+      # (.github/workflows/deploy.yml). Read-only, because nothing in the
+      # container writes here — the deploy does, from the host.
+      #
+      # A host directory rather than a named volume for one reason: the flip is
+      # a single atomic rename(2) over the symlink, done from the host where
+      # coreutils and python3 are, not from a busybox container. There is no
+      # instant at which `current` is missing or half-written.
+      #
+      # This is what makes a frontend deploy a RELOAD instead of a container
+      # recreate. nginx resolves the symlink per request, so new assets are
+      # live the moment it flips, and `nginx -s reload` picks up a changed
+      # config while finishing in-flight requests on the old workers.
+      #
+      # Locally, `make frontend-release` stages one — without it nginx has
+      # nothing to serve and the container refuses to start.
+      - ../.frontend-releases:/srv/frontend:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       # The ACME challenge webroot. A HOST directory, because certbot runs on
       # the host and nginx runs in here — a webroot inside the image is one
@@ -329,6 +378,28 @@ services:
     # 768m clears the ~355 MB steady state plus that peak with room for the
     mem_limit: 768m
     cpus: 1.5
+    # Celery treats SIGTERM as a WARM shutdown: it stops fetching new messages
+    # and waits for the tasks already running. Docker's default 10s grace was
+    # far too short for that to mean anything here, so until 2026-09-10 every
+    # deploy SIGKILLed whatever was mid-flight.
+    #
+    # Killed is not lost — `task_acks_late` means the message was never
+    # acknowledged, so Redis hands it back. The catch is WHEN: the broker's
+    # `visibility_timeout` decides, it is Celery's default 3600s, and it cannot
+    # be lowered to compensate because it must stay above the longest task or
+    # Redis redelivers work that is still running. `refresh_buyout_cohorts` is
+    # ~1610s measured, so an hour is roughly its floor. A killed task therefore
+    # reappeared up to an hour later, which reads as a task that ran twice for
+    # no reason.
+    #
+    # 120s rather than a figure that covers everything: the two long nightly
+    # passes (~1610s and the finance walk) would mean a deploy hanging for half
+    # an hour against a job with `timeout-minutes: 20`. This covers every
+    # interactive task and every harvest tick that found nothing new, and
+    # leaves the long nightly ones to the redelivery path they already had.
+    # No user traffic touches this container, so the grace costs deploy
+    # wall-clock and nothing else.
+    stop_grace_period: 120s
     env_file:
       - .env
     environment:

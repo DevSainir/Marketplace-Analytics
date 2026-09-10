@@ -34,15 +34,44 @@ COPY . .
 RUN npm run build
 
 # ---------------------------------------------------------------------------
+# The RELEASE payload: everything nginx serves, and nothing that runs it.
+#
+# `FROM scratch`, because this stage is never started as a container. It is
+# extracted to a directory with BuildKit's local exporter:
+#
+#   docker build --target release -o type=local,dest=<dir> frontend/
+#
+# and the deploy installs that directory on the server beside the previous one
+# (.github/workflows/deploy.yml). Keeping the bundle OUT of the runtime image
+# below is the entire point: a new SPA build then leaves the runtime image
+# byte-identical, so `docker compose up -d frontend` is a no-op and the one
+# nginx container holding :443 is never recreated. It used to be recreated on
+# every deploy that touched the SPA, and that was a hard 1-3s outage of the
+# whole site — the API pool could not help, because nginx is what fronts it.
+#
+# `app.conf`, not `default.conf`: the nginx image's own
+# /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh rewrites a file at that
+# exact path, and here it would be rewriting a read-only bind mount.
+FROM scratch AS release
+COPY docker/snippets/ /snippets/
+COPY docker/nginx.conf /conf.d/app.conf
+COPY --from=builder /app/dist /html/
+
+# ---------------------------------------------------------------------------
 FROM nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 AS runtime
 
-# Replace the stock default server with our SPA + reverse-proxy config.
-# The snippets carry the response security headers, which every location that
-# sets its own cache header has to re-include (see snippets/security-headers.conf).
-COPY docker/snippets/ /etc/nginx/snippets/
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
-
-COPY --from=builder /app/dist /usr/share/nginx/html
+# The stock server, removed with nothing put in its place — the config arrives
+# with the release. /etc/nginx/conf.d and /etc/nginx/snippets become symlinks
+# into it, created at container start (see entrypoint-release.sh) rather than
+# here, so that one image can serve either the host release directory or a
+# baked-in one.
+RUN rm -rf /etc/nginx/conf.d /usr/share/nginx/html
+# --chmod, not the file's own mode: the nginx image's entrypoint SKIPS anything
+# in /docker-entrypoint.d that is not executable — it logs one "ignoring" line
+# and starts nginx anyway. The container would then come up with no config at
+# all, from a checkout where git happened not to carry the executable bit.
+# Setting it here makes the image independent of that.
+COPY --chmod=0755 docker/entrypoint-release.sh /docker-entrypoint.d/05-point-at-release.sh
 
 EXPOSE 80 443
 
@@ -52,3 +81,19 @@ EXPOSE 80 443
 # nginx binds IPv4 only, so "localhost" is a guaranteed connection-refused.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD wget -q -O /dev/null http://127.0.0.1/healthz || exit 1
+
+# ---------------------------------------------------------------------------
+# Self-contained variant for throwaway end-to-end stacks.
+#
+# Same runtime, but carrying its own release instead of reading one from the
+# host — a CI stack has no deploy to install one, and should not be able to
+# read the production release directory even by accident. FRONTEND_ROOT is what
+# points the entrypoint at it, which also means the base compose file's
+# /srv/frontend bind mount is simply never looked at: the overlay cannot remove
+# a mount (Compose merges `volumes`), so it renders it inert instead — the same
+# treatment it already gives :443 and /etc/letsencrypt.
+FROM runtime AS e2e
+COPY --from=release /html/ /opt/frontend-ci/html/
+COPY --from=release /snippets/ /opt/frontend-ci/snippets/
+COPY docker/nginx.ci.conf /opt/frontend-ci/conf.d/app.conf
+ENV FRONTEND_ROOT=/opt/frontend-ci

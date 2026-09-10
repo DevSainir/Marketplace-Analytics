@@ -54,7 +54,7 @@ TESTS_NPM := npm --prefix tests
 .PHONY: help test test-fast test-unit test-component test-integration test-backend \
         test-frontend test-e2e test-perf test-perf-frontend test-perf-load lint \
         format audit lock typecheck setup-test-db clean-test-db seed-e2e \
-        up down stop start ps logs prune rebuild \
+        up down stop start ps logs prune rebuild frontend-release \
         obs-up obs-down obs-ps obs-logs \
         backup backup-verify backup-list
 
@@ -162,7 +162,23 @@ lock: ## Re-resolve backend/uv.lock (run after changing a dependency in pyprojec
 # --------------------------------------------------------------------------- #
 # The stack
 # --------------------------------------------------------------------------- #
-up: ## Build and start the whole stack (this is also the production deploy)
+# The frontend container serves a RELEASE DIRECTORY, not its own image: the SPA
+# bundle and the nginx config live in .frontend-releases/ and the container
+# follows a `current` symlink into it (frontend/docker/Dockerfile). That is what
+# lets a production deploy reload nginx instead of recreating the one container
+# holding :443. The cost is that a release has to exist before nginx can start,
+# so `up` stages one first — production does the same two steps from
+# .github/workflows/deploy.yml, with an atomic flip this does not need because
+# nothing is serving yet.
+frontend-release: ## Stage the SPA bundle + nginx config the frontend container serves
+	@mkdir -p .frontend-releases/releases
+	DOCKER_BUILDKIT=1 docker build -f frontend/docker/Dockerfile --target release \
+	  -o type=local,dest=.frontend-releases/releases/local frontend
+	@# The exporter leaves this 0700; nginx workers are not root.
+	chmod -R a+rX .frontend-releases/releases/local
+	ln -sfn releases/local .frontend-releases/current
+
+up: frontend-release ## Build and start the whole stack
 	$(COMPOSE) up -d --build
 
 down: ## Stop the stack and REMOVE its containers, keeping the Postgres/Redis volumes
