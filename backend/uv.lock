@@ -1362,7 +1362,7 @@ wheels = [
 
 [[package]]
 name = "marketplace-service"
-version = "0.30.9"
+version = "0.30.10"
 source = { editable = "." }
 dependencies = [
     { name = "aioboto3" },
