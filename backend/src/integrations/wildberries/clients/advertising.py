@@ -71,11 +71,17 @@ class WBAdvertisingClient(BaseWBClient):
         :attr:`_FULLSTATS_BATCH`; the response is a list with one entry per
         campaign that had activity in the window. Live constraints:
 
-        * WB does **not** serve current-day statistics — requesting today's date
-          returns HTTP 400 ("Invalid begin date"). Pass ``date_to`` no later
-          than yesterday (Moscow time).
+        * WB **does** serve current-day statistics, and the counters are
+          cumulative since Moscow midnight. (This docstring said the opposite
+          until 2026-09-10, when a 20-second probe found all 29 intervals
+          gaining — see the ``wildberries-api`` skill. The rotation poller in
+          ``ab_tests`` has been reading today all along; the note was stale,
+          not the behaviour.) A reading can go *down* as WB restates a recent
+          day, so a difference between two readings must be clamped at zero.
         * The maximum window is 31 days, and this surface is aggressively
-          rate-limited (roughly one request per minute per seller).
+          rate-limited — 3 requests per minute, one token per 20 s, per seller
+          token, shared with every other consumer through
+          :func:`~src.integrations.wildberries.rate_limit.advertising_rate_gate`.
 
         Args:
             campaign_ids: WB campaign identifiers (``ids`` param).

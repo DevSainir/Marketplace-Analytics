@@ -27,8 +27,13 @@ from src.modules.ab_tests.services.metrics import (
 from src.modules.ab_tests.services.rounds import gap_to_best, standings
 
 
-def _window_counts(row: VariantStatWindow) -> WindowCounts:
-    """Convert a persisted interval into the arithmetic's input type."""
+def window_counts(row: VariantStatWindow) -> WindowCounts:
+    """Convert a persisted interval into the arithmetic's input type.
+
+    Public because the test-level summary in :mod:`.summary` sums the identical
+    rows this module divides, and it has to do it through the same conversion —
+    a second one is how a total stops matching the column it totals.
+    """
     return WindowCounts(
         window_end=row.window_end,
         views=row.views,
@@ -71,7 +76,7 @@ def build_rows(
     by_variant: dict[uuid.UUID, list[WindowCounts]] = {variant.id: [] for variant in variants}
     for row in windows_by_variant:
         if row.variant_id in by_variant:
-            by_variant[row.variant_id].append(_window_counts(row))
+            by_variant[row.variant_id].append(window_counts(row))
 
     laps = standings(
         variant_ids=[variant.id for variant in variants],

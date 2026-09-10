@@ -87,6 +87,13 @@ async def test_the_detail_carries_the_result_table(
     assert row["click_through"] == "8.97"
     assert row["image_url"].endswith("/image")
 
+    # The summary travels with the table rather than behind a second request:
+    # the two are one screen and one arithmetic, and a payload that carries the
+    # rows without the totals is a page that can only show half of it.
+    assert body["summary"]["views"] == 54_249
+    assert body["summary"]["click_through"] == "8.97"
+    assert body["summary"]["measured_minutes"] == 10_080
+
 
 async def test_uploading_a_photo_passes_the_bytes_and_type_through(
     client: httpx.AsyncClient, headers: dict[str, str], photos: _StubVariants

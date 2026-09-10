@@ -18,6 +18,7 @@ from datetime import datetime
 from src.modules.ab_tests.models import AbTest, VariantExposure, VariantStatWindow
 from src.modules.ab_tests.schemas import AbTestDetail
 from src.modules.ab_tests.services.results import build_history, build_rows, leader_of
+from src.modules.ab_tests.services.summary import build_summary
 
 
 def assemble_detail(
@@ -48,6 +49,7 @@ def assemble_detail(
         exposures=exposures,
         image_url=image_url,
     )
+    rounds_completed = max((row.round_number for row in exposures), default=0)
     return AbTestDetail(
         id=test.id,
         nm_id=test.nm_id,
@@ -72,5 +74,10 @@ def assemble_detail(
             exposures=exposures,
             image_url=image_url,
         ),
-        rounds_completed=max((row.round_number for row in exposures), default=0),
+        rounds_completed=rounds_completed,
+        summary=build_summary(
+            variants=test.variants,
+            windows=windows,
+            rounds_completed=rounds_completed,
+        ),
     )

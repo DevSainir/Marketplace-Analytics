@@ -14,6 +14,7 @@ import { MAX_VARIANTS, STATUS_LABELS, useAbTestsStore } from '@/modules/abTests'
 import RotationHistory from '@/modules/abTests/components/RotationHistory.vue'
 import RotationProgress from '@/modules/abTests/components/RotationProgress.vue'
 import TestControls from '@/modules/abTests/components/TestControls.vue'
+import TestSummary from '@/modules/abTests/components/TestSummary.vue'
 import TriggerEditor from '@/modules/abTests/components/TriggerEditor.vue'
 import VariantResultsTable from '@/modules/abTests/components/VariantResultsTable.vue'
 
@@ -178,6 +179,11 @@ async function onFiles(event) {
     <p v-if="store.error" class="mb-md text-base text-status-negative">{{ store.error }}</p>
 
     <RotationProgress v-if="test" :test="test" :image-urls="store.imageUrls" />
+
+    <!-- Only once something has been installed: before that every figure in it
+         is a zero, and four zeros read as a broken panel rather than as an
+         empty one. -->
+    <TestSummary v-if="test && test.started_at" :test="test" />
 
     <TestControls
       v-if="test"

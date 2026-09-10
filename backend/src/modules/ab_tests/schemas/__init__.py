@@ -170,6 +170,50 @@ class VariantMetrics(BaseModel):
     days_measured: int = Field(description="Сколько полных дней зачтено этому фото")
 
 
+class AbTestSummary(BaseModel):
+    """Everything one test has counted, over all of its photos and turns.
+
+    Summed from the same interval rows the result table divides, so the figures
+    here are the column sums of that table and can be checked against it by
+    adding them up. See :mod:`..services.summary` for why that is the point.
+
+    The two durations answer different questions and are both reported. This
+    one, ``measured_minutes``, is the exposure the ratios are divided over; the
+    wall clock is derived by the client from ``started_at``/``finished_at``,
+    because for a live test it ends at «сейчас» and any stored value of it is
+    stale the moment it is serialised.
+    """
+
+    views: int = Field(description="Показы карточки в рекламе за весь тест")
+    clicks: int = Field(description="Переходы в карточку за весь тест")
+    atbs: int = Field(description="Добавления в корзину за весь тест")
+    orders: int = Field(description="Оформления заказов за весь тест")
+    spend: Decimal = Field(description="Расход рекламы на этот артикул за измеренные отрезки")
+
+    click_through: Decimal | None = Field(description="Клики / показы по тесту целиком, %")
+    add_to_cart: Decimal | None = Field(description="Корзины / клики по тесту целиком, %")
+    order_rate: Decimal | None = Field(description="Заказы / корзины по тесту целиком, %")
+
+    measured_minutes: int = Field(
+        description=(
+            "Сумма длительностей засчитанных отрезков — время, за которое собраны эти "
+            "числа. Меньше времени с запуска на всё, что тест простоял без рекламы или "
+            "на паузе."
+        )
+    )
+    windows: int = Field(description="Сколько отрезков опроса зачтено")
+    first_window_at: datetime | None = Field(
+        default=None, description="Начало самого раннего засчитанного отрезка"
+    )
+    last_window_at: datetime | None = Field(
+        default=None, description="Конец самого позднего засчитанного отрезка — данные по этот час"
+    )
+
+    rounds_completed: int = Field(default=0, description="Сколько кругов ротация уже прошла")
+    variants_measured: int = Field(default=0, description="Сколько фото успели набрать показы")
+    variants_total: int = Field(default=0, description="Сколько фото в тесте")
+
+
 class AbTestRead(BaseModel):
     """A test as the list and the detail page show it."""
 
@@ -214,6 +258,8 @@ class AbTestDetail(AbTestRead):
             "«по времени»; null, пока ничего не установлено."
         ),
     )
+
+    summary: AbTestSummary = Field(description="Итог по тесту целиком — сумма строк таблицы")
 
 
 class VariantExclusionUpdate(BaseModel):

@@ -27,7 +27,12 @@ from src.modules.ab_tests.deps import (
     get_sku_catalogue,
     get_variant_service,
 )
-from src.modules.ab_tests.schemas import AbTestDetail, AbTestRead, VariantMetrics
+from src.modules.ab_tests.schemas import (
+    AbTestDetail,
+    AbTestRead,
+    AbTestSummary,
+    VariantMetrics,
+)
 from src.modules.monitoring.contract import WorkspaceCard
 from src.modules.users.deps import get_user_repo
 from src.modules.workspaces.contract import WORKSPACE_HEADER
@@ -85,6 +90,26 @@ def _detail() -> AbTestDetail:
                 days_measured=7,
             )
         ],
+        # Deliberately the single row's own figures: the block claims to be the
+        # table's column sums, and a fixture whose totals do not add up would
+        # let a route test pass on a payload no real test could produce.
+        summary=AbTestSummary(
+            views=54_249,
+            clicks=4_865,
+            atbs=391,
+            orders=130,
+            spend=Decimal("12500.00"),
+            click_through=Decimal("8.97"),
+            add_to_cart=Decimal("8.04"),
+            order_rate=Decimal("33.25"),
+            measured_minutes=10_080,
+            windows=2_016,
+            first_window_at=datetime(2026, 8, 20, tzinfo=UTC),
+            last_window_at=datetime(2026, 8, 27, tzinfo=UTC),
+            rounds_completed=3,
+            variants_measured=1,
+            variants_total=1,
+        ),
     )
 
 
