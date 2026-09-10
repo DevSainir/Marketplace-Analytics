@@ -245,3 +245,78 @@ def test_every_table_lives_in_an_owned_schema(migrated_database: str) -> None:
     engine.dispose()
 
     assert public_tables == []
+
+
+#: Schemas the truncate guard covers. Mirrors ``_GUARDED_SCHEMAS`` in
+#: ``f4c8b1e57a29_truncate_guard.py``; the point of restating it here is that a
+#: schema dropped from the migration has to be dropped from a test too.
+_GUARDED_SCHEMAS = ("monitoring", "finreports")
+
+
+def test_every_data_table_refuses_an_unannounced_truncate(migrated_database: str) -> None:
+    """A new table in a guarded schema gets the trigger, or this fails.
+
+    The migration attaches the guard by looping over the tables that existed
+    when it ran, so a table added afterwards is born unprotected — and the
+    failure direction there is open, exactly like the RLS policy list in
+    ``scripts/sql/row_level_security.sql``. This is the machine that notices.
+    """
+    engine = sa.create_engine(migrated_database, poolclass=NullPool)
+    with engine.connect() as conn:
+        unguarded = [
+            f"{row[0]}.{row[1]}"
+            for row in conn.execute(
+                sa.text(
+                    """
+                    SELECT t.schemaname, t.tablename
+                    FROM pg_tables t
+                    WHERE t.schemaname = ANY(:schemas)
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM pg_trigger g
+                          JOIN pg_class c ON c.oid = g.tgrelid
+                          JOIN pg_namespace n ON n.oid = c.relnamespace
+                          WHERE n.nspname = t.schemaname
+                            AND c.relname = t.tablename
+                            AND g.tgname = 'guard_against_truncate'
+                      )
+                    ORDER BY 1, 2
+                    """
+                ),
+                {"schemas": list(_GUARDED_SCHEMAS)},
+            )
+        ]
+    engine.dispose()
+
+    assert unguarded == [], (
+        "These tables would be silently emptied by a stray TRUNCATE: "
+        f"{unguarded}. Re-run the attach loop in a new migration."
+    )
+
+
+def test_a_truncate_without_the_opt_in_is_refused(migrated_database: str) -> None:
+    """The guard blocks, rather than merely recording, the thing it is for."""
+    engine = sa.create_engine(migrated_database, poolclass=NullPool)
+    with engine.begin() as conn, pytest.raises(sa.exc.ProgrammingError, match="is blocked"):
+        conn.execute(sa.text("TRUNCATE monitoring.pinned_sku"))
+    engine.dispose()
+
+
+def test_an_announced_truncate_is_allowed_and_audited(migrated_database: str) -> None:
+    """The fixture loader's path still works — and leaves a row saying who."""
+    engine = sa.create_engine(migrated_database, poolclass=NullPool)
+    with engine.begin() as conn:
+        conn.execute(sa.text("SET LOCAL application_name = 'a-test'"))
+        conn.execute(sa.text("SET LOCAL app.allow_truncate = 'on'"))
+        conn.execute(sa.text("TRUNCATE monitoring.pinned_sku"))
+
+        recorded = conn.execute(
+            sa.text(
+                "SELECT target_id, metadata->>'application_name', metadata->>'allowed' "
+                "FROM organizations.audit_log WHERE event = 'db.truncate' "
+                "ORDER BY occurred_at DESC LIMIT 1"
+            )
+        ).one()
+    engine.dispose()
+
+    assert recorded == ("monitoring.pinned_sku", "a-test", "true")

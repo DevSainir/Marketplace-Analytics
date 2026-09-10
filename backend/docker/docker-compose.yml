@@ -89,6 +89,26 @@ services:
     logging: *logging
     mem_limit: 384m
     cpus: 1.0
+    # Say WHO in every log line, and log the statements that destroy data.
+    #
+    # On 2026-09-10 a CI job emptied production's monitoring schema and the
+    # database recorded nothing about it — the cause had to be reconstructed
+    # from relfilenode numbers and tuple counters (P2.9 in
+    # docs/security/HARDENING.md). The truncate guard installed with that entry
+    # covers TRUNCATE; `log_statement=ddl` covers the other way a table's
+    # contents leave — DROP and ALTER, which fire no trigger. It logs schema
+    # changes only, so the cost is a handful of lines per migration rather than
+    # one per query.
+    #
+    # The prefix is what makes those lines answer "who": database role, client
+    # address and the application_name the app and the scripts set. `%m` gives
+    # the millisecond timestamp that pins an event to a CI job's log.
+    command:
+      - postgres
+      - -c
+      - log_statement=ddl
+      - -c
+      - log_line_prefix=%m [%p] user=%u db=%d app=%a client=%h
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-marketplace}
       POSTGRES_USER: ${POSTGRES_USER:-marketplace}

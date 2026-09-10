@@ -15,7 +15,13 @@
 # Re-run any time to refresh the seed (e.g. after a harvest).
 set -euo pipefail
 
-CONTAINER="${SEED_PG_CONTAINER:-marketplace-service-postgres-1}"
+# Derived from the compose project, like load_seed.sh's — a bare container name
+# aimed the loader at production once (docs/security/HARDENING.md), and the
+# direction this script runs in is the other half of that mistake: pointed at a
+# live stack it would write real sellers' catalogue data into a committed
+# fixture.
+PROJECT="${COMPOSE_PROJECT_NAME:-marketplace-service}"
+CONTAINER="${SEED_PG_CONTAINER:-${PROJECT}-postgres-1}"
 DB_USER="${POSTGRES_USER:-marketplace}"
 DB_NAME="${POSTGRES_DB:-marketplace}"
 
