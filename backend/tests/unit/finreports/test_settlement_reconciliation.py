@@ -34,7 +34,8 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessVerdict,
 )
 from src.modules.finreports.tasks import freshness, harvest
-from src.modules.finreports.tasks.harvest import _walk_span, harvest_all_workspaces
+from src.modules.finreports.tasks.harvest import harvest_all_workspaces
+from src.modules.finreports.tasks.spans import reconciliation_slice, walk_span
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
@@ -57,14 +58,14 @@ def test_the_hourly_span_still_starts_at_the_watermark() -> None:
     of an hour, so a lookback on the hourly path would spend most of a day's
     budget re-reading settled data.
     """
-    span = _walk_span(latest_settled=SETTLED, today=TODAY, days=28)
+    span = walk_span(latest_settled=SETTLED, today=TODAY, days=28)
 
     assert span == (SETTLED, date(2026, 9, 7))
 
 
 def test_a_reconciliation_span_reaches_behind_the_watermark() -> None:
     """The whole mechanism: the start moves back, so passed days are asked about again."""
-    span = _walk_span(latest_settled=SETTLED, today=TODAY, days=28, lookback_days=14)
+    span = walk_span(latest_settled=SETTLED, today=TODAY, days=28, lookback_days=14)
 
     assert span == (date(2026, 8, 23), date(2026, 9, 7))
 
@@ -77,7 +78,7 @@ def test_the_lookback_covers_the_day_that_was_lost() -> None:
     reach that far back on the day it becomes reachable, or the pass would have
     missed this too.
     """
-    date_from, date_to = _walk_span(
+    date_from, date_to = walk_span(
         latest_settled=SETTLED, today=TODAY, days=28, lookback_days=RECONCILE_LOOKBACK_DAYS
     )
 
@@ -86,16 +87,106 @@ def test_the_lookback_covers_the_day_that_was_lost() -> None:
 
 def test_a_reconciliation_span_never_outruns_the_backfill_floor() -> None:
     """``days`` still bounds it, so the lookback cannot turn into a full re-harvest."""
-    span = _walk_span(latest_settled=SETTLED, today=TODAY, days=3, lookback_days=90)
+    span = walk_span(latest_settled=SETTLED, today=TODAY, days=3, lookback_days=90)
 
     assert span == (date(2026, 9, 4), date(2026, 9, 7))
 
 
 def test_a_never_harvested_workspace_is_unaffected_by_the_lookback() -> None:
     """It already walks the full backfill; there is nothing behind it to reach."""
-    assert _walk_span(latest_settled=None, today=TODAY, days=28, lookback_days=14) == _walk_span(
+    assert walk_span(latest_settled=None, today=TODAY, days=28, lookback_days=14) == walk_span(
         latest_settled=None, today=TODAY, days=28
     )
+
+
+# --- the ration -----------------------------------------------------------
+
+
+def _fleet(count: int) -> list[WorkspaceTokenBundle]:
+    """``count`` workspaces with stable, distinguishable ids."""
+    return [
+        WorkspaceTokenBundle(
+            workspace_id=uuid.UUID(f"019f657a-0000-7000-8000-{n:012d}"),
+            name=f"ws-{n}",
+            statistics="stat-token",
+        )
+        for n in range(count)
+    ]
+
+
+def test_a_reconciliation_run_takes_exactly_one_workspace() -> None:
+    """Measured on prod: each window is a full WB refill of WAITING, not of work.
+
+    The walk's two windows queued 633.8 s and 944.5 s while the requests
+    themselves took seconds, so a three-window span is ~45 minutes — and the
+    workspaces are walked in sequence, making the fleet cost a sum. Five sellers
+    would hold the platform-wide harvest lock for three to four hours, growing
+    with every seller added.
+    """
+    assert len(reconciliation_slice(_fleet(5), today=TODAY)) == 1
+
+
+def test_the_ration_is_flat_in_the_size_of_the_fleet() -> None:
+    """The whole point: a new seller must not lengthen the nightly pass."""
+    assert len(reconciliation_slice(_fleet(50), today=TODAY)) == 1
+
+
+def test_every_workspace_comes_round_within_one_cycle() -> None:
+    """Round-robin, not a favourite: a workspace nobody reconciles is one that
+    silently loses days again — the exact failure this pass exists to end."""
+    fleet = _fleet(5)
+
+    picked = {
+        reconciliation_slice(fleet, today=date.fromordinal(TODAY.toordinal() + offset))[
+            0
+        ].workspace_id
+        for offset in range(5)
+    }
+
+    assert picked == {bundle.workspace_id for bundle in fleet}
+
+
+def test_the_rotation_survives_the_loader_reshuffling_its_rows() -> None:
+    """The order is a query result, not a promise.
+
+    Sorted before rotating, or a reshuffle could pick one workspace twice
+    running while another waited a fortnight for a turn that never came.
+    """
+    fleet = _fleet(5)
+
+    first = reconciliation_slice(fleet, today=TODAY)[0].workspace_id
+    shuffled = reconciliation_slice(list(reversed(fleet)), today=TODAY)[0].workspace_id
+
+    assert first == shuffled
+
+
+def test_an_empty_fleet_reconciles_nothing() -> None:
+    """No tenants, no walk — and no IndexError on the modulo."""
+    assert reconciliation_slice([], today=TODAY) == []
+
+
+def test_a_fleet_outgrowing_the_lookback_says_so(caplog: pytest.LogCaptureFixture) -> None:
+    """The scaling limit is announced rather than silently losing days.
+
+    A workspace waits `len(fleet)` days for its turn, so the lookback has to
+    still cover a back-dated report when that turn arrives. Past that point the
+    pass quietly stops catching what it was built for — which is precisely how
+    31.08 was lost in the first place.
+    """
+    with caplog.at_level("WARNING"):
+        reconciliation_slice(_fleet(RECONCILE_LOOKBACK_DAYS), today=TODAY)
+
+    assert "lookback" in caplog.text
+
+
+def test_a_fleet_well_inside_the_lookback_stays_quiet(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A warning that fires at today's size would be furniture by next week."""
+    with caplog.at_level("WARNING"):
+        reconciliation_slice(_fleet(5), today=TODAY)
+
+    assert caplog.text == ""
 
 
 # --- the pass -------------------------------------------------------------

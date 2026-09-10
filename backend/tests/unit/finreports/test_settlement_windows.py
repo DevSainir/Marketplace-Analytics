@@ -21,8 +21,8 @@ from datetime import date
 
 import pytest
 
-from src.modules.finreports.tasks.harvest import _walk_span
 from src.modules.finreports.tasks.settlement import settlement_windows
+from src.modules.finreports.tasks.spans import walk_span
 
 pytestmark = pytest.mark.unit
 
@@ -75,12 +75,12 @@ def test_an_inverted_span_asks_for_nothing() -> None:
     assert settlement_windows(date_from=date(2026, 9, 7), date_to=date(2026, 9, 6)) == []
 
 
-# --- _walk_span -----------------------------------------------------------
+# --- walk_span -----------------------------------------------------------
 
 
 def test_a_never_harvested_workspace_backfills_the_full_window() -> None:
     """The one case that legitimately costs several quarter-hours."""
-    span = _walk_span(latest_settled=None, today=TODAY, days=28)
+    span = walk_span(latest_settled=None, today=TODAY, days=28)
 
     assert span == (date(2026, 8, 9), date(2026, 9, 6))
 
@@ -92,7 +92,7 @@ def test_a_harvested_workspace_starts_at_its_own_last_settled_day() -> None:
     WB restates them; starting 28 days back would re-read three reports that
     have not changed, at a quarter of an hour each.
     """
-    span = _walk_span(latest_settled=date(2026, 8, 30), today=TODAY, days=28)
+    span = walk_span(latest_settled=date(2026, 8, 30), today=TODAY, days=28)
 
     assert span == (date(2026, 8, 30), date(2026, 9, 6))
     assert len(settlement_windows(date_from=span[0], date_to=span[1])) == 2
@@ -100,14 +100,14 @@ def test_a_harvested_workspace_starts_at_its_own_last_settled_day() -> None:
 
 def test_a_long_absent_workspace_is_still_capped_at_the_window() -> None:
     """A workspace harvested a year ago must not walk a year of quarter-hours."""
-    span = _walk_span(latest_settled=date(2025, 9, 1), today=TODAY, days=28)
+    span = walk_span(latest_settled=date(2025, 9, 1), today=TODAY, days=28)
 
     assert span == (date(2026, 8, 9), date(2026, 9, 6))
 
 
 def test_a_workspace_settled_through_yesterday_asks_for_one_window() -> None:
     """Its own last day is re-read; nothing beyond it exists yet."""
-    span = _walk_span(latest_settled=date(2026, 9, 6), today=TODAY, days=28)
+    span = walk_span(latest_settled=date(2026, 9, 6), today=TODAY, days=28)
 
     assert span == (date(2026, 9, 6), date(2026, 9, 6))
 
