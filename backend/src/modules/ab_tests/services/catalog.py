@@ -41,7 +41,6 @@ from src.modules.ab_tests.schemas import (
 )
 from src.modules.ab_tests.services.detail import assemble_detail
 from src.modules.ab_tests.services.launch import Launcher
-from src.modules.ab_tests.services.original import PhotoEnroller
 from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.storage import MediaStore
 from src.modules.ab_tests.services.triggers import TriggerSettings
@@ -85,7 +84,7 @@ class AbTestCatalogService:
         self._stats = stats
         self._snapshots = snapshots
         self._media = media_store
-        self._launcher = Launcher(tests=tests, variants=variants, exposures=exposures)
+        self._launcher = Launcher(tests=tests, exposures=exposures)
 
     # ----------------------------------------------------------------- reads
 
@@ -140,22 +139,15 @@ class AbTestCatalogService:
         workspace_id: uuid.UUID,
         payload: AbTestCreate,
         card: WorkspaceCard | None,
-        capture: PhotoEnroller,
     ) -> AbTestRead:
-        """Create a draft test carrying the card's current main photo.
+        """Create an empty draft test.
 
-        The photo is enrolled **here**, not at start, and that is a product
-        decision rather than a convenience. The rotation is a circle the seller
-        is choosing photos for: if the image already on the card only appeared
-        once the test was running, there would be no moment at which they could
-        see what they are comparing against, and no way to read the result table
-        as anything but the uploads against each other.
-
-        It is a WB read and an S3 write inside «Создать», which is why it cannot
-        be allowed to fail the creation — see
-        :meth:`OriginalPhotoCapture.capture`. A creation that ran while WB was
-        unreachable produces a test with no original, and starting it tries
-        again.
+        It used to arrive carrying the card's live main photo, downloaded from
+        WB's CDN as the baseline the uploads are read against. That is gone: WB
+        serves **renditions**, not the seller's own file, so the baseline was a
+        re-transcoded copy — and re-installing it put that loss back on the live
+        card. The seller now uploads the baseline themselves and marks it
+        «Главное»; see :meth:`.variants.VariantCatalogService.add_variant`.
 
         Args:
             workspace_id: Owning workspace.
@@ -164,10 +156,9 @@ class AbTestCatalogService:
                 when the workspace owns no such article. Resolved by the router,
                 which is where this repository's cross-module loaders are called
                 from, so the service keeps no session of its own.
-            capture: Copies the card's live main photo into the new test.
 
         Returns:
-            The created test as a list row, counting the captured photo.
+            The created test as a list row, with no photos in it yet.
 
         Raises:
             ValidationError: If the article is not in the workspace's catalogue,
@@ -200,7 +191,6 @@ class AbTestCatalogService:
             impression_budget=payload.impression_budget or DEFAULT_IMPRESSION_BUDGET,
             slot_minutes=payload.slot_minutes or DEFAULT_SLOT_MINUTES,
         )
-        await capture.enrol(test=test, variants=self._variants)
         return self._as_row(test)
 
     async def update_settings(
@@ -270,13 +260,15 @@ class AbTestCatalogService:
         test_id: uuid.UUID,
         status: str,
         installer: VariantInstaller,
-        capture: PhotoEnroller,
     ) -> AbTestRead:
         """Start, pause or cancel a test.
 
-        Starting enrols the card's own photo, then installs whichever variant
-        leads the rotation before the test is marked running — so a WB failure
-        leaves the test exactly as it was.
+        Starting installs whichever variant leads the rotation before the test
+        is marked running — so a WB failure leaves the test exactly as it was.
+
+        Stopping stamps ``stopped_at``, for a pause as much as for a cancel: the
+        page has to say since when a test has been standing still, and only a
+        cancelled one could answer that from ``finished_at``.
 
         Args:
             workspace_id: Tenancy guard.
@@ -286,8 +278,6 @@ class AbTestCatalogService:
                 rather than held on the service because building it needs the
                 workspace's WB token, and reading a test must not require one —
                 a workspace with no token can still look at its results.
-            capture: Copies the card's current main photo into the rotation.
-                Per call for the same reason as ``installer``.
 
         Returns:
             The updated test.
@@ -307,13 +297,12 @@ class AbTestCatalogService:
         if target not in _USER_SETTABLE:
             raise ValidationError(f"Статус {status} выставляется автоматически.")
 
+        now = datetime.now(UTC)
         if target is AbTestStatus.RUNNING:
-            await self._launcher.launch(
-                test=test, installer=installer, capture=capture, now=datetime.now(UTC)
-            )
+            await self._launcher.launch(test=test, installer=installer, now=now)
         elif target is AbTestStatus.CANCELLED:
-            await self._exposures.close_open(test_id=test.id, deactivated_at=datetime.now(UTC))
-            await self._tests.set_status(test=test, status=target, finished_at=datetime.now(UTC))
+            await self._exposures.close_open(test_id=test.id, deactivated_at=now)
+            await self._tests.set_status(test=test, status=target, finished_at=now, stopped_at=now)
         else:
             # Dropping the counter baseline is what makes a pause a pause. WB's
             # counters are cumulative since midnight, so a baseline left behind
@@ -322,7 +311,7 @@ class AbTestCatalogService:
             # paused stretch would be paid for by the photo that did not serve
             # it. With no snapshot the next pass seeds and credits nothing.
             await self._snapshots.clear(test_id=test.id)
-            await self._tests.set_status(test=test, status=target)
+            await self._tests.set_status(test=test, status=target, stopped_at=now)
 
         return self._as_row(test)
 
@@ -367,6 +356,7 @@ class AbTestCatalogService:
             variant_count=len(test.variants),
             started_at=test.started_at,
             finished_at=test.finished_at,
+            stopped_at=test.stopped_at,
             created_at=test.created_at,
         )
 

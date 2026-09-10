@@ -1,10 +1,11 @@
 """Unit tests for starting a test (services/launch.py).
 
-The start is where the card's own photo joins the rotation, and where the one
-saving that makes it free is claimed: the captured photo is already on the card,
-so its turn must **not** cost an upload. A start that installed it anyway would
-push WB's own transcoded rendition back through moderation to arrive at the
-picture already there — visible to buyers, and a quality loss for nothing.
+The start is where the first photo reaches the card, and the rule it has to keep
+is that **every** photo the rotation deals is one WB actually served. That used
+to be false on purpose: the first turn was the card's own image, captured off
+WB's CDN, so the start deliberately skipped the upload. The baseline is an
+upload now — «Главное» is a file the seller chose — and a start that still
+skipped it would open the test crediting an image nobody installed.
 """
 
 from __future__ import annotations
@@ -92,115 +93,80 @@ class _FakeInstaller:
         self.installed.append(variant.position)
 
 
-class _FakeCapture:
-    """Enrols a prepared original, or nothing.
-
-    Mirrors the real service's idempotence, because that is exactly what the
-    launcher leans on: by the time a test is started its photo is normally
-    already enrolled, having been captured when the test was created.
-    """
-
-    def __init__(self, original: AbTestVariant | None) -> None:
-        self._original = original
-        self.calls = 0
-
-    async def enrol(self, *, test: AbTest, variants: object) -> AbTestVariant | None:
-        existing = next((variant for variant in test.variants if variant.is_original), None)
-        if existing is not None:
-            return existing
-        self.calls += 1
-        if self._original is not None:
-            test.variants.insert(0, self._original)
-        return self._original
-
-
 def _launcher() -> tuple[Launcher, _FakeTests, _FakeExposures]:
     """Assemble the launcher over fakes, returning what it writes through."""
     tests, exposures = _FakeTests(), _FakeExposures()
-    return Launcher(tests=tests, variants=object(), exposures=exposures), tests, exposures  # type: ignore[arg-type]
+    return Launcher(tests=tests, exposures=exposures), tests, exposures  # type: ignore[arg-type]
 
 
-async def test_the_rotation_opens_on_the_cards_own_photo_without_an_upload() -> None:
-    """The captured original is already live, so starting installs nothing."""
-    test = _test(_variant(1), _variant(2))
-    original = _variant(0, is_original=True)
+async def test_the_rotation_opens_on_the_main_photo_and_installs_it() -> None:
+    """«Главное» goes first, and it goes up — it is not assumed to be there."""
+    main = _variant(0, is_original=True)
+    test = _test(main, _variant(1), _variant(2))
     launcher, tests, exposures = _launcher()
-    installer, capture = _FakeInstaller(), _FakeCapture(original)
+    installer = _FakeInstaller()
 
-    await launcher.launch(test=test, installer=installer, capture=capture, now=NOW)
+    await launcher.launch(test=test, installer=installer, now=NOW)
 
-    assert installer.installed == []
-    assert exposures.opened == [original.id]
-    assert tests.active == [original.id]
+    assert installer.installed == [0]
+    assert exposures.opened == [main.id]
+    assert tests.active == [main.id]
     assert test.status == AbTestStatus.RUNNING.value
 
 
-async def test_the_captured_photo_joins_the_rotation_the_response_reports() -> None:
-    """It is counted immediately, not only after the next read of the test."""
-    test = _test(_variant(1), _variant(2))
-    original = _variant(0, is_original=True)
-    launcher, _, _ = _launcher()
-
-    await launcher.launch(
-        test=test, installer=_FakeInstaller(), capture=_FakeCapture(original), now=NOW
-    )
-
-    assert [variant.position for variant in test.variants] == [0, 1, 2]
-
-
-async def test_a_card_whose_photo_cannot_be_read_opens_on_the_first_upload() -> None:
-    """No capture is the old behaviour, upload and all — not a refused start."""
+async def test_a_test_with_no_main_photo_opens_on_its_first_upload() -> None:
+    """Marking a baseline is optional; the rotation deals what it has."""
     first, second = _variant(1), _variant(2)
     test = _test(first, second)
     launcher, tests, exposures = _launcher()
     installer = _FakeInstaller()
 
-    await launcher.launch(test=test, installer=installer, capture=_FakeCapture(None), now=NOW)
+    await launcher.launch(test=test, installer=installer, now=NOW)
 
     assert installer.installed == [1]
     assert exposures.opened == [first.id]
     assert tests.active == [first.id]
 
 
-async def test_a_second_start_does_not_capture_the_photo_twice() -> None:
-    """A start that died after the capture must not file a duplicate original."""
-    original = _variant(0, is_original=True)
-    test = _test(original, _variant(1))
-    launcher, _, exposures = _launcher()
-    capture = _FakeCapture(_variant(0, is_original=True))
-
-    await launcher.launch(test=test, installer=_FakeInstaller(), capture=capture, now=NOW)
-
-    assert capture.calls == 0
-    assert exposures.opened == [original.id]
-
-
-async def test_resuming_a_paused_test_neither_captures_nor_installs() -> None:
-    """The card is showing a variant by then; the rotation picks up where it was."""
-    original = _variant(0, is_original=True)
+async def test_the_rotation_opens_on_a_photo_that_is_still_in_it() -> None:
+    """An excluded first photo is skipped rather than installed and skipped."""
+    excluded = _variant(0, is_original=True)
+    excluded.excluded_at = NOW
     live = _variant(1)
-    test = _test(original, live, status=AbTestStatus.PAUSED.value)
+    test = _test(excluded, live)
+    launcher, _, exposures = _launcher()
+    installer = _FakeInstaller()
+
+    await launcher.launch(test=test, installer=installer, now=NOW)
+
+    assert installer.installed == [1]
+    assert exposures.opened == [live.id]
+
+
+async def test_resuming_a_paused_test_does_not_reinstall() -> None:
+    """The card is already showing a variant; the rotation picks up where it was."""
+    live = _variant(1)
+    test = _test(_variant(0, is_original=True), live, status=AbTestStatus.PAUSED.value)
     test.active_variant_id = live.id
     launcher, tests, exposures = _launcher()
-    installer, capture = _FakeInstaller(), _FakeCapture(original)
+    installer = _FakeInstaller()
 
-    await launcher.launch(test=test, installer=installer, capture=capture, now=NOW)
+    await launcher.launch(test=test, installer=installer, now=NOW)
 
-    assert capture.calls == 0
     assert installer.installed == []
     assert exposures.opened == []
     assert tests.statuses == [AbTestStatus.RUNNING.value]
 
 
-async def test_a_test_carrying_only_the_cards_own_photo_cannot_start() -> None:
-    """Rotating the current image alone compares it to itself."""
-    test = _test(_variant(0, is_original=True))
+async def test_a_test_with_nothing_left_in_the_rotation_cannot_start() -> None:
+    """A rotation with no photo to deal would hold forever, looking live."""
+    only = _variant(1)
+    only.excluded_at = NOW
+    test = _test(only)
     launcher, _, _ = _launcher()
 
     with pytest.raises(ConflictError, match="хотя бы одно фото"):
-        await launcher.launch(
-            test=test, installer=_FakeInstaller(), capture=_FakeCapture(None), now=NOW
-        )
+        await launcher.launch(test=test, installer=_FakeInstaller(), now=NOW)
 
 
 @pytest.mark.parametrize(
@@ -212,11 +178,11 @@ async def test_a_test_carrying_only_the_cards_own_photo_cannot_start() -> None:
     ],
 )
 async def test_a_test_in_a_terminal_state_cannot_be_started(status: str) -> None:
-    """The status guards come before the capture, so WB is never called for one."""
+    """The status guards come first, so WB is never called for one."""
     test = _test(_variant(1), status=status)
     launcher, _, _ = _launcher()
-    capture = _FakeCapture(None)
+    installer = _FakeInstaller()
 
     with pytest.raises(ConflictError):
-        await launcher.launch(test=test, installer=_FakeInstaller(), capture=capture, now=NOW)
-    assert capture.calls == 0
+        await launcher.launch(test=test, installer=installer, now=NOW)
+    assert installer.installed == []

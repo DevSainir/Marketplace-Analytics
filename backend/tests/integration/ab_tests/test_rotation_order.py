@@ -74,7 +74,7 @@ async def test_the_cards_own_photo_leads_the_rotation_without_renumbering_it(
     db_session: AsyncSession,
     organization: Organization,
 ) -> None:
-    """The captured original takes position 0, ahead of uploads already filed.
+    """«Главное» takes position 0, ahead of candidates already filed.
 
     This cannot go lower: the reason it is 0 rather than 1 is the non-deferrable
     ``uq_ab_test_variant_test_position``, which only a real database enforces —
@@ -104,16 +104,18 @@ async def test_the_cards_own_photo_leads_the_rotation_without_renumbering_it(
 
     original = await variants.add_original(
         test_id=test.id,
-        image_path=f"{test.id}/original.webp",
+        image_path=f"{test.id}/main.jpg",
         image_sha256="f" * 64,
-        content_type="image/webp",
-        original_filename="Текущее фото карточки",
+        content_type="image/jpeg",
+        original_filename="main.jpg",
     )
 
     assert original.position == 0
     assert original.is_original is True
-    # The upload cap is on uploads: the captured photo must not spend a slot.
-    assert await variants.count_for_test(test_id=test.id) == 2
+    # It is an upload like the rest now, so it spends a slot like the rest. It
+    # did not while it was captured off WB's CDN — a photo the seller never
+    # chose must not have cost them one.
+    assert await variants.count_for_test(test_id=test.id) == 3
 
     # Read the identifiers off before expiring: `expire_all` makes every loaded
     # attribute a lazy refresh, and a lazy refresh from a sync attribute access

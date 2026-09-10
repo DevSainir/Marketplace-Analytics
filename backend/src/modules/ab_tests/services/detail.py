@@ -63,6 +63,7 @@ def assemble_detail(
         variant_count=len(test.variants),
         started_at=test.started_at,
         finished_at=test.finished_at,
+        stopped_at=test.stopped_at,
         created_at=test.created_at,
         leader_variant_id=leader_of(rows),
         variants=rows,

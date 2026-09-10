@@ -3,20 +3,23 @@
  *
  * The panel's value is that its figures can be checked against the table under
  * it, so what is worth pinning is everything that would make it disagree with
- * that table or with itself: a CTR averaged instead of divided, a «Прошло»
- * frozen at the last poll, and an idle stretch rendered as a negative number
- * when the browser's clock and the server's summed intervals disagree by a few
- * seconds.
+ * that table or with itself: a CTR averaged instead of divided, and a duration
+ * that quietly becomes wall-clock time.
+ *
+ * «Длительность» is the summed length of the measured intervals — NOT the time
+ * since the start. The two used to sit side by side, and dropping the wall
+ * clock is what makes it possible to read this one as the wrong thing: nine
+ * hours of data over a fourteen-hour test must keep saying nine.
  */
 import { mount } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import TestSummary from '@/modules/abTests/components/TestSummary.vue'
 
 /** `toLocaleString('ru-RU')` groups with U+00A0; normalise rather than paste it. */
 const plain = (text) => text.replace(/\u00a0/g, ' ')
 
-const NOW = new Date('2026-09-08T23:00:00Z')
+const VARIANT_MAIN = '00000000-0000-7000-8000-00000000000a'
 
 function test(overrides = {}, summary = {}) {
   return {
@@ -24,6 +27,9 @@ function test(overrides = {}, summary = {}) {
     status: 'running',
     started_at: '2026-09-08T13:00:00Z',
     finished_at: null,
+    stopped_at: null,
+    active_variant_id: VARIANT_MAIN,
+    variants: [{ variant_id: VARIANT_MAIN, position: 0, is_original: true }],
     ...overrides,
     summary: {
       views: 12_345,
@@ -47,12 +53,6 @@ function test(overrides = {}, summary = {}) {
 }
 
 describe('TestSummary', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(NOW)
-  })
-  afterEach(() => vi.useRealTimers())
-
   it('shows the totals as the backend summed them', () => {
     const wrapper = mount(TestSummary, { props: { test: test() } })
 
@@ -70,53 +70,48 @@ describe('TestSummary', () => {
     expect(wrapper.get('[data-testid="summary-ctr"]').text()).toBe('—')
   })
 
-  it('counts elapsed time to now for a live test and to the finish for a closed one', () => {
-    const live = mount(TestSummary, { props: { test: test() } })
-    expect(plain(live.text())).toContain('10 ч 0 мин')
-
-    const done = mount(TestSummary, {
-      props: {
-        test: test({ status: 'cancelled', finished_at: '2026-09-08T19:30:00Z' }),
-      },
-    })
-    // Fixed by the finish, not by the reader's clock three hours later.
-    expect(plain(done.text())).toContain('6 ч 30 мин')
-  })
-
-  it('separates measured time from elapsed time', () => {
+  it('reports the measured exposure, not the time since the start', () => {
     const wrapper = mount(TestSummary, { props: { test: test() } })
 
     const text = plain(wrapper.text())
-    expect(text).toContain('Прошло')
-    expect(text).toContain('10 ч 0 мин')
-    expect(text).toContain('Измерено')
+    expect(text).toContain('Длительность')
     expect(text).toContain('9 ч 0 мин')
+    expect(text).not.toContain('10 ч 0 мин')
   })
 
-  it('never reports a negative idle stretch when the two clocks disagree', async () => {
-    // Measured longer than elapsed: impossible in principle, reachable in
-    // practice through a browser clock that is a minute behind the server's.
-    const wrapper = mount(TestSummary, { props: { test: test({}, { measured_minutes: 700 }) } })
+  it('says when the rotation stopped, pause included', () => {
+    const wrapper = mount(TestSummary, {
+      props: { test: test({ status: 'paused', stopped_at: '2026-09-08T19:30:00Z' }) },
+    })
 
-    await wrapper.get('[data-testid="summary-explain"]').trigger('click')
-    expect(plain(wrapper.text())).not.toContain('-')
+    // A paused test has no finish, so the stop is the only clock that answers
+    // «сколько оно уже стоит». Asserted as "not «—»" rather than against a
+    // rendered time: the panel formats in the reader's own zone, and CI's is
+    // not the developer's.
+    expect(plain(wrapper.text())).toContain('Остановлен')
+    expect(wrapper.get('[data-testid="fact-stopped"]').text()).not.toBe('—')
   })
 
-  it('spells out the derivation on request', async () => {
+  it('leaves «Остановлен» empty while the test is running', () => {
     const wrapper = mount(TestSummary, { props: { test: test() } })
 
-    expect(plain(wrapper.text())).not.toContain('÷')
-    await wrapper.get('[data-testid="summary-explain"]').trigger('click')
+    expect(wrapper.get('[data-testid="fact-stopped"]').text()).toBe('—')
+    expect(wrapper.find('[data-testid="summary-status"]').exists()).toBe(false)
+  })
+
+  it('names a stopped test’s status beside the heading', () => {
+    const wrapper = mount(TestSummary, { props: { test: test({ status: 'paused' }) } })
+
+    expect(wrapper.get('[data-testid="summary-status"]').text()).toBe('На паузе')
+  })
+
+  it('says how much of the test has actually run, and what is up now', () => {
+    const wrapper = mount(TestSummary, { props: { test: test() } })
 
     const text = plain(wrapper.text())
-    expect(text).toContain('456 ÷ 12 345')
-    expect(text).toContain('108')
-  })
-
-  it('says how much of the test has actually run', () => {
-    const wrapper = mount(TestSummary, { props: { test: test() } })
-
-    expect(plain(wrapper.text())).toContain('6 фото из 8')
-    expect(plain(wrapper.text())).toContain('кругов пройдено 4')
+    expect(text).toContain('6 фото из 8')
+    expect(text).toContain('кругов пройдено 4')
+    expect(text).toContain('Сейчас на карточке')
+    expect(wrapper.get('[data-testid="summary-live-photo"]').text()).toContain('Главное')
   })
 })

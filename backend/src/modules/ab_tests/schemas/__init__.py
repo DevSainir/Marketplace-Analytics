@@ -141,7 +141,7 @@ class VariantMetrics(BaseModel):
     is_active: bool = Field(description="Это фото сейчас стоит на карточке")
     is_original: bool = Field(
         default=False,
-        description="Фото, которое стояло на карточке до теста; в ротации на позиции 0",
+        description="Главное фото теста — эталон, с которым сравниваются остальные; позиция 0",
     )
     is_excluded: bool = Field(
         default=False,
@@ -231,6 +231,13 @@ class AbTestRead(BaseModel):
     variant_count: int
     started_at: datetime | None
     finished_at: datetime | None
+    stopped_at: datetime | None = Field(
+        default=None,
+        description=(
+            "Когда ротация в последний раз остановилась — пауза или завершение. "
+            "Сбрасывается при возобновлении."
+        ),
+    )
     created_at: datetime
 
     leader_variant_id: uuid.UUID | None = Field(

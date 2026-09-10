@@ -107,18 +107,26 @@ export async function deleteTest(testId) {
 /**
  * POST /ab-tests/{id}/variants — upload one photo into the rotation.
  *
+ * `main` files it as «Главное»: position 0, first out of the gate, the row
+ * every other photo is read against. One per test. It used to be captured off
+ * WB's CDN instead of uploaded, which meant comparing against a rendition of
+ * the seller's file rather than the file itself.
+ *
  * Returns the whole refreshed test rather than the new variant: the result
  * table has to re-render anyway, and one round trip keeps the upload list and
  * the table from disagreeing.
  *
  * @param {string} testId Test identifier.
  * @param {File} file The picture, up to 32 MB.
+ * @param {{main?: boolean}} [options] `main: true` for the baseline photo.
  * @returns {Promise<object>} The refreshed test detail.
  */
-export async function uploadVariant(testId, file) {
+export async function uploadVariant(testId, file, { main = false } = {}) {
   const form = new FormData()
   form.append('file', file)
-  const { data } = await apiClient.post(`/ab-tests/${testId}/variants`, form)
+  const { data } = await apiClient.post(`/ab-tests/${testId}/variants`, form, {
+    params: main ? { main: true } : {},
+  })
   return data
 }
 

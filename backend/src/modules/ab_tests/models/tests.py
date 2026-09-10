@@ -38,10 +38,10 @@ _SCHEMA: str = "ab_tests"
 #: WB refuses a card with no images, and the cabinet's own tool caps a gallery
 #: well below this; ten is the product limit the upload endpoint enforces.
 #:
-#: It bounds **uploads**. The card's own photo is enrolled on top of it, because
-#: it is not a choice the user made: a test whose tenth upload silently pushed
-#: the current image out of the comparison would answer a question nobody asked.
-#: A full test therefore rotates eleven photos.
+#: It bounds every photo in the test, the one marked «Главное» included. That
+#: one used to be captured off the card rather than chosen, so charging it to
+#: the seller's allowance would have cost them a slot they never spent; now it
+#: is an upload like any other and counts like one.
 MAX_VARIANTS_PER_TEST: int = 10
 
 #: Impressions one variant must accumulate before the rotation advances. The
@@ -134,6 +134,12 @@ class AbTest(Base):
         started_at: When the first variant was installed.
         finished_at: When the last variant's budget was met, or the test was
             cancelled.
+        stopped_at: When the rotation last STOPPED advancing — a pause as much
+            as a finish. ``finished_at`` only answers that for a test that
+            ended, and a paused test is the case where the question is actually
+            asked: "since when has this been standing still?" Cleared on every
+            transition back into ``RUNNING``, so it never describes a test that
+            is moving.
     """
 
     __tablename__ = "ab_test"
@@ -175,6 +181,7 @@ class AbTest(Base):
 
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    stopped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -195,11 +202,12 @@ class AbTestVariant(Base):
     """One candidate main photo inside a test.
 
     Two kinds of row, distinguished by ``is_original``: the photos the user
-    uploaded, and the one that was already on the card. The second is captured
-    from WB when the test is created and joins the rotation ahead of the
-    uploads, so every test measures its candidates against the image they would
-    be replacing rather than only against each other — and so the seller can see
-    that baseline in the list while they are still choosing what to compare.
+    uploaded as candidates, and the one they uploaded as «Главное» — the
+    baseline the others are read against. Both are uploads. The baseline used to
+    be pulled off the card from WB's CDN, and it was dropped: WB serves
+    renditions rather than the seller's own file, so every comparison was
+    against a re-transcoded image and every re-install pushed that loss back
+    onto the live card.
 
     The image bytes live on disk (see :mod:`.services.photos`) rather than in
     the row: they are pushed to WB as multipart, and streaming them back to the
@@ -213,10 +221,10 @@ class AbTestVariant(Base):
             reserved for the card's own photo** — see ``is_original`` — so that
             enrolling it needs no renumbering of rows a running test is already
             attributing traffic to.
-        is_original: True for the photo that was the card's main image when the
-            test was created. It is captured from WB rather than uploaded, it
-            always sorts first, and it is the one variant the rotation does not
-            have to install: it is what the card is showing.
+        is_original: True for the photo the seller marked as «Главное». It
+            sorts first, opens the rotation and is installed like every other
+            variant — nothing about it is assumed to be on the card already.
+            At most one per test.
         excluded_at: When the seller took this photo out of the rotation, or
             ``None`` while it is still in. Excluding is **not** deleting: the
             row, the image and every window already credited to it stay, so the

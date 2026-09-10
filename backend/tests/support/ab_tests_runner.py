@@ -156,9 +156,10 @@ class FakeTests:
         self.active_writes: list[uuid.UUID | None] = []
         self.status_writes: list[AbTestStatus] = []
 
-    async def pause_for_ads(self, *, test: AbTest) -> None:
+    async def pause_for_ads(self, *, test: AbTest, at: datetime) -> None:
         test.status = AbTestStatus.PAUSED.value
         test.paused_by_ads = True
+        test.stopped_at = at
         self.status_writes.append(AbTestStatus.PAUSED)
 
     async def set_active_variant(self, *, test: AbTest, variant_id: uuid.UUID | None) -> None:
@@ -172,6 +173,7 @@ class FakeTests:
         status: AbTestStatus,
         started_at: datetime | None = None,
         finished_at: datetime | None = None,
+        stopped_at: datetime | None = None,
     ) -> None:
         test.status = status.value
         self.status_writes.append(status)

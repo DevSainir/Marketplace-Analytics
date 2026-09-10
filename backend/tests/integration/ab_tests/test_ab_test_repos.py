@@ -440,3 +440,58 @@ async def test_a_running_test_can_be_deleted_with_its_photo_still_on_the_card(
     assert await tests.delete(workspace_id=workspace.id, test_id=test.id) is True
 
     assert await tests.get(workspace_id=workspace.id, test_id=test.id) is None
+
+
+@pytest.mark.integration
+async def test_a_stopped_test_records_when_and_a_resumed_one_forgets(
+    db_session: AsyncSession, organization: Organization
+) -> None:
+    """«Остановлен» has to survive a pause and vanish on a resume.
+
+    ``finished_at`` answers this only for a test that ended, and the case the
+    page actually asks about is the paused one. A ``stopped_at`` left behind by
+    a resume would go on answering «стоит с 14:05» for a test that is running.
+    """
+    workspace = await _workspace(db_session, organization.id)
+    repo = AbTestRepository(db_session)
+    test = await repo.create(
+        workspace_id=workspace.id,
+        nm_id=NM_FLOWER_DRESS,
+        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
+        name="Тест главного фото",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
+        impression_budget=10_000,
+        slot_minutes=60,
+    )
+    paused_at = datetime(2026, 9, 9, 14, 5, tzinfo=UTC)
+
+    await repo.set_status(test=test, status=AbTestStatus.PAUSED, stopped_at=paused_at)
+    assert test.stopped_at == paused_at
+
+    await repo.set_status(test=test, status=AbTestStatus.RUNNING)
+    assert test.stopped_at is None
+
+
+@pytest.mark.integration
+async def test_the_rotations_own_pause_records_when_it_happened(
+    db_session: AsyncSession, organization: Organization
+) -> None:
+    """A test paused by the advertising is as stopped as one paused by hand."""
+    workspace = await _workspace(db_session, organization.id)
+    repo = AbTestRepository(db_session)
+    test = await repo.create(
+        workspace_id=workspace.id,
+        nm_id=NM_FLOWER_DRESS,
+        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
+        name="Тест главного фото",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
+        impression_budget=10_000,
+        slot_minutes=60,
+    )
+    stopped = datetime(2026, 9, 9, 3, 0, tzinfo=UTC)
+
+    await repo.pause_for_ads(test=test, at=stopped)
+    assert (test.stopped_at, test.paused_by_ads) == (stopped, True)
+
+    await repo.resume_after_ads(test=test)
+    assert (test.stopped_at, test.paused_by_ads) == (None, False)

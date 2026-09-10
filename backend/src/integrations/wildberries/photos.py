@@ -2,18 +2,16 @@
 
 WB serves every card rendition from ``basket-NN.wbbasket.ru`` (verified live
 2026-09-07). The check lives here, next to the schemas that parse those URLs
-out of WB's payload, because two callers now need the same answer for two
-different reasons and a second copy would drift:
+out of WB's payload, so that a caller cannot arrive at its own answer:
 
-* :mod:`src.modules.ab_tests.services.original` **fetches** the URL, so an
-  unchecked host is SSRF — a request to whatever an upstream names, however
-  well authenticated that upstream was.
-* :mod:`src.modules.monitoring.services.ingestion.catalog` **stores** it to be
-  rendered as an ``<img src>``, so an unchecked host is a third party told
+* :mod:`src.modules.monitoring.services.ingestion.catalog` **stores** the URL to
+  be rendered as an ``<img src>``, so an unchecked host is a third party told
   which of our users is looking at which card, from inside our own page.
-
-Neither caller can assume the other validated: this is the one place that says
-what a WB image URL is.
+* Anything that ever **fetches** one is doing so at a host an upstream named,
+  however well authenticated that upstream was, which is SSRF unless the host is
+  checked here first. The A/Б module used to, downloading a card's main photo as
+  a test's baseline; that was dropped — see
+  :mod:`src.modules.ab_tests.services.variants` — and the rule outlives it.
 """
 
 from __future__ import annotations

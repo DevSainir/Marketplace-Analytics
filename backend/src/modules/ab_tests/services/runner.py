@@ -120,7 +120,7 @@ class _Tests(Protocol):
 
     async def set_active_variant(self, *, test: AbTest, variant_id: uuid.UUID | None) -> None: ...
 
-    async def pause_for_ads(self, *, test: AbTest) -> None: ...
+    async def pause_for_ads(self, *, test: AbTest, at: datetime) -> None: ...
 
     async def set_status(
         self,
@@ -129,6 +129,7 @@ class _Tests(Protocol):
         status: AbTestStatus,
         started_at: datetime | None = None,
         finished_at: datetime | None = None,
+        stopped_at: datetime | None = None,
     ) -> None: ...
 
 
@@ -253,7 +254,7 @@ class RotationRunner:
             # its turn, and only then does the rotation react. So the ads are
             # read at the swap, not on every pass.
             if await self._read_ads(test.nm_id) is AdsState.PAUSED:
-                await self._pause_with_ads(test)
+                await self._pause_with_ads(test, now=now)
                 action = RotationAction.HOLD
                 paused = True
             else:
@@ -268,7 +269,7 @@ class RotationRunner:
             paused=paused,
         )
 
-    async def _pause_with_ads(self, test: AbTest) -> None:
+    async def _pause_with_ads(self, test: AbTest, *, now: datetime) -> None:
         """Stop advancing because nothing is advertising the card.
 
         Not a completion: the money is still there and the seller can switch the
@@ -285,9 +286,10 @@ class RotationRunner:
 
         Args:
             test: The running test to pause.
+            now: This pass's clock, recorded as when the test stopped.
         """
         await self._snapshots.clear(test_id=test.id)
-        await self._tests.pause_for_ads(test=test)
+        await self._tests.pause_for_ads(test=test, at=now)
         logger.info(
             "ab_tests: no running campaign on nm %s; test %s pauses with the advertising",
             test.nm_id,

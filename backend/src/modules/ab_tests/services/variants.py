@@ -80,8 +80,16 @@ class VariantCatalogService:
         content: bytes,
         content_type: str,
         filename: str,
+        as_main: bool = False,
     ) -> AbTestVariant:
-        """Store an uploaded photo and append it to the rotation.
+        """Store an uploaded photo and put it in the rotation.
+
+        ``as_main`` files it as «Главное» — position 0, first out of the gate,
+        the row every other photo is read against. It is an upload like any
+        other, and that is the change: the baseline used to be pulled off WB's
+        CDN, which meant comparing against a rendition of the seller's file
+        rather than against the file, and pushing that transcoding loss back
+        onto the live card every time it came round again.
 
         Args:
             workspace_id: Tenancy guard.
@@ -89,6 +97,7 @@ class VariantCatalogService:
             content: Raw image bytes.
             content_type: MIME type declared by the browser.
             filename: The user's own file name.
+            as_main: File it as the test's «Главное» photo.
 
         Returns:
             The new variant.
@@ -96,7 +105,8 @@ class VariantCatalogService:
         Raises:
             NotFoundError: If the test does not exist in this workspace.
             ValidationError: If the file is not an image WB would accept.
-            ConflictError: If the test already carries the maximum photos.
+            ConflictError: If the test already carries the maximum photos, or
+                already has a «Главное» one.
         """
         test = await self._require(workspace_id=workspace_id, test_id=test_id)
         validate_image(content=content, content_type=content_type)
@@ -104,8 +114,12 @@ class VariantCatalogService:
         if await self._variants.count_for_test(test_id=test.id) >= MAX_VARIANTS_PER_TEST:
             raise ConflictError(f"В тесте не может быть больше {MAX_VARIANTS_PER_TEST} фото.")
 
+        if as_main and any(variant.is_original for variant in test.variants):
+            raise ConflictError("Главное фото уже загружено. Удалите его, чтобы загрузить другое.")
+
         stored = await self._media.save(content=content, content_type=content_type, test_id=test.id)
-        return await self._variants.add(
+        add = self._variants.add_original if as_main else self._variants.add
+        return await add(
             test_id=test.id,
             image_path=stored.relative_path,
             image_sha256=stored.sha256,
@@ -121,6 +135,11 @@ class VariantCatalogService:
         The stored file stays on disk when the variant was ever live: its bytes
         are the evidence behind the metrics already attributed to it.
 
+        «Главное» may be deleted like any other photo — it is an upload, and
+        deleting it is how it is replaced. It was refused while it was captured
+        from WB, when deleting it meant losing a baseline the seller could not
+        put back.
+
         Args:
             workspace_id: Tenancy guard.
             test_id: Owning test.
@@ -128,10 +147,7 @@ class VariantCatalogService:
 
         Raises:
             NotFoundError: If the test or the variant does not exist.
-            ConflictError: If the variant is the one currently on the card, or
-                is the card's own photo — that one is the baseline every other
-                row is read against, and a table without it compares the
-                candidates only to each other.
+            ConflictError: If the variant is the one currently on the card.
         """
         test = await self._require(workspace_id=workspace_id, test_id=test_id)
         if test.active_variant_id == variant_id:
@@ -140,10 +156,6 @@ class VariantCatalogService:
         variant = await self._variants.get(test_id=test_id, variant_id=variant_id)
         if variant is None:
             raise NotFoundError("Вариант не найден.")
-        if variant.is_original:
-            raise ConflictError(
-                "Текущее фото карточки убрать из ротации нельзя — с ним сравниваются остальные."
-            )
 
         never_measured = await self._stats.impressions_for_variant(variant_id=variant_id) == 0
         path = variant.image_path

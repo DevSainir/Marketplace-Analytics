@@ -1,0 +1,191 @@
+/*
+ * The rotation timeline — the track, its ticks, the thumbnails under it, and
+ * the popup one segment opens.
+ *
+ * Its own stylesheet for the reason the log's is: the component is close to the
+ * 250-line ceiling, and geometry this fiddly reads better in one place than
+ * scattered through `:style` bindings. Everything positional stays inline —
+ * `left` and `width` are data, not design.
+ *
+ * The one decision worth recording is that a segment is a `<button>`. It has to
+ * be reachable without a mouse (the popup carries figures that exist nowhere
+ * else on the page), and a focusable `<div>` with a `tabindex` is the same
+ * thing with more ways to get it wrong.
+ */
+
+.ab-timeline {
+  position: relative;
+}
+
+.ab-timeline__ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--ui-muted);
+  white-space: nowrap;
+}
+
+.ab-timeline__track {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--ui-sunk);
+}
+
+.ab-timeline__segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  /* Hairline gaps rather than borders: a border would eat into a segment that
+     is already at its minimum width. */
+  background: var(--ui-action);
+  box-shadow: inset -1px 0 0 var(--ui-surface);
+  cursor: pointer;
+  transition:
+    transform var(--ui-fast) var(--ui-ease),
+    background var(--ui-fast) var(--ui-ease);
+}
+
+.ab-timeline__segment:first-child {
+  border-radius: 999px 0 0 999px;
+}
+
+.ab-timeline__segment:last-of-type {
+  border-radius: 0 999px 999px 0;
+}
+
+/* «Bolder» on hover is vertical: growing the width would move every segment
+   to its right and make the line squirm under the cursor. */
+.ab-timeline__segment:hover,
+.ab-timeline__segment:focus-visible {
+  background: var(--ui-action-hover);
+  transform: scaleY(1.6);
+  outline: none;
+}
+
+/* The turn still in progress, striped so it reads as unfinished rather than as
+   a segment that happens to be last. */
+.ab-timeline__segment--live {
+  background: repeating-linear-gradient(
+    115deg,
+    var(--ui-action) 0 6px,
+    var(--ui-action-hover) 6px 12px
+  );
+}
+
+/* The axis ticks: where a photo was set. Below the track, like a graph's. */
+.ab-timeline__tick {
+  position: absolute;
+  top: 100%;
+  width: 1px;
+  height: 6px;
+  background: var(--ui-rule);
+  pointer-events: none;
+}
+
+.ab-timeline__labels {
+  position: relative;
+  height: 56px;
+  margin-top: 10px;
+}
+
+.ab-timeline__label {
+  position: absolute;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 44px;
+  /* Anchored on the tick rather than starting at it: a thumbnail hanging to the
+     right of its divider reads as belonging to the segment after it. */
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.ab-timeline__thumb {
+  width: 30px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--ui-r-sm, 4px);
+  box-shadow: var(--ui-sh-xs);
+  display: block;
+}
+
+.ab-timeline__thumb--empty {
+  background: var(--ui-sunk);
+}
+
+.ab-timeline__caption {
+  font-size: 9px;
+  line-height: 1.1;
+  color: var(--ui-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ab-timeline__total {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-ink);
+  text-align: center;
+}
+
+/* Teleported to <body>, so this rule cannot be scoped to a descendant of the
+   card — it is matched on the element's own class, which `<style scoped>` still
+   attributes because the element is written in this component's template. */
+.ab-timeline__tip {
+  position: fixed;
+  z-index: 60;
+  /* The segment's own top is passed in; this lifts the popup clear of it. */
+  transform: translateY(-100%);
+  width: max-content;
+  max-width: min(300px, 80vw);
+  padding: 10px 12px;
+  border-radius: var(--ui-r-md);
+  background: #1f2030;
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1.45;
+  box-shadow: 0 6px 20px rgb(15 15 30 / 22%);
+  pointer-events: none;
+}
+
+.ab-timeline__tip-title {
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.ab-timeline__tip-rows {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 14px;
+}
+
+.ab-timeline__tip-rows dt {
+  color: #b9b9c8;
+}
+
+.ab-timeline__tip-rows dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* On a phone the labels are the first thing to go: a 390px track fits three
+   thumbnails, and the popup names every turn anyway. Their 56px is what was
+   holding the total clear of the ticks, so it has to be given back. */
+@media (max-width: 430px) {
+  .ab-timeline__labels {
+    display: none;
+  }
+
+  .ab-timeline__total {
+    margin-top: 14px;
+  }
+}

@@ -63,14 +63,17 @@ export const useAbTestsStore = defineStore('abTests', () => {
   const rows = computed(() => tests.value)
 
   /**
-   * How many photos the seller has uploaded to the open test.
+   * How many photos the open test holds.
    *
-   * The card's own photo is not one of them. It was captured, not chosen, and
-   * `MAX_VARIANTS` bounds uploads — counting it here would silently cost the
-   * seller a slot, which is the backend's rule read the wrong way round.
+   * «Главное» counts. It is an upload like the rest — it used to be captured
+   * off WB's CDN, and leaving it out of this count was how the seller avoided
+   * paying a slot for a photo they never chose.
    */
-  const uploadedCount = computed(
-    () => (detail.value?.variants ?? []).filter((variant) => !variant.is_original).length,
+  const uploadedCount = computed(() => (detail.value?.variants ?? []).length)
+
+  /** Whether the open test already carries a «Главное» photo — at most one. */
+  const hasMainPhoto = computed(() =>
+    (detail.value?.variants ?? []).some((variant) => variant.is_original),
   )
 
   /** True while the open test still has room for another photo. */
@@ -202,13 +205,14 @@ export const useAbTestsStore = defineStore('abTests', () => {
    *
    * @param {string} testId Test identifier.
    * @param {File} file The picture.
+   * @param {{main?: boolean}} [options] `main: true` files it as «Главное».
    * @returns {Promise<boolean>} Whether it was accepted.
    */
-  async function addPhoto(testId, file) {
+  async function addPhoto(testId, file, { main = false } = {}) {
     saving.value = true
     error.value = ''
     try {
-      detail.value = await uploadVariant(testId, file)
+      detail.value = await uploadVariant(testId, file, { main })
       return true
     } catch (err) {
       error.value = extractErrorMessage(err)
@@ -405,6 +409,7 @@ export const useAbTestsStore = defineStore('abTests', () => {
     error,
     rows,
     canUpload,
+    hasMainPhoto,
     remainingSlots,
     uploadedCount,
     loadTests,

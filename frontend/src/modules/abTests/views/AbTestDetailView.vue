@@ -2,17 +2,16 @@
 /**
  * One A/Б-тест: upload the photos, then read what each of them earned.
  *
- * Three blocks on the canvas — identity, the rotation panel, the results — the
- * same stack `MonitoringView` uses, so the page reads as part of the app rather
- * than as a form someone bolted on. The result table is its own component; see
- * it for why photos are rows.
+ * Four blocks on the canvas — identity, the timeline, the totals, the results —
+ * the same stack `MonitoringView` uses, so the page reads as part of the app
+ * rather than as a form someone bolted on. Each is its own component.
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import { MAX_VARIANTS, STATUS_LABELS, useAbTestsStore } from '@/modules/abTests'
 import RotationHistory from '@/modules/abTests/components/RotationHistory.vue'
-import RotationProgress from '@/modules/abTests/components/RotationProgress.vue'
+import RotationTimeline from '@/modules/abTests/components/RotationTimeline.vue'
 import TestControls from '@/modules/abTests/components/TestControls.vue'
 import TestSummary from '@/modules/abTests/components/TestSummary.vue'
 import TriggerEditor from '@/modules/abTests/components/TriggerEditor.vue'
@@ -21,7 +20,6 @@ import VariantResultsTable from '@/modules/abTests/components/VariantResultsTabl
 const route = useRoute()
 const router = useRouter()
 const store = useAbTestsStore()
-const fileInput = ref(null)
 
 const test = computed(() => store.detail)
 
@@ -118,7 +116,20 @@ async function onFiles(event) {
     const ok = await store.addPhoto(route.params.testId, file)
     if (!ok) break
   }
-  if (fileInput.value) fileInput.value.value = ''
+  event.target.value = ''
+}
+
+/**
+ * Upload the baseline. Single-file, unlike `onFiles`: a test has exactly one
+ * «Главное», and a second would come back as a conflict nobody asked for.
+ *
+ * @param {Event} event The file input's change event.
+ * @returns {Promise<void>}
+ */
+async function onMainFile(event) {
+  const [file] = Array.from(event.target.files || [])
+  if (file) await store.addPhoto(route.params.testId, file, { main: true })
+  event.target.value = ''
 }
 </script>
 
@@ -178,20 +189,22 @@ async function onFiles(event) {
 
     <p v-if="store.error" class="mb-md text-base text-status-negative">{{ store.error }}</p>
 
-    <RotationProgress v-if="test" :test="test" :image-urls="store.imageUrls" />
+    <RotationTimeline v-if="test && test.started_at" :test="test" :image-urls="store.imageUrls" />
 
     <!-- Only once something has been installed: before that every figure in it
          is a zero, and four zeros read as a broken panel rather than as an
          empty one. -->
-    <TestSummary v-if="test && test.started_at" :test="test" />
+    <TestSummary v-if="test && test.started_at" :test="test" :image-urls="store.imageUrls" />
 
     <TestControls
       v-if="test"
       :test="test"
       :can-upload="store.canUpload"
+      :has-main-photo="store.hasMainPhoto"
       :uploaded-count="store.uploadedCount"
       :saving="store.saving"
       @upload="onFiles"
+      @upload-main="onMainFile"
       @status="store.changeStatus(test.id, $event)"
     />
 
@@ -227,8 +240,8 @@ async function onFiles(event) {
 
     <p v-else-if="test" class="rounded-card bg-surface p-lg text-base text-muted shadow-card">
       Загрузите до {{ MAX_VARIANTS }} вариантов главного фото — они будут сменять друг друга по мере
-      набора показов, и здесь появится их сравнение. Фото самой карточки в ротации не оказалось: WB
-      не отдал его при создании теста — оно добавится при запуске, если ответит.
+      набора показов, и здесь появится их сравнение. Начните с «Главного»: это то фото, которое
+      сейчас стоит на карточке, и именно с ним сравниваются остальные.
     </p>
   </main>
 </template>

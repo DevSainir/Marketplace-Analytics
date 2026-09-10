@@ -113,6 +113,34 @@ async def test_uploading_a_photo_passes_the_bytes_and_type_through(
     assert photos.uploaded == [(JPEG, "image/jpeg", "dress.jpg")]
 
 
+async def test_the_main_photo_flag_reaches_the_service(
+    client: httpx.AsyncClient, headers: dict[str, str], photos: _StubVariants
+) -> None:
+    """`?main=true` is what files an upload as «Главное».
+
+    The flag is the whole feature at this tier: the baseline used to be
+    downloaded from WB's CDN, and the only thing that now distinguishes it from
+    any other upload is this query parameter reaching the service. A default of
+    ``False`` would silently turn every baseline into an ordinary candidate.
+    """
+    ordinary = await client.post(
+        f"/api/ab-tests/{TEST_ID}/variants",
+        headers=headers,
+        files={"file": ("b.jpg", JPEG, "image/jpeg")},
+    )
+    main = await client.post(
+        f"/api/ab-tests/{TEST_ID}/variants?main=true",
+        headers=headers,
+        files={"file": ("main.jpg", JPEG, "image/jpeg")},
+    )
+
+    assert (ordinary.status_code, main.status_code) == (201, 201)
+    assert [call[1]["as_main"] for call in photos.calls if call[0] == "add_variant"] == [
+        False,
+        True,
+    ]
+
+
 async def test_a_full_rotation_refuses_the_eleventh_photo_with_409(
     client: httpx.AsyncClient, headers: dict[str, str], photos: _StubVariants
 ) -> None:

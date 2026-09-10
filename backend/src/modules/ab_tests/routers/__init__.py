@@ -26,7 +26,6 @@ from src.core.uploads import read_capped
 from src.modules.ab_tests.deps import (
     AbTestCatalogServiceDep,
     InstallerDep,
-    OriginalCaptureDep,
     SkuCatalogueDep,
     VariantServiceDep,
 )
@@ -83,27 +82,23 @@ async def create_test(
     payload: AbTestCreate,
     service: AbTestCatalogServiceDep,
     catalogue: SkuCatalogueDep,
-    capture: OriginalCaptureDep,
     workspace_id: CurrentWorkspaceId,
 ) -> AbTestRead:
-    """Create a draft test already carrying the card's main photo.
+    """Create an empty draft test.
 
     The article is resolved against the workspace's catalogue before anything is
     written, and the seller article is read off that card rather than taken from
     the body — the two could otherwise disagree.
 
-    The card's current main photo is copied into the test here, so the seller
-    opens a brand-new test and sees the thing their uploads will be compared
-    against already in the rotation. It needs the workspace's Content token and
-    does without one rather than refusing: a test may be set up before the WB
-    credentials are pasted, and the start — which actually writes to the card —
-    is where the missing token is refused.
+    No photo comes with it. The card's live main image used to be downloaded
+    from WB's CDN as the baseline; that is gone, because WB serves renditions
+    rather than the seller's own file and re-installing one put the transcoding
+    loss back on the live card. The baseline is now an upload marked «Главное».
     """
     return await service.create_test(
         workspace_id=workspace_id,
         payload=payload,
         card=await catalogue.resolve(workspace_id=workspace_id, nm_id=payload.nm_id),
-        capture=capture,
     )
 
 
@@ -204,23 +199,19 @@ async def set_status(
     payload: AbTestStatusUpdate,
     service: AbTestCatalogServiceDep,
     installer: InstallerDep,
-    capture: OriginalCaptureDep,
     workspace_id: CurrentWorkspaceId,
 ) -> AbTestRead:
-    """Change a test's status; starting opens the rotation on the card's photo.
+    """Change a test's status; starting installs the first photo on the card.
 
     This is the only route that needs a WB token, so it is the only one that
-    depends on the installer and the capture — reading a test must stay possible
-    for a workspace that has not stored its credentials yet. Starting reads the
-    card's current main photo into the rotation before installing anything, so
-    the uploads are compared against the image they would replace.
+    depends on the installer — reading a test must stay possible for a workspace
+    that has not stored its credentials yet.
     """
     return await service.set_status(
         workspace_id=workspace_id,
         test_id=test_id,
         status=payload.status,
         installer=installer,
-        capture=capture,
     )
 
 
@@ -251,7 +242,7 @@ async def delete_test(
     responses={
         403: {"description": "Доступ только для чтения"},
         404: {"description": "Тест не найден"},
-        409: {"description": "Достигнут предел в 10 фото"},
+        409: {"description": "Достигнут предел в 10 фото, или главное фото уже загружено"},
         422: {"description": "Файл не является поддерживаемым изображением"},
     },
 )
@@ -262,8 +253,14 @@ async def upload_variant(
     photos: VariantServiceDep,
     workspace_id: CurrentWorkspaceId,
     file: UploadFile = File(description="Изображение до 32 МБ"),
+    main: bool = Query(default=False, description="Загрузить как главное фото карточки"),
 ) -> AbTestDetail:
     """Append a photo to the rotation and return the refreshed test.
+
+    ``main=true`` files it as «Главное»: position 0, first out of the gate, and
+    the row every other photo's result is read against. One per test — the
+    seller replaces it by deleting it and uploading another, which is the same
+    two steps as changing any other photo.
 
     The whole test comes back rather than just the new variant: the result
     table has to re-render anyway, and one round trip keeps the upload list and
@@ -279,6 +276,7 @@ async def upload_variant(
         ),
         content_type=file.content_type or "application/octet-stream",
         filename=file.filename or "",
+        as_main=main,
     )
     return await service.get_detail(workspace_id=workspace_id, test_id=test_id)
 

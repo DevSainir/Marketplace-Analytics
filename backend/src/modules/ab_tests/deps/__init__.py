@@ -26,12 +26,6 @@ from src.modules.ab_tests.repos import (
     WindowRepository,
 )
 from src.modules.ab_tests.services.catalog import AbTestCatalogService
-from src.modules.ab_tests.services.original import (
-    HttpPhotoDownloader,
-    NullPhotoCapture,
-    OriginalPhotoCapture,
-    PhotoEnroller,
-)
 from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.skus import SkuCatalogue
 from src.modules.ab_tests.services.storage import MediaStore, build_media_store
@@ -71,34 +65,6 @@ async def get_installer(
 
 
 InstallerDep = Annotated[VariantInstaller, Depends(get_installer)]
-
-
-async def get_original_capture(
-    session: DbSession,
-    workspace_id: CurrentWorkspaceId,
-    media_store: MediaStoreDep,
-) -> PhotoEnroller:
-    """Provide the enrolment of the card's live main photo.
-
-    Built from the same token as the installer but **not refused** without one,
-    unlike :func:`get_installer`. This one hangs off the create route, and a
-    workspace must be able to set a test up before it has pasted its WB
-    credentials — the refusal belongs where the test is started and the card is
-    actually written to. With no token the enrolment is a no-op and the test is
-    created without a baseline, which the start then fills in.
-    """
-    bundle = await load_workspace_token_bundle(session, workspace_id=workspace_id)
-    token = (bundle.content or bundle.analytics) if bundle else ""
-    if not token:
-        return NullPhotoCapture()
-    return OriginalPhotoCapture(
-        content_client=WBContentClient(settings, token=token),
-        downloader=HttpPhotoDownloader(),
-        media_store=media_store,
-    )
-
-
-OriginalCaptureDep = Annotated[PhotoEnroller, Depends(get_original_capture)]
 
 
 def get_sku_catalogue(session: DbSession) -> SkuCatalogue:
@@ -174,13 +140,11 @@ __all__ = [
     "AbTestCatalogServiceDep",
     "InstallerDep",
     "MediaStoreDep",
-    "OriginalCaptureDep",
     "SkuCatalogueDep",
     "VariantServiceDep",
     "get_catalog_service",
     "get_installer",
     "get_media_store",
-    "get_original_capture",
     "get_sku_catalogue",
     "get_variant_service",
 ]

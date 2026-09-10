@@ -23,7 +23,6 @@ import pytest
 from src.modules.ab_tests.deps import (
     get_catalog_service,
     get_installer,
-    get_original_capture,
     get_sku_catalogue,
     get_variant_service,
 )
@@ -63,6 +62,7 @@ def _read(**overrides: Any) -> AbTestRead:
         "variant_count": 0,
         "started_at": None,
         "finished_at": None,
+        "stopped_at": None,
         "created_at": datetime(2026, 8, 20, tzinfo=UTC),
     }
     payload.update(overrides)
@@ -145,22 +145,6 @@ class _StubInstaller:
 
     async def install(self, *, nm_id: int, variant: Any) -> None:
         self.installed.append(nm_id)
-
-
-class _StubCapture:
-    """Stands in for the read of the card's own main photo.
-
-    Enrols nothing: at this tier the question is whether the create and status
-    routes reach the service with a capture in hand, not what WB's CDN served.
-    What it actually captures is proved in tests/unit/ab_tests/test_original.py
-    and tests/integration/ab_tests/test_ab_test_creation_row.py.
-    """
-
-    def __init__(self) -> None:
-        self.asked: list[int] = []
-
-    async def enrol(self, *, test: Any, variants: Any) -> None:
-        self.asked.append(test.nm_id)
 
 
 class _StubVariants:
@@ -293,7 +277,6 @@ def _wire(
     override(get_workspace_repo, workspace_repo)
     override(get_catalog_service, catalog)
     override(get_installer, _StubInstaller())
-    override(get_original_capture, _StubCapture())
     override(get_sku_catalogue, catalogue)
     override(get_variant_service, photos)
 

@@ -9,62 +9,41 @@
  * comparison is worth, and all of them were derivable only by adding a row up
  * by hand.
  *
- * **The block is the table's column sums, and it says so.** The backend builds
- * both from the same interval rows, so «Показов» here equals the «Показов» line
- * below, to the impression. That is the property that makes the panel worth
- * trusting instead of worth checking, and it is why `Как это посчитано`
- * spells out the derivation rather than describing it — a summary a reader
- * cannot reconcile with the data under it is a second source of truth.
+ * **The block is the table's column sums.** The backend builds both from the
+ * same interval rows, so «Показов» here equals the «Показов» line below, to the
+ * impression. That is the property that makes the panel worth trusting instead
+ * of worth checking.
  *
- * Two clocks, deliberately both shown:
+ * One clock, not two. «Длительность» is the summed length of the intervals that
+ * carry the counts — the exposure the ratios are divided over. Wall-clock time
+ * since the start used to sit beside it, and it was answering a question nobody
+ * had: the difference between the two is idle time, and «Остановлен» says that
+ * outright, with a date on it.
  *
- * * **Прошло** — wall clock since the first photo went up. Ticks here, locally,
- *   because for a live test it ends at «сейчас»; a duration serialised by the
- *   backend would be stale before it reached the screen.
- * * **Измерено** — the summed length of the intervals that carry the counts.
- *
- * Their difference is every stretch the test was not accruing: a hand pause, a
- * campaign that stopped serving. Showing only the first would present four
- * hours of data as fourteen hours' worth of confidence; showing only the second
- * hides that the test has been idle since lunch.
+ * It also carries the two facts about the rotation's present tense that used to
+ * live in a panel of their own above: the status, and which photo is on the
+ * card. Both are one line each, and a whole card for two lines was reading as a
+ * section rather than as a caption.
  */
-import { computed, onUnmounted, ref } from 'vue'
+import { computed } from 'vue'
 
+import { STATUS_LABELS } from '@/modules/abTests'
 import MetricHint from '@/modules/abTests/components/MetricHint.vue'
 
 const props = defineProps({
   /** The open test, as the detail endpoint returns it. */
   test: { type: Object, required: true },
+  /** variant_id -> object URL for the stored original. */
+  imageUrls: { type: Object, default: () => ({}) },
 })
 
 const summary = computed(() => props.test.summary ?? {})
 
-const expanded = ref(false)
-
-// The wall clock ticks under the reader; see the header comment.
-const now = ref(Date.now())
-const ticking = setInterval(() => (now.value = Date.now()), 1000)
-onUnmounted(() => clearInterval(ticking))
-
-/** Milliseconds from the first install to the finish, or to now. */
-const elapsedMs = computed(() => {
-  const started = Date.parse(props.test.started_at ?? '')
-  if (Number.isNaN(started)) return null
-  const finished = Date.parse(props.test.finished_at ?? '')
-  return Math.max(0, (Number.isNaN(finished) ? now.value : finished) - started)
-})
-
 const measuredMs = computed(() => Number(summary.value.measured_minutes ?? 0) * 60_000)
 
-/**
- * Time the test stood without accruing anything.
- *
- * Clamped at zero rather than trusted: the two clocks come from different
- * sources — one from the reader's browser, one from summed intervals — and a
- * few seconds of skew must not render as «-1 мин простоя».
- */
-const idleMs = computed(() =>
-  elapsedMs.value === null ? null : Math.max(0, elapsedMs.value - measuredMs.value),
+/** The status, shown only when it is not the one the ticking figures imply. */
+const statusLabel = computed(() =>
+  props.test.status === 'running' ? '' : STATUS_LABELS[props.test.status] || props.test.status,
 )
 
 /** The four figures the block leads with. */
@@ -95,31 +74,40 @@ const tiles = computed(() => [
   },
 ])
 
-/** The facts under the tiles: when, how long, how much of it counted. */
+/** When it started, when it stopped, and how much of that was measured. */
 const facts = computed(() => [
   { key: 'started', label: 'Запущен', value: moment(props.test.started_at) },
   {
-    key: 'finished',
-    label: props.test.finished_at ? 'Завершён' : 'Статус',
-    value: props.test.finished_at ? moment(props.test.finished_at) : liveLabel.value,
+    key: 'stopped',
+    label: 'Остановлен',
+    value: moment(props.test.stopped_at),
+    hint: 'Когда ротация в последний раз перестала двигаться — пауза считается наравне с завершением. У идущего теста здесь «—».',
   },
-  { key: 'elapsed', label: 'Прошло', value: duration(elapsedMs.value) },
   {
     key: 'measured',
-    label: 'Измерено',
+    label: 'Длительность',
     value: duration(measuredMs.value),
-    hint: `Сумма длительностей ${count(summary.value.windows)} засчитанных отрезков. Меньше «Прошло» на ${duration(idleMs.value)} — столько тест простоял на паузе или без работающей рекламы, и это время никакому фото не зачтено.`,
+    hint: `Сумма длительностей ${count(summary.value.windows)} засчитанных отрезков — время, за которое собраны эти числа. Пауза и часы без работающей рекламы в неё не входят: за них счётчики не читаются и никакому фото ничего не начисляется.`,
   },
-  { key: 'fresh', label: 'Данные по', value: moment(summary.value.last_window_at) },
 ])
-
-const liveLabel = computed(() => (props.test.status === 'running' ? 'Идёт' : 'Не завершён'))
 
 /** «3 фото из 8 успели набрать показы» — how much of the test has run at all. */
 const coverage = computed(() => {
   const measured = Number(summary.value.variants_measured ?? 0)
   const total = Number(summary.value.variants_total ?? 0)
   return { measured, total, rounds: Number(summary.value.rounds_completed ?? 0) }
+})
+
+const active = computed(() =>
+  (props.test.variants ?? []).find(
+    (variant) => variant.variant_id === props.test.active_variant_id,
+  ),
+)
+
+/** «Главное» for the baseline, «Вариант N» for a candidate. */
+const activeLabel = computed(() => {
+  if (!active.value) return ''
+  return active.value.is_original ? 'Главное' : `Вариант ${active.value.position}`
 })
 
 function count(value) {
@@ -163,7 +151,17 @@ function duration(ms) {
     aria-label="Итог по тесту"
     data-testid="test-summary"
   >
-    <h2 class="text-h3 font-semibold text-primary">Итог по тесту</h2>
+    <div class="flex flex-wrap items-baseline gap-x-sm gap-y-xs">
+      <h2 class="text-h3 font-semibold text-primary">Итог по тесту</h2>
+      <span
+        v-if="statusLabel"
+        class="text-tiny font-semibold"
+        :class="test.status === 'paused' ? 'text-status-warning' : 'text-muted'"
+        data-testid="summary-status"
+      >
+        {{ statusLabel }}
+      </span>
+    </div>
 
     <dl class="mt-md grid grid-cols-4 gap-md phone:grid-cols-2">
       <div v-for="tile in tiles" :key="tile.key">
@@ -183,7 +181,12 @@ function duration(ms) {
     <dl class="mt-lg flex flex-wrap gap-x-lg gap-y-sm border-t border-border-subtle pt-md">
       <div v-for="fact in facts" :key="fact.key" class="flex items-baseline gap-xs">
         <dt class="text-tiny text-muted">{{ fact.label }}</dt>
-        <dd class="text-tiny font-semibold tabular-nums text-primary">{{ fact.value }}</dd>
+        <dd
+          class="text-tiny font-semibold tabular-nums text-primary"
+          :data-testid="`fact-${fact.key}`"
+        >
+          {{ fact.value }}
+        </dd>
         <MetricHint v-if="fact.hint" :text="fact.hint" />
       </div>
     </dl>
@@ -193,36 +196,35 @@ function duration(ms) {
       {{ coverage.rounds }}.
     </p>
 
-    <button
-      type="button"
-      class="mt-sm rounded-btn text-tiny font-semibold text-action transition hover:underline"
-      data-testid="summary-explain"
-      @click="expanded = !expanded"
-    >
-      {{ expanded ? 'Свернуть' : 'Как это посчитано' }}
-    </button>
-
-    <div v-if="expanded" class="mt-sm space-y-sm text-tiny leading-relaxed text-muted">
-      <p>
-        Раз в 5 минут мы читаем накопительные счётчики рекламы WB по этому артикулу и записываем
-        <strong class="text-primary">разницу</strong> с прошлым чтением на то фото, которое стояло
-        на карточке весь этот отрезок. Смена фото происходит сразу после закрытия отрезка, поэтому
-        ни один отрезок не делится между двумя вариантами.
-      </p>
-      <p>
-        Все четыре числа наверху — сумма этих отрезков по всему тесту, из тех же строк, из которых
-        строится таблица ниже. Сложите строку «Показов» по всем фото — получится ровно
-        {{ count(summary.views) }}.
-      </p>
-      <p>
-        CTR теста — {{ count(summary.clicks) }} ÷ {{ count(summary.views) }}. Проценты нигде не
-        усредняются: сначала складываются числа, потом одно деление.
-      </p>
-      <p>
-        «Измерено» — сумма длительностей {{ count(summary.windows) }} отрезков, а не время с
-        запуска. Пауза и часы без работающей рекламы в неё не входят: за них счётчики не читаются и
-        никакому фото ничего не начисляется.
-      </p>
+    <div v-if="active" class="mt-md flex items-center gap-md" data-testid="summary-live-photo">
+      <img
+        v-if="imageUrls[active.variant_id]"
+        :src="imageUrls[active.variant_id]"
+        :alt="activeLabel"
+        class="ab-summary__photo"
+      />
+      <div v-else class="ab-summary__photo ab-summary__photo--empty"></div>
+      <div class="min-w-0">
+        <p class="text-base font-semibold text-primary">Сейчас на карточке</p>
+        <p class="text-tiny font-semibold text-action">{{ activeLabel }}</p>
+      </div>
     </div>
   </section>
 </template>
+
+<style scoped>
+/* 3:4 is WB's own card aspect; small, because this is a caption under the
+   figures rather than the subject of the block. */
+.ab-summary__photo {
+  width: 60px;
+  height: 80px;
+  flex: none;
+  object-fit: cover;
+  border-radius: var(--ui-r-md);
+  box-shadow: var(--ui-sh-sm);
+}
+
+.ab-summary__photo--empty {
+  background: var(--ui-sunk);
+}
+</style>

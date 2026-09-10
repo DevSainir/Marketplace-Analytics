@@ -94,7 +94,7 @@ class AbTestRepository:
         stmt = select(func.count()).select_from(AbTest).where(AbTest.workspace_id == workspace_id)
         return int((await self._session.execute(stmt)).scalar_one())
 
-    async def pause_for_ads(self, *, test: AbTest) -> None:
+    async def pause_for_ads(self, *, test: AbTest, at: datetime) -> None:
         """Pause a test because its advertising stopped, flagging why.
 
         The flag is the whole point. A test paused by hand and one paused by the
@@ -104,9 +104,14 @@ class AbTestRepository:
 
         Args:
             test: The running test to pause.
+            at: The polling pass's own clock, stamped as the moment it stopped —
+                the same instant the window that ended here was closed at, so
+                the page cannot show a pause that began after the last figure it
+                is displaying.
         """
         test.status = AbTestStatus.PAUSED.value
         test.paused_by_ads = True
+        test.stopped_at = at
         await self._session.flush()
 
     async def resume_after_ads(self, *, test: AbTest) -> None:
@@ -117,6 +122,7 @@ class AbTestRepository:
         """
         test.status = AbTestStatus.RUNNING.value
         test.paused_by_ads = False
+        test.stopped_at = None
         await self._session.flush()
 
     async def list_ads_paused(self) -> list[AbTest]:
@@ -254,20 +260,32 @@ class AbTestRepository:
         status: AbTestStatus,
         started_at: datetime | None = None,
         finished_at: datetime | None = None,
+        stopped_at: datetime | None = None,
     ) -> None:
         """Move a test to a new status, stamping the lifecycle timestamps.
+
+        ``stopped_at`` is cleared by any transition into ``RUNNING`` rather than
+        left for the caller to remember: it is the answer to «сколько тест уже
+        стоит», and a value surviving a resume would keep answering it for a
+        test that is moving again.
 
         Args:
             test: The test to update (already loaded).
             status: New status.
             started_at: Set on the first transition into ``RUNNING``.
             finished_at: Set when the test stops for good.
+            stopped_at: When the rotation stopped advancing — a pause as much as
+                a finish. Ignored for ``RUNNING``, which clears it.
         """
         test.status = status.value
         if started_at is not None:
             test.started_at = started_at
         if finished_at is not None:
             test.finished_at = finished_at
+        if status is AbTestStatus.RUNNING:
+            test.stopped_at = None
+        elif stopped_at is not None:
+            test.stopped_at = stopped_at
         await self._session.flush()
 
     async def set_active_variant(self, *, test: AbTest, variant_id: uuid.UUID | None) -> None:
