@@ -13,6 +13,7 @@ because that price is paid per workspace, in sequence.
 
 from __future__ import annotations
 
+import uuid
 from datetime import date, timedelta
 
 from src.core.logging import get_logger
@@ -63,7 +64,10 @@ def walk_span(
 
 
 def reconciliation_slice(
-    bundles: list[WorkspaceTokenBundle], *, today: date
+    bundles: list[WorkspaceTokenBundle],
+    *,
+    today: date,
+    gaps: dict[uuid.UUID, list[date]] | None = None,
 ) -> list[WorkspaceTokenBundle]:
     """The ONE workspace this reconciliation run re-reads.
 
@@ -87,16 +91,38 @@ def reconciliation_slice(
     lookback when its turn arrives. The warning below is what makes that limit
     visible instead of silently losing days again.
 
+    A workspace with a KNOWN gap jumps the queue. Without that, a detected hole
+    would wait its turn — up to `len(bundles)` nights — and the detector would
+    be reporting a fault the repair was in no hurry to reach. With it, a gap is
+    walked the very next night, which is also what lets the alert on
+    :data:`~src.core.observability.metrics.SETTLEMENT_GAP_DAYS` fire on a
+    genuinely stuck gap rather than on one that is merely queued.
+
     Args:
         bundles: Every workspace eligible for this run.
         today: Today in Moscow time — the round-robin's only input, so the
             choice needs no stored cursor and no migration.
+        gaps: Uncovered settlement days per workspace, when they have been
+            surveyed. The oldest gap wins, so the day closest to ageing out of
+            WB's reach is the one repaired first.
 
     Returns:
         A single-element list, or empty when there is nothing to walk.
     """
     if not bundles:
         return []
+    surveyed = gaps or {}
+    holed = [bundle for bundle in bundles if surveyed.get(bundle.workspace_id)]
+    if holed:
+        return [
+            min(
+                holed,
+                key=lambda bundle: (
+                    min(surveyed[bundle.workspace_id]),
+                    str(bundle.workspace_id),
+                ),
+            )
+        ]
     # Sorted so the rotation is stable across runs: the loader's order is a
     # query result, and a reshuffle would let one workspace be picked twice
     # running while another waited a fortnight.

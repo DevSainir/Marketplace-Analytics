@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, text
 
 from src.modules.finreports.models import FinancialReport
 from src.modules.finreports.repos.base import BaseRepository
@@ -99,6 +99,58 @@ class FinancialReportRepository(BaseRepository):
             FinancialReport.workspace_id == workspace_id
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def settlement_gap_days(self, *, workspace_id: uuid.UUID, since: date) -> list[date]:
+        """Days inside the harvested history that **no report period covers**.
+
+        The detector for the failure that cost 31.08: WB serves a supplementary
+        report late, the walk's window has already moved past the days it
+        covers, and nothing ever asks again. The task succeeds, the counters
+        move, and the P&L is quietly short a day.
+
+        **Keyed on report PERIODS, not on rows.** "No settlement rows on day D"
+        is not evidence of anything — a small seller genuinely has days with no
+        sales, and Марат's whole 31.08 report was 45 rows. What is evidence is
+        a day that falls inside the harvested range while belonging to no
+        report we hold: WB's periods tile the calendar, so a hole in them is a
+        report that is missing rather than a week that was quiet.
+
+        A half-known period counts as the day it does know, matching
+        :meth:`list_periods` — WB serves headers with one endpoint blank, and
+        treating those as covering nothing would invent gaps around them.
+
+        Args:
+            workspace_id: Tenancy scope.
+            since: Ignore anything earlier. Bounds the scan and keeps the
+                answer to gaps that are still actionable — WB does not serve
+                arbitrarily old windows, so an ancient hole is a fact to record
+                rather than an alert to raise.
+
+        Returns:
+            The uncovered days, oldest first; empty when the history is sound.
+        """
+        stmt = text("""
+            WITH bounds AS (
+                SELECT greatest(min(coalesce(date_from, date_to)), :since) AS lo,
+                       max(coalesce(date_to, date_from)) AS hi
+                  FROM finreports.financial_report
+                 WHERE workspace_id = :workspace_id
+                   AND (date_from IS NOT NULL OR date_to IS NOT NULL)
+            )
+            SELECT day::date AS gap
+              FROM bounds,
+                   generate_series(bounds.lo, bounds.hi, interval '1 day') AS day
+             WHERE NOT EXISTS (
+                       SELECT 1
+                         FROM finreports.financial_report r
+                        WHERE r.workspace_id = :workspace_id
+                          AND coalesce(r.date_from, r.date_to) <= day::date
+                          AND coalesce(r.date_to, r.date_from) >= day::date
+                   )
+             ORDER BY gap
+        """)
+        rows = await self._session.execute(stmt, {"workspace_id": workspace_id, "since": since})
+        return [row[0] for row in rows.all()]
 
     async def list_periods(self, *, workspace_id: uuid.UUID) -> list[tuple[int, date, date]]:
         """Return each harvested report's ``(report_id, date_from, date_to)``.

@@ -246,6 +246,30 @@ SECURITY_DEGRADED_CONTROLS: Final[Gauge] = Gauge(
     multiprocess_mode="livemax",
 )
 
+#: Settlement days inside the harvested history that no report period covers —
+#: summed over every workspace, because a metric may not name a tenant.
+#:
+#: This is the half the 31.08 incident was missing. The harvest already had
+#: rows-per-source and failed-source counters, and neither moved: the walk
+#: succeeded, wrote what it was asked for, and simply stopped asking about a day
+#: WB had not served yet. A gap is invisible to every counter that measures what
+#: a run DID; it is only visible in what the history does not contain.
+#:
+#: Fleet-wide by construction — `/metrics` has no tenancy check because it has
+#: no tenant. "Which seller" is a question for the logs, which carry
+#: `workspace_id` on every line; this answers "is anyone short a day".
+#:
+#: `livemostrecent`: one nightly pass computes this for the whole fleet, so the
+#: newest computation is simply the truth. Summing across prefork children would
+#: multiply it by however many happened to have run it, and `livemax` would
+#: strand a stale count after the gap was repaired.
+SETTLEMENT_GAP_DAYS: Final[Gauge] = Gauge(
+    "finreports_settlement_gap_days",
+    "Settlement days covered by no harvested report, summed over all workspaces.",
+    multiprocess_mode="livemostrecent",
+)
+
+
 # --------------------------------------------------------------------------- #
 # Infrastructure — the two pools and the two dependencies.
 # --------------------------------------------------------------------------- #
@@ -345,6 +369,7 @@ __all__ = [
     "SECURITY_AUTH_FAILURES",
     "SECURITY_DEGRADED_CONTROLS",
     "SECURITY_RLS_VIOLATIONS",
+    "SETTLEMENT_GAP_DAYS",
     "WB_API_DURATION",
     "WB_API_REQUESTS",
     "WB_RATE_LIMIT_REMAINING",

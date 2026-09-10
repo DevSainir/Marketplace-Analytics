@@ -189,6 +189,32 @@ groups:
           summary: "Task {{ $labels.task_name }} is failing repeatedly."
 
   # -------------------------------------------------------------------------
+      - alert: SettlementHistoryHasGaps
+        expr: finreports_settlement_gap_days > 0
+        for: 26h
+        labels:
+          severity: warn
+        annotations:
+          summary: "A settlement day is covered by no harvested report."
+          description: >-
+            Somebody's P&L is short a day. WB forms single-day supplementary
+            reports and starts serving their rows days later, by which time the
+            walk's window has moved past the days they cover — that is how
+            2026-08-31 vanished from all five workspaces unnoticed. Nothing in
+            the harvest counters can show this: the run succeeds and writes what
+            it was asked for, so the only evidence is a hole in the report
+            periods.
+            The nightly reconciliation prioritises a workspace with a known gap,
+            so a repairable one closes within a day — which is what the 26h
+            `for:` is: long enough that this cannot fire on a gap merely waiting
+            for tonight, short enough that a gap the repair cannot reach still
+            surfaces. WHICH seller and WHICH days are in the worker log
+            (`finreports: <name> has N settlement day(s) no report covers`); the
+            metric is fleet-wide because /metrics may not name a tenant.
+            If it does not clear after a night, the reconciliation is not
+            reaching: check whether its window failed on WB rate budget, and
+            backfill the day by hand against the affected token.
+
   - name: wildberries
     rules:
       # `wb_rate_limit_quota_remaining` is deliberately NOT the expression for

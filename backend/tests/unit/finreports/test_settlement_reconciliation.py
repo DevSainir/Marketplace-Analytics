@@ -189,6 +189,57 @@ def test_a_fleet_well_inside_the_lookback_stays_quiet(
     assert caplog.text == ""
 
 
+def test_a_known_gap_jumps_the_rotation() -> None:
+    """A detected hole must not wait its turn.
+
+    Round-robin alone means a gap found tonight could sit unrepaired for
+    `len(fleet)` nights while the detector reports it — a fault the repair is in
+    no hurry to reach. It is also what lets the alert use a 26h `for:` instead of
+    one long enough to cover the whole rotation.
+    """
+    fleet = _fleet(5)
+    holed = fleet[3]
+
+    picked = reconciliation_slice(
+        fleet, today=TODAY, gaps={holed.workspace_id: [date(2026, 8, 31)]}
+    )
+
+    assert picked == [holed]
+
+
+def test_the_oldest_gap_is_repaired_first() -> None:
+    """Closest to ageing out of WB's reach, so it is the one that cannot wait."""
+    fleet = _fleet(3)
+    gaps = {
+        fleet[0].workspace_id: [date(2026, 9, 5)],
+        fleet[2].workspace_id: [date(2026, 8, 28)],
+    }
+
+    assert reconciliation_slice(fleet, today=TODAY, gaps=gaps) == [fleet[2]]
+
+
+def test_an_empty_gap_list_is_not_a_gap() -> None:
+    """The survey returns a mapping; a surveyed-and-sound workspace must not
+    read as urgent just for appearing in it."""
+    fleet = _fleet(5)
+    plain = reconciliation_slice(fleet, today=TODAY)
+
+    surveyed = reconciliation_slice(
+        fleet, today=TODAY, gaps={bundle.workspace_id: [] for bundle in fleet}
+    )
+
+    assert surveyed == plain
+
+
+def test_without_gaps_the_rotation_is_unchanged() -> None:
+    """The sweep is still the default; priority is the exception, not the rule."""
+    fleet = _fleet(5)
+
+    assert reconciliation_slice(fleet, today=TODAY, gaps={}) == reconciliation_slice(
+        fleet, today=TODAY
+    )
+
+
 # --- the pass -------------------------------------------------------------
 
 
@@ -300,6 +351,15 @@ def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
     monkeypatch.setattr(harvest, "check_freshness", _check)
     monkeypatch.setattr(harvest, "harvest_workspace", _walk)
     monkeypatch.setattr(harvest, "moscow_today", lambda: TODAY)
+
+    # The gap survey is a database read and this is the unit tier. Stubbed to
+    # "history is sound" so these tests exercise the walk rather than the
+    # detector — which has its own tests against real SQL, because
+    # `generate_series` over a date range is not Python behaviour.
+    async def _no_gaps(*_args: object, **_kwargs: object) -> dict[uuid.UUID, list[date]]:
+        return {}
+
+    monkeypatch.setattr(harvest, "survey_settlement_gaps", _no_gaps)
     return spans
 
 
