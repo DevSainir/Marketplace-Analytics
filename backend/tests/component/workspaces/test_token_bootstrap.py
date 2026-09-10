@@ -95,10 +95,17 @@ async def test_a_first_token_starts_the_catalogue_walk_with_finance_behind_it(
     )
 
     assert response.status_code == 200
-    assert [call["name"] for call in enqueued] == ["monitoring.discover_workspace"]
-    assert enqueued[0]["kwargs"] == {"workspace_id": str(workspace.id)}
-    assert enqueued[0]["link"].task == "finreports.harvest_finance"
-    assert enqueued[0]["link"].kwargs == {"workspace_id": str(workspace.id)}
+    (discovery,) = [c for c in enqueued if c["name"] == "monitoring.discover_workspace"]
+    assert discovery["kwargs"] == {"workspace_id": str(workspace.id)}
+    assert discovery["link"].task == "finreports.harvest_finance"
+    assert discovery["link"].kwargs == {"workspace_id": str(workspace.id)}
+    # The history backfill rides along on the same save, addressed to the same
+    # workspace: a seller who has just pasted a token gets the last two years
+    # as well as the last week, without pressing anything.
+    assert {c["name"] for c in enqueued} >= {
+        "monitoring.backfill_catalogue",
+        "finreports.backfill_pnl",
+    }
 
 
 async def test_re_saving_the_same_surface_does_not_enqueue_a_second_harvest(
@@ -122,7 +129,10 @@ async def test_re_saving_the_same_surface_does_not_enqueue_a_second_harvest(
     assert first.status_code == 200
     assert second.status_code == 200
     # The first save's chain, and nothing from the second.
-    assert len(enqueued) == 1
+    # One bootstrap's worth of tasks, not two: the debounce is what stands
+    # between a settings form saved five times and five concurrent walks.
+    assert [c["name"] for c in enqueued].count("monitoring.discover_workspace") == 1
+    assert [c["name"] for c in enqueued].count("finreports.backfill_pnl") == 1
 
 
 async def test_a_broker_that_refuses_still_stores_the_token(

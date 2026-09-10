@@ -31,6 +31,11 @@ task module, so all tasks register under their unchanged explicit
 endpoint) keep importing the task callables from here.
 """
 
+from src.modules.monitoring.tasks.backfill import (
+    backfill_advertising,
+    backfill_catalogue,
+    backfill_funnel,
+)
 from src.modules.monitoring.tasks.cohorts import COHORT_REFRESH_DAYS, refresh_buyout_cohorts
 from src.modules.monitoring.tasks.day_headers import carry_day_headers
 from src.modules.monitoring.tasks.discovery import discover_workspace, harvest_all
@@ -38,6 +43,9 @@ from src.modules.monitoring.tasks.refresh import harvest_sku_window
 
 __all__ = [
     "COHORT_REFRESH_DAYS",
+    "backfill_advertising",
+    "backfill_catalogue",
+    "backfill_funnel",
     "carry_day_headers",
     "discover_workspace",
     "harvest_all",

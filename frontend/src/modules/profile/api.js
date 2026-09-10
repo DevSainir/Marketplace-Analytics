@@ -189,3 +189,21 @@ export async function createInvitation({ email, validForHours, accessLevel, modu
   })
   return data
 }
+
+/**
+ * GET /v1/workspaces/{id}/backfill — how far this workspace's history walk got.
+ *
+ * Four lanes on four different clocks: the catalogue is one request, the funnel
+ * and advertising aggregates are a couple of hours each, and P&L is one WB
+ * request per fifteen minutes — sixteen hours for a large seller. That is why
+ * the endpoint reports lanes rather than a single percentage.
+ *
+ * @param {string} workspaceId Workspace whose backfill to report on.
+ * @returns {Promise<{active: boolean, lanes: Array<{lane: string, label: string,
+ *   state: string, done_units: number, total_units: number, percent: number,
+ *   message: string, updated_at: string|null}>}>}
+ */
+export async function fetchBackfillStatus(workspaceId) {
+  const { data } = await apiClient.get(`/v1/workspaces/${workspaceId}/backfill`)
+  return data
+}

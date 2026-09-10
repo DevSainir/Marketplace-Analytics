@@ -32,6 +32,7 @@ from redis.exceptions import RedisError
 from src.core.celery_app import celery_app
 from src.core.logging import get_logger
 from src.core.redis import get_redis
+from src.modules.workspaces.backfill import start_backfill
 
 logger = get_logger(__name__)
 
@@ -55,6 +56,24 @@ DISCOVERY_TASK_NAME = "monitoring.discover_workspace"
 #: it cannot meet the nightly monitoring harvest. This was the one place two
 #: heavy walks were started in the same second, and it is now a queue of two.
 FINANCE_TASK_NAME = "finreports.harvest_finance"
+
+#: The catalogue lane of the history backfill. It starts the funnel and
+#: advertising lanes itself once the cards are registered, so only two names
+#: are enqueued here rather than four.
+CATALOGUE_BACKFILL_TASK_NAME = "monitoring.backfill_catalogue"
+
+#: The P&L lane. Sent alongside the catalogue rather than behind it: it does
+#: not need the SKU list (settlement rows carry their own ``nm_id``), and at
+#: one WB request per fifteen minutes it is the lane that most needs its first
+#: page early.
+PNL_BACKFILL_TASK_NAME = "finreports.backfill_pnl"
+
+#: How long the backfill waits before its first step. Long enough for the two
+#: first-run harvests chained above to finish and release their memory — the
+#: whole reason those two are a queue rather than a pair (see
+#: :data:`FINANCE_TASK_NAME`). The backfill has hours; it can afford ten
+#: minutes of politeness.
+_BACKFILL_DELAY_SECONDS = 10 * 60
 
 #: How long one workspace's bootstrap claim stands. A primary workspace holds
 #: thirteen token kinds, and an owner pasting them one at a time saves the form
@@ -118,6 +137,11 @@ async def enqueue_catalogue_bootstrap(workspace_id: uuid.UUID) -> str | None:
         return None
 
     kwargs = {"workspace_id": str(workspace_id)}
+    # Seeded BEFORE anything is enqueued, so the profile has four lanes to draw
+    # the moment the seller finishes signing up. A panel that appears only once
+    # the first tick has run is indistinguishable, for the minute it is absent,
+    # from nothing having started at all.
+    await start_backfill(workspace_id)
     # The finance walk is attached as a callback, not sent now: `link` fires it
     # when discovery finishes, so the two never hold memory at the same time.
     # `immutable=True` because discovery returns its row counts and a mutable
@@ -131,6 +155,14 @@ async def enqueue_catalogue_bootstrap(workspace_id: uuid.UUID) -> str | None:
         result = celery_app.send_task(
             DISCOVERY_TASK_NAME, kwargs=kwargs, link=finance, link_error=finance
         )
+        # The history walks go on the END of the same chain, never beside it.
+        # Each is a tick that does one bounded step and re-enqueues itself, so
+        # they cost a worker slot for ~90 s at a time rather than holding one
+        # for hours — but the FIRST step of each would still land in the same
+        # second as the two harvests above if it were sent now, which is the
+        # arrangement the OOM note on FINANCE_TASK_NAME records.
+        for task_name in (CATALOGUE_BACKFILL_TASK_NAME, PNL_BACKFILL_TASK_NAME):
+            celery_app.send_task(task_name, kwargs=kwargs, countdown=_BACKFILL_DELAY_SECONDS)
     except Exception:
         # Broad on purpose: every exception Celery's transport can raise on
         # enqueue is one the seller must not see — their token IS saved, and
@@ -142,10 +174,14 @@ async def enqueue_catalogue_bootstrap(workspace_id: uuid.UUID) -> str | None:
         )
         return None
     logger.info(
-        "New WB credentials for workspace %s; enqueued %s as task %s, with %s chained behind it.",
+        "New WB credentials for workspace %s; enqueued %s as task %s, with %s chained behind "
+        "it and the history backfill (%s, %s) queued %d s out.",
         workspace_id,
         DISCOVERY_TASK_NAME,
         result.id,
         FINANCE_TASK_NAME,
+        CATALOGUE_BACKFILL_TASK_NAME,
+        PNL_BACKFILL_TASK_NAME,
+        _BACKFILL_DELAY_SECONDS,
     )
     return str(result.id)

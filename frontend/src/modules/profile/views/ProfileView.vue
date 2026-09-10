@@ -14,6 +14,7 @@ import { onMounted, reactive } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import ActivationKeyForm from '@/modules/profile/components/ActivationKeyForm.vue'
+import BackfillProgress from '@/modules/profile/components/BackfillProgress.vue'
 import ManagerAccessPanel from '@/modules/profile/components/ManagerAccessPanel.vue'
 import ManagerInviteForm from '@/modules/profile/components/ManagerInviteForm.vue'
 import WorkspacesPanel from '@/modules/profile/components/WorkspacesPanel.vue'
@@ -101,6 +102,12 @@ async function onSaveTokens({ workspaceId, tokens }) {
           </div>
         </dl>
       </section>
+
+      <!-- Directly under the account card, because it is the answer to the
+           question a new seller is actually asking on this screen: the app is
+           open, the data is not all here yet, and nothing is broken. It hides
+           itself once every lane is done. -->
+      <BackfillProgress v-if="store.currentWorkspaceId" :workspace-id="store.currentWorkspaceId" />
 
       <!-- Only while it is the thing standing between them and the app. Once an
            organisation exists the key is spent, and a form for redeeming

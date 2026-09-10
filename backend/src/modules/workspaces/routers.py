@@ -30,9 +30,11 @@ from src.modules.organizations.contract import (
     load_workspace_quota,
     require_owner,
 )
+from src.modules.workspaces.backfill import read_progress
 from src.modules.workspaces.bootstrap import enqueue_catalogue_bootstrap
 from src.modules.workspaces.deps import PathWorkspaceId, WorkspaceServiceDep
 from src.modules.workspaces.schemas import (
+    BackfillStatusResponse,
     WorkspaceCreateRequest,
     WorkspaceListResponse,
     WorkspaceRead,
@@ -210,3 +212,33 @@ async def set_tokens(
         # harvest (see :mod:`~src.modules.workspaces.bootstrap`).
         await enqueue_catalogue_bootstrap(workspace_id)
     return status_after
+
+
+@router.get(
+    "/{workspace_id}/backfill",
+    response_model=BackfillStatusResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "Per-lane progress of this workspace's history backfill."},
+        401: {"description": "Missing or invalid access token."},
+        404: {"description": "No such workspace in this organisation."},
+    },
+)
+async def get_backfill_status(
+    workspace_id: PathWorkspaceId,
+    access: MemberAccess,
+    session: DbSession,
+) -> BackfillStatusResponse:
+    """Report how far this workspace's history backfill has got, per lane.
+
+    Any MEMBER may read it, not just an owner: it is rendered in the profile as
+    the answer to «почему тут пусто», and a manager who cannot see it is left
+    with a blank product page and no explanation. It exposes only counters and
+    a Russian status line — no token, no WB response, nothing tenant-specific
+    beyond the workspace the caller was already proved to belong to.
+
+    Returns an empty lane list for a workspace that has never been backfilled,
+    rather than 404: "nothing is running" is the honest answer for every
+    workspace created before this existed.
+    """
+    return await read_progress(session, workspace_id)

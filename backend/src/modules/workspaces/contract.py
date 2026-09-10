@@ -9,6 +9,14 @@ imports" architecture rule.
 
 from __future__ import annotations
 
+from src.modules.workspaces.backfill import (
+    BackfillLane,
+    BackfillState,
+    LaneStep,
+    read_cursor,
+    record_progress,
+    start_backfill,
+)
 from src.modules.workspaces.deps import WORKSPACE_HEADER, CurrentWorkspaceId
 from src.modules.workspaces.schemas import WorkspaceTokenBundle
 from src.modules.workspaces.services import (
@@ -19,9 +27,15 @@ from src.modules.workspaces.services import (
 
 __all__ = [
     "WORKSPACE_HEADER",
+    "BackfillLane",
+    "BackfillState",
     "CurrentWorkspaceId",
+    "LaneStep",
     "WorkspaceTokenBundle",
     "load_workspace_name",
     "load_workspace_token_bundle",
     "load_workspace_token_bundles",
+    "read_cursor",
+    "record_progress",
+    "start_backfill",
 ]

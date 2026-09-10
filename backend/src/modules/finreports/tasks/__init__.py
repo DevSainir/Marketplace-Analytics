@@ -51,3 +51,5 @@ def harvest_finance(
     return run_task(harvest_all_workspaces(days=days, workspace_id=scope, reconcile=reconcile))
 
 
+from src.modules.finreports.tasks.backfill import backfill_pnl  # noqa: E402
+

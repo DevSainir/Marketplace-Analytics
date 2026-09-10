@@ -8,11 +8,17 @@ the :class:`AsyncSession` query API directly.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.workspaces.models import Workspace, WorkspaceToken
+from src.modules.workspaces.models import (
+    BackfillState,
+    Workspace,
+    WorkspaceBackfill,
+    WorkspaceToken,
+)
 
 
 class WorkspaceRepository:
@@ -148,4 +154,93 @@ class WorkspaceTokenRepository:
             WorkspaceToken.workspace_id == workspace_id,
             WorkspaceToken.kind == kind,
         )
+        await self._session.execute(stmt)
+
+
+class BackfillRepository:
+    """Reads and writes one workspace's per-lane backfill progress.
+
+    Every write is an UPSERT keyed by ``(workspace_id, lane)``: a lane's row is
+    created by whichever tick reaches it first, and the tick that follows an
+    hour later must update that row rather than discover it is missing. The
+    tasks that call this are re-entrant by design — Celery may deliver a tick
+    twice — so nothing here may depend on having seen the previous one.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        """Store the injected async session."""
+        self._session = session
+
+    async def list_for_workspace(self, workspace_id: uuid.UUID) -> list[WorkspaceBackfill]:
+        """Return every lane row of one workspace, in lane order."""
+        stmt = (
+            select(WorkspaceBackfill)
+            .where(WorkspaceBackfill.workspace_id == workspace_id)
+            .order_by(WorkspaceBackfill.lane)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get(self, *, workspace_id: uuid.UUID, lane: str) -> WorkspaceBackfill | None:
+        """Return one lane's row, or ``None`` before it has ever ticked."""
+        return await self._session.get(WorkspaceBackfill, (workspace_id, lane))
+
+    async def upsert(
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        lane: str,
+        state: str | None = None,
+        done_units: int | None = None,
+        total_units: int | None = None,
+        cursor: str | None = None,
+        message: str | None = None,
+    ) -> WorkspaceBackfill:
+        """Create or update one lane's row, touching only what is passed.
+
+        Every field is optional so a tick can report what it knows without
+        overwriting what it does not: the funnel walk advances ``done_units``
+        and ``cursor`` on each tick while ``total_units`` was set once at the
+        start, and a partial write must not reset the estimate to zero.
+
+        ``started_at`` is stamped the first time the lane goes RUNNING and
+        ``finished_at`` when it reaches a terminal state, so neither has to be
+        passed by a caller that is only moving the counter.
+
+        Args:
+            workspace_id: Owning workspace.
+            lane: :class:`~.models.BackfillLane` value.
+            state: New :class:`~.models.BackfillState`, if it changed.
+            done_units: Progress numerator, if it advanced.
+            total_units: Progress denominator, if it was (re)estimated.
+            cursor: The lane's private resume point, if it moved.
+            message: User-facing Russian status line, if it changed.
+
+        Returns:
+            The persisted row.
+        """
+        row = await self.get(workspace_id=workspace_id, lane=lane)
+        if row is None:
+            row = WorkspaceBackfill(workspace_id=workspace_id, lane=lane)
+            self._session.add(row)
+        if state is not None:
+            if state == BackfillState.RUNNING and row.started_at is None:
+                row.started_at = datetime.now(UTC)
+            if state in (BackfillState.DONE, BackfillState.FAILED):
+                row.finished_at = datetime.now(UTC)
+            row.state = state
+        if done_units is not None:
+            row.done_units = done_units
+        if total_units is not None:
+            row.total_units = total_units
+        if cursor is not None:
+            row.cursor = cursor
+        if message is not None:
+            row.message = message
+        await self._session.flush()
+        return row
+
+    async def reset(self, workspace_id: uuid.UUID) -> None:
+        """Drop every lane row of one workspace, so a backfill can start over."""
+        stmt = delete(WorkspaceBackfill).where(WorkspaceBackfill.workspace_id == workspace_id)
         await self._session.execute(stmt)

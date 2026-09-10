@@ -92,3 +92,33 @@ class WorkspaceTokenBundle(BaseModel):
     prices: str = ""
     statistics: str = ""
     marketplace: str = ""
+
+
+class BackfillLaneStatus(BaseModel):
+    """One lane of a workspace's history walk, as the profile renders it."""
+
+    lane: str = Field(description="Lane key: catalogue | funnel | advertising | pnl.")
+    label: str = Field(description="Russian lane name, rendered verbatim.")
+    state: str = Field(description="pending | running | done | failed.")
+    done_units: int = Field(description="Units walked so far (days, windows, pages).")
+    total_units: int = Field(
+        description=(
+            "Estimated units in total. An ESTIMATE the lane may revise: a walk that "
+            "stops early at WB's retention floor finishes with done < total, so "
+            "`state` — never the ratio — is what says the lane is finished."
+        )
+    )
+    percent: int = Field(description="0-100, clamped; 100 whenever the lane is done.")
+    message: str = Field(description="Russian status line shown under the lane.")
+    updated_at: datetime | None = Field(
+        default=None, description="Last tick — a stalled lane is visible by this going stale."
+    )
+
+
+class BackfillStatusResponse(BaseModel):
+    """Every lane of one workspace, plus whether anything is still moving."""
+
+    active: bool = Field(
+        description="True while any lane is pending or running — what the SPA polls on."
+    )
+    lanes: list[BackfillLaneStatus]

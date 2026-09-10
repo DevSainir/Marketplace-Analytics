@@ -12,7 +12,16 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database import Base
@@ -67,6 +76,89 @@ CATEGORY_KINDS: tuple[TokenKind, ...] = (
     TokenKind.FINANCE,
     TokenKind.USERS,
 )
+
+
+class BackfillLane(enum.StrEnum):
+    """One module's share of a new workspace's history.
+
+    A lane is a unit of *reporting*, not of scheduling: each one is walked by
+    its own tick task at its own cadence, because the surfaces behind them are
+    metered differently by three orders of magnitude — the funnel and
+    advertising aggregate refill a token every ~20 s, while the settlement
+    report serves **one request per fifteen minutes per token**. Showing them
+    as one bar would park it near zero for most of a day; showing four lanes
+    lets the three fast ones report «готово» while the slow one keeps its own
+    honest estimate.
+    """
+
+    CATALOGUE = "catalogue"  # Каталог — cards, sizes, SKU ownership
+    FUNNEL = "funnel"  # Воронка — 365 days, the WB ceiling
+    ADVERTISING = "advertising"  # Реклама — to the first campaign
+    PNL = "pnl"  # P&L — to the first settlement report
+
+
+class BackfillState(enum.StrEnum):
+    """Where one lane has got to."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+
+class WorkspaceBackfill(Base):
+    """One lane's progress AND its resume point, for one workspace.
+
+    Deliberately one row rather than two mechanisms. The «Обновить все SKU»
+    refresh publishes progress into Celery's result backend and the SPA polls
+    it by task id, which works because that refresh is over in minutes. A
+    backfill is not: the P&L lane runs for **sixteen hours** on a large
+    account, across worker restarts, deploys and the seller closing the tab.
+    A task id in a result backend with a TTL cannot survive that, so progress
+    lives in Postgres — and once it does, the cursor may as well live in the
+    same row, because "how far along are we" and "where do we resume" are the
+    same fact asked by two callers.
+
+    ``cursor`` is opaque here on purpose: each lane owns its own format (a date
+    to resume walking from, a window end, an ``rrd_id`` page cursor). This
+    module schedules nothing and interprets nothing — it records what the lanes
+    tell it.
+
+    Attributes:
+        workspace_id: Owning workspace (FK, cascade delete).
+        lane: Which :class:`BackfillLane` this row tracks.
+        state: :class:`BackfillState`.
+        done_units / total_units: Progress numerator and denominator, in
+            whatever unit the lane counts (days, windows, pages). ``total`` is
+            an ESTIMATE the lane may revise — a walk that stops early on WB's
+            retention floor finishes with ``done < total``, which is why
+            ``state`` and not the ratio is what says "finished".
+        cursor: The lane's private resume point; ``None`` before it starts.
+        message: Russian, user-facing — rendered verbatim under the lane.
+        started_at / finished_at: When the lane began and stopped.
+        updated_at: Last tick, so a stalled lane is visible as such.
+    """
+
+    __tablename__ = "workspace_backfill"
+    __table_args__ = {"schema": _SCHEMA}
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{_SCHEMA}.workspaces.id", ondelete="CASCADE"), primary_key=True
+    )
+    lane: Mapped[str] = mapped_column(String(16), primary_key=True)
+    state: Mapped[str] = mapped_column(String(16), default=BackfillState.PENDING, nullable=False)
+    done_units: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_units: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    cursor: Mapped[str | None] = mapped_column(Text, nullable=True)
+    message: Mapped[str] = mapped_column(String(256), default="", nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
 
 
 class Workspace(Base):

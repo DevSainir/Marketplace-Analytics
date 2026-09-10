@@ -22,8 +22,10 @@ import pytest
 
 from src.core.celery_app import celery_app
 from src.modules.workspaces.bootstrap import (
+    CATALOGUE_BACKFILL_TASK_NAME,
     DISCOVERY_TASK_NAME,
     FINANCE_TASK_NAME,
+    PNL_BACKFILL_TASK_NAME,
     enqueue_catalogue_bootstrap,
 )
 from tests.support.fakes import FakeRedis
@@ -39,8 +41,13 @@ def test_every_bootstrap_task_name_resolves_to_a_registered_task() -> None:
     import src.modules.finreports.tasks
     import src.modules.monitoring.tasks  # noqa: F401  (import registers the tasks)
 
-    assert DISCOVERY_TASK_NAME in celery_app.tasks
-    assert FINANCE_TASK_NAME in celery_app.tasks
+    for name in (
+        DISCOVERY_TASK_NAME,
+        FINANCE_TASK_NAME,
+        CATALOGUE_BACKFILL_TASK_NAME,
+        PNL_BACKFILL_TASK_NAME,
+    ):
+        assert name in celery_app.tasks
 
 
 def test_both_bootstrap_tasks_accept_the_keyword_the_bootstrap_sends() -> None:
@@ -66,6 +73,20 @@ def redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     return fake
 
 
+@pytest.fixture(autouse=True)
+def _seeded_lanes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub the lane seeding — it is a database write, and this tier has no DB.
+
+    Seeding is deliberately not what these tests are about: it never raises by
+    contract, so a bootstrap behaves identically whether it succeeded or not.
+    """
+
+    async def _noop(*_: Any, **__: Any) -> None:
+        return None
+
+    monkeypatch.setattr("src.modules.workspaces.bootstrap.start_backfill", _noop)
+
+
 @pytest.fixture
 def enqueued(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     """Capture what was handed to Celery, without a broker.
@@ -83,6 +104,7 @@ def enqueued(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
                 "workspace_id": (kwargs or {})["workspace_id"],
                 "link": options.get("link"),
                 "link_error": options.get("link_error"),
+                "countdown": options.get("countdown", 0),
             }
         )
         return type("Task", (), {"id": f"task-{len(calls)}"})()
@@ -108,8 +130,10 @@ async def test_a_burst_of_saves_costs_one_harvest(redis: FakeRedis, enqueued: li
 
     assert first is not None
     assert second is None
-    # One send: the finance walk rides on the discovery task's callback.
-    assert [call["workspace_id"] for call in enqueued] == [str(workspace_id)]
+    # One DISCOVERY send, not one send: the finance walk rides on its callback,
+    # while the two backfill lanes are separate delayed sends of their own.
+    discoveries = [c for c in enqueued if c["name"] == DISCOVERY_TASK_NAME]
+    assert [c["workspace_id"] for c in discoveries] == [str(workspace_id)]
 
 
 async def test_the_claim_is_per_workspace(redis: FakeRedis, enqueued: list[str]) -> None:
@@ -125,7 +149,8 @@ async def test_the_claim_is_per_workspace(redis: FakeRedis, enqueued: list[str])
     await enqueue_catalogue_bootstrap(one)
     await enqueue_catalogue_bootstrap(two)
 
-    assert [call["workspace_id"] for call in enqueued] == [str(one), str(two)]
+    discoveries = [c for c in enqueued if c["name"] == DISCOVERY_TASK_NAME]
+    assert [c["workspace_id"] for c in discoveries] == [str(one), str(two)]
 
 
 async def test_a_redis_that_is_gone_neither_raises_nor_enqueues(
@@ -166,8 +191,7 @@ async def test_the_finance_walk_waits_for_discovery_to_finish(
 
     await enqueue_catalogue_bootstrap(workspace_id)
 
-    (call,) = enqueued
-    assert call["name"] == DISCOVERY_TASK_NAME
+    (call,) = [c for c in enqueued if c["name"] == DISCOVERY_TASK_NAME]
     assert call["link"].task == FINANCE_TASK_NAME
     assert call["link"].kwargs == {"workspace_id": str(workspace_id)}
     # Immutable, or discovery's returned row counts arrive as the finance
@@ -187,6 +211,49 @@ async def test_a_failed_discovery_still_leaves_the_seller_a_p_and_l(
     """
     await enqueue_catalogue_bootstrap(uuid.uuid4())
 
-    (call,) = enqueued
+    (call,) = [c for c in enqueued if c["name"] == DISCOVERY_TASK_NAME]
     assert call["link_error"].task == FINANCE_TASK_NAME
     assert call["link_error"].kwargs == call["link"].kwargs
+
+
+async def test_the_history_backfill_is_queued_behind_the_first_harvests(
+    redis: FakeRedis, enqueued: list[dict[str, Any]]
+) -> None:
+    """Both backfill lanes are enqueued, and none of them starts immediately.
+
+    The delay is the point, not a detail. The two first-run harvests chained
+    above share the worker's 768 MB cgroup, and starting a third walk in the
+    same second is what OOM-killed the finance child on 2026-09-07. A backfill
+    that has hours of work ahead can afford to wait for them.
+    """
+    workspace_id = uuid.uuid4()
+
+    await enqueue_catalogue_bootstrap(workspace_id)
+
+    backfills = {
+        c["name"]: c
+        for c in enqueued
+        if c["name"] in (CATALOGUE_BACKFILL_TASK_NAME, PNL_BACKFILL_TASK_NAME)
+    }
+    assert set(backfills) == {CATALOGUE_BACKFILL_TASK_NAME, PNL_BACKFILL_TASK_NAME}
+    for call in backfills.values():
+        assert call["workspace_id"] == str(workspace_id)
+        assert call["countdown"] > 0
+
+
+async def test_a_broker_failure_costs_the_backfill_but_not_the_token(
+    redis: FakeRedis, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A dead broker must not turn a saved token into a failed request.
+
+    The seller's actual ask is "store my credential". Everything this module
+    enqueues is a courtesy attached to it, so an enqueue that explodes has to
+    come back as ``None`` — the scheduled passes remain the backstop.
+    """
+
+    def _explode(*_: Any, **__: Any) -> Any:
+        raise RuntimeError("broker is gone")
+
+    monkeypatch.setattr("src.modules.workspaces.bootstrap.celery_app.send_task", _explode)
+
+    assert await enqueue_catalogue_bootstrap(uuid.uuid4()) is None
