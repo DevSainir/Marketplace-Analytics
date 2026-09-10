@@ -77,7 +77,7 @@ class _ExplodingIngestion(_FakeIngestion):
 def harvest_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Replace the harvest's database and its summary warm-up with fakes."""
     monkeypatch.setattr(harvest_module, "AsyncSessionLocal", _FakeSession)
-    monkeypatch.setattr(harvest_module, "_build_ingestion", lambda _session: _FakeIngestion())
+    monkeypatch.setattr(harvest_module, "build_ingestion", lambda _session: _FakeIngestion())
 
     async def _warm(*, workspace_id: uuid.UUID, name: str) -> None:
         return None
@@ -151,7 +151,7 @@ async def test_a_harvest_that_raises_still_records_the_time_it_burned(
     ``pytest.raises`` is half the assertion: a timer that swallowed the error to
     record it would turn every failed harvest into a silent success.
     """
-    monkeypatch.setattr(harvest_module, "_build_ingestion", lambda _session: _ExplodingIngestion())
+    monkeypatch.setattr(harvest_module, "build_ingestion", lambda _session: _ExplodingIngestion())
     failed_before = _duration_count("error")
 
     with pytest.raises(RuntimeError, match="went away"):

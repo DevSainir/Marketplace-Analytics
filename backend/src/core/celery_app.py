@@ -163,8 +163,31 @@ celery_app.conf.beat_schedule = {
     # them for the same rate-limited analytics surfaces.
     "hourly-finreports-harvest": {
         "task": "finreports.harvest_finance",
-        "schedule": crontab(hour="0-4,8-23", minute=0),
+        # 03:00 belongs to the reconciliation pass below. Both take the same
+        # lock, so leaving the hour in would make the two race for it and the
+        # loser return `skipped_locked` — and the loser would sometimes be the
+        # pass that only gets one chance a day.
+        "schedule": crontab(hour="0-2,4,8-23", minute=0),
         "kwargs": {"days": 28},
+    },
+    # The hourly tick can only ever look FORWARD: its span starts at the
+    # settlement watermark, and the watermark jumps to the newest report's
+    # stated end. WB does not publish in that order — it forms single-day
+    # supplementary reports and starts serving their rows days later — so a
+    # report covering days behind that jump is unreachable for good. On
+    # 2026-08-31 that cost every workspace a day of settlement, and nothing in
+    # the product could tell: the counters moved, the task succeeded, the P&L
+    # was simply short a day.
+    #
+    # 03:00 MSK, and the hourly tick gives up that hour above. Not 05:00-07:00:
+    # refresh, and this pass competes for the same rate-limited surfaces. It is
+    # also the most expensive pass we run — two or three extra requests per
+    # workspace, each a quarter of an hour apart — so it takes an hour when
+    # nothing is published and the hourly tick would have found nothing anyway.
+    "daily-finreports-reconcile": {
+        "task": "finreports.harvest_finance",
+        "schedule": crontab(hour=3, minute=0),
+        "kwargs": {"days": 28, "reconcile": True},
     },
 }
 

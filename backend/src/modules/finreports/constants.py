@@ -31,6 +31,23 @@ HARVEST_LOCK_KEY: str = "finreports:harvest_finance"
 #: that the next hourly tick recovers on its own.
 HARVEST_LOCK_TTL_SECONDS: int = 600
 
+#: How far BEHIND the settlement watermark a reconciliation walk re-reads.
+#:
+#: The harvest's reachable window only ever moves forward, and it jumps forward
+#: to the newest report's stated end. WB does not publish in that order: it
+#: forms supplementary reports for single days and starts serving their detail
+#: rows later — sometimes days later. Anything landing behind the jump is
+#: invisible to a forward-only walk, permanently.
+#:
+#: Measured, not guessed. Report 983241109 covered 2026-08-31 alone and carried
+#: `create_dt` 2026-09-01, yet on 2026-09-06 every one of 80 probes over
+#: 31.08..05.09 answered 204 — WB was not serving its rows. On 09-07 the
+#: 01.09-06.09 report landed, `max(date_to)` jumped to 09-06, and the day fell
+#: out of reach before WB ever served it. Fourteen days puts a comfortable
+#: margin on the ~8 observed between the day covered and the day it became
+#: fetchable.
+RECONCILE_LOOKBACK_DAYS: int = 14
+
 #: How long a recorded freshness verdict survives — 30 days, deliberately long.
 #:
 #: The entry expiring is indistinguishable from "we never checked", and a STALE

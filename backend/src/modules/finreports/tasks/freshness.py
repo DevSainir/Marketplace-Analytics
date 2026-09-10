@@ -17,10 +17,21 @@ probe that raised — harvests. A gate that fails closed would turn a transient 
 error into a silently skipped settlement day, which is the failure mode this
 module exists to avoid, not to introduce.
 
-What the gate does NOT catch, by design: WB amending a report we already hold.
-Its rows settle on days we have already covered, so the probe window excludes
-them, and the amendment lands on the next harvest a genuinely new report
-triggers.
+What the gate does NOT catch, by design: anything WB serves for days the
+harvested history has already passed. The probe window starts the day AFTER the
+watermark, so an amendment to a report we hold — and, worse, a supplementary
+report WB forms for an earlier day and starts serving later — is invisible to
+it. The gate answers «есть ли что-то новее», which is the wrong question for a
+back-dated report and answers "no" precisely when one exists.
+
+That is not a theoretical hole: report 983241109 covered 2026-08-31 alone, was
+formed on 09-01, and was still unserved on 09-06 when eighty probes over
+31.08..05.09 all answered 204. On 09-07 the 01.09-06.09 report landed, the
+watermark jumped to 09-06, and the day left the reachable window before WB ever
+served it. Every workspace lost a day of settlement in silence.
+
+Catching that is the daily reconciliation pass's job, not this gate's — see
+``reconcile`` in :func:`~src.modules.finreports.tasks.harvest.harvest_all_workspaces`.
 
 The verdict it reaches is not thrown away: it is recorded per workspace (see
 :mod:`src.modules.finreports.services.freshness_record`) so the P&L page can say
