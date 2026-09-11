@@ -123,3 +123,42 @@ def test_the_advertising_cursor_survives_the_older_date_only_form() -> None:
         date(2026, 6, 10),
         3,
     )
+
+
+def test_a_worker_restart_adopts_its_predecessor_s_orphaned_lanes() -> None:
+    """A deploy must not cost a seller forty-five minutes of stopped history.
+
+    Every lane is a chain of ticks, and recreating the worker kills whichever
+    tick was in flight before it reaches its re-enqueue — so shipping ends the
+    chain, every time. The watchdog alone would rediscover that only after
+    STALE_AFTER, which turns three deploys in a morning into two hours of a
+    seller's history not arriving.
+
+    A worker that has just started is running nothing, so a lane still claiming
+    RUNNING is an orphan by definition rather than a guess about staleness.
+    """
+    from celery.signals import worker_ready
+
+    from src.core.celery_app import _resume_orphaned_backfills
+
+    receivers = [receiver() for _, receiver in worker_ready.receivers]
+
+    assert _resume_orphaned_backfills in receivers, (
+        "nothing resumes a backfill after a worker restart"
+    )
+
+
+def test_the_orphan_sweep_asks_for_the_lanes_a_restart_stranded() -> None:
+    """The hook must send `orphaned=True`, or it is just the ordinary sweep.
+
+    An ordinary sweep at worker start finds nothing: the lanes it should be
+    adopting were ticking seconds ago, so none of them looks stale yet.
+    """
+    import inspect
+
+    from src.core.celery_app import _resume_orphaned_backfills
+
+    source = inspect.getsource(_resume_orphaned_backfills)
+
+    assert '"workspaces.sweep_stalled_backfills"' in source
+    assert '"orphaned": True' in source

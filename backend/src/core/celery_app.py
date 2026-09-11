@@ -8,8 +8,11 @@ instance. Task modules are autodiscovered from each business module's
 
 from __future__ import annotations
 
+import logging
+
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import worker_ready
 
 from src.core.config import settings
 from src.core.logging import configure_logging
@@ -215,3 +218,41 @@ celery_app.autodiscover_tasks(
         "src.modules.workspaces",
     ],
 )
+
+
+def _startup_logger() -> logging.Logger:
+    """A plain stdlib logger: structlog may not be configured this early."""
+    return logging.getLogger(__name__)
+
+
+@worker_ready.connect  # type: ignore[untyped-decorator]
+def _resume_orphaned_backfills(**_: object) -> None:
+    """Adopt any history backfill this worker's predecessor was killed mid-tick.
+
+    A backfill lane is a chain: one bounded tick, then it enqueues the next. A
+    deploy recreates this container, and whatever tick was in flight dies before
+    reaching that enqueue — so the chain ends, silently, every single time we
+    ship. Without this the only recovery is the stalled-lane watchdog, which by
+    design waits forty-five minutes before believing a lane is dead. Three
+    deploys in a morning then cost a seller two hours of history arriving.
+
+    A worker that has just started is running nothing, so a lane still claiming
+    RUNNING is not a guess about staleness — it is an orphan, and can be
+    restarted at once. It resumes from the cursor in its own row, so the worst
+    case if one somehow WAS alive is a duplicate page against an idempotent
+    upsert.
+
+    Addressed by name and sent, never called: this module is imported by the API
+    too, and importing a module's tasks from here would close the same cycle the
+    whole `contract.py` arrangement exists to avoid. Failure is swallowed
+    because a broker that is not ready in the first second of worker startup
+    must not crash the worker — the watchdog is still behind this, just slower.
+    """
+    try:
+        celery_app.send_task("workspaces.sweep_stalled_backfills", kwargs={"orphaned": True})
+    except Exception:
+        _startup_logger().warning(
+            "Could not enqueue the orphaned-backfill sweep at worker start; "
+            "the scheduled watchdog will pick any dead lane up within the hour.",
+            exc_info=True,
+        )

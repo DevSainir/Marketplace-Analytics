@@ -27,7 +27,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 
 from src.core.celery_app import celery_app
 from src.core.database import AsyncSessionLocal
@@ -64,20 +64,30 @@ LANE_TASKS: dict[BackfillLane, str] = {
 STALE_AFTER = timedelta(minutes=45)
 
 
-async def _stalled(now: datetime) -> list[tuple[uuid.UUID, str]]:
-    """Lanes that claim to be working and have not moved since ``STALE_AFTER``.
+async def _stalled(now: datetime, *, orphaned: bool = False) -> list[tuple[uuid.UUID, str]]:
+    """Lanes that claim to be working and are not.
 
-    PENDING counts as stalled as well as RUNNING: a lane seeded at signup whose
-    first tick never arrived — a broker hiccup, a worker recreated in the wrong
-    second — looks exactly like this and has the same fix.
+    PENDING counts as well as RUNNING: a lane seeded at signup whose first tick
+    never arrived — a broker hiccup, a worker recreated in the wrong second —
+    looks exactly like this and has the same fix.
+
+    Args:
+        now: The moment to measure staleness against.
+        orphaned: Skip the age test entirely. Only ever true when a worker has
+            just started, and then it is not a guess but a fact: a fresh worker
+            is running nothing, so every lane still claiming to be RUNNING was
+            killed mid-tick by whatever restarted it. Waiting out
+            :data:`STALE_AFTER` to rediscover that would leave a seller's
+            history stopped for three quarters of an hour after every deploy.
     """
-    cutoff = now - STALE_AFTER
+    conditions: list[ColumnElement[bool]] = [
+        WorkspaceBackfill.state.in_([BackfillState.PENDING, BackfillState.RUNNING])
+    ]
+    if not orphaned:
+        conditions.append(WorkspaceBackfill.updated_at < now - STALE_AFTER)
     async with AsyncSessionLocal() as session:
         rows = await session.execute(
-            select(WorkspaceBackfill.workspace_id, WorkspaceBackfill.lane).where(
-                WorkspaceBackfill.state.in_([BackfillState.PENDING, BackfillState.RUNNING]),
-                WorkspaceBackfill.updated_at < cutoff,
-            )
+            select(WorkspaceBackfill.workspace_id, WorkspaceBackfill.lane).where(*conditions)
         )
         return [(workspace_id, lane) for workspace_id, lane in rows.all()]
 
@@ -87,13 +97,18 @@ async def _stalled(now: datetime) -> list[tuple[uuid.UUID, str]]:
     soft_time_limit=120,
     time_limit=180,
 )
-def sweep_stalled_backfills() -> dict[str, int]:
+def sweep_stalled_backfills(orphaned: bool = False) -> dict[str, int]:
     """Re-enqueue every backfill lane that has stopped moving.
 
     Cheap and safe to run often: one indexed read, and an enqueue only for a
     lane that has genuinely gone quiet. Restarting a lane that turns out to be
     alive is harmless — it resumes from the same cursor, so the worst case is
     one page fetched twice, and the ingestion is an upsert.
+
+    Args:
+        orphaned: Restart every lane that claims to be running, without waiting
+            for it to look stale. Sent by the worker-start hook, where a lane in
+            RUNNING is by definition one nothing is running.
 
     Returns:
         ``{"stalled": n, "restarted": n}`` — the two differ only when a lane's
@@ -102,7 +117,7 @@ def sweep_stalled_backfills() -> dict[str, int]:
     """
 
     async def _run() -> dict[str, int]:
-        stalled = await _stalled(datetime.now(UTC))
+        stalled = await _stalled(datetime.now(UTC), orphaned=orphaned)
         # Published BEFORE any restart is attempted, so the gauge describes what
         # the sweep FOUND rather than what it left behind. A gauge written after
         # a successful restart would read zero on every scrape and the alert on
@@ -119,10 +134,12 @@ def sweep_stalled_backfills() -> dict[str, int]:
             BACKFILL_LANE_RESTARTS.labels(lane=lane).inc()
             restarted += 1
             logger.warning(
-                "Backfill lane %s for workspace %s had not moved in %s; restarted it via %s.",
+                "Backfill lane %s for workspace %s %s; restarted it via %s.",
                 lane,
                 workspace_id,
-                STALE_AFTER,
+                "was orphaned by a worker restart"
+                if orphaned
+                else f"had not moved in {STALE_AFTER}",
                 task_name,
             )
         if stalled:
