@@ -228,3 +228,52 @@ async def test_a_test_takes_only_one_main_photo(
             filename="main-again.jpg",
             as_main=True,
         )
+
+
+@pytest.mark.integration
+async def test_an_upload_is_in_the_detail_the_same_request_returns(
+    db_session: AsyncSession, organization: Organization, tmp_path: Path
+) -> None:
+    """The upload route adds a photo and then builds the detail, on ONE session.
+
+    Both halves read the test through the same repository, and `selectinload`
+    will not overwrite a collection it has already populated for an instance the
+    session is still holding. The upload therefore answered with the new photo
+    missing — and the duplicate-«Главное» check, which reads the same list, let
+    a second baseline through to the unique constraint.
+
+    The reference kept below is the point of the test. Before this was fixed the
+    behaviour depended on garbage collection: with nothing holding the first
+    instance the next query built a fresh one and the staleness vanished, which
+    is why the two cases above passed for a week before an unrelated change —
+    a logged exception, whose traceback pins the frame that holds the test —
+    made them fail. Holding it here on purpose makes the outcome deterministic.
+    """
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Демо")
+    db_session.add(workspace)
+    await db_session.flush()
+    service = _service(db_session, tmp_path)
+    created = await service.create_test(
+        workspace_id=workspace.id,
+        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Тест главного фото"),
+        card=_CARD,
+    )
+
+    # The session's own instance, held for the rest of the test.
+    pinned = await AbTestRepository(db_session).get(workspace_id=workspace.id, test_id=created.id)
+    assert pinned is not None
+
+    await _photos(db_session, tmp_path).add_variant(
+        workspace_id=workspace.id,
+        test_id=created.id,
+        content=JPEG,
+        content_type="image/jpeg",
+        filename="main.jpg",
+        as_main=True,
+    )
+    detail = await service.get_detail(workspace_id=workspace.id, test_id=created.id)
+
+    assert [row.position for row in detail.variants] == [0]
+    assert detail.variant_count == 1
+    # Same object, refreshed — not a second copy the session quietly kept apart.
+    assert len(pinned.variants) == 1

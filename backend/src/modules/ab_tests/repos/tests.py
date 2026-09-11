@@ -174,6 +174,28 @@ class AbTestRepository:
     async def get(self, *, workspace_id: uuid.UUID, test_id: uuid.UUID) -> AbTest | None:
         """Return one test with its variants loaded, or ``None``.
 
+        ``populate_existing`` is the whole point of this docstring, because
+        without it this method answers with **whatever the session loaded the
+        first time**. One request calls it more than once — the upload route
+        adds a photo through one service and then builds the detail through
+        another, on the same session — and `selectinload` will not overwrite a
+        collection it has already populated for an instance still in the
+        identity map. The second read therefore returned a test whose
+        ``variants`` predated the INSERT.
+
+        What made that survive review is that it depended on **garbage
+        collection**: the identity map holds weak references, so when nothing
+        else kept the first instance alive the next query built a fresh one and
+        the staleness disappeared. It became visible the moment an unrelated
+        change (a logged exception, whose traceback pins the frame that holds
+        the test) kept that instance alive — an upload then answered with the
+        photo missing, and the duplicate-«Главное» check read an empty list and
+        let a second one through to the unique constraint.
+
+        Every caller here re-reads in order to act on current state, and every
+        write is flushed before the next read, so there is nothing in memory
+        that refreshing could usefully preserve.
+
         Args:
             workspace_id: Tenancy guard — a foreign test reads as absent.
             test_id: Test identifier.
@@ -185,6 +207,7 @@ class AbTestRepository:
             select(AbTest)
             .where(AbTest.id == test_id, AbTest.workspace_id == workspace_id)
             .options(selectinload(AbTest.variants))
+            .execution_options(populate_existing=True)
         )
         return (await self._session.execute(stmt)).scalars().one_or_none()
 
