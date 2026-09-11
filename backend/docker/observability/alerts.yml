@@ -351,3 +351,82 @@ groups:
           severity: page
         annotations:
           summary: "More than 2% of responses are 5xx."
+
+  # -------------------------------------------------------------------------
+  # New-organisation history backfill.
+  #
+  # This group exists because of a failure that produced no alert of any kind.
+  # A new org's history arrives as four lanes of self-enqueueing ticks, and a
+  # tick that dies before its re-enqueue ends the walk with nothing scheduled
+  # to notice: no exception reaches a caller, no work-done counter moves, the
+  # lane simply stops. On 2026-09-10 NEVA's P&L lane died on its first tick and
+  # sat there for eleven hours until a person happened to look.
+  #
+  # So these rules alert on the ABSENCE of progress, which is the only shape
+  # this failure has, and they distinguish the two cases that need different
+  # responses: the system healing itself (stalled, restarted, moving again)
+  # from the system failing to (stalled, restarted, still stalled).
+  # -------------------------------------------------------------------------
+  - name: backfill
+    rules:
+      - alert: NewOrgBackfillStalled
+        # The watchdog sweeps every 15 minutes and a lane is called stalled
+        # after 45 minutes without movement, so `for: 1h` means at least two
+        # sweeps have seen it and at least one restart has been attempted.
+        # Anything shorter alerts on a lane that is about to be healed.
+        expr: backfill_lanes_stalled > 0
+        for: 1h
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $value }} history-backfill lane(s) stuck — a new seller's data is not arriving."
+          description: >-
+            A backfill lane has stopped making progress and the watchdog's
+            restarts have not revived it. The seller sees a half-empty product,
+            and nothing else in the system will report this.
+            WHICH seller is in the logs, not here — metrics carry no tenant.
+            In Grafana → Explore → Loki:
+            {service="worker"} |= "backfill" — the lane, the workspace_id and
+            the cursor are on every line.
+            Check `workspaces.workspace_backfill` for the stuck row, and
+            `backfill_lane_restarts_total` to see whether the watchdog has been
+            trying. A lane whose cursor never moves across restarts is a
+            poisoned cursor, not a transient failure.
+
+      - alert: NewOrgBackfillRestartLoop
+        # Restarts happening AND the stall persisting. The watchdog is doing
+        # its job and the job is not working — which is a different incident
+        # from a lane nobody restarted, and the one that needs a human.
+        expr: |
+          increase(backfill_lane_restarts_total[2h]) >= 3
+          and on() backfill_lanes_stalled > 0
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: "Backfill lane {{ $labels.lane }} keeps being restarted and keeps stalling."
+          description: >-
+            The watchdog has restarted this lane three or more times in two
+            hours and it is still not progressing, so the restart is not the
+            fix. Expect a poisoned cursor, a token WB has stopped accepting, or
+            a row the ingest cannot write. Read the worker log for the lane's
+            last exception before restarting it again by hand — another restart
+            will do exactly what the last three did.
+
+      - alert: NewOrgBackfillFailing
+        # The moment of death rather than its consequence. Fires earlier than
+        # the stall alert and is the one that says WHY, because the failure
+        # counter moves at the exception and the gauge only moves 45 minutes
+        # later.
+        expr: increase(backfill_lane_failures_total[30m]) >= 2
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Backfill lane {{ $labels.lane }} has failed repeatedly in the last 30 minutes."
+          description: >-
+            Two or more ticks of this lane raised rather than recording a step.
+            The watchdog will keep restarting it, so this may heal on its own —
+            but a lane failing this often is usually failing on its input, not
+            on the weather. The exception is in the worker log with the
+            workspace_id: {service="worker"} |= "died with".

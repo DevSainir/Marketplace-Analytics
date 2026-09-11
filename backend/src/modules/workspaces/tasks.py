@@ -32,6 +32,10 @@ from sqlalchemy import select
 from src.core.celery_app import celery_app
 from src.core.database import AsyncSessionLocal
 from src.core.logging import get_logger
+from src.core.observability.metrics import (
+    BACKFILL_LANE_RESTARTS,
+    BACKFILL_LANES_STALLED,
+)
 from src.core.tasks import run_task
 from src.modules.workspaces.models import BackfillLane, BackfillState, WorkspaceBackfill
 
@@ -99,6 +103,12 @@ def sweep_stalled_backfills() -> dict[str, int]:
 
     async def _run() -> dict[str, int]:
         stalled = await _stalled(datetime.now(UTC))
+        # Published BEFORE any restart is attempted, so the gauge describes what
+        # the sweep FOUND rather than what it left behind. A gauge written after
+        # a successful restart would read zero on every scrape and the alert on
+        # it would never fire — the monitoring equivalent of the bug this whole
+        # module exists for.
+        BACKFILL_LANES_STALLED.set(len(stalled))
         restarted = 0
         for workspace_id, lane in stalled:
             task_name = LANE_TASKS.get(BackfillLane(lane))
@@ -106,6 +116,7 @@ def sweep_stalled_backfills() -> dict[str, int]:
                 logger.error("No restart task registered for backfill lane %r.", lane)
                 continue
             celery_app.send_task(task_name, kwargs={"workspace_id": str(workspace_id)})
+            BACKFILL_LANE_RESTARTS.labels(lane=lane).inc()
             restarted += 1
             logger.warning(
                 "Backfill lane %s for workspace %s had not moved in %s; restarted it via %s.",

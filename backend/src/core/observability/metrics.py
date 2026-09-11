@@ -191,6 +191,62 @@ HARVEST_PARTIAL: Final[Counter] = Counter(
 )
 
 # --------------------------------------------------------------------------- #
+# History backfill — the one job whose failure is silent by construction.
+# --------------------------------------------------------------------------- #
+
+#: Backfill lanes that claim to be running and have stopped moving, fleet-wide.
+#:
+#: This is the metric the 2026-09-10 incident had no equivalent of. A new org's
+#: history arrives as four lanes of self-enqueueing ticks, and a tick that dies
+#: before its re-enqueue ends the whole walk with NOTHING scheduled to notice:
+#: no exception reaches a caller, no counter of work-done moves, and the lane
+#: simply stays at whatever it had reached. NEVA's P&L lane died on its first
+#: tick and sat there for eleven hours; the only reason anyone found out is that
+#: a person happened to look.
+#:
+#: A counter of what the backfill DID could not have shown that — the failure is
+#: the absence of work, not the presence of a bad result. Only a gauge of "how
+#: many lanes are stuck right now" makes silence visible.
+#:
+#: Deliberately NOT labelled by workspace: `/metrics` has no tenancy check
+#: because it has no tenant. "Whose backfill" is a question for the logs, which
+#: carry `workspace_id` on every line. This answers "is anybody stuck".
+#:
+#: `livemostrecent`: one sweep computes this for the whole fleet every fifteen
+#: minutes, so the newest computation is the truth. Summing across prefork
+#: children would multiply it by however many ran the sweep.
+BACKFILL_LANES_STALLED: Final[Gauge] = Gauge(
+    "backfill_lanes_stalled",
+    "Backfill lanes that are running but have not progressed, across all workspaces.",
+    multiprocess_mode="livemostrecent",
+)
+
+#: Lanes the watchdog has restarted. Labelled by lane — four bounded values, no
+#: caller-chosen string ever reaches it.
+#:
+#: Read WITH the gauge above, because the pair answers the question an alert
+#: actually needs: a lane stalling and being restarted is the system healing
+#: itself, while a lane stalling and being restarted repeatedly without the
+#: gauge falling is the restart not working — which is a different incident and
+#: the one worth waking somebody for.
+BACKFILL_LANE_RESTARTS: Final[Counter] = Counter(
+    "backfill_lane_restarts_total",
+    "Backfill lanes restarted by the stalled-lane watchdog, by lane.",
+    ["lane"],
+)
+
+#: Lane ticks that raised instead of recording a step. Distinct from a stall:
+#: this is the moment of death, the gauge is the consequence of it, and having
+#: both is what lets an alert say whether the lane is failing repeatedly or
+#: failed once and was never picked up.
+BACKFILL_LANE_FAILURES: Final[Counter] = Counter(
+    "backfill_lane_failures_total",
+    "Backfill lane ticks that ended in an exception, by lane.",
+    ["lane"],
+)
+
+
+# --------------------------------------------------------------------------- #
 # Security — controls, counted where they fire.
 # --------------------------------------------------------------------------- #
 

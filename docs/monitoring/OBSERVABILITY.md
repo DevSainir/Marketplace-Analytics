@@ -322,7 +322,7 @@ during what" without carrying anything a caller submitted.
 
 ## Alerts
 
-`docker/observability/alerts.yml`, 16 rules in five groups. Two conventions:
+`docker/observability/alerts.yml`, 22 rules in six groups. Two conventions:
 `for:` is never zero (an alert that fires on one bad scrape fires on a deploy,
 and an alert that fires on a deploy gets muted), and every annotation says what
 to *do*, because the person reading it at 03:00 is not the person who wrote it.
@@ -344,6 +344,47 @@ task-level success metric can see that.
 
 **`SecurityControlDegraded`** — binds to the P1.2 ledger. Two of these at once
 is the correlated failure that ledger was built to surface.
+
+### The backfill group, and why it alerts on an absence
+
+A new organisation's history arrives as four lanes of self-enqueueing ticks —
+catalogue, funnel, advertising, P&L. The chain has exactly one thread of
+continuation: a tick does one bounded step and enqueues the next. So a tick that
+dies before reaching its re-enqueue ends the whole walk, and **nothing reports
+it**. No exception reaches a caller, no work-done counter moves, the lane simply
+stays where it stopped. On 2026-09-10 NEVA's P&L lane died on its first tick and
+sat there for eleven hours; it was found because a person happened to look.
+
+Every metric the harvest already had measures what a run DID, and this failure
+is the absence of a run. So the signal is a gauge of what is *stuck*:
+
+| Series | What it answers |
+| --- | --- |
+| `backfill_lanes_stalled` | Is anybody's history not arriving right now? |
+| `backfill_lane_restarts_total{lane}` | Is the watchdog trying to fix it? |
+| `backfill_lane_failures_total{lane}` | Are ticks dying, and how often? |
+
+The three alerts read them as a set, because the pairs mean different things.
+`NewOrgBackfillStalled` is a lane nothing has revived. `NewOrgBackfillRestartLoop`
+is restarts happening *and* the stall persisting — the watchdog working and not
+helping, which is a poisoned cursor or a rejected token rather than weather.
+`NewOrgBackfillFailing` fires on the deaths themselves, which move at the
+exception rather than 45 minutes later, so it is the one that arrives with a
+cause attached.
+
+**None of them names a workspace, and cannot.** `/metrics` has no tenancy check
+because it has no tenant. The alert says a lane is stuck; the *logs* say whose —
+`workspace_id` is on every line, and the annotation carries the Loki query. The
+Grafana dashboard's first block pairs them: the gauge and the counters on the
+left, the matching log stream on the right.
+
+The recovery itself is `workspaces.sweep_stalled_backfills`, on beat every
+fifteen minutes: it restarts any lane that claims to be running and has not
+moved in forty-five. It is idempotent — a lane resumes from the cursor in its
+own row — so restarting a live one costs a duplicate page, not a duplicate walk.
+`tests/unit/core/test_alert_rules.py` checks that every rule here names a series
+the application actually publishes, because an alert on a misspelled metric
+evaluates to nothing forever while its dashboard looks covered.
 
 ### Delivery
 

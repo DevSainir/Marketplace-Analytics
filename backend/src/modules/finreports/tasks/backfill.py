@@ -49,6 +49,7 @@ from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
     load_workspace_token_bundle,
     read_cursor,
+    record_failure,
     record_progress,
 )
 
@@ -335,7 +336,23 @@ def backfill_pnl(self: Task[object, object], workspace_id: str) -> dict[str, obj
         )
         return {"done": step.done, "total": step.total, "rows": step.rows}
 
-    return run_task(_run())
+    async def _guarded() -> dict[str, object]:
+        """Record a death on the lane before letting it escape.
+
+        The P&L lane has no ``autoretry_for`` — on this endpoint a retry ladder
+        walks back into WB's fifteen-minute block and extends it — so an
+        unrecorded exception is a walk that ends with nothing scheduled to
+        notice. That is exactly how 2026-09-10 happened.
+        """
+        try:
+            return await _run()
+        except BaseException as error:
+            await record_failure(
+                workspace_id=uuid.UUID(workspace_id), lane=BackfillLane.PNL, error=error
+            )
+            raise
+
+    return run_task(_guarded())
 
 
 async def _earliest_held(workspace_id: uuid.UUID) -> date | None:

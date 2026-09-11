@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import AsyncSessionLocal
 from src.core.logging import get_logger
+from src.core.observability.metrics import BACKFILL_LANE_FAILURES
 from src.modules.workspaces.models import BackfillLane, BackfillState, WorkspaceBackfill
 from src.modules.workspaces.repos import BackfillRepository
 from src.modules.workspaces.schemas import BackfillLaneStatus, BackfillStatusResponse
@@ -234,6 +235,43 @@ async def read_progress(session: AsyncSession, workspace_id: uuid.UUID) -> Backf
     return BackfillStatusResponse(active=active, lanes=lanes)
 
 
+async def record_failure(
+    *, workspace_id: uuid.UUID, lane: BackfillLane, error: BaseException
+) -> None:
+    """Count a tick that died, and say so on the lane it died in.
+
+    The lane is deliberately left in its RUNNING state rather than marked
+    FAILED: the watchdog restarts what claims to be running, so marking a
+    failure terminal would be marking it unrecoverable. What the seller sees is
+    the message; what the watchdog sees is a row that has stopped moving; what
+    an alert sees is this counter.
+
+    Touching ``updated_at`` here is also what PACES the recovery. A tick that
+    just died will very likely die again on the same input, so the restart is
+    worth deferring by the staleness window rather than firing the instant the
+    next sweep runs — otherwise a lane with a poisoned cursor becomes a restart
+    loop that looks, from the outside, exactly like progress.
+
+    Args:
+        workspace_id: The workspace whose lane died.
+        lane: Which lane.
+        error: The exception, for its type name and the log.
+    """
+    BACKFILL_LANE_FAILURES.labels(lane=lane).inc()
+    logger.exception(
+        "Backfill lane %s for workspace %s died with %s.",
+        lane,
+        workspace_id,
+        type(error).__name__,
+        exc_info=error,
+    )
+    await record_progress(
+        workspace_id=workspace_id,
+        lane=lane,
+        message="Сбой загрузки — перезапустим автоматически.",
+    )
+
+
 async def read_cursor(*, workspace_id: uuid.UUID, lane: BackfillLane) -> str | None:
     """Return one lane's resume point, or ``None`` if it has never ticked."""
     async with AsyncSessionLocal() as session:
@@ -249,6 +287,7 @@ __all__ = [
     "LaneStep",
     "read_cursor",
     "read_progress",
+    "record_failure",
     "record_progress",
     "start_backfill",
 ]

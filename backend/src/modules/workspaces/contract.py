@@ -14,6 +14,7 @@ from src.modules.workspaces.backfill import (
     BackfillState,
     LaneStep,
     read_cursor,
+    record_failure,
     record_progress,
     start_backfill,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "load_workspace_token_bundle",
     "load_workspace_token_bundles",
     "read_cursor",
+    "record_failure",
     "record_progress",
     "start_backfill",
 ]

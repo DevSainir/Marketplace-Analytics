@@ -24,6 +24,7 @@ for it.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Coroutine
 
 from celery import Task
 
@@ -49,6 +50,7 @@ from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
     load_workspace_token_bundle,
     read_cursor,
+    record_failure,
     record_progress,
 )
 
@@ -78,6 +80,21 @@ _TASK_RETRY_KWARGS = {
     "retry_backoff_max": 900,
     "retry_kwargs": {"max_retries": 3},
 }
+
+
+async def _guard[T](lane: BackfillLane, workspace_id: str, body: Coroutine[object, object, T]) -> T:
+    """Run a tick body, and make sure a death leaves a trace before it escapes.
+
+    Without this a lane that raises simply stops: the chain's only thread of
+    continuation is the re-enqueue at the end of the body it never reached, and
+    nothing else in the system is watching. The failure is recorded on the lane
+    and on a counter an alert reads, and then re-raised so Celery still sees it.
+    """
+    try:
+        return await body
+    except BaseException as error:
+        await record_failure(workspace_id=uuid.UUID(workspace_id), lane=lane, error=error)
+        raise
 
 
 async def _harvest_is_running() -> bool:
@@ -217,7 +234,7 @@ def backfill_catalogue(self: Task[object, object], workspace_id: str) -> dict[st
             celery_app.send_task(task_name, kwargs={"workspace_id": workspace_id})
         return {"cards": len(cards)}
 
-    return run_task(_run())
+    return run_task(_guard(BackfillLane.CATALOGUE, workspace_id, _run()))
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -252,7 +269,7 @@ def backfill_funnel(self: Task[object, object], workspace_id: str) -> dict[str, 
             task_name=name, workspace_id=workspace_id, lane=BackfillLane.FUNNEL, step=step
         )
 
-    return run_task(_run())
+    return run_task(_guard(BackfillLane.FUNNEL, workspace_id, _run()))
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -281,4 +298,4 @@ def backfill_advertising(self: Task[object, object], workspace_id: str) -> dict[
             step=step,
         )
 
-    return run_task(_run())
+    return run_task(_guard(BackfillLane.ADVERTISING, workspace_id, _run()))
