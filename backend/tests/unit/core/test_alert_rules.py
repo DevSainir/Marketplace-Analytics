@@ -58,8 +58,16 @@ def _backfill_rules() -> list[dict[str, Any]]:
 
 
 def _identifiers(expr: str) -> set[str]:
-    """Bare identifiers in a PromQL expression, minus operators and functions."""
-    tokens = set(re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", expr))
+    """Series names in a PromQL expression, minus operators, functions and labels.
+
+    Label selectors and quoted strings are stripped first: a matcher like
+    ``{task_name="workspaces.sweep_stalled_backfills"}`` is full of
+    underscore-bearing words that are emphatically not metric names, and
+    treating them as such makes this test fail on correct rules.
+    """
+    without_labels = re.sub(r"\{[^}]*\}", "", expr)
+    without_strings = re.sub(r"\"[^\"]*\"", "", without_labels)
+    tokens = set(re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", without_strings))
     keywords = {
         "by",
         "on",
@@ -124,12 +132,15 @@ def test_the_backfill_alarms_are_all_pages() -> None:
         assert rule["labels"]["severity"] == "page", rule["alert"]
 
 
-def test_the_three_backfill_failure_shapes_are_all_covered() -> None:
-    """Stalled, restart-looping and outright failing need different responses.
+def test_every_backfill_failure_shape_is_covered() -> None:
+    """Four shapes, four rules, and none of them is redundant.
 
-    A single rule on any one of them leaves a real incident unreported: a lane
-    that dies repeatedly but is always restarted never trips a stall alert, and
-    a lane that stalls once without ever raising never trips a failure alert.
+    A lane that dies repeatedly but is always restarted never trips the stall
+    alert. A lane that stalls once without ever raising never trips the failure
+    alert. A lane being restarted forever without moving looks healthy to both.
+    And if the sweep itself stops, the gauge the first three read stops being
+    written — so the group goes silent exactly when it matters, which is what
+    the fourth rule refuses.
     """
     names = {rule["alert"] for rule in _backfill_rules()}
 
@@ -137,6 +148,7 @@ def test_the_three_backfill_failure_shapes_are_all_covered() -> None:
         "NewOrgBackfillStalled",
         "NewOrgBackfillRestartLoop",
         "NewOrgBackfillFailing",
+        "BackfillWatchdogNotRunning",
     }
 
 

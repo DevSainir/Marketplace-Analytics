@@ -322,7 +322,7 @@ during what" without carrying anything a caller submitted.
 
 ## Alerts
 
-`docker/observability/alerts.yml`, 22 rules in six groups. Two conventions:
+`docker/observability/alerts.yml`, 23 rules in six groups. Two conventions:
 `for:` is never zero (an alert that fires on one bad scrape fires on a deploy,
 and an alert that fires on a deploy gets muted), and every annotation says what
 to *do*, because the person reading it at 03:00 is not the person who wrote it.
@@ -377,6 +377,12 @@ because it has no tenant. The alert says a lane is stuck; the *logs* say whose â
 `workspace_id` is on every line, and the annotation carries the Loki query. The
 Grafana dashboard's first block pairs them: the gauge and the counters on the
 left, the matching log stream on the right.
+
+A fourth rule, `BackfillWatchdogNotRunning`, watches the watchdog. Every other
+rule in the group reads a gauge that only the sweep writes, so a dead beat would
+take the whole group quiet at the moment it started mattering â€” a gauge that is
+never written never crosses a threshold. `absent()` covers the "never ran once"
+case that an `increase() == 0` alone would miss.
 
 The recovery itself is `workspaces.sweep_stalled_backfills`, on beat every
 fifteen minutes: it restarts any lane that claims to be running and has not

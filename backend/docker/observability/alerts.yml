@@ -430,3 +430,33 @@ groups:
             but a lane failing this often is usually failing on its input, not
             on the weather. The exception is in the worker log with the
             workspace_id: {service="worker"} |= "died with".
+
+      - alert: BackfillWatchdogNotRunning
+        # The watchdog's own watchdog, and the reason it exists is that every
+        # other rule in this group depends on the sweep running. If beat dies,
+        # or the task is renamed out from under the schedule, the gauge the
+        # other rules read simply stops being written — and a gauge that is
+        # never written never crosses a threshold. The whole group would go
+        # quiet at exactly the moment it stopped working, which is the failure
+        # mode this file exists to refuse.
+        #
+        # `absent()` is the second half: without it the rule matches nothing
+        # when the series has never appeared, which is precisely the "never ran
+        # once" case.
+        expr: |
+          absent(celery_tasks_total{task_name="workspaces.sweep_stalled_backfills"})
+          or increase(
+            celery_tasks_total{task_name="workspaces.sweep_stalled_backfills"}[2h]
+          ) == 0
+        for: 30m
+        labels:
+          severity: page
+        annotations:
+          summary: "The backfill watchdog has not run for two hours — nothing is restarting stuck lanes."
+          description: >-
+            `workspaces.sweep_stalled_backfills` is scheduled every fifteen
+            minutes and has not executed. Every other backfill alert reads a
+            gauge that only this task writes, so they are all blind while this
+            is firing — treat a quiet backfill group as unknown, not healthy.
+            Check Celery beat is alive (`docker ps`, then its log) and that the
+            task is still on `celery_app.conf.beat_schedule`.
