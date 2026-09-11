@@ -15,32 +15,31 @@
  *   the widths still sum to the whole track. That makes a very short turn
  *   *wider* than its share, which is the right trade: the number in the popup
  *   is the truth, and the bar is the index into it.
- * * **The open turn ends at «сейчас».** The last exposure of a live test has no
- *   `deactivated_at`, and a segment of zero width would say the rotation had
- *   stopped. The caller passes the clock in rather than this reading it, so a
- *   test rendered twice a second apart is not a different picture each time.
+ * * **The line ends where the rotation did.** The last exposure of a stopped
+ *   test has no `deactivated_at` — a pause leaves the photo on the card — so
+ *   measuring it to «сейчас» drew a segment that grew all weekend and squeezed
+ *   every real turn into the left edge. The caller passes `endsAt`, which is
+ *   the stop for a stopped test and the clock only for a live one.
  */
 
 /** Smallest share of the track one turn may occupy, in percent. */
 const MIN_SEGMENT_PERCENT = 1.5
-
-/** A label (thumbnail + title) needs this much clear track to its left. */
-const LABEL_CLEARANCE_PERCENT = 7
 
 /**
  * Build one timeline out of a test's exposures.
  *
  * @param {Array<object>} history Exposure rows as the detail endpoint returns
  *   them — newest first, `deactivated_at` null on the open one.
- * @param {{now?: number, round?: number}} [options] `now` is the clock the open
- *   turn is measured to; `round` restricts the line to one lap, 0 for all.
+ * @param {{endsAt?: number, round?: number}} [options] `endsAt` is where the
+ *   line stops — the reader's clock for a live test, the moment it stopped for
+ *   any other; `round` restricts the line to one lap, 0 for all.
  * @returns {{segments: Array<object>, startMs: number|null, endMs: number|null,
  *   totalMs: number, live: boolean}} Geometry, oldest turn first.
  */
-export function buildTimeline(history, { now = Date.now(), round = 0 } = {}) {
+export function buildTimeline(history, { endsAt = Date.now(), round = 0 } = {}) {
   const rows = (history ?? [])
     .filter((row) => !round || row.round_number === round)
-    .map((row) => toTurn(row, now))
+    .map((row) => toTurn(row, endsAt))
     .filter((turn) => turn !== null)
     // The log arrives newest first; a timeline reads left to right.
     .sort((a, b) => a.startMs - b.startMs)
@@ -55,14 +54,13 @@ export function buildTimeline(history, { now = Date.now(), round = 0 } = {}) {
   const scale = 100 / raw.reduce((sum, width) => sum + width, 0)
 
   let left = 0
-  let lastLabelAt = -Infinity
   const segments = rows.map((turn, index) => {
     const widthPercent = raw[index] * scale
-    // A label is dropped rather than squeezed: two thumbnails overlapping is
-    // worse than one turn going unlabelled, and the popup names every turn.
-    const labelled = left - lastLabelAt >= LABEL_CLEARANCE_PERCENT
-    if (labelled) lastLabelAt = left
-    const segment = { ...turn, leftPercent: left, widthPercent, labelled }
+    // Every turn is labelled, and they alternate above and below the track to
+    // halve how close two thumbnails can come. Dropping the crowded ones was
+    // tried first: what it actually hid was the short turns, which are the ones
+    // worth looking at.
+    const segment = { ...turn, leftPercent: left, widthPercent, above: index % 2 === 0 }
     left += widthPercent
     return segment
   })
@@ -80,18 +78,19 @@ export function buildTimeline(history, { now = Date.now(), round = 0 } = {}) {
  * One exposure row as the timeline needs it, or `null` if it has no clock.
  *
  * @param {object} row An exposure row.
- * @param {number} now The reader's clock, for the turn still in progress.
+ * @param {number} endsAt Where an unfinished turn is cut off.
  * @returns {object|null} The turn, or `null` when `activated_at` is unusable.
  */
-function toTurn(row, now) {
+function toTurn(row, endsAt) {
   const startMs = Date.parse(row.activated_at ?? '')
   if (Number.isNaN(startMs)) return null
 
   const closed = Date.parse(row.deactivated_at ?? '')
   const open = Number.isNaN(closed)
-  // Clamped at the start: a browser clock behind the server's would otherwise
-  // give the live turn a negative width.
-  const endMs = open ? Math.max(startMs, now) : closed
+  // Clamped at the start: a stop recorded a moment before the last install —
+  // or a browser clock behind the server's — would otherwise give the turn a
+  // negative width.
+  const endMs = open ? Math.max(startMs, endsAt) : closed
 
   return {
     key: `${row.variant_id}-${row.activated_at}`,
@@ -121,4 +120,40 @@ function toTurn(row, now) {
 export function roundsIn(history) {
   const seen = new Set((history ?? []).map((row) => row.round_number).filter(Boolean))
   return [...seen].sort((a, b) => b - a)
+}
+
+/**
+ * «08.09» and «12:05 МСК», as two parts.
+ *
+ * Moscow, spelled out, because WB operates in Moscow time and the seller reads
+ * these next to figures from the WB cabinet — the same rule «История действий»
+ * follows. Two parts because the ends of the track are where the block is
+ * narrowest: one such stamp on one line is the width of two thumbnails.
+ *
+ * @param {number|null} ms Epoch milliseconds.
+ * @returns {{date: string, time: string}} The two parts, or «—» and «».
+ */
+export function formatStamp(ms) {
+  if (ms === null || ms === undefined) return { date: '—', time: '' }
+  const at = new Date(ms)
+  const zone = { timeZone: 'Europe/Moscow' }
+  return {
+    date: at.toLocaleString('ru-RU', { ...zone, day: '2-digit', month: '2-digit' }),
+    time: `${at.toLocaleString('ru-RU', { ...zone, hour: '2-digit', minute: '2-digit' })} МСК`,
+  }
+}
+
+/**
+ * `Хч Ym`, or minutes alone under an hour — a lap may run for days.
+ *
+ * @param {number} ms A span in milliseconds.
+ * @returns {string} The span in words.
+ */
+export function formatDuration(ms) {
+  const minutes = Math.round(Math.max(0, ms ?? 0) / 60_000)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+  if (days) return `${days} д ${hours % 24} ч`
+  if (hours) return `${hours} ч ${minutes % 60} мин`
+  return `${minutes} мин`
 }

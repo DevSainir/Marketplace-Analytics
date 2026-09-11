@@ -2,10 +2,11 @@
  * The rotation timeline, as a panel.
  *
  * The geometry is proved in `timeline.spec.js`; what is left here is what the
- * component adds on top of it and what a reader would notice broken: that a
- * turn is hoverable at all and that the popup carries the figures which exist
- * nowhere else on the page, that the picker narrows the line to one lap, and
- * that a test with no turns says so instead of drawing an empty bar.
+ * component adds on top of it and what a reader would notice broken: where the
+ * line is cut off for a test that is no longer running, that a turn is hoverable
+ * at all and that the popup carries the figures which exist nowhere else on the
+ * page, that the picker narrows the line to one lap, and that a test with no
+ * turns says so instead of drawing an empty bar.
  */
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,9 +32,9 @@ function turn(overrides = {}) {
   }
 }
 
-function mountIt(history) {
+function mountIt(history, test = {}) {
   return mount(RotationTimeline, {
-    props: { test: { id: 'x', history }, imageUrls: {} },
+    props: { test: { id: 'x', status: 'running', history, ...test }, imageUrls: {} },
     attachTo: document.body,
   })
 }
@@ -45,6 +46,38 @@ afterEach(() => {
 })
 
 describe('RotationTimeline', () => {
+  it('ends a stopped test’s line at the stop, not at «сейчас»', () => {
+    // The open turn of a paused test would otherwise grow for as long as the
+    // test stands, squeezing every turn that happened into the left edge.
+    const wrapper = mountIt(
+      [turn({ activated_at: '2026-09-08T11:00:00Z', deactivated_at: null }), turn()],
+      { status: 'paused', stopped_at: '2026-09-08T11:30:00Z' },
+    )
+
+    expect(wrapper.get('[data-testid="timeline-total"]').text()).toContain('1 ч 30 мин')
+    expect(wrapper.get('[data-testid="timeline-end"]').text()).not.toContain('сейчас')
+  })
+
+  it('falls back to the last closed turn when no stop was recorded', () => {
+    // Tests paused before `stopped_at` existed carry none, and «сейчас» is an
+    // unbounded guess where the last turn that did close is a bounded one.
+    const wrapper = mountIt(
+      [turn({ activated_at: '2026-09-08T11:00:00Z', deactivated_at: null }), turn()],
+      { status: 'paused' },
+    )
+
+    expect(wrapper.get('[data-testid="timeline-total"]').text()).toContain('1 ч 0 мин')
+  })
+
+  it('labels every turn, on both sides of the track', () => {
+    const wrapper = mountIt([
+      turn({ activated_at: '2026-09-08T11:00:00Z', deactivated_at: '2026-09-08T12:00:00Z' }),
+      turn(),
+    ])
+
+    expect(wrapper.findAll('[data-testid="timeline-marker"]')).toHaveLength(2)
+  })
+
   it('draws one segment per turn', () => {
     const wrapper = mountIt([
       turn({ round_number: 2, activated_at: '2026-09-08T11:00:00Z', deactivated_at: null }),

@@ -15,15 +15,13 @@
  * of worth checking.
  *
  * One clock, not two. «Длительность» is the summed length of the intervals that
- * carry the counts — the exposure the ratios are divided over. Wall-clock time
- * since the start used to sit beside it, and it was answering a question nobody
- * had: the difference between the two is idle time, and «Остановлен» says that
- * outright, with a date on it.
+ * carry the counts. Wall-clock time since the start used to sit beside it and
+ * was answering a question nobody had: the difference between the two is idle
+ * time, and «Остановлен» says that outright, with a date on it.
  *
- * It also carries the two facts about the rotation's present tense that used to
- * live in a panel of their own above: the status, and which photo is on the
- * card. Both are one line each, and a whole card for two lines was reading as a
- * section rather than as a caption.
+ * The status and the live photo moved here from a panel of their own above.
+ * Both are one line, and a whole card for two lines read as a section rather
+ * than as the caption it is.
  */
 import { computed } from 'vue'
 

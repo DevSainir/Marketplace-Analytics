@@ -1,0 +1,48 @@
+/*
+ * The popup one timeline segment opens.
+ *
+ * Dark on purpose: it sits over a white card full of figures, and a light
+ * bubble there has to be outlined to be seen at all — at which point it reads
+ * as another panel rather than as something the cursor is holding open.
+ */
+
+/* Teleported to <body>, so this cannot be scoped to a descendant of the card —
+   it is matched on the element's own class, which `<style scoped>` still
+   attributes because the element is written in this component's template. */
+.ab-tiptime {
+  position: fixed;
+  z-index: 60;
+  /* The segment's own top is passed in; this lifts the popup clear of it. */
+  transform: translateY(-100%);
+  width: max-content;
+  max-width: min(300px, 80vw);
+  padding: 10px 12px;
+  border-radius: var(--ui-r-md);
+  background: #1f2030;
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1.45;
+  box-shadow: 0 6px 20px rgb(15 15 30 / 22%);
+  pointer-events: none;
+}
+
+.ab-tiptime-title {
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.ab-tiptime-rows {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 14px;
+}
+
+.ab-tiptime-rows dt {
+  color: #b9b9c8;
+}
+
+.ab-tiptime-rows dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
