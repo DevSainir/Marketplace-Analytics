@@ -20,7 +20,8 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import ColumnElement, case, func, select
+from sqlalchemy import BigInteger, ColumnElement, bindparam, case, func, select, true
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.finreports.constants import (
@@ -238,9 +239,14 @@ class PnlRepository:
         hold stock, and a SKU can easily hold stock without having settled a
         single row inside any window the seller happens to be looking at.
 
-        Scoped to the SKUs actually asked about so the query rides the
-        ``(nm_id, rr_dt)`` index instead of scanning 620k rows for a catalogue
-        the caller already knows the shape of.
+        One LATERAL lookup per SKU, taking the NEWEST settlement row, rather than
+        an aggregate over the history. An aggregate is the obvious shape and the
+        wrong one: a seller's own SKUs are most of their settlement table, so
+        grouping them reads every row of it — 6.8 s and a 424 MB sequential scan
+        on production for a catalogue of 63 names, while the same answer comes
+        off the ``(nm_id, rr_dt)`` index in one row per SKU. The newest row is
+        also the better answer: when a card is renamed, ``max()`` would return
+        whichever of its names sorts highest rather than the current one.
 
         Args:
             workspace_id: Owning workspace.
@@ -253,16 +259,21 @@ class PnlRepository:
         ids = list(nm_ids)
         if not ids:
             return {}
-        stmt = (
-            select(
-                _T.nm_id,
-                func.max(_T.sa_name),
-                func.max(_T.subject_name),
-                func.max(_T.brand_name),
-            )
-            .where(_T.workspace_id == workspace_id, _T.nm_id.in_(ids))
-            .group_by(_T.nm_id)
+        wanted = (
+            func.unnest(bindparam("identity_nm_ids", ids, type_=ARRAY(BigInteger)))
+            .table_valued("nm_id")
+            .render_derived(name="wanted", with_types=False)
         )
+        newest = (
+            select(_T.sa_name, _T.subject_name, _T.brand_name)
+            .where(_T.nm_id == wanted.c.nm_id, _T.workspace_id == workspace_id)
+            .order_by(_T.rr_dt.desc())
+            .limit(1)
+            .lateral("newest")
+        )
+        stmt = select(
+            wanted.c.nm_id, newest.c.sa_name, newest.c.subject_name, newest.c.brand_name
+        ).select_from(wanted.join(newest, true()))
         rows = (await self._session.execute(stmt)).all()
         return {int(r[0]): (str(r[1] or ""), str(r[2] or ""), str(r[3] or "")) for r in rows}
 
