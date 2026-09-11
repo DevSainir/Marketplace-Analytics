@@ -214,7 +214,7 @@ async def advance_pnl(
     #
     # `total_units` is documented as an estimate the lane may revise; this is
     # the revision it was written for.
-    true_start, covered = await _measure_progress(tokens, span_from, next_cursor)
+    true_start, covered = await _measure_progress(tokens, span_from, span_to, next_cursor)
     total = max((span_to - true_start).days + 1, 1)
     span_from = true_start
     return LaneStep(
@@ -228,7 +228,7 @@ async def advance_pnl(
 
 
 async def _measure_progress(
-    tokens: WorkspaceTokenBundle, span_from: date, next_cursor: int
+    tokens: WorkspaceTokenBundle, span_from: date, span_to: date, next_cursor: int
 ) -> tuple[date, int]:
     """``(true_start, days_covered)`` for the span, read back from our tables.
 
@@ -241,10 +241,19 @@ async def _measure_progress(
     first report once the first page has landed. ``days_covered`` counts from
     there to the newest day the cursor has reached.
 
+    Both halves are bounded to the SPAN, and the upper bound is not decoration.
+    The forward harvest has been writing recent weeks all along, and those rows
+    carry the highest ``rrd_id``s of all — so without `rr_dt <= span_to` the
+    "newest day reached" is a day the backfill never walked to, and the lane
+    reports 100% on its second page. Observed live 2026-09-11: NEVA read
+    1033/1033 while still waiting for its next window.
+
     Args:
         tokens: The workspace being walked.
         span_from: The span start currently in the cursor, used as a fallback
             when the table is somehow empty.
+        span_to: The span end — rows past it belong to the forward harvest,
+            not to this walk.
         next_cursor: The ``rrd_id`` the walk has reached.
 
     Returns:
@@ -261,9 +270,13 @@ async def _measure_progress(
                 select(
                     func.min(LogisticsTransaction.rr_dt),
                     func.max(LogisticsTransaction.rr_dt).filter(
-                        LogisticsTransaction.rrd_id <= next_cursor
+                        LogisticsTransaction.rrd_id <= next_cursor,
+                        LogisticsTransaction.rr_dt <= span_to,
                     ),
-                ).where(LogisticsTransaction.workspace_id == tokens.workspace_id)
+                ).where(
+                    LogisticsTransaction.workspace_id == tokens.workspace_id,
+                    LogisticsTransaction.rr_dt <= span_to,
+                )
             )
         ).one()
     true_start, latest = row
