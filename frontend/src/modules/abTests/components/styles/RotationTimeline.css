@@ -13,8 +13,21 @@
  * thing with more ways to get it wrong.
  */
 
+/* The line scrolls sideways rather than compressing once there are more turns
+   than the block can label — see the component for why. `overflow-y: visible`
+   is not an option next to `overflow-x: auto` (the pair resolves to `auto`), so
+   the popup that has to escape this box is teleported out of it instead. */
+.ab-timeline__scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+/* The side padding is what the first and last markers hang into: both are
+   centred on their tick, so at 0 % and 100 % half of each is outside the track.
+   Without it they sat flush against the card's own edge. */
 .ab-timeline {
   position: relative;
+  padding: 0 36px;
 }
 
 .ab-timeline__ends {
@@ -111,6 +124,19 @@
 /* The markers hide themselves on a phone (see TimelineMarkers.css), and their
    height is what was holding the total clear of the ticks. */
 @media (max-width: 430px) {
+  /* No markers to hang into the gutters, and 36px of each side of a 390px
+     screen is a third of the line.
+
+     The width is forced back too. It is set inline, from a per-turn budget that
+     buys room for the markers — and the markers are the thing this breakpoint
+     hides, so on a phone that budget buys a bar you have to pan along to see
+     the end of. `!important` beats the inline value, which is the one case the
+     design system allows it for. */
+  .ab-timeline {
+    width: 100% !important;
+    padding: 0 4px;
+  }
+
   .ab-timeline__total {
     margin-top: 14px;
   }

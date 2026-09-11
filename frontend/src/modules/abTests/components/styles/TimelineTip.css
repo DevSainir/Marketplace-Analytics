@@ -26,22 +26,22 @@
   pointer-events: none;
 }
 
-.ab-tiptime-title {
+.ab-tiptime__title {
   margin-bottom: 6px;
   font-weight: 600;
 }
 
-.ab-tiptime-rows {
+.ab-tiptime__rows {
   display: grid;
   grid-template-columns: auto auto;
   gap: 2px 14px;
 }
 
-.ab-tiptime-rows dt {
+.ab-tiptime__rows dt {
   color: #b9b9c8;
 }
 
-.ab-tiptime-rows dd {
+.ab-tiptime__rows dd {
   margin: 0;
   text-align: right;
   font-variant-numeric: tabular-nums;

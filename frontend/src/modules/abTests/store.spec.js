@@ -85,6 +85,8 @@ describe('A/Б-tests photo object URLs', () => {
     fetchVariantImage
       .mockRejectedValueOnce(new Error('boom'))
       .mockResolvedValueOnce(new Blob(['jpeg']))
+      // The retry, which fails too — see the test below for why there is one.
+      .mockRejectedValueOnce(new Error('boom'))
     const store = useAbTestsStore()
     await store.loadTest(TEST_ID)
 
@@ -92,6 +94,23 @@ describe('A/Б-tests photo object URLs', () => {
 
     expect(store.imageUrls.v0).toBeUndefined()
     expect(store.imageUrls.v1).toMatch(/^blob:/)
+  })
+
+  it('gives a photo the object storage dropped a second chance', async () => {
+    // The bucket behind these returns an intermittent 502: the same eleven
+    // objects failed on all of them once and succeeded on all of them a minute
+    // later. Without a retry that photo is missing until the page is reloaded,
+    // which is what «седьмая картинка так и не загрузилась» was.
+    fetchTest.mockResolvedValue(detail(1))
+    fetchVariantImage
+      .mockRejectedValueOnce(new Error('502'))
+      .mockResolvedValueOnce(new Blob(['jpeg']))
+    const store = useAbTestsStore()
+    await store.loadTest(TEST_ID)
+
+    await store.loadImages(TEST_ID)
+
+    expect(store.imageUrls.v0).toMatch(/^blob:/)
   })
 
   it('revokes the previous URLs when the photos are reloaded', async () => {

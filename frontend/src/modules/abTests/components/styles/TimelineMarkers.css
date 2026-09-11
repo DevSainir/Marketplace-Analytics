@@ -5,12 +5,20 @@
  * point of a picture here is to be recognisable as a photo of a dress at a
  * glance, and at 30px it was a coloured rectangle. Two rows of this (above and
  * below) is what the block spends its height on.
+ *
+ * `--large` is the same row on a line with few enough turns to afford it. The
+ * parent decides, because both rows must agree: sizing each from its own count
+ * would leave the track running crooked between a tall row and a short one.
  */
 
 .ab-markers {
   position: relative;
   height: 76px;
   margin-top: 10px;
+}
+
+.ab-markers--large {
+  height: 104px;
 }
 
 /* Above the track the caption sits under the picture still, but the row as a
@@ -32,6 +40,19 @@
      right of its divider reads as belonging to the segment after it. */
   transform: translateX(-50%);
   pointer-events: none;
+}
+
+.ab-markers--large .ab-markers__item {
+  width: 70px;
+}
+
+.ab-markers--large .ab-markers__thumb {
+  width: 66px;
+  height: 88px;
+}
+
+.ab-markers--large .ab-markers__caption {
+  font-size: 10px;
 }
 
 .ab-markers__thumb {

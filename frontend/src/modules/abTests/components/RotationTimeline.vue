@@ -17,6 +17,14 @@
  * end to end on one track — the view that answers whether a photo led every lap
  * or only one.
  *
+ * That view has no upper bound: ten photos over ten laps is a hundred turns, and
+ * no amount of proportion fits a hundred thumbnails across a card. Past the
+ * point where each turn has room for its own marker the line **scrolls
+ * sideways** instead of compressing, at a fixed width per turn — the block keeps
+ * its height and its meaning, and the reader pans through the test rather than
+ * squinting at it. A line that fits keeps fitting; nothing scrolls until it has
+ * to.
+ *
  * The popup is teleported to `<body>`, for the reason `MetricHint` records: an
  * element that must escape a card has to leave the card, not out-rank it.
  */
@@ -80,6 +88,29 @@ const live = computed(() => props.test.status === 'running' && line.value.live)
 const above = computed(() => line.value.segments.filter((segment) => segment.above))
 const below = computed(() => line.value.segments.filter((segment) => !segment.above))
 
+/** Width one turn needs before its marker starts crowding its neighbour's. */
+const TURN_WIDTH_PX = 56
+
+/** Below this many turns the markers are drawn large; above it they are not. */
+const ROOMY_TURNS = 14
+
+/**
+ * How wide the line is drawn, in CSS.
+ *
+ * `100%` while the turns fit — the line is a proportion of the block, which is
+ * what makes «Все круги» readable at a glance. Once there are more turns than
+ * the block can label, it becomes a fixed width instead and the block scrolls:
+ * compressing a hundred turns into 1200px produces a row of hairlines and a
+ * pile of overlapping thumbnails, and neither can be read or hovered.
+ */
+const lineWidth = computed(() => {
+  const needed = line.value.segments.length * TURN_WIDTH_PX * (large.value ? 2 : 1)
+  return `max(100%, ${needed}px)`
+})
+
+/** A short line can afford bigger pictures, and a photo is the point of one. */
+const large = computed(() => line.value.segments.length <= ROOMY_TURNS)
+
 const hovered = ref(null)
 const tipAt = ref({ top: 0, left: 0 })
 
@@ -132,55 +163,60 @@ onUnmounted(close)
       </label>
     </header>
 
-    <div v-if="line.segments.length" class="ab-timeline">
-      <div class="ab-timeline__ends">
-        <span class="ab-timeline__end" data-testid="timeline-start">
-          <span>{{ formatStamp(line.startMs).date }}</span>
-          <span>{{ formatStamp(line.startMs).time }}</span>
-        </span>
-        <span class="ab-timeline__end ab-timeline__end--right" data-testid="timeline-end">
-          <template v-if="live">
-            <span>сейчас</span>
-          </template>
-          <template v-else>
-            <span>{{ formatStamp(line.endMs).date }}</span>
-            <span>{{ formatStamp(line.endMs).time }}</span>
-          </template>
-        </span>
+    <div v-if="line.segments.length" class="ab-timeline__scroll">
+      <div class="ab-timeline" :style="{ width: lineWidth }">
+        <div class="ab-timeline__ends">
+          <span class="ab-timeline__end" data-testid="timeline-start">
+            <span>{{ formatStamp(line.startMs).date }}</span>
+            <span>{{ formatStamp(line.startMs).time }}</span>
+          </span>
+          <span class="ab-timeline__end ab-timeline__end--right" data-testid="timeline-end">
+            <template v-if="live">
+              <span>сейчас</span>
+            </template>
+            <template v-else>
+              <span>{{ formatStamp(line.endMs).date }}</span>
+              <span>{{ formatStamp(line.endMs).time }}</span>
+            </template>
+          </span>
+        </div>
+
+        <TimelineMarkers :segments="above" :image-urls="imageUrls" :large="large" above />
+
+        <div class="ab-timeline__track">
+          <button
+            v-for="segment in line.segments"
+            :key="segment.key"
+            type="button"
+            class="ab-timeline__segment"
+            :class="{ 'ab-timeline__segment--live': segment.open }"
+            :style="{ left: `${segment.leftPercent}%`, width: `${segment.widthPercent}%` }"
+            :aria-label="`${segment.label}: ${formatDuration(segment.durationMs)}`"
+            data-testid="timeline-segment"
+            @mouseenter="open(segment, $event)"
+            @mouseleave="close"
+            @focus="open(segment, $event)"
+            @blur="close"
+          />
+          <span
+            v-for="segment in line.segments"
+            :key="`tick-${segment.key}`"
+            class="ab-timeline__tick"
+            :style="{ left: `${segment.leftPercent}%` }"
+          />
+          <span class="ab-timeline__tick" style="left: 100%" />
+        </div>
+
+        <TimelineMarkers :segments="below" :image-urls="imageUrls" :large="large" />
       </div>
-
-      <TimelineMarkers :segments="above" :image-urls="imageUrls" above />
-
-      <div class="ab-timeline__track">
-        <button
-          v-for="segment in line.segments"
-          :key="segment.key"
-          type="button"
-          class="ab-timeline__segment"
-          :class="{ 'ab-timeline__segment--live': segment.open }"
-          :style="{ left: `${segment.leftPercent}%`, width: `${segment.widthPercent}%` }"
-          :aria-label="`${segment.label}: ${formatDuration(segment.durationMs)}`"
-          data-testid="timeline-segment"
-          @mouseenter="open(segment, $event)"
-          @mouseleave="close"
-          @focus="open(segment, $event)"
-          @blur="close"
-        />
-        <span
-          v-for="segment in line.segments"
-          :key="`tick-${segment.key}`"
-          class="ab-timeline__tick"
-          :style="{ left: `${segment.leftPercent}%` }"
-        />
-        <span class="ab-timeline__tick" style="left: 100%" />
-      </div>
-
-      <TimelineMarkers :segments="below" :image-urls="imageUrls" />
-
-      <p class="ab-timeline__total" data-testid="timeline-total">
-        Всего {{ formatDuration(line.totalMs) }}
-      </p>
     </div>
+
+    <!-- Outside the scroller: it describes the whole line rather than a place
+         on it, and centred on 5600px of track it was only readable if you
+         happened to stop panning in the middle. -->
+    <p v-if="line.segments.length" class="ab-timeline__total" data-testid="timeline-total">
+      Всего {{ formatDuration(line.totalMs) }}
+    </p>
 
     <p v-else class="text-tiny text-muted">
       Пока ни одной установки. Первая появится, когда тест запустится.

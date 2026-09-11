@@ -7,19 +7,26 @@
  * them can never be closer than every other tick, which is what makes it
  * possible to label every turn rather than only the ones with room. The parent
  * decides which half goes where; this only knows how to draw a row.
+ *
+ * `large` is the parent's answer to "does this line have room": a test with a
+ * handful of turns should show them at a size where a photo is a photo, and one
+ * with a hundred cannot. Sizing is not something a row can decide for itself —
+ * both rows have to agree, or the track sits crooked between them.
  */
 defineProps({
   /** Segments to label, each carrying `leftPercent`, `label` and `variantId`. */
   segments: { type: Array, default: () => [] },
   /** variant_id -> object URL for the stored original. */
   imageUrls: { type: Object, default: () => ({}) },
-  /** True when the row hangs above the track, so the caption goes first. */
+  /** True when the row hangs above the track rather than below it. */
   above: { type: Boolean, default: false },
+  /** True on a line short enough to give every photo more room. */
+  large: { type: Boolean, default: false },
 })
 </script>
 
 <template>
-  <div class="ab-markers" :class="{ 'ab-markers--above': above }">
+  <div class="ab-markers" :class="{ 'ab-markers--above': above, 'ab-markers--large': large }">
     <div
       v-for="segment in segments"
       :key="segment.key"

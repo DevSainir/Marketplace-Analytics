@@ -41,6 +41,35 @@ export const STATUS_LABELS = {
 /** Product cap on photos in one rotation; mirrors the backend's own limit. */
 export const MAX_VARIANTS = 10
 
+/** Photos fetched at once. Six is where browsers queue per origin anyway. */
+const IMAGE_FETCH_LANES = 6
+
+/** Pause before the second attempt at one photo — see `loadImages`. */
+const IMAGE_RETRY_MS = 400
+
+/**
+ * Fetch one variant image, giving the object storage a second chance.
+ *
+ * The failure this exists for is a 502 from the bucket that clears by itself;
+ * without the retry the photo is missing until the page is reloaded.
+ *
+ * @param {string} testId Test identifier.
+ * @param {string} variantId Variant identifier.
+ * @returns {Promise<Blob|null>} The image, or null if both attempts failed.
+ */
+async function fetchImageTwice(testId, variantId) {
+  try {
+    return await fetchVariantImage(testId, variantId)
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, IMAGE_RETRY_MS))
+  }
+  try {
+    return await fetchVariantImage(testId, variantId)
+  } catch {
+    return null
+  }
+}
+
 export const useAbTestsStore = defineStore('abTests', () => {
   const tests = ref([])
   const detail = ref(null)
@@ -312,7 +341,20 @@ export const useAbTestsStore = defineStore('abTests', () => {
   /**
    * Fetch the open test's photos and expose them as object URLs.
    *
-   * A photo that fails to load is simply absent from the map rather than
+   * **In parallel, and with one retry each**, both of which were paid for by a
+   * real page. The images live in object storage, the route opens a connection
+   * per object, and fetching eleven of them one after another took ten to
+   * fifteen seconds — long enough that the timeline drew itself in grey
+   * placeholders first. That storage also returns an intermittent 502: probing
+   * the same eleven objects failed on all of them once and succeeded on all of
+   * them a minute later. A photo dropped on the first attempt therefore stayed
+   * missing for as long as the page was open, which is what «седьмая картинка
+   * так и не загрузилась» was.
+   *
+   * The cap is there because the browser serialises past six connections per
+   * origin anyway, and a burst of eleven only moves the queue.
+   *
+   * A photo that fails both attempts is simply absent from the map rather than
    * failing the whole table: the row still carries the metrics, which is most
    * of what the table is for.
    *
@@ -329,17 +371,21 @@ export const useAbTestsStore = defineStore('abTests', () => {
    */
   async function loadImages(testId) {
     const run = ++imagesRun
-    const variants = detail.value?.variants ?? []
+    const queue = [...(detail.value?.variants ?? [])]
     const next = {}
-    for (const variant of variants) {
-      try {
-        next[variant.variant_id] = URL.createObjectURL(
-          await fetchVariantImage(testId, variant.variant_id),
-        )
-      } catch {
-        // Left out of the map; the row renders without its thumbnail.
+
+    const worker = async () => {
+      for (let variant = queue.shift(); variant; variant = queue.shift()) {
+        const blob = await fetchImageTwice(testId, variant.variant_id)
+        // Still guard inside the loop: a superseded run should stop spending
+        // requests, not just throw the answers away at the end.
+        if (run !== imagesRun) return
+        if (blob) next[variant.variant_id] = URL.createObjectURL(blob)
       }
     }
+
+    await Promise.all(Array.from({ length: IMAGE_FETCH_LANES }, worker))
+
     if (run !== imagesRun) {
       for (const url of Object.values(next)) URL.revokeObjectURL(url)
       return

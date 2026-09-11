@@ -61,9 +61,11 @@ describe('buildTimeline', () => {
     expect(segments[0].durationMs).toBe(30 * 60_000)
   })
 
-  it('labels every turn, alternating above and below the track', () => {
+  it('labels every turn, alternating below and above the track', () => {
     // Crowded labels used to be dropped, and what that hid was always the short
-    // turns — the ones the timeline exists to make visible.
+    // turns — the ones the timeline exists to make visible. The first one goes
+    // BELOW: above, it stands under the stamp naming the line's start and
+    // shoves it off the track.
     const { segments } = buildTimeline(
       Array.from({ length: 6 }, (_, index) =>
         turn({
@@ -74,7 +76,7 @@ describe('buildTimeline', () => {
       { endsAt: NOW },
     )
 
-    expect(segments.map((s) => s.above)).toEqual([true, false, true, false, true, false])
+    expect(segments.map((s) => s.above)).toEqual([false, true, false, true, false, true])
   })
 
   it('fills the track exactly, even after flooring a very short turn', () => {

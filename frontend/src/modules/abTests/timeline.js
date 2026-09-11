@@ -14,7 +14,10 @@
  *   divider nobody can see. Segments get a floor, and the rest is rescaled so
  *   the widths still sum to the whole track. That makes a very short turn
  *   *wider* than its share, which is the right trade: the number in the popup
- *   is the truth, and the bar is the index into it.
+ *   is the truth, and the bar is the index into it. The floor **shrinks as the
+ *   line fills up**, because a fixed one stops being a floor and becomes the
+ *   layout: ten photos over ten laps is a hundred turns, and a hundred 1.5 %
+ *   minimums would make every turn the same width whatever it did.
  * * **The line ends where the rotation did.** The last exposure of a stopped
  *   test has no `deactivated_at` — a pause leaves the photo on the card — so
  *   measuring it to «сейчас» drew a segment that grew all weekend and squeezed
@@ -24,6 +27,9 @@
 
 /** Smallest share of the track one turn may occupy, in percent. */
 const MIN_SEGMENT_PERCENT = 1.5
+
+/** …but the floors together may never claim more than this much of the track. */
+const MAX_FLOOR_SHARE_PERCENT = 50
 
 /**
  * Build one timeline out of a test's exposures.
@@ -50,7 +56,8 @@ export function buildTimeline(history, { endsAt = Date.now(), round = 0 } = {}) 
   const endMs = Math.max(...rows.map((turn) => turn.endMs))
   const spanMs = Math.max(1, endMs - startMs)
 
-  const raw = rows.map((turn) => Math.max(MIN_SEGMENT_PERCENT, (turn.durationMs / spanMs) * 100))
+  const floor = Math.min(MIN_SEGMENT_PERCENT, MAX_FLOOR_SHARE_PERCENT / rows.length)
+  const raw = rows.map((turn) => Math.max(floor, (turn.durationMs / spanMs) * 100))
   const scale = 100 / raw.reduce((sum, width) => sum + width, 0)
 
   let left = 0
@@ -60,7 +67,11 @@ export function buildTimeline(history, { endsAt = Date.now(), round = 0 } = {}) 
     // halve how close two thumbnails can come. Dropping the crowded ones was
     // tried first: what it actually hid was the short turns, which are the ones
     // worth looking at.
-    const segment = { ...turn, leftPercent: left, widthPercent, above: index % 2 === 0 }
+    //
+    // The FIRST one goes below. Above, it stands directly under the stamp that
+    // says when the line begins and pushes it up off the track; below, the two
+    // ends of the line sit level with each other, which is what they are.
+    const segment = { ...turn, leftPercent: left, widthPercent, above: index % 2 === 1 }
     left += widthPercent
     return segment
   })
