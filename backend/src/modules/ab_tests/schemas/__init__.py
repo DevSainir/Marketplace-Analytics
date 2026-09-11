@@ -238,6 +238,15 @@ class AbTestRead(BaseModel):
             "Сбрасывается при возобновлении."
         ),
     )
+    photo_conflict_at: datetime | None = Field(
+        default=None,
+        description=(
+            "Когда ротация обнаружила на карточке главное фото, которое она не "
+            "устанавливала: значит, карточку поменяли вручную. Тест остановлен и сам "
+            "не возобновится — трафик с чужого фото ни одному варианту не принадлежит. "
+            "null, если такого не было."
+        ),
+    )
     created_at: datetime
 
     leader_variant_id: uuid.UUID | None = Field(

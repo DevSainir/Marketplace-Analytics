@@ -59,6 +59,13 @@ CounterReader = Callable[[int, Sequence[date]], Awaitable[dict[date, Counters]]]
 #: per slot — see the module docstring.
 AdsReader = Callable[[int], Awaitable[AdsState]]
 
+#: Asks the storefront when the card's main photo was last published, and — after
+#: an install — waits for it to show ours. Two callables rather than the witness
+#: itself because the URL comes from monitoring's catalogue, which this module
+#: may not reach past its contract; the task wiring closes over it.
+PhotoReader = Callable[[int], Awaitable[datetime | None]]
+InstallConfirmer = Callable[[int, datetime | None], Awaitable[datetime | None]]
+
 
 @dataclass(frozen=True)
 class Snapshot:
@@ -101,6 +108,8 @@ class _Exposures(Protocol):
 
     async def active_since(self, *, test_id: uuid.UUID) -> datetime | None: ...
 
+    async def published_at_of_open(self, *, test_id: uuid.UUID) -> datetime | None: ...
+
     async def open(
         self,
         *,
@@ -108,6 +117,7 @@ class _Exposures(Protocol):
         variant_id: uuid.UUID,
         activated_at: datetime,
         round_number: int,
+        published_at: datetime | None = None,
     ) -> object: ...
 
     async def current_round(self, *, test_id: uuid.UUID) -> int: ...
@@ -121,6 +131,8 @@ class _Tests(Protocol):
     async def set_active_variant(self, *, test: AbTest, variant_id: uuid.UUID | None) -> None: ...
 
     async def pause_for_ads(self, *, test: AbTest, at: datetime) -> None: ...
+
+    async def pause_for_photo_conflict(self, *, test: AbTest, at: datetime) -> None: ...
 
     async def set_status(
         self,
@@ -152,6 +164,10 @@ class PollOutcome:
     #: over yet» and is what most passes of a healthy test return.
     paused: bool = False
     seeded: bool = False
+    #: True when this pass stopped the test because the card's main photo is
+    #: not the one the rotation installed. Distinct from ``paused``: that one
+    #: resumes by itself when the advertising does, and this one never does.
+    photo_conflict: bool = False
 
 
 class RotationRunner:
@@ -167,6 +183,8 @@ class RotationRunner:
         installer: _Installer,
         read_ads: AdsReader,
         read_counters: CounterReader,
+        read_photo: PhotoReader,
+        confirm_install: InstallConfirmer,
     ) -> None:
         """Wire the runner to its collaborators.
 
@@ -178,6 +196,11 @@ class RotationRunner:
             installer: Puts a variant's image on the card.
             read_ads: Answers what the card's advertising is doing — serving,
                 paused, or spent. Called only when a swap is due.
+            read_photo: Asks the storefront when the card's main photo was last
+                published. Answers ``None`` whenever it cannot tell, which
+                skips the check rather than failing it.
+            confirm_install: After an install, waits for the storefront to stop
+                reporting the timestamp it was given and returns the new one.
             read_counters: Reads WB's cumulative counters for a SKU over the
                 given days. Injected so the pass can be tested without WB and
                 so the caller owns the shared rate budget.
@@ -189,6 +212,8 @@ class RotationRunner:
         self._installer = installer
         self._read_counters = read_counters
         self._read_ads = read_ads
+        self._read_photo = read_photo
+        self._confirm_install = confirm_install
 
     async def poll(self, test: AbTest, *, days: Sequence[date], now: datetime) -> PollOutcome:
         """Close the interval since the last poll and rotate if it is due.
@@ -206,6 +231,22 @@ class RotationRunner:
             IntegrationError: If WB refuses the new photo. The test is left
                 untouched, and the next poll retries.
         """
+        # BEFORE anything is credited. A window that closed over a card
+        # somebody else had edited belongs to no variant of ours, and crediting
+        # it and then pausing would leave exactly the wrong number behind.
+        witnessed = await self._exposures.published_at_of_open(test_id=test.id)
+        if witnessed is not None:
+            live = await self._read_photo(test.nm_id)
+            if live is not None and live != witnessed:
+                await self._pause_with_photo_conflict(test, live=live, at=now)
+                return PollOutcome(
+                    test_id=test.id,
+                    action=RotationAction.HOLD,
+                    window_views=0,
+                    installed_variant_id=None,
+                    photo_conflict=True,
+                )
+
         current = await self._read_counters(test.nm_id, days)
         previous = await self._snapshots.load(test_id=test.id)
 
@@ -296,6 +337,36 @@ class RotationRunner:
             test.id,
         )
 
+    async def _pause_with_photo_conflict(
+        self, test: AbTest, *, live: datetime, at: datetime
+    ) -> None:
+        """Stop the test because the card is not showing our photo.
+
+        Publication is same-second (measured 2026-09-10), so a main photo whose
+        timestamp is not the one we witnessed at install was written by somebody
+        who is not this rotation — in practice the seller, in the WB cabinet.
+        From that moment the card's traffic belongs to a picture that is not in
+        the comparison, and the honest thing to do with it is nothing.
+
+        The snapshot is dropped for the same reason a pause drops it: the next
+        pass must seed a fresh baseline rather than hand one variant everything
+        that accumulated while the test was stopped.
+
+        Args:
+            test: The running test to stop.
+            live: What the storefront reported, for the log.
+            at: This pass's clock.
+        """
+        await self._snapshots.clear(test_id=test.id)
+        await self._tests.pause_for_photo_conflict(test=test, at=at)
+        logger.warning(
+            "ab_tests: nm %s shows a main photo published %s, which test %s did not install; "
+            "stopping rather than crediting it",
+            test.nm_id,
+            live.isoformat(),
+            test.id,
+        )
+
     async def _swap(
         self, test: AbTest, *, variant_id: uuid.UUID | None, now: datetime
     ) -> uuid.UUID | None:
@@ -310,9 +381,19 @@ class RotationRunner:
         if variant is None:  # pragma: no cover - decide() only names real variants
             return None
 
+        # What the storefront was showing before we touched it, so the
+        # confirmation below can tell our own install from the previous photo.
+        was = await self._read_photo(test.nm_id)
+
         # Upload first: everything below assumes the photo is actually on the
         # card, and an exception here must leave the test exactly as it was.
         await self._installer.install(nm_id=test.nm_id, variant=variant)
+
+        # Then read back when the storefront says it published ours. This is
+        # the witness every later pass checks the card against; ``None`` means
+        # the turn is unwitnessed, which disables the check rather than arming
+        # it with a value that would report a conflict against our own photo.
+        published_at = await self._confirm_install(test.nm_id, was)
 
         leader = next((v for v in test.variants if not v.is_excluded), None)
         current = await self._exposures.current_round(test_id=test.id)
@@ -326,6 +407,7 @@ class RotationRunner:
             variant_id=variant.id,
             activated_at=now,
             round_number=round_number,
+            published_at=published_at,
         )
         await self._tests.set_active_variant(test=test, variant_id=variant.id)
 

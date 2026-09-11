@@ -27,7 +27,8 @@ import pytest
 
 from src.integrations.wildberries.schemas import WBAdvCampaignStats
 from src.modules.ab_tests.services.collection import counters_by_day
-from src.modules.ab_tests.tasks import _CAMPAIGN_BATCH, _gather_bounded, _read_all_stats
+from src.modules.ab_tests.tasks import _gather_bounded
+from src.modules.ab_tests.tasks.cabinet import CAMPAIGN_BATCH, read_all_stats
 
 DAYS = [date(2026, 9, 7), date(2026, 9, 8)]
 
@@ -68,17 +69,17 @@ async def test_the_cost_of_a_pass_is_counted_in_campaigns_not_tests(
     """
     client = _CountingClient()
 
-    await _read_all_stats(client, list(range(campaigns)), DAYS)  # type: ignore[arg-type]
+    await read_all_stats(client, list(range(campaigns)), DAYS)  # type: ignore[arg-type]
 
     assert len(client.calls) == expected
-    assert all(len(batch) <= _CAMPAIGN_BATCH for batch in client.calls)
+    assert all(len(batch) <= CAMPAIGN_BATCH for batch in client.calls)
 
 
 async def test_a_cabinet_with_nothing_to_ask_about_asks_nothing() -> None:
     """No campaigns is not an empty request, it is no request."""
     client = _CountingClient()
 
-    assert await _read_all_stats(client, [], DAYS) == []  # type: ignore[arg-type]
+    assert await read_all_stats(client, [], DAYS) == []  # type: ignore[arg-type]
     assert client.calls == []
 
 

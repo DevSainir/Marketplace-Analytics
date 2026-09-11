@@ -1,4 +1,9 @@
-"""Celery entrypoint for the rotation poller.
+"""Celery entrypoint for the rotation poller, and the sweep it runs.
+
+Three modules, split when the file passed the repo's 500-line ceiling: what a
+cabinet shares for one pass is in :mod:`.cabinet`, wiring and running one test's
+pass is in :mod:`.passes`, and what stays here is the sweep — which tests to
+poll, in what order, how many at once, and which of them to wake up again.
 
 Runs every few minutes, not once a night. WB's advertising report has a one-day
 *reporting* grain — ``fullstats`` refuses a shorter interval — but it serves the
@@ -40,8 +45,7 @@ import asyncio
 import uuid
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 from src.core.celery_app import celery_app
 from src.core.config import settings
@@ -50,29 +54,17 @@ from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
-from src.integrations.wildberries import WBAdvertisingClient, WBContentClient
-from src.integrations.wildberries.schemas import WBAdvCampaignStats, WBAdvertV2
-from src.modules.ab_tests.deps import get_media_store
+from src.integrations.wildberries import WBAdvertisingClient
+from src.integrations.wildberries.schemas import WBAdvertV2
 from src.modules.ab_tests.models import AbTest
-from src.modules.ab_tests.repos import (
-    AbTestRepository,
-    ExposureRepository,
-    SnapshotRepository,
-    WindowRepository,
-)
+from src.modules.ab_tests.repos import AbTestRepository
 from src.modules.ab_tests.services.budget import AdsState, read_state
-from src.modules.ab_tests.services.campaigns import campaigns_for_sku
-from src.modules.ab_tests.services.collection import Counters, counters_by_day, days_to_read
-from src.modules.ab_tests.services.photos import VariantInstaller
-from src.modules.ab_tests.services.runner import RotationRunner
-from src.modules.monitoring.contract import load_campaign_ids_for_workspace
+from src.modules.ab_tests.services.collection import days_to_read
+from src.modules.ab_tests.tasks.cabinet import prepare_cabinet
+from src.modules.ab_tests.tasks.passes import poll_one
 from src.modules.workspaces.contract import load_workspace_token_bundle
 
 logger = get_logger(__name__)
-
-
-#: WB caps ``ids`` at 50 per fullstats request.
-_CAMPAIGN_BATCH = 50
 
 
 async def _gather_bounded[T, R](
@@ -105,197 +97,6 @@ async def _gather_bounded[T, R](
             return await run(item)
 
     return list(await asyncio.gather(*(_guarded(item) for item in items)))
-
-
-@dataclass(frozen=True)
-class _Cabinet:
-    """Everything one workspace's tests share for the duration of a pass.
-
-    Assembled once and handed to every test in the workspace. The advertising
-    reads live here rather than in the per-test pass because that is the whole
-    difference between a cost that grows with tests and one that does not.
-    """
-
-    #: Advertising-scope token, for campaign listings and budgets.
-    advertising: str
-    #: Content-scope token, for installing a photo on the card.
-    content: str
-    #: WB's campaign listing for the account.
-    adverts: list[WBAdvertV2]
-    #: One fullstats answer covering every campaign any of these tests names.
-    #: Carries a per-SKU breakdown, so each test reads its own rows out of it.
-    stats: list[WBAdvCampaignStats]
-
-
-async def _read_all_stats(
-    client: WBAdvertisingClient, campaign_ids: Sequence[int], days: Sequence[date]
-) -> list[WBAdvCampaignStats]:
-    """Read one workspace's advertising for the whole pass.
-
-    Args:
-        client: Advertising client, already paced by the shared gate.
-        campaign_ids: Every campaign any of the workspace's tests names.
-        days: Advertising days to cover — the same window for all of them.
-
-    Returns:
-        The parsed campaign nodes, concatenated across id batches. Empty when
-        there is nothing to ask about.
-    """
-    if not campaign_ids or not days:
-        return []
-
-    stats: list[WBAdvCampaignStats] = []
-    for start in range(0, len(campaign_ids), _CAMPAIGN_BATCH):
-        stats.extend(
-            await client.fetch_full_stats(
-                campaign_ids=list(campaign_ids[start : start + _CAMPAIGN_BATCH]),
-                date_from=min(days),
-                date_to=max(days),
-            )
-        )
-    return stats
-
-
-async def _prepare_cabinet(
-    workspace_id: uuid.UUID, tests: Sequence[AbTest], days: Sequence[date]
-) -> _Cabinet | None:
-    """Do a workspace's advertising reads once, for all of its tests.
-
-    Args:
-        workspace_id: The workspace being polled.
-        tests: Its running tests.
-        days: Advertising days to cover.
-
-    Returns:
-        The shared context, or ``None`` when the workspace has no usable
-        tokens — in which case none of its tests can be polled at all.
-    """
-    async with AsyncSessionLocal() as session:
-        bundle = await load_workspace_token_bundle(session, workspace_id=workspace_id)
-        advertising = (bundle.advertising or "") if bundle else ""
-        content = ((bundle.content or bundle.analytics) if bundle else "") or ""
-        if not advertising or not content:
-            logger.warning(
-                "ab_tests: workspace %s lacks an advertising or content token; "
-                "skipping its %s test(s)",
-                workspace_id,
-                len(tests),
-            )
-            return None
-        # Only the cards under test. A cabinet advertising four hundred SKUs
-        # while testing three of them was pulling in every campaign it had ever
-        # run, and every fifty of those is another fullstats batch and another
-        # twenty seconds of the pass.
-        harvested = await load_campaign_ids_for_workspace(
-            session,
-            workspace_id=workspace_id,
-            nm_ids=sorted({test.nm_id for test in tests}),
-        )
-
-    async with WBAdvertisingClient(settings, token=advertising) as client:
-        adverts = await client.list_adverts()
-        # The union across every test here. Campaigns overlap heavily — the
-        # harvested ids are workspace-wide — so a hundred tests usually resolve
-        # to the same one or two batches of fifty.
-        campaign_ids = sorted(
-            {
-                campaign_id
-                for test in tests
-                for campaign_id in campaigns_for_sku(adverts, nm_id=test.nm_id, known=harvested)
-            }
-        )
-        stats = await _read_all_stats(client, campaign_ids, days)
-
-    logger.info(
-        "ab_tests: workspace %s — %s test(s), %s campaign(s), %s fullstats call(s)",
-        workspace_id,
-        len(tests),
-        len(campaign_ids),
-        -(-len(campaign_ids) // _CAMPAIGN_BATCH),
-    )
-    return _Cabinet(advertising=advertising, content=content, adverts=adverts, stats=stats)
-
-
-async def _poll_one(
-    test: AbTest,
-    *,
-    cabinet: _Cabinet,
-    now: datetime,
-    days: Sequence[date],
-) -> str | None:
-    """Run one polling pass for one test in its own transaction.
-
-    A transaction per test so a WB failure on one cannot roll back the window
-    another has just recorded.
-
-    Args:
-        test: The running test, as listed by the sweep.
-        cabinet: Its workspace's shared reads for this pass.
-        now: The moment of this pass.
-        days: Advertising days to read.
-
-    Returns:
-        The action taken, or ``None`` when the test was skipped.
-    """
-    async with AsyncSessionLocal() as session:
-        repo = AbTestRepository(session)
-        loaded = await repo.get(workspace_id=test.workspace_id, test_id=test.id)
-        if loaded is None:  # deleted between the listing and now
-            return None
-
-        async with (
-            WBAdvertisingClient(settings, token=cabinet.advertising) as adv_client,
-            WBContentClient(settings, token=cabinet.content) as content_client,
-        ):
-
-            async def _reader(
-                nm_id: int,
-                wanted: Sequence[date],
-                stats: list[WBAdvCampaignStats] = cabinet.stats,
-            ) -> dict[date, Counters]:
-                """Slice this test's rows out of the workspace's one answer.
-
-                No request: the fullstats reply already carries a per-SKU
-                breakdown of every campaign it was asked about, so a hundred
-                tests read a hundred slices of the same download.
-
-                Bound as a DEFAULT rather than captured: the closure outlives
-                the loop iteration it was defined in, and a free reference would
-                resolve to whichever test the sweep reached last.
-                """
-                counters = counters_by_day(stats, nm_id=nm_id)
-                return {day: value for day, value in counters.items() if day in set(wanted)}
-
-            async def _ads(
-                nm_id: int,
-                client: WBAdvertisingClient = adv_client,
-                adverts: list[WBAdvertV2] = cabinet.adverts,
-            ) -> AdsState:
-                """Ask what this card's advertising is doing.
-
-                The listing is the workspace's; only the budget of a serving
-                campaign is a fresh request, and only when a swap is due.
-                """
-                return await read_state(client=client, adverts=adverts, nm_id=nm_id)
-
-            runner = RotationRunner(
-                tests=repo,
-                exposures=ExposureRepository(session),
-                windows=WindowRepository(session),
-                snapshots=SnapshotRepository(session),
-                installer=VariantInstaller(
-                    content_client=content_client, media_store=get_media_store()
-                ),
-                read_counters=_reader,
-                read_ads=_ads,
-            )
-            outcome = await runner.poll(loaded, days=days, now=now)
-
-        await session.commit()
-
-    # «Paused» is not an action — it is a HOLD with a reason — so it is reported
-    # separately rather than by overloading the word the sweep counts by.
-    return "paused" if outcome.paused else str(outcome.action)
 
 
 async def _resume_paused(adverts_by_workspace: dict[uuid.UUID, list[WBAdvertV2]]) -> int:
@@ -353,7 +154,8 @@ async def _poll_all() -> dict[str, int]:
     """Poll every running test once, and wake the ones waiting on a campaign.
 
     Returns:
-        ``{"tests": n, "rotated": n, "paused": n, "resumed": n, "failed": n}``.
+        ``{"tests": n, "rotated": n, "paused": n, "photo_conflict": n,
+        "resumed": n, "failed": n}``.
     """
     now = datetime.now(UTC)
     days = list(days_to_read(moscow_today()))
@@ -365,6 +167,9 @@ async def _poll_all() -> dict[str, int]:
         "tests": len(tests),
         "rotated": 0,
         "paused": 0,
+        # Counted apart from `paused` because it is the one stop nothing here
+        # will undo: a conflict waits for the seller, not for a campaign.
+        "photo_conflict": 0,
         "resumed": 0,
         "failed": 0,
     }
@@ -390,9 +195,9 @@ async def _poll_all() -> dict[str, int]:
         runs these concurrently, and a dict updated from several coroutines is
         a race waiting for the first slow WB call to expose it.
         """
-        tally = {"rotated": 0, "paused": 0, "failed": 0}
+        tally = {"rotated": 0, "paused": 0, "photo_conflict": 0, "failed": 0}
         try:
-            cabinet = await _prepare_cabinet(workspace_id, workspace_tests, days)
+            cabinet = await prepare_cabinet(workspace_id, workspace_tests, days)
         except IntegrationError as exc:
             logger.warning("ab_tests: workspace %s could not be read: %s", workspace_id, exc)
             tally["failed"] += len(workspace_tests)
@@ -409,7 +214,7 @@ async def _poll_all() -> dict[str, int]:
         # cabinet's sessions in flight at once.
         for test in workspace_tests:
             try:
-                action = await _poll_one(test, cabinet=cabinet, now=now, days=days)
+                action = await poll_one(test, cabinet=cabinet, now=now, days=days)
             except IntegrationError as exc:
                 tally["failed"] += 1
                 logger.warning("ab_tests: test %s could not be polled: %s", test.id, exc)
@@ -419,6 +224,8 @@ async def _poll_all() -> dict[str, int]:
                 tally["rotated"] += 1
             elif action == "paused":
                 tally["paused"] += 1
+            elif action == "photo_conflict":
+                tally["photo_conflict"] += 1
         return tally
 
     # Concurrently, because the rate buckets are independent — one per seller

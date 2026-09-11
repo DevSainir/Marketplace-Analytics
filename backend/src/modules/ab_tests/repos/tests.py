@@ -114,6 +114,32 @@ class AbTestRepository:
         test.stopped_at = at
         await self._session.flush()
 
+    async def pause_for_photo_conflict(self, *, test: AbTest, at: datetime) -> None:
+        """Pause a test because the card is showing a photo it did not install.
+
+        Deliberately NOT ``paused_by_ads``. That flag is a promise to start the
+        test again by itself, and the sweep keeps that promise on every pass —
+        which is exactly the wrong response here. A campaign switching back on
+        is a condition that resolves; a card somebody edited by hand is a
+        decision, and a rotation that resumed would overwrite it every five
+        minutes until one of them gave up.
+
+        So this pause looks, to the sweep, like the seller's own: it stays until
+        somebody says otherwise. ``photo_conflict_at`` is what lets the page
+        explain why, instead of showing a pause nobody asked for.
+
+        Args:
+            test: The running test to pause.
+            at: The polling pass's own clock — the same instant the pass began,
+                so the recorded stop is not later than the last figure the page
+                is showing.
+        """
+        test.status = AbTestStatus.PAUSED.value
+        test.paused_by_ads = False
+        test.photo_conflict_at = at
+        test.stopped_at = at
+        await self._session.flush()
+
     async def resume_after_ads(self, *, test: AbTest) -> None:
         """Put an ads-paused test back to running.
 
@@ -284,6 +310,10 @@ class AbTestRepository:
             test.finished_at = finished_at
         if status is AbTestStatus.RUNNING:
             test.stopped_at = None
+            # A restart is the seller saying «I have looked at it». The next
+            # install re-arms the witness, so keeping the old conflict would
+            # only leave the page explaining a pause that is over.
+            test.photo_conflict_at = None
         elif stopped_at is not None:
             test.stopped_at = stopped_at
         await self._session.flush()

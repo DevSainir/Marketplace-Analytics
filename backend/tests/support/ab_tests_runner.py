@@ -118,15 +118,26 @@ class FakeSnapshots:
 class FakeExposures:
     """In-memory exposure log."""
 
-    def __init__(self, active_since: datetime | None = None, *, round_number: int = 0) -> None:
+    def __init__(
+        self,
+        active_since: datetime | None = None,
+        *,
+        round_number: int = 0,
+        published_at: datetime | None = None,
+    ) -> None:
         self._active_since = active_since
         self._round = round_number
+        self._published_at = published_at
         self.opened: list[uuid.UUID] = []
         self.rounds: list[int] = []
         self.closed: list[datetime] = []
+        self.witnessed: list[datetime | None] = []
 
     async def active_since(self, *, test_id: uuid.UUID) -> datetime | None:
         return self._active_since
+
+    async def published_at_of_open(self, *, test_id: uuid.UUID) -> datetime | None:
+        return self._published_at
 
     async def current_round(self, *, test_id: uuid.UUID) -> int:
         return self._round
@@ -138,11 +149,14 @@ class FakeExposures:
         variant_id: uuid.UUID,
         activated_at: datetime,
         round_number: int = 1,
+        published_at: datetime | None = None,
     ) -> object:
         self.opened.append(variant_id)
         self.rounds.append(round_number)
+        self.witnessed.append(published_at)
         self._round = round_number
         self._active_since = activated_at
+        self._published_at = published_at
         return None
 
     async def close_open(self, *, test_id: uuid.UUID, deactivated_at: datetime) -> None:
@@ -155,11 +169,20 @@ class FakeTests:
     def __init__(self) -> None:
         self.active_writes: list[uuid.UUID | None] = []
         self.status_writes: list[AbTestStatus] = []
+        self.photo_conflicts: list[datetime] = []
 
     async def pause_for_ads(self, *, test: AbTest, at: datetime) -> None:
         test.status = AbTestStatus.PAUSED.value
         test.paused_by_ads = True
         test.stopped_at = at
+        self.status_writes.append(AbTestStatus.PAUSED)
+
+    async def pause_for_photo_conflict(self, *, test: AbTest, at: datetime) -> None:
+        test.status = AbTestStatus.PAUSED.value
+        test.paused_by_ads = False
+        test.photo_conflict_at = at
+        test.stopped_at = at
+        self.photo_conflicts.append(at)
         self.status_writes.append(AbTestStatus.PAUSED)
 
     async def set_active_variant(self, *, test: AbTest, variant_id: uuid.UUID | None) -> None:
@@ -201,11 +224,18 @@ def build_runner(
     installer: FakeInstaller,
     tests: FakeTests,
     ads: AdsState = AdsState.SERVING,
+    live_photo: datetime | None = None,
+    confirmed_photo: datetime | None = None,
 ) -> RotationRunner:
     """A runner wired entirely to fakes.
 
     ``ads`` defaults to a campaign that is serving, because that is the state a
     test spends almost all of its life in; the cases about it stopping say so.
+
+    The two photo arguments default to ``None``, which is the witness saying «I
+    cannot tell» — the state in which the guard stands aside. That is the right
+    default for every case that is not ABOUT the guard: those cases would
+    otherwise all have to describe a storefront they do not care about.
     """
 
     async def _read(nm_id: int, days: object) -> dict[date, Counters]:
@@ -213,6 +243,12 @@ def build_runner(
 
     async def _ads(nm_id: int) -> AdsState:
         return ads
+
+    async def _photo(nm_id: int) -> datetime | None:
+        return live_photo
+
+    async def _confirm(nm_id: int, was: datetime | None) -> datetime | None:
+        return confirmed_photo
 
     return RotationRunner(
         tests=tests,
@@ -222,6 +258,8 @@ def build_runner(
         installer=installer,
         read_counters=_read,
         read_ads=_ads,
+        read_photo=_photo,
+        confirm_install=_confirm,
     )
 
 

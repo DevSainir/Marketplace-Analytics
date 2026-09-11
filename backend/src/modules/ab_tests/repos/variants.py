@@ -208,6 +208,7 @@ class ExposureRepository:
         variant_id: uuid.UUID,
         activated_at: datetime,
         round_number: int = 1,
+        published_at: datetime | None = None,
     ) -> VariantExposure:
         """Record that a photo has just gone up.
 
@@ -219,6 +220,10 @@ class ExposureRepository:
             variant_id: The photo now on the card.
             activated_at: When WB accepted it.
             round_number: Which lap of the rotation this turn belongs to.
+            published_at: The CDN's ``Last-Modified`` once this install had
+                landed — the witness later passes check the card against.
+                ``None`` when it could not be read, which disables the check
+                for this turn rather than arming it with a stale value.
 
         Returns:
             The new exposure row.
@@ -228,6 +233,7 @@ class ExposureRepository:
             variant_id=variant_id,
             activated_at=activated_at,
             round_number=round_number,
+            published_at=published_at,
         )
         self._session.add(exposure)
         await self._session.flush()
@@ -262,6 +268,29 @@ class ExposureRepository:
         """
         stmt = (
             select(VariantExposure.activated_at)
+            .where(
+                VariantExposure.test_id == test_id,
+                VariantExposure.deactivated_at.is_(None),
+            )
+            .order_by(VariantExposure.activated_at.desc())
+            .limit(1)
+        )
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def published_at_of_open(self, *, test_id: uuid.UUID) -> datetime | None:
+        """The witnessed publication time of the photo currently on the card.
+
+        Args:
+            test_id: Owning test.
+
+        Returns:
+            The open exposure's ``published_at``, or ``None`` when nothing is
+            installed, when the row predates the witness, or when the install
+            could not be vouched for. All three mean the same thing to the
+            caller: there is nothing to compare the card against.
+        """
+        stmt = (
+            select(VariantExposure.published_at)
             .where(
                 VariantExposure.test_id == test_id,
                 VariantExposure.deactivated_at.is_(None),

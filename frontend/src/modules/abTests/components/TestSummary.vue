@@ -46,6 +46,16 @@ const statusLabel = computed(() =>
   props.test.status === 'running' ? '' : STATUS_LABELS[props.test.status] || props.test.status,
 )
 
+/**
+ * Was the test stopped because somebody edited the card?
+ *
+ * A pause with no reason on the screen is the reading «сломалось». This one has
+ * a cause the seller can act on, and it is the only stop the rotation will not
+ * undo by itself — so it is said in a sentence rather than left to the word
+ * «На паузе».
+ */
+const photoConflict = computed(() => !!props.test.photo_conflict_at)
+
 /** The four figures the block leads with. */
 const tiles = computed(() => [
   {
@@ -162,6 +172,16 @@ function duration(ms) {
         {{ statusLabel }}
       </span>
     </div>
+
+    <p
+      v-if="photoConflict"
+      class="mt-sm rounded-btn bg-status-warning/10 px-sm py-xs text-tiny text-primary"
+      data-testid="summary-photo-conflict"
+    >
+      Ротация остановлена {{ moment(test.photo_conflict_at) }}: на карточке оказалось главное фото,
+      которое тест не устанавливал — скорее всего, его поменяли вручную в кабинете WB. Трафик с
+      чужого фото ни одному варианту не зачтён. Проверьте карточку и запустите тест заново.
+    </p>
 
     <dl class="mt-md grid grid-cols-4 gap-md phone:grid-cols-2">
       <div v-for="tile in tiles" :key="tile.key">

@@ -357,6 +357,7 @@ class AbTestCatalogService:
             started_at=test.started_at,
             finished_at=test.finished_at,
             stopped_at=test.stopped_at,
+            photo_conflict_at=test.photo_conflict_at,
             created_at=test.created_at,
         )
 

@@ -99,6 +99,30 @@ describe('TestSummary', () => {
     expect(wrapper.find('[data-testid="summary-status"]').exists()).toBe(false)
   })
 
+  it('explains a stop caused by somebody editing the card', () => {
+    const wrapper = mount(TestSummary, {
+      props: {
+        test: test({
+          status: 'paused',
+          stopped_at: '2026-09-09T11:58:18Z',
+          photo_conflict_at: '2026-09-09T11:58:18Z',
+        }),
+      },
+    })
+
+    // The one stop the rotation will not undo by itself, so the reason has to
+    // be on the screen: «На паузе» alone reads as «сломалось».
+    const text = plain(wrapper.get('[data-testid="summary-photo-conflict"]').text())
+    expect(text).toContain('поменяли вручную')
+    expect(text).toContain('ни одному варианту не зачтён')
+  })
+
+  it('says nothing about a conflict when there was none', () => {
+    const wrapper = mount(TestSummary, { props: { test: test({ status: 'paused' }) } })
+
+    expect(wrapper.find('[data-testid="summary-photo-conflict"]').exists()).toBe(false)
+  })
+
   it('names a stopped test’s status beside the heading', () => {
     const wrapper = mount(TestSummary, { props: { test: test({ status: 'paused' }) } })
 

@@ -134,6 +134,13 @@ class AbTest(Base):
         started_at: When the first variant was installed.
         finished_at: When the last variant's budget was met, or the test was
             cancelled.
+        photo_conflict_at: When the poller found a main photo on the card that
+            this rotation did not install, or ``None``. Set alongside a pause,
+            and **not** cleared by the rotation: unlike a campaign switching
+            back on, a card somebody edited by hand is not a condition that
+            resolves itself, and a test that resumed on its own would fight the
+            seller's own edit every five minutes. Only a deliberate restart
+            clears it.
         stopped_at: When the rotation last STOPPED advancing — a pause as much
             as a finish. ``finished_at`` only answers that for a test that
             ended, and a paused test is the case where the question is actually
@@ -178,6 +185,10 @@ class AbTest(Base):
     )
 
     paused_by_ads: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
+
+    photo_conflict_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

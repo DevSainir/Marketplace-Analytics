@@ -62,6 +62,21 @@ class VariantExposure(Base):
         variant_id: The photo that was installed.
         activated_at: When WB accepted the media upload.
         deactivated_at: When the next variant replaced it; ``None`` while live.
+        published_at: The ``Last-Modified`` WB's CDN reported for the card's
+            main photo once this install had landed — the storefront's own
+            record of when the image changed, read back rather than assumed.
+
+            It is the witness the poller checks the card against. Measured
+            2026-09-10: a media upload publishes in the second WB accepts it,
+            so a main photo whose ``Last-Modified`` no longer matches this one
+            was written by somebody who is not this rotation, and every window
+            credited after that point belongs to a picture nobody chose.
+
+            ``None`` means the install could not be vouched for — the CDN was
+            unreachable, the card has no stored photo URL, or the timestamp
+            never moved. It must read as «cannot check», never as «mismatch»:
+            a test stopped by an unreachable CDN would be a worse failure than
+            the one this column exists to catch.
         wb_photo_number: Which gallery slot was written — always 1 (the main
             photo) today, stored because WB's numbering is what we would need to
             reproduce to undo a rotation.
@@ -86,6 +101,8 @@ class VariantExposure(Base):
 
     activated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     wb_photo_number: Mapped[int] = mapped_column(Integer, server_default="1", nullable=False)
 
