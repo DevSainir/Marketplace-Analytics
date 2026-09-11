@@ -20,12 +20,12 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "API instance {{ $labels.instance }} is not answering scrapes."
+          summary: "Инстанс API {{ $labels.instance }} не отвечает."
           description: >-
-            nginx fails a refused request over to the other instance, so ONE
-            instance down is degraded rather than an outage — check whether the
-            other is still up before treating this as customer-facing.
-            `make logs` on the box, then look for a failed migrate step.
+            nginx перекинет отказанный запрос на второй инстанс. Поэтому
+            один упавший инстанс — это ещё не авария. Сначала проверьте, жив
+            ли второй. Дальше: `make logs` на сервере и поищите упавший шаг
+            миграции.
 
       - alert: BothApiInstancesDown
         expr: count(up{job="marketplace-api"} == 1) == 0
@@ -33,10 +33,10 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Neither API instance is answering. The site is down."
+          summary: "Оба инстанса API не отвечают. Сайт лежит."
           description: >-
-            The upstream pool has no live member; nginx is answering 502.
-            docs/security/INCIDENT_RESPONSE.md is the runbook.
+            В пуле nginx не осталось ни одного живого. Пользователи видят
+            502. Что делать — в docs/security/INCIDENT_RESPONSE.md.
 
       - alert: DependencyDown
         expr: dependency_up == 0
@@ -44,12 +44,12 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "{{ $labels.dependency }} is not answering its health probe."
+          summary: "{{ $labels.dependency }} не отвечает на проверку здоровья."
           description: >-
-            Without Postgres nothing serves. Without Redis the API still
-            serves, with the auth rate limiter and session revocation failing
-            OPEN (register P1.2) — which is a security posture change, not just
-            degraded performance.
+            Без Postgres не работает ничего. Без Redis API продолжает
+            отвечать, но ограничитель попыток входа и отзыв сессий начинают
+            пропускать всё подряд (реестр P1.2). Это не просто «стало
+            медленнее» — это дыра в защите.
 
       - alert: WorkerExporterDown
         expr: up{job="marketplace-worker"} == 0
@@ -57,11 +57,11 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "The Celery worker's metrics exporter is unreachable."
+          summary: "Экспортёр метрик воркера Celery недоступен."
           description: >-
-            The worker may still be processing. Confirm with celery_queue_length
-            and the harvest counters before assuming the harvests have stopped;
-            the exporter binds on worker_ready and is deliberately non-fatal.
+            Сам воркер может работать. Прежде чем решить, что сборы встали,
+            посмотрите celery_queue_length и счётчики сборов. Экспортёр
+            поднимается на worker_ready и специально не роняет воркер.
 
   # -------------------------------------------------------------------------
   - name: security
@@ -73,15 +73,14 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "A query reached tenant data without a tenant bound."
+          summary: "Запрос полез в данные арендатора, не сказав, чьи они."
           description: >-
-            RLS refused it, so no data crossed a boundary — the control worked.
-            What it means is that a code path is reaching tenant tables without
-            going through get_current_workspace_id, which is the defect the
-            policies were installed to catch (register P2.5). Find it in the
-            logs by the ERROR from src.core.observability.rls_watch; the
-            statement is on the line. `for: 0m` deliberately: one occurrence is
-            the alert.
+            RLS его отклонил. Данные никуда не ушли — защита сработала. Но
+            где-то в коде есть путь к таблицам арендатора мимо
+            get_current_workspace_id. Ради этого политики и ставили (реестр
+            P2.5). Ищите в логах ERROR от src.core.observability.rls_watch —
+            сам запрос лежит в той же строке. `for: 0m` тут намеренно:
+            одного раза достаточно.
 
       - alert: SecurityControlDegraded
         expr: security_degraded_controls == 1
@@ -89,12 +88,12 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Security control {{ $labels.control }} is failing open."
+          summary: "Защита {{ $labels.control }} работает в аварийном режиме и пропускает всё."
           description: >-
-            It is running its degraded fallback — Redis is unreachable
-            (register P1.2). While this is true, password guessing is bounded
-            only by whatever is still up. Two of these at once is the
-            correlated failure that ledger exists to surface.
+            Она перешла на запасной путь, потому что не отвечает Redis
+            (реестр P1.2). Пока это так, подбор паролей ограничен только
+            тем, что ещё живо. Две такие сразу — это уже связанный отказ,
+            ради которого журнал и заводили.
 
       - alert: AuthFailureSpike
         expr: sum(rate(security_auth_failures_total[5m])) > 2
@@ -102,13 +101,13 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Sustained authentication failures ({{ $value | printf \"%.1f\" }}/s)."
+          summary: "Долгий поток неудачных входов ({{ $value | printf \"%.1f\" }} в секунду)."
           description: >-
-            Credential stuffing looks like this. P1.5's per-account backoff and
-            P0.1's per-IP limiter are both in the path, so this is usually a
-            campaign being refused rather than one succeeding — check
-            security_auth_failures_total by reason, and the client_ip field in
-            the logs, before acting.
+            Так выглядит перебор паролей. На пути стоят задержка по аккаунту
+            (P1.5) и лимит по IP (P0.1), так что обычно это отбитая атака, а
+            не успешная. Прежде чем что-то делать, посмотрите
+            security_auth_failures_total в разрезе reason и поле client_ip в
+            логах.
 
   # -------------------------------------------------------------------------
   - name: harvest
@@ -123,13 +122,12 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Harvest {{ $labels.harvest }} is running and writing nothing."
+          summary: "Сбор {{ $labels.harvest }} идёт и ничего не пишет."
           description: >-
-            The second clause is what makes this meaningful: the harvest RAN
-            and produced zero rows, which is a different event from "the
-            harvest did not run". This is the shape of the Redis-pool incident
-            — tasks succeeding, sources silently voided — and it is invisible
-            in any task-level success metric.
+            Важна вторая половина: сбор ЗАПУСТИЛСЯ и дал ноль строк. Это не
+            то же самое, что «сбор не запускался». Так выглядел сбой с пулом
+            Redis: задачи успешны, а источники пустые. Ни одна метрика
+            успеха задач такого не покажет.
 
       # The settlement walk gets its own rule, ahead of the general one and at
       # a threshold of ONE. A finance window that stops early is not a degraded
@@ -146,13 +144,13 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "A settlement week was left part-walked for at least one seller."
+          summary: "Неделя отчёта о продажах дочитана не до конца хотя бы у одного продавца."
           description: >-
-            The P&L is short those days until a later tick covers them. Check
-            `settled_through` in finreports.settlement_watermark against the
-            report headers: the walk should ask again from the watermark, and a
-            watermark that has run past days with no rows is the 2026-09-07
-            failure returning.
+            За эти дни P&L будет неполным, пока их не дочитает следующий
+            проход. Сверьте `settled_through` в
+            finreports.settlement_watermark с шапками отчётов: проход должен
+            переспросить от водяного знака. Если знак ушёл вперёд, а строк
+            за пропущенные дни нет — вернулся сбой от 2026-09-07.
 
       - alert: HarvestPartial
         expr: increase(harvest_partial_total[1h]) > 3
@@ -160,11 +158,11 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Harvest {{ $labels.harvest }} keeps losing source {{ $labels.source }}."
+          summary: "Сбор {{ $labels.harvest }} раз за разом теряет источник {{ $labels.source }}."
           description: >-
-            A partial harvest is tolerated by design so one dead WB surface
-            does not lose the whole run. Repeated partials are not tolerable:
-            the numbers for that source are quietly stale.
+            Один неполный сбор — это норма: так одна мёртвая ручка WB не
+            роняет весь проход. Много неполных подряд — уже не норма: цифры
+            по этому источнику тихо устаревают.
 
       - alert: CeleryQueueBackingUp
         expr: celery_queue_length{queue_name="celery"} > 50
@@ -172,11 +170,11 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "The Celery queue is {{ $value }} messages deep."
+          summary: "В очереди Celery накопилось {{ $value }} сообщений."
           description: >-
-            Four worker slots. Check whether a task is wedged — celery_queue_length
-            {queue_name="unacked"} staying high with the queue draining means
-            work is taken and not finishing.
+            Слотов у воркера четыре. Проверьте, не застряла ли задача: если
+            celery_queue_length{queue_name="unacked"} держится высоко, а
+            сама очередь при этом уходит — работу забрали и не закончили.
 
       - alert: TaskFailureRate
         expr: |
@@ -186,7 +184,7 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Task {{ $labels.task_name }} is failing repeatedly."
+          summary: "Задача {{ $labels.task_name }} падает раз за разом."
 
   # -------------------------------------------------------------------------
       - alert: SettlementHistoryHasGaps
@@ -195,25 +193,24 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "A settlement day is covered by no harvested report."
+          summary: "Есть день продаж, который не покрыт ни одним скачанным отчётом."
           description: >-
-            Somebody's P&L is short a day. WB forms single-day supplementary
-            reports and starts serving their rows days later, by which time the
-            walk's window has moved past the days they cover — that is how
-            2026-08-31 vanished from all five workspaces unnoticed. Nothing in
-            the harvest counters can show this: the run succeeds and writes what
-            it was asked for, so the only evidence is a hole in the report
-            periods.
-            The nightly reconciliation prioritises a workspace with a known gap,
-            so a repairable one closes within a day — which is what the 26h
-            `for:` is: long enough that this cannot fire on a gap merely waiting
-            for tonight, short enough that a gap the repair cannot reach still
-            surfaces. WHICH seller and WHICH days are in the worker log
-            (`finreports: <name> has N settlement day(s) no report covers`); the
-            metric is fleet-wide because /metrics may not name a tenant.
-            If it does not clear after a night, the reconciliation is not
-            reaching: check whether its window failed on WB rate budget, and
-            backfill the day by hand against the affected token.
+            У кого-то в P&L не хватит дня. WB делает однодневные
+            дополнительные отчёты и начинает отдавать их строки через
+            несколько дней — окно прохода к этому времени уже ушло вперёд.
+            Так 2026-08-31 пропал у всех пяти воркспейсов, и никто не
+            заметил. Счётчики сборов этого не покажут: проход успешен и
+            пишет ровно то, о чём его попросили. Единственный след — дырка в
+            периодах отчётов. Ночная сверка берёт в первую очередь воркспейс
+            с известной дыркой, поэтому починимая закрывается за сутки.
+            Отсюда и `for: 26h`: достаточно долго, чтобы не сработать на
+            дырке, которая просто ждёт ночи, и достаточно коротко, чтобы
+            увидеть дырку, до которой сверка не дотягивается. КТО продавец и
+            КАКИЕ дни — в логе воркера (`finreports: <name> has N settlement
+            day(s) no report covers`); метрика общая по всем, потому что
+            /metrics не имеет права называть арендатора. Если за ночь не
+            погасло, сверка не дотягивается: посмотрите, не упало ли её окно
+            на лимите WB, и долейте день руками по нужному токену.
 
   - name: wildberries
     rules:
@@ -260,20 +257,21 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "WB pacing is refusing to send {{ $labels.surface }} {{ $labels.endpoint }}."
+          summary: "Наш ограничитель не пускает запрос к WB: {{ $labels.surface }} {{ $labels.endpoint }}."
           description: >-
-            `rate_blocked` is OUR gate declining to send, because a token would
-            have taken longer than the queue cap to appear. It is the one
-            unambiguous statement that the configured bucket no longer matches
-            WB's — every other symptom (a stall, a 500) is also what a bad
-            token or a WB outage looks like. Compare
-            `wb_analytics_bucket_capacity` / `_refill_seconds` against what
-            `x-ratelimit-remaining` is actually reporting on the Grafana panel
-            before changing anything.
-            Rare and bursty on its own: 15m of rate held for 30m means blocking
-            spread across half an hour, not one unlucky harvest. Over the seven
-            days to 2026-09-07 production produced two `rate_blocked` responses
-            in total, both on finance, which this would not have fired on.
+            `rate_blocked` — это НАШ ограничитель отказывается отправлять
+            запрос, потому что токена пришлось бы ждать дольше допустимого.
+            Это единственный признак, который прямо говорит: настроенный
+            бакет больше не совпадает с бакетом WB. Все прочие симптомы
+            (зависание, 500) выглядят так же, как плохой токен или авария на
+            стороне WB. Прежде чем что-то менять, сравните
+            `wb_analytics_bucket_capacity` / `_refill_seconds` с тем, что
+            показывает `x-ratelimit-remaining` на панели в Grafana. Само по
+            себе это редко и вспышками: 15m скорости, удержанные 30m,
+            означают блокировки, размазанные по получасу, а не один
+            невезучий сбор. За семь дней до 2026-09-07 прод дал всего два
+            ответа `rate_blocked`, оба на финансах — на таком это правило не
+            сработало бы.
 
       - alert: WbRatePacingPressure
         expr: |
@@ -284,19 +282,20 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "WB {{ $labels.surface }} {{ $labels.endpoint }} is queueing {{ $value | printf \"%.1f\" }} caller-seconds per second."
+          summary: "Очередь к WB {{ $labels.surface }} {{ $labels.endpoint }}: {{ $value | printf \"%.1f\" }} секунды ожидания на каждую секунду времени."
           description: >-
-            The leading indicator the quota gauge was supposed to be, in a form
-            that cannot go stale. The value is caller-seconds of queueing
-            accrued per wall-second, so 1.0 means exactly one caller parked in
-            the queue continuously — which is what a healthy sustained harvest
-            of a three-deep, ~20s-refill bucket looks like, NOT a fault.
-            The threshold is 2 because that is roughly double every healthy peak
-            measured over 24h on prod on 2026-09-07 (finance
-            reportDetailByPeriod 1.02, sales-funnel/products 0.94, everything
-            else under 0.12), and it means at least two callers permanently
-            queued on ONE endpoint. Rising here precedes `rate_blocked` by
-            enough to widen the window or lower the concurrency first.
+            Ранний признак, которым должен был стать датчик квоты, но в
+            форме, которая не может протухнуть. Значение — это секунды
+            ожидания, накопленные за одну секунду реального времени. 1.0
+            значит, что ровно один вызов постоянно стоит в очереди. Для
+            здорового долгого сбора из бакета на три токена с доливкой ~20s
+            это НОРМА, а не поломка. Порог 2 — это примерно вдвое больше
+            любого здорового пика, замеренного за сутки на проде 2026-09-07
+            (финансы reportDetailByPeriod 1.02, sales-funnel/products 0.94,
+            остальное ниже 0.12). Он означает, что на ОДНОЙ ручке постоянно
+            стоят минимум два вызова. Рост здесь начинается раньше, чем
+            `rate_blocked` — есть запас времени расширить окно или снизить
+            параллельность.
 
       - alert: WbErrorRate
         expr: |
@@ -306,12 +305,12 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Over a quarter of WB calls are failing."
+          summary: "Больше четверти запросов к WB падает."
           description: >-
-            Includes transport_error and rate_blocked, which is deliberate —
-            those are how WB actually fails here, and neither carries an HTTP
-            status. Break down by surface and status before concluding it is
-            WB rather than one rotated token.
+            Сюда входят transport_error и rate_blocked, и это намеренно:
+            именно так WB тут и ломается, а HTTP-статуса у этих отказов нет.
+            Прежде чем решить, что дело в WB, а не в одном перевыпущенном
+            токене, разложите по surface и status.
 
   # -------------------------------------------------------------------------
   - name: saturation
@@ -322,13 +321,13 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "The connection pool has no free connections."
+          summary: "В пуле не осталось свободных подключений к базе."
           description: >-
-            This has happened: leaked `idle in transaction` connections held
-            every slot for 22 hours, which is why
-            idle_in_transaction_session_timeout exists in src/core/database.py.
-            If used is pinned at the ceiling while traffic is normal, look for
-            a leak rather than for load.
+            Такое уже было: утёкшие подключения в состоянии `idle in
+            transaction` держали все слоты 22 часа. Из-за этого в
+            src/core/database.py и появился
+            idle_in_transaction_session_timeout. Если used упёрся в потолок
+            при обычном трафике — ищите утечку, а не нагрузку.
 
       - alert: ApiLatencyHigh
         expr: |
@@ -340,7 +339,7 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "p95 latency on {{ $labels.handler }} is above 3s."
+          summary: "p95 времени ответа на {{ $labels.handler }} больше 3 секунд."
 
       - alert: ServerErrorRate
         expr: |
@@ -350,7 +349,7 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "More than 2% of responses are 5xx."
+          summary: "Больше 2% ответов — это 5xx."
 
   # -------------------------------------------------------------------------
   # New-organisation history backfill.
@@ -379,19 +378,17 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "{{ $value }} history-backfill lane(s) stuck — a new seller's data is not arriving."
+          summary: "Застрявших полос загрузки истории: {{ $value }}. Данные нового продавца не приходят."
           description: >-
-            A backfill lane has stopped making progress and the watchdog's
-            restarts have not revived it. The seller sees a half-empty product,
-            and nothing else in the system will report this.
-            WHICH seller is in the logs, not here — metrics carry no tenant.
-            In Grafana → Explore → Loki:
-            {service="worker"} |= "backfill" — the lane, the workspace_id and
-            the cursor are on every line.
-            Check `workspaces.workspace_backfill` for the stuck row, and
-            `backfill_lane_restarts_total` to see whether the watchdog has been
-            trying. A lane whose cursor never moves across restarts is a
-            poisoned cursor, not a transient failure.
+            Полоса перестала двигаться, и перезапуски сторожа её не оживили.
+            Продавец видит полупустой продукт, и больше об этом никто не
+            сообщит. КТО продавец — в логах, не здесь: метрики не называют
+            арендатора. Grafana → Explore → Loki: {service="worker"} |=
+            "backfill" — полоса, workspace_id и курсор есть в каждой строке.
+            Посмотрите застрявшую строку в `workspaces.workspace_backfill` и
+            `backfill_lane_restarts_total` — пытался ли сторож вообще. Если
+            курсор не двигается через перезапуски, дело в самом курсоре, а
+            не в случайном сбое.
 
       - alert: NewOrgBackfillRestartLoop
         # Restarts happening AND the stall persisting. The watchdog is doing
@@ -404,14 +401,15 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Backfill lane {{ $labels.lane }} keeps being restarted and keeps stalling."
+          summary: "Полосу загрузки {{ $labels.lane }} перезапускают снова и снова, а она снова встаёт."
           description: >-
-            The watchdog has restarted this lane three or more times in two
-            hours and it is still not progressing, so the restart is not the
-            fix. Expect a poisoned cursor, a token WB has stopped accepting, or
-            a row the ingest cannot write. Read the worker log for the lane's
-            last exception before restarting it again by hand — another restart
-            will do exactly what the last three did.
+            Сторож перезапустил её три раза или больше за два часа, а
+            движения нет. Значит, перезапуск не помогает. Скорее всего дело
+            в испорченном курсоре, в токене, который WB перестал принимать,
+            или в строке, которую не получается записать. Прежде чем
+            перезапускать руками, прочитайте в логе воркера последнее
+            исключение этой полосы — иначе будет то же самое, что и в
+            прошлые три раза.
 
       - alert: NewOrgBackfillFailing
         # The moment of death rather than its consequence. Fires earlier than
@@ -423,13 +421,13 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Backfill lane {{ $labels.lane }} has failed repeatedly in the last 30 minutes."
+          summary: "Полоса загрузки {{ $labels.lane }} упала несколько раз за последние 30 минут."
           description: >-
-            Two or more ticks of this lane raised rather than recording a step.
-            The watchdog will keep restarting it, so this may heal on its own —
-            but a lane failing this often is usually failing on its input, not
-            on the weather. The exception is in the worker log with the
-            workspace_id: {service="worker"} |= "died with".
+            Два тика этой полосы или больше закончились ошибкой вместо шага.
+            Сторож продолжит её перезапускать, так что может починиться
+            само. Но если полоса падает так часто, дело обычно во входных
+            данных, а не в случайности. Исключение лежит в логе воркера
+            рядом с workspace_id: {service="worker"} |= "died with".
 
       - alert: BackfillWatchdogNotRunning
         # The watchdog's own watchdog, and the reason it exists is that every
@@ -452,11 +450,12 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "The backfill watchdog has not run for two hours — nothing is restarting stuck lanes."
+          summary: "Сторож загрузок не запускался два часа. Застрявшие полосы никто не перезапускает."
           description: >-
-            `workspaces.sweep_stalled_backfills` is scheduled every fifteen
-            minutes and has not executed. Every other backfill alert reads a
-            gauge that only this task writes, so they are all blind while this
-            is firing — treat a quiet backfill group as unknown, not healthy.
-            Check Celery beat is alive (`docker ps`, then its log) and that the
-            task is still on `celery_app.conf.beat_schedule`.
+            `workspaces.sweep_stalled_backfills` стоит в расписании каждые
+            пятнадцать минут и не выполнялся. Все остальные алерты про
+            загрузку читают датчик, который пишет только эта задача, так что
+            пока это горит — они слепы. Считайте тихую группу загрузки
+            неизвестной, а не здоровой. Проверьте, жив ли Celery beat
+            (`docker ps`, потом его лог) и осталась ли задача в
+            `celery_app.conf.beat_schedule`.
