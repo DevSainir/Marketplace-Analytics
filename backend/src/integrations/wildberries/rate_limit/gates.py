@@ -20,6 +20,10 @@ That is why the state lives in Redis and not in an :class:`asyncio.Semaphore`.
 Availability policy follows :mod:`src.core.redis` — **fail open**. A Redis
 outage degrades to per-process pacing (an in-memory bucket) rather than
 stopping every harvest; the degradation is logged.
+
+This module is the MECHANISM: the bucket, the protocol a client passes through,
+and the per-process fallback for when Redis is not there. Which WB family gets
+which bucket lives next door in :mod:`surfaces`.
 """
 
 from __future__ import annotations
@@ -27,17 +31,16 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import time
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Mapping
+from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
-from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.observability.metrics import WB_RATE_LIMIT_REMAINING, WB_RATE_LIMIT_WAIT
-from src.core.redis import get_redis
 from src.integrations.wildberries.endpoints import endpoint_label
 from src.integrations.wildberries.rate_limit_lua import (
     ACQUIRE_SLOT_LUA,
@@ -47,6 +50,24 @@ from src.integrations.wildberries.rate_limit_lua import (
 )
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class _Bucket:
+    """One endpoint's bucket size, precomputed."""
+
+    capacity: int
+    refill_ms: float
+    ttl_ms: int
+
+    @classmethod
+    def of(cls, capacity: int, refill_seconds: float) -> _Bucket:
+        """Build a bucket from WB's published burst and interval."""
+        return cls(
+            capacity=capacity,
+            refill_ms=max(refill_seconds, 0.001) * 1000.0,
+            ttl_ms=int((refill_seconds * capacity + 60.0) * 1000.0),
+        )
 
 
 class RateGate(Protocol):
@@ -107,6 +128,7 @@ class TokenBucketRateGate:
         capacity: int,
         refill_seconds: float,
         max_wait_seconds: float,
+        endpoint_buckets: Mapping[str, tuple[int, float]] | None = None,
     ) -> None:
         """Configure the bucket.
 
@@ -120,14 +142,22 @@ class TokenBucketRateGate:
             max_wait_seconds: Give up (raise) rather than queue longer than
                 this — a caller waiting forever is worse than a failed harvest
                 the retry policy can reschedule.
+            endpoint_buckets: ``path -> (capacity, refill_seconds)`` for the
+                endpoints WB meters differently from the rest of the surface.
+                One surface is not one budget: WB publishes a table per
+                endpoint, and sizing every path from the strictest one turns a
+                cheap call into a queue. Anything unlisted keeps the surface
+                default, so a new endpoint is paced conservatively rather than
+                unpaced.
         """
         self._redis = redis
         self._surface = surface
         self._fingerprint = hashlib.sha256(token.encode()).hexdigest()[:16]
-        self._capacity = capacity
-        self._refill_ms = max(refill_seconds, 0.001) * 1000.0
+        self._default_bucket = _Bucket.of(capacity, refill_seconds)
+        self._endpoint_buckets = {
+            path: _Bucket.of(*limits) for path, limits in (endpoint_buckets or {}).items()
+        }
         self._max_wait = max_wait_seconds
-        self._ttl_ms = int((refill_seconds * capacity + 60.0) * 1000.0)
         # Per-process fallback used only while Redis is unreachable: strictly
         # weaker (each process paces itself), but far better than no pacing.
         self._local_next_allowed: dict[str, float] = {}
@@ -136,6 +166,10 @@ class TokenBucketRateGate:
     def _key(self, endpoint: str) -> str:
         """Build the Redis key for one endpoint's bucket."""
         return f"wb:bucket:{self._surface}:{endpoint}:{self._fingerprint}"
+
+    def _bucket(self, endpoint: str) -> _Bucket:
+        """The bucket size WB meters this endpoint with."""
+        return self._endpoint_buckets.get(endpoint, self._default_bucket)
 
     async def acquire(self, endpoint: str) -> None:
         """Wait until this endpoint's bucket holds a token, then take it.
@@ -177,6 +211,7 @@ class TokenBucketRateGate:
 
     async def _take_token(self, endpoint: str) -> float:
         """Take a token, returning the milliseconds to wait when none is free."""
+        bucket = self._bucket(endpoint)
         try:
             result = await cast(
                 Awaitable[Any],
@@ -184,9 +219,9 @@ class TokenBucketRateGate:
                     ACQUIRE_SLOT_LUA,
                     1,
                     self._key(endpoint),
-                    str(self._capacity),
-                    str(self._refill_ms),
-                    str(self._ttl_ms),
+                    str(bucket.capacity),
+                    str(bucket.refill_ms),
+                    str(bucket.ttl_ms),
                 ),
             )
         except RedisError:
@@ -204,7 +239,7 @@ class TokenBucketRateGate:
         now = time.monotonic()
         next_allowed = self._local_next_allowed.get(endpoint, 0.0)
         if now >= next_allowed:
-            self._local_next_allowed[endpoint] = now + self._refill_ms / 1000.0
+            self._local_next_allowed[endpoint] = now + self._bucket(endpoint).refill_ms / 1000.0
             return 0.0
         return (next_allowed - now) * 1000.0
 
@@ -230,6 +265,7 @@ class TokenBucketRateGate:
             and refusing a harvest on a cache outage would be failing closed on
             the one control that exists to keep harvests running.
         """
+        bucket = self._bucket(endpoint)
         try:
             result = await cast(
                 Awaitable[Any],
@@ -237,8 +273,8 @@ class TokenBucketRateGate:
                     PEEK_SLOT_LUA,
                     1,
                     self._key(endpoint),
-                    str(self._capacity),
-                    str(self._refill_ms),
+                    str(bucket.capacity),
+                    str(bucket.refill_ms),
                 ),
             )
         except RedisError:
@@ -267,6 +303,7 @@ class TokenBucketRateGate:
         WB_RATE_LIMIT_REMAINING.labels(
             surface=self._surface, endpoint=endpoint_label(endpoint)
         ).set(remaining)
+        bucket = self._bucket(endpoint)
         try:
             await cast(
                 Awaitable[Any],
@@ -275,12 +312,12 @@ class TokenBucketRateGate:
                     1,
                     self._key(endpoint),
                     str(max(remaining, 0)),
-                    str(self._ttl_ms),
+                    str(bucket.ttl_ms),
                 ),
             )
         except RedisError:
             if remaining <= 0:
-                self._local_next_allowed[endpoint] = time.monotonic() + self._refill_ms / 1000.0
+                self._local_next_allowed[endpoint] = time.monotonic() + bucket.refill_ms / 1000.0
 
     async def penalise(self, endpoint: str, seconds: float) -> None:
         """Shut this endpoint for the wait WB demanded, overriding our refill.
@@ -301,12 +338,13 @@ class TokenBucketRateGate:
         """
         if seconds <= 0:
             return
+        bucket = self._bucket(endpoint)
         block_ms = seconds * 1000.0
         # The key must outlive the block it is recording. The standing TTL is
         # sized for a refill, and a penalty can be twice that: letting the key
         # expire mid-block would restore a full bucket and send the next
         # request straight back into WB's window.
-        ttl_ms = int(max(self._ttl_ms, block_ms + 60_000.0))
+        ttl_ms = int(max(bucket.ttl_ms, block_ms + 60_000.0))
         try:
             await cast(
                 Awaitable[Any],
@@ -315,155 +353,9 @@ class TokenBucketRateGate:
                     1,
                     self._key(endpoint),
                     str(block_ms),
-                    str(self._capacity),
+                    str(bucket.capacity),
                     str(ttl_ms),
                 ),
             )
         except RedisError:
             self._local_next_allowed[endpoint] = time.monotonic() + seconds
-
-
-def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
-    """Build the pacing gate for the analytics surface.
-
-    Args:
-        settings: Bucket parameters and the Redis DSN.
-        token: The workspace's analytics token — the bucket is per token, so
-            one workspace's harvest never throttles another's.
-
-    Returns:
-        A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`
-        when pacing is switched off (unit tests, or no Redis available).
-    """
-    if not settings.wb_rate_pacing_enabled:
-        return NullRateGate()
-    return TokenBucketRateGate(
-        get_redis(),
-        surface="analytics",
-        token=token,
-        capacity=settings.wb_analytics_bucket_capacity,
-        refill_seconds=settings.wb_analytics_bucket_refill_seconds,
-        max_wait_seconds=settings.wb_analytics_max_queue_seconds,
-    )
-
-
-def marketplace_rate_gate(settings: Settings, *, token: str) -> RateGate:
-    """Build the pacing gate for the marketplace (FBS) surface.
-
-    Both FBS endpoints answered ``x-ratelimit-remaining: 20`` when measured on
-    2026-08-13 — a far tighter budget than the analytics surface, and the
-    harvest spends one token per enabled warehouse per run.
-
-    Args:
-        settings: Bucket parameters and the Redis DSN.
-        token: The workspace's marketplace token — the bucket is per token.
-
-    Returns:
-        A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`
-        when pacing is switched off (unit tests, or no Redis available).
-    """
-    if not settings.wb_rate_pacing_enabled:
-        return NullRateGate()
-    return TokenBucketRateGate(
-        get_redis(),
-        surface="marketplace",
-        token=token,
-        capacity=settings.wb_marketplace_bucket_capacity,
-        refill_seconds=settings.wb_marketplace_bucket_refill_seconds,
-        max_wait_seconds=settings.wb_analytics_max_queue_seconds,
-    )
-
-
-def statistics_rate_gate(settings: Settings, *, token: str) -> RateGate:
-    """Build the pacing gate for the statistics surface's settlement report.
-
-    Sized from a live 429 on 2026-09-07 (see the settings comment): the walk's
-    pages must be at least a minute apart, and WB answers a violation with a
-    fifteen-minute penalty block rather than a Retry-After the ladder could
-    honour — so the request must not be sent, not merely retried.
-
-    Args:
-        settings: Bucket parameters and the Redis DSN.
-        token: The workspace's statistics token — the bucket is per token, so
-            one seller's settlement walk never throttles another's.
-
-    Returns:
-        A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`
-        when pacing is switched off (unit tests, or no Redis available).
-    """
-    if not settings.wb_rate_pacing_enabled:
-        return NullRateGate()
-    return TokenBucketRateGate(
-        get_redis(),
-        surface="statistics",
-        token=token,
-        capacity=settings.wb_statistics_bucket_capacity,
-        refill_seconds=settings.wb_statistics_bucket_refill_seconds,
-        max_wait_seconds=settings.wb_statistics_max_queue_seconds,
-    )
-
-
-def settlement_walk_rate_gate(settings: Settings, *, token: str) -> RateGate:
-    """Build the settlement walk's gate — the same bucket, a longer queue.
-
-    :func:`statistics_rate_gate` refuses rather than waits, because the request
-    it guards is made inside a transaction PostgreSQL closes after 300 s idle.
-    The walk takes its token BEFORE opening that transaction, so waiting is
-    exactly what it should do: one week of settlement rows is worth a quarter
-    of an hour, and the alternative is asking anyway and restarting WB's window.
-
-    Args:
-        settings: Bucket parameters and the Redis DSN.
-        token: The workspace's statistics token — the bucket is per token.
-
-    Returns:
-        A gate over the same per-endpoint bucket as
-        :func:`statistics_rate_gate`, willing to queue for a full refill.
-    """
-    if not settings.wb_rate_pacing_enabled:
-        return NullRateGate()
-    return TokenBucketRateGate(
-        get_redis(),
-        surface="statistics",
-        token=token,
-        capacity=settings.wb_statistics_bucket_capacity,
-        refill_seconds=settings.wb_statistics_bucket_refill_seconds,
-        max_wait_seconds=settings.wb_statistics_walk_queue_seconds,
-    )
-
-
-def advertising_rate_gate(settings: Settings, *, token: str) -> RateGate:
-    """Build the pacing gate for the advertising surface.
-
-    This surface is the one with two independent consumers on the same seller
-    token: the nightly harvest sweeps every campaign, and the A/B rotation
-    poller reads the running tests every few minutes. The bucket lives in
-    Redis, so those two share one budget instead of discovering each other
-    through 429s — which is exactly what happened when the poller was probed
-    against an unpaced client.
-
-    WB's published limit for ``/adv/v3/fullstats`` is 3 requests per minute
-    with a 20-second minimum interval and a burst of ONE, so the default bucket
-    is one token refilling every 20s. The gate is per endpoint, so the looser
-    campaign-discovery and search-cluster calls do not spend the fullstats
-    budget.
-
-    Args:
-        settings: Bucket parameters and the Redis DSN.
-        token: The workspace's advertising token — the bucket is per token, so
-            one workspace's polling never throttles another's.
-
-    Returns:
-        A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`
-        when pacing is switched off (unit tests, or no Redis available).
-    """
-    if not settings.wb_rate_pacing_enabled:
-        return NullRateGate()
-    return TokenBucketRateGate(
-        get_redis(),
-        surface="advertising",
-        token=token,
-        capacity=settings.wb_advertising_bucket_capacity,
-        refill_seconds=settings.wb_advertising_bucket_refill_seconds,
-        max_wait_seconds=settings.wb_analytics_max_queue_seconds,
-    )

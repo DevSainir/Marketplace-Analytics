@@ -26,6 +26,7 @@ from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.base import BaseWBClient
 from src.integrations.wildberries.rate_limit import (
+    ADVERTISING_ENDPOINT_BUCKETS,
     NullRateGate,
     TokenBucketRateGate,
     analytics_rate_gate,
@@ -81,8 +82,10 @@ def slept(monkeypatch: pytest.MonkeyPatch) -> list[float]:
         now[0] += delay
 
     monkeypatch.setattr("src.integrations.wildberries.clients.base.asyncio.sleep", _record)
-    monkeypatch.setattr("src.integrations.wildberries.rate_limit.asyncio.sleep", _record)
-    monkeypatch.setattr("src.integrations.wildberries.rate_limit.time.monotonic", lambda: now[0])
+    monkeypatch.setattr("src.integrations.wildberries.rate_limit.gates.asyncio.sleep", _record)
+    monkeypatch.setattr(
+        "src.integrations.wildberries.rate_limit.gates.time.monotonic", lambda: now[0]
+    )
     return waits
 
 
@@ -256,7 +259,9 @@ async def test_the_settlement_walk_gives_up_rather_than_wait_out_a_block(
     a broken test. The fail-open fallback paces per process with the same
     numbers, so the behaviour under test is unchanged.
     """
-    monkeypatch.setattr("src.integrations.wildberries.rate_limit.get_redis", lambda: BrokenRedis())
+    monkeypatch.setattr(
+        "src.integrations.wildberries.rate_limit.surfaces.get_redis", lambda: BrokenRedis()
+    )
     gate = statistics_rate_gate(Settings(), token="a-statistics-token")
 
     await gate.acquire("/api/v5/supplier/reportDetailByPeriod")
@@ -349,3 +354,71 @@ async def test_a_penalised_endpoint_stays_shut_past_our_own_refill(
     with pytest.raises(IntegrationError, match="rate budget"):
         await gate.acquire("/api/v5/supplier/reportDetailByPeriod")
     assert slept == []
+
+
+# --------------------------------------------------------------------------- #
+# One surface is not one budget
+# --------------------------------------------------------------------------- #
+def _advertising_gate() -> TokenBucketRateGate:
+    """The advertising gate as production builds it, on a dead Redis.
+
+    ``BrokenRedis`` puts it on the per-process fallback, which is the same
+    per-endpoint bucket lookup the Redis path makes — and it needs no server.
+    """
+    return TokenBucketRateGate(
+        BrokenRedis(),
+        surface="advertising",
+        token="an-advertising-token",
+        capacity=1,
+        refill_seconds=20.0,
+        max_wait_seconds=120.0,
+        endpoint_buckets=ADVERTISING_ENDPOINT_BUCKETS,
+    )
+
+
+async def test_campaign_discovery_is_paced_at_wbs_rate_and_not_at_fullstats(
+    slept: list[float],
+) -> None:
+    """The page of 2026-09-11, as arithmetic.
+
+    ``/adv/v1/promotion/count`` is metered by WB at five a second. Paced instead
+    at the surface default of one per 20 s, ten of them queue for 180 s — past
+    the 120 s cap, which is a raise, a failure counter, and a pager.
+    """
+    gate = _advertising_gate()
+
+    for _ in range(10):
+        await gate.acquire("/adv/v1/promotion/count")
+
+    assert sum(slept) < 2.0
+
+
+async def test_fullstats_keeps_the_strict_bucket(slept: list[float]) -> None:
+    """The endpoint the default is sized from must not be loosened with it.
+
+    WB serves fullstats three times a minute. Widening the campaign-discovery
+    calls is only safe while this stays where it is.
+    """
+    gate = _advertising_gate()
+
+    await gate.acquire("/adv/v3/fullstats")
+    await gate.acquire("/adv/v3/fullstats")
+
+    assert slept == [pytest.approx(20.0)]
+
+
+async def test_an_unlisted_advertising_endpoint_keeps_the_conservative_default(
+    slept: list[float],
+) -> None:
+    """An endpoint WB never published a limit for is paced as the strictest one.
+
+    ``/adv/v1/budget`` is absent from WB's table, so the lookup must miss and
+    fall back rather than guess. A new endpoint arriving unpaced is the failure
+    direction this whole module exists to refuse.
+    """
+    gate = _advertising_gate()
+
+    await gate.acquire("/adv/v1/budget")
+    await gate.acquire("/adv/v1/budget")
+
+    assert slept == [pytest.approx(20.0)]
