@@ -23,6 +23,15 @@ EXPECTED_TASKS: list[str] = [
     "monitoring.refresh_buyout_cohorts",
     "monitoring.carry_day_headers",
     "auth.purge_expired_refresh_tokens",
+    # The history backfill. Its lanes are chains of self-enqueueing ticks, and
+    # the watchdog restarts them BY NAME — so a rename that skipped either side
+    # leaves a dead lane with nothing scheduled to notice, which is exactly the
+    # silent failure this file exists to catch.
+    "monitoring.backfill_catalogue",
+    "monitoring.backfill_funnel",
+    "monitoring.backfill_advertising",
+    "finreports.backfill_pnl",
+    "workspaces.sweep_stalled_backfills",
 ]
 
 
@@ -36,7 +45,8 @@ def _load_task_modules() -> None:
     import src.modules.ab_tests.tasks
     import src.modules.finreports.tasks
     import src.modules.monitoring.tasks
-    import src.modules.users.tasks  # noqa: F401
+    import src.modules.users.tasks
+    import src.modules.workspaces.tasks  # noqa: F401
 
 
 @pytest.mark.parametrize("task_name", EXPECTED_TASKS)
