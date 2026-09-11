@@ -82,8 +82,12 @@ class VariantCatalogService:
         Raises:
             NotFoundError: If the test, the variant, or the file is missing.
         """
-        await self._require(workspace_id=workspace_id, test_id=test_id)
-        variant = await self._variants.get(test_id=test_id, variant_id=variant_id)
+        # One query, not three: this is the only route called once per PHOTO,
+        # and resolving the test separately made a nine-photo page spend
+        # twenty-seven round trips on a guard that one join expresses.
+        variant = await self._variants.get_scoped(
+            workspace_id=workspace_id, test_id=test_id, variant_id=variant_id
+        )
         if variant is None:
             raise NotFoundError("Вариант не найден.")
         try:

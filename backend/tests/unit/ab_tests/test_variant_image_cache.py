@@ -78,7 +78,20 @@ class _FakeTests:
 
 
 class _FakeVariants:
-    """Resolves the one variant these cases use."""
+    """Resolves the one variant these cases use.
+
+    `get_scoped` carries the tenancy guard in SQL, so this fake can only stand
+    in for its shape; that the JOIN actually refuses another workspace's variant
+    is proved against a real database in
+    tests/integration/ab_tests/test_ab_test_repos.py.
+    """
+
+    async def get_scoped(
+        self, *, workspace_id: uuid.UUID, test_id: uuid.UUID, variant_id: uuid.UUID
+    ) -> AbTestVariant | None:
+        if workspace_id != WORKSPACE_ID or test_id != TEST_ID:
+            return None
+        return await self.get(test_id=test_id, variant_id=variant_id)
 
     async def count_for_test(self, *, test_id: uuid.UUID) -> int:
         return 0

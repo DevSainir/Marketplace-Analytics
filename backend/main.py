@@ -29,6 +29,7 @@ from src.core.observability.instrument import instrument_app, register_observabi
 from src.core.observability.metrics import set_app_info
 from src.core.observability.sentry import configure_sentry
 from src.core.redis import close_redis
+from src.modules.ab_tests.deps import close_media_store
 from src.modules.ab_tests.routers import router as ab_tests_router
 from src.modules.finreports.routers import router as finreports_router
 from src.modules.monitoring.routers import router as monitoring_router
@@ -44,7 +45,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application startup and shutdown.
 
     Configures logging on startup; disposes of the async engine's connection
-    pool and the shared Redis client on shutdown so the process exits cleanly.
+    pool, the shared Redis client and the A/Б media client on shutdown so the
+    process exits cleanly.
     """
     configure_logging()
     # After uvicorn has installed its own handlers, and before anything it logs
@@ -65,7 +67,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
     await dispose_engine()
     await close_redis()
-    logger.info("Shutdown complete; database engine and Redis client disposed.")
+    # The A/Б media store holds one S3 connection open for the life of this
+    # loop — that is what stops nine photos on one page from paying nine TLS
+    # handshakes. This is the only place that knows the loop is ending.
+    await close_media_store()
+    logger.info("Shutdown complete; database engine, Redis and media clients disposed.")
 
 
 class DocumentationUrls(NamedTuple):

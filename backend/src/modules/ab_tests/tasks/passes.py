@@ -19,7 +19,6 @@ from src.core.database import AsyncSessionLocal
 from src.core.logging import get_logger
 from src.integrations.wildberries import WBAdvertisingClient, WBContentClient
 from src.integrations.wildberries.schemas import WBAdvCampaignStats, WBAdvertV2
-from src.modules.ab_tests.deps import get_media_store
 from src.modules.ab_tests.models import AbTest
 from src.modules.ab_tests.repos import (
     AbTestRepository,
@@ -31,6 +30,7 @@ from src.modules.ab_tests.services.budget import AdsState, read_state
 from src.modules.ab_tests.services.collection import Counters, counters_by_day
 from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.runner import RotationRunner
+from src.modules.ab_tests.services.storage import build_media_store
 from src.modules.ab_tests.services.witness import PhotoWitness
 from src.modules.ab_tests.tasks.cabinet import Cabinet
 
@@ -131,7 +131,12 @@ async def poll_one(
                 windows=WindowRepository(session),
                 snapshots=SnapshotRepository(session),
                 installer=VariantInstaller(
-                    content_client=content_client, media_store=get_media_store()
+                    # Not the api's shared store: this runs on a loop the task
+                    # closes when it returns, and a socket pooled across that
+                    # boundary is what killed a whole night's harvest twice
+                    # (see src.core.tasks). One photo per swap does not need it.
+                    content_client=content_client,
+                    media_store=build_media_store(settings),
                 ),
                 read_counters=_reader,
                 read_ads=_ads,

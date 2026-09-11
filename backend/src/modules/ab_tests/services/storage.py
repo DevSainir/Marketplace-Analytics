@@ -17,9 +17,12 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from asyncio import AbstractEventLoop, Task, get_running_loop
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 import aioboto3
 
@@ -149,10 +152,27 @@ class LocalMediaStore:
 class S3MediaStore:
     """Originals in an S3-compatible bucket, shared by every container.
 
-    A client is opened per call rather than held open: the api serves requests
-    and the worker runs one task at a time, so a pooled client would mostly sit
-    idle across event loops that come and go — and a Celery task body gets a
-    fresh loop, on which a client bound to the previous one raises.
+    ``reuse_connections`` decides whether the client is held open, and it is off
+    by default because holding one is only safe where the event loop outlives
+    the request. Timed against production:
+
+        read() with a new client   22.9 KB   0.259 s
+        opening the client itself            0.005 s
+        get_object on a reused client        0.071 s
+
+    The client object is nearly free; the **connection** is not. Nine images on
+    one page spent about 1.7 seconds doing nothing but shaking hands, which is
+    why the api turns reuse on — it runs one loop for the life of the process
+    and closes the client from the app's own shutdown.
+
+    **The worker leaves it off, deliberately.** Every Celery task drives its body
+    through its own :func:`asyncio.run` and closes that loop afterwards; a
+    pooled socket left behind belongs to a loop that no longer exists, and the
+    next task dies on it with «Event loop is closed». :mod:`src.core.tasks`
+    exists because that has happened twice, to the SQLAlchemy engine and to the
+    Redis pool, and each time it cost a whole night's harvest. The worker reads
+    a photo once per swap, so reuse would buy it a fraction of a second in
+    exchange for that.
     """
 
     def __init__(
@@ -164,6 +184,7 @@ class S3MediaStore:
         region: str,
         access_key: str,
         secret_key: str,
+        reuse_connections: bool = False,
     ) -> None:
         """Configure the bucket this store writes to.
 
@@ -176,7 +197,10 @@ class S3MediaStore:
             region: Region name the endpoint expects.
             access_key: Access key id.
             secret_key: Secret access key.
+            reuse_connections: Hold one client open per event loop. Only for a
+                caller whose loop outlives the request — see the class docstring.
         """
+        self._reuse = reuse_connections
         self._bucket = bucket
         self._prefix = prefix.strip("/")
         self._endpoint_url = endpoint_url
@@ -184,9 +208,17 @@ class S3MediaStore:
         self._access_key = access_key
         self._secret_key = secret_key
         self._session = aioboto3.Session()
+        # loop -> the task that opens (and then holds) that loop's client, and
+        # the manager it was entered through so shutdown can exit it. A task
+        # rather than the client itself so that concurrent callers on one loop
+        # await the same creation instead of opening a client each: the detail
+        # page asks for six images at once, and the first thing they all do is
+        # arrive here together.
+        self._clients: dict[AbstractEventLoop, Task[Any]] = {}
+        self._managers: dict[AbstractEventLoop, Any] = {}
 
-    def _client(self) -> object:
-        """Open a client for one operation."""
+    def _new_client(self) -> Any:
+        """The async context manager for one fresh client."""
         return self._session.client(
             "s3",
             endpoint_url=self._endpoint_url,
@@ -194,6 +226,70 @@ class S3MediaStore:
             aws_access_key_id=self._access_key,
             aws_secret_access_key=self._secret_key,
         )
+
+    async def _open(self, loop: AbstractEventLoop) -> Any:
+        """Enter a client's context, keeping the manager so it can be exited."""
+        manager = self._new_client()
+        client = await manager.__aenter__()
+        self._managers[loop] = manager
+        return client
+
+    async def _held_client(self) -> Any:
+        """Return this event loop's client, opening it the first time.
+
+        Returns:
+            An aiobotocore S3 client, safe to use from several coroutines at
+            once — the connection pool behind it is what makes that worth doing.
+        """
+        loop = get_running_loop()
+        opening = self._clients.get(loop)
+        if opening is None:
+            # `create_task` is synchronous, so two callers on this loop cannot
+            # both see None and both open a client.
+            opening = loop.create_task(self._open(loop))
+            self._clients[loop] = opening
+        try:
+            return await opening
+        except Exception:
+            # A failed open must not be cached, or the bucket stays broken for
+            # the life of the process after one bad moment.
+            self._clients.pop(loop, None)
+            self._managers.pop(loop, None)
+            raise
+
+    @asynccontextmanager
+    async def _connection(self) -> AsyncIterator[Any]:
+        """Yield a client for one operation, held open or not.
+
+        One shape for both policies, so no call site has to remember which is in
+        force.
+
+        Yields:
+            An aiobotocore S3 client.
+        """
+        if not self._reuse:
+            async with self._new_client() as client:
+                yield client
+            return
+        yield await self._held_client()
+
+    async def aclose(self) -> None:
+        """Close the client held for the CURRENT loop, if there is one.
+
+        Called from the app's shutdown, which is the only place that knows the
+        loop is about to end. Closing is best-effort: a socket the endpoint has
+        already dropped raises here, and failing a shutdown over it would turn a
+        clean exit into a stack trace.
+        """
+        loop = get_running_loop()
+        self._clients.pop(loop, None)
+        manager = self._managers.pop(loop, None)
+        if manager is None:
+            return
+        try:
+            await manager.__aexit__(None, None, None)
+        except Exception as exc:  # pragma: no cover - endpoint-level failure
+            logger.info("ab_tests: closing the media client raised: %s", exc)
 
     def _object_key(self, relative_path: str) -> str:
         """Full object key for a path as stored on the variant row."""
@@ -216,7 +312,7 @@ class S3MediaStore:
         """
         digest, relative = _key_for(content, content_type=content_type, test_id=test_id)
         try:
-            async with self._client() as client:  # type: ignore[attr-defined]
+            async with self._connection() as client:
                 await client.put_object(
                     Bucket=self._bucket,
                     Key=self._object_key(relative),
@@ -245,7 +341,7 @@ class S3MediaStore:
             IntegrationError: If the bucket refuses the write.
         """
         try:
-            async with self._client() as client:  # type: ignore[attr-defined]
+            async with self._connection() as client:
                 await client.put_object(
                     Bucket=self._bucket,
                     Key=self._object_key(relative_path),
@@ -271,7 +367,7 @@ class S3MediaStore:
             IntegrationError: If the bucket is unreachable.
         """
         try:
-            async with self._client() as client:  # type: ignore[attr-defined]
+            async with self._connection() as client:
                 response = await client.get_object(
                     Bucket=self._bucket, Key=self._object_key(relative_path)
                 )
@@ -290,19 +386,22 @@ class S3MediaStore:
             relative_path: Key as stored on the variant row.
         """
         try:
-            async with self._client() as client:  # type: ignore[attr-defined]
+            async with self._connection() as client:
                 await client.delete_object(Bucket=self._bucket, Key=self._object_key(relative_path))
         except Exception as exc:
             logger.warning("ab_tests: media delete failed for %s: %s", relative_path, exc)
 
 
-def build_media_store(settings: Settings) -> MediaStore:
+def build_media_store(settings: Settings, *, reuse_connections: bool = False) -> MediaStore:
     """Return the store this deployment should use.
 
     Args:
         settings: Bucket configuration; an empty bucket name selects the local
             directory, which is what tests and a developer without credentials
             get.
+        reuse_connections: Hold one S3 client open per event loop. Safe only for
+            a caller whose loop outlives the request — the api, not a Celery
+            task. See :class:`S3MediaStore`.
 
     Returns:
         An S3-backed store when a bucket is configured, else the local one.
@@ -316,4 +415,5 @@ def build_media_store(settings: Settings) -> MediaStore:
         region=settings.ab_tests_s3_region,
         access_key=settings.ab_tests_s3_access_key,
         secret_key=settings.ab_tests_s3_secret_key,
+        reuse_connections=reuse_connections,
     )

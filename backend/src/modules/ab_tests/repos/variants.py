@@ -16,6 +16,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.ab_tests.models import (
+    AbTest,
     AbTestVariant,
     VariantExposure,
 )
@@ -117,6 +118,41 @@ class VariantRepository:
         self._session.add(variant)
         await self._session.flush()
         return variant
+
+    async def get_scoped(
+        self, *, workspace_id: uuid.UUID, test_id: uuid.UUID, variant_id: uuid.UUID
+    ) -> AbTestVariant | None:
+        """Return one variant, checking the workspace in the same query.
+
+        For the image route, which is the one endpoint called once per PHOTO
+        rather than once per page. Resolving the test and then the variant costs
+        three round trips — the test, its variants through `selectinload`, then
+        the variant itself — so a rotation of nine photos spent twenty-seven
+        queries proving nine times over that the caller owns the test.
+
+        The tenancy guard is the join predicate rather than a separate read, so
+        it is the same rule and not a copy of it: a variant of another
+        workspace's test produces no row, which the service turns into the same
+        404 as a variant that does not exist.
+
+        Args:
+            workspace_id: Tenancy guard.
+            test_id: Owning test.
+            variant_id: Variant identifier.
+
+        Returns:
+            The variant, or ``None`` when it is not this workspace's.
+        """
+        stmt = (
+            select(AbTestVariant)
+            .join(AbTest, AbTest.id == AbTestVariant.test_id)
+            .where(
+                AbTestVariant.id == variant_id,
+                AbTestVariant.test_id == test_id,
+                AbTest.workspace_id == workspace_id,
+            )
+        )
+        return (await self._session.execute(stmt)).scalars().one_or_none()
 
     async def get(self, *, test_id: uuid.UUID, variant_id: uuid.UUID) -> AbTestVariant | None:
         """Return one variant of a test, or ``None``.

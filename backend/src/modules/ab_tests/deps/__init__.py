@@ -10,6 +10,7 @@ tenancy check as the data.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends
@@ -33,12 +34,40 @@ from src.modules.ab_tests.services.variants import VariantCatalogService
 from src.modules.workspaces.contract import CurrentWorkspaceId, load_workspace_token_bundle
 
 
+@lru_cache(maxsize=1)
 def get_media_store() -> MediaStore:
-    """Provide the configured media store — object storage, or a local fallback."""
-    return build_media_store(settings)
+    """Provide the configured media store — object storage, or a local fallback.
+
+    **One instance for the whole process**, which is what makes holding an S3
+    connection open worth anything: a FastAPI dependency is resolved per
+    request, so a store built here per request would open a client per request
+    and reuse nothing. The detail page asks for nine photos at once and each was
+    paying its own TLS handshake — 0.259 s against 0.071 s on a warm connection.
+
+    The store keeps no per-request state, so sharing it costs nothing. The
+    client it holds is closed by the app's shutdown (see ``main.lifespan``).
+
+    **This provider is for the api only.** A Celery task runs on a loop it then
+    closes, and a pooled socket left behind is the failure :mod:`src.core.tasks`
+    was written for; the worker builds its own per-call store instead.
+    """
+    return build_media_store(settings, reuse_connections=True)
 
 
 MediaStoreDep = Annotated[MediaStore, Depends(get_media_store)]
+
+
+async def close_media_store() -> None:
+    """Close the S3 connection the api has been holding open.
+
+    Called from the app's shutdown, which is the only place that knows this
+    event loop is about to end. A local store has nothing to close, and a
+    process that never served a photo has nothing to close either.
+    """
+    store = get_media_store()
+    closing = getattr(store, "aclose", None)
+    if closing is not None:
+        await closing()
 
 
 async def get_installer(
@@ -142,6 +171,7 @@ __all__ = [
     "MediaStoreDep",
     "SkuCatalogueDep",
     "VariantServiceDep",
+    "close_media_store",
     "get_catalog_service",
     "get_installer",
     "get_media_store",
