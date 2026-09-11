@@ -143,7 +143,7 @@ async def _run_step(
             task_name, kwargs={"workspace_id": workspace_id}, countdown=_NEXT_STEP_SECONDS
         )
     logger.info(
-        "backfill %s for %s: %d/%d, rows=%d, finished=%s",
+        "backfill %s for %s: %s/%d, rows=%d, finished=%s",
         lane,
         workspace_id,
         step.done,

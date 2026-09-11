@@ -66,6 +66,11 @@ class LaneStep:
     Attributes:
         done: Units walked so far — days for the funnel, 31-day windows for
             advertising, settlement days for P&L. The unit is the lane's own.
+            ``None`` means "this step advanced nothing, leave the counter
+            alone": a tick that found WB's window shut, or was refused a page,
+            has learned nothing about progress, and reporting 0 for it would
+            reset the bar to empty and then jump it back — which reads as the
+            walk having restarted.
         total: Units in the whole walk. An ESTIMATE the lane may revise.
         cursor: Where the next step resumes; ``None`` when finished.
         finished: Whether the lane is complete. Authoritative, and not
@@ -76,7 +81,7 @@ class LaneStep:
         rows: Rows written by this step, for the log.
     """
 
-    done: int
+    done: int | None
     total: int
     cursor: str | None
     finished: bool

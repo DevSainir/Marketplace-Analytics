@@ -9,7 +9,7 @@ while the words beside it say «готово».
 
 from __future__ import annotations
 
-from src.modules.workspaces.backfill import LANE_LABELS, LANE_ORDER, _percent
+from src.modules.workspaces.backfill import LANE_LABELS, LANE_ORDER, LaneStep, _percent
 from src.modules.workspaces.models import BackfillState, WorkspaceBackfill
 
 
@@ -52,3 +52,19 @@ def test_every_lane_has_a_russian_label() -> None:
     for lane in LANE_ORDER:
         assert LANE_LABELS[lane]
         assert not LANE_LABELS[lane].isascii()
+
+
+def test_a_tick_that_learned_nothing_leaves_the_counter_alone() -> None:
+    """A refused page must not reset the bar to zero and then jump it back.
+
+    Observed live 2026-09-11: NEVA's second P&L tick was answered with a 429
+    carrying a 48-minute penalty. The lane handled it correctly — no page, no
+    cursor movement — but reported ``done=0``, which overwrote 1078 days of
+    real progress. Flapping 1078 -> 0 -> 1078 reads as the walk restarting.
+
+    ``None`` is how a step says "I advanced nothing"; the repository then
+    touches only what was passed.
+    """
+    step = LaneStep(done=None, total=1792, cursor="x", finished=False, message="…")
+
+    assert step.done is None

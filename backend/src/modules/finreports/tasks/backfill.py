@@ -39,7 +39,7 @@ from src.core.logcontext import bind_workspace
 from src.core.logging import get_logger
 from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
-from src.integrations.wildberries.rate_limit import settlement_walk_rate_gate
+from src.integrations.wildberries.rate_limit import statistics_rate_gate
 from src.modules.finreports.tasks.ingestion_factory import build_ingestion
 from src.modules.finreports.tasks.settlement import _ingest_one_page
 from src.modules.workspaces.contract import (
@@ -63,6 +63,9 @@ PNL_FLOOR_DAYS = 5 * 365
 #: pointer: see the module docstring for why recomputing the span per tick
 #: makes the progress bar run backwards.
 _SEP = "|"
+
+#: The endpoint the gate is keyed on.
+SETTLEMENT_PATH = "/api/v5/supplier/reportDetailByPeriod"
 
 #: Seconds before the next page. WB's own budget on this endpoint — asking
 #: sooner restarts its window and makes the lane slower, not faster.
@@ -148,9 +151,23 @@ async def advance_pnl(
     if span_to < span_from:
         return LaneStep(total, total, None, True, "Вся история P&L уже собрана.")
 
-    gate = settlement_walk_rate_gate(settings, token=tokens.statistics)
+    # The gate that REFUSES, not the one that waits — and this is the whole
+    # difference between a lane that runs and one that dies on its first tick.
+    #
+    # `settlement_walk_rate_gate` is built to QUEUE: the fleet walk takes its
+    # token before opening a transaction, and there a quarter of an hour of
+    # waiting is the correct behaviour. Inside a tick it is fatal. Measured in
+    # production 2026-09-10: the lane's first tick asked at 18:00:04, the gate
+    # answered "waiting 956.0s for a rate token", and Celery's 300 s soft limit
+    # killed the task five minutes later with `SoftTimeLimitExceeded` — which is
+    # not an `IntegrationError`, so the branch below never ran, no progress was
+    # recorded, nothing re-enqueued, and a thirteen-hour walk ended silently on
+    # its first step.
+    #
+    # A tick must never block on a budget it can re-enqueue against instead.
+    gate = statistics_rate_gate(settings, token=tokens.statistics)
     try:
-        await gate.acquire("/api/v5/supplier/reportDetailByPeriod")
+        await gate.acquire(SETTLEMENT_PATH)
     except IntegrationError as exc:
         # Not a failure: WB's window is simply still closed. The tick returns
         # unchanged and the task re-enqueues — asking anyway would restart the
@@ -159,7 +176,7 @@ async def advance_pnl(
             "finreports: P&L backfill for %s waiting on WB's window (%s).", tokens.name, exc
         )
         return LaneStep(
-            done=0,
+            done=None,
             total=total,
             cursor=cursor or _format_cursor(span_from, span_to, rrd_id),
             finished=False,
@@ -176,7 +193,7 @@ async def advance_pnl(
     )
     if outcome is None:
         return LaneStep(
-            done=0,
+            done=None,
             total=total,
             cursor=_format_cursor(span_from, span_to, rrd_id),
             finished=False,
@@ -187,11 +204,18 @@ async def advance_pnl(
     if next_cursor is None:
         return LaneStep(total, total, None, True, "История P&L собрана.", rows=rows)
 
-    # Progress is measured in settlement days rather than pages, because the
-    # number of pages is not knowable until the last one arrives. It advances
-    # unevenly — a busy month is several pages — which is honest: the bar
-    # tracks the calendar it is filling, not our guess at the row count.
-    covered = await _covered_days(tokens, span_from, next_cursor)
+    # Re-anchor the span on the seller's ACTUAL first settlement day, which the
+    # first page has just revealed. The span starts at a five-year floor because
+    # nothing knows the account's age before asking — but NEVA's first report is
+    # 2024-07-11, so that floor put three empty years in the denominator and the
+    # bar read 1078/1792 (60%) after a single page, then crawled. Measuring from
+    # the oldest day we now hold makes the percentage mean what it looks like.
+    #
+    # `total_units` is documented as an estimate the lane may revise; this is
+    # the revision it was written for.
+    true_start, covered = await _measure_progress(tokens, span_from, next_cursor)
+    total = max((span_to - true_start).days + 1, 1)
+    span_from = true_start
     return LaneStep(
         done=min(covered, total),
         total=total,
@@ -202,13 +226,28 @@ async def advance_pnl(
     )
 
 
-async def _covered_days(tokens: WorkspaceTokenBundle, span_from: date, next_cursor: int) -> int:
-    """Settlement days of the span now stored, as the progress numerator.
+async def _measure_progress(
+    tokens: WorkspaceTokenBundle, span_from: date, next_cursor: int
+) -> tuple[date, int]:
+    """``(true_start, days_covered)`` for the span, read back from our tables.
 
-    Read back from our own table rather than tracked in the cursor: the rows
-    were just committed, so the database is the authority on what the walk has
-    actually achieved, and a cursor that also carried a count would be a second
-    thing to keep in step.
+    Both numbers come from the database rather than being tracked in the cursor:
+    the page was just committed, so the rows themselves are the authority on
+    what the walk achieved, and a cursor that also carried counters would be a
+    second thing to keep in step with them.
+
+    ``true_start`` is the oldest settlement day we now hold — the seller's real
+    first report once the first page has landed. ``days_covered`` counts from
+    there to the newest day the cursor has reached.
+
+    Args:
+        tokens: The workspace being walked.
+        span_from: The span start currently in the cursor, used as a fallback
+            when the table is somehow empty.
+        next_cursor: The ``rrd_id`` the walk has reached.
+
+    Returns:
+        The re-anchored span start and the days covered from it.
     """
     from sqlalchemy import func, select
 
@@ -216,14 +255,22 @@ async def _covered_days(tokens: WorkspaceTokenBundle, span_from: date, next_curs
     from src.modules.finreports.models import LogisticsTransaction
 
     async with AsyncSessionLocal() as session:
-        stmt = select(func.max(LogisticsTransaction.rr_dt)).where(
-            LogisticsTransaction.workspace_id == tokens.workspace_id,
-            LogisticsTransaction.rrd_id <= next_cursor,
-        )
-        latest = (await session.execute(stmt)).scalar_one_or_none()
-    if latest is None:
-        return 0
-    return max((latest - span_from).days + 1, 0)
+        row = (
+            await session.execute(
+                select(
+                    func.min(LogisticsTransaction.rr_dt),
+                    func.max(LogisticsTransaction.rr_dt).filter(
+                        LogisticsTransaction.rrd_id <= next_cursor
+                    ),
+                ).where(LogisticsTransaction.workspace_id == tokens.workspace_id)
+            )
+        ).one()
+    true_start, latest = row
+    if true_start is None:
+        return span_from, 0
+    if latest is None or latest < true_start:
+        return true_start, 0
+    return true_start, (latest - true_start).days + 1
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -243,7 +290,8 @@ def backfill_pnl(self: Task[object, object], workspace_id: str) -> dict[str, obj
 
     Deliberately no ``autoretry_for``: on this endpoint a retry ladder is
     actively harmful for the same reason. A failed page is retried by the next
-    scheduled tick, not by Celery.
+    scheduled tick — and a tick that never gets scheduled because the task died
+    outright is what ``workspaces.sweep_stalled_backfills`` exists to catch.
     """
 
     async def _run() -> dict[str, object]:
@@ -278,7 +326,7 @@ def backfill_pnl(self: Task[object, object], workspace_id: str) -> dict[str, obj
                 countdown=_NEXT_PAGE_SECONDS,
             )
         logger.info(
-            "backfill pnl for %s: %d/%d days, rows=%d, finished=%s",
+            "backfill pnl for %s: %s/%d days, rows=%d, finished=%s",
             workspace_id,
             step.done,
             step.total,

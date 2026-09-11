@@ -189,6 +189,20 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=3, minute=0),
         "kwargs": {"days": 28, "reconcile": True},
     },
+    # The history backfill's watchdog. Every lane is a chain of self-enqueueing
+    # ticks, and a tick that dies before its re-enqueue ends the whole walk with
+    # nothing scheduled to notice — which is exactly how NEVA's P&L lane spent
+    # eleven hours doing nothing on 2026-09-10. This is the second thread of
+    # continuation; see `src.modules.workspaces.tasks`.
+    #
+    # Every fifteen minutes rather than hourly because the cost is one indexed
+    # read of a table with a handful of rows, and the thing it is watching moves
+    # at one page per fifteen minutes: a sweep any slower would let a dead lane
+    # lose more pages than the sweep saves.
+    "backfill-watchdog": {
+        "task": "workspaces.sweep_stalled_backfills",
+        "schedule": crontab(minute="*/15"),
+    },
 }
 
 # Autodiscover ``tasks.py`` inside each registered business module.
@@ -198,5 +212,6 @@ celery_app.autodiscover_tasks(
         "src.modules.users",
         "src.modules.finreports",
         "src.modules.ab_tests",
+        "src.modules.workspaces",
     ],
 )
