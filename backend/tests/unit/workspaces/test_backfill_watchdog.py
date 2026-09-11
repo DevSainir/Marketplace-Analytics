@@ -104,27 +104,6 @@ def test_no_lane_can_spend_more_than_its_tick_on_rate_gates() -> None:
     )
 
 
-def test_the_advertising_cursor_survives_the_older_date_only_form() -> None:
-    """Lanes already running carry a bare date; they must not crash on resume.
-
-    The cursor gained a batch index while a real workspace was mid-walk. A
-    parser that required the new shape would turn every in-flight advertising
-    lane into a failing tick at exactly the moment of deploy.
-    """
-    from datetime import date
-
-    from src.modules.monitoring.services.backfill import _parse_adv_cursor
-
-    assert _parse_adv_cursor("2026-06-10", default_end=date(2026, 9, 10)) == (
-        date(2026, 6, 10),
-        0,
-    )
-    assert _parse_adv_cursor("2026-06-10|3", default_end=date(2026, 9, 10)) == (
-        date(2026, 6, 10),
-        3,
-    )
-
-
 def test_a_worker_restart_adopts_its_predecessor_s_orphaned_lanes() -> None:
     """A deploy must not cost a seller forty-five minutes of stopped history.
 

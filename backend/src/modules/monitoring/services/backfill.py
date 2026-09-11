@@ -241,17 +241,41 @@ async def advance_funnel(
     )
 
 
-def _parse_adv_cursor(cursor: str | None, *, default_end: date) -> tuple[date, int]:
-    """Read ``"<window end>|<batch index>"``, tolerating the older date-only form."""
+def _parse_adv_cursor(
+    cursor: str | None, *, default_end: date
+) -> tuple[date, int, set[int] | None]:
+    """Read ``"<window end>|<batch index>|<live campaign ids>"``.
+
+    Both older forms still parse — a bare date, and a date with a batch but no
+    ids — because a lane part-way through its walk when this shipped carries one
+    of them and must not restart. A ``None`` id set means "this cursor predates
+    the third field"; the caller asks WB once more and the cursor it writes back
+    carries the list from then on.
+
+    Args:
+        cursor: The lane's stored resume point, or ``None`` before it starts.
+        default_end: Where a lane with no cursor begins.
+
+    Returns:
+        ``(window end, batch index, live campaign ids or None)``.
+    """
     if not cursor:
-        return default_end, 0
+        return default_end, 0, None
     head, _, tail = cursor.partition("|")
-    return date.fromisoformat(head), int(tail) if tail else 0
+    batch_part, _, ids_part = tail.partition("|")
+    ids = {int(i) for i in ids_part.split(",") if i} if ids_part else None
+    return date.fromisoformat(head), int(batch_part) if batch_part else 0, ids
 
 
-def _format_adv_cursor(window_end: date, batch: int) -> str:
-    """Write the window and batch the next tick resumes from."""
-    return f"{window_end.isoformat()}|{batch}"
+def _format_adv_cursor(window_end: date, batch: int, campaign_ids: set[int]) -> str:
+    """Write the window, batch and campaign list the next tick resumes from.
+
+    The ids ride along so no tick after the first spends a WB request
+    rediscovering them. It is a few kilobytes in a ``Text`` column against one
+    gated call per tick — and the walk makes hundreds of ticks.
+    """
+    ids = ",".join(str(i) for i in sorted(campaign_ids))
+    return f"{window_end.isoformat()}|{batch}|{ids}"
 
 
 async def _campaign_coverage(session: AsyncSession) -> dict[int, date]:
@@ -298,7 +322,7 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
     end = moscow_today() - timedelta(days=1)
     floor = end - timedelta(days=ADV_DAYS - 1)
     total = -(-ADV_DAYS // ADV_WINDOW_DAYS)  # ceil
-    hi, batch = _parse_adv_cursor(cursor, default_end=end)
+    hi, batch, known_ids = _parse_adv_cursor(cursor, default_end=end)
     if hi < floor:
         return LaneStep(total, total, None, True, "Реклама собрана полностью.")
 
@@ -306,8 +330,13 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
     written = 0
 
     async with WBAdvertisingClient(settings, token=tokens.advertising) as client:
-        # Campaign discovery only on the very first tick: the list does not
-        # change while we walk backwards, and it is a request like any other.
+        # Campaign discovery once per walk, not once per tick. The list does not
+        # change while we walk backwards — the code has said so since the lane
+        # was written, and then asked WB again on every single tick anyway. A
+        # campaign created mid-walk has no history behind it to collect, so
+        # freezing the list at the first tick loses nothing and saves one gated
+        # request per tick for the rest of the walk (36 windows, up to eight
+        # batches each).
         if cursor is None:
             campaigns = await client.list_campaigns()
             try:
@@ -319,10 +348,15 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
                 service = build_ingestion_service(session)
                 await service.ingest_campaigns(campaigns, adverts)
                 await session.commit()
-        else:
+            target_ids = {c.campaign_id for c in campaigns if c.status in _LIVE_STATUSES}
+        elif known_ids is None:
+            # A lane that started before the cursor carried the list. One last
+            # discovery call, and the cursor written below carries it onward.
             campaigns = await client.list_campaigns()
+            target_ids = {c.campaign_id for c in campaigns if c.status in _LIVE_STATUSES}
+        else:
+            target_ids = known_ids
 
-        target_ids = {c.campaign_id for c in campaigns if c.status in _LIVE_STATUSES}
         if not target_ids:
             return LaneStep(total, total, None, True, "Рекламных кампаний нет.")
 
@@ -358,7 +392,7 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
     return LaneStep(
         done=total if finished else done,
         total=total,
-        cursor=None if finished else _format_adv_cursor(next_hi, next_batch),
+        cursor=None if finished else _format_adv_cursor(next_hi, next_batch, target_ids),
         finished=finished,
         message=(
             "Реклама собрана полностью."
