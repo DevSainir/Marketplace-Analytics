@@ -75,16 +75,31 @@ _NEXT_PAGE_SECONDS = 15 * 60 + 30
 #: A tick is one request plus one ingest; the limit is a hung-call backstop.
 _TICK_SOFT_LIMIT_SECONDS = 5 * 60
 
+#: Consecutive EMPTY answers before the span is believed finished.
+#:
+#: One is not enough, and believing one cost NEVA two years of P&L. WB answers an
+#: exhausted window with `204 No Content` — and it answers a window it is simply
+#: not serving right now with the same thing. On 2026-09-11 a tick mid-span got
+#: an empty body, read it as "the walk is complete", and marked a lane DONE over
+#: a 715-day hole. `finance-reports.md` says it outright: never assume a day
+#: once probed empty stays empty.
+#:
+#: A short but NON-empty page is different and still ends the walk immediately —
+#: that is WB's ordinary pagination. This only guards the all-or-nothing answer.
+PNL_EMPTY_STOP = 3
 
-def _parse_cursor(cursor: str) -> tuple[date, date, int]:
-    """Read ``span_from|span_to|rrd_id`` back."""
-    raw_from, raw_to, raw_rrdid = cursor.split(_SEP)
-    return date.fromisoformat(raw_from), date.fromisoformat(raw_to), int(raw_rrdid)
+
+def _parse_cursor(cursor: str) -> tuple[date, date, int, int]:
+    """Read ``span_from|span_to|rrd_id|empties`` back, tolerating the older form."""
+    parts = cursor.split(_SEP)
+    raw_from, raw_to, raw_rrdid = parts[0], parts[1], parts[2]
+    empties = int(parts[3]) if len(parts) > 3 else 0
+    return date.fromisoformat(raw_from), date.fromisoformat(raw_to), int(raw_rrdid), empties
 
 
-def _format_cursor(span_from: date, span_to: date, rrd_id: int) -> str:
-    """Write the span and page pointer into one opaque string."""
-    return f"{span_from.isoformat()}{_SEP}{span_to.isoformat()}{_SEP}{rrd_id}"
+def _format_cursor(span_from: date, span_to: date, rrd_id: int, empties: int = 0) -> str:
+    """Write the span, page pointer and empty-streak into one opaque string."""
+    return f"{span_from.isoformat()}{_SEP}{span_to.isoformat()}{_SEP}{rrd_id}{_SEP}{empties}"
 
 
 def initial_span(*, earliest_held: date | None, today: date) -> tuple[date, date]:
@@ -143,10 +158,10 @@ async def advance_pnl(
 
     today = moscow_today()
     if cursor:
-        span_from, span_to, rrd_id = _parse_cursor(cursor)
+        span_from, span_to, rrd_id, empties = _parse_cursor(cursor)
     else:
         span_from, span_to = initial_span(earliest_held=earliest_held, today=today)
-        rrd_id = 0
+        rrd_id, empties = 0, 0
 
     total = max((span_to - span_from).days + 1, 1)
     if span_to < span_from:
@@ -179,7 +194,7 @@ async def advance_pnl(
         return LaneStep(
             done=None,
             total=total,
-            cursor=cursor or _format_cursor(span_from, span_to, rrd_id),
+            cursor=cursor or _format_cursor(span_from, span_to, rrd_id, empties),
             finished=False,
             message="Ждём окно Wildberries (1 запрос в 15 минут)…",
         )
@@ -196,13 +211,31 @@ async def advance_pnl(
         return LaneStep(
             done=None,
             total=total,
-            cursor=_format_cursor(span_from, span_to, rrd_id),
+            cursor=_format_cursor(span_from, span_to, rrd_id, empties),
             finished=False,
             message="Wildberries не отдал страницу — повторим через 15 минут.",
         )
 
     rows, next_cursor = outcome
+    if next_cursor is None and rows == 0:
+        # WB served NOTHING. That is the answer for an exhausted window and for
+        # a window it is briefly not serving, and the two are indistinguishable
+        # in one reply — so it takes PNL_EMPTY_STOP of them in a row, each a
+        # separate fifteen-minute window, before the span is believed complete.
+        empties += 1
+        if empties < PNL_EMPTY_STOP:
+            return LaneStep(
+                done=None,
+                total=total,
+                cursor=_format_cursor(span_from, span_to, rrd_id, empties),
+                finished=False,
+                message=(
+                    f"Wildberries вернул пусто ({empties} из {PNL_EMPTY_STOP}) — проверим ещё раз."
+                ),
+            )
+        return LaneStep(total, total, None, True, "История P&L собрана.")
     if next_cursor is None:
+        # A short but non-empty page: ordinary pagination, the window is done.
         return LaneStep(total, total, None, True, "История P&L собрана.", rows=rows)
 
     # Re-anchor the span on the seller's ACTUAL first settlement day, which the
@@ -220,7 +253,7 @@ async def advance_pnl(
     return LaneStep(
         done=min(covered, total),
         total=total,
-        cursor=_format_cursor(span_from, span_to, next_cursor),
+        cursor=_format_cursor(span_from, span_to, next_cursor, 0),
         finished=False,
         message=f"Собираем P&L: {min(covered, total)} из {total} дней.",
         rows=rows,

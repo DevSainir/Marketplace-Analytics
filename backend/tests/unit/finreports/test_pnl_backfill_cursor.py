@@ -52,9 +52,37 @@ def test_the_cursor_carries_the_span_so_the_denominator_cannot_move() -> None:
 
     restored = _parse_cursor(_format_cursor(span_from, span_to, rrd_id))
 
-    assert restored == (span_from, span_to, rrd_id)
+    assert restored[:3] == (span_from, span_to, rrd_id)
 
 
 def test_a_fresh_cursor_starts_at_page_zero() -> None:
     """``rrdid=0`` is WB's "from the beginning", and it must survive the trip."""
     assert _parse_cursor(_format_cursor(date(2024, 1, 1), date(2026, 1, 1), 0))[2] == 0
+
+
+def test_the_cursor_carries_the_empty_streak_and_survives_the_older_form() -> None:
+    """One empty answer must not be able to end a walk, so it has to be counted.
+
+    WB answers an exhausted window and a window it is briefly not serving with
+    the same `204 No Content`. On 2026-09-11 a tick mid-span believed the first
+    one and marked NEVA's P&L complete over a 715-day hole.
+
+    Lanes already walking carry a three-part cursor, so the parser has to accept
+    it — otherwise the fix turns every in-flight lane into a failing tick.
+    """
+    span_from, span_to = date(2021, 9, 12), date(2026, 8, 8)
+
+    assert _parse_cursor(_format_cursor(span_from, span_to, 42, 2)) == (
+        span_from,
+        span_to,
+        42,
+        2,
+    )
+    assert _parse_cursor(f"{span_from}|{span_to}|42") == (span_from, span_to, 42, 0)
+
+
+def test_a_walk_needs_several_empty_answers_before_it_believes_them() -> None:
+    """One 204 is WB being quiet; three in a row, fifteen minutes apart, is an end."""
+    from src.modules.finreports.tasks.backfill import PNL_EMPTY_STOP
+
+    assert PNL_EMPTY_STOP >= 3
