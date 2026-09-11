@@ -69,6 +69,11 @@ ADV_DAYS = 1100
 #: fullstats caps one request at 31 days.
 ADV_WINDOW_DAYS = 31
 
+#: Campaign ids per WB request — WB's own cap on the `ids` list, and therefore
+#: the size of one tick's work. The client batches internally at this number,
+#: so handing it exactly this many means exactly one gated request per tick.
+ADV_BATCH = 50
+
 #: Days the funnel lane examines per tick. Four calls at ~21 s is ~85 s of work
 #: — long enough to make progress, short enough that a tick never looks like a
 #: stuck worker and never blocks the queue for long.
@@ -236,6 +241,19 @@ async def advance_funnel(
     )
 
 
+def _parse_adv_cursor(cursor: str | None, *, default_end: date) -> tuple[date, int]:
+    """Read ``"<window end>|<batch index>"``, tolerating the older date-only form."""
+    if not cursor:
+        return default_end, 0
+    head, _, tail = cursor.partition("|")
+    return date.fromisoformat(head), int(tail) if tail else 0
+
+
+def _format_adv_cursor(window_end: date, batch: int) -> str:
+    """Write the window and batch the next tick resumes from."""
+    return f"{window_end.isoformat()}|{batch}"
+
+
 async def _campaign_coverage(session: AsyncSession) -> dict[int, date]:
     """Earliest stored advertising day per campaign."""
     from sqlalchemy import func
@@ -257,12 +275,22 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
     Coverage is judged per campaign by its earliest stored row, so a window
     every campaign already reaches is skipped without a request.
 
+    ONE campaign batch per tick, not one window — and the difference is a lane
+    that dies. ``fetch_full_stats`` splits its ids into requests of 50, each
+    paced at ~20 s by the shared gate, so a window for an account with several
+    hundred campaigns is eight or more gated calls inside a single task. NEVA has
+    ~360: measured live 2026-09-11, its advertising tick spent 160 s+ purely
+    waiting on the gate and was killed by the 300 s soft limit
+    (`SoftTimeLimitExceeded`), which ends the chain exactly as it ended the P&L
+    lane's. A tick must do ONE bounded unit, and for this surface the unit is a
+    batch, not a window.
+
     Args:
         tokens: The workspace's decrypted credentials.
-        cursor: ISO date of the next window's END; ``None`` starts at yesterday.
+        cursor: ``"<window end>|<batch index>"``; ``None`` starts at yesterday.
 
     Returns:
-        The step's outcome, one window per call.
+        The step's outcome — one WB request's worth of work.
     """
     if not tokens.advertising:
         return LaneStep(0, 0, None, True, "Нет токена «Продвижение» — реклама пропущена.")
@@ -270,7 +298,7 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
     end = moscow_today() - timedelta(days=1)
     floor = end - timedelta(days=ADV_DAYS - 1)
     total = -(-ADV_DAYS // ADV_WINDOW_DAYS)  # ceil
-    hi = date.fromisoformat(cursor) if cursor else end
+    hi, batch = _parse_adv_cursor(cursor, default_end=end)
     if hi < floor:
         return LaneStep(total, total, None, True, "Реклама собрана полностью.")
 
@@ -278,8 +306,8 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
     written = 0
 
     async with WBAdvertisingClient(settings, token=tokens.advertising) as client:
-        # Campaign discovery only on the first window: the list does not change
-        # while we walk backwards, and it is a request like any other.
+        # Campaign discovery only on the very first tick: the list does not
+        # change while we walk backwards, and it is a request like any other.
         if cursor is None:
             campaigns = await client.list_campaigns()
             try:
@@ -301,10 +329,11 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
         async with AsyncSessionLocal() as session:
             coverage = await _campaign_coverage(session)
         needed = sorted(c for c in target_ids if c not in coverage or coverage[c] > lo)
+        chunk = needed[batch * ADV_BATCH : (batch + 1) * ADV_BATCH]
 
-        if needed:
+        if chunk:
             try:
-                stats = await client.fetch_full_stats(campaign_ids=needed, date_from=lo, date_to=hi)
+                stats = await client.fetch_full_stats(campaign_ids=chunk, date_from=lo, date_to=hi)
             except IntegrationError as exc:
                 # NOT a stop signal: WB also answers 400 when every requested
                 # campaign had zero impressions in the window, and a deeper one
@@ -317,13 +346,19 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
                     written = await service.ingest_advertising(stats, window=(lo, hi))
                     await session.commit()
 
-    next_hi = lo - timedelta(days=1)
-    finished = next_hi < floor
+    # More batches left in this window? Stay on it. Otherwise step the window
+    # back and start its batches from the beginning.
+    more_batches = len(needed) > (batch + 1) * ADV_BATCH
+    if more_batches:
+        next_hi, next_batch = hi, batch + 1
+    else:
+        next_hi, next_batch = lo - timedelta(days=1), 0
+    finished = not more_batches and next_hi < floor
     done = min(total, ((end - lo).days // ADV_WINDOW_DAYS) + 1)
     return LaneStep(
         done=total if finished else done,
         total=total,
-        cursor=None if finished else next_hi.isoformat(),
+        cursor=None if finished else _format_adv_cursor(next_hi, next_batch),
         finished=finished,
         message=(
             "Реклама собрана полностью."

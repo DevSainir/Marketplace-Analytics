@@ -75,3 +75,51 @@ def test_the_watchdog_is_registered_on_the_beat_schedule() -> None:
     """A watchdog nothing runs is worse than none: it reads as covered."""
     entries = celery_app.conf.beat_schedule.values()
     assert any(entry["task"] == "workspaces.sweep_stalled_backfills" for entry in entries)
+
+
+def test_no_lane_can_spend_more_than_its_tick_on_rate_gates() -> None:
+    """The failure that killed two different lanes, as arithmetic.
+
+    A tick does one bounded unit and each WB call waits ~20 s at the shared
+    gate, so the ceiling is (calls per tick x gate wait) and it must clear the
+    soft time limit with room. The advertising lane broke this by sending one
+    WINDOW per tick: `fetch_full_stats` batches ids at 50, so an account with
+    ~360 campaigns spent eight gated calls — 160 s of pure waiting — and was
+    killed mid-window, ending the chain. It sends one BATCH per tick now.
+    """
+    from src.modules.monitoring.services.backfill import (
+        ADV_BATCH,
+        CALL_PAUSE_SECONDS,
+        FUNNEL_DAYS_PER_TICK,
+    )
+
+    # Advertising: exactly one WB request per tick, whatever the campaign count.
+    assert ADV_BATCH == 50, "one tick must equal one fullstats request"
+
+    # Funnel: a handful of days, each one call.
+    funnel_worst_case = FUNNEL_DAYS_PER_TICK * CALL_PAUSE_SECONDS
+    assert funnel_worst_case < _TICK_SOFT_LIMIT_SECONDS / 2, (
+        f"the funnel tick can spend {funnel_worst_case}s of a "
+        f"{_TICK_SOFT_LIMIT_SECONDS}s budget before doing any work"
+    )
+
+
+def test_the_advertising_cursor_survives_the_older_date_only_form() -> None:
+    """Lanes already running carry a bare date; they must not crash on resume.
+
+    The cursor gained a batch index while a real workspace was mid-walk. A
+    parser that required the new shape would turn every in-flight advertising
+    lane into a failing tick at exactly the moment of deploy.
+    """
+    from datetime import date
+
+    from src.modules.monitoring.services.backfill import _parse_adv_cursor
+
+    assert _parse_adv_cursor("2026-06-10", default_end=date(2026, 9, 10)) == (
+        date(2026, 6, 10),
+        0,
+    )
+    assert _parse_adv_cursor("2026-06-10|3", default_end=date(2026, 9, 10)) == (
+        date(2026, 6, 10),
+        3,
+    )
