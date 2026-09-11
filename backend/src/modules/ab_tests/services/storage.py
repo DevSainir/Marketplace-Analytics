@@ -56,6 +56,8 @@ class MediaStore(Protocol):
         self, *, content: bytes, content_type: str, test_id: uuid.UUID
     ) -> StoredImage: ...
 
+    async def put(self, *, relative_path: str, content: bytes, content_type: str) -> None: ...
+
     async def read(self, relative_path: str) -> bytes: ...
 
     async def delete(self, relative_path: str) -> None: ...
@@ -104,6 +106,22 @@ class LocalMediaStore:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
         return StoredImage(relative_path=relative, sha256=digest, size_bytes=len(content))
+
+    async def put(self, *, relative_path: str, content: bytes, content_type: str) -> None:
+        """Write bytes at a key the CALLER chose.
+
+        The counterpart to :meth:`save`, which derives the key from the content.
+        A derivative — a thumbnail — has to be filed under a name derived from
+        its original's, or nothing can find it again without a second column.
+
+        Args:
+            relative_path: Where to write, relative to the root.
+            content: The bytes.
+            content_type: Ignored here; a file has no metadata.
+        """
+        target = self._root / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
 
     async def read(self, relative_path: str) -> bytes:
         """Return the stored bytes of one image.
@@ -209,6 +227,34 @@ class S3MediaStore:
             logger.warning("ab_tests: media upload failed for %s: %s", relative, exc)
             raise IntegrationError("Не удалось сохранить изображение в хранилище.") from exc
         return StoredImage(relative_path=relative, sha256=digest, size_bytes=len(content))
+
+    async def put(self, *, relative_path: str, content: bytes, content_type: str) -> None:
+        """Write bytes at a key the CALLER chose.
+
+        The counterpart to :meth:`save`, which derives the key from the content.
+        A derivative — a thumbnail — has to be filed under a name derived from
+        its original's, or nothing can find it again without a second column.
+
+        Args:
+            relative_path: Key to write, relative to the prefix.
+            content: The bytes.
+            content_type: Stored on the object, so the image route serves it
+                back without guessing.
+
+        Raises:
+            IntegrationError: If the bucket refuses the write.
+        """
+        try:
+            async with self._client() as client:  # type: ignore[attr-defined]
+                await client.put_object(
+                    Bucket=self._bucket,
+                    Key=self._object_key(relative_path),
+                    Body=content,
+                    ContentType=content_type,
+                )
+        except Exception as exc:
+            logger.warning("ab_tests: media put failed for %s: %s", relative_path, exc)
+            raise IntegrationError("Не удалось сохранить изображение в хранилище.") from exc
 
     async def read(self, relative_path: str) -> bytes:
         """Return the stored bytes of one image.

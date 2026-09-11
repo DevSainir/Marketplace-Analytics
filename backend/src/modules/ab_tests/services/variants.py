@@ -17,10 +17,18 @@ import uuid
 from datetime import UTC, datetime
 
 from src.core.exceptions import ConflictError, NotFoundError
+from src.core.logging import get_logger
 from src.modules.ab_tests.models import MAX_VARIANTS_PER_TEST, AbTest, AbTestVariant
 from src.modules.ab_tests.repos import AbTestRepository, VariantRepository, WindowRepository
 from src.modules.ab_tests.services.photos import validate_image
 from src.modules.ab_tests.services.storage import MediaStore
+from src.modules.ab_tests.services.thumbnails import (
+    THUMBNAIL_CONTENT_TYPE,
+    derive,
+    thumbnail_key,
+)
+
+logger = get_logger(__name__)
 
 
 class VariantCatalogService:
@@ -48,14 +56,25 @@ class VariantCatalogService:
         self._media = media_store
 
     async def read_variant_image(
-        self, *, workspace_id: uuid.UUID, test_id: uuid.UUID, variant_id: uuid.UUID
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        test_id: uuid.UUID,
+        variant_id: uuid.UUID,
+        thumbnail: bool = False,
     ) -> tuple[bytes, str]:
         """Return one variant's stored image and its MIME type.
+
+        ``thumbnail`` serves a small JPEG copy instead — see
+        :mod:`.thumbnails` for why every screen wants one. It is derived on the
+        first request and kept, so the cost is paid once per image rather than
+        once per page.
 
         Args:
             workspace_id: Tenancy guard.
             test_id: Owning test.
             variant_id: Variant identifier.
+            thumbnail: Serve the small copy rather than the original.
 
         Returns:
             ``(bytes, content_type)``.
@@ -68,9 +87,72 @@ class VariantCatalogService:
         if variant is None:
             raise NotFoundError("Вариант не найден.")
         try:
+            if thumbnail:
+                return await self._thumbnail(variant.image_path), THUMBNAIL_CONTENT_TYPE
             return await self._media.read(variant.image_path), variant.content_type
         except FileNotFoundError as exc:  # pragma: no cover - disk-level failure
             raise NotFoundError("Файл изображения отсутствует в хранилище.") from exc
+
+    async def _warm_thumbnail(self, image_path: str, content: bytes) -> None:
+        """Derive and cache the small copy of an image just uploaded.
+
+        Never raises: a thumbnail that could not be made is a slower page, and
+        failing the upload over it would lose the photo instead.
+
+        Args:
+            image_path: Where the original was just stored.
+            content: The bytes that were stored, already in hand.
+        """
+        try:
+            small = await derive(content)
+            await self._media.put(
+                relative_path=thumbnail_key(image_path),
+                content=small,
+                content_type=THUMBNAIL_CONTENT_TYPE,
+            )
+        except Exception as exc:
+            logger.warning("ab_tests: could not pre-size %s: %s", image_path, exc)
+
+    async def _thumbnail(self, image_path: str) -> bytes:
+        """Return the small copy of one original, making it if it is not there.
+
+        A failure to derive or to cache is not a failure to answer: the caller
+        gets the original, which is the slow answer rather than no answer. What
+        must not happen is a photo missing from the page because a re-encode
+        went wrong — the picture is the row.
+
+        Args:
+            image_path: The original's path, as stored on the variant row.
+
+        Returns:
+            JPEG bytes of the derivative, or the original's bytes on failure.
+        """
+        key = thumbnail_key(image_path)
+        try:
+            return await self._media.read(key)
+        except FileNotFoundError:
+            # The usual path the first time an image is asked for.
+            pass
+        except Exception as exc:
+            # An unreachable bucket fails the read below too, and that one is
+            # allowed to propagate — this branch only reports what it saw.
+            logger.info("ab_tests: thumbnail read failed for %s: %s", key, exc)
+
+        original = await self._media.read(image_path)
+        try:
+            small = await derive(original)
+        except Exception as exc:
+            logger.warning("ab_tests: could not resize %s, serving it whole: %s", image_path, exc)
+            return original
+
+        try:
+            await self._media.put(
+                relative_path=key, content=small, content_type=THUMBNAIL_CONTENT_TYPE
+            )
+        except Exception as exc:
+            # Serving it uncached is slow, not wrong; the next request retries.
+            logger.warning("ab_tests: could not cache the thumbnail of %s: %s", image_path, exc)
+        return small
 
     async def add_variant(
         self,
@@ -118,6 +200,13 @@ class VariantCatalogService:
             raise ConflictError("Главное фото уже загружено. Удалите его, чтобы загрузить другое.")
 
         stored = await self._media.save(content=content, content_type=content_type, test_id=test.id)
+        # Derive the small copy NOW, while the seller is already waiting on an
+        # upload, rather than on whoever opens the page first. Deriving costs
+        # about as long as the upload itself, and a page that pays it for ten
+        # photos at once is the slow first load this whole thing exists to
+        # remove. Best-effort: the read path makes one if this did not.
+        await self._warm_thumbnail(stored.relative_path, content)
+
         add = self._variants.add_original if as_main else self._variants.add
         return await add(
             test_id=test.id,

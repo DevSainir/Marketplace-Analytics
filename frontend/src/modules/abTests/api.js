@@ -148,7 +148,13 @@ export async function setVariantExcluded(testId, variantId, excluded) {
 }
 
 /**
- * GET /ab-tests/{id}/variants/{variantId}/image — the stored original.
+ * GET /ab-tests/{id}/variants/{variantId}/image — a variant's picture.
+ *
+ * Always `size=thumb`, and that is the whole difference between a page that
+ * paints in a second and one that paints in fifteen. The originals are phone
+ * photos — fourteen of them measured 78.8 MB on production — and the biggest
+ * any of them is drawn at is 88 CSS pixels. The full size exists for WB, which
+ * receives it from the backend and never through here.
  *
  * Fetched through the API client rather than pointed at from an `<img src>`:
  * the route is authenticated, and the access token lives in memory, so a plain
@@ -162,6 +168,7 @@ export async function setVariantExcluded(testId, variantId, excluded) {
  */
 export async function fetchVariantImage(testId, variantId) {
   const { data } = await apiClient.get(`/ab-tests/${testId}/variants/${variantId}/image`, {
+    params: { size: 'thumb' },
     responseType: 'blob',
   })
   return data

@@ -96,6 +96,23 @@ describe('A/Б-tests photo object URLs', () => {
     expect(store.imageUrls.v1).toMatch(/^blob:/)
   })
 
+  it('does not retry a photo the server says is not there', async () => {
+    // A 404 is an answer, not a hiccup. Retrying it doubles the requests of a
+    // rotation whose images are genuinely gone and changes nothing.
+    fetchTest.mockResolvedValue(detail(1))
+    fetchVariantImage.mockRejectedValue(
+      Object.assign(new Error('404'), { response: { status: 404 } }),
+    )
+    const store = useAbTestsStore()
+    await store.loadTest(TEST_ID)
+    fetchVariantImage.mockClear()
+
+    await store.loadImages(TEST_ID)
+
+    expect(fetchVariantImage).toHaveBeenCalledTimes(1)
+    expect(store.imageUrls.v0).toBeUndefined()
+  })
+
   it('gives a photo the object storage dropped a second chance', async () => {
     // The bucket behind these returns an intermittent 502: the same eleven
     // objects failed on all of them once and succeeded on all of them a minute

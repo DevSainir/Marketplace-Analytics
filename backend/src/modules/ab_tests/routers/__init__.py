@@ -18,6 +18,7 @@ the results of a rotation someone else started are still theirs to look at.
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import Response
@@ -355,22 +356,34 @@ async def get_variant_image(
     variant_id: uuid.UUID,
     photos: VariantServiceDep,
     workspace_id: CurrentWorkspaceId,
+    size: Literal["full", "thumb"] = Query(
+        default="full", description="thumb — уменьшенная копия для списков и таймлайна"
+    ),
 ) -> Response:
-    """Stream a variant's stored original.
+    """Stream a variant's stored image, full size or as a thumbnail.
 
     Served from our own store rather than WB's CDN because a variant that has
     not been installed yet has no WB URL at all, and one that has been replaced
     no longer has one.
+
+    ``size=thumb`` is what every screen in the SPA asks for, and it is not a
+    nicety: the originals are phone photos of eight or nine megabytes, and the
+    largest any of them is drawn at is 88 CSS pixels. The full size stays the
+    default because the full size is what WB is sent.
     """
     content, content_type = await photos.read_variant_image(
-        workspace_id=workspace_id, test_id=test_id, variant_id=variant_id
+        workspace_id=workspace_id,
+        test_id=test_id,
+        variant_id=variant_id,
+        thumbnail=size == "thumb",
     )
     # Immutable: the path contains the content digest, so a cached copy can
-    # never be stale for the same variant id.
+    # never be stale for the same variant id — and a variant's image is never
+    # replaced in place, only deleted with the variant.
     return Response(
         content=content,
         media_type=content_type,
-        headers={"Cache-Control": "private, max-age=86400, immutable"},
+        headers={"Cache-Control": "private, max-age=604800, immutable"},
     )
 
 

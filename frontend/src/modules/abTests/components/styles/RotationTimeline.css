@@ -40,7 +40,11 @@
   white-space: nowrap;
 }
 
-/* Stacked rather than «10.09, 05:59 МСК» on one line: the ends of the track are
+/* Directly above the track, under the row of markers rather than at the top of
+   the block: they name where the LINE starts and ends, and floated up above the
+   pictures they read as a heading for the whole panel.
+
+   Stacked rather than «10.09, 05:59 МСК» on one line: the ends of the track are
    where the block is narrowest, and one such stamp is the width of two
    thumbnails. */
 .ab-timeline__end {

@@ -60,7 +60,12 @@ const IMAGE_RETRY_MS = 400
 async function fetchImageTwice(testId, variantId) {
   try {
     return await fetchVariantImage(testId, variantId)
-  } catch {
+  } catch (err) {
+    // A 4xx is an answer: «этого файла нет» does not become «есть» half a
+    // second later, and a rotation whose images are genuinely gone would
+    // otherwise spend twenty requests proving it.
+    const status = err.response?.status ?? 0
+    if (status >= 400 && status < 500) return null
     await new Promise((resolve) => setTimeout(resolve, IMAGE_RETRY_MS))
   }
   try {

@@ -156,6 +156,39 @@ async def test_a_full_rotation_refuses_the_eleventh_photo_with_409(
     assert response.status_code == 409
 
 
+async def test_the_image_route_serves_a_thumbnail_when_asked(
+    client: httpx.AsyncClient, headers: dict[str, str], photos: _StubVariants
+) -> None:
+    """`size=thumb` is what every screen in the SPA asks for.
+
+    The originals are phone photos — fourteen of them measured 78.8 MB on
+    production — and the largest any of them is drawn at is 88 CSS pixels. A
+    default that quietly served the full size would put those megabytes back on
+    every page load, so the flag reaching the service is worth pinning.
+    """
+    full = await client.get(f"/api/ab-tests/{TEST_ID}/variants/{VARIANT_ID}/image", headers=headers)
+    thumb = await client.get(
+        f"/api/ab-tests/{TEST_ID}/variants/{VARIANT_ID}/image?size=thumb", headers=headers
+    )
+
+    assert (full.status_code, thumb.status_code) == (200, 200)
+    assert [call[1]["thumbnail"] for call in photos.calls if call[0] == "read_variant_image"] == [
+        False,
+        True,
+    ]
+
+
+async def test_an_unknown_size_is_refused_rather_than_guessed(
+    client: httpx.AsyncClient, headers: dict[str, str]
+) -> None:
+    """A typo in the query must not silently serve nine megabytes."""
+    response = await client.get(
+        f"/api/ab-tests/{TEST_ID}/variants/{VARIANT_ID}/image?size=medium", headers=headers
+    )
+
+    assert response.status_code == 422
+
+
 async def test_the_live_photo_cannot_be_deleted(
     client: httpx.AsyncClient, headers: dict[str, str], photos: _StubVariants
 ) -> None:

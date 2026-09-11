@@ -49,6 +49,13 @@ dependencies = [
     # Fernet symmetric encryption for per-workspace WB tokens stored in Postgres.
     "cryptography>=42",
     "python-multipart>=0.0.9",
+    # Thumbnails for the A/Б photos. Measured on production: fourteen variant
+    # images are 78.8 MB of PNG, and every surface that shows one draws it at
+    # between 24 and 88 CSS pixels. Without a resize the detail page downloads
+    # tens of megabytes to paint thumbnails, which is what «грузится 10-15
+    # секунд» was. Pillow rather than a service: the derivative is made once per
+    # image, cached in the same object storage, and never regenerated.
+    "pillow>=10.4",
     "xlsxwriter>=3.2",
     # --- Observability (register P2.1/P2.2) ------------------------------
     # structlog is the logging API; stdlib `logging` stays the transport, so

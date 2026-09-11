@@ -165,6 +165,7 @@ onUnmounted(close)
 
     <div v-if="line.segments.length" class="ab-timeline__scroll">
       <div class="ab-timeline" :style="{ width: lineWidth }">
+        <TimelineMarkers :segments="above" :image-urls="imageUrls" :large="large" above />
         <div class="ab-timeline__ends">
           <span class="ab-timeline__end" data-testid="timeline-start">
             <span>{{ formatStamp(line.startMs).date }}</span>
@@ -180,8 +181,6 @@ onUnmounted(close)
             </template>
           </span>
         </div>
-
-        <TimelineMarkers :segments="above" :image-urls="imageUrls" :large="large" above />
 
         <div class="ab-timeline__track">
           <button
