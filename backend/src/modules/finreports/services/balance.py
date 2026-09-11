@@ -47,8 +47,6 @@ def build_balance(
     costs: dict[int, Decimal],
     identity: dict[int, tuple[str, str, str]],
     vendor_codes: dict[int, str],
-    pinned_skus: set[int],
-    pinned_warehouses: set[str],
     uncounted_warehouses: set[str],
     uncounted_skus: set[int],
     currency: str,
@@ -65,8 +63,6 @@ def build_balance(
         identity: ``{nm_id: (sa_name, subject, brand)}`` from the settlement rows.
         vendor_codes: ``{nm_id: vendor_code}`` — the name fallback for a SKU that
             holds stock but has never settled a row.
-        pinned_skus: SKUs the seller pinned to the top of the grid.
-        pinned_warehouses: Warehouses pinned to the left of the grid.
         uncounted_warehouses: Warehouses marked «Не считать» — priced like any
             other, but never ranked on and never totalled.
         uncounted_skus: SKUs marked «Не считать» — the same on the row axis.
@@ -90,8 +86,6 @@ def build_balance(
         available_to=span[1],
         currency=currency,
         rows=rows,
-        pinned_skus=sorted(pinned_skus),
-        pinned_warehouses=sorted(pinned_warehouses),
         uncounted_warehouses=sorted(uncounted_warehouses),
         uncounted_skus=sorted(uncounted_skus),
         uncosted_count=len(uncosted),
@@ -243,10 +237,6 @@ class BalanceService:
             ),
             identity=await self._pnl.sku_identity(workspace_id=workspace_id, nm_ids=nm_ids),
             vendor_codes=vendor_codes,
-            pinned_skus=await self._sku_marks(workspace_id, BalancePinKind.SKU),
-            pinned_warehouses=await self._pins.list_values(
-                workspace_id=workspace_id, kind=BalancePinKind.WAREHOUSE
-            ),
             uncounted_warehouses=await self._pins.list_values(
                 workspace_id=workspace_id, kind=BalancePinKind.WAREHOUSE_UNCOUNTED
             ),
@@ -258,7 +248,7 @@ class BalanceService:
     async def set_pin(
         self, *, workspace_id: uuid.UUID, kind: BalancePinKind, value: str, pinned: bool
     ) -> None:
-        """Set or clear one mark on the grid. Idempotent both ways."""
+        """Set or clear one «Не считать» mark on the grid. Idempotent both ways."""
         await self._pins.set_pinned(
             workspace_id=workspace_id, kind=kind, value=value, pinned=pinned
         )

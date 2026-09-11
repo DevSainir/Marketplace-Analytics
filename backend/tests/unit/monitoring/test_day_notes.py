@@ -84,7 +84,6 @@ def _service(
         matrix_override_repo=unused,
         price_repo=unused,
         sale_repo=unused,
-        warehouse_mark_repo=unused,
         pinned_sku_repo=unused,
         day_comment_repo=comments or _FakeCommentRepo(),
         day_action_repo=actions or _FakeActionRepo(),

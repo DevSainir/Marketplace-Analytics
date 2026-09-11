@@ -334,8 +334,6 @@ describe('balance marks', () => {
   const PAYLOAD = {
     stat_date: '2026-08-03',
     rows: [],
-    pinned_skus: [],
-    pinned_warehouses: [],
     uncounted_warehouses: [],
     uncounted_skus: [],
   }
@@ -355,17 +353,17 @@ describe('balance marks', () => {
   })
 
   it('applies a warehouse mark as its name', async () => {
-    await store.toggleBalancePin('warehouse', 'Тула', true)
+    await store.toggleBalancePin('warehouse_uncounted', 'Тула', true)
 
-    expect(store.balance.pinned_warehouses).toEqual(['Тула'])
+    expect(store.balance.uncounted_warehouses).toEqual(['Тула'])
   })
 
   it('rolls a failed mark back and says so', async () => {
     setBalancePin.mockRejectedValueOnce({ response: { data: { detail: 'Не сохранено' } } })
 
-    await store.toggleBalancePin('sku', '953770957', true)
+    await store.toggleBalancePin('sku_uncounted', '953770957', true)
 
-    expect(store.balance.pinned_skus).toEqual([])
+    expect(store.balance.uncounted_skus).toEqual([])
     expect(store.balanceError).toBe('Не сохранено')
   })
 })

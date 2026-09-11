@@ -2,11 +2,10 @@
  * The balance grid's view logic: order, filtering, and the two totals panels.
  *
  * Everything the backend does NOT decide lives here, and that is deliberate: a
- * pin, a «Не считать» and a search all change the order and every total the
- * moment they are clicked, with no round trip (the same instant feel as
- * monitoring's stock table). So the column order, the row order and all three
- * panels are computed from the priced cells the response carries plus the mark
- * sets, which the store keeps optimistically ahead of the server.
+ * «Не считать» and a search both change the order and every total the moment
+ * they are clicked, with no round trip. So the column order, the row order and
+ * all three panels are computed from the priced cells the response carries plus
+ * the mark sets, which the store keeps optimistically ahead of the server.
  *
  * The arithmetic is only ADDITION over backend-priced cells — the balance math
  * itself (units x cost price) stays on the backend, where the cost prices are.
@@ -61,10 +60,9 @@ export function shortWarehouseName(name) {
  *
  * @param {object} r The backend row.
  * @param {Set<string>} uncounted Warehouses marked «Не считать».
- * @param {Set<number>} pinnedSkus SKUs pinned to the top.
  * @param {Set<number>} uncountedSkus SKUs marked «Не считать».
  */
-export function toRow(r, uncounted, pinnedSkus, uncountedSkus) {
+export function toRow(r, uncounted, uncountedSkus) {
   const byWarehouse = {}
   let totalQuantity = 0
   let totalInWay = 0
@@ -87,7 +85,6 @@ export function toRow(r, uncounted, pinnedSkus, uncountedSkus) {
     subject: r.subject_name || '',
     brand: r.brand_name || '',
     costPrice: num(r.cost_price),
-    isPinned: pinnedSkus.has(r.nm_id),
     isUncounted: uncountedSkus.has(r.nm_id),
     byWarehouse,
     totalQuantity,
@@ -151,14 +148,12 @@ export function useBalanceRows(balance) {
   const brandFilter = ref('')
 
   const rawRows = computed(() => balance.value?.rows ?? [])
-  const pinnedSkus = computed(() => new Set(balance.value?.pinned_skus ?? []))
-  const pinnedWarehouses = computed(() => new Set(balance.value?.pinned_warehouses ?? []))
   const uncounted = computed(() => new Set(balance.value?.uncounted_warehouses ?? []))
   const uncountedSkus = computed(() => new Set(balance.value?.uncounted_skus ?? []))
 
   /**
-   * The columns: every warehouse holding stock today, pinned ones first,
-   * «Не считать» ones last, the rest by how much stock they hold.
+   * The columns: every warehouse holding stock today, «Не считать» ones last,
+   * the rest by how much stock they hold.
    */
   const columns = computed(() => {
     const quantities = new Map()
@@ -175,16 +170,12 @@ export function useBalanceRows(balance) {
     return [...quantities]
       .map(([name, stock]) => ({
         name,
-        isPinned: pinnedWarehouses.value.has(name),
         isUncounted: uncounted.value.has(name),
         stock,
       }))
       .sort(
         (a, b) =>
-          a.isUncounted - b.isUncounted ||
-          b.isPinned - a.isPinned ||
-          b.stock - a.stock ||
-          a.name.localeCompare(b.name, 'ru'),
+          a.isUncounted - b.isUncounted || b.stock - a.stock || a.name.localeCompare(b.name, 'ru'),
       )
   })
 
@@ -214,32 +205,27 @@ export function useBalanceRows(balance) {
         ),
       )
     }
-    // Pinned rows lead, «не считается» rows trail, and the rest keep the
-    // backend's «largest balance first» — the same three groups the columns
-    // fall into, one axis over.
+    // «Не считается» rows trail, and the rest keep the backend's «largest
+    // balance first» — the same two groups the columns fall into, one axis over.
     return list
-      .map((r) => toRow(r, uncounted.value, pinnedSkus.value, uncountedSkus.value))
-      .sort((a, b) => a.isUncounted - b.isUncounted || b.isPinned - a.isPinned)
+      .map((r) => toRow(r, uncounted.value, uncountedSkus.value))
+      .sort((a, b) => a.isUncounted - b.isUncounted)
   })
 
   /** The bottom «Итого по складу» panel and the bottom-right corner. */
   const totals = computed(() => subtotals(tableRows.value, columns.value))
 
-  // The columns fall into three contiguous groups — pinned, ordinary, «не
-  // считается» — so the header can title each one and a rule can sit on the two
-  // seams. The rows have one seam of the same kind, after the pinned ones.
-  const pinnedCount = computed(() => columns.value.filter((c) => c.isPinned).length)
+  // The columns fall into two contiguous groups — ordinary and «не считается» —
+  // so the header can title each one and a rule can sit on the seam. The rows
+  // have one seam of the same kind.
   const uncountedCount = computed(() => columns.value.filter((c) => c.isUncounted).length)
-  const pinnedRowCount = computed(() => tableRows.value.filter((r) => r.isPinned).length)
   const uncountedRowCount = computed(() => tableRows.value.filter((r) => r.isUncounted).length)
   const isGroupBoundary = (index) =>
-    index > 0 &&
-    ((pinnedCount.value > 0 && index === pinnedCount.value) ||
-      (uncountedCount.value > 0 && index === columns.value.length - uncountedCount.value))
+    index > 0 && uncountedCount.value > 0 && index === columns.value.length - uncountedCount.value
   const isRowBoundary = (index) =>
     index > 0 &&
-    ((pinnedRowCount.value > 0 && index === pinnedRowCount.value) ||
-      (uncountedRowCount.value > 0 && index === tableRows.value.length - uncountedRowCount.value))
+    uncountedRowCount.value > 0 &&
+    index === tableRows.value.length - uncountedRowCount.value
 
   return {
     query,
@@ -251,7 +237,6 @@ export function useBalanceRows(balance) {
     tableRows,
     totals,
     isFiltering,
-    pinnedCount,
     uncountedCount,
     isGroupBoundary,
     isRowBoundary,

@@ -43,8 +43,6 @@ from src.modules.monitoring.schemas import (
     SkuLookupResponse,
     SkuSummaryListResponse,
     StockDayResponse,
-    WarehouseMarksResponse,
-    WarehouseMarkUpdateRequest,
 )
 from src.modules.organizations.contract import WritingAccess, require_monitoring
 
@@ -299,29 +297,6 @@ async def get_stock_day(
 ) -> StockDayResponse:
     """Return one snapshot day's stock breakdown (two-day comparison view)."""
     return await service.get_stock_day(nm_id=nm_id, on_date=on_date)
-
-
-@router.put(
-    "/skus/{nm_id}/warehouse-marks",
-    response_model=WarehouseMarksResponse,
-    status_code=status.HTTP_200_OK,
-    responses={
-        200: {"description": "Mark updated; the SKU's marked warehouses are returned."},
-        401: {"description": "Unauthorized access token."},
-        403: {"description": "Подписка истекла — доступ только для чтения."},
-        422: {"description": "Invalid payload."},
-    },
-)
-async def set_warehouse_mark(
-    _writer: WritingAccess,
-    nm_id: WorkspaceSku,
-    body: WarehouseMarkUpdateRequest,
-    service: AnalyticsServiceDep,
-) -> WarehouseMarksResponse:
-    """Mark («Отгрузить») or unmark («Разгрузить») a warehouse for this SKU only."""
-    return await service.set_warehouse_mark(
-        nm_id=nm_id, warehouse_name=body.warehouse_name, marked=body.marked
-    )
 
 
 @router.put(

@@ -27,7 +27,6 @@ import {
   setDayComment,
   setSkuPin,
   setSkuPinColor,
-  setWarehouseMark,
 } from '@/modules/monitoring/api'
 import { buildMetricsMatrix, patchMetricsMatrix } from '@/modules/monitoring/metricsMatrix'
 
@@ -331,36 +330,6 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     return Promise.all([fetchStockCompareSide('left'), fetchStockCompareSide('right')])
   }
 
-  // --- warehouse marks -----------------------------------------------------
-  // Warehouses «на отгрузку» for the CURRENT SKU: persisted on the backend
-  // (monitoring.warehouse_mark), scoped per nm_id — marking «Тула» on one SKU
-  // says nothing about «Тула» on another. Seeded from the detail response
-  // (`stock.marked_warehouses`); a toggle applies optimistically and then
-  // reconciles with the server's answer (or rolls back on failure).
-  const markedWarehouses = ref([])
-
-  /** Mark an unmarked warehouse («Отгрузить») or unmark a marked one («Разгрузить»). */
-  async function toggleWarehouseMark(name) {
-    const nmId = currentProduct.value?.nm_id
-    if (!nmId) return
-    const previous = markedWarehouses.value
-    const marked = !previous.includes(name)
-    markedWarehouses.value = marked
-      ? [...previous, name]
-      : previous.filter((warehouse) => warehouse !== name)
-    try {
-      const result = await setWarehouseMark(nmId, name, marked)
-      // Reconcile only while the same SKU is displayed (guards the race with
-      // a SKU switch while the request was in flight).
-      if (currentProduct.value?.nm_id === nmId) {
-        markedWarehouses.value = result.marked_warehouses
-      }
-    } catch (err) {
-      if (currentProduct.value?.nm_id === nmId) markedWarehouses.value = previous
-      actionError.value = extractErrorMessage(err)
-    }
-  }
-
   // --- day notes («Комментарий» + its header) --------------------------------
   // Per-day notes on the CURRENT SKU: persisted on the backend
   // (monitoring.sku_day_comment), global per (nm_id, day) — shared by every
@@ -604,7 +573,6 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   /** Load a detail response: seed the product, working copy, and display view. */
   function loadMatrix(detail) {
     currentProduct.value = detail
-    markedWarehouses.value = detail.stock?.marked_warehouses ?? []
     fetchStockCompare()
     workingBase.value = detail.matrix_base
     currentMatrix = detail.matrix
@@ -882,7 +850,6 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     notFound.value = null
     currentProduct.value = null
     lookupMatches.value = []
-    markedWarehouses.value = []
     stockCompare.value = {
       left: { date: isoDaysAgo(1), loading: false, stock: null },
       right: { date: isoDaysAgo(0), loading: false, stock: null },
@@ -917,8 +884,6 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     toggleSkuPin,
     reorderPins,
     setPinColor,
-    markedWarehouses,
-    toggleWarehouseMark,
     commentSavingDays,
     saveDayComment,
     actionSavingDays,

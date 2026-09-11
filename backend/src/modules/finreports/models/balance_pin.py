@@ -1,21 +1,21 @@
 """Marks on the «Баланс по товарным остаткам» grid — a seller editorial choice.
 
-The balance table is a SKU x warehouse grid wide enough that the rows and
-columns a seller actually watches scroll out of sight. Pinning («Закрепить»)
-floats them to the front: pinned SKUs sort above every unpinned one, pinned
-warehouses ahead of every unpinned column. The third mark is the opposite —
-«Не считать» sends a warehouse to the far right and out of every total.
-
-Deliberately NOT monitoring's ``warehouse_mark``, which is the «Отгрузить» flag
-of ONE SKU's stock breakdown — a mark there says «I ship *this* article to Тула»
-and would say nothing about the column of a grid that spans the whole catalogue.
-Here a warehouse pin is grid-wide, so the two cannot share a table without one
-silently moving the other's rows.
+One mark, on either axis: «Не считать» sends a warehouse column or a SKU row to
+the far end of the grid and out of every total, while leaving its figures on
+screen — for stock that is not the seller's to count, and which they still want
+to see.
 
 Rows and columns share this one table because they are the same gesture on the
-same grid: the presence of a row *is* the pin, keyed
-``(workspace_id, kind, value)``, and unpinning deletes it — idempotent both ways.
-A pin never touches a figure; it only decides what is on screen first.
+same grid: the presence of a row *is* the mark, keyed
+``(workspace_id, kind, value)``, and clearing it deletes the row — idempotent
+both ways. A mark never touches a figure; it only decides what the totals are
+drawn from.
+
+The table used to carry two more kinds, ``sku`` and ``warehouse``, for a
+«Закрепить» that floated a row or column to the front. That feature was removed
+in 0.35; migration ``a3f81c2e57d4`` deleted their rows. ``kind`` is a plain text
+column rather than a PG enum, which is what made that a ``DELETE`` and not a
+type rewrite — keep it that way.
 """
 
 from __future__ import annotations
@@ -35,10 +35,6 @@ _SCHEMA: str = "finreports"
 class BalancePinKind(enum.StrEnum):
     """What a mark is attached to, and what it does to the grid."""
 
-    #: A SKU row pinned to the top, ``value`` being its ``nm_id`` as text.
-    SKU = "sku"
-    #: A warehouse column pinned to the left, ``value`` being the WB name.
-    WAREHOUSE = "warehouse"
     #: A warehouse marked «Не считать»: its stock stays visible but is left out
     #: of every total, and the column sorts to the far right. For warehouses
     #: whose stock is not the seller's to count — goods already written off,
@@ -51,16 +47,16 @@ class BalancePinKind(enum.StrEnum):
 
 
 class BalancePin(Base):
-    """One pinned row or column of the balance grid, per workspace.
+    """One marked row or column of the balance grid, per workspace.
 
     Attributes:
         workspace_id: Owning workspace (tenancy; part of the natural key, so the
-            pin is shared across every user of that workspace and only theirs).
-        kind: Whether the pin is on a SKU row or a warehouse column.
-        value: The pinned ``nm_id`` (as text) or warehouse name. Stored as text
+            mark is shared across every user of that workspace and only theirs).
+        kind: Whether the mark is on a SKU row or a warehouse column.
+        value: The marked ``nm_id`` (as text) or warehouse name. Stored as text
             for both kinds so one table serves both; the ``kind`` says how to
             read it, and no arithmetic is ever done on it.
-        created_at: When it was pinned — a light audit trail.
+        created_at: When it was marked — a light audit trail.
     """
 
     __tablename__ = "balance_pin"

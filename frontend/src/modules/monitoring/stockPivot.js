@@ -7,28 +7,23 @@
  */
 
 /**
- * Warehouses ordered by total remaining stock, fullest first (leftmost) —
- * except marked ones, which always come before every unmarked one and are
- * sorted by stock only among themselves.
+ * Warehouses ordered by total remaining stock, fullest first (leftmost).
  *
  * @param {Array<{warehouse_name: string, quantity: number}>} cells
- * @param {Set<string>} markedSet names of warehouses marked «на отгрузку»
- * @returns {Array<{name: string, total: number, marked: boolean}>}
+ * @returns {Array<{name: string, total: number}>}
  */
-export function pivotWarehouses(cells, markedSet) {
+export function pivotWarehouses(cells) {
   const totals = new Map()
   for (const cell of cells) {
     totals.set(cell.warehouse_name, (totals.get(cell.warehouse_name) ?? 0) + cell.quantity)
   }
   return (
     [...totals]
-      .map(([name, total]) => ({ name, total, marked: markedSet.has(name) }))
+      .map(([name, total]) => ({ name, total }))
       // WB reports every seller warehouse, stubs included, so an empty one is a
-      // column of zeros. A MARKED one stays: «we ship there and it is empty».
-      .filter((w) => w.total > 0 || w.marked)
-      .sort(
-        (a, b) => b.marked - a.marked || b.total - a.total || a.name.localeCompare(b.name, 'ru'),
-      )
+      // column of zeros — and a column of zeros is not worth the screen space.
+      .filter((w) => w.total > 0)
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'ru'))
   )
 }
 

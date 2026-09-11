@@ -721,6 +721,36 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/workspaces/{workspace_id}/backfill': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Backfill Status
+     * @description Report how far this workspace's history backfill has got, per lane.
+     *
+     *     Any MEMBER may read it, not just an owner: it is rendered in the profile as
+     *     the answer to «почему тут пусто», and a manager who cannot see it is left
+     *     with a blank product page and no explanation. It exposes only counters and
+     *     a Russian status line — no token, no WB response, nothing tenant-specific
+     *     beyond the workspace the caller was already proved to belong to.
+     *
+     *     Returns an empty lane list for a workspace that has never been backfilled,
+     *     rather than 404: "nothing is running" is the honest answer for every
+     *     workspace created before this existed.
+     */
+    get: operations['get_backfill_status_api_v1_workspaces__workspace_id__backfill_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/monitoring/skus/{nm_id}/refresh': {
     parameters: {
       query?: never
@@ -1022,26 +1052,6 @@ export interface paths {
      */
     get: operations['get_stock_day_api_v1_monitoring_skus__nm_id__stock_get']
     put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/v1/monitoring/skus/{nm_id}/warehouse-marks': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    /**
-     * Set Warehouse Mark
-     * @description Mark («Отгрузить») or unmark («Разгрузить») a warehouse for this SKU only.
-     */
-    put: operations['set_warehouse_mark_api_v1_monitoring_skus__nm_id__warehouse_marks_put']
     post?: never
     delete?: never
     options?: never
@@ -1441,11 +1451,11 @@ export interface paths {
     get?: never
     /**
      * Set Balance Pin
-     * @description Pin («Закрепить») a SKU row or a warehouse column, or clear the pin.
+     * @description Mark («Не считать») a SKU row or a warehouse column, or clear the mark.
      *
-     *     Stored per workspace, so the pins are shared across its users. A pin changes
-     *     only what the grid puts first — never a quantity, a cost or a total.
-     *     Idempotent in both directions.
+     *     Stored per workspace, so the marks are shared across its users. A mark
+     *     changes only what the grid's totals are drawn from and where the row or
+     *     column sorts — never a quantity or a cost. Idempotent in both directions.
      */
     put: operations['set_balance_pin_api_v1_finreports_balance_pins_put']
     post?: never
@@ -1493,9 +1503,23 @@ export interface paths {
      *     applies: a workspace WB has published nothing new for is skipped after one
      *     request rather than walked.
      *
-     *     "Already running" is reported as a normal outcome (202) rather than a
-     *     conflict, because it is one: the data the caller wants is being fetched, and
-     *     the only thing that did not happen is a second, redundant run.
+     *     **Every outcome is an answer, and none of them is a wait.** WB meters the
+     *     settlement report at one request per ~15 minutes, so a click shortly after
+     *     the hourly tick used to enqueue a harvest whose first act was to sit still
+     *     for most of that window — seven minutes of «Обновляем…» during which nothing
+     *     could possibly happen (prod 2026-09-09). The bucket already knows, in shared
+     *     Redis, so that case is now refused here with the wait attached instead of
+     *     being discovered minutes later on a worker.
+     *
+     *     "Already running" and "rate limited" are reported as normal outcomes (202)
+     *     rather than conflicts, because they are: in the first the data the caller
+     *     wants is already being fetched, and in the second there is nothing anyone
+     *     could do differently for another quarter of an hour.
+     *
+     *     Order matters — a run in flight is reported ahead of the rate limit. The
+     *     running harvest is very often what emptied the bucket, and "уже идёт" is the
+     *     more useful half of that pair: it says the work is happening, where the rate
+     *     limit alone would say only that it cannot start.
      *
      *     Scoped to the caller's own workspace. It used to enqueue the **fleet** walk:
      *     one seller pressing «Обновить» spent every other seller's WB rate budget and
@@ -1524,18 +1548,16 @@ export interface paths {
     put?: never
     /**
      * Создать тест
-     * @description Create a draft test already carrying the card's main photo.
+     * @description Create an empty draft test.
      *
      *     The article is resolved against the workspace's catalogue before anything is
      *     written, and the seller article is read off that card rather than taken from
      *     the body — the two could otherwise disagree.
      *
-     *     The card's current main photo is copied into the test here, so the seller
-     *     opens a brand-new test and sees the thing their uploads will be compared
-     *     against already in the rotation. It needs the workspace's Content token and
-     *     does without one rather than refusing: a test may be set up before the WB
-     *     credentials are pasted, and the start — which actually writes to the card —
-     *     is where the missing token is refused.
+     *     No photo comes with it. The card's live main image used to be downloaded
+     *     from WB's CDN as the baseline; that is gone, because WB serves renditions
+     *     rather than the seller's own file and re-installing one put the transcoding
+     *     loss back on the live card. The baseline is now an upload marked «Главное».
      */
     post: operations['create_test_api_ab_tests_post']
     delete?: never
@@ -1621,13 +1643,11 @@ export interface paths {
     head?: never
     /**
      * Запустить, поставить на паузу или отменить
-     * @description Change a test's status; starting opens the rotation on the card's photo.
+     * @description Change a test's status; starting installs the first photo on the card.
      *
      *     This is the only route that needs a WB token, so it is the only one that
-     *     depends on the installer and the capture — reading a test must stay possible
-     *     for a workspace that has not stored its credentials yet. Starting reads the
-     *     card's current main photo into the rotation before installing anything, so
-     *     the uploads are compared against the image they would replace.
+     *     depends on the installer — reading a test must stay possible for a workspace
+     *     that has not stored its credentials yet.
      */
     patch: operations['set_status_api_ab_tests__test_id__status_patch']
     trace?: never
@@ -1644,6 +1664,11 @@ export interface paths {
     /**
      * Загрузить фото в тест
      * @description Append a photo to the rotation and return the refreshed test.
+     *
+     *     ``main=true`` files it as «Главное»: position 0, first out of the gate, and
+     *     the row every other photo's result is read against. One per test — the
+     *     seller replaces it by deleting it and uploading another, which is the same
+     *     two steps as changing any other photo.
      *
      *     The whole test comes back rather than just the new variant: the result
      *     table has to re-render anyway, and one round trip keeps the upload list and
@@ -1791,6 +1816,16 @@ export interface components {
       /** Finished At */
       finished_at: string | null
       /**
+       * Stopped At
+       * @description Когда ротация в последний раз остановилась — пауза или завершение. Сбрасывается при возобновлении.
+       */
+      stopped_at?: string | null
+      /**
+       * Photo Conflict At
+       * @description Когда ротация обнаружила на карточке главное фото, которое она не устанавливала: значит, карточку поменяли вручную. Тест остановлен и сам не возобновится — трафик с чужого фото ни одному варианту не принадлежит. null, если такого не было.
+       */
+      photo_conflict_at?: string | null
+      /**
        * Created At
        * Format: date-time
        */
@@ -1818,6 +1853,8 @@ export interface components {
        * @description Когда текущее фото встало на карточку. Начало отсчёта слота в режиме «по времени»; null, пока ничего не установлено.
        */
       active_since?: string | null
+      /** @description Итог по тесту целиком — сумма строк таблицы */
+      summary: components['schemas']['AbTestSummary']
     }
     /**
      * AbTestRead
@@ -1851,6 +1888,16 @@ export interface components {
       started_at: string | null
       /** Finished At */
       finished_at: string | null
+      /**
+       * Stopped At
+       * @description Когда ротация в последний раз остановилась — пауза или завершение. Сбрасывается при возобновлении.
+       */
+      stopped_at?: string | null
+      /**
+       * Photo Conflict At
+       * @description Когда ротация обнаружила на карточке главное фото, которое она не устанавливала: значит, карточку поменяли вручную. Тест остановлен и сам не возобновится — трафик с чужого фото ни одному варианту не принадлежит. null, если такого не было.
+       */
+      photo_conflict_at?: string | null
       /**
        * Created At
        * Format: date-time
@@ -1899,6 +1946,100 @@ export interface components {
        * @description running | paused | cancelled
        */
       status: string
+    }
+    /**
+     * AbTestSummary
+     * @description Everything one test has counted, over all of its photos and turns.
+     *
+     *     Summed from the same interval rows the result table divides, so the figures
+     *     here are the column sums of that table and can be checked against it by
+     *     adding them up. See :mod:`..services.summary` for why that is the point.
+     *
+     *     The two durations answer different questions and are both reported. This
+     *     one, ``measured_minutes``, is the exposure the ratios are divided over; the
+     *     wall clock is derived by the client from ``started_at``/``finished_at``,
+     *     because for a live test it ends at «сейчас» and any stored value of it is
+     *     stale the moment it is serialised.
+     */
+    AbTestSummary: {
+      /**
+       * Views
+       * @description Показы карточки в рекламе за весь тест
+       */
+      views: number
+      /**
+       * Clicks
+       * @description Переходы в карточку за весь тест
+       */
+      clicks: number
+      /**
+       * Atbs
+       * @description Добавления в корзину за весь тест
+       */
+      atbs: number
+      /**
+       * Orders
+       * @description Оформления заказов за весь тест
+       */
+      orders: number
+      /**
+       * Spend
+       * @description Расход рекламы на этот артикул за измеренные отрезки
+       */
+      spend: string
+      /**
+       * Click Through
+       * @description Клики / показы по тесту целиком, %
+       */
+      click_through: string | null
+      /**
+       * Add To Cart
+       * @description Корзины / клики по тесту целиком, %
+       */
+      add_to_cart: string | null
+      /**
+       * Order Rate
+       * @description Заказы / корзины по тесту целиком, %
+       */
+      order_rate: string | null
+      /**
+       * Measured Minutes
+       * @description Сумма длительностей засчитанных отрезков — время, за которое собраны эти числа. Меньше времени с запуска на всё, что тест простоял без рекламы или на паузе.
+       */
+      measured_minutes: number
+      /**
+       * Windows
+       * @description Сколько отрезков опроса зачтено
+       */
+      windows: number
+      /**
+       * First Window At
+       * @description Начало самого раннего засчитанного отрезка
+       */
+      first_window_at?: string | null
+      /**
+       * Last Window At
+       * @description Конец самого позднего засчитанного отрезка — данные по этот час
+       */
+      last_window_at?: string | null
+      /**
+       * Rounds Completed
+       * @description Сколько кругов ротация уже прошла
+       * @default 0
+       */
+      rounds_completed: number
+      /**
+       * Variants Measured
+       * @description Сколько фото успели набрать показы
+       * @default 0
+       */
+      variants_measured: number
+      /**
+       * Variants Total
+       * @description Сколько фото в тесте
+       * @default 0
+       */
+      variants_total: number
     }
     /**
      * AcceptedResponse
@@ -2144,6 +2285,65 @@ export interface components {
       } | null
     }
     /**
+     * BackfillLaneStatus
+     * @description One lane of a workspace's history walk, as the profile renders it.
+     */
+    BackfillLaneStatus: {
+      /**
+       * Lane
+       * @description Lane key: catalogue | funnel | advertising | pnl.
+       */
+      lane: string
+      /**
+       * Label
+       * @description Russian lane name, rendered verbatim.
+       */
+      label: string
+      /**
+       * State
+       * @description pending | running | done | failed.
+       */
+      state: string
+      /**
+       * Done Units
+       * @description Units walked so far (days, windows, pages).
+       */
+      done_units: number
+      /**
+       * Total Units
+       * @description Estimated units in total. An ESTIMATE the lane may revise: a walk that stops early at WB's retention floor finishes with done < total, so `state` — never the ratio — is what says the lane is finished.
+       */
+      total_units: number
+      /**
+       * Percent
+       * @description 0-100, clamped; 100 whenever the lane is done.
+       */
+      percent: number
+      /**
+       * Message
+       * @description Russian status line shown under the lane.
+       */
+      message: string
+      /**
+       * Updated At
+       * @description Last tick — a stalled lane is visible by this going stale.
+       */
+      updated_at?: string | null
+    }
+    /**
+     * BackfillStatusResponse
+     * @description Every lane of one workspace, plus whether anything is still moving.
+     */
+    BackfillStatusResponse: {
+      /**
+       * Active
+       * @description True while any lane is pending or running — what the SPA polls on.
+       */
+      active: boolean
+      /** Lanes */
+      lanes: components['schemas']['BackfillLaneStatus'][]
+    }
+    /**
      * BalanceCell
      * @description One SKU's stock at one warehouse, and what it cost to put there.
      */
@@ -2161,7 +2361,7 @@ export interface components {
     }
     /**
      * BalancePinInput
-     * @description Request body for marking a SKU row or a warehouse column.
+     * @description Request body for marking a SKU row or a warehouse column «Не считать».
      */
     BalancePinInput: {
       kind: components['schemas']['BalancePinKind']
@@ -2175,7 +2375,7 @@ export interface components {
      * @description What a mark is attached to, and what it does to the grid.
      * @enum {string}
      */
-    BalancePinKind: 'sku' | 'warehouse' | 'warehouse_uncounted' | 'sku_uncounted'
+    BalancePinKind: 'warehouse_uncounted' | 'sku_uncounted'
     /**
      * BalanceResponse
      * @description The whole grid for one snapshot day.
@@ -2194,10 +2394,6 @@ export interface components {
       currency: string
       /** Rows */
       rows: components['schemas']['BalanceSkuRow'][]
-      /** Pinned Skus */
-      pinned_skus: number[]
-      /** Pinned Warehouses */
-      pinned_warehouses: string[]
       /** Uncounted Warehouses */
       uncounted_warehouses: string[]
       /** Uncounted Skus */
@@ -3037,20 +3233,25 @@ export interface components {
     }
     /**
      * HarvestTriggerResponse
-     * @description Outcome of pressing «Обновить».
+     * @description Outcome of pressing «Обновить» — always an answer, never a wait.
      */
     HarvestTriggerResponse: {
       /**
        * Status
-       * @description 'started' — a harvest was enqueued; 'already_running' — one was already in flight and nothing was enqueued.
+       * @description 'started' — a harvest was enqueued; 'already_running' — one was already in flight and nothing was enqueued; 'rate_limited' — WB would not accept a settlement request yet, so nothing was enqueued and the caller is told when to come back.
        * @enum {string}
        */
-      status: 'started' | 'already_running'
+      status: 'started' | 'already_running' | 'rate_limited'
       /**
        * Task Id
        * @description Celery id of the enqueued harvest, absent when none was enqueued.
        */
       task_id?: string | null
+      /**
+       * Retry After Seconds
+       * @description Only on 'rate_limited': seconds until WB's settlement endpoint would accept a request. Read from the shared rate bucket, so it costs no WB request to produce.
+       */
+      retry_after_seconds?: number | null
     }
     /**
      * InvitationAcceptRequest
@@ -4579,11 +4780,6 @@ export interface components {
        * @description Per-size, per-warehouse detail.
        */
       cells?: components['schemas']['StockCell'][]
-      /**
-       * Marked Warehouses
-       * @description Warehouses marked «Отгрузить» for THIS SKU (per-SKU scope).
-       */
-      marked_warehouses?: string[]
     }
     /**
      * StockSizeTotal
@@ -4785,7 +4981,7 @@ export interface components {
       is_active: boolean
       /**
        * Is Original
-       * @description Фото, которое стояло на карточке до теста; в ротации на позиции 0
+       * @description Главное фото теста — эталон, с которым сравниваются остальные; позиция 0
        * @default false
        */
       is_original: boolean
@@ -4862,33 +5058,6 @@ export interface components {
        * @description Сколько полных дней зачтено этому фото
        */
       days_measured: number
-    }
-    /**
-     * WarehouseMarkUpdateRequest
-     * @description Set or clear the «Отгрузить» mark on one warehouse of one SKU.
-     */
-    WarehouseMarkUpdateRequest: {
-      /**
-       * Warehouse Name
-       * @description WB warehouse name as reported by the stocks report.
-       */
-      warehouse_name: string
-      /**
-       * Marked
-       * @description True to mark («Отгрузить»), False to unmark.
-       */
-      marked: boolean
-    }
-    /**
-     * WarehouseMarksResponse
-     * @description The SKU's marked warehouses after an update.
-     */
-    WarehouseMarksResponse: {
-      /**
-       * Marked Warehouses
-       * @description Marked warehouse names, alphabetically.
-       */
-      marked_warehouses?: string[]
     }
     /**
      * WeekPeriod
@@ -6248,6 +6417,51 @@ export interface operations {
       }
     }
   }
+  get_backfill_status_api_v1_workspaces__workspace_id__backfill_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        workspace_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Per-lane progress of this workspace's history backfill. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BackfillStatusResponse']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such workspace in this organisation. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
   refresh_sku_api_v1_monitoring_skus__nm_id__refresh_post: {
     parameters: {
       query?: never
@@ -6857,56 +7071,6 @@ export interface operations {
         content?: never
       }
       /** @description Invalid date. */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  set_warehouse_mark_api_v1_monitoring_skus__nm_id__warehouse_marks_put: {
-    parameters: {
-      query?: never
-      header?: {
-        /** @description Active workspace id (UUID) the request operates in. */
-        'X-Workspace-Id'?: string | null
-      }
-      path: {
-        nm_id: number
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['WarehouseMarkUpdateRequest']
-      }
-    }
-    responses: {
-      /** @description Mark updated; the SKU's marked warehouses are returned. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['WarehouseMarksResponse']
-        }
-      }
-      /** @description Unauthorized access token. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Подписка истекла — доступ только для чтения. */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Invalid payload. */
       422: {
         headers: {
           [name: string]: unknown
@@ -7733,7 +7897,7 @@ export interface operations {
       }
     }
     responses: {
-      /** @description Row or column pinned, or unpinned. */
+      /** @description Row or column marked, or unmarked. */
       204: {
         headers: {
           [name: string]: unknown
@@ -8180,7 +8344,10 @@ export interface operations {
   }
   upload_variant_api_ab_tests__test_id__variants_post: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Загрузить как главное фото карточки */
+        main?: boolean
+      }
       header?: {
         /** @description Active workspace id (UUID) the request operates in. */
         'X-Workspace-Id'?: string | null
@@ -8219,7 +8386,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Достигнут предел в 10 фото */
+      /** @description Достигнут предел в 10 фото, или главное фото уже загружено */
       409: {
         headers: {
           [name: string]: unknown

@@ -178,7 +178,6 @@ def build_campaign_advertising(
 def build_stock_detail(
     latest: list[StockSnapshot],
     size_labels: dict[int, str],
-    marked_warehouses: list[str],
 ) -> StockDetail:
     """Build the stock summary + size x warehouse breakdown for a SKU.
 
@@ -191,7 +190,6 @@ def build_stock_detail(
     Args:
         latest: The SKU's rows for its latest snapshot day in the window.
         size_labels: Map of ``chrt_id -> tech_size`` for the SKU's sizes.
-        marked_warehouses: The SKU's «Отгрузить»-marked warehouse names.
 
     Returns:
         A populated :class:`StockDetail` (all zeros/empty when no stock exists).
@@ -201,7 +199,6 @@ def build_stock_detail(
             total_quantity=0,
             total_in_way_to_client=0,
             total_in_way_from_client=0,
-            marked_warehouses=marked_warehouses,
         )
 
     by_size: dict[int, int] = defaultdict(int)
@@ -232,5 +229,4 @@ def build_stock_detail(
             )
             for r in latest
         ],
-        marked_warehouses=marked_warehouses,
     )

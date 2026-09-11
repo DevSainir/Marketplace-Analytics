@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 import { pivotRows, pivotWarehouses, sizeShare } from '@/modules/labs/stockPivot'
-import { useWarehouseOverlays } from '@/modules/labs/useWarehouseOverlays'
+import { useWarehouseNameTip } from '@/modules/labs/useWarehouseNameTip'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
 import { formatNumber } from '@/core/utils/format'
@@ -13,9 +13,7 @@ import { formatNumber } from '@/core/utils/format'
  * total remaining stock — the fullest warehouse on the left; rows are the
  * SKU's sizes; each cell is the remaining quantity of that size at that
  * warehouse. A «Всего» column (frozen on the left, next to the size label)
- * and a «Всего» row carry the per-size / per-warehouse totals. Marked
- * warehouses group under an «Отгружено» title, the rest under «Неотгружено»,
- * with a vertical rule between the groups.
+ * and a «Всего» row carry the per-size / per-warehouse totals.
  *
  * Rendered as a native `<table>` inside the shared `.app-datatable` skin
  * (same approach as MetricsTable.vue): the column order is fixed by the
@@ -25,11 +23,6 @@ import { formatNumber } from '@/core/utils/format'
 const props = defineProps({
   /** `StockDetail.cells`: one entry per size (`chrt_id`) × warehouse. */
   cells: { type: Array, required: true },
-  /**
-   * Names of warehouses marked «на отгрузку»: underlined in the header and
-   * always sorted ahead of unmarked ones (by stock among themselves).
-   */
-  markedWarehouses: { type: Array, default: () => [] },
   /**
    * Externally imposed row set/order (`[{chrt_id, tech_size}]`) — the two-day
    * comparison passes the UNION of both days' sizes so the side-by-side
@@ -41,13 +34,7 @@ const props = defineProps({
   emptyMessage: { type: String, default: 'Нет складских остатков по этому SKU.' },
 })
 
-const emit = defineEmits(['toggle-mark'])
-
-const { menu, openMenu, toggleMark, hoverTip, showNameTip, hideNameTip } = useWarehouseOverlays({
-  onToggleMark: (name) => emit('toggle-mark', name),
-})
-
-const markedSet = computed(() => new Set(props.markedWarehouses))
+const { hoverTip, showNameTip, hideNameTip } = useWarehouseNameTip()
 
 /**
  * Human size label (WB «Размер вещи»); falls back to the raw `chrt_id`
@@ -66,20 +53,11 @@ function shortWarehouseName(name) {
   return name.length > 8 ? `${name.slice(0, 8)}…` : name
 }
 
-const warehouses = computed(() => pivotWarehouses(props.cells, markedSet.value))
+const warehouses = computed(() => pivotWarehouses(props.cells))
 
 const rows = computed(() => pivotRows(props.cells, props.sizeOrder, sizeLabel))
 
 const grandTotal = computed(() => warehouses.value.reduce((sum, wh) => sum + wh.total, 0))
-
-// Marked warehouses sort first, so the two header groups are contiguous:
-// columns [0, markedCount) are «Отгружено», the rest «Неотгружено».
-const markedCount = computed(() => warehouses.value.filter((wh) => wh.marked).length)
-
-/** The vertical rule between the groups sits on the first unmarked column. */
-function isGroupBoundary(index) {
-  return markedCount.value > 0 && index === markedCount.value
-}
 </script>
 
 <template>
@@ -91,43 +69,17 @@ function isGroupBoundary(index) {
     <div v-else v-drag-scroll class="stock-scroll">
       <table>
         <thead>
-          <!-- Group titles: marked warehouses («Отгружено») first, the rest
-               under «Неотгружено», with a vertical rule between the groups. -->
           <tr>
-            <th rowspan="2" class="col-size">Размер</th>
-            <th rowspan="2" class="col-total">Всего</th>
-            <th v-if="markedCount" :colspan="markedCount" class="wh-group wh-group--marked">
-              <span class="wh-group-label">Отгружено</span>
-            </th>
+            <th class="col-size">Размер</th>
+            <th class="col-total">Всего</th>
             <th
-              v-if="warehouses.length > markedCount"
-              :colspan="warehouses.length - markedCount"
-              class="wh-group"
-              :class="{ 'wh-divide': markedCount > 0 }"
-            >
-              <span class="wh-group-label">Неотгружено</span>
-            </th>
-          </tr>
-          <tr>
-            <th
-              v-for="(wh, whIndex) in warehouses"
+              v-for="wh in warehouses"
               :key="wh.name"
               class="col-wh"
-              :class="{ 'wh-divide': isGroupBoundary(whIndex) }"
               @mouseenter="showNameTip($event, wh.name)"
               @mouseleave="hideNameTip"
             >
-              <span class="wh-header">
-                <span :class="{ 'wh-marked': wh.marked }">{{ shortWarehouseName(wh.name) }}</span>
-                <button
-                  type="button"
-                  class="wh-menu-btn"
-                  :aria-label="`Действия со складом ${wh.name}`"
-                  @click="openMenu($event, wh.name)"
-                >
-                  ⋮
-                </button>
-              </span>
+              {{ shortWarehouseName(wh.name) }}
             </th>
           </tr>
         </thead>
@@ -141,12 +93,7 @@ function isGroupBoundary(index) {
             >
               {{ row.total ? formatNumber(row.total) : '' }}
             </td>
-            <td
-              v-for="(wh, whIndex) in warehouses"
-              :key="wh.name"
-              class="tabular-nums"
-              :class="{ 'wh-divide': isGroupBoundary(whIndex) }"
-            >
+            <td v-for="wh in warehouses" :key="wh.name" class="tabular-nums">
               <!-- Zeros read as blanks — only real remainders carry a number. -->
               <span v-if="row.quantities[wh.name]">{{
                 formatNumber(row.quantities[wh.name])
@@ -161,12 +108,7 @@ function isGroupBoundary(index) {
             <td class="cell-total font-bold tabular-nums">
               {{ grandTotal ? formatNumber(grandTotal) : '' }}
             </td>
-            <td
-              v-for="(wh, whIndex) in warehouses"
-              :key="wh.name"
-              class="font-semibold tabular-nums"
-              :class="{ 'wh-divide': isGroupBoundary(whIndex) }"
-            >
+            <td v-for="wh in warehouses" :key="wh.name" class="font-semibold tabular-nums">
               {{ wh.total ? formatNumber(wh.total) : '' }}
             </td>
           </tr>
@@ -183,20 +125,6 @@ function isGroupBoundary(index) {
         :style="{ left: `${hoverTip.x}px`, top: `${hoverTip.y}px` }"
       >
         {{ hoverTip.name }}
-      </div>
-    </Teleport>
-
-    <!-- The ⋮ mark menu: teleported so the scroll container can't clip it. -->
-    <Teleport to="body">
-      <div
-        v-if="menu"
-        class="wh-menu fixed z-50 rounded-card border border-border-subtle bg-surface p-sm shadow-card"
-        :style="{ left: `${menu.x}px`, top: `${menu.y}px` }"
-      >
-        <label class="flex cursor-pointer select-none items-center gap-sm text-base text-primary">
-          <input type="checkbox" class="wh-menu-checkbox" :checked="false" @change="toggleMark" />
-          {{ markedSet.has(menu.name) ? 'Разгрузить' : 'Отгрузить' }}
-        </label>
       </div>
     </Teleport>
   </div>

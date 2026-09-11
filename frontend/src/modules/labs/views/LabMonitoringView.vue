@@ -25,7 +25,6 @@ import SkuIdentityHeader from '@/modules/labs/components/SkuIdentityHeader.vue'
 import SkuSearchSelect from '@/modules/labs/components/SkuSearchSelect.vue'
 import StockComparePanel from '@/modules/labs/components/StockComparePanel.vue'
 import {
-  MARKED_WAREHOUSES,
   SIZE_ORDER,
   WINDOW,
   // clusterTableProps,  // dormant — see the «Рекламные кластеры» note below
@@ -151,7 +150,6 @@ const SECTIONS = [
       <div id="ui-sec-stock">
         <StockComparePanel
           :sides="stockCompare"
-          :marked-warehouses="MARKED_WAREHOUSES"
           :size-order="SIZE_ORDER"
           :max-date="WINDOW.end"
           @change-day="noop"

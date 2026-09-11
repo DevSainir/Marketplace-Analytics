@@ -20,27 +20,27 @@ describe('pivotWarehouses', () => {
   it('puts the fullest warehouse leftmost', () => {
     const cells = [cell(1, 'S', 'Коледино', 5), cell(1, 'S', 'Казань', 40)]
 
-    const result = pivotWarehouses(cells, new Set())
+    const result = pivotWarehouses(cells)
 
     expect(result.map((w) => w.name)).toEqual(['Казань', 'Коледино'])
   })
 
-  it('drops an empty warehouse but keeps an empty MARKED one', () => {
-    // WB reports every seller warehouse, stubs included. A marked one that is
-    // empty is the whole point of marking it: «we ship there and it is empty».
-    const cells = [cell(1, 'S', 'Пустой', 0), cell(1, 'S', 'Отгружаем', 0)]
+  it('drops a warehouse holding nothing', () => {
+    // WB reports every seller warehouse, stubs included, so an empty one would
+    // otherwise cost a column of zeros on a grid that is already too wide.
+    const cells = [cell(1, 'S', 'Пустой', 0), cell(1, 'S', 'Казань', 7)]
 
-    const result = pivotWarehouses(cells, new Set(['Отгружаем']))
+    const result = pivotWarehouses(cells)
 
-    expect(result.map((w) => w.name)).toEqual(['Отгружаем'])
+    expect(result.map((w) => w.name)).toEqual(['Казань'])
   })
 
-  it('sorts every marked warehouse ahead of every unmarked one', () => {
-    const cells = [cell(1, 'S', 'Большой', 900), cell(1, 'S', 'Мелкий', 3)]
+  it('breaks a tie on stock by name', () => {
+    const cells = [cell(1, 'S', 'Тула', 4), cell(1, 'S', 'Казань', 4)]
 
-    const result = pivotWarehouses(cells, new Set(['Мелкий']))
+    const result = pivotWarehouses(cells)
 
-    expect(result.map((w) => w.name)).toEqual(['Мелкий', 'Большой'])
+    expect(result.map((w) => w.name)).toEqual(['Казань', 'Тула'])
   })
 })
 

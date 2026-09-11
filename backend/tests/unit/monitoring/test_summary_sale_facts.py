@@ -79,7 +79,6 @@ def _service(*, buyouts: int, returns: int) -> AnalyticsService:
         matrix_override_repo=None,  # type: ignore[arg-type]
         price_repo=empty,  # type: ignore[arg-type]
         sale_repo=_SaleRepo(buyouts, returns),  # type: ignore[arg-type]
-        warehouse_mark_repo=None,  # type: ignore[arg-type]
         pinned_sku_repo=None,  # type: ignore[arg-type]
         day_comment_repo=None,  # type: ignore[arg-type]
         day_action_repo=None,  # type: ignore[arg-type]

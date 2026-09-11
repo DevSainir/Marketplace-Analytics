@@ -13,9 +13,9 @@ first sight, and stored; afterwards only the WB id is matched.
 
 Which makes ``Settings.wb_fbs_warehouse_labels`` a seeding map, not a setting:
 editing an entry renames nothing, because the label in force is the frozen copy
-here. A real rename has to move ``stock_snapshot.warehouse_name`` and
-``warehouse_mark.warehouse_name`` with it, in one transaction — see the
-``c7e4a1d90b62`` migration for the shape of it.
+here. A real rename has to move ``stock_snapshot.warehouse_name`` with it, in one
+transaction — see the ``c7e4a1d90b62`` migration for the shape of it (it also
+carried the «Отгрузить» marks, a feature since removed).
 
 Keyed by the WB warehouse id alone, with no workspace column: the ids are
 WB-global, so two workspaces can never collide on one.

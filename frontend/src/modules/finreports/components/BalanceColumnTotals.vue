@@ -24,7 +24,7 @@ import { ref } from 'vue'
 import { formatNumber } from '@/core/utils/format'
 
 defineProps({
-  /** `[{name, isPinned, isUncounted, quantity, balance}]`, in display order. */
+  /** `[{name, isUncounted, quantity, balance}]`, in display order. */
   warehouses: { type: Array, required: true },
   /** Money formatter bound to the response currency. */
   money: { type: Function, required: true },

@@ -1,17 +1,12 @@
 /**
- * The two floating overlays of the balance grid — the pin menu and the full-name
- * tooltip.
+ * The two floating overlays of the balance grid — the «Не считать» menu and the
+ * full-name tooltip.
  *
  * Both a warehouse column header and a SKU row carry a ⋮ that opens the same
- * «Закрепить» / «Открепить» menu; the only difference is what the pin is
- * attached to, so the menu carries the target rather than the caller keeping two
- * of them. The tooltip reveals a name the grid had to shorten (WB warehouses run
- * to «Санкт-Петербург Уткина Заводь», which no numeric column can hold).
- *
- * Modelled on monitoring's stock-breakdown overlays, re-implemented here rather
- * than imported: that composable is module-private (the boundary rule), and the
- * pin semantics differ — a mark there belongs to one SKU's warehouse, a pin here
- * belongs to the whole grid.
+ * menu; the only difference is what the mark is attached to, so the menu carries
+ * the target rather than the caller keeping two of them. The tooltip reveals a
+ * name the grid had to shorten (WB warehouses run to «Санкт-Петербург Уткина
+ * Заводь», which no numeric column can hold).
  *
  * Both overlays are positioned `fixed` and teleported, so they must close on ANY
  * scroll or they strand themselves over unrelated content.
@@ -21,13 +16,13 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 /**
  * @param {object} options
  * @param {(mark: {kind: string, value: string, pinned: boolean}) => void} options.onMark
- *   Called with the chosen mark: `kind` is the API's — `sku`, `warehouse` or
+ *   Called with the chosen mark: `kind` is the API's — `sku_uncounted` or
  *   `warehouse_uncounted` — and `pinned` is the state it should end up in.
  */
-export function useBalancePins({ onMark }) {
+export function useBalanceMarks({ onMark }) {
   // --- the ⋮ mark menu ------------------------------------------------------
-  // { kind, value, label, pinned, uncounted, x, y } | null — one at a time; any
-  // outside pointer-down, Esc or scroll closes it.
+  // { kind, value, label, uncounted, x, y } | null — one at a time; any outside
+  // pointer-down, Esc or scroll closes it.
   const menu = ref(null)
 
   function openMenu(event, target) {
@@ -39,16 +34,11 @@ export function useBalancePins({ onMark }) {
     menu.value = { ...target, x: rect.left, y: rect.bottom + 4 }
   }
 
-  function togglePin() {
-    const { kind, value, pinned } = menu.value
-    menu.value = null
-    // Flipped here, so the caller persists the NEW state rather than re-deriving
-    // it from a row it is about to re-order out from under itself.
-    onMark({ kind, value, pinned: !pinned })
-  }
-
   /** «Не считать» / «Считать» — the same mark on either axis, so the kind is
-   *  derived from what the menu was opened on rather than hard-coded. */
+   *  derived from what the menu was opened on rather than hard-coded.
+   *
+   *  Flipped here, so the caller persists the NEW state rather than re-deriving
+   *  it from a row it is about to re-order out from under itself. */
   function toggleUncounted() {
     const { kind, value, uncounted } = menu.value
     menu.value = null
@@ -56,7 +46,7 @@ export function useBalancePins({ onMark }) {
   }
 
   function onDocumentPointerDown(event) {
-    if (menu.value && !event.target.closest('.pin-menu, .pin-menu-btn')) menu.value = null
+    if (menu.value && !event.target.closest('.mark-menu, .mark-menu-btn')) menu.value = null
   }
   function onDocumentKeydown(event) {
     if (event.key === 'Escape') menu.value = null
@@ -90,5 +80,5 @@ export function useBalancePins({ onMark }) {
     document.removeEventListener('scroll', onAnyScroll, true)
   })
 
-  return { menu, openMenu, togglePin, toggleUncounted, hoverTip, showNameTip, hideNameTip }
+  return { menu, openMenu, toggleUncounted, hoverTip, showNameTip, hideNameTip }
 }

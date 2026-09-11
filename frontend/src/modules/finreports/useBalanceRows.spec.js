@@ -44,8 +44,6 @@ function payload(overrides = {}) {
     stat_date: '2026-08-03',
     currency: 'KGS',
     rows: [BRUKI, SHORTS],
-    pinned_skus: [],
-    pinned_warehouses: [],
     uncounted_warehouses: [],
     uncosted_count: 1,
     notes: [],
@@ -149,18 +147,18 @@ describe('useBalanceRows', () => {
     expect(totals.value.balance - shelves).toBe(4000)
   })
 
-  it('floats pinned rows and columns to the front without a refetch', () => {
+  it('sinks «не считается» rows and columns to the back without a refetch', () => {
     const balance = payload()
-    const { columns, tableRows, pinnedCount, isGroupBoundary } = useBalanceRows(balance)
+    const { columns, tableRows, uncountedCount, isGroupBoundary } = useBalanceRows(balance)
 
-    // What the store does optimistically when the seller clicks «Закрепить».
-    balance.value.pinned_skus = [SHORTS.nm_id]
-    balance.value.pinned_warehouses = ['Коледино']
+    // What the store does optimistically when the seller clicks «Не считать».
+    balance.value.uncounted_skus = [SHORTS.nm_id]
+    balance.value.uncounted_warehouses = ['Коледино']
 
-    expect(tableRows.value[0].nmId).toBe(SHORTS.nm_id)
-    expect(columns.value[0].name).toBe('Коледино')
-    expect(pinnedCount.value).toBe(1)
-    expect(isGroupBoundary(1)).toBe(true)
+    expect(tableRows.value.at(-1).nmId).toBe(SHORTS.nm_id)
+    expect(columns.value.at(-1).name).toBe('Коледино')
+    expect(uncountedCount.value).toBe(1)
+    expect(isGroupBoundary(columns.value.length - 1)).toBe(true)
     expect(isGroupBoundary(0)).toBe(false)
   })
 

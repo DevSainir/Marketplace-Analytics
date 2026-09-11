@@ -25,7 +25,6 @@ from src.modules.monitoring.repos import (
     SkuDayActionRepository,
     SkuDayCommentRepository,
     StockRepository,
-    WarehouseMarkRepository,
 )
 from src.modules.monitoring.schemas import (
     DayActionResponse,
@@ -37,7 +36,6 @@ from src.modules.monitoring.schemas import (
     SkuLookupResponse,
     SkuSummaryListResponse,
     StockDayResponse,
-    WarehouseMarksResponse,
 )
 from src.modules.monitoring.schemas.aggregate import AggregateChartsResponse
 from src.modules.monitoring.schemas.matrix import (
@@ -70,7 +68,6 @@ class AnalyticsService:
         matrix_override_repo: MatrixOverrideRepository,
         price_repo: PriceRepository,
         sale_repo: SaleRepository,
-        warehouse_mark_repo: WarehouseMarkRepository,
         pinned_sku_repo: PinnedSkuRepository,
         day_comment_repo: SkuDayCommentRepository,
         day_action_repo: SkuDayActionRepository,
@@ -99,7 +96,6 @@ class AnalyticsService:
             product_size_repo=product_size_repo,
             matrix_override_repo=matrix_override_repo,
             price_repo=price_repo,
-            warehouse_mark_repo=warehouse_mark_repo,
             day_comment_repo=day_comment_repo,
             day_action_repo=day_action_repo,
         )
@@ -118,7 +114,6 @@ class AnalyticsService:
         self._stock_view = StockViewAnalytics(
             stock_repo=stock_repo,
             product_size_repo=product_size_repo,
-            warehouse_mark_repo=warehouse_mark_repo,
         )
 
     # ------------------------------------------------------------------ #
@@ -284,11 +279,3 @@ class AnalyticsService:
     async def get_stock_day(self, *, nm_id: int, on_date: date) -> StockDayResponse:
         """Delegate to :meth:`StockViewAnalytics.get_stock_day`."""
         return await self._stock_view.get_stock_day(nm_id=nm_id, on_date=on_date)
-
-    async def set_warehouse_mark(
-        self, *, nm_id: int, warehouse_name: str, marked: bool
-    ) -> WarehouseMarksResponse:
-        """Delegate to :meth:`StockViewAnalytics.set_warehouse_mark`."""
-        return await self._stock_view.set_warehouse_mark(
-            nm_id=nm_id, warehouse_name=warehouse_name, marked=marked
-        )

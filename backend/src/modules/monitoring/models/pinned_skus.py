@@ -3,8 +3,7 @@
 Managers pin the SKUs the whole team is watching; pins are GLOBAL (shared by
 every account), so the row carries no user reference — the natural key is the
 ``nm_id`` itself. Presence of a row == the SKU is pinned; unpinning deletes
-the row (same convention as :class:`~src.modules.monitoring.models
-.warehouse_marks.WarehouseMark`).
+the row.
 
 The manual chip order and the chip highlight colour are global for the same
 reason: the row is one shared watchlist, so a reorder or a repaint by one

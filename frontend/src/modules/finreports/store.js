@@ -236,21 +236,19 @@ export const useFinReportsStore = defineStore('finreports', () => {
 
   /** Which array of the loaded payload each mark kind lives in. */
   const BALANCE_MARKS = {
-    sku: 'pinned_skus',
-    warehouse: 'pinned_warehouses',
     warehouse_uncounted: 'uncounted_warehouses',
     sku_uncounted: 'uncounted_skus',
   }
 
   /**
-   * Mark a SKU row or warehouse column of the balance grid, or clear the mark.
+   * Mark a SKU row or warehouse column of the balance grid «Не считать», or
+   * clear the mark.
    *
    * Applied to the loaded payload FIRST and persisted after, with no reload —
    * the grid re-orders and re-totals itself from these arrays, so the click
-   * lands instantly (the same behaviour as pinning on the monitoring page,
-   * where waiting for a round trip to see a column move felt broken). A failed
-   * write is rolled back and surfaced, so the screen never keeps a mark the
-   * server rejected.
+   * lands instantly (waiting for a round trip to see a column move felt
+   * broken). A failed write is rolled back and surfaced, so the screen never
+   * keeps a mark the server rejected.
    */
   async function toggleBalancePin(kind, value, pinned) {
     const field = BALANCE_MARKS[kind]

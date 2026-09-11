@@ -71,7 +71,7 @@ async def get_balance(
     "/balance/pins",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        204: {"description": "Row or column pinned, or unpinned."},
+        204: {"description": "Row or column marked, or unmarked."},
         401: {"description": "Unauthorized access token."},
         403: {"description": "Подписка истекла — доступ только для чтения."},
     },
@@ -82,11 +82,11 @@ async def set_balance_pin(
     service: BalanceServiceDep,
     workspace_id: CurrentWorkspaceId,
 ) -> Response:
-    """Pin («Закрепить») a SKU row or a warehouse column, or clear the pin.
+    """Mark («Не считать») a SKU row or a warehouse column, or clear the mark.
 
-    Stored per workspace, so the pins are shared across its users. A pin changes
-    only what the grid puts first — never a quantity, a cost or a total.
-    Idempotent in both directions.
+    Stored per workspace, so the marks are shared across its users. A mark
+    changes only what the grid's totals are drawn from and where the row or
+    column sorts — never a quantity or a cost. Idempotent in both directions.
     """
     await service.set_pin(
         workspace_id=workspace_id,

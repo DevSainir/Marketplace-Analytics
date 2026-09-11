@@ -36,8 +36,6 @@ def _balance(**overrides: object) -> object:
         "costs": {NM_BRUKI: Decimal("800")},
         "identity": {NM_BRUKI: ("m-trx01-blk", "Брюки", "NORTH LINE")},
         "vendor_codes": {},
-        "pinned_skus": set(),
-        "pinned_warehouses": set(),
         "uncounted_warehouses": set(),
         "uncounted_skus": set(),
         "currency": "KGS",
@@ -113,19 +111,14 @@ def test_rows_are_ranked_on_counted_stock_only() -> None:
 def test_the_persisted_marks_travel_with_the_grid() -> None:
     """The client applies the marks, so it has to be told what they are.
 
-    Pins order the rows and columns on screen and «Не считать» drops a column
-    from the totals; all three are answered from the persisted marks, not
-    re-derived per request from anything on the client.
+    «Не считать» sorts a row or column to the far end and drops it from the
+    totals; both axes are answered from the persisted marks, not re-derived per
+    request from anything on the client.
     """
-    grid = _balance(
-        pinned_skus={NM_BRUKI},
-        pinned_warehouses={"Коледино"},
-        uncounted_skus={NM_SHORTS},
-    )
+    grid = _balance(uncounted_skus={NM_SHORTS}, uncounted_warehouses={"Коледино"})
 
-    assert grid.pinned_skus == [NM_BRUKI]
-    assert grid.pinned_warehouses == ["Коледино"]
     assert grid.uncounted_skus == [NM_SHORTS]
+    assert grid.uncounted_warehouses == ["Коледино"]
 
 
 def test_a_day_without_a_snapshot_is_empty_and_says_which_days_exist() -> None:

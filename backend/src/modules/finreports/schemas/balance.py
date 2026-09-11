@@ -37,7 +37,7 @@ from src.modules.finreports.models import BalancePinKind
 
 
 class BalancePinInput(BaseModel):
-    """Request body for marking a SKU row or a warehouse column."""
+    """Request body for marking a SKU row or a warehouse column «Не считать»."""
 
     kind: BalancePinKind
     #: ``nm_id`` as text for a SKU mark, the WB warehouse name for a column one.
@@ -95,10 +95,6 @@ class BalanceResponse(BaseModel):
     #: Rows, largest balance first. The client re-orders them as marks change.
     rows: list[BalanceSkuRow]
 
-    #: SKUs pinned to the top of the grid.
-    pinned_skus: list[int]
-    #: Warehouses pinned to the left of the grid.
-    pinned_warehouses: list[str]
     #: Warehouses marked «Не считать»: shown, sorted last, and left out of every
     #: total the client draws.
     uncounted_warehouses: list[str]

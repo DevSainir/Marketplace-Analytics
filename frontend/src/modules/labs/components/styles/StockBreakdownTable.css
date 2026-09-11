@@ -31,8 +31,7 @@
 }
 
 /* The frozen pane's two columns. Every left-offset below derives from these,
-   so the pane can be re-tuned in one place — the group-label offset used to
-   be a hand-copied constant and drifted out of sync with the real width.
+   so the pane can be re-tuned in one place.
    `--col-size-w` fits a full composite WB size («42/170-177», the widest
    shape in practice — plain «XL» sellers just leave slack); `--col-total-w`
    fits its own «Всего» header, which outruns the 4-digit totals below it. */
@@ -80,37 +79,6 @@ table {
   border-spacing: 0;
 }
 
-/* Warehouse header: name + the ⋮ mark-menu trigger. */
-.wh-header {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.wh-menu-btn {
-  padding: 0 2px;
-  border: none;
-  background: transparent;
-  color: var(--ui-muted);
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-}
-.wh-menu-btn:hover,
-.wh-menu-btn:focus-visible {
-  color: var(--ui-ink);
-  outline: none;
-}
-/* Marked («на отгрузку») warehouses carry the action-color underline. */
-.wh-marked {
-  text-decoration: underline;
-  text-decoration-color: var(--ui-action);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-}
-.wh-menu-checkbox {
-  accent-color: var(--ui-action);
-}
-
 /* Numbers right-align; their column headers follow (the skin's generic
    `thead th` is left-aligned). */
 thead th.col-total,
@@ -121,33 +89,11 @@ tfoot td:not(.cell-size) {
   text-align: right;
 }
 
-/* Group titles («Отгружено» / «Неотгружено»). A group can span dozens of
-   columns — far wider than the viewport — so the label sticks just right of
-   the frozen pane and stays readable while the group scrolls by. The marked
-   group carries the action color, echoing the name underline. */
-thead th.wh-group {
-  text-align: left;
-}
-thead th.wh-group .wh-group-label {
-  position: sticky;
-  left: calc(var(--col-size-w) + var(--col-total-w) + 12px);
-  display: inline-block;
-}
-thead th.wh-group--marked {
-  color: var(--ui-action);
-}
-
-/* The vertical rule between the marked and unmarked groups — same weight as
-   the matrix table's day-section boundaries. */
-.wh-divide {
-  border-left: 3px solid var(--ui-rule);
-}
-
 /* Frozen pane — the size label and its «Всего» total: sticky on the left
    with explicit backgrounds so they mask the warehouse columns scrolling
-   underneath. The corner header cells span both header rows (rowspan=2),
-   keep the skin's `sticky top-0` and additionally pin left. Both columns are
-   fixed-width so each knows the next one's offset. */
+   underneath. The corner header cells keep the skin's `sticky top-0` and
+   additionally pin left. Both columns are fixed-width so each knows the next
+   one's offset. */
 th.col-size,
 td.cell-size {
   width: var(--col-size-w);

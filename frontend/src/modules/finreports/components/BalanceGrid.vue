@@ -18,18 +18,17 @@ import { vDragScroll } from '@/core/utils/dragScroll'
 import { formatNumber } from '@/core/utils/format'
 
 defineProps({
-  /** `[{name, isPinned, isUncounted, stock}]`, in display order. */
+  /** `[{name, isUncounted, stock}]`, in display order. */
   columns: { type: Array, required: true },
   /** Flattened rows, in display order. */
   rows: { type: Array, required: true },
   /** Money formatter bound to the response currency. */
   money: { type: Function, required: true },
-  pinnedCount: { type: Number, default: 0 },
   uncountedCount: { type: Number, default: 0 },
   ordinaryCount: { type: Number, default: 0 },
   /** `(index) => boolean` — true on the first column of a new group. */
   isGroupBoundary: { type: Function, required: true },
-  /** `(index) => boolean` — true on the first row after the pinned ones. */
+  /** `(index) => boolean` — true on the first «не считается» row. */
   isRowBoundary: { type: Function, required: true },
 })
 
@@ -54,15 +53,7 @@ defineExpose({ scroller })
       <thead>
         <tr>
           <th rowspan="2" class="col-sku">Артикул</th>
-          <th v-if="pinnedCount" :colspan="pinnedCount" class="wh-group wh-group--pinned">
-            <span class="wh-group-label">Закреплено</span>
-          </th>
-          <th
-            v-if="ordinaryCount > 0"
-            :colspan="ordinaryCount"
-            class="wh-group"
-            :class="{ 'wh-divide': pinnedCount > 0 }"
-          >
+          <th v-if="ordinaryCount > 0" :colspan="ordinaryCount" class="wh-group">
             <span class="wh-group-label">Склады</span>
           </th>
           <th
@@ -85,12 +76,10 @@ defineExpose({ scroller })
             @mouseleave="emit('hide-tip')"
           >
             <span class="wh-header">
-              <span :class="{ 'is-pinned': column.isPinned }">
-                {{ shortWarehouseName(column.name) }}
-              </span>
+              <span>{{ shortWarehouseName(column.name) }}</span>
               <button
                 type="button"
-                class="pin-menu-btn"
+                class="mark-menu-btn"
                 :aria-label="`Действия со складом ${column.name}`"
                 @click="
                   emit('open-menu', {
@@ -99,7 +88,6 @@ defineExpose({ scroller })
                       kind: 'warehouse',
                       value: column.name,
                       label: column.name,
-                      pinned: column.isPinned,
                       uncounted: column.isUncounted,
                     },
                   })
@@ -122,7 +110,7 @@ defineExpose({ scroller })
             <span class="sku-header">
               <button
                 type="button"
-                class="pin-menu-btn"
+                class="mark-menu-btn"
                 :aria-label="`Действия с артикулом ${row.saName}`"
                 @click="
                   emit('open-menu', {
@@ -131,7 +119,6 @@ defineExpose({ scroller })
                       kind: 'sku',
                       value: String(row.nmId),
                       label: row.saName,
-                      pinned: row.isPinned,
                       uncounted: row.isUncounted,
                     },
                   })
@@ -139,7 +126,7 @@ defineExpose({ scroller })
               >
                 ⋮
               </button>
-              <span class="sku-name" :class="{ 'is-pinned': row.isPinned }">{{ row.saName }}</span>
+              <span class="sku-name">{{ row.saName }}</span>
             </span>
           </td>
           <td

@@ -25,7 +25,7 @@ import { formatNumber } from '@/core/utils/format'
 const props = defineProps({
   /** @type {Array<object>} Rows from `useBalanceRows`, already filtered/ordered. */
   rows: { type: Array, default: () => [] },
-  /** @type {Array<{name, isPinned, isUncounted}>} Warehouse columns, in order. */
+  /** @type {Array<{name, isUncounted}>} Warehouse columns, in order. */
   columns: { type: Array, default: () => [] },
   /** @type {{quantity: number, inWay: number, balance: number|null}} The corner total. */
   totals: { type: Object, default: () => ({ quantity: 0, inWay: 0, balance: null }) },
@@ -90,7 +90,6 @@ function stocked(row) {
           <span class="record-main">
             <span class="record-title" :class="row.isUncounted && 'text-muted line-through'">
               {{ row.saName }}
-              <span v-if="row.isPinned" class="text-tiny font-semibold text-action">★</span>
             </span>
             <span class="record-sub">
               {{ row.nmId }}

@@ -22,7 +22,6 @@ from src.modules.monitoring.repos.products import (
 from src.modules.monitoring.repos.sales import SaleRepository
 from src.modules.monitoring.repos.sku_day_comment import SkuDayCommentRepository
 from src.modules.monitoring.repos.stocks import StockRepository
-from src.modules.monitoring.repos.warehouse_marks import WarehouseMarkRepository
 
 __all__ = [
     "AdvertisingClusterRepository",
@@ -40,5 +39,4 @@ __all__ = [
     "SkuDayActionRepository",
     "SkuDayCommentRepository",
     "StockRepository",
-    "WarehouseMarkRepository",
 ]

@@ -16,15 +16,13 @@ import StockBreakdownTable from '@/modules/labs/components/StockBreakdownTable.v
 defineProps({
   /** @type {{left: {date, loading, stock}, right: {date, loading, stock}}} */
   sides: { type: Object, required: true },
-  /** Warehouses currently marked «на отгрузку» for this SKU. */
-  markedWarehouses: { type: Array, default: () => [] },
   /** The union of sizes both tables render, so their rows align. */
   sizeOrder: { type: Array, default: () => [] },
   /** Latest selectable day (no snapshot exists past it). */
   maxDate: { type: String, required: true },
 })
 
-defineEmits(['change-day', 'toggle-mark'])
+defineEmits(['change-day'])
 </script>
 
 <template>
@@ -50,10 +48,8 @@ defineEmits(['change-day', 'toggle-mark'])
         <StockBreakdownTable
           :class="sides[side].loading ? 'opacity-60' : ''"
           :cells="sides[side].stock?.cells ?? []"
-          :marked-warehouses="markedWarehouses"
           :size-order="sizeOrder"
           empty-message="Нет снимка остатков за выбранный день."
-          @toggle-mark="$emit('toggle-mark', $event)"
         />
       </div>
     </div>

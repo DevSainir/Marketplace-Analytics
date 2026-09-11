@@ -33,11 +33,6 @@ from tests.component.monitoring.conftest import NM_ID, _StubAnalyticsService
         ("PUT", "/api/v1/monitoring/pins/order", {"nm_ids": [NM_ID]}),
         ("PUT", f"/api/v1/monitoring/skus/{NM_ID}/pin", {"pinned": True}),
         ("PUT", f"/api/v1/monitoring/skus/{NM_ID}/pin-color", {"color": "#aabbcc"}),
-        (
-            "PUT",
-            f"/api/v1/monitoring/skus/{NM_ID}/warehouse-marks",
-            {"warehouse_name": "Коледино", "marked": True},
-        ),
         ("PUT", f"/api/v1/monitoring/skus/{NM_ID}/comments/2026-09-01", {"body": "x"}),
         ("PUT", f"/api/v1/monitoring/skus/{NM_ID}/actions/2026-09-01", {}),
     ],

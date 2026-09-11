@@ -136,7 +136,7 @@ td.col-spacer {
   border-left: 1px solid var(--rule);
 }
 
-/* Group seams (pinned | ordinary | uncounted) — darker than the ordinary rule,
+/* The group seam (ordinary | uncounted) — darker than the ordinary rule,
    written with the selectors it has to beat: `td.cell-wh` above is more
    specific than a bare class, so a plain `.wh-divide` silently loses. */
 .wh-divide,
@@ -144,7 +144,7 @@ th.col-wh.wh-divide,
 td.cell-wh.wh-divide {
   border-left: 1px solid var(--seam);
 }
-/* The same seam between the pinned SKUs and the rest, across the row. */
+/* The same seam between the counted SKUs and the rest, across the row. */
 tbody tr.row-divide td {
   border-top: 1px solid var(--seam);
 }
@@ -161,9 +161,6 @@ thead th.wh-group .wh-group-label {
   left: calc(var(--col-sku-w) + 12px);
   display: inline-block;
 }
-thead th.wh-group--pinned {
-  color: var(--ui-action);
-}
 thead th.wh-group--uncounted {
   color: var(--ink-dim);
 }
@@ -173,7 +170,7 @@ thead th.wh-group--uncounted {
   align-items: center;
   gap: 4px;
 }
-.pin-menu-btn {
+.mark-menu-btn {
   padding: 0 2px;
   border: none;
   background: transparent;
@@ -184,19 +181,10 @@ thead th.wh-group--uncounted {
   line-height: 1;
   cursor: pointer;
 }
-.pin-menu-btn:hover,
-.pin-menu-btn:focus-visible {
+.mark-menu-btn:hover,
+.mark-menu-btn:focus-visible {
   color: var(--ui-ink);
   outline: none;
-}
-/* Pinned rows and columns carry the action-color underline — drawn as an inset
-   shadow, NOT `text-decoration`. A real underline sits below the baseline and
-   grows the line box, so a pinned row came out a pixel or two taller than its
-   neighbours and the rule wandered up and down the column. A shadow is painted
-   on the element's own bottom edge and takes part in no layout at all, so every
-   pinned row keeps the height of every other one. */
-.is-pinned {
-  box-shadow: inset 0 -2px 0 var(--ui-action);
 }
 /* Taken out of the count — a warehouse column or a SKU row — still shows its
    stock, because the seller wants to see what is lying there, but it reads as

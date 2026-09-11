@@ -1,10 +1,8 @@
 """SKU day-note model — the free-text note attached to one SKU's one day.
 
 Notes are GLOBAL (shared by every account), the same convention as
-:class:`~src.modules.monitoring.models.pinned_skus.PinnedSku` and
-:class:`~src.modules.monitoring.models.warehouse_marks.WarehouseMark`: the
-natural key is ``(nm_id, comment_date)`` itself, so the row carries no user
-reference.
+:class:`~src.modules.monitoring.models.pinned_skus.PinnedSku`: the natural key
+is ``(nm_id, comment_date)`` itself, so the row carries no user reference.
 
 A day's note has TWO independent fields, and they behave differently:
 

@@ -59,8 +59,6 @@ from src.modules.monitoring.schemas.stocks import (
     StockDayResponse,
     StockDetail,
     StockSizeTotal,
-    WarehouseMarksResponse,
-    WarehouseMarkUpdateRequest,
 )
 from src.modules.monitoring.schemas.summary import (
     CatalogIngestionResult,
@@ -116,8 +114,6 @@ __all__ = [
     "StockDayResponse",
     "StockDetail",
     "StockSizeTotal",
-    "WarehouseMarkUpdateRequest",
-    "WarehouseMarksResponse",
     "compute_ad_metrics",
     "compute_funnel_totals",
 ]

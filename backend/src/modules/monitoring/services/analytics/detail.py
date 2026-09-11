@@ -31,7 +31,6 @@ from src.modules.monitoring.repos import (
     SkuDayActionRepository,
     SkuDayCommentRepository,
     StockRepository,
-    WarehouseMarkRepository,
 )
 from src.modules.monitoring.repos.advertising import (
     CampaignDaySkuTotal,
@@ -115,7 +114,6 @@ class DetailAnalytics:
         product_size_repo: ProductSizeRepository,
         matrix_override_repo: MatrixOverrideRepository,
         price_repo: PriceRepository,
-        warehouse_mark_repo: WarehouseMarkRepository,
         day_comment_repo: SkuDayCommentRepository,
         day_action_repo: SkuDayActionRepository,
     ) -> None:
@@ -129,7 +127,6 @@ class DetailAnalytics:
         self._product_sizes = product_size_repo
         self._matrix_overrides = matrix_override_repo
         self._prices = price_repo
-        self._warehouse_marks = warehouse_mark_repo
         self._day_comments = day_comment_repo
         self._day_actions = day_action_repo
 
@@ -208,7 +205,6 @@ class DetailAnalytics:
         size_labels = await self._product_sizes.get_labels_by_chrt_ids(
             {row.chrt_id for row in latest_stock_rows}
         )
-        marked_warehouses = await self._warehouse_marks.list_names(nm_id=nm_id)
         comment_rows = await self._day_comments.map_for_window(
             nm_id=nm_id, date_from=date_from, date_to=date_to
         )
@@ -236,7 +232,7 @@ class DetailAnalytics:
             advertising=advertising,
             matrix=build_matrix_from_base(base),
             matrix_base=base,
-            stock=build_stock_detail(latest_stock_rows, size_labels, marked_warehouses),
+            stock=build_stock_detail(latest_stock_rows, size_labels),
         )
 
     async def get_sku_funnel(

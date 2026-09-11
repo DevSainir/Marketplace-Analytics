@@ -205,11 +205,9 @@ onMounted(() => store.fetchPins())
           <StockComparePanel
             v-if="product.stock"
             :sides="store.stockCompare"
-            :marked-warehouses="store.markedWarehouses"
             :size-order="sharedStockSizes"
             :max-date="DEFAULT_TO"
             @change-day="onStockDayChange"
-            @toggle-mark="store.toggleWarehouseMark"
           />
         </div>
 

@@ -24,8 +24,8 @@
  *
  * Тип предмета and Бренд are NOT columns (the columns are warehouses) but stay
  * filterable through the shared P&L toolbar. Ordering and the totals are the
- * composable's: marks apply the instant they are clicked, so both have to be
- * derived on screen rather than fetched (see `useBalanceRows`).
+ * composable's: a «Не считать» applies the instant it is clicked, so both have
+ * to be derived on screen rather than fetched (see `useBalanceRows`).
  */
 import { computed, ref, toRefs } from 'vue'
 
@@ -35,7 +35,7 @@ import BalanceGrid from '@/modules/finreports/components/BalanceGrid.vue'
 import BalanceMarkMenu from '@/modules/finreports/components/BalanceMarkMenu.vue'
 import BalanceRowTotals from '@/modules/finreports/components/BalanceRowTotals.vue'
 import PnlSkuTableToolbar from '@/modules/finreports/components/PnlSkuTableToolbar.vue'
-import { useBalancePins } from '@/modules/finreports/useBalancePins'
+import { useBalanceMarks } from '@/modules/finreports/useBalanceMarks'
 import { moneyFormatter, useBalanceRows } from '@/modules/finreports/useBalanceRows'
 
 import { formatNumber } from '@/core/utils/format'
@@ -59,21 +59,19 @@ const {
   tableRows,
   totals,
   isFiltering,
-  pinnedCount,
   uncountedCount,
   isGroupBoundary,
   isRowBoundary,
 } = useBalanceRows(balance)
 
-const { menu, openMenu, togglePin, toggleUncounted, hoverTip, showNameTip, hideNameTip } =
-  useBalancePins({ onMark: (mark) => emit('mark', mark) })
+const { menu, openMenu, toggleUncounted, hoverTip, showNameTip, hideNameTip } = useBalanceMarks({
+  onMark: (mark) => emit('mark', mark),
+})
 
 const money = computed(() => moneyFormatter(balance.value?.currency ?? ''))
 
-/** Ordinary columns: everything between the pinned ones and the uncounted. */
-const ordinaryCount = computed(
-  () => columns.value.length - pinnedCount.value - uncountedCount.value,
-)
+/** Ordinary columns: everything the seller has not taken out of the count. */
+const ordinaryCount = computed(() => columns.value.length - uncountedCount.value)
 
 const grid = ref(null)
 const rowTotals = ref(null)
@@ -140,7 +138,6 @@ function forwardWheel(event) {
           :columns="columns"
           :rows="tableRows"
           :money="money"
-          :pinned-count="pinnedCount"
           :uncounted-count="uncountedCount"
           :ordinary-count="ordinaryCount"
           :is-group-boundary="isGroupBoundary"
@@ -178,12 +175,7 @@ function forwardWheel(event) {
       </div>
     </template>
 
-    <BalanceMarkMenu
-      :menu="menu"
-      :tip="hoverTip"
-      @toggle-pin="togglePin"
-      @toggle-uncounted="toggleUncounted"
-    />
+    <BalanceMarkMenu :menu="menu" :tip="hoverTip" @toggle-uncounted="toggleUncounted" />
   </div>
 </template>
 

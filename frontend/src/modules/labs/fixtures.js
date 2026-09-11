@@ -248,7 +248,6 @@ const SIZES = [
   { chrt_id: 900004, tech_size: 'XL' },
 ]
 
-export const MARKED_WAREHOUSES = ['Коледино', 'Электросталь']
 export const SIZE_ORDER = SIZES
 
 /** `StockDetail.cells`: one entry per size × warehouse. */

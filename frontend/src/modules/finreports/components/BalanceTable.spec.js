@@ -49,8 +49,6 @@ const PAYLOAD = {
       ],
     },
   ],
-  pinned_skus: [],
-  pinned_warehouses: [],
   uncounted_warehouses: [],
   uncounted_skus: [],
   uncosted_count: 0,

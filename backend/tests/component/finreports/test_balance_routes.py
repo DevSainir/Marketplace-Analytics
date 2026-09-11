@@ -70,8 +70,6 @@ class _StubBalanceService:
                     ],
                 )
             ],
-            pinned_skus=[],
-            pinned_warehouses=["Коледино"],
             uncounted_warehouses=["СЦ Брак"],
             uncounted_skus=[],
             uncosted_count=0,
@@ -199,33 +197,51 @@ async def test_the_response_serialises_the_grid_shape_the_table_reads(
     for field in ("sa_name", "subject_name", "brand_name", "cost_price"):
         assert field in row
     # The marks travel with the grid: the client draws the panels, so it needs
-    # to know which columns are pinned and which are out of the count.
-    assert body["pinned_warehouses"] == ["Коледино"]
+    # to know which columns are out of the count.
     assert body["uncounted_warehouses"] == ["СЦ Брак"]
     assert body["available_from"] == FIRST_DAY.isoformat()
     assert body["uncosted_count"] == 0
 
 
-async def test_a_pin_is_persisted_for_the_active_workspace(
+async def test_a_mark_is_persisted_for_the_active_workspace(
     client: httpx.AsyncClient,
     headers: dict[str, str],
     balance: _StubBalanceService,
     workspace: Workspace,
 ) -> None:
-    """Pinning a warehouse column reaches the service with the workspace."""
+    """Marking a warehouse column reaches the service with the workspace."""
     response = await client.put(
         "/api/v1/finreports/balance/pins",
-        json={"kind": "warehouse", "value": "Тула", "pinned": True},
+        json={"kind": "warehouse_uncounted", "value": "Тула", "pinned": True},
         headers=headers,
     )
 
     assert response.status_code == 204
     assert balance.calls[0]["set_pin"] == {
         "workspace_id": workspace.id,
-        "kind": "warehouse",
+        "kind": "warehouse_uncounted",
         "value": "Тула",
         "pinned": True,
     }
+
+
+async def test_a_retired_pin_kind_is_refused(
+    client: httpx.AsyncClient, headers: dict[str, str], balance: _StubBalanceService
+) -> None:
+    """«Закрепить» is gone, so its two kinds must no longer be writable.
+
+    An old browser tab left open across the deploy would keep sending them;
+    validating the kind is what stops it writing rows nothing will ever read
+    back into the table «Не считать» still shares.
+    """
+    response = await client.put(
+        "/api/v1/finreports/balance/pins",
+        json={"kind": "warehouse", "value": "Тула", "pinned": True},
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert balance.calls == []
 
 
 async def test_marking_a_warehouse_uncounted_reaches_the_service(

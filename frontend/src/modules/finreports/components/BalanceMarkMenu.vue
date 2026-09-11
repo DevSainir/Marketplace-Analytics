@@ -7,18 +7,18 @@
  * scroll container they would be clipped by it. Split out of BalanceTable.vue
  * to keep it under the size limit; it owns no state, the composable does.
  *
- * Both axes offer both marks: «Закрепить» moves a row or column to the front,
- * «Не считать» sends it to the back and out of every total while leaving it on
- * screen — the seller still wants to see stock they have stopped counting.
+ * Both axes offer the same mark: «Не считать» sends a row or column to the back
+ * and out of every total while leaving it on screen — the seller still wants to
+ * see stock they have stopped counting.
  */
 defineProps({
-  /** `{kind, value, label, pinned, uncounted, x, y}` or `null`. */
+  /** `{kind, value, label, uncounted, x, y}` or `null`. */
   menu: { type: Object, default: null },
   /** `{name, x, y}` or `null` — the shortened warehouse name, in full. */
   tip: { type: Object, default: null },
 })
 
-const emit = defineEmits(['toggle-pin', 'toggle-uncounted'])
+const emit = defineEmits(['toggle-uncounted'])
 </script>
 
 <template>
@@ -35,22 +35,13 @@ const emit = defineEmits(['toggle-pin', 'toggle-uncounted'])
   <Teleport to="body">
     <div
       v-if="menu"
-      class="pin-menu fixed z-50 flex flex-col gap-xs rounded-card border border-border-subtle bg-surface p-sm shadow-card"
+      class="mark-menu fixed z-50 rounded-card border border-border-subtle bg-surface p-sm shadow-card"
       :style="{ left: `${menu.x}px`, top: `${menu.y}px` }"
     >
       <label class="flex cursor-pointer select-none items-center gap-sm text-base text-primary">
         <input
           type="checkbox"
-          class="pin-menu-checkbox"
-          :checked="false"
-          @change="emit('toggle-pin')"
-        />
-        {{ menu.pinned ? 'Открепить' : 'Закрепить' }}
-      </label>
-      <label class="flex cursor-pointer select-none items-center gap-sm text-base text-primary">
-        <input
-          type="checkbox"
-          class="pin-menu-checkbox"
+          class="mark-menu-checkbox"
           :checked="false"
           @change="emit('toggle-uncounted')"
         />

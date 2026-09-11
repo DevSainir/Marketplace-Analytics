@@ -1,4 +1,4 @@
-"""Data access for the balance grid's pinned rows and columns."""
+"""Data access for the balance grid's «Не считать» rows and columns."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from src.modules.finreports.repos.base import BaseRepository
 
 
 class BalancePinRepository(BaseRepository):
-    """The «Закрепить» pins of the balance grid, keyed ``(workspace, kind, value)``."""
+    """The «Не считать» marks of the balance grid, keyed ``(workspace, kind, value)``."""
 
     model = BalancePin
 
@@ -21,11 +21,12 @@ class BalancePinRepository(BaseRepository):
 
         Args:
             workspace_id: Owning workspace.
-            kind: Row pins (``SKU``) or column pins (``WAREHOUSE``).
+            kind: Row marks (``SKU_UNCOUNTED``) or column marks
+                (``WAREHOUSE_UNCOUNTED``).
 
         Returns:
-            The pinned values as text — ``nm_id``s for SKU pins, WB warehouse
-            names for warehouse pins (empty when nothing is pinned).
+            The marked values as text — ``nm_id``s for SKU marks, WB warehouse
+            names for warehouse ones (empty when nothing is marked).
         """
         stmt = select(BalancePin.value).where(
             BalancePin.workspace_id == workspace_id, BalancePin.kind == kind.value
@@ -35,17 +36,18 @@ class BalancePinRepository(BaseRepository):
     async def set_pinned(
         self, *, workspace_id: uuid.UUID, kind: BalancePinKind, value: str, pinned: bool
     ) -> None:
-        """Pin or unpin one row or column.
+        """Set or clear one row's or column's mark.
 
-        Idempotent both ways: pinning an already-pinned value is a no-op insert
-        (``ON CONFLICT DO NOTHING``), and unpinning an absent one deletes
+        Idempotent both ways: marking an already-marked value is a no-op insert
+        (``ON CONFLICT DO NOTHING``), and clearing an absent one deletes
         nothing — so a double click from two browser tabs cannot fail.
 
         Args:
             workspace_id: Owning workspace.
-            kind: Row pins (``SKU``) or column pins (``WAREHOUSE``).
+            kind: Row marks (``SKU_UNCOUNTED``) or column marks
+                (``WAREHOUSE_UNCOUNTED``).
             value: ``nm_id`` as text, or the WB warehouse name.
-            pinned: ``True`` to pin, ``False`` to unpin.
+            pinned: ``True`` to set the mark, ``False`` to clear it.
         """
         if pinned:
             stmt = (

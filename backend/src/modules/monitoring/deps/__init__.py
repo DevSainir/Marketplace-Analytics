@@ -32,7 +32,6 @@ from src.modules.monitoring.repos import (
     SkuDayActionRepository,
     SkuDayCommentRepository,
     StockRepository,
-    WarehouseMarkRepository,
 )
 from src.modules.monitoring.services import AnalyticsService, ClusterAnalytics
 from src.modules.workspaces.contract import CurrentWorkspaceId
@@ -96,11 +95,6 @@ def get_sale_repo(session: DbSession) -> SaleRepository:
     return SaleRepository(session)
 
 
-def get_warehouse_mark_repo(session: DbSession) -> WarehouseMarkRepository:
-    """Provide a :class:`WarehouseMarkRepository` bound to the request session."""
-    return WarehouseMarkRepository(session)
-
-
 def get_pinned_sku_repo(session: DbSession) -> PinnedSkuRepository:
     """Provide a :class:`PinnedSkuRepository` bound to the request session."""
     return PinnedSkuRepository(session)
@@ -131,7 +125,6 @@ ProductSizeRepoDep = Annotated[ProductSizeRepository, Depends(get_product_size_r
 MatrixOverrideRepoDep = Annotated[MatrixOverrideRepository, Depends(get_matrix_override_repo)]
 PriceRepoDep = Annotated[PriceRepository, Depends(get_price_repo)]
 SaleRepoDep = Annotated[SaleRepository, Depends(get_sale_repo)]
-WarehouseMarkRepoDep = Annotated[WarehouseMarkRepository, Depends(get_warehouse_mark_repo)]
 PinnedSkuRepoDep = Annotated[PinnedSkuRepository, Depends(get_pinned_sku_repo)]
 SkuDayCommentRepoDep = Annotated[SkuDayCommentRepository, Depends(get_day_comment_repo)]
 SkuDayActionRepoDep = Annotated[SkuDayActionRepository, Depends(get_day_action_repo)]
@@ -151,7 +144,6 @@ def get_analytics_service(
     matrix_override_repo: MatrixOverrideRepoDep,
     price_repo: PriceRepoDep,
     sale_repo: SaleRepoDep,
-    warehouse_mark_repo: WarehouseMarkRepoDep,
     pinned_sku_repo: PinnedSkuRepoDep,
     day_comment_repo: SkuDayCommentRepoDep,
     day_action_repo: SkuDayActionRepoDep,
@@ -168,7 +160,6 @@ def get_analytics_service(
         matrix_override_repo=matrix_override_repo,
         price_repo=price_repo,
         sale_repo=sale_repo,
-        warehouse_mark_repo=warehouse_mark_repo,
         pinned_sku_repo=pinned_sku_repo,
         day_comment_repo=day_comment_repo,
         day_action_repo=day_action_repo,
@@ -241,6 +232,5 @@ __all__ = [
     "SkuDayActionRepoDep",
     "SkuDayCommentRepoDep",
     "StockRepoDep",
-    "WarehouseMarkRepoDep",
     "WorkspaceSku",
 ]

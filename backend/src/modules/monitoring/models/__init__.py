@@ -28,7 +28,6 @@ from src.modules.monitoring.models.sales import SaleRecord
 from src.modules.monitoring.models.sales_funnel import SalesFunnelDaily
 from src.modules.monitoring.models.sku_day_comment import SkuDayComment
 from src.modules.monitoring.models.stocks import StockSnapshot
-from src.modules.monitoring.models.warehouse_marks import WarehouseMark
 
 __all__ = [
     "CLUSTER_MAX_LENGTH",
@@ -50,7 +49,6 @@ __all__ = [
     "SkuDayAction",
     "SkuDayComment",
     "StockSnapshot",
-    "WarehouseMark",
     "normalize_status",
     "normalize_type",
 ]

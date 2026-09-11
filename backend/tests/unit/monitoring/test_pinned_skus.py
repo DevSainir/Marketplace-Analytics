@@ -64,7 +64,6 @@ def _service(pins: Any) -> AnalyticsService:
         matrix_override_repo=unused,
         price_repo=unused,
         sale_repo=unused,
-        warehouse_mark_repo=unused,
         pinned_sku_repo=pins,
         day_comment_repo=unused,
         day_action_repo=unused,
