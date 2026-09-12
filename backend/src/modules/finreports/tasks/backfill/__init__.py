@@ -33,6 +33,12 @@ from src.core.exceptions import IntegrationError
 from src.core.logcontext import bind_workspace
 from src.core.logging import get_logger
 from src.core.tasks import run_task
+from src.modules.finreports.tasks.backfill.pace import (
+    PACE_CEILING_SECONDS,
+    PACE_DEFAULT_SECONDS,
+    PACE_FLOOR_SECONDS,
+    read_pace,
+)
 from src.modules.finreports.tasks.backfill.span import (
     PNL_EMPTY_STOP,
     PNL_FLOOR_DAYS,
@@ -55,8 +61,11 @@ from src.modules.workspaces.contract import (
 
 logger = get_logger(__name__)
 
-#: Seconds before the next page. WB's own budget on this endpoint — asking
-#: sooner restarts its window and makes the lane slower, not faster.
+#: Seconds before the next page when nothing has been learned yet. The real
+#: interval is :func:`read_pace`, which widens on a refused page and eases on a
+#: served one — WB's published "1 per 15 minutes" is not what it enforces, and a
+#: constant here was what kept earning 46-minute penalty blocks. Kept as the
+#: floor the watchdog's patience is still measured against.
 _NEXT_PAGE_SECONDS = 15 * 60 + 30
 
 #: A tick is one request plus one ingest; the limit is a hung-call backstop.
@@ -120,10 +129,13 @@ def backfill_pnl(
             message=step.message,
         )
         if not step.finished:
+            countdown = (
+                await read_pace(tokens.statistics) if tokens.statistics else _NEXT_PAGE_SECONDS
+            )
             celery_app.send_task(
                 "finreports.backfill_pnl",
                 kwargs={"workspace_id": workspace_id, "chain": token},
-                countdown=_NEXT_PAGE_SECONDS,
+                countdown=countdown,
             )
         logger.info(
             "backfill pnl for %s: %s/%d days, rows=%d, finished=%s",
@@ -155,6 +167,9 @@ def backfill_pnl(
 
 
 __all__ = [
+    "PACE_CEILING_SECONDS",
+    "PACE_DEFAULT_SECONDS",
+    "PACE_FLOOR_SECONDS",
     "PNL_EMPTY_STOP",
     "PNL_FLOOR_DAYS",
     "PNL_GAP_TOLERANCE_DAYS",
@@ -163,4 +178,5 @@ __all__ = [
     "advance_pnl",
     "backfill_pnl",
     "next_span",
+    "read_pace",
 ]

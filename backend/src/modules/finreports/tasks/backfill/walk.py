@@ -15,6 +15,7 @@ from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries.rate_limit import statistics_rate_gate
+from src.modules.finreports.tasks.backfill.pace import ease_pace, widen_pace
 from src.modules.finreports.tasks.backfill.span import (
     PNL_EMPTY_STOP,
     PNL_FLOOR_DAYS,
@@ -126,6 +127,10 @@ async def advance_pnl(
         gate=gate,
     )
     if outcome is None:
+        # WB withheld the page — a 429, and on this endpoint that means a
+        # penalty block rather than a refusal. The interval that produced it was
+        # too short, whatever the published limit says.
+        await widen_pace(tokens.statistics)
         return LaneStep(
             done=None,
             total=total,
@@ -135,6 +140,9 @@ async def advance_pnl(
         )
 
     rows, next_cursor = outcome
+    # WB answered — an empty window is still an answer — so the current interval
+    # is one WB tolerates and the lane may edge back toward the floor.
+    await ease_pace(tokens.statistics)
     if next_cursor is None and rows == 0:
         # WB served NOTHING. That is the answer for an exhausted window and for
         # a window it is briefly not serving, and the two are indistinguishable

@@ -53,6 +53,12 @@ def _tokens() -> WorkspaceTokenBundle:
     )
 
 
+#: What the walk did to the lane's interval, per test. The pace lives in Redis,
+#: which the unit tier may not have — and letting it fail open here would mean
+#: these tests passed whether or not the walk reacted at all.
+PACE_CALLS: list[str] = []
+
+
 @pytest.fixture(autouse=True)
 def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
     """Everything outside the decision under test, held still.
@@ -73,6 +79,19 @@ def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
         return VIA_COVERAGE
 
     monkeypatch.setattr(walk, "read_settled_days", _coverage)
+
+    PACE_CALLS.clear()
+
+    async def _widen(_token: str) -> int:
+        PACE_CALLS.append("widen")
+        return 0
+
+    async def _ease(_token: str) -> int:
+        PACE_CALLS.append("ease")
+        return 0
+
+    monkeypatch.setattr(walk, "widen_pace", _widen)
+    monkeypatch.setattr(walk, "ease_pace", _ease)
 
 
 def _answer(monkeypatch: pytest.MonkeyPatch, outcome: tuple[int, int | None] | None) -> None:
@@ -162,3 +181,30 @@ async def test_a_lane_with_no_holes_left_really_does_finish(
 
     assert step.finished
     assert step.cursor is None
+
+
+async def test_a_withheld_page_slows_the_lane_down(monkeypatch: pytest.MonkeyPatch) -> None:
+    """WB withholding a page IS the penalty, so the interval that caused it must
+    move. Measured 2026-09-12: 18 minutes after a good page still drew 2762s.
+    """
+    _answer(monkeypatch, None)
+    cursor = _format_cursor(*THE_HOLE, 0, 0, THE_HOLE[0])
+
+    step = await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
+
+    assert PACE_CALLS == ["widen"]
+    assert not step.finished, "a withheld page is a retry, not an ending"
+
+
+async def test_a_served_page_lets_the_lane_speed_back_up(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Otherwise one bad morning slows the whole remaining walk.
+
+    An EMPTY window counts as served: WB answered, so the interval is one it
+    tolerates — and the pre-history span is nothing but empty answers.
+    """
+    _answer(monkeypatch, (0, None))
+    cursor = _format_cursor(*PREHISTORY, 0, 0, PREHISTORY[0])
+
+    await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
+
+    assert PACE_CALLS == ["ease"]
