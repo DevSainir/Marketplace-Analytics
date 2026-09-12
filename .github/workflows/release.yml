@@ -42,9 +42,28 @@
 
 name: release
 
+# Release Please itself runs on every push, and that half is unchanged: the open
+# release PR is how anyone sees what the next version would be and why, so it
+# has to stay current.
+#
+# CUTTING the release is what moved onto a schedule. Merging that PR on every
+# push made the version number a push counter — 40 releases in the three days to
+# 2026-09-12, twelve of them in six hours on the 11th, several for a `chore:`
+# that changed no behaviour at all. A changelog of one-commit releases says
+# nothing that `git log` does not, and every one of them tagged, announced and
+# notified as though it were news.
+#
+# Sunday 17:00 UTC is 20:00 MSK: a week's work cut as one version, in the
+# evening of the quietest day, with Monday morning free to look at it. Nothing
+# waits for it — `deploy` still fires on every push, so main reaches production
+# continuously and only the VERSION batches.
+#
+# `workflow_dispatch` cuts one immediately when a week is too long to wait.
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '0 17 * * 0'
   workflow_dispatch:
 
 concurrency:
@@ -155,14 +174,26 @@ jobs:
       # To HOLD a release, label the PR `hold-release`: the merge is skipped
       # and the PR stays open, which is what leaving it open used to mean.
       # ---------------------------------------------------------------- #
-      # No `if:` and no `fromJSON` here, both deliberately. A step's `env:` is
-      # templated even when its `if` is false, so reading
-      # `fromJSON(steps.release.outputs.pr)` from `env` blew the whole job up
-      # on the run where no PR existed — "Error reading JToken from JsonReader"
-      # — while the identical expression under `with:` above is fine. Finding
-      # the PR by branch prefix instead makes the step safe to run every time
-      # and lets a manual dispatch merge a PR an earlier run left behind.
+      # The `if:` is the weekly gate, and it is the ONLY condition here. On a
+      # push this step is skipped and the release PR simply stays open, which is
+      # what accumulates a week of commits into one version.
+      #
+      # Still no `fromJSON` in this step, and that part remains deliberate: a
+      # step's `env:` is templated even when its `if` is false, so reading
+      # `fromJSON(steps.release.outputs.pr)` from `env` blew the whole job up on
+      # the run where no PR existed — "Error reading JToken from JsonReader" —
+      # while the identical expression under `with:` above is fine. An `if:`
+      # that touches nothing but `github.event_name` is safe; one that parsed
+      # that output would not be. Finding the PR by branch prefix instead keeps
+      # the step safe to run whenever it does run, and lets a dispatch merge a
+      # PR an earlier run left behind.
+      #
+      # The re-dispatch at the end of this step starts `release` again, which
+      # arrives here as `workflow_dispatch` and so passes this gate — by then
+      # the PR it would merge is already merged, the lookup finds nothing, and
+      # it exits 0. That is the intended no-op, not a loop.
       - name: Merge the release PR
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # This step runs with no checkout (the ones above are conditional),

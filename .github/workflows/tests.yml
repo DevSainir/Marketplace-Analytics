@@ -72,8 +72,20 @@ on:
         type: boolean
         default: false
 
+# The event is part of the KEY, and leaving it out cancelled a run on every
+# single push to main. `release` merges its PR with GITHUB_TOKEN, which triggers
+# no workflow, so it dispatches this one by hand — and a dispatched run on main
+# landed in the same group as the push run already going and killed it. Every
+# push therefore ended in a red "cancelled" that meant nothing was wrong, which
+# is exactly the kind of red this repository has spent several commits removing.
+#
+# Splitting by event keeps what the cancellation is FOR — a second push
+# superseding the first, a re-dispatch superseding an earlier dispatch — and
+# drops only the cross-event collision, which was never anything but collateral.
+# Two runs can now overlap; the VPS runner is single, so they queue rather than
+# compete.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 # CI only reads the repository; nothing here pushes, comments, or releases.

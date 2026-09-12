@@ -9,19 +9,35 @@ commit time by the `commitizen` hook in `.pre-commit-config.yaml`.
 1. You push conventional commits to `main` as usual (this repo is trunk-based).
 2. `.github/workflows/release.yml` runs [Release Please](https://github.com/googleapis/release-please),
    which opens a pull request titled `chore(release): vX.Y.Z` describing the version it would
-   produce and the changelog it would write — and then **merges it automatically**.
-3. That merge **is** the release. Release Please then:
+   produce and the changelog it would write, and keeps that PR current on every push.
+3. **The PR is merged once a week** — Sunday 17:00 UTC (20:00 MSK), on the workflow's `schedule`.
+   That merge **is** the release. Release Please then:
    * writes `CHANGELOG.md`,
    * bumps `version.txt`, `backend/pyproject.toml` and `frontend/package.json` to the same number,
    * tags `vX.Y.Z` and publishes a GitHub Release.
 4. The merge lands on `main` like any other commit, so `tests` runs and the VPS auto-deploys on green.
 5. The release announcement to Telegram is **off** (see below) — nothing is sent on a version bump.
 
+**Deploys do not wait for any of this.** Every push to `main` still runs `tests` and deploys on
+green, exactly as before; the weekly cadence batches the VERSION, not the shipping. What a version
+number now means is "a week of work", not "somebody pushed".
+
+### Why weekly, and what it replaced
+
+The merge used to run on every push, which made the version number a push counter. The three days
+to 2026-09-12 produced **40 releases** — twelve of them in six hours on the 11th, several cut by a
+`chore:` that changed no behaviour. A changelog of one-commit releases carries nothing `git log`
+does not, and each one still tagged, published and (when announcements are on) notified as news.
+
+### Cutting one early
+
+Dispatch `release.yml` by hand — `workflow_dispatch` passes the same gate the schedule does and
+merges the open PR immediately. That is the path for a fix that must carry a version before Sunday.
+
 ### Holding a release
 
-Every push to `main` therefore releases. To stop one, label the open PR **`hold-release`**: the
-merge step skips it and the PR stays open until you remove the label (the next push re-runs the
-workflow and merges it then). Leaving it open is no longer enough on its own.
+Label the open PR **`hold-release`**: the merge step skips it and the PR stays open until the label
+comes off, at which point the next scheduled run or dispatch merges it.
 
 The merge is deliberately not gated on the PR's own checks — they never run. GitHub holds workflow
 runs for Actions-opened PRs at `action_required`, so waiting for green there would wait forever.
