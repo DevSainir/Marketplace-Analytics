@@ -17,9 +17,15 @@ person happened to look.
 
 So the chain gets a second thread of continuation that nothing in a tick can
 break: a sweep, on the beat schedule, that looks for lanes which claim to be
-running and have not moved, and enqueues them again. It is idempotent by
-construction — every lane resumes from the cursor in its own row, so starting
-one that is actually alive costs a duplicate step, not a duplicate walk.
+running and have not moved, and enqueues them again.
+
+It is free to be wrong about whether a lane is dead, and that freedom is
+:mod:`src.modules.workspaces.chain` rather than a property of the sweep. A
+restart claims the lane's chain token, so a tick the sweep was wrong about
+retires itself when it next wakes instead of walking alongside the replacement.
+Without that the sweep bought its safety net at the price of forking the lane —
+NEVA ran two P&L chains for three hours on 2026-09-12, each at half of WB's
+budget, and each in turn declared the lane complete.
 """
 
 from __future__ import annotations
@@ -101,9 +107,11 @@ def sweep_stalled_backfills(orphaned: bool = False) -> dict[str, int]:
     """Re-enqueue every backfill lane that has stopped moving.
 
     Cheap and safe to run often: one indexed read, and an enqueue only for a
-    lane that has genuinely gone quiet. Restarting a lane that turns out to be
-    alive is harmless — it resumes from the same cursor, so the worst case is
-    one page fetched twice, and the ingestion is an upsert.
+    lane that has gone quiet. Restarting a lane that turns out to be alive is
+    harmless: the restart is enqueued WITHOUT a chain token, which claims the
+    lane, so the surviving tick stops at its next wake and only one chain walks
+    on — from the cursor in the row, so the worst case is one page fetched
+    twice into an upsert.
 
     Args:
         orphaned: Restart every lane that claims to be running, without waiting

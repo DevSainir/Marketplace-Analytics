@@ -7,7 +7,7 @@ for anything asked inside it.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import uuid
 from datetime import date, timedelta
 
 from src.core.config import settings
@@ -20,6 +20,7 @@ from src.modules.finreports.tasks.backfill.span import (
     PNL_FLOOR_DAYS,
     _format_cursor,
     _parse_cursor,
+    _roll_to_next_span,
     next_span,
 )
 from src.modules.finreports.tasks.settlement import _ingest_one_page
@@ -35,7 +36,6 @@ async def advance_pnl(
     tokens: WorkspaceTokenBundle,
     *,
     cursor: str | None,
-    settled_days: Sequence[date],
     build_ingestion: object,
 ) -> LaneStep:
     """Fetch, commit and account for ONE page of settlement history.
@@ -49,15 +49,19 @@ async def advance_pnl(
     Args:
         tokens: The workspace's decrypted WB credentials.
         cursor: Opaque resume point; ``None`` picks the next gap to fill.
-        settled_days: Settlement days already stored for this workspace — the
-            coverage the next span is chosen from.
         build_ingestion: Factory taking a session and returning an
             ``IngestionService``, injected the same way the walk takes it.
 
     Returns:
-        The step's outcome. A short page means WB has served the whole span, so
-        the lane is finished; progress is measured in settlement DAYS covered,
+        The step's outcome. Progress is measured in settlement DAYS covered,
         which is the only unit knowable before the walk starts.
+
+        A span ending — a short page, or enough empty answers to believe one —
+        finishes the SPAN, never the lane. What follows is
+        :func:`_roll_to_next_span`, because a seller's history is not one
+        stretch: NEVA's began with three years that predate the account and
+        continued past a 715-day hole, and a lane that returned ``finished``
+        from either ending declared the whole history complete over the hole.
     """
     if not tokens.statistics:
         return LaneStep(0, 0, None, True, "Нет токена «Статистика» — P&L пропущен.")
@@ -67,7 +71,9 @@ async def advance_pnl(
         span_from, span_to, rrd_id, empties, search_from = _parse_cursor(cursor)
     else:
         search_from = today - timedelta(days=PNL_FLOOR_DAYS)
-        chosen = next_span(settled_days, search_from=search_from, today=today)
+        chosen = next_span(
+            await read_settled_days(tokens.workspace_id), search_from=search_from, today=today
+        )
         if chosen is None:
             return LaneStep(0, 0, None, True, "Вся история P&L собрана.")
         span_from, span_to = chosen
@@ -75,7 +81,9 @@ async def advance_pnl(
 
     total = max((span_to - span_from).days + 1, 1)
     if span_to < span_from:
-        return LaneStep(total, total, None, True, "Вся история P&L собрана.")
+        return _roll_to_next_span(
+            await read_settled_days(tokens.workspace_id), after=span_to, today=today, rows=0
+        )
 
     # The gate that REFUSES, not the one that waits — and this is the whole
     # difference between a lane that runs and one that dies on its first tick.
@@ -143,10 +151,14 @@ async def advance_pnl(
                     f"Wildberries вернул пусто ({empties} из {PNL_EMPTY_STOP}) — проверим ещё раз."
                 ),
             )
-        return LaneStep(total, total, None, True, "История P&L собрана.")
+        return _roll_to_next_span(
+            await read_settled_days(tokens.workspace_id), after=span_to, today=today, rows=0
+        )
     if next_cursor is None:
-        # A short but non-empty page: ordinary pagination, the window is done.
-        return LaneStep(total, total, None, True, "История P&L собрана.", rows=rows)
+        # A short but non-empty page: ordinary pagination, this SPAN is done.
+        return _roll_to_next_span(
+            await read_settled_days(tokens.workspace_id), after=span_to, today=today, rows=rows
+        )
 
     # Re-anchor the span on the seller's ACTUAL first settlement day, which the
     # first page has just revealed. The span starts at a five-year floor because
@@ -228,3 +240,33 @@ async def _measure_progress(
     if latest is None or latest < true_start:
         return true_start, 0
     return true_start, (latest - true_start).days + 1
+
+
+async def read_settled_days(workspace_id: uuid.UUID) -> list[date]:
+    """Every distinct settlement day already stored for this workspace.
+
+    The coverage a span is chosen from. Read HERE rather than handed in by the
+    task, and that placement is the fix: the caller reads once per tick, before
+    the page is fetched, so a span ending that consulted the caller's copy would
+    be choosing what to do next from a picture taken before the rows it had just
+    committed existed — and would offer back the hole it had that moment filled.
+
+    One indexed DISTINCT over a few hundred rows per workspace. Cheap enough to
+    read again after a commit, which is the only way the walk notices its own
+    progress.
+    """
+    from sqlalchemy import distinct, select
+
+    from src.core.database import AsyncSessionLocal
+    from src.modules.finreports.models import LogisticsTransaction
+
+    async with AsyncSessionLocal() as session:
+        rows = await session.execute(
+            select(distinct(LogisticsTransaction.rr_dt))
+            .where(
+                LogisticsTransaction.workspace_id == workspace_id,
+                LogisticsTransaction.rr_dt.is_not(None),
+            )
+            .order_by(LogisticsTransaction.rr_dt)
+        )
+        return [day for (day,) in rows.all() if day is not None]

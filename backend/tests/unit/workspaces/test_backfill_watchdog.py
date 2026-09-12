@@ -141,3 +141,27 @@ def test_the_orphan_sweep_asks_for_the_lanes_a_restart_stranded() -> None:
 
     assert '"workspaces.sweep_stalled_backfills"' in source
     assert '"orphaned": True' in source
+
+
+def test_the_sweep_restarts_a_lane_without_inheriting_its_chain() -> None:
+    """A restart must SUPERSEDE the chain it replaces, not join it.
+
+    The sweep cannot tell a dead lane from a slow one. Passing the old token
+    through would make it join whatever it was wrong about, which is how NEVA ran
+    two P&L chains at once — each taking half of an endpoint WB serves four
+    times an hour, and each eventually declaring the lane finished.
+
+    Sending no token is what claims the lane, so this asserts on the absence.
+    """
+    import inspect
+
+    from src.modules.workspaces.tasks import sweep_stalled_backfills
+
+    enqueues = [
+        line
+        for line in inspect.getsource(sweep_stalled_backfills).splitlines()
+        if "send_task(" in line
+    ]
+
+    assert enqueues, "the sweep no longer enqueues anything"
+    assert all("chain" not in line for line in enqueues), enqueues

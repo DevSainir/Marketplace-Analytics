@@ -48,6 +48,7 @@ from src.modules.workspaces.contract import (
     BackfillState,
     LaneStep,
     WorkspaceTokenBundle,
+    claim_chain,
     load_workspace_token_bundle,
     read_cursor,
     record_failure,
@@ -133,6 +134,7 @@ async def _run_step(
     workspace_id: str,
     lane: BackfillLane,
     step: object,
+    chain: str,
 ) -> dict[str, object]:
     """Record a finished step and queue the next one if there is one.
 
@@ -141,6 +143,8 @@ async def _run_step(
         workspace_id: The workspace, as a string (Celery serializes JSON).
         lane: Which lane reported.
         step: The :class:`LaneStep` the lane returned.
+        chain: This chain's token, handed to the next tick so it can tell
+            whether it is still the live one.
 
     Returns:
         A small dict for the task result and the log.
@@ -157,7 +161,9 @@ async def _run_step(
     )
     if not step.finished:
         celery_app.send_task(
-            task_name, kwargs={"workspace_id": workspace_id}, countdown=_NEXT_STEP_SECONDS
+            task_name,
+            kwargs={"workspace_id": workspace_id, "chain": chain},
+            countdown=_NEXT_STEP_SECONDS,
         )
     logger.info(
         "backfill %s for %s: %s/%d, rows=%d, finished=%s",
@@ -171,7 +177,9 @@ async def _run_step(
     return {"lane": str(lane), "done": step.done, "total": step.total, "rows": step.rows}
 
 
-async def _yield_to_harvest(*, task_name: str, workspace_id: str, lane: BackfillLane) -> bool:
+async def _yield_to_harvest(
+    *, task_name: str, workspace_id: str, lane: BackfillLane, chain: str
+) -> bool:
     """Step aside if the nightly harvest is running. Returns whether we did."""
     if not await _harvest_is_running():
         return False
@@ -180,7 +188,11 @@ async def _yield_to_harvest(*, task_name: str, workspace_id: str, lane: Backfill
         lane=lane,
         message="Ждём ночную загрузку данных…",
     )
-    celery_app.send_task(task_name, kwargs={"workspace_id": workspace_id}, countdown=_YIELD_SECONDS)
+    celery_app.send_task(
+        task_name,
+        kwargs={"workspace_id": workspace_id, "chain": chain},
+        countdown=_YIELD_SECONDS,
+    )
     logger.info("backfill %s for %s yielded to the nightly harvest.", lane, workspace_id)
     return True
 
@@ -244,13 +256,27 @@ def backfill_catalogue(self: Task[object, object], workspace_id: str) -> dict[st
     time_limit=_TICK_SOFT_LIMIT_SECONDS + 60,
     **_TASK_RETRY_KWARGS,
 )
-def backfill_funnel(self: Task[object, object], workspace_id: str) -> dict[str, object]:
-    """Walk a few more days of funnel history, then queue the next step."""
+def backfill_funnel(
+    self: Task[object, object], workspace_id: str, chain: str | None = None
+) -> dict[str, object]:
+    """Walk a few more days of funnel history, then queue the next step.
+
+    Args:
+        workspace_id: The workspace being walked.
+        chain: The token of the tick chain this one continues. ``None`` starts a
+            fresh chain and supersedes any other running on this lane — which is
+            what a watchdog restart wants, and what stops the restart from
+            walking alongside the tick it was meant to replace.
+    """
 
     async def _run() -> dict[str, object]:
         name = "monitoring.backfill_funnel"
+        token = await claim_chain(uuid.UUID(workspace_id), BackfillLane.FUNNEL, chain)
+        if token is None:
+            logger.info("backfill funnel for %s superseded by a newer chain.", workspace_id)
+            return {"superseded": True}
         if await _yield_to_harvest(
-            task_name=name, workspace_id=workspace_id, lane=BackfillLane.FUNNEL
+            task_name=name, workspace_id=workspace_id, lane=BackfillLane.FUNNEL, chain=token
         ):
             return {"yielded": True}
         tokens = await _load(workspace_id)
@@ -266,7 +292,11 @@ def backfill_funnel(self: Task[object, object], workspace_id: str) -> dict[str, 
         cursor = await read_cursor(workspace_id=tokens.workspace_id, lane=BackfillLane.FUNNEL)
         step = await advance_funnel(tokens, nm_ids=nm_ids, cursor=cursor)
         return await _run_step(
-            task_name=name, workspace_id=workspace_id, lane=BackfillLane.FUNNEL, step=step
+            task_name=name,
+            workspace_id=workspace_id,
+            lane=BackfillLane.FUNNEL,
+            step=step,
+            chain=token,
         )
 
     return run_task(_guard(BackfillLane.FUNNEL, workspace_id, _run()))
@@ -279,13 +309,27 @@ def backfill_funnel(self: Task[object, object], workspace_id: str) -> dict[str, 
     time_limit=_TICK_SOFT_LIMIT_SECONDS + 60,
     **_TASK_RETRY_KWARGS,
 )
-def backfill_advertising(self: Task[object, object], workspace_id: str) -> dict[str, object]:
-    """Fetch one 31-day window of advertising history, then queue the next."""
+def backfill_advertising(
+    self: Task[object, object], workspace_id: str, chain: str | None = None
+) -> dict[str, object]:
+    """Fetch one 31-day window of advertising history, then queue the next.
+
+    Args:
+        workspace_id: The workspace being walked.
+        chain: The token of the tick chain this one continues. ``None`` starts a
+            fresh chain and supersedes any other running on this lane — which is
+            what a watchdog restart wants, and what stops the restart from
+            walking alongside the tick it was meant to replace.
+    """
 
     async def _run() -> dict[str, object]:
         name = "monitoring.backfill_advertising"
+        token = await claim_chain(uuid.UUID(workspace_id), BackfillLane.ADVERTISING, chain)
+        if token is None:
+            logger.info("backfill advertising for %s superseded by a newer chain.", workspace_id)
+            return {"superseded": True}
         if await _yield_to_harvest(
-            task_name=name, workspace_id=workspace_id, lane=BackfillLane.ADVERTISING
+            task_name=name, workspace_id=workspace_id, lane=BackfillLane.ADVERTISING, chain=token
         ):
             return {"yielded": True}
         tokens = await _load(workspace_id)
@@ -296,6 +340,7 @@ def backfill_advertising(self: Task[object, object], workspace_id: str) -> dict[
             workspace_id=workspace_id,
             lane=BackfillLane.ADVERTISING,
             step=step,
+            chain=token,
         )
 
     return run_task(_guard(BackfillLane.ADVERTISING, workspace_id, _run()))

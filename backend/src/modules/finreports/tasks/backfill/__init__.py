@@ -24,7 +24,6 @@ entrypoint that pays for a death being recorded.
 from __future__ import annotations
 
 import uuid
-from datetime import date
 
 from celery import Task
 
@@ -47,6 +46,7 @@ from src.modules.finreports.tasks.ingestion_factory import build_ingestion
 from src.modules.workspaces.contract import (
     BackfillLane,
     BackfillState,
+    claim_chain,
     load_workspace_token_bundle,
     read_cursor,
     record_failure,
@@ -69,7 +69,9 @@ _TICK_SOFT_LIMIT_SECONDS = 5 * 60
     soft_time_limit=_TICK_SOFT_LIMIT_SECONDS,
     time_limit=_TICK_SOFT_LIMIT_SECONDS + 60,
 )
-def backfill_pnl(self: Task[object, object], workspace_id: str) -> dict[str, object]:
+def backfill_pnl(
+    self: Task[object, object], workspace_id: str, chain: str | None = None
+) -> dict[str, object]:
     """Fetch ONE page of settlement history, then queue the next in ~15 minutes.
 
     The countdown is the endpoint's own budget, not a guess: WB serves this
@@ -82,10 +84,24 @@ def backfill_pnl(self: Task[object, object], workspace_id: str) -> dict[str, obj
     actively harmful for the same reason. A failed page is retried by the next
     scheduled tick — and a tick that never gets scheduled because the task died
     outright is what ``workspaces.sweep_stalled_backfills`` exists to catch.
+
+    Args:
+        workspace_id: The workspace being walked.
+        chain: The token of the tick chain this one continues. ``None`` starts a
+            fresh chain and supersedes any other — which is what every caller
+            that is not the previous tick wants, and what keeps a watchdog
+            restart from running alongside the lane it was restarting.
     """
 
     async def _run() -> dict[str, object]:
         ws_id = uuid.UUID(workspace_id)
+        token = await claim_chain(ws_id, BackfillLane.PNL, chain)
+        if token is None:
+            logger.info(
+                "backfill pnl for %s: superseded by a newer chain; this tick stops here.",
+                workspace_id,
+            )
+            return {"superseded": True}
         async with AsyncSessionLocal() as session:
             tokens = await load_workspace_token_bundle(session, ws_id)
         if tokens is None:
@@ -93,13 +109,7 @@ def backfill_pnl(self: Task[object, object], workspace_id: str) -> dict[str, obj
         bind_workspace(ws_id)
 
         cursor = await read_cursor(workspace_id=ws_id, lane=BackfillLane.PNL)
-        settled = await _settled_days(ws_id)
-        step = await advance_pnl(
-            tokens,
-            cursor=cursor,
-            settled_days=settled,
-            build_ingestion=build_ingestion,
-        )
+        step = await advance_pnl(tokens, cursor=cursor, build_ingestion=build_ingestion)
         await record_progress(
             workspace_id=ws_id,
             lane=BackfillLane.PNL,
@@ -112,7 +122,7 @@ def backfill_pnl(self: Task[object, object], workspace_id: str) -> dict[str, obj
         if not step.finished:
             celery_app.send_task(
                 "finreports.backfill_pnl",
-                kwargs={"workspace_id": workspace_id},
+                kwargs={"workspace_id": workspace_id, "chain": token},
                 countdown=_NEXT_PAGE_SECONDS,
             )
         logger.info(
@@ -142,29 +152,6 @@ def backfill_pnl(self: Task[object, object], workspace_id: str) -> dict[str, obj
             raise
 
     return run_task(_guarded())
-
-
-async def _settled_days(workspace_id: uuid.UUID) -> list[date]:
-    """Every distinct settlement day already stored for this workspace.
-
-    The coverage the next span is chosen from. One indexed DISTINCT over a few
-    hundred rows per workspace — cheap enough to read on every tick, and reading
-    it fresh is what lets the lane notice the hole it has just filled.
-    """
-    from sqlalchemy import distinct, select
-
-    from src.modules.finreports.models import LogisticsTransaction
-
-    async with AsyncSessionLocal() as session:
-        rows = await session.execute(
-            select(distinct(LogisticsTransaction.rr_dt))
-            .where(
-                LogisticsTransaction.workspace_id == workspace_id,
-                LogisticsTransaction.rr_dt.is_not(None),
-            )
-            .order_by(LogisticsTransaction.rr_dt)
-        )
-        return [day for (day,) in rows.all() if day is not None]
 
 
 __all__ = [
