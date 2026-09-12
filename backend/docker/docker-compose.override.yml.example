@@ -25,3 +25,20 @@ services:
   redis:
     ports:
       - "127.0.0.1:6379:6379"
+
+  frontend:
+    # NEVER started locally, and the reason is a certificate rather than a
+    # preference. The production nginx config hard-requires the Let's Encrypt
+    # key pair for example.com, which exists only on the VPS; without it
+    # nginx refuses to load its configuration at all — `nginx -t` reports
+    # "cannot load certificate" — and the container restart-loops. On one dev
+    # machine it had done so 286 times over 22 hours, competing for CPU with
+    # the services that do work, and reading in `docker ps` as a broken stack.
+    #
+    # Nothing local needs it: the dev UI is Vite, which proxies /api to the
+    # api service published above (frontend/vite.config.js). The throwaway e2e
+    # stack gets a plain-HTTP nginx from docker-compose.e2e.yml instead, which
+    # is why that tier runs a real frontend and this does not.
+    #
+    # Start it deliberately if you ever need to: `--profile vps-frontend`.
+    profiles: ["vps-frontend"]
