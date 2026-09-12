@@ -60,6 +60,29 @@ LANE_TASKS: dict[BackfillLane, str] = {
     BackfillLane.PNL: "finreports.backfill_pnl",
 }
 
+#: How long to wait before restarting a lane, per lane. Absent means at once.
+#:
+#: Only the P&L lane has one, and it is not politeness — it is the cheapest
+#: option available. WB serves ``reportDetailByPeriod`` once per ~15 minutes per
+#: token and answers an early ask with a PENALTY block: measured on NEVA
+#: 2026-09-12, a request 13 minutes after the previous one drew
+#: ``429 ... demands a 2762s wait``, turning a quarter-hour window into
+#: three quarters of an hour of nothing.
+#:
+#: A restart is exactly where that happens. The tick it replaces was killed
+#: mid-step, so nothing knows whether it had just spent the window or was still
+#: waiting for it — and three deploys in half an hour each fired an immediate
+#: tick, which is how NEVA earned the block above. Waiting one full window costs
+#: a lane that was genuinely dead ~15 minutes on top of the 45 it had already
+#: lost; guessing wrong costs 46 and leaves the walk no further forward.
+#:
+#: The other three lanes are paced by a bucket that refuses locally rather than
+#: by a server-side penalty, so an early tick there is answered by their own
+#: gate and costs nothing.
+LANE_RESTART_DELAY: dict[BackfillLane, int] = {
+    BackfillLane.PNL: 15 * 60 + 30,
+}
+
 #: How long a lane may go without moving before it is presumed dead.
 #:
 #: Set from the slowest lane's own cadence, not from impatience: the P&L tick
@@ -113,6 +136,10 @@ def sweep_stalled_backfills(orphaned: bool = False) -> dict[str, int]:
     on — from the cursor in the row, so the worst case is one page fetched
     twice into an upsert.
 
+    The restart is delayed by :data:`LANE_RESTART_DELAY` where the lane's
+    endpoint punishes an early ask. Being wrong about a dead lane is cheap;
+    being early on the settlement endpoint is not.
+
     Args:
         orphaned: Restart every lane that claims to be running, without waiting
             for it to look stale. Sent by the worker-start hook, where a lane in
@@ -138,17 +165,21 @@ def sweep_stalled_backfills(orphaned: bool = False) -> dict[str, int]:
             if task_name is None:
                 logger.error("No restart task registered for backfill lane %r.", lane)
                 continue
-            celery_app.send_task(task_name, kwargs={"workspace_id": str(workspace_id)})
+            delay = LANE_RESTART_DELAY.get(BackfillLane(lane), 0)
+            celery_app.send_task(
+                task_name, kwargs={"workspace_id": str(workspace_id)}, countdown=delay
+            )
             BACKFILL_LANE_RESTARTS.labels(lane=lane).inc()
             restarted += 1
             logger.warning(
-                "Backfill lane %s for workspace %s %s; restarted it via %s.",
+                "Backfill lane %s for workspace %s %s; restarting it via %s in %ds.",
                 lane,
                 workspace_id,
                 "was orphaned by a worker restart"
                 if orphaned
                 else f"had not moved in {STALE_AFTER}",
                 task_name,
+                delay,
             )
         if stalled:
             logger.info("Backfill sweep restarted %d of %d stalled lanes.", restarted, len(stalled))

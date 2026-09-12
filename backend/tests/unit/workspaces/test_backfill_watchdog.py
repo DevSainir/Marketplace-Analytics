@@ -157,11 +157,40 @@ def test_the_sweep_restarts_a_lane_without_inheriting_its_chain() -> None:
 
     from src.modules.workspaces.tasks import sweep_stalled_backfills
 
-    enqueues = [
-        line
-        for line in inspect.getsource(sweep_stalled_backfills).splitlines()
-        if "send_task(" in line
-    ]
+    source = inspect.getsource(sweep_stalled_backfills)
 
-    assert enqueues, "the sweep no longer enqueues anything"
-    assert all("chain" not in line for line in enqueues), enqueues
+    assert "send_task(" in source, "the sweep no longer enqueues anything"
+    # The kwarg KEY, quoted — the prose above and in the docstring says "chain"
+    # freely, and matching that made this assertion pass on anything.
+    assert '"chain"' not in source
+    assert "countdown=" in source, "the per-lane restart delay is not applied"
+
+
+def test_the_settlement_lane_is_not_restarted_into_wb_s_closed_window() -> None:
+    """An early ask on this endpoint costs three times what waiting costs.
+
+    WB answers a request made inside its own block with a penalty rather than a
+    refusal — NEVA drew ``429 ... demands a 2762s wait`` on 2026-09-12 from a
+    tick fired 13 minutes after the previous one, because a deploy's orphan
+    sweep restarted the lane the instant the worker came up.
+
+    A restart cannot know how much of the window the tick it replaces had
+    already spent, so it assumes none of it.
+    """
+    from src.modules.workspaces.tasks import LANE_RESTART_DELAY
+
+    assert LANE_RESTART_DELAY[BackfillLane.PNL] >= _NEXT_PAGE_SECONDS
+
+
+def test_the_fast_lanes_are_still_restarted_at_once() -> None:
+    """The delay is a property of one endpoint, not a new default.
+
+    The other three are paced by a bucket that refuses locally, so an early tick
+    is answered by their own gate at no cost — and making a seller wait a
+    quarter of an hour to resume a catalogue load would be paying the settlement
+    endpoint's price on lanes that do not owe it.
+    """
+    from src.modules.workspaces.tasks import LANE_RESTART_DELAY
+
+    for lane in (BackfillLane.CATALOGUE, BackfillLane.FUNNEL, BackfillLane.ADVERTISING):
+        assert LANE_RESTART_DELAY.get(lane, 0) == 0
