@@ -10,11 +10,28 @@ halves differently because of it:
   about four and a half seconds. It spent months behind a `run_slow_tiers` flag
   the nightly schedule never set, which meant it never ran at all — that is
   what made it worth moving rather than scheduling.
-* **Everything else is run deliberately, by hand.** The k6 profiles aim real
-  load at a real API — 120 concurrent VUs in the spike, 60 requests a second in
-  the flood — so they must never point at anything shared, which rules out both
-  a hosted runner beside other jobs and the VPS that serves production. The
-  Playwright half needs a running SPA. Neither is in any workflow.
+* **The k6 profiles run on their own schedule, on a hosted runner.**
+  `.github/workflows/load.yml` runs the three short ones nightly and adds the
+  hour-long soak on Sunday. They aim real load at a real API — 120 concurrent
+  VUs in the spike, 60 requests a second in the flood — so they must never
+  point at anything shared, which rules out the VPS that serves production.
+  The workflow asserts `RUNNER_ENVIRONMENT=github-hosted` before generating a
+  single request, and a unit test asserts the job never carries the
+  `self-hosted` label.
+* **The Playwright half is still run by hand.** It needs a running SPA and is
+  in no workflow.
+
+### Why the soak is weekly and an hour long
+
+An hour is what it takes to see a slope. Ten minutes of samples through a noisy
+series fits a line to almost anything, and the old profile did not even try: it
+compared the opening minute against the closing one, against a fixed ceiling —
+two points, which always fit perfectly, and a ceiling that passes a service
+which doubled and fails one that was always slow and never moved.
+
+An hour is also what makes it weekly rather than nightly. Hosted minutes are
+the constraint that moved everything else onto the VPS; 65 minutes once a week
+is about 285 a month, and nightly would be 2000 on its own.
 
 ## Layout
 
@@ -24,6 +41,7 @@ halves differently because of it:
 | `users/auth-flood.js` | k6 | Credential-stuffing / DDoS on the auth surface |
 | `monitoring/summary-load.js` | k6 | Steady-state dashboard load + latency drift (leak detection) |
 | `monitoring/matrix-spike.js` | k6 | Spike, overload, and — the real assertion — recovery |
+| `lib/regression.js` | — | The least-squares fit the soak's verdict rests on |
 | `frontend/` | Playwright | The SPA loading forever behind a dead or hanging backend |
 
 Split by runner because the question decides the tool: anything expressible in
@@ -55,6 +73,37 @@ Then, against a running API — all four profiles in one go:
 ```bash
 make test-perf-load
 ```
+
+### The soak's knobs
+
+```bash
+# what CI runs on Sunday
+```
+
+| Variable | Default | What it changes |
+| --- | --- | --- |
+| `SOAK_MINUTES` | `10` | Minutes of held load, after the warm-up |
+| `SOAK_RPS` | `10` | Request rate, held regardless of latency |
+| `SOAK_WARMUP_MINUTES` | `2` | Load before the first sample, excluded from every fit |
+| `SOAK_MIN_FIT` | `0.7` | How straight a line must be before its slope is believed |
+| `SOAK_MAX_RSS_GROWTH` | `1048576` | Bytes/min of resident memory that counts as a leak |
+| `SOAK_MAX_LATENCY_GROWTH` | `10` | ms/min of probe latency that counts as degradation |
+| `SOAK_MAX_POOL_GROWTH` | `0.05` | Connections/min never returned to the pool |
+| `SOAK_MAX_FDS_GROWTH` | `0.5` | Descriptors/min never closed |
+
+The ceilings are objectives, not observations: each is the growth rate at which
+something breaks within a working day. They have not been calibrated against a
+real hour-long run, because until now nothing had ever executed one — read the
+first Sunday's numbers as a measurement and revisit them.
+
+Two failures are worth knowing about before you see them:
+
+* **`soak_leak_signals`** — a series that is both steeper than its ceiling and
+  straight enough to believe. This is the finding.
+* **`soak_blind_signals`** — a series the API never published, so no line could
+  be fitted. It fails the run on purpose. In multiprocess mode `process_*` is
+  not exported at all, and a soak that silently fitted a line through an empty
+  series would report "no leak" forever.
 
 Or one at a time, which is what you want while tuning:
 

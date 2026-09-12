@@ -27,6 +27,7 @@ import yaml
 _ROOT = pathlib.Path(__file__).resolve().parents[4]
 _SCRIPTS = _ROOT / "backend" / "scripts"
 _TESTS_WORKFLOW = _ROOT / ".github" / "workflows" / "tests.yml"
+_LOAD_WORKFLOW = _ROOT / ".github" / "workflows" / "load.yml"
 
 #: The production stack's Compose project, and therefore the prefix of every
 #: container name that belongs to the live service.
@@ -99,3 +100,62 @@ def test_the_end_to_end_tier_names_the_database_it_seeds() -> None:
     assert env["COMPOSE_PROJECT_NAME"] == "marketplace-e2e"
     assert env["SEED_PG_CONTAINER"].startswith("marketplace-e2e")
     assert env["SEED_PG_CONTAINER"] != _PRODUCTION_POSTGRES
+
+
+def _load_job() -> dict[str, Any]:
+    """The k6 job, which is the only thing here that generates overload."""
+    return dict(yaml.safe_load(_LOAD_WORKFLOW.read_text())["jobs"]["k6"])
+
+
+def test_the_load_profiles_never_run_on_the_production_box() -> None:
+    """The one job in this repository that must not touch the VPS runner.
+
+    Everything else moved onto the production box when hosted minutes ran out,
+    and moving this one too is a single-word edit that would read like
+    finishing the job. It is not: `matrix-spike` drives 120 concurrent users
+    and `auth-flood` 60 requests a second, both deliberately trying to overload
+    what they point at. On the box that serves production that is not a test.
+
+    The workflow also asserts `RUNNER_ENVIRONMENT` at run time — belt and
+    braces, because a label is a promise and the environment variable is a
+    fact. This is the half that fails in review instead of at 02:00.
+    """
+    runner = _load_job()["runs-on"]
+    labels = [runner] if isinstance(runner, str) else list(runner)
+
+    assert "self-hosted" not in labels, (
+        f"the k6 job runs on {labels}. These profiles exist to overload their target; "
+        "the self-hosted runner shares two cores with the live API."
+    )
+    assert "prod-vps" not in labels, labels
+
+
+def test_the_load_stack_is_a_throwaway_of_its_own() -> None:
+    """Same reasoning as the browser tier, and the same failure if it lapses.
+
+    `load_seed.sh` reaches a database by container NAME, outside Compose. The
+    load job seeds too, so it needs the same declared target the e2e job needs
+    — and it must not be the e2e project either, or two jobs would fight over
+    one stack the moment they overlap.
+    """
+    env = dict(_load_job().get("env") or yaml.safe_load(_LOAD_WORKFLOW.read_text())["env"])
+
+    assert env["COMPOSE_PROJECT_NAME"] == "marketplace-load"
+    assert env["SEED_PG_CONTAINER"].startswith("marketplace-load")
+    assert env["SEED_PG_CONTAINER"] != _PRODUCTION_POSTGRES
+
+
+def test_the_load_runner_pins_the_binary_it_downloads() -> None:
+    """A load runner that fetches `latest` reports changes nobody committed.
+
+    Every action in these workflows is pinned by SHA. k6 arrives as a tarball
+    from a release page instead, so the pin is a version plus a checksum, and
+    the checksum is the half that makes it a pin rather than a preference.
+    """
+    env = dict(yaml.safe_load(_LOAD_WORKFLOW.read_text())["env"])
+
+    assert env["K6_VERSION"].startswith("v")
+    assert len(env["K6_SHA256"]) == 64, env["K6_SHA256"]
+
+    steps = [step for step in _load_job()["steps"] if "sha256sum" in str(step.get("run", ""))]
+    assert steps, "nothing verifies the k6 download; the version pin alone is decoration"

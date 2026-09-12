@@ -1,0 +1,40 @@
+# ---------------------------------------------------------------------------
+# Overlay for the k6 load profiles. Layered ON TOP of docker-compose.e2e.yml,
+# which already supplies the plain-HTTP nginx and the `:e2e` image tags that
+# keep a throwaway stack from touching the production project.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml \
+#                  -f docker-compose.load.yml up -d --build
+#
+# It changes exactly two things, and both are about measuring rather than
+# about isolation.
+#
+# 1. THE API IS PUBLISHED. k6 needs the API itself, not the SPA proxy: nginx
+#    forwards `/api/` and serves the SPA for everything else, so `/metrics`
+#    through the frontend port answers 200 with HTML and the soak's leak
+#    watcher would see every gauge as absent. Loopback only — this is a test
+#    stack and nothing outside the machine has any business reaching it.
+#
+# 2. THE CPU CAPS COME OFF. The e2e overlay caps the api at 0.4 CPU because it
+#    runs beside production on a two-core box. The load profiles do not run
+#    there and must not: they exist to overload what they point at. Left in
+#    place the cap would BE the bottleneck, and every profile would measure
+#    Compose's throttle instead of the application.
+#
+# `mem_limit` is deliberately NOT lifted. The soak's memory ceiling is derived
+# from it — 320 MiB is what the OOM killer is aimed at, so a service that
+# cannot hold the load inside it is a finding rather than a mis-configured
+# test.
+# ---------------------------------------------------------------------------
+
+services:
+  api:
+    ports:
+      - "127.0.0.1:8000:8000"
+    cpus: 2.0
+
+  postgres:
+    cpus: 2.0
+
+  worker:
+    cpus: 1.0
