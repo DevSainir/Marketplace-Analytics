@@ -1,8 +1,20 @@
 # Performance tier
 
-Not part of the pyramid's pass/fail gate — a separate layer, run deliberately.
-These tests answer "does it hold up?", not "is it correct?", and they need a
-running stack to answer anything.
+These tests answer "does it hold up?", not "is it correct?". The directory
+splits by how much of the world each half disturbs, and CI treats the two
+halves differently because of it:
+
+* **`resilience/` is a gate.** It runs in the `verify` job on every push, right
+  after the integration tier and against the same throwaway database, because
+  the pools and engines it exhausts are ones it creates and owns. Eleven tests,
+  about four and a half seconds. It spent months behind a `run_slow_tiers` flag
+  the nightly schedule never set, which meant it never ran at all — that is
+  what made it worth moving rather than scheduling.
+* **Everything else is run deliberately, by hand.** The k6 profiles aim real
+  load at a real API — 120 concurrent VUs in the spike, 60 requests a second in
+  the flood — so they must never point at anything shared, which rules out both
+  a hosted runner beside other jobs and the VPS that serves production. The
+  Playwright half needs a running SPA. Neither is in any workflow.
 
 ## Layout
 

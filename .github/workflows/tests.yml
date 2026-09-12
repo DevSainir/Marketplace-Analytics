@@ -4,9 +4,14 @@
 # the pipeline in ~30 seconds instead of after a ten-minute browser run. That
 # ordering IS the pyramid: cheap feedback first, expensive confirmation last.
 #
-# The end-to-end and performance tiers are deliberately not on every push —
-# they need the full stack and a browser, and running them per-commit would
-# make the pipeline the slowest part of the working day.
+# The end-to-end tier is deliberately not on every push — it needs the full
+# stack and a browser, and running it per-commit would make the pipeline the
+# slowest part of the working day.
+#
+# The k6 load profiles under tests/performance/*.js are not here at all, by
+# their own contract: they exist to overload what they point at, so they are
+# run deliberately, by hand, against something nobody else is using. Only the
+# pytest half of that directory — tests/performance/resilience — is in CI.
 
 name: tests
 
@@ -68,7 +73,7 @@ on:
   workflow_dispatch:
     inputs:
       run_slow_tiers:
-        description: 'Also run the end-to-end and performance tiers'
+        description: 'Also run the end-to-end tier'
         type: boolean
         default: false
 
@@ -102,8 +107,8 @@ jobs:
   # ------------------------------------------------------------------ #
   # WHERE THESE JOBS RUN
   #
-  # Everything except `performance` runs on the self-hosted runner on the
-  # production VPS (label `prod-vps`). There is exactly ONE runner, and that is
+  # Every job runs on the self-hosted runner on the production VPS (label
+  # `prod-vps`). There is exactly ONE runner, and that is
   # a resource decision rather than an oversight: two vCPUs are shared with the
   # live API and the Celery worker, so jobs QUEUE instead of competing. The
   # systemd unit caps the runner at 130% CPU and 1400 MiB, runs it at Nice=10,
@@ -111,10 +116,15 @@ jobs:
   # which was tried first and starved a checkout outright when a large prune
   # ran beside it (2026-09-09).
   #
-  # `performance` is the one tier that does NOT move here, and it is not a
-  # capacity judgement: the tier exists to overload whatever it points at, and
-  # its own contract says it must never run against anything shared. A box
-  # serving production is the most shared thing available.
+  # The performance DIRECTORY splits in two here, and the split is the whole
+  # reason its pytest half could move onto this box while it ran hosted for
+  # months. `resilience/` exhausts pools and engines IT OWNS, against the
+  # integration tier's throwaway database — the load never leaves the test
+  # process, so "must never run against anything shared" does not describe it.
+  # The k6 profiles beside it are the half that sentence was written for: 120
+  # concurrent VUs and 60 requests a second aimed at a real API. Those are not
+  # in this file and must not be, because a box serving production is the most
+  # shared thing available.
   #
   # `end-to-end` DOES run here, but only on the nightly schedule and only
   # behind the isolation in docker-compose.e2e.yml — a separate compose
@@ -142,7 +152,7 @@ jobs:
   # every tier below e2e, so the step name is what tells you which gate failed.
   # ------------------------------------------------------------------ #
   verify:
-    name: lint + types + fast + integration
+    name: lint + types + fast + integration + resilience
     runs-on: [self-hosted, prod-vps]
     timeout-minutes: 30
 
@@ -232,8 +242,7 @@ jobs:
           # UV_CACHE_DIR at `_work/_temp/setup-uv-cache`, which the runner
           # clears per job, so the cache was simply gone rather than local.
           # `UV_CACHE_DIR` in the job env above is what actually makes it
-          # persist. (The performance job keeps enable-cache: it runs hosted,
-          # where nothing survives the job either way.)
+          # persist.
 
       # `--locked` fails rather than silently re-resolving, so CI can never
       # install a dependency set the committed uv.lock does not describe.
@@ -451,6 +460,37 @@ jobs:
           JWT_SECRET_KEY: ci-only-signing-key-not-used-anywhere-else
         run: uv run pytest tests/integration -m integration
 
+      # ---------------------------------------------------------------- #
+      # The resilience tier — the pytest half of tests/performance.
+      #
+      # Here rather than in a job of its own, and AFTER the integration tier,
+      # because that is what its own conftest asks for: it runs against
+      # `marketplace_test`, the throwaway database the integration tier
+      # creates, and skips with "run the integration tier once to create it"
+      # when that database is missing. As a separate job it had to re-create
+      # the database by running one migration test first — two minutes of
+      # setup around eleven tests that finish in four and a half seconds.
+      #
+      # It ran hosted, gated behind `run_slow_tiers`, and that flag is not set
+      # by the nightly schedule — so across the 200 most recent runs it had
+      # never once executed. A tier that guards pool exhaustion, reclaimed
+      # transactions and write races is worth more than that, and at five
+      # seconds it is cheaper than deciding when to run it.
+      #
+      # Repository root, not `backend/`: this tier is cross-stack and takes its
+      # config from tests/pytest.ini.
+      # ---------------------------------------------------------------- #
+      - name: Resilience tier (pool exhaustion, reclaimed transactions, write races)
+        env:
+          ENVIRONMENT: local
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: '5432'
+          POSTGRES_DB: marketplace
+          POSTGRES_USER: marketplace
+          POSTGRES_PASSWORD: ci-password
+          JWT_SECRET_KEY: ci-only-signing-key-not-used-anywhere-else
+        run: uv run --project backend pytest -c tests/pytest.ini tests/performance
+
   # ------------------------------------------------------------------ #
   # Gate 3 — end-to-end. Full stack + a real browser. Manual / main only.
   # ------------------------------------------------------------------ #
@@ -648,59 +688,6 @@ jobs:
   # ------------------------------------------------------------------ #
   # Separate layer — performance. Opt-in only: it deliberately overloads
   # the service it points at, so it must never run against anything shared.
-  # ------------------------------------------------------------------ #
-  performance:
-    name: performance probes
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: verify
-    if: inputs.run_slow_tiers
-
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: marketplace
-          POSTGRES_USER: marketplace
-          POSTGRES_PASSWORD: ci-password
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U marketplace"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      ENVIRONMENT: local
-      POSTGRES_HOST: localhost
-      POSTGRES_USER: marketplace
-      POSTGRES_PASSWORD: ci-password
-      POSTGRES_DB: marketplace
-      JWT_SECRET_KEY: ci-only-signing-key-not-used-anywhere-else
-
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        with:
-          version: ${{ env.UV_VERSION }}
-          python-version: ${{ env.PYTHON_VERSION }}
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
-
-      # `--locked` fails rather than silently re-resolving, so CI can never
-      # install a dependency set the committed uv.lock does not describe.
-      - name: Install backend dependencies
-        working-directory: backend
-        run: uv sync --locked
-
-      - name: Create the throwaway database
-        working-directory: backend
-        run: uv run pytest tests/integration/core/test_migrations.py -q
-
-      - name: Resource-exhaustion and race probes
-        run: uv run --project backend pytest -c tests/pytest.ini tests/performance
-
   # ------------------------------------------------------------------ #
   # Hand the release its deploy.
   #
