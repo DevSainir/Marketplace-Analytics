@@ -213,8 +213,15 @@ async def test_the_harvest_asks_the_gate_about_the_frontier_not_the_watermark(
         asked.append(latest_settled)
         return FreshnessVerdict(outcome=FreshnessOutcome.WB_EMPTY, checked_at=CHECKED_AT)
 
+    async def _no_gaps(*_args: object, **_kwargs: object) -> dict[uuid.UUID, list[date]]:
+        return {}
+
     redis = _FakeRedis()
     monkeypatch.setattr(harvest, "get_redis", lambda: redis)
+    # The gap survey opens its OWN session, so leaving it real makes this unit
+    # test reach Postgres — green on a laptop with Docker up, a DNS failure in
+    # CI. What it finds is not this file's subject.
+    monkeypatch.setattr(harvest, "survey_settlement_gaps", _no_gaps)
     monkeypatch.setattr(freshness, "get_redis", lambda: redis)
     monkeypatch.setattr(harvest, "AsyncSessionLocal", _FakeSession)
     monkeypatch.setattr(harvest, "SettlementWatermarkRepository", _FakeWatermarkRepo)
