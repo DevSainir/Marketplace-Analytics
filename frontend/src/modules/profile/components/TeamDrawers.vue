@@ -12,9 +12,9 @@
  */
 import { ref, watch } from 'vue'
 
-import AccessGrantFields from '@/modules/labs/components/profile/AccessGrantFields.vue'
-import InvitePanel from '@/modules/labs/components/profile/InvitePanel.vue'
-import SidePanel from '@/modules/labs/components/profile/SidePanel.vue'
+import AccessGrantFields from '@/modules/profile/components/AccessGrantFields.vue'
+import InvitePanel from '@/modules/profile/components/InvitePanel.vue'
+import SidePanel from '@/modules/profile/components/SidePanel.vue'
 
 const props = defineProps({
   /** `{ kind: 'invite' | 'access', manager? }` or null. */
@@ -52,7 +52,7 @@ watch(
       <template #footer>
         <button
           type="button"
-          class="lp-btn lp-btn--primary"
+          class="pf-btn pf-btn--primary"
           :disabled="memberSaving === 'invite'"
           @click="invitePanel?.submit()"
         >
@@ -77,7 +77,7 @@ watch(
       <template #footer>
         <button
           type="button"
-          class="lp-btn lp-btn--primary"
+          class="pf-btn pf-btn--primary"
           :disabled="memberSaving === drawer?.manager?.user_id"
           @click="emit('save-access', draftGrant)"
         >

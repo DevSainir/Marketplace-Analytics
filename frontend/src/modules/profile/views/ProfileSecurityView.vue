@@ -14,9 +14,9 @@
 import { onMounted, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
-import PasswordForm from '@/modules/labs/components/profile/PasswordForm.vue'
-import SessionList from '@/modules/labs/components/profile/SessionList.vue'
-import { changePassword, endSession, fetchSessions } from '@/modules/labs/profileApi'
+import PasswordForm from '@/modules/profile/components/PasswordForm.vue'
+import SessionList from '@/modules/profile/components/SessionList.vue'
+import { changePassword, endSession, fetchSessions } from '@/modules/profile/api'
 
 const sessions = ref([])
 const sessionsLoading = ref(true)
@@ -83,11 +83,11 @@ async function onEndOthers() {
 </script>
 
 <template>
-  <div class="lp-section">
-    <div class="lp-panel">
-      <header class="lp-panel__head">
+  <div class="pf-section">
+    <div class="pf-panel">
+      <header class="pf-panel__head">
         <div class="min-w-0">
-          <h2 class="lp-panel__title">Пароль</h2>
+          <h2 class="pf-panel__title">Пароль</h2>
         </div>
       </header>
 
@@ -100,11 +100,11 @@ async function onEndOthers() {
       />
     </div>
 
-    <div class="lp-panel">
-      <header class="lp-panel__head">
+    <div class="pf-panel">
+      <header class="pf-panel__head">
         <div class="min-w-0">
-          <h2 class="lp-panel__title">Активные сеансы</h2>
-          <p class="lp-panel__note">Каждый браузер, в котором выполнен вход в этот аккаунт.</p>
+          <h2 class="pf-panel__title">Активные сеансы</h2>
+          <p class="pf-panel__note">Каждый браузер, в котором выполнен вход в этот аккаунт.</p>
         </div>
       </header>
 

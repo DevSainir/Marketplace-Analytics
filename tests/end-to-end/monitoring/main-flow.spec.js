@@ -49,9 +49,7 @@ test("switching workspace re-scopes every subsequent request", async ({
   );
   expect(before, "no workspace was selected after login").toBeTruthy();
 
-  const otherWorkspace = page
-    .getByRole("button", { name: /Переключить/ })
-    .first();
+  const otherWorkspace = page.getByRole("button", { name: /Выбрать/ }).first();
   if (!(await otherWorkspace.isVisible().catch(() => false))) {
     test.skip(
       true,

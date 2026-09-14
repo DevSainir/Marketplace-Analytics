@@ -54,20 +54,20 @@ function expiry(invitation) {
 </script>
 
 <template>
-  <div class="lp-panel">
-    <header class="lp-panel__head">
+  <div class="pf-panel">
+    <header class="pf-panel__head">
       <div class="min-w-0">
-        <h2 class="lp-panel__title">Приглашения</h2>
-        <p class="lp-panel__note">
+        <h2 class="pf-panel__title">Приглашения</h2>
+        <p class="pf-panel__note">
           Пока ссылка действует, войти по ней может любой, у кого она есть.
         </p>
       </div>
     </header>
 
-    <p v-if="!visible.length" class="lp-empty">Действующих приглашений нет.</p>
+    <p v-if="!visible.length" class="pf-empty">Действующих приглашений нет.</p>
 
-    <div v-else class="lp-grid" role="table">
-      <div class="lp-grid__head" role="row">
+    <div v-else class="pf-grid" role="table">
+      <div class="pf-grid__head" role="row">
         <span role="columnheader">Кому</span>
         <span role="columnheader">Состояние</span>
         <span role="columnheader">Вошли</span>
@@ -75,29 +75,29 @@ function expiry(invitation) {
         <span role="columnheader" class="sr-only">Действия</span>
       </div>
 
-      <div v-for="invite in visible" :key="invite.id" class="lp-grid__row" role="row">
-        <span class="lp-cell lp-cell--who" role="cell">
-          <span class="lp-who__mail">{{ invite.email || 'Ссылка без адреса' }}</span>
-          <span class="lp-who__meta">
+      <div v-for="invite in visible" :key="invite.id" class="pf-grid__row" role="row">
+        <span class="pf-cell pf-cell--who" role="cell">
+          <span class="pf-who__mail">{{ invite.email || 'Ссылка без адреса' }}</span>
+          <span class="pf-who__meta">
             выдано {{ new Date(invite.created_at).toLocaleDateString('ru-RU') }}
           </span>
         </span>
 
-        <span class="lp-cell" role="cell">
-          <span class="lp-pill" :class="STATUS[invite.status]?.tone">
+        <span class="pf-cell" role="cell">
+          <span class="pf-pill" :class="STATUS[invite.status]?.tone">
             {{ STATUS[invite.status]?.label ?? invite.status }}
           </span>
         </span>
 
-        <span class="lp-cell lp-who__meta" role="cell">{{ invite.accepted_count }}</span>
+        <span class="pf-cell pf-who__meta" role="cell">{{ invite.accepted_count }}</span>
 
-        <span class="lp-cell lp-who__meta" role="cell">{{ expiry(invite) }}</span>
+        <span class="pf-cell pf-who__meta" role="cell">{{ expiry(invite) }}</span>
 
-        <span class="lp-cell lp-cell--act" role="cell">
+        <span class="pf-cell pf-cell--act" role="cell">
           <button
             v-if="invite.status === 'pending'"
             type="button"
-            class="lp-btn lp-btn--danger"
+            class="pf-btn pf-btn--danger"
             :disabled="busy === invite.id"
             @click="emit('revoke', invite.id)"
           >
@@ -110,21 +110,21 @@ function expiry(invitation) {
 </template>
 
 <style scoped>
-.lp-grid__head,
-.lp-grid__row {
+.pf-grid__head,
+.pf-grid__row {
   grid-template-columns: minmax(12rem, 2fr) 8rem 5rem 6rem 7rem;
 }
 
 @media (max-width: 1023px) {
-  .lp-grid__head {
+  .pf-grid__head {
     @apply hidden;
   }
 
-  .lp-grid__row {
+  .pf-grid__row {
     @apply grid-cols-1 gap-sm;
   }
 
-  .lp-cell--act {
+  .pf-cell--act {
     @apply justify-start;
   }
 }

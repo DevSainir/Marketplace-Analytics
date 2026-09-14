@@ -11,8 +11,8 @@
  */
 import { computed, ref } from 'vue'
 
-import AccessGrantFields from '@/modules/labs/components/profile/AccessGrantFields.vue'
-import { GRANT_MODULES } from '@/modules/labs/components/profile/grantModules'
+import AccessGrantFields from '@/modules/profile/components/AccessGrantFields.vue'
+import { GRANT_MODULES } from '@/modules/profile/components/grantModules'
 
 defineProps({ saving: { type: [String, null], default: null } })
 const emit = defineEmits(['invite'])
@@ -61,12 +61,12 @@ defineExpose({ submit })
   <div class="flex flex-col gap-lg">
     <div class="grid grid-cols-2 gap-md phone:grid-cols-1">
       <label class="flex flex-col gap-xs">
-        <span class="lp-field__label">Email (необязательно)</span>
-        <input v-model="email" type="email" class="lp-input" placeholder="Пусто — просто ссылка" />
+        <span class="pf-field__label">Email (необязательно)</span>
+        <input v-model="email" type="email" class="pf-input" placeholder="Пусто — просто ссылка" />
       </label>
       <label class="flex flex-col gap-xs">
-        <span class="lp-field__label">Ссылка действует, часов</span>
-        <input v-model.number="validForHours" type="number" min="1" max="720" class="lp-input" />
+        <span class="pf-field__label">Ссылка действует, часов</span>
+        <input v-model.number="validForHours" type="number" min="1" max="720" class="pf-input" />
       </label>
     </div>
 
@@ -77,17 +77,17 @@ defineExpose({ submit })
       @update="(next) => (grant = next)"
     />
 
-    <div v-if="issued" class="lp-issued">
-      <p class="lp-field__label">
+    <div v-if="issued" class="pf-issued">
+      <p class="pf-field__label">
         Ссылка показывается один раз. Пока она действует, по ней может присоединиться любой, у кого
         она есть.
       </p>
-      <code class="lp-issued__code">{{ inviteLink }}</code>
+      <code class="pf-issued__code">{{ inviteLink }}</code>
       <!-- Green, not violet: the drawer's primary action sits right below it in
            the footer, and two action-coloured buttons in a row make neither of
            them the thing to press. This one reports a success rather than
            asking for a decision, which is what the positive tone is for. -->
-      <button type="button" class="lp-btn lp-btn--good" @click="copyLink">
+      <button type="button" class="pf-btn pf-btn--good" @click="copyLink">
         {{ copied ? 'Скопировано' : 'Скопировать ссылку' }}
       </button>
     </div>
@@ -95,17 +95,17 @@ defineExpose({ submit })
 </template>
 
 <style scoped>
-.lp-field__label {
+.pf-field__label {
   @apply text-tiny font-semibold uppercase tracking-wide;
   color: var(--ui-faint);
 }
 
-.lp-issued {
+.pf-issued {
   @apply flex flex-col items-start gap-sm rounded-card px-md py-md;
   background: var(--ui-action-soft);
 }
 
-.lp-issued__code {
+.pf-issued__code {
   @apply block w-full break-all text-tiny font-medium text-primary;
 }
 </style>

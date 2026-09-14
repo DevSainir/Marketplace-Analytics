@@ -14,16 +14,15 @@
  */
 import { computed, onMounted, reactive, watch } from 'vue'
 
-import AccountFacts from '@/modules/labs/components/profile/AccountFacts.vue'
-import BackfillStrip from '@/modules/labs/components/profile/BackfillStrip.vue'
-import ProfileWorkspaces from '@/modules/labs/components/profile/ProfileWorkspaces.vue'
-import TokensDrawer from '@/modules/labs/components/profile/TokensDrawer.vue'
-import { useLabTeam } from '@/modules/labs/labTeam'
-import { useMembersStore, useWorkspaceStore } from '@/modules/profile'
+import AccountFacts from '@/modules/profile/components/AccountFacts.vue'
+import BackfillStrip from '@/modules/profile/components/BackfillStrip.vue'
+import ProfileWorkspaces from '@/modules/profile/components/ProfileWorkspaces.vue'
+import TokensDrawer from '@/modules/profile/components/TokensDrawer.vue'
+import { useMembersStore } from '@/modules/profile/membersStore'
+import { useWorkspaceStore } from '@/modules/profile/store'
 
 const store = useWorkspaceStore()
 const members = useMembersStore()
-const team = useLabTeam()
 
 const ROLE_LABELS = {
   dev: 'Разработчик',
@@ -85,11 +84,11 @@ async function onRemove(id) {
 </script>
 
 <template>
-  <div class="lp-section">
+  <div class="pf-section">
     <AccountFacts
       :role-label="ROLE_LABELS[members.role] ?? '—'"
       :workspaces="store.workspaces.length"
-      :managers="team.available.value ? team.managers.value.length : null"
+      :managers="members.canManageTeam ? members.managers.length : null"
     />
 
     <BackfillStrip v-if="store.currentWorkspaceId" :workspace-id="store.currentWorkspaceId" />

@@ -69,62 +69,62 @@ function onSubmit() {
 </script>
 
 <template>
-  <form id="lp-tokens-form" class="flex flex-col gap-md" @submit.prevent="onSubmit">
-    <p class="lp-tokens__count">
+  <form id="pf-tokens-form" class="flex flex-col gap-md" @submit.prevent="onSubmit">
+    <p class="pf-tokens__count">
       Задано {{ setCount }} из {{ fields.length }}. Пустое поле — токен остаётся прежним.
     </p>
 
-    <div v-for="field in fields" :key="field.key" class="lp-token">
-      <div class="lp-token__head">
-        <label :for="`lp-token-${field.key}`" class="lp-token__label">{{ field.label }}</label>
-        <span class="lp-pill" :class="isConfigured(field.key) ? 'is-ok' : 'is-warn'">
+    <div v-for="field in fields" :key="field.key" class="pf-token">
+      <div class="pf-token__head">
+        <label :for="`pf-token-${field.key}`" class="pf-token__label">{{ field.label }}</label>
+        <span class="pf-pill" :class="isConfigured(field.key) ? 'is-ok' : 'is-warn'">
           {{ isConfigured(field.key) ? 'Задан' : 'Не задан' }}
         </span>
       </div>
       <input
-        :id="`lp-token-${field.key}`"
+        :id="`pf-token-${field.key}`"
         v-model="values[field.key]"
         type="password"
         autocomplete="off"
         :disabled="clearFlags[field.key]"
         placeholder="Вставьте новый токен"
-        class="lp-input"
+        class="pf-input"
       />
-      <label v-if="isConfigured(field.key)" class="lp-token__clear">
+      <label v-if="isConfigured(field.key)" class="pf-token__clear">
         <input v-model="clearFlags[field.key]" type="checkbox" class="accent-[var(--ui-neg)]" />
         Очистить сохранённый токен
       </label>
     </div>
 
-    <p v-if="saved && !saving" class="lp-ok">Сохранено — значения зашифрованы в базе.</p>
+    <p v-if="saved && !saving" class="pf-ok">Сохранено — значения зашифрованы в базе.</p>
   </form>
 </template>
 
 <style scoped>
-.lp-tokens__count {
+.pf-tokens__count {
   @apply text-tiny font-medium;
   color: var(--ui-muted);
 }
 
-.lp-token {
+.pf-token {
   @apply flex flex-col gap-xs rounded-input px-md py-sm;
   background: var(--ui-sunk);
 }
 
-.lp-token__head {
+.pf-token__head {
   @apply flex items-center justify-between gap-sm;
 }
 
-.lp-token__label {
+.pf-token__label {
   @apply text-base font-medium text-primary;
 }
 
-.lp-token__clear {
+.pf-token__clear {
   @apply flex items-center gap-xs text-tiny font-medium;
   color: var(--ui-muted);
 }
 
-.lp-ok {
+.pf-ok {
   @apply text-tiny font-semibold;
   color: var(--ui-pos);
 }

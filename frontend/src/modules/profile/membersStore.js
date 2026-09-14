@@ -18,10 +18,13 @@ import {
   acceptInvitation,
   activateOrganization,
   createInvitation,
+  fetchAuditLog,
+  fetchInvitations,
   fetchMembers,
   fetchMyInvitations,
   fetchOrganizationMe,
   removeMember as removeMemberRequest,
+  revokeInvitation,
   updateMemberAccess,
 } from '@/modules/profile/api'
 
@@ -59,6 +62,12 @@ export const useMembersStore = defineStore('members', () => {
   //: no organisation — a member has nothing to accept.
   const invitations = ref([])
   const members = ref([])
+  //: Invitations this company issued, and its access trail. Both are «Команда»
+  //: state: nothing else in the app reads them, and loading them with the
+  //: bootstrap would make every page pay for one screen.
+  const issuedInvitations = ref([])
+  const auditTrail = ref([])
+  const historyLoading = ref(false)
   const loading = ref(false)
   const saving = ref(null)
   const error = ref('')
@@ -66,6 +75,17 @@ export const useMembersStore = defineStore('members', () => {
 
   /** Only an owner may see or change anyone's access. */
   const isOwner = computed(() => role.value === 'owner')
+
+  /**
+   * Whether this account may see and change the roster at all.
+   *
+   * `require_owner` on the API admits a **dev** as well as an owner, and a dev
+   * account collapses to the `dev` effective role however it is a member of its
+   * company. Gating on `isOwner` alone therefore hid «Команда», the invitations
+   * and the access log from a developer — the API would have answered all
+   * three (checked live: 200, not 403), and only this flag said no.
+   */
+  const canManageTeam = computed(() => role.value === 'owner' || role.value === 'dev')
 
   /**
    * Whether this account has been let into a company yet.
@@ -119,13 +139,13 @@ export const useMembersStore = defineStore('members', () => {
       if (organization.value === null) {
         invitations.value = await fetchMyInvitations().catch(() => [])
       }
-      // Asked for only when it can be answered: /members is owner-only, and a
-      // manager opening their profile would otherwise take a guaranteed 403.
+      // Asked for only when it can be answered: the roster is owner-or-dev, and
+      // a manager opening their profile would otherwise take a guaranteed 403.
       // `hasAccess` is the second half of the same rule — /members sits behind
       // `require_member`, which refuses a lapsed tenant outright, and letting
       // that 403 throw here would leave `loaded` false and the paywall
       // undrawn: the one state the flag exists to render.
-      if (me.role === 'owner' && hasAccess.value) members.value = await fetchMembers()
+      if (canManageTeam.value && hasAccess.value) members.value = await fetchMembers()
       loaded.value = true
     } catch (err) {
       error.value = err?.response?.data?.detail ?? 'Не удалось загрузить участников.'
@@ -232,7 +252,67 @@ export const useMembersStore = defineStore('members', () => {
     }
   }
 
+  /**
+   * Re-read the roster from the server.
+   *
+   * Called after a change the server decided — a removal, a grant — rather than
+   * patching the local list: the server is the authority on who is a member,
+   * and a local edit the request did not actually make shows a roster nobody
+   * can act on.
+   */
+  async function refreshMembers() {
+    if (!canManageTeam.value) return
+    members.value = await fetchMembers().catch(() => members.value)
+  }
+
+  /**
+   * The invitations this company has issued, and its access trail.
+   *
+   * Loaded on demand rather than in `ensureLoaded`: only «Команда» renders
+   * them, and every other page in the app pays for that bootstrap.
+   */
+  async function loadTeamHistory() {
+    if (!canManageTeam.value) return
+    historyLoading.value = true
+    try {
+      const [issued, trail] = await Promise.all([
+        fetchInvitations().catch(() => []),
+        // 100 rather than the endpoint's default: the list pages client-side,
+        // and a page that shows ten of fifty entries silently is worse than one
+        // that says there are five pages.
+        fetchAuditLog(100).catch(() => []),
+      ])
+      issuedInvitations.value = issued
+      auditTrail.value = trail
+    } finally {
+      historyLoading.value = false
+    }
+  }
+
+  /** Stop an outstanding invitation working. */
+  async function revokeIssuedInvitation(invitationId) {
+    saving.value = invitationId
+    error.value = ''
+    try {
+      await revokeInvitation(invitationId)
+      await loadTeamHistory()
+      return true
+    } catch (err) {
+      error.value = extractErrorMessage(err)
+      return false
+    } finally {
+      saving.value = null
+    }
+  }
+
   return {
+    canManageTeam,
+    issuedInvitations,
+    auditTrail,
+    historyLoading,
+    loadTeamHistory,
+    refreshMembers,
+    revokeIssuedInvitation,
     role,
     organization,
     subscription,

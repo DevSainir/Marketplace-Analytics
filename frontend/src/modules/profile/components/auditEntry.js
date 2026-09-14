@@ -15,7 +15,7 @@
  * here: a log that called a section something other than the form that granted
  * it would be worse than no log.
  */
-import { levelLabel, moduleLabel } from '@/modules/labs/components/profile/grantModules'
+import { levelLabel, moduleLabel } from '@/modules/profile/components/grantModules'
 
 /** Headline per event. Anything missing falls through to the raw name. */
 export const EVENT_LABELS = {
@@ -32,6 +32,31 @@ export const EVENT_LABELS = {
   SESSIONS_REVOKED: 'Завершены сеансы',
   PASSWORD_CHANGED: 'Изменён пароль',
   ACTIVATION_CODE_ISSUED: 'Выдан ключ активации',
+}
+
+/**
+ * What to call the two people in an entry, per event.
+ *
+ * «Кто» is not wrong, it is just empty: every entry has somebody, and the
+ * useful half is what they did. `actor` names the person who acted, `target`
+ * names whoever it happened to — and for the events where those are the same
+ * person (joining, changing your own password) there is no target line at all,
+ * because «Кто присоединился» has already said it.
+ */
+const ROLE_LABELS = {
+  ORG_ACTIVATED: { actor: 'Кто активировал' },
+  MEMBER_INVITED: { actor: 'Кто пригласил', target: 'Кого пригласили' },
+  INVITATION_REVOKED: { actor: 'Кто отозвал', target: 'Какое приглашение' },
+  MEMBER_JOINED: { actor: 'Кто присоединился' },
+  MEMBER_REMOVED: { actor: 'Кто удалил', target: 'Кого удалили' },
+  MEMBER_ROLE_CHANGED: { actor: 'Кто изменил', target: 'Кому изменили' },
+  MEMBER_ACCESS_CHANGED: { actor: 'Кто изменил', target: 'Кому изменили' },
+  WORKSPACE_CREATED: { actor: 'Кто создал' },
+  WORKSPACE_DELETED: { actor: 'Кто удалил' },
+  WB_TOKEN_ROTATED: { actor: 'Кто обновил' },
+  SESSIONS_REVOKED: { actor: 'Чьи сеансы' },
+  PASSWORD_CHANGED: { actor: 'Чей пароль' },
+  ACTIVATION_CODE_ISSUED: { actor: 'Кто выдал' },
 }
 
 /** Events that take something away — the only ones worth colouring. */
@@ -89,19 +114,23 @@ export function detailRows(entry) {
   const meta = entry.metadata ?? {}
   const rows = []
 
+  const names = ROLE_LABELS[entry.event] ?? {}
+
   rows.push({ label: 'Когда', value: fullMoment(entry.occurred_at) })
-  rows.push({ label: 'Кто', value: entry.actor_email || 'система' })
+  rows.push({ label: names.actor ?? 'Кто', value: entry.actor_email || 'система' })
 
   // Who it was ABOUT. Written into the metadata at the moment it happened, so
   // it still names a person after that account is deleted — which is the point
   // of keeping it denormalised rather than joining a user id at read time.
-  if (meta.email) {
+  //
+  // Skipped entirely when the event has no second party: an entry that said
+  // «Кто присоединился: X» and then «Кого касается: X» would be saying the
+  // same name twice under two questions.
+  if (names.target) {
     rows.push({
-      label: entry.target_type === 'invitation' ? 'Приглашение для' : 'Кого касается',
-      value: meta.email,
+      label: names.target,
+      value: meta.email || (entry.target_type === 'invitation' ? 'ссылка без адреса' : '—'),
     })
-  } else if (entry.target_type === 'invitation') {
-    rows.push({ label: 'Приглашение', value: 'ссылка без адреса' })
   }
 
   if (meta.access_level) {

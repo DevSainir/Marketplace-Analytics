@@ -53,56 +53,55 @@ function onRemove(id) {
 </script>
 
 <template>
-  <div class="lp-panel">
-    <header class="lp-panel__head">
+  <div class="pf-panel">
+    <header class="pf-panel__head">
       <div class="min-w-0">
-        <h2 class="lp-panel__title">Кабинеты</h2>
+        <h2 class="pf-panel__title">Кабинеты</h2>
       </div>
 
-      <form v-if="canManage" class="lp-panel__form" @submit.prevent="onCreate">
+      <form v-if="canManage" class="pf-panel__form" @submit.prevent="onCreate">
         <input
           v-model="newName"
           type="text"
           placeholder="Название нового"
-          class="lp-input"
+          class="pf-input"
           aria-label="Название нового кабинета"
         />
-        <button type="submit" class="lp-btn lp-btn--primary" :disabled="busy || !newName.trim()">
+        <button type="submit" class="pf-btn pf-btn--primary" :disabled="busy || !newName.trim()">
           Создать
         </button>
       </form>
     </header>
 
-    <p v-if="!workspaces.length" class="lp-empty">Пока нет ни одного кабинета.</p>
+    <p v-if="!workspaces.length" class="pf-empty">Пока нет ни одного кабинета.</p>
 
-    <div v-else class="lp-grid" role="table">
-      <div class="lp-grid__head" role="row">
+    <div v-else class="pf-grid" :class="canManage ? '' : 'is-readonly'" role="table">
+      <div class="pf-grid__head" role="row">
         <span role="columnheader">Название</span>
-        <span role="columnheader">Токены WB</span>
+        <!-- A manager cannot set a token, so a column of «—» for them is a
+             column that says nothing. -->
+        <span v-if="canManage" role="columnheader">Токены WB</span>
         <span role="columnheader">Создано</span>
         <span role="columnheader" class="sr-only">Действия</span>
       </div>
 
-      <div v-for="ws in workspaces" :key="ws.id" class="lp-grid__row" role="row">
-        <span class="lp-cell lp-cell--who" role="cell">
-          <span class="lp-who__mail" :title="ws.name">{{ ws.name }}</span>
-          <span class="lp-cell--chips">
+      <div v-for="ws in workspaces" :key="ws.id" class="pf-grid__row" role="row">
+        <span class="pf-cell pf-cell--who" role="cell">
+          <span class="pf-who__mail" :title="ws.name">{{ ws.name }}</span>
+          <span class="pf-cell--chips">
             <!-- «Активно» said nothing: every кабинет in the list is active.
                  What this marks is the one whose data the rest of the app is
                  currently showing — so it says that, and pairs with the
                  «Выбрать» on every other row. -->
-            <span v-if="ws.id === currentId" class="lp-pill is-on">Выбран</span>
-            <span v-if="ws.is_primary" class="lp-pill is-soft">основное</span>
+            <span v-if="ws.id === currentId" class="pf-pill is-on">Выбран</span>
+            <span v-if="ws.is_primary" class="pf-pill is-soft">основное</span>
           </span>
         </span>
 
-        <span class="lp-cell" role="cell">
-          <template v-if="!canManage">
-            <span class="lp-who__meta">—</span>
-          </template>
-          <template v-else-if="tokenSummary(ws, tokenStatuses)">
+        <span v-if="canManage" class="pf-cell" role="cell">
+          <template v-if="tokenSummary(ws, tokenStatuses)">
             <span
-              class="lp-pill"
+              class="pf-pill"
               :class="
                 tokenSummary(ws, tokenStatuses).set === 0
                   ? 'is-bad'
@@ -115,27 +114,27 @@ function onRemove(id) {
               {{ tokenSummary(ws, tokenStatuses).total }}
             </span>
           </template>
-          <span v-else class="lp-who__meta">…</span>
+          <span v-else class="pf-who__meta">…</span>
         </span>
 
-        <span class="lp-cell lp-who__meta" role="cell">
+        <span class="pf-cell pf-who__meta" role="cell">
           {{ new Date(ws.created_at).toLocaleDateString('ru-RU') }}
         </span>
 
-        <span class="lp-cell lp-cell--act" role="cell">
+        <span class="pf-cell pf-cell--act" role="cell">
           <button
             v-if="ws.id !== currentId"
             type="button"
-            class="lp-btn"
+            class="pf-btn"
             @click="emit('select', ws.id)"
           >
             Выбрать
           </button>
           <template v-if="canManage">
-            <button type="button" class="lp-btn" @click="emit('tokens', ws)">Токены</button>
+            <button type="button" class="pf-btn" @click="emit('tokens', ws)">Токены</button>
             <button
               type="button"
-              class="lp-btn lp-btn--danger"
+              class="pf-btn pf-btn--danger"
               :class="confirming === ws.id ? 'is-armed' : ''"
               :disabled="busy"
               @click="onRemove(ws.id)"
@@ -150,23 +149,29 @@ function onRemove(id) {
 </template>
 
 <style scoped>
-.lp-grid__head,
-.lp-grid__row {
+.pf-grid__head,
+.pf-grid__row {
   /* Fixed tracks for the same reason as the team grid: the header is its own
      grid, so an `auto` column would not agree with the rows. */
   grid-template-columns: minmax(12rem, 2fr) 9rem 7rem 13rem;
 }
 
+/* One column fewer, and the name takes the room it leaves. */
+.pf-grid.is-readonly .pf-grid__head,
+.pf-grid.is-readonly .pf-grid__row {
+  grid-template-columns: minmax(12rem, 2fr) 7rem 13rem;
+}
+
 @media (max-width: 1023px) {
-  .lp-grid__head {
+  .pf-grid__head {
     @apply hidden;
   }
 
-  .lp-grid__row {
+  .pf-grid__row {
     @apply grid-cols-1 gap-sm;
   }
 
-  .lp-cell--act {
+  .pf-cell--act {
     @apply justify-start;
   }
 }

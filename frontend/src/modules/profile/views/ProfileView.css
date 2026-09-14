@@ -1,10 +1,10 @@
 /*
  * Shared skin for the profile sandbox.
  *
- * GLOBAL on purpose, like `LabMonitoringView.css`: the `lp-` classes are used
+ * GLOBAL on purpose, like `LabMonitoringView.css`: the `pf-` classes are used
  * by every component under `labs/components/profile/`, and duplicating a
  * button recipe into eight scoped blocks is how two of them end up different.
- * The prefix is the containment — nothing outside this page asks for `lp-`.
+ * The prefix is the containment — nothing outside this page asks for `pf-`.
  *
  * Everything here consumes `ui-next` tokens, so the page changes with the
  * design system rather than drifting from it.
@@ -20,7 +20,7 @@
  * identity, the term and the section list stay on screen while a long team
  * list scrolls past them.
  */
-.lp-layout {
+.pf-layout {
   display: grid;
   /* Clamped rather than fixed so the two-column shape survives a 900px window.
      It used to collapse below 1024px, which is where the rail «прыгало»: at
@@ -30,15 +30,16 @@
   align-items: start;
 }
 
-/* 88px is exactly where the rail already sits at rest — header (64) plus the
-   page's own top padding (24) — so pinning there means it does not move at
-   all, rather than sliding up and then stopping. */
-.lp-aside {
-  position: sticky;
-  top: 88px;
+/* Left alone: in the flow, scrolling with everything else.
+   Not `absolute` literally — the rail is a grid item, and taking it out of the
+   flow would collapse the column it defines and drop the content underneath
+   it. Static is what "absolute position" means here: it sits where it is put
+   and nothing moves it. */
+.pf-aside {
+  position: static;
 }
 
-.lp-main {
+.pf-main {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -46,23 +47,19 @@
 }
 
 @media (max-width: 767px) {
-  .lp-layout {
+  .pf-layout {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
   }
 
-  .lp-aside {
-    position: static;
-  }
-
-  .lp-main {
+  .pf-main {
     gap: 20px;
   }
 }
 
 /* One page's stack of blocks. The gap is generous because these are separate
    subjects — the roster, the invitations, the log — not a list. */
-.lp-section {
+.pf-section {
   display: flex;
   flex-direction: column;
   gap: 40px;
@@ -72,13 +69,13 @@
  * Panels and cards
  * ----------------------------------------------------------------------- */
 
-.lp-panel {
+.pf-panel {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.lp-panel__head {
+.pf-panel__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -86,13 +83,13 @@
   flex-wrap: wrap;
 }
 
-.lp-panel__title {
+.pf-panel__title {
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--ui-ink);
 }
 
-.lp-panel__note {
+.pf-panel__note {
   margin-top: 4px;
   max-width: 52ch;
   font-size: 0.75rem;
@@ -100,12 +97,12 @@
   color: var(--ui-muted);
 }
 
-.lp-panel__form {
+.pf-panel__form {
   display: flex;
   gap: 8px;
 }
 
-.lp-empty {
+.pf-empty {
   padding: 24px;
   border-radius: 12px;
   background: var(--ui-surface);
@@ -121,14 +118,14 @@
  * five columns of email and chips run out of room long before 430px).
  * ----------------------------------------------------------------------- */
 
-.lp-grid {
+.pf-grid {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.lp-grid__head,
-.lp-grid__row {
+.pf-grid__head,
+.pf-grid__row {
   display: grid;
   align-items: center;
   gap: 16px;
@@ -137,7 +134,7 @@
 /* Flush left, aligned with the section title above rather than with the card
    content below. A column label indented to match a row's padding reads as a
    table that starts somewhere other than where the section does. */
-.lp-grid__head {
+.pf-grid__head {
   padding: 0 16px 4px 0;
   font-size: 0.6875rem;
   font-weight: 600;
@@ -146,7 +143,7 @@
   color: var(--ui-faint);
 }
 
-.lp-grid__row {
+.pf-grid__row {
   padding: 12px 16px;
   border-radius: 12px;
   background: var(--ui-surface);
@@ -154,35 +151,35 @@
   transition: box-shadow var(--ui-fast) var(--ui-ease);
 }
 
-.lp-grid__row:hover {
+.pf-grid__row:hover {
   box-shadow: var(--ui-sh-sm);
 }
 
-.lp-cell {
+.pf-cell {
   min-width: 0;
   font-size: 0.875rem;
   color: var(--ui-ink);
 }
 
-.lp-cell--who {
+.pf-cell--who {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.lp-cell--chips {
+.pf-cell--chips {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
 
-.lp-cell--act {
+.pf-cell--act {
   display: flex;
   justify-content: flex-end;
   gap: 4px;
 }
 
-.lp-who__mail {
+.pf-who__mail {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -190,7 +187,7 @@
   color: var(--ui-ink);
 }
 
-.lp-who__meta {
+.pf-who__meta {
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--ui-muted);
@@ -200,7 +197,7 @@
  * Atoms
  * ----------------------------------------------------------------------- */
 
-.lp-pill {
+.pf-pill {
   display: inline-block;
   border-radius: 6px;
   padding: 2px 8px;
@@ -211,37 +208,37 @@
   color: var(--ui-muted);
 }
 
-.lp-pill.is-soft {
+.pf-pill.is-soft {
   background: var(--ui-action-soft);
   color: var(--ui-action);
 }
 
-.lp-pill.is-on {
+.pf-pill.is-on {
   background: var(--ui-action);
   color: #fff;
 }
 
-.lp-pill.is-ok {
+.pf-pill.is-ok {
   background: rgba(6, 122, 82, 0.1);
   color: var(--ui-pos);
 }
 
-.lp-pill.is-warn {
+.pf-pill.is-warn {
   background: rgba(194, 112, 11, 0.12);
   color: var(--ui-warn);
 }
 
-.lp-pill.is-bad {
+.pf-pill.is-bad {
   background: rgba(217, 58, 43, 0.1);
   color: var(--ui-neg);
 }
 
-.lp-pill.is-quiet {
+.pf-pill.is-quiet {
   background: var(--ui-sunk);
   color: var(--ui-muted);
 }
 
-.lp-btn {
+.pf-btn {
   border-radius: 6px;
   padding: 6px 12px;
   font-size: 0.75rem;
@@ -253,24 +250,24 @@
     color var(--ui-fast) var(--ui-ease);
 }
 
-.lp-btn:hover:not(:disabled) {
+.pf-btn:hover:not(:disabled) {
   background: var(--ui-sunk);
   color: var(--ui-ink);
 }
 
-.lp-btn:disabled {
+.pf-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.lp-btn--primary {
+.pf-btn--primary {
   background: var(--ui-action);
   color: #fff;
   padding: 8px 16px;
   font-size: 0.875rem;
 }
 
-.lp-btn--primary:hover:not(:disabled) {
+.pf-btn--primary:hover:not(:disabled) {
   background: var(--ui-action-hover);
   color: #fff;
 }
@@ -278,33 +275,33 @@
 /* There is no second brand colour in the system, and inventing one for a
    button is how a palette grows by accident. The positive green already means
    «это получилось», which is exactly what «Скопировать ссылку» reports. */
-.lp-btn--good {
+.pf-btn--good {
   background: var(--ui-pos);
   color: #fff;
   padding: 8px 16px;
   font-size: 0.875rem;
 }
 
-.lp-btn--good:hover:not(:disabled) {
+.pf-btn--good:hover:not(:disabled) {
   background: #04613f;
   color: #fff;
 }
 
-.lp-btn--danger {
+.pf-btn--danger {
   color: var(--ui-neg);
 }
 
-.lp-btn--danger:hover:not(:disabled) {
+.pf-btn--danger:hover:not(:disabled) {
   background: rgba(217, 58, 43, 0.1);
   color: var(--ui-neg);
 }
 
-.lp-btn--danger.is-armed {
+.pf-btn--danger.is-armed {
   background: var(--ui-neg);
   color: #fff;
 }
 
-.lp-input {
+.pf-input {
   width: 100%;
   border-radius: 8px;
   border: 1px solid var(--ui-hairline);
@@ -314,28 +311,28 @@
   color: var(--ui-ink);
 }
 
-.lp-input::placeholder {
+.pf-input::placeholder {
   color: var(--ui-faint);
 }
 
-.lp-input:focus {
+.pf-input:focus {
   outline: none;
   border-color: var(--ui-action);
 }
 
-.lp-input:disabled {
+.pf-input:disabled {
   opacity: 0.5;
 }
 
 /* Touch targets: the phone-layout contract is 44px, and these controls are the
    only thing on the page a thumb has to hit. */
 @media (max-width: 430px) {
-  .lp-btn,
-  .lp-input {
+  .pf-btn,
+  .pf-input {
     min-height: 44px;
   }
 
-  .lp-panel__form {
+  .pf-panel__form {
     flex-direction: column;
   }
 }
@@ -344,7 +341,7 @@
  * Page-level notices
  * ----------------------------------------------------------------------- */
 
-.lp-alert {
+.pf-alert {
   border-radius: 12px;
   padding: 12px 16px;
   font-size: 0.875rem;
@@ -353,7 +350,30 @@
   color: var(--ui-neg);
 }
 
-.lp-alert--soft {
+.pf-alert--soft {
   background: var(--ui-action-soft);
   color: var(--ui-action);
+}
+
+/* --------------------------------------------------------------------------
+ * The activation block, for an account that has no company yet
+ * ----------------------------------------------------------------------- */
+
+.pf-activation {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 12px;
+  padding: 24px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-sh-xs);
+}
+
+.pf-link {
+  font-weight: 600;
+  color: var(--ui-action);
+}
+
+.pf-link:hover {
+  color: var(--ui-action-hover);
 }

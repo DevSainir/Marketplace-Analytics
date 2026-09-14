@@ -39,27 +39,27 @@ function plural(n, forms) {
 </script>
 
 <template>
-  <dl class="lp-facts">
-    <div class="lp-fact">
-      <dt class="lp-fact__label">Доступ</dt>
-      <dd class="lp-fact__value">{{ roleLabel }}</dd>
+  <dl class="pf-facts">
+    <div class="pf-fact">
+      <dt class="pf-fact__label">Доступ</dt>
+      <dd class="pf-fact__value">{{ roleLabel }}</dd>
     </div>
 
-    <div class="lp-fact">
-      <dt class="lp-fact__label">Кабинеты</dt>
-      <dd class="lp-fact__value">
+    <div class="pf-fact">
+      <dt class="pf-fact__label">Кабинеты</dt>
+      <dd class="pf-fact__value">
         {{ workspaces }}
-        <span class="lp-fact__aside">
+        <span class="pf-fact__aside">
           {{ plural(workspaces, ['подключён', 'подключено', 'подключено']) }}
         </span>
       </dd>
     </div>
 
-    <div v-if="managers !== null" class="lp-fact">
-      <dt class="lp-fact__label">Команда</dt>
-      <dd class="lp-fact__value">
+    <div v-if="managers !== null" class="pf-fact">
+      <dt class="pf-fact__label">Команда</dt>
+      <dd class="pf-fact__value">
         {{ managers }}
-        <span class="lp-fact__aside">
+        <span class="pf-fact__aside">
           {{ plural(managers, ['менеджер', 'менеджера', 'менеджеров']) }}
         </span>
       </dd>
@@ -68,27 +68,27 @@ function plural(n, forms) {
 </template>
 
 <style scoped>
-.lp-facts {
+.pf-facts {
   @apply flex flex-wrap gap-x-xl gap-y-md;
   padding-bottom: 20px;
   border-bottom: 1px solid var(--ui-hairline);
 }
 
-.lp-fact {
+.pf-fact {
   @apply flex min-w-0 flex-col gap-xs;
 }
 
-.lp-fact__label {
+.pf-fact__label {
   @apply text-tiny font-semibold uppercase tracking-wide;
   color: var(--ui-faint);
 }
 
-.lp-fact__value {
+.pf-fact__value {
   @apply truncate text-base font-semibold text-primary;
 }
 
 /* The quiet half of the value — the unit, the remainder, the count's noun. */
-.lp-fact__aside {
+.pf-fact__aside {
   @apply font-medium;
   color: var(--ui-muted);
 }

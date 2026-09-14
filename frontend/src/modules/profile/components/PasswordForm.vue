@@ -84,19 +84,19 @@ defineExpose({ reset })
 </script>
 
 <template>
-  <form class="lp-pw" @submit.prevent="onSubmit">
-    <div class="lp-pw__fields">
-      <label class="lp-pw__field">
-        <span class="lp-field__label">Текущий пароль</span>
-        <span class="lp-pw__wrap">
+  <form class="pf-pw" @submit.prevent="onSubmit">
+    <div class="pf-pw__fields">
+      <label class="pf-pw__field">
+        <span class="pf-field__label">Текущий пароль</span>
+        <span class="pf-pw__wrap">
           <input
             v-model="current"
             :type="reveal ? 'text' : 'password'"
             autocomplete="current-password"
-            class="lp-input"
+            class="pf-input"
             @input="emit('clear-error')"
           />
-          <button type="button" class="lp-pw__eye" :aria-label="eyeLabel" @click="reveal = !reveal">
+          <button type="button" class="pf-pw__eye" :aria-label="eyeLabel" @click="reveal = !reveal">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
               <circle cx="12" cy="12" r="3" />
@@ -106,17 +106,17 @@ defineExpose({ reset })
         </span>
       </label>
 
-      <label class="lp-pw__field">
-        <span class="lp-field__label">Новый пароль</span>
-        <span class="lp-pw__wrap">
+      <label class="pf-pw__field">
+        <span class="pf-field__label">Новый пароль</span>
+        <span class="pf-pw__wrap">
           <input
             v-model="next"
             :type="reveal ? 'text' : 'password'"
             autocomplete="new-password"
-            class="lp-input"
+            class="pf-input"
             @input="emit('clear-error')"
           />
-          <button type="button" class="lp-pw__eye" :aria-label="eyeLabel" @click="reveal = !reveal">
+          <button type="button" class="pf-pw__eye" :aria-label="eyeLabel" @click="reveal = !reveal">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
               <circle cx="12" cy="12" r="3" />
@@ -126,17 +126,17 @@ defineExpose({ reset })
         </span>
       </label>
 
-      <label class="lp-pw__field">
-        <span class="lp-field__label">Новый пароль ещё раз</span>
-        <span class="lp-pw__wrap">
+      <label class="pf-pw__field">
+        <span class="pf-field__label">Новый пароль ещё раз</span>
+        <span class="pf-pw__wrap">
           <input
             v-model="repeat"
             :type="reveal ? 'text' : 'password'"
             autocomplete="new-password"
-            class="lp-input"
+            class="pf-input"
             :class="mismatch ? 'is-wrong' : ''"
           />
-          <button type="button" class="lp-pw__eye" :aria-label="eyeLabel" @click="reveal = !reveal">
+          <button type="button" class="pf-pw__eye" :aria-label="eyeLabel" @click="reveal = !reveal">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
               <circle cx="12" cy="12" r="3" />
@@ -147,18 +147,18 @@ defineExpose({ reset })
       </label>
     </div>
 
-    <ul class="lp-pw__rules">
+    <ul class="pf-pw__rules">
       <li v-for="rule in RULES" :key="rule.key" :class="rule.test(next) ? 'is-met' : ''">
         {{ rule.label }}
       </li>
     </ul>
 
-    <p v-if="sameAsCurrent" class="lp-pw__warn">Новый пароль совпадает с текущим.</p>
-    <p v-else-if="mismatch" class="lp-pw__warn">Пароли не совпадают.</p>
-    <p v-else-if="error" class="lp-pw__warn">{{ error }}</p>
+    <p v-if="sameAsCurrent" class="pf-pw__warn">Новый пароль совпадает с текущим.</p>
+    <p v-else-if="mismatch" class="pf-pw__warn">Пароли не совпадают.</p>
+    <p v-else-if="error" class="pf-pw__warn">{{ error }}</p>
 
     <div>
-      <button type="submit" class="lp-btn lp-btn--primary" :disabled="!canSubmit">
+      <button type="submit" class="pf-btn pf-btn--primary" :disabled="!canSubmit">
         {{ saving ? 'Меняем…' : 'Сменить пароль' }}
       </button>
     </div>
@@ -166,67 +166,67 @@ defineExpose({ reset })
 </template>
 
 <style scoped>
-.lp-pw {
+.pf-pw {
   @apply flex flex-col gap-md;
 }
 
-.lp-pw__fields {
+.pf-pw__fields {
   @apply grid gap-md;
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
 }
 
-.lp-pw__field {
+.pf-pw__field {
   @apply flex flex-col gap-xs;
 }
 
-.lp-field__label {
+.pf-field__label {
   @apply text-tiny font-semibold uppercase tracking-wide;
   color: var(--ui-faint);
 }
 
-.lp-input.is-wrong {
+.pf-input.is-wrong {
   border-color: var(--ui-neg);
 }
 
-.lp-pw__wrap {
+.pf-pw__wrap {
   @apply relative block;
 }
 
-.lp-pw__wrap .lp-input {
+.pf-pw__wrap .pf-input {
   padding-right: 40px;
 }
 
-.lp-pw__eye {
+.pf-pw__eye {
   @apply absolute right-0 top-0 grid h-full w-10 place-items-center transition;
   color: var(--ui-faint);
 }
 
-.lp-pw__eye:hover {
+.pf-pw__eye:hover {
   color: var(--ui-muted);
 }
 
-.lp-pw__eye svg {
+.pf-pw__eye svg {
   @apply h-4 w-4;
 }
 
-.lp-pw__rules {
+.pf-pw__rules {
   @apply flex flex-wrap gap-x-md gap-y-xs text-tiny font-medium;
   color: var(--ui-faint);
 }
 
-.lp-pw__rules li::before {
+.pf-pw__rules li::before {
   content: '○ ';
 }
 
-.lp-pw__rules li.is-met {
+.pf-pw__rules li.is-met {
   color: var(--ui-pos);
 }
 
-.lp-pw__rules li.is-met::before {
+.pf-pw__rules li.is-met::before {
   content: '● ';
 }
 
-.lp-pw__warn {
+.pf-pw__warn {
   @apply text-tiny font-semibold;
   color: var(--ui-neg);
 }

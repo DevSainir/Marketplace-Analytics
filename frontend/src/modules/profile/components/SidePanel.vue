@@ -47,12 +47,12 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <Transition name="lp-drawer">
-      <div v-if="open" class="lp-drawer-root">
-        <div class="lp-drawer-scrim" @click="emit('close')" />
+    <Transition name="pf-drawer">
+      <div v-if="open" class="pf-drawer-root">
+        <div class="pf-drawer-scrim" @click="emit('close')" />
 
-        <aside class="lp-drawer ui-glass ui-glass--pop" role="dialog" aria-modal="true">
-          <header class="lp-drawer__head">
+        <aside class="pf-drawer ui-glass ui-glass--pop" role="dialog" aria-modal="true">
+          <header class="pf-drawer__head">
             <div class="min-w-0">
               <h2 class="truncate text-h3 font-semibold text-primary">{{ title }}</h2>
               <p v-if="subtitle" class="mt-xs truncate text-tiny font-medium text-muted">
@@ -61,7 +61,7 @@ onBeforeUnmount(() => {
             </div>
             <button
               type="button"
-              class="lp-drawer__close"
+              class="pf-drawer__close"
               aria-label="Закрыть"
               @click="emit('close')"
             >
@@ -77,11 +77,11 @@ onBeforeUnmount(() => {
             </button>
           </header>
 
-          <div class="lp-drawer__body">
+          <div class="pf-drawer__body">
             <slot />
           </div>
 
-          <footer v-if="$slots.footer" class="lp-drawer__foot">
+          <footer v-if="$slots.footer" class="pf-drawer__foot">
             <slot name="footer" />
           </footer>
         </aside>
@@ -91,66 +91,66 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.lp-drawer-root {
+.pf-drawer-root {
   @apply fixed inset-0 z-50 flex justify-end;
 }
 
-.lp-drawer-scrim {
+.pf-drawer-scrim {
   @apply absolute inset-0;
   background: rgba(18, 18, 26, 0.28);
 }
 
-.lp-drawer {
+.pf-drawer {
   @apply relative flex h-full w-full max-w-[30rem] flex-col;
   border-left: 1px solid var(--ui-hairline);
   box-shadow: var(--ui-sh-lift);
 }
 
-.lp-drawer__head {
+.pf-drawer__head {
   @apply flex items-start justify-between gap-md px-lg py-md;
   border-bottom: 1px solid var(--ui-hairline);
 }
 
-.lp-drawer__close {
+.pf-drawer__close {
   @apply grid h-8 w-8 shrink-0 place-items-center rounded-btn transition;
   color: var(--ui-muted);
 }
 
-.lp-drawer__close:hover {
+.pf-drawer__close:hover {
   background: var(--ui-sunk);
   color: var(--ui-ink);
 }
 
-.lp-drawer__close svg {
+.pf-drawer__close svg {
   @apply h-4 w-4;
 }
 
-.lp-drawer__body {
+.pf-drawer__body {
   @apply flex-1 overflow-y-auto px-lg py-lg;
 }
 
-.lp-drawer__foot {
+.pf-drawer__foot {
   @apply px-lg py-md;
   border-top: 1px solid var(--ui-hairline);
 }
 
-.lp-drawer-enter-active,
-.lp-drawer-leave-active {
+.pf-drawer-enter-active,
+.pf-drawer-leave-active {
   transition: opacity var(--ui-base) var(--ui-ease);
 }
 
-.lp-drawer-enter-active .lp-drawer,
-.lp-drawer-leave-active .lp-drawer {
+.pf-drawer-enter-active .pf-drawer,
+.pf-drawer-leave-active .pf-drawer {
   transition: transform var(--ui-base) var(--ui-ease);
 }
 
-.lp-drawer-enter-from,
-.lp-drawer-leave-to {
+.pf-drawer-enter-from,
+.pf-drawer-leave-to {
   opacity: 0;
 }
 
-.lp-drawer-enter-from .lp-drawer,
-.lp-drawer-leave-to .lp-drawer {
+.pf-drawer-enter-from .pf-drawer,
+.pf-drawer-leave-to .pf-drawer {
   transform: translateX(100%);
 }
 </style>

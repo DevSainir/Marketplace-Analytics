@@ -8,8 +8,8 @@
  * кабинет was actually wired up. The row reports «12 из 13»; this holds the
  * form.
  */
-import SidePanel from '@/modules/labs/components/profile/SidePanel.vue'
-import TokensPanel from '@/modules/labs/components/profile/TokensPanel.vue'
+import SidePanel from '@/modules/profile/components/SidePanel.vue'
+import TokensPanel from '@/modules/profile/components/TokensPanel.vue'
 
 defineProps({
   /** The кабинет being edited, or null when the drawer is shut. */
@@ -37,7 +37,7 @@ const emit = defineEmits(['close', 'save'])
       @save="emit('save', $event)"
     />
     <template #footer>
-      <button type="submit" form="lp-tokens-form" class="lp-btn lp-btn--primary" :disabled="busy">
+      <button type="submit" form="pf-tokens-form" class="pf-btn pf-btn--primary" :disabled="busy">
         {{ busy ? 'Сохранение…' : 'Сохранить токены' }}
       </button>
     </template>

@@ -67,19 +67,19 @@ function initialOf(email) {
 </script>
 
 <template>
-  <nav class="lp-nav" aria-label="Настройки">
-    <div class="lp-nav__id">
-      <span class="lp-nav__avatar" aria-hidden="true">{{ initialOf(email) }}</span>
+  <nav class="pf-nav" aria-label="Настройки">
+    <div class="pf-nav__id">
+      <span class="pf-nav__avatar" aria-hidden="true">{{ initialOf(email) }}</span>
       <span class="min-w-0">
-        <span class="lp-nav__email" :title="email">{{ email || '—' }}</span>
-        <span class="lp-nav__role">{{ roleLabel || '—' }}</span>
+        <span class="pf-nav__email" :title="email">{{ email || '—' }}</span>
+        <span class="pf-nav__role">{{ roleLabel || '—' }}</span>
       </span>
     </div>
 
-    <ul class="lp-nav__list">
+    <ul class="pf-nav__list">
       <li v-for="section in sections" :key="section.name">
         <RouterLink
-          class="lp-nav__link"
+          class="pf-nav__link"
           active-class="is-active"
           :to="{ name: section.name }"
           exact-active-class="is-active"
@@ -92,9 +92,9 @@ function initialOf(email) {
     <!-- The term, in the rail rather than on «Общие». It belongs to the account
          rather than to any one page, and it is the one fact here worth seeing
          from all three. -->
-    <div v-if="subscription" class="lp-nav__sub" :class="SUBSCRIPTION_TONE[subscription.state]">
-      <span class="lp-nav__sub-date">До {{ until }}</span>
-      <span v-if="daysLeft !== null" class="lp-nav__sub-left">
+    <div v-if="subscription" class="pf-nav__sub" :class="SUBSCRIPTION_TONE[subscription.state]">
+      <span class="pf-nav__sub-date">До {{ until }}</span>
+      <span v-if="daysLeft !== null" class="pf-nav__sub-left">
         {{
           daysLeft === 0
             ? 'подписка истекла'
@@ -106,7 +106,7 @@ function initialOf(email) {
 </template>
 
 <style scoped>
-.lp-nav {
+.pf-nav {
   @apply flex flex-col gap-md rounded-card p-sm;
   /* The groove: sunk tone, and an inset ring rather than a border — a border
      would draw a line around a thing that is meant to read as an absence. */
@@ -114,81 +114,81 @@ function initialOf(email) {
   box-shadow: inset 0 0 0 1px rgba(18, 18, 26, 0.05);
 }
 
-.lp-nav__id {
+.pf-nav__id {
   @apply flex items-center gap-sm px-sm pt-sm;
 }
 
-.lp-nav__avatar {
+.pf-nav__avatar {
   @apply grid h-9 w-9 shrink-0 place-items-center rounded-full text-base font-bold;
   background: var(--ui-action);
   color: #fff;
 }
 
-.lp-nav__email {
+.pf-nav__email {
   @apply block truncate text-base font-semibold text-primary;
 }
 
-.lp-nav__role {
+.pf-nav__role {
   @apply block truncate text-tiny font-medium;
   color: var(--ui-muted);
 }
 
-.lp-nav__list {
+.pf-nav__list {
   @apply flex flex-col gap-xs;
 }
 
-.lp-nav__link {
+.pf-nav__link {
   @apply block rounded-input px-md py-sm text-base font-semibold transition;
   color: var(--ui-muted);
 }
 
-.lp-nav__link:hover {
+.pf-nav__link:hover {
   background: rgba(255, 255, 255, 0.6);
   color: var(--ui-ink);
 }
 
 /* Risen out of the groove: the one white surface inside it, carrying the same
    shadow the content cards do, so it reads as the same material as the page. */
-.lp-nav__link.is-active {
+.pf-nav__link.is-active {
   background: var(--ui-surface);
   box-shadow: var(--ui-sh-xs);
   color: var(--ui-ink);
 }
 
-.lp-nav__sub {
+.pf-nav__sub {
   @apply flex flex-col gap-0 px-md pb-sm;
 }
 
-.lp-nav__sub-date {
+.pf-nav__sub-date {
   @apply text-base font-semibold text-primary;
 }
 
-.lp-nav__sub-left {
+.pf-nav__sub-left {
   @apply text-tiny font-medium;
   color: var(--ui-muted);
 }
 
-.lp-nav__sub.is-warn .lp-nav__sub-date {
+.pf-nav__sub.is-warn .pf-nav__sub-date {
   color: var(--ui-warn);
 }
 
-.lp-nav__sub.is-bad .lp-nav__sub-date {
+.pf-nav__sub.is-bad .pf-nav__sub-date {
   color: var(--ui-neg);
 }
 
 /* On a phone the rail becomes a strip: a 260px column has nowhere to go at
    390px, and the groove works just as well lying down. */
 @media (max-width: 767px) {
-  .lp-nav__list {
+  .pf-nav__list {
     @apply -mx-sm flex-row overflow-x-auto px-sm;
     scrollbar-width: none;
   }
 
-  .lp-nav__list::-webkit-scrollbar {
+  .pf-nav__list::-webkit-scrollbar {
     display: none;
   }
 
-  .lp-nav__link {
+  .pf-nav__link {
     @apply shrink-0;
   }
 }

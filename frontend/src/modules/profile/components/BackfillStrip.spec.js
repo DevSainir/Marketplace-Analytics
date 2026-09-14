@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 
-import BackfillProgress from '@/modules/profile/components/BackfillProgress.vue'
+import BackfillStrip from '@/modules/profile/components/BackfillStrip.vue'
 import { fetchBackfillStatus } from '@/modules/profile/api'
 
 vi.mock('@/modules/profile/api', () => ({ fetchBackfillStatus: vi.fn() }))
@@ -21,10 +21,10 @@ function lane(overrides = {}) {
 }
 
 function mountPanel() {
-  return mount(BackfillProgress, { props: { workspaceId: 'ws-1' } })
+  return mount(BackfillStrip, { props: { workspaceId: 'ws-1' } })
 }
 
-describe('BackfillProgress', () => {
+describe('BackfillStrip', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     fetchBackfillStatus.mockReset()

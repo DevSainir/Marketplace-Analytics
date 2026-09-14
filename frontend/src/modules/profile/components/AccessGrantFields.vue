@@ -2,15 +2,13 @@
 /**
  * The grant control: one level, and a switch per module.
  *
- * Shared by the manager list and the invite form on purpose — the two must
- * offer exactly the same choices, and the bug that shape prevents is an invite
- * form granting a module the list cannot show or the guard does not know.
- *
- * Dumb: props in, one `update` event out. The parent owns the saving.
+ * A labs copy of the profile module's component — same props, same `update`
+ * event, same payload — restyled for the drawer it now lives in. Dumb: props
+ * in, one event out; the parent owns the saving.
  */
 import { computed } from 'vue'
 
-import { MODULES } from '@/modules/profile/membersStore'
+import { GRANT_LEVELS, GRANT_MODULES } from '@/modules/profile/components/grantModules'
 
 const props = defineProps({
   accessLevel: { type: String, required: true },
@@ -18,11 +16,6 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update'])
-
-const LEVELS = [
-  { value: 'read_write', label: 'Чтение и запись' },
-  { value: 'read_only', label: 'Только чтение' },
-]
 
 const enabled = computed(() => new Set(props.modules))
 
@@ -34,30 +27,25 @@ function toggleModule(key) {
   const next = new Set(props.modules)
   if (next.has(key)) next.delete(key)
   else next.add(key)
-  // Emitted in MODULES order rather than click order, so two owners who picked
-  // the same modules send the same payload.
+  // Emitted in GRANT_MODULES order rather than click order, so two owners who
+  // picked the same modules send the same payload.
   emit('update', {
     accessLevel: props.accessLevel,
-    modules: MODULES.filter((m) => next.has(m.key)).map((m) => m.key),
+    modules: GRANT_MODULES.filter((m) => next.has(m.key)).map((m) => m.key),
   })
 }
 </script>
 
 <template>
-  <div class="flex flex-col gap-md">
-    <fieldset class="flex flex-col gap-xs">
-      <legend class="text-tiny font-medium text-muted">Уровень доступа</legend>
-      <div class="flex gap-xs phone:flex-col">
+  <div class="flex flex-col gap-lg">
+    <fieldset class="flex flex-col gap-sm">
+      <legend class="pf-legend">Уровень доступа</legend>
+      <div class="grid grid-cols-2 gap-sm phone:grid-cols-1">
         <label
-          v-for="level in LEVELS"
+          v-for="level in GRANT_LEVELS"
           :key="level.value"
-          class="flex flex-1 cursor-pointer items-center gap-xs rounded-btn border px-sm py-xs text-base transition-colors"
-          :class="[
-            accessLevel === level.value
-              ? 'border-action bg-action/10 font-semibold text-action'
-              : 'border-border-subtle text-primary hover:bg-canvas',
-            disabled ? 'cursor-not-allowed opacity-60' : '',
-          ]"
+          class="pf-level"
+          :class="[accessLevel === level.value ? 'is-on' : '', disabled ? 'is-off' : '']"
         >
           <input
             type="radio"
@@ -66,18 +54,19 @@ function toggleModule(key) {
             :disabled="disabled"
             @change="setLevel(level.value)"
           />
-          {{ level.label }}
+          <span class="text-base font-semibold">{{ level.label }}</span>
+          <span class="text-tiny font-medium text-muted">{{ level.hint }}</span>
         </label>
       </div>
     </fieldset>
 
-    <fieldset class="flex flex-col gap-xs">
-      <legend class="text-tiny font-medium text-muted">Разделы</legend>
+    <fieldset class="flex flex-col gap-sm">
+      <legend class="pf-legend">Разделы</legend>
       <label
-        v-for="module in MODULES"
+        v-for="module in GRANT_MODULES"
         :key="module.key"
-        class="flex cursor-pointer items-center justify-between gap-md rounded-btn px-sm py-xs hover:bg-canvas"
-        :class="disabled ? 'cursor-not-allowed opacity-60' : ''"
+        class="pf-module"
+        :class="disabled ? 'is-off' : ''"
       >
         <span class="min-w-0">
           <span class="block truncate text-base font-medium text-primary">{{ module.label }}</span>
@@ -85,10 +74,7 @@ function toggleModule(key) {
         </span>
         <!-- A real checkbox styled as a switch: it keeps the keyboard and
              screen-reader behaviour a div with a click handler throws away. -->
-        <span
-          class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors"
-          :class="enabled.has(module.key) ? 'bg-action' : 'bg-border-subtle'"
-        >
+        <span class="pf-switch" :class="enabled.has(module.key) ? 'is-on' : ''">
           <input
             type="checkbox"
             class="sr-only"
@@ -96,12 +82,67 @@ function toggleModule(key) {
             :disabled="disabled"
             @change="toggleModule(module.key)"
           />
-          <span
-            class="inline-block h-5 w-5 rounded-full bg-surface shadow-card transition-transform"
-            :class="enabled.has(module.key) ? 'translate-x-5' : 'translate-x-0.5'"
-          />
+          <span class="pf-switch__dot" />
         </span>
       </label>
     </fieldset>
   </div>
 </template>
+
+<style scoped>
+.pf-legend {
+  @apply text-tiny font-semibold uppercase tracking-wide;
+  color: var(--ui-faint);
+}
+
+.pf-level {
+  @apply flex cursor-pointer flex-col gap-xs rounded-input border px-md py-sm transition;
+  border-color: var(--ui-hairline);
+  color: var(--ui-ink);
+}
+
+.pf-level:hover {
+  border-color: var(--ui-action-line);
+}
+
+.pf-level.is-on {
+  border-color: var(--ui-action);
+  background: var(--ui-action-soft);
+  color: var(--ui-action);
+}
+
+/* The same hairline the level cards carry. Without it the three module rows
+   were the only unbounded things in the drawer, so the panel read as two
+   framed choices followed by loose text. */
+.pf-module {
+  @apply flex cursor-pointer items-center justify-between gap-md rounded-input border px-md py-sm transition;
+  border-color: var(--ui-hairline);
+}
+
+.pf-module:hover {
+  background: var(--ui-sunk);
+}
+
+.is-off {
+  @apply cursor-not-allowed opacity-60;
+}
+
+.pf-switch {
+  @apply relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors;
+  background: var(--ui-rule);
+}
+
+.pf-switch.is-on {
+  background: var(--ui-action);
+}
+
+.pf-switch__dot {
+  @apply inline-block h-5 w-5 translate-x-0.5 rounded-full transition-transform;
+  background: #fff;
+  box-shadow: var(--ui-sh-xs);
+}
+
+.pf-switch.is-on .pf-switch__dot {
+  @apply translate-x-5;
+}
+</style>

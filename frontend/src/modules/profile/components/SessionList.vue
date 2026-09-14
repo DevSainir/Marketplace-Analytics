@@ -80,34 +80,34 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
 </script>
 
 <template>
-  <div class="lp-sessions">
-    <p v-if="loading" class="lp-sessions__note">Загружаем…</p>
+  <div class="pf-sessions">
+    <p v-if="loading" class="pf-sessions__note">Загружаем…</p>
 
     <template v-else>
       <!-- The one you are reading this on, first and labelled — Telegram's one
            structural idea worth taking: you cannot decide about the others
            until you know which one is you. -->
-      <section v-if="current" class="lp-sessions__group">
-        <h3 class="lp-sessions__heading">Это устройство</h3>
-        <article class="lp-session is-current">
-          <span class="lp-session__main">
-            <span class="lp-session__title">{{ describe(current.user_agent).title }}</span>
-            <span class="lp-session__meta">
+      <section v-if="current" class="pf-sessions__group">
+        <h3 class="pf-sessions__heading">Это устройство</h3>
+        <article class="pf-session is-current">
+          <span class="pf-session__main">
+            <span class="pf-session__title">{{ describe(current.user_agent).title }}</span>
+            <span class="pf-session__meta">
               {{ current.ip_address || 'адрес не записан' }} · вход
               {{ new Date(current.started_at).toLocaleDateString('ru-RU') }}
             </span>
           </span>
-          <span class="lp-pill is-on">сейчас здесь</span>
+          <span class="pf-pill is-on">сейчас здесь</span>
         </article>
       </section>
 
-      <section class="lp-sessions__group">
-        <header class="lp-sessions__head">
-          <h3 class="lp-sessions__heading">Другие устройства</h3>
+      <section class="pf-sessions__group">
+        <header class="pf-sessions__head">
+          <h3 class="pf-sessions__heading">Другие устройства</h3>
           <button
             v-if="others.length"
             type="button"
-            class="lp-btn lp-btn--danger"
+            class="pf-btn pf-btn--danger"
             :disabled="busy === 'all'"
             @click="emit('end-others')"
           >
@@ -115,19 +115,19 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
           </button>
         </header>
 
-        <p v-if="!others.length" class="lp-sessions__note">Больше нигде не выполнен вход.</p>
+        <p v-if="!others.length" class="pf-sessions__note">Больше нигде не выполнен вход.</p>
 
-        <article v-for="session in others" :key="session.family_id" class="lp-session">
-          <span class="lp-session__main">
-            <span class="lp-session__title">{{ describe(session.user_agent).title }}</span>
-            <span class="lp-session__meta">
+        <article v-for="session in others" :key="session.family_id" class="pf-session">
+          <span class="pf-session__main">
+            <span class="pf-session__title">{{ describe(session.user_agent).title }}</span>
+            <span class="pf-session__meta">
               {{ session.ip_address || 'адрес не записан' }} · активность
               {{ lastSeen(session.last_seen_at) }}
             </span>
           </span>
           <button
             type="button"
-            class="lp-btn lp-btn--danger"
+            class="pf-btn pf-btn--danger"
             :disabled="busy === session.family_id"
             @click="emit('end', session.family_id)"
           >
@@ -140,29 +140,29 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
 </template>
 
 <style scoped>
-.lp-sessions {
+.pf-sessions {
   @apply flex flex-col gap-lg;
 }
 
-.lp-sessions__group {
+.pf-sessions__group {
   @apply flex flex-col gap-sm;
 }
 
-.lp-sessions__head {
+.pf-sessions__head {
   @apply flex items-center justify-between gap-md;
 }
 
-.lp-sessions__heading {
+.pf-sessions__heading {
   @apply text-tiny font-semibold uppercase tracking-wide;
   color: var(--ui-faint);
 }
 
-.lp-sessions__note {
+.pf-sessions__note {
   @apply max-w-[52ch] text-tiny font-medium;
   color: var(--ui-muted);
 }
 
-.lp-session {
+.pf-session {
   @apply flex items-center justify-between gap-md rounded-card px-md py-sm;
   background: var(--ui-surface);
   box-shadow: var(--ui-sh-xs);
@@ -172,26 +172,26 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
    The sunk grey was too close to the canvas to read as a separate thing at
    all, so it takes the action tint — the same one the «сейчас здесь» pill is
    made of, which is what ties the two together. */
-.lp-session.is-current {
+.pf-session.is-current {
   background: var(--ui-action-soft);
   box-shadow: none;
 }
 
-.lp-session__main {
+.pf-session__main {
   @apply flex min-w-0 flex-col gap-xs;
 }
 
-.lp-session__title {
+.pf-session__title {
   @apply truncate text-base font-semibold text-primary;
 }
 
-.lp-session__meta {
+.pf-session__meta {
   @apply truncate text-tiny font-medium;
   color: var(--ui-muted);
 }
 
 @media (max-width: 430px) {
-  .lp-session {
+  .pf-session {
     @apply flex-col items-start;
   }
 }
