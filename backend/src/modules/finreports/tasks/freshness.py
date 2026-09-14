@@ -17,12 +17,21 @@ probe that raised — harvests. A gate that fails closed would turn a transient 
 error into a silently skipped settlement day, which is the failure mode this
 module exists to avoid, not to introduce.
 
-What the gate does NOT catch, by design: anything WB serves for days the
-harvested history has already passed. The probe window starts the day AFTER the
-watermark, so an amendment to a report we hold — and, worse, a supplementary
-report WB forms for an earlier day and starts serving later — is invisible to
-it. The gate answers «есть ли что-то новее», which is the wrong question for a
-back-dated report and answers "no" precisely when one exists.
+The window starts the day after the **settlement frontier** — the earlier of the
+walk's watermark and the last day a harvested report actually covers (see
+:func:`~src.modules.finreports.tasks.spans.settlement_frontier`). Not the
+watermark alone, which was this gate's second way of going quiet: a window WB
+answers empty completes like any other, WB forms a week's report the day after
+the week ends, and so every Sunday-night tick certified the open week and shut
+the gate on the report that landed on Monday. On 2026-09-14 that answered
+«settled through 13.09 — nothing newer can exist yet» to every tick for three
+workspaces, «Обновить» included, over a week WB had already published.
+
+What the gate still does NOT catch, by design: anything WB serves for days
+BEHIND the frontier — an amendment to a report we hold, or a supplementary
+report WB forms for an earlier day and starts serving later. There the gate
+answers «есть ли что-то новее», which is the wrong question for a back-dated
+report and answers "no" precisely when one exists.
 
 That is not a theoretical hole: report 983241109 covered 2026-08-31 alone, was
 formed on 09-01, and was still unserved on 09-06 when eighty probes over
@@ -66,12 +75,16 @@ logger = get_logger(__name__)
 def probe_window(*, latest_settled: date, today: date) -> tuple[date, date] | None:
     """The settlement window to ask WB about, or ``None`` if asking is pointless.
 
-    Starts the day after the last settlement day already harvested — anything WB
-    serves there belongs to a report we do not have. Ends yesterday, because WB
-    has no data for today.
+    Starts the day after the settlement frontier — anything WB serves there
+    belongs to a report we do not have. Ends yesterday, because WB has no data
+    for today.
 
     Args:
-        latest_settled: Last settlement day any harvested report covers.
+        latest_settled: The settlement frontier: the last day that was both
+            walked to completion and covered by a report we hold. A day the walk
+            merely asked about and found empty is NOT settled — WB had not
+            published it yet, which is the whole reason this is not the
+            watermark.
         today: Today in Moscow time.
 
     Returns:
@@ -100,8 +113,8 @@ async def check_freshness(
 
     Args:
         tokens: The workspace's decrypted WB credentials.
-        latest_settled: Last settlement day already harvested, or ``None`` if the
-            workspace has never been harvested.
+        latest_settled: The settlement frontier (see :func:`probe_window`), or
+            ``None`` if the workspace has never been harvested.
         today: Today in Moscow time.
 
     Returns:

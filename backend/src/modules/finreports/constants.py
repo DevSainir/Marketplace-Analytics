@@ -48,6 +48,42 @@ HARVEST_LOCK_TTL_SECONDS: int = 600
 #: fetchable.
 RECONCILE_LOOKBACK_DAYS: int = 14
 
+#: How long after a settlement day WB may still be silent before the nightly
+#: survey calls it a gap.
+#:
+#: The survey scans to ``today - this``, not to the newest report we hold, so a
+#: week WB has published and we have failed to harvest is inside the range
+#: instead of past its end — the blind spot that let 07.09-13.09 go missing from
+#: three workspaces on 2026-09-14 with a gap count of zero.
+#:
+#: Seven days, and the number is a noise floor rather than a deadline. WB forms
+#: the weekly report the day after the period ends (period 07.09-13.09 →
+#: `create_dt` 14.09; 01.09-06.09 → 07.09; 31.08 → 01.09), so three would
+#: usually do. But forming is not serving: report 983241109 was formed on 09-01
+#: and still answered 204 on 09-06, and alerting on that would have been an
+#: alarm about WB's schedule rather than about our harvest. A day still
+#: uncovered a week later is ours.
+SETTLEMENT_PUBLICATION_GRACE_DAYS: int = 7
+
+#: How long an hourly tick waits before re-walking the same workspace's hole.
+#:
+#: The hourly pass repairs a gap the survey can see instead of leaving it to the
+#: nightly rotation, because the rotation takes one workspace a night and a
+#: seller short a week does not want to be told it will be looked at on
+#: Thursday. Unrationed, though, a hole WB will never serve — and those exist —
+#: would have every tick spend a fortnight-wide walk on it forever, holding the
+#: fleet-wide harvest lock and starving every other workspace's forward probe of
+#: the quarter-hourly budget.
+#:
+#: Six hours is four attempts a day against the rotation's one every five
+#: nights, and it caps a permanently stuck day at four walks a day rather than
+#: twenty-four. «Обновить» is deliberately NOT subject to it: a person asking is
+#: not a schedule, and the request is one tenant's own.
+GAP_REPAIR_COOLDOWN_SECONDS: int = 6 * 60 * 60
+
+#: Redis key prefix for that cooldown, one key per workspace.
+GAP_REPAIR_COOLDOWN_PREFIX: str = "finreports:gap-repair:"
+
 #: How long a recorded freshness verdict survives — 30 days, deliberately long.
 #:
 #: The entry expiring is indistinguishable from "we never checked", and a STALE

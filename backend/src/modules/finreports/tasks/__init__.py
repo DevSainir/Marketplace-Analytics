@@ -2,10 +2,13 @@
 
   historical settlement rows price against the tariff that was live then.
   The gate that decides that is :mod:`.freshness`, and it is what makes an
-  hourly tick cost one request per workspace on the quiet hours. The same task
-  runs once a day with ``reconcile=True``, which re-reads the days behind the
-  watermark and ignores the gate — the forward-only walk cannot reach a report
-  WB starts serving for days it has already passed.
+  hourly tick cost one request per workspace on the quiet hours. An hourly tick
+  also repairs one workspace the gap survey can see a hole in, so a missing week
+  is walked within the hour rather than waiting its turn in the nightly
+  rotation. The same task runs once a day with ``reconcile=True``, and
+  «Обновить» passes it too: both re-read the days behind the coverage and ignore
+  the gate — the forward-only walk cannot reach a report WB starts serving for
+  days it has already passed.
 
 Both run the async harvest core (:mod:`.harvest`) through
 :func:`src.core.tasks.run_task`, which owns the per-task event loop and drains
@@ -39,10 +42,11 @@ def harvest_finance(
             is configured for JSON-only serialization, which has no UUID.
             «Обновить» passes the caller's own workspace so one tenant's click
             cannot enqueue a walk across every seller on the platform.
-        reconcile: Re-read the days behind the watermark and walk whatever the
-            freshness gate says. The daily pass that catches a report WB served
-            after our reachable window had already moved past the days it
-            covers — see :func:`~src.modules.finreports.tasks.harvest.harvest_all_workspaces`.
+        reconcile: Re-read the days behind the coverage and walk whatever the
+            freshness gate says. Set by the daily pass and by «Обновить» — both
+            are asking to catch a report WB served after our reachable window
+            had already moved past the days it covers — see
+            :func:`~src.modules.finreports.tasks.harvest.harvest_all_workspaces`.
 
     Returns:
         Row counts per source.

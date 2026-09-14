@@ -100,7 +100,9 @@ class FinancialReportRepository(BaseRepository):
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
-    async def settlement_gap_days(self, *, workspace_id: uuid.UUID, since: date) -> list[date]:
+    async def settlement_gap_days(
+        self, *, workspace_id: uuid.UUID, since: date, through: date
+    ) -> list[date]:
         """Days inside the harvested history that **no report period covers**.
 
         The detector for the failure that cost 31.08: WB serves a supplementary
@@ -119,12 +121,32 @@ class FinancialReportRepository(BaseRepository):
         :meth:`list_periods` — WB serves headers with one endpoint blank, and
         treating those as covering nothing would invent gaps around them.
 
+        **The scan runs past the newest report, not up to it.** Bounding it by
+        `max(date_to)` made the one hole that matters most invisible: a week WB
+        has published and we have not harvested is not *between* two reports, it
+        is after the last one, so every trailing day fell outside the range and
+        the survey reported a sound history. That is what happened on
+        2026-09-14 — three workspaces short the whole 07.09-13.09 week, gap
+        count zero, no alert. ``through`` is what puts the trailing edge inside
+        the range.
+
+        A workspace holding **no report at all** still has no gaps. Never
+        harvested is not the same as short a day, and with the scan reaching
+        forward it is the one case where the two would otherwise become
+        indistinguishable — a signup from this morning would report a fortnight
+        of holes.
+
         Args:
             workspace_id: Tenancy scope.
             since: Ignore anything earlier. Bounds the scan and keeps the
                 answer to gaps that are still actionable — WB does not serve
                 arbitrarily old windows, so an ancient hole is a fact to record
                 rather than an alert to raise.
+            through: Last day a report can be *expected* for. Later days are
+                not gaps, they are days WB has not published yet — see
+                :data:`~src.modules.finreports.constants.SETTLEMENT_PUBLICATION_GRACE_DAYS`
+                for how far behind today that has to sit to stay quiet while WB
+                is merely slow.
 
         Returns:
             The uncovered days, oldest first; empty when the history is sound.
@@ -132,7 +154,10 @@ class FinancialReportRepository(BaseRepository):
         stmt = text("""
             WITH bounds AS (
                 SELECT greatest(min(coalesce(date_from, date_to)), :since) AS lo,
-                       max(coalesce(date_to, date_from)) AS hi
+                       CASE
+                           WHEN max(coalesce(date_to, date_from)) IS NULL THEN NULL
+                           ELSE greatest(max(coalesce(date_to, date_from)), :through)
+                       END AS hi
                   FROM finreports.financial_report
                  WHERE workspace_id = :workspace_id
                    AND (date_from IS NOT NULL OR date_to IS NOT NULL)
@@ -149,7 +174,9 @@ class FinancialReportRepository(BaseRepository):
                    )
              ORDER BY gap
         """)
-        rows = await self._session.execute(stmt, {"workspace_id": workspace_id, "since": since})
+        rows = await self._session.execute(
+            stmt, {"workspace_id": workspace_id, "since": since, "through": through}
+        )
         return [row[0] for row in rows.all()]
 
     async def list_periods(self, *, workspace_id: uuid.UUID) -> list[tuple[int, date, date]]:

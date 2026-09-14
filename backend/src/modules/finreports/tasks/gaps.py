@@ -22,7 +22,10 @@ from src.core.database import AsyncSessionLocal
 from src.core.logcontext import bind_workspace
 from src.core.logging import get_logger
 from src.core.observability.metrics import SETTLEMENT_GAP_DAYS
-from src.modules.finreports.constants import RECONCILE_LOOKBACK_DAYS
+from src.modules.finreports.constants import (
+    RECONCILE_LOOKBACK_DAYS,
+    SETTLEMENT_PUBLICATION_GRACE_DAYS,
+)
 from src.modules.finreports.repos import FinancialReportRepository
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
@@ -30,7 +33,7 @@ logger = get_logger(__name__)
 
 
 async def survey_settlement_gaps(
-    bundles: list[WorkspaceTokenBundle], *, today: date
+    bundles: list[WorkspaceTokenBundle], *, today: date, announce: bool = True
 ) -> dict[uuid.UUID, list[date]]:
     """Find days no harvested report covers, and say so loudly enough to matter.
 
@@ -49,6 +52,11 @@ async def survey_settlement_gaps(
     Args:
         bundles: Every workspace this run may look at.
         today: Today in Moscow time.
+        announce: Whether to write the per-workspace ERROR lines. The metric is
+            set either way — it is a gauge and a fresher one alerts sooner. The
+            log is not: the hourly pass surveys too, and a stuck day logging an
+            ERROR twenty-four times a day is how an alert stops being read. The
+            daily pass announces; the hourly one repairs quietly.
 
     Returns:
         Uncovered days per workspace, omitting the workspaces that have none.
@@ -58,17 +66,25 @@ async def survey_settlement_gaps(
     # night would be an alarm nobody can act on — the surest way to teach
     # people to ignore this one.
     since = today - timedelta(days=RECONCILE_LOOKBACK_DAYS + 7)
+    # And forward past the newest report we hold, which is where the hole that
+    # matters most sits: a week WB published and nobody harvested is not between
+    # two reports, it is after the last one. Bounded by the survey's own scan
+    # end, the 07.09-13.09 week missing from three workspaces on 2026-09-14 was
+    # reported as a sound history.
+    through = today - timedelta(days=SETTLEMENT_PUBLICATION_GRACE_DAYS)
     gaps: dict[uuid.UUID, list[date]] = {}
     async with AsyncSessionLocal() as session:
         repo = FinancialReportRepository(session)
         for bundle in bundles:
-            days = await repo.settlement_gap_days(workspace_id=bundle.workspace_id, since=since)
+            days = await repo.settlement_gap_days(
+                workspace_id=bundle.workspace_id, since=since, through=through
+            )
             if days:
                 gaps[bundle.workspace_id] = days
     SETTLEMENT_GAP_DAYS.set(sum(len(days) for days in gaps.values()))
     for bundle in bundles:
         days = gaps.get(bundle.workspace_id, [])
-        if days:
+        if days and announce:
             bind_workspace(bundle.workspace_id)
             logger.error(
                 "finreports: %s has %d settlement day(s) no report covers: %s. WB serves "

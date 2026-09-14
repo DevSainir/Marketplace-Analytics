@@ -179,10 +179,21 @@ def redis_and_walk(monkeypatch: pytest.MonkeyPatch) -> Any:
         monkeypatch.setattr(harvest, "AsyncSessionLocal", _FakeSession)
         monkeypatch.setattr(freshness, "AsyncSessionLocal", _FakeSession)
         monkeypatch.setattr(harvest, "SettlementWatermarkRepository", _FakeWatermarkRepo)
+        # The loop reads BOTH — the frontier is the earlier of them. See
+        # `tests/unit/finreports/test_settlement_frontier.py` for why.
+        monkeypatch.setattr(harvest, "FinancialReportRepository", _FakeReportRepo)
         monkeypatch.setattr(freshness, "FinancialReportRepository", _FakeReportRepo)
         monkeypatch.setattr(harvest, "load_workspace_token_bundles", _bundles)
         monkeypatch.setattr(harvest, "check_freshness", _check)
         monkeypatch.setattr(harvest, "harvest_workspace", _walk)
+
+        # The gap survey runs on every tick now, and it opens its own session:
+        # left real, these unit tests would reach a database. What it finds is
+        # not this file's subject — see `test_settlement_reconciliation.py`.
+        async def _no_gaps(*_args: object, **_kwargs: object) -> dict[uuid.UUID, list[date]]:
+            return {}
+
+        monkeypatch.setattr(harvest, "survey_settlement_gaps", _no_gaps)
         return redis, walked
 
     return _run

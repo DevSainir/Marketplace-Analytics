@@ -12,6 +12,13 @@ small seller genuinely has days with no sales. WB's report periods tile the
 calendar, so a day inside the harvested range belonging to no report is a report
 that is missing.
 
+The hole it could not see until 2026-09-14 is the one at the **end**: a week WB
+has published and nobody harvested is not between two reports, it is after the
+last one, so a scan bounded by `max(date_to)` reported a sound history while
+three workspaces were short the whole of 07.09-13.09. `through` is what puts
+that edge inside the range, and it sits a publication grace behind today so the
+days WB simply has not formed a report for yet stay quiet.
+
 Real Postgres because the query is `generate_series` over a date range with
 `coalesce` on both period endpoints, and both halves of that are database
 behaviour rather than Python.
@@ -20,7 +27,7 @@ behaviour rather than Python.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +40,10 @@ pytestmark = pytest.mark.integration
 WORKSPACE = uuid.UUID("019f657a-0000-7000-8000-00000000ba01")
 OTHER_WORKSPACE = uuid.UUID("019f657a-0000-7000-8000-00000000ba02")
 SINCE = date(2026, 8, 1)
+#: Default scan end, before every fixture below, so `greatest(max(date_to),
+#: :through)` leaves the upper bound at the newest report a case holds. The
+#: trailing-edge cases pass their own — that edge is the whole subject there.
+THROUGH = date(2026, 1, 1)
 
 
 def _report(
@@ -52,10 +63,12 @@ def _report(
     )
 
 
-async def _gaps(session: AsyncSession, *, since: date = SINCE) -> list[date]:
+async def _gaps(
+    session: AsyncSession, *, since: date = SINCE, through: date = THROUGH
+) -> list[date]:
     """The days the nightly survey would report as uncovered."""
     return await FinancialReportRepository(session).settlement_gap_days(
-        workspace_id=WORKSPACE, since=since
+        workspace_id=WORKSPACE, since=since, through=through
     )
 
 
@@ -213,5 +226,50 @@ async def test_another_tenants_reports_do_not_fill_our_hole(
 
 
 async def test_a_workspace_with_no_reports_has_no_gaps(db_session: AsyncSession) -> None:
-    """Never harvested is not the same as short a day, and must not alert."""
-    assert await _gaps(db_session) == []
+    """Never harvested is not the same as short a day, and must not alert.
+
+    Given a real scan end rather than the default, because that is the case
+    where the two became confusable: the scan reaches forward now, so without a
+    guard a workspace that signed up this morning reports every day back to the
+    cutoff as a hole.
+    """
+    assert await _gaps(db_session, through=date(2026, 9, 7)) == []
+
+
+async def test_a_published_week_nobody_harvested_is_reported(db_session: AsyncSession) -> None:
+    """The 2026-09-14 hole: at the end of the history, not inside it.
+
+    Watermark 13.09 over coverage ending 06.09, and WB's 07.09-13.09 report
+    published into a window the gate would never ask about again. Scanned only up
+    to the newest report we hold, the survey called that a sound history and the
+    fleet gap count stayed at zero.
+    """
+    db_session.add_all(
+        [
+            _report(1, date(2026, 8, 24), date(2026, 8, 30)),
+            _report(2, date(2026, 8, 31), date(2026, 9, 6)),
+        ]
+    )
+    await db_session.flush()
+
+    gaps = await _gaps(db_session, through=date(2026, 9, 13))
+
+    assert gaps == [date(2026, 9, 7) + timedelta(days=n) for n in range(7)]
+
+
+async def test_days_wb_has_not_published_yet_are_not_a_gap(db_session: AsyncSession) -> None:
+    """The grace, without which the survey would cry every Monday morning.
+
+    WB forms the weekly report the day after the period ends and serves it later
+    still — up to eight days later, measured on report 983241109. A week that has
+    only just closed is not a fault of ours.
+    """
+    db_session.add_all(
+        [
+            _report(1, date(2026, 8, 24), date(2026, 8, 30)),
+            _report(2, date(2026, 8, 31), date(2026, 9, 6)),
+        ]
+    )
+    await db_session.flush()
+
+    assert await _gaps(db_session, through=date(2026, 9, 6)) == []

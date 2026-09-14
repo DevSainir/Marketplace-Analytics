@@ -114,9 +114,26 @@ async def trigger_harvest(
 ) -> HarvestTriggerResponse:
     """Ask WB now for any finance report we do not already hold.
 
-    Enqueues the same task the schedule runs, so the freshness gate still
-    applies: a workspace WB has published nothing new for is skipped after one
-    request rather than walked.
+    **The gate does not apply to a person.** This used to enqueue the ordinary
+    gated tick, so a click answered whatever the hourly schedule had already
+    answered — and the one moment somebody presses «Обновить» is the moment the
+    schedule has just told them the statement is complete when it is not. On
+    2026-09-14 the click was logged as «settled through 13.09 — nothing newer can
+    exist yet, skipping» over a week WB had published that morning.
+
+    So the click walks the reconciliation span: the days behind our coverage as
+    well as the ones after it, whatever the gate says. That is the only shape
+    that answers the question actually being asked, which is not «есть ли что-то
+    новее» but «догони то, что у WB уже есть, а у нас нет». It costs more — a
+    fortnight is three windows of WB's quarter-hourly budget — and it is spent on
+    the caller's own workspace, once, because a person asked.
+
+    The earlier reasoning for the gated version, kept because it was not wrong
+    about the cost: widening a click into a fortnight of re-reads spends a
+    seller's settlement budget on data already on file, and the daily pass covers
+    it anyway. What it got wrong is «anyway» — the daily pass takes one workspace
+    a night, so «anyway» is up to five days, and this button exists precisely for
+    the case where waiting is not the answer.
 
     **Every outcome is an answer, and none of them is a wait.** WB meters the
     settlement report at one request per ~15 minutes, so a click shortly after
@@ -149,5 +166,5 @@ async def trigger_harvest(
         return HarvestTriggerResponse(
             status="rate_limited", retry_after_seconds=math.ceil(retry_after)
         )
-    task = harvest_finance.delay(workspace_id=str(workspace_id))
+    task = harvest_finance.delay(workspace_id=str(workspace_id), reconcile=True)
     return HarvestTriggerResponse(status="started", task_id=task.id)

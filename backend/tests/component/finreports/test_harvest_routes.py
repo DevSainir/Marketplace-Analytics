@@ -153,7 +153,28 @@ async def test_the_harvest_is_scoped_to_the_caller_own_workspace(
     """
     await client.post("/api/v1/finreports/harvest", headers=headers)
 
-    assert task.calls == [{"workspace_id": str(workspace.id)}]
+    assert task.calls == [{"workspace_id": str(workspace.id), "reconcile": True}]
+
+
+async def test_the_click_walks_behind_our_coverage_not_only_ahead_of_it(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    task: _SpyTask,
+) -> None:
+    """The button exists for the case where the schedule already got it wrong.
+
+    Enqueued as an ordinary gated tick, a click answered whatever the hourly
+    schedule had just answered — and the moment somebody presses «Обновить» is
+    precisely the moment that answer is not to be trusted. On 2026-09-14 the
+    click was logged as «settled through 13.09 — nothing newer can exist yet,
+    skipping» over a week WB had published that morning.
+
+    ``reconcile`` is what makes the click ignore the gate and re-read the days
+    behind our coverage as well as the ones after it.
+    """
+    await client.post("/api/v1/finreports/harvest", headers=headers)
+
+    assert task.calls[0]["reconcile"] is True
 
 
 async def test_a_click_inside_wbs_rate_window_answers_instead_of_queueing_a_wait(

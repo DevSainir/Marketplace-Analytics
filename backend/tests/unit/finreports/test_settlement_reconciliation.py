@@ -28,12 +28,15 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from src.modules.finreports.constants import HARVEST_LOCK_KEY, RECONCILE_LOOKBACK_DAYS
+from src.modules.finreports.constants import (
+    HARVEST_LOCK_KEY,
+    RECONCILE_LOOKBACK_DAYS,
+)
 from src.modules.finreports.services.freshness_record import (
     FreshnessOutcome,
     FreshnessVerdict,
 )
-from src.modules.finreports.tasks import freshness, harvest
+from src.modules.finreports.tasks import freshness, harvest, repair
 from src.modules.finreports.tasks.harvest import harvest_all_workspaces
 from src.modules.finreports.tasks.spans import reconciliation_slice, walk_span
 from src.modules.workspaces.contract import WorkspaceTokenBundle
@@ -342,9 +345,13 @@ def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
 
     monkeypatch.setattr(harvest, "get_redis", lambda: redis)
     monkeypatch.setattr(freshness, "get_redis", lambda: redis)
+    monkeypatch.setattr(repair, "get_redis", lambda: redis)
     monkeypatch.setattr(harvest, "AsyncSessionLocal", _FakeSession)
     monkeypatch.setattr(freshness, "AsyncSessionLocal", _FakeSession)
     monkeypatch.setattr(harvest, "SettlementWatermarkRepository", _FakeWatermarkRepo)
+    # The loop reads BOTH — the frontier is the earlier of them. See
+    # `tests/unit/finreports/test_settlement_frontier.py` for why.
+    monkeypatch.setattr(harvest, "FinancialReportRepository", _FakeReportRepo)
     monkeypatch.setattr(freshness, "FinancialReportRepository", _FakeReportRepo)
     monkeypatch.setattr(harvest, "load_workspace_token_bundles", _bundles)
     monkeypatch.setattr(harvest, "load_workspace_token_bundle", _bundle)
@@ -416,15 +423,41 @@ async def test_the_reconciliation_pass_still_respects_the_harvest_lock(
     assert totals["skipped_locked"] == 1
 
 
-async def test_the_button_never_triggers_a_reconciliation(
+async def test_the_button_walks_the_lookback_for_its_own_workspace(
     walked: list[tuple[date, date]],
 ) -> None:
-    """«Обновить» is a forward question, and the expensive span is not its to spend.
+    """«Обновить» asks the thorough question, scoped to the caller.
 
-    A seller pressing refresh wants the report WB has just published. Widening
-    their click into a fortnight of re-reads would spend their whole settlement
-    budget on data already on file — and the daily pass covers it anyway.
+    It used to ask the forward one, on the reasoning that widening a click into a
+    fortnight of re-reads spends a seller's settlement budget on data already on
+    file — and that the daily pass covers it anyway. The cost was right; the
+    «anyway» was not. The daily pass takes one workspace a night, so a seller
+    short a week waits up to five days, and this button exists for exactly the
+    case where the schedule has already failed to fetch something WB has.
     """
-    await harvest_all_workspaces(days=28, workspace_id=WORKSPACE)
+    await harvest_all_workspaces(days=28, workspace_id=WORKSPACE, reconcile=True)
 
-    assert walked == []
+    date_from, date_to = walked[0]
+    assert date_from <= LOST_DAY <= date_to
+
+
+async def test_the_button_still_spends_only_the_callers_budget(
+    walked: list[tuple[date, date]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The thorough span must not come with a fleet-wide walk attached.
+
+    A click is one tenant's, and the cost of one click may not grow with the
+    number of sellers on the platform.
+    """
+    loaded: list[uuid.UUID | None] = []
+
+    async def _fleet(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
+        loaded.append(None)
+        return []
+
+    monkeypatch.setattr(harvest, "load_workspace_token_bundles", _fleet)
+
+    await harvest_all_workspaces(days=28, workspace_id=WORKSPACE, reconcile=True)
+
+    assert loaded == []
+    assert len(walked) == 1

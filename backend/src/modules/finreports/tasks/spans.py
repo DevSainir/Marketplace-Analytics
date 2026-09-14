@@ -1,9 +1,10 @@
 """What a harvest run should walk, and for whom.
 
-Two pure decisions lifted out of the harvest itself, because they are the part
-that is reasoned about rather than executed: how far back a span reaches, and —
-on the daily reconciliation pass — which single workspace gets it. Both are
-answers to "what", and the module next door is entirely about "how".
+Three pure decisions lifted out of the harvest itself, because they are the
+part that is reasoned about rather than executed: where the settlement history
+is closed through, how far back a span reaches, and — on the daily
+reconciliation pass — which single workspace gets it. All three are answers to
+"what", and the module next door is entirely about "how".
 
 They also share one subject the harvest does not: **what WB's quarter-hourly
 settlement budget costs us in wall clock.** A span is priced in windows, a
@@ -61,6 +62,58 @@ def walk_span(
     if latest_settled is None:
         return floor, date_to
     return max(floor, latest_settled - timedelta(days=lookback_days)), date_to
+
+
+def settlement_frontier(*, watermark: date | None, covered_through: date | None) -> date | None:
+    """How far the settlement history is **actually** closed, for the gate and the span.
+
+    The third answer to "what", and the one the other two were quietly getting
+    wrong in opposite directions. Two dates claim to say where the history ends
+    and neither can be trusted alone:
+
+    * ``covered_through`` — ``max(financial_report.date_to)``, the period WB
+      *states*. Written from the first page that lands, so a week walked one day
+      deep already claims all six. Trusting it skipped five of six days on
+      2026-09-07.
+    * ``watermark`` — the last day of the walk's completed prefix. Honest about
+      what was *asked*, and that is exactly its flaw: a window WB answered
+      **empty** completes like any other. WB forms a week's report the day
+      *after* the week ends, so every Sunday-night tick asks about the open week,
+      is told nothing, and certifies the whole week as settled. On 2026-09-14
+      that is precisely what had happened to three of five workspaces: watermark
+      13.09, newest report ending 06.09, report 985672101 (07.09-13.09, formed
+      14.09) published into a window nothing would ever ask about again. The
+      hourly gate answered «settled through 13.09 — nothing newer can exist yet»
+      to every tick, «Обновить» included.
+
+    So: **the earlier of the two**. A day is closed only when it was both asked
+    about completely and answered with a report that covers it. Each date is a
+    ceiling on the other, which is what makes both failures unrepresentable
+    rather than alternately fixed.
+
+    ``covered_through`` of ``None`` — a workspace holding no report at all —
+    constrains nothing and leaves the watermark standing. There is no coverage
+    to be behind, and the alternative is a full backfill span re-walked every
+    hour for a seller WB has published nothing for; a first report arriving late
+    for one of those is the reconciliation pass's job, as it is for any other
+    back-dated report.
+
+    Args:
+        watermark: Last day of the walk's completed prefix, or ``None`` when no
+            window has ever completed.
+        covered_through: Last day any harvested report's period covers, or
+            ``None`` when this workspace holds no reports.
+
+    Returns:
+        The day the history is closed through, or ``None`` when nothing closes
+        it — which every caller must read as "never harvested", i.e. as a reason
+        to walk rather than to skip.
+    """
+    if watermark is None:
+        return covered_through
+    if covered_through is None:
+        return watermark
+    return min(watermark, covered_through)
 
 
 def reconciliation_slice(
@@ -140,4 +193,4 @@ def reconciliation_slice(
     return [ordered[today.toordinal() % len(ordered)]]
 
 
-__all__ = ["reconciliation_slice", "walk_span"]
+__all__ = ["reconciliation_slice", "settlement_frontier", "walk_span"]

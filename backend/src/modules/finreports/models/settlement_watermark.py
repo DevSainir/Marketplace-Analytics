@@ -18,6 +18,18 @@ So the watermark is recorded from what the walk *completed*, not from what WB
 *published*, and it advances only over an unbroken prefix of completed windows —
 a gap behind it would be invisible to a single high-water date.
 
+**It is a ceiling on the reachable history, never the history itself.** A window
+WB answers *empty* completes like any other, and WB forms a week's report the day
+after the week ends — so the Sunday-night tick asks about the open week, is told
+nothing, and the watermark certifies days no report exists for yet. Read alone it
+then closes the gate on the report that lands on Monday, which on 2026-09-14 left
+three of five workspaces without the 07.09-13.09 week while every tick answered
+«settled through 13.09 — nothing newer can exist yet». What the gate and the walk
+span read is therefore the *earlier* of this mark and the last day a harvested
+report covers — see
+:func:`~src.modules.finreports.tasks.spans.settlement_frontier`. Each of the two
+dates over-claims in the direction the other one does not.
+
 Deliberately per workspace rather than per report: the walk asks for date spans,
 not for report ids, and a span can cover days WB has published no report for at
 all. The question the gate asks is "which days have I asked about and got a
