@@ -32,6 +32,11 @@ EXPECTED_TASKS: list[str] = [
     "monitoring.backfill_advertising",
     "finreports.backfill_pnl",
     "workspaces.sweep_stalled_backfills",
+    # The reference capture. It earns nothing, which is exactly why a silently
+    # unregistered task here would go unnoticed for months — and the feeds it
+    # walks are the ones WB deletes on a schedule.
+    "guide.capture_daily",
+    "guide.capture_monthly",
 ]
 
 
@@ -44,6 +49,7 @@ def _load_task_modules() -> None:
     """
     import src.modules.ab_tests.tasks
     import src.modules.finreports.tasks
+    import src.modules.guide.tasks
     import src.modules.monitoring.tasks
     import src.modules.users.tasks
     import src.modules.workspaces.tasks  # noqa: F401

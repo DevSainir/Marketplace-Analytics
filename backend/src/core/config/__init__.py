@@ -15,6 +15,8 @@ The configuration is split by responsibility, one module per area:
   budget, client-side rate buckets.
 * :mod:`~src.core.config.storefront` — the public, unauthenticated WB card and
   search endpoints.
+* :mod:`~src.core.config.guide` — bounds on the reference capture, which
+  must never cost the paying harvests a worker slot.
 * :mod:`~src.core.config.observability` — Prometheus exposition, Sentry
   reporting, and log rotation.
 * :mod:`~src.core.config.assembly` — composes all of the above into

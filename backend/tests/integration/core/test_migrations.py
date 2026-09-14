@@ -250,7 +250,7 @@ def test_every_table_lives_in_an_owned_schema(migrated_database: str) -> None:
 #: Schemas the truncate guard covers. Mirrors ``_GUARDED_SCHEMAS`` in
 #: ``f4c8b1e57a29_truncate_guard.py``; the point of restating it here is that a
 #: schema dropped from the migration has to be dropped from a test too.
-_GUARDED_SCHEMAS = ("monitoring", "finreports")
+_GUARDED_SCHEMAS = ("monitoring", "finreports", "guide")
 
 
 def test_every_data_table_refuses_an_unannounced_truncate(migrated_database: str) -> None:

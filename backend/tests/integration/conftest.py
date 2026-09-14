@@ -58,6 +58,7 @@ SCHEMAS: tuple[str, ...] = (
     "finreports",
     "ab_tests",
     "organizations",
+    "guide",
 )
 
 #: Name of the throwaway database. Overridable so CI can shard runs.

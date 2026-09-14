@@ -113,7 +113,9 @@ ignore = ["B008", "S101"]
 # nothing and drop every sale row. That risk is now covered directly, and better,
 # by tests/unit/finreports/test_wb_labels_are_pure_cyrillic.py, which asserts
 # every WB-served constant is script-pure rather than merely un-flagged.
-allowed-confusables = ["Р", "К", "Н", "а", "с", "о", "В", "А", "З", "Е", "е"]
+# «С» and «у» joined the list with `src/modules/guide/sources.py`, whose entries
+# are Russian sentences rather than labels — «С начала аккаунта», «что у паллет».
+allowed-confusables = ["Р", "К", "Н", "а", "с", "о", "В", "А", "З", "Е", "е", "С", "у"]
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/*" = ["N999", "F401"]

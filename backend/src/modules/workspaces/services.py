@@ -94,6 +94,13 @@ def _resolve_bundle(
         # flag real WB outages. A workspace ships FBS only if it was given an
         # explicit «Маркетплейс» token.
         marketplace=tokens.get(TokenKind.MARKETPLACE.value, ""),
+        # Reference-only scopes, read by the `guide` capture. They DO fall back
+        # to ``unified``, unlike marketplace: these feeds are account-wide, so a
+        # unified token answers for its own account and nothing else — there is
+        # no warehouse id to point at the wrong seller.
+        returns=pick(TokenKind.RETURNS),
+        documents=pick(TokenKind.DOCUMENTS),
+        feedbacks=pick(TokenKind.FEEDBACK),
     )
 
 

@@ -92,6 +92,12 @@ class WorkspaceTokenBundle(BaseModel):
     prices: str = ""
     statistics: str = ""
     marketplace: str = ""
+    #: The three scopes only the `guide` capture needs. They resolve like every
+    #: other surface (own category token, else ``unified``), and an empty string
+    #: means that one reference feed is skipped — never that the harvest stops.
+    returns: str = ""
+    documents: str = ""
+    feedbacks: str = ""
 
 
 class BackfillLaneStatus(BaseModel):

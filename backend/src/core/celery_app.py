@@ -206,6 +206,34 @@ celery_app.conf.beat_schedule = {
         "task": "workspaces.sweep_stalled_backfills",
         "schedule": crontab(minute="*/15"),
     },
+    # ---- the reference capture (`guide`) --------------------------------
+    #
+    # These two earn nothing. They exist because WB deletes several feeds on
+    # a schedule and a day nobody captured is a day nobody can capture. So the
+    # only real constraint on their timing is that they must never be the reason
+    # a paying harvest waited for a worker slot.
+    #
+    # The window 00:00-03:00 is the quietest one this schedule has: the hourly
+    # finance tick fires at minute 0 and finds nothing new on most of those
+    # hours, and the nightly passes (reconcile 03:00, tariffs 05:00, harvest
+    # 06:00, cohorts 07:00) are all later. Each entry sits away from minute 0
+    # for the same reason. The service layer also holds ONE lock across both, so
+    # an overrun makes the next cadence a no-op rather than a second concurrent
+    # walk.
+    #
+    # Cadence per source, and the measurement behind it, is in
+    # `src.modules.guide.sources` — the rule is daily when a missed day is a
+    # lost day and monthly otherwise.
+    "guide-capture-daily": {
+        "task": "guide.capture_daily",
+        "schedule": crontab(hour=2, minute=20),
+    },
+    # First of the month, and the earlier of the two: this is the one that walks
+    # windows of history, so it is the one most likely to run long.
+    "guide-capture-monthly": {
+        "task": "guide.capture_monthly",
+        "schedule": crontab(hour=1, minute=30, day_of_month="1"),
+    },
 }
 
 # Autodiscover ``tasks.py`` inside each registered business module.
@@ -216,6 +244,7 @@ celery_app.autodiscover_tasks(
         "src.modules.finreports",
         "src.modules.ab_tests",
         "src.modules.workspaces",
+        "src.modules.guide",
     ],
 )
 

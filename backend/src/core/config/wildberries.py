@@ -37,6 +37,13 @@ class WildberriesSettings(BaseSettings):
     # Marketplace surface: seller-owned (FBS) warehouses and their stock. Needs
     # a «Маркетплейс»-scope token; no other category authenticates this host.
     wb_marketplace_base_url: str = Field(default="https://marketplace-api.wildberries.ru")
+    # Returns surface: buyer return claims («Заявки на возврат»). Captured by
+    # the `guide` module only — WB keeps them fourteen days and nothing else
+    # carries the buyer's own words about why the item came back.
+    wb_returns_base_url: str = Field(default="https://returns-api.wildberries.ru")
+    # Feedbacks surface: reviews and buyer questions. Needs the «Вопросы и
+    # отзывы» scope; every other category answers it 403.
+    wb_feedbacks_base_url: str = Field(default="https://feedbacks-api.wildberries.ru")
     # Every FBS warehouse WB lists for the seller is discovered and read, so a
     # warehouse opened in the portal needs no deploy. ``False`` switches FBS off.
     wb_fbs_harvest_enabled: bool = True
@@ -46,10 +53,17 @@ class WildberriesSettings(BaseSettings):
     # ``monitoring.advertising_cluster_stat_daily``. DORMANT since 2026-09-09:
     # the UI that read the table was hidden (see the DORMANT headers in
     # monitoring/routers/clusters.py and the frontend cluster block), and the
-    # ingest is off with it. Note what that costs: WB serves no cluster
-    # HISTORY, so every day this stays ``False`` is a day that can never be
-    # backfilled — turning the feature back on starts the series from zero.
-    # ``True`` here is the only line needed to resume accruing it.
+    # ingest is off with it.
+    #
+    # This used to say the dormant days were lost forever, because WB serves no
+    # cluster history. **That was wrong.** Probed on prod 2026-09-12: WB
+    # returned full daily cluster stats for 2025-10-01 — about 347 days back —
+    # for a (campaign, SKU) pair that provably delivered SEARCH traffic then. So
+    # the days this stays ``False`` are recoverable, bounded by the 31-day
+    # window and the limiter rather than by WB's memory. Why the old reading
+    # looked true is in `references/advertising.md`: the endpoint answers
+    # "nothing" in two different shapes and neither is an error.
+    # ``True`` here is the only line needed to resume accruing it live.
     wb_search_cluster_harvest_enabled: bool = False
     # Column headers by warehouse id, written «<точка> - <город> (FBS)»: the
     # warehouse's own name first, because that is what distinguishes it from

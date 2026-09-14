@@ -41,6 +41,25 @@ ADVERTISING_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 }
 
 
+#: Statistics endpoints WB meters far more generously than
+#: ``/api/v5/supplier/reportDetailByPeriod``, whose ONE request per ~15 minutes
+#: the surface default is sized from.
+#:
+#: Only the orders feed is listed, and only because the `guide` capture walks it
+#: daily. Measured live 2026-09-12: it answers ``x-ratelimit-limit: 10`` where
+#: ``supplier/sales`` answers ``1``. Left on the surface default it would take
+#: sixteen minutes per page — not because WB says so, but because we would be
+#: pacing a ten-a-minute endpoint at the settlement report's rate. One token per
+#: 20 s is three a minute: comfortably inside WB's limit and still slow enough
+#: that a runaway walk cannot become a burst.
+#:
+#: The settlement walk is untouched by this — the bucket is keyed per endpoint,
+#: so a path that is not listed here keeps the strict default it has always had.
+STATISTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
+    "/api/v1/supplier/orders": (1, 20.0),
+}
+
+
 def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
     """Build the pacing gate for the analytics surface.
 
@@ -118,6 +137,7 @@ def statistics_rate_gate(settings: Settings, *, token: str) -> RateGate:
         capacity=settings.wb_statistics_bucket_capacity,
         refill_seconds=settings.wb_statistics_bucket_refill_seconds,
         max_wait_seconds=settings.wb_statistics_max_queue_seconds,
+        endpoint_buckets=STATISTICS_ENDPOINT_BUCKETS,
     )
 
 
@@ -147,6 +167,7 @@ def settlement_walk_rate_gate(settings: Settings, *, token: str) -> RateGate:
         capacity=settings.wb_statistics_bucket_capacity,
         refill_seconds=settings.wb_statistics_bucket_refill_seconds,
         max_wait_seconds=settings.wb_statistics_walk_queue_seconds,
+        endpoint_buckets=STATISTICS_ENDPOINT_BUCKETS,
     )
 
 

@@ -16,6 +16,7 @@ from src.integrations.wildberries.rate_limit.gates import (
 )
 from src.integrations.wildberries.rate_limit.surfaces import (
     ADVERTISING_ENDPOINT_BUCKETS,
+    STATISTICS_ENDPOINT_BUCKETS,
     advertising_rate_gate,
     analytics_rate_gate,
     marketplace_rate_gate,
@@ -25,6 +26,7 @@ from src.integrations.wildberries.rate_limit.surfaces import (
 
 __all__ = [
     "ADVERTISING_ENDPOINT_BUCKETS",
+    "STATISTICS_ENDPOINT_BUCKETS",
     "NullRateGate",
     "RateGate",
     "TokenBucketRateGate",

@@ -18,6 +18,7 @@ from sqlalchemy import engine_from_config, pool, text
 # Import model modules for their side effect: registering tables on Base.metadata.
 import src.modules.ab_tests.models
 import src.modules.finreports.models
+import src.modules.guide.models
 import src.modules.monitoring.models
 import src.modules.organizations.models
 import src.modules.users.models
@@ -34,6 +35,10 @@ _SCHEMAS: tuple[str, ...] = (
     "finreports",
     "ab_tests",
     "organizations",
+    # The reference capture. Listed here for the same reason as the rest: a
+    # schema absent from this tuple is invisible to autogenerate, so its tables
+    # read as "never created" in every diff.
+    "guide",
 )
 
 
