@@ -350,7 +350,7 @@ class _SpentToken:
         """
         self._shared = shared
 
-    async def acquire(self, endpoint: str) -> None:
+    async def acquire(self, endpoint: str, *, reserve_seconds: float = 0.0) -> None:
         """Let the request through — its token was taken before the session."""
         return
 
@@ -367,7 +367,7 @@ class _SpentToken:
         """Forward WB's stated block to the bucket every process shares."""
         await self._shared.penalise(endpoint, seconds)
 
-    async def retry_after(self, endpoint: str) -> float:
+    async def retry_after(self, endpoint: str, *, reserve_seconds: float = 0.0) -> float:
         """Ask the shared bucket, which is the one that knows.
 
         Forwarded rather than answered with 0: this wrapper says "my token is

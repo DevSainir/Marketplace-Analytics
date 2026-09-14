@@ -279,3 +279,47 @@ async def test_one_gate_peeks_at_what_another_process_spent(redis_client: Any) -
     await worker.acquire(ENDPOINT)
 
     assert await api.retry_after(ENDPOINT) > 0
+
+
+async def test_a_reserving_caller_lets_an_urgent_one_go_first(redis_client: Any) -> None:
+    """Priority, decided in the bucket rather than by agreement between callers.
+
+    Several things want the settlement endpoint's four requests an hour: the
+    hourly harvest, a seller pressing «Обновить», and the history backfill.
+    Without an order they race, and the loser is whoever asked second — on
+    2026-09-12 that was the fresh report, queued behind history nobody needed
+    that day.
+
+    A reserving caller declines a token that has been free for less than its
+    reserve, so the urgent caller wins every contested window without knowing
+    the background one exists.
+    """
+    urgent = _gate(redis_client, capacity=1, max_wait=5.0)
+    background = _gate(redis_client, capacity=1, max_wait=0.0)
+
+    # A fresh bucket: the token exists but has not been sitting.
+    with pytest.raises(IntegrationError):
+        await background.acquire("/reserve-demo", reserve_seconds=30.0)
+
+    # ...and the urgent caller takes it without waiting at all.
+    await urgent.acquire("/reserve-demo")
+
+
+async def test_the_reserve_does_not_grant_extra_requests(redis_client: Any) -> None:
+    """The reserve reorders callers; it must never widen the budget.
+
+    A reserve that let a caller through early — or that refilled faster — would
+    turn a courtesy into a second, contradictory limiter. After the urgent
+    caller has taken the only token, a reserving caller must still be refused,
+    for at least as long as anyone else would be.
+    """
+    urgent = _gate(redis_client, capacity=1, max_wait=0.0)
+    background = _gate(redis_client, capacity=1, max_wait=0.0)
+
+    await urgent.acquire("/reserve-budget")
+
+    plain_wait = await urgent.retry_after("/reserve-budget")
+    reserved_wait = await background.retry_after("/reserve-budget", reserve_seconds=30.0)
+
+    assert plain_wait > 0, "the bucket handed out a second token"
+    assert reserved_wait >= plain_wait, "the reserve shortened someone's wait"

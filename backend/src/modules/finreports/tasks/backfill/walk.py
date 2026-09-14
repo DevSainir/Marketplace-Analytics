@@ -15,6 +15,7 @@ from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries.rate_limit import statistics_rate_gate
+from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
 from src.modules.finreports.tasks.backfill.span import (
     PNL_EMPTY_STOP,
     PNL_FLOOR_DAYS,
@@ -114,7 +115,9 @@ async def advance_pnl(
     # A tick must never block on a budget it can re-enqueue against instead.
     gate = statistics_rate_gate(settings, token=tokens.statistics)
     try:
-        await gate.acquire(SETTLEMENT_PATH)
+        # Reserving, because this is the walk nobody is waiting on: it takes
+        # a window only once the harvest and any «Обновить» have had theirs.
+        await gate.acquire(SETTLEMENT_PATH, reserve_seconds=BACKGROUND_RESERVE_SECONDS)
     except IntegrationError as exc:
         # Not a failure: WB's window is simply still closed. The tick returns
         # unchanged and the task re-enqueues — asking anyway would restart the

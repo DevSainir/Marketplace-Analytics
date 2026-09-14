@@ -36,7 +36,10 @@ from src.core.logging import get_logger
 from src.core.redis import get_redis
 from src.core.tasks import run_task
 from src.integrations.wildberries.rate_limit import statistics_rate_gate
-from src.integrations.wildberries.rate_limit.surfaces import SETTLEMENT_PACE_CEILING_SECONDS
+from src.integrations.wildberries.rate_limit.surfaces import (
+    BACKGROUND_RESERVE_SECONDS,
+    SETTLEMENT_PACE_CEILING_SECONDS,
+)
 from src.modules.finreports.constants import HARVEST_LOCK_KEY
 from src.modules.finreports.tasks.backfill.span import (
     PNL_EMPTY_STOP,
@@ -91,7 +94,7 @@ async def _next_page_delay(token: str) -> int:
     than the watchdog's patience is sized for.
     """
     gate = statistics_rate_gate(settings, token=token)
-    shut_for = await gate.retry_after(SETTLEMENT_PATH)
+    shut_for = await gate.retry_after(SETTLEMENT_PATH, reserve_seconds=BACKGROUND_RESERVE_SECONDS)
     return min(
         max(_NEXT_PAGE_SECONDS, int(shut_for) + _WAKE_MARGIN_SECONDS),
         SETTLEMENT_PACE_CEILING_SECONDS,

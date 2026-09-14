@@ -73,16 +73,21 @@ class _Bucket:
 class RateGate(Protocol):
     """A pre-flight gate a WB client passes before every HTTP attempt."""
 
-    async def acquire(self, endpoint: str) -> None:
-        """Block until this endpoint's bucket holds a token."""
+    async def acquire(self, endpoint: str, *, reserve_seconds: float = 0.0) -> None:
+        """Block until this endpoint's bucket holds a token.
+
+        ``reserve_seconds`` makes this caller yield: it will not take a token
+        that has been free for less than that, leaving the freshest slot of
+        every window to work someone is waiting on.
+        """
         ...
 
     async def observe(self, endpoint: str, remaining: int | None) -> None:
         """Fold WB's ``x-ratelimit-remaining`` back into the bucket."""
         ...
 
-    async def retry_after(self, endpoint: str) -> float:
-        """Seconds until this endpoint would let a request through, 0 if now."""
+    async def retry_after(self, endpoint: str, *, reserve_seconds: float = 0.0) -> float:
+        """Seconds until this endpoint would let THIS caller through, 0 if now."""
         ...
 
     async def penalise(self, endpoint: str, seconds: float) -> None:
@@ -93,7 +98,7 @@ class RateGate(Protocol):
 class NullRateGate:
     """A gate that never waits — for surfaces with no measured bucket, and tests."""
 
-    async def acquire(self, endpoint: str) -> None:
+    async def acquire(self, endpoint: str, *, reserve_seconds: float = 0.0) -> None:
         """Return immediately; this surface is not paced."""
         return
 
@@ -101,7 +106,7 @@ class NullRateGate:
         """Ignore WB's rate headers; nothing is being paced."""
         return
 
-    async def retry_after(self, endpoint: str) -> float:
+    async def retry_after(self, endpoint: str, *, reserve_seconds: float = 0.0) -> float:
         """Always available; this surface is not paced."""
         return 0.0
 
@@ -171,7 +176,7 @@ class TokenBucketRateGate:
         """The bucket size WB meters this endpoint with."""
         return self._endpoint_buckets.get(endpoint, self._default_bucket)
 
-    async def acquire(self, endpoint: str) -> None:
+    async def acquire(self, endpoint: str, *, reserve_seconds: float = 0.0) -> None:
         """Wait until this endpoint's bucket holds a token, then take it.
 
         Args:
@@ -183,7 +188,7 @@ class TokenBucketRateGate:
         """
         waited = 0.0
         while True:
-            wait_ms = await self._take_token(endpoint)
+            wait_ms = await self._take_token(endpoint, reserve_seconds)
             if wait_ms <= 0:
                 return
             wait_seconds = wait_ms / 1000.0
@@ -209,7 +214,7 @@ class TokenBucketRateGate:
             await asyncio.sleep(wait_seconds)
             waited += wait_seconds
 
-    async def _take_token(self, endpoint: str) -> float:
+    async def _take_token(self, endpoint: str, reserve_seconds: float = 0.0) -> float:
         """Take a token, returning the milliseconds to wait when none is free."""
         bucket = self._bucket(endpoint)
         try:
@@ -222,6 +227,7 @@ class TokenBucketRateGate:
                     str(bucket.capacity),
                     str(bucket.refill_ms),
                     str(bucket.ttl_ms),
+                    str(int(reserve_seconds * 1000)),
                 ),
             )
         except RedisError:
@@ -243,8 +249,8 @@ class TokenBucketRateGate:
             return 0.0
         return (next_allowed - now) * 1000.0
 
-    async def retry_after(self, endpoint: str) -> float:
-        """How long this endpoint stays shut, **without spending a token**.
+    async def retry_after(self, endpoint: str, *, reserve_seconds: float = 0.0) -> float:
+        """How long this endpoint stays shut for THIS caller, without spending a token.
 
         The question «Обновить» has to answer before it enqueues anything: the
         settlement bucket refills once every fifteen minutes, so a click soon
@@ -275,6 +281,7 @@ class TokenBucketRateGate:
                     self._key(endpoint),
                     str(bucket.capacity),
                     str(bucket.refill_ms),
+                    str(int(reserve_seconds * 1000)),
                 ),
             )
         except RedisError:

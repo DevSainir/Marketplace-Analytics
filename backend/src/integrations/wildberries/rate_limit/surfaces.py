@@ -75,6 +75,21 @@ STATISTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 #: the pace trying to widen past a ceiling it was not allowed to cross.
 SETTLEMENT_PACE_CEILING_SECONDS = 90 * 60
 
+#: How long a background walk must let a token sit before it may take it.
+#:
+#: The settlement endpoint serves about four requests an hour and several things
+#: want them: the hourly harvest, a seller pressing «Обновить», and the history
+#: backfill. Without an order they simply race, and the loser is whoever asked
+#: second — which on 2026-09-12 was the fresh report, waiting behind history
+#: nobody needed today.
+#:
+#: A reserve makes the order structural rather than a convention each caller has
+#: to remember. It costs the backfill up to two minutes per window and cannot
+#: cost the harvest anything. It does NOT change how many requests leave — the
+#: bucket alone decides that — only who gets them when two callers want the same
+#: one, so it is a courtesy, not a second limiter.
+BACKGROUND_RESERVE_SECONDS = 120.0
+
 
 def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
     """Build the pacing gate for the analytics surface.

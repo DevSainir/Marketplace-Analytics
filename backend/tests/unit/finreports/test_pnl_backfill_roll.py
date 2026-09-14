@@ -69,7 +69,9 @@ def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
     """
 
     class _Gate:
-        async def acquire(self, _path: str) -> None:
+        async def acquire(self, _path: str, *, reserve_seconds: float = 0.0) -> None:
+            # The reserve is asserted in test_pnl_backfill_yields; here it only
+            # has to be accepted, or every roll test fails for the wrong reason.
             return None
 
     monkeypatch.setattr(walk, "statistics_rate_gate", lambda *_a, **_k: _Gate())

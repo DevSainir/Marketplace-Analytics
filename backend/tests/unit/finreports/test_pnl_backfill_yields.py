@@ -78,8 +78,10 @@ def test_the_yield_outlasts_the_lock_it_is_waiting_on() -> None:
 class _Gate:
     def __init__(self, shut_for: float) -> None:
         self.shut_for = shut_for
+        self.reserve_seen: float | None = None
 
-    async def retry_after(self, _endpoint: str) -> float:
+    async def retry_after(self, _endpoint: str, *, reserve_seconds: float = 0.0) -> float:
+        self.reserve_seen = reserve_seconds
         return self.shut_for
 
 
@@ -130,3 +132,21 @@ async def test_the_wait_never_outlasts_the_watchdog_s_patience(
     monkeypatch.setattr(backfill, "statistics_rate_gate", lambda *_a, **_k: _Gate(99_999.0))
 
     assert await backfill._next_page_delay("t") == SETTLEMENT_PACE_CEILING_SECONDS
+
+
+async def test_the_backfill_asks_as_a_reserving_caller(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The history walk must never be first in the queue for a window.
+
+    The reserve is what makes that structural instead of a convention every
+    future caller has to remember — and it has to reach the bucket, not just be
+    defined. A gate asked without it hands the backfill the freshest slot of
+    every window, which is the race this exists to end.
+    """
+    from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
+
+    gate = _Gate(0.0)
+    monkeypatch.setattr(backfill, "statistics_rate_gate", lambda *_a, **_k: gate)
+
+    await backfill._next_page_delay("t")
+
+    assert gate.reserve_seen == BACKGROUND_RESERVE_SECONDS
