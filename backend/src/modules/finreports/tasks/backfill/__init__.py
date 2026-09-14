@@ -32,7 +32,9 @@ from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
 from src.core.logcontext import bind_workspace
 from src.core.logging import get_logger
+from src.core.redis import get_redis
 from src.core.tasks import run_task
+from src.modules.finreports.constants import HARVEST_LOCK_KEY
 from src.modules.finreports.tasks.backfill.pace import (
     PACE_CEILING_SECONDS,
     PACE_DEFAULT_SECONDS,
@@ -70,6 +72,37 @@ _NEXT_PAGE_SECONDS = 15 * 60 + 30
 
 #: A tick is one request plus one ingest; the limit is a hung-call backstop.
 _TICK_SOFT_LIMIT_SECONDS = 5 * 60
+
+#: How long to stand aside when the forward harvest holds the settlement token.
+#:
+#: Just over the harvest's own lock TTL, so a yielding tick wakes to a token the
+#: harvest has finished with rather than to the same closed door.
+_YIELD_SECONDS = 11 * 60
+
+
+async def _harvest_is_running() -> bool:
+    """Whether the forward finance harvest currently holds its lock.
+
+    The two walks share one token on an endpoint WB serves about four times an
+    hour, and they are not equally urgent. The harvest collects the report WB
+    published this morning — what the seller opens the app to see. The backfill
+    fills history that has been missing for months and will still be there in
+    fifteen minutes. Whoever asks first wins the window, so without this the
+    ordering is luck: on 2026-09-14 the harvest happened to take 09:54 and the
+    backfill's next tick was refused, which is the right outcome by accident.
+
+    The monitoring lanes have obeyed the same rule against their own harvest
+    from the start; this is the settlement lane catching up.
+
+    A Redis failure answers ``False``. A backfill running while Redis is down is
+    a smaller problem than a backfill that stops for good because it could not
+    ask — and the rate gate still stands between it and WB either way.
+    """
+    try:
+        return bool(await get_redis().exists(HARVEST_LOCK_KEY))
+    except Exception:
+        logger.warning("Could not read the finance harvest lock; assuming it is free.")
+        return False
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -116,6 +149,22 @@ def backfill_pnl(
         if tokens is None:
             raise IntegrationError(f"Workspace {workspace_id} no longer exists; P&L aborted.")
         bind_workspace(ws_id)
+
+        if await _harvest_is_running():
+            # Stand aside without spending a request: the fresh report comes
+            # first, and asking now would take the window it needs.
+            await record_progress(
+                workspace_id=ws_id,
+                lane=BackfillLane.PNL,
+                message="Ждём загрузку свежего отчёта…",
+            )
+            celery_app.send_task(
+                "finreports.backfill_pnl",
+                kwargs={"workspace_id": workspace_id, "chain": token},
+                countdown=_YIELD_SECONDS,
+            )
+            logger.info("backfill pnl for %s yielded to the finance harvest.", workspace_id)
+            return {"yielded": True}
 
         cursor = await read_cursor(workspace_id=ws_id, lane=BackfillLane.PNL)
         step = await advance_pnl(tokens, cursor=cursor, build_ingestion=build_ingestion)
