@@ -224,7 +224,7 @@ async def test_missing_workspace_header_is_400(client: httpx.AsyncClient, user: 
     # calls this API and it sets the header itself, so a missing one is a client
     # bug rather than something the reader can act on — and `detail` is rendered
     # to the user verbatim. The name still goes to the log, where it helps.
-    assert response.json()["detail"] == "Не выбрано рабочее пространство."
+    assert response.json()["detail"] == "Не выбран кабинет."
 
 
 async def test_malformed_workspace_header_is_400(client: httpx.AsyncClient, user: Any) -> None:

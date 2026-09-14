@@ -5,7 +5,7 @@ import WorkspacesPanel from '@/modules/profile/components/WorkspacesPanel.vue'
 /**
  * The merged workspaces block.
  *
- * «Рабочее пространство» and «Управление пространствами» listed the same
+ * «Кабинет» and «Управление кабинетами» listed the same
  * workspaces twice — one copy to switch between, one to administer — so every
  * name appeared twice and each carried different buttons.
  *
@@ -102,6 +102,6 @@ describe('WorkspacesPanel', () => {
   it('says so when there is nothing to list', () => {
     const wrapper = mountPanel({ workspaces: [] })
 
-    expect(wrapper.text()).toContain('Пока нет ни одного рабочего пространства')
+    expect(wrapper.text()).toContain('Пока нет ни одного кабинета')
   })
 })

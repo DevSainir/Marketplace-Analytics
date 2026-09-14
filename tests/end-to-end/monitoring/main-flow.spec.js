@@ -41,7 +41,7 @@ test("switching workspace re-scopes every subsequent request", async ({
 }) => {
   await page.goto("/profile");
   await expect(
-    page.getByRole("heading", { name: "Рабочие пространства" }),
+    page.getByRole("heading", { name: "Кабинеты" }),
   ).toBeVisible();
 
   const before = await page.evaluate(() =>

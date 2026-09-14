@@ -107,20 +107,20 @@ async def get_current_workspace_id(
     if not x_workspace_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Не выбрано рабочее пространство.",
+            detail="Не выбран кабинет.",
         )
     try:
         workspace_id = uuid.UUID(x_workspace_id)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Некорректный идентификатор рабочего пространства.",
+            detail="Некорректный идентификатор кабинета.",
         ) from exc
     workspace = await workspace_repo.get_by_id(workspace_id)
     if workspace is None or workspace.organization_id != access.tenant_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Рабочее пространство не найдено.",
+            detail="Кабинет не найден.",
         )
     # Proven to belong to the caller — only now is it safe to tell the database,
     # or the logs. Both announcements sit behind the same check for the same
@@ -178,7 +178,7 @@ async def get_path_workspace_id(
     if workspace is None or workspace.organization_id != access.tenant_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Рабочее пространство не найдено.",
+            detail="Кабинет не найден.",
         )
     await set_workspace_context(session, workspace_id)
     return workspace_id

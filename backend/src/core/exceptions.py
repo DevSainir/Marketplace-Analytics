@@ -21,7 +21,7 @@ class AppError(Exception):
     #: OUR failure rather than the caller's — every status of 500 or more.
     #:
     #: A 4xx message is written for the person who caused it and is meant to be
-    #: read ("Рабочее пространство «X» уже существует"). A 5xx message is written for
+    #: read ("Кабинет «X» уже существует"). A 5xx message is written for
     #: whoever debugs it, and on this codebase that means upstream text: a
     #: pydantic report naming our WB schema fields, the WB path we called, the
     #: fact that one code path shells out to curl. None of that is the caller's

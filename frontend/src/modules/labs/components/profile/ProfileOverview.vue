@@ -76,7 +76,7 @@ function plural(n, forms) {
     </article>
 
     <article class="lp-tile">
-      <span class="lp-tile__label">Пространства</span>
+      <span class="lp-tile__label">Кабинеты</span>
       <span class="lp-tile__value">
         {{ workspaces }}<small v-if="maxWorkspaces"> / {{ maxWorkspaces }}</small>
       </span>

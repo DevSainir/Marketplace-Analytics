@@ -70,7 +70,7 @@ SCOPES = """\
 finreports — модуль финотчётов
 monitoring — модуль мониторинга
 users — модуль пользователей
-workspaces — модуль рабочих пространств
+workspaces — модуль кабинетов
 auth — авторизация
 frontend — интерфейс
 backend — бэкенд

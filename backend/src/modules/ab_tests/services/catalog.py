@@ -170,14 +170,12 @@ class AbTestCatalogService:
         # a media upload at somebody else's card, or at nothing. The body was
         # trusted until 2026-09-05, when a test was created against article `1`.
         if card is None:
-            raise ValidationError(
-                f"Артикул {payload.nm_id} не найден в каталоге рабочего пространства."
-            )
+            raise ValidationError(f"Артикул {payload.nm_id} не найден в каталоге кабинета.")
 
         cap = settings.max_ab_tests_per_workspace
         if await self._tests.count_for_workspace(workspace_id) >= cap:
             raise ValidationError(
-                f"Достигнут лимит А/Б-тестов ({cap} на пространство). "
+                f"Достигнут лимит А/Б-тестов ({cap} на кабинет). "
                 "Удалите завершённые тесты, чтобы создать новый."
             )
         test = await self._tests.create(

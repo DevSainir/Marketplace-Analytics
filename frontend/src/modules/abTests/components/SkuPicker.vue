@@ -190,7 +190,7 @@ function clear() {
       class="mt-xs text-tiny text-muted"
       data-testid="sku-empty"
     >
-      В каталоге рабочего пространства такого артикула нет.
+      В каталоге кабинета такого артикула нет.
     </p>
   </div>
 </template>

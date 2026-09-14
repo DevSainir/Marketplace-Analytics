@@ -49,7 +49,7 @@ function onSelect(workspace) {
       class="flex h-8 max-w-[10rem] items-center gap-xs rounded-btn border border-border-subtle bg-canvas px-sm text-tiny font-medium text-primary transition hover:border-action hover:text-action phone:max-w-[6.5rem]"
       :aria-expanded="open"
       aria-haspopup="listbox"
-      :title="current?.name || 'Пространство'"
+      :title="current?.name || 'Кабинет'"
       @click="open = !open"
     >
       <svg
@@ -63,7 +63,7 @@ function onSelect(workspace) {
       >
         <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5" />
       </svg>
-      <span class="truncate">{{ current?.name || 'Пространство' }}</span>
+      <span class="truncate">{{ current?.name || 'Кабинет' }}</span>
       <svg
         class="h-3.5 w-3.5 flex-none text-muted transition"
         :class="open ? 'rotate-180' : ''"
@@ -89,7 +89,7 @@ function onSelect(workspace) {
         class="absolute right-0 top-full z-20 mt-xs max-h-80 w-56 overflow-y-auto rounded-card bg-surface shadow-card"
         role="listbox"
       >
-        <p class="px-md pb-xs pt-sm text-tiny font-medium text-muted">Пространство</p>
+        <p class="px-md pb-xs pt-sm text-tiny font-medium text-muted">Кабинет</p>
         <ul class="divide-y divide-border-subtle">
           <li v-for="workspace in workspaces" :key="workspace.id">
             <button

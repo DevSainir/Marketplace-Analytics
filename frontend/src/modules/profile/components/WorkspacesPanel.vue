@@ -2,7 +2,7 @@
 /**
  * Workspaces: which one you are looking at, and — for an owner — what exists.
  *
- * One block, replacing «Рабочее пространство» and «Управление пространствами».
+ * One block, replacing «Кабинет» and «Управление кабинетами».
  * They listed the same workspaces twice, one to switch between and one to
  * administer, so an owner read every name on the page twice and had to know
  * which copy carried which button.
@@ -61,13 +61,13 @@ function onRemove(id) {
 
 <template>
   <section class="rounded-card border border-border-subtle bg-surface p-lg shadow-card">
-    <h2 class="text-h2 font-bold text-primary">Рабочие пространства</h2>
+    <h2 class="text-h2 font-bold text-primary">Кабинеты</h2>
     <p class="mt-xs text-tiny font-medium text-muted">
       <template v-if="canManage">
-        Все данные показываются в рамках выбранного пространства. Токены WB хранятся в базе в
+        Все данные показываются в рамках выбранного кабинета. Токены WB хранятся в базе в
         зашифрованном виде и никогда не показываются повторно.
       </template>
-      <template v-else> Все данные показываются в рамках выбранного пространства. </template>
+      <template v-else> Все данные показываются в рамках выбранного кабинета. </template>
     </p>
 
     <!-- Above the list, as the thing you do before there is a list to read. -->
@@ -75,7 +75,7 @@ function onRemove(id) {
       <input
         v-model="newName"
         type="text"
-        placeholder="Название нового пространства"
+        placeholder="Название нового кабинета"
         class="w-full rounded-input border border-border-subtle bg-canvas px-md py-sm text-base text-primary placeholder:text-muted focus:border-action focus:outline-none phone:min-h-11"
       />
       <button
@@ -88,7 +88,7 @@ function onRemove(id) {
     </form>
 
     <p v-if="workspaces.length === 0" class="mt-md text-base font-body text-muted">
-      Пока нет ни одного рабочего пространства.
+      Пока нет ни одного кабинета.
     </p>
 
     <ul v-else class="mt-md flex flex-col gap-sm">

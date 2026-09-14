@@ -128,7 +128,7 @@ export const useAuthStore = defineStore('auth', () => {
     // The workspace id outlived the session, and it is a TENANT's id. The next
     // account to sign in on this browser kept stamping every request with a
     // workspace belonging to the previous one — which the API refuses, so the
-    // symptom was «Рабочее пространство не найдено» on a fresh, valid login.
+    // symptom was «Кабинет не найден» on a fresh, valid login.
     setWorkspaceId(null)
     accessExpiresAt.value = null
     status.value = 'guest'

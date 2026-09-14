@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Пространства» — the list, and what state each one's WB credentials are in.
+ * «Кабинеты» — the list, and what state each one's WB credentials are in.
  *
  * The old panel hid the credentials behind a per-row accordion, which meant
  * you could not see from the list which workspace was actually wired up — and
@@ -56,10 +56,10 @@ function onRemove(id) {
   <div class="lp-panel">
     <header class="lp-panel__head">
       <div class="min-w-0">
-        <h2 class="lp-panel__title">Рабочие пространства</h2>
+        <h2 class="lp-panel__title">Кабинеты</h2>
         <p class="lp-panel__note">
-          Все данные показываются в рамках выбранного пространства. Токены WB хранятся в
-          зашифрованном виде и никогда не показываются повторно.
+          Все данные показываются в рамках выбранного кабинета. Токены WB хранятся в зашифрованном
+          виде и никогда не показываются повторно.
         </p>
       </div>
 
@@ -69,7 +69,7 @@ function onRemove(id) {
           type="text"
           placeholder="Название нового"
           class="lp-input"
-          aria-label="Название нового пространства"
+          aria-label="Название нового кабинета"
         />
         <button type="submit" class="lp-btn lp-btn--primary" :disabled="busy || !newName.trim()">
           Создать
@@ -77,7 +77,7 @@ function onRemove(id) {
       </form>
     </header>
 
-    <p v-if="!workspaces.length" class="lp-empty">Пока нет ни одного рабочего пространства.</p>
+    <p v-if="!workspaces.length" class="lp-empty">Пока нет ни одного кабинета.</p>
 
     <div v-else class="lp-grid" role="table">
       <div class="lp-grid__head" role="row">

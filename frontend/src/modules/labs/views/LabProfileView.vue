@@ -68,7 +68,7 @@ const sections = computed(() =>
     team.available.value
       ? { id: 'lp-team', label: 'Команда', count: team.managers.value.length }
       : null,
-    { id: 'lp-workspaces', label: 'Пространства', count: store.workspaces.length },
+    { id: 'lp-workspaces', label: 'Кабинеты', count: store.workspaces.length },
     { id: 'lp-security', label: 'Безопасность' },
   ].filter(Boolean),
 )

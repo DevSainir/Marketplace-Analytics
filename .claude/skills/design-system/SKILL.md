@@ -95,6 +95,24 @@ Widths are a separate subject: the app has one phone breakpoint (`phone:`, max-w
 safe-area contract that `.app-container` is part of. Both live in the **phone-layout** skill —
 read it before making anything narrow.
 
+## One word for one thing
+
+What a seller switches between — one WB seller account with its own catalogue, its own P&L
+and its own tokens — is a **кабинет**. Full form «Личный кабинет», short form «Кабинет»,
+plural «Кабинеты». Never «рабочее пространство»: it is an English calque, it is not what
+the marketplace calls a seller's account, and it was used in eleven places while «кабинет»
+was used in none.
+
+The code still says `workspace` everywhere — model, table, store, header, route — and that
+stays. The identifier is not the noun a user reads, renaming it would be a migration across
+four modules, and English identifiers behind a Russian UI is how this whole codebase works.
+**The rule is about the words on the screen.**
+
+Both halves are machine-enforced, because a naming rule nobody can fail is one that drifts
+back: `frontend/tests/integration/naming.spec.js` scans every `.vue`/`.js` a user can read,
+and `backend/tests/unit/core/test_messages_are_russian.py` scans the exception messages the
+API hands to a client. Add a new banned word to both.
+
 ## Type
 
 | Role | Classes |

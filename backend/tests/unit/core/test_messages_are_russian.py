@@ -117,7 +117,23 @@ def test_no_user_facing_message_is_written_in_english() -> None:
 
 @pytest.mark.parametrize(
     "jargon",
-    ["воркспейс", "Воркспейс", "HttpOnly", "cookie", "endpoint", "workspace_id"],
+    [
+        "воркспейс",
+        "Воркспейс",
+        "HttpOnly",
+        "cookie",
+        "endpoint",
+        "workspace_id",
+        # One word for one thing. What a seller switches between is a
+        # «кабинет» — «Личный кабинет» in full — which is what the marketplace
+        # itself calls a seller's account. «Рабочее пространство» was the
+        # English calque, it was used in eleven places and «кабинет» in none,
+        # and a naming rule nobody can fail is a naming rule that drifts back.
+        # The SPA half of the same rule lives in
+        # `frontend/tests/integration/naming.spec.js`.
+        "пространств",
+        "Пространств",
+    ],
 )
 def test_no_message_leaks_developer_vocabulary(jargon: str) -> None:
     """Russian is necessary but not sufficient — it has to be Russian a seller reads.

@@ -150,7 +150,7 @@ class WorkspaceService:
             current = await self._workspaces.count_for_organization(organization_id)
             if current >= max_workspaces:
                 raise ValidationError(
-                    f"Достигнут лимит рабочих пространств ({max_workspaces}). "
+                    f"Достигнут лимит кабинетов ({max_workspaces}). "
                     "Удалите один из текущих или продлите подписку."
                 )
         # Names are unique platform-wide, so a collision with ANOTHER tenant's
@@ -158,7 +158,7 @@ class WorkspaceService:
         # comment) and it does leak one bit — "this name is taken somewhere".
         # The message says only that, and never whose.
         if await self._workspaces.get_by_name(name) is not None:
-            raise ConflictError(f"Рабочее пространство «{name}» уже существует.")
+            raise ConflictError(f"Кабинет «{name}» уже существует.")
         workspace = await self._workspaces.create(organization_id=organization_id, name=name)
         return WorkspaceRead.model_validate(workspace)
 
@@ -181,7 +181,7 @@ class WorkspaceService:
         """
         workspace = await self._workspaces.get_by_id(workspace_id)
         if workspace is None or workspace.organization_id != organization_id:
-            raise NotFoundError("Рабочее пространство не найдено.")
+            raise NotFoundError("Кабинет не найден.")
         await self._workspaces.delete(workspace)
 
     def _allowed_kinds(self, workspace: Workspace) -> frozenset[str]:
@@ -225,14 +225,12 @@ class WorkspaceService:
         """
         workspace = await self._workspaces.get_by_id(workspace_id)
         if workspace is None or workspace.organization_id != organization_id:
-            raise NotFoundError("Рабочее пространство не найдено.")
+            raise NotFoundError("Кабинет не найден.")
         allowed = self._allowed_kinds(workspace)
         for kind in payload.tokens:
             if kind not in allowed:
                 mode = "primary" if workspace.is_primary else "unified-token"
-                raise ValidationError(
-                    f"Токен «{kind}» не подходит для пространства в режиме «{mode}»."
-                )
+                raise ValidationError(f"Токен «{kind}» не подходит для кабинета в режиме «{mode}».")
 
         for kind, token in payload.tokens.items():
             if token is None:
@@ -264,7 +262,7 @@ class WorkspaceService:
         """
         workspace = await self._workspaces.get_by_id(workspace_id)
         if workspace is None or workspace.organization_id != organization_id:
-            raise NotFoundError("Рабочее пространство не найдено.")
+            raise NotFoundError("Кабинет не найден.")
         configured = sorted(row.kind for row in await self._tokens.list_for_workspace(workspace_id))
         return WorkspaceTokensStatus(
             workspace_id=workspace_id,

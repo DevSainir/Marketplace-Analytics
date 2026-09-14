@@ -273,7 +273,7 @@ async def test_a_refresh_task_is_invisible_to_a_different_workspace(
         "src.modules.monitoring.routers.refresh.harvest_sku_window.delay",
         lambda nm_ids: type("Task", (), {"id": "task-xyz"})(),
     )
-    other = make_workspace(organization_id=organization_id, name="Другое пространство")
+    other = make_workspace(organization_id=organization_id, name="Другой кабинет")
     workspace_repo.workspaces[other.id] = other
 
     mine = {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
