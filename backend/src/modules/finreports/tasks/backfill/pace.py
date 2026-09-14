@@ -36,6 +36,7 @@ import hashlib
 
 from src.core.logging import get_logger
 from src.core.redis import get_redis
+from src.integrations.wildberries.rate_limit.surfaces import SETTLEMENT_PACE_CEILING_SECONDS
 
 logger = get_logger(__name__)
 
@@ -44,10 +45,15 @@ logger = get_logger(__name__)
 #: floor is the value the lane will keep returning to.
 PACE_FLOOR_SECONDS = 20 * 60
 
-#: Never wait longer than this, however many refusals arrive. Beyond an hour a
-#: lane is no longer slow, it is stopped, and the watchdog's staleness window
-#: would start restarting it.
-PACE_CEILING_SECONDS = 40 * 60
+#: Never wait longer than this, however many refusals arrive.
+#:
+#: Defined beside the rate buckets rather than here, because the backfill
+#: watchdog sizes its patience from the same number and ``workspaces`` may not
+#: import ``finreports``. Keeping one module's constant as the other's bound is
+#: what stops the pace and the watchdog from constraining each other: when the
+#: cap sat below what WB wanted, the walk pinned against it and spent six of
+#: every ten ticks earning refusals instead of fetching pages.
+PACE_CEILING_SECONDS = SETTLEMENT_PACE_CEILING_SECONDS
 
 #: Where a lane that has learned nothing yet starts. Deliberately above the
 #: floor: the first pages of a fresh walk are the ones with no evidence behind

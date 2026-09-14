@@ -59,6 +59,22 @@ STATISTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
     "/api/v1/supplier/orders": (1, 20.0),
 }
 
+#: The slowest interval the settlement walk may pace itself to, in seconds.
+#:
+#: Lives here rather than beside the walk because two modules need it and they
+#: may not import each other: ``finreports`` widens the walk's interval up to
+#: this, and ``workspaces`` sizes the backfill watchdog's patience from it. A
+#: watchdog less patient than the pace is permitted to be restarts a lane for
+#: being exactly as slow as it was told to be — and on this endpoint the restart
+#: then asks early, which is what WB answers with a penalty block.
+#:
+#: 90 minutes because the published ``x-ratelimit-reset: 917`` is a floor rather
+#: than the enforced tolerance. Measured on NEVA 2026-09-12/14: 18 minutes after a
+#: good page still drew a 2762 s penalty, and with the cap at 40 minutes the walk
+#: sat pinned against it — four pages served against six refusals in six hours,
+#: the pace trying to widen past a ceiling it was not allowed to cross.
+SETTLEMENT_PACE_CEILING_SECONDS = 90 * 60
+
 
 def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
     """Build the pacing gate for the analytics surface.

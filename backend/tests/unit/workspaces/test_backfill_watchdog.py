@@ -63,12 +63,48 @@ def test_every_lane_has_a_restart_task_that_actually_exists() -> None:
 def test_the_watchdog_is_patient_enough_for_the_slowest_lane() -> None:
     """A healthy slow lane must never be restarted out from under itself.
 
-    The P&L tick moves once per ~15.5 minutes, and a tick that finds WB's window
-    shut legitimately records nothing but a message. The staleness threshold has
-    to clear several of those, or the sweep would keep enqueueing duplicates of
-    a lane that is working exactly as designed.
+    The P&L lane paces itself against WB and widens whenever a page is refused,
+    so "slow" here is not a constant — the patience has to clear the slowest
+    interval the lane is ALLOWED to reach, not the one it starts at.
     """
-    assert timedelta(seconds=_NEXT_PAGE_SECONDS * 2) <= STALE_AFTER
+    from src.modules.finreports.tasks.backfill.pace import PACE_CEILING_SECONDS
+    from src.modules.workspaces.tasks import _patience
+
+    assert timedelta(seconds=PACE_CEILING_SECONDS) < _patience(BackfillLane.PNL)
+    assert timedelta(seconds=_NEXT_PAGE_SECONDS * 2) <= _patience(BackfillLane.PNL)
+
+
+def test_the_pace_cannot_be_capped_by_the_watchdog_it_should_outlive() -> None:
+    """The bug this pairing exists to prevent, stated as the relationship.
+
+    With patience fixed at 45 minutes the pace ceiling had to sit below it, so
+    the walk pinned against a cap it kept trying to cross — NEVA served four
+    pages against six refusals in six hours, spending roughly 40% of the
+    endpoint's budget on requests WB was always going to reject. Raising one
+    without the other silently restores that.
+    """
+    from src.modules.finreports.tasks.backfill.pace import (
+        PACE_CEILING_SECONDS,
+        PACE_DEFAULT_SECONDS,
+        PACE_FLOOR_SECONDS,
+    )
+    from src.modules.workspaces.tasks import _patience
+
+    assert PACE_FLOOR_SECONDS < PACE_DEFAULT_SECONDS < PACE_CEILING_SECONDS
+    assert _patience(BackfillLane.PNL) >= timedelta(seconds=PACE_CEILING_SECONDS * 2)
+
+
+def test_the_fast_lanes_keep_the_short_leash() -> None:
+    """Raising one lane's patience must not blunt the watchdog everywhere.
+
+    The three monitoring lanes tick every few seconds; giving them the
+    settlement lane's three hours would turn a dead catalogue into an afternoon
+    of a new seller staring at an empty profile.
+    """
+    from src.modules.workspaces.tasks import _patience
+
+    for lane in (BackfillLane.CATALOGUE, BackfillLane.FUNNEL, BackfillLane.ADVERTISING):
+        assert _patience(lane) == STALE_AFTER
 
 
 def test_the_watchdog_is_registered_on_the_beat_schedule() -> None:

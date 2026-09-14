@@ -33,7 +33,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import ColumnElement, select
+from sqlalchemy import ColumnElement, and_, or_, select
 
 from src.core.celery_app import celery_app
 from src.core.database import AsyncSessionLocal
@@ -43,6 +43,7 @@ from src.core.observability.metrics import (
     BACKFILL_LANES_STALLED,
 )
 from src.core.tasks import run_task
+from src.integrations.wildberries.rate_limit.surfaces import SETTLEMENT_PACE_CEILING_SECONDS
 from src.modules.workspaces.models import BackfillLane, BackfillState, WorkspaceBackfill
 
 logger = get_logger(__name__)
@@ -92,6 +93,28 @@ LANE_RESTART_DELAY: dict[BackfillLane, int] = {
 #: short enough that a dead one loses at most two pages.
 STALE_AFTER = timedelta(minutes=45)
 
+#: Lanes whose own cadence is slower than :data:`STALE_AFTER`, and how long they
+#: may therefore go quiet.
+#:
+#: The P&L lane paces itself against WB rather than against a constant, widening
+#: its interval whenever a page is refused. A watchdog fixed at 45 minutes
+#: therefore capped that interval at 40 — and a lane pinned against a cap it
+#: wants to cross keeps asking too early. Measured on NEVA over six hours:
+#: four pages served against six refusals, roughly 40% of an endpoint's whole
+#: daily budget spent on requests WB was always going to reject.
+#:
+#: Twice the pace ceiling: the lane records progress on every tick, including a
+#: refused one, so two intervals of silence is a lane that has genuinely stopped
+#: rather than one waiting out its longest permitted wait.
+LANE_STALE_AFTER: dict[BackfillLane, timedelta] = {
+    BackfillLane.PNL: timedelta(seconds=SETTLEMENT_PACE_CEILING_SECONDS * 2),
+}
+
+
+def _patience(lane: BackfillLane) -> timedelta:
+    """How long this lane may go without moving before it is presumed dead."""
+    return LANE_STALE_AFTER.get(lane, STALE_AFTER)
+
 
 async def _stalled(now: datetime, *, orphaned: bool = False) -> list[tuple[uuid.UUID, str]]:
     """Lanes that claim to be working and are not.
@@ -113,7 +136,20 @@ async def _stalled(now: datetime, *, orphaned: bool = False) -> list[tuple[uuid.
         WorkspaceBackfill.state.in_([BackfillState.PENDING, BackfillState.RUNNING])
     ]
     if not orphaned:
-        conditions.append(WorkspaceBackfill.updated_at < now - STALE_AFTER)
+        # Per lane, because they do not run at the same speed. One flat
+        # threshold is what forced the slowest lane's pacing to fit the fastest
+        # lane's idea of dead.
+        conditions.append(
+            or_(
+                *(
+                    and_(
+                        WorkspaceBackfill.lane == lane,
+                        WorkspaceBackfill.updated_at < now - _patience(lane),
+                    )
+                    for lane in BackfillLane
+                )
+            )
+        )
     async with AsyncSessionLocal() as session:
         rows = await session.execute(
             select(WorkspaceBackfill.workspace_id, WorkspaceBackfill.lane).where(*conditions)
@@ -177,7 +213,7 @@ def sweep_stalled_backfills(orphaned: bool = False) -> dict[str, int]:
                 workspace_id,
                 "was orphaned by a worker restart"
                 if orphaned
-                else f"had not moved in {STALE_AFTER}",
+                else f"had not moved in {_patience(BackfillLane(lane))}",
                 task_name,
                 delay,
             )

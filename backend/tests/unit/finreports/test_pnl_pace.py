@@ -58,14 +58,18 @@ def test_a_fresh_lane_starts_slower_than_its_floor() -> None:
 
 
 def test_the_ceiling_stays_inside_the_watchdog_s_patience() -> None:
-    """A lane slower than the staleness window gets restarted for being slow.
+    """A lane slower than its staleness window gets restarted for being slow.
 
-    That would be the pace fighting the watchdog: each restart claims the chain,
-    the walk never settles, and both look correct in isolation.
+    That is the pace fighting the watchdog: each restart claims the chain, the
+    restart then asks early, WB answers with a penalty, and both components look
+    correct in isolation. The watchdog's patience for THIS lane is derived from
+    this ceiling for exactly that reason — the assertion is the direction of the
+    dependency, not a coincidence between two constants.
     """
-    from src.modules.workspaces.tasks import STALE_AFTER
+    from src.modules.workspaces.models import BackfillLane
+    from src.modules.workspaces.tasks import _patience
 
-    assert STALE_AFTER.total_seconds() > pace.PACE_CEILING_SECONDS
+    assert _patience(BackfillLane.PNL).total_seconds() > pace.PACE_CEILING_SECONDS
 
 
 async def test_a_refused_page_widens_the_interval(redis: _FakeRedis) -> None:
