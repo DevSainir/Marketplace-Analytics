@@ -28,23 +28,21 @@ import uuid
 from celery import Task
 
 from src.core.celery_app import celery_app
+from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
 from src.core.logcontext import bind_workspace
 from src.core.logging import get_logger
 from src.core.redis import get_redis
 from src.core.tasks import run_task
+from src.integrations.wildberries.rate_limit import statistics_rate_gate
+from src.integrations.wildberries.rate_limit.surfaces import SETTLEMENT_PACE_CEILING_SECONDS
 from src.modules.finreports.constants import HARVEST_LOCK_KEY
-from src.modules.finreports.tasks.backfill.pace import (
-    PACE_CEILING_SECONDS,
-    PACE_DEFAULT_SECONDS,
-    PACE_FLOOR_SECONDS,
-    read_pace,
-)
 from src.modules.finreports.tasks.backfill.span import (
     PNL_EMPTY_STOP,
     PNL_FLOOR_DAYS,
     PNL_GAP_TOLERANCE_DAYS,
+    SETTLEMENT_PATH,
     _format_cursor,
     _parse_cursor,
     next_span,
@@ -63,12 +61,42 @@ from src.modules.workspaces.contract import (
 
 logger = get_logger(__name__)
 
-#: Seconds before the next page when nothing has been learned yet. The real
-#: interval is :func:`read_pace`, which widens on a refused page and eases on a
-#: served one — WB's published "1 per 15 minutes" is not what it enforces, and a
-#: constant here was what kept earning 46-minute penalty blocks. Kept as the
-#: floor the watchdog's patience is still measured against.
+#: The floor on the gap between pages: WB's published budget for this endpoint.
 _NEXT_PAGE_SECONDS = 15 * 60 + 30
+
+#: Added to whatever the bucket reports, so a tick wakes just AFTER the window
+#: opens rather than in the same second and losing the race to rounding.
+_WAKE_MARGIN_SECONDS = 20
+
+
+async def _next_page_delay(token: str) -> int:
+    """When to ask for the next page — WB's number rather than a guess.
+
+    This was briefly a LEARNED value, widening 1.5x on every refused page and
+    easing 0.9x on every served one, and it was a mistake. It could not tell
+    "WB punished us for asking too early" from "somebody else took the window",
+    so ordinary contention — the hourly harvest, a one-off probe — ratcheted it
+    upward, while successes were too rare to ease it back. Measured 2026-09-14
+    it had pinned at 5400 s: one page every ninety minutes on an endpoint that
+    serves four an hour, a six-fold self-inflicted slowdown.
+
+    The bucket already knew the answer. It absorbs WB's own
+    ``x-ratelimit-retry`` through ``penalise``, so ``retry_after`` reports
+    exactly how long the endpoint stays shut — 890 s on a fresh 429, zero while
+    a window is open — and does it without spending a token to find out. That is
+    both simpler and better informed than anything this lane can infer from
+    whether its last page arrived.
+
+    Clamped at both ends: never faster than WB's published budget, never slower
+    than the watchdog's patience is sized for.
+    """
+    gate = statistics_rate_gate(settings, token=token)
+    shut_for = await gate.retry_after(SETTLEMENT_PATH)
+    return min(
+        max(_NEXT_PAGE_SECONDS, int(shut_for) + _WAKE_MARGIN_SECONDS),
+        SETTLEMENT_PACE_CEILING_SECONDS,
+    )
+
 
 #: A tick is one request plus one ingest; the limit is a hung-call backstop.
 _TICK_SOFT_LIMIT_SECONDS = 5 * 60
@@ -179,7 +207,9 @@ def backfill_pnl(
         )
         if not step.finished:
             countdown = (
-                await read_pace(tokens.statistics) if tokens.statistics else _NEXT_PAGE_SECONDS
+                await _next_page_delay(tokens.statistics)
+                if tokens.statistics
+                else _NEXT_PAGE_SECONDS
             )
             celery_app.send_task(
                 "finreports.backfill_pnl",
@@ -216,9 +246,6 @@ def backfill_pnl(
 
 
 __all__ = [
-    "PACE_CEILING_SECONDS",
-    "PACE_DEFAULT_SECONDS",
-    "PACE_FLOOR_SECONDS",
     "PNL_EMPTY_STOP",
     "PNL_FLOOR_DAYS",
     "PNL_GAP_TOLERANCE_DAYS",
@@ -227,5 +254,4 @@ __all__ = [
     "advance_pnl",
     "backfill_pnl",
     "next_span",
-    "read_pace",
 ]

@@ -73,3 +73,60 @@ def test_the_yield_outlasts_the_lock_it_is_waiting_on() -> None:
     waking up to the same closed door.
     """
     assert backfill._YIELD_SECONDS > HARVEST_LOCK_TTL_SECONDS
+
+
+class _Gate:
+    def __init__(self, shut_for: float) -> None:
+        self.shut_for = shut_for
+
+    async def retry_after(self, _endpoint: str) -> float:
+        return self.shut_for
+
+
+async def test_an_open_window_still_waits_out_wb_s_published_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A zero from the bucket means "a token is free", not "ask as fast as you like".
+
+    The bucket hands out one token per window; asking the moment it appears is
+    correct, but the NEXT page must still be a window away.
+    """
+    monkeypatch.setattr(backfill, "statistics_rate_gate", lambda *_a, **_k: _Gate(0.0))
+
+    assert await backfill._next_page_delay("t") == backfill._NEXT_PAGE_SECONDS
+
+
+async def test_a_block_is_waited_out_using_wb_s_own_number(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fix for a six-fold self-inflicted slowdown.
+
+    The interval used to be inferred from whether the last page arrived, which
+    could not distinguish a penalty from someone else taking the window — so
+    contention ratcheted it to 5400 s against an endpoint serving four requests
+    an hour. WB states the number in ``x-ratelimit-retry``; the bucket already
+    absorbs it, so the lane just reads it.
+    """
+    # 2762 s is the real penalty NEVA drew on 2026-09-12, read from the bucket's
+    # own `blocked_until`. A 890 s block is NOT a useful case here: it is shorter
+    # than the published budget, so the floor wins and the test would pass
+    # whether or not the block was read at all.
+    monkeypatch.setattr(backfill, "statistics_rate_gate", lambda *_a, **_k: _Gate(2762.0))
+
+    delay = await backfill._next_page_delay("t")
+
+    assert delay == 2762 + backfill._WAKE_MARGIN_SECONDS
+
+
+async def test_the_wait_never_outlasts_the_watchdog_s_patience(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Otherwise a lane obeying WB exactly gets restarted for obeying WB exactly,
+    and the restart asks early — which is what WB answers with a penalty."""
+    from src.integrations.wildberries.rate_limit.surfaces import (
+        SETTLEMENT_PACE_CEILING_SECONDS,
+    )
+
+    monkeypatch.setattr(backfill, "statistics_rate_gate", lambda *_a, **_k: _Gate(99_999.0))
+
+    assert await backfill._next_page_delay("t") == SETTLEMENT_PACE_CEILING_SECONDS

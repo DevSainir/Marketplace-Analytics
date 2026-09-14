@@ -63,35 +63,34 @@ def test_every_lane_has_a_restart_task_that_actually_exists() -> None:
 def test_the_watchdog_is_patient_enough_for_the_slowest_lane() -> None:
     """A healthy slow lane must never be restarted out from under itself.
 
-    The P&L lane paces itself against WB and widens whenever a page is refused,
-    so "slow" here is not a constant — the patience has to clear the slowest
-    interval the lane is ALLOWED to reach, not the one it starts at.
+    The P&L tick waits out whatever WB's own ``x-ratelimit-retry`` said, so
+    "slow" here is not a constant — the patience has to clear the longest wait
+    the lane is ALLOWED to take, not the one it usually takes.
     """
-    from src.modules.finreports.tasks.backfill.pace import PACE_CEILING_SECONDS
-    from src.modules.workspaces.tasks import _patience
-
-    assert timedelta(seconds=PACE_CEILING_SECONDS) < _patience(BackfillLane.PNL)
-    assert timedelta(seconds=_NEXT_PAGE_SECONDS * 2) <= _patience(BackfillLane.PNL)
-
-
-def test_the_pace_cannot_be_capped_by_the_watchdog_it_should_outlive() -> None:
-    """The bug this pairing exists to prevent, stated as the relationship.
-
-    With patience fixed at 45 minutes the pace ceiling had to sit below it, so
-    the walk pinned against a cap it kept trying to cross — NEVA served four
-    pages against six refusals in six hours, spending roughly 40% of the
-    endpoint's budget on requests WB was always going to reject. Raising one
-    without the other silently restores that.
-    """
-    from src.modules.finreports.tasks.backfill.pace import (
-        PACE_CEILING_SECONDS,
-        PACE_DEFAULT_SECONDS,
-        PACE_FLOOR_SECONDS,
+    from src.integrations.wildberries.rate_limit.surfaces import (
+        SETTLEMENT_PACE_CEILING_SECONDS,
     )
     from src.modules.workspaces.tasks import _patience
 
-    assert PACE_FLOOR_SECONDS < PACE_DEFAULT_SECONDS < PACE_CEILING_SECONDS
-    assert _patience(BackfillLane.PNL) >= timedelta(seconds=PACE_CEILING_SECONDS * 2)
+    assert timedelta(seconds=SETTLEMENT_PACE_CEILING_SECONDS) < _patience(BackfillLane.PNL)
+    assert timedelta(seconds=_NEXT_PAGE_SECONDS * 2) <= _patience(BackfillLane.PNL)
+
+
+def test_a_tick_never_sleeps_past_the_watchdog_that_guards_it() -> None:
+    """The relationship the two constants exist in, stated once.
+
+    A tick waits out WB's stated block, capped by SETTLEMENT_PACE_CEILING_SECONDS;
+    the watchdog restarts a lane that has been quiet longer than its patience.
+    If the cap ever exceeded the patience, a lane obeying WB to the letter would
+    be restarted for it — and on this endpoint a restart asks early, which WB
+    answers with a penalty block. Raising one without the other reintroduces it.
+    """
+    from src.integrations.wildberries.rate_limit.surfaces import (
+        SETTLEMENT_PACE_CEILING_SECONDS,
+    )
+    from src.modules.workspaces.tasks import _patience
+
+    assert _patience(BackfillLane.PNL) >= timedelta(seconds=SETTLEMENT_PACE_CEILING_SECONDS * 2)
 
 
 def test_the_fast_lanes_keep_the_short_leash() -> None:

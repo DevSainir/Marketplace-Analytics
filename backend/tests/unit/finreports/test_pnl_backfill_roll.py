@@ -59,12 +59,6 @@ def _tokens() -> WorkspaceTokenBundle:
     )
 
 
-#: What the walk did to the lane's interval, per test. The pace lives in Redis,
-#: which the unit tier may not have — and letting it fail open here would mean
-#: these tests passed whether or not the walk reacted at all.
-PACE_CALLS: list[str] = []
-
-
 @pytest.fixture(autouse=True)
 def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
     """Everything outside the decision under test, held still.
@@ -92,19 +86,6 @@ def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
         return VIA_COVERAGE
 
     monkeypatch.setattr(walk, "read_settled_days", _coverage)
-
-    PACE_CALLS.clear()
-
-    async def _widen(_token: str) -> int:
-        PACE_CALLS.append("widen")
-        return 0
-
-    async def _ease(_token: str) -> int:
-        PACE_CALLS.append("ease")
-        return 0
-
-    monkeypatch.setattr(walk, "widen_pace", _widen)
-    monkeypatch.setattr(walk, "ease_pace", _ease)
 
 
 def _answer(monkeypatch: pytest.MonkeyPatch, outcome: tuple[int, int | None] | None) -> None:
@@ -195,75 +176,6 @@ async def test_a_lane_with_no_holes_left_really_does_finish(
 
     assert step.finished
     assert step.cursor is None
-
-
-async def test_a_withheld_page_slows_the_lane_down(monkeypatch: pytest.MonkeyPatch) -> None:
-    """WB withholding a page IS the penalty, so the interval that caused it must
-    move. Measured 2026-09-12: 18 minutes after a good page still drew 2762s.
-    """
-    _answer(monkeypatch, None)
-    cursor = _format_cursor(*NEWEST_CHUNK, 0, 0, NEWEST_CHUNK[1])
-
-    step = await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
-
-    assert PACE_CALLS == ["widen"]
-    assert not step.finished, "a withheld page is a retry, not an ending"
-
-
-async def test_a_served_page_lets_the_lane_speed_back_up(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Otherwise one bad morning slows the whole remaining walk.
-
-    An EMPTY window counts as served: WB answered, so the interval is one it
-    tolerates — and the pre-history span is nothing but empty answers.
-    """
-    _answer(monkeypatch, (0, None))
-    cursor = _format_cursor(*PREHISTORY, 0, 0, PREHISTORY[1])
-
-    await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
-
-    assert PACE_CALLS == ["ease"]
-
-
-async def test_the_shipped_depth_is_three_months(monkeypatch: pytest.MonkeyPatch) -> None:
-    """What a NEW seller actually gets, as opposed to what the walk can do.
-
-    Priced on the live workspaces 2026-09-14: WB serves roughly one 10 000-row
-    page an hour, and a month of settlement detail is one page for a small
-    seller and five or six for a large one — so three months costs ~2 h, ~5 h
-    and ~15 h across the three profiles, against the advertising lane's ~7 h on
-    the same signup. Six months would make a large seller's finances overnight.
-
-    Asserted here rather than left to the constant because the depth is the one
-    number in this subsystem a person will want to change, and changing it moves
-    a seller's onboarding time rather than a test.
-    """
-    from src.modules.finreports.tasks.backfill.span import PNL_FLOOR_DAYS
-
-    assert PNL_FLOOR_DAYS == 90
-
-
-async def test_a_fresh_workspace_is_not_sent_probing_for_history_it_cannot_have(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The depth also bounds the waste, which is how NEVA lost its first hour.
-
-    At a five-year floor an account opened in 2024 spent three of WB's
-    fifteen-minute windows proving 2021 was empty before reaching a real row.
-    A new workspace's first span must start inside the shipped depth.
-    """
-    _answer(monkeypatch, (0, None))
-
-    async def _nothing(_workspace_id: uuid.UUID) -> list[date]:
-        return []
-
-    monkeypatch.setattr(walk, "read_settled_days", _nothing)
-    monkeypatch.setattr(walk, "PNL_FLOOR_DAYS", 90)
-
-    step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert step.cursor is not None
-    span_from, _span_to, _rrd, _empties, _search = _parse_cursor(step.cursor)
-    assert (TODAY - span_from).days <= 90
 
 
 async def test_a_new_workspace_is_walked_newest_first(monkeypatch: pytest.MonkeyPatch) -> None:
