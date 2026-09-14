@@ -23,6 +23,7 @@ from src.modules.finreports.tasks.backfill import (
     _parse_cursor,
     next_span,
 )
+from src.modules.finreports.tasks.backfill.span import PNL_SPAN_CHUNK_DAYS
 
 TODAY = date(2026, 9, 11)
 
@@ -44,43 +45,70 @@ def _days(*blocks: tuple[str, int]) -> list[date]:
 
 
 # --------------------------------------------------------------------------- #
-# Choosing the span
+# Choosing the span — newest first
 # --------------------------------------------------------------------------- #
-def test_a_workspace_with_nothing_stored_walks_the_whole_reachable_history() -> None:
-    """A brand-new org has no coverage to reason from, so ask for all of it."""
-    assert next_span([], search_from=FLOOR, today=TODAY, floor=FLOOR) == (FLOOR, date(2026, 9, 10))
+def test_a_workspace_with_nothing_stored_starts_at_the_newest_end() -> None:
+    """A brand-new org has no coverage to reason from, so start where it matters.
+
+    Not "the whole reachable history": a backfill is interrupted far more often
+    than it finishes, and the seller wants this month's P&L rather than the
+    archive. The first span is the newest chunk inside the depth.
+    """
+    span = next_span([], search_to=TODAY, today=TODAY, floor=FLOOR)
+
+    assert span is not None
+    assert span[1] == TODAY - timedelta(days=1)
+    assert (span[1] - span[0]).days + 1 == PNL_SPAN_CHUNK_DAYS
 
 
-def test_a_hole_in_the_middle_is_found() -> None:
-    """The case that cost NEVA two years of P&L.
+def test_the_newest_hole_is_taken_before_the_oldest() -> None:
+    """NEVA's shape, and the direction that would have saved it.
 
-    Its lane asked only "what is older than my oldest row?", so once it held the
-    first block it believed itself finished — over everything after it.
-
-    The pre-history hole is offered first and that is correct: oldest gap wins,
-    and WB simply answers it empty. What matters is that the walk then moves ON
-    to the real one instead of stopping.
+    Its history is a 45-day block in 2024, a 715-day hole, then recent weeks.
+    Walking oldest-first, the lane spent thirteen hours in 2024 and was stopped
+    holding nothing from the summer anyone would look at. The hole nearest today
+    is the one worth having.
     """
     stored = _days(("2024-07-11", 45), ("2026-08-09", 29))
 
-    prehistory = next_span(stored, search_from=FLOOR, today=TODAY, floor=FLOOR)
-    assert prehistory == (FLOOR, date(2024, 7, 10))
+    span = next_span(stored, search_to=TODAY, today=TODAY, floor=FLOOR)
 
-    after_prehistory = next_span(
-        stored, search_from=prehistory[1] + timedelta(days=1), today=TODAY, floor=FLOOR
-    )
-
-    assert after_prehistory == (date(2024, 8, 25), date(2026, 8, 8))
+    assert span is not None
+    assert span[1] == date(2026, 8, 8), "took an older hole before the newest one"
+    assert span[0] > date(2024, 8, 25), "swallowed the whole gap in one span"
 
 
-def test_a_hole_before_the_oldest_row_is_found() -> None:
-    """The original behaviour has to survive: a late joiner has history behind them."""
+def test_a_long_gap_is_walked_in_chunks_from_its_newest_end() -> None:
+    """Choosing the newest hole is not enough on its own.
+
+    WB pages a window by ascending ``rrdid`` and offers no reverse, so a single
+    span covering the whole gap would still deliver its oldest days first — and
+    an interrupted walk would again leave the recent months missing. The chunk
+    is what makes the ordering real.
+    """
+    stored = _days(("2024-07-11", 45), ("2026-08-09", 29))
+
+    first = next_span(stored, search_to=TODAY, today=TODAY, floor=FLOOR)
+    assert first is not None
+    second = next_span(stored, search_to=first[0] - timedelta(days=1), today=TODAY, floor=FLOOR)
+
+    assert second is not None
+    assert (first[1] - first[0]).days + 1 <= PNL_SPAN_CHUNK_DAYS
+    assert second[1] < first[0], "the walk did not move backwards"
+
+
+def test_a_hole_before_the_oldest_row_is_still_reached_eventually() -> None:
+    """Newest-first must not mean the deep history becomes unreachable.
+
+    Once the ceiling has walked back past everything newer, the stretch before
+    the seller's first stored row is offered like any other hole.
+    """
     stored = _days(("2026-06-25", 78))
 
-    assert next_span(stored, search_from=FLOOR, today=TODAY, floor=FLOOR) == (
-        FLOOR,
-        date(2026, 6, 24),
-    )
+    span = next_span(stored, search_to=date(2026, 6, 24), today=TODAY, floor=FLOOR)
+
+    assert span is not None
+    assert span[1] == date(2026, 6, 24)
 
 
 def test_quiet_days_between_weekly_reports_are_not_holes() -> None:
@@ -92,31 +120,35 @@ def test_quiet_days_between_weekly_reports_are_not_holes() -> None:
     """
     weekly = [date(2026, 6, 1) + timedelta(days=offset * 7) for offset in range(14)]
 
-    assert next_span(weekly, search_from=weekly[0], today=TODAY, floor=FLOOR) is None
+    assert next_span(weekly, search_to=TODAY, today=TODAY, floor=weekly[0]) is None
     assert PNL_GAP_TOLERANCE_DAYS >= 14
 
 
 def test_a_span_already_concluded_is_not_offered_again() -> None:
     """Otherwise a stretch WB will never serve is re-probed for ever.
 
-    ``search_from`` moves past a span the walk exhausted, so the next tick looks
-    BEYOND it instead of starting the same three empty probes again.
+    ``search_to`` moves BELOW a span the walk exhausted, so the next tick looks
+    further back instead of starting the same three empty probes again.
     """
     stored = _days(("2024-07-11", 45), ("2025-06-01", 30), ("2026-08-09", 29))
-    first = next_span(stored, search_from=FLOOR, today=TODAY, floor=FLOOR)
+    first = next_span(stored, search_to=TODAY, today=TODAY, floor=FLOOR)
     assert first is not None
 
-    second = next_span(stored, search_from=first[1] + timedelta(days=1), today=TODAY, floor=FLOOR)
+    second = next_span(stored, search_to=first[0] - timedelta(days=1), today=TODAY, floor=FLOOR)
 
     assert second is not None
-    assert second[0] > first[1]
+    assert second[1] < first[0]
 
 
 def test_days_after_the_newest_row_belong_to_the_forward_harvest() -> None:
-    """Two walks writing the same weeks from opposite ends is not a backfill."""
+    """Two walks writing the same weeks from opposite ends is not a backfill.
+
+    This matters more now the backfill starts at the newest end: without the
+    rule the two would begin on the very same days.
+    """
     stored = _days(("2026-08-01", 10))
 
-    assert next_span(stored, search_from=date(2026, 8, 1), today=TODAY, floor=FLOOR) is None
+    assert next_span(stored, search_to=TODAY, today=TODAY, floor=date(2026, 8, 1)) is None
 
 
 # --------------------------------------------------------------------------- #

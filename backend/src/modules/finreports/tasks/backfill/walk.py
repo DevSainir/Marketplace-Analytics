@@ -73,12 +73,14 @@ async def advance_pnl(
     # search had already ruled out of scope.
     floor = today - timedelta(days=PNL_FLOOR_DAYS)
     if cursor:
-        span_from, span_to, rrd_id, empties, search_from = _parse_cursor(cursor)
+        span_from, span_to, rrd_id, empties, search_to = _parse_cursor(cursor)
     else:
-        search_from = floor
+        # A fresh lane has concluded nothing, so its ceiling is today: the
+        # newest gap inside the depth is the first thing it asks for.
+        search_to = today
         chosen = next_span(
             await read_settled_days(tokens.workspace_id),
-            search_from=search_from,
+            search_to=search_to,
             today=today,
             floor=floor,
         )
@@ -91,7 +93,7 @@ async def advance_pnl(
     if span_to < span_from:
         return _roll_to_next_span(
             await read_settled_days(tokens.workspace_id),
-            after=span_to,
+            before=span_from,
             today=today,
             rows=0,
             floor=floor,
@@ -124,7 +126,7 @@ async def advance_pnl(
         return LaneStep(
             done=None,
             total=total,
-            cursor=cursor or _format_cursor(span_from, span_to, rrd_id, empties, search_from),
+            cursor=cursor or _format_cursor(span_from, span_to, rrd_id, empties, search_to),
             finished=False,
             message="Ждём окно Wildberries (1 запрос в 15 минут)…",
         )
@@ -145,7 +147,7 @@ async def advance_pnl(
         return LaneStep(
             done=None,
             total=total,
-            cursor=_format_cursor(span_from, span_to, rrd_id, empties, search_from),
+            cursor=_format_cursor(span_from, span_to, rrd_id, empties, search_to),
             finished=False,
             message="Wildberries не отдал страницу — повторим через 15 минут.",
         )
@@ -164,7 +166,7 @@ async def advance_pnl(
             return LaneStep(
                 done=None,
                 total=total,
-                cursor=_format_cursor(span_from, span_to, rrd_id, empties, search_from),
+                cursor=_format_cursor(span_from, span_to, rrd_id, empties, search_to),
                 finished=False,
                 message=(
                     f"Wildberries вернул пусто ({empties} из {PNL_EMPTY_STOP}) — проверим ещё раз."
@@ -172,7 +174,7 @@ async def advance_pnl(
             )
         return _roll_to_next_span(
             await read_settled_days(tokens.workspace_id),
-            after=span_to,
+            before=span_from,
             today=today,
             rows=0,
             floor=floor,
@@ -181,28 +183,25 @@ async def advance_pnl(
         # A short but non-empty page: ordinary pagination, this SPAN is done.
         return _roll_to_next_span(
             await read_settled_days(tokens.workspace_id),
-            after=span_to,
+            before=span_from,
             today=today,
             rows=rows,
             floor=floor,
         )
 
-    # Re-anchor the span on the seller's ACTUAL first settlement day, which the
-    # first page has just revealed. The span starts at a five-year floor because
-    # nothing knows the account's age before asking — but NEVA's first report is
-    # 2024-07-11, so that floor put three empty years in the denominator and the
-    # bar read 1078/1792 (60%) after a single page, then crawled. Measuring from
-    # the oldest day we now hold makes the percentage mean what it looks like.
-    #
-    # `total_units` is documented as an estimate the lane may revise; this is
-    # the revision it was written for.
-    true_start, covered = await _measure_progress(tokens, span_from, span_to, next_cursor)
-    total = max((span_to - true_start).days + 1, 1)
-    span_from = true_start
+    # The span is its own denominator, and no longer needs re-anchoring. That
+    # existed because the walk began at a five-year floor and nothing knew the
+    # account's age, so the bar read 1078/1792 after one page; it re-anchored on
+    # the oldest row held. Both causes are gone — the depth is three months and a
+    # span is at most one chunk — and keeping it would now be a BUG: the oldest
+    # row a seller holds is years older than the chunk being walked, so the
+    # re-anchor would stretch a 31-day span back across the whole archive and
+    # take the cursor's span boundary with it.
+    covered = await _measure_progress(tokens, span_from, span_to, next_cursor)
     return LaneStep(
         done=min(covered, total),
         total=total,
-        cursor=_format_cursor(span_from, span_to, next_cursor, 0, search_from),
+        cursor=_format_cursor(span_from, span_to, next_cursor, 0, search_to),
         finished=False,
         message=f"Собираем P&L: {min(covered, total)} из {total} дней.",
         rows=rows,
@@ -211,35 +210,31 @@ async def advance_pnl(
 
 async def _measure_progress(
     tokens: WorkspaceTokenBundle, span_from: date, span_to: date, next_cursor: int
-) -> tuple[date, int]:
-    """``(true_start, days_covered)`` for the span, read back from our tables.
+) -> int:
+    """How many days of THIS span the walk has covered, read back from our tables.
 
-    Both numbers come from the database rather than being tracked in the cursor:
-    the page was just committed, so the rows themselves are the authority on
-    what the walk achieved, and a cursor that also carried counters would be a
-    second thing to keep in step with them.
+    The number comes from the rows rather than from the cursor: the page was
+    just committed, so the table is the authority on what the walk achieved, and
+    a cursor that also carried counters would be a second thing to keep in step
+    with them.
 
-    ``true_start`` is the oldest settlement day we now hold — the seller's real
-    first report once the first page has landed. ``days_covered`` counts from
-    there to the newest day the cursor has reached.
-
-    Both halves are bounded to the SPAN, and the upper bound is not decoration.
-    The forward harvest has been writing recent weeks all along, and those rows
-    carry the highest ``rrd_id``s of all — so without `rr_dt <= span_to` the
-    "newest day reached" is a day the backfill never walked to, and the lane
-    reports 100% on its second page. Observed live 2026-09-11: NEVA read
-    1033/1033 while still waiting for its next window.
+    Bounded to the span at BOTH ends, and neither bound is decoration. The
+    forward harvest has been writing recent weeks all along and those rows carry
+    the highest ``rrd_id``s of all, so without ``rr_dt <= span_to`` the "newest
+    day reached" is a day this walk never visited and the lane reports 100% on
+    its second page — observed live 2026-09-11, NEVA reading 1033/1033 while
+    still waiting for a window. And with the walk now taking the NEWEST span
+    first, rows older than ``span_from`` are a different span's work entirely:
+    counting them would have a 31-day chunk reporting centuries of progress.
 
     Args:
         tokens: The workspace being walked.
-        span_from: The span start currently in the cursor, used as a fallback
-            when the table is somehow empty.
-        span_to: The span end — rows past it belong to the forward harvest,
-            not to this walk.
+        span_from: The first day of the span being walked.
+        span_to: The last day of the span being walked.
         next_cursor: The ``rrd_id`` the walk has reached.
 
     Returns:
-        The re-anchored span start and the days covered from it.
+        Days of the span covered so far, from ``span_from``.
     """
     from sqlalchemy import func, select
 
@@ -247,26 +242,19 @@ async def _measure_progress(
     from src.modules.finreports.models import LogisticsTransaction
 
     async with AsyncSessionLocal() as session:
-        row = (
+        latest = (
             await session.execute(
-                select(
-                    func.min(LogisticsTransaction.rr_dt),
-                    func.max(LogisticsTransaction.rr_dt).filter(
-                        LogisticsTransaction.rrd_id <= next_cursor,
-                        LogisticsTransaction.rr_dt <= span_to,
-                    ),
-                ).where(
+                select(func.max(LogisticsTransaction.rr_dt)).where(
                     LogisticsTransaction.workspace_id == tokens.workspace_id,
+                    LogisticsTransaction.rrd_id <= next_cursor,
+                    LogisticsTransaction.rr_dt >= span_from,
                     LogisticsTransaction.rr_dt <= span_to,
                 )
             )
-        ).one()
-    true_start, latest = row
-    if true_start is None:
-        return span_from, 0
-    if latest is None or latest < true_start:
-        return true_start, 0
-    return true_start, (latest - true_start).days + 1
+        ).scalar_one_or_none()
+    if latest is None:
+        return 0
+    return (latest - span_from).days + 1
 
 
 async def read_settled_days(workspace_id: uuid.UUID) -> list[date]:

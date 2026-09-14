@@ -38,11 +38,17 @@ VIA_COVERAGE = [
     *(date(2026, 8, 9) + timedelta(days=n) for n in range(29)),
 ]
 
-#: The span that predates the account. WB answers it empty, correctly.
-PREHISTORY = (date(2021, 9, 13), date(2024, 7, 10))
+#: The hole that matters, and that the lane declared complete: 2024-08-25 to
+#: 2026-08-08. The walk takes it NEWEST chunk first, so this is the span a
+#: healthy lane picks up before anything else.
+NEWEST_CHUNK = (date(2026, 7, 9), date(2026, 8, 8))
 
-#: The hole that matters, and that the lane declared complete.
-THE_HOLE = (date(2024, 8, 25), date(2026, 8, 8))
+#: The chunk immediately below it — where a concluded span must roll to.
+NEXT_CHUNK_DOWN = (date(2026, 6, 8), date(2026, 7, 8))
+
+#: The span that predates the account. WB answers it empty, correctly, and the
+#: walk only reaches it once the ceiling has passed everything newer.
+PREHISTORY = (date(2021, 9, 13), date(2024, 7, 10))
 
 
 def _tokens() -> WorkspaceTokenBundle:
@@ -119,14 +125,14 @@ async def test_an_exhausted_span_moves_to_the_next_hole_instead_of_ending_the_la
     that reports ``finished`` here is claiming a 715-day hole is filled.
     """
     _answer(monkeypatch, (0, None))
-    cursor = _format_cursor(*PREHISTORY, 0, PNL_EMPTY_STOP - 1, PREHISTORY[0])
+    cursor = _format_cursor(*NEWEST_CHUNK, 0, PNL_EMPTY_STOP - 1, NEWEST_CHUNK[1])
 
     step = await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
 
     assert not step.finished, "the lane ended itself on a span that was merely empty"
     assert step.cursor is not None
     span_from, span_to, _rrd, _empties, _search = _parse_cursor(step.cursor)
-    assert (span_from, span_to) == THE_HOLE
+    assert (span_from, span_to) == NEXT_CHUNK_DOWN
 
 
 async def test_the_last_page_of_a_span_moves_on_rather_than_finishing(
@@ -139,30 +145,31 @@ async def test_the_last_page_of_a_span_moves_on_rather_than_finishing(
     the coverage can answer.
     """
     _answer(monkeypatch, (120, None))
-    cursor = _format_cursor(*PREHISTORY, 4242, 0, PREHISTORY[0])
+    cursor = _format_cursor(*NEWEST_CHUNK, 4242, 0, NEWEST_CHUNK[1])
 
     step = await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
 
     assert not step.finished
     assert step.cursor is not None
-    assert _parse_cursor(step.cursor)[:2] == THE_HOLE
+    assert _parse_cursor(step.cursor)[:2] == NEXT_CHUNK_DOWN
 
 
-async def test_the_search_floor_moves_past_the_span_just_concluded(
+async def test_the_search_ceiling_moves_below_the_span_just_concluded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Otherwise the walk re-offers the empty pre-history for ever.
+    """Otherwise the walk re-offers the same stretch for ever.
 
-    The floor is what makes the roll terminate: a stretch WB will never serve is
-    concluded once, and the next search starts beyond it.
+    The ceiling is what makes the roll terminate: a span WB will never serve is
+    concluded once, and the next search starts further back. It moves DOWN now,
+    because the walk runs newest to oldest.
     """
     _answer(monkeypatch, (0, None))
-    cursor = _format_cursor(*PREHISTORY, 0, PNL_EMPTY_STOP - 1, PREHISTORY[0])
+    cursor = _format_cursor(*NEWEST_CHUNK, 0, PNL_EMPTY_STOP - 1, NEWEST_CHUNK[1])
 
     step = await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
 
     assert step.cursor is not None
-    assert _parse_cursor(step.cursor)[4] > PREHISTORY[1]
+    assert _parse_cursor(step.cursor)[4] < NEWEST_CHUNK[0]
 
 
 async def test_a_lane_with_no_holes_left_really_does_finish(
@@ -195,7 +202,7 @@ async def test_a_withheld_page_slows_the_lane_down(monkeypatch: pytest.MonkeyPat
     move. Measured 2026-09-12: 18 minutes after a good page still drew 2762s.
     """
     _answer(monkeypatch, None)
-    cursor = _format_cursor(*THE_HOLE, 0, 0, THE_HOLE[0])
+    cursor = _format_cursor(*NEWEST_CHUNK, 0, 0, NEWEST_CHUNK[1])
 
     step = await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
 
@@ -210,7 +217,7 @@ async def test_a_served_page_lets_the_lane_speed_back_up(monkeypatch: pytest.Mon
     tolerates — and the pre-history span is nothing but empty answers.
     """
     _answer(monkeypatch, (0, None))
-    cursor = _format_cursor(*PREHISTORY, 0, 0, PREHISTORY[0])
+    cursor = _format_cursor(*PREHISTORY, 0, 0, PREHISTORY[1])
 
     await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
 
@@ -257,3 +264,25 @@ async def test_a_fresh_workspace_is_not_sent_probing_for_history_it_cannot_have(
     assert step.cursor is not None
     span_from, _span_to, _rrd, _empties, _search = _parse_cursor(step.cursor)
     assert (TODAY - span_from).days <= 90
+
+
+async def test_a_new_workspace_is_walked_newest_first(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The rule, stated where a new seller actually meets it.
+
+    Signup is the case that matters: the lane has no coverage to reason from, so
+    nothing but the direction decides whether the seller's first settlement rows
+    are this month's or two years ago's.
+    """
+    _answer(monkeypatch, (0, None))
+
+    async def _nothing(_workspace_id: uuid.UUID) -> list[date]:
+        return []
+
+    monkeypatch.setattr(walk, "read_settled_days", _nothing)
+    monkeypatch.setattr(walk, "PNL_FLOOR_DAYS", 90)
+
+    step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
+
+    assert step.cursor is not None
+    _span_from, span_to, _rrd, _empties, _search = _parse_cursor(step.cursor)
+    assert (TODAY - span_to).days <= 2, "started at the oldest end of the depth"

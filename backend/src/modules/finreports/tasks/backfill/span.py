@@ -109,9 +109,24 @@ def _format_cursor(
 #: the middle to tune for.
 PNL_GAP_TOLERANCE_DAYS = 14
 
+#: The most days one span may cover, so a long gap is walked in pieces.
+#:
+#: This is what makes "newest first" mean anything. The span is CHOSEN newest
+#: first, but WB pages a window by ascending ``rrdid`` and there is no reverse —
+#: so a single 90-day span would still deliver its oldest days first, and a walk
+#: interrupted halfway would have left the recent months missing. Exactly what
+#: happened to NEVA: stopped mid-walk it held 248 days of 2024 and not one day of
+#: the summer anybody would look at.
+#:
+#: A month, because that is the unit the depth is discussed in — after one span
+#: the seller has their most recent month, after two, two. The cost of chunking
+#: is one extra request per boundary (a span ends on a short page), so ~2 extra
+#: requests across the shipped 90-day depth.
+PNL_SPAN_CHUNK_DAYS = 31
+
 
 def next_span(
-    settled_days: Sequence[date], *, search_from: date, today: date, floor: date
+    settled_days: Sequence[date], *, search_to: date, today: date, floor: date
 ) -> tuple[date, date] | None:
     """The next stretch of settlement history worth asking WB for.
 
@@ -121,24 +136,27 @@ def next_span(
     complete. Filling it by hand is not a fix, because the next lane to lose its
     place the same way would need the same hand.
 
-    So the span is chosen from coverage instead. In order:
+    So the span is chosen from coverage instead, **newest hole first**, and no
+    more than :data:`PNL_SPAN_CHUNK_DAYS` of it at a time.
 
-    * nothing stored at all -> the whole reachable history;
-    * a hole before the oldest row -> that;
-    * the first hole BETWEEN two stored days -> that;
-    * otherwise nothing, and the lane is genuinely done.
+    Newest first because a backfill is interrupted far more often than it is
+    finished — by a deploy, a penalty block, a person deciding it has run long
+    enough — and what a seller needs is this month's P&L, not the archive.
+    Walking the other way, NEVA was stopped holding 248 days of 2024 and nothing
+    at all from the summer.
 
     Days after the newest stored row are deliberately not offered. That region
     belongs to the forward harvest and its watermark, and a backfill reaching
     into it would have the two walks writing the same weeks from opposite ends.
 
-    ``search_from`` is what stops a hole WB will never fill from being chosen
-    for ever: a span concluded empty moves it past that hole, so the search
-    resumes beyond rather than re-offering the same dates on the next tick.
+    ``search_to`` is what stops a hole WB will never fill from being chosen for
+    ever: a span concluded empty moves the ceiling BELOW it, so the search
+    resumes further back rather than re-offering the same dates on the next
+    tick.
 
     Args:
         settled_days: Distinct settlement days already stored, any order.
-        search_from: Ignore holes ending before this — already concluded.
+        search_to: Ignore holes starting after this — already concluded.
         today: Today in Moscow time.
         floor: The oldest day worth asking for. Passed in rather than derived
             from :data:`PNL_FLOOR_DAYS` so that the depth is the caller's
@@ -151,34 +169,48 @@ def next_span(
     """
     days = sorted(d for d in settled_days if d >= floor)
     if not days:
-        return floor, today - timedelta(days=1)
+        return _chunk(floor, min(search_to, today - timedelta(days=1)), floor)
 
+    gaps: list[tuple[date, date]] = []
     # A hole before the oldest row we hold.
-    if days[0] > search_from and (days[0] - floor).days > PNL_GAP_TOLERANCE_DAYS:
-        return floor, days[0] - timedelta(days=1)
-
-    # The first hole between two stored days.
+    if (days[0] - floor).days > PNL_GAP_TOLERANCE_DAYS:
+        gaps.append((floor, days[0] - timedelta(days=1)))
+    # Holes between stored days. Days AFTER the newest row are deliberately not
+    # offered: that region belongs to the forward harvest and its watermark.
     for earlier, later in pairwise(days):
-        if (later - earlier).days - 1 <= PNL_GAP_TOLERANCE_DAYS:
-            continue
-        gap_from, gap_to = earlier + timedelta(days=1), later - timedelta(days=1)
-        if gap_to < search_from:
-            continue  # already concluded; look further along
-        return max(gap_from, search_from), gap_to
+        if (later - earlier).days - 1 > PNL_GAP_TOLERANCE_DAYS:
+            gaps.append((earlier + timedelta(days=1), later - timedelta(days=1)))
+
+    # Newest first. `search_to` is a ceiling that walks BACKWARDS as spans are
+    # concluded, so a stretch WB will never serve is offered once and then left
+    # behind — the mirror of the floor the oldest-first version moved forward.
+    for gap_from, gap_to in reversed(gaps):
+        if gap_from > search_to:
+            continue  # already concluded; look further back
+        return _chunk(gap_from, min(gap_to, search_to), floor)
 
     return None
 
 
-def _roll_to_next_span(
-    settled_days: Sequence[date], *, after: date, today: date, rows: int, floor: date
-) -> LaneStep:
-    """Finish one span by starting the next hole, or finish the lane.
+def _chunk(gap_from: date, gap_to: date, floor: date) -> tuple[date, date] | None:
+    """The newest :data:`PNL_SPAN_CHUNK_DAYS` of one gap, clamped to the floor."""
+    if gap_to < gap_from or gap_to < floor:
+        return None
+    span_from = max(gap_from, floor, gap_to - timedelta(days=PNL_SPAN_CHUNK_DAYS - 1))
+    return span_from, gap_to
 
-    The search resumes the day after the span just concluded, which is what
-    keeps a stretch WB will never serve from being offered again for ever.
+
+def _roll_to_next_span(
+    settled_days: Sequence[date], *, before: date, today: date, rows: int, floor: date
+) -> LaneStep:
+    """Finish one span by starting the next, older one, or finish the lane.
+
+    The search resumes the day BEFORE the span just concluded — the walk moves
+    backwards through history — which is what keeps a stretch WB will never
+    serve from being offered again for ever.
     """
-    resume = after + timedelta(days=1)
-    chosen = next_span(settled_days, search_from=resume, today=today, floor=floor)
+    resume = before - timedelta(days=1)
+    chosen = next_span(settled_days, search_to=resume, today=today, floor=floor)
     if chosen is None:
         return LaneStep(1, 1, None, True, "История P&L собрана.", rows=rows)
     span_from, span_to = chosen
