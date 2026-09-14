@@ -163,3 +163,62 @@ def test_every_alert_waits_before_firing_and_says_what_to_do(rule: dict[str, Any
     """
     assert rule.get("for"), f"{rule['alert']} has no `for:` — it will fire on a single scrape"
     assert rule["annotations"]["summary"].strip()
+
+
+# --------------------------------------------------------------------------- #
+# Patience, measured rather than guessed.
+#
+# Between 2026-09-13 05:09 and 2026-09-14 11:19 these three rules sent fourteen
+# pages and fourteen all-clears about a service that was working. Every one of
+# them cleared itself: the backfill loop fired for exactly ten minutes three
+# times, the settlement walk for fifty-five minutes four times, and the finance
+# harvest simply reported that WB had not published anything that morning.
+#
+# The numbers below are what those measurements bought. A rule whose `for:`
+# drops back under the interval it is supposed to outlast is not a tuning
+# choice; it is the pager going off again at four in the morning.
+# --------------------------------------------------------------------------- #
+_BY_NAME = {rule["alert"]: rule for rule in _rules()}
+
+
+def _minutes(duration: str) -> int:
+    """Parse the `for:` durations this file actually uses."""
+    unit = duration[-1]
+    value = int(duration[:-1])
+    return {"m": value, "h": value * 60}[unit]
+
+
+def test_the_finance_harvest_is_judged_over_more_than_a_day() -> None:
+    """Six hours of silence is a fault for the nightly sweep and a Tuesday here.
+
+    `finreports.finance` runs 21 times a day against sources WB publishes on
+    runs write nothing and are right to. Any window shorter than a full daily
+    cycle turns that into a page.
+    """
+    expr = _BY_NAME["HarvestProducingNoRows"]["expr"]
+
+    finance_windows = re.findall(r'harvest="finreports\.finance"\}\[(\d+)h\]', expr)
+
+    assert finance_windows, (
+        "HarvestProducingNoRows no longer gives finreports.finance a window of its "
+        "own. On the shared six-hour window it pages every morning WB has not "
+        "published, which it did seven times on 2026-09-14 alone."
+    )
+    assert all(int(hours) > 24 for hours in finance_windows), finance_windows
+
+
+def test_the_self_clearing_rules_outlast_what_clears_them() -> None:
+    """Both fired, and both were over before anyone could have looked.
+
+    Neither threshold moved — the conditions still mean what they meant. What
+    changed is how long they must hold before a person is woken, and the
+    numbers come from how long the real firings lasted.
+    """
+    assert _minutes(_BY_NAME["NewOrgBackfillRestartLoop"]["for"]) >= 60, (
+        "the restart-loop rule fired for exactly ten minutes, three times, against "
+        "a P&L lane that was walking normally behind WB's 15-minute window."
+    )
+    assert _minutes(_BY_NAME["SettlementWalkIncomplete"]["for"]) >= 120, (
+        "a single partial window is recovered by the next tick — that has been true "
+        "since 2026-09-08. Only partials that keep happening need a person."
+    )

@@ -114,10 +114,38 @@ groups:
     rules:
       # The alert that would have caught the 2026-07-30 incident, in which
       # every harvest reported SUCCESS with funnel_rows: 0 for days.
+      #
+      # TWO WINDOWS, because "no rows in six hours" is a fault for one harvest
+      # and a Tuesday for the other.
+      #
+      # `monitoring.nightly` sweeps fresh data every night: six hours of
+      # nothing means something is broken.
+      #
+      # `finreports.finance` does not work that way, and reading it as though
+      # it did is what produced eight pages and seven repeats between the 13th
+      # and 14th of September 2026 with nothing wrong. It runs 21 times a day
+      # (`crontab(hour="0-2,4,8-23")` plus the 03:00 reconcile) against sources
+      # WB publishes on ITS schedule — the settlement report weekly, paid
+      # that is correct. So nineteen of those twenty-one runs legitimately
+      # write nothing, and any six-hour window between publications is red.
+      #
+      # 26 hours is the same number, and the same reasoning, as
+      # `SettlementHistoryHasGaps` below: one full daily cycle plus slack, so
+      # the rule cannot fire on a source that is merely waiting for tonight.
+      # have landed.
       - alert: HarvestProducingNoRows
         expr: |
-          sum by (harvest) (increase(harvest_rows_processed_total[6h])) == 0
-          and on (harvest) (sum by (harvest) (increase(harvest_duration_seconds_count[6h])) > 0)
+          (
+            sum by (harvest) (increase(harvest_rows_processed_total{harvest!="finreports.finance"}[6h])) == 0
+            and on (harvest)
+            (sum by (harvest) (increase(harvest_duration_seconds_count{harvest!="finreports.finance"}[6h])) > 0)
+          )
+          or
+          (
+            sum by (harvest) (increase(harvest_rows_processed_total{harvest="finreports.finance"}[26h])) == 0
+            and on (harvest)
+            (sum by (harvest) (increase(harvest_duration_seconds_count{harvest="finreports.finance"}[26h])) > 0)
+          )
         for: 30m
         labels:
           severity: page
@@ -138,9 +166,25 @@ groups:
       # could not see it — three partials spread over three days never reach
       # `> 3` in an hour, and once the days were skipped the counter went quiet,
       # which reads exactly like recovery.
+      #
+      # `for: 2h` rather than `0m`, and the reason the threshold of ONE stays.
+      # When this was written a partial window meant permanent loss: the
+      # watermark advanced past the missing days off the report header and
+      # nothing asked again. That was fixed on 2026-09-08 — the walk now
+      # re-asks from the watermark — so a single partial is a window the NEXT
+      # tick recovers, and paging on it says "look at this" about something
+      # already healing.
+      #
+      # What is left is the case the threshold was always for: partials that
+      # keep happening. Two consecutive hours of them means the next tick did
+      # not recover it, which is the state a person is needed for. Measured on
+      # 2026-09-13/14: every real firing lasted 55 minutes and cleared on its
+      # own, three pages for contention between NEVA's P&L backfill and the
+      # hourly harvest over WB's one-request-per-15-minutes settlement
+      # endpoint. None of them would survive this.
       - alert: SettlementWalkIncomplete
         expr: increase(harvest_partial_total{harvest="finreports.finance",source="finance"}[1h]) > 0
-        for: 0m
+        for: 2h
         labels:
           severity: page
         annotations:
@@ -397,7 +441,19 @@ groups:
         expr: |
           increase(backfill_lane_restarts_total[2h]) >= 3
           and on() backfill_lanes_stalled > 0
-        for: 15m
+        # An hour, not fifteen minutes, and WB sets the number. The P&L lane
+        # walks an endpoint served once per ~15 minutes and frequently not
+        # served at all; a tick that finds the window shut records its message
+        # and waits. When one of those ticks dies before recording, the lane
+        # looks stalled for the 45 minutes `STALE_AFTER` allows, the watchdog
+        # restarts it — correctly — and the restart counter moves.
+        #
+        # Measured 2026-09-13: three pages, each firing for exactly ten
+        # minutes and clearing itself, against a lane that was walking
+        # normally (281 of 759 windows, message "Wildberries не отдал
+        # страницу"). A condition that resolves in ten minutes was never one
+        # for a person. Restarts that are STILL failing an hour later are.
+        for: 1h
         labels:
           severity: page
         annotations:
