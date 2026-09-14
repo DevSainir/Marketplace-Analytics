@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
+from typing import ClassVar
 
 import pytest
 
@@ -39,6 +40,7 @@ from src.modules.finreports.services.freshness_record import (
 from src.modules.finreports.tasks import freshness, harvest
 from src.modules.finreports.tasks.freshness import probe_window
 from src.modules.finreports.tasks.harvest import harvest_all_workspaces
+from src.modules.finreports.tasks.settlement import SettlementWalk
 from src.modules.finreports.tasks.spans import settlement_frontier, walk_span
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
@@ -233,3 +235,126 @@ async def test_the_harvest_asks_the_gate_about_the_frontier_not_the_watermark(
     await harvest_all_workspaces(days=28)
 
     assert asked == [COVERED]
+
+
+class _RecordingWatermarkRepo:
+    """Records what the harvest tried to certify as settled."""
+
+    #: Rebound per test — every day handed to ``advance_to``, in order.
+    advanced: ClassVar[list[date]] = []
+
+    def __init__(self, _session: object) -> None:
+        pass
+
+    async def get(self, *, workspace_id: uuid.UUID) -> date:
+        return WATERMARK
+
+    async def advance_to(self, *, workspace_id: uuid.UUID, day: date) -> date:
+        _RecordingWatermarkRepo.advanced.append(day)
+        return day
+
+
+class _FakeIngestion:
+    """Every write the harvest makes outside the settlement walk, ingesting nothing."""
+
+    def __init__(self, _session: object) -> None:
+        pass
+
+        return 0
+
+    async def ingest_baselines(self, _cards: object, **_kwargs: object) -> int:
+        return 0
+
+        return 0
+
+        return 0
+
+
+class _CommittingSession(_FakeSession):
+    """A session that also answers the harvest's commit."""
+
+    async def commit(self) -> None:
+        return None
+
+
+@pytest.fixture
+def certified(monkeypatch: pytest.MonkeyPatch):
+    """Run one workspace's harvest and report what it wrote to the watermark.
+
+    Takes the walk's completed prefix and the coverage left behind it, which is
+    the only pair that matters here.
+    """
+
+    async def _run(*, completed_through: date | None, covered_through: date | None) -> list[date]:
+        _RecordingWatermarkRepo.advanced = []
+
+        class _Coverage:
+            def __init__(self, _session: object) -> None:
+                pass
+
+            async def latest_settled_date(self, *, workspace_id: uuid.UUID) -> date | None:
+                return covered_through
+
+        async def _walk(**_kwargs: object) -> SettlementWalk:
+            return SettlementWalk(rows=1, windows_failed=0, completed_through=completed_through)
+
+        monkeypatch.setattr(harvest, "AsyncSessionLocal", _CommittingSession)
+        monkeypatch.setattr(harvest, "SettlementWatermarkRepository", _RecordingWatermarkRepo)
+        monkeypatch.setattr(harvest, "FinancialReportRepository", _Coverage)
+        monkeypatch.setattr(harvest, "walk_settlement_windows", _walk)
+        monkeypatch.setattr(harvest, "build_ingestion", _FakeIngestion)
+
+        await harvest.harvest_workspace(
+            tokens=WorkspaceTokenBundle(
+                workspace_id=WORKSPACE, name="NEVA", statistics="stat-token"
+            ),
+            date_from=MISSED_WEEK[0],
+            date_to=MISSED_WEEK[1],
+            on_date=TODAY,
+        )
+        return _RecordingWatermarkRepo.advanced
+
+    return _run
+
+
+async def test_an_empty_walk_cannot_certify_days_no_report_covers(certified) -> None:
+    """The poisoning, refused at the source rather than corrected on every read.
+
+    This is the Sunday-night tick: the walk completes the open week because WB
+    answers it empty, and would otherwise write 13.09 into a mark that then
+    outranks the coverage forever.
+    """
+    advanced = await certified(completed_through=date(2026, 9, 13), covered_through=COVERED)
+
+    assert advanced == [COVERED]
+
+
+async def test_a_week_held_one_page_deep_leaves_the_mark_where_the_walk_stopped(
+    certified,
+) -> None:
+    """NEVA, 2026-09-14 — and why reading the minimum was not enough on its own.
+
+    The walk fetched one 10 000-row page of the week and the second was refused,
+    so it certified nothing. The header, written from that first page, already
+    claimed all seven days, and once an earlier tick had marched the mark to
+    13.09 as well, both dates agreed on a week we held a fraction of. Kept at
+    the walk's own stopping point, the mark reopens the week instead.
+    """
+    advanced = await certified(
+        completed_through=date(2026, 9, 6), covered_through=date(2026, 9, 13)
+    )
+
+    assert advanced == [date(2026, 9, 6)]
+
+
+async def test_a_workspace_with_no_report_yet_still_records_where_it_walked(
+    certified,
+) -> None:
+    """Nothing to be behind, and the mark is what keeps its next tick cheap.
+
+    Without it a seller WB has published nothing for re-walks the full backfill
+    span every hour.
+    """
+    advanced = await certified(completed_through=WATERMARK, covered_through=None)
+
+    assert advanced == [WATERMARK]
