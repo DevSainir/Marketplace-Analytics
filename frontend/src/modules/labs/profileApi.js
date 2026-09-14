@@ -39,3 +39,65 @@ export async function revokeAllSessions() {
   const { data } = await apiClient.post('/v1/auth/logout-all')
   return data
 }
+
+/**
+ * GET /v1/organizations/members — the organisation's roster.
+ *
+ * Here rather than through `useMembersStore` because that store asks for the
+ * roster only when the effective role is exactly `owner`, and a `dev` account
+ * collapses to `dev` however it is a member — so the store leaves a developer
+ * with an empty list and the team panel invisible. The ENDPOINT allows a dev
+ * (verified live on prod: 200, not 403); only the store's gate does not.
+ *
+ * @returns {Promise<Array<{user_id: string, email: string, role: string,
+ *   joined_at: string, access_level: string, modules: string[]}>>}
+ */
+export async function fetchMembers() {
+  const { data } = await apiClient.get('/v1/organizations/members')
+  return data
+}
+
+/**
+ * PATCH /v1/organizations/members/{id}/access — set one manager's grant.
+ *
+ * The whole grant travels every time, matching the endpoint: a partial update
+ * from a stale form would silently keep a module the owner had switched off.
+ *
+ * @param {string} userId
+ * @param {{accessLevel: string, modules: string[]}} grant
+ */
+export async function updateMemberAccess(userId, { accessLevel, modules }) {
+  const { data } = await apiClient.patch(`/v1/organizations/members/${userId}/access`, {
+    access_level: accessLevel,
+    modules,
+  })
+  return data
+}
+
+/**
+ * DELETE /v1/organizations/members/{id} — remove a member from the company.
+ *
+ * Their ACCOUNT keeps existing; it simply stops belonging here. The owner
+ * cannot be removed — 422.
+ *
+ * @param {string} userId
+ */
+export async function removeMember(userId) {
+  await apiClient.delete(`/v1/organizations/members/${userId}`)
+}
+
+/**
+ * POST /v1/organizations/invitations — invite a manager with a grant.
+ *
+ * @param {{email: string|null, validForHours: number, accessLevel: string,
+ *   modules: string[]}} payload
+ * @returns {Promise<{id: string, email: string|null, token: string, expires_at: string}>}
+ */
+export async function createInvitation({ email, validForHours, accessLevel, modules }) {
+  const { data } = await apiClient.post('/v1/organizations/invitations', {
+    email: email || null,
+    valid_for_hours: validForHours,
+    access: { access_level: accessLevel, modules },
+  })
+  return data
+}

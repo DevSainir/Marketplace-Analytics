@@ -29,6 +29,7 @@ import ProfileRail from '@/modules/labs/components/profile/ProfileRail.vue'
 import ProfileSecurity from '@/modules/labs/components/profile/ProfileSecurity.vue'
 import ProfileTeam from '@/modules/labs/components/profile/ProfileTeam.vue'
 import ProfileWorkspaces from '@/modules/labs/components/profile/ProfileWorkspaces.vue'
+import { useLabTeam } from '@/modules/labs/labTeam'
 import { revokeAllSessions } from '@/modules/labs/profileApi'
 import { useMembersStore, useWorkspaceStore } from '@/modules/profile'
 
@@ -40,6 +41,9 @@ import '@/modules/labs/views/LabProfileView.css'
 const store = useWorkspaceStore()
 const members = useMembersStore()
 const auth = useAuthStore()
+// The roster comes from here, not from `members`: that store asks for it only
+// for an effective role of exactly `owner`, which a dev account never has.
+const team = useLabTeam()
 
 const ROLE_LABELS = {
   dev: 'Разработчик',
@@ -61,7 +65,9 @@ const canManage = computed(() => store.isDev || members.isOwner)
 const sections = computed(() =>
   [
     { id: 'lp-overview', label: 'Обзор' },
-    members.isOwner ? { id: 'lp-team', label: 'Команда', count: members.managers.length } : null,
+    team.available.value
+      ? { id: 'lp-team', label: 'Команда', count: team.managers.value.length }
+      : null,
     { id: 'lp-workspaces', label: 'Пространства', count: store.workspaces.length },
     { id: 'lp-security', label: 'Безопасность' },
   ].filter(Boolean),
@@ -89,18 +95,18 @@ async function loadTokenStatuses() {
 onMounted(async () => {
   await store.ensureLoaded().catch(() => {})
   await members.ensureLoaded()
-  await loadTokenStatuses()
+  await Promise.all([team.load(), loadTokenStatuses()])
 })
 
 watch(() => store.workspaces.length, loadTokenStatuses)
 
 async function saveAccess(grant) {
-  const ok = await members.saveAccess(drawer.value.manager.user_id, grant)
+  const ok = await team.saveAccess(drawer.value.manager.user_id, grant)
   if (ok) drawer.value = null
 }
 
 async function onInvite({ onIssued, ...payload }) {
-  const invitation = await members.invite(payload)
+  const invitation = await team.invite(payload)
   if (invitation) onIssued(invitation)
 }
 
@@ -159,8 +165,8 @@ async function onRevokeSessions() {
       </aside>
 
       <main class="lp-main">
-        <p v-if="store.error || members.error" class="lp-alert">
-          {{ store.error || members.error }}
+        <p v-if="store.error || members.error || team.error.value" class="lp-alert">
+          {{ store.error || members.error || team.error.value }}
         </p>
 
         <section v-if="!members.hasOrganization" class="lp-alert lp-alert--soft">
@@ -176,7 +182,7 @@ async function onRevokeSessions() {
             :role-label="ROLE_LABELS[members.role] ?? '—'"
             :workspaces="store.workspaces.length"
             :max-workspaces="members.subscription?.max_workspaces ?? null"
-            :managers="members.isOwner ? members.managers.length : null"
+            :managers="team.available.value ? team.managers.value.length : null"
             :max-managers="members.subscription?.max_managers ?? null"
             :modules="members.modules"
             :subscription="members.subscription"
@@ -184,14 +190,14 @@ async function onRevokeSessions() {
           <BackfillStrip v-if="store.currentWorkspaceId" :workspace-id="store.currentWorkspaceId" />
         </section>
 
-        <section v-if="members.isOwner" id="lp-team" class="lp-section">
+        <section v-if="team.available.value" id="lp-team" class="lp-section">
           <ProfileTeam
-            :managers="members.managers"
-            :saving="members.saving"
+            :managers="team.managers.value"
+            :saving="team.saving.value"
             can-invite
             @invite="drawer = { kind: 'invite' }"
             @edit="(manager) => (drawer = { kind: 'access', manager })"
-            @remove="members.removeManager"
+            @remove="team.remove"
           />
         </section>
 
@@ -224,7 +230,7 @@ async function onRevokeSessions() {
 
     <ProfileDrawers
       :drawer="drawer"
-      :member-saving="members.saving"
+      :member-saving="team.saving.value"
       :store-busy="store.loading"
       :token-statuses="tokenStatuses"
       @close="drawer = null"
