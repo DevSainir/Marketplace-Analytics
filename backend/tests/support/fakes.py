@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 
 from src.core.ids import uuid7
 from src.modules.users.models import RefreshToken, User
+from src.modules.users.repos import SessionRow
 from src.modules.workspaces.models import Workspace, WorkspaceToken
 
 
@@ -75,6 +76,8 @@ class FakeRefreshTokenRepository:
         token_hash: str,
         expires_at: datetime,
         parent_id: uuid.UUID | None = None,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
     ) -> RefreshToken:
         """Persist a newly issued refresh-token row."""
         token = RefreshToken(
@@ -87,6 +90,8 @@ class FakeRefreshTokenRepository:
             is_used=False,
             is_revoked=False,
             created_at=datetime.now(UTC),
+            user_agent=user_agent,
+            ip_address=ip_address,
         )
         self.tokens[token_id] = token
         return token
@@ -125,6 +130,48 @@ class FakeRefreshTokenRepository:
                 token.is_revoked = True
                 revoked += 1
         return revoked
+
+    async def list_sessions(self, user_id: uuid.UUID) -> list[SessionRow]:
+        """One row per live login lineage, newest activity first."""
+        live = [
+            t
+            for t in self.tokens.values()
+            if t.user_id == user_id and not t.is_revoked and t.expires_at > datetime.now(UTC)
+        ]
+        rows = []
+        for family_id in {t.family_id for t in live}:
+            nodes = sorted(
+                (t for t in live if t.family_id == family_id), key=lambda t: t.created_at
+            )
+            newest = nodes[-1]
+            # `started_at` reads the WHOLE family, revoked rows included, exactly
+            # as the SQL does — the first token of a lineage is usually consumed
+            # long before anyone looks at the list.
+            first = min(t.created_at for t in self.tokens.values() if t.family_id == family_id)
+            rows.append(
+                SessionRow(
+                    family_id=family_id,
+                    user_agent=newest.user_agent,
+                    ip_address=newest.ip_address,
+                    started_at=first,
+                    last_seen_at=newest.created_at,
+                )
+            )
+        return sorted(rows, key=lambda r: r.last_seen_at, reverse=True)
+
+    async def family_belongs_to(self, *, family_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """Whether this account owns that login lineage."""
+        return any(t.family_id == family_id and t.user_id == user_id for t in self.tokens.values())
+
+    async def live_family_ids(self, user_id: uuid.UUID) -> list[uuid.UUID]:
+        """Every still-usable lineage of one account."""
+        return list(
+            {
+                t.family_id
+                for t in self.tokens.values()
+                if t.user_id == user_id and not t.is_revoked and t.expires_at > datetime.now(UTC)
+            }
+        )
 
     async def delete_expired(self, *, before: datetime) -> int:
         """Hard-delete rows that expired before the cutoff; return the count."""

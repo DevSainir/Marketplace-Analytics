@@ -86,6 +86,15 @@ class RefreshToken(Base):
         is_revoked: ``True`` once invalidated (logout or breach response).
         expires_at: Absolute expiry (UTC).
         created_at: Server-assigned issuance timestamp (UTC).
+        user_agent: The browser string the pair was minted for, verbatim and
+            unparsed. Recorded so an account holder can recognise their own
+            sessions in a list; naming the device is presentation, and the SPA
+            does it. Truncated at 400 characters — a header is attacker-chosen
+            input and this column is not a place to store an essay.
+        ip_address: Where that request came from, as
+            :func:`src.core.client_ip.resolve_client_ip` resolves it — never
+            ``request.client``, which a client can choose. ``NULL`` for rows
+            written before these columns existed.
     """
 
     __tablename__ = "refresh_tokens"
@@ -107,6 +116,11 @@ class RefreshToken(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    #: Nullable, and it stays nullable: every row written before this column
+    #: existed has no answer, and inventing one would put a fiction in a list
+    #: people use to decide whether they have been broken into.
+    user_agent: Mapped[str | None] = mapped_column(String(400), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="refresh_tokens")
 

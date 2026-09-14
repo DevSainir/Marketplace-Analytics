@@ -24,6 +24,7 @@ def make_access_token(
     issued_at: datetime | None = None,
     expires_in_seconds: int | None = None,
     token_type: str = TokenType.ACCESS.value,
+    family_id: uuid.UUID | None = None,
 ) -> str:
     """Mint a signed access token for a user, with overridable claims.
 
@@ -38,6 +39,10 @@ def make_access_token(
             configured access TTL. Pass a negative value for an expired token.
         token_type: The ``type`` claim; override it to prove that a non-access
             token is rejected.
+        family_id: The ``fam`` claim — which login lineage this token belongs
+            to. Omitted by default, matching a token minted before the claim
+            existed; pass it in tests about sessions, where "which one is mine"
+            is the question.
 
     Returns:
         The encoded JWT string.
@@ -51,6 +56,8 @@ def make_access_token(
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(seconds=ttl)).timestamp()),
     }
+    if family_id is not None:
+        claims["fam"] = str(family_id)
     return jwt.encode(claims, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 

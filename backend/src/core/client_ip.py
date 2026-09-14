@@ -19,6 +19,7 @@ The peer address stays as the fallback so local development, where nothing sets
 from __future__ import annotations
 
 import ipaddress
+from dataclasses import dataclass
 
 from fastapi import Request
 
@@ -69,3 +70,40 @@ def _as_ip_address(value: str | None) -> str | None:
         return ipaddress.ip_address(value.strip()).compressed
     except ValueError:
         return None
+
+
+@dataclass(frozen=True, slots=True)
+class ClientInfo:
+    """Who the caller appears to be, for the row that records a session.
+
+    Two fields with very different standing, and the difference is the reason
+    this is one object rather than two parameters.
+
+    ``ip_address`` is resolved by :func:`resolve_client_ip`, which is the only
+    client-address signal on the request a control may key on. ``user_agent`` is
+    the opposite: a header the client writes and may put anything in. It is
+    stored verbatim and never parsed here — the SPA turns it into «Chrome на
+    macOS», and a value it cannot make sense of is shown as nothing rather than
+    guessed at. Nothing authorises on it.
+    """
+
+    ip_address: str
+    user_agent: str | None
+
+
+def resolve_client_info(request: Request) -> ClientInfo:
+    """Build the provenance stamp for a session row from one request.
+
+    Args:
+        request: The incoming request.
+
+    Returns:
+        The address and the raw User-Agent, the latter truncated to what the
+        column can hold so an oversized header cannot fail the login it
+        accompanies.
+    """
+    agent = request.headers.get("user-agent")
+    return ClientInfo(
+        ip_address=resolve_client_ip(request),
+        user_agent=agent[:400] if agent else None,
+    )

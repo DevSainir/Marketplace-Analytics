@@ -9,6 +9,7 @@ boundary "business logic has no direct database access".
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -101,6 +102,26 @@ class UserRepository:
         return user
 
 
+@dataclass(frozen=True, slots=True)
+class SessionRow:
+    """One login lineage, as the session list needs it.
+
+    A plain dataclass rather than a Pydantic model: this is what the repository
+    returns, not what the API answers, and keeping the two apart is what lets
+    the response DTO decide what a caller may see.
+    """
+
+    family_id: uuid.UUID
+    #: Verbatim and unparsed — naming the device is the SPA's job.
+    user_agent: str | None
+    ip_address: str | None
+    #: When this lineage's first token was minted: the moment of the login.
+    started_at: datetime
+    #: When its newest token was minted — the last sign of life, within one
+    #: access-token TTL.
+    last_seen_at: datetime
+
+
 class RefreshTokenRepository:
     """CRUD + family-revocation operations for :class:`RefreshToken` rows."""
 
@@ -117,6 +138,8 @@ class RefreshTokenRepository:
         token_hash: str,
         expires_at: datetime,
         parent_id: uuid.UUID | None = None,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
     ) -> RefreshToken:
         """Persist a newly issued refresh-token row.
 
@@ -127,6 +150,10 @@ class RefreshTokenRepository:
             token_hash: SHA-256 digest of the opaque refresh secret.
             expires_at: Absolute expiry (UTC).
             parent_id: Superseded token id, or ``None`` for a fresh login.
+            user_agent: The caller's browser string, truncated to the column.
+                ``None`` when the caller did not supply one, or when the writer
+                has no request to read it from (a test, a confirm-email flow).
+            ip_address: The caller's address as ``resolve_client_ip`` gives it.
 
         Returns:
             The flushed :class:`RefreshToken` instance.
@@ -138,6 +165,10 @@ class RefreshTokenRepository:
             token_hash=token_hash,
             expires_at=expires_at,
             parent_id=parent_id,
+            # Truncate here rather than trusting the sender: a 10 kB header
+            # would otherwise fail the INSERT and, with it, the login.
+            user_agent=user_agent[:400] if user_agent else None,
+            ip_address=ip_address[:45] if ip_address else None,
         )
         self._session.add(token)
         await self._session.flush()
@@ -180,6 +211,109 @@ class RefreshTokenRepository:
         stmt = select(func.min(RefreshToken.created_at)).where(RefreshToken.family_id == family_id)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def list_sessions(self, user_id: uuid.UUID) -> list[SessionRow]:
+        """Return one row per live login lineage of this account.
+
+        A session is a FAMILY, not a token: one login, rotated every fifteen
+        minutes for as long as the browser stays open, is one line in the list
+        and a hundred-odd rows in this table. So the aggregate is the answer —
+        when the lineage began, when it last rotated, and the browser and
+        address of its **newest** node, which is where the session is now rather
+        than where it started.
+
+        Revoked and expired lineages are left out: this list is what somebody
+        looks at to decide whether to end something, and a dead session is not
+        a decision. A family with a single revoked row disappears entirely,
+        which is what «завершён» should look like.
+
+        Args:
+            user_id: The account whose sessions to list.
+
+        Returns:
+            Newest-active-first. Empty for an account with nothing open.
+        """
+        # The newest node per family, by created_at. DISTINCT ON is Postgres's
+        # own idiom for it and costs one index scan; a window function or a
+        # correlated subquery would say the same thing more slowly.
+        newest = (
+            select(
+                RefreshToken.family_id,
+                RefreshToken.user_agent,
+                RefreshToken.ip_address,
+                RefreshToken.created_at.label("last_seen_at"),
+            )
+            .where(
+                RefreshToken.user_id == user_id,
+                RefreshToken.is_revoked.is_(False),
+                RefreshToken.expires_at > func.now(),
+            )
+            .distinct(RefreshToken.family_id)
+            .order_by(RefreshToken.family_id, RefreshToken.created_at.desc())
+            .subquery()
+        )
+        started = (
+            select(
+                RefreshToken.family_id,
+                func.min(RefreshToken.created_at).label("started_at"),
+            )
+            .where(RefreshToken.user_id == user_id)
+            .group_by(RefreshToken.family_id)
+            .subquery()
+        )
+        stmt = (
+            select(
+                newest.c.family_id,
+                newest.c.user_agent,
+                newest.c.ip_address,
+                newest.c.last_seen_at,
+                started.c.started_at,
+            )
+            .join(started, started.c.family_id == newest.c.family_id)
+            .order_by(newest.c.last_seen_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        return [
+            SessionRow(
+                family_id=row.family_id,
+                user_agent=row.user_agent,
+                ip_address=row.ip_address,
+                started_at=row.started_at,
+                last_seen_at=row.last_seen_at,
+            )
+            for row in result
+        ]
+
+    async def family_belongs_to(self, *, family_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """Whether this account owns that login lineage.
+
+        The ownership check behind "end this session". Answering it in SQL
+        rather than by loading the row and comparing is the difference between
+        a scoped query and a filtered one — see the `security` skill.
+        """
+        stmt = select(RefreshToken.id).where(
+            RefreshToken.family_id == family_id,
+            RefreshToken.user_id == user_id,
+        )
+        return (await self._session.execute(stmt.limit(1))).first() is not None
+
+    async def live_family_ids(self, user_id: uuid.UUID) -> list[uuid.UUID]:
+        """Every login lineage of this account that is still usable.
+
+        Used to end all the others when a password changes. Reading the list
+        first, and revoking family by family, is what lets the caller keep the
+        session it is speaking on — the account-wide lever cannot.
+        """
+        stmt = (
+            select(RefreshToken.family_id)
+            .where(
+                RefreshToken.user_id == user_id,
+                RefreshToken.is_revoked.is_(False),
+                RefreshToken.expires_at > func.now(),
+            )
+            .distinct()
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
 
     async def delete_expired(self, *, before: datetime) -> int:
         """Hard-delete token rows whose expiry predates ``before``.

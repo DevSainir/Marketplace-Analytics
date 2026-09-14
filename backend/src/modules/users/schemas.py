@@ -116,6 +116,60 @@ class SessionsRevokedResponse(BaseModel):
     )
 
 
+class SessionRead(BaseModel):
+    """One live login lineage, as its owner sees it.
+
+    Carries no token, no hash and no id of anything but the lineage itself —
+    ending a session needs the family id and nothing else, and a response DTO is
+    where a secret would escape if one ever could.
+
+    ``user_agent`` travels raw. Turning it into «Chrome на macOS» is the SPA's
+    job: it is presentation, it changes with every browser release, and a string
+    the parser does not recognise should be shown as nothing rather than as a
+    confident guess about a device somebody is deciding whether to trust.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    #: The refresh-token family — what "a session" actually is here.
+    family_id: uuid.UUID
+    user_agent: str | None = None
+    ip_address: str | None = None
+    #: When the login happened.
+    started_at: datetime
+    #: When this lineage last rotated — a sign of life within one access TTL.
+    last_seen_at: datetime
+    #: Whether this is the session asking. ``False`` for every row when the
+    #: caller's token predates the ``fam`` claim: unknown is not "yes".
+    is_current: bool = False
+
+
+class PasswordChangeRequest(BaseModel):
+    """Payload for a signed-in account changing its own password.
+
+    The current password is part of the payload, not decoration: without it
+    anyone holding a live session could lock the owner out of their own account.
+    No mailed code — see :mod:`src.modules.users.services.password_change` for
+    why one would prove nothing here.
+    """
+
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128, description="The replacement.")
+
+    _check_password = field_validator("new_password")(staticmethod(_validate_password))
+
+
+class PasswordChangedResponse(BaseModel):
+    """What changed, once the password did."""
+
+    other_sessions_ended: int = Field(
+        description=(
+            "How many other sessions were signed out. Zero is normal for an "
+            "account used on one device."
+        )
+    )
+
+
 class EmailConfirmRequest(BaseModel):
     """Payload proving control of an address with a mailed code."""
 

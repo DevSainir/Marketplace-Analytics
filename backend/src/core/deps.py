@@ -146,3 +146,34 @@ async def get_current_user_id(
 
 #: Injectable authenticated user id for protected routes.
 CurrentUserId = Annotated[uuid.UUID, Depends(get_current_user_id)]
+
+
+async def get_current_family_id(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)],
+) -> uuid.UUID | None:
+    """Return the login lineage the caller's access token belongs to.
+
+    Which session am I? Every other check in this module asks "is this token
+    still good"; this one asks "which of my sessions is holding it", which is
+    what a session list needs to mark one row «этот» and what changing a
+    password needs to know so it ends the others and not this one.
+
+    Answers ``None`` for a token minted before the ``fam`` claim existed, and
+    the caller must treat that as "cannot tell": mark no row current, end no
+    session on its say-so. It does NOT re-authorise anything —
+    :func:`get_current_user_id` has already refused an invalid token by the time
+    a route resolves both.
+    """
+    if credentials is None:
+        return None
+    payload = decode_token(credentials.credentials, expected_type=TokenType.ACCESS)
+    if payload is None or payload.family_id is None:
+        return None
+    try:
+        return uuid.UUID(payload.family_id)
+    except ValueError:
+        return None
+
+
+#: Injectable login-lineage id, or ``None`` for a token that predates the claim.
+CurrentFamilyId = Annotated[uuid.UUID | None, Depends(get_current_family_id)]

@@ -60,6 +60,11 @@ _EXEMPT: dict[tuple[str, str], str] = {
     ("POST", "/v1/auth/refresh"): "own session: authorised by the refresh cookie",
     ("POST", "/v1/auth/logout"): "own session: ends it",
     ("POST", "/v1/auth/logout-all"): "own session: ends every one of them",
+    ("DELETE", "/v1/auth/sessions/{family_id}"): "own session: ends one named lineage",
+    (
+        "POST",
+        "/v1/auth/password",
+    ): "own account: authorised by the current password in the body, not by membership",
     ("POST", "/confirm-email"): "pre-membership: proves the address",
     ("POST", "/resend-confirmation"): "pre-membership: re-sends that proof",
     ("POST", "/password-reset/request"): "pre-membership: unauthenticated by design",

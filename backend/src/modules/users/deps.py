@@ -27,6 +27,7 @@ from src.modules.users.services import (
     RegistrationService,
     VerificationService,
 )
+from src.modules.users.services.password_change import PasswordChangeService
 
 
 def get_user_repo(session: DbSession) -> UserRepository:
@@ -90,6 +91,16 @@ def get_recovery_service(
 
 
 RecoveryServiceDep = Annotated[AccountRecoveryService, Depends(get_recovery_service)]
+
+
+def get_password_change_service(
+    user_repo: UserRepoDep, token_repo: TokenRepoDep
+) -> PasswordChangeService:
+    """Compose the signed-in password-change service."""
+    return PasswordChangeService(users=user_repo, tokens=token_repo)
+
+
+PasswordChangeServiceDep = Annotated[PasswordChangeService, Depends(get_password_change_service)]
 
 
 async def get_current_user(user_id: CurrentUserId, user_repo: UserRepoDep) -> User:

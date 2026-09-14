@@ -27,6 +27,7 @@ import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from src.core.client_ip import ClientInfo
 from src.core.config import settings
 from src.core.exceptions import (
     AuthenticationError,
@@ -99,7 +100,9 @@ class AuthService:
     # ------------------------------------------------------------------ #
     # Login (with timing-attack mitigation)
     # ------------------------------------------------------------------ #
-    async def authenticate(self, *, email: str, password: str) -> IssuedTokens:
+    async def authenticate(
+        self, *, email: str, password: str, client: ClientInfo | None = None
+    ) -> IssuedTokens:
         """Authenticate credentials and issue a fresh token pair.
 
         The lookup path is deliberately constant-time: whatever the outcome,
@@ -116,6 +119,10 @@ class AuthService:
         Args:
             email: Submitted login email.
             password: Submitted plaintext password.
+            client: Where this login came from, for the session list. Optional
+                because two callers have no request to read it from — the
+                confirm-email flow and the test suite — and a session with no
+                device recorded is worth more than no session at all.
 
         Returns:
             A fresh :class:`IssuedTokens` bundle.
@@ -181,9 +188,13 @@ class AuthService:
             )
 
         # A fresh login opens a new token family/lineage.
-        return await self._issue_pair(user_id=user.id, family_id=uuid7(), parent_id=None)
+        return await self._issue_pair(
+            user_id=user.id, family_id=uuid7(), parent_id=None, client=client
+        )
 
-    async def issue_session(self, *, user_id: uuid.UUID) -> IssuedTokens:
+    async def issue_session(
+        self, *, user_id: uuid.UUID, client: ClientInfo | None = None
+    ) -> IssuedTokens:
         """Open a session for an account whose identity is already established.
 
         For callers that have proved the credential by some route other than a
@@ -199,16 +210,21 @@ class AuthService:
 
         Args:
             user_id: The account to open a session for.
+            client: Where the request came from, for the session list.
 
         Returns:
             A fresh access + refresh pair on a new lineage.
         """
-        return await self._issue_pair(user_id=user_id, family_id=uuid7(), parent_id=None)
+        return await self._issue_pair(
+            user_id=user_id, family_id=uuid7(), parent_id=None, client=client
+        )
 
     # ------------------------------------------------------------------ #
     # Refresh rotation (with breach detection)
     # ------------------------------------------------------------------ #
-    async def rotate_refresh_token(self, *, refresh_secret: str | None) -> IssuedTokens:
+    async def rotate_refresh_token(
+        self, *, refresh_secret: str | None, client: ClientInfo | None = None
+    ) -> IssuedTokens:
         """Rotate a presented refresh token into a brand-new pair.
 
         Implements the Breach Detection Flow: if the presented token has already
@@ -218,6 +234,10 @@ class AuthService:
         Args:
             refresh_secret: The opaque refresh secret from the client cookie, or
                 ``None`` when the cookie is absent (treated as unauthorized).
+            client: Where this rotation came from. Stamped on the new node, so
+                a session's line in the list reports where it is NOW — the
+                laptop that moved from the office to a café is still one
+                session, at its current address.
 
         Returns:
             A freshly issued :class:`IssuedTokens` bundle continuing the family.
@@ -293,6 +313,7 @@ class AuthService:
             family_id=token.family_id,
             parent_id=token.id,
             not_after=session_deadline,
+            client=client,
         )
         await remember_rotation(parent_id=token.id, refresh_secret=issued.refresh_secret)
         return issued
@@ -370,6 +391,7 @@ class AuthService:
         family_id: uuid.UUID,
         parent_id: uuid.UUID | None,
         not_after: datetime | None = None,
+        client: ClientInfo | None = None,
     ) -> IssuedTokens:
         """Create and persist a new access+refresh pair for one user.
 
@@ -380,6 +402,10 @@ class AuthService:
             not_after: Optional absolute ceiling for the refresh expiry (the
                 family's session-lifetime deadline); the sliding TTL is
                 clamped to it so rotation cannot extend a session forever.
+            client: Browser and address to stamp on the new row. Recorded on
+                EVERY node, not only the first of a family, so the session list
+                shows where a lineage is now rather than where it started — a
+                laptop that moved networks is still that laptop.
 
         Returns:
             The issued token bundle including cookie-ready expiry metadata.
@@ -403,6 +429,8 @@ class AuthService:
             token_hash=hash_refresh_secret(refresh_secret),
             expires_at=refresh_expires_at,
             parent_id=parent_id,
+            user_agent=client.user_agent if client else None,
+            ip_address=client.ip_address if client else None,
         )
 
         return IssuedTokens(

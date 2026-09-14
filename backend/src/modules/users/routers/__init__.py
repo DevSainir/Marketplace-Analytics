@@ -18,10 +18,13 @@ error-to-HTTP mapping — domain errors (``ConflictError``, ``AuthenticationErro
 from __future__ import annotations
 
 import uuid
+from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, Response, status
 
+from src.core.client_ip import ClientInfo, resolve_client_info
 from src.core.config import settings
+from src.core.deps import CurrentFamilyId
 from src.core.logging import get_logger
 
 # The audit trail is consumed through the organisations contract, the same
@@ -32,8 +35,10 @@ from src.modules.organizations.contract import AuditEvent, AuditTrail
 from src.modules.users.deps import (
     AuthServiceDep,
     CurrentUser,
+    PasswordChangeServiceDep,
     RecoveryServiceDep,
     RegistrationServiceDep,
+    TokenRepoDep,
     UserRepoDep,
     require_dev_role,
 )
@@ -44,16 +49,26 @@ from src.modules.users.routers.common import (
 )
 from src.modules.users.routers.recovery import router as recovery_router
 from src.modules.users.schemas import (
+    PasswordChangedResponse,
+    PasswordChangeRequest,
+    SessionRead,
     SessionsRevokedResponse,
     TokenPairResponse,
     UserLoginRequest,
     UserRead,
     UserRegisterRequest,
 )
+from src.modules.users.services.sessions import end_session, list_sessions
 
 router = APIRouter(prefix="/v1/auth", tags=["Authentication"])
 
 logger = get_logger(__name__)
+
+#: Where the caller is, for the row that records the session they are opening.
+#: A dependency rather than a `Request` parameter in each handler, so no route
+#: can accidentally read `request.client` — the header a client can choose
+#: (see :mod:`src.core.client_ip`).
+CurrentClient = Annotated[ClientInfo, Depends(resolve_client_info)]
 
 
 @router.post(
@@ -119,9 +134,12 @@ async def login(
     payload: UserLoginRequest,
     service: AuthServiceDep,
     response: Response,
+    client: CurrentClient,
 ) -> TokenPairResponse:
     """Authenticate credentials and issue an access token + refresh cookie."""
-    tokens = await service.authenticate(email=payload.email, password=payload.password)
+    tokens = await service.authenticate(
+        email=payload.email, password=payload.password, client=client
+    )
     _set_refresh_cookie(response, tokens)
     return TokenPairResponse(
         access_token=tokens.access_token,
@@ -143,13 +161,14 @@ async def login(
 async def refresh(
     service: AuthServiceDep,
     response: Response,
+    client: CurrentClient,
     # The alias keeps the *read* side in lockstep with the configurable name
     # the cookie is *written* under; a hard-coded parameter name would silently
     # break /refresh the day REFRESH_COOKIE_NAME is changed.
     refresh_token: str | None = Cookie(default=None, alias=settings.refresh_cookie_name),
 ) -> TokenPairResponse:
     """Rotate a refresh token into a brand-new access + refresh pair."""
-    tokens = await service.rotate_refresh_token(refresh_secret=refresh_token)
+    tokens = await service.rotate_refresh_token(refresh_secret=refresh_token, client=client)
     _set_refresh_cookie(response, tokens)
     return TokenPairResponse(
         access_token=tokens.access_token,
@@ -268,6 +287,144 @@ async def logout(
     response.delete_cookie(settings.refresh_cookie_name, path=settings.refresh_cookie_path)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
+
+
+@router.get(
+    "/sessions",
+    response_model=list[SessionRead],
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "The caller's own live sessions, newest activity first."},
+        401: {"description": "Missing or invalid access token."},
+    },
+)
+async def my_sessions(
+    user: CurrentUser,
+    tokens: TokenRepoDep,
+    current_family: CurrentFamilyId,
+) -> list[SessionRead]:
+    """List this account's open sessions.
+
+    Guard: ``CurrentUser`` — own-account data, and the narrowest guard that
+    works. A membership-derived one would be wrong rather than merely stricter:
+    an account with no organisation still has sessions, and being locked out of
+    the list of your own logins is not a thing a paywall should decide.
+
+    Scoped by ``user_id`` in the query, never filtered afterwards, so there is
+    no arrangement of arguments that returns somebody else's row.
+
+    The response carries no token, no hash and no secret — a session is
+    identified by its family id, which is all that ending one needs.
+    """
+    rows = await list_sessions(tokens=tokens, user_id=user.id)
+    return [
+        SessionRead(
+            family_id=row.family_id,
+            user_agent=row.user_agent,
+            ip_address=row.ip_address,
+            started_at=row.started_at,
+            last_seen_at=row.last_seen_at,
+            # `None` means the token predates the `fam` claim: mark nothing
+            # current rather than guess, or the UI offers to end the session
+            # you are sitting in believing it is somebody else's.
+            is_current=current_family is not None and row.family_id == current_family,
+        )
+        for row in rows
+    ]
+
+
+@router.delete(
+    "/sessions/{family_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        204: {"description": "That session is over."},
+        401: {"description": "Missing or invalid access token."},
+        404: {"description": "No such session on this account."},
+    },
+)
+async def end_one_session(
+    family_id: uuid.UUID,
+    user: CurrentUser,
+    tokens: TokenRepoDep,
+    audit: AuditTrail,
+    response: Response,
+    current_family: CurrentFamilyId,
+) -> Response:
+    """End one named session of the calling account.
+
+    Guard: ``CurrentUser``. Not ``WritingAccess`` — this writes nothing of the
+    organisation's and belongs to the same family as ``/logout``: the
+    authorisation is the token, and a read-only manager is entitled to end their
+    own stolen phone's session.
+
+    Ownership is decided in SQL (``family_belongs_to``), and a lineage belonging
+    to somebody else answers **404, not 403**: a family id could only have come
+    from another account's list, and confirming it exists would make this an
+    oracle. Whoever owns it sees no difference.
+
+    Ending the session you are speaking on is allowed and means logging out —
+    the cookie is cleared so the SPA does not keep a dead one around.
+    """
+    await end_session(tokens=tokens, user_id=user.id, family_id=family_id)
+    await audit.record(
+        AuditEvent.SESSIONS_REVOKED,
+        target_type="user",
+        target_id=user.id,
+        metadata={"scope": "one-session", "family_id": str(family_id)},
+    )
+    if current_family is not None and current_family == family_id:
+        response.delete_cookie(settings.refresh_cookie_name, path=settings.refresh_cookie_path)
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
+
+
+@router.post(
+    "/password",
+    response_model=PasswordChangedResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[_auth_rate_limit],
+    responses={
+        200: {"description": "Password changed; the other sessions are over."},
+        401: {"description": "Missing token, or the current password is wrong."},
+        422: {"description": "The new password is unusable (too weak, public, or unchanged)."},
+        429: {"description": "Too many attempts; retry later."},
+    },
+)
+async def change_password(
+    payload: PasswordChangeRequest,
+    user: CurrentUser,
+    service: PasswordChangeServiceDep,
+    audit: AuditTrail,
+    current_family: CurrentFamilyId,
+) -> PasswordChangedResponse:
+    """Change your own password, from inside a session.
+
+    Guard: ``CurrentUser`` plus the current password in the body. The second
+    half is the one that matters: without it a live session is enough to lock
+    the owner out of their own account, and a stolen laptop becomes a stolen
+    account. The next-weaker guard — "authenticated" alone — is exactly that
+    hole.
+
+    On the auth rate-limit budget, the same one login is on, because guessing
+    the current password here is guessing it at ``/login`` by another door.
+
+    Every OTHER session ends. This one does not: whoever changed the password
+    has proved themselves twice in the same request, and signing them out would
+    be a puzzle rather than a control.
+    """
+    ended = await service.change(
+        user=user,
+        current_password=payload.current_password,
+        new_password=payload.new_password,
+        keep_family_id=current_family,
+    )
+    await audit.record(
+        AuditEvent.SESSIONS_REVOKED,
+        target_type="user",
+        target_id=user.id,
+        metadata={"scope": "password-change", "revoked": ended},
+    )
+    return PasswordChangedResponse(other_sessions_ended=ended)
 
 
 # The recovery half lives in its own module (see the package docstring) and is
