@@ -11,8 +11,11 @@
  * answers 200 for one). So the sandbox asks for itself, and the panel appears
  * for anyone the API would actually answer.
  *
- * A composable rather than a Pinia store: this is page state, it dies with the
- * page, and nothing else in the app reads it.
+ * Module-level state rather than per-caller: three pages read the roster (the
+ * team page renders it, «Общие» counts it, the nav badges it) and a composable
+ * with local refs would fetch it once per page and once per navigation. Not a
+ * Pinia store, because nothing outside the sandbox may see it and a store in
+ * `labs/` would be one more thing to delete when the sandbox goes.
  */
 import { computed, ref } from 'vue'
 
@@ -24,18 +27,21 @@ import {
   updateMemberAccess,
 } from '@/modules/labs/profileApi'
 
+const members = ref([])
+/** Whether the API answered at all — the panel is hidden until it did. */
+const available = ref(false)
+/** A user_id being written, or 'invite'. */
+const saving = ref(null)
+const error = ref('')
+/** Set once the first load finished, so a second page does not re-ask. */
+const loaded = ref(false)
+
+/** The owner's own row is not editable — see the backend's refusal. */
+const managers = computed(() => members.value.filter((m) => m.role !== 'owner'))
+
 export function useLabTeam() {
-  const members = ref([])
-  /** Whether the API answered at all — the panel is hidden until it did. */
-  const available = ref(false)
-  /** A user_id being written, or 'invite'. */
-  const saving = ref(null)
-  const error = ref('')
-
-  /** The owner's own row is not editable — see the backend's refusal. */
-  const managers = computed(() => members.value.filter((m) => m.role !== 'owner'))
-
-  async function load() {
+  async function load({ force = false } = {}) {
+    if (loaded.value && !force) return
     try {
       members.value = await fetchMembers()
       available.value = true
@@ -44,6 +50,8 @@ export function useLabTeam() {
       // company. Both mean the same thing here: draw no panel. Not an error
       // worth a red banner — it is an answer.
       available.value = false
+    } finally {
+      loaded.value = true
     }
   }
 
@@ -71,7 +79,7 @@ export function useLabTeam() {
       await removeMember(userId)
       // Re-read rather than splice: the server decides who is a member, and a
       // local removal the request did not make shows a roster you cannot act on.
-      await load()
+      await load({ force: true })
       return true
     } catch (err) {
       error.value = extractErrorMessage(err)

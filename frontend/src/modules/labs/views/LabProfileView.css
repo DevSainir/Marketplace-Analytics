@@ -35,7 +35,7 @@
 .lp-main {
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  gap: 24px;
   min-width: 0;
 }
 
@@ -50,15 +50,16 @@
   }
 
   .lp-main {
-    gap: 32px;
+    gap: 20px;
   }
 }
 
+/* One page's stack of blocks. The gap is generous because these are separate
+   subjects — the roster, the invitations, the log — not a list. */
 .lp-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  scroll-margin-top: 88px;
+  gap: 40px;
 }
 
 /* --------------------------------------------------------------------------

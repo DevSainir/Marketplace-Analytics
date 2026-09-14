@@ -101,3 +101,86 @@ export async function createInvitation({ email, validForHours, accessLevel, modu
   })
   return data
 }
+
+/**
+ * GET /v1/auth/sessions — this account's live logins.
+ *
+ * A session is a refresh-token family: one login, rotated every fifteen
+ * minutes for as long as the browser lives. `is_current` is decided by the
+ * server from the access token's own lineage claim, so the list cannot be
+ * wrong about which row is the browser reading it.
+ *
+ * @returns {Promise<Array<{family_id: string, user_agent: string|null,
+ *   ip_address: string|null, started_at: string, last_seen_at: string,
+ *   is_current: boolean}>>}
+ */
+export async function fetchSessions() {
+  const { data } = await apiClient.get('/v1/auth/sessions')
+  return data
+}
+
+/**
+ * DELETE /v1/auth/sessions/{familyId} — end one login.
+ *
+ * @param {string} familyId
+ */
+export async function endSession(familyId) {
+  await apiClient.delete(`/v1/auth/sessions/${familyId}`)
+}
+
+/**
+ * POST /v1/auth/password — change the password from inside a session.
+ *
+ * No mailed code: the current password is what proves the caller here. Every
+ * OTHER session ends; this one survives.
+ *
+ * @param {{currentPassword: string, newPassword: string}} payload
+ * @returns {Promise<{other_sessions_ended: number}>}
+ */
+export async function changePassword({ currentPassword, newPassword }) {
+  const { data } = await apiClient.post('/v1/auth/password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  })
+  return data
+}
+
+/**
+ * GET /v1/organizations/invitations — every invitation this company issued.
+ *
+ * Never the token: that is shown once, at creation, and the server keeps only
+ * its hash. `status` is resolved server-side against its own clock, so two
+ * people looking at the same link read the same state.
+ *
+ * @returns {Promise<Array<{id: string, email: string|null, status: string,
+ *   accepted_count: number, expires_at: string, created_at: string}>>}
+ */
+export async function fetchInvitations() {
+  const { data } = await apiClient.get('/v1/organizations/invitations')
+  return data
+}
+
+/**
+ * DELETE /v1/organizations/invitations/{id} — stop a link working.
+ *
+ * @param {string} invitationId
+ */
+export async function revokeInvitation(invitationId) {
+  await apiClient.delete(`/v1/organizations/invitations/${invitationId}`)
+}
+
+/**
+ * GET /v1/organizations/audit-log — who did what inside this company.
+ *
+ * Owner-scoped and tenant-scoped server-side. The actor's address is stored
+ * denormalised on the row, so an entry still names a person after their
+ * account is gone.
+ *
+ * @param {number} limit 1–200, newest first.
+ * @returns {Promise<Array<{id: string, occurred_at: string, event: string,
+ *   actor_email: string|null, target_type: string|null, target_id: string|null}>>}
+ */
+export async function fetchAuditLog(limit = 25) {
+  const { data } = await apiClient.get('/v1/organizations/audit-log', { params: { limit } })
+  return data
+}

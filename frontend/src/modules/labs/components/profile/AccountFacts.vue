@@ -1,0 +1,139 @@
+<script setup>
+/**
+ * The four facts about this account, as a line rather than as a dashboard.
+ *
+ * They were stat tiles, and tiles were the wrong instrument twice over: a tile
+ * is for a number that MOVES and that you came to read, and none of these is —
+ * a term that ends in ten years and a count of two kabinety are standing facts,
+ * checked once and then ignored. Four boxes for four constants is a dashboard
+ * pretending something is happening.
+ *
+ * So: label above value, four of them on one rule, the way GitHub and Slack
+ * put account facts under an identity block. No borders between the columns —
+ * the alignment does that work, and dividers on a four-item row read as a table
+ * somebody forgot to finish.
+ *
+ * The plan LIMITS are deliberately absent. «2 / 5 кабинетов» invites the
+ * question "what happens at 5?" on a screen that cannot answer it, and the API
+ * refuses the sixth one with a message that can.
+ */
+import { computed } from 'vue'
+
+const props = defineProps({
+  roleLabel: { type: String, default: '—' },
+  workspaces: { type: Number, default: 0 },
+  /** `null` for an account that may not see the roster. */
+  managers: { type: Number, default: null },
+  /** `{ state, expires_at }` from /v1/organizations/me, or null. */
+  subscription: { type: Object, default: null },
+})
+
+const SUBSCRIPTION_TONE = {
+  active: 'is-ok',
+  grace: 'is-warn',
+  expired: 'is-bad',
+}
+
+/** Days left on the term, floored at 0 — a lapsed term says «истекла». */
+const daysLeft = computed(() => {
+  if (!props.subscription) return null
+  const ms = new Date(props.subscription.expires_at).getTime() - Date.now()
+  return Math.max(0, Math.ceil(ms / 86400000))
+})
+
+const until = computed(() =>
+  props.subscription
+    ? new Date(props.subscription.expires_at).toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      })
+    : '',
+)
+
+/** «5 дней» / «2 дня» / «1 день» — the count decides the ending. */
+function plural(n, forms) {
+  const mod100 = n % 100
+  if (mod100 >= 11 && mod100 <= 14) return forms[2]
+  const mod10 = n % 10
+  if (mod10 === 1) return forms[0]
+  if (mod10 >= 2 && mod10 <= 4) return forms[1]
+  return forms[2]
+}
+</script>
+
+<template>
+  <dl class="lp-facts">
+    <div class="lp-fact">
+      <dt class="lp-fact__label">Доступ</dt>
+      <dd class="lp-fact__value">{{ roleLabel }}</dd>
+    </div>
+
+    <div class="lp-fact">
+      <dt class="lp-fact__label">Подписка</dt>
+      <dd v-if="daysLeft === null" class="lp-fact__value">—</dd>
+      <dd v-else-if="daysLeft === 0" class="lp-fact__value is-bad">Истекла</dd>
+      <dd v-else class="lp-fact__value" :class="SUBSCRIPTION_TONE[subscription.state]">
+        до {{ until }}
+        <span class="lp-fact__aside">
+          осталось {{ daysLeft }} {{ plural(daysLeft, ['день', 'дня', 'дней']) }}
+        </span>
+      </dd>
+    </div>
+
+    <div class="lp-fact">
+      <dt class="lp-fact__label">Кабинеты</dt>
+      <dd class="lp-fact__value">
+        {{ workspaces }}
+        <span class="lp-fact__aside">
+          {{ plural(workspaces, ['подключён', 'подключено', 'подключено']) }}
+        </span>
+      </dd>
+    </div>
+
+    <div v-if="managers !== null" class="lp-fact">
+      <dt class="lp-fact__label">Команда</dt>
+      <dd class="lp-fact__value">
+        {{ managers }}
+        <span class="lp-fact__aside">
+          {{ plural(managers, ['менеджер', 'менеджера', 'менеджеров']) }}
+        </span>
+      </dd>
+    </div>
+  </dl>
+</template>
+
+<style scoped>
+.lp-facts {
+  @apply flex flex-wrap gap-x-xl gap-y-md;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--ui-hairline);
+}
+
+.lp-fact {
+  @apply flex min-w-0 flex-col gap-xs;
+}
+
+.lp-fact__label {
+  @apply text-tiny font-semibold uppercase tracking-wide;
+  color: var(--ui-faint);
+}
+
+.lp-fact__value {
+  @apply truncate text-base font-semibold text-primary;
+}
+
+.lp-fact__value.is-warn {
+  color: var(--ui-warn);
+}
+
+.lp-fact__value.is-bad {
+  color: var(--ui-neg);
+}
+
+/* The quiet half of the value — the unit, the remainder, the count's noun. */
+.lp-fact__aside {
+  @apply font-medium;
+  color: var(--ui-muted);
+}
+</style>

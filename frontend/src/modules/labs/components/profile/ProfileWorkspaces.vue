@@ -91,7 +91,11 @@ function onRemove(id) {
         <span class="lp-cell lp-cell--who" role="cell">
           <span class="lp-who__mail" :title="ws.name">{{ ws.name }}</span>
           <span class="lp-cell--chips">
-            <span v-if="ws.id === currentId" class="lp-pill is-on">Активно</span>
+            <!-- «Активно» said nothing: every кабинет in the list is active.
+                 What this marks is the one whose data the rest of the app is
+                 currently showing — so it says that, and pairs with the
+                 «Выбрать» on every other row. -->
+            <span v-if="ws.id === currentId" class="lp-pill is-on">Выбран</span>
             <span v-if="ws.is_primary" class="lp-pill is-soft">основное</span>
           </span>
         </span>

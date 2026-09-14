@@ -1,33 +1,29 @@
 <script setup>
 /**
- * The three editors, all of them drawers.
+ * The two team editors, both of them drawers.
  *
  * They live together because they are the same thing from the page's point of
- * view — a row was clicked, and the form for that row slid in. Keeping them in
- * one component also keeps the view under the size limit, which is what forced
- * the grouping and turned out to be the right shape anyway.
+ * view — a row was clicked, and the form for that row slid in — and because
+ * they share the draft grant.
  *
- * The draft grant is owned here, not by the view: it is scratch state that
- * exists only while a drawer is open, and it is seeded from the row every time
- * one opens so a cancelled edit leaves nothing behind.
+ * That draft is owned here, not by the view: it is scratch state that exists
+ * only while a drawer is open, and it is seeded from the row every time one
+ * opens, so a cancelled edit leaves nothing behind.
  */
 import { ref, watch } from 'vue'
 
 import AccessGrantFields from '@/modules/labs/components/profile/AccessGrantFields.vue'
 import InvitePanel from '@/modules/labs/components/profile/InvitePanel.vue'
 import SidePanel from '@/modules/labs/components/profile/SidePanel.vue'
-import TokensPanel from '@/modules/labs/components/profile/TokensPanel.vue'
 
 const props = defineProps({
-  /** `{ kind: 'invite' | 'access' | 'tokens', manager?, workspace? }` or null. */
+  /** `{ kind: 'invite' | 'access', manager? }` or null. */
   drawer: { type: Object, default: null },
-  /** membersStore.saving — a user_id, 'invite', or null. */
+  /** A user_id being written, 'invite', or null. */
   memberSaving: { type: [String, null], default: null },
-  storeBusy: { type: Boolean, default: false },
-  tokenStatuses: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits(['close', 'invite', 'save-access', 'save-tokens'])
+const emit = defineEmits(['close', 'invite', 'save-access'])
 
 const draftGrant = ref(null)
 const invitePanel = ref(null)
@@ -86,31 +82,6 @@ watch(
           @click="emit('save-access', draftGrant)"
         >
           {{ memberSaving === drawer?.manager?.user_id ? 'Сохраняем…' : 'Сохранить' }}
-        </button>
-      </template>
-    </SidePanel>
-
-    <SidePanel
-      :open="drawer?.kind === 'tokens'"
-      title="Токены Wildberries"
-      :subtitle="drawer?.workspace?.name ?? ''"
-      @close="emit('close')"
-    >
-      <TokensPanel
-        v-if="drawer?.kind === 'tokens'"
-        :is-primary="Boolean(drawer.workspace.is_primary)"
-        :configured="tokenStatuses[drawer.workspace.id]?.configured ?? []"
-        :saving="storeBusy"
-        @save="emit('save-tokens', $event)"
-      />
-      <template #footer>
-        <button
-          type="submit"
-          form="lp-tokens-form"
-          class="lp-btn lp-btn--primary"
-          :disabled="storeBusy"
-        >
-          {{ storeBusy ? 'Сохранение…' : 'Сохранить токены' }}
         </button>
       </template>
     </SidePanel>
