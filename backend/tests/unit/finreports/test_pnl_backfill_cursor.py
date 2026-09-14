@@ -18,7 +18,6 @@ from datetime import date, timedelta
 
 from src.modules.finreports.tasks.backfill import (
     PNL_EMPTY_STOP,
-    PNL_FLOOR_DAYS,
     PNL_GAP_TOLERANCE_DAYS,
     _format_cursor,
     _parse_cursor,
@@ -26,7 +25,13 @@ from src.modules.finreports.tasks.backfill import (
 )
 
 TODAY = date(2026, 9, 11)
-FLOOR = TODAY - timedelta(days=PNL_FLOOR_DAYS)
+
+#: These cases reproduce NEVA's real history, which spans two years, so they pass
+#: their own floor rather than the product's. The depth WB is asked for is a
+#: business decision (:data:`PNL_FLOOR_DAYS`, three months) and the gap-finder's
+#: correctness is not — tying them together would mean every future change to
+#: how much history a new seller gets silently rewrote these regressions.
+FLOOR = date(2021, 9, 12)
 
 
 def _days(*blocks: tuple[str, int]) -> list[date]:
@@ -43,7 +48,7 @@ def _days(*blocks: tuple[str, int]) -> list[date]:
 # --------------------------------------------------------------------------- #
 def test_a_workspace_with_nothing_stored_walks_the_whole_reachable_history() -> None:
     """A brand-new org has no coverage to reason from, so ask for all of it."""
-    assert next_span([], search_from=FLOOR, today=TODAY) == (FLOOR, date(2026, 9, 10))
+    assert next_span([], search_from=FLOOR, today=TODAY, floor=FLOOR) == (FLOOR, date(2026, 9, 10))
 
 
 def test_a_hole_in_the_middle_is_found() -> None:
@@ -58,10 +63,12 @@ def test_a_hole_in_the_middle_is_found() -> None:
     """
     stored = _days(("2024-07-11", 45), ("2026-08-09", 29))
 
-    prehistory = next_span(stored, search_from=FLOOR, today=TODAY)
+    prehistory = next_span(stored, search_from=FLOOR, today=TODAY, floor=FLOOR)
     assert prehistory == (FLOOR, date(2024, 7, 10))
 
-    after_prehistory = next_span(stored, search_from=prehistory[1] + timedelta(days=1), today=TODAY)
+    after_prehistory = next_span(
+        stored, search_from=prehistory[1] + timedelta(days=1), today=TODAY, floor=FLOOR
+    )
 
     assert after_prehistory == (date(2024, 8, 25), date(2026, 8, 8))
 
@@ -70,7 +77,10 @@ def test_a_hole_before_the_oldest_row_is_found() -> None:
     """The original behaviour has to survive: a late joiner has history behind them."""
     stored = _days(("2026-06-25", 78))
 
-    assert next_span(stored, search_from=FLOOR, today=TODAY) == (FLOOR, date(2026, 6, 24))
+    assert next_span(stored, search_from=FLOOR, today=TODAY, floor=FLOOR) == (
+        FLOOR,
+        date(2026, 6, 24),
+    )
 
 
 def test_quiet_days_between_weekly_reports_are_not_holes() -> None:
@@ -82,7 +92,7 @@ def test_quiet_days_between_weekly_reports_are_not_holes() -> None:
     """
     weekly = [date(2026, 6, 1) + timedelta(days=offset * 7) for offset in range(14)]
 
-    assert next_span(weekly, search_from=weekly[0], today=TODAY) is None
+    assert next_span(weekly, search_from=weekly[0], today=TODAY, floor=FLOOR) is None
     assert PNL_GAP_TOLERANCE_DAYS >= 14
 
 
@@ -93,10 +103,10 @@ def test_a_span_already_concluded_is_not_offered_again() -> None:
     BEYOND it instead of starting the same three empty probes again.
     """
     stored = _days(("2024-07-11", 45), ("2025-06-01", 30), ("2026-08-09", 29))
-    first = next_span(stored, search_from=FLOOR, today=TODAY)
+    first = next_span(stored, search_from=FLOOR, today=TODAY, floor=FLOOR)
     assert first is not None
 
-    second = next_span(stored, search_from=first[1] + timedelta(days=1), today=TODAY)
+    second = next_span(stored, search_from=first[1] + timedelta(days=1), today=TODAY, floor=FLOOR)
 
     assert second is not None
     assert second[0] > first[1]
@@ -106,7 +116,7 @@ def test_days_after_the_newest_row_belong_to_the_forward_harvest() -> None:
     """Two walks writing the same weeks from opposite ends is not a backfill."""
     stored = _days(("2026-08-01", 10))
 
-    assert next_span(stored, search_from=date(2026, 8, 1), today=TODAY) is None
+    assert next_span(stored, search_from=date(2026, 8, 1), today=TODAY, floor=FLOOR) is None
 
 
 # --------------------------------------------------------------------------- #

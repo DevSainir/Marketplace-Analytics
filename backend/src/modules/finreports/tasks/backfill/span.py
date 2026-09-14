@@ -14,10 +14,30 @@ from itertools import pairwise
 
 from src.modules.workspaces.contract import LaneStep
 
-#: How far back the lane is willing to ask. WB serves from the account's own
-#: beginning, so this is only a bound on absurdity — five years is older than
-#: any seller account we have seen, and the walk ends on a short page, not here.
-PNL_FLOOR_DAYS = 5 * 365
+#: How far back a new workspace's settlement history is collected.
+#:
+#: A product decision with a measured price, not a technical bound. WB serves
+#: from the account's own beginning, so the limit is what we are willing to make
+#: a new seller wait for: the endpoint answers roughly one 10 000-row page per
+#: hour, and a month of settlement detail is 1 page for a small seller and 5-6
+#: for a large one. Measured across the five live workspaces 2026-09-14:
+#:
+#: ===========  ==================  ===================  ==================
+#: Depth        small (~4k rows/mo) median (~14k/mo)     large (~50k/mo)
+#: ===========  ==================  ===================  ==================
+#: 1 month      ~1 h                ~2 h                 ~5 h
+#: **3 months** **~2 h**            **~5 h**             **~15 h**
+#: 6 months     ~3 h                ~9 h                 ~30 h
+#: ===========  ==================  ===================  ==================
+#:
+#: Three months because the advertising lane takes ~7 h on the same signup, so
+#: for every profile but the largest seller this costs nothing anyone waits for.
+#: Six would make a large seller's finances an overnight job.
+#:
+#: It is also what stops the walk probing history that cannot exist. At five
+#: years NEVA spent three of WB's fifteen-minute windows proving that 2021 was
+#: empty before it reached a single real row.
+PNL_FLOOR_DAYS = 90
 
 #: Cursor field separator. The cursor carries the whole span, not just the page
 #: pointer: see the module docstring for why recomputing the span per tick
@@ -91,7 +111,7 @@ PNL_GAP_TOLERANCE_DAYS = 14
 
 
 def next_span(
-    settled_days: Sequence[date], *, search_from: date, today: date
+    settled_days: Sequence[date], *, search_from: date, today: date, floor: date
 ) -> tuple[date, date] | None:
     """The next stretch of settlement history worth asking WB for.
 
@@ -120,12 +140,15 @@ def next_span(
         settled_days: Distinct settlement days already stored, any order.
         search_from: Ignore holes ending before this — already concluded.
         today: Today in Moscow time.
+        floor: The oldest day worth asking for. Passed in rather than derived
+            from :data:`PNL_FLOOR_DAYS` so that the depth is the caller's
+            decision — production reads the product's answer, while the tests
+            that reproduce NEVA's two-year hole can still reach back past it.
 
     Returns:
         The inclusive ``(from, to)`` span to walk, or ``None`` when coverage is
         contiguous from the first report onward.
     """
-    floor = today - timedelta(days=PNL_FLOOR_DAYS)
     days = sorted(d for d in settled_days if d >= floor)
     if not days:
         return floor, today - timedelta(days=1)
@@ -147,7 +170,7 @@ def next_span(
 
 
 def _roll_to_next_span(
-    settled_days: Sequence[date], *, after: date, today: date, rows: int
+    settled_days: Sequence[date], *, after: date, today: date, rows: int, floor: date
 ) -> LaneStep:
     """Finish one span by starting the next hole, or finish the lane.
 
@@ -155,7 +178,7 @@ def _roll_to_next_span(
     keeps a stretch WB will never serve from being offered again for ever.
     """
     resume = after + timedelta(days=1)
-    chosen = next_span(settled_days, search_from=resume, today=today)
+    chosen = next_span(settled_days, search_from=resume, today=today, floor=floor)
     if chosen is None:
         return LaneStep(1, 1, None, True, "История P&L собрана.", rows=rows)
     span_from, span_to = chosen

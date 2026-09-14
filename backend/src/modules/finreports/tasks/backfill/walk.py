@@ -68,12 +68,19 @@ async def advance_pnl(
         return LaneStep(0, 0, None, True, "Нет токена «Статистика» — P&L пропущен.")
 
     today = moscow_today()
+    # The product's chosen depth, resolved once: every span decision in this
+    # tick must use the same floor, or a roll could offer a span the opening
+    # search had already ruled out of scope.
+    floor = today - timedelta(days=PNL_FLOOR_DAYS)
     if cursor:
         span_from, span_to, rrd_id, empties, search_from = _parse_cursor(cursor)
     else:
-        search_from = today - timedelta(days=PNL_FLOOR_DAYS)
+        search_from = floor
         chosen = next_span(
-            await read_settled_days(tokens.workspace_id), search_from=search_from, today=today
+            await read_settled_days(tokens.workspace_id),
+            search_from=search_from,
+            today=today,
+            floor=floor,
         )
         if chosen is None:
             return LaneStep(0, 0, None, True, "Вся история P&L собрана.")
@@ -83,7 +90,11 @@ async def advance_pnl(
     total = max((span_to - span_from).days + 1, 1)
     if span_to < span_from:
         return _roll_to_next_span(
-            await read_settled_days(tokens.workspace_id), after=span_to, today=today, rows=0
+            await read_settled_days(tokens.workspace_id),
+            after=span_to,
+            today=today,
+            rows=0,
+            floor=floor,
         )
 
     # The gate that REFUSES, not the one that waits — and this is the whole
@@ -160,12 +171,20 @@ async def advance_pnl(
                 ),
             )
         return _roll_to_next_span(
-            await read_settled_days(tokens.workspace_id), after=span_to, today=today, rows=0
+            await read_settled_days(tokens.workspace_id),
+            after=span_to,
+            today=today,
+            rows=0,
+            floor=floor,
         )
     if next_cursor is None:
         # A short but non-empty page: ordinary pagination, this SPAN is done.
         return _roll_to_next_span(
-            await read_settled_days(tokens.workspace_id), after=span_to, today=today, rows=rows
+            await read_settled_days(tokens.workspace_id),
+            after=span_to,
+            today=today,
+            rows=rows,
+            floor=floor,
         )
 
     # Re-anchor the span on the seller's ACTUAL first settlement day, which the
