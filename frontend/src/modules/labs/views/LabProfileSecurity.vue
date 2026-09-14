@@ -26,8 +26,6 @@ const ending = ref(null)
 const passwordForm = ref(null)
 const changing = ref(false)
 const passwordError = ref('')
-/** How many devices the last successful change signed out, or null. */
-const endedByChange = ref(null)
 
 async function loadSessions() {
   sessionsLoading.value = true
@@ -45,10 +43,8 @@ onMounted(loadSessions)
 async function onChangePassword(payload) {
   changing.value = true
   passwordError.value = ''
-  endedByChange.value = null
   try {
-    const result = await changePassword(payload)
-    endedByChange.value = result.other_sessions_ended
+    await changePassword(payload)
     passwordForm.value?.reset()
     // The other devices are gone server-side; the list has to agree.
     await loadSessions()
@@ -92,9 +88,6 @@ async function onEndOthers() {
       <header class="lp-panel__head">
         <div class="min-w-0">
           <h2 class="lp-panel__title">Пароль</h2>
-          <p class="lp-panel__note">
-            Меняется здесь же — код на почту не нужен. Текущий пароль подтверждает, что это вы.
-          </p>
         </div>
       </header>
 
@@ -102,7 +95,6 @@ async function onEndOthers() {
         ref="passwordForm"
         :saving="changing"
         :error="passwordError"
-        :ended-sessions="endedByChange"
         @submit="onChangePassword"
         @clear-error="passwordError = ''"
       />
@@ -111,11 +103,8 @@ async function onEndOthers() {
     <div class="lp-panel">
       <header class="lp-panel__head">
         <div class="min-w-0">
-          <h2 class="lp-panel__title">Активные входы</h2>
-          <p class="lp-panel__note">
-            Каждый браузер, в котором выполнен вход в этот аккаунт. Незнакомое устройство —
-            завершите его и смените пароль.
-          </p>
+          <h2 class="lp-panel__title">Активные сеансы</h2>
+          <p class="lp-panel__note">Каждый браузер, в котором выполнен вход в этот аккаунт.</p>
         </div>
       </header>
 

@@ -50,7 +50,7 @@ async function loadInvitations() {
 async function loadAudit() {
   auditLoading.value = true
   try {
-    auditEntries.value = await fetchAuditLog(20)
+    auditEntries.value = await fetchAuditLog(100)
   } catch {
     auditEntries.value = []
   } finally {

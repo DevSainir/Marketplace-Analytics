@@ -162,6 +162,86 @@ async def test_revoking_an_invitation_is_recorded(
     assert events == ["MEMBER_INVITED", "INVITATION_REVOKED"]
 
 
+async def _manager(session: AsyncSession, organization: Organization) -> User:
+    """Persist a manager of ``organization`` with the default full grant."""
+    user = User(
+        email=f"manager-{uuid.uuid4().hex[:8]}@example.com",
+        hashed_password=hash_password("a-long-enough-password"),
+        email_confirmed_at=datetime.now(UTC),
+        role=ROLE_USER,
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+    session.add(
+        Membership(
+            organization_id=organization.id,
+            user_id=user.id,
+            role=MemberRole.MANAGER,
+            access_level="read_write",
+            modules=["monitoring", "finreports", "ab_tests"],
+        )
+    )
+    await session.flush()
+    return user
+
+
+async def test_re_saving_the_same_grant_records_nothing(
+    api_client: Any,
+    db_session: AsyncSession,
+    organization: Organization,
+) -> None:
+    """Opening the access form and pressing save is not a change.
+
+    The trail is read to answer «кто и что поменял». An entry saying «Изменён
+    доступ» about a grant that is byte-for-byte what it was turns a list meant
+    to be read into one that has to be searched.
+    """
+    # Arrange
+    owner = await _owner(db_session, organization)
+    manager = await _manager(db_session, organization)
+
+    # Act — the exact grant the manager already holds.
+    response = await api_client.patch(
+        f"/api/v1/organizations/members/{manager.id}/access",
+        json={"access_level": "read_write", "modules": ["monitoring", "finreports", "ab_tests"]},
+        headers=_auth(owner),
+    )
+
+    # Assert
+    assert response.status_code == 200, response.text
+    assert await _entries(db_session) == []
+
+
+async def test_a_real_change_of_grant_is_recorded_with_both_states(
+    api_client: Any,
+    db_session: AsyncSession,
+    organization: Organization,
+) -> None:
+    """And a real change still records — with what it was, and who it was about."""
+    # Arrange
+    owner = await _owner(db_session, organization)
+    manager = await _manager(db_session, organization)
+
+    # Act
+    response = await api_client.patch(
+        f"/api/v1/organizations/members/{manager.id}/access",
+        json={"access_level": "read_only", "modules": ["finreports"]},
+        headers=_auth(owner),
+    )
+
+    # Assert
+    assert response.status_code == 200, response.text
+    entries = await _entries(db_session)
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.event == "MEMBER_ACCESS_CHANGED"
+    assert entry.metadata["email"] == manager.email
+    assert entry.metadata["access_level"] == "read_only"
+    assert entry.metadata["modules"] == ["finreports"]
+    assert entry.metadata["previous_access_level"] == "read_write"
+
+
 async def test_a_rejected_action_records_nothing(
     api_client: Any,
     db_session: AsyncSession,

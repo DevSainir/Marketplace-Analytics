@@ -190,7 +190,7 @@ class InvitationService:
             for row in rows
         ]
 
-    async def revoke(self, *, organization_id: uuid.UUID, invitation_id: uuid.UUID) -> None:
+    async def revoke(self, *, organization_id: uuid.UUID, invitation_id: uuid.UUID) -> str | None:
         """Withdraw an outstanding invitation.
 
         Args:
@@ -215,6 +215,12 @@ class InvitationService:
                 oracle for other companies' invitation ids.
             invitation_id: The invitation to withdraw.
 
+        Returns:
+            The address the invitation was addressed to, or ``None`` for a bare
+            link. Returned only so the audit entry can name the link: once it is
+            revoked the owner's list stops showing it, and the trail is then the
+            only place that says which one this was.
+
         Raises:
             NotFoundError: No such invitation in this organisation.
         """
@@ -223,6 +229,7 @@ class InvitationService:
             raise NotFoundError("Приглашение не найдено.")
         if row.revoked_at is None:
             await self._invitations.mark_revoked(row, revoked_at=datetime.now(UTC))
+        return row.email
 
     # ------------------------------------------------------------------ #
     # The invitee's side

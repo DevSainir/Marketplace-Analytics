@@ -10,6 +10,7 @@
  * «Компания» is gone from it entirely: the name is the owner's email for every
  * organisation created by an activation code, and nobody outside this repo
  * knows what an «организация» is here. The role says the same thing usefully.
+ * The term moved to the rail, where all three pages can see it.
  */
 import { computed, onMounted, reactive, watch } from 'vue'
 
@@ -89,7 +90,6 @@ async function onRemove(id) {
       :role-label="ROLE_LABELS[members.role] ?? '—'"
       :workspaces="store.workspaces.length"
       :managers="team.available.value ? team.managers.value.length : null"
-      :subscription="members.subscription"
     />
 
     <BackfillStrip v-if="store.currentWorkspaceId" :workspace-id="store.currentWorkspaceId" />

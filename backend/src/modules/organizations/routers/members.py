@@ -98,22 +98,38 @@ async def set_member_access(
 
     Recorded in the audit trail with the resulting grant, because "who could
     read the P&L in July" is a question that gets asked after somebody leaves.
+
+    **Only when something actually changed.** Opening the form and pressing
+    save writes the same grant back, and recording that produced entries saying
+    «Изменён доступ» about a change that did not happen — which turns a trail
+    meant to be read into one that has to be searched. The comparison is made
+    here rather than in the service because "was this worth recording" is a
+    question about the audit trail, not about the membership.
     """
+    before = await service.member_grant(organization_id=access.tenant_id, user_id=user_id)
     member = await service.set_member_access(
         organization_id=access.tenant_id,
         user_id=user_id,
         access_level=payload.access_level,
         modules=payload.modules,
     )
-    await audit.record(
-        AuditEvent.MEMBER_ACCESS_CHANGED,
-        target_type="membership",
-        target_id=user_id,
-        metadata={
-            "access_level": member.access_level.value,
-            "modules": [m.value for m in member.modules],
-        },
-    )
+    after = (member.access_level.value, [m.value for m in member.modules])
+    if before != after:
+        await audit.record(
+            AuditEvent.MEMBER_ACCESS_CHANGED,
+            target_type="membership",
+            target_id=user_id,
+            metadata={
+                # The address as well as the grant: the trail is read long after
+                # the fact, and a user id names nobody. It is the tenant's own
+                # member, so nothing crosses an organisation by being here.
+                "email": member.email,
+                "access_level": after[0],
+                "modules": after[1],
+                "previous_access_level": before[0] if before else None,
+                "previous_modules": before[1] if before else None,
+            },
+        )
     return member
 
 

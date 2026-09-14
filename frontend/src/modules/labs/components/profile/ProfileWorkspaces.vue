@@ -57,10 +57,6 @@ function onRemove(id) {
     <header class="lp-panel__head">
       <div class="min-w-0">
         <h2 class="lp-panel__title">Кабинеты</h2>
-        <p class="lp-panel__note">
-          Все данные показываются в рамках выбранного кабинета. Токены WB хранятся в зашифрованном
-          виде и никогда не показываются повторно.
-        </p>
       </div>
 
       <form v-if="canManage" class="lp-panel__form" @submit.prevent="onCreate">

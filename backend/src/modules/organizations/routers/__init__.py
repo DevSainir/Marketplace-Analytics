@@ -190,6 +190,8 @@ async def accept_invitation(
         target_type="membership",
         target_id=user.id,
         organization_id=refreshed.organization_id,
+        # Who, by name. A user id names nobody when the trail is read later.
+        metadata={"email": user.email},
     )
     return await organizations.describe(access=refreshed, email=user.email)
 
@@ -310,13 +312,22 @@ async def create_invitation(
         valid_for_hours=payload.valid_for_hours,
         access=payload.access,
     )
-    # The invitee's address, never the token: the token is the credential and
-    # the response above is the only place it is ever shown.
+    # The invitee's address and the grant it carries, never the token: the token
+    # is the credential and the response above is the only place it is shown.
+    #
+    # The grant is here because it is the whole point of an invitation — the
+    # access travels WITH it, so "what did this link hand out" is answerable
+    # only from this row once the link is spent or revoked.
     await audit.record(
         AuditEvent.MEMBER_INVITED,
         target_type="invitation",
         target_id=invitation.id,
-        metadata={"email": payload.email},
+        metadata={
+            "email": payload.email,
+            "valid_for_hours": payload.valid_for_hours,
+            "access_level": payload.access.access_level.value,
+            "modules": [m.value for m in payload.access.modules],
+        },
     )
     return invitation
 
@@ -339,11 +350,17 @@ async def revoke_invitation(
     audit: AuditTrail,
 ) -> Response:
     """Withdraw an outstanding invitation."""
-    await service.revoke(organization_id=access.tenant_id, invitation_id=invitation_id)
+    revoked_email = await service.revoke(
+        organization_id=access.tenant_id, invitation_id=invitation_id
+    )
     await audit.record(
         AuditEvent.INVITATION_REVOKED,
         target_type="invitation",
         target_id=invitation_id,
+        # The address, so the trail names the link rather than a UUID. Once the
+        # row is revoked the list stops showing it, and this is the only place
+        # left that says which one it was.
+        metadata={"email": revoked_email},
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

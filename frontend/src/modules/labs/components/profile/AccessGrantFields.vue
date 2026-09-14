@@ -111,8 +111,12 @@ function toggleModule(key) {
   color: var(--ui-action);
 }
 
+/* The same hairline the level cards carry. Without it the three module rows
+   were the only unbounded things in the drawer, so the panel read as two
+   framed choices followed by loose text. */
 .lp-module {
-  @apply flex cursor-pointer items-center justify-between gap-md rounded-input px-md py-sm transition;
+  @apply flex cursor-pointer items-center justify-between gap-md rounded-input border px-md py-sm transition;
+  border-color: var(--ui-hairline);
 }
 
 .lp-module:hover {

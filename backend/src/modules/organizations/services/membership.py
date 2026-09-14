@@ -134,6 +134,27 @@ class OrganizationService:
             if m.user_id in emails
         ]
 
+    async def member_grant(
+        self, *, organization_id: uuid.UUID, user_id: uuid.UUID
+    ) -> tuple[str, list[str]] | None:
+        """The grant one member holds right now, or ``None`` if not a member.
+
+        Read separately from :meth:`set_member_access` so the caller can tell a
+        real change from a re-save of the same form. That distinction is not
+        cosmetic: the audit trail is read to answer «кто и что поменял», and a
+        page full of «Изменён доступ» entries that changed nothing is a trail
+        that has to be searched rather than read.
+
+        Scoped to the pair, never to ``user_id`` alone — same rule as every
+        other lookup here.
+        """
+        membership = await self._memberships.get_for_organization_member(
+            organization_id=organization_id, user_id=user_id
+        )
+        if membership is None:
+            return None
+        return membership.access_level, list(membership.modules)
+
     async def set_member_access(
         self,
         *,

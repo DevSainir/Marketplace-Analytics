@@ -115,10 +115,7 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
           </button>
         </header>
 
-        <p v-if="!others.length" class="lp-sessions__note">
-          Больше нигде не выполнен вход. Если увидите здесь незнакомое устройство — завершите его и
-          смените пароль.
-        </p>
+        <p v-if="!others.length" class="lp-sessions__note">Больше нигде не выполнен вход.</p>
 
         <article v-for="session in others" :key="session.family_id" class="lp-session">
           <span class="lp-session__main">
@@ -171,10 +168,12 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
   box-shadow: var(--ui-sh-xs);
 }
 
-/* The current one is the sunk tone instead of a card: it is context, not a row
-   you are deciding about, and it should not compete with the ones you are. */
+/* Tinted rather than white: it is context, not a row you are deciding about.
+   The sunk grey was too close to the canvas to read as a separate thing at
+   all, so it takes the action tint — the same one the «сейчас здесь» pill is
+   made of, which is what ties the two together. */
 .lp-session.is-current {
-  background: var(--ui-sunk);
+  background: var(--ui-action-soft);
   box-shadow: none;
 }
 

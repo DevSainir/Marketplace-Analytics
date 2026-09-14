@@ -13,6 +13,11 @@
  * catches a typo in a value that is masked, before that typo becomes a password
  * nobody knows.
  *
+ * The eye sits in every field and toggles all three at once. One checkbox under
+ * the row was a control in a different place from the thing it controls; three
+ * independent eyes would be three states to reason about for a value that is
+ * the same in all three fields.
+ *
  * The rules mirror `UserRegisterRequest`: at least 8 characters, one lower and
  * one upper. Stated here as well as enforced there, so the form does not let
  * somebody submit a password it could have told them about.
@@ -23,8 +28,6 @@ const props = defineProps({
   saving: { type: Boolean, default: false },
   /** Server-side refusal, rendered verbatim. */
   error: { type: String, default: '' },
-  /** How many other sessions the last successful change ended, or null. */
-  endedSessions: { type: [Number, null], default: null },
 })
 
 const emit = defineEmits(['submit', 'clear-error'])
@@ -33,6 +36,9 @@ const current = ref('')
 const next = ref('')
 const repeat = ref('')
 const reveal = ref(false)
+
+/** One eye, three fields: the value is the same in all of them. */
+const eyeLabel = computed(() => (reveal.value ? 'Скрыть пароли' : 'Показать пароли'))
 
 const RULES = [
   { key: 'length', label: 'не короче 8 символов', test: (v) => v.length >= 8 },
@@ -82,42 +88,64 @@ defineExpose({ reset })
     <div class="lp-pw__fields">
       <label class="lp-pw__field">
         <span class="lp-field__label">Текущий пароль</span>
-        <input
-          v-model="current"
-          :type="reveal ? 'text' : 'password'"
-          autocomplete="current-password"
-          class="lp-input"
-          @input="emit('clear-error')"
-        />
+        <span class="lp-pw__wrap">
+          <input
+            v-model="current"
+            :type="reveal ? 'text' : 'password'"
+            autocomplete="current-password"
+            class="lp-input"
+            @input="emit('clear-error')"
+          />
+          <button type="button" class="lp-pw__eye" :aria-label="eyeLabel" @click="reveal = !reveal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+              <circle cx="12" cy="12" r="3" />
+              <path v-if="reveal" d="m4 20 16-16" stroke-linecap="round" />
+            </svg>
+          </button>
+        </span>
       </label>
 
       <label class="lp-pw__field">
         <span class="lp-field__label">Новый пароль</span>
-        <input
-          v-model="next"
-          :type="reveal ? 'text' : 'password'"
-          autocomplete="new-password"
-          class="lp-input"
-          @input="emit('clear-error')"
-        />
+        <span class="lp-pw__wrap">
+          <input
+            v-model="next"
+            :type="reveal ? 'text' : 'password'"
+            autocomplete="new-password"
+            class="lp-input"
+            @input="emit('clear-error')"
+          />
+          <button type="button" class="lp-pw__eye" :aria-label="eyeLabel" @click="reveal = !reveal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+              <circle cx="12" cy="12" r="3" />
+              <path v-if="reveal" d="m4 20 16-16" stroke-linecap="round" />
+            </svg>
+          </button>
+        </span>
       </label>
 
       <label class="lp-pw__field">
         <span class="lp-field__label">Новый пароль ещё раз</span>
-        <input
-          v-model="repeat"
-          :type="reveal ? 'text' : 'password'"
-          autocomplete="new-password"
-          class="lp-input"
-          :class="mismatch ? 'is-wrong' : ''"
-        />
+        <span class="lp-pw__wrap">
+          <input
+            v-model="repeat"
+            :type="reveal ? 'text' : 'password'"
+            autocomplete="new-password"
+            class="lp-input"
+            :class="mismatch ? 'is-wrong' : ''"
+          />
+          <button type="button" class="lp-pw__eye" :aria-label="eyeLabel" @click="reveal = !reveal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+              <circle cx="12" cy="12" r="3" />
+              <path v-if="reveal" d="m4 20 16-16" stroke-linecap="round" />
+            </svg>
+          </button>
+        </span>
       </label>
     </div>
-
-    <label class="lp-pw__reveal">
-      <input v-model="reveal" type="checkbox" class="accent-[var(--ui-action)]" />
-      Показать пароли
-    </label>
 
     <ul class="lp-pw__rules">
       <li v-for="rule in RULES" :key="rule.key" :class="rule.test(next) ? 'is-met' : ''">
@@ -128,16 +156,6 @@ defineExpose({ reset })
     <p v-if="sameAsCurrent" class="lp-pw__warn">Новый пароль совпадает с текущим.</p>
     <p v-else-if="mismatch" class="lp-pw__warn">Пароли не совпадают.</p>
     <p v-else-if="error" class="lp-pw__warn">{{ error }}</p>
-    <p v-else-if="endedSessions !== null" class="lp-pw__ok">
-      Пароль изменён.
-      <template v-if="endedSessions > 0">
-        Другие устройства вышли из аккаунта — {{ endedSessions }}.
-      </template>
-      <template v-else> Других активных входов не было. </template>
-    </p>
-    <p v-else class="lp-pw__note">
-      После смены пароля все остальные устройства выйдут из аккаунта. Это устройство останется.
-    </p>
 
     <div>
       <button type="submit" class="lp-btn lp-btn--primary" :disabled="!canSubmit">
@@ -170,9 +188,25 @@ defineExpose({ reset })
   border-color: var(--ui-neg);
 }
 
-.lp-pw__reveal {
-  @apply flex w-fit cursor-pointer items-center gap-xs text-tiny font-medium;
+.lp-pw__wrap {
+  @apply relative block;
+}
+
+.lp-pw__wrap .lp-input {
+  padding-right: 40px;
+}
+
+.lp-pw__eye {
+  @apply absolute right-0 top-0 grid h-full w-10 place-items-center transition;
+  color: var(--ui-faint);
+}
+
+.lp-pw__eye:hover {
   color: var(--ui-muted);
+}
+
+.lp-pw__eye svg {
+  @apply h-4 w-4;
 }
 
 .lp-pw__rules {
@@ -192,18 +226,8 @@ defineExpose({ reset })
   content: '● ';
 }
 
-.lp-pw__note {
-  @apply text-tiny font-medium;
-  color: var(--ui-muted);
-}
-
 .lp-pw__warn {
   @apply text-tiny font-semibold;
   color: var(--ui-neg);
-}
-
-.lp-pw__ok {
-  @apply text-tiny font-semibold;
-  color: var(--ui-pos);
 }
 </style>

@@ -22,11 +22,17 @@
  */
 .lp-layout {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  /* Clamped rather than fixed so the two-column shape survives a 900px window.
+     It used to collapse below 1024px, which is where the rail «прыгало»: at
+     that width it stopped being sticky and scrolled away with the content. */
+  grid-template-columns: clamp(200px, 19vw, 260px) minmax(0, 1fr);
   gap: 32px;
   align-items: start;
 }
 
+/* 88px is exactly where the rail already sits at rest — header (64) plus the
+   page's own top padding (24) — so pinning there means it does not move at
+   all, rather than sliding up and then stopping. */
 .lp-aside {
   position: sticky;
   top: 88px;
@@ -39,7 +45,7 @@
   min-width: 0;
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 767px) {
   .lp-layout {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
@@ -128,8 +134,11 @@
   gap: 16px;
 }
 
+/* Flush left, aligned with the section title above rather than with the card
+   content below. A column label indented to match a row's padding reads as a
+   table that starts somewhere other than where the section does. */
 .lp-grid__head {
-  padding: 0 16px 4px;
+  padding: 0 16px 4px 0;
   font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -263,6 +272,21 @@
 
 .lp-btn--primary:hover:not(:disabled) {
   background: var(--ui-action-hover);
+  color: #fff;
+}
+
+/* There is no second brand colour in the system, and inventing one for a
+   button is how a palette grows by accident. The positive green already means
+   «это получилось», which is exactly what «Скопировать ссылку» reports. */
+.lp-btn--good {
+  background: var(--ui-pos);
+  color: #fff;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+}
+
+.lp-btn--good:hover:not(:disabled) {
+  background: #04613f;
   color: #fff;
 }
 

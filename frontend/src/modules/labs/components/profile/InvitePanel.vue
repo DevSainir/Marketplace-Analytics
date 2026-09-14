@@ -83,7 +83,11 @@ defineExpose({ submit })
         она есть.
       </p>
       <code class="lp-issued__code">{{ inviteLink }}</code>
-      <button type="button" class="lp-btn lp-btn--primary" @click="copyLink">
+      <!-- Green, not violet: the drawer's primary action sits right below it in
+           the footer, and two action-coloured buttons in a row make neither of
+           them the thing to press. This one reports a success rather than
+           asking for a decision, which is what the positive tone is for. -->
+      <button type="button" class="lp-btn lp-btn--good" @click="copyLink">
         {{ copied ? 'Скопировано' : 'Скопировать ссылку' }}
       </button>
     </div>

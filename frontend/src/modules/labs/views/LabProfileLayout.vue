@@ -41,9 +41,9 @@ const ROLE_LABELS = {
 }
 
 const SECTIONS = [
-  { name: 'labs-profile-general', label: 'Общие', hint: 'Аккаунт и кабинеты' },
-  { name: 'labs-profile-team', label: 'Команда', hint: 'Менеджеры и доступ' },
-  { name: 'labs-profile-security', label: 'Безопасность', hint: 'Пароль и устройства' },
+  { name: 'labs-profile-general', label: 'Общие' },
+  { name: 'labs-profile-team', label: 'Команда' },
+  { name: 'labs-profile-security', label: 'Безопасность' },
 ]
 
 /** Only the sections this account can actually be shown. */
@@ -66,6 +66,7 @@ onMounted(async () => {
           :email="store.me?.email ?? ''"
           :role-label="ROLE_LABELS[members.role] ?? ''"
           :sections="sections"
+          :subscription="members.subscription"
         />
       </aside>
 

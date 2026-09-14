@@ -16,40 +16,16 @@
  * The plan LIMITS are deliberately absent. «2 / 5 кабинетов» invites the
  * question "what happens at 5?" on a screen that cannot answer it, and the API
  * refuses the sixth one with a message that can.
+ *
+ * The subscription is absent for a different reason: it moved to the rail,
+ * where it is visible from all three pages instead of only from this one.
  */
-import { computed } from 'vue'
-
-const props = defineProps({
+defineProps({
   roleLabel: { type: String, default: '—' },
   workspaces: { type: Number, default: 0 },
   /** `null` for an account that may not see the roster. */
   managers: { type: Number, default: null },
-  /** `{ state, expires_at }` from /v1/organizations/me, or null. */
-  subscription: { type: Object, default: null },
 })
-
-const SUBSCRIPTION_TONE = {
-  active: 'is-ok',
-  grace: 'is-warn',
-  expired: 'is-bad',
-}
-
-/** Days left on the term, floored at 0 — a lapsed term says «истекла». */
-const daysLeft = computed(() => {
-  if (!props.subscription) return null
-  const ms = new Date(props.subscription.expires_at).getTime() - Date.now()
-  return Math.max(0, Math.ceil(ms / 86400000))
-})
-
-const until = computed(() =>
-  props.subscription
-    ? new Date(props.subscription.expires_at).toLocaleDateString('ru-RU', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-      })
-    : '',
-)
 
 /** «5 дней» / «2 дня» / «1 день» — the count decides the ending. */
 function plural(n, forms) {
@@ -67,18 +43,6 @@ function plural(n, forms) {
     <div class="lp-fact">
       <dt class="lp-fact__label">Доступ</dt>
       <dd class="lp-fact__value">{{ roleLabel }}</dd>
-    </div>
-
-    <div class="lp-fact">
-      <dt class="lp-fact__label">Подписка</dt>
-      <dd v-if="daysLeft === null" class="lp-fact__value">—</dd>
-      <dd v-else-if="daysLeft === 0" class="lp-fact__value is-bad">Истекла</dd>
-      <dd v-else class="lp-fact__value" :class="SUBSCRIPTION_TONE[subscription.state]">
-        до {{ until }}
-        <span class="lp-fact__aside">
-          осталось {{ daysLeft }} {{ plural(daysLeft, ['день', 'дня', 'дней']) }}
-        </span>
-      </dd>
     </div>
 
     <div class="lp-fact">
@@ -121,14 +85,6 @@ function plural(n, forms) {
 
 .lp-fact__value {
   @apply truncate text-base font-semibold text-primary;
-}
-
-.lp-fact__value.is-warn {
-  color: var(--ui-warn);
-}
-
-.lp-fact__value.is-bad {
-  color: var(--ui-neg);
 }
 
 /* The quiet half of the value — the unit, the remainder, the count's noun. */

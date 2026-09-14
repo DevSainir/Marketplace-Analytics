@@ -7,48 +7,50 @@
  * That is the exact question an owner asks and cannot otherwise answer: «кто
  * убрал этого менеджера».
  *
- * The event vocabulary is translated HERE, not stored in Russian: the log is a
- * machine record first (an incident is read with grep, at 02:00, by us) and a
- * screen second. An event this map does not know is shown as its raw name
- * rather than hidden — an unrecognised entry is the one most worth seeing.
+ * **The line is a button.** A headline and a timestamp say that something
+ * happened and nothing about what — «Изменён доступ» leaves out whose access,
+ * and to what. Pressing it opens the same drawer the token and invite editors
+ * use, with the whole entry in it. The row stays a row: the list is still
+ * scannable, and the detail is one press away rather than five columns wide.
+ *
+ * **Paged, but only once there is something to page.** This is the one table
+ * that only grows, so the endpoint bounds itself; below one page's worth the
+ * controls are not drawn at all, and a company with six events never sees a
+ * pager.
+ *
+ * The vocabulary and the per-event detail live in `auditEntry.js` — two
+ * components need them, and the mapping is the part worth reading on its own.
  */
-defineProps({
+import { computed, ref } from 'vue'
+
+import SidePanel from '@/modules/labs/components/profile/SidePanel.vue'
+import {
+  REMOVING_EVENTS,
+  detailRows,
+  eventLabel,
+  fullMoment,
+  shortMoment,
+} from '@/modules/labs/components/profile/auditEntry'
+
+const props = defineProps({
   /** @type {Array<object>} rows from GET /v1/organizations/audit-log */
   entries: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
 })
 
-const EVENTS = {
-  ORG_ACTIVATED: 'Компания активирована',
-  MEMBER_INVITED: 'Выдано приглашение',
-  INVITATION_REVOKED: 'Приглашение отозвано',
-  MEMBER_JOINED: 'Менеджер присоединился',
-  MEMBER_REMOVED: 'Менеджер удалён из компании',
-  MEMBER_ROLE_CHANGED: 'Изменена роль',
-  MEMBER_ACCESS_CHANGED: 'Изменён доступ',
-  WORKSPACE_CREATED: 'Создан кабинет',
-  WORKSPACE_DELETED: 'Удалён кабинет',
-  WB_TOKEN_ROTATED: 'Обновлён токен Wildberries',
-  SESSIONS_REVOKED: 'Завершены сеансы',
-  PASSWORD_CHANGED: 'Изменён пароль',
-  ACTIVATION_CODE_ISSUED: 'Выдан ключ активации',
-}
+/** How many rows fit before the list stops being scannable. */
+const PAGE_SIZE = 10
 
-/** The events worth colouring — the ones that take something away. */
-const REMOVING = new Set([
-  'MEMBER_REMOVED',
-  'INVITATION_REVOKED',
-  'WORKSPACE_DELETED',
-  'SESSIONS_REVOKED',
-])
+const page = ref(0)
+const opened = ref(null)
 
-function when(iso) {
-  return new Date(iso).toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+const pageCount = computed(() => Math.ceil(props.entries.length / PAGE_SIZE))
+const paged = computed(() =>
+  props.entries.slice(page.value * PAGE_SIZE, page.value * PAGE_SIZE + PAGE_SIZE),
+)
+
+function step(delta) {
+  page.value = Math.min(Math.max(page.value + delta, 0), pageCount.value - 1)
 }
 </script>
 
@@ -57,27 +59,49 @@ function when(iso) {
     <header class="lp-panel__head">
       <div class="min-w-0">
         <h2 class="lp-panel__title">Журнал доступа</h2>
-        <p class="lp-panel__note">
-          Что происходило с доступом в компании. Запись остаётся, даже если аккаунт потом удалили.
-        </p>
+        <p class="lp-panel__note">Что происходило с доступом в компании.</p>
       </div>
     </header>
 
     <p v-if="loading" class="lp-empty">Загружаем…</p>
     <p v-else-if="!entries.length" class="lp-empty">Пока ничего не происходило.</p>
 
-    <ol v-else class="lp-log">
-      <li v-for="entry in entries" :key="entry.id" class="lp-log__row">
-        <span class="lp-log__dot" :class="REMOVING.has(entry.event) ? 'is-bad' : ''" />
-        <span class="lp-log__what">
-          {{ EVENTS[entry.event] ?? entry.event }}
-        </span>
-        <span class="lp-log__who">{{ entry.actor_email || 'система' }}</span>
-        <time class="lp-log__when" :datetime="entry.occurred_at">{{
-          when(entry.occurred_at)
-        }}</time>
-      </li>
-    </ol>
+    <template v-else>
+      <ol class="lp-log">
+        <li v-for="entry in paged" :key="entry.id" class="lp-log__row">
+          <button type="button" class="lp-log__open" @click="opened = entry">
+            <span class="lp-log__dot" :class="REMOVING_EVENTS.has(entry.event) ? 'is-bad' : ''" />
+            <span class="lp-log__what">{{ eventLabel(entry.event) }}</span>
+          </button>
+          <span class="lp-log__who">{{ entry.actor_email || 'система' }}</span>
+          <time class="lp-log__when" :datetime="entry.occurred_at">
+            {{ shortMoment(entry.occurred_at) }}
+          </time>
+        </li>
+      </ol>
+
+      <nav v-if="pageCount > 1" class="lp-pager" aria-label="Страницы журнала">
+        <button type="button" class="lp-btn" :disabled="page === 0" @click="step(-1)">Назад</button>
+        <span class="lp-pager__count">{{ page + 1 }} из {{ pageCount }}</span>
+        <button type="button" class="lp-btn" :disabled="page >= pageCount - 1" @click="step(1)">
+          Дальше
+        </button>
+      </nav>
+    </template>
+
+    <SidePanel
+      :open="Boolean(opened)"
+      :title="opened ? eventLabel(opened.event) : ''"
+      :subtitle="opened ? fullMoment(opened.occurred_at) : ''"
+      @close="opened = null"
+    >
+      <dl v-if="opened" class="lp-detail">
+        <div v-for="row in detailRows(opened)" :key="row.label" class="lp-detail__row">
+          <dt class="lp-detail__label">{{ row.label }}</dt>
+          <dd class="lp-detail__value">{{ row.value }}</dd>
+        </div>
+      </dl>
+    </SidePanel>
   </div>
 </template>
 
@@ -99,15 +123,29 @@ function when(iso) {
 }
 
 .lp-log__row {
-  @apply relative grid items-baseline gap-x-sm pl-lg;
+  @apply relative grid items-baseline gap-x-sm;
   grid-template-columns: minmax(0, 1fr) minmax(0, auto) 5.5rem;
 }
 
+/* The dot and the headline are one target: a 7px dot on its own is not
+   something anybody can hit. */
+.lp-log__open {
+  @apply relative -my-xs flex min-w-0 items-baseline gap-sm rounded-btn py-xs pl-lg pr-sm text-left transition;
+}
+
+.lp-log__open:hover {
+  background: var(--ui-sunk);
+}
+
 .lp-log__dot {
-  @apply absolute left-0 top-1.5 h-[7px] w-[7px] rounded-full;
+  @apply absolute left-0 top-2 h-[7px] w-[7px] rounded-full;
   background: var(--ui-action);
   /* Punch through the rail so the line looks threaded, not crossed. */
   box-shadow: 0 0 0 3px var(--ui-surface);
+}
+
+.lp-log__open:hover .lp-log__dot {
+  box-shadow: 0 0 0 3px var(--ui-sunk);
 }
 
 .lp-log__dot.is-bad {
@@ -127,6 +165,32 @@ function when(iso) {
 .lp-log__when {
   @apply text-right;
   color: var(--ui-faint);
+}
+
+.lp-pager {
+  @apply flex items-center justify-end gap-sm;
+}
+
+.lp-pager__count {
+  @apply text-tiny font-medium tabular-nums;
+  color: var(--ui-muted);
+}
+
+.lp-detail {
+  @apply flex flex-col gap-md;
+}
+
+.lp-detail__row {
+  @apply flex flex-col gap-xs;
+}
+
+.lp-detail__label {
+  @apply text-tiny font-semibold uppercase tracking-wide;
+  color: var(--ui-faint);
+}
+
+.lp-detail__value {
+  @apply break-words text-base font-medium text-primary;
 }
 
 @media (max-width: 640px) {

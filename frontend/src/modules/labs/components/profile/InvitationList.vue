@@ -13,7 +13,9 @@
  * nothing about whether it still works — which is why the count of joiners is
  * its own column and «Отозвать» stays available on a link somebody has used.
  */
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   /** @type {Array<object>} rows from GET /v1/organizations/invitations */
   invitations: { type: Array, default: () => [] },
   /** invitation id being revoked, or null. */
@@ -24,9 +26,19 @@ const emit = defineEmits(['revoke'])
 
 const STATUS = {
   pending: { label: 'действует', tone: 'is-ok' },
-  revoked: { label: 'отозвано', tone: 'is-quiet' },
   expired: { label: 'истекло', tone: 'is-quiet' },
 }
+
+/**
+ * Revoked links are dropped entirely.
+ *
+ * The API keeps them — the audit trail needs them, and «кто отозвал эту
+ * ссылку» is answered on the log below. But this table is for deciding what to
+ * do about a link that is still out there, and a revoked one has nothing left
+ * to decide: it cannot be un-revoked, and it is not a door standing open.
+ * Listing it only makes the reader scan past it.
+ */
+const visible = computed(() => props.invitations.filter((invite) => invite.status !== 'revoked'))
 
 /** «через 3 ч» while it is alive; the date once it is not. */
 function expiry(invitation) {
@@ -47,13 +59,12 @@ function expiry(invitation) {
       <div class="min-w-0">
         <h2 class="lp-panel__title">Приглашения</h2>
         <p class="lp-panel__note">
-          Пока ссылка действует, войти по ней может любой, у кого она есть. Если ссылка ушла не тому
-          — отзовите её.
+          Пока ссылка действует, войти по ней может любой, у кого она есть.
         </p>
       </div>
     </header>
 
-    <p v-if="!invitations.length" class="lp-empty">Ни одного приглашения пока не выдано.</p>
+    <p v-if="!visible.length" class="lp-empty">Действующих приглашений нет.</p>
 
     <div v-else class="lp-grid" role="table">
       <div class="lp-grid__head" role="row">
@@ -64,7 +75,7 @@ function expiry(invitation) {
         <span role="columnheader" class="sr-only">Действия</span>
       </div>
 
-      <div v-for="invite in invitations" :key="invite.id" class="lp-grid__row" role="row">
+      <div v-for="invite in visible" :key="invite.id" class="lp-grid__row" role="row">
         <span class="lp-cell lp-cell--who" role="cell">
           <span class="lp-who__mail">{{ invite.email || 'Ссылка без адреса' }}</span>
           <span class="lp-who__meta">

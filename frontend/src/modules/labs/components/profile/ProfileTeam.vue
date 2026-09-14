@@ -48,9 +48,7 @@ function joined(iso) {
     <header class="lp-panel__head">
       <div class="min-w-0">
         <h2 class="lp-panel__title">Команда</h2>
-        <p class="lp-panel__note">
-          Уровень и разделы для каждого менеджера. Владелец видит всё и не настраивается.
-        </p>
+        <p class="lp-panel__note">Доступы</p>
       </div>
       <button v-if="canInvite" type="button" class="lp-btn lp-btn--primary" @click="emit('invite')">
         Пригласить менеджера
