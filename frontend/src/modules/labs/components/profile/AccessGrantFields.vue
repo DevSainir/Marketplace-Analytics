@@ -1,0 +1,144 @@
+<script setup>
+/**
+ * The grant control: one level, and a switch per module.
+ *
+ * A labs copy of the profile module's component — same props, same `update`
+ * event, same payload — restyled for the drawer it now lives in. Dumb: props
+ * in, one event out; the parent owns the saving.
+ */
+import { computed } from 'vue'
+
+import { GRANT_LEVELS, GRANT_MODULES } from '@/modules/labs/components/profile/grantModules'
+
+const props = defineProps({
+  accessLevel: { type: String, required: true },
+  modules: { type: Array, required: true },
+  disabled: { type: Boolean, default: false },
+})
+const emit = defineEmits(['update'])
+
+const enabled = computed(() => new Set(props.modules))
+
+function setLevel(value) {
+  emit('update', { accessLevel: value, modules: props.modules })
+}
+
+function toggleModule(key) {
+  const next = new Set(props.modules)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  // Emitted in GRANT_MODULES order rather than click order, so two owners who
+  // picked the same modules send the same payload.
+  emit('update', {
+    accessLevel: props.accessLevel,
+    modules: GRANT_MODULES.filter((m) => next.has(m.key)).map((m) => m.key),
+  })
+}
+</script>
+
+<template>
+  <div class="flex flex-col gap-lg">
+    <fieldset class="flex flex-col gap-sm">
+      <legend class="lp-legend">Уровень доступа</legend>
+      <div class="grid grid-cols-2 gap-sm phone:grid-cols-1">
+        <label
+          v-for="level in GRANT_LEVELS"
+          :key="level.value"
+          class="lp-level"
+          :class="[accessLevel === level.value ? 'is-on' : '', disabled ? 'is-off' : '']"
+        >
+          <input
+            type="radio"
+            class="sr-only"
+            :checked="accessLevel === level.value"
+            :disabled="disabled"
+            @change="setLevel(level.value)"
+          />
+          <span class="text-base font-semibold">{{ level.label }}</span>
+          <span class="text-tiny font-medium text-muted">{{ level.hint }}</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="flex flex-col gap-sm">
+      <legend class="lp-legend">Разделы</legend>
+      <label
+        v-for="module in GRANT_MODULES"
+        :key="module.key"
+        class="lp-module"
+        :class="disabled ? 'is-off' : ''"
+      >
+        <span class="min-w-0">
+          <span class="block truncate text-base font-medium text-primary">{{ module.label }}</span>
+          <span class="block truncate text-tiny text-muted">{{ module.hint }}</span>
+        </span>
+        <!-- A real checkbox styled as a switch: it keeps the keyboard and
+             screen-reader behaviour a div with a click handler throws away. -->
+        <span class="lp-switch" :class="enabled.has(module.key) ? 'is-on' : ''">
+          <input
+            type="checkbox"
+            class="sr-only"
+            :checked="enabled.has(module.key)"
+            :disabled="disabled"
+            @change="toggleModule(module.key)"
+          />
+          <span class="lp-switch__dot" />
+        </span>
+      </label>
+    </fieldset>
+  </div>
+</template>
+
+<style scoped>
+.lp-legend {
+  @apply text-tiny font-semibold uppercase tracking-wide;
+  color: var(--ui-faint);
+}
+
+.lp-level {
+  @apply flex cursor-pointer flex-col gap-xs rounded-input border px-md py-sm transition;
+  border-color: var(--ui-hairline);
+  color: var(--ui-ink);
+}
+
+.lp-level:hover {
+  border-color: var(--ui-action-line);
+}
+
+.lp-level.is-on {
+  border-color: var(--ui-action);
+  background: var(--ui-action-soft);
+  color: var(--ui-action);
+}
+
+.lp-module {
+  @apply flex cursor-pointer items-center justify-between gap-md rounded-input px-md py-sm transition;
+}
+
+.lp-module:hover {
+  background: var(--ui-sunk);
+}
+
+.is-off {
+  @apply cursor-not-allowed opacity-60;
+}
+
+.lp-switch {
+  @apply relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors;
+  background: var(--ui-rule);
+}
+
+.lp-switch.is-on {
+  background: var(--ui-action);
+}
+
+.lp-switch__dot {
+  @apply inline-block h-5 w-5 translate-x-0.5 rounded-full transition-transform;
+  background: #fff;
+  box-shadow: var(--ui-sh-xs);
+}
+
+.lp-switch.is-on .lp-switch__dot {
+  @apply translate-x-5;
+}
+</style>

@@ -9,4 +9,14 @@ export const labsRoutes = [
     component: () => import('@/modules/labs/views/LabMonitoringView.vue'),
     meta: { title: 'Мониторинг · Lab', requiresAuth: true, requiresInternal: true },
   },
+  {
+    // This one DOES call the API — it is the profile page relaid out, running
+    // on the real stores so the layout can be judged against real data (a
+    // fixture team of three would prove nothing about a team of one). Same
+    // internal-only gate as the rest of the labs.
+    path: '/labs/profile',
+    name: 'labs-profile',
+    component: () => import('@/modules/labs/views/LabProfileView.vue'),
+    meta: { title: 'Профиль · Lab', requiresAuth: true, requiresInternal: true },
+  },
 ]

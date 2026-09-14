@@ -1,0 +1,334 @@
+/*
+ * Shared skin for the profile sandbox.
+ *
+ * GLOBAL on purpose, like `LabMonitoringView.css`: the `lp-` classes are used
+ * by every component under `labs/components/profile/`, and duplicating a
+ * button recipe into eight scoped blocks is how two of them end up different.
+ * The prefix is the containment — nothing outside this page asks for `lp-`.
+ *
+ * Everything here consumes `ui-next` tokens, so the page changes with the
+ * design system rather than drifting from it.
+ */
+
+/* --------------------------------------------------------------------------
+ * Page frame
+ * ----------------------------------------------------------------------- */
+
+/*
+ * The whole point of the redesign: a 260px rail beside the content instead of
+ * a 672px column down the middle of a 1280px canvas. The rail sticks, so the
+ * identity, the term and the section list stay on screen while a long team
+ * list scrolls past them.
+ */
+.lp-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.lp-aside {
+  position: sticky;
+  top: 88px;
+}
+
+.lp-main {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  .lp-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .lp-aside {
+    position: static;
+  }
+
+  .lp-main {
+    gap: 32px;
+  }
+}
+
+.lp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scroll-margin-top: 88px;
+}
+
+/* --------------------------------------------------------------------------
+ * Panels and cards
+ * ----------------------------------------------------------------------- */
+
+.lp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lp-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.lp-panel__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ui-ink);
+}
+
+.lp-panel__note {
+  margin-top: 4px;
+  max-width: 52ch;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ui-muted);
+}
+
+.lp-panel__form {
+  display: flex;
+  gap: 8px;
+}
+
+.lp-empty {
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-sh-xs);
+  font-size: 0.875rem;
+  color: var(--ui-muted);
+  max-width: 60ch;
+}
+
+/* --------------------------------------------------------------------------
+ * The row grid — a table that keeps its columns on a laptop and becomes one
+ * card per record below 1024px (the phone-layout rule, applied early because
+ * five columns of email and chips run out of room long before 430px).
+ * ----------------------------------------------------------------------- */
+
+.lp-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lp-grid__head,
+.lp-grid__row {
+  display: grid;
+  align-items: center;
+  gap: 16px;
+}
+
+.lp-grid__head {
+  padding: 0 16px 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ui-faint);
+}
+
+.lp-grid__row {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-sh-xs);
+  transition: box-shadow var(--ui-fast) var(--ui-ease);
+}
+
+.lp-grid__row:hover {
+  box-shadow: var(--ui-sh-sm);
+}
+
+.lp-cell {
+  min-width: 0;
+  font-size: 0.875rem;
+  color: var(--ui-ink);
+}
+
+.lp-cell--who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lp-cell--chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lp-cell--act {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.lp-who__mail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--ui-ink);
+}
+
+.lp-who__meta {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ui-muted);
+}
+
+/* --------------------------------------------------------------------------
+ * Atoms
+ * ----------------------------------------------------------------------- */
+
+.lp-pill {
+  display: inline-block;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--ui-sunk);
+  color: var(--ui-muted);
+}
+
+.lp-pill.is-soft {
+  background: var(--ui-action-soft);
+  color: var(--ui-action);
+}
+
+.lp-pill.is-on {
+  background: var(--ui-action);
+  color: #fff;
+}
+
+.lp-pill.is-ok {
+  background: rgba(6, 122, 82, 0.1);
+  color: var(--ui-pos);
+}
+
+.lp-pill.is-warn {
+  background: rgba(194, 112, 11, 0.12);
+  color: var(--ui-warn);
+}
+
+.lp-pill.is-bad {
+  background: rgba(217, 58, 43, 0.1);
+  color: var(--ui-neg);
+}
+
+.lp-pill.is-quiet {
+  background: var(--ui-sunk);
+  color: var(--ui-muted);
+}
+
+.lp-btn {
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--ui-muted);
+  transition:
+    background var(--ui-fast) var(--ui-ease),
+    color var(--ui-fast) var(--ui-ease);
+}
+
+.lp-btn:hover:not(:disabled) {
+  background: var(--ui-sunk);
+  color: var(--ui-ink);
+}
+
+.lp-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.lp-btn--primary {
+  background: var(--ui-action);
+  color: #fff;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+}
+
+.lp-btn--primary:hover:not(:disabled) {
+  background: var(--ui-action-hover);
+  color: #fff;
+}
+
+.lp-btn--danger {
+  color: var(--ui-neg);
+}
+
+.lp-btn--danger:hover:not(:disabled) {
+  background: rgba(217, 58, 43, 0.1);
+  color: var(--ui-neg);
+}
+
+.lp-btn--danger.is-armed {
+  background: var(--ui-neg);
+  color: #fff;
+}
+
+.lp-input {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--ui-hairline);
+  background: var(--ui-surface);
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  color: var(--ui-ink);
+}
+
+.lp-input::placeholder {
+  color: var(--ui-faint);
+}
+
+.lp-input:focus {
+  outline: none;
+  border-color: var(--ui-action);
+}
+
+.lp-input:disabled {
+  opacity: 0.5;
+}
+
+/* Touch targets: the phone-layout contract is 44px, and these controls are the
+   only thing on the page a thumb has to hit. */
+@media (max-width: 430px) {
+  .lp-btn,
+  .lp-input {
+    min-height: 44px;
+  }
+
+  .lp-panel__form {
+    flex-direction: column;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Page-level notices
+ * ----------------------------------------------------------------------- */
+
+.lp-alert {
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: rgba(217, 58, 43, 0.08);
+  color: var(--ui-neg);
+}
+
+.lp-alert--soft {
+  background: var(--ui-action-soft);
+  color: var(--ui-action);
+}
