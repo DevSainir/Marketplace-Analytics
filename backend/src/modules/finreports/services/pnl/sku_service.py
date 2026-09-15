@@ -133,6 +133,8 @@ class SkuReportService:
             ad_span=ad_span,
             bonus_span=bonus_span,
             unknown_funding=unknown_funding,
+            currency=currency,
+            dropped_bonus_currencies=sorted(set(ad_bonus) - {currency}),
         )
         return PnlSkuReportResponse(
             date_from=date_from,
@@ -194,6 +196,8 @@ class SkuReportService:
         ad_span: tuple[date | None, date | None],
         bonus_span: tuple[date | None, date | None],
         unknown_funding: list[str],
+        currency: str,
+        dropped_bonus_currencies: list[str],
     ) -> list[str]:
         """Assemble the caveats that qualify the per-SKU figures."""
         notes: list[str] = []
@@ -217,6 +221,16 @@ class SkuReportService:
             notes.append(
                 f"WB списывал рекламу способом, который мы не знаем ({labels}) — "
                 "эти суммы посчитаны как деньги продавца, а не как бонусы."
+            )
+        # A bonus booked in another currency is DROPPED, never converted (an
+        # invented rate makes a plausible wrong number). Dropping it silently
+        # would be the same failure in the opposite direction, so it is named.
+        if dropped_bonus_currencies:
+            others = ", ".join(dropped_bonus_currencies)
+            notes.append(
+                f"Бонусы WB в другой валюте ({others}) не учтены — расчёт ведётся "
+                f"в {currency}, а пересчёт по курсу "
+                "дал бы правдоподобную, но неверную цифру."
             )
 
         sale_rows, with_revenue = await self._pnl.revenue_coverage(

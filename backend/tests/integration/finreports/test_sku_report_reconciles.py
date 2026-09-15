@@ -37,7 +37,12 @@ from src.modules.monitoring.contract import (
     load_ad_spend_by_nm,
     load_orders_by_nm,
 )
-from src.modules.monitoring.models import AdvertisingStatDaily, ProductCard, SalesFunnelDaily
+from src.modules.monitoring.models import (
+    AdvertisingStatDaily,
+    AdvertisingWriteOffDaily,
+    ProductCard,
+    SalesFunnelDaily,
+)
 from tests.integration.finreports.conftest import (
     COST_A,
     OTHER_WORKSPACE,
@@ -50,6 +55,9 @@ from tests.integration.finreports.conftest import (
 )
 
 pytestmark = pytest.mark.integration
+
+#: The campaign id the ``monitoring_seeded`` fixture books its ad rows under.
+_SEEDED_CAMPAIGN = 1
 
 
 async def _report(session: AsyncSession):
@@ -287,3 +295,31 @@ async def test_excluding_a_sku_shrinks_the_dashboard_but_not_the_totals(
     assert after.dashboard.payout_net == before.totals.payout_net - row_a.payout_net
     # …while the reconciled totals stay full (the invariant is untouched).
     assert after.totals.payout_net == before.totals.payout_net
+
+
+async def test_a_bonus_in_another_currency_is_dropped_and_said_so(
+    db_session: AsyncSession, monitoring_seeded: None
+) -> None:
+    """WB books write-offs in more than one currency on one account.
+
+    The rule is the cost price's (§13): an off-currency figure is dropped, never
+    converted, because an invented rate produces a plausible wrong number. This
+    pins the other half of that rule — dropping it SILENTLY would be the same
+    failure pointing the other way, so the window says what it left out.
+    """
+    db_session.add(
+        AdvertisingWriteOffDaily(
+            stat_date=WINDOW_FROM,
+            campaign_id=_SEEDED_CAMPAIGN,
+            payment_type="Кэшбэк",
+            currency="XXX",
+            amount=Decimal("500.00"),
+            write_offs=1,
+        )
+    )
+    await db_session.flush()
+
+    report = await _report(db_session)
+
+    assert all(row.ad_bonus in (None, Decimal("0")) for row in report.rows)
+    assert any("другой валюте" in note and "XXX" in note for note in report.notes)
