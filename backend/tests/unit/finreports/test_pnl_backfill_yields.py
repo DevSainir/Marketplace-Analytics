@@ -85,17 +85,41 @@ class _Gate:
         return self.shut_for
 
 
-async def test_an_open_window_still_waits_out_wb_s_published_budget(
+async def test_an_open_window_is_not_padded_with_a_second_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A zero from the bucket means "a token is free", not "ask as fast as you like".
+    """A free token means the budget allows a request; waiting is then pure loss.
 
-    The bucket hands out one token per window; asking the moment it appears is
-    correct, but the NEXT page must still be a window away.
+    This used to be floored at WB's published budget, which sounds safe and is
+    not: the bucket is what enforces the budget, and it only reports zero when
+    a token is genuinely free and has already outlived the background reserve.
+    Adding a window on top of that just idles.
+
+    What survives is a spin guard, for the case where the answer is not
+    informative at all — Redis down, `retry_after` failing open to zero.
     """
     monkeypatch.setattr(backfill, "statistics_rate_gate", lambda *_a, **_k: _Gate(0.0))
 
-    assert await backfill._next_page_delay("t") == backfill._NEXT_PAGE_SECONDS
+    assert await backfill._next_page_delay("t") == backfill._MIN_PAGE_GAP_SECONDS
+
+
+async def test_a_slow_tick_does_not_pay_for_its_own_duration_twice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bug streaming would otherwise have introduced into its own fix.
+
+    ``retry_after`` is read AFTER the page is ingested, so it already discounts
+    the time the tick spent. A 300 s streamed page leaves ~740 s of the window
+    to wait; a floor at WB's 930 s budget would make the lane wait 930 s more
+    and hand back most of what streaming just saved — and the waste would grow
+    with exactly the change meant to speed the walk up.
+    """
+    monkeypatch.setattr(backfill, "statistics_rate_gate", lambda *_a, **_k: _Gate(740.0))
+
+    delay = await backfill._next_page_delay("t")
+
+    assert delay == 740 + backfill._WAKE_MARGIN_SECONDS
+    assert delay < backfill._NEXT_PAGE_SECONDS, "the published budget outranked the bucket"
 
 
 async def test_a_block_is_waited_out_using_wb_s_own_number(
@@ -150,3 +174,36 @@ async def test_the_backfill_asks_as_a_reserving_caller(monkeypatch: pytest.Monke
     await backfill._next_page_delay("t")
 
     assert gate.reserve_seen == BACKGROUND_RESERVE_SECONDS
+
+
+def test_the_tick_may_live_long_enough_to_finish_a_streamed_page() -> None:
+    """The page size and the tick's lifetime are one decision, not two.
+
+    A streamed request carries up to `_STREAM_LIMIT` rows — ~240 MB to download,
+    parse, validate and upsert at 100 000. When that outgrows the soft limit the
+    failure is not a slow tick but a SILENT one: `SoftTimeLimitExceeded` is not
+    the `IntegrationError` the lane catches, so nothing is recorded and nothing
+    re-enqueued, which is how this lane was lost for eleven hours on 2026-09-10.
+
+    The budget below is deliberately generous — a minute per 10 000 rows against
+    a measured ~60 MB per 25 000 — because the point is not to predict the
+    duration but to make raising the page size force a look at this number.
+    """
+    from src.integrations.wildberries.clients.finance import WBFinanceClient
+
+    seconds_needed = (WBFinanceClient._STREAM_LIMIT / 10_000) * 60
+
+    assert seconds_needed <= backfill._TICK_SOFT_LIMIT_SECONDS, (
+        f"a {WBFinanceClient._STREAM_LIMIT}-row page needs ~{seconds_needed:.0f}s of "
+        f"headroom; the tick is killed at {backfill._TICK_SOFT_LIMIT_SECONDS}s"
+    )
+
+
+def test_a_hung_tick_is_still_restarted_rather_than_holding_a_slot() -> None:
+    """Raising the limit must not outrun the thing that recovers a dead lane."""
+    from datetime import timedelta
+
+    from src.modules.workspaces.models import BackfillLane
+    from src.modules.workspaces.tasks import _patience
+
+    assert timedelta(seconds=backfill._TICK_SOFT_LIMIT_SECONDS) < _patience(BackfillLane.PNL)

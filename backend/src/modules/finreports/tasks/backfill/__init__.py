@@ -64,8 +64,20 @@ from src.modules.workspaces.contract import (
 
 logger = get_logger(__name__)
 
-#: The floor on the gap between pages: WB's published budget for this endpoint.
+#: WB's published budget for this endpoint, kept as the name other modules and
+#: tests reason about. No longer a floor on the gap between pages — see
+#: :func:`_next_page_delay` for why the bucket outranks it.
 _NEXT_PAGE_SECONDS = 15 * 60 + 30
+
+#: The only floor left: a guard against spinning, not a pacing decision.
+#:
+#: The bucket enforces the budget and knows when the window reopens, so a floor
+#: above it can only ever add waiting. This exists for the one case where the
+#: bucket's answer is not informative — Redis unreachable, where `retry_after`
+#: fails open to 0.0 — so a lane cannot turn a cache outage into a tight loop
+#: against WB. The gate's own per-process fallback does the real pacing there;
+#: this only keeps the loop slow enough to be harmless.
+_MIN_PAGE_GAP_SECONDS = 30
 
 #: Added to whatever the bucket reports, so a tick wakes just AFTER the window
 #: opens rather than in the same second and losing the race to rounding.
@@ -90,19 +102,38 @@ async def _next_page_delay(token: str) -> int:
     both simpler and better informed than anything this lane can infer from
     whether its last page arrived.
 
-    Clamped at both ends: never faster than WB's published budget, never slower
-    than the watchdog's patience is sized for.
+    The bucket's number is taken as-is rather than floored at the published
+    budget, and that matters more the slower a tick is. ``retry_after`` is read
+    AFTER the page has been ingested, so it already accounts for the time the
+    tick itself spent: a 300 s streamed page leaves ~740 s of the window still
+    to wait out, and a 930 s floor would make the lane pay for its own duration
+    twice. Streaming makes ticks slow on purpose, so that waste would scale with
+    exactly the change meant to speed the walk up.
+
+    Clamped only where the number stops being informative: a spin guard below,
+    the watchdog's patience above.
     """
     gate = statistics_rate_gate(settings, token=token)
     shut_for = await gate.retry_after(SETTLEMENT_PATH, reserve_seconds=BACKGROUND_RESERVE_SECONDS)
     return min(
-        max(_NEXT_PAGE_SECONDS, int(shut_for) + _WAKE_MARGIN_SECONDS),
+        max(_MIN_PAGE_GAP_SECONDS, int(shut_for) + _WAKE_MARGIN_SECONDS),
         SETTLEMENT_PACE_CEILING_SECONDS,
     )
 
 
 #: A tick is one request plus one ingest; the limit is a hung-call backstop.
-_TICK_SOFT_LIMIT_SECONDS = 5 * 60
+#:
+#: Fifteen minutes, not five, since the page became streamed. One request now
+#: carries up to 100 000 rows — ~240 MB to download, parse incrementally,
+#: validate and upsert — where five minutes was sized for 10 000. Getting this
+#: wrong does not produce a slow tick but a silent one: `SoftTimeLimitExceeded`
+#: is not the `IntegrationError` the lane catches, so the tick would die without
+#: recording or re-enqueueing anything — precisely how this lane was lost for
+#: eleven hours on 2026-09-10.
+#:
+#: Still far below the watchdog's patience for the lane, so a tick that really
+#: has hung is restarted rather than left holding a worker slot.
+_TICK_SOFT_LIMIT_SECONDS = 15 * 60
 
 #: How long to stand aside when the forward harvest holds the settlement token.
 #:
