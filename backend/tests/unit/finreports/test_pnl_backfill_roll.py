@@ -96,7 +96,7 @@ def _answer(monkeypatch: pytest.MonkeyPatch, outcome: tuple[int, int | None] | N
     async def _page(**_kwargs: Any) -> tuple[int, int | None] | None:
         return outcome
 
-    monkeypatch.setattr(walk, "_ingest_one_page", _page)
+    monkeypatch.setattr(walk, "_ingest_one_streamed_page", _page)
 
 
 async def test_an_exhausted_span_moves_to_the_next_hole_instead_of_ending_the_lane(

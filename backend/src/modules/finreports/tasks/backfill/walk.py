@@ -24,7 +24,7 @@ from src.modules.finreports.tasks.backfill.span import (
     _roll_to_next_span,
     next_span,
 )
-from src.modules.finreports.tasks.settlement import _ingest_one_page
+from src.modules.finreports.tasks.settlement import _ingest_one_streamed_page
 from src.modules.workspaces.contract import LaneStep, WorkspaceTokenBundle
 
 logger = get_logger(__name__)
@@ -133,7 +133,10 @@ async def advance_pnl(
             message="Ждём окно Wildberries (1 запрос в 15 минут)…",
         )
 
-    outcome = await _ingest_one_page(
+    # Streamed, so one request carries up to 100 000 rows instead of 10 000.
+    # The page size is the schedule on this endpoint — four requests an hour —
+    # and decoding a whole page made it a memory question instead.
+    outcome = await _ingest_one_streamed_page(
         tokens=tokens,
         window_from=span_from,
         window_to=span_to,

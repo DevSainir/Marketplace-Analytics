@@ -244,6 +244,85 @@ async def _harvest_window(
         cursor = next_cursor
 
 
+async def _ingest_one_streamed_page(
+    *,
+    tokens: WorkspaceTokenBundle,
+    window_from: date,
+    window_to: date,
+    cursor: int,
+    build_ingestion: object,
+    gate: RateGate,
+) -> tuple[int, int | None] | None:
+    """Fetch one request's worth of settlement rows by streaming, and commit it.
+
+    Same contract as :func:`_ingest_one_page` and a different trade. That one
+    decodes the whole response, so the number of rows it may ask for is capped
+    by the worker's heap — 10 000, measured at ~125 MB. This one parses the body
+    as it arrives and ingests it in batches, so the ceiling is the batch and WB's
+    own maximum of 100 000 becomes affordable.
+
+    On an endpoint serving roughly four requests an hour that is the whole
+    schedule rather than an efficiency: NEVA's remaining backfill is 33 requests
+    at 10 000 rows and 4 at 100 000.
+
+    The ``rrd_id`` of the last row is tracked as batches go past, because the
+    walk's cursor must survive a body no caller ever held in one piece.
+
+    Returns:
+        ``(rows, next_cursor)`` with ``next_cursor`` ``None`` when this was the
+        window's last page, or ``None`` when WB withheld it.
+    """
+    total = 0
+    last_rrd_id: int | None = None
+    async with AsyncSessionLocal() as session:
+        ingestion: IngestionService = build_ingestion(session)  # type: ignore[operator]
+        try:
+            async with (
+                session.begin_nested(),
+                WBFinanceClient(
+                    settings,
+                    token=tokens.statistics,
+                    max_retries=MAX_RETRIES,
+                    rate_gate=_SpentToken(gate),
+                ) as client,
+            ):
+                stream_limit = client.stream_limit
+                async for batch in client.stream_report_rows(
+                    date_from=window_from, date_to=window_to, cursor=cursor
+                ):
+                    if not batch:
+                        continue
+                    last_rrd_id = batch[-1].rrd_id
+                    total += await ingestion.ingest_finance_report(
+                        _one_page(batch), workspace_id=tokens.workspace_id
+                    )
+                    del batch
+        except IntegrationError as exc:
+            logger.warning(
+                "finreports: settlement %s..%s failed for %s: %s",
+                window_from,
+                window_to,
+                tokens.name,
+                exc,
+            )
+            return None
+        await session.commit()
+    # Fewer rows than we asked for means WB has served the window to its end.
+    if total < stream_limit or last_rrd_id is None:
+        return total, None
+    if last_rrd_id <= cursor:
+        logger.error(
+            "finreports: settlement %s..%s for %s stalled — a full page did not "
+            "advance rrd_id past %d.",
+            window_from,
+            window_to,
+            tokens.name,
+            cursor,
+        )
+        return total, None
+    return total, last_rrd_id
+
+
 async def _ingest_one_page(
     *,
     tokens: WorkspaceTokenBundle,

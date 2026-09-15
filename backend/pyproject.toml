@@ -74,6 +74,7 @@ dependencies = [
     # processes and each would otherwise hold its own counters).
     "prometheus-client>=0.20",
     "prometheus-fastapi-instrumentator>=7.0",
+    "ijson>=3.5.1",
 ]
 
 # Development tooling. A PEP 735 dependency-group, not an optional-dependency
@@ -151,6 +152,13 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["openpyxl.*", "docx.*", "xlsxwriter.*", "xlrd.*"]
+ignore_missing_imports = true
+
+# Incremental JSON parser, used in exactly one place: streaming WB's settlement
+# report so a page's size stops deciding the worker's peak memory. Ships no
+# py.typed marker; its surface here is two calls (`sendable_list`, `items_coro`).
+[[tool.mypy.overrides]]
+module = ["ijson.*"]
 ignore_missing_imports = true
 
 # The async S3 client for A/B variant photos ships no py.typed marker. Its

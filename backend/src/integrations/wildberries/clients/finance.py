@@ -27,20 +27,35 @@ from src.integrations.wildberries.schemas import WBReportDetailRow
 class WBFinanceClient(BaseWBClient):
     """Client for the WB realization/finance report (``reportDetailByPeriod``)."""
 
-    #: Rows asked for per request. **This is a memory ceiling, not a throughput
-    #: knob.** WB allows up to 100 000, and asking for that many is what
-    #: OOM-killed the 2026-08-11 harvest: a settlement row costs ~9.7 KB while
-    #: it is being validated (measured — the raw decoded dict and the
-    #: :class:`WBReportDetailRow` coexist), so a full page is ~1 GB of transient
-    #: heap and the caller has no way to process it in smaller bites.
+    #: Rows asked for per request, for callers that decode a whole page at once.
     #:
-    #: At 10 000 a page costs ~125 MB including the undecoded response body,
-    #: and :meth:`iter_report_pages` hands it over before asking for the next —
-    #: so the peak is fixed by this constant rather than by how much the seller
-    #: sold. The price is more requests against a ~1 req/min surface (a 28-day
-    #: window of ~40 000 rows costs 5 instead of 1), which the harvest can
-    #: afford and an OOM kill is not.
+    #: **A memory ceiling, not a throughput knob.** A settlement row costs ~12.5
+    #: KB while it is being validated (measured live 2026-09-14: 25 000 rows
+    #: took a worker from 92 MB to 405 MB), because the decoded dict and the
+    #: :class:`WBReportDetailRow` coexist. WB allows 100 000, which at that rate
+    #: is ~1.25 GB of transient heap against a 768 MiB worker — and asking for
+    #: it is what OOM-killed the 2026-08-11 harvest.
+    #:
+    #: :meth:`stream_report_rows` is not bound by this. It parses the body as it
+    #: arrives, so its peak is the batch rather than the page, and it uses
+    #: :data:`_STREAM_LIMIT` instead.
     _PAGE_LIMIT = 10_000
+
+    #: Rows asked for per request when the caller streams.
+    #:
+    #: WB's documented maximum, verified live 2026-09-14 on a 25 000-row ask
+    #: that it answered in full. Worth having as its own constant because the
+    #: two numbers answer different questions: ``_PAGE_LIMIT`` is "how much can
+    #: we hold", this is "how few requests can we get away with". On an endpoint
+    #: serving ~4 requests an hour the second question is the schedule — NEVA's
+    #: remaining backfill is 33 pages at 10 000 and 4 at 100 000.
+    _STREAM_LIMIT = 100_000
+
+    #: Rows handed over at a time by :meth:`stream_report_rows`, and therefore
+    #: the real memory ceiling of a streamed walk: ~25 MB at 12.5 KB a row.
+    #: Small enough that page size stops mattering, large enough that the
+    #: per-batch transaction overhead stays irrelevant beside a WB round trip.
+    _STREAM_BATCH = 2_000
 
     #: Rows the freshness probe asks for. It only needs to know whether the
     #: window is empty, so one row is the whole answer.
@@ -136,6 +151,11 @@ class WBFinanceClient(BaseWBClient):
         if not payload:
             return None
         return WBReportDetailRow.model_validate(payload[0])
+
+    @property
+    def stream_limit(self) -> int:
+        """Rows a streamed request asks WB for — the caller's short-page test."""
+        return self._STREAM_LIMIT
 
     @property
     def page_limit(self) -> int:
@@ -260,6 +280,61 @@ class WBFinanceClient(BaseWBClient):
             previous_cursor = next_cursor
             cursor = next_cursor
             del page
+
+    async def stream_report_rows(
+        self,
+        *,
+        date_from: date,
+        date_to: date,
+        cursor: int = 0,
+        reserve_seconds: float = 0.0,
+    ) -> AsyncGenerator[list[WBReportDetailRow], None]:
+        """Stream ONE request's settlement rows in batches, never holding a page.
+
+        The endpoint's scarce resource is requests, not bytes: WB serves about
+        four an hour per token and allows 100 000 rows in each. Decoding a whole
+        page made the row count a memory problem instead, which is why the page
+        size sat at 10 000 and a walk WB would serve in four requests took
+        thirty-three. Parsing the body as it arrives moves the ceiling from the
+        page to the batch, so the request count can drop by an order of
+        magnitude without the heap noticing.
+
+        One request, not a walk. The caller keeps the ``rrdid`` cursor and
+        decides whether to ask again, because between pages is where it commits
+        a transaction and re-reads its own coverage — and a generator owning
+        that loop cannot express it.
+
+        Args:
+            date_from: Inclusive settlement-date window start.
+            date_to: Inclusive settlement-date window end.
+            cursor: ``rrdid`` to page from; 0 for the first page. Exclusive, so
+                a row is returned exactly once across a walk.
+            reserve_seconds: Non-zero marks this as background work that yields
+                its window to anything a person is waiting on.
+
+        Yields:
+            Batches of at most :data:`_STREAM_BATCH` validated rows, in WB's own
+            ``rrd_id`` order.
+
+        Raises:
+            IntegrationError: On a refused gate, an exhausted retry ladder, a
+                malformed body, or an unexpected row shape.
+        """
+        async for raw in self._stream_json_items(
+            "GET",
+            SETTLEMENT_REPORT_PATH,
+            params={
+                "dateFrom": date_from.isoformat(),
+                "dateTo": date_to.isoformat(),
+                "rrdid": cursor,
+                "limit": self._STREAM_LIMIT,
+            },
+            batch_size=self._STREAM_BATCH,
+            reserve_seconds=reserve_seconds,
+        ):
+            # Drained the same way a decoded page is: the raw dicts and the
+            # models must not both exist for the whole batch.
+            yield _validate_draining(raw)
 
 
 def _validate_draining(payload: list[object]) -> list[WBReportDetailRow]:
