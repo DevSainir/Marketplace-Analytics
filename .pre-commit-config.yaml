@@ -20,7 +20,13 @@ repos:
       - id: end-of-file-fixer
       - id: check-merge-conflict
       - id: mixed-line-ending
+      # Датапак финмодели — 1 МБ измеренных цифр за окно P&L, уже минифицированный
+      # и колоночный. Страница /labs/finmodel читает его запросом из public/, так
+      # что в бандл он не попадает, но лежать обязан в репозитории: без него
+      # страница пустая. Исключение точечное — планка в 500 КБ остаётся для всего
+      # остального.
       - id: check-added-large-files
+        exclude: ^frontend/public/labs/finmodel/datapack\.json$
       - id: check-yaml
       - id: check-toml
       - id: detect-private-key

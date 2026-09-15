@@ -9,4 +9,13 @@ export const labsRoutes = [
     component: () => import('@/modules/labs/views/LabMonitoringView.vue'),
     meta: { title: 'Мониторинг · Lab', requiresAuth: true, requiresInternal: true },
   },
+  {
+    // Статический датапак, ни одного вызова нашего API — но цифры в нём
+    // настоящие, поэтому страница закрыта теми же двумя условиями, что и
+    // соседняя: свой сеанс и свой человек.
+    path: '/labs/finmodel',
+    name: 'labs-finmodel',
+    component: () => import('@/modules/labs/views/LabFinmodelView.vue'),
+    meta: { title: 'Финмодель · Lab', requiresAuth: true, requiresInternal: true },
+  },
 ]

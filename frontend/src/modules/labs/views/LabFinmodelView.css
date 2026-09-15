@@ -1,0 +1,849 @@
+/* Финмодель — самостоятельное оформление страницы.
+ *
+ * Стили пришли вместе с одностраничником и намеренно не тронуты по существу:
+ * это песочница labs, где второй набор токенов разрешён. Изменено ровно три
+ * вещи, и каждая — вынужденная:
+ *
+ *   1. Каждый селектор заперт под `.finmodel`. Страница рисует таблицы и
+ *      графики через innerHTML, поэтому `scoped` ей не подходит — атрибут
+ *      области видимости на такие узлы не попадает, — а голые `table`,
+ *      `thead th` и `body` из глобального файла утекли бы на весь SPA.
+ *   2. Тёмной темы нет. Приложение светлое; оболочка вокруг страницы осталась
+ *      бы светлой, и тёмная страница читалась бы как сбой, а не как тема.
+ *   3. Шрифты — наш Inter Tight вместо IBM Plex. CSP не пускает
+ *      fonts.googleapis.com (см. docker/snippets/security-headers.conf), а
+ *      своего IBM Plex у нас нет.
+ */
+
+.finmodel {
+  color-scheme: light;
+  --ground: #f6f5f1;
+  --surface: #ffffff;
+  --surface-2: #eeece6;
+  --surface-3: #e5e2d9;
+  --ink: #171613;
+  --ink-2: #57544c;
+  --ink-3: #8b8779;
+  --hairline: #dedbd1;
+  --hairline-2: #c9c5b8;
+  --accent: #1d4e6b;
+  --accent-soft: #dbe8ef;
+  --good: #1f7a4d;
+  --good-soft: #dcefe3;
+  --warn: #9a6512;
+  --warn-soft: #f6ecd6;
+  --crit: #b23429;
+  --crit-soft: #f7e0dc;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --grid: #e8e5dc;
+  --shadow: 0 1px 2px rgba(23, 22, 19, 0.05), 0 6px 18px -10px rgba(23, 22, 19, 0.18);
+
+  --f-display: 'Inter Tight', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --f-sans: 'Inter Tight', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --f-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+.finmodel,
+.finmodel * {
+  box-sizing: border-box;
+}
+.finmodel {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--f-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+/* Боковые отступы уважают вырез экрана: viewport-fit=cover отдаёт нам всю
+   матрицу, и без env() первый столбец таблицы уезжает под скругление. */
+.finmodel .wrap {
+  max-width: 1380px;
+  margin: 0 auto;
+  padding: 0 max(24px, env(safe-area-inset-right)) 72px max(24px, env(safe-area-inset-left));
+}
+
+/* ── шапка ─────────────────────────────────────────────────────────── */
+.finmodel .masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 34px 0 22px;
+  border-bottom: 2px solid var(--ink);
+}
+.finmodel .masthead h1 {
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: 30px;
+  margin: 0;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+.finmodel .masthead .sub {
+  color: var(--ink-2);
+  font-size: 13px;
+  margin-top: 4px;
+}
+.finmodel .stamp {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  text-align: right;
+  line-height: 1.7;
+  white-space: nowrap;
+}
+.finmodel .stamp b {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+/* ── панель управления ─────────────────────────────────────────────── */
+.finmodel .controls {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: color-mix(in srgb, var(--ground) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--hairline);
+  padding: 12px 0;
+  margin-bottom: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+.finmodel .ctl-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.finmodel .ctl-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+.finmodel input[type='date'],
+.finmodel input[type='number'],
+.finmodel select {
+  font-family: var(--f-mono);
+  font-size: 12.5px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--hairline-2);
+  border-radius: 4px;
+  padding: 5px 7px;
+}
+.finmodel input[type='number'] {
+  text-align: right;
+}
+.finmodel input:focus-visible,
+.finmodel select:focus-visible,
+.finmodel button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.finmodel .chips {
+  display: flex;
+  gap: 4px;
+}
+.finmodel .chip {
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink-2);
+  border: 1px solid var(--hairline-2);
+  border-radius: 4px;
+  padding: 5px 10px;
+}
+.finmodel .chip:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.finmodel .chip[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+  font-weight: 500;
+}
+.finmodel .spacer {
+  flex: 1 1 auto;
+}
+.finmodel .filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.finmodel input[type='search'] {
+  font-family: var(--f-sans);
+  font-size: 13px;
+  min-width: 250px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--hairline-2);
+  border-radius: 4px;
+  padding: 6px 9px;
+}
+.finmodel input[type='search']::placeholder {
+  color: var(--ink-3);
+}
+.finmodel .filterbar select {
+  font-family: var(--f-sans);
+  font-size: 13px;
+  padding: 6px 8px;
+}
+.finmodel .pinnote {
+  font-size: 12px;
+  color: var(--ink-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.finmodel .pinbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  cursor: pointer;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--ink-3);
+  border-radius: 4px;
+  transition:
+    color 0.12s,
+    background 0.12s,
+    transform 0.12s;
+}
+.finmodel .pinbtn svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+/* незакреплённая булавка лежит боком — так видно, что она ещё не воткнута */
+.finmodel .pinbtn:not(.on) svg {
+  transform: rotate(32deg);
+  opacity: 0.75;
+}
+.finmodel .pinbtn:hover {
+  color: var(--ink);
+  background: var(--surface-3);
+}
+.finmodel .pinbtn:hover:not(.on) svg {
+  opacity: 1;
+  transform: rotate(12deg);
+}
+.finmodel .pinbtn.on {
+  color: var(--warn);
+}
+.finmodel tbody tr:has(.pinbtn.on) td {
+  background: var(--warn-soft);
+}
+.finmodel tbody tr:has(.pinbtn.on):hover td {
+  background: var(--surface-3);
+}
+.finmodel .savestate {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* ── вкладки ───────────────────────────────────────────────────────── */
+.finmodel .tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--hairline);
+  margin: 18px 0 0;
+  overflow-x: auto;
+}
+.finmodel .tab {
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-3);
+  padding: 9px 14px;
+  white-space: nowrap;
+}
+.finmodel .tab:hover {
+  color: var(--ink);
+}
+.finmodel .tab[aria-selected='true'] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+.finmodel .panel {
+  padding-top: 22px;
+}
+.finmodel .panel[hidden] {
+  display: none !important;
+}
+
+/* ── заголовки секций ──────────────────────────────────────────────── */
+.finmodel .sec {
+  margin: 0 0 12px;
+}
+.finmodel .sec h2 {
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: 17px;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.finmodel .sec p {
+  margin: 3px 0 0;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  max-width: 68ch;
+}
+.finmodel .stack {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+/* ── KPI ───────────────────────────────────────────────────────────── */
+.finmodel .kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--hairline);
+  border: 1px solid var(--hairline);
+}
+@media (max-width: 900px) {
+  .finmodel .kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.finmodel .kpi {
+  background: var(--surface);
+  padding: 13px 15px 14px;
+}
+.finmodel .kpi .k {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+.finmodel .kpi .v {
+  font-family: var(--f-mono);
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin-top: 5px;
+  font-variant-numeric: tabular-nums;
+}
+.finmodel .kpi .n {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+.finmodel .kpi.lead {
+  background: var(--surface-2);
+}
+.finmodel .v.neg {
+  color: var(--crit);
+}
+
+/* ── таблицы ───────────────────────────────────────────────────────── */
+.finmodel .tscroll {
+  overflow-x: auto;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+}
+.finmodel table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+}
+.finmodel thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  text-align: right;
+  padding: 8px 10px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--hairline-2);
+}
+.finmodel thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.finmodel thead th.sortable:hover {
+  color: var(--ink);
+}
+.finmodel thead th.up::after {
+  content: ' ▲';
+  font-size: 8px;
+}
+.finmodel thead th.down::after {
+  content: ' ▼';
+  font-size: 8px;
+}
+.finmodel th.l,
+.finmodel td.l {
+  text-align: left;
+}
+.finmodel tbody td {
+  padding: 7px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--hairline);
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.finmodel tbody td.l {
+  font-family: var(--f-sans);
+}
+.finmodel tbody tr:hover td {
+  background: var(--surface-2);
+}
+.finmodel tbody tr:last-child td {
+  border-bottom: none;
+}
+.finmodel tfoot td {
+  padding: 9px 10px;
+  text-align: right;
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface-3);
+  border-top: 1px solid var(--hairline-2);
+  white-space: nowrap;
+}
+.finmodel tfoot td.l {
+  font-family: var(--f-sans);
+  text-align: left;
+}
+.finmodel .code {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  font-weight: 500;
+}
+.finmodel .muted {
+  color: var(--ink-3);
+}
+.finmodel td.neg,
+.finmodel .neg {
+  color: var(--crit);
+}
+.finmodel td.pos {
+  color: var(--good);
+}
+/* ── закреплённый первый столбец: артикул не уезжает при горизонтальном свайпе ── */
+.finmodel .tscroll th:first-child,
+.finmodel .tscroll td:first-child {
+  position: sticky;
+  left: 0;
+  box-shadow: 1px 0 0 var(--hairline-2);
+}
+.finmodel .tscroll tbody td:first-child {
+  background: var(--surface);
+  z-index: 1;
+}
+.finmodel .tscroll thead th:first-child {
+  top: 0;
+  z-index: 4;
+  background: var(--surface-2);
+}
+.finmodel .tscroll tfoot td:first-child {
+  background: var(--surface-3);
+  z-index: 1;
+}
+.finmodel .tscroll tbody tr:hover td:first-child {
+  background: var(--surface-2);
+}
+.finmodel .tscroll tbody tr:has(.pinbtn.on) td:first-child {
+  background: var(--warn-soft);
+}
+.finmodel .tscroll tbody tr:has(.pinbtn.on):hover td:first-child {
+  background: var(--surface-3);
+}
+.finmodel .cellpin {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.finmodel table input[type='number'] {
+  width: 68px;
+  padding: 3px 5px;
+  font-size: 12px;
+  background: var(--surface-2);
+  border-color: var(--hairline-2);
+}
+.finmodel table input[type='number']:hover {
+  background: var(--surface-3);
+}
+
+/* ── раскрытие размеров внутри артикула ────────────────────────────── */
+.finmodel .expbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  cursor: pointer;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--ink-3);
+  border-radius: 4px;
+  transition:
+    color 0.12s,
+    background 0.12s;
+}
+.finmodel .expbtn svg {
+  width: 11px;
+  height: 11px;
+  display: block;
+  transition: transform 0.16s ease;
+}
+.finmodel .expbtn:hover {
+  color: var(--ink);
+  background: var(--surface-3);
+}
+.finmodel .expbtn[aria-expanded='true'] {
+  color: var(--accent);
+}
+.finmodel .expbtn[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+.finmodel .expbtn.empty {
+  cursor: default;
+}
+.finmodel tr.subrow:hover td {
+  background: var(--surface-2);
+}
+.finmodel tr.subrow > td {
+  padding: 0;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--hairline-2);
+  position: static;
+  box-shadow: none;
+}
+.finmodel .subwrap {
+  padding: 12px 14px 14px;
+}
+.finmodel .subwrap .subhead {
+  margin-bottom: 7px;
+}
+.finmodel .tscroll.sub {
+  border-color: var(--hairline-2);
+}
+.finmodel .tscroll.sub table {
+  font-size: 12px;
+}
+.finmodel .tscroll.sub thead th {
+  background: var(--surface-3);
+}
+.finmodel .tscroll.sub tbody td {
+  padding: 5px 9px;
+}
+.finmodel .tscroll.sub tbody td:first-child,
+.finmodel .tscroll.sub tfoot td:first-child {
+  background: var(--surface);
+}
+.finmodel .tscroll.sub tbody tr:hover td:first-child {
+  background: var(--surface-2);
+}
+.finmodel .tscroll.sub tfoot td {
+  padding: 6px 9px;
+}
+
+.finmodel tr.morerow td {
+  padding: 9px 10px;
+  text-align: center;
+  background: var(--surface-2);
+  border-bottom: none;
+}
+.finmodel tr.morerow td {
+  position: static;
+  box-shadow: none;
+}
+
+/* ── бейджи ────────────────────────────────────────────────────────── */
+.finmodel .badge {
+  display: inline-block;
+  font-family: var(--f-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1.5px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+.finmodel .b-crit {
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+.finmodel .b-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.finmodel .b-good {
+  background: var(--good-soft);
+  color: var(--good);
+}
+.finmodel .b-mute {
+  background: var(--surface-3);
+  color: var(--ink-3);
+}
+
+/* ── графики ───────────────────────────────────────────────────────── */
+.finmodel .card {
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  padding: 16px 18px 12px;
+}
+.finmodel .card h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.finmodel .card .hint {
+  margin: 2px 0 10px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.finmodel .legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.finmodel .legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.finmodel .swatch {
+  width: 11px;
+  height: 3px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.finmodel .swatch.sq {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.finmodel .chartbox {
+  position: relative;
+}
+.finmodel svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.finmodel svg text {
+  font-family: var(--f-mono);
+  font-size: 9.5px;
+  fill: var(--ink-3);
+}
+.finmodel svg text.lbl {
+  font-family: var(--f-sans);
+  fill: var(--ink-2);
+}
+.finmodel .tip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.09s;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--hairline-2);
+  box-shadow: var(--shadow);
+  border-radius: 5px;
+  padding: 7px 9px;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.finmodel .tip .th {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  margin-bottom: 3px;
+}
+.finmodel .tip .tr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: space-between;
+}
+.finmodel .tip .tr + .tr {
+  margin-top: 2px;
+}
+.finmodel .hitbar {
+  cursor: crosshair;
+}
+.finmodel .hitbar:hover {
+  filter: brightness(1.15);
+}
+.finmodel .tip .tv {
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+}
+.finmodel .grid2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 18px;
+}
+
+/* ── полосы с накоплением ──────────────────────────────────────────── */
+.finmodel .stacks {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 4px;
+}
+.finmodel .stackrow {
+  display: grid;
+  grid-template-columns: 130px 1fr 132px;
+  align-items: center;
+  gap: 10px;
+}
+.finmodel .stacklab {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.finmodel .stackbar {
+  display: flex;
+  height: 14px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+.finmodel .stackbar span {
+  display: block;
+  height: 100%;
+}
+.finmodel .stackval {
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .finmodel .stackrow {
+    grid-template-columns: 92px 1fr 84px;
+  }
+}
+
+/* ── заметки ───────────────────────────────────────────────────────── */
+.finmodel .note {
+  border-left: 2px solid var(--hairline-2);
+  padding: 2px 0 2px 13px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  max-width: 74ch;
+}
+.finmodel .note b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.finmodel .note.flag {
+  border-left-color: var(--warn);
+}
+.finmodel ul.notes {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+.finmodel ul.notes li {
+  margin-bottom: 5px;
+  max-width: 74ch;
+}
+.finmodel .subhead {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ink-3);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.finmodel .assump {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px 22px;
+}
+.finmodel .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.finmodel .field label {
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.finmodel .field .why {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.finmodel .btn {
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 5px 11px;
+  background: var(--surface);
+  color: var(--ink-2);
+  border: 1px solid var(--hairline-2);
+  border-radius: 4px;
+}
+.finmodel .btn:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.finmodel .loading {
+  padding: 60px 0;
+  text-align: center;
+  color: var(--ink-3);
+  font-family: var(--f-mono);
+}
+@media (prefers-reduced-motion: reduce) {
+  .finmodel,
+  .finmodel * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+@media (max-width: 640px) {
+  .finmodel .wrap {
+    padding: 0 max(14px, env(safe-area-inset-right)) 56px max(14px, env(safe-area-inset-left));
+  }
+  .finmodel .masthead h1 {
+    font-size: 23px;
+  }
+  .finmodel .stamp {
+    text-align: left;
+  }
+}
