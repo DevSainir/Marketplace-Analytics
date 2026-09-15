@@ -18,7 +18,11 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.monitoring.contract import ad_bonus_unknown_types, load_ad_bonus_by_nm
+from src.modules.monitoring.contract import (
+    ad_bonus_currencies,
+    ad_bonus_unknown_types,
+    load_ad_bonus_by_nm,
+)
 from src.modules.monitoring.models import (
     AdvertisingStatDaily,
     AdvertisingWriteOffDaily,
@@ -103,7 +107,7 @@ async def _write_off(
     await session.flush()
 
 
-async def _load(session: AsyncSession, workspace: Workspace) -> dict[str, dict[int, Decimal]]:
+async def _load(session: AsyncSession, workspace: Workspace) -> dict[int, Decimal]:
     """Run the loader over the standard window."""
     return await load_ad_bonus_by_nm(
         session, workspace_id=workspace.id, date_from=WINDOW_FROM, date_to=WINDOW_TO
@@ -121,9 +125,7 @@ async def test_the_bonus_splits_across_a_campaigns_skus_by_their_spend(
     await _spend(db_session, ALSO_MINE, "250")
     await _write_off(db_session, "400")
 
-    assert await _load(db_session, mine) == {
-        "KGS": {MINE: Decimal("300"), ALSO_MINE: Decimal("100")}
-    }
+    assert await _load(db_session, mine) == {MINE: Decimal("300"), ALSO_MINE: Decimal("100")}
 
 
 async def test_only_the_bonus_funding_types_are_deducted(db_session: AsyncSession) -> None:
@@ -138,7 +140,7 @@ async def test_only_the_bonus_funding_types_are_deducted(db_session: AsyncSessio
     await _write_off(db_session, "600", payment_type="Баланс")
     await _write_off(db_session, "150", payment_type="Кэшбэк")
 
-    assert await _load(db_session, mine) == {"KGS": {MINE: Decimal("150")}}
+    assert await _load(db_session, mine) == {MINE: Decimal("150")}
 
 
 async def test_an_unknown_funding_label_is_treated_as_the_sellers_money(
@@ -160,13 +162,16 @@ async def test_an_unknown_funding_label_is_treated_as_the_sellers_money(
     ) == ["Промо-баллы"]
 
 
-async def test_currencies_are_returned_apart_and_never_converted(
+async def test_a_relabelled_currency_still_reaches_the_spend_it_came_off(
     db_session: AsyncSession,
 ) -> None:
-    """WB books both RUB and KGS on one account inside one window.
+    """WB relabelled the advertising account RUB -> KGS on 2026-08-20.
 
-    The caller takes the bucket its settlement is denominated in; converting at
-    an invented rate would produce a plausible wrong number.
+    The amounts did not change with the label — `upd` agrees with `fullstats`
+    at 90-100 % per campaign on BOTH sides of it — because both come from the
+    same advertising account. Filtering the ledger by the SETTLEMENT currency
+    was this loader's first shape and it dropped 402 022 of real bonuses for
+    every window spanning the relabel.
     """
     mine = await _workspace(db_session, "Мой")
     await _sku(db_session, mine, MINE)
@@ -174,10 +179,10 @@ async def test_currencies_are_returned_apart_and_never_converted(
     await _write_off(db_session, "300", currency="KGS")
     await _write_off(db_session, "50", currency="RUB")
 
-    assert await _load(db_session, mine) == {
-        "KGS": {MINE: Decimal("300")},
-        "RUB": {MINE: Decimal("50")},
-    }
+    assert await _load(db_session, mine) == {MINE: Decimal("350")}
+    assert await ad_bonus_currencies(
+        db_session, workspace_id=mine.id, date_from=WINDOW_FROM, date_to=WINDOW_TO
+    ) == ["KGS", "RUB"]
 
 
 async def test_a_bonus_never_exceeds_the_spend_it_belongs_to(db_session: AsyncSession) -> None:
@@ -190,7 +195,7 @@ async def test_a_bonus_never_exceeds_the_spend_it_belongs_to(db_session: AsyncSe
     await _spend(db_session, MINE, "100")
     await _write_off(db_session, "900")
 
-    assert await _load(db_session, mine) == {"KGS": {MINE: Decimal("100")}}
+    assert await _load(db_session, mine) == {MINE: Decimal("100")}
 
 
 async def test_a_bonus_never_crosses_from_one_campaign_to_another(
@@ -204,7 +209,7 @@ async def test_a_bonus_never_crosses_from_one_campaign_to_another(
     await _spend(db_session, ALSO_MINE, "1000", campaign_id=97455887)
     await _write_off(db_session, "400", campaign_id=CAMPAIGN)
 
-    assert await _load(db_session, mine) == {"KGS": {MINE: Decimal("400")}}
+    assert await _load(db_session, mine) == {MINE: Decimal("400")}
 
 
 async def test_another_tenants_share_is_dropped_not_redistributed(
@@ -224,7 +229,7 @@ async def test_another_tenants_share_is_dropped_not_redistributed(
     await _spend(db_session, THEIRS, "500")
     await _write_off(db_session, "400")
 
-    assert await _load(db_session, mine) == {"KGS": {MINE: Decimal("200")}}
+    assert await _load(db_session, mine) == {MINE: Decimal("200")}
 
 
 async def test_a_bonus_for_a_campaign_with_no_spend_rows_is_dropped(

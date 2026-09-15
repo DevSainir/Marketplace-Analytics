@@ -35,6 +35,7 @@ from src.modules.finreports.schemas import (
 )
 from src.modules.monitoring.contract import (
     ad_bonus_coverage,
+    ad_bonus_currencies,
     ad_bonus_unknown_types,
     ad_coverage,
     funnel_coverage,
@@ -152,6 +153,9 @@ async def get_pnl_by_sku(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
         bonus_span=await ad_bonus_coverage(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        bonus_currencies=await ad_bonus_currencies(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
         unknown_funding=await ad_bonus_unknown_types(
@@ -292,6 +296,9 @@ async def export_cost_prices(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
         bonus_span=await ad_bonus_coverage(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        bonus_currencies=await ad_bonus_currencies(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
         unknown_funding=await ad_bonus_unknown_types(

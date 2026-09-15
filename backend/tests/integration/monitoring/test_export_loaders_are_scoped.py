@@ -320,4 +320,4 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     # Bumping this number is the deliberate step that says a new cross-module
     # loader was reviewed for tenancy, which the four unscoped loaders of August
     # never were.
-    assert len(scoped) == 15, f"expected 15 scoped loaders, found {sorted(scoped)}"
+    assert len(scoped) == 16, f"expected 16 scoped loaders, found {sorted(scoped)}"

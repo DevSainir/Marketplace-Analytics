@@ -61,8 +61,9 @@ class SkuReportService:
         date_to: date,
         orders: dict[int, int],
         ad_spend: dict[int, Decimal],
-        ad_bonus: dict[str, dict[int, Decimal]],
+        ad_bonus: dict[int, Decimal],
         bonus_span: tuple[date | None, date | None],
+        bonus_currencies: list[str],
         unknown_funding: list[str],
         funnel_span: tuple[date | None, date | None],
         ad_span: tuple[date | None, date | None],
@@ -76,11 +77,11 @@ class SkuReportService:
             date_to: Inclusive settlement-date end.
             orders: Funnel orders per ``nm_id`` (router-resolved).
             ad_spend: Promotion-API spend per ``nm_id`` (router-resolved).
-            ad_bonus: WB-funded share of that spend, ``{currency: {nm_id: …}}``
-                (router-resolved). Keyed by currency because WB books
-                write-offs in more than one inside a single window; this
-                service takes the bucket matching the settlement and lets
-                the rest fall away rather than converting them.
+            ad_bonus: WB-funded share of that spend per ``nm_id``
+                (router-resolved). In the advertising account's own unit,
+                the same one ``ad_spend`` is in — never the settlement's.
+            bonus_currencies: The currency labels WB put on this window's bonus
+                write-offs; more than one is a caveat, not an error.
             bonus_span: ``(first, last)`` write-off day on record in the
                 window. Empty means the ledger was never harvested for this
                 period, so the bonus column reports ``None``, not zero.
@@ -116,7 +117,7 @@ class SkuReportService:
             costs=await self._costs.costs_by_nm_id(workspace_id=workspace_id, currency=currency),
             orders=orders if funnel_span[0] is not None else None,
             ad_spend=ad_spend if ad_span[0] is not None else None,
-            ad_bonus=ad_bonus.get(currency, {}) if bonus_span[0] is not None else None,
+            ad_bonus=ad_bonus if bonus_span[0] is not None else None,
             penalties=await self._pnl.sku_penalties(
                 workspace_id=workspace_id, date_from=date_from, date_to=date_to
             ),
@@ -133,8 +134,7 @@ class SkuReportService:
             ad_span=ad_span,
             bonus_span=bonus_span,
             unknown_funding=unknown_funding,
-            currency=currency,
-            dropped_bonus_currencies=sorted(set(ad_bonus) - {currency}),
+            bonus_currencies=bonus_currencies,
         )
         return PnlSkuReportResponse(
             date_from=date_from,
@@ -155,8 +155,9 @@ class SkuReportService:
         date_to: date,
         orders: dict[int, int],
         ad_spend: dict[int, Decimal],
-        ad_bonus: dict[str, dict[int, Decimal]],
+        ad_bonus: dict[int, Decimal],
         bonus_span: tuple[date | None, date | None],
+        bonus_currencies: list[str],
         unknown_funding: list[str],
         funnel_span: tuple[date | None, date | None],
         ad_span: tuple[date | None, date | None],
@@ -179,6 +180,7 @@ class SkuReportService:
             ad_spend=ad_spend,
             ad_bonus=ad_bonus,
             bonus_span=bonus_span,
+            bonus_currencies=bonus_currencies,
             unknown_funding=unknown_funding,
             funnel_span=funnel_span,
             ad_span=ad_span,
@@ -196,8 +198,7 @@ class SkuReportService:
         ad_span: tuple[date | None, date | None],
         bonus_span: tuple[date | None, date | None],
         unknown_funding: list[str],
-        currency: str,
-        dropped_bonus_currencies: list[str],
+        bonus_currencies: list[str],
     ) -> list[str]:
         """Assemble the caveats that qualify the per-SKU figures."""
         notes: list[str] = []
@@ -222,15 +223,16 @@ class SkuReportService:
                 f"WB списывал рекламу способом, который мы не знаем ({labels}) — "
                 "эти суммы посчитаны как деньги продавца, а не как бонусы."
             )
-        # A bonus booked in another currency is DROPPED, never converted (an
-        # invented rate makes a plausible wrong number). Dropping it silently
-        # would be the same failure in the opposite direction, so it is named.
-        if dropped_bonus_currencies:
-            others = ", ".join(dropped_bonus_currencies)
+        # The bonus is netted against the spend it came off, and both are in
+        # the advertising account's unit. More than one label in one window
+        # means WB relabelled the account mid-period (RUB -> KGS on 2026-08-20)
+        # — or, indistinguishably from outside, billed in two. Saying so beats
+        # implying a certainty we do not have.
+        if len(bonus_currencies) > 1:
+            labels = ", ".join(bonus_currencies)
             notes.append(
-                f"Бонусы WB в другой валюте ({others}) не учтены — расчёт ведётся "
-                f"в {currency}, а пересчёт по курсу "
-                "дал бы правдоподобную, но неверную цифру."
+                f"WB помечал списания рекламы разной валютой в этом периоде ({labels}); "
+                "«Бонусы» просуммированы как есть — суммы WB при смене пометки не менял."
             )
 
         sale_rows, with_revenue = await self._pnl.revenue_coverage(

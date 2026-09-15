@@ -30,6 +30,7 @@ from src.modules.finreports.services.pnl import SkuReportService
 from src.modules.finreports.services.pnl.sku_report import UNALLOCATED_NAME
 from src.modules.monitoring.contract import (
     ad_bonus_coverage,
+    ad_bonus_currencies,
     ad_bonus_unknown_types,
     ad_coverage,
     funnel_coverage,
@@ -87,6 +88,9 @@ async def _report(session: AsyncSession):
             session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
         ),
         bonus_span=await ad_bonus_coverage(
+            session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+        ),
+        bonus_currencies=await ad_bonus_currencies(
             session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
         ),
         unknown_funding=await ad_bonus_unknown_types(
@@ -297,29 +301,38 @@ async def test_excluding_a_sku_shrinks_the_dashboard_but_not_the_totals(
     assert after.totals.payout_net == before.totals.payout_net
 
 
-async def test_a_bonus_in_another_currency_is_dropped_and_said_so(
-    db_session: AsyncSession, monitoring_seeded: None
+async def test_a_window_spanning_wbs_currency_relabel_says_so(
+    db_session: AsyncSession, seeded: None, monitoring_seeded: None
 ) -> None:
-    """WB books write-offs in more than one currency on one account.
+    """WB relabelled the advertising account RUB -> KGS on 2026-08-20.
 
-    The rule is the cost price's (§13): an off-currency figure is dropped, never
-    converted, because an invented rate produces a plausible wrong number. This
-    pins the other half of that rule — dropping it SILENTLY would be the same
-    failure pointing the other way, so the window says what it left out.
+    The bonus is netted against the spend it came off — both are the advertising
+    account's own unit — so a relabel must not cost the seller the deduction.
+    It does mean the window sums two labels, and the report says which.
     """
-    db_session.add(
-        AdvertisingWriteOffDaily(
-            stat_date=WINDOW_FROM,
-            campaign_id=_SEEDED_CAMPAIGN,
-            payment_type="Кэшбэк",
-            currency="XXX",
-            amount=Decimal("500.00"),
-            write_offs=1,
-        )
+    db_session.add_all(
+        [
+            AdvertisingWriteOffDaily(
+                stat_date=WINDOW_FROM,
+                campaign_id=_SEEDED_CAMPAIGN,
+                payment_type="Кэшбэк",
+                currency="XXX",
+                amount=Decimal("300.00"),
+                write_offs=1,
+            ),
+            AdvertisingWriteOffDaily(
+                stat_date=WINDOW_TO,
+                campaign_id=_SEEDED_CAMPAIGN,
+                payment_type="Кэшбэк",
+                currency="KGS",
+                amount=Decimal("200.00"),
+                write_offs=1,
+            ),
+        ]
     )
     await db_session.flush()
 
     report = await _report(db_session)
 
-    assert all(row.ad_bonus in (None, Decimal("0")) for row in report.rows)
-    assert any("другой валюте" in note and "XXX" in note for note in report.notes)
+    assert any(row.ad_bonus for row in report.rows)
+    assert any("разной валютой" in note and "XXX" in note for note in report.notes)

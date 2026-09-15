@@ -100,11 +100,14 @@ def _wire(
     async def _span(session: Any, **_kw: Any) -> tuple[date, date]:
         return (date(2024, 1, 1), date(2026, 1, 1))
 
-    async def _bonus(session: Any, **_kw: Any) -> dict[str, dict[int, Decimal]]:
+    async def _bonus(session: Any, **_kw: Any) -> dict[int, Decimal]:
         return {}
 
     async def _unknown_funding(session: Any, **_kw: Any) -> list[str]:
         return []
+
+    async def _bonus_currencies(session: Any, **_kw: Any) -> list[str]:
+        return ["KGS"]
 
     monkeypatch.setattr("src.modules.finreports.routers.pnl.load_orders_by_nm", _orders)
     monkeypatch.setattr("src.modules.finreports.routers.pnl.load_ad_spend_by_nm", _ads)
@@ -115,6 +118,7 @@ def _wire(
     monkeypatch.setattr(
         "src.modules.finreports.routers.pnl.ad_bonus_unknown_types", _unknown_funding
     )
+    monkeypatch.setattr("src.modules.finreports.routers.pnl.ad_bonus_currencies", _bonus_currencies)
 
 
 @pytest.fixture

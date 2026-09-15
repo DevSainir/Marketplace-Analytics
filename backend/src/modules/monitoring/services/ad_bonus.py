@@ -44,7 +44,7 @@ async def load_ad_bonus_by_nm(
     workspace_id: uuid.UUID,
     date_from: date,
     date_to: date,
-) -> dict[str, dict[int, Decimal]]:
+) -> dict[int, Decimal]:
     """Return the WB-funded share of each SKU's advertising, as a POSITIVE magnitude.
 
     WB pays part of a seller's advertising out of a bonus pool («Кэшбэк», up to
@@ -68,11 +68,16 @@ async def load_ad_bonus_by_nm(
     * **Clamped at the campaign's own spend.** A write-off dated just inside the
       window whose impressions fell just outside it could otherwise make the
       bonus exceed the spend and print a negative advertising cost.
-    * **One currency, never converted.** WB mixes currencies inside one window
-      (96 RUB rows against 223 KGS on one account in 2026-08), so the result is
-      keyed BY currency and the caller takes the one bucket its settlement is
-      denominated in. Converting at an invented rate would produce a plausible
-      wrong number; summing across would add unlike units.
+    * **Matched to the spend, not to the settlement.** Both figures come from the
+      same advertising account, so they are in the same unit whatever WB calls
+      it — verified across WB's own 2026-08-20 relabel, where `upd` says RUB
+      before and KGS after while agreeing with `fullstats` at 90-100 % per
+      campaign throughout. Filtering the ledger by the SETTLEMENT currency was
+      this function's first shape and it was wrong: it dropped 402 022 of real
+      bonuses for July-August windows because WB labelled the ad account
+      differently from the payout. The currency is still kept in storage — it is
+      what WB said — and a window carrying more than one is reported as a caveat
+      rather than silently summed.
 
     A campaign that spent nothing in the window contributes nothing: its bonus has
     no SKU to land on, and inventing one is worse than the omission.
@@ -84,15 +89,13 @@ async def load_ad_bonus_by_nm(
         date_to: Inclusive stat-date end.
 
     Returns:
-        ``{currency: {nm_id: bonus}}`` — a positive amount to be SUBTRACTED from
-        that SKU's advertising. SKUs with no bonus-funded spend are absent, and
-        so is any currency the window carries no bonus in.
+        ``{nm_id: bonus}`` as a positive amount to be SUBTRACTED from that SKU's
+        advertising; SKUs with no bonus-funded spend are absent.
     """
     # Per campaign: how much bonus the window carries, and how much fullstats
     # spend there is to spread it over. Both are window sums by design.
     bonus_stmt = (
         select(
-            AdvertisingWriteOffDaily.currency,
             AdvertisingWriteOffDaily.campaign_id,
             func.sum(AdvertisingWriteOffDaily.amount),
         )
@@ -101,15 +104,15 @@ async def load_ad_bonus_by_nm(
             AdvertisingWriteOffDaily.stat_date <= date_to,
             AdvertisingWriteOffDaily.payment_type.in_(sorted(BONUS_PAYMENT_TYPES)),
         )
-        .group_by(AdvertisingWriteOffDaily.currency, AdvertisingWriteOffDaily.campaign_id)
+        .group_by(AdvertisingWriteOffDaily.campaign_id)
     )
-    bonus_by_currency: dict[str, dict[int, Decimal]] = {}
-    for currency, campaign_id, total in (await session.execute(bonus_stmt)).all():
-        if total:
-            bonus_by_currency.setdefault(str(currency), {})[int(campaign_id)] = Decimal(total)
-    if not bonus_by_currency:
+    bonus_by_campaign = {
+        int(cid): Decimal(total)
+        for cid, total in (await session.execute(bonus_stmt)).all()
+        if total
+    }
+    if not bonus_by_campaign:
         return {}
-    all_campaigns = sorted({cid for per in bonus_by_currency.values() for cid in per})
 
     # The denominator is the campaign's WHOLE spend, not just its spend on this
     # workspace's SKUs: a share of the bonus that belongs to a card we do not own
@@ -121,7 +124,7 @@ async def load_ad_bonus_by_nm(
             func.sum(AdvertisingStatDaily.spend),
         )
         .where(
-            AdvertisingStatDaily.campaign_id.in_(all_campaigns),
+            AdvertisingStatDaily.campaign_id.in_(sorted(bonus_by_campaign)),
             AdvertisingStatDaily.stat_date >= date_from,
             AdvertisingStatDaily.stat_date <= date_to,
         )
@@ -150,22 +153,19 @@ async def load_ad_bonus_by_nm(
     for campaign_id, _nm_id, spend in spend_rows:
         campaign_spend[campaign_id] = campaign_spend.get(campaign_id, _ZERO) + spend
 
-    out: dict[str, dict[int, Decimal]] = {}
-    for currency, bonus_by_campaign in bonus_by_currency.items():
-        per_nm: dict[int, Decimal] = {}
-        for campaign_id, nm_id, spend in spend_rows:
-            if nm_id not in owned or campaign_id not in bonus_by_campaign:
-                continue
-            total_spend = campaign_spend[campaign_id]
-            # Clamped before the split, so every SKU's share shrinks by the same
-            # factor and the parts still sum to the (clamped) campaign bonus.
-            bonus = min(bonus_by_campaign[campaign_id], total_spend)
-            share = (bonus * spend / total_spend).quantize(Decimal("0.01"))
-            per_nm[nm_id] = per_nm.get(nm_id, _ZERO) + share
-        cleaned = {nm: amount for nm, amount in per_nm.items() if amount}
-        if cleaned:
-            out[currency] = cleaned
-    return out
+    out: dict[int, Decimal] = {}
+    for campaign_id, nm_id, spend in spend_rows:
+        if nm_id not in owned or campaign_id not in bonus_by_campaign:
+            continue
+        total_spend = campaign_spend[campaign_id]
+        # Clamped before the split, so every SKU's share shrinks by the same
+        # factor and the parts still sum to the (clamped) campaign bonus. The
+        # clamp is also what bounds the damage if WB ever DID bill one window in
+        # two real currencies: a bonus can never exceed the spend it comes off.
+        bonus = min(bonus_by_campaign[campaign_id], total_spend)
+        share = (bonus * spend / total_spend).quantize(Decimal("0.01"))
+        out[nm_id] = out.get(nm_id, _ZERO) + share
+    return {nm: amount for nm, amount in out.items() if amount}
 
 
 def _workspace_campaigns(workspace_id: uuid.UUID) -> Select[tuple[int]]:
@@ -252,5 +252,40 @@ async def ad_bonus_unknown_types(
         )
         .group_by(AdvertisingWriteOffDaily.payment_type)
         .order_by(AdvertisingWriteOffDaily.payment_type)
+    )
+    return [str(row[0]) for row in (await session.execute(stmt)).all()]
+
+
+async def ad_bonus_currencies(
+    session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+) -> list[str]:
+    """Return the currencies WB labelled this window's bonus write-offs with.
+
+    Normally one. More than one means either WB relabelled the advertising
+    account mid-window (it did exactly that on 2026-08-20, RUB -> KGS, with no
+    change in the amounts) or it genuinely billed in two — and from the outside
+    those are indistinguishable, because ``fullstats`` carries no currency at
+    all. The allocation sums them either way, clamped at each campaign's own
+    spend; this is what lets the report say so instead of implying certainty.
+
+    Args:
+        session: An open async session (caller owns the transaction).
+        workspace_id: Restrict to campaigns that advertised this workspace.
+        date_from: Inclusive window start.
+        date_to: Inclusive window end.
+
+    Returns:
+        The distinct currency labels, alphabetically.
+    """
+    stmt = (
+        select(AdvertisingWriteOffDaily.currency)
+        .where(
+            AdvertisingWriteOffDaily.stat_date >= date_from,
+            AdvertisingWriteOffDaily.stat_date <= date_to,
+            AdvertisingWriteOffDaily.payment_type.in_(sorted(BONUS_PAYMENT_TYPES)),
+            AdvertisingWriteOffDaily.campaign_id.in_(_workspace_campaigns(workspace_id)),
+        )
+        .group_by(AdvertisingWriteOffDaily.currency)
+        .order_by(AdvertisingWriteOffDaily.currency)
     )
     return [str(row[0]) for row in (await session.execute(stmt)).all()]
