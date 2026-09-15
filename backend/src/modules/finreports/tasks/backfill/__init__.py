@@ -31,6 +31,7 @@ from src.core.celery_app import celery_app
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
+from src.core.locks import single_flight
 from src.core.logcontext import bind_workspace
 from src.core.logging import get_logger
 from src.core.redis import get_redis
@@ -142,6 +143,20 @@ _TICK_SOFT_LIMIT_SECONDS = 15 * 60
 _YIELD_SECONDS = 11 * 60
 
 
+#: How long this lane's tick lock outlives a holder that stops renewing it.
+#:
+#: Short, because `single_flight` renews on a heartbeat: a live tick keeps the
+#: lock however long it runs (a streamed page measured 217 s), and a tick killed
+#: mid-flight — a deploy, an OOM — releases within this. Sized against the
+#: longest a HEALTHY holder might fail to renew for, not against the runtime.
+_TICK_LOCK_TTL_SECONDS = 60.0
+
+
+def _tick_lock_key(workspace_id: uuid.UUID) -> str:
+    """The lock naming one workspace's P&L tick."""
+    return f"finreports:backfill_pnl:{workspace_id}"
+
+
 async def _harvest_is_running() -> bool:
     """Whether the forward finance harvest currently holds its lock.
 
@@ -197,8 +212,7 @@ def backfill_pnl(
             restart from running alongside the lane it was restarting.
     """
 
-    async def _run() -> dict[str, object]:
-        ws_id = uuid.UUID(workspace_id)
+    async def _tick(ws_id: uuid.UUID) -> dict[str, object]:
         token = await claim_chain(ws_id, BackfillLane.PNL, chain)
         if token is None:
             logger.info(
@@ -259,6 +273,40 @@ def backfill_pnl(
             step.finished,
         )
         return {"done": step.done, "total": step.total, "rows": step.rows}
+
+    async def _run() -> dict[str, object]:
+        """One tick at a time per lane, whatever else is in flight.
+
+        The chain token retires a SUPERSEDED tick, but only from its second wake
+        onward: a tick enqueued with no chain — which is what the orphan sweep
+        sends after every worker restart — mints a fresh token and proceeds. So
+        every restart added a live chain that got one request in before anything
+        could retire it. Measured 2026-09-15 after a morning of deploys: five
+        ticks ran in forty minutes, one was superseded, and requests left every
+        8-10 minutes against a budget of one per fifteen — until WB answered
+        with a penalty block.
+
+        A lock makes the guarantee the right shape. Chains may still multiply; a
+        request cannot overlap another. The loser does NOT re-enqueue, so the
+        duplicates prune themselves and the winner carries on alone — and if the
+        winner then dies, the watchdog is what restarts it.
+
+        Fails open, like `single_flight` itself: a Redis outage lets the tick
+        run, because a lane stopped by an unreachable cache is the silent death
+        this subsystem keeps being fixed for, and the rate gate still stands
+        between it and WB.
+        """
+        ws_id = uuid.UUID(workspace_id)
+        async with single_flight(
+            _tick_lock_key(ws_id), ttl_seconds=_TICK_LOCK_TTL_SECONDS, redis=get_redis()
+        ) as mine:
+            if not mine:
+                logger.info(
+                    "backfill pnl for %s: another tick holds this lane; stopping here.",
+                    workspace_id,
+                )
+                return {"skipped": "another tick holds this lane"}
+            return await _tick(ws_id)
 
     async def _guarded() -> dict[str, object]:
         """Record a death on the lane before letting it escape.

@@ -207,3 +207,63 @@ def test_a_hung_tick_is_still_restarted_rather_than_holding_a_slot() -> None:
     from src.modules.workspaces.tasks import _patience
 
     assert timedelta(seconds=backfill._TICK_SOFT_LIMIT_SECONDS) < _patience(BackfillLane.PNL)
+
+
+def test_only_one_tick_may_hold_a_lane(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Chains may multiply; a REQUEST may not overlap another.
+
+    The chain token retires a superseded tick only from its second wake onward,
+    and a tick enqueued with no chain — what the orphan sweep sends after every
+    worker restart — mints a fresh token and proceeds. So each restart bought
+    one extra request before anything could retire it. Measured 2026-09-15 after
+    a morning of deploys: five ticks in forty minutes, one superseded, requests
+    leaving every 8-10 minutes against a budget of one per fifteen, and WB
+    answering with a penalty block.
+
+    The loser must also NOT re-enqueue, or the duplicates it was meant to prune
+    simply come back on a timer.
+
+    Synchronous on purpose: the Celery task body owns its own event loop, so
+    driving it from inside one is not how it runs in production.
+    """
+    from contextlib import asynccontextmanager
+    from typing import Any
+
+    ran: list[str] = []
+
+    @asynccontextmanager
+    async def _held(_key: str, **_kw: Any) -> Any:
+        yield False  # somebody else holds this lane
+
+    monkeypatch.setattr(backfill, "single_flight", _held)
+    monkeypatch.setattr(backfill.celery_app, "send_task", lambda *a, **k: ran.append("enqueued"))
+
+    result = backfill.backfill_pnl.run("01a07a8d-6e3e-7012-ab9f-34443d93776d")
+
+    assert result == {"skipped": "another tick holds this lane"}
+    assert ran == [], "a tick that did no work re-enqueued itself anyway"
+
+
+def test_the_lane_lock_is_per_workspace() -> None:
+    """One seller's slow page must not stall another's lane.
+
+    The budget is metered per token, so two workspaces are never in contention;
+    a single global lock would invent a queue WB does not impose.
+    """
+    import uuid as _uuid
+
+    a = backfill._tick_lock_key(_uuid.UUID("01a07a8d-6e3e-7012-ab9f-34443d93776d"))
+    b = backfill._tick_lock_key(_uuid.UUID("019f657a-a70c-780a-ac98-f010a1916615"))
+
+    assert a != b
+
+
+def test_the_lock_outlives_a_missed_renewal_but_not_a_dead_holder() -> None:
+    """A TTL sized to the runtime strands the lane when the process dies.
+
+    `single_flight` renews on a heartbeat, so the TTL only has to cover a
+    healthy holder failing to renew — not the 217 s a streamed page takes. Sized
+    to the runtime instead, a worker killed mid-page (a deploy, the OOM killer)
+    would hold the lane for the whole of it.
+    """
+    assert backfill._TICK_LOCK_TTL_SECONDS < backfill._TICK_SOFT_LIMIT_SECONDS
