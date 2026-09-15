@@ -35,19 +35,28 @@ local state = redis.call('HMGET', KEYS[1], 'tokens', 'ts', 'blocked_until')
 -- while it stands no token exists, however much time has passed. Without this
 -- the bucket reopened after `refill_ms` — our guess — and the request landed
 -- inside a block that WB then restarted (see `penalise`).
-local blocked_until = tonumber(state[3])
-if blocked_until ~= nil and blocked_until > now_ms then
-  return blocked_until - now_ms
-end
 local reserve_ms = tonumber(ARGV[4])
 if reserve_ms == nil then
   reserve_ms = 0
+end
+local blocked_until = tonumber(state[3])
+if blocked_until ~= nil and blocked_until > now_ms then
+  -- Plus the reserve: `penalise` restores the tokens as of the moment the block
+  -- lifts, so that instant is when one becomes available and a reserving caller
+  -- owes its wait from there. PEEK says the same, and the two must agree.
+  return blocked_until - now_ms + reserve_ms
 end
 local tokens = tonumber(state[1])
 local ts = tonumber(state[2])
 if tokens == nil or ts == nil then
   tokens = capacity
   ts = now_ms
+  -- Written NOW, before the reserve is tested, because the reserve is measured
+  -- from `ts`. Left in a local the key stays absent on the refusal path below,
+  -- so the next caller starts the clock again from ITS own `now` and the
+  -- reserve never elapses. That is not theoretical: it put NEVA's lane in a
+  -- 30-second refusal loop on 2026-09-15 that could not have ended.
+  redis.call('HSET', KEYS[1], 'tokens', tokens, 'ts', ts)
 end
 -- The moment a token exists, which is now when one already does and a refill
 -- away when it does not. A reserving caller must let it sit that long again.
@@ -92,7 +101,11 @@ end
 local tokens = tonumber(state[1])
 local ts = tonumber(state[2])
 if tokens == nil or ts == nil then
-  return 0
+  -- Untouched bucket: a token is there for the taking, but a reserving caller
+  -- still owes its wait. Answering 0 here is what let a refused tick re-enqueue
+  -- itself every 30 s against an `acquire` that was never going to let it
+  -- through — PEEK and ACQUIRE must describe the same bucket.
+  return reserve_ms
 end
 local available_at = ts
 if tokens < 1 then

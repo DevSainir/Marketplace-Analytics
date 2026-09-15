@@ -323,3 +323,43 @@ async def test_the_reserve_does_not_grant_extra_requests(redis_client: Any) -> N
 
     assert plain_wait > 0, "the bucket handed out a second token"
     assert reserved_wait >= plain_wait, "the reserve shortened someone's wait"
+
+
+async def test_a_reserving_caller_on_a_fresh_bucket_eventually_gets_through(
+    redis_client: Any,
+) -> None:
+    """A reserve must expire. It could not, and nothing said so.
+
+    The reserve is measured from the bucket's `ts`. On a bucket that does not
+    exist yet, `acquire` invented `ts = now`, refused, and wrote nothing — so the
+    next caller invented `ts = now` again and the wait restarted for ever.
+
+    Live on 2026-09-15: NEVA's lane re-enqueued itself every 30 seconds, each tick
+    refused in 0.07 s, never sending a single request. Cheap per tick, and
+    permanent.
+    """
+    gate = _gate(redis_client, capacity=1, max_wait=0.0)
+
+    with pytest.raises(IntegrationError):
+        await gate.acquire("/fresh-reserve", reserve_seconds=0.3)
+
+    await asyncio.sleep(0.4)
+
+    # Must not raise: the reserve has now genuinely elapsed.
+    await gate.acquire("/fresh-reserve", reserve_seconds=0.3)
+
+
+async def test_peek_and_acquire_agree_about_an_untouched_bucket(redis_client: Any) -> None:
+    """The invariant the Lua module's own docstring states, now asserted.
+
+    A peek that says "go now" while acquire refuses turns every caller that
+    schedules itself from `retry_after` into a busy loop — it wakes, is refused,
+    and believes it may retry immediately.
+    """
+    gate = _gate(redis_client, capacity=1, max_wait=0.0)
+
+    peeked = await gate.retry_after("/fresh-agree", reserve_seconds=5.0)
+    with pytest.raises(IntegrationError):
+        await gate.acquire("/fresh-agree", reserve_seconds=5.0)
+
+    assert peeked > 0, "peek promised a window that acquire refuses"
