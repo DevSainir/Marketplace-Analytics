@@ -26,7 +26,7 @@ repos:
       # страница пустая. Исключение точечное — планка в 500 КБ остаётся для всего
       # остального.
       - id: check-added-large-files
-        exclude: ^frontend/public/labs/finmodel/datapack\.json$
+        exclude: ^frontend/public/data/finmodel-datapack\.json$
       - id: check-yaml
       - id: check-toml
       - id: detect-private-key

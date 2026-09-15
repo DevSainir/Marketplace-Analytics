@@ -11,8 +11,16 @@ import { render } from '@/modules/labs/finmodel/render'
 import { indexCols } from '@/modules/labs/finmodel/select'
 import { initAssumptions, setDP, setSaveState } from '@/modules/labs/finmodel/state'
 
-/** Датапак лежит в public/ — миллион байт данных незачем гнать через сборку. */
-const DATAPACK_URL = '/labs/finmodel/datapack.json'
+/**
+ * Датапак лежит в public/ — миллион байт данных незачем гнать через сборку.
+ *
+ * Путь НЕ повторяет маршрут страницы, и это не вкусовщина. nginx отдаёт SPA
+ * правилом `try_files $uri $uri/ /index.html`: каталог `public/labs/finmodel/`
+ * совпал бы по имени с `/labs/finmodel`, вторая ветка нашла бы директорию, а
+ * листинг выключен — маршрут отдавал бы 403 вместо страницы. В dev-сервере
+ * такого правила нет, поэтому ломается только под nginx.
+ */
+const DATAPACK_URL = '/data/finmodel-datapack.json'
 
 /**
  * Смонтировать страницу в переданный корень. Возвращает отписку: страница
