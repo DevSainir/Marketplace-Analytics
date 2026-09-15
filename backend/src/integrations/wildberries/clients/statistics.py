@@ -14,6 +14,7 @@ from datetime import date, datetime
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.base import BaseWBClient
+from src.integrations.wildberries.rate_limit import statistics_rate_gate
 from src.integrations.wildberries.schemas import WBSaleRecord
 
 
@@ -37,6 +38,10 @@ class WBStatisticsClient(BaseWBClient):
             token: The workspace's "Статистика"-scope bearer token.
         """
         super().__init__(
+            # `supplier/sales` is the harshest limiter WB exposes and ran UNPACED until
+            # 2026-09-15. Its own entry in STATISTICS_ENDPOINT_BUCKETS keeps it off the
+            # settlement report's 960-second default, which would stall every harvest.
+            rate_gate=statistics_rate_gate(settings, token=token),
             base_url=settings.wb_statistics_base_url,
             token=token,
             timeout=settings.wb_http_timeout_seconds,

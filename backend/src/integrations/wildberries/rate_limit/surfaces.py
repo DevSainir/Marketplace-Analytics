@@ -55,8 +55,19 @@ ADVERTISING_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 #:
 #: The settlement walk is untouched by this — the bucket is keyed per endpoint,
 #: so a path that is not listed here keeps the strict default it has always had.
+#: ``supplier/sales`` is listed for the opposite reason to ``supplier/orders``:
+#: not to speed it up, but because it was PACED BY NOTHING AT ALL until
+#: 2026-09-15 (``WBStatisticsClient`` passed no gate), and the surface default it
+#: would otherwise inherit is the settlement report's one-per-960-seconds — which
+#: would stall every harvest for sixteen minutes.
+#:
+#: One per minute is WB's published figure for it and costs the harvest nothing:
+#: a run makes exactly ONE sales call per workspace. What it does stop is a
+#: person leaning on «Обновить» — every press fires this account-wide feed, and
+#: it is the harshest limiter WB exposes (a 39-second 429 backoff, measured).
 STATISTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
     "/api/v1/supplier/orders": (1, 20.0),
+    "/api/v1/supplier/sales": (1, 60.0),
 }
 
 #: The slowest interval the settlement walk may pace itself to, in seconds.
@@ -244,4 +255,39 @@ def advertising_rate_gate(settings: Settings, *, token: str) -> RateGate:
         refill_seconds=settings.wb_advertising_bucket_refill_seconds,
         max_wait_seconds=settings.wb_analytics_max_queue_seconds,
         endpoint_buckets=ADVERTISING_ENDPOINT_BUCKETS,
+    )
+
+
+def catalogue_rate_gate(settings: Settings, *, token: str, surface: str) -> RateGate:
+    """Build the pacing gate for one of the «catalogue» surfaces.
+
+    Content, prices and common (tariffs) are one family here because WB meters
+    them identically: all three answered ``x-ratelimit-limit: 5`` on 2026-09-15,
+    and a burst against common-api showed a five-deep bucket refilling one token
+    per second. They stay SEPARATE keys — ``surface`` is part of the Redis key —
+    because they are separate budgets at WB; only the size is shared.
+
+    None of the three was paced at all before that date. ``BaseWBClient``
+    defaults its gate to :class:`NullRateGate`, so a client that never passed one
+    was exempt without anything saying so, and the three of them run on every
+    harvest.
+
+    Args:
+        settings: Bucket parameters and the Redis DSN.
+        token: The workspace's token for this surface — the bucket is per token.
+        surface: Key prefix, e.g. ``"content"``. Distinct per WB host.
+
+    Returns:
+        A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`
+        when pacing is switched off (unit tests, or no Redis available).
+    """
+    if not settings.wb_rate_pacing_enabled:
+        return NullRateGate()
+    return TokenBucketRateGate(
+        get_redis(),
+        surface=surface,
+        token=token,
+        capacity=settings.wb_catalogue_bucket_capacity,
+        refill_seconds=settings.wb_catalogue_bucket_refill_seconds,
+        max_wait_seconds=settings.wb_analytics_max_queue_seconds,
     )

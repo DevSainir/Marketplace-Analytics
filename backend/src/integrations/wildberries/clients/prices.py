@@ -13,6 +13,7 @@ from typing import Any
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.base import BaseWBClient
+from src.integrations.wildberries.rate_limit import catalogue_rate_gate
 from src.integrations.wildberries.schemas import WBPriceGood
 
 
@@ -30,6 +31,9 @@ class WBPricesClient(BaseWBClient):
             token: The workspace's "Цены и скидки"-scope bearer token.
         """
         super().__init__(
+            # Prices API. Same measured bucket as content (2026-09-15); one call per
+            # harvest, but it shared the unpaced fate of the rest of this family.
+            rate_gate=catalogue_rate_gate(settings, token=token, surface="prices"),
             base_url=settings.wb_prices_base_url,
             token=token,
             timeout=settings.wb_http_timeout_seconds,

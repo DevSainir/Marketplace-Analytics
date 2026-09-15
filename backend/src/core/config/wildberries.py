@@ -179,6 +179,24 @@ class WildberriesSettings(BaseSettings):
     # so it can afford to sit out a whole refill — and must, because the window
     # it is waiting for is a week of a seller's money.
     wb_statistics_walk_queue_seconds: float = Field(default=1000.0, gt=0)
+    # The «catalogue» family — content, prices and common (tariffs). All three
+    # answered `x-ratelimit-limit: 5` when probed live on 2026-09-15, and a
+    # burst against common-api pinned the window down: the 6th request inside
+    # 0.78 s came back 429, and the bucket refilled one token per second (empty
+    # at t=0, 1 token by +1.8 s, 2 by +3.8 s, full by +8.8 s). WB sends no
+    # `Retry-After` with that 429, so the client's own backoff is all there is.
+    #
+    # One setting pair for three surfaces because one measurement covers all
+    # three. Split them the day one of them is measured to differ — not before,
+    # or the numbers stop meaning «measured» and start meaning «assumed».
+    #
+    # These were UNPACED entirely until 2026-09-15: `BaseWBClient` defaults its
+    # gate to `NullRateGate`, so a client that simply never passed one was
+    # silently exempt. That is the failure mode this block exists to close, and
+    # `tests/unit/integrations/test_every_wb_client_is_paced.py` is what keeps
+    # the next client from repeating it.
+    wb_catalogue_bucket_capacity: int = Field(default=5, ge=1)
+    wb_catalogue_bucket_refill_seconds: float = Field(default=1.0, gt=0)
     # Escape hatch: disables Redis-backed pacing for EVERY bucket, the
     # storefront's included (tests and any environment with no Redis). The
     # clients then fall back to per-process spacing.

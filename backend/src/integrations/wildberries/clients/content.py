@@ -13,6 +13,7 @@ from typing import Any
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.base import BaseWBClient
+from src.integrations.wildberries.rate_limit import catalogue_rate_gate
 from src.integrations.wildberries.schemas import WBCard
 
 #: Max cards per cards/list page (WB cursor pagination).
@@ -36,6 +37,9 @@ class WBContentClient(BaseWBClient):
                 per-surface tokens.
         """
         super().__init__(
+            # Content API. Measured 5 burst / 1 per second (2026-09-15); it was paced by
+            # nothing until then, and the discovery flow pages through it on every harvest.
+            rate_gate=catalogue_rate_gate(settings, token=token, surface="content"),
             base_url=settings.wb_content_base_url,
             token=token,
             timeout=settings.wb_http_timeout_seconds,

@@ -19,11 +19,18 @@ from typing import Any
 import httpx
 import pytest
 
-from src.core.config import settings
+from src.core.config import settings as _settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.prices import WBPricesClient
 from src.integrations.wildberries.clients.statistics import WBStatisticsClient
 from tests.support.wb_payloads import goods_filter_page, price_good, sale_record
+
+#: These tests drive the TRANSPORT (params, headers, payload validation) over a
+#: mock, so the Redis-backed pacing gate the clients now build would only add a
+#: client bound to another event loop. Pacing itself is covered by
+#: ``tests/unit/integrations/test_wb_rate_pacing.py`` and the presence of a gate
+#: by ``test_every_wb_client_is_paced.py``.
+settings = _settings.model_copy(update={"wb_rate_pacing_enabled": False})
 
 
 def _mock(client: Any, handler: Any) -> Any:

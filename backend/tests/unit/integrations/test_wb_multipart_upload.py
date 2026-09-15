@@ -31,6 +31,9 @@ def _settings(**overrides: Any) -> SimpleNamespace:
         "wb_max_retries": 1,
         "wb_retry_backoff_seconds": 0.0,
         "wb_retry_max_backoff_seconds": 0.0,
+        # The client now takes a pacing gate; with pacing off it is the null
+        # one, which is what these transport tests want anyway.
+        "wb_rate_pacing_enabled": False,
     }
     base.update(overrides)
     return SimpleNamespace(**base)
