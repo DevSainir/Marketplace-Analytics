@@ -237,6 +237,18 @@ class BackfillRepository:
             row.cursor = cursor
         if message is not None:
             row.message = message
+        # Stamped unconditionally, because this row records an ATTEMPT and not
+        # just its content. Left to ``onupdate`` it fires only when some column
+        # actually changes value — and the commonest healthy tick changes none
+        # of them: a lane waiting out WB's window writes the same message every
+        # time. Observed on NEVA 2026-09-15, a lane that had ticked twenty
+        # seconds earlier reported ``updated_at`` 2h51m old.
+        #
+        # Everything that judges whether a lane is alive reads this column. The
+        # watchdog restarts what has not moved; on the settlement endpoint that
+        # restart then waits a further window before asking, so a lane that was
+        # working perfectly pays a quarter of an hour for being quiet.
+        row.updated_at = datetime.now(UTC)
         await self._session.flush()
         return row
 
