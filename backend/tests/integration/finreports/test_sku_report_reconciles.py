@@ -29,8 +29,11 @@ from src.modules.finreports.repos import (
 from src.modules.finreports.services.pnl import SkuReportService
 from src.modules.finreports.services.pnl.sku_report import UNALLOCATED_NAME
 from src.modules.monitoring.contract import (
+    ad_bonus_coverage,
+    ad_bonus_unknown_types,
     ad_coverage,
     funnel_coverage,
+    load_ad_bonus_by_nm,
     load_ad_spend_by_nm,
     load_orders_by_nm,
 )
@@ -70,6 +73,15 @@ async def _report(session: AsyncSession):
             session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
         ),
         ad_span=await ad_coverage(
+            session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+        ),
+        ad_bonus=await load_ad_bonus_by_nm(
+            session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+        ),
+        bonus_span=await ad_bonus_coverage(
+            session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+        ),
+        unknown_funding=await ad_bonus_unknown_types(
             session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
         ),
     )

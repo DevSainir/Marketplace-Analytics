@@ -68,6 +68,7 @@ from scripts.backfill.advertising import _backfill_advertising
 from scripts.backfill.common import PhaseTotals, _build_service
 from scripts.backfill.funnel import _backfill_funnel
 from scripts.backfill.sales import _backfill_sales
+from scripts.backfill.write_offs import _backfill_write_offs
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal, engine
 from src.core.logging import get_logger
@@ -137,6 +138,16 @@ async def _backfill_workspace(tokens: WorkspaceTokenBundle, args: argparse.Names
             nm_ids=nm_ids,
             days=args.adv_days,
             pause=args.adv_pause,
+            totals=totals,
+        )
+    # Runs after fullstats on purpose: the bonus is allocated to SKUs in
+    # proportion to the spend fullstats booked, so a window with a ledger and no
+    # spend rows yet would drop its bonuses on the floor.
+    if not args.skip_write_offs:
+        await _backfill_write_offs(
+            tokens,
+            days=args.write_off_days,
+            pause=args.write_off_pause,
             totals=totals,
         )
 
@@ -212,7 +223,21 @@ def main() -> None:
     )
     parser.add_argument("--skip-sales", action="store_true")
     parser.add_argument("--skip-funnel", action="store_true")
+    parser.add_argument(
+        "--write-off-days",
+        type=int,
+        default=760,
+        help="How far back to walk WB's advertising write-off ledger "
+        "(default 760 — WB serves it to at least 2024-08).",
+    )
+    parser.add_argument(
+        "--write-off-pause",
+        type=float,
+        default=20.0,
+        help="Pause between write-off windows, seconds (default 20 ≈ the limiter).",
+    )
     parser.add_argument("--skip-advertising", action="store_true")
+    parser.add_argument("--skip-write-offs", action="store_true")
     args = parser.parse_args()
 
     # Hold the nightly jobs' locks for the whole run: the backfill and the

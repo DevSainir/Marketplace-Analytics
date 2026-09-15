@@ -61,6 +61,9 @@ class SkuReportService:
         date_to: date,
         orders: dict[int, int],
         ad_spend: dict[int, Decimal],
+        ad_bonus: dict[str, dict[int, Decimal]],
+        bonus_span: tuple[date | None, date | None],
+        unknown_funding: list[str],
         funnel_span: tuple[date | None, date | None],
         ad_span: tuple[date | None, date | None],
         photos: dict[int, str] | None = None,
@@ -73,6 +76,17 @@ class SkuReportService:
             date_to: Inclusive settlement-date end.
             orders: Funnel orders per ``nm_id`` (router-resolved).
             ad_spend: Promotion-API spend per ``nm_id`` (router-resolved).
+            ad_bonus: WB-funded share of that spend, ``{currency: {nm_id: …}}``
+                (router-resolved). Keyed by currency because WB books
+                write-offs in more than one inside a single window; this
+                service takes the bucket matching the settlement and lets
+                the rest fall away rather than converting them.
+            bonus_span: ``(first, last)`` write-off day on record in the
+                window. Empty means the ledger was never harvested for this
+                period, so the bonus column reports ``None``, not zero.
+            unknown_funding: WB funding labels in the window matching neither
+                the known cash nor the known bonus set — surfaced as a caveat
+                so a WB rename cannot quietly stop the deduction.
             funnel_span: ``(first, last)`` funnel day on record in the window.
             ad_span: ``(first, last)`` advertising day on record in the window.
             photos: Card thumbnails per ``nm_id`` (router-resolved through the
@@ -102,6 +116,7 @@ class SkuReportService:
             costs=await self._costs.costs_by_nm_id(workspace_id=workspace_id, currency=currency),
             orders=orders if funnel_span[0] is not None else None,
             ad_spend=ad_spend if ad_span[0] is not None else None,
+            ad_bonus=ad_bonus.get(currency, {}) if bonus_span[0] is not None else None,
             penalties=await self._pnl.sku_penalties(
                 workspace_id=workspace_id, date_from=date_from, date_to=date_to
             ),
@@ -116,6 +131,8 @@ class SkuReportService:
             rows=rows,
             funnel_span=funnel_span,
             ad_span=ad_span,
+            bonus_span=bonus_span,
+            unknown_funding=unknown_funding,
         )
         return PnlSkuReportResponse(
             date_from=date_from,
@@ -136,6 +153,9 @@ class SkuReportService:
         date_to: date,
         orders: dict[int, int],
         ad_spend: dict[int, Decimal],
+        ad_bonus: dict[str, dict[int, Decimal]],
+        bonus_span: tuple[date | None, date | None],
+        unknown_funding: list[str],
         funnel_span: tuple[date | None, date | None],
         ad_span: tuple[date | None, date | None],
     ) -> bytes:
@@ -155,6 +175,9 @@ class SkuReportService:
             date_to=date_to,
             orders=orders,
             ad_spend=ad_spend,
+            ad_bonus=ad_bonus,
+            bonus_span=bonus_span,
+            unknown_funding=unknown_funding,
             funnel_span=funnel_span,
             ad_span=ad_span,
         )
@@ -169,6 +192,8 @@ class SkuReportService:
         rows: list[PnlSkuRow],
         funnel_span: tuple[date | None, date | None],
         ad_span: tuple[date | None, date | None],
+        bonus_span: tuple[date | None, date | None],
+        unknown_funding: list[str],
     ) -> list[str]:
         """Assemble the caveats that qualify the per-SKU figures."""
         notes: list[str] = []
@@ -183,6 +208,16 @@ class SkuReportService:
 
         notes.extend(_span_note("Заказы", "истории воронки", funnel_span, date_from, date_to))
         notes.extend(_span_note("Реклама", "статистики продвижения", ad_span, date_from, date_to))
+        notes.extend(_span_note("Бонусы", "истории списаний WB", bonus_span, date_from, date_to))
+        # A WB rename of the funding label silently stops the deduction (the
+        # match is an allowlist, on purpose). This is what keeps that silent
+        # fallback from being invisible.
+        if unknown_funding:
+            labels = ", ".join(f"«{label}»" for label in unknown_funding[:5])
+            notes.append(
+                f"WB списывал рекламу способом, который мы не знаем ({labels}) — "
+                "эти суммы посчитаны как деньги продавца, а не как бонусы."
+            )
 
         sale_rows, with_revenue = await self._pnl.revenue_coverage(
             workspace_id=workspace_id, date_from=date_from, date_to=date_to
@@ -195,8 +230,10 @@ class SkuReportService:
 
         notes.append(
             "Реклама — из статистики кампаний WB по дням показа (счета в выплате "
-            "удерживаются позже и целиком, без разбивки по SKU). Налоги и расходы вне WB "
-            "в отчёт не входят."
+            "удерживаются позже и целиком, без разбивки по SKU). «Бонусы» — доля этих "
+            "затрат, оплаченная кэшбэком WB: в выплате её нет вовсе, поэтому «К "
+            "перечислению» она не меняет, а прибыль, ROI и ROMI считаются уже без неё. "
+            "Налоги и расходы вне WB в отчёт не входят."
         )
         return notes
 

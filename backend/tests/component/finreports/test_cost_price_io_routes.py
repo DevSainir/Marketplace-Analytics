@@ -100,10 +100,21 @@ def _wire(
     async def _span(session: Any, **_kw: Any) -> tuple[date, date]:
         return (date(2024, 1, 1), date(2026, 1, 1))
 
+    async def _bonus(session: Any, **_kw: Any) -> dict[str, dict[int, Decimal]]:
+        return {}
+
+    async def _unknown_funding(session: Any, **_kw: Any) -> list[str]:
+        return []
+
     monkeypatch.setattr("src.modules.finreports.routers.pnl.load_orders_by_nm", _orders)
     monkeypatch.setattr("src.modules.finreports.routers.pnl.load_ad_spend_by_nm", _ads)
     monkeypatch.setattr("src.modules.finreports.routers.pnl.funnel_coverage", _span)
     monkeypatch.setattr("src.modules.finreports.routers.pnl.ad_coverage", _span)
+    monkeypatch.setattr("src.modules.finreports.routers.pnl.load_ad_bonus_by_nm", _bonus)
+    monkeypatch.setattr("src.modules.finreports.routers.pnl.ad_bonus_coverage", _span)
+    monkeypatch.setattr(
+        "src.modules.finreports.routers.pnl.ad_bonus_unknown_types", _unknown_funding
+    )
 
 
 @pytest.fixture

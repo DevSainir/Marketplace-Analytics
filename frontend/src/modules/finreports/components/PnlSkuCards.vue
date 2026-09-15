@@ -60,6 +60,7 @@ const DETAILS = [
   { label: 'Логистика', get: (r) => money(r.logistics), sub: (r) => pct(r.logisticsPct) },
   { label: 'Себестоимость', get: (r) => money(r.cogs) },
   { label: 'Реклама', get: (r) => money(r.advertising), sub: (r) => pct(r.advertisingPct) },
+  { label: 'Бонусы WB', get: (r) => (r.adBonus ? `−${money(r.adBonus)}` : money(r.adBonus)) },
   { label: 'ROI', get: (r) => pct(r.roi) },
   { label: 'ROMI', get: (r) => pct(r.romi) },
 ]

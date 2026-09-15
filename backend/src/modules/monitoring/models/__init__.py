@@ -6,10 +6,14 @@ regardless of the underlying file split.
 """
 
 from src.modules.monitoring.models.advertising import (
+    BONUS_PAYMENT_TYPES,
+    CASH_PAYMENT_TYPES,
     CLUSTER_MAX_LENGTH,
+    PAYMENT_TYPE_MAX_LENGTH,
     AdvertisingClusterStatDaily,
     AdvertisingSearchStatDaily,
     AdvertisingStatDaily,
+    AdvertisingWriteOffDaily,
 )
 from src.modules.monitoring.models.campaigns import (
     WB_STATUS_LABELS,
@@ -30,13 +34,17 @@ from src.modules.monitoring.models.sku_day_comment import SkuDayComment
 from src.modules.monitoring.models.stocks import StockSnapshot
 
 __all__ = [
+    "BONUS_PAYMENT_TYPES",
+    "CASH_PAYMENT_TYPES",
     "CLUSTER_MAX_LENGTH",
     "LABEL_MAX_LENGTH",
+    "PAYMENT_TYPE_MAX_LENGTH",
     "WB_STATUS_LABELS",
     "WB_TYPE_LABELS",
     "AdvertisingClusterStatDaily",
     "AdvertisingSearchStatDaily",
     "AdvertisingStatDaily",
+    "AdvertisingWriteOffDaily",
     "Campaign",
     "FbsWarehouse",
     "MatrixOverride",

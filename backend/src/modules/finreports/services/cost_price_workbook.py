@@ -69,6 +69,9 @@ _COLUMNS: list[tuple[str, int, str, Callable[[PnlSkuRow], object]]] = [
     (COST_HEADER, 20, "money", lambda r: _money(r.cost_price)),
     ("Себестоимость, итого", 20, "money", lambda r: _money(r.cogs)),
     ("Реклама", 14, "money", lambda r: _money(r.advertising)),
+    # Negative on purpose: the sheet shows it the way the screen does, as a
+    # deduction from the column on its left. The model stores the magnitude.
+    ("Бонусы", 14, "money", lambda r: _money(-r.ad_bonus) if r.ad_bonus else _money(r.ad_bonus)),
     ("К перечислению", 16, "money", lambda r: _money(r.payout_net)),
     ("Чистая прибыль", 16, "money", lambda r: _money(r.net_profit)),
     ("Прибыль, %", 12, "pct", lambda r: _money(r.net_profit_pct)),

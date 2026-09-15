@@ -24,6 +24,11 @@ DI wiring, the module contract) import the services from here and are
 insulated from the internal package layout.
 """
 
+from src.modules.monitoring.services.ad_bonus import (
+    ad_bonus_coverage,
+    ad_bonus_unknown_types,
+    load_ad_bonus_by_nm,
+)
 from src.modules.monitoring.services.analytics import (
     AnalyticsService,
     ClusterAnalytics,
@@ -64,10 +69,13 @@ __all__ = [
     "IngestionService",
     "WarehouseStock",
     "WorkspaceCard",
+    "ad_bonus_coverage",
+    "ad_bonus_unknown_types",
     "ad_coverage",
     "bind_task_to_workspace",
     "claim_cohort_pass",
     "funnel_coverage",
+    "load_ad_bonus_by_nm",
     "load_ad_days_for_nm",
     "load_ad_spend_by_nm",
     "load_campaign_ids_for_workspace",

@@ -39,6 +39,10 @@ export function toRow(r, isBucket = false) {
     cogs: num(r.cogs),
     advertising: num(r.advertising),
     advertisingPct: num(r.advertising_pct),
+    // Positive magnitude, exactly as the API sends it. Rendering is what
+    // gives it the minus sign — a doubly negated deduction adds back.
+    adBonus: num(r.ad_bonus),
+    advertisingCash: num(r.advertising_cash),
     roi: num(r.roi_pct),
     romi: num(r.romi_pct),
     payout: num(r.payout_net),

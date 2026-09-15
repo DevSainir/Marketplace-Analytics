@@ -4,19 +4,27 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 
 from src.core.logging import get_logger
+from src.core.timeutils import MOSCOW_TZ
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
     WBAdvertV2,
+    WBAdvWriteOff,
     WBCampaign,
     WBNormQueryItem,
 )
-from src.modules.monitoring.models import CLUSTER_MAX_LENGTH, normalize_status
+from src.modules.monitoring.models import (
+    CLUSTER_MAX_LENGTH,
+    PAYMENT_TYPE_MAX_LENGTH,
+    normalize_status,
+)
 from src.modules.monitoring.repos import (
     AdvertisingClusterRepository,
     AdvertisingRepository,
     AdvertisingSearchRepository,
+    AdvertisingWriteOffRepository,
     CampaignRepository,
 )
 
@@ -61,6 +69,14 @@ class _ClusterAcc:
         return self.weighted_position / self.position_views
 
 
+@dataclass
+class _WriteOffAcc:
+    """Mutable per-(day, campaign, funding source, currency) money accumulator."""
+
+    amount: Decimal = Decimal(0)
+    write_offs: int = 0
+
+
 class AdvertisingIngestion:
     """Flattens and persists advertising stats, campaign metadata, and search slices."""
 
@@ -71,12 +87,14 @@ class AdvertisingIngestion:
         campaign_repo: CampaignRepository,
         advertising_search_repo: AdvertisingSearchRepository,
         advertising_cluster_repo: AdvertisingClusterRepository,
+        advertising_write_off_repo: AdvertisingWriteOffRepository,
     ) -> None:
         """Inject the advertising-family repositories used for persistence."""
         self._advertising = advertising_repo
         self._campaigns = campaign_repo
         self._advertising_search = advertising_search_repo
         self._advertising_clusters = advertising_cluster_repo
+        self._advertising_write_offs = advertising_write_off_repo
 
     async def ingest_advertising(
         self,
@@ -144,6 +162,77 @@ class AdvertisingIngestion:
                         )
         count = await self._advertising.upsert_many(flattened)
         logger.info("Ingested %d advertising rows across %d campaigns.", count, len(stats))
+        return count
+
+    async def ingest_write_offs(
+        self,
+        write_offs: list[WBAdvWriteOff],
+        *,
+        window: tuple[date, date],
+    ) -> int:
+        """Aggregate WB's write-off ledger into daily per-campaign buckets.
+
+        Reduces ``(updTime, advertId, paymentType, currency)`` rows to one row
+        per Moscow day, campaign, funding source and currency. Three properties
+        of the source dictate that grain, and each of them has already produced
+        a wrong figure when ignored:
+
+        * WB's ``updNum`` is **0 on every cashback row**, so it can key nothing.
+        * ``currency`` varies inside one window, so it must not be summed across.
+        * A campaign is charged many times a day, so the day is the useful grain
+          and the individual charge is not.
+
+        ``updTime`` is normalised to the Moscow day the rest of the monitoring
+        time series is dated by, rather than trusting whatever offset WB stamped
+        the row with.
+
+        Rows in the window are swept for the campaigns present in the payload
+        before insert, so a WB restatement that removes a charge cannot leave the
+        old one behind. The sweep is campaign-scoped because the feed is served
+        per advertising token: a bare window sweep would delete another
+        workspace's ledger.
+
+        Args:
+            write_offs: Raw ledger rows from the advertising client.
+            window: Inclusive ``(date_from, date_to)`` the ledger was asked for.
+
+        Returns:
+            The number of bucket rows persisted.
+        """
+        buckets: dict[tuple[date, int, str, str], _WriteOffAcc] = {}
+        for row in write_offs:
+            day = row.upd_time.astimezone(MOSCOW_TZ).date()
+            # A charge WB stamped outside the asked-for window would survive the
+            # sweep below and double-count on the next pass over its own window.
+            if not window[0] <= day <= window[1]:
+                continue
+            key = (day, row.campaign_id, row.payment_type, row.currency)
+            acc = buckets.setdefault(key, _WriteOffAcc())
+            acc.amount += row.upd_sum
+            acc.write_offs += 1
+
+        campaign_ids = sorted({row.campaign_id for row in write_offs})
+        if campaign_ids:
+            deleted = await self._advertising_write_offs.delete_window_for_campaigns(
+                date_from=window[0], date_to=window[1], campaign_ids=campaign_ids
+            )
+            logger.info("Swept %d stale advertising write-off rows before refresh.", deleted)
+
+        rows: list[dict[str, object]] = [
+            {
+                "stat_date": day,
+                "campaign_id": campaign_id,
+                "payment_type": payment_type[:PAYMENT_TYPE_MAX_LENGTH],
+                "currency": currency[:8],
+                "amount": acc.amount,
+                "write_offs": acc.write_offs,
+            }
+            for (day, campaign_id, payment_type, currency), acc in buckets.items()
+        ]
+        count = await self._advertising_write_offs.upsert_many(rows)
+        logger.info(
+            "Ingested %d advertising write-off buckets from %d WB rows.", count, len(write_offs)
+        )
         return count
 
     async def ingest_campaigns(

@@ -8,6 +8,7 @@ SQL for the module — services depend on them and never issue queries.
 from src.modules.monitoring.repos.advertising import AdvertisingRepository
 from src.modules.monitoring.repos.advertising_clusters import AdvertisingClusterRepository
 from src.modules.monitoring.repos.advertising_search import AdvertisingSearchRepository
+from src.modules.monitoring.repos.advertising_write_offs import AdvertisingWriteOffRepository
 from src.modules.monitoring.repos.campaigns import CampaignRepository
 from src.modules.monitoring.repos.day_actions import SkuDayActionRepository
 from src.modules.monitoring.repos.fbs_warehouses import FbsWarehouseRepository
@@ -27,6 +28,7 @@ __all__ = [
     "AdvertisingClusterRepository",
     "AdvertisingRepository",
     "AdvertisingSearchRepository",
+    "AdvertisingWriteOffRepository",
     "CampaignRepository",
     "FbsWarehouseRepository",
     "FunnelRepository",

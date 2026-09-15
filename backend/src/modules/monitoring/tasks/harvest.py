@@ -26,6 +26,7 @@ from src.integrations.wildberries import (
 )
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
+    WBAdvWriteOff,
     WBCard,
     WBFunnelHistoryRow,
     WBNormQueryItem,
@@ -36,6 +37,7 @@ from src.modules.monitoring.repos import (
     AdvertisingClusterRepository,
     AdvertisingRepository,
     AdvertisingSearchRepository,
+    AdvertisingWriteOffRepository,
     CampaignRepository,
     FunnelRepository,
     MatrixOverrideRepository,
@@ -286,15 +288,32 @@ async def _harvest_sku_window(
                 return None
             return await statistics_client.fetch_sales(changed_since=date_from)
 
+        # WB's advertising write-off ledger — the only feed that says whether a
+        # charge came out of the seller's money («Баланс») or out of WB's bonus
+        # pool («Кэшбэк»). Without it every per-SKU ДРР, ROI and profit counts
+        # WB's bonuses as the seller's spend, because `fullstats` reports the
+        # impressions either way funded and a bonus charge never reaches the
+        # settlement report (it has no invoice document).
+        #
+        # Rides the same gate as the sales feed, and for the same reason: it is
+        # served ACCOUNT-WIDE with no campaign filter, so a single-SKU
+        # «Обновить» would re-fetch and rewrite the whole account's ledger to
+        # refresh one card. The nightly pass keeps it current.
+        async def _fetch_write_offs() -> list[WBAdvWriteOff] | None:
+            if not include_sales:
+                return None
+            return await advertising_client.fetch_write_offs(date_from=date_from, date_to=date_to)
+
         # FBS stock rides this wave too: a different WB host and token category
         # from the FBO stock above, so it neither shares nor contends for the
         # analytics rate budget. It returns ordinary stock rows (see
         # :mod:`~src.modules.monitoring.tasks.fbs`), and a workspace with no
         # «Маркетплейс» token simply gets an empty list.
-        adv_res, search_res, sales_res, fbs_res = await asyncio.gather(
+        adv_res, search_res, sales_res, write_off_res, fbs_res = await asyncio.gather(
             _fetch_fullstats(),
             _fetch_search(),
             _fetch_sales(),
+            _fetch_write_offs(),
             fetch_fbs_stock_rows(settings, token=tokens.marketplace, nm_ids=nm_ids, cards=cards),
             return_exceptions=True,
         )
@@ -304,6 +323,10 @@ async def _harvest_sku_window(
         search_stats = _unwrap(search_res, "search-zone")
         # ``None`` (source failed) leaves the sale/return records untouched.
         sales = _unwrap(sales_res, "sales")
+        # ``None`` (source failed OR not requested) leaves the funding ledger
+        # untouched — a missed pass must read as «bonuses unknown for this
+        # window», never as «this window had no bonuses».
+        write_offs = _unwrap(write_off_res, "ad-write-offs")
         # FBS rows join the FBO ones in the same table, each under its own
         # warehouse label. Any FBS warehouse we did not manage to read is spared
         # from the absence-means-zero sweep — the sources fail independently, and
@@ -332,6 +355,7 @@ async def _harvest_sku_window(
                 ("advertising", adv_res),
                 ("search-zone", search_res),
                 ("sales", sales_res),
+                ("ad-write-offs", write_off_res),
                 ("stocks-fbs", fbs_res),
             )
             if isinstance(result, BaseException)
@@ -347,6 +371,7 @@ async def _harvest_sku_window(
             product_size_repo=ProductSizeRepository(session),
             advertising_search_repo=AdvertisingSearchRepository(session),
             advertising_cluster_repo=AdvertisingClusterRepository(session),
+            advertising_write_off_repo=AdvertisingWriteOffRepository(session),
             price_repo=PriceRepository(session),
             sale_repo=SaleRepository(session),
         )
@@ -381,6 +406,7 @@ async def _harvest_sku_window(
             customer_prices=customer_prices,
             price_nm_ids=nm_ids,
             sales=sales,
+            write_offs=write_offs,
             keep_warehouses=keep_warehouses,
         )
         # Fresh WB data supersedes any manual matrix edits for these SKUs — the
@@ -400,6 +426,7 @@ async def _harvest_sku_window(
             "stock_rows": result.stock_rows,
             "price_rows": result.price_rows,
             "sales_rows": result.sales_rows,
+            "ad_write_off_rows": result.write_off_rows,
             "product_card_rows": card_count,
             "product_size_rows": size_count,
         },

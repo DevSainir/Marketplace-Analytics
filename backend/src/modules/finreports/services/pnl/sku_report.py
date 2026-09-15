@@ -45,6 +45,7 @@ def build_sku_row(
     orders: int | None,
     cost_price: Decimal | None,
     advertising: Decimal | None,
+    ad_bonus: Decimal | None,
     penalties: list[SkuPenalty],
     subject_name: str = "",
     brand_name: str = "",
@@ -59,7 +60,11 @@ def build_sku_row(
         sa_name: Display article.
         orders: Ordered units from the funnel, ``None`` without coverage.
         cost_price: The seller's per-unit cost, ``None`` when not on file.
-        advertising: Promotion-API spend, ``None`` without coverage.
+        advertising: Promotion-API spend GROSS of funding source, ``None``
+            without coverage.
+        ad_bonus: The share of ``advertising`` WB funded from its bonus pool,
+            as a positive magnitude. ``None`` when the write-off ledger has
+            no coverage for the window — which must not be read as zero.
         penalties: This SKU's penalty categories.
         subject_name: WB's Тип предмета (blank on the totals/bucket rows).
         brand_name: WB's Бренд (blank on the totals/bucket rows).
@@ -95,7 +100,19 @@ def build_sku_row(
 
     net_units = aggregate.sold_units - aggregate.returned_units
     cogs = cost_price * net_units if cost_price is not None else None
-    net_profit = payout_net - cogs - (advertising or _ZERO) if cogs is not None else None
+    # What the advertising actually cost: WB's bonuses bought impressions that
+    # appear in `advertising` but never left the seller's account, and they
+    # never reach the settlement either (a bonus write-off has no invoice). The
+    # bonus is clamped at the spend it belongs to — a ledger row dated just
+    # inside the window whose impressions fell just outside it must not turn an
+    # advertising cost negative.
+    #
+    # The clamp is applied ONCE, here, and the clamped figure is what the row
+    # reports: «Реклама» minus «Бонусы» has to equal the cash cost on screen,
+    # which it cannot if the printed bonus is the unclamped one.
+    bonus_applied = None if advertising is None or ad_bonus is None else min(ad_bonus, advertising)
+    advertising_cash = None if advertising is None else advertising - (bonus_applied or _ZERO)
+    net_profit = payout_net - cogs - (advertising_cash or _ZERO) if cogs is not None else None
 
     return PnlSkuRow(
         nm_id=nm_id,
@@ -125,6 +142,8 @@ def build_sku_row(
         cogs=cogs,
         advertising=advertising,
         advertising_pct=_pct(advertising, revenue_paid) if advertising is not None else None,
+        ad_bonus=bonus_applied,
+        advertising_cash=advertising_cash,
         payout_for_goods=payout_goods,
         payout_net=payout_net,
         net_profit=net_profit,
@@ -134,7 +153,9 @@ def build_sku_row(
         # net_profit is already None without a cost, so ROI/ROMI follow.
         roi_pct=(_pct(net_profit, cogs) if net_profit is not None and cogs else None),
         romi_pct=(
-            _pct(net_profit, advertising) if net_profit is not None and advertising else None
+            _pct(net_profit, advertising_cash)
+            if net_profit is not None and advertising_cash
+            else None
         ),
     )
 
@@ -146,6 +167,7 @@ def build_sku_report(
     costs: dict[int, Decimal],
     orders: dict[int, int] | None,
     ad_spend: dict[int, Decimal] | None,
+    ad_bonus: dict[int, Decimal] | None,
     penalties: list[tuple[int, str, Decimal]],
     excluded: set[int] | None = None,
     photos: dict[int, str] | None = None,
@@ -158,6 +180,8 @@ def build_sku_report(
         costs: Seller cost per ``nm_id`` (settlement currency only).
         orders: Funnel orders per ``nm_id``; ``None`` = no coverage at all.
         ad_spend: Promotion-API spend per ``nm_id``; ``None`` = no coverage.
+        ad_bonus: WB-funded share of that spend per ``nm_id``; ``None`` = the
+            write-off ledger does not cover this window.
         penalties: ``(nm_id, reason, amount)`` categories for the window.
         excluded: ``nm_id``s marked «Не включать в общий счёт». Only flags the
             rows; ``totals`` stays the full reconciled window regardless (the
@@ -187,6 +211,7 @@ def build_sku_report(
             orders=None if orders is None else orders.get(nm_id, 0),
             cost_price=costs.get(nm_id),
             advertising=None if ad_spend is None else ad_spend.get(nm_id, _ZERO),
+            ad_bonus=None if ad_bonus is None else ad_bonus.get(nm_id, _ZERO),
             penalties=penalty_map.get(nm_id, []),
             subject_name=aggregate.subject_name if nm_id else "",
             brand_name=aggregate.brand_name if nm_id else "",
@@ -200,6 +225,8 @@ def build_sku_report(
             row.orders_units = None
             row.advertising = None
             row.advertising_pct = None
+            row.ad_bonus = None
+            row.advertising_cash = None
             unallocated = row
         else:
             rows.append(row)
@@ -215,12 +242,13 @@ def build_sku_report(
         orders=None if orders is None else sum(orders.values()),
         cost_price=None,
         advertising=None if ad_spend is None else sum(ad_spend.values(), _ZERO),
+        ad_bonus=None if ad_bonus is None else sum(ad_bonus.values(), _ZERO),
         penalties=_merged_reasons(penalties),
     )
     # The totals row's COGS is the sum of the costed rows, not price x units (no
     # single price exists across SKUs); profit follows from it.
     totals.cogs = sum((r.cogs for r in rows if r.cogs is not None), _ZERO)
-    totals.net_profit = totals.payout_net - totals.cogs - (totals.advertising or _ZERO)
+    totals.net_profit = totals.payout_net - totals.cogs - (totals.advertising_cash or _ZERO)
     totals.net_profit_pct = _pct(totals.net_profit, totals.revenue_paid)
     _ = total_costed_units  # coverage is reported by the service's notes
     return rows, unallocated, totals

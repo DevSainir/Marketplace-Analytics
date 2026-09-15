@@ -31,6 +31,7 @@ def _service(sale_repo: Any) -> IngestionService:
         product_size_repo=None,  # type: ignore[arg-type]
         advertising_search_repo=None,  # type: ignore[arg-type]
         advertising_cluster_repo=None,  # type: ignore[arg-type]
+        advertising_write_off_repo=None,  # type: ignore[arg-type]
         price_repo=None,  # type: ignore[arg-type]
         sale_repo=sale_repo,
     )

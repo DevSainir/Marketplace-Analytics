@@ -1,13 +1,15 @@
 """Raw payload models for the WB Advertising surface.
 
 Covers campaign full stats, the campaign listings (promotion/count and the v2
-adverts descriptor), and the search-cluster (normquery) statistics used to
-split unified-bid campaigns by display zone.
+adverts descriptor), the search-cluster (normquery) statistics used to split
+unified-bid campaigns by display zone, and the write-off ledger that names how
+each advertising charge was funded.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from decimal import Decimal
 
 from pydantic import Field, field_validator
 from pydantic_core import PydanticUseDefault
@@ -185,3 +187,46 @@ class WBNormQueryItem(RawBase):
         if value is None:
             raise PydanticUseDefault
         return value
+
+
+# --------------------------------------------------------------------------- #
+# Advertising write-offs — GET /adv/v1/upd
+# --------------------------------------------------------------------------- #
+# The ONLY WB surface that names how an advertising charge was funded. Verified
+# live 2026-09-15 on the `Демо` workspace: one row per write-off, carrying
+# `paymentType` («Баланс» — the seller's own money — or «Кэшбэк», which WB pays
+# out of the bonus pool `/adv/v1/balance` reports under `cashbacks`).
+#
+# Two fields of this payload are traps, and both have already produced a wrong
+# number once:
+#
+# * `updNum` is **0 on every cashback row** (it is an invoice-document number,
+#   and a bonus write-off has no invoice). Deduplicating on it collapses a
+#   month of cashback into a single row — measured: 169 000 KGS read as 500.
+# * `currency` VARIES INSIDE ONE WINDOW. August-September 2026 returned 96
+#   «Баланс» rows in RUB against 223 in KGS on the same account. Summing
+#   `updSum` without splitting by currency adds unlike units.
+#
+# Both are why the ingested grain keeps `currency` in the primary key and never
+# uses `updNum` for anything.
+
+
+class WBAdvWriteOff(RawBase):
+    """One advertising write-off: when, how much, for which campaign, funded how.
+
+    Attributes:
+        upd_time: Timestamp WB charged it (NOT the day the ads ran — write-offs
+            are batched, so this only aligns with fullstats over a window).
+        upd_sum: Amount charged, in :attr:`currency`.
+        campaign_id: The campaign charged (``advertId``). There is no ``nmId``
+            on this feed at all — a write-off belongs to a campaign, never to a
+            SKU.
+        payment_type: WB's funding-source label, verbatim.
+        currency: Settlement currency of THIS row. See the module note.
+    """
+
+    upd_time: datetime = Field(alias="updTime")
+    upd_sum: Decimal = Field(alias="updSum", default=Decimal(0))
+    campaign_id: int = Field(alias="advertId")
+    payment_type: str = Field(alias="paymentType", default="")
+    currency: str = Field(default="")

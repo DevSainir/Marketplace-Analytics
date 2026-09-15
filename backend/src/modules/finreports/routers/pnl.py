@@ -34,8 +34,11 @@ from src.modules.finreports.schemas import (
     WeeksResponse,
 )
 from src.modules.monitoring.contract import (
+    ad_bonus_coverage,
+    ad_bonus_unknown_types,
     ad_coverage,
     funnel_coverage,
+    load_ad_bonus_by_nm,
     load_ad_spend_by_nm,
     load_card_photos,
     load_orders_by_nm,
@@ -143,6 +146,15 @@ async def get_pnl_by_sku(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
         ad_spend=await load_ad_spend_by_nm(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        ad_bonus=await load_ad_bonus_by_nm(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        bonus_span=await ad_bonus_coverage(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        unknown_funding=await ad_bonus_unknown_types(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
         funnel_span=await funnel_coverage(
@@ -274,6 +286,15 @@ async def export_cost_prices(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
         ad_spend=await load_ad_spend_by_nm(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        ad_bonus=await load_ad_bonus_by_nm(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        bonus_span=await ad_bonus_coverage(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        unknown_funding=await ad_bonus_unknown_types(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
         funnel_span=await funnel_coverage(

@@ -7,7 +7,7 @@ async via ``httpx.AsyncClient`` inherited from :class:`BaseWBClient`.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
@@ -20,6 +20,7 @@ from src.integrations.wildberries.schemas import (
     WBCampaignGroup,
     WBNormQueryItem,
 )
+from src.integrations.wildberries.schemas.advertising import WBAdvWriteOff
 
 # NOTE on shape validation: a 200 response whose body does not match the
 # verified live shape (WB error envelope, silent contract change) must raise
@@ -196,6 +197,67 @@ class WBAdvertisingClient(BaseWBClient):
                 "Unexpected adv/v1/budget response shape (expected an object with 'total')."
             )
         return int(payload["total"])
+
+    #: WB rejects an ``upd`` interval wider than a month
+    #: (``{"error":"Invalid Params: the interval should not exceed 1 month"}``).
+    #: 30 rather than 31 so a window ending on the 31st of a long month cannot
+    #: round past whatever WB means by "a month".
+    _WRITE_OFF_WINDOW_DAYS = 30
+
+    async def fetch_write_offs(
+        self,
+        *,
+        date_from: date,
+        date_to: date,
+    ) -> list[WBAdvWriteOff]:
+        """Fetch the advertising write-off ledger, split by funding source.
+
+        Endpoint: ``GET /adv/v1/upd?from=YYYY-MM-DD&to=YYYY-MM-DD``. This is the
+        only WB surface that says whether a charge came out of the seller's own
+        money («Баланс») or out of WB's bonus pool («Кэшбэк») — ``fullstats``
+        reports the impressions either way funded with no split at all, and a
+        cashback write-off never reaches the settlement report because it has no
+        invoice document to name.
+
+        The feed is **account-wide**: there is no campaign filter and no
+        ``nmId``, so a write-off can only ever be attributed to a campaign.
+
+        Verified live 2026-09-15: the interval is capped at one month, so wider
+        requests are walked in :attr:`_WRITE_OFF_WINDOW_DAYS` steps; WB serves
+        back to at least 2024-08. An empty window answers ``[]`` or ``null``,
+        both legitimate.
+
+        Args:
+            date_from: Inclusive window start.
+            date_to: Inclusive window end.
+
+        Returns:
+            Every write-off in the window, in WB's order, across all campaigns.
+
+        Raises:
+            IntegrationError: If a 200 response is not a JSON array. Defaulting
+                to empty would let a harvest record "no bonuses" for a month
+                that had them, which reads as a real (and flattering) number.
+        """
+        out: list[WBAdvWriteOff] = []
+        start = date_from
+        while start <= date_to:
+            end = min(start + timedelta(days=self._WRITE_OFF_WINDOW_DAYS - 1), date_to)
+            payload = await self._request(
+                "GET",
+                "/adv/v1/upd",
+                params={"from": start.isoformat(), "to": end.isoformat()},
+            )
+            # WB answers `null` for a window with no write-offs — legitimate.
+            if payload is not None:
+                if not isinstance(payload, list):
+                    raise IntegrationError(
+                        "Unexpected adv/v1/upd response shape (expected a list, "
+                        f"got {type(payload).__name__})."
+                    )
+                out.extend(WBAdvWriteOff.model_validate(row) for row in payload)
+            start = end + timedelta(days=1)
+        return out
 
     async def fetch_search_zone_stats(
         self,

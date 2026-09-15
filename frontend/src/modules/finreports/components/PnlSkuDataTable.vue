@@ -157,6 +157,12 @@ function onToggle(data, checked) {
         </span>
       </template>
     </Column>
+    <Column field="adBonus" header="Бонусы" sortable>
+      <template #body="{ data }">
+        <span v-if="data.adBonus" class="text-status-positive"> −{{ money(data.adBonus) }} </span>
+        <template v-else>{{ money(data.adBonus) }}</template>
+      </template>
+    </Column>
     <Column field="roi" header="ROI" sortable>
       <template #body="{ data }">{{ pct(data.roi) }}</template>
     </Column>

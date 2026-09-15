@@ -29,6 +29,7 @@ from src.modules.finreports.constants import (
     SUBSCRIPTION_DEDUCTION_MARKER,
     TRANSIT_DEDUCTION_MARKER,
 )
+from src.modules.monitoring.models import BONUS_PAYMENT_TYPES, CASH_PAYMENT_TYPES
 
 #: Non-letter characters a WB label may legitimately contain.
 _ALLOWED_NON_LETTERS = set(" .,()/«»№-–—0123456789")
@@ -84,3 +85,21 @@ def test_the_taxonomy_covers_every_operation_the_statement_names() -> None:
     the classifier the caveat check runs against.
     """
     assert {LOGISTICS_OPER, PENALTY_OPER} <= CLASSIFIED_OPERS
+
+
+@pytest.mark.parametrize("label", sorted(BONUS_PAYMENT_TYPES | CASH_PAYMENT_TYPES))
+def test_an_advertising_funding_label_contains_no_latin_lookalikes(label: str) -> None:
+    """The ``paymentType`` allowlist is matched for exact equality too.
+
+    A Latin lookalike in «Кэшбэк» is the quietest failure of the set: the label
+    matches nothing, the bonus is silently treated as the seller's own money,
+    and the report goes back to the inflated ДРР it had before — with every
+    total still reconciling, because the ledger never enters the settlement.
+    """
+    assert _latin_letters(label) == set()
+    assert _unexpected(label) == set()
+
+
+def test_no_label_is_both_a_bonus_and_the_sellers_own_money() -> None:
+    """The two sets decide opposite things; an overlap makes one of them a lie."""
+    assert set() == BONUS_PAYMENT_TYPES & CASH_PAYMENT_TYPES

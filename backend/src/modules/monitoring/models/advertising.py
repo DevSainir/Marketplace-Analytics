@@ -1,13 +1,19 @@
-"""Advertising full-stats time-series model.
+"""Advertising time-series models — impressions, and who paid for them.
 
-Flattens the nested ``apps`` (platform) -> ``nms`` (SKU) tree from WB into one
-row per ``(date, campaign_id, app_type, nm_id)``. The four-column composite key
-matches the natural grain of the source data and makes re-ingestion idempotent.
+The fullstats family flattens the nested ``apps`` (platform) -> ``nms`` (SKU)
+tree from WB into one row per ``(date, campaign_id, app_type, nm_id)``. The
+four-column composite key matches the natural grain of the source data and makes
+re-ingestion idempotent.
+
+:class:`AdvertisingWriteOffDaily` is the money counterpart: fullstats reports
+spend without ever saying whether the seller or WB funded it, and that split is
+the difference between a real ДРР and a flattering one.
 """
 
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy import BigInteger, Date, Index, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -148,3 +154,73 @@ class AdvertisingClusterStatDaily(Base):
     spend: Mapped[float] = mapped_column(Numeric(14, 2), default=0, nullable=False)
     orders: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     avg_position: Mapped[float] = mapped_column(Numeric(8, 2), default=0, nullable=False)
+
+
+#: Longest ``paymentType`` WB has been observed to return, with headroom. It IS
+#: part of the primary key, so the column must be bounded.
+PAYMENT_TYPE_MAX_LENGTH: int = 32
+
+#: ``paymentType`` values that mean «WB paid for this, not the seller».
+#:
+#: Verified live 2026-09-15 on the `Демо` workspace. «Кэшбэк» is the label
+#: WB actually uses; «Бонусы» is listed alongside it because WB's own cabinet
+#: names the same pool that way and a rename would otherwise go unnoticed.
+#:
+#: **The match is an allowlist, and that direction is deliberate.** An
+#: unrecognised funding label is treated as the seller's own money, so a WB
+#: rename degrades the report back to counting gross spend — today's behaviour.
+#: The reverse default (unknown = bonus) would subtract real money and overstate
+#: profit, which is the error nobody catches. Unknown labels are surfaced in the
+#: report's ``notes`` instead of being silently absorbed.
+BONUS_PAYMENT_TYPES: frozenset[str] = frozenset({"Кэшбэк", "Бонусы"})
+
+#: ``paymentType`` values that mean the seller's own money left the account.
+#: Only used to tell a *known* cash label from an unrecognised one when
+#: assembling the caveat; the arithmetic never reads this.
+CASH_PAYMENT_TYPES: frozenset[str] = frozenset({"Баланс", "Счет", "Счёт"})
+
+
+class AdvertisingWriteOffDaily(Base):
+    """One day's advertising charges for one campaign, one funding source.
+
+    Sourced from ``GET /adv/v1/upd`` — the only WB feed that says who paid for
+    an impression. ``fullstats`` reports the spend whatever funded it, and a
+    cashback charge never reaches the settlement report at all (WB gives it no
+    invoice document), so without this table WB's bonuses are counted as the
+    seller's money in every per-SKU ДРР, ROI and profit figure.
+
+    **``currency`` is in the primary key because WB mixes currencies inside one
+    window.** Measured 2026-08..09 on one account: 96 «Баланс» rows in RUB
+    against 223 in KGS. Summing across it would add unlike units, so the grain
+    keeps them apart and the reader picks the one currency it settles in.
+
+    The grain deliberately drops WB's ``updNum``: it is an invoice-document
+    number, and every cashback row carries ``0``. Aggregating by it once turned
+    169 000 KGS of bonuses into 500.
+
+    Attributes:
+        stat_date: Moscow day WB charged it (``updTime``). This is the charge
+            date, NOT the day the ads ran — write-offs are batched, so it aligns
+            with ``advertising_stat_daily`` over a window, not day by day.
+        campaign_id: WB advertising campaign charged. The feed carries no
+            ``nm_id``, so this is the finest attribution WB permits.
+        payment_type: WB's funding-source label, verbatim.
+        currency: The row's own settlement currency.
+        amount: Σ ``updSum`` of the write-offs in this bucket.
+        write_offs: How many WB rows were summed — a bucket, not a single row.
+    """
+
+    __tablename__ = "advertising_write_off_daily"
+    __table_args__ = (
+        # The report reads a window across all campaigns, so date leads.
+        Index("ix_advertising_write_off_daily_date", "stat_date"),
+        {"schema": _SCHEMA},
+    )
+
+    stat_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    payment_type: Mapped[str] = mapped_column(String(PAYMENT_TYPE_MAX_LENGTH), primary_key=True)
+    currency: Mapped[str] = mapped_column(String(8), primary_key=True)
+
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal(0), nullable=False)
+    write_offs: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

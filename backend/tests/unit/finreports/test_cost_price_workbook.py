@@ -59,6 +59,8 @@ def _row(nm_id: int, sa_name: str, *, cost: str | None) -> PnlSkuRow:
         cogs=(cost_dec * 8 if cost_dec is not None else None),
         advertising=Decimal("30"),
         advertising_pct=Decimal("3.3"),
+        ad_bonus=Decimal("12"),
+        advertising_cash=Decimal("18"),
         payout_for_goods=Decimal("840"),
         payout_net=Decimal("780"),
         net_profit=(Decimal("100") if cost_dec is not None else None),

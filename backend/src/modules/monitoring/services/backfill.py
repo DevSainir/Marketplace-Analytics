@@ -43,6 +43,7 @@ from src.modules.monitoring.repos import (
     AdvertisingClusterRepository,
     AdvertisingRepository,
     AdvertisingSearchRepository,
+    AdvertisingWriteOffRepository,
     CampaignRepository,
     FunnelRepository,
     PriceRepository,
@@ -109,6 +110,7 @@ def build_ingestion_service(session: AsyncSession) -> IngestionService:
         product_size_repo=ProductSizeRepository(session),
         advertising_search_repo=AdvertisingSearchRepository(session),
         advertising_cluster_repo=AdvertisingClusterRepository(session),
+        advertising_write_off_repo=AdvertisingWriteOffRepository(session),
         price_repo=PriceRepository(session),
         sale_repo=SaleRepository(session),
     )

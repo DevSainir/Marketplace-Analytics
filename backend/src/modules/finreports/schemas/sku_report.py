@@ -98,9 +98,28 @@ class PnlSkuRow(BaseModel):
     #: cost_price x net units; ``None`` when no cost is on file.
     cogs: Decimal | None
 
-    #: Promotion-API spend; ``None`` = the window has no advertising coverage.
+    #: Promotion-API spend, GROSS of who funded it; ``None`` = the window has
+    #: no advertising coverage. Left gross on purpose — it is what WB's own
+    #: cabinet shows, and the bonus below is what turns it into money spent.
     advertising: Decimal | None
     advertising_pct: Decimal | None
+
+    #: «Бонусы» — the share of :attr:`advertising` WB paid out of its own bonus
+    #: pool («Кэшбэк»), as a POSITIVE magnitude to be SUBTRACTED.
+    #:
+    #: Positive, not negative, because every money field on this row is a
+    #: positive magnitude whose sign is applied where it is composed — the same
+    #: rule that keeps WB's positively-served returns from being added to sales.
+    #: The screen renders it negative and green; the arithmetic subtracts it
+    #: exactly once, in :attr:`advertising_cash`.
+    #:
+    #: ``None`` when the write-off ledger has no coverage for the window, which
+    #: is NOT the same as zero: «мы не знаем» and «бонусов не было» read
+    #: differently on a report, and only the second one may lower a cost.
+    ad_bonus: Decimal | None
+    #: advertising - ad_bonus: what the advertising actually cost the seller.
+    #: This — never :attr:`advertising` — is what profit, ROI and ROMI use.
+    advertising_cash: Decimal | None
 
     #: К перечислению за товар — Σ ``ppvz_for_pay``, WB's settled payout.
     payout_for_goods: Decimal
@@ -108,16 +127,17 @@ class PnlSkuRow(BaseModel):
     #: (its logistics, penalties and the rare SKU-attributed storage).
     payout_net: Decimal
 
-    #: payout_net - cogs - advertising. ``None`` when cogs is unknown — a profit
-    #: computed against free goods is worse than no figure.
+    #: payout_net - cogs - advertising_cash. ``None`` when cogs is unknown — a
+    #: profit computed against free goods is worse than no figure.
     net_profit: Decimal | None
     net_profit_pct: Decimal | None
 
     #: ROI = net profit / cost * 100. ``None`` without cost (profit is ``None``
     #: then too) or when cost is zero.
     roi_pct: Decimal | None
-    #: ROMI = net profit / ad spend * 100. ``None`` when profit is unknown or
-    #: there was no advertising to return on.
+    #: ROMI = net profit / advertising_cash * 100. The denominator is the money
+    #: the seller actually put in, so a campaign WB fully funded returns
+    #: ``None`` rather than an infinite ROMI.
     romi_pct: Decimal | None
 
 

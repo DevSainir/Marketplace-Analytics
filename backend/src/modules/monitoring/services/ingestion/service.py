@@ -16,6 +16,7 @@ from src.core.config import settings
 from src.integrations.wildberries.schemas import (
     WBAdvCampaignStats,
     WBAdvertV2,
+    WBAdvWriteOff,
     WBCampaign,
     WBCard,
     WBCardProduct,
@@ -30,6 +31,7 @@ from src.modules.monitoring.repos import (
     AdvertisingClusterRepository,
     AdvertisingRepository,
     AdvertisingSearchRepository,
+    AdvertisingWriteOffRepository,
     CampaignRepository,
     FunnelRepository,
     PriceRepository,
@@ -61,6 +63,7 @@ class IngestionService:
         product_size_repo: ProductSizeRepository,
         advertising_search_repo: AdvertisingSearchRepository,
         advertising_cluster_repo: AdvertisingClusterRepository,
+        advertising_write_off_repo: AdvertisingWriteOffRepository,
         price_repo: PriceRepository,
         sale_repo: SaleRepository,
     ) -> None:
@@ -71,6 +74,7 @@ class IngestionService:
             campaign_repo=campaign_repo,
             advertising_search_repo=advertising_search_repo,
             advertising_cluster_repo=advertising_cluster_repo,
+            advertising_write_off_repo=advertising_write_off_repo,
         )
         self._stocks = StockIngestion(stock_repo)
         self._prices = PriceIngestion(price_repo)
@@ -107,6 +111,15 @@ class IngestionService:
     ) -> int:
         """Delegate to :meth:`AdvertisingIngestion.ingest_advertising`."""
         return await self._advertising.ingest_advertising(stats, window=window)
+
+    async def ingest_write_offs(
+        self,
+        write_offs: list[WBAdvWriteOff],
+        *,
+        window: tuple[date, date],
+    ) -> int:
+        """Delegate to :meth:`AdvertisingIngestion.ingest_write_offs`."""
+        return await self._advertising.ingest_write_offs(write_offs, window=window)
 
     async def ingest_campaigns(
         self,
@@ -197,6 +210,7 @@ class IngestionService:
         customer_prices: list[WBCardProduct] | None = None,
         price_nm_ids: list[int] | None = None,
         sales: list[WBSaleRecord] | None = None,
+        write_offs: list[WBAdvWriteOff] | None = None,
         keep_warehouses: tuple[str, ...] = (),
     ) -> IngestionResult:
         """Run a full harvest ingestion in one unit of work.
@@ -221,6 +235,10 @@ class IngestionService:
                 account-wide seller feed to this harvest); ``None`` writes all.
             sales: Raw per-item sale/return records; ``None`` when the source
                 failed (existing rows are then left untouched).
+            write_offs: Raw advertising write-offs naming who funded each charge;
+                ``None`` when the source failed or was not asked for (the
+                existing ledger is then left untouched, so a missed pass reads
+                as «bonuses unknown» rather than «no bonuses»).
             keep_warehouses: Warehouses whose feeding source failed this run, so
                 the sweep leaves their rows in place (FBO and FBS reach this
                 table from different WB surfaces and fail independently).
@@ -270,6 +288,11 @@ class IngestionService:
         sales_count = 0
         if sales is not None:
             sales_count = await self.ingest_sales(sales)
+        # The ledger is only ever swept and rewritten for the window it was
+        # actually fetched for, so it needs the window to be known.
+        write_off_count = 0
+        if write_offs is not None and advertising_window is not None:
+            write_off_count = await self.ingest_write_offs(write_offs, window=advertising_window)
         return IngestionResult(
             funnel_rows=funnel_count,
             advertising_rows=ad_count,
@@ -278,4 +301,5 @@ class IngestionService:
             stock_rows=stock_count,
             price_rows=price_count,
             sales_rows=sales_count,
+            write_off_rows=write_off_count,
         )

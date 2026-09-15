@@ -51,6 +51,7 @@ def _ingestion(cluster_repo: Any) -> AdvertisingIngestion:
         campaign_repo=None,  # type: ignore[arg-type]
         advertising_search_repo=None,  # type: ignore[arg-type]
         advertising_cluster_repo=cluster_repo,
+        advertising_write_off_repo=None,  # type: ignore[arg-type]
     )
 
 
@@ -237,6 +238,7 @@ def _service(cluster_repo: Any, search_repo: Any) -> IngestionService:
         product_size_repo=None,  # type: ignore[arg-type]
         advertising_search_repo=search_repo,
         advertising_cluster_repo=cluster_repo,
+        advertising_write_off_repo=None,  # type: ignore[arg-type]
         price_repo=None,  # type: ignore[arg-type]
         sale_repo=None,  # type: ignore[arg-type]
     )

@@ -164,6 +164,9 @@ class IngestionResult(BaseModel):
     stock_rows: int = Field(default=0, description="Stock rows upserted.")
     price_rows: int = Field(default=0, description="Price snapshot rows upserted.")
     sales_rows: int = Field(default=0, description="Per-item sale/return records upserted.")
+    write_off_rows: int = Field(
+        default=0, description="Advertising write-off buckets (funding source) upserted."
+    )
 
 
 class CatalogIngestionResult(BaseModel):
