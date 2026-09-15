@@ -130,5 +130,26 @@ USER celeryuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
     CMD celery -A src.core.celery_app.celery_app inspect ping || exit 1
 
+# `--concurrency=2`, not 4, and `--max-tasks-per-child` on top. Both are memory
+# decisions rather than throughput ones, and both were bought with an OOM.
+#
+# Every child is a whole Python process with the whole app loaded. Measured in
+# production 2026-09-15 against the 768 MiB cap in compose: parent 212 MB, four
+# children 129-153 MB each, so the pool idled at ~500 MB — 65% of the cap spent
+# before any task ran. A streamed settlement page then needed more than the
+# ~270 MB left and the kernel took the worker (SIGKILL, anon-rss 417 MB).
+#
+# Four was buying nothing anyway. This pool's work is I/O bound and paced by WB
+# itself — the settlement endpoint serves about four requests an HOUR — so the
+# rate gates serialise the expensive tasks whatever the concurrency is. What the
+# extra children did buy was four simultaneous chances to be the one that runs
+# out of memory.
+#
+# `--max-tasks-per-child` is the other half. CPython returns freed memory to the
+# OS only sometimes, so a child that has handled one 100 000-row page keeps its
+# high-water RSS for ever, and the pool's floor ratchets upward all day. That is
+# why the same page succeeded at 07:20 on a freshly restarted worker and was
+# killed at 09:17 on the same code: nothing had changed but the baseline.
+# Recycling a child bounds the ratchet without anyone having to notice it.
 CMD ["celery", "-A", "src.core.celery_app.celery_app", "worker", \
-     "--loglevel=INFO", "--concurrency=4"]
+     "--loglevel=INFO", "--concurrency=2", "--max-tasks-per-child=100"]

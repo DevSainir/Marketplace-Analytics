@@ -268,6 +268,12 @@ async def _ingest_one_streamed_page(
     The ``rrd_id`` of the last row is tracked as batches go past, because the
     walk's cursor must survive a body no caller ever held in one piece.
 
+    **Each batch is committed as it lands.** Holding the whole page in one
+    transaction put back the ceiling the streaming had just removed — bounded
+    parsing, unbounded uncommitted state — and it showed: SIGKILL at 100 000
+    rows. The caller's contract is unchanged, because a partially committed page
+    reports failure, keeps its cursor, and is re-fetched into the same upsert.
+
     Returns:
         ``(rows, next_cursor)`` with ``next_cursor`` ``None`` when this was the
         window's last page, or ``None`` when WB withheld it.
@@ -277,15 +283,12 @@ async def _ingest_one_streamed_page(
     async with AsyncSessionLocal() as session:
         ingestion: IngestionService = build_ingestion(session)  # type: ignore[operator]
         try:
-            async with (
-                session.begin_nested(),
-                WBFinanceClient(
-                    settings,
-                    token=tokens.statistics,
-                    max_retries=MAX_RETRIES,
-                    rate_gate=_SpentToken(gate),
-                ) as client,
-            ):
+            async with WBFinanceClient(
+                settings,
+                token=tokens.statistics,
+                max_retries=MAX_RETRIES,
+                rate_gate=_SpentToken(gate),
+            ) as client:
                 stream_limit = client.stream_limit
                 async for batch in client.stream_report_rows(
                     date_from=window_from, date_to=window_to, cursor=cursor
@@ -296,6 +299,20 @@ async def _ingest_one_streamed_page(
                     total += await ingestion.ingest_finance_report(
                         _one_page(batch), workspace_id=tokens.workspace_id
                     )
+                    # Committed per batch, not per page. A single transaction
+                    # over 100 000 rows held fifty batches' worth of statement
+                    # state at once and OOM-killed the worker on 2026-09-15
+                    # (SIGKILL, anon-rss 417 MB against a 768 MiB cap) — the
+                    # streaming bounded what we PARSE at a time while leaving
+                    # what we had not yet committed growing with the page.
+                    #
+                    # Per-page atomicity is not load-bearing here and never was:
+                    # the walk resumes from an `rrdid` cursor it only advances
+                    # on success, and the ingest is an upsert, so a page that
+                    # dies half-committed is re-fetched and rewritten with the
+                    # same result. What it buys is that a 217-second page is no
+                    # longer 217 seconds of work to lose.
+                    await session.commit()
                     del batch
         except IntegrationError as exc:
             logger.warning(
@@ -306,7 +323,6 @@ async def _ingest_one_streamed_page(
                 exc,
             )
             return None
-        await session.commit()
     # Fewer rows than we asked for means WB has served the window to its end.
     if total < stream_limit or last_rrd_id is None:
         return total, None

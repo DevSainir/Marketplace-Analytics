@@ -29,6 +29,7 @@ import gc
 import uuid
 from collections.abc import AsyncGenerator, Sequence
 from datetime import date
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -36,6 +37,7 @@ import pytest
 
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.finance import WBFinanceClient
+from src.integrations.wildberries.rate_limit import NullRateGate
 from src.integrations.wildberries.schemas.finance import WBReportDetailRow
 from src.modules.finreports.services.ingestion.service import IngestionService
 
@@ -323,3 +325,77 @@ class _RecordingGate:
     async def penalise(self, endpoint: str, seconds: float) -> None:
         """Record a penalty block that reached the shared bucket."""
         self.penalised.append((endpoint, seconds))
+
+
+class _CountingSession:
+    """A session that records commits and nothing else."""
+
+    def __init__(self) -> None:
+        self.commits = 0
+
+    async def commit(self) -> None:
+        self.commits += 1
+
+    async def __aenter__(self) -> _CountingSession:
+        return self
+
+    async def __aexit__(self, *_exc: object) -> None:
+        return None
+
+
+async def test_a_streamed_page_commits_every_batch_as_it_lands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Streaming bounded what we PARSE; it left what we had not committed growing.
+
+    One transaction over a 100 000-row page held fifty batches of statement
+    state at once and the kernel took the worker on 2026-09-15 — SIGKILL,
+    anon-rss 417 MB against a 768 MiB cap. The parse buffer was bounded the
+    whole time; the ceiling had simply moved to the transaction.
+
+    So the commit belongs with the batch. Per-page atomicity was never
+    load-bearing here: the cursor only advances on success and the ingest is an
+    upsert, so a half-written page is re-fetched to the same result.
+    """
+    from src.modules.finreports.tasks import settlement
+
+    session = _CountingSession()
+    batches = [[_row(i)] for i in range(5)]
+
+    class _Client:
+        stream_limit = 100_000
+
+        async def __aenter__(self) -> _Client:
+            return self
+
+        async def __aexit__(self, *_exc: object) -> None:
+            return None
+
+        async def stream_report_rows(self, **_kw: Any) -> Any:
+            for raw in batches:
+                yield [WBReportDetailRow.model_validate(row) for row in raw]
+
+    class _Ingestion:
+        async def ingest_finance_report(self, pages: Any, **_kw: Any) -> int:
+            written = 0
+            async for page in pages:
+                written += len(page)
+            return written
+
+    monkeypatch.setattr(settlement, "AsyncSessionLocal", lambda: session)
+    monkeypatch.setattr(settlement, "WBFinanceClient", lambda *a, **k: _Client())
+
+    outcome = await settlement._ingest_one_streamed_page(
+        tokens=SimpleNamespace(statistics="t", workspace_id=uuid.uuid4(), name="NEVA"),
+        window_from=date(2026, 7, 9),
+        window_to=date(2026, 8, 8),
+        cursor=0,
+        build_ingestion=lambda _s: _Ingestion(),
+        gate=NullRateGate(),
+    )
+
+    assert outcome == (5, None)
+    assert session.commits == len(batches), (
+        f"committed {session.commits} times for {len(batches)} batches — the page "
+        "is still one transaction"
+    )
