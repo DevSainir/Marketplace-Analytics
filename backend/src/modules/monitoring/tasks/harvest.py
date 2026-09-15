@@ -151,13 +151,24 @@ async def _harvest_sku_window(
         cards: Optional Content API cards to refresh the catalogue dimensions
             (vendor codes + size labels) in the same transaction. Passed by the
             discover flow, which already fetched them to derive ``nm_ids``.
-        include_sales: Whether to pull the sale/return feed. It is the one
-            source WB serves ONLY account-wide (``supplier/sales`` takes a
-            ``dateFrom`` and no SKU filter), so a single-SKU refresh would
-            re-fetch and re-ingest every SKU's sales to update one — on the
-            harshest limiter WB has. The nightly harvest keeps it ``True``;
-            the manual «Обновить» passes ``False``. See
-            :func:`harvest_sku_window`.
+        include_sales: Whether to pull the ACCOUNT-WIDE feeds — the sale/return
+            records and WB's advertising write-off ledger. Neither can be
+            narrowed to a SKU (``supplier/sales`` takes a ``dateFrom`` and no
+            filter; ``/adv/v1/upd`` names campaigns, not cards), so a single-SKU
+            refresh re-fetches the whole account to update one card.
+
+            **Every caller passes ``True`` today**, and has since 0c0a752
+            (2026-09-07) routed both the nightly pass and the interactive
+            «Обновить» through
+            :func:`~src.modules.monitoring.tasks.full_refresh.refresh_workspace_data`,
+            which hard-codes it. The cost was accepted there deliberately: the
+            alternative was a refresh that returned green while «Выкупы, ₽»
+            stood still. This docstring claimed the interactive path passed
+            ``False`` until 2026-09-15 — it had been wrong for a week.
+
+            The parameter survives as a tripwire rather than as a choice:
+            ``tests/unit/monitoring/test_full_refresh_composition.py`` asserts
+            it is ``True``, so flipping it back cannot happen quietly.
 
     Returns:
         The persisted row counts per metric family (plus catalogue counts when
@@ -296,9 +307,12 @@ async def _harvest_sku_window(
         # settlement report (it has no invoice document).
         #
         # Rides the same gate as the sales feed, and for the same reason: it is
-        # served ACCOUNT-WIDE with no campaign filter, so a single-SKU
-        # «Обновить» would re-fetch and rewrite the whole account's ledger to
-        # refresh one card. The nightly pass keeps it current.
+        # served ACCOUNT-WIDE with no campaign filter. That gate is open on
+        # every path today (see ``include_sales`` above), so a single-SKU
+        # «Обновить» re-fetches and rewrites this window's whole ledger to
+        # refresh one card. Cheap enough to accept: a 7-day window is ONE
+        # request, and the rewrite is idempotent — the ingest sweeps exactly the
+        # window it fetched.
         async def _fetch_write_offs() -> list[WBAdvWriteOff] | None:
             if not include_sales:
                 return None
