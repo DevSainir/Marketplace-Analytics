@@ -41,6 +41,9 @@ pytestmark = pytest.mark.integration
 
 #: Every cut the statement offers. All five come out of the one stored grain, so
 #: all five are worth comparing.
+#: A report id for rows seeded outside the fixture's own two weeks.
+LONG_REPORT = 784_000_000
+
 CUTS = [
     PnlGrouping.TOTAL,
     PnlGrouping.DAY,
@@ -285,3 +288,48 @@ async def test_a_month_cut_matches_the_detail_across_a_month_boundary(
     assert await repo.aggregate(**window, grouping=PnlGrouping.MONTH) == (
         await repo.aggregate_from_detail(**window, grouping=PnlGrouping.MONTH)
     )
+
+
+async def test_a_history_of_months_is_built_in_one_pass(
+    db_session: AsyncSession, seeded: None
+) -> None:
+    """A first read reaching back months rebuilds every day, not the last batch.
+
+    The rebuild is an ``INSERT … SELECT``: the groups are written by Postgres
+    and never travel through Python, which is what keeps a 400-day first read at
+    the same memory as a one-day one. Reading them out and sending them back was
+    the previous shape, and on production it was killed by the worker's memory
+    cap rather than returning a page.
+
+    A window this wide is what separates the two: the fixture's own week fits in
+    any implementation, and only a window of months exercises the day list, the
+    grouping and the conflict clause at the size the кабинет actually has.
+    """
+    span = 90
+    start = WINDOW_FROM - timedelta(days=span)
+    db_session.add_all(
+        [
+            LogisticsTransaction(
+                rrd_id=20_000 + offset,
+                report_id=LONG_REPORT,
+                workspace_id=WORKSPACE,
+                nm_id=SKU_A,
+                supplier_oper_name="Продажа",
+                rr_dt=start + timedelta(days=offset),
+                currency_name="KGS",
+                quantity=1,
+                retail_amount=Decimal("100"),
+                ppvz_for_pay=Decimal("90"),
+            )
+            for offset in range(span)
+        ]
+    )
+    await db_session.flush()
+    repo = PnlRepository(db_session)
+    window = {"workspace_id": WORKSPACE, "date_from": start, "date_to": WINDOW_TO}
+
+    through_rollup = await repo.aggregate(**window, grouping=PnlGrouping.TOTAL)
+
+    assert through_rollup == await repo.aggregate_from_detail(**window, grouping=PnlGrouping.TOTAL)
+    # The 90 seeded days plus the three sales the fixture's own two weeks hold.
+    assert through_rollup[0].sold_units == span + 3

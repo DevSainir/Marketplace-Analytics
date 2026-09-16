@@ -23,9 +23,9 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import delete, func, literal, select
+from sqlalchemy import CursorResult, delete, func, literal, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -146,6 +146,20 @@ class SettlementRollup:
     async def rebuild(self, *, workspace_id: uuid.UUID, days: Sequence[date]) -> int:
         """Recompute the given days from the detail and write them back.
 
+        **No settlement row ever reaches Python here.** The rebuild is one
+        ``INSERT … SELECT``, so the whole history — 1.46 M rows folding to 27 857
+        groups — costs the same constant memory as a single day. Reading the
+        groups out and sending them back as one INSERT is what this used to do,
+        and on production it bound 1.2 M parameters into one statement and was
+        killed by the worker's 768 MiB cap: the first read of «Вся история» took
+        the process down instead of returning a page.
+
+        Nor is the window split into batches of days, which was the other
+        candidate: measured on the largest кабинет, 31 days is a 0.7 s index
+        scan but 92 days is a 19.7 s bitmap heap scan, while the whole history
+        in one statement is a 9.5 s parallel seq scan. Postgres picks the right
+        plan for the whole window; chopping it up only forces a worse one.
+
         Deletes first rather than upserting alone: a group that disappeared from
         the detail — a correction that moved a row to another article — would
         otherwise survive as a phantom the totals still count.
@@ -172,7 +186,7 @@ class SettlementRollup:
                 _T.report_id,
                 _T.rr_dt,
                 _T.nm_id,
-                func.max(_T.sa_name),
+                func.coalesce(func.max(_T.sa_name), ""),
                 *_GROUP_EXPRESSIONS,
             )
             .where(
@@ -181,34 +195,25 @@ class SettlementRollup:
             )
             .group_by(_T.workspace_id, _T.report_id, _T.rr_dt, _T.nm_id)
         )
-        rows = (await self._session.execute(source)).all()
-        if not rows:
-            return 0
-
-        payload: list[dict[str, Any]] = [
-            {
-                "workspace_id": row[0],
-                "report_id": row[1],
-                "rr_dt": row[2],
-                "nm_id": row[3],
-                "sa_name": str(row[4] or ""),
-                **dict(zip(ROLLUP_COLUMNS, row[5:], strict=True)),
-            }
-            for row in rows
-        ]
         # ON CONFLICT rather than a bare INSERT: two requests can legitimately
         # repair the same window at the same moment, and the loser of that race
         # must write the same figures rather than raise.
-        statement = insert(rollup).values(payload)
-        await self._session.execute(
-            statement.on_conflict_do_update(
-                index_elements=["workspace_id", "report_id", "rr_dt", "nm_id"],
-                set_={
-                    name: getattr(statement.excluded, name) for name in (*ROLLUP_COLUMNS, "sa_name")
-                },
-            )
+        statement = insert(rollup).from_select(
+            ["workspace_id", "report_id", "rr_dt", "nm_id", "sa_name", *ROLLUP_COLUMNS], source
         )
-        return len(payload)
+        written = cast(
+            CursorResult[Any],
+            await self._session.execute(
+                statement.on_conflict_do_update(
+                    index_elements=["workspace_id", "report_id", "rr_dt", "nm_id"],
+                    set_={
+                        name: getattr(statement.excluded, name)
+                        for name in (*ROLLUP_COLUMNS, "sa_name")
+                    },
+                )
+            ),
+        )
+        return int(written.rowcount or 0)
 
     def group_key(self, grouping: PnlGrouping) -> tuple[SqlExpr, SqlExpr]:
         """The rollup's own ``(key, label)`` for a cut of the statement.
