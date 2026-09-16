@@ -11,6 +11,7 @@ import { abTestsRoutes } from '@/modules/abTests'
 import { authRoutes } from '@/modules/auth'
 import { finreportsRoutes } from '@/modules/finreports'
 import { labsRoutes } from '@/modules/labs'
+import { summaryRoutes } from '@/modules/summary'
 import { monitoringRoutes } from '@/modules/monitoring'
 import { profileRoutes } from '@/modules/profile'
 
@@ -38,6 +39,7 @@ const router = createRouter({
     ...finreportsRoutes,
     ...abTestsRoutes,
     ...labsRoutes,
+    ...summaryRoutes,
     ...profileRoutes,
   ],
 })

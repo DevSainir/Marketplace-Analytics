@@ -1,0 +1,145 @@
+/* «Выручка по категории». Split out only because the repo caps a component at
+   250 lines; still `scoped` — referenced with `<style scoped src>`.
+
+   The grid is one template shared by the header and every row, so the columns
+   line up without a table: label | bars | revenue | margin. */
+
+.sum-cat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sum-cat__head,
+.sum-cat__row {
+  display: grid;
+  /* The money columns are sized for their widest real content — «1 396 367 KGS»
+     plus a share — because a narrower track does not clip the figure, it lets it
+     overflow back across the bars. */
+  grid-template-columns: minmax(96px, 168px) 1fr 178px 178px;
+  align-items: center;
+  gap: 14px;
+}
+
+.sum-cat__head {
+  margin-bottom: 6px;
+  font-size: 0.6875rem;
+  color: var(--ui-faint);
+}
+
+.sum-cat__legend {
+  grid-column: 1 / 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sum-cat__swatch {
+  width: 11px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.sum-cat__swatch--rev {
+  background: var(--ui-action);
+}
+
+.sum-cat__swatch--mar {
+  margin-left: 8px;
+  background: var(--ui-pos);
+}
+
+.sum-cat__colhead {
+  text-align: right;
+}
+
+.sum-cat__row {
+  padding: 5px 0;
+  border-radius: var(--ui-r-sm);
+}
+
+.sum-cat__row:hover {
+  background: var(--ui-zebra);
+}
+
+.sum-cat__label {
+  overflow: hidden;
+  font-size: 0.75rem;
+  color: var(--ui-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The track carries both bars stacked, so one row is one comparison. */
+.sum-cat__track {
+  position: relative;
+  height: 25px;
+}
+
+.sum-cat__bar {
+  position: absolute;
+  height: 9px;
+  border-radius: 3px;
+}
+
+.sum-cat__bar--rev {
+  top: 1px;
+  background: var(--ui-action);
+}
+
+.sum-cat__bar--mar {
+  top: 13px;
+  background: var(--ui-pos);
+}
+
+.sum-cat__bar--neg {
+  background: var(--ui-neg);
+}
+
+.sum-cat__zero {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ui-rule);
+}
+
+.sum-cat__num {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 7px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink);
+  white-space: nowrap;
+}
+
+.sum-cat__num--neg {
+  color: var(--ui-neg);
+}
+
+.sum-cat__share {
+  min-width: 52px;
+  text-align: right;
+  color: var(--ui-faint);
+}
+
+.sum-cat__more {
+  align-self: center;
+  margin-top: 10px;
+}
+
+@media (max-width: 860px) {
+  .sum-cat__head,
+  .sum-cat__row {
+    grid-template-columns: minmax(80px, 120px) 1fr 178px;
+  }
+
+  /* The margin column is the first thing to go: its share is already drawn. */
+  .sum-cat__row > .sum-cat__num:last-child,
+  .sum-cat__head > .sum-cat__colhead:last-child {
+    display: none;
+  }
+}

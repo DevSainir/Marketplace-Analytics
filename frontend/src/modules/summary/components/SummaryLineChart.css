@@ -1,0 +1,72 @@
+/* Chart chrome. Split out only because the repo caps a component at 250 lines;
+   still `scoped` — the component references this file with `<style scoped src>`. */
+
+.sum-grid line {
+  stroke: var(--ui-hairline);
+  stroke-width: 1;
+}
+
+.sum-zero {
+  stroke: var(--ui-rule);
+  stroke-width: 1;
+}
+
+.sum-cross {
+  stroke: var(--ui-rule);
+  stroke-width: 1;
+}
+
+/* Tabular figures so the axis does not jitter as the numbers change width. */
+.sum-axis {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--ui-faint);
+}
+
+.sum-tip {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  padding: 7px 9px;
+  border-radius: var(--ui-r-sm);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.sum-tip__day {
+  margin-bottom: 3px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.6875rem;
+  color: var(--ui-faint);
+}
+
+.sum-tip__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.sum-tip__row + .sum-tip__row {
+  margin-top: 2px;
+}
+
+.sum-tip__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-muted);
+}
+
+.sum-tip__dot {
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.sum-tip__value {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink);
+}

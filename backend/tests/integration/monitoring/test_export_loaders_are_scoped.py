@@ -317,7 +317,16 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     # `load_vendor_codes` uses, and `test_card_photos_exclude_another_tenants_skus`
     # is what actually proves it — this count only forces somebody to look.
     #
+    # 18 since 2026-09-16: `load_order_days` and `load_ad_days` give «Сводка» its
+    # whole-кабинет daily series. Both go through `workspace_sku_select`, because
+    # neither the funnel nor the campaign statistics carries a workspace of its
+    # own — a bare `nm_id` filter would sum one seller's orders into another's
+    # chart, WB article numbers being global.
+    # `test_the_daily_loaders_are_scoped_by_the_card_semijoin` in
+    # `tests/integration/summary` is what actually proves it; this count only
+    # forces somebody to look.
+    #
     # Bumping this number is the deliberate step that says a new cross-module
     # loader was reviewed for tenancy, which the four unscoped loaders of August
     # never were.
-    assert len(scoped) == 16, f"expected 16 scoped loaders, found {sorted(scoped)}"
+    assert len(scoped) == 18, f"expected 18 scoped loaders, found {sorted(scoped)}"
