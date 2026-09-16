@@ -39,6 +39,12 @@ from src.modules.monitoring.services.cards import (
     load_workspace_card,
     search_workspace_cards,
 )
+from src.modules.monitoring.services.day_series import (
+    AdSpendDay,
+    OrderDay,
+    load_ad_days,
+    load_order_days,
+)
 from src.modules.monitoring.services.exports import (
     AdDay,
     WarehouseStock,
@@ -65,9 +71,11 @@ from src.modules.monitoring.services.refresh_tracking import (
 
 __all__ = [
     "AdDay",
+    "AdSpendDay",
     "AnalyticsService",
     "ClusterAnalytics",
     "IngestionService",
+    "OrderDay",
     "WarehouseStock",
     "WorkspaceCard",
     "ad_bonus_coverage",
@@ -78,10 +86,12 @@ __all__ = [
     "claim_cohort_pass",
     "funnel_coverage",
     "load_ad_bonus_by_nm",
+    "load_ad_days",
     "load_ad_days_for_nm",
     "load_ad_spend_by_nm",
     "load_campaign_ids_for_workspace",
     "load_card_photos",
+    "load_order_days",
     "load_orders_by_nm",
     "load_stock_by_warehouse",
     "load_vendor_codes",

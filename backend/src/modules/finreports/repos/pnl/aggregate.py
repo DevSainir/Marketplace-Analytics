@@ -51,6 +51,9 @@ class PnlGrouping(StrEnum):
     """How the statement's rows are cut."""
 
     TOTAL = "total"
+    #: One bucket per settlement date. The chart cut: WB dates every row it
+    #: calculates, so a window of weekly reports still has a row on most days.
+    DAY = "day"
     WEEK = "week"
     MONTH = "month"
     SKU = "sku"
@@ -370,6 +373,7 @@ def _to_aggregate(row: Sequence[Any]) -> SettlementAggregate:
 #: settles nothing on its first or last day).
 _GROUP_KEYS: dict[PnlGrouping, tuple[SqlExpr, SqlExpr]] = {
     PnlGrouping.TOTAL: (literal(None), literal("")),
+    PnlGrouping.DAY: (_T.rr_dt, literal("")),
     PnlGrouping.WEEK: (_T.report_id, literal("")),
     PnlGrouping.MONTH: (func.date_trunc("month", _T.rr_dt), literal("")),
     PnlGrouping.SKU: (_T.nm_id, func.max(_T.sa_name)),

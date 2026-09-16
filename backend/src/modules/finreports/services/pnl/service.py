@@ -223,6 +223,8 @@ class PnlService:
             return f"Отчёт №{aggregate.key}"
         if grouping is PnlGrouping.MONTH:
             return str(aggregate.key)[:7] if aggregate.key else "—"
+        if grouping is PnlGrouping.DAY:
+            return str(aggregate.key) if aggregate.key else "—"
         return aggregate.label or f"nm {aggregate.key}"
 
     @staticmethod

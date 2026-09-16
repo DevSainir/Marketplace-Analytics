@@ -34,6 +34,7 @@ from src.modules.ab_tests.routers import router as ab_tests_router
 from src.modules.finreports.routers import router as finreports_router
 from src.modules.monitoring.routers import router as monitoring_router
 from src.modules.organizations.routers import router as organizations_router
+from src.modules.summary.routers import router as summary_router
 from src.modules.users.routers import router as users_router
 from src.modules.workspaces.routers import router as workspaces_router
 
@@ -382,3 +383,4 @@ app.include_router(workspaces_router, prefix="/api")
 app.include_router(monitoring_router, prefix="/api")
 app.include_router(finreports_router, prefix="/api")
 app.include_router(ab_tests_router, prefix="/api")
+app.include_router(summary_router, prefix="/api")
