@@ -4,10 +4,11 @@ Both are pure functions over DTOs the finreports and monitoring contracts
 already produced, so they are provable here rather than in a tier that needs
 Postgres.
 
-The cases cover the three decisions this page makes that the per-SKU report does
-not: withholding the margin when a cost price is missing, re-dating WB's weekly
-advertising invoice onto the days the ads actually ran, and spreading the bonus
-over the window rather than the day.
+The cases cover the decisions this page makes that the per-SKU report does not:
+withholding the margin when a cost price is missing, charging WB's advertising
+exactly once, and spreading the bonus over the window rather than the day.
+Percentages and the price base are NOT among them — those moved to the page,
+which is why every figure here carries both bases and no ratios.
 """
 
 from __future__ import annotations
@@ -16,12 +17,7 @@ from datetime import date
 from decimal import Decimal
 
 from src.modules.monitoring.contract import AdSpendDay, OrderDay
-from src.modules.summary.schemas import RevenueBase
-from src.modules.summary.services.compose import (
-    build_days,
-    build_kpi,
-    window_ad_cash,
-)
+from src.modules.summary.services.compose import build_days, build_kpi, window_ad_cash
 from tests.unit.summary.builders import ZERO, make_day, make_report, make_row
 
 
@@ -39,7 +35,6 @@ def test_one_uncosted_sku_withholds_the_whole_margin() -> None:
 
     kpi = build_kpi(
         report=make_report([costed, uncosted], totals=totals),
-        base=RevenueBase.PAID,
         orders=None,
         buyouts=None,
         ad_cash=None,
@@ -47,7 +42,6 @@ def test_one_uncosted_sku_withholds_the_whole_margin() -> None:
     )
 
     assert kpi.margin is None
-    assert kpi.margin_pct is None
     assert kpi.uncosted_skus == 1
 
 
@@ -58,7 +52,6 @@ def test_a_fully_costed_window_reports_its_margin() -> None:
 
     kpi = build_kpi(
         report=make_report([row], totals=totals),
-        base=RevenueBase.PAID,
         orders=None,
         buyouts=None,
         ad_cash=Decimal("100"),
@@ -70,13 +63,13 @@ def test_a_fully_costed_window_reports_its_margin() -> None:
 
 
 def test_advertising_is_subtracted_once_and_the_invoice_is_not_the_copy() -> None:
-    """«К перечислению» is already net of WB's weekly invoice; adding it back
-    before taking off the real burn is what keeps the charge from landing twice.
+    """«К перечислению» is already net of WB's weekly invoice.
 
-    Found on live data, not in review: the card read 3 161 239 against a true
-    4 134 120 over one 54-day window, and the gap was exactly that window's
-    1 993 395 of «WB Продвижение» invoices. Revenue reconciled throughout,
-    because revenue is the one figure the restatement does not touch.
+    Adding it back before taking off the real burn is what keeps the charge from
+    landing twice. Found on live data, not in review: the card read 2 657 954.54
+    against a true 4 313 444.72 over one 54-day window, and the gap was exactly
+    that window's 1 993 394.61 of «WB Продвижение» invoices. Revenue reconciled
+    throughout, because revenue is the one figure the restatement does not touch.
     """
     row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
     # payout_net 800 is already net of a 200 invoice.
@@ -84,7 +77,6 @@ def test_advertising_is_subtracted_once_and_the_invoice_is_not_the_copy() -> Non
 
     kpi = build_kpi(
         report=make_report([row], totals=totals),
-        base=RevenueBase.PAID,
         orders=None,
         buyouts=None,
         ad_cash=Decimal("150"),
@@ -107,7 +99,6 @@ def test_without_ad_coverage_the_invoice_stays_inside_the_payout() -> None:
 
     kpi = build_kpi(
         report=make_report([row], totals=totals),
-        base=RevenueBase.PAID,
         orders=None,
         buyouts=None,
         ad_cash=None,
@@ -138,7 +129,6 @@ def test_a_refund_only_sku_without_a_cost_still_withholds_the_margin() -> None:
 
     kpi = build_kpi(
         report=make_report([refunded], totals=totals),
-        base=RevenueBase.PAID,
         orders=None,
         buyouts=None,
         ad_cash=None,
@@ -148,12 +138,14 @@ def test_a_refund_only_sku_without_a_cost_still_withholds_the_margin() -> None:
     assert kpi.margin is None
 
 
-def test_buyout_agrees_with_the_cards_standing_next_to_it() -> None:
-    """«Выкуп» is settled units over orders, not WB's own counter.
+def test_both_counters_of_the_buyout_travel_rather_than_a_ratio() -> None:
+    """Units, orders and WB's own counter go out raw; the page divides them.
 
-    The page shows «Продано» and «Заказов» as their own cards, so a reader
-    divides them in their head; any third number in that position reads as an
-    error. WB's direct counter is still reported, separately.
+    «Выкуп» is settled units over orders so it agrees with the two cards beside
+    it — a reader divides those in their head, and a third number in that
+    position reads as an error. WB's direct counter is carried alongside, and
+    neither ratio is computed here: a percentage is presentation, and computing
+    it server-side is what would force a round trip to change a price base.
     """
     row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
     totals = make_row(
@@ -168,19 +160,17 @@ def test_buyout_agrees_with_the_cards_standing_next_to_it() -> None:
 
     kpi = build_kpi(
         report=make_report([row], totals=totals),
-        base=RevenueBase.PAID,
         orders=100,
         buyouts=27,
         ad_cash=None,
         settled_advertising=ZERO,
     )
 
-    assert kpi.buyout_pct == Decimal("30.00")
-    assert kpi.buyout_counted_pct == Decimal("27.00")
+    assert (kpi.sold_units, kpi.orders, kpi.buyouts) == (30, 100, 27)
 
 
 def test_no_funnel_coverage_is_not_zero_orders() -> None:
-    """Without funnel coverage the orders card is empty, and so is «Выкуп».
+    """Without funnel coverage the orders card is empty, not zero.
 
     Zero would be a claim that nobody ordered, which is a different and much
     more alarming statement than "the harvest does not reach this window".
@@ -190,7 +180,6 @@ def test_no_funnel_coverage_is_not_zero_orders() -> None:
 
     kpi = build_kpi(
         report=make_report([row], totals=totals),
-        base=RevenueBase.PAID,
         orders=None,
         buyouts=None,
         ad_cash=None,
@@ -198,7 +187,36 @@ def test_no_funnel_coverage_is_not_zero_orders() -> None:
     )
 
     assert kpi.orders is None
-    assert kpi.buyout_pct is None
+    assert kpi.buyouts is None
+
+
+def test_both_price_bases_travel_on_every_figure() -> None:
+    """Switching «Цена реализации» ⇄ «Цена селлера» must cost nothing.
+
+    Sending one base and re-requesting for the other put a round trip over the
+    whole settlement window behind a toggle — seconds, for a division the page
+    could do instantly. Both now travel, on the cards and on every day.
+    """
+    row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
+    totals = make_row(nm_id=0, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
+
+    kpi = build_kpi(
+        report=make_report([row], totals=totals),
+        orders=None,
+        buyouts=None,
+        ad_cash=None,
+        settled_advertising=ZERO,
+    )
+    days = build_days(
+        buckets=[make_day(day=date(2026, 7, 19), revenue="1000", margin_profit="500")],
+        order_days=[],
+        ad_days=[],
+        costed=True,
+    )
+
+    # The builders put the seller price at twice the paid one.
+    assert (kpi.revenue_paid, kpi.revenue_seller) == (Decimal("1000"), Decimal("2000"))
+    assert (days[0].revenue_paid, days[0].revenue_seller) == (Decimal("1000"), Decimal("2000"))
 
 
 def test_the_weekly_invoice_is_swapped_for_the_days_own_burn() -> None:
@@ -221,7 +239,6 @@ def test_the_weekly_invoice_is_swapped_for_the_days_own_burn() -> None:
             AdSpendDay(stat_date=date(2026, 7, 19), spend=Decimal("100"), bonus=ZERO),
             AdSpendDay(stat_date=date(2026, 7, 20), spend=Decimal("100"), bonus=ZERO),
         ],
-        base=RevenueBase.PAID,
         costed=True,
     )
 
@@ -250,7 +267,6 @@ def test_the_bonus_is_spread_over_the_window_and_never_exceeds_a_day() -> None:
         ],
         order_days=[],
         ad_days=ad_days,
-        base=RevenueBase.PAID,
         costed=True,
     )
 
@@ -264,11 +280,10 @@ def test_an_uncosted_window_draws_revenue_without_margin() -> None:
         buckets=[make_day(day=date(2026, 7, 19), revenue="1000", margin_profit="500")],
         order_days=[],
         ad_days=[],
-        base=RevenueBase.PAID,
         costed=False,
     )
 
-    assert days[0].revenue == Decimal("1000")
+    assert days[0].revenue_paid == Decimal("1000")
     assert days[0].margin is None
 
 
@@ -281,39 +296,8 @@ def test_a_day_the_funnel_misses_has_no_orders_rather_than_zero() -> None:
         ],
         order_days=[OrderDay(stat_date=date(2026, 7, 19), orders=40, buyouts=12)],
         ad_days=[],
-        base=RevenueBase.PAID,
         costed=True,
     )
 
     assert days[0].orders == 40
     assert days[1].orders is None
-
-
-def test_the_revenue_base_switches_both_the_cards_and_the_chart() -> None:
-    """«Цена карточки» is a different question, not a different rendering.
-
-    WB's СПП is funded by WB, so the pre-discount price is what the payout is
-    pegged to; a base that moved the cards without moving the chart would put
-    two different questions on one screen.
-    """
-    row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
-    totals = make_row(nm_id=0, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
-
-    kpi = build_kpi(
-        report=make_report([row], totals=totals),
-        base=RevenueBase.SELLER,
-        orders=None,
-        buyouts=None,
-        ad_cash=None,
-        settled_advertising=ZERO,
-    )
-    days = build_days(
-        buckets=[make_day(day=date(2026, 7, 19), revenue="1000", margin_profit="500")],
-        order_days=[],
-        ad_days=[],
-        base=RevenueBase.SELLER,
-        costed=True,
-    )
-
-    assert kpi.revenue == Decimal("2000")
-    assert days[0].revenue == Decimal("2000")

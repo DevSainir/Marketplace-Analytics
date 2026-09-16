@@ -28,6 +28,7 @@
  * on a row are there to make that order legible rather than arbitrary.
  */
 import { ref } from 'vue'
+import { formatSku } from '@/core/utils/format'
 
 const props = defineProps({
   /** Catalogue options, in the order the store loaded them. */
@@ -42,7 +43,7 @@ const open = ref(false)
 const root = ref(null)
 
 /** What the field shows for a card: the seller article, or the WB one. */
-const label = (option) => option.vendor_code || String(option.nm_id)
+const label = (option) => formatSku(option.vendor_code) || String(option.nm_id)
 
 function pick(option) {
   emit('update:modelValue', option)

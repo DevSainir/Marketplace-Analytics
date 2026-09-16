@@ -91,6 +91,30 @@ class PnlRepository:
         rows = (await self._session.execute(stmt)).all()
         return [_to_aggregate(row) for row in rows]
 
+    async def window_currency(
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+    ) -> str:
+        """Return the window's settlement currency, and nothing else.
+
+        The MODAL currency, not ``max()``: a кабинет's settlements are
+        effectively single-currency, but a couple of stray rows in another exist,
+        and ``max`` is lexical — ``max("KGS","RUB") = "RUB"``, which would
+        mislabel the statement AND make every KGS cost price unmatchable.
+
+        Split out of the full aggregate because a caller that only needs to pick
+        cost prices was paying for thirty summed columns to get one string: on a
+        multi-year window that is a ~7 s scan for a three-letter answer.
+
+        Returns:
+            The currency code, or ``""`` when the window has no rows.
+        """
+        stmt = select(
+            func.coalesce(
+                func.mode().within_group(_T.currency_name).filter(_T.currency_name != ""), ""
+            )
+        ).where(*self._window(workspace_id, date_from, date_to))
+        return str((await self._session.scalar(stmt)) or "")
+
     async def reason_breakdown(
         self,
         *,

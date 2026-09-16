@@ -7,16 +7,10 @@ consumer would want; the composition helpers stay internal because their inputs
 are this module's own choice of inputs, not a stable shape.
 """
 
-from src.modules.summary.schemas import (
-    CategoryGrouping,
-    RevenueBase,
-    SummaryResponse,
-)
+from src.modules.summary.schemas import SummaryResponse
 from src.modules.summary.services import SummaryService
 
 __all__ = [
-    "CategoryGrouping",
-    "RevenueBase",
     "SummaryResponse",
     "SummaryService",
 ]

@@ -19,6 +19,7 @@ import { useMonitoringStore } from '@/modules/monitoring/store'
 import { useMatrixEditing } from '@/modules/monitoring/useMatrixEditing'
 import { unionStockSizes } from '@/modules/monitoring/stockCompareSizes'
 import { useSearchQuerySync } from '@/modules/monitoring/useSearchQuerySync'
+import { formatSku } from '@/core/utils/format'
 
 const store = useMonitoringStore()
 const route = useRoute()
@@ -42,7 +43,9 @@ const { dateFrom, dateTo, handleSelect, handleApply, applyPeriod } = useSearchQu
 const product = computed(() => store.currentProduct)
 
 // Vendor code (артикул продавца) once the backend serves it; nm ID meanwhile.
-const skuLabel = computed(() => product.value?.vendor_code ?? `SKU ${product.value?.nm_id ?? ''}`)
+const skuLabel = computed(
+  () => formatSku(product.value?.vendor_code) ?? `SKU ${product.value?.nm_id ?? ''}`,
+)
 
 // --- global pinned SKUs («Закрепить») -------------------------------------
 const isPinned = computed(() => product.value != null && store.pinnedIds.has(product.value.nm_id))

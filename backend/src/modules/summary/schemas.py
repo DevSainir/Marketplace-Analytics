@@ -1,45 +1,31 @@
 """Response DTOs for the «Сводка» surface.
 
 One window, three cuts of it: the headline figures, the same figures per day for
-the charts, and a ranking of who produced them. Everything is derived — nothing
-here is stored — so the schema exists to pin the *shape* the page reads, not a
-table.
+the charts, and the per-article rows the category block is built from.
+Everything is derived — nothing here is stored — so the schema exists to pin the
+*shape* the page reads, not a table.
 
-The recurring rule in this file is that ``None`` and ``0`` mean different things
-and must stay distinguishable. A margin of ``None`` is "no cost price on file",
-never "broke even"; orders of ``None`` is "the funnel does not cover this
-window", never "nobody ordered". Collapsing either one into a zero produces a
-page that looks confident and is wrong.
+**Both price bases travel in every figure, and the rows are not pre-grouped.**
+Which price revenue is shown at, whether the block is cut by article, subject or
+brand, how it is sorted and how much of the tail is folded are all decisions a
+reader changes several times a minute. Answering them on the server means a
+round trip over 700 000 settlement rows per click; answering them from a payload
+that already carries both bases and every row is arithmetic on data the browser
+already has. The window is the only thing worth a request.
+
+The recurring rule in the rest of the file is that ``None`` and ``0`` mean
+different things and must stay distinguishable. A margin of ``None`` is "no cost
+price on file", never "broke even"; orders of ``None`` is "the funnel does not
+cover this window", never "nobody ordered". Collapsing either one into a zero
+produces a page that looks confident and is wrong.
 """
 
 from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from enum import StrEnum
 
 from pydantic import BaseModel
-
-
-class RevenueBase(StrEnum):
-    """Which price the revenue figures are taken at.
-
-    WB's СПП is a discount funded by WB, not by the seller, so the two bases
-    answer different questions: ``PAID`` is what the buyer handed over, ``SELLER``
-    is the seller's own pre-discount price, and WB's payout is pegged to the
-    latter.
-    """
-
-    PAID = "paid"
-    SELLER = "seller"
-
-
-class CategoryGrouping(StrEnum):
-    """How the «Выручка по категории» block is cut."""
-
-    SKU = "sku"
-    SUBJECT = "subject"
-    BRAND = "brand"
 
 
 class SummaryKpi(BaseModel):
@@ -50,22 +36,20 @@ class SummaryKpi(BaseModel):
     would be a margin wearing a more confident name.
     """
 
-    revenue: Decimal
+    #: Net revenue at the price the buyer paid, after WB's СПП.
+    revenue_paid: Decimal
+    #: The same revenue at the seller's own price, before СПП. WB's payout is
+    #: pegged to this one, which is why it is offered as a base at all.
+    revenue_seller: Decimal
     #: Payout net of withholdings, less cost of goods and the advertising the
     #: seller actually paid for. ``None`` while any settled SKU has no cost
     #: price on file — see :attr:`uncosted_skus`.
     margin: Decimal | None
-    margin_pct: Decimal | None
     sold_units: int
     #: ``None`` when the funnel does not cover the window.
     orders: int | None
-    #: Bought-out units over ordered units. Taken as settled units / orders so
-    #: it agrees with the two cards standing next to it; WB's own buyout counter
-    #: is reported separately as :attr:`buyout_counted_pct`.
-    buyout_pct: Decimal | None
-    #: WB's direct buyout counter from the funnel, for the same window.
-    buyout_counted_pct: Decimal | None
-    average_cheque: Decimal | None
+    #: WB's direct buyout counter for the window; ``None`` without coverage.
+    buyouts: int | None
     #: How many SKUs settled units in the window with no cost price on file.
     #: Non-zero is exactly why :attr:`margin` is ``None``.
     uncosted_skus: int
@@ -75,7 +59,8 @@ class SummaryDay(BaseModel):
     """One day of the window, as the three charts read it."""
 
     day: date
-    revenue: Decimal
+    revenue_paid: Decimal
+    revenue_seller: Decimal
     #: ``None`` for the same reason as :attr:`SummaryKpi.margin`.
     margin: Decimal | None
     #: ``None`` on a day the funnel does not cover.
@@ -85,22 +70,25 @@ class SummaryDay(BaseModel):
     ad_spend: Decimal | None
 
 
-class SummaryCategory(BaseModel):
-    """One bar of «Выручка по категории»."""
+class SummarySkuRow(BaseModel):
+    """One article's contribution, ungrouped.
 
-    key: str
-    label: str
-    revenue: Decimal
-    revenue_share_pct: Decimal
+    The page folds these by subject or brand itself. They are sent per article
+    because that is the finest grain the settlement has — anything coarser can
+    be derived from it, and nothing coarser can be un-derived.
+    """
+
+    nm_id: int
+    #: The seller's article as WB stores it. The page uppercases it; WB keeps
+    #: whatever casing was typed, so the same article arrives both ways.
+    code: str
+    subject: str
+    brand: str
+    revenue_paid: Decimal
+    revenue_seller: Decimal
+    #: ``None`` when this article has no cost price on file.
     margin: Decimal | None
-    #: Share of the window's total margin. ``None`` when the margin is unknown,
-    #: and legitimately negative when the bar lost money.
-    margin_share_pct: Decimal | None
-    margin_pct: Decimal | None
     sold_units: int
-    #: How many SKUs this bar covers — 1 for a SKU cut, more for subjects and
-    #: brands. What makes «ещё N» honest when the tail is folded.
-    sku_count: int
 
 
 class SummaryCoverage(BaseModel):
@@ -119,15 +107,24 @@ class SummaryCoverage(BaseModel):
     advertising_to: date | None
 
 
+class SummarySpan(BaseModel):
+    """The settled days a кабинет actually has, for the period picker.
+
+    Answered off the report headers rather than the settlement detail, so the
+    picker can open instantly and «Вся история» knows what it means.
+    """
+
+    date_from: date | None
+    date_to: date | None
+
+
 class SummaryResponse(BaseModel):
     """Everything the «Сводка» page draws, for one window."""
 
     date_from: date
     date_to: date
     currency: str
-    revenue_base: RevenueBase
-    grouping: CategoryGrouping
     kpi: SummaryKpi
     days: list[SummaryDay]
-    categories: list[SummaryCategory]
+    rows: list[SummarySkuRow]
     coverage: SummaryCoverage

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,16 +31,11 @@ from src.modules.monitoring.contract import (
     load_order_days,
     load_orders_by_nm,
 )
-from src.modules.summary.schemas import (
-    CategoryGrouping,
-    RevenueBase,
-    SummaryCoverage,
-    SummaryResponse,
-)
+from src.modules.summary.schemas import SummaryCoverage, SummaryResponse, SummarySpan
 from src.modules.summary.services.compose import (
-    build_categories,
     build_days,
     build_kpi,
+    build_rows,
     uncosted_skus,
     window_ad_cash,
 )
@@ -53,6 +49,14 @@ class SummaryService:
         self._pnl = pnl
         self._skus = skus
 
+    async def span(self, *, workspace_id: uuid.UUID) -> SummarySpan:
+        """Return the settled days the кабинет has, for the period picker."""
+        settled = await self._pnl.get_settled_span(workspace_id=workspace_id)
+        return SummarySpan(
+            date_from=settled[0] if settled else None,
+            date_to=settled[1] if settled else None,
+        )
+
     async def build(
         self,
         session: AsyncSession,
@@ -60,8 +64,6 @@ class SummaryService:
         workspace_id: uuid.UUID,
         date_from: date,
         date_to: date,
-        revenue_base: RevenueBase,
-        grouping: CategoryGrouping,
     ) -> SummaryResponse:
         """Assemble the whole surface for one window.
 
@@ -76,12 +78,12 @@ class SummaryService:
             workspace_id: The tenant, already validated by the route.
             date_from: Inclusive settlement-date start.
             date_to: Inclusive settlement-date end.
-            revenue_base: Which price revenue is taken at.
-            grouping: How the category block is cut.
 
         Returns:
-            The cards, the daily series, the category ranking and what each
-            rests on.
+            The cards, the daily series, the per-article rows and what each
+            rests on. Both price bases travel in every figure and the rows are
+            ungrouped, so the page switches base, grouping and sort order
+            without coming back here.
         """
         # Resolved once and reused: both the report's caveats and this
         # response's coverage block ask the same two questions, and asking twice
@@ -118,11 +120,19 @@ class SummaryService:
             ad_span=ad_span,
             photos={},
         )
-        statement = await self._pnl.get_statement(
+        # `get_buckets`, not `get_statement`: the statement also computes a
+        # whole-window total, four drill-downs by WB's own reason strings and the
+        # caveat queries, each its own pass over the same settlement rows. This
+        # page draws none of them, and on a multi-year window those passes were
+        # the difference between a chart and a timeout.
+        buckets = await self._pnl.get_buckets(
             workspace_id=workspace_id,
             date_from=date_from,
             date_to=date_to,
             grouping=PnlGrouping.DAY,
+            # Already resolved by the report above; asking again is one more
+            # pass over the window for a three-letter answer.
+            currency=report.currency,
         )
         order_days = await load_order_days(
             session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
@@ -138,27 +148,29 @@ class SummaryService:
             date_from=date_from,
             date_to=date_to,
             currency=report.currency,
-            revenue_base=revenue_base,
-            grouping=grouping,
             kpi=build_kpi(
                 report=report,
-                base=revenue_base,
                 orders=orders,
                 buyouts=buyouts,
                 ad_cash=window_ad_cash(ad_days),
-                settled_advertising=statement.total.advertising,
+                # The invoices the window settled, summed off the day buckets:
+                # the statement's own total would be a second pass for a figure
+                # the buckets already partition.
+                settled_advertising=sum((bucket.advertising for bucket in buckets), Decimal(0)),
             ),
             days=build_days(
-                buckets=statement.buckets,
+                buckets=buckets,
                 order_days=order_days,
                 ad_days=ad_days,
-                base=revenue_base,
                 costed=uncosted_skus(report) == 0,
             ),
-            categories=build_categories(report=report, base=revenue_base, grouping=grouping),
+            rows=build_rows(report),
             coverage=SummaryCoverage(
-                settlement_from=statement.total.date_from,
-                settlement_to=statement.total.date_to,
+                # min/max rather than the ends of the list: the repository
+                # orders buckets newest-first, and reading position 0 as «the
+                # start» is the kind of mistake that reports a window backwards.
+                settlement_from=min((b.date_from for b in buckets if b.date_from), default=None),
+                settlement_to=max((b.date_to for b in buckets if b.date_to), default=None),
                 funnel_from=funnel_span[0],
                 funnel_to=funnel_span[1],
                 advertising_from=ad_span[0],

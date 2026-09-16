@@ -132,6 +132,71 @@ class PnlService:
             notes=notes,
         )
 
+    async def get_settled_span(self, *, workspace_id: uuid.UUID) -> tuple[date, date] | None:
+        """Return the first and last day WB has actually settled for a кабинет.
+
+        Read off the report headers — a hundred rows — rather than off the
+        settlement detail, which is where the same two dates would cost a pass
+        over three quarters of a gigabyte. It is what «Вся история» means and
+        what a preset ends on: «30 дней» measured to today would include days no
+        WB report covers yet and read as a collapse in sales.
+
+        Returns:
+            ``(first, last)``, or ``None`` when nothing has been harvested.
+        """
+        periods = await self._reports.list_periods(workspace_id=workspace_id)
+        if not periods:
+            return None
+        return (min(row[1] for row in periods), max(row[2] for row in periods))
+
+    async def get_buckets(
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        date_from: date,
+        date_to: date,
+        grouping: PnlGrouping,
+        currency: str = "",
+    ) -> list[PnlStatement]:
+        """Return ONLY the buckets of a cut, without the statement around them.
+
+        :meth:`get_statement` answers a different question and pays for it: a
+        whole-window total, four ``bonus_type_name`` drill-downs and the caveat
+        queries, each a separate pass over the same settlement rows. A consumer
+        that draws a chart needs none of that, and on a multi-year window those
+        extra passes are the difference between a page and a timeout — measured
+        at ~7 s per pass over this service's largest кабинет.
+
+        The buckets themselves are composed by the same code path
+        :meth:`get_statement` uses, so the two cannot drift.
+
+        Args:
+            workspace_id: Owning workspace.
+            date_from: Inclusive settlement-date start.
+            date_to: Inclusive settlement-date end.
+            grouping: How the buckets are cut.
+            currency: The window's settlement currency, when the caller already
+                knows it. Cost prices in another currency are dropped, so it has
+                to be resolved — but resolving it is itself a pass over the
+                window, and a caller that has just read the same window from a
+                cut that carries it should not pay for a second one.
+
+        Returns:
+            One statement per bucket; empty for ``TOTAL``, which has no buckets.
+        """
+        if not currency:
+            currency = await self._pnl.window_currency(
+                workspace_id=workspace_id, date_from=date_from, date_to=date_to
+            )
+        costs = await self._costs.costs_by_nm_id(workspace_id=workspace_id, currency=currency)
+        return await self._buckets(
+            workspace_id=workspace_id,
+            date_from=date_from,
+            date_to=date_to,
+            grouping=grouping,
+            costs=costs,
+        )
+
     async def _buckets(
         self,
         *,

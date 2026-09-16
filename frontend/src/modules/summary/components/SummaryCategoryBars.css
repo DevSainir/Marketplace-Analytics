@@ -2,7 +2,7 @@
    250 lines; still `scoped` — referenced with `<style scoped src>`.
 
    The grid is one template shared by the header and every row, so the columns
-   line up without a table: label | bars | revenue | margin. */
+   line up without a table: label | bars | revenue | share | margin | share. */
 
 .sum-cat {
   display: flex;
@@ -14,11 +14,11 @@
 .sum-cat__row {
   display: grid;
   /* The money columns are sized for their widest real content — «1 396 367 KGS»
-     plus a share — because a narrower track does not clip the figure, it lets it
-     overflow back across the bars. */
-  grid-template-columns: minmax(96px, 168px) 1fr 178px 178px;
+     — because a narrower track does not clip the figure, it lets it overflow
+     back across the bars. The share columns need far less. */
+  grid-template-columns: minmax(96px, 168px) 1fr 132px 88px 132px 88px;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .sum-cat__head {
@@ -54,6 +54,7 @@
 }
 
 .sum-cat__row {
+  position: relative;
   padding: 5px 0;
   border-radius: var(--ui-r-sm);
 }
@@ -105,25 +106,53 @@
 }
 
 .sum-cat__num {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 7px;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   color: var(--ui-ink);
+  text-align: right;
   white-space: nowrap;
+}
+
+.sum-cat__num--soft {
+  color: var(--ui-faint);
 }
 
 .sum-cat__num--neg {
   color: var(--ui-neg);
 }
 
-.sum-cat__share {
-  min-width: 52px;
-  text-align: right;
-  color: var(--ui-faint);
+/* Anchored to the row's right edge rather than to the pointer: a tooltip that
+   follows the cursor down a dense list is a tooltip nobody can read. */
+.sum-cat__tip {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 20;
+  transform: translateY(-50%);
+  padding: 8px 10px;
+  border-radius: var(--ui-r-sm);
+  font-size: 0.75rem;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.sum-cat__tiprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  color: var(--ui-muted);
+}
+
+.sum-cat__tiprow + .sum-cat__tiprow {
+  margin-top: 3px;
+}
+
+.sum-cat__tipval {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-ink);
 }
 
 .sum-cat__more {
@@ -131,15 +160,17 @@
   margin-top: 10px;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1000px) {
   .sum-cat__head,
   .sum-cat__row {
-    grid-template-columns: minmax(80px, 120px) 1fr 178px;
+    grid-template-columns: minmax(80px, 120px) 1fr 120px 80px;
   }
 
-  /* The margin column is the first thing to go: its share is already drawn. */
-  .sum-cat__row > .sum-cat__num:last-child,
-  .sum-cat__head > .sum-cat__colhead:last-child {
+  /* The margin columns are the first to go: their share is already drawn. */
+  .sum-cat__row > .sum-cat__num:nth-last-child(2),
+  .sum-cat__row > .sum-cat__num:nth-last-child(3),
+  .sum-cat__head > .sum-cat__colhead:nth-last-child(1),
+  .sum-cat__head > .sum-cat__colhead:nth-last-child(2) {
     display: none;
   }
 }

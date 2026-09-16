@@ -6,45 +6,39 @@
  * articles produced both. Every figure comes from one request, so the cards and
  * the charts can never be showing two different periods.
  *
- * Structure follows the finance one-pager this was modelled on — cards, then
- * «Выручка», then orders and advertising side by side, then «Выручка по
- * категории» — rendered in the app's own design system rather than that page's
- * second set of tokens.
+ * Only the period costs a request. The price base, the cut, the sort order and
+ * the folded tail are all answered from the payload — it carries both bases and
+ * every article row — because each of those used to mean re-aggregating the
+ * whole settlement window on the server.
  */
 import { computed, onMounted } from 'vue'
 
-import PeriodSelector from '@/core/components/PeriodSelector.vue'
+import { CUTS, SORTS } from '@/modules/summary/categories'
 import SummaryCategoryBars from '@/modules/summary/components/SummaryCategoryBars.vue'
+import SummaryControls from '@/modules/summary/components/SummaryControls.vue'
 import SummaryKpis from '@/modules/summary/components/SummaryKpis.vue'
 import SummaryLineChart from '@/modules/summary/components/SummaryLineChart.vue'
 import { useSummaryStore } from '@/modules/summary/store'
 
 const store = useSummaryStore()
 
-const BASES = [
-  { key: 'paid', label: 'Цена реализации' },
-  { key: 'seller', label: 'Цена карточки' },
-]
-
-const CUTS = [
-  { key: 'sku', label: 'Артикулы' },
-  { key: 'subject', label: 'Предметы' },
-  { key: 'brand', label: 'Бренды' },
-]
-
 const labels = computed(() => store.days.map((day) => day.day))
+
+/** Revenue at the selected base — the switch never refetches. */
+const dayRevenue = (day) =>
+  Number(store.revenueBase === 'seller' ? day.revenue_seller : day.revenue_paid)
 
 const revenueSeries = computed(() => {
   const series = [
     {
       name: 'Выручка',
       color: 'var(--ui-action)',
-      values: store.days.map((day) => Number(day.revenue)),
+      values: store.days.map(dayRevenue),
     },
   ]
   // The margin line is omitted entirely rather than drawn flat when the window
-  // has an uncosted SKU: a zero line would be a claim, and this page does not
-  // have the figure to make it.
+  // has an uncosted article: a zero line would be a claim, and this page does
+  // not have the figure to make it.
   if (!store.marginBlocked) {
     series.push({
       name: 'Маржа',
@@ -73,7 +67,7 @@ const adSeries = computed(() => [
 
 const hasDays = computed(() => store.days.length > 0)
 
-onMounted(() => store.load())
+onMounted(() => store.init())
 </script>
 
 <template>
@@ -83,27 +77,17 @@ onMounted(() => store.load())
       <p class="mt-xs text-base text-muted">Сводные показатели по кабинету за выбранный период</p>
     </header>
 
-    <div class="mb-lg flex flex-wrap items-center gap-md">
-      <PeriodSelector
-        :from="store.dateFrom"
-        :to="store.dateTo"
-        @update:from="store.setPeriod($event, store.dateTo)"
-        @update:to="store.setPeriod(store.dateFrom, $event)"
-      />
-
-      <div class="flex items-center gap-xs">
-        <button
-          v-for="base in BASES"
-          :key="base.key"
-          type="button"
-          class="ui-chip"
-          :class="{ 'is-on': store.revenueBase === base.key }"
-          @click="store.setRevenueBase(base.key)"
-        >
-          {{ base.label }}
-        </button>
-      </div>
-    </div>
+    <SummaryControls
+      :date-from="store.dateFrom"
+      :date-to="store.dateTo"
+      :span="store.span"
+      :revenue-base="store.revenueBase"
+      :is-all-history="store.isAllHistory"
+      @period="store.setPeriod"
+      @preset-days="store.setPresetDays"
+      @preset-all="store.setPresetAll"
+      @base="store.revenueBase = $event"
+    />
 
     <p v-if="store.error" class="text-base text-status-negative">{{ store.error }}</p>
 
@@ -115,6 +99,12 @@ onMounted(() => store.load())
       <section class="ui-sec">
         <h2 class="ui-sec__title">Выручка</h2>
         <div class="sum-card mt-md">
+          <div class="sum-legend">
+            <span v-for="line in revenueSeries" :key="line.name" class="sum-legend__item">
+              <span class="sum-legend__swatch" :style="{ background: line.color }"></span>
+              {{ line.name }}
+            </span>
+          </div>
           <SummaryLineChart
             v-if="hasDays"
             :series="revenueSeries"
@@ -127,7 +117,7 @@ onMounted(() => store.load())
 
       <section class="ui-sec grid gap-lg lg:grid-cols-2">
         <div>
-          <h2 class="ui-sec__title">Заказы</h2>
+          <h2 class="ui-sec__title">Заказы в день</h2>
           <div class="sum-card mt-md">
             <SummaryLineChart
               v-if="hasDays"
@@ -139,7 +129,7 @@ onMounted(() => store.load())
           </div>
         </div>
         <div>
-          <h2 class="ui-sec__title">Реклама</h2>
+          <h2 class="ui-sec__title">Реклама в день</h2>
           <div class="sum-card mt-md">
             <SummaryLineChart
               v-if="hasDays"
@@ -155,21 +145,39 @@ onMounted(() => store.load())
       <section class="ui-sec">
         <div class="flex flex-wrap items-center justify-between gap-md">
           <h2 class="ui-sec__title">Выручка по категории</h2>
-          <div class="flex items-center gap-xs">
-            <button
-              v-for="cut in CUTS"
-              :key="cut.key"
-              type="button"
-              class="ui-chip"
-              :class="{ 'is-on': store.grouping === cut.key }"
-              @click="store.setGrouping(cut.key)"
-            >
-              {{ cut.label }}
-            </button>
+          <div class="flex flex-wrap items-center gap-lg">
+            <div class="flex items-center gap-xs">
+              <button
+                v-for="option in SORTS"
+                :key="option.key"
+                type="button"
+                class="ui-chip"
+                :class="{ 'is-on': store.sort === option.key }"
+                @click="store.sort = option.key"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+            <div class="flex items-center gap-xs">
+              <button
+                v-for="option in CUTS"
+                :key="option.key"
+                type="button"
+                class="ui-chip"
+                :class="{ 'is-on': store.cut === option.key }"
+                @click="store.cut = option.key"
+              >
+                {{ option.label }}
+              </button>
+            </div>
           </div>
         </div>
         <div class="sum-card mt-md">
-          <SummaryCategoryBars :categories="store.categories" :currency="store.currency" />
+          <SummaryCategoryBars
+            :categories="store.categories"
+            :currency="store.currency"
+            :cut="store.cut"
+          />
         </div>
       </section>
     </template>
@@ -184,5 +192,26 @@ onMounted(() => store.load())
   border-radius: var(--ui-r-lg);
   background: var(--ui-surface);
   box-shadow: var(--ui-sh-sm);
+}
+
+.sum-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 10px;
+  font-size: 0.75rem;
+  color: var(--ui-muted);
+}
+
+.sum-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sum-legend__swatch {
+  width: 11px;
+  height: 3px;
+  border-radius: 2px;
 }
 </style>

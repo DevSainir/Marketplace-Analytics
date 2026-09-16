@@ -24,13 +24,7 @@ import pytest
 from src.core.timeutils import moscow_today
 from src.modules.summary.deps import get_summary_service
 from src.modules.summary.routers.summary import DEFAULT_WINDOW_DAYS, MAX_WINDOW_DAYS
-from src.modules.summary.schemas import (
-    CategoryGrouping,
-    RevenueBase,
-    SummaryCoverage,
-    SummaryKpi,
-    SummaryResponse,
-)
+from src.modules.summary.schemas import SummaryCoverage, SummaryKpi, SummaryResponse
 from src.modules.users.deps import get_user_repo
 from src.modules.workspaces.contract import WORKSPACE_HEADER
 from src.modules.workspaces.deps import get_workspace_repo
@@ -53,21 +47,17 @@ class _StubSummaryService:
             date_from=kwargs["date_from"],
             date_to=kwargs["date_to"],
             currency="KGS",
-            revenue_base=kwargs["revenue_base"],
-            grouping=kwargs["grouping"],
             kpi=SummaryKpi(
-                revenue=Decimal("19446433"),
+                revenue_paid=Decimal("19446433"),
+                revenue_seller=Decimal("23000000"),
                 margin=None,
-                margin_pct=None,
                 sold_units=6185,
                 orders=20819,
-                buyout_pct=Decimal("29.71"),
-                buyout_counted_pct=Decimal("27.21"),
-                average_cheque=Decimal("3144.13"),
+                buyouts=5665,
                 uncosted_skus=2,
             ),
             days=[],
-            categories=[],
+            rows=[],
             coverage=SummaryCoverage(
                 settlement_from=None,
                 settlement_to=None,
@@ -223,26 +213,16 @@ async def test_the_rejection_does_not_echo_the_dates_back(
     assert "2026-09-06" not in response.text
 
 
-async def test_an_unknown_revenue_base_is_rejected_not_guessed(
+async def test_the_window_is_the_only_thing_the_route_takes(
     client: httpx.AsyncClient, headers: dict[str, str], summary: _StubSummaryService
 ) -> None:
-    """The base is an enum at the boundary, not a free string.
+    """Price base and grouping are not parameters, and an old link is harmless.
 
-    A typo that fell through to a default would silently switch which price the
-    whole page is denominated in — the sort of error that reads as a bad month.
+    Both used to be query parameters, and every click on one cost a round trip
+    over the whole settlement window — seconds, for arithmetic the page can do
+    on data it already holds. A stale bookmark carrying them must still answer
+    rather than 422: they are simply not read.
     """
-    response = await client.get(
-        "/api/v1/summary", params={"revenue_base": "retail"}, headers=headers
-    )
-
-    assert response.status_code == 422
-    assert summary.calls == []
-
-
-async def test_the_requested_cuts_reach_the_service(
-    client: httpx.AsyncClient, headers: dict[str, str], summary: _StubSummaryService
-) -> None:
-    """Base and grouping are passed through as the enums the service expects."""
     response = await client.get(
         "/api/v1/summary",
         params={"revenue_base": "seller", "grouping": "brand"},
@@ -250,6 +230,4 @@ async def test_the_requested_cuts_reach_the_service(
     )
 
     assert response.status_code == 200
-    call = summary.calls[0]
-    assert call["revenue_base"] is RevenueBase.SELLER
-    assert call["grouping"] is CategoryGrouping.BRAND
+    assert set(summary.calls[0]) == {"workspace_id", "date_from", "date_to"}

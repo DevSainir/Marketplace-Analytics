@@ -15,7 +15,7 @@ from src.core.deps import DbSession
 from src.core.exceptions import ValidationError
 from src.core.timeutils import moscow_today
 from src.modules.summary.deps import SummaryServiceDep
-from src.modules.summary.schemas import CategoryGrouping, RevenueBase, SummaryResponse
+from src.modules.summary.schemas import SummaryResponse, SummarySpan
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
 #: Default window when the caller names no dates — the last four weeks, the same
@@ -23,13 +23,15 @@ from src.modules.workspaces.contract import CurrentWorkspaceId
 #: silently switch the period under the reader.
 DEFAULT_WINDOW_DAYS = 28
 
-#: Hard cap on how much settlement history one request may aggregate. Two years
-#: of this service's largest seller is ~670 000 rows, and the page has no use for
-#: a window that size — it draws one point per day. The cap is here rather than
-#: in the service because it is a bound on the REQUEST, and an unbounded window
-#: is a cheap way for one authenticated caller to make Postgres do a minute of
-#: work per keystroke.
-MAX_WINDOW_DAYS = 400
+#: Hard cap on how much settlement history one request may aggregate.
+#:
+#: Sized to «Вся история» rather than below it: the button exists, and a cap that
+#: refuses the кабинет's own settled span makes it a button that always errors.
+#: The oldest settlement on this service is from 2024, so three years of slack is
+#: the whole product — and the bound still has to exist, because an unbounded
+#: window is a cheap way for one authenticated caller to make Postgres do a
+#: minute of work per keystroke.
+MAX_WINDOW_DAYS = 1200
 
 router = APIRouter()
 
@@ -55,6 +57,28 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
 
 
 @router.get(
+    "/summary/span",
+    response_model=SummarySpan,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "Диапазон рассчитанных дней кабинета."},
+        401: {"description": "Unauthorized access token."},
+        403: {"description": "Раздел доступен только внутренним учётным записям."},
+    },
+)
+async def get_summary_span(
+    service: SummaryServiceDep, workspace_id: CurrentWorkspaceId
+) -> SummarySpan:
+    """Return the settled days this кабинет has.
+
+    Its own route rather than a field on the summary because the picker needs it
+    BEFORE a window is chosen, and because it is answered off the report headers
+    — a hundred rows — while a summary is a pass over the settlement detail.
+    """
+    return await service.span(workspace_id=workspace_id)
+
+
+@router.get(
     "/summary",
     response_model=SummaryResponse,
     status_code=status.HTTP_200_OK,
@@ -71,24 +95,16 @@ async def get_summary(
     session: DbSession,
     date_from: date | None = Query(default=None, description="Inclusive settlement-date start."),
     date_to: date | None = Query(default=None, description="Inclusive settlement-date end."),
-    revenue_base: RevenueBase = Query(
-        default=RevenueBase.PAID, description="Which price revenue is taken at."
-    ),
-    grouping: CategoryGrouping = Query(
-        default=CategoryGrouping.SKU, description="How «Выручка по категории» is cut."
-    ),
 ) -> SummaryResponse:
     """Return every figure the «Сводка» page draws for one window.
+
+    The window is the ONLY parameter. Price base, grouping and sort order used
+    to be query parameters, and every click on one of them cost a round trip
+    over the whole settlement window; both bases now travel in the response and
+    the rows arrive ungrouped, so the page answers those from data it holds.
 
     Read-only; the guard lives on the aggregating router
     (:mod:`src.modules.summary.routers`) so no route here can forget it.
     """
     start, end = _resolve_window(date_from, date_to)
-    return await service.build(
-        session,
-        workspace_id=workspace_id,
-        date_from=start,
-        date_to=end,
-        revenue_base=revenue_base,
-        grouping=grouping,
-    )
+    return await service.build(session, workspace_id=workspace_id, date_from=start, date_to=end)

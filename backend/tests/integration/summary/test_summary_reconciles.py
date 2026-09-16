@@ -16,10 +16,14 @@ still total correctly and be wrong in every bar.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.finreports.repos import (
@@ -32,7 +36,6 @@ from src.modules.finreports.services import PnlService
 from src.modules.finreports.services.pnl import SkuReportService
 from src.modules.monitoring.contract import load_ad_days, load_order_days
 from src.modules.monitoring.models import AdvertisingStatDaily, ProductCard, SalesFunnelDaily
-from src.modules.summary.schemas import CategoryGrouping, RevenueBase
 from src.modules.summary.services import SummaryService
 from tests.integration.finreports.conftest import (
     OTHER_WORKSPACE,
@@ -44,6 +47,24 @@ from tests.integration.finreports.conftest import (
 )
 
 pytestmark = pytest.mark.integration
+
+
+@contextmanager
+def counting(session: AsyncSession) -> Iterator[list[str]]:
+    """Record every statement the session issues inside the block."""
+    seen: list[str] = []
+
+    def _record(_conn: Any, _cursor: Any, statement: str, *_rest: Any) -> None:
+        seen.append(statement)
+
+    # `get_bind()` on an async session hands back the SYNC engine underneath —
+    # which is the one that emits the event.
+    engine = session.get_bind()
+    event.listen(engine, "before_cursor_execute", _record)
+    try:
+        yield seen
+    finally:
+        event.remove(engine, "before_cursor_execute", _record)
 
 
 def _service(session: AsyncSession) -> SummaryService:
@@ -103,11 +124,39 @@ async def test_the_daily_revenue_sums_to_the_windows_revenue(
         workspace_id=WORKSPACE,
         date_from=WINDOW_FROM,
         date_to=WINDOW_TO,
-        revenue_base=RevenueBase.PAID,
-        grouping=CategoryGrouping.SKU,
     )
 
-    assert sum(day.revenue for day in summary.days) == summary.kpi.revenue
+    assert sum(day.revenue_paid for day in summary.days) == summary.kpi.revenue_paid
+
+
+async def test_the_window_is_not_scanned_more_times_than_it_has_to_be(
+    db_session: AsyncSession, catalogued: None
+) -> None:
+    """One window, a handful of passes — not one pass per figure on the page.
+
+    Each statement here is a scan of the settlement rows, and on this service's
+    largest кабинет one pass over the full history measures ~7 s. The page used
+    to reach the day buckets through the full P&L statement, which also computes
+    a whole-window total, four drill-downs by WB's own reason strings and the
+    caveat queries — nine passes to draw a chart that reads two of them, and a
+    «вся история» that answered with a timeout instead of a page.
+
+    The bound is deliberately loose: it is here to catch a second `get_statement`
+    creeping back in, not to freeze the query plan.
+    """
+    with counting(db_session) as statements:
+        await _service(db_session).build(
+            db_session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+        )
+
+    scans = [
+        text
+        for text in statements
+        if text.lstrip().upper().startswith("SELECT") and "logistics_transaction" in text
+    ]
+    # The GROUP BY of each, which is what names the pass that ran.
+    cuts = [text.split("GROUP BY")[1].strip()[:60] if "GROUP BY" in text else "—" for text in scans]
+    assert len(scans) <= 6, f"{len(scans)} проходов по расчёту: {cuts}"
 
 
 async def test_the_daily_margin_sums_to_the_margin_card(
@@ -130,8 +179,6 @@ async def test_the_daily_margin_sums_to_the_margin_card(
         workspace_id=WORKSPACE,
         date_from=WINDOW_FROM,
         date_to=WINDOW_TO,
-        revenue_base=RevenueBase.PAID,
-        grouping=CategoryGrouping.SKU,
     )
 
     assert summary.kpi.margin is not None
@@ -152,8 +199,6 @@ async def test_the_days_are_the_settlement_dates_the_window_actually_has(
         workspace_id=WORKSPACE,
         date_from=WINDOW_FROM,
         date_to=WINDOW_TO,
-        revenue_base=RevenueBase.PAID,
-        grouping=CategoryGrouping.SKU,
     )
 
     assert [day.day for day in summary.days] == [WINDOW_FROM, WINDOW_TO]
@@ -173,12 +218,10 @@ async def test_account_level_money_is_in_the_cards_and_not_in_the_bars(
         workspace_id=WORKSPACE,
         date_from=WINDOW_FROM,
         date_to=WINDOW_TO,
-        revenue_base=RevenueBase.PAID,
-        grouping=CategoryGrouping.SKU,
     )
 
-    assert {category.key for category in summary.categories} == {str(SKU_A), str(SKU_B)}
-    assert sum(category.revenue for category in summary.categories) == summary.kpi.revenue
+    assert {row.nm_id for row in summary.rows} == {SKU_A, SKU_B}
+    assert sum(row.revenue_paid for row in summary.rows) == summary.kpi.revenue_paid
 
 
 async def test_a_foreign_workspaces_figures_never_appear(
@@ -194,11 +237,9 @@ async def test_a_foreign_workspaces_figures_never_appear(
         workspace_id=OTHER_WORKSPACE,
         date_from=WINDOW_FROM,
         date_to=WINDOW_TO,
-        revenue_base=RevenueBase.PAID,
-        grouping=CategoryGrouping.SKU,
     )
 
-    assert summary.kpi.revenue == Decimal("777777")
+    assert summary.kpi.revenue_paid == Decimal("777777")
     assert summary.kpi.orders is None
 
 
@@ -256,8 +297,6 @@ async def test_an_uncosted_sku_takes_the_margin_off_the_whole_page(
         workspace_id=WORKSPACE,
         date_from=WINDOW_FROM,
         date_to=WINDOW_TO,
-        revenue_base=RevenueBase.PAID,
-        grouping=CategoryGrouping.SKU,
     )
 
     assert summary.kpi.margin is None
@@ -274,8 +313,6 @@ async def test_a_fully_costed_window_still_reports_its_margin(
         workspace_id=WORKSPACE,
         date_from=WINDOW_FROM,
         date_to=WINDOW_TO,
-        revenue_base=RevenueBase.PAID,
-        grouping=CategoryGrouping.SKU,
     )
 
     assert summary.kpi.uncosted_skus == 0

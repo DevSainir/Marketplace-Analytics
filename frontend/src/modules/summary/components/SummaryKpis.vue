@@ -22,13 +22,24 @@ const props = defineProps({
   revenueBase: { type: String, default: 'paid' },
 })
 
+/** Revenue at the selected base — both travel, so switching costs nothing. */
+const revenue = computed(() =>
+  Number(props.revenueBase === 'seller' ? props.kpi.revenue_seller : props.kpi.revenue_paid),
+)
+
+/** A ratio of two figures the payload already carries, as a percentage. */
+function ratio(part, whole) {
+  if (part === null || part === undefined || !whole) return null
+  return (Number(part) / Number(whole)) * 100
+}
+
 const count = (value) =>
   Number.isFinite(Number(value)) ? Math.round(Number(value)).toLocaleString('ru-RU') : '—'
 
-const pct = (value) => (value === null || value === undefined ? '—' : formatPercent(Number(value)))
+const pct = (value) => (value === null || value === undefined ? '—' : formatPercent(value))
 
 const baseNote = computed(() =>
-  props.revenueBase === 'seller' ? 'по цене карточки' : 'по цене реализации',
+  props.revenueBase === 'seller' ? 'по цене селлера' : 'по цене реализации',
 )
 
 /** «1 артикул», «2 артикула», «5 артикулов» — the card names the count. */
@@ -49,7 +60,7 @@ const cards = computed(() => [
   {
     key: 'revenue',
     label: 'Выручка',
-    value: formatMoney(props.kpi.revenue, props.currency),
+    value: formatMoney(revenue.value, props.currency),
     note: baseNote.value,
     lead: true,
   },
@@ -57,7 +68,10 @@ const cards = computed(() => [
     key: 'margin',
     label: 'Маржа',
     value: props.kpi.margin === null ? '—' : formatMoney(props.kpi.margin, props.currency),
-    note: props.kpi.margin === null ? uncostedNote.value : `${pct(props.kpi.margin_pct)} выручки`,
+    note:
+      props.kpi.margin === null
+        ? uncostedNote.value
+        : `${pct(ratio(props.kpi.margin, revenue.value))} выручки`,
     lead: true,
     muted: props.kpi.margin === null,
     negative: props.kpi.margin !== null && Number(props.kpi.margin) < 0,
@@ -78,16 +92,19 @@ const cards = computed(() => [
   {
     key: 'buyout',
     label: 'Выкуп',
-    value: pct(props.kpi.buyout_pct),
+    value: pct(ratio(props.kpi.sold_units, props.kpi.orders)),
     note:
-      props.kpi.buyout_counted_pct === null
+      props.kpi.buyouts === null
         ? 'продано к заказано'
-        : `счётчик WB ${pct(props.kpi.buyout_counted_pct)}`,
+        : `счётчик WB ${pct(ratio(props.kpi.buyouts, props.kpi.orders))}`,
   },
   {
     key: 'cheque',
     label: 'Средний чек',
-    value: formatMoney(props.kpi.average_cheque, props.currency),
+    value: formatMoney(
+      props.kpi.sold_units ? revenue.value / props.kpi.sold_units : null,
+      props.currency,
+    ),
     note: 'на единицу',
   },
 ])

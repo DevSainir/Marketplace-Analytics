@@ -17,6 +17,7 @@ import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { STATUS_LABELS } from '@/modules/abTests/store'
+import { formatSku } from '@/core/utils/format'
 
 defineProps({
   /** Tests as the store holds them. */
@@ -87,7 +88,7 @@ function formatDate(value) {
               </RouterLink>
               <div class="mt-px flex flex-wrap items-center gap-x-sm text-micro text-muted">
                 <span class="tabular-nums">WB {{ test.nm_id }}</span>
-                <span v-if="test.vendor_code">{{ test.vendor_code }}</span>
+                <span v-if="test.vendor_code">{{ formatSku(test.vendor_code) }}</span>
                 <span class="tabular-nums">создан {{ formatDate(test.created_at) }}</span>
               </div>
             </td>

@@ -12,6 +12,7 @@
  * property of the button, and the page only wants to know that the test is
  * gone so it can navigate away from a screen with nothing behind it.
  */
+import { formatSku } from '@/core/utils/format'
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
@@ -67,7 +68,9 @@ function count(value) {
     <div v-if="test" class="mt-sm flex flex-wrap items-center gap-x-md gap-y-xs">
       <h1 class="text-h2 font-bold text-primary">{{ test.name }}</h1>
       <span class="text-tiny font-semibold text-action">WB {{ test.nm_id }}</span>
-      <span v-if="test.vendor_code" class="text-tiny text-muted">{{ test.vendor_code }}</span>
+      <span v-if="test.vendor_code" class="text-tiny text-muted">{{
+        formatSku(test.vendor_code)
+      }}</span>
       <button
         type="button"
         class="ml-auto rounded-btn px-sm py-xs text-micro font-semibold transition"
