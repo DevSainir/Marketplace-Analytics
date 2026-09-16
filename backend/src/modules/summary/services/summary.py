@@ -146,6 +146,7 @@ class SummaryService:
                 orders=orders,
                 buyouts=buyouts,
                 ad_cash=window_ad_cash(ad_days),
+                settled_advertising=statement.total.advertising,
             ),
             days=build_days(
                 buckets=statement.buckets,

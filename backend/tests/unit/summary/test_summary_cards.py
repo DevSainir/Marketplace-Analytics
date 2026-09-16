@@ -43,6 +43,7 @@ def test_one_uncosted_sku_withholds_the_whole_margin() -> None:
         orders=None,
         buyouts=None,
         ad_cash=None,
+        settled_advertising=ZERO,
     )
 
     assert kpi.margin is None
@@ -61,10 +62,37 @@ def test_a_fully_costed_window_reports_its_margin() -> None:
         orders=None,
         buyouts=None,
         ad_cash=Decimal("100"),
+        settled_advertising=ZERO,
     )
 
     # payout_net 800 − cogs 300 (30 × 10 units) − ad cash 100
     assert kpi.margin == Decimal("400")
+
+
+def test_advertising_is_subtracted_once_and_the_invoice_is_not_the_copy() -> None:
+    """«К перечислению» is already net of WB's weekly invoice; adding it back
+    before taking off the real burn is what keeps the charge from landing twice.
+
+    Found on live data, not in review: the card read 3 161 239 against a true
+    4 134 120 over one 54-day window, and the gap was exactly that window's
+    1 993 395 of «WB Продвижение» invoices. Revenue reconciled throughout,
+    because revenue is the one figure the restatement does not touch.
+    """
+    row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
+    # payout_net 800 is already net of a 200 invoice.
+    totals = make_row(nm_id=0, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
+
+    kpi = build_kpi(
+        report=make_report([row], totals=totals),
+        base=RevenueBase.PAID,
+        orders=None,
+        buyouts=None,
+        ad_cash=Decimal("150"),
+        settled_advertising=Decimal("200"),
+    )
+
+    # 800 + 200 invoice back − 300 cogs − 150 actually burned.
+    assert kpi.margin == Decimal("550")
 
 
 def test_a_refund_only_sku_without_a_cost_still_withholds_the_margin() -> None:
@@ -91,6 +119,7 @@ def test_a_refund_only_sku_without_a_cost_still_withholds_the_margin() -> None:
         orders=None,
         buyouts=None,
         ad_cash=None,
+        settled_advertising=ZERO,
     )
 
     assert kpi.margin is None
@@ -120,6 +149,7 @@ def test_buyout_agrees_with_the_cards_standing_next_to_it() -> None:
         orders=100,
         buyouts=27,
         ad_cash=None,
+        settled_advertising=ZERO,
     )
 
     assert kpi.buyout_pct == Decimal("30.00")
@@ -141,6 +171,7 @@ def test_no_funnel_coverage_is_not_zero_orders() -> None:
         orders=None,
         buyouts=None,
         ad_cash=None,
+        settled_advertising=ZERO,
     )
 
     assert kpi.orders is None
@@ -251,6 +282,7 @@ def test_the_revenue_base_switches_both_the_cards_and_the_chart() -> None:
         orders=None,
         buyouts=None,
         ad_cash=None,
+        settled_advertising=ZERO,
     )
     days = build_days(
         buckets=[make_day(day=date(2026, 7, 19), revenue="1000", margin_profit="500")],

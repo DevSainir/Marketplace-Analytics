@@ -142,6 +142,7 @@ def test_an_empty_window_is_not_a_division_by_zero() -> None:
         orders=0,
         buyouts=0,
         ad_cash=None,
+        settled_advertising=ZERO,
     )
 
     assert kpi.revenue == ZERO

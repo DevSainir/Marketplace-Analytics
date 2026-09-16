@@ -110,6 +110,34 @@ async def test_the_daily_revenue_sums_to_the_windows_revenue(
     assert sum(day.revenue for day in summary.days) == summary.kpi.revenue
 
 
+async def test_the_daily_margin_sums_to_the_margin_card(
+    db_session: AsyncSession, catalogued: None
+) -> None:
+    """Σ of the chart's margin equals the card above it, with no tolerance.
+
+    This is the assertion that was missing when the page first ran on live
+    data, and the bug it would have caught was real: the card subtracted
+    advertising twice — once as WB's weekly invoice, already inside «к
+    перечислению», and once as the burn the statistics recorded — while the
+    chart subtracted it once. One кабинет, one 54-day window: 3 161 239 on the
+    card against 4 134 120 under it, the gap being the invoices to the сом.
+
+    Revenue having reconciled did not catch it, because revenue is the one
+    figure the restatement does not touch.
+    """
+    summary = await _service(db_session).build(
+        db_session,
+        workspace_id=WORKSPACE,
+        date_from=WINDOW_FROM,
+        date_to=WINDOW_TO,
+        revenue_base=RevenueBase.PAID,
+        grouping=CategoryGrouping.SKU,
+    )
+
+    assert summary.kpi.margin is not None
+    assert sum(day.margin for day in summary.days) == summary.kpi.margin
+
+
 async def test_the_days_are_the_settlement_dates_the_window_actually_has(
     db_session: AsyncSession, catalogued: None
 ) -> None:

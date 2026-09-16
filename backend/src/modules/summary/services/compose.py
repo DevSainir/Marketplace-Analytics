@@ -78,6 +78,7 @@ def build_kpi(
     orders: int | None,
     buyouts: int | None,
     ad_cash: Decimal | None,
+    settled_advertising: Decimal,
 ) -> SummaryKpi:
     """Assemble the headline cards from the reconciled window totals.
 
@@ -89,6 +90,9 @@ def build_kpi(
         buyouts: WB's own buyout counter for the window; ``None`` without it.
         ad_cash: Advertising the seller actually paid for, bonuses removed;
             ``None`` without advertising coverage.
+        settled_advertising: The «WB Продвижение» invoices the window's
+            settlement withheld. Added back before ``ad_cash`` is taken off —
+            see below.
 
     Returns:
         The cards, with every unknown left as ``None``.
@@ -98,10 +102,20 @@ def build_kpi(
     net_units = totals.sold_units - totals.returned_units
     missing = uncosted_skus(report)
 
-    # The totals row sums the costed rows and lets the rest pass at zero cost,
-    # which is right for a table and wrong for a headline. Here one uncosted SKU
-    # is enough to withhold the figure.
-    margin = None if missing else totals.payout_net - (totals.cogs or _ZERO) - (ad_cash or _ZERO)
+    # Advertising is subtracted exactly ONCE, and the invoice is not the copy
+    # that survives. «К перечислению» is already net of WB's weekly invoice —
+    # it sits inside «Удержания» — so taking `ad_cash` off it as well charges
+    # the same advertising twice. Measured on a live кабинет: 3 161 239 against
+    # a true 4 134 120 over one 54-day window, the gap being the 1 993 395 of
+    # invoices to the сом.
+    #
+    # The invoice goes back and the real burn comes off, which is the same swap
+    # `build_days` makes — and it is what keeps Σ days equal to this card.
+    margin = (
+        None
+        if missing
+        else totals.payout_net + settled_advertising - (totals.cogs or _ZERO) - (ad_cash or _ZERO)
+    )
 
     return SummaryKpi(
         revenue=revenue,
