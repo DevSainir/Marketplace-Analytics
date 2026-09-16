@@ -28,6 +28,8 @@ const HEAD = 20
 
 const expanded = ref(false)
 const hovered = ref(null)
+/** Where in the row the pointer is, so the tooltip appears over the cursor. */
+const pointer = ref({ x: 0, y: 0 })
 
 const visible = computed(() =>
   expanded.value ? props.categories : props.categories.slice(0, HEAD),
@@ -63,6 +65,12 @@ function label(row) {
 }
 
 const pct = (value) => (value === null || value === undefined ? '—' : formatPercent(value))
+
+/** Follow the pointer inside the hovered row, in the row's own coordinates. */
+function track(event) {
+  const box = event.currentTarget.getBoundingClientRect()
+  pointer.value = { x: event.clientX - box.left, y: event.clientY - box.top }
+}
 </script>
 
 <template>
@@ -83,6 +91,7 @@ const pct = (value) => (value === null || value === undefined ? '—' : formatPe
       :key="row.key"
       class="sum-cat__row"
       @pointerenter="hovered = row.key"
+      @pointermove="track"
       @pointerleave="hovered = null"
     >
       <div class="sum-cat__label" :title="label(row)">{{ label(row) }}</div>
@@ -105,7 +114,11 @@ const pct = (value) => (value === null || value === undefined ? '—' : formatPe
       </div>
       <div class="sum-cat__num sum-cat__num--soft">{{ pct(row.marginShare) }}</div>
 
-      <div v-if="hovered === row.key" class="ui-glass ui-glass--pop sum-cat__tip">
+      <div
+        v-if="hovered === row.key"
+        class="ui-glass ui-glass--pop sum-cat__tip"
+        :style="{ left: `${pointer.x}px`, top: `${pointer.y}px` }"
+      >
         <div class="sum-cat__tiprow">
           <span>Продано</span>
           <span class="sum-cat__tipval">{{ row.soldUnits.toLocaleString('ru-RU') }} шт</span>

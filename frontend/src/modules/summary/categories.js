@@ -27,10 +27,16 @@ export const SORTS = [
   { key: 'margin', label: 'По марже' },
 ]
 
-/** Which price base the figures are shown at. */
+/**
+ * Which price base the figures are shown at, the seller's own first.
+ *
+ * It is also the default. WB's СПП is a discount WB funds, so «цена реализации»
+ * is what the buyer paid and «цена селлера» is what the payout is actually
+ * pegged to — the base a seller plans against.
+ */
 export const BASES = [
-  { key: 'paid', label: 'Цена реализации' },
   { key: 'seller', label: 'Цена селлера — до СПП' },
+  { key: 'paid', label: 'Цена реализации' },
 ]
 
 /** Revenue of one row at the requested base. */

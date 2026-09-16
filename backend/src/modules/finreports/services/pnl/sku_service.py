@@ -68,6 +68,7 @@ class SkuReportService:
         funnel_span: tuple[date | None, date | None],
         ad_span: tuple[date | None, date | None],
         photos: dict[int, str] | None = None,
+        annotated: bool = True,
     ) -> PnlSkuReportResponse:
         """Return the per-SKU report for the window.
 
@@ -92,6 +93,12 @@ class SkuReportService:
             ad_span: ``(first, last)`` advertising day on record in the window.
             photos: Card thumbnails per ``nm_id`` (router-resolved through the
                 monitoring contract, like ``orders`` and ``ad_spend``).
+
+            annotated: Whether to compute the report's ANNOTATIONS as well as
+                its figures — the per-article penalty categories and the caveat
+                lines. Both are separate passes over the settlement detail, and
+                on a multi-year window each is ~7 s for something a consumer
+                that only draws figures throws away. «Сводка» is that consumer.
 
         Returns:
             Rows + unallocated bucket + totals + caveats.
@@ -118,23 +125,31 @@ class SkuReportService:
             orders=orders if funnel_span[0] is not None else None,
             ad_spend=ad_spend if ad_span[0] is not None else None,
             ad_bonus=ad_bonus if bonus_span[0] is not None else None,
-            penalties=await self._pnl.sku_penalties(
-                workspace_id=workspace_id, date_from=date_from, date_to=date_to
+            penalties=(
+                await self._pnl.sku_penalties(
+                    workspace_id=workspace_id, date_from=date_from, date_to=date_to
+                )
+                if annotated
+                else []
             ),
             excluded=await self._exclusions.excluded_nm_ids(workspace_id),
             photos=photos,
         )
         dashboard = build_dashboard(rows=rows, totals=totals, total_aggregate=total_aggregate)
-        notes = await self._notes(
-            workspace_id=workspace_id,
-            date_from=date_from,
-            date_to=date_to,
-            rows=rows,
-            funnel_span=funnel_span,
-            ad_span=ad_span,
-            bonus_span=bonus_span,
-            unknown_funding=unknown_funding,
-            bonus_currencies=bonus_currencies,
+        notes = (
+            []
+            if not annotated
+            else await self._notes(
+                workspace_id=workspace_id,
+                date_from=date_from,
+                date_to=date_to,
+                rows=rows,
+                funnel_span=funnel_span,
+                ad_span=ad_span,
+                bonus_span=bonus_span,
+                unknown_funding=unknown_funding,
+                bonus_currencies=bonus_currencies,
+            )
         )
         return PnlSkuReportResponse(
             date_from=date_from,

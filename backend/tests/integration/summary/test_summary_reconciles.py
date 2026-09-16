@@ -132,17 +132,22 @@ async def test_the_daily_revenue_sums_to_the_windows_revenue(
 async def test_the_window_is_not_scanned_more_times_than_it_has_to_be(
     db_session: AsyncSession, catalogued: None
 ) -> None:
-    """One window, a handful of passes — not one pass per figure on the page.
+    """The settlement detail is touched once per request, to prove the cache.
 
-    Each statement here is a scan of the settlement rows, and on this service's
-    largest кабинет one pass over the full history measures ~7 s. The page used
-    to reach the day buckets through the full P&L statement, which also computes
-    a whole-window total, four drill-downs by WB's own reason strings and the
-    caveat queries — nine passes to draw a chart that reads two of them, and a
-    «вся история» that answered with a timeout instead of a page.
+    Aggregates are served from the rollup now, so what is left against the
+    detail is the freshness check — an index-only scan, 16 MB against the
+    detail's 755 — and, on a cold window, the rebuild that fills the cache. Both
+    are memoised for the life of one session, which is why a page asking for the
+    same window four times pays for one check.
 
-    The bound is deliberately loose: it is here to catch a second `get_statement`
-    creeping back in, not to freeze the query plan.
+    Before all of this the page reached its day buckets through the full P&L
+    statement, which also computes a whole-window total, four drill-downs by
+    WB's own reason strings and the caveat queries: nine passes to draw a chart
+    that reads two of them, and a «вся история» that answered with a timeout
+    instead of a page.
+
+    The bound is deliberately loose — it is here to catch a second freshness
+    check or a direct aggregate creeping back in, not to freeze a query plan.
     """
     with counting(db_session) as statements:
         await _service(db_session).build(
@@ -156,7 +161,7 @@ async def test_the_window_is_not_scanned_more_times_than_it_has_to_be(
     ]
     # The GROUP BY of each, which is what names the pass that ran.
     cuts = [text.split("GROUP BY")[1].strip()[:60] if "GROUP BY" in text else "—" for text in scans]
-    assert len(scans) <= 6, f"{len(scans)} проходов по расчёту: {cuts}"
+    assert len(scans) <= 3, f"{len(scans)} проходов по расчёту: {cuts}"
 
 
 async def test_the_daily_margin_sums_to_the_margin_card(

@@ -119,6 +119,11 @@ class SummaryService:
             funnel_span=funnel_span,
             ad_span=ad_span,
             photos={},
+            # No penalty categories and no caveat lines: this page draws
+            # neither, and each is its own pass over the settlement detail —
+            # ~7 s apiece on a multi-year window, for figures that are then
+            # thrown away.
+            annotated=False,
         )
         # `get_buckets`, not `get_statement`: the statement also computes a
         # whole-window total, four drill-downs by WB's own reason strings and the

@@ -103,7 +103,14 @@ async def get_summary(
     over the whole settlement window; both bases now travel in the response and
     the rows arrive ungrouped, so the page answers those from data it holds.
 
-    Read-only; the guard lives on the aggregating router
+    **This GET writes, and deliberately.** Reading a window fills the settlement
+    rollup for the days it did not already cover — a cache that verifies itself
+    against the detail's own row counts and rebuilds whatever disagrees. Nothing
+    a caller sends decides what is written: the content is derived from the
+    кабинет's own settlement rows, and the tenant is bound by
+    :data:`CurrentWorkspaceId` exactly as for the read.
+
+    Otherwise read-only; the guard lives on the aggregating router
     (:mod:`src.modules.summary.routers`) so no route here can forget it.
     """
     start, end = _resolve_window(date_from, date_to)

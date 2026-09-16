@@ -122,14 +122,13 @@
   color: var(--ui-neg);
 }
 
-/* Anchored to the row's right edge rather than to the pointer: a tooltip that
-   follows the cursor down a dense list is a tooltip nobody can read. */
+/* Sits ON the pointer — just above it, centred — because that is where the eye
+   already is. `translate` does the offsetting so the inline `left`/`top` stay
+   the raw cursor position and nothing has to measure the tooltip first. */
 .sum-cat__tip {
   position: absolute;
-  top: 50%;
-  right: 0;
   z-index: 20;
-  transform: translateY(-50%);
+  transform: translate(-50%, calc(-100% - 10px));
   padding: 8px 10px;
   border-radius: var(--ui-r-sm);
   font-size: 0.75rem;

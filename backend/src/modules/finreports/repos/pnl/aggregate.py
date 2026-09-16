@@ -326,6 +326,89 @@ _AGGREGATES: tuple[SqlExpr, ...] = (
 )
 
 
+#: The same expressions, reordered for the rollup table's column order and
+#: without the two ``rr_dt`` bounds — a rollup row IS one day, so its own key
+#: carries them.
+#:
+#: SLICED from :data:`_AGGREGATES` rather than written out again, which is what
+#: makes drift between the two impossible: a column added to the aggregate is a
+#: column the rollup stores, or this slice stops lining up and every test that
+#: compares the two paths fails at once.
+_GROUP_EXPRESSIONS: tuple[SqlExpr, ...] = (
+    _AGGREGATES[2],  # currency (modal)
+    _AGGREGATES[28],  # subject_name
+    _AGGREGATES[29],  # brand_name
+    *_AGGREGATES[3:28],  # every summed figure, in order
+    _AGGREGATES[30],  # rows
+)
+
+
+def aggregate_from_rollup(
+    *, key: object, label: str, bounds: tuple[date | None, date | None], values: Sequence[Any]
+) -> SettlementAggregate:
+    """Rebuild an aggregate from summed rollup columns.
+
+    ``values`` arrives in :data:`_GROUP_EXPRESSIONS` order — currency, subject,
+    brand, the summed figures, the row count — because that is the order the
+    rollup stores and the order a ``SELECT`` over it returns.
+
+    Args:
+        key: The grouping value this aggregate stands for.
+        label: Its human-readable name.
+        bounds: ``(min, max)`` settlement date, which the rollup's key carries
+            rather than its columns.
+        values: The summed rollup columns.
+
+    Returns:
+        The same dataclass a direct query over the detail produces.
+    """
+    currency, subject_name, brand_name, *rest = values
+    figures = rest[:-1]
+    rows = rest[-1]
+    return SettlementAggregate(
+        key=key,
+        label=label,
+        date_from=bounds[0],
+        date_to=bounds[1],
+        currency=str(currency or ""),
+        subject_name=str(subject_name or ""),
+        brand_name=str(brand_name or ""),
+        sold_units=int(figures[0]),
+        returned_units=int(figures[1]),
+        **{
+            name: Decimal(figures[index + 2])
+            for index, name in enumerate(
+                (
+                    "sales_gross",
+                    "returns_gross",
+                    "sales_before_spp",
+                    "returns_before_spp",
+                    "payout_sales",
+                    "payout_returns",
+                    "payout_other",
+                    "wb_commission_reported",
+                    "wb_commission_vat",
+                    "wb_reward",
+                    "acquiring_withheld",
+                    "acquiring_billed_apart",
+                    "agency_vat",
+                    "logistics_forward",
+                    "logistics_return",
+                    "logistics_unlegged",
+                    "storage",
+                    "acceptance",
+                    "penalties",
+                    "deductions",
+                    "additional_payments",
+                    "rebill_logistic_cost",
+                    "advertising",
+                )
+            )
+        },
+        rows=int(rows),
+    )
+
+
 def _to_aggregate(row: Sequence[Any]) -> SettlementAggregate:
     """Build a :class:`SettlementAggregate` from a ``(key, label, *_AGGREGATES)`` row."""
     return SettlementAggregate(

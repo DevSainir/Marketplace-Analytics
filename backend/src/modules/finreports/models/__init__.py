@@ -4,6 +4,9 @@
 * :class:`FinancialReport` — one WB weekly realization report header.
 * :class:`SettlementWatermark` — how far each workspace's settlement walk has
   actually got, which is NOT what the newest report claims to cover.
+* :class:`SettlementDailyRollup` — the same rows pre-summed per день / артикул.
+  A verified cache: every read checks it against the detail's own row counts and
+  rebuilds what disagrees, so it can cost time but never correctness.
 
 Plus the one table whose contents WB did not author:
 
@@ -19,6 +22,7 @@ from src.modules.finreports.models.balance_pin import BalancePin, BalancePinKind
 from src.modules.finreports.models.cost_price import ProductCostPrice
 from src.modules.finreports.models.financial_report import FinancialReport
 from src.modules.finreports.models.logistics_transaction import LogisticsTransaction
+from src.modules.finreports.models.settlement_rollup import SettlementDailyRollup
 from src.modules.finreports.models.settlement_watermark import SettlementWatermark
 from src.modules.finreports.models.sku_exclusion import PnlSkuExclusion
 
@@ -29,5 +33,6 @@ __all__ = [
     "LogisticsTransaction",
     "PnlSkuExclusion",
     "ProductCostPrice",
+    "SettlementDailyRollup",
     "SettlementWatermark",
 ]

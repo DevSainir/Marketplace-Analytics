@@ -76,6 +76,7 @@ DECLARE
         'finreports.logistics_transaction',
         'finreports.pnl_sku_exclusion',
         'finreports.product_cost_price',
+        'finreports.settlement_daily_rollup',
         'monitoring.product_card',
         'workspaces.workspace_tokens'
     ];

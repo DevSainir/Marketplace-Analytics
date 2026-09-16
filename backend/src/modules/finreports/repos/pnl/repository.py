@@ -32,6 +32,7 @@ from src.modules.finreports.constants import (
     SUBSCRIPTION_DEDUCTION_MARKER,
     TRANSIT_DEDUCTION_MARKER,
 )
+from src.modules.finreports.models import SettlementDailyRollup
 from src.modules.finreports.repos.pnl.aggregate import (
     _AGGREGATES,
     _GROUP_KEYS,
@@ -46,6 +47,7 @@ from src.modules.finreports.repos.pnl.aggregate import (
     _to_aggregate,
     _units,
 )
+from src.modules.finreports.repos.pnl.rollup import SettlementRollup
 
 
 class PnlRepository:
@@ -54,6 +56,7 @@ class PnlRepository:
     def __init__(self, session: AsyncSession) -> None:
         """Store the injected request-scoped async session."""
         self._session = session
+        self._rollup = SettlementRollup(session)
 
     def _window(self, workspace_id: uuid.UUID, date_from: date, date_to: date) -> list[SqlExpr]:
         """The settlement-date window every query in here is scoped to."""
@@ -81,6 +84,33 @@ class PnlRepository:
 
         Returns:
             One aggregate per group, newest/largest first for period cuts.
+
+        Served from the rollup, which verifies itself against the detail's own
+        row counts first and rebuilds whatever disagrees — so this is the same
+        arithmetic as a direct pass, at a fortieth of the rows. The direct pass
+        is still what the rollup is built FROM, and still what
+        :meth:`aggregate_from_detail` runs when something needs to be compared
+        against the source of truth.
+        """
+        return await self._rollup.aggregate(
+            workspace_id=workspace_id,
+            date_from=date_from,
+            date_to=date_to,
+            grouping=grouping,
+        )
+
+    async def aggregate_from_detail(
+        self,
+        *,
+        workspace_id: uuid.UUID,
+        date_from: date,
+        date_to: date,
+        grouping: PnlGrouping,
+    ) -> list[SettlementAggregate]:
+        """The same aggregate, read straight from the settlement detail.
+
+        Kept for the one thing the rollup cannot do: be the thing the rollup is
+        checked against. The reconciliation tests run both and compare.
         """
         key, label = _GROUP_KEYS[grouping]
         stmt = select(key, label, *_AGGREGATES).where(
@@ -108,11 +138,19 @@ class PnlRepository:
         Returns:
             The currency code, or ``""`` when the window has no rows.
         """
+        await self._rollup.ensure_fresh(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
+        rollup = SettlementDailyRollup
         stmt = select(
             func.coalesce(
-                func.mode().within_group(_T.currency_name).filter(_T.currency_name != ""), ""
+                func.mode().within_group(rollup.currency).filter(rollup.currency != ""), ""
             )
-        ).where(*self._window(workspace_id, date_from, date_to))
+        ).where(
+            rollup.workspace_id == workspace_id,
+            rollup.rr_dt >= date_from,
+            rollup.rr_dt <= date_to,
+        )
         return str((await self._session.scalar(stmt)) or "")
 
     async def reason_breakdown(
@@ -200,16 +238,12 @@ class PnlRepository:
         must let COGS go negative too rather than clamping, or a refunded week
         overstates profit.
         """
-        key, _label = _GROUP_KEYS[grouping]
-        net = _units(SALE_OPERS) - _units(RETURN_OPERS)
-        stmt = (
-            select(key, _T.nm_id, net)
-            .where(*self._window(workspace_id, date_from, date_to), _T.nm_id != 0)
-            .group_by(key, _T.nm_id)
-            .having(net != 0)
+        return await self._rollup.net_units(
+            workspace_id=workspace_id,
+            date_from=date_from,
+            date_to=date_to,
+            grouping=grouping,
         )
-        rows = (await self._session.execute(stmt)).all()
-        return [(r[0], int(r[1]), int(r[2])) for r in rows]
 
     async def sku_penalties(
         self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
