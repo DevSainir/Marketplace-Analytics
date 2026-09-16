@@ -95,6 +95,29 @@ def test_advertising_is_subtracted_once_and_the_invoice_is_not_the_copy() -> Non
     assert kpi.margin == Decimal("550")
 
 
+def test_without_ad_coverage_the_invoice_stays_inside_the_payout() -> None:
+    """No burn to swap in means nothing to swap WB's invoice for.
+
+    Adding the invoice back against an advertising cost we do not have would
+    report a window as having spent nothing on ads — the one direction that
+    flatters the figure.
+    """
+    row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
+    totals = make_row(nm_id=0, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
+
+    kpi = build_kpi(
+        report=make_report([row], totals=totals),
+        base=RevenueBase.PAID,
+        orders=None,
+        buyouts=None,
+        ad_cash=None,
+        settled_advertising=Decimal("200"),
+    )
+
+    # 800 − 300 cogs, and the 200 invoice left where the settlement put it.
+    assert kpi.margin == Decimal("500")
+
+
 def test_a_refund_only_sku_without_a_cost_still_withholds_the_margin() -> None:
     """Net units of zero is not the test — a refund-only SKU moved goods too.
 

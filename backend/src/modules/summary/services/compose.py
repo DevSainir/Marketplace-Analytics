@@ -111,10 +111,12 @@ def build_kpi(
     #
     # The invoice goes back and the real burn comes off, which is the same swap
     # `build_days` makes — and it is what keeps Σ days equal to this card.
+    # With no advertising coverage there is no burn to swap in, and WB's invoice
+    # is then the only advertising figure there is: it stays inside the payout
+    # rather than being added back against nothing.
+    swap = settled_advertising if ad_cash is not None else _ZERO
     margin = (
-        None
-        if missing
-        else totals.payout_net + settled_advertising - (totals.cogs or _ZERO) - (ad_cash or _ZERO)
+        None if missing else totals.payout_net + swap - (totals.cogs or _ZERO) - (ad_cash or _ZERO)
     )
 
     return SummaryKpi(

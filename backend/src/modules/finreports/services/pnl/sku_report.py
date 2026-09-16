@@ -248,7 +248,30 @@ def build_sku_report(
     # The totals row's COGS is the sum of the costed rows, not price x units (no
     # single price exists across SKUs); profit follows from it.
     totals.cogs = sum((r.cogs for r in rows if r.cogs is not None), _ZERO)
-    totals.net_profit = totals.payout_net - totals.cogs - (totals.advertising_cash or _ZERO)
+    # WB charges advertising twice over, in two units that are the same money:
+    # a weekly «Оказание услуг «WB Продвижение»» invoice, withheld inside «к
+    # перечислению», and the burn the Promotion API dates to the days the ads
+    # ran. A SKU row only ever sees the second — the invoice carries no nm_id —
+    # so subtracting its spend is that row's only advertising charge and needs
+    # no correction. This row is the one place both meet, and subtracting the
+    # burn from a payout that is already net of the invoice charges it twice:
+    # 2 657 954.54 against a true 4 313 444.72 on one live 54-day window, the
+    # gap being that window's 1 993 394.61 of invoices to the сом.
+    #
+    # The invoice goes back and the burn comes off, so the charge lands once and
+    # lands on the figure that knows about WB's bonuses. Note what is NOT done:
+    # «к перечислению» is untouched, so the settlement partition — Σ rows +
+    # unallocated — still reconciles against what WB actually paid out.
+    #
+    # With no advertising coverage there is no burn to swap in, and the invoice
+    # is then the only advertising figure there is: it stays where it is, inside
+    # the payout, rather than being added back against nothing.
+    settled_advertising = (
+        total_aggregate.advertising if totals.advertising_cash is not None else _ZERO
+    )
+    totals.net_profit = (
+        totals.payout_net + settled_advertising - totals.cogs - (totals.advertising_cash or _ZERO)
+    )
     totals.net_profit_pct = _pct(totals.net_profit, totals.revenue_paid)
     _ = total_costed_units  # coverage is reported by the service's notes
     return rows, unallocated, totals
