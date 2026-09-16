@@ -37,9 +37,15 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessOutcome,
     FreshnessVerdict,
 )
-from src.modules.finreports.tasks import freshness, harvest
+from src.modules.finreports.tasks import freshness
 from src.modules.finreports.tasks.freshness import probe_window
-from src.modules.finreports.tasks.harvest import harvest_all_workspaces
+from src.modules.finreports.tasks.harvest import (
+    fleet,
+    harvest_all_workspaces,
+    harvest_workspace,
+    persistence,
+    workspace,
+)
 from src.modules.finreports.tasks.settlement import SettlementWalk
 from src.modules.finreports.tasks.spans import settlement_frontier, walk_span
 from src.modules.workspaces.contract import WorkspaceTokenBundle
@@ -219,18 +225,18 @@ async def test_the_harvest_asks_the_gate_about_the_frontier_not_the_watermark(
         return {}
 
     redis = _FakeRedis()
-    monkeypatch.setattr(harvest, "get_redis", lambda: redis)
+    monkeypatch.setattr(fleet, "get_redis", lambda: redis)
     # The gap survey opens its OWN session, so leaving it real makes this unit
     # test reach Postgres — green on a laptop with Docker up, a DNS failure in
     # CI. What it finds is not this file's subject.
-    monkeypatch.setattr(harvest, "survey_settlement_gaps", _no_gaps)
+    monkeypatch.setattr(fleet, "survey_settlement_gaps", _no_gaps)
     monkeypatch.setattr(freshness, "get_redis", lambda: redis)
-    monkeypatch.setattr(harvest, "AsyncSessionLocal", _FakeSession)
-    monkeypatch.setattr(harvest, "SettlementWatermarkRepository", _FakeWatermarkRepo)
-    monkeypatch.setattr(harvest, "FinancialReportRepository", _FakeReportRepo)
-    monkeypatch.setattr(harvest, "load_workspace_token_bundles", _bundles)
-    monkeypatch.setattr(harvest, "moscow_today", lambda: TODAY)
-    monkeypatch.setattr(harvest, "check_freshness", _check)
+    monkeypatch.setattr(fleet, "AsyncSessionLocal", _FakeSession)
+    monkeypatch.setattr(fleet, "SettlementWatermarkRepository", _FakeWatermarkRepo)
+    monkeypatch.setattr(fleet, "FinancialReportRepository", _FakeReportRepo)
+    monkeypatch.setattr(fleet, "load_workspace_token_bundles", _bundles)
+    monkeypatch.setattr(fleet, "moscow_today", lambda: TODAY)
+    monkeypatch.setattr(fleet, "check_freshness", _check)
 
     await harvest_all_workspaces(days=28)
 
@@ -298,13 +304,13 @@ def certified(monkeypatch: pytest.MonkeyPatch):
         async def _walk(**_kwargs: object) -> SettlementWalk:
             return SettlementWalk(rows=1, windows_failed=0, completed_through=completed_through)
 
-        monkeypatch.setattr(harvest, "AsyncSessionLocal", _CommittingSession)
-        monkeypatch.setattr(harvest, "SettlementWatermarkRepository", _RecordingWatermarkRepo)
-        monkeypatch.setattr(harvest, "FinancialReportRepository", _Coverage)
-        monkeypatch.setattr(harvest, "walk_settlement_windows", _walk)
-        monkeypatch.setattr(harvest, "build_ingestion", _FakeIngestion)
+        monkeypatch.setattr(persistence, "AsyncSessionLocal", _CommittingSession)
+        monkeypatch.setattr(persistence, "SettlementWatermarkRepository", _RecordingWatermarkRepo)
+        monkeypatch.setattr(persistence, "FinancialReportRepository", _Coverage)
+        monkeypatch.setattr(workspace, "walk_settlement_windows", _walk)
+        monkeypatch.setattr(persistence, "build_ingestion", _FakeIngestion)
 
-        await harvest.harvest_workspace(
+        await harvest_workspace(
             tokens=WorkspaceTokenBundle(
                 workspace_id=WORKSPACE, name="NEVA", statistics="stat-token"
             ),

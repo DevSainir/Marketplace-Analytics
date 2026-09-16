@@ -30,8 +30,11 @@ from typing import Any
 import pytest
 from prometheus_client import REGISTRY
 
-from src.modules.finreports.tasks import harvest as harvest_module
-from src.modules.finreports.tasks.harvest import harvest_workspace
+from src.modules.finreports.tasks.harvest import (
+    harvest_workspace,
+    persistence,
+    workspace,
+)
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
@@ -76,13 +79,13 @@ class _ExplodingIngestion(_FakeIngestion):
 @pytest.fixture
 def harvest_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Replace the harvest's database and its summary warm-up with fakes."""
-    monkeypatch.setattr(harvest_module, "AsyncSessionLocal", _FakeSession)
-    monkeypatch.setattr(harvest_module, "build_ingestion", lambda _session: _FakeIngestion())
+    monkeypatch.setattr(persistence, "AsyncSessionLocal", _FakeSession)
+    monkeypatch.setattr(persistence, "build_ingestion", lambda _session: _FakeIngestion())
 
     async def _warm(*, workspace_id: uuid.UUID, name: str) -> None:
         return None
 
-    monkeypatch.setattr(harvest_module, "warm_settlement_rollup", _warm)
+    monkeypatch.setattr(workspace, "warm_settlement_rollup", _warm)
 
 
 def _bundle() -> WorkspaceTokenBundle:
@@ -152,7 +155,7 @@ async def test_a_harvest_that_raises_still_records_the_time_it_burned(
     ``pytest.raises`` is half the assertion: a timer that swallowed the error to
     record it would turn every failed harvest into a silent success.
     """
-    monkeypatch.setattr(harvest_module, "build_ingestion", lambda _session: _ExplodingIngestion())
+    monkeypatch.setattr(persistence, "build_ingestion", lambda _session: _ExplodingIngestion())
     failed_before = _duration_count("error")
 
     with pytest.raises(RuntimeError, match="went away"):

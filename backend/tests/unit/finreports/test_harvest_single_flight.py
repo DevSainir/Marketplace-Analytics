@@ -22,8 +22,7 @@ from src.modules.finreports.constants import HARVEST_LOCK_KEY
 from src.modules.finreports.repos import LatestReportHeader
 from src.modules.finreports.services import HarvestControlService
 from src.modules.finreports.services.freshness_record import NullFreshnessRecordStore
-from src.modules.finreports.tasks import harvest
-from src.modules.finreports.tasks.harvest import harvest_all_workspaces
+from src.modules.finreports.tasks.harvest import fleet, harvest_all_workspaces
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
@@ -66,12 +65,12 @@ async def test_a_tick_that_finds_the_lock_held_does_no_work(
     rather than somewhere later.
     """
     redis = _HeldRedis()
-    monkeypatch.setattr(harvest, "get_redis", lambda: redis)
+    monkeypatch.setattr(fleet, "get_redis", lambda: redis)
 
     async def _explode(*args: object, **kwargs: object) -> list[object]:
         raise AssertionError("the locked-out tick opened a session anyway")
 
-    monkeypatch.setattr(harvest, "load_workspace_token_bundles", _explode)
+    monkeypatch.setattr(fleet, "load_workspace_token_bundles", _explode)
 
     totals = await harvest_all_workspaces(days=28)
 
@@ -83,11 +82,11 @@ async def test_the_locked_out_result_has_the_same_shape_as_a_real_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Callers read these keys unconditionally; a missing one is an error."""
-    monkeypatch.setattr(harvest, "get_redis", lambda: _HeldRedis())
+    monkeypatch.setattr(fleet, "get_redis", lambda: _HeldRedis())
 
     totals = await harvest_all_workspaces(days=28)
 
-    assert set(totals) == set(harvest._EMPTY_TOTALS)
+    assert set(totals) == set(fleet._EMPTY_TOTALS)
 
 
 async def test_the_lock_is_freed_for_the_next_tick(
@@ -96,12 +95,12 @@ async def test_the_lock_is_freed_for_the_next_tick(
     """A completed harvest must not leave the job blocked until the TTL."""
     redis = _HeldRedis()
     redis.store.clear()
-    monkeypatch.setattr(harvest, "get_redis", lambda: redis)
+    monkeypatch.setattr(fleet, "get_redis", lambda: redis)
 
     async def _no_workspaces(*args: object, **kwargs: object) -> list[object]:
         return []
 
-    monkeypatch.setattr(harvest, "load_workspace_token_bundles", _no_workspaces)
+    monkeypatch.setattr(fleet, "load_workspace_token_bundles", _no_workspaces)
 
     await harvest_all_workspaces(days=28)
 

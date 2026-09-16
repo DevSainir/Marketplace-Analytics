@@ -26,10 +26,14 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.exceptions import IntegrationError
-from src.modules.finreports.tasks import harvest as harvest_module
 from src.modules.finreports.tasks import settlement as settlement_module
 from src.modules.finreports.tasks import storage as storage_module
-from src.modules.finreports.tasks.harvest import harvest_workspace
+from src.modules.finreports.tasks.harvest import (
+    harvest_workspace,
+    persistence,
+    sources,
+    workspace,
+)
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -218,13 +222,14 @@ def wb(
 ) -> Iterator[type[_FakeFinanceClient]]:
     """Point the harvest at fake WB clients and the test transaction.
 
-    ``AsyncSessionLocal`` is swapped for the fixture's factory so the harvest's
+    ``AsyncSessionLocal`` is swapped on `harvest.persistence`, which owns every
+    write outside the settlement walk, for the fixture's factory so the harvest's
     commit lands in the test's connection (and is rolled back with it) instead
     of the developer's database. Summary warming is stubbed out: it opens its
     own session, and it is explicitly best-effort, so it is not part of the
     property under test.
     """
-    monkeypatch.setattr(harvest_module, "AsyncSessionLocal", session_factory)
+    monkeypatch.setattr(persistence, "AsyncSessionLocal", session_factory)
     # The settlement walk keeps its own session and its own client: it commits
     # a week at a time, outside the transaction the rest of the harvest shares.
     monkeypatch.setattr(settlement_module, "AsyncSessionLocal", session_factory)
@@ -232,12 +237,12 @@ def wb(
     monkeypatch.setattr(
         settlement_module, "settlement_walk_rate_gate", lambda *_a, **_kw: _OpenGate()
     )
-    monkeypatch.setattr(harvest_module, "WBContentClient", _EmptyContentClient)
+    monkeypatch.setattr(sources, "WBContentClient", _EmptyContentClient)
 
     async def no_warming(*, workspace_id: uuid.UUID, name: str) -> None:
         return None
 
-    monkeypatch.setattr(harvest_module, "warm_settlement_rollup", no_warming)
+    monkeypatch.setattr(workspace, "warm_settlement_rollup", no_warming)
     _FakeFinanceClient.fail_mid_walk = False
     yield _FakeFinanceClient
     _FakeFinanceClient.fail_mid_walk = False

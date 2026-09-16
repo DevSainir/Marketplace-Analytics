@@ -28,8 +28,8 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessVerdict,
     freshness_key,
 )
-from src.modules.finreports.tasks import freshness, harvest
-from src.modules.finreports.tasks.harvest import harvest_all_workspaces
+from src.modules.finreports.tasks import freshness
+from src.modules.finreports.tasks.harvest import fleet, harvest_all_workspaces
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
@@ -174,18 +174,18 @@ def redis_and_walk(monkeypatch: pytest.MonkeyPatch) -> Any:
 
         # The lock lives in `harvest`; the freshness record and the walk's own
         # verdict live in `freshness`. Both reach Redis through `get_redis`.
-        monkeypatch.setattr(harvest, "get_redis", lambda: redis)
+        monkeypatch.setattr(fleet, "get_redis", lambda: redis)
         monkeypatch.setattr(freshness, "get_redis", lambda: redis)
-        monkeypatch.setattr(harvest, "AsyncSessionLocal", _FakeSession)
+        monkeypatch.setattr(fleet, "AsyncSessionLocal", _FakeSession)
         monkeypatch.setattr(freshness, "AsyncSessionLocal", _FakeSession)
-        monkeypatch.setattr(harvest, "SettlementWatermarkRepository", _FakeWatermarkRepo)
+        monkeypatch.setattr(fleet, "SettlementWatermarkRepository", _FakeWatermarkRepo)
         # The loop reads BOTH — the frontier is the earlier of them. See
         # `tests/unit/finreports/test_settlement_frontier.py` for why.
-        monkeypatch.setattr(harvest, "FinancialReportRepository", _FakeReportRepo)
+        monkeypatch.setattr(fleet, "FinancialReportRepository", _FakeReportRepo)
         monkeypatch.setattr(freshness, "FinancialReportRepository", _FakeReportRepo)
-        monkeypatch.setattr(harvest, "load_workspace_token_bundles", _bundles)
-        monkeypatch.setattr(harvest, "check_freshness", _check)
-        monkeypatch.setattr(harvest, "harvest_workspace", _walk)
+        monkeypatch.setattr(fleet, "load_workspace_token_bundles", _bundles)
+        monkeypatch.setattr(fleet, "check_freshness", _check)
+        monkeypatch.setattr(fleet, "harvest_workspace", _walk)
 
         # The gap survey runs on every tick now, and it opens its own session:
         # left real, these unit tests would reach a database. What it finds is
@@ -193,7 +193,7 @@ def redis_and_walk(monkeypatch: pytest.MonkeyPatch) -> Any:
         async def _no_gaps(*_args: object, **_kwargs: object) -> dict[uuid.UUID, list[date]]:
             return {}
 
-        monkeypatch.setattr(harvest, "survey_settlement_gaps", _no_gaps)
+        monkeypatch.setattr(fleet, "survey_settlement_gaps", _no_gaps)
         return redis, walked
 
     return _run

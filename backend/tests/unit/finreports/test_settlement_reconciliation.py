@@ -36,8 +36,8 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessOutcome,
     FreshnessVerdict,
 )
-from src.modules.finreports.tasks import freshness, harvest, repair
-from src.modules.finreports.tasks.harvest import harvest_all_workspaces
+from src.modules.finreports.tasks import freshness, repair
+from src.modules.finreports.tasks.harvest import fleet, harvest_all_workspaces
 from src.modules.finreports.tasks.spans import reconciliation_slice, walk_span
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
@@ -343,21 +343,21 @@ def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
         spans.append((date_from, date_to))
         return {"finance_windows_failed": 0}
 
-    monkeypatch.setattr(harvest, "get_redis", lambda: redis)
+    monkeypatch.setattr(fleet, "get_redis", lambda: redis)
     monkeypatch.setattr(freshness, "get_redis", lambda: redis)
     monkeypatch.setattr(repair, "get_redis", lambda: redis)
-    monkeypatch.setattr(harvest, "AsyncSessionLocal", _FakeSession)
+    monkeypatch.setattr(fleet, "AsyncSessionLocal", _FakeSession)
     monkeypatch.setattr(freshness, "AsyncSessionLocal", _FakeSession)
-    monkeypatch.setattr(harvest, "SettlementWatermarkRepository", _FakeWatermarkRepo)
+    monkeypatch.setattr(fleet, "SettlementWatermarkRepository", _FakeWatermarkRepo)
     # The loop reads BOTH — the frontier is the earlier of them. See
     # `tests/unit/finreports/test_settlement_frontier.py` for why.
-    monkeypatch.setattr(harvest, "FinancialReportRepository", _FakeReportRepo)
+    monkeypatch.setattr(fleet, "FinancialReportRepository", _FakeReportRepo)
     monkeypatch.setattr(freshness, "FinancialReportRepository", _FakeReportRepo)
-    monkeypatch.setattr(harvest, "load_workspace_token_bundles", _bundles)
-    monkeypatch.setattr(harvest, "load_workspace_token_bundle", _bundle)
-    monkeypatch.setattr(harvest, "check_freshness", _check)
-    monkeypatch.setattr(harvest, "harvest_workspace", _walk)
-    monkeypatch.setattr(harvest, "moscow_today", lambda: TODAY)
+    monkeypatch.setattr(fleet, "load_workspace_token_bundles", _bundles)
+    monkeypatch.setattr(fleet, "load_workspace_token_bundle", _bundle)
+    monkeypatch.setattr(fleet, "check_freshness", _check)
+    monkeypatch.setattr(fleet, "harvest_workspace", _walk)
+    monkeypatch.setattr(fleet, "moscow_today", lambda: TODAY)
 
     # The gap survey is a database read and this is the unit tier. Stubbed to
     # "history is sound" so these tests exercise the walk rather than the
@@ -366,7 +366,7 @@ def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
     async def _no_gaps(*_args: object, **_kwargs: object) -> dict[uuid.UUID, list[date]]:
         return {}
 
-    monkeypatch.setattr(harvest, "survey_settlement_gaps", _no_gaps)
+    monkeypatch.setattr(fleet, "survey_settlement_gaps", _no_gaps)
     return spans
 
 
@@ -415,7 +415,7 @@ async def test_the_reconciliation_pass_still_respects_the_harvest_lock(
     """
     held = _FakeRedis()
     held.store[HARVEST_LOCK_KEY] = "another-runs-token"
-    monkeypatch.setattr(harvest, "get_redis", lambda: held)
+    monkeypatch.setattr(fleet, "get_redis", lambda: held)
 
     totals = await harvest_all_workspaces(days=28, reconcile=True)
 
@@ -455,7 +455,7 @@ async def test_the_button_still_spends_only_the_callers_budget(
         loaded.append(None)
         return []
 
-    monkeypatch.setattr(harvest, "load_workspace_token_bundles", _fleet)
+    monkeypatch.setattr(fleet, "load_workspace_token_bundles", _fleet)
 
     await harvest_all_workspaces(days=28, workspace_id=WORKSPACE, reconcile=True)
 
