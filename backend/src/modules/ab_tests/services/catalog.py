@@ -28,6 +28,7 @@ from src.modules.ab_tests.models import (
 )
 from src.modules.ab_tests.repos import (
     AbTestRepository,
+    CampaignRepository,
     ExposureRepository,
     SnapshotRepository,
     VariantRepository,
@@ -65,6 +66,7 @@ class AbTestCatalogService:
         exposures: ExposureRepository,
         stats: WindowRepository,
         snapshots: SnapshotRepository,
+        campaigns: CampaignRepository,
         media_store: MediaStore,
     ) -> None:
         """Wire the service to its repositories and the WB installer.
@@ -76,6 +78,8 @@ class AbTestCatalogService:
             stats: Per-interval traffic repository.
             snapshots: The poller's counter baseline, dropped on a pause so
                 the paused stretch is not credited to anyone.
+            campaigns: The register naming the advertising campaigns a test's
+                traffic came from.
             media_store: Where variant originals are written and read.
         """
         self._tests = tests
@@ -83,6 +87,7 @@ class AbTestCatalogService:
         self._exposures = exposures
         self._stats = stats
         self._snapshots = snapshots
+        self._campaigns = campaigns
         self._media = media_store
         self._launcher = Launcher(tests=tests, exposures=exposures)
 
@@ -123,10 +128,12 @@ class AbTestCatalogService:
         # different clock would count down to a swap that happens elsewhere.
         active_since = await self._exposures.active_since(test_id=test.id)
         exposures = await self._exposures.history(test_id=test.id)
+        campaigns = await self._campaigns.for_test(test_id=test.id)
         return assemble_detail(
             test=test,
             windows=windows,
             exposures=exposures,
+            campaigns=campaigns,
             active_since=active_since,
             image_url=IMAGE_URL_TEMPLATE,
         )

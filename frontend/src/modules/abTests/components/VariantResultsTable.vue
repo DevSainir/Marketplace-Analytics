@@ -51,10 +51,12 @@ const props = defineProps({
   saving: { type: Boolean, default: false },
   /** Which lap to show, or 0 for the whole test. */
   round: { type: Number, default: 0 },
+  /** Which advertising campaign to read the figures through, or 0 for all. */
+  campaign: { type: Number, default: 0 },
 })
 const emit = defineEmits(['exclude'])
 
-const columns = computed(() => buildColumns(props.test, props.round))
+const columns = computed(() => buildColumns(props.test, props.round, props.campaign))
 const leaderId = computed(() => leaderOf(columns.value))
 const bestWins = computed(() => bestWinsOf(columns.value))
 

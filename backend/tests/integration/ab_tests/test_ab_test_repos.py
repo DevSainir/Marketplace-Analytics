@@ -252,6 +252,7 @@ async def test_deleting_a_test_takes_its_photos_and_days_with_it(
     await windows.append(
         test_id=test.id,
         variant_id=variant.id,
+        campaign_id=97455930,
         window_start=datetime(2026, 9, 4, 12, 0, tzinfo=UTC),
         window_end=datetime(2026, 9, 4, 12, 5, tzinfo=UTC),
         counters=Counters(views=10, clicks=1),

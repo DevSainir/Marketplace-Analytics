@@ -25,6 +25,11 @@ from src.modules.ab_tests.services.metrics import (
     totals_from_windows,
 )
 from src.modules.ab_tests.services.rounds import gap_to_best, standings
+from src.modules.ab_tests.services.split import (
+    CampaignRef,
+    exposure_campaign_counts,
+    variant_campaign_metrics,
+)
 
 
 def window_counts(row: VariantStatWindow) -> WindowCounts:
@@ -50,6 +55,7 @@ def build_rows(
     variants: Sequence[AbTestVariant],
     windows: Iterable[VariantStatWindow],
     exposures: Sequence[VariantExposure] = (),
+    campaigns: Sequence[CampaignRef] = (),
     image_url: str,
 ) -> list[VariantMetrics]:
     """Build the per-photo result rows for one test.
@@ -61,6 +67,9 @@ def build_rows(
         exposures: The test's turns, which carry the lap each window belongs to.
             Empty is allowed and yields zeroed round columns — a test that has
             never been polled has no laps to stand in.
+        campaigns: The campaigns that brought traffic, in display order. Each
+            row gets the same figures computed inside each of them; see
+            :mod:`.split` for why the whole-test row cannot answer that.
         image_url: A ``str.format`` template taking ``test_id`` and
             ``variant_id`` — the route the SPA fetches the picture from.
 
@@ -82,6 +91,13 @@ def build_rows(
         variant_ids=[variant.id for variant in variants],
         windows=list(windows_by_variant),
         exposures=exposures,
+    )
+
+    per_campaign = variant_campaign_metrics(
+        variants=variants,
+        windows=windows_by_variant,
+        exposures=exposures,
+        refs=campaigns,
     )
 
     # The bar every other photo is measured against. Computed over the whole
@@ -118,6 +134,7 @@ def build_rows(
                 orders=totals.orders,
                 spend=totals.spend,
                 days_measured=_days_spanned(variant_windows),
+                campaigns=per_campaign.get(variant.id, []),
             )
         )
     return rows
@@ -162,8 +179,9 @@ def build_history(
     *,
     test: AbTest,
     variants: Sequence[AbTestVariant],
-    windows: Iterable[VariantStatWindow],
+    windows: Sequence[VariantStatWindow],
     exposures: Sequence[VariantExposure],
+    campaigns: Sequence[CampaignRef] = (),
     image_url: str,
 ) -> list[ExposureRow]:
     """One row per turn the rotation has served, newest first.
@@ -181,6 +199,9 @@ def build_history(
         variants: Its photos, for the label and the picture.
         windows: Every recorded interval of the test.
         exposures: The turns, newest first.
+        campaigns: The campaigns that brought traffic, in display order. Each
+            turn also reports what each of them earned in it, which is what
+            lets the timeline show only the laps a campaign actually ran for.
         image_url: ``str.format`` template for the picture route.
 
     Returns:
@@ -238,6 +259,9 @@ def build_history(
                         ]
                     )
                 ).click_through,
+                campaigns=exposure_campaign_counts(
+                    exposure=exposure, windows=windows, refs=campaigns
+                ),
             )
         )
     return rows

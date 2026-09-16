@@ -41,6 +41,7 @@ from tests.support.ab_tests_runner import (
     FakeWindows,
     build_runner,
     make_variant,
+    one_campaign,
     running_test,
 )
 
@@ -60,11 +61,13 @@ async def test_a_foreign_photo_stops_the_test_before_anything_is_credited() -> N
     first, second = make_variant(1), make_variant(2)
     test = running_test([first, second], active=first)
     windows = FakeWindows()
-    snapshots = FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)}))
+    snapshots = FakeSnapshots(
+        Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+    )
     installer = FakeInstaller()
     tests = FakeTests()
     poller = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=windows,
         snapshots=snapshots,
         exposures=FakeExposures(active_since=T0, published_at=OURS),
@@ -98,9 +101,11 @@ async def test_a_conflict_pause_is_not_an_ads_pause() -> None:
     first, second = make_variant(1), make_variant(2)
     test = running_test([first, second], active=first)
     poller = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=FakeWindows(),
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+        ),
         exposures=FakeExposures(active_since=T0, published_at=OURS),
         installer=FakeInstaller(),
         tests=FakeTests(),
@@ -121,9 +126,11 @@ async def test_the_matching_photo_lets_the_pass_run_normally() -> None:
     windows = FakeWindows()
     tests = FakeTests()
     poller = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=windows,
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+        ),
         exposures=FakeExposures(active_since=T0, published_at=OURS),
         installer=FakeInstaller(),
         tests=tests,
@@ -149,9 +156,11 @@ async def test_an_unreadable_storefront_changes_nothing() -> None:
     windows = FakeWindows()
     tests = FakeTests()
     poller = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=windows,
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+        ),
         exposures=FakeExposures(active_since=T0, published_at=OURS),
         installer=FakeInstaller(),
         tests=tests,
@@ -177,9 +186,11 @@ async def test_an_unwitnessed_install_is_never_a_conflict() -> None:
     windows = FakeWindows()
     tests = FakeTests()
     poller = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=windows,
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+        ),
         exposures=FakeExposures(active_since=T0, published_at=None),
         installer=FakeInstaller(),
         tests=tests,
@@ -203,9 +214,11 @@ async def test_an_install_records_what_the_storefront_published() -> None:
     test = running_test([first, second], active=first)
     exposures = FakeExposures(active_since=T0, published_at=OURS)
     poller = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=FakeWindows(),
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+        ),
         exposures=exposures,
         installer=FakeInstaller(),
         tests=FakeTests(),

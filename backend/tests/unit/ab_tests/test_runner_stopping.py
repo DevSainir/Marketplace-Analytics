@@ -29,6 +29,7 @@ from tests.support.ab_tests_runner import (
     FakeWindows,
     build_runner,
     make_variant,
+    one_campaign,
     running_test,
 )
 
@@ -46,9 +47,11 @@ async def test_a_spent_budget_pauses_at_the_swap_rather_than_ending_the_test() -
     installer = FakeInstaller()
     tests = FakeTests()
     poller = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=FakeWindows(),
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+        ),
         exposures=FakeExposures(active_since=T0),
         installer=installer,
         tests=tests,
@@ -76,9 +79,11 @@ async def test_a_blip_wb_could_not_answer_does_not_stop_the_rotation() -> None:
     installer = FakeInstaller()
     tests = FakeTests()
     runner = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=FakeWindows(),
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+        ),
         exposures=FakeExposures(active_since=T0),
         installer=installer,
         tests=tests,
@@ -104,9 +109,11 @@ async def test_the_rotation_wraps_and_counts_a_new_round() -> None:
     exposures = FakeExposures(active_since=T0, round_number=1)
     installer = FakeInstaller()
     runner = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=FakeWindows(),
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+        ),
         exposures=exposures,
         installer=installer,
         tests=FakeTests(),
@@ -124,9 +131,11 @@ async def test_a_mid_round_swap_stays_in_the_same_round() -> None:
     test = running_test([first, second], active=first)
     exposures = FakeExposures(active_since=T0, round_number=3)
     runner = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=FakeWindows(),
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+        ),
         exposures=exposures,
         installer=FakeInstaller(),
         tests=FakeTests(),
@@ -151,9 +160,11 @@ async def test_a_switched_off_campaign_pauses_the_test_and_drops_its_baseline() 
     test = running_test([first, second], active=first)
     installer = FakeInstaller()
     tests = FakeTests()
-    snapshots = FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)}))
+    snapshots = FakeSnapshots(
+        Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+    )
     poller = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=FakeWindows(),
         snapshots=snapshots,
         exposures=FakeExposures(active_since=T0),

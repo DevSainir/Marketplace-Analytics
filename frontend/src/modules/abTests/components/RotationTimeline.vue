@@ -17,6 +17,12 @@
  * end to end on one track — the view that answers whether a photo led every lap
  * or only one.
  *
+ * A second picker appears beside it when more than one campaign paid for the
+ * traffic. Choosing one narrows the line to the turns THAT campaign measured:
+ * a campaign switched off during the fourth lap draws four laps, not ten with
+ * six blanks. The two filters compose, because «третий круг единой ставки» is
+ * a question and either half alone is a different one.
+ *
  * That view has no upper bound: ten photos over ten laps is a hundred turns, and
  * no amount of proportion fits a hundred thumbnails across a card. Past the
  * point where each turn has room for its own marker the line **scrolls
@@ -28,11 +34,18 @@
  * The popup is teleported to `<body>`, for the reason `MetricHint` records: an
  * element that must escape a card has to leave the card, not out-rank it.
  */
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 
+import BlockFilters from '@/modules/abTests/components/BlockFilters.vue'
 import TimelineMarkers from '@/modules/abTests/components/TimelineMarkers.vue'
 import TimelineTip from '@/modules/abTests/components/TimelineTip.vue'
-import { buildTimeline, formatDuration, formatStamp, roundsIn } from '@/modules/abTests/timeline'
+import {
+  buildTimeline,
+  formatDuration,
+  formatStamp,
+  roundsIn,
+  trackSize,
+} from '@/modules/abTests/timeline'
 
 const props = defineProps({
   /** The open test, as the detail endpoint returns it. */
@@ -51,7 +64,20 @@ onUnmounted(() => clearInterval(ticking))
 /** Which lap the line shows; 0 is «Все круги». */
 const round = ref(0)
 
-const rounds = computed(() => roundsIn(props.test.history))
+/** Which campaign the line shows; 0 is «Все». */
+const campaign = ref(0)
+
+/** The campaigns that brought traffic — the picker exists only past one. */
+const campaigns = computed(() => props.test.campaigns ?? [])
+
+const rounds = computed(() => roundsIn(props.test.history, campaign.value))
+
+// A lap the chosen campaign never ran would leave the line empty and the
+// picker pointing at nothing, so the filter falls back to «Все круги» rather
+// than showing a blank block.
+watch(rounds, (available) => {
+  if (round.value && !available.includes(round.value)) round.value = 0
+})
 
 /**
  * Where the line stops.
@@ -76,7 +102,11 @@ const endsAt = computed(() => {
 })
 
 const line = computed(() =>
-  buildTimeline(props.test.history, { endsAt: endsAt.value, round: round.value }),
+  buildTimeline(props.test.history, {
+    endsAt: endsAt.value,
+    round: round.value,
+    campaignId: campaign.value,
+  }),
 )
 
 /** Only a running test's line ends at «сейчас»; every other one ends at a time. */
@@ -88,28 +118,8 @@ const live = computed(() => props.test.status === 'running' && line.value.live)
 const above = computed(() => line.value.segments.filter((segment) => segment.above))
 const below = computed(() => line.value.segments.filter((segment) => !segment.above))
 
-/** Width one turn needs before its marker starts crowding its neighbour's. */
-const TURN_WIDTH_PX = 56
-
-/** Below this many turns the markers are drawn large; above it they are not. */
-const ROOMY_TURNS = 14
-
-/**
- * How wide the line is drawn, in CSS.
- *
- * `100%` while the turns fit — the line is a proportion of the block, which is
- * what makes «Все круги» readable at a glance. Once there are more turns than
- * the block can label, it becomes a fixed width instead and the block scrolls:
- * compressing a hundred turns into 1200px produces a row of hairlines and a
- * pile of overlapping thumbnails, and neither can be read or hovered.
- */
-const lineWidth = computed(() => {
-  const needed = line.value.segments.length * TURN_WIDTH_PX * (large.value ? 2 : 1)
-  return `max(100%, ${needed}px)`
-})
-
-/** A short line can afford bigger pictures, and a photo is the point of one. */
-const large = computed(() => line.value.segments.length <= ROOMY_TURNS)
+/** How wide the track is drawn, and whether its thumbnails get the large size. */
+const track = computed(() => trackSize(line.value.segments.length))
 
 const hovered = ref(null)
 const tipAt = ref({ top: 0, left: 0 })
@@ -152,20 +162,21 @@ onUnmounted(close)
     aria-label="Ход теста"
     data-testid="rotation-timeline"
   >
-    <header class="mb-lg flex flex-wrap items-center justify-between gap-md">
-      <h2 class="text-base font-semibold text-primary">Ход теста</h2>
-      <label v-if="rounds.length" class="flex items-center gap-sm text-tiny text-muted">
-        <span>Круг</span>
-        <select v-model.number="round" class="ui-select" data-testid="timeline-round">
-          <option :value="0">Все круги</option>
-          <option v-for="option in rounds" :key="option" :value="option">{{ option }}</option>
-        </select>
-      </label>
-    </header>
+    <BlockFilters
+      v-model:campaign="campaign"
+      v-model:round="round"
+      class="mb-lg"
+      title="Ход теста"
+      :campaigns="campaigns"
+      :rounds="rounds"
+      all-rounds-label="Все круги"
+      campaign-testid="timeline-campaign"
+      round-testid="timeline-round"
+    />
 
     <div v-if="line.segments.length" class="ab-timeline__scroll">
-      <div class="ab-timeline" :style="{ width: lineWidth }">
-        <TimelineMarkers :segments="above" :image-urls="imageUrls" :large="large" above />
+      <div class="ab-timeline" :style="{ width: track.width }">
+        <TimelineMarkers :segments="above" :image-urls="imageUrls" :large="track.large" above />
         <div class="ab-timeline__ends">
           <span class="ab-timeline__end" data-testid="timeline-start">
             <span>{{ formatStamp(line.startMs).date }}</span>
@@ -206,7 +217,7 @@ onUnmounted(close)
           <span class="ab-timeline__tick" style="left: 100%" />
         </div>
 
-        <TimelineMarkers :segments="below" :image-urls="imageUrls" :large="large" />
+        <TimelineMarkers :segments="below" :image-urls="imageUrls" :large="track.large" />
       </div>
     </div>
 

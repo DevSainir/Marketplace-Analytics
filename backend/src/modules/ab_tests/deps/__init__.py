@@ -21,6 +21,7 @@ from src.core.exceptions import ValidationError
 from src.integrations.wildberries import WBContentClient
 from src.modules.ab_tests.repos import (
     AbTestRepository,
+    CampaignRepository,
     ExposureRepository,
     SnapshotRepository,
     VariantRepository,
@@ -124,6 +125,11 @@ def get_snapshot_repo(session: DbSession) -> SnapshotRepository:
     return SnapshotRepository(session)
 
 
+def get_campaign_repo(session: DbSession) -> CampaignRepository:
+    """Provide a :class:`CampaignRepository` bound to the request session."""
+    return CampaignRepository(session)
+
+
 def get_stat_repo(session: DbSession) -> WindowRepository:
     """Provide a :class:`WindowRepository` bound to the request session."""
     return WindowRepository(session)
@@ -135,6 +141,7 @@ def get_catalog_service(
     exposures: Annotated[ExposureRepository, Depends(get_exposure_repo)],
     stats: Annotated[WindowRepository, Depends(get_stat_repo)],
     snapshots: Annotated[SnapshotRepository, Depends(get_snapshot_repo)],
+    campaigns: Annotated[CampaignRepository, Depends(get_campaign_repo)],
     media_store: MediaStoreDep,
 ) -> AbTestCatalogService:
     """Provide the module's request-scoped service."""
@@ -144,6 +151,7 @@ def get_catalog_service(
         exposures=exposures,
         stats=stats,
         snapshots=snapshots,
+        campaigns=campaigns,
         media_store=media_store,
     )
 

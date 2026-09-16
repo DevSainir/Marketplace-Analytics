@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.exceptions import ConflictError, ValidationError
 from src.modules.ab_tests.repos import (
     AbTestRepository,
+    CampaignRepository,
     ExposureRepository,
     SnapshotRepository,
     VariantRepository,
@@ -56,6 +57,7 @@ def _service(session: AsyncSession, tmp_path: Path) -> AbTestCatalogService:
         exposures=ExposureRepository(session),
         stats=WindowRepository(session),
         snapshots=SnapshotRepository(session),
+        campaigns=CampaignRepository(session),
         media_store=LocalMediaStore(tmp_path),
     )
 

@@ -22,11 +22,20 @@
  * The status and the live photo moved here from a panel of their own above.
  * Both are one line, and a whole card for two lines read as a section rather
  * than as the caption it is.
+ *
+ * **When more than one campaign paid for the traffic, each figure forks.** The
+ * headline stays the whole test — a photo's показы are its показы whoever
+ * bought them — and under it the same number is taken apart per campaign,
+ * because «Единая» and «CPC» buy different traffic at different prices and a
+ * campaign that starts or stops mid-test moves the total in a way that reads
+ * like a photo winning. With one campaign there is nothing to take apart and
+ * the block renders exactly as it did before.
  */
 import { computed } from 'vue'
 
 import { STATUS_LABELS } from '@/modules/abTests'
-import MetricHint from '@/modules/abTests/components/MetricHint.vue'
+import SummaryFacts from '@/modules/abTests/components/SummaryFacts.vue'
+import SummaryMetricTile from '@/modules/abTests/components/SummaryMetricTile.vue'
 
 const props = defineProps({
   /** The open test, as the detail endpoint returns it. */
@@ -36,8 +45,6 @@ const props = defineProps({
 })
 
 const summary = computed(() => props.test.summary ?? {})
-
-const measuredMs = computed(() => Number(summary.value.measured_minutes ?? 0) * 60_000)
 
 /** The status, shown only when it is not the one the ticking figures imply. */
 const statusLabel = computed(() =>
@@ -54,69 +61,58 @@ const statusLabel = computed(() =>
  */
 const photoConflict = computed(() => !!props.test.photo_conflict_at)
 
+/** The campaigns that actually brought this test traffic, in the page's order. */
+const campaigns = computed(() => props.test.campaigns ?? [])
+
+/** Is there anything to take apart? One campaign is the ordinary case. */
+const split = computed(() => campaigns.value.length > 1)
+
+/**
+ * The per-campaign row under one figure.
+ *
+ * @param {string} key The campaign field to read.
+ * @param {(value: unknown) => string} format How the trunk formats the same figure.
+ * @returns {Array<{name: string, value: string}>} One branch per campaign, empty when only one paid.
+ */
+function branches(key, format) {
+  if (!split.value) return []
+  return campaigns.value.map((campaign) => ({
+    name: campaign.name,
+    value: format(campaign[key]),
+  }))
+}
+
 /** The four figures the block leads with. */
 const tiles = computed(() => [
   {
     key: 'views',
     label: 'Показов',
     value: count(summary.value.views),
+    branches: branches('views', count),
     hint: 'Сумма показов всех фото за весь тест — ровно сумма строки «Показов» в таблице ниже. Это реклама: органические показы WB не отдаёт ни в одном API.',
   },
   {
     key: 'clicks',
     label: 'Кликов',
     value: count(summary.value.clicks),
+    branches: branches('clicks', count),
     hint: 'Сколько раз из этих показов перешли в карточку. Тоже сумма одноимённой строки таблицы.',
   },
   {
     key: 'ctr',
     label: 'CTR теста',
     value: percent(summary.value.click_through),
+    branches: branches('click_through', percent),
     hint: 'Все клики теста, делённые на все его показы. Не среднее из CTR отдельных фото: у них разный трафик, и среднее приравняло бы фото со ста показами к фото с десятью тысячами.',
   },
   {
     key: 'spend',
     label: 'Расход рекламы',
     value: money(summary.value.spend),
+    branches: branches('spend', money),
     hint: 'Сколько реклама потратила на этот артикул за засчитанные отрезки. Это не цена теста: деньги тратит кампания, тест лишь меняет фото у трафика, за который вы платите в любом случае.',
   },
 ])
-
-/** When it started, when it stopped, and how much of that was measured. */
-const facts = computed(() => [
-  { key: 'started', label: 'Запущен', value: moment(props.test.started_at) },
-  {
-    key: 'stopped',
-    label: 'Остановлен',
-    value: moment(props.test.stopped_at),
-    hint: 'Когда ротация в последний раз перестала двигаться — пауза считается наравне с завершением. У идущего теста здесь «—».',
-  },
-  {
-    key: 'measured',
-    label: 'Длительность',
-    value: duration(measuredMs.value),
-    hint: `Сумма длительностей ${count(summary.value.windows)} засчитанных отрезков — время, за которое собраны эти числа. Пауза и часы без работающей рекламы в неё не входят: за них счётчики не читаются и никакому фото ничего не начисляется.`,
-  },
-])
-
-/** «3 фото из 8 успели набрать показы» — how much of the test has run at all. */
-const coverage = computed(() => {
-  const measured = Number(summary.value.variants_measured ?? 0)
-  const total = Number(summary.value.variants_total ?? 0)
-  return { measured, total, rounds: Number(summary.value.rounds_completed ?? 0) }
-})
-
-const active = computed(() =>
-  (props.test.variants ?? []).find(
-    (variant) => variant.variant_id === props.test.active_variant_id,
-  ),
-)
-
-/** «Главное» for the baseline, «Вариант N» for a candidate. */
-const activeLabel = computed(() => {
-  if (!active.value) return ''
-  return active.value.is_original ? 'Главное' : `Вариант ${active.value.position}`
-})
 
 function count(value) {
   return Number(value ?? 0).toLocaleString('ru-RU')
@@ -139,17 +135,6 @@ function moment(value) {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-/** `Хч Ym`, or minutes alone under an hour — a test may run for days. */
-function duration(ms) {
-  if (ms === null || ms === undefined) return '—'
-  const minutes = Math.floor(ms / 60_000)
-  const hours = Math.floor(minutes / 60)
-  const days = Math.floor(hours / 24)
-  if (days) return `${days} д ${hours % 24} ч`
-  if (hours) return `${hours} ч ${minutes % 60} мин`
-  return `${minutes} мин`
 }
 </script>
 
@@ -181,68 +166,21 @@ function duration(ms) {
       чужого фото ни одному варианту не зачтён. Проверьте карточку и запустите тест заново.
     </p>
 
-    <dl class="mt-md grid grid-cols-4 gap-md phone:grid-cols-2">
-      <div v-for="tile in tiles" :key="tile.key">
-        <dt class="flex items-center gap-xs text-tiny font-medium text-muted">
-          <span>{{ tile.label }}</span>
-          <MetricHint :text="tile.hint" />
-        </dt>
-        <dd
-          class="mt-xs text-h2 font-bold tabular-nums text-primary"
-          :data-testid="`summary-${tile.key}`"
-        >
-          {{ tile.value }}
-        </dd>
-      </div>
-    </dl>
-
-    <dl class="mt-lg flex flex-wrap gap-x-lg gap-y-sm border-t border-border-subtle pt-md">
-      <div v-for="fact in facts" :key="fact.key" class="flex items-baseline gap-xs">
-        <dt class="text-tiny text-muted">{{ fact.label }}</dt>
-        <dd
-          class="text-tiny font-semibold tabular-nums text-primary"
-          :data-testid="`fact-${fact.key}`"
-        >
-          {{ fact.value }}
-        </dd>
-        <MetricHint v-if="fact.hint" :text="fact.hint" />
-      </div>
-    </dl>
-
-    <p class="mt-sm text-tiny text-muted">
-      Показы набрали {{ coverage.measured }} фото из {{ coverage.total }}; кругов пройдено
-      {{ coverage.rounds }}.
-    </p>
-
-    <div v-if="active" class="mt-md flex items-center gap-md" data-testid="summary-live-photo">
-      <img
-        v-if="imageUrls[active.variant_id]"
-        :src="imageUrls[active.variant_id]"
-        :alt="activeLabel"
-        class="ab-summary__photo"
+    <dl
+      class="mt-md grid grid-cols-4 gap-lg phone:grid-cols-2"
+      :class="split ? 'px-lg phone:px-0' : ''"
+    >
+      <SummaryMetricTile
+        v-for="tile in tiles"
+        :key="tile.key"
+        :label="tile.label"
+        :value="tile.value"
+        :hint="tile.hint"
+        :branches="tile.branches"
+        :testid="`summary-${tile.key}`"
       />
-      <div v-else class="ab-summary__photo ab-summary__photo--empty"></div>
-      <div class="min-w-0">
-        <p class="text-base font-semibold text-primary">Сейчас на карточке</p>
-        <p class="text-tiny font-semibold text-action">{{ activeLabel }}</p>
-      </div>
-    </div>
+    </dl>
+
+    <SummaryFacts :test="test" :summary="summary" :image-urls="imageUrls" />
   </section>
 </template>
-
-<style scoped>
-/* 3:4 is WB's own card aspect; small, because this is a caption under the
-   figures rather than the subject of the block. */
-.ab-summary__photo {
-  width: 60px;
-  height: 80px;
-  flex: none;
-  object-fit: cover;
-  border-radius: var(--ui-r-md);
-  box-shadow: var(--ui-sh-sm);
-}
-
-.ab-summary__photo--empty {
-  background: var(--ui-sunk);
-}
-</style>

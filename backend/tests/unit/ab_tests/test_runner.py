@@ -21,8 +21,10 @@ from src.modules.ab_tests.models import TriggerMode
 from src.modules.ab_tests.services.collection import Counters
 from src.modules.ab_tests.services.runner import Snapshot
 from tests.support.ab_tests_runner import (
+    CAMPAIGN,
     DAY,
     NM_ID,
+    OTHER_CAMPAIGN,
     T0,
     T1,
     FakeExposures,
@@ -32,6 +34,7 @@ from tests.support.ab_tests_runner import (
     FakeWindows,
     build_runner,
     make_variant,
+    one_campaign,
     running_test,
 )
 
@@ -46,11 +49,14 @@ async def test_the_interval_since_the_last_poll_is_credited_to_the_live_photo() 
     test = running_test([first, make_variant(2)], active=first)
     windows = FakeWindows()
     runner = build_runner(
-        reading={DAY: Counters(views=7049, clicks=245, atbs=49, orders=16)},
+        reading=one_campaign({DAY: Counters(views=7049, clicks=245, atbs=49, orders=16)}),
         windows=windows,
         snapshots=FakeSnapshots(
             Snapshot(
-                captured_at=T0, by_day={DAY: Counters(views=6937, clicks=238, atbs=45, orders=15)}
+                captured_at=T0,
+                by_campaign=one_campaign(
+                    {DAY: Counters(views=6937, clicks=238, atbs=45, orders=15)}
+                ),
             )
         ),
         exposures=FakeExposures(active_since=T0),
@@ -79,7 +85,7 @@ async def test_the_first_poll_seeds_the_baseline_and_records_nothing() -> None:
     windows = FakeWindows()
     snapshots = FakeSnapshots(None)
     runner = build_runner(
-        reading={DAY: Counters(views=6937, clicks=238)},
+        reading=one_campaign({DAY: Counters(views=6937, clicks=238)}),
         windows=windows,
         snapshots=snapshots,
         exposures=FakeExposures(active_since=T0),
@@ -104,10 +110,12 @@ async def test_the_baseline_moves_before_the_photo_is_swapped() -> None:
     first, second = make_variant(1), make_variant(2)
     test = running_test([first, second], active=first)
     windows = FakeWindows()
-    snapshots = FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)}))
+    snapshots = FakeSnapshots(
+        Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+    )
     installer = FakeInstaller()
     runner = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=windows,
         snapshots=snapshots,
         exposures=FakeExposures(active_since=T0),
@@ -136,9 +144,11 @@ async def test_the_photo_changes_once_the_budget_is_reached() -> None:
     exposures = FakeExposures(active_since=T0)
     tests = FakeTests()
     runner = build_runner(
-        reading={DAY: Counters(views=10_400)},
+        reading=one_campaign({DAY: Counters(views=10_400)}),
         windows=FakeWindows(),
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=400)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=400)}))
+        ),
         exposures=exposures,
         installer=installer,
         tests=tests,
@@ -163,9 +173,9 @@ async def test_a_time_test_rotates_without_any_impressions_at_all() -> None:
     test = running_test([first, second], active=first, mode=TriggerMode.TIME, slot_minutes=60)
     installer = FakeInstaller()
     runner = build_runner(
-        reading={},
+        reading=one_campaign({}),
         windows=FakeWindows(),
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={})),
+        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_campaign=one_campaign({}))),
         exposures=FakeExposures(active_since=T1 - timedelta(minutes=61)),
         installer=installer,
         tests=FakeTests(),
@@ -184,9 +194,11 @@ async def test_below_the_trigger_nothing_moves() -> None:
     tests = FakeTests()
     windows = FakeWindows()
     runner = build_runner(
-        reading={DAY: Counters(views=900)},
+        reading=one_campaign({DAY: Counters(views=900)}),
         windows=windows,
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=800)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=800)}))
+        ),
         exposures=FakeExposures(active_since=T0),
         installer=installer,
         tests=tests,
@@ -210,9 +222,11 @@ async def test_an_empty_interval_writes_no_window() -> None:
     test = running_test([first, make_variant(2)], active=first)
     windows = FakeWindows()
     runner = build_runner(
-        reading={DAY: Counters(views=800)},
+        reading=one_campaign({DAY: Counters(views=800)}),
         windows=windows,
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=800)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=800)}))
+        ),
         exposures=FakeExposures(active_since=T0),
         installer=FakeInstaller(),
         tests=FakeTests(),
@@ -234,9 +248,11 @@ async def test_a_failed_upload_leaves_the_test_on_the_old_photo() -> None:
     test = running_test([first, second], active=first)
     tests = FakeTests()
     runner = build_runner(
-        reading={DAY: Counters(views=10_000)},
+        reading=one_campaign({DAY: Counters(views=10_000)}),
         windows=FakeWindows(),
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+        ),
         exposures=FakeExposures(active_since=T0),
         installer=FakeInstaller(fail_with=IntegrationError("WB said no")),
         tests=tests,
@@ -261,9 +277,11 @@ async def test_a_test_with_no_live_photo_records_no_window_but_still_installs() 
     windows = FakeWindows()
     installer = FakeInstaller()
     runner = build_runner(
-        reading={DAY: Counters(views=5_000)},
+        reading=one_campaign({DAY: Counters(views=5_000)}),
         windows=windows,
-        snapshots=FakeSnapshots(Snapshot(captured_at=T0, by_day={DAY: Counters(views=0)})),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+        ),
         exposures=FakeExposures(active_since=None),
         installer=installer,
         tests=FakeTests(),
@@ -273,3 +291,75 @@ async def test_a_test_with_no_live_photo_records_no_window_but_still_installs() 
 
     assert windows.rows == []
     assert installer.installed == [(NM_ID, first.id)]
+
+
+async def test_each_campaign_gets_its_own_window_and_all_of_them_are_named() -> None:
+    """Two campaigns on one card are two rows, not one sum.
+
+    The live photo keeps the whole interval either way — what changes is that
+    the page can afterwards ask which campaign paid for which part of it, which
+    is the question a summed row can never answer again.
+    """
+    first = make_variant(1)
+    test = running_test([first, make_variant(2)], active=first)
+    windows = FakeWindows()
+    named: list[list[int]] = []
+    runner = build_runner(
+        reading={
+            CAMPAIGN: {DAY: Counters(views=6100, clicks=124)},
+            OTHER_CAMPAIGN: {DAY: Counters(views=900, clicks=45)},
+        },
+        windows=windows,
+        snapshots=FakeSnapshots(
+            Snapshot(
+                captured_at=T0,
+                by_campaign={
+                    CAMPAIGN: {DAY: Counters(views=6000, clicks=120)},
+                    OTHER_CAMPAIGN: {DAY: Counters(views=800, clicks=40)},
+                },
+            )
+        ),
+        exposures=FakeExposures(active_since=T0),
+        installer=FakeInstaller(),
+        tests=FakeTests(),
+        recorded=named,
+    )
+
+    outcome = await runner.poll(test, days=[DAY], now=T1)
+
+    assert {(row.campaign_id, row.counters.views) for row in windows.rows} == {
+        (CAMPAIGN, 100),
+        (OTHER_CAMPAIGN, 100),
+    }
+    assert outcome.window_views == 200
+    assert named == [[CAMPAIGN, OTHER_CAMPAIGN]]
+
+
+async def test_a_campaign_that_brought_nothing_this_pass_writes_no_row() -> None:
+    """A row of zeroes would make «эта РК работала в этом круге» true of one that did not."""
+    first = make_variant(1)
+    test = running_test([first, make_variant(2)], active=first)
+    windows = FakeWindows()
+    runner = build_runner(
+        reading={
+            CAMPAIGN: {DAY: Counters(views=6100)},
+            OTHER_CAMPAIGN: {DAY: Counters(views=800)},
+        },
+        windows=windows,
+        snapshots=FakeSnapshots(
+            Snapshot(
+                captured_at=T0,
+                by_campaign={
+                    CAMPAIGN: {DAY: Counters(views=6000)},
+                    OTHER_CAMPAIGN: {DAY: Counters(views=800)},
+                },
+            )
+        ),
+        exposures=FakeExposures(active_since=T0),
+        installer=FakeInstaller(),
+        tests=FakeTests(),
+    )
+
+    await runner.poll(test, days=[DAY], now=T1)
+
+    assert [row.campaign_id for row in windows.rows] == [CAMPAIGN]

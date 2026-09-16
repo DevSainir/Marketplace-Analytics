@@ -125,6 +125,77 @@ class AbTestSettingsUpdate(BaseModel):
     )
 
 
+class CampaignTotals(BaseModel):
+    """What one advertising campaign brought the test, over all of its photos.
+
+    The branches under each figure of «Итог по тесту». They sum to the figure
+    above them, because both are summed from the same interval rows — the split
+    happens where the counters arrive, not where they are drawn.
+    """
+
+    campaign_id: int = Field(description="Идентификатор кампании в WB; 0 — данные до разделения")
+    name: str = Field(description="Название кампании в кабинете WB")
+    kind: str = Field(
+        description="Тип кампании: uni | manual_search | manual_shelves | cpc | unknown"
+    )
+
+    views: int = Field(description="Показы, которые дала эта РК")
+    clicks: int = Field(description="Переходы в карточку с этой РК")
+    atbs: int = Field(description="Добавления в корзину с этой РК")
+    orders: int = Field(description="Заказы с этой РК")
+    spend: Decimal = Field(description="Расход этой РК за засчитанные отрезки")
+
+    click_through: Decimal | None = Field(description="CTR этой РК по всему тесту, %")
+    add_to_cart: Decimal | None = Field(description="Корзины / клики этой РК, %")
+    order_rate: Decimal | None = Field(description="Заказы / корзины этой РК, %")
+
+
+class VariantCampaignMetrics(BaseModel):
+    """One photo's figures inside ONE campaign.
+
+    Everything is recomputed within the campaign, the gap to the leader
+    included: a photo can lead «Единая» and trail «CPC», and that is precisely
+    what the whole-test row cannot show.
+    """
+
+    campaign_id: int = Field(description="Кампания, в которой посчитаны эти числа")
+
+    views: int
+    clicks: int
+    atbs: int
+    orders: int
+    spend: Decimal
+
+    click_through: Decimal | None = Field(description="Доля переходов в карточку, %")
+    add_to_cart: Decimal | None = Field(description="Доля добавлений в корзину, %")
+    order_rate: Decimal | None = Field(description="Доля оформлений заказов, %")
+
+    ctr_gap: Decimal | None = Field(description="Отставание CTR от лучшего В ЭТОЙ РК, п.п.")
+    ctr_result: Decimal | None = Field(description="То же отставание в процентах")
+
+    rounds_played: int = Field(
+        default=0,
+        description=(
+            "В скольких кругах эта РК приносила показы этому фото. "
+            "Не круги теста: РК, выключенная на четвёртом круге, сыграла четыре."
+        ),
+    )
+    rounds_won: int = Field(default=0, description="В скольких из них у фото был лучший CTR")
+
+
+class ExposureCampaignCounts(BaseModel):
+    """What one turn earned from one campaign.
+
+    Absent for a campaign that earned nothing in the turn — the timeline reads
+    «эта РК работала в этом круге» off the presence of an entry.
+    """
+
+    campaign_id: int
+    views: int = 0
+    clicks: int = 0
+    click_through: Decimal | None = Field(default=None, description="CTR за эту установку, %")
+
+
 class VariantMetrics(BaseModel):
     """One photo's row in the result table.
 
@@ -168,6 +239,14 @@ class VariantMetrics(BaseModel):
     spend: Decimal = Field(description="Расход на рекламу за дни этого варианта")
 
     days_measured: int = Field(description="Сколько полных дней зачтено этому фото")
+
+    campaigns: list[VariantCampaignMetrics] = Field(
+        default_factory=list,
+        description=(
+            "Те же метрики отдельно по каждой рекламной кампании, в порядке "
+            "«Единая, Руч. поиск, Руч. полки, CPC». Пусто у теста без измерений."
+        ),
+    )
 
 
 class AbTestSummary(BaseModel):
@@ -277,6 +356,17 @@ class AbTestDetail(AbTestRead):
 
     summary: AbTestSummary = Field(description="Итог по тесту целиком — сумма строк таблицы")
 
+    campaigns: list[CampaignTotals] = Field(
+        default_factory=list,
+        description=(
+            "Рекламные кампании, которые реально принесли тесту трафик, в порядке "
+            "«Единая, Руч. поиск, Руч. полки, CPC». Одна кампания — страница "
+            "выглядит как раньше; две и больше — появляются разрез и выбор РК. "
+            "Кампания, выключенная посреди теста, остаётся здесь: её показы "
+            "никуда не делись."
+        ),
+    )
+
 
 class VariantExclusionUpdate(BaseModel):
     """Request body for taking a photo out of the rotation, or putting it back."""
@@ -301,6 +391,11 @@ class ExposureRow(BaseModel):
     views: int = 0
     clicks: int = 0
     click_through: Decimal | None = Field(default=None, description="CTR за эту установку, %")
+
+    campaigns: list[ExposureCampaignCounts] = Field(
+        default_factory=list,
+        description="Та же установка в разрезе РК; РК без трафика в ней отсутствуют",
+    )
 
 
 class AbTestStatusUpdate(BaseModel):

@@ -1,0 +1,54 @@
+/*
+ * The per-campaign fork under one «Итог по тесту» figure.
+ *
+ * Only the geometry lives here — the type and the colours are utilities in the
+ * template, like everywhere else on this page. The fork is drawn with borders
+ * rather than an SVG because it has to line up with text whose width the
+ * component does not know, and a border on a positioned box is the one way of
+ * doing that which survives a long campaign name.
+ */
+
+.ab-tile__tree {
+  position: relative;
+  /* Room for the stem out of the figure and for the crossbar under it. */
+  padding-top: 18px;
+}
+
+/* The stem: straight down out of the trunk figure. */
+.ab-tile__tree::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 9px;
+  background: var(--ui-rule);
+}
+
+/* The crossbar, plus the drop into each outer branch (the side borders). */
+.ab-tile__fork {
+  position: absolute;
+  top: 9px;
+  height: 9px;
+  border-top: 1px solid var(--ui-rule);
+  border-left: 1px solid var(--ui-rule);
+  border-right: 1px solid var(--ui-rule);
+}
+
+.ab-tile__branches {
+  display: flex;
+  align-items: flex-start;
+}
+
+.ab-tile__branch {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* A campaign's own name can be long and is not worth a second line: the whole
+   of it is in the tooltip. */
+.ab-tile__branch-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -12,10 +12,11 @@ two reads is the traffic of the interval between them.
 
 That is what these tables record:
 
-* :class:`AdCounterSnapshot` — the last cumulative reading per test per day. The
-  poller's memory; nothing else reads it.
-* :class:`VariantStatWindow` — one row per poll: the DIFFERENCE since the
-  previous snapshot, credited to the photo that was live over that interval.
+* :class:`AdCounterSnapshot` — the last cumulative reading per test per
+  campaign per day. The poller's memory; nothing else reads it.
+* :class:`VariantStatWindow` — one row per poll PER CAMPAIGN: the DIFFERENCE
+  since the previous snapshot, credited to the photo that was live over that
+  interval and to the campaign that served it.
   This replaced a per-day table, and with it the rule that the day of a swap
   belonged to nobody: the poller swaps immediately after closing a window, so a
   swap always lands on a window boundary and no traffic is discarded.
@@ -120,6 +121,10 @@ class AdCounterSnapshot(Base):
 
     Attributes:
         test_id: Owning test (composite PK).
+        campaign_id: The campaign the counters belong to (composite PK). Two
+            campaigns pushing one card are differenced separately, because
+            adding them up first turns one campaign starting mid-test into a
+            rise every photo after it appears to have earned.
         stat_date: The advertising day the counters belong to (composite PK).
         views / clicks / atbs / orders: Cumulative counts as last read.
         spend: Cumulative spend as last read.
@@ -133,6 +138,7 @@ class AdCounterSnapshot(Base):
     test_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey(f"{_SCHEMA}.ab_test.id", ondelete="CASCADE"), primary_key=True
     )
+    campaign_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, server_default="0")
     stat_date: Mapped[date] = mapped_column(Date, primary_key=True)
 
     views: Mapped[int] = mapped_column(BigInteger, server_default="0", nullable=False)
@@ -162,6 +168,10 @@ class VariantStatWindow(Base):
         id: UUIDv7 primary key.
         test_id: Owning test.
         variant_id: The photo that was live for this window.
+        campaign_id: The advertising campaign whose counters this interval was
+            differenced from. ``0`` on rows written before the split, which are
+            the sum of every campaign that was running then and cannot be taken
+            apart now — see :class:`..campaigns.AbTestCampaign`.
         window_start / window_end: The interval, in UTC.
         views / clicks / atbs / orders: Traffic gained during the interval.
         spend: Ad spend during the interval.
@@ -170,7 +180,10 @@ class VariantStatWindow(Base):
     __tablename__ = "ab_test_variant_stat_window"
     __table_args__ = (
         UniqueConstraint(
-            "variant_id", "window_start", name="uq_ab_test_variant_stat_window_variant_start"
+            "variant_id",
+            "window_start",
+            "campaign_id",
+            name="uq_ab_test_variant_stat_window_variant_start",
         ),
         {"schema": _SCHEMA},
     )
@@ -183,6 +196,8 @@ class VariantStatWindow(Base):
     variant_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey(f"{_SCHEMA}.ab_test_variant.id", ondelete="CASCADE"), index=True, nullable=False
     )
+
+    campaign_id: Mapped[int] = mapped_column(BigInteger, server_default="0", nullable=False)
 
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

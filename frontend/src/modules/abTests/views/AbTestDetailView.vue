@@ -7,12 +7,15 @@
  * rather than as a form someone bolted on. Each is its own component.
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
-import { MAX_VARIANTS, STATUS_LABELS, useAbTestsStore } from '@/modules/abTests'
+import { MAX_VARIANTS, useAbTestsStore } from '@/modules/abTests'
+import { roundsIn } from '@/modules/abTests/timeline'
+import BlockFilters from '@/modules/abTests/components/BlockFilters.vue'
 import RotationHistory from '@/modules/abTests/components/RotationHistory.vue'
 import RotationTimeline from '@/modules/abTests/components/RotationTimeline.vue'
 import TestControls from '@/modules/abTests/components/TestControls.vue'
+import TestPageHeader from '@/modules/abTests/components/TestPageHeader.vue'
 import TestSummary from '@/modules/abTests/components/TestSummary.vue'
 import TriggerEditor from '@/modules/abTests/components/TriggerEditor.vue'
 import VariantResultsTable from '@/modules/abTests/components/VariantResultsTable.vue'
@@ -61,19 +64,6 @@ watch(
 )
 onUnmounted(() => clearInterval(refreshing))
 
-/** How this test rotates, in words — only the setting its mode actually uses. */
-const triggerLabel = computed(() => {
-  if (!test.value) return ''
-  return test.value.trigger_mode === 'time'
-    ? `Смена фото каждые ${count(test.value.slot_minutes)} мин`
-    : `Смена фото каждые ${count(test.value.impression_budget)} показов`
-})
-
-/** Whether the trigger may still be edited — a finished test's is history. */
-const canEditTrigger = computed(
-  () => !!test.value && !['completed', 'cancelled'].includes(test.value.status),
-)
-
 /**
  * Which lap the tables show; 0 is «Все».
  *
@@ -83,31 +73,37 @@ const canEditTrigger = computed(
  */
 const round = ref(0)
 
-const roundOptions = computed(() => {
-  const total = test.value?.rounds_completed ?? 0
-  return Array.from({ length: total }, (_, index) => total - index)
+/**
+ * Which campaign the comparison is read through; 0 is «Все».
+ *
+ * «История действий» below deliberately ignores it: the log is the record of
+ * what the rotation did, and the rotation did it once whoever was paying for
+ * the traffic. Splitting it would produce two rows per install that differ only
+ * in their counts.
+ */
+const campaign = ref(0)
+
+const campaigns = computed(() => test.value?.campaigns ?? [])
+
+const roundOptions = computed(() => roundsIn(test.value?.history, campaign.value))
+
+// A campaign that ran for four of the test's ten laps offers four; if the lap
+// on screen is not one of them, the filter falls back to «Все» rather than
+// showing an empty table.
+watch(roundOptions, (available) => {
+  if (round.value && !available.includes(round.value)) round.value = 0
 })
 
 const editing = ref(false)
-const armedDelete = ref(false)
 
 async function saveTrigger(payload) {
   const ok = await store.updateSettings(route.params.testId, payload)
   if (ok) editing.value = false
 }
 
-/** Two-click confirm, then back to the list — the test is gone from under us. */
+/** The header has already confirmed it; there is nothing left on this screen. */
 async function removeTest() {
-  if (!armedDelete.value) {
-    armedDelete.value = true
-    return
-  }
-  armedDelete.value = false
   if (await store.remove(route.params.testId)) router.push({ name: 'ab-tests' })
-}
-
-function count(value) {
-  return Number(value ?? 0).toLocaleString('ru-RU')
 }
 
 async function onFiles(event) {
@@ -135,49 +131,12 @@ async function onMainFile(event) {
 
 <template>
   <main class="app-container py-xl phone:py-lg">
-    <header class="mb-lg">
-      <RouterLink
-        :to="{ name: 'ab-tests' }"
-        class="text-tiny font-medium text-action hover:underline"
-      >
-        ← Ко всем A/Б-тестам
-      </RouterLink>
-
-      <div v-if="test" class="mt-sm flex flex-wrap items-center gap-x-md gap-y-xs">
-        <h1 class="text-h2 font-bold text-primary">{{ test.name }}</h1>
-        <span class="text-tiny font-semibold text-action">WB {{ test.nm_id }}</span>
-        <span v-if="test.vendor_code" class="text-tiny text-muted">{{ test.vendor_code }}</span>
-        <button
-          type="button"
-          class="ml-auto rounded-btn px-sm py-xs text-micro font-semibold transition"
-          :class="
-            armedDelete
-              ? 'bg-status-negative/10 text-status-negative'
-              : 'text-muted hover:bg-hover hover:text-status-negative'
-          "
-          :disabled="store.saving"
-          data-testid="delete-test"
-          @click="removeTest"
-        >
-          {{ armedDelete ? 'Точно удалить тест?' : 'Удалить тест' }}
-        </button>
-      </div>
-
-      <p v-if="test" class="mt-xs flex flex-wrap items-center gap-x-sm text-tiny text-muted">
-        <span>{{ STATUS_LABELS[test.status] || test.status }}</span>
-        <span>·</span>
-        <span>{{ triggerLabel }}</span>
-        <button
-          v-if="canEditTrigger"
-          type="button"
-          class="rounded-btn px-xs py-px text-micro font-semibold text-action transition hover:bg-action/10"
-          data-testid="edit-trigger"
-          @click="editing = true"
-        >
-          изменить
-        </button>
-      </p>
-
+    <TestPageHeader
+      :test="test"
+      :saving="store.saving"
+      @delete="removeTest"
+      @edit-trigger="editing = true"
+    >
       <TriggerEditor
         v-if="editing"
         :test="test"
@@ -185,7 +144,7 @@ async function onMainFile(event) {
         @save="saveTrigger"
         @cancel="editing = false"
       />
-    </header>
+    </TestPageHeader>
 
     <p v-if="store.error" class="mb-md text-base text-status-negative">{{ store.error }}</p>
 
@@ -209,24 +168,22 @@ async function onMainFile(event) {
     />
 
     <template v-if="test && test.variants.length">
-      <div class="mb-md flex flex-wrap items-center justify-between gap-md">
-        <h2 class="text-h3 font-semibold text-primary">Тестирование</h2>
-        <label class="flex items-center gap-sm text-tiny text-muted">
-          <span>Круг</span>
-          <select v-model.number="round" class="ui-select" data-testid="round-filter">
-            <option :value="0">Все</option>
-            <option v-for="option in roundOptions" :key="option" :value="option">
-              {{ option }}
-            </option>
-          </select>
-        </label>
-      </div>
+      <BlockFilters
+        v-model:campaign="campaign"
+        v-model:round="round"
+        title="Тестирование"
+        title-class="text-h3 font-semibold text-primary"
+        :campaigns="campaigns"
+        :rounds="roundOptions"
+        campaign-testid="results-campaign"
+      />
 
       <VariantResultsTable
         :test="test"
         :image-urls="store.imageUrls"
         :saving="store.saving"
         :round="round"
+        :campaign="campaign"
         @exclude="(id, excluded) => store.toggleExclusion(test.id, id, excluded)"
       />
 

@@ -86,6 +86,7 @@ def standings(
     variant_ids: Sequence[uuid.UUID],
     windows: Sequence[VariantStatWindow],
     exposures: Sequence[VariantExposure],
+    played_from_windows: bool = False,
 ) -> dict[uuid.UUID, RoundStanding]:
     """Count laps played and laps won, per photo.
 
@@ -99,6 +100,13 @@ def standings(
             keep the laps they already played.
         windows: Every recorded interval of the test.
         exposures: The test's exposure log, which carries the lap numbers.
+        played_from_windows: Count a lap as played only where the photo has a
+            window in it, rather than wherever it had a turn. False for the
+            whole test, where a turn with no traffic still happened; True when
+            the windows have been filtered to ONE campaign, where «кругов» has
+            to mean «кругов этой РК» — a campaign switched off on lap four did
+            not play laps five to ten, and saying it did would put a zero in
+            every one of them.
 
     Returns:
         One standing per variant id, zeroed for photos that never ran.
@@ -106,14 +114,17 @@ def standings(
     per_round: dict[int, dict[uuid.UUID, tuple[int, int]]] = {}
     played: dict[uuid.UUID, set[int]] = {vid: set() for vid in variant_ids}
 
-    for exposure in exposures:
-        if exposure.variant_id in played:
-            played[exposure.variant_id].add(exposure.round_number)
+    if not played_from_windows:
+        for exposure in exposures:
+            if exposure.variant_id in played:
+                played[exposure.variant_id].add(exposure.round_number)
 
     for window in windows:
         lap = _round_of(window, exposures)
         if lap is None:
             continue
+        if played_from_windows and window.variant_id in played:
+            played[window.variant_id].add(lap)
         views, clicks = per_round.setdefault(lap, {}).get(window.variant_id, (0, 0))
         per_round[lap][window.variant_id] = (views + window.views, clicks + window.clicks)
 

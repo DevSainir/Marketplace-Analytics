@@ -5,7 +5,9 @@ design, and each step exists because of a specific way the alternative lies:
 
 1. **Read, then close the window.** The traffic since the previous reading
    belongs to the photo that was live over that interval, so it is credited
-   before anything changes.
+   before anything changes — once per campaign that served the card, because
+   two campaigns on one card are two separate measurements of it and adding
+   them up before storing them throws that away for good.
 2. **Snapshot immediately.** The new reading becomes the baseline, so the next
    window starts exactly where this one ended and nothing is double-counted.
 3. **Then decide, and swap last.** Because the swap happens after the window is
@@ -43,7 +45,11 @@ from typing import Protocol
 from src.core.logging import get_logger
 from src.modules.ab_tests.models import AbTest, AbTestStatus, AbTestVariant
 from src.modules.ab_tests.services.budget import AdsState
-from src.modules.ab_tests.services.collection import Counters, window_delta
+from src.modules.ab_tests.services.collection import (
+    CampaignDays,
+    Counters,
+    campaign_deltas,
+)
 from src.modules.ab_tests.services.rotation import (
     RotationAction,
     RotationState,
@@ -53,7 +59,12 @@ from src.modules.ab_tests.services.rotation import (
 logger = get_logger(__name__)
 
 #: Reads today's counters and, so a rollover closes cleanly, yesterday's too.
-CounterReader = Callable[[int, Sequence[date]], Awaitable[dict[date, Counters]]]
+#: Answers per campaign: ``{campaign_id: {day: cumulative counters}}``.
+CounterReader = Callable[[int, Sequence[date]], Awaitable[CampaignDays]]
+
+#: Tells the register which campaigns this pass read counters from, so the page
+#: can name them later. Takes the ids and the pass's clock.
+CampaignRecorder = Callable[[Sequence[int], datetime], Awaitable[None]]
 
 #: Asks what the advertising behind one card is doing. Called at most once
 #: per slot — see the module docstring.
@@ -69,10 +80,10 @@ InstallConfirmer = Callable[[int, datetime | None], Awaitable[datetime | None]]
 
 @dataclass(frozen=True)
 class Snapshot:
-    """The previous reading of a test's cumulative counters."""
+    """The previous reading of a test's cumulative counters, per campaign."""
 
     captured_at: datetime
-    by_day: dict[date, Counters]
+    by_campaign: CampaignDays
 
 
 class _Snapshots(Protocol):
@@ -81,7 +92,7 @@ class _Snapshots(Protocol):
     async def load(self, *, test_id: uuid.UUID) -> Snapshot | None: ...
 
     async def save(
-        self, *, test_id: uuid.UUID, by_day: dict[date, Counters], captured_at: datetime
+        self, *, test_id: uuid.UUID, by_campaign: CampaignDays, captured_at: datetime
     ) -> None: ...
 
     async def clear(self, *, test_id: uuid.UUID) -> None: ...
@@ -95,6 +106,7 @@ class _Windows(Protocol):
         *,
         test_id: uuid.UUID,
         variant_id: uuid.UUID,
+        campaign_id: int,
         window_start: datetime,
         window_end: datetime,
         counters: Counters,
@@ -185,6 +197,7 @@ class RotationRunner:
         read_counters: CounterReader,
         read_photo: PhotoReader,
         confirm_install: InstallConfirmer,
+        remember_campaigns: CampaignRecorder,
     ) -> None:
         """Wire the runner to its collaborators.
 
@@ -202,8 +215,12 @@ class RotationRunner:
             confirm_install: After an install, waits for the storefront to stop
                 reporting the timestamp it was given and returns the new one.
             read_counters: Reads WB's cumulative counters for a SKU over the
-                given days. Injected so the pass can be tested without WB and
-                so the caller owns the shared rate budget.
+                given days, split by campaign. Injected so the pass can be
+                tested without WB and so the caller owns the shared rate budget.
+            remember_campaigns: Records which campaigns this pass read, so the
+                page can name them. Injected rather than resolved here because
+                the names come from WB's campaign listing, which the task holds
+                once for the whole workspace.
         """
         self._tests = tests
         self._exposures = exposures
@@ -214,6 +231,7 @@ class RotationRunner:
         self._read_ads = read_ads
         self._read_photo = read_photo
         self._confirm_install = confirm_install
+        self._remember_campaigns = remember_campaigns
 
     async def poll(self, test: AbTest, *, days: Sequence[date], now: datetime) -> PollOutcome:
         """Close the interval since the last poll and rotate if it is due.
@@ -250,15 +268,25 @@ class RotationRunner:
         current = await self._read_counters(test.nm_id, days)
         previous = await self._snapshots.load(test_id=test.id)
 
+        # Named before the windows are written, so a campaign that brought
+        # nothing this pass is still on the page as one that is running.
+        await self._remember_campaigns(sorted(current), now)
+
         seeded = previous is None
         window_views = 0
         if previous is not None and test.active_variant_id is not None:
-            delta = window_delta(current=current, previous=previous.by_day)
-            window_views = delta.views
-            if not delta.is_empty:
+            deltas = campaign_deltas(current=current, previous=previous.by_campaign)
+            window_views = sum(delta.views for delta in deltas.values())
+            for campaign_id, delta in deltas.items():
+                # An empty delta is not a measurement — the campaign simply did
+                # not move — and a row of zeroes would make «эта РК участвовала
+                # в этом круге» true of a campaign that served nothing.
+                if delta.is_empty:
+                    continue
                 await self._windows.append(
                     test_id=test.id,
                     variant_id=test.active_variant_id,
+                    campaign_id=campaign_id,
                     window_start=previous.captured_at,
                     window_end=now,
                     counters=delta,
@@ -266,7 +294,7 @@ class RotationRunner:
 
         # Move the baseline BEFORE any swap, so the next window starts where
         # this one ended and the rotation lands on the boundary between them.
-        await self._snapshots.save(test_id=test.id, by_day=current, captured_at=now)
+        await self._snapshots.save(test_id=test.id, by_campaign=current, captured_at=now)
 
         active = next((v for v in test.variants if v.id == test.active_variant_id), None)
         decision = decide(

@@ -15,9 +15,15 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime
 
-from src.modules.ab_tests.models import AbTest, VariantExposure, VariantStatWindow
+from src.modules.ab_tests.models import (
+    AbTest,
+    AbTestCampaign,
+    VariantExposure,
+    VariantStatWindow,
+)
 from src.modules.ab_tests.schemas import AbTestDetail
 from src.modules.ab_tests.services.results import build_history, build_rows, leader_of
+from src.modules.ab_tests.services.split import campaign_totals, campaigns_with_traffic
 from src.modules.ab_tests.services.summary import build_summary
 
 
@@ -26,6 +32,7 @@ def assemble_detail(
     test: AbTest,
     windows: Sequence[VariantStatWindow],
     exposures: Sequence[VariantExposure],
+    campaigns: Sequence[AbTestCampaign] = (),
     active_since: datetime | None,
     image_url: str,
 ) -> AbTestDetail:
@@ -35,6 +42,9 @@ def assemble_detail(
         test: The test, with its variants loaded.
         windows: Every recorded polling interval of the test.
         exposures: Its turns, newest first.
+        campaigns: The register of campaigns this test has read counters from,
+            which carries their names and kinds. The page shows only those that
+            actually earned something — see :mod:`.split`.
         active_since: When the live photo went up — the clock the countdown on
             the page reads, and the same one the time trigger measures.
         image_url: ``str.format`` template for the picture route.
@@ -42,11 +52,13 @@ def assemble_detail(
     Returns:
         The detail payload.
     """
+    refs = campaigns_with_traffic(windows=windows, registered=campaigns)
     rows = build_rows(
         test=test,
         variants=test.variants,
         windows=windows,
         exposures=exposures,
+        campaigns=refs,
         image_url=image_url,
     )
     rounds_completed = max((row.round_number for row in exposures), default=0)
@@ -74,6 +86,7 @@ def assemble_detail(
             variants=test.variants,
             windows=windows,
             exposures=exposures,
+            campaigns=refs,
             image_url=image_url,
         ),
         rounds_completed=rounds_completed,
@@ -82,4 +95,5 @@ def assemble_detail(
             windows=windows,
             rounds_completed=rounds_completed,
         ),
+        campaigns=campaign_totals(windows=windows, refs=refs),
     )

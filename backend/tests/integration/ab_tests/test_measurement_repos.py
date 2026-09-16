@@ -30,6 +30,10 @@ from src.modules.organizations.models import Organization
 from src.modules.workspaces.models import Workspace
 
 NM_FLOWER_DRESS = 995716075
+#: The campaign a single-campaign case runs under, and the second one for the
+#: case that is about two of them sharing an interval.
+CAMPAIGN = 97455930
+OTHER_CAMPAIGN = 97730900
 
 
 async def _workspace(
@@ -79,6 +83,7 @@ async def test_an_interval_is_recorded_once_even_if_the_pass_is_retried(
     await windows.append(
         test_id=test.id,
         variant_id=variant.id,
+        campaign_id=CAMPAIGN,
         window_start=start,
         window_end=datetime(2026, 9, 4, 12, 5, tzinfo=UTC),
         counters=counters,
@@ -86,6 +91,7 @@ async def test_an_interval_is_recorded_once_even_if_the_pass_is_retried(
     await windows.append(
         test_id=test.id,
         variant_id=variant.id,
+        campaign_id=CAMPAIGN,
         window_start=start,
         window_end=datetime(2026, 9, 4, 12, 5, tzinfo=UTC),
         counters=counters,
@@ -129,12 +135,69 @@ async def test_impressions_accumulate_across_a_variants_intervals(
         await windows.append(
             test_id=test.id,
             variant_id=variant.id,
+            campaign_id=CAMPAIGN,
             window_start=datetime(2026, 9, 4, 12, minute, tzinfo=UTC),
             window_end=datetime(2026, 9, 4, 12, minute + 5, tzinfo=UTC),
             counters=Counters(views=100),
         )
 
     assert await windows.impressions_for_variant(variant_id=variant.id) == 300
+
+
+@pytest.mark.integration
+async def test_two_campaigns_share_one_interval_without_overwriting_each_other(
+    db_session: AsyncSession,
+    organization: Organization,
+) -> None:
+    """One poll writes one row per campaign, and the photo keeps the sum.
+
+    The idempotency key used to be ``(variant, window_start)``, which is
+    exactly the pair two campaigns of one pass share: the second insert was
+    silently dropped and half the traffic disappeared.
+    """
+    workspace = await _workspace(db_session, organization.id)
+    test = await AbTestRepository(db_session).create(
+        workspace_id=workspace.id,
+        nm_id=NM_FLOWER_DRESS,
+        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
+        name="Тест",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
+        impression_budget=10_000,
+        slot_minutes=60,
+    )
+    variant = await VariantRepository(db_session).add(
+        test_id=test.id,
+        image_path="a.jpg",
+        image_sha256="0" * 64,
+        content_type="image/jpeg",
+        original_filename="a.jpg",
+    )
+    windows = WindowRepository(db_session)
+    start = datetime(2026, 9, 4, 12, 0, tzinfo=UTC)
+    end = datetime(2026, 9, 4, 12, 5, tzinfo=UTC)
+
+    for campaign_id, views in ((CAMPAIGN, 100), (OTHER_CAMPAIGN, 40)):
+        await windows.append(
+            test_id=test.id,
+            variant_id=variant.id,
+            campaign_id=campaign_id,
+            window_start=start,
+            window_end=end,
+            counters=Counters(views=views),
+        )
+    # And the retry of a failed pass still credits nothing twice.
+    await windows.append(
+        test_id=test.id,
+        variant_id=variant.id,
+        campaign_id=CAMPAIGN,
+        window_start=start,
+        window_end=end,
+        counters=Counters(views=100),
+    )
+
+    rows = await windows.windows_for_test(test_id=test.id)
+    assert {(row.campaign_id, row.views) for row in rows} == {(CAMPAIGN, 100), (OTHER_CAMPAIGN, 40)}
+    assert await windows.impressions_for_variant(variant_id=variant.id) == 140
 
 
 @pytest.mark.integration
@@ -166,17 +229,23 @@ async def test_the_snapshot_round_trips_and_is_overwritten_each_poll(
 
     await snapshots.save(
         test_id=test.id,
-        by_day={yesterday: Counters(views=20_000), today: Counters(views=6_937)},
+        by_campaign={CAMPAIGN: {yesterday: Counters(views=20_000), today: Counters(views=6_937)}},
         captured_at=first_read,
     )
     await snapshots.save(
         test_id=test.id,
-        by_day={yesterday: Counters(views=20_050), today: Counters(views=7_049)},
+        by_campaign={
+            CAMPAIGN: {yesterday: Counters(views=20_050), today: Counters(views=7_049)},
+            OTHER_CAMPAIGN: {today: Counters(views=300)},
+        },
         captured_at=second_read,
     )
 
     stored = await snapshots.load(test_id=test.id)
     assert stored is not None
     assert stored.captured_at == second_read
-    assert stored.by_day[today].views == 7_049
-    assert stored.by_day[yesterday].views == 20_050
+    assert stored.by_campaign[CAMPAIGN][today].views == 7_049
+    assert stored.by_campaign[CAMPAIGN][yesterday].views == 20_050
+    # A campaign that appeared between the two polls gets its own baseline
+    # rather than joining the first one's.
+    assert stored.by_campaign[OTHER_CAMPAIGN][today].views == 300

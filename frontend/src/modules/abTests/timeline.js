@@ -36,16 +36,19 @@ const MAX_FLOOR_SHARE_PERCENT = 50
  *
  * @param {Array<object>} history Exposure rows as the detail endpoint returns
  *   them — newest first, `deactivated_at` null on the open one.
- * @param {{endsAt?: number, round?: number}} [options] `endsAt` is where the
- *   line stops — the reader's clock for a live test, the moment it stopped for
- *   any other; `round` restricts the line to one lap, 0 for all.
+ * @param {{endsAt?: number, round?: number, campaignId?: number}} [options]
+ *   `endsAt` is where the line stops — the reader's clock for a live test, the
+ *   moment it stopped for any other; `round` restricts the line to one lap, 0
+ *   for all; `campaignId` restricts it to the turns ONE campaign measured, 0
+ *   for all of them.
  * @returns {{segments: Array<object>, startMs: number|null, endMs: number|null,
  *   totalMs: number, live: boolean}} Geometry, oldest turn first.
  */
-export function buildTimeline(history, { endsAt = Date.now(), round = 0 } = {}) {
+export function buildTimeline(history, { endsAt = Date.now(), round = 0, campaignId = 0 } = {}) {
   const rows = (history ?? [])
     .filter((row) => !round || row.round_number === round)
-    .map((row) => toTurn(row, endsAt))
+    .filter((row) => !campaignId || sliceOf(row, campaignId) !== null)
+    .map((row) => toTurn(row, endsAt, campaignId))
     .filter((turn) => turn !== null)
     // The log arrives newest first; a timeline reads left to right.
     .sort((a, b) => a.startMs - b.startMs)
@@ -86,13 +89,30 @@ export function buildTimeline(history, { endsAt = Date.now(), round = 0 } = {}) 
 }
 
 /**
+ * What one campaign measured in one turn, or `null` if it measured nothing.
+ *
+ * Nothing is not zero: a campaign switched off on the fourth lap did not run
+ * the fifth, and drawing it as a turn with no traffic says the opposite.
+ *
+ * @param {object} row An exposure row.
+ * @param {number} campaignId The campaign.
+ * @returns {object|null} That campaign's entry for the turn.
+ */
+function sliceOf(row, campaignId) {
+  return (row.campaigns ?? []).find((entry) => entry.campaign_id === campaignId) ?? null
+}
+
+/**
  * One exposure row as the timeline needs it, or `null` if it has no clock.
  *
  * @param {object} row An exposure row.
  * @param {number} endsAt Where an unfinished turn is cut off.
+ * @param {number} [campaignId] Read the counts through one campaign, or 0 for
+ *   the turn's own totals. The CLOCK is never filtered — the photo stood for as
+ *   long as it stood whoever was paying.
  * @returns {object|null} The turn, or `null` when `activated_at` is unusable.
  */
-function toTurn(row, endsAt) {
+function toTurn(row, endsAt, campaignId = 0) {
   const startMs = Date.parse(row.activated_at ?? '')
   if (Number.isNaN(startMs)) return null
 
@@ -103,6 +123,8 @@ function toTurn(row, endsAt) {
   // negative width.
   const endMs = open ? Math.max(startMs, endsAt) : closed
 
+  const earned = campaignId ? sliceOf(row, campaignId) : row
+
   return {
     key: `${row.variant_id}-${row.activated_at}`,
     variantId: row.variant_id,
@@ -112,9 +134,9 @@ function toTurn(row, endsAt) {
     endMs,
     durationMs: Math.max(0, endMs - startMs),
     open,
-    views: Number(row.views ?? 0),
-    clicks: Number(row.clicks ?? 0),
-    clickThrough: row.click_through ?? null,
+    views: Number(earned?.views ?? 0),
+    clicks: Number(earned?.clicks ?? 0),
+    clickThrough: earned?.click_through ?? null,
   }
 }
 
@@ -125,12 +147,48 @@ function toTurn(row, endsAt) {
  * the timeline draws, and a picker offering a lap with no turns in it would
  * select an empty line.
  *
+ * With a campaign chosen it is the laps THAT campaign ran for. A test on its
+ * tenth lap whose second campaign was switched off during the fourth offers
+ * four laps under that campaign, not ten of which six are blank.
+ *
  * @param {Array<object>} history Exposure rows.
+ * @param {number} [campaignId] Restrict to one campaign, 0 for all.
  * @returns {Array<number>} Round numbers, highest first.
  */
-export function roundsIn(history) {
-  const seen = new Set((history ?? []).map((row) => row.round_number).filter(Boolean))
+export function roundsIn(history, campaignId = 0) {
+  const seen = new Set(
+    (history ?? [])
+      .filter((row) => !campaignId || sliceOf(row, campaignId) !== null)
+      .map((row) => row.round_number)
+      .filter(Boolean),
+  )
   return [...seen].sort((a, b) => b - a)
+}
+
+/** Width one turn needs before its marker starts crowding its neighbour's. */
+const TURN_WIDTH_PX = 56
+
+/** Below this many turns the markers are drawn large; above it they are not. */
+const ROOMY_TURNS = 14
+
+/**
+ * How wide the line is drawn, and how big its thumbnails may be.
+ *
+ * `100%` while the turns fit — the line is a proportion of the block, which is
+ * what makes «Все круги» readable at a glance. Once there are more turns than
+ * the block can label it becomes a fixed width and the block scrolls instead:
+ * compressing a hundred turns into 1200px produces a row of hairlines and a
+ * pile of overlapping thumbnails, and neither can be read or hovered.
+ *
+ * A short line can afford bigger pictures, and a photo is the point of one.
+ *
+ * @param {number} turns How many segments the line has.
+ * @returns {{width: string, large: boolean}} A CSS width, and whether the
+ *   markers are drawn at the larger size.
+ */
+export function trackSize(turns) {
+  const large = turns <= ROOMY_TURNS
+  return { width: `max(100%, ${turns * TURN_WIDTH_PX * (large ? 2 : 1)}px)`, large }
 }
 
 /**

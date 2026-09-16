@@ -22,12 +22,15 @@ from src.integrations.wildberries.schemas import WBAdvCampaignStats, WBAdvertV2
 from src.modules.ab_tests.models import AbTest
 from src.modules.ab_tests.repos import (
     AbTestRepository,
+    CampaignFacts,
+    CampaignRepository,
     ExposureRepository,
     SnapshotRepository,
     WindowRepository,
 )
 from src.modules.ab_tests.services.budget import AdsState, read_state
-from src.modules.ab_tests.services.collection import Counters, counters_by_day
+from src.modules.ab_tests.services.campaigns import classify
+from src.modules.ab_tests.services.collection import CampaignDays, counters_by_campaign_day
 from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.runner import RotationRunner
 from src.modules.ab_tests.services.storage import build_media_store
@@ -78,19 +81,52 @@ async def poll_one(
                 nm_id: int,
                 wanted: Sequence[date],
                 stats: list[WBAdvCampaignStats] = cabinet.stats,
-            ) -> dict[date, Counters]:
+            ) -> CampaignDays:
                 """Slice this test's rows out of the workspace's one answer.
 
                 No request: the fullstats reply already carries a per-SKU
                 breakdown of every campaign it was asked about, so a hundred
                 tests read a hundred slices of the same download.
 
+                The campaigns are kept apart rather than summed — see
+                :mod:`..services.collection`.
+
                 Bound as a DEFAULT rather than captured: the closure outlives
                 the loop iteration it was defined in, and a free reference would
                 resolve to whichever test the sweep reached last.
                 """
-                counters = counters_by_day(stats, nm_id=nm_id)
-                return {day: value for day, value in counters.items() if day in set(wanted)}
+                days = set(wanted)
+                per_campaign = counters_by_campaign_day(stats, nm_id=nm_id)
+                return {
+                    campaign_id: kept
+                    for campaign_id, counters in per_campaign.items()
+                    if (kept := {day: value for day, value in counters.items() if day in days})
+                }
+
+            async def _remember(
+                campaign_ids: Sequence[int],
+                at: datetime,
+                register: CampaignRepository = CampaignRepository(session),
+                adverts: list[WBAdvertV2] = cabinet.adverts,
+            ) -> None:
+                """Name the campaigns this pass read, for the page to label.
+
+                Resolved against the workspace's one listing, which is where
+                both the name and the kind live. A campaign WB no longer lists
+                — archived mid-test — keeps whatever the register already holds
+                for it, because an upsert of «unknown» over a real name would
+                lose the only copy of it there is.
+                """
+                known = {advert.campaign_id: advert for advert in adverts}
+                facts = [
+                    CampaignFacts(
+                        campaign_id=campaign_id,
+                        name=known[campaign_id].settings.name if campaign_id in known else None,
+                        kind=(str(classify(known[campaign_id])) if campaign_id in known else None),
+                    )
+                    for campaign_id in campaign_ids
+                ]
+                await register.remember(test_id=test.id, seen=facts, at=at)
 
             async def _ads(
                 nm_id: int,
@@ -142,6 +178,7 @@ async def poll_one(
                 read_ads=_ads,
                 read_photo=_photo,
                 confirm_install=_confirm,
+                remember_campaigns=_remember,
             )
             outcome = await runner.poll(loaded, days=days, now=now)
 

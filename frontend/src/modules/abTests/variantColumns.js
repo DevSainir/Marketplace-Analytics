@@ -91,36 +91,49 @@ export const METRICS = [
 ]
 
 /**
- * The figures each photo shows — for the whole test, or for one lap.
+ * The figures each photo shows — for the whole test, one lap, one campaign, or
+ * one lap of one campaign.
  *
  * A lap is rebuilt from «История действий» rather than fetched: every turn
- * there already carries its lap, its photo and what it earned, so filtering is
- * arithmetic over data the page is holding. `rounds_won` and `rounds_played`
- * stay whole-test figures — they are properties of the test, and «побед в этом
- * круге» is one or nothing, which is not a figure worth showing.
+ * there already carries its lap, its photo and what it earned — per campaign
+ * too — so filtering is arithmetic over data the page is already holding.
+ *
+ * A whole-test campaign view is NOT rebuilt: the backend has already computed
+ * it, gap to the leader included, and that gap has to be measured against the
+ * leader OF THAT CAMPAIGN. A photo can lead «Единая» and trail «CPC», which is
+ * exactly what the unsplit row cannot show.
+ *
+ * `rounds_won` and `rounds_played` stay per-campaign-whole-test figures rather
+ * than per-lap ones: «побед в этом круге» is one or nothing, which is not worth
+ * a column.
  *
  * @param {object} test The test, as the detail endpoint returns it.
  * @param {number} round Lap to show, or 0 for the whole test.
+ * @param {number} campaignId Campaign to show, or 0 for all of them together.
  * @returns {Array<object>} One entry per photo, in rotation order.
  */
-export function buildColumns(test, round) {
+export function buildColumns(test, round, campaignId = 0) {
   const variants = test?.variants ?? []
-  if (!round) return variants
+  if (!round && !campaignId) return variants
+  if (!round) return variants.map((variant) => withCampaign(variant, campaignId))
 
   const byVariant = {}
   for (const turn of test.history ?? []) {
     if (turn.round_number !== round) continue
+    const earned = countsOf(turn, campaignId)
+    if (!earned) continue
     const seen = byVariant[turn.variant_id] ?? { views: 0, clicks: 0 }
     byVariant[turn.variant_id] = {
-      views: seen.views + turn.views,
-      clicks: seen.clicks + turn.clicks,
+      views: seen.views + earned.views,
+      clicks: seen.clicks + earned.clicks,
     }
   }
 
   const lap = variants.map((variant) => {
     const counts = byVariant[variant.variant_id] ?? { views: 0, clicks: 0 }
+    const base = campaignId ? withCampaign(variant, campaignId) : variant
     return {
-      ...variant,
+      ...base,
       views: counts.views,
       clicks: counts.clicks,
       click_through: counts.views ? (counts.clicks * 100) / counts.views : null,
@@ -138,6 +151,46 @@ export function buildColumns(test, round) {
         ? null
         : ((variant.click_through - best) * 100) / best,
   }))
+}
+
+/**
+ * One photo as ONE campaign measured it.
+ *
+ * A photo the campaign never served reads as unmeasured — zero counts and a
+ * null CTR — rather than as 0 %: it has not failed to be clicked, it has not
+ * been shown.
+ *
+ * @param {object} variant A photo's whole-test row.
+ * @param {number} campaignId The campaign to read it through.
+ * @returns {object} The same row with that campaign's figures.
+ */
+function withCampaign(variant, campaignId) {
+  const slice = (variant.campaigns ?? []).find((row) => row.campaign_id === campaignId)
+  return {
+    ...variant,
+    views: slice?.views ?? 0,
+    clicks: slice?.clicks ?? 0,
+    click_through: slice?.click_through ?? null,
+    ctr_gap: slice?.ctr_gap ?? null,
+    ctr_result: slice?.ctr_result ?? null,
+    rounds_played: slice?.rounds_played ?? 0,
+    rounds_won: slice?.rounds_won ?? 0,
+  }
+}
+
+/**
+ * What one turn earned, through one campaign or through all of them.
+ *
+ * @param {object} turn One «История действий» row.
+ * @param {number} campaignId The campaign, or 0 for the turn's own totals.
+ * @returns {{views: number, clicks: number}|null} Null when that campaign
+ *   brought nothing in this turn — which is not the same as zero, and is what
+ *   keeps a switched-off campaign out of the laps it did not run.
+ */
+function countsOf(turn, campaignId) {
+  if (!campaignId) return { views: turn.views, clicks: turn.clicks }
+  const slice = (turn.campaigns ?? []).find((row) => row.campaign_id === campaignId)
+  return slice ? { views: slice.views, clicks: slice.clicks } : null
 }
 
 /**

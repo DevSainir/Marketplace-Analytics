@@ -8,19 +8,37 @@ two copies of a fake exposure log is two definitions of what an exposure is.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from src.modules.ab_tests.models import AbTest, AbTestStatus, AbTestVariant, TriggerMode
 from src.modules.ab_tests.services.budget import AdsState
-from src.modules.ab_tests.services.collection import Counters
+from src.modules.ab_tests.services.collection import CampaignDays, Counters
 from src.modules.ab_tests.services.runner import RotationRunner, Snapshot
 
 NM_ID = 995716075
 BUDGET = 10_000
 DAY = date(2026, 9, 4)
+#: The campaign every single-campaign case in these tests runs under. A real
+#: id rather than 1: the legacy «before the split» rows are campaign 0, and a
+#: test that accidentally used it would be asserting about the wrong case.
+CAMPAIGN = 97455930
+#: A second one, for the cases that are about two campaigns on one card.
+OTHER_CAMPAIGN = 97730900
+
+
 T0 = datetime(2026, 9, 4, 12, 0, tzinfo=UTC)
 T1 = datetime(2026, 9, 4, 12, 5, tzinfo=UTC)
+
+
+def one_campaign(by_day: dict[date, Counters], campaign_id: int = CAMPAIGN) -> CampaignDays:
+    """A whole reading that came from a single campaign.
+
+    Most cases here are not about which campaign paid — they are about the
+    order of the pass — and this keeps them saying so in one word.
+    """
+    return {campaign_id: by_day}
 
 
 def make_variant(position: int) -> AbTestVariant:
@@ -62,9 +80,10 @@ def running_test(
 
 @dataclass
 class AppendedWindow:
-    """One recorded interval."""
+    """One recorded interval of one campaign."""
 
     variant_id: uuid.UUID
+    campaign_id: int
     window_start: datetime
     window_end: datetime
     counters: Counters
@@ -82,11 +101,14 @@ class FakeWindows:
         *,
         test_id: uuid.UUID,
         variant_id: uuid.UUID,
+        campaign_id: int,
         window_start: datetime,
         window_end: datetime,
         counters: Counters,
     ) -> None:
-        self.rows.append(AppendedWindow(variant_id, window_start, window_end, counters))
+        self.rows.append(
+            AppendedWindow(variant_id, campaign_id, window_start, window_end, counters)
+        )
         self.impressions[variant_id] = self.impressions.get(variant_id, 0) + counters.views
 
     async def impressions_for_variant(self, *, variant_id: uuid.UUID) -> int:
@@ -105,10 +127,10 @@ class FakeSnapshots:
         return self.snapshot
 
     async def save(
-        self, *, test_id: uuid.UUID, by_day: dict[date, Counters], captured_at: datetime
+        self, *, test_id: uuid.UUID, by_campaign: CampaignDays, captured_at: datetime
     ) -> None:
         self.saves.append(captured_at)
-        self.snapshot = Snapshot(captured_at=captured_at, by_day=by_day)
+        self.snapshot = Snapshot(captured_at=captured_at, by_campaign=by_campaign)
 
     async def clear(self, *, test_id: uuid.UUID) -> None:
         self.snapshot = None
@@ -217,7 +239,7 @@ class FakeInstaller:
 
 def build_runner(
     *,
-    reading: dict[date, Counters],
+    reading: CampaignDays,
     windows: FakeWindows,
     snapshots: FakeSnapshots,
     exposures: FakeExposures,
@@ -226,8 +248,12 @@ def build_runner(
     ads: AdsState = AdsState.SERVING,
     live_photo: datetime | None = None,
     confirmed_photo: datetime | None = None,
+    recorded: list[list[int]] | None = None,
 ) -> RotationRunner:
     """A runner wired entirely to fakes.
+
+    ``recorded``, when passed, collects the campaign ids each pass names to the
+    register — the list the page later labels.
 
     ``ads`` defaults to a campaign that is serving, because that is the state a
     test spends almost all of its life in; the cases about it stopping say so.
@@ -238,8 +264,13 @@ def build_runner(
     otherwise all have to describe a storefront they do not care about.
     """
 
-    async def _read(nm_id: int, days: object) -> dict[date, Counters]:
+    async def _read(nm_id: int, days: object) -> CampaignDays:
         return reading
+
+    seen: list[list[int]] = recorded if recorded is not None else []
+
+    async def _remember(campaign_ids: Sequence[int], at: datetime) -> None:
+        seen.append(list(campaign_ids))
 
     async def _ads(nm_id: int) -> AdsState:
         return ads
@@ -260,13 +291,16 @@ def build_runner(
         read_ads=_ads,
         read_photo=_photo,
         confirm_install=_confirm,
+        remember_campaigns=_remember,
     )
 
 
 __all__ = [
     "BUDGET",
+    "CAMPAIGN",
     "DAY",
     "NM_ID",
+    "OTHER_CAMPAIGN",
     "T0",
     "T1",
     "AppendedWindow",
@@ -277,5 +311,6 @@ __all__ = [
     "FakeWindows",
     "build_runner",
     "make_variant",
+    "one_campaign",
     "running_test",
 ]

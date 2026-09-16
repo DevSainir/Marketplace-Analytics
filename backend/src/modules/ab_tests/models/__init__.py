@@ -1,5 +1,6 @@
 """ORM models of the A/B-tests module, re-exported as one package surface."""
 
+from src.modules.ab_tests.models.campaigns import AbTestCampaign
 from src.modules.ab_tests.models.stats import (
     AdCounterSnapshot,
     VariantExposure,
@@ -22,6 +23,7 @@ __all__ = [
     "DEFAULT_SLOT_MINUTES",
     "MAX_VARIANTS_PER_TEST",
     "AbTest",
+    "AbTestCampaign",
     "AbTestStatus",
     "AbTestVariant",
     "AdCounterSnapshot",

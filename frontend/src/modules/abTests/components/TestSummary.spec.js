@@ -139,3 +139,44 @@ describe('TestSummary', () => {
     expect(wrapper.get('[data-testid="summary-live-photo"]').text()).toContain('Главное')
   })
 })
+
+describe('the per-campaign fork', () => {
+  const CAMPAIGNS = [
+    {
+      campaign_id: 97455930,
+      name: 'Единая ставка',
+      kind: 'uni',
+      views: 9000,
+      clicks: 300,
+      click_through: '3.33',
+      spend: '2000.00',
+    },
+    {
+      campaign_id: 97730900,
+      name: 'CPC — поиск',
+      kind: 'cpc',
+      views: 3345,
+      clicks: 156,
+      click_through: '4.66',
+      spend: '1050.40',
+    },
+  ]
+
+  it('takes every figure apart when two campaigns paid for the traffic', () => {
+    const wrapper = mount(TestSummary, { props: { test: test({ campaigns: CAMPAIGNS }) } })
+
+    const forks = wrapper.findAll('[data-testid="tile-branches"]')
+    expect(forks).toHaveLength(4)
+    // The branches are the trunk taken apart, so they have to add back up to it.
+    const views = plain(forks[0].text())
+    expect(views).toContain('9 000')
+    expect(views).toContain('3 345')
+    expect(views).toContain('Единая ставка')
+  })
+
+  it('stays the plain figure it always was while only one campaign is running', () => {
+    const wrapper = mount(TestSummary, { props: { test: test({ campaigns: [CAMPAIGNS[0]] }) } })
+
+    expect(wrapper.find('[data-testid="tile-branches"]').exists()).toBe(false)
+  })
+})
