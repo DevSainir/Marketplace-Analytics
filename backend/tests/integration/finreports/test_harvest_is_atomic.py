@@ -237,6 +237,7 @@ def wb(
     async def no_warming(*, workspace_id: uuid.UUID, name: str) -> None:
         return None
 
+    monkeypatch.setattr(harvest_module, "warm_settlement_rollup", no_warming)
     _FakeFinanceClient.fail_mid_walk = False
     yield _FakeFinanceClient
     _FakeFinanceClient.fail_mid_walk = False

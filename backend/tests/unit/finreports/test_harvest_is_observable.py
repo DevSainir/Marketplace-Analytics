@@ -82,6 +82,7 @@ def harvest_env(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _warm(*, workspace_id: uuid.UUID, name: str) -> None:
         return None
 
+    monkeypatch.setattr(harvest_module, "warm_settlement_rollup", _warm)
 
 
 def _bundle() -> WorkspaceTokenBundle:

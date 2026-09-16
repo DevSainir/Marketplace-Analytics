@@ -14,6 +14,7 @@
 import { computed, onMounted } from 'vue'
 
 import { CUTS, SORTS } from '@/modules/summary/categories'
+import SummaryBusyBar from '@/modules/summary/components/SummaryBusyBar.vue'
 import SummaryCategoryBars from '@/modules/summary/components/SummaryCategoryBars.vue'
 import SummaryControls from '@/modules/summary/components/SummaryControls.vue'
 import SummaryKpis from '@/modules/summary/components/SummaryKpis.vue'
@@ -89,102 +90,119 @@ onMounted(() => store.init())
       @base="store.revenueBase = $event"
     />
 
+    <SummaryBusyBar v-if="store.loading" class="mb-md" />
+
     <p v-if="store.error" class="text-base text-status-negative">{{ store.error }}</p>
 
-    <p v-else-if="store.loading && !store.kpi" class="text-base text-muted">Загружаю…</p>
-
     <template v-else-if="store.kpi">
-      <SummaryKpis :kpi="store.kpi" :currency="store.currency" :revenue-base="store.revenueBase" />
+      <!-- The previous window stays on screen while the next one loads, dimmed
+           and inert: blanking it would make every preset click a full page
+           rebuild, and the figures below are still the ones the header names
+           until the response lands. -->
+      <div :class="{ 'sum-stale': store.loading }">
+        <SummaryKpis
+          :kpi="store.kpi"
+          :currency="store.currency"
+          :revenue-base="store.revenueBase"
+        />
 
-      <section class="ui-sec">
-        <h2 class="ui-sec__title">Выручка</h2>
-        <div class="sum-card mt-md">
-          <div class="sum-legend">
-            <span v-for="line in revenueSeries" :key="line.name" class="sum-legend__item">
-              <span class="sum-legend__swatch" :style="{ background: line.color }"></span>
-              {{ line.name }}
-            </span>
-          </div>
-          <SummaryLineChart
-            v-if="hasDays"
-            :series="revenueSeries"
-            :labels="labels"
-            :currency="store.currency"
-          />
-          <p v-else class="text-base text-muted">За период нет расчётов WB.</p>
-        </div>
-      </section>
-
-      <section class="ui-sec grid gap-lg lg:grid-cols-2">
-        <div>
-          <h2 class="ui-sec__title">Заказы в день</h2>
+        <section class="ui-sec">
+          <h2 class="ui-sec__title">Выручка</h2>
           <div class="sum-card mt-md">
+            <div class="sum-legend">
+              <span v-for="line in revenueSeries" :key="line.name" class="sum-legend__item">
+                <span class="sum-legend__swatch" :style="{ background: line.color }"></span>
+                {{ line.name }}
+              </span>
+            </div>
             <SummaryLineChart
               v-if="hasDays"
-              :series="orderSeries"
+              :series="revenueSeries"
               :labels="labels"
-              :height="196"
-              plain
-            />
-          </div>
-        </div>
-        <div>
-          <h2 class="ui-sec__title">Реклама в день</h2>
-          <div class="sum-card mt-md">
-            <SummaryLineChart
-              v-if="hasDays"
-              :series="adSeries"
-              :labels="labels"
-              :height="196"
               :currency="store.currency"
             />
+            <p v-else class="text-base text-muted">За период нет расчётов WB.</p>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="ui-sec">
-        <div class="flex flex-wrap items-center justify-between gap-md">
-          <h2 class="ui-sec__title">Выручка по категории</h2>
-          <div class="flex flex-wrap items-center gap-lg">
-            <div class="flex items-center gap-xs">
-              <button
-                v-for="option in SORTS"
-                :key="option.key"
-                type="button"
-                class="ui-chip"
-                :class="{ 'is-on': store.sort === option.key }"
-                @click="store.sort = option.key"
-              >
-                {{ option.label }}
-              </button>
-            </div>
-            <div class="flex items-center gap-xs">
-              <button
-                v-for="option in CUTS"
-                :key="option.key"
-                type="button"
-                class="ui-chip"
-                :class="{ 'is-on': store.cut === option.key }"
-                @click="store.cut = option.key"
-              >
-                {{ option.label }}
-              </button>
+        <section class="ui-sec grid gap-lg lg:grid-cols-2">
+          <div>
+            <h2 class="ui-sec__title">Заказы в день</h2>
+            <div class="sum-card mt-md">
+              <SummaryLineChart
+                v-if="hasDays"
+                :series="orderSeries"
+                :labels="labels"
+                :height="196"
+                plain
+              />
             </div>
           </div>
-        </div>
-        <div class="sum-card mt-md">
-          <SummaryCategoryBars
-            :categories="store.categories"
-            :currency="store.currency"
-            :cut="store.cut"
-          />
-        </div>
-      </section>
+          <div>
+            <h2 class="ui-sec__title">Реклама в день</h2>
+            <div class="sum-card mt-md">
+              <SummaryLineChart
+                v-if="hasDays"
+                :series="adSeries"
+                :labels="labels"
+                :height="196"
+                :currency="store.currency"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section class="ui-sec">
+          <div class="flex flex-wrap items-center justify-between gap-md">
+            <h2 class="ui-sec__title">Выручка по категории</h2>
+            <div class="flex flex-wrap items-center gap-lg">
+              <div class="flex items-center gap-xs">
+                <button
+                  v-for="option in SORTS"
+                  :key="option.key"
+                  type="button"
+                  class="ui-chip"
+                  :class="{ 'is-on': store.sort === option.key }"
+                  @click="store.sort = option.key"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
+              <div class="flex items-center gap-xs">
+                <button
+                  v-for="option in CUTS"
+                  :key="option.key"
+                  type="button"
+                  class="ui-chip"
+                  :class="{ 'is-on': store.cut === option.key }"
+                  @click="store.cut = option.key"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="sum-card mt-md">
+            <SummaryCategoryBars
+              :categories="store.categories"
+              :currency="store.currency"
+              :cut="store.cut"
+            />
+          </div>
+        </section>
+      </div>
     </template>
   </div>
 </template>
 
 <style scoped>
+/* Dimmed and inert, never hidden — see the comment at the wrapper. */
+.sum-stale {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
 /* The design system's card recipe, in tokens: elevated surface, 1px ring,
    layered shadow — never a border plus a big soft blur. */
 .sum-card {

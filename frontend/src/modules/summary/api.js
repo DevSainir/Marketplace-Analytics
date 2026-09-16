@@ -5,7 +5,7 @@
  * category ranking) precisely so the screen cannot show a total from one window
  * and a chart from another. Errors propagate to the caller.
  */
-import apiClient from '@/core/api/axios'
+import apiClient, { WINDOW_TIMEOUT_MS } from '@/core/api/axios'
 
 /**
  * GET /v1/summary — every figure the «Сводка» page draws for one window.
@@ -20,7 +20,11 @@ import apiClient from '@/core/api/axios'
  * @returns {Promise<object>} `{ kpi, days, rows, coverage, ... }`
  */
 export async function fetchSummary(params = {}, signal) {
-  const { data } = await apiClient.get('/v1/summary', { params, signal })
+  const { data } = await apiClient.get('/v1/summary', {
+    params,
+    signal,
+    timeout: WINDOW_TIMEOUT_MS,
+  })
   return data
 }
 

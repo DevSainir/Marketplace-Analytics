@@ -3,7 +3,7 @@
  * `/api/v1/finreports/*` endpoints (see backend `finreports/routers`).
  *
  */
-import apiClient from '@/core/api/axios'
+import apiClient, { WINDOW_TIMEOUT_MS } from '@/core/api/axios'
 
 /**
  * GET /v1/finreports/pnl — the settlement-basis profit-and-loss statement.
@@ -13,7 +13,11 @@ import apiClient from '@/core/api/axios'
  * @returns {Promise<object>} `{ total, buckets, notes, ... }`
  */
 export async function fetchPnl(params = {}, signal) {
-  const { data } = await apiClient.get('/v1/finreports/pnl', { params, signal })
+  const { data } = await apiClient.get('/v1/finreports/pnl', {
+    params,
+    signal,
+    timeout: WINDOW_TIMEOUT_MS,
+  })
   return data
 }
 
@@ -26,7 +30,11 @@ export async function fetchPnl(params = {}, signal) {
  * @returns {Promise<object>} `{ rows, unallocated, totals, notes, ... }`
  */
 export async function fetchSkuPnl(params = {}, signal) {
-  const { data } = await apiClient.get('/v1/finreports/pnl/skus', { params, signal })
+  const { data } = await apiClient.get('/v1/finreports/pnl/skus', {
+    params,
+    signal,
+    timeout: WINDOW_TIMEOUT_MS,
+  })
   return data
 }
 

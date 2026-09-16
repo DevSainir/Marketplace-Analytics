@@ -17,6 +17,7 @@ from src.modules.finreports.repos import (
     FinancialReportRepository,
     LogisticsTransactionRepository,
 )
+from src.modules.finreports.repos.pnl.rollup import SettlementRollup
 
 logger = get_logger(__name__)
 
@@ -56,5 +57,42 @@ logger = get_logger(__name__)
     except Exception:
         # Warming is best-effort — a failure here must never fail the harvest
         # that already committed the data it warms.
+
+
+async def warm_settlement_rollup(*, workspace_id: uuid.UUID, name: str) -> None:
+    """Build the settlement rollup for everything WB has ever settled here.
+
+    The rollup repairs itself on read, so this is purely about WHO pays for the
+    repair. A harvest that lands a new week leaves those days stale, and without
+    this the next person to open «Вся история» pays the rebuild — measured at
+    17 s on the largest кабинет, which the browser gives up on before it
+    finishes. Done here, the same work costs a background minute and every
+    window opens warm.
+
+    without it, so a failure is logged and swallowed rather than failing the
+    harvest that already committed the data.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            periods = await FinancialReportRepository(session).list_periods(
+                workspace_id=workspace_id
+            )
+            if not periods:
+                return
+            date_from = min(df for (_rid, df, _dt) in periods)
+            date_to = max(dt for (_rid, _df, dt) in periods)
+            rebuilt = await SettlementRollup(session).ensure_fresh(
+                workspace_id=workspace_id, date_from=date_from, date_to=date_to
+            )
+            await session.commit()
+        logger.info(
+            "finreports: warmed the settlement rollup for %s (%s..%s), %s days rebuilt.",
+            name,
+            date_from,
+            date_to,
+            rebuilt,
+        )
+    except Exception:
+        logger.exception("finreports: failed to warm the settlement rollup for %s.", name)
 
 

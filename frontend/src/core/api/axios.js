@@ -83,6 +83,21 @@ const DATA_TIMEOUT_MS = 15_000
  */
 export const AUTH_TIMEOUT_MS = 3_000
 
+/**
+ * Budget for a settlement window — the P&L and «Сводка» reads.
+ *
+ * These are the only calls whose cost scales with how much history the кабинет
+ * has, and «Вся история» on the largest one is a genuine ~20 s of arithmetic
+ * the first time it is asked for: the settlement rollup it is served from is
+ * built on demand and verified against the detail on every read. On the shared
+ * 15 s budget that came back as «Нет связи с сервером» — the one error message
+ * that is certainly wrong, because the server was working the whole time.
+ *
+ * Harvests keep the rollup warm, so the common path is seconds; this is the
+ * ceiling for the cold one, not the expected wait.
+ */
+export const WINDOW_TIMEOUT_MS = 60_000
+
 const apiClient = axios.create({
   baseURL,
   withCredentials: true,

@@ -21,8 +21,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.modules.finreports.contract import PnlGrouping, PnlService, SkuReportService
 from src.modules.monitoring.contract import (
     ad_bonus_coverage,
-    ad_bonus_currencies,
-    ad_bonus_unknown_types,
     ad_coverage,
     funnel_coverage,
     load_ad_bonus_by_nm,
@@ -110,12 +108,12 @@ class SummaryService:
             bonus_span=await ad_bonus_coverage(
                 session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
             ),
-            bonus_currencies=await ad_bonus_currencies(
-                session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
-            ),
-            unknown_funding=await ad_bonus_unknown_types(
-                session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
-            ),
+            # Both feed the report's caveat lines and nothing else, and this
+            # page draws no caveats (`annotated=False` below). Asking anyway is
+            # two more passes over the кабинет's whole advertising ledger for
+            # text that is discarded — ~0.3 s of a «Вся история» window.
+            bonus_currencies=[],
+            unknown_funding=[],
             funnel_span=funnel_span,
             ad_span=ad_span,
             photos={},
