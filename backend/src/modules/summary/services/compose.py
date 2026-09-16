@@ -173,12 +173,23 @@ def build_days(
     # Clamped once, over the window: a ledger row dated just inside a window
     # whose impressions fell just outside it must not make advertising negative.
     applied_bonus = min(total_bonus, total_spend)
-    cash_by_day = {
-        day.stat_date: (
-            day.spend - (applied_bonus * day.spend / total_spend if total_spend else _ZERO)
-        ).quantize(Decimal("0.01"))
-        for day in ad_days
-    }
+    # The last day takes whatever the rounding left over, so Σ days is the
+    # window's advertising cost EXACTLY rather than within a kopeck of it. On a
+    # live 54-day window the drift was three kopecks — invisible on screen and
+    # enough to make «the chart sums to the card» a claim with an asterisk.
+    cash_by_day: dict[date, Decimal] = {}
+    assigned = _ZERO
+    for position, entry in enumerate(ad_days):
+        if position == len(ad_days) - 1:
+            share = applied_bonus - assigned
+        else:
+            share = (
+                (applied_bonus * entry.spend / total_spend).quantize(Decimal("0.01"))
+                if total_spend
+                else _ZERO
+            )
+            assigned += share
+        cash_by_day[entry.stat_date] = entry.spend - share
 
     days: list[SummaryDay] = []
     for bucket in buckets:
