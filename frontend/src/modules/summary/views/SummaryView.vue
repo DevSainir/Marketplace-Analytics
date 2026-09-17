@@ -25,9 +25,16 @@ const store = useSummaryStore()
 
 const labels = computed(() => store.days.map((day) => day.day))
 
-/** Revenue at the selected base — the switch never refetches. */
-const dayRevenue = (day) =>
-  Number(store.revenueBase === 'seller' ? day.revenue_seller : day.revenue_paid)
+/**
+ * Revenue at the selected base — the switch never refetches.
+ *
+ * `null` stays `null`: a day WB has not calculated yet has no revenue, and
+ * `Number(null)` is 0, which the chart would draw as a collapse to the axis.
+ */
+const dayRevenue = (day) => {
+  const value = store.revenueBase === 'seller' ? day.revenue_seller : day.revenue_paid
+  return value === null || value === undefined ? null : Number(value)
+}
 
 const revenueSeries = computed(() => {
   const series = [

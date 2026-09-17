@@ -18,6 +18,7 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.timeutils import moscow_today
 from src.modules.finreports.contract import PnlGrouping, PnlService, SkuReportService
 from src.modules.monitoring.contract import (
     ad_bonus_coverage,
@@ -47,12 +48,30 @@ class SummaryService:
         self._pnl = pnl
         self._skus = skus
 
-    async def span(self, *, workspace_id: uuid.UUID) -> SummarySpan:
-        """Return the settled days the кабинет has, for the period picker."""
+    async def span(self, session: AsyncSession, *, workspace_id: uuid.UUID) -> SummarySpan:
+        """Return the days the кабинет has any data for, for the period picker.
+
+        Not the settled days alone. WB calculates settlements weekly and serves
+        them days late, but the funnel and the advertising statistics land every
+        day — so a preset ending on the last settled day hid the three or four
+        freshest days of exactly the two figures that are current. The window
+        now ends on the newest day ANY feed covers, and the settlement's own end
+        travels beside it so the revenue line can stop where the money does.
+        """
         settled = await self._pnl.get_settled_span(workspace_id=workspace_id)
+        # A window wide enough to be «all of it»: the oldest settlement on this
+        # service is from 2024, and both reads are a min/max over an indexed
+        # day column rather than a scan.
+        horizon = {"date_from": date(2000, 1, 1), "date_to": moscow_today()}
+        funnel = await funnel_coverage(session, workspace_id=workspace_id, **horizon)
+        ads = await ad_coverage(session, workspace_id=workspace_id, **horizon)
+
+        starts = [day for day in (settled[0] if settled else None, funnel[0], ads[0]) if day]
+        ends = [day for day in (settled[1] if settled else None, funnel[1], ads[1]) if day]
         return SummarySpan(
-            date_from=settled[0] if settled else None,
-            date_to=settled[1] if settled else None,
+            date_from=min(starts) if starts else None,
+            date_to=max(ends) if ends else None,
+            settled_to=settled[1] if settled else None,
         )
 
     async def build(

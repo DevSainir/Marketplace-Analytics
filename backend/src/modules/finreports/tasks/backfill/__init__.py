@@ -53,6 +53,7 @@ from src.modules.finreports.tasks.backfill.span import (
 )
 from src.modules.finreports.tasks.backfill.walk import advance_pnl
 from src.modules.finreports.tasks.ingestion_factory import build_ingestion
+from src.modules.finreports.tasks.warmup import warm_settlement_rollup
 from src.modules.workspaces.contract import (
     BackfillLane,
     BackfillState,
@@ -253,6 +254,12 @@ def backfill_pnl(
             cursor=step.cursor,
             message=step.message,
         )
+        if step.finished:
+            # The end of the FIRST walk is the one moment a кабинет's whole
+            # history exists and nothing has ever summarised it. Without this,
+            # the seller who has just waited hours for the backfill pays for the
+            # rollup too — ~17 s on the largest кабинет — on their first click.
+            await warm_settlement_rollup(workspace_id=ws_id, name=tokens.name)
         if not step.finished:
             countdown = (
                 await _next_page_delay(tokens.statistics)

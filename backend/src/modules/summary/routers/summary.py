@@ -67,15 +67,16 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
     },
 )
 async def get_summary_span(
-    service: SummaryServiceDep, workspace_id: CurrentWorkspaceId
+    service: SummaryServiceDep, session: DbSession, workspace_id: CurrentWorkspaceId
 ) -> SummarySpan:
-    """Return the settled days this кабинет has.
+    """Return the days this кабинет has data for.
 
     Its own route rather than a field on the summary because the picker needs it
     BEFORE a window is chosen, and because it is answered off the report headers
-    — a hundred rows — while a summary is a pass over the settlement detail.
+    and two min/max reads — a hundred rows and two index lookups — while a
+    summary is a pass over the settlement rollup.
     """
-    return await service.span(workspace_id=workspace_id)
+    return await service.span(session, workspace_id=workspace_id)
 
 
 @router.get(

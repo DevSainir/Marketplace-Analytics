@@ -59,8 +59,13 @@ class SummaryDay(BaseModel):
     """One day of the window, as the three charts read it."""
 
     day: date
-    revenue_paid: Decimal
-    revenue_seller: Decimal
+    #: ``None`` on a day WB has not calculated yet. The window may legitimately
+    #: run past the last settlement — orders and advertising arrive daily while
+    #: the settlement lands weekly — and a zero there is a claim that the
+    #: кабинет sold nothing, which is a very different statement from «WB has
+    #: not said yet». The chart breaks its line instead of dropping to the axis.
+    revenue_paid: Decimal | None
+    revenue_seller: Decimal | None
     #: ``None`` for the same reason as :attr:`SummaryKpi.margin`.
     margin: Decimal | None
     #: ``None`` on a day the funnel does not cover.
@@ -108,14 +113,23 @@ class SummaryCoverage(BaseModel):
 
 
 class SummarySpan(BaseModel):
-    """The settled days a кабинет actually has, for the period picker.
+    """The days a кабинет has data for, for the period picker.
 
-    Answered off the report headers rather than the settlement detail, so the
-    picker can open instantly and «Вся история» knows what it means.
+    Every feed, not the settlement alone: orders and advertising arrive daily
+    while WB calculates settlements weekly, so ending every preset on the last
+    settled day hid several days of the two figures that ARE current. The
+    settlement's own end travels separately, because that is what the revenue
+    line can be drawn to.
+
+    Answered off the report headers and two min/max reads rather than the
+    settlement detail, so the picker opens instantly.
     """
 
     date_from: date | None
     date_to: date | None
+    #: Last day WB has calculated. Revenue and margin stop here; orders and
+    #: advertising may run past it.
+    settled_to: date | None = None
 
 
 class SummaryResponse(BaseModel):

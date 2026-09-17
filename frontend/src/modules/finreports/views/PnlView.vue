@@ -141,8 +141,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
         :from="store.dateFrom"
         :to="store.dateTo"
         :preset-end="store.fullSpan?.date_to ?? ''"
-        @update:from="store.setPeriod($event, store.dateTo)"
-        @update:to="store.setPeriod(store.dateFrom, $event)"
+        @range="store.setPeriod($event.from, $event.to)"
       />
 
       <!-- Four abreast at 402pt gives each preset ~88px and «Вся история» wraps

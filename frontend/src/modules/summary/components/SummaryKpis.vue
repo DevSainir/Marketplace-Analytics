@@ -62,7 +62,6 @@ const cards = computed(() => [
     label: 'Выручка',
     value: formatMoney(revenue.value, props.currency),
     note: baseNote.value,
-    lead: true,
   },
   {
     key: 'margin',
@@ -72,7 +71,6 @@ const cards = computed(() => [
       props.kpi.margin === null
         ? uncostedNote.value
         : `${pct(ratio(props.kpi.margin, revenue.value))} выручки`,
-    lead: true,
     muted: props.kpi.margin === null,
     negative: props.kpi.margin !== null && Number(props.kpi.margin) < 0,
   },
@@ -89,14 +87,20 @@ const cards = computed(() => [
     note: props.kpi.orders === null ? 'нет данных воронки' : 'штук',
     muted: props.kpi.orders === null,
   },
+  // WB's own counter, not «продано к заказано». The two read the same but are
+  // not the same measurement: the funnel counts a buyout on the day it happens,
+  // while «продано» is what WB CALCULATED in the window — a sale ordered before
+  // it, settled inside it, and refunds netted off. The two clocks differ by the
+  // settlement lag, so the ratio between them was a number with no period.
   {
     key: 'buyout',
     label: 'Выкуп',
-    value: pct(ratio(props.kpi.sold_units, props.kpi.orders)),
-    note:
+    value:
       props.kpi.buyouts === null
-        ? 'продано к заказано'
-        : `счётчик WB ${pct(ratio(props.kpi.buyouts, props.kpi.orders))}`,
+        ? pct(ratio(props.kpi.sold_units, props.kpi.orders))
+        : pct(ratio(props.kpi.buyouts, props.kpi.orders)),
+    note: props.kpi.buyouts === null ? 'рассчитано: продано к заказано' : 'выкуплено к заказано',
+    muted: props.kpi.buyouts === null,
   },
   {
     key: 'cheque',
@@ -112,12 +116,7 @@ const cards = computed(() => [
 
 <template>
   <div class="sum-kpis">
-    <div
-      v-for="card in cards"
-      :key="card.key"
-      class="sum-kpi"
-      :class="{ 'sum-kpi--lead': card.lead }"
-    >
+    <div v-for="card in cards" :key="card.key" class="sum-kpi">
       <div class="sum-kpi__label">{{ card.label }}</div>
       <div
         class="sum-kpi__value"
@@ -158,10 +157,6 @@ const cards = computed(() => [
 .sum-kpi {
   padding: 13px 15px 14px;
   background: var(--ui-surface);
-}
-
-.sum-kpi--lead {
-  background: var(--ui-zebra);
 }
 
 .sum-kpi__label {

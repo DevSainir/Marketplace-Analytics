@@ -124,7 +124,7 @@ def build_days(
             it does not, no day gets a margin — the same rule as the headline.
 
     Returns:
-        One entry per day the settlement covers, ascending.
+        One entry per day ANY feed covers, ascending.
     """
     orders_by_day = {day.stat_date: day.orders for day in order_days}
 
@@ -151,14 +151,20 @@ def build_days(
             assigned += share
         cash_by_day[entry.stat_date] = entry.spend - share
 
+    settled = {bucket.date_from: bucket for bucket in buckets if bucket.date_from is not None}
+    ad_by_day = {day.stat_date: day for day in ad_days}
+
     days: list[SummaryDay] = []
-    for bucket in buckets:
-        day = bucket.date_from
-        if day is None:
-            continue
+    # Every day ANY feed covers, not only the settled ones. The window can
+    # legitimately run past the last settlement — WB calculates weekly and
+    # serves late, while the funnel and the promotion statistics land daily —
+    # and those days used to vanish from all three charts rather than showing
+    # the orders and the spend we do have.
+    for day in sorted(settled.keys() | orders_by_day.keys() | ad_by_day.keys()):
+        bucket = settled.get(day)
         ad_cash = cash_by_day.get(day)
         margin = None
-        if costed:
+        if costed and bucket is not None:
             # bucket.advertising is the «WB Продвижение» invoice the settlement
             # charged on this date; bucket.margin_profit has already subtracted
             # it inside «Удержания».
@@ -166,8 +172,10 @@ def build_days(
         days.append(
             SummaryDay(
                 day=day,
-                revenue_paid=bucket.revenue_paid,
-                revenue_seller=bucket.revenue_seller_price,
+                # None, never zero, on a day WB has not calculated: the line
+                # stops instead of reporting a collapse in sales.
+                revenue_paid=bucket.revenue_paid if bucket else None,
+                revenue_seller=bucket.revenue_seller_price if bucket else None,
                 margin=margin,
                 orders=orders_by_day.get(day),
                 ad_spend=ad_cash,

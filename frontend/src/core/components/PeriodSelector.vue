@@ -26,7 +26,15 @@ const props = defineProps({
   /** Day the quick presets end on (ISO); empty = today. See `presetRange`. */
   presetEnd: { type: String, default: '' },
 })
-const emit = defineEmits(['update:from', 'update:to', 'apply'])
+/**
+ * `update:from` / `update:to` keep `v-model:from` / `v-model:to` working for
+ * consumers that only mirror the pair into refs. `range` carries BOTH halves in
+ * one event, and a consumer that RELOADS on a change must use it: the two
+ * v-model events fire in the same tick, so a listener reading the other half
+ * from props sees the value before this pick — which is how a hand-picked
+ * period could set only its end and report «Конец периода раньше начала».
+ */
+const emit = defineEmits(['update:from', 'update:to', 'apply', 'range'])
 
 // --- popover + view state ----------------------------------------------
 const root = ref(null)
@@ -99,6 +107,7 @@ function pickDay(cell) {
   phase.value = 'start'
   emit('update:from', s)
   emit('update:to', e)
+  emit('range', { from: s, to: e })
   open.value = false
 }
 
@@ -110,6 +119,7 @@ function applyPreset(days) {
   const { from, to } = presetRange(days, props.presetEnd)
   emit('update:from', from)
   emit('update:to', to)
+  emit('range', { from, to })
   emit('apply') // last, so a listener reading the parent's refs sees the new window
   open.value = false
 }

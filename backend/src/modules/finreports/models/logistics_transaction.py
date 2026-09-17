@@ -34,10 +34,12 @@ from sqlalchemy import (
     Numeric,
     String,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
+from src.modules.finreports.constants import SALE_OPERS
 
 _SCHEMA: str = "finreports"
 
@@ -91,6 +93,31 @@ class LogisticsTransaction(Base):
         Index("ix_logistics_txn_nm_id_rr_dt", "nm_id", "rr_dt"),
         Index("ix_logistics_txn_ws_rr_dt", "workspace_id", "rr_dt"),
         Index("ix_logistics_txn_oper", "supplier_oper_name"),
+        # Two PARTIAL indexes, both for the per-article P&L. Each covers a
+        # query whose rows are a small fraction of the table, and each carries
+        # what that query reads in INCLUDE so it never touches the table:
+        # fines are 6 104 rows of 1 459 394, sales 444 920. Measured, they take
+        # the page's two remaining detail scans from ~4 s each to ~0.3 s.
+        Index(
+            "ix_logistics_txn_penalty",
+            "workspace_id",
+            "rr_dt",
+            postgresql_include=["nm_id", "bonus_type_name", "penalty"],
+            postgresql_where=text("penalty <> 0"),
+        ),
+        # The predicate is WB's own operation name, and
+        # `tests/unit/finreports/test_pnl_indexes.py` fails if SALE_OPERS ever
+        # stops matching it — a rename would leave this index unusable and the
+        # page silently slow again.
+        Index(
+            "ix_logistics_txn_sale",
+            "workspace_id",
+            "rr_dt",
+            postgresql_include=["retail_amount"],
+            postgresql_where=text(
+                "supplier_oper_name IN ({})".format(", ".join(f"'{oper}'" for oper in SALE_OPERS))
+            ),
+        ),
         {"schema": _SCHEMA},
     )
 

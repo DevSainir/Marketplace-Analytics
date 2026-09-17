@@ -43,8 +43,7 @@ const chip = (active) =>
       :from="dateFrom"
       :to="dateTo"
       :preset-end="span?.date_to ?? ''"
-      @update:from="emit('period', $event, dateTo)"
-      @update:to="emit('period', dateFrom, $event)"
+      @range="emit('period', $event.from, $event.to)"
     />
 
     <div class="flex items-center gap-xs rounded-btn border border-border-subtle bg-surface p-xs">

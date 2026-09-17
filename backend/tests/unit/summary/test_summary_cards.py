@@ -301,3 +301,27 @@ def test_a_day_the_funnel_misses_has_no_orders_rather_than_zero() -> None:
 
     assert days[0].orders == 40
     assert days[1].orders is None
+
+
+def test_a_day_wb_has_not_calculated_still_shows_its_orders_and_its_spend() -> None:
+    """Orders and advertising are drawn past the last settlement, revenue is not.
+
+    WB calculates settlements weekly and serves them days late while the funnel
+    and the promotion statistics land daily, so the freshest three or four days
+    of a window have orders and spend and no settlement at all. They used to
+    vanish from every chart; now they are days like any other, with revenue left
+    as None rather than zero — the line stops instead of reporting that the
+    кабинет sold nothing.
+    """
+    days = build_days(
+        buckets=[make_day(day=date(2026, 7, 19), revenue="1000", margin_profit="500")],
+        order_days=[OrderDay(stat_date=date(2026, 7, 21), orders=55, buyouts=15)],
+        ad_days=[AdSpendDay(stat_date=date(2026, 7, 21), spend=Decimal("300"), bonus=ZERO)],
+        costed=True,
+    )
+
+    assert [entry.day for entry in days] == [date(2026, 7, 19), date(2026, 7, 21)]
+    assert days[1].revenue_paid is None
+    assert days[1].margin is None
+    assert days[1].orders == 55
+    assert days[1].ad_spend == Decimal("300")
