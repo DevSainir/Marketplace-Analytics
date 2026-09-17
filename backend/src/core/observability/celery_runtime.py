@@ -41,12 +41,14 @@ forever as though the process were still live).
 
 from __future__ import annotations
 
+import atexit
 import contextlib
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
+from billiard.compat import mem_rss
 from celery.exceptions import WorkerLostError
 from celery.signals import (
     before_task_publish,
@@ -66,6 +68,8 @@ from src.core.logcontext import bind_task, current_trace_id, reset_context
 from src.core.logging import adopt_celery_loggers, configure_logging, get_logger
 from src.core.observability.metrics import (
     CELERY_TASK_DURATION,
+    CELERY_TASK_MEMORY_GROWTH,
+    CELERY_TASK_PEAK_MEMORY,
     CELERY_TASKS,
     CELERY_WORKER_LOST,
     set_app_info,
@@ -84,14 +88,49 @@ logger = get_logger(__name__)
 #: reachable only through ``get()`` and not as an attribute.
 TRACE_HEADER = "marketplace_trace_id"
 
-#: Start times, keyed by Celery task id, so ``task_postrun`` can measure what
-#: ``task_prerun`` began. Celery gives no duration of its own.
+
+class _TaskStart(NamedTuple):
+    """What a task's beginning has to record for its end to mean anything.
+
+    Attributes:
+        clock: ``perf_counter`` at ``prerun``. Celery gives no duration.
+        peak_kb: The child's high-water RSS before this task ran, so the end can
+            report how much THIS task moved it rather than what a previous one
+            left behind.
+    """
+
+    clock: float
+    peak_kb: float
+
+
+#: Where each running task began, keyed by Celery task id.
 #:
 #: Bounded by construction rather than by a cap: every key is written by
 #: ``prerun`` and removed by ``postrun``, and ``postrun`` runs even for a task
 #: that raised. The one leak Celery can produce — a task killed by the HARD
 #: time limit, which SIGKILLs the process — takes this dict with it.
-_started_at: dict[str, float] = {}
+_started_at: dict[str, _TaskStart] = {}
+
+
+def _peak_rss_kb() -> float:
+    """The child's high-water resident set, as the recycler reads it.
+
+    Taken from ``billiard.compat`` rather than read from ``/proc`` or computed
+    here, and that is the whole point: this is the exact number
+    ``--max-memory-per-child`` compares after every task
+    (``billiard/pool.py``'s ``workloop``). Any second implementation would be a
+    second opinion about what a child weighs, and the metric exists to choose
+    that limit — so the two must be the same number by construction rather than
+    by agreement.
+
+    Returns:
+        Kibibytes. Zero when the platform cannot answer, which is also what
+        billiard treats as "unable to determine memory usage".
+    """
+    try:
+        return float(mem_rss())
+    except Exception:
+        return 0.0
 
 
 @setup_logging.connect  # type: ignore[untyped-decorator]
@@ -167,7 +206,7 @@ def _bind_task_context(task_id: str, task: Any = None, **_kwargs: Any) -> None:
         task_name=getattr(task, "name", "unknown"),
         trace_id=inherited,
     )
-    _started_at[task_id] = time.perf_counter()
+    _started_at[task_id] = _TaskStart(clock=time.perf_counter(), peak_kb=_peak_rss_kb())
 
 
 def _header(request: Any, name: str) -> str | None:
@@ -215,10 +254,33 @@ def _record_task_outcome(
     name = getattr(task, "name", "unknown")
     started = _started_at.pop(task_id, None)
     if started is not None:
-        CELERY_TASK_DURATION.labels(task_name=name).observe(time.perf_counter() - started)
+        CELERY_TASK_DURATION.labels(task_name=name).observe(time.perf_counter() - started.clock)
+        _record_task_memory(name, before_kb=started.peak_kb)
     CELERY_TASKS.labels(task_name=name, state=(state or "unknown").lower()).inc()
     # The next task runs in this same process. See the module docstring.
     reset_context()
+
+
+def _record_task_memory(task_name: str, *, before_kb: float) -> None:
+    """Record where this task left the child's water line, and how far it moved it.
+
+    Both, because either alone misleads. A high-water mark is inherited, so the
+    absolute figure blames whichever task happens to run after an expensive one;
+    and the growth alone cannot say whether a child is anywhere near the limit,
+    since a task that adds nothing to a child already at 500 MB is the one about
+    to be recycled.
+
+    Args:
+        task_name: The task that just finished.
+        before_kb: The child's high-water mark before it started.
+    """
+    after_kb = _peak_rss_kb()
+    if after_kb <= 0:
+        return
+    CELERY_TASK_PEAK_MEMORY.labels(task_name=task_name).observe(after_kb * 1024)
+    CELERY_TASK_MEMORY_GROWTH.labels(task_name=task_name).observe(
+        max(after_kb - before_kb, 0.0) * 1024
+    )
 
 
 @task_failure.connect  # type: ignore[untyped-decorator]
@@ -367,6 +429,44 @@ def prepare_multiprocess_dir() -> None:
     # prometheus_client reads this from the environment, not from an argument,
     # so it has to be exported rather than passed.
     os.environ["PROMETHEUS_MULTIPROC_DIR"] = str(path)
+    atexit.register(_sweep_own_metric_files)
+
+
+def _sweep_own_metric_files() -> None:
+    """Retire this process's live-gauge files as it exits, whatever it was.
+
+    **The container's healthcheck was filling the metrics tmpfs.** Measured on
+    prod 2026-09-17: 244 files after 62 minutes of uptime, of which 240 belonged
+    to 120 processes that no longer existed. ``HEALTHCHECK`` runs
+    ``celery inspect ping`` every 30 s; that imports the application, and an
+    UNLABELLED gauge creates its mmap file the moment the metric object is
+    constructed — so every ping left two files behind and swept none. At ~4 KB
+    of tmpfs each that is ~23 MB a day against a 32 MB mount: full in about 33
+    hours. Nothing had noticed because a push to `main` restarts the worker, and
+    pushes have been more frequent than that.
+
+    A full mount is worse than a lost gauge. The next process to start cannot
+    create its files at all — which includes a prefork child being replaced, so
+    the recycling that keeps the worker under its memory cap would be the thing
+    that could not happen.
+
+    Registered here rather than fixed in the healthcheck command, because the
+    healthcheck is only the process that does this most often. A one-off script
+    run through ``docker exec``, the migrate container, a shell — every import
+    of the app leaves the same two files. The hook makes "sweep after yourself"
+    a property of importing the app rather than of remembering.
+
+    Prefork children are covered twice over — :func:`_mark_process_dead` already
+    fires on their shutdown signal — and that is harmless: the sweep globs, so
+    the second pass finds nothing.
+    """
+    if not settings.multiprocess_metrics_enabled:
+        return
+    # Silenced, and deliberately: this runs while the interpreter is tearing
+    # down, where an exception is printed to a stderr nobody is reading and can
+    # mask the exit code that IS read — the healthcheck's.
+    with contextlib.suppress(Exception):
+        multiprocess.mark_process_dead(os.getpid())  # type: ignore[no-untyped-call]
 
 
 @worker_process_shutdown.connect  # type: ignore[untyped-decorator]

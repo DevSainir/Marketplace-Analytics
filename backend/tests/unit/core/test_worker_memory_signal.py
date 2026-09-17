@@ -11,6 +11,7 @@ day is 0.00007/s against an alert threshold of 0.05.
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -20,14 +21,22 @@ import yaml
 from celery.exceptions import WorkerLostError
 from prometheus_client import CollectorRegistry
 
-from src.core.observability import collectors
-from src.core.observability.celery_runtime import _record_task_failure
+from src.core.observability import celery_runtime, collectors
+from src.core.observability.celery_runtime import (
+    _bind_task_context,
+    _record_task_failure,
+    _record_task_outcome,
+)
 from src.core.observability.collectors import (
     CGROUP_MEMORY_LIMIT_SERIES,
     CGROUP_MEMORY_USED_SERIES,
     CgroupMemoryCollector,
 )
-from src.core.observability.metrics import CELERY_WORKER_LOST
+from src.core.observability.metrics import (
+    CELERY_TASK_MEMORY_GROWTH,
+    CELERY_TASK_PEAK_MEMORY,
+    CELERY_WORKER_LOST,
+)
 
 ALERTS_FILE = Path(__file__).resolve().parents[3] / "docker" / "observability" / "alerts.yml"
 
@@ -158,3 +167,119 @@ def test_the_worker_registry_carries_the_memory_collector(
     registry: Any = celery_runtime.build_worker_registry()
 
     assert _samples(registry)[CGROUP_MEMORY_USED_SERIES] == 1234
+
+
+def _observed(histogram: Any, task_name: str) -> float:
+    """The histogram's running sum for one task — its single observation here."""
+    return float(histogram.labels(task_name=task_name)._sum.get())
+
+
+def test_a_task_reports_the_water_line_the_recycler_will_compare(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The metric and `--max-memory-per-child` must read the same number.
+
+    The limit is chosen from this histogram, so a second way of measuring "what
+    a child weighs" would be choosing the limit from a figure the recycler does
+    not use. Both come from `billiard.compat.mem_rss`, which is why patching it
+    here moves both.
+    """
+    readings = iter([200_000.0, 260_000.0])
+    monkeypatch.setattr(celery_runtime, "mem_rss", lambda: next(readings))
+    task = type("Task", (), {"name": "guide.capture_daily"})()
+
+    _bind_task_context(task_id="t-1", task=task)
+    _record_task_outcome(task_id="t-1", task=task, state="SUCCESS")
+
+    assert _observed(CELERY_TASK_PEAK_MEMORY, task.name) == 260_000.0 * 1024
+
+
+def test_a_task_is_credited_only_with_the_growth_it_caused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A high-water mark is inherited, so the absolute figure blames the wrong task.
+
+    A cheap task running after an expensive one reports the expensive one's
+    number. Without the difference across the task, the histogram would say
+    `ab_tests.poll_rotations` needs 525 MB — and the limit would be chosen to
+    accommodate a task that allocates nothing.
+    """
+    readings = iter([500_000.0, 500_000.0])
+    monkeypatch.setattr(celery_runtime, "mem_rss", lambda: next(readings))
+    task = type("Task", (), {"name": "ab_tests.poll_rotations"})()
+
+    _bind_task_context(task_id="t-2", task=task)
+    _record_task_outcome(task_id="t-2", task=task, state="SUCCESS")
+
+    assert _observed(CELERY_TASK_MEMORY_GROWTH, task.name) == 0.0
+    assert _observed(CELERY_TASK_PEAK_MEMORY, task.name) == 500_000.0 * 1024
+
+
+def test_a_platform_that_cannot_report_memory_records_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A zero would sit in the lowest bucket and drag the distribution down.
+
+    billiard treats a zero as "unable to determine memory usage" and so does
+    this. An absent observation is honest; a fabricated 0 MB task would make the
+    histogram argue for a lower limit than the evidence supports.
+    """
+    monkeypatch.setattr(celery_runtime, "mem_rss", lambda: 0)
+    task = type("Task", (), {"name": "monitoring.harvest_all"})()
+    before = _observed(CELERY_TASK_PEAK_MEMORY, task.name)
+
+    _bind_task_context(task_id="t-3", task=task)
+    _record_task_outcome(task_id="t-3", task=task, state="SUCCESS")
+
+    assert _observed(CELERY_TASK_PEAK_MEMORY, task.name) == before
+
+
+def test_a_process_that_imports_the_app_sweeps_its_gauge_files_on_the_way_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The healthcheck was filling a 32 MB tmpfs at ~23 MB a day.
+
+    `celery inspect ping` runs every 30 s and imports the application; an
+    unlabelled gauge creates its mmap file when the metric object is built, and
+    nothing removed it, because `worker_process_shutdown` never fires for a
+    process that is not a prefork child. Measured on prod 2026-09-17: 240 files
+    belonging to 120 processes that no longer existed, after 62 minutes of
+    uptime.
+
+    A full mount is worse than a stale gauge — the next process cannot create
+    its files at all, and that includes the replacement child whose recycling
+    keeps the worker under its memory cap.
+    """
+    monkeypatch.setattr(celery_runtime.settings, "prometheus_multiproc_dir", str(tmp_path))
+    monkeypatch.setenv("PROMETHEUS_MULTIPROC_DIR", str(tmp_path))
+    mine = tmp_path / f"gauge_livesum_{os.getpid()}.db"
+    mine.write_text("")
+    someone_else = tmp_path / "gauge_livesum_999999.db"
+    someone_else.write_text("")
+
+    celery_runtime._sweep_own_metric_files()
+
+    assert not mine.exists()
+    assert someone_else.exists(), "a sweep may only retire the files of the process running it"
+
+
+def test_preparing_the_metrics_directory_arms_the_sweep(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sweep has to be armed by importing the app, not by remembering it.
+
+    `celery inspect ping` is not our code and has no shutdown hook to attach to;
+    neither does a one-off script or the migrate container. The one thing they
+    all do is import the application, so that is where the hook belongs — and a
+    sweep that works but is never registered is exactly the shape of the leak it
+    was written for.
+    """
+    registered: list[Any] = []
+    monkeypatch.setattr(
+        celery_runtime.atexit, "register", lambda hook: registered.append(hook) or hook
+    )
+    monkeypatch.setattr(celery_runtime.settings, "prometheus_multiproc_dir", str(tmp_path))
+
+    celery_runtime.prepare_multiprocess_dir()
+
+    assert celery_runtime._sweep_own_metric_files in registered
