@@ -19,59 +19,21 @@ import SummaryCategoryBars from '@/modules/summary/components/SummaryCategoryBar
 import SummaryControls from '@/modules/summary/components/SummaryControls.vue'
 import SummaryKpis from '@/modules/summary/components/SummaryKpis.vue'
 import SummaryLineChart from '@/modules/summary/components/SummaryLineChart.vue'
+import { orderSeries, revenueSeries, saleSeries } from '@/modules/summary/series'
 import { useSummaryStore } from '@/modules/summary/store'
 
 const store = useSummaryStore()
 
 const labels = computed(() => store.days.map((day) => day.day))
 
-/**
- * Revenue at the selected base — the switch never refetches.
- *
- * `null` stays `null`: a day WB has not calculated yet has no revenue, and
- * `Number(null)` is 0, which the chart would draw as a collapse to the axis.
- */
-const dayRevenue = (day) => {
-  const value = store.revenueBase === 'seller' ? day.revenue_seller : day.revenue_paid
-  return value === null || value === undefined ? null : Number(value)
-}
-
-const revenueSeries = computed(() => {
-  const series = [
-    {
-      name: 'Выручка',
-      color: 'var(--ui-action)',
-      values: store.days.map(dayRevenue),
-    },
-  ]
-  // The margin line is omitted entirely rather than drawn flat when the window
-  // has an uncosted article: a zero line would be a claim, and this page does
-  // not have the figure to make it.
-  if (!store.marginBlocked) {
-    series.push({
-      name: 'Маржа',
-      color: 'var(--ui-pos)',
-      values: store.days.map((day) => (day.margin === null ? null : Number(day.margin))),
-    })
-  }
-  return series
-})
-
-const orderSeries = computed(() => [
-  {
-    name: 'Заказы',
-    color: 'var(--ui-action)',
-    values: store.days.map((day) => (day.orders === null ? null : Number(day.orders))),
-  },
+const dayCharts = computed(() => [
+  { title: 'Заказы и ДРР в день', series: orderSeries(store.days) },
+  { title: 'Продажи и ДРР в день', series: saleSeries(store.days, { base: store.revenueBase }) },
 ])
 
-const adSeries = computed(() => [
-  {
-    name: 'Реклама',
-    color: 'var(--ui-warn)',
-    values: store.days.map((day) => (day.ad_spend === null ? null : Number(day.ad_spend))),
-  },
-])
+const revenueLines = computed(() =>
+  revenueSeries(store.days, { base: store.revenueBase, costed: !store.marginBlocked }),
+)
 
 const hasDays = computed(() => store.days.length > 0)
 
@@ -117,14 +79,14 @@ onMounted(() => store.init())
           <h2 class="ui-sec__title">Выручка</h2>
           <div class="sum-card mt-md">
             <div class="sum-legend">
-              <span v-for="line in revenueSeries" :key="line.name" class="sum-legend__item">
+              <span v-for="line in revenueLines" :key="line.name" class="sum-legend__item">
                 <span class="sum-legend__swatch" :style="{ background: line.color }"></span>
                 {{ line.name }}
               </span>
             </div>
             <SummaryLineChart
               v-if="hasDays"
-              :series="revenueSeries"
+              :series="revenueLines"
               :labels="labels"
               :currency="store.currency"
             />
@@ -133,27 +95,21 @@ onMounted(() => store.init())
         </section>
 
         <section class="ui-sec grid gap-lg lg:grid-cols-2">
-          <div>
-            <h2 class="ui-sec__title">Заказы в день</h2>
+          <div v-for="chart in dayCharts" :key="chart.title">
+            <h2 class="ui-sec__title">{{ chart.title }}</h2>
             <div class="sum-card mt-md">
+              <div class="sum-legend">
+                <span v-for="line in chart.series" :key="line.name" class="sum-legend__item">
+                  <span class="sum-legend__swatch" :style="{ background: line.color }"></span>
+                  {{ line.name }}
+                </span>
+              </div>
               <SummaryLineChart
                 v-if="hasDays"
-                :series="orderSeries"
+                :series="chart.series"
                 :labels="labels"
                 :height="196"
                 plain
-              />
-            </div>
-          </div>
-          <div>
-            <h2 class="ui-sec__title">Реклама в день</h2>
-            <div class="sum-card mt-md">
-              <SummaryLineChart
-                v-if="hasDays"
-                :series="adSeries"
-                :labels="labels"
-                :height="196"
-                :currency="store.currency"
               />
             </div>
           </div>

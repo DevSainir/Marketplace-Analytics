@@ -86,6 +86,14 @@ def build_kpi(
         None if missing else totals.payout_net + swap - (totals.cogs or _ZERO) - (ad_cash or _ZERO)
     )
 
+    # Fines and withholdings, minus the advertising invoices inside them: the
+    # ДРР card already reports advertising, and the same money under two labels
+    # reads as two costs. The dashboard's figures are the account-level ones,
+    # which no SKU exclusion can move.
+    withheld = (
+        totals.penalties_total + report.dashboard.other_deductions - report.dashboard.advertising
+    )
+
     return SummaryKpi(
         revenue_paid=totals.revenue_paid,
         revenue_seller=totals.revenue_seller_price,
@@ -94,6 +102,8 @@ def build_kpi(
         orders=orders,
         buyouts=buyouts,
         uncosted_skus=missing,
+        penalties=withheld,
+        ad_spend=ad_cash,
     )
 
 
@@ -126,7 +136,7 @@ def build_days(
     Returns:
         One entry per day ANY feed covers, ascending.
     """
-    orders_by_day = {day.stat_date: day.orders for day in order_days}
+    orders_by_day = {day.stat_date: day for day in order_days}
 
     total_spend = sum((day.spend for day in ad_days), _ZERO)
     total_bonus = sum((day.bonus for day in ad_days), _ZERO)
@@ -162,6 +172,7 @@ def build_days(
     # the orders and the spend we do have.
     for day in sorted(settled.keys() | orders_by_day.keys() | ad_by_day.keys()):
         bucket = settled.get(day)
+        funnel = orders_by_day.get(day)
         ad_cash = cash_by_day.get(day)
         margin = None
         if costed and bucket is not None:
@@ -177,7 +188,9 @@ def build_days(
                 revenue_paid=bucket.revenue_paid if bucket else None,
                 revenue_seller=bucket.revenue_seller_price if bucket else None,
                 margin=margin,
-                orders=orders_by_day.get(day),
+                orders=funnel.orders if funnel else None,
+                orders_amount=funnel.amount if funnel else None,
+                sold_units=(bucket.sold_units - bucket.returned_units) if bucket else None,
                 ad_spend=ad_cash,
             )
         )

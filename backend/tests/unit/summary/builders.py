@@ -32,6 +32,7 @@ def make_row(
     returned_units: int = 0,
     subject: str = "Брюки",
     brand: str = "NEVA",
+    penalties_total: str = "0",
 ) -> PnlSkuRow:
     """One SKU row, carrying only the fields «Сводка» reads.
 
@@ -60,7 +61,7 @@ def make_row(
         logistics_return=ZERO,
         logistics_total=ZERO,
         logistics_pct=None,
-        penalties_total=ZERO,
+        penalties_total=Decimal(penalties_total),
         penalties=[],
         cost_price=None if cost_price is None else Decimal(cost_price),
         cogs=None if cost_price is None else Decimal(cost_price) * sold_units,
@@ -77,8 +78,19 @@ def make_row(
     )
 
 
-def make_report(rows: list[PnlSkuRow], *, totals: PnlSkuRow) -> PnlSkuReportResponse:
-    """A report around the given rows; the dashboard is not read by «Сводка»."""
+def make_report(
+    rows: list[PnlSkuRow],
+    *,
+    totals: PnlSkuRow,
+    other_deductions: str = "0",
+    dashboard_advertising: str = "0",
+) -> PnlSkuReportResponse:
+    """A report around the given rows.
+
+    Two dashboard figures are settable because «Сводка» reads them: the
+    account-level withholdings and the advertising invoices inside them, which
+    the «Штрафы и удержания» card has to take back out.
+    """
     return PnlSkuReportResponse(
         date_from=date(2026, 7, 15),
         date_to=date(2026, 9, 6),
@@ -96,8 +108,8 @@ def make_report(rows: list[PnlSkuRow], *, totals: PnlSkuRow) -> PnlSkuReportResp
             cogs=ZERO,
             uncosted_count=0,
             payout_net=ZERO,
-            other_deductions=ZERO,
-            advertising=ZERO,
+            other_deductions=Decimal(other_deductions),
+            advertising=Decimal(dashboard_advertising),
             excluded_count=0,
         ),
         notes=[],

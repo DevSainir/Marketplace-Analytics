@@ -103,13 +103,21 @@ const cards = computed(() => [
     muted: props.kpi.buyouts === null,
   },
   {
-    key: 'cheque',
-    label: 'Средний чек',
-    value: formatMoney(
-      props.kpi.sold_units ? revenue.value / props.kpi.sold_units : null,
-      props.currency,
-    ),
-    note: 'на единицу',
+    key: 'penalties',
+    label: 'Штрафы и удержания',
+    value: formatMoney(props.kpi.penalties, props.currency),
+    note: 'без счетов за рекламу',
+    negative: Number(props.kpi.penalties) > 0,
+  },
+  // ДРР is computed here rather than sent, so it follows the price base the
+  // reader picked: the same advertising is a different share of the seller's
+  // price and of the after-СПП one.
+  {
+    key: 'drr',
+    label: 'Средний ДРР',
+    value: pct(ratio(props.kpi.ad_spend, revenue.value)),
+    note: props.kpi.ad_spend === null ? 'нет данных рекламы' : 'реклама к выручке',
+    muted: props.kpi.ad_spend === null,
   },
 ])
 </script>
@@ -130,16 +138,16 @@ const cards = computed(() => [
 </template>
 
 <style scoped>
-/* One block rather than six cards: hairline gaps over a ruled background, so
-   the figures read as a single statement instead of six unrelated tiles. */
+/* Separate tiles, not one ruled block. Seven figures never fill their last row,
+   and the shared-background trick left the remainder as an empty slab inside
+   the block's own frame — worse than a gap. Each card carries the page's card
+   recipe instead: surface, 1px ring, the small shadow. */
 .sum-kpis {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 1px;
-  background: var(--ui-hairline);
-  border-radius: var(--ui-r-md);
-  box-shadow: var(--ui-sh-xs);
-  overflow: hidden;
+  /* Four to a row, so seven figures read as two rows rather than one strip of
+     narrow columns. */
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
 }
 
 @media (max-width: 1100px) {
@@ -156,7 +164,9 @@ const cards = computed(() => [
 
 .sum-kpi {
   padding: 13px 15px 14px;
+  border-radius: var(--ui-r-md);
   background: var(--ui-surface);
+  box-shadow: var(--ui-sh-xs);
 }
 
 .sum-kpi__label {

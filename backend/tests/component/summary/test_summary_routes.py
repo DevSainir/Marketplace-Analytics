@@ -55,6 +55,8 @@ class _StubSummaryService:
                 orders=20819,
                 buyouts=5665,
                 uncosted_skus=2,
+                penalties=Decimal("12000"),
+                ad_spend=Decimal("300000"),
             ),
             days=[],
             rows=[],
@@ -144,15 +146,16 @@ async def test_without_a_workspace_header_nothing_resolves(
     assert summary.calls == []
 
 
-async def test_an_omitted_window_defaults_to_the_last_four_weeks(
+async def test_an_omitted_window_defaults_to_the_last_week(
     client: httpx.AsyncClient, headers: dict[str, str], summary: _StubSummaryService
 ) -> None:
-    """No dates means 28 settlement days ending on the MOSCOW day.
+    """No dates means a week ending on the MOSCOW day.
 
     WB dates every settlement row by the Moscow calendar, so resolving the open
     end from the host's own clock drops the newest day for the three hours
-    between 00:00 and 03:00 MSK. The default matches «По артикулам» so that
-    moving between the two screens does not silently move the period.
+    between 00:00 and 03:00 MSK. The length is the page's own: «Сводка» answers
+    «как идут дела сейчас», and a month of history flattens the few days that
+    answer it.
     """
     await client.get("/api/v1/summary", headers=headers)
 

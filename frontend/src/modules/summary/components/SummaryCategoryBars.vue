@@ -24,7 +24,7 @@ const props = defineProps({
 })
 
 /** How many rows before the tail folds. */
-const HEAD = 20
+const HEAD = 10
 
 const expanded = ref(false)
 const hovered = ref(null)

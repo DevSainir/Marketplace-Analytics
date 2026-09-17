@@ -24,6 +24,7 @@ from src.modules.monitoring.models import (
     BONUS_PAYMENT_TYPES,
     AdvertisingStatDaily,
     AdvertisingWriteOffDaily,
+    PriceSnapshot,
     SalesFunnelDaily,
 )
 from src.modules.monitoring.repos.base import workspace_sku_select
@@ -33,11 +34,20 @@ _ZERO = Decimal(0)
 
 
 class OrderDay(NamedTuple):
-    """One funnel day, summed over every SKU the workspace owns."""
+    """One funnel day, summed over every SKU the workspace owns.
+
+    ``amount`` is what those orders were worth: ``Σ(order_count x seller_price)``
+    over the SKUs of the day, joined to the price snapshot BEFORE the sum
+    because each card is worth its own price. It is ``None`` when not one SKU of
+    that day carried a price snapshot — WB's funnel does not publish a money
+    volume, so a day we never snapshotted a price for has no volume at all, and
+    valuing it at zero would turn «мы не знаем» into «реклама съела всё».
+    """
 
     stat_date: date
     orders: int
     buyouts: int
+    amount: Decimal | None
 
 
 class AdSpendDay(NamedTuple):
@@ -78,6 +88,12 @@ async def load_order_days(
             SalesFunnelDaily.stat_date,
             func.sum(SalesFunnelDaily.order_count),
             func.sum(SalesFunnelDaily.buyout_count),
+            func.sum(SalesFunnelDaily.order_count * PriceSnapshot.seller_price),
+        )
+        .outerjoin(
+            PriceSnapshot,
+            (PriceSnapshot.nm_id == SalesFunnelDaily.nm_id)
+            & (PriceSnapshot.stat_date == SalesFunnelDaily.stat_date),
         )
         .where(
             SalesFunnelDaily.nm_id.in_(workspace_sku_select(workspace_id)),
@@ -88,8 +104,13 @@ async def load_order_days(
         .order_by(SalesFunnelDaily.stat_date)
     )
     return [
-        OrderDay(stat_date=day, orders=int(orders or 0), buyouts=int(buyouts or 0))
-        for day, orders, buyouts in (await session.execute(stmt)).all()
+        OrderDay(
+            stat_date=day,
+            orders=int(orders or 0),
+            buyouts=int(buyouts or 0),
+            amount=None if amount is None else Decimal(amount),
+        )
+        for day, orders, buyouts, amount in (await session.execute(stmt)).all()
     ]
 
 

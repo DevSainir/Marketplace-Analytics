@@ -17,7 +17,12 @@ import { MARGIN, buildScales, labelStep, linePath } from '@/modules/summary/char
 import { useChartWidth } from '@/modules/summary/useChartWidth'
 
 const props = defineProps({
-  /** `[{ name, color, values: (number|null)[] }]` — one entry per line. */
+  /**
+   * One entry per line: `{ name, color, values: (number|null)[] }`, plus
+   * `axis: 'right'` to put it on the second scale and `percent: true` to render
+   * it as a percentage. A ДРР line needs both — on the counts' own axis it
+   * would be a flat line along the floor.
+   */
   series: { type: Array, required: true },
   /** ISO day per point, same length as every series' values. */
   labels: { type: Array, required: true },
@@ -40,10 +45,12 @@ const scales = computed(() =>
   }),
 )
 
+const scaleOf = (line) => (line.axis === 'right' ? scales.value.rightY : scales.value.y)
+
 const paths = computed(() =>
   props.series.map((line) => ({
     ...line,
-    d: linePath(line.values, scales.value.x, scales.value.y),
+    d: linePath(line.values, scales.value.x, scaleOf(line)),
   })),
 )
 
@@ -71,7 +78,8 @@ const readout = computed(() => {
       name: line.name,
       color: line.color,
       value: line.values[index],
-      y: Number.isFinite(line.values[index]) ? scales.value.y(line.values[index]) : null,
+      percent: Boolean(line.percent),
+      y: Number.isFinite(line.values[index]) ? scaleOf(line)(line.values[index]) : null,
     })),
   }
 })
@@ -94,11 +102,12 @@ function show(event) {
   hovered.value = Math.max(0, Math.min(count - 1, Math.round(ratio * (count - 1))))
 }
 
-function render(value) {
-  if (!Number.isFinite(value)) return '—'
+function render(point) {
+  if (!Number.isFinite(point.value)) return '—'
+  if (point.percent) return `${point.value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} %`
   return props.plain
-    ? Math.round(value).toLocaleString('ru-RU')
-    : formatMoney(value, props.currency)
+    ? Math.round(point.value).toLocaleString('ru-RU')
+    : formatMoney(point.value, props.currency)
 }
 </script>
 
@@ -129,6 +138,17 @@ function render(value) {
         :x="MARGIN.left - 8"
         :y="tick.y + 3.4"
         text-anchor="end"
+        class="sum-axis"
+      >
+        {{ tick.label }}
+      </text>
+
+      <text
+        v-for="tick in scales.rightTicks"
+        :key="`r-${tick.value}`"
+        :x="scales.plotRight + 8"
+        :y="tick.y + 3.4"
+        text-anchor="start"
         class="sum-axis"
       >
         {{ tick.label }}
@@ -193,7 +213,7 @@ function render(value) {
           <span class="sum-tip__dot" :style="{ background: point.color }"></span>
           {{ point.name }}
         </span>
-        <span class="sum-tip__value">{{ render(point.value) }}</span>
+        <span class="sum-tip__value">{{ render(point) }}</span>
       </div>
     </div>
   </div>

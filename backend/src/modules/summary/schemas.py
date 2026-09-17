@@ -53,6 +53,14 @@ class SummaryKpi(BaseModel):
     #: How many SKUs settled units in the window with no cost price on file.
     #: Non-zero is exactly why :attr:`margin` is ``None``.
     uncosted_skus: int
+    #: Fines plus WB's other withholdings, WITHOUT the advertising invoices —
+    #: those are :attr:`ad_spend`'s subject, and a figure that counted them in
+    #: both places would be read as two different costs.
+    penalties: Decimal
+    #: What advertising actually cost the seller in the window, WB's bonuses
+    #: removed. ``None`` without advertising coverage. The ДРР card is this over
+    #: revenue, computed by the page so it follows the price base.
+    ad_spend: Decimal | None
 
 
 class SummaryDay(BaseModel):
@@ -70,6 +78,13 @@ class SummaryDay(BaseModel):
     margin: Decimal | None
     #: ``None`` on a day the funnel does not cover.
     orders: int | None
+    #: What those orders were worth, ``Σ(заказы x цена продавца)``. ``None``
+    #: when no SKU of that day has a price snapshot — WB's funnel publishes no
+    #: money volume, so without a price there is no volume to publish.
+    orders_amount: Decimal | None
+    #: Units WB calculated as sold that day, net of refunds. ``None`` on a day
+    #: WB has not calculated.
+    sold_units: int | None
     #: What the seller paid for advertising that day, bonuses removed. ``None``
     #: on a day the advertising statistics do not cover.
     ad_spend: Decimal | None

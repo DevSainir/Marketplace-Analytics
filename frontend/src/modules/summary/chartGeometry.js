@@ -7,8 +7,11 @@
  * than in a scaled viewBox.
  */
 
-/** Plot margins, in px. Left is wide enough for a «1,2 млн» tick. */
-export const MARGIN = { left: 58, right: 16, top: 12, bottom: 26 }
+/**
+ * Plot margins, in px. Left is wide enough for a «1,2 млн» tick; right for a
+ * «20 %» one, because the ДРР charts carry a second axis over there.
+ */
+export const MARGIN = { left: 58, right: 44, top: 12, bottom: 26 }
 
 /** Roughly how many gaps between grid lines to aim for. */
 const TICKS = 4
@@ -62,6 +65,47 @@ export function buildScales({ width, height, series, count }) {
   const innerWidth = Math.max(1, width - MARGIN.left - MARGIN.right)
   const innerHeight = Math.max(1, height - MARGIN.top - MARGIN.bottom)
 
+  const x = (index) =>
+    MARGIN.left + (count < 2 ? innerWidth / 2 : (index / (count - 1)) * innerWidth)
+
+  // Two independent vertical scales. A ДРР line lives between 0 and 20 while
+  // the orders beside it are in the thousands: on one axis the percentage is a
+  // flat line on the floor, which is the one shape it must never have.
+  const left = buildAxis(
+    series.filter((line) => line.axis !== 'right'),
+    innerHeight,
+  )
+  const right = buildAxis(
+    series.filter((line) => line.axis === 'right'),
+    innerHeight,
+  )
+  const hasRight = series.some((line) => line.axis === 'right')
+
+  return {
+    x,
+    y: left.y,
+    rightY: right.y,
+    ticks: left.ticks,
+    rightTicks: hasRight ? right.ticks : [],
+    min: left.min,
+    max: left.max,
+    innerWidth,
+    innerHeight,
+    plotRight: MARGIN.left + innerWidth,
+    plotBottom: MARGIN.top + innerHeight,
+    hasNegative: left.min < 0,
+    zeroY: left.y(0),
+  }
+}
+
+/**
+ * One vertical scale: its rounded ends, its grid values and its mapping.
+ *
+ * @param {Array<{values: Array<number|null>, percent?: boolean}>} series
+ * @param {number} innerHeight Plot height, px.
+ * @returns {{y: (value: number) => number, ticks: object[], min: number, max: number}}
+ */
+function buildAxis(series, innerHeight) {
   let high = 0
   let low = 0
   for (const line of series) {
@@ -79,9 +123,8 @@ export function buildScales({ width, height, series, count }) {
   const min = Math.floor(Math.min(low, 0) / step) * step
   const max = Math.ceil(Math.max(high, 0) / step) * step || step
   const span = max - min || 1
+  const percent = series.some((line) => line.percent)
 
-  const x = (index) =>
-    MARGIN.left + (count < 2 ? innerWidth / 2 : (index / (count - 1)) * innerWidth)
   const y = (value) => MARGIN.top + innerHeight - ((value - min) / span) * innerHeight
 
   const ticks = []
@@ -89,22 +132,14 @@ export function buildScales({ width, height, series, count }) {
     // Re-snapped to the step: repeated addition of a fractional step drifts,
     // and a tick labelled «-0» is the visible end of that drift.
     const snapped = Math.round(value / step) * step
-    ticks.push({ value: snapped, label: shortNumber(snapped), y: y(snapped) })
+    ticks.push({
+      value: snapped,
+      label: percent ? `${shortNumber(snapped)} %` : shortNumber(snapped),
+      y: y(snapped),
+    })
   }
 
-  return {
-    x,
-    y,
-    ticks,
-    min,
-    max,
-    innerWidth,
-    innerHeight,
-    plotRight: MARGIN.left + innerWidth,
-    plotBottom: MARGIN.top + innerHeight,
-    hasNegative: min < 0,
-    zeroY: y(0),
-  }
+  return { y, ticks, min, max }
 }
 
 /**

@@ -18,10 +18,10 @@ from src.modules.summary.deps import SummaryServiceDep
 from src.modules.summary.schemas import SummaryResponse, SummarySpan
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
-#: Default window when the caller names no dates — the last four weeks, the same
-#: default «По артикулам» uses, so switching between the two screens does not
-#: silently switch the period under the reader.
-DEFAULT_WINDOW_DAYS = 28
+#: Default window when the caller names no dates — the last week. The page is
+#: «как идут дела сейчас», and a month of history flattens the few days that
+#: answer that; the presets are one click away for the longer look.
+DEFAULT_WINDOW_DAYS = 7
 
 #: Hard cap on how much settlement history one request may aggregate.
 #:

@@ -19,8 +19,8 @@ import { extractErrorMessage } from '@/core/api/axios'
 import { fetchSummary, fetchSummarySpan } from '@/modules/summary/api'
 import { buildCategories } from '@/modules/summary/categories'
 
-/** Default window, matching the backend's own: the last four settlement weeks. */
-const DEFAULT_DAYS = 28
+/** Default window, matching the backend's own: the last week. */
+const DEFAULT_DAYS = 7
 
 /** YYYY-MM-DD in the local calendar (settlement dates are calendar days). */
 function isoDate(date) {

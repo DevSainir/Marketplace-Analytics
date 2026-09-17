@@ -294,7 +294,9 @@ def test_a_day_the_funnel_misses_has_no_orders_rather_than_zero() -> None:
             make_day(day=date(2026, 7, 19), revenue="1000", margin_profit="500"),
             make_day(day=date(2026, 7, 20), revenue="1000", margin_profit="500"),
         ],
-        order_days=[OrderDay(stat_date=date(2026, 7, 19), orders=40, buyouts=12)],
+        order_days=[
+            OrderDay(stat_date=date(2026, 7, 19), orders=40, buyouts=12, amount=Decimal("80000"))
+        ],
         ad_days=[],
         costed=True,
     )
@@ -315,7 +317,9 @@ def test_a_day_wb_has_not_calculated_still_shows_its_orders_and_its_spend() -> N
     """
     days = build_days(
         buckets=[make_day(day=date(2026, 7, 19), revenue="1000", margin_profit="500")],
-        order_days=[OrderDay(stat_date=date(2026, 7, 21), orders=55, buyouts=15)],
+        order_days=[
+            OrderDay(stat_date=date(2026, 7, 21), orders=55, buyouts=15, amount=Decimal("110000"))
+        ],
         ad_days=[AdSpendDay(stat_date=date(2026, 7, 21), spend=Decimal("300"), bonus=ZERO)],
         costed=True,
     )
@@ -325,3 +329,38 @@ def test_a_day_wb_has_not_calculated_still_shows_its_orders_and_its_spend() -> N
     assert days[1].margin is None
     assert days[1].orders == 55
     assert days[1].ad_spend == Decimal("300")
+
+
+def test_the_advertising_invoice_is_not_counted_as_a_withholding() -> None:
+    """«Штрафы и удержания» excludes the money the ДРР card already reports.
+
+    WB withholds advertising as an invoice inside «Удержания», so a card that
+    summed that line whole would show the same spend twice — once as a
+    withholding, once as advertising — and a seller reading both would conclude
+    the кабинет paid for it twice.
+    """
+    row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="100", net_profit="700")
+    report = make_report(
+        [row],
+        totals=make_row(
+            nm_id=0,
+            revenue="1000",
+            payout_net="800",
+            cost_price="100",
+            net_profit="700",
+            penalties_total="4000",
+        ),
+        other_deductions="30000",
+        dashboard_advertising="25000",
+    )
+
+    kpi = build_kpi(
+        report=report,
+        orders=None,
+        buyouts=None,
+        ad_cash=Decimal("22000"),
+        settled_advertising=Decimal("25000"),
+    )
+
+    assert kpi.penalties == Decimal("9000")
+    assert kpi.ad_spend == Decimal("22000")
