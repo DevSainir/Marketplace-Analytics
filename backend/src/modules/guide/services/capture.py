@@ -28,6 +28,8 @@ from collections.abc import Callable
 from datetime import date, timedelta
 from typing import NamedTuple
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from src.core.config import Settings, settings
 from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
@@ -133,10 +135,19 @@ async def _capture_one(
                 mark = await _store(
                     source=source, workspace_id=workspace_id, batch=batch, mark=mark
                 )
-    except (IntegrationError, ValueError, KeyError, TypeError) as exc:
+    except (IntegrationError, SQLAlchemyError, ValueError, KeyError, TypeError) as exc:
         # Recorded, never raised: one bad feed must not cost the other ten their
         # run. What the walk had already stored stays stored, and the watermark
         # stays at the last point every row behind it was written.
+        #
+        # `SQLAlchemyError` joined the list on 2026-09-17, when it was the one
+        # that got away. A walk writes as it goes now, so a row WB serves in a
+        # shape the column will not take raises from the insert rather than from
+        # the parse — and a `StatementError` is none of the four exceptions this
+        # used to catch. It escaped `_capture_one`, killed the whole task, and
+        # the five feeds after it in the cadence never ran. Catching the parse
+        # errors but not the storage ones only ever held while fetching and
+        # storing were separate phases.
         message = f"{type(exc).__name__}: {exc}"
         logger.warning("guide: %s failed for %s (%s).", source.key, bundle.name, message[:200])
         async with AsyncSessionLocal() as session:

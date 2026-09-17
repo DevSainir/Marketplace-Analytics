@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -165,3 +166,30 @@ async def test_a_walk_that_finishes_records_its_last_cursor_and_row_count(
     run = await _run(db_session)
     assert (status, rows) == ("ok", 2)
     assert (run.cursor, run.rows, run.last_status) == ("2026-09-11T23:40:00", 2, "ok")
+
+
+async def test_a_feed_that_cannot_be_stored_fails_alone(
+    wb: None, db_session: AsyncSession
+) -> None:
+    """One bad feed must not cost the other ten their run — storage errors too.
+
+    The module has promised this since it was written, and the promise held only
+    while fetching and storing were separate phases: a parse error raised from
+    the fetch, and the four exception types caught here covered it. A walk that
+    writes as it goes raises from the INSERT instead, and a `StatementError` is
+    none of those four.
+
+    On 2026-09-17 that difference escaped `_capture_one`, killed the whole
+    `guide.capture_daily` task, and the feeds after it in the cadence never ran —
+    because ijson hands back `Decimal` and a JSONB column will not take one.
+    """
+
+    async def walk(_client: Any, _window: CaptureWindow) -> AsyncIterator[CaptureBatch]:
+        yield CaptureBatch(rows=[("a", None, {"price": Decimal("1.5")})])
+
+    status, rows, message = await capture._capture_one(
+        _source(walk), _tokens(), config=settings
+    )
+
+    assert (status, rows) == ("failed", 0)
+    assert "Decimal" in message

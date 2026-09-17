@@ -65,6 +65,7 @@ class StreamingJSONMixin:
         params: dict[str, Any] | None = None,
         batch_size: int = 2_000,
         reserve_seconds: float = 0.0,
+        use_float: bool = False,
     ) -> AsyncGenerator[list[Any], None]:
         """Stream a JSON-array response in batches, never holding all of it.
 
@@ -98,6 +99,20 @@ class StreamingJSONMixin:
                 memory ceiling, in rows.
             reserve_seconds: Passed to the rate gate — non-zero marks this as
                 background work that yields its window to anything urgent.
+            use_float: Decode JSON numbers as ``float``/``int`` rather than as
+                ``Decimal``, which is what ijson does by default and what
+                ``httpx``'s own ``.json()`` never did.
+
+                **Which one is right depends on what the caller does with the
+                row, and both answers are load-bearing.** A caller that
+                validates into a typed schema wants the Decimal: the settlement
+                report is money, and going through a binary float to reach a
+                ``Decimal`` field would introduce error that was not in WB's
+                answer. A caller that STORES the row verbatim wants the float,
+                because ``Decimal`` is not JSON-serializable and the payload is
+                written to JSONB untouched — which is how the guide capture
+                failed in production on 2026-09-17, on the first real body it
+                streamed.
 
         Yields:
             Lists of decoded rows, in WB's order, at most ``batch_size`` long.
@@ -113,7 +128,7 @@ class StreamingJSONMixin:
         if response is None:
             return
         buffer = ijson.sendable_list()
-        coro = ijson.items_coro(buffer, "item")
+        coro = ijson.items_coro(buffer, "item", use_float=use_float)
         try:
             async for chunk in response.aiter_bytes():
                 if not chunk:

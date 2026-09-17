@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -24,6 +25,7 @@ import pytest
 from src.core.config import settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.finance import WBFinanceClient
+from src.integrations.wildberries.clients.reference import WBReferenceClient
 from src.integrations.wildberries.rate_limit import NullRateGate
 
 
@@ -144,3 +146,66 @@ async def test_the_streamed_request_asks_for_wb_s_full_allowance() -> None:
 
     assert asked["limit"] == str(client.stream_limit)
     assert client.stream_limit == 100_000
+
+
+def _reference_client(handler: Any) -> WBReferenceClient:
+    """A capture client on a fake host, unpaced — this is about decoding."""
+    client = WBReferenceClient(
+        settings, base_url="https://wb.test", token="t", rate_gate=NullRateGate()
+    )
+    client._client = httpx.AsyncClient(
+        base_url="https://wb.test", transport=httpx.MockTransport(handler)
+    )
+    return client
+
+
+async def test_a_captured_row_can_be_stored_the_way_it_arrives() -> None:
+    """The defect that reached production on 2026-09-17, as an assertion.
+
+    ijson decodes every JSON number as a `Decimal`, and `httpx`'s own `.json()`
+    never did — so moving the orders feed onto the streamed reader silently
+    changed the type of every price in a payload that goes straight into a JSONB
+    column. `Decimal` is not JSON-serializable, and the first real body the
+    capture streamed killed the whole task.
+
+    Nothing in the unit tier could see it: the fake client the feed walks are
+    tested against hands back plain dicts, so the one thing under test here —
+    what the REAL reader produces — was never exercised.
+    """
+    body = json.dumps([{"srid": "a", "finishedPrice": 1234.56, "quantity": 3}]).encode()
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=body)
+
+    client = _reference_client(handler)
+    rows = [row async for batch in client.stream("/api/v1/supplier/orders") for row in batch]
+
+    # The assertion is the storage contract, not the type: a row this client
+    # returns must survive the trip into JSONB, and `json.dumps` is that trip.
+    assert json.dumps(rows) == json.dumps([{"srid": "a", "finishedPrice": 1234.56, "quantity": 3}])
+
+
+async def test_the_settlement_reader_keeps_its_decimals() -> None:
+    """The other half of the same decision, and why it is per-caller.
+
+    Money reaches a `Decimal` field either way; the question is what it passes
+    through on the road. A binary float in the middle introduces error that was
+    not in WB's answer, and this is the report every P&L figure is derived from.
+    So the capture client asks for floats and this one does not — the setting
+    exists because the right answer differs, not because one of them is legacy.
+    """
+    payload = json.dumps(_rows(1)).encode()
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=payload)
+
+    client = _client(handler)
+    seen = [
+        row
+        async for batch in client.stream_report_rows(
+            date_from=date(2026, 7, 9), date_to=date(2026, 8, 8)
+        )
+        for row in batch
+    ]
+
+    assert seen[0].ppvz_for_pay == Decimal("10.5")

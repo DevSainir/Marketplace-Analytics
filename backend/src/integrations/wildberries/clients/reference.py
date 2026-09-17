@@ -105,6 +105,14 @@ class WBReferenceClient(BaseWBClient):
             params: Query parameters, already in WB's own casing.
             batch_size: Rows per batch, and therefore the memory ceiling.
 
+        Numbers come back as ``float`` and ``int``, never ``Decimal``. That is
+        not a detail of this client, it is its contract: everything it fetches
+        is stored verbatim in a JSONB column, and ``Decimal`` cannot be
+        serialized into one. The buffered ``get`` above has always behaved this
+        way because ``httpx`` decodes with the standard library; the streamed
+        path had to ask for it, and production found that out the hard way on
+        2026-09-17.
+
         Yields:
             Lists of decoded rows in WB's own order. Nothing at all when WB
             answers ``204``, which is how several of these feeds say "empty".
@@ -116,7 +124,7 @@ class WBReferenceClient(BaseWBClient):
                 what it has already stored and asks again next run.
         """
         async for batch in self._stream_json_items(
-            "GET", path, params=params, batch_size=batch_size
+            "GET", path, params=params, batch_size=batch_size, use_float=True
         ):
             yield batch
 
