@@ -151,5 +151,29 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
 # why the same page succeeded at 07:20 on a freshly restarted worker and was
 # killed at 09:17 on the same code: nothing had changed but the baseline.
 # Recycling a child bounds the ratchet without anyone having to notice it.
+#
+# `--max-memory-per-child` is the backstop over the top of it, and it is the one
+# that actually decides who ends the process. A task count is a proxy for memory
+# growth and a bad one: measured on prod 2026-09-17, two children of the same
+# age sat at 220 MB and 148 MB, because what a child has held matters and how
+# many times it has held something does not. Three SIGKILLs in the twelve hours
+# to 01:06 that day — one in `guide.capture_daily`, two in the finance harvest —
+# were all a child that had already ratcheted past 500 MB meeting an ordinary
+# allocation.
+#
+# 300 MB (Celery reads KiB, and compares the child's PEAK RSS after each task,
+# so a child that spikes once is retired even if it has since shrunk). The
+# arithmetic against the 768 MiB cap in compose: parent 156 MB measured, two
+# children, so 156 + 2 x 300 = 756 MB of RSS — and the cgroup counts a page
+# shared by fork only once, which is why the same pool reads 267 MB in
+# `memory.current` while its three processes report 433 MB between them. A fresh
+# child is ~147 MB, so this lets one roughly double before it is retired.
+#
+# The difference this buys is the whole point: Celery retires a child BETWEEN
+# tasks, cleanly, and the next task runs in a new one. The kernel does it
+# mid-task, with a SIGKILL, and `acks_on_failure_or_timeout` then acknowledges
+# the message — so the work is not requeued, it is simply gone until the next
+# tick.
 CMD ["celery", "-A", "src.core.celery_app.celery_app", "worker", \
-     "--loglevel=INFO", "--concurrency=2", "--max-tasks-per-child=100"]
+     "--loglevel=INFO", "--concurrency=2", "--max-tasks-per-child=100", \
+     "--max-memory-per-child=307200"]
