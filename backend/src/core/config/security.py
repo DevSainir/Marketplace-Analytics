@@ -96,6 +96,14 @@ class SecuritySettings(BaseSettings):
     # (P2.4); until then the policies are inert whatever this says.
     row_level_security_enabled: bool = Field(default=False)
 
+    # --- Diagnostics (see `src/core/diagnostics.py`) ---
+    # The кабинет a one-off probe against production may read. Empty means the
+    # constant in that module — the operator's own — which is what makes the
+    # gate work on a box nobody configured. Set it only to point another
+    # deployment at its own кабинет; it can never widen the gate, because the
+    # value is one workspace and there is no "all".
+    diagnostic_workspace_id: str = Field(default="")
+
     # --- Per-tenant resource bounds (register P1.13) ---
     # `max_workspaces` / `max_managers` live on the SUBSCRIPTION row, because
     # they are what a customer bought. These three do not: they are safety

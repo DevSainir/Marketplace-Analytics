@@ -19,6 +19,21 @@ Four rules that cost more to discover from a failing test than to state here:
 All four are machine-enforced — `backend/tests/unit/core/test_module_boundaries.py`,
 `frontend/eslint.config.js`, `frontend/tests/integration/architecture.spec.js`.
 
+## Production is somebody else's business, except one кабинет
+
+**Only «Демо» may be looked at.** Every other кабинет on the box belongs to a paying
+customer, and reading one is a disclosure whether or not anything is written. This holds for
+every test, probe, measurement and "just checking" — there is no read-only exemption.
+
+So a probe against production is never a script with its own session: it runs through
+`backend/scripts/diagnose.py`, which hands it a session that is read-only at the transaction
+level and pinned to that кабинет by row-level security, and which offers no way to name a
+different one (`backend/src/core/diagnostics.py`, tests in
+`tests/unit/core/test_diagnostic_gate.py` and
+`tests/integration/core/test_diagnostic_gate_is_enforced.py`). The worker container connects
+as the table owner, so a bare `AsyncSessionLocal()` there reaches every tenant with nothing
+in the way — that is how this rule came to be written.
+
 ## Where the rest lives
 
 The project's rules are skills in `.claude/skills/` — `backend-architecture`, `wildberries-api`,
