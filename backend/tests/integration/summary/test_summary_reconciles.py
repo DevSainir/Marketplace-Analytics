@@ -409,6 +409,12 @@ async def test_order_days_prefer_the_lines_wb_serves(
     The buyout counter stays ``None`` on such a day on purpose: the funnel's
     cohort is its only source, and zero would read as «ничего не выкупили» on
     months that simply predate the harvest.
+
+    A cancelled line is COUNTED as an order and priced with the rest. WB's
+    ``isCancel`` covers the customer refusing at the pickup point, which happens
+    for a fortnight afterwards — measured on the live кабинет, 4 % of yesterday
+    and 56 % of ten days back — so excluding them would draw «Заказы в день» as
+    a line that shrinks with age rather than one a seller can read.
     """
     older = WINDOW_FROM - timedelta(days=200)
     db_session.add_all(
@@ -441,10 +447,10 @@ async def test_order_days_prefer_the_lines_wb_serves(
         )
     }
 
-    # The pre-funnel day: counted and priced from the lines, cancellation excluded.
-    assert days[older].orders == 1
-    assert days[older].amount_seller == Decimal("3000")
-    assert days[older].amount_paid == Decimal("2400")
+    # The pre-funnel day: counted and priced from the lines, cancelled included.
+    assert days[older].orders == 2
+    assert days[older].amount_seller == Decimal("12999")
+    assert days[older].amount_paid == Decimal("12399")
     assert days[older].buyouts is None
     # The funnel's own day is unchanged by any of this.
     assert days[WINDOW_FROM].orders == 40

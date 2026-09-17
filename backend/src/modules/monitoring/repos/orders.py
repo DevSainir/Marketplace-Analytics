@@ -36,13 +36,21 @@ _UPDATE = (
 class OrderDayTotal:
     """One day's orders, summed over a кабинет's SKUs.
 
-    Cancellations are excluded from all three figures: a line the customer
-    cancelled was never demand, and WB cancels days after the fact — which is
-    also why the row stays in the table rather than being deleted.
+    Cancellations are COUNTED, not excluded. Measured on the live кабинет, the
+    cancelled share of a day rises with the day's age — 4 % on yesterday, 56 %
+    ten days back — because WB's ``isCancel`` covers the customer refusing at
+    the pickup point, which happens for a fortnight after the order. Dropping
+    those rows would make «Заказы в день» a line that shrinks as history
+    matures: yesterday busy, last week dead, for no reason a seller could act
+    on. What was ordered is what was ordered; whether it was bought out is the
+    buyout figure's job.
+
+    ``cancelled`` travels alongside so the fact is not lost.
     """
 
     order_date: date
     orders: int
+    cancelled: int
     #: Σ the seller's own price, before WB's СПП.
     amount_seller: Decimal
     #: Σ what the customer pays, СПП applied.
@@ -93,10 +101,12 @@ class OrderRepository(BaseRepository):
         funnel loader keeps, because a gap in the walk and a day of no demand
         must not look alike.
         """
+        cancelled = func.count().filter(OrderRecord.is_cancel.is_(True))
         stmt = (
             select(
                 OrderRecord.order_date,
                 func.count(),
+                cancelled,
                 func.coalesce(func.sum(OrderRecord.price_with_disc), 0),
                 func.coalesce(func.sum(OrderRecord.finished_price), 0),
             )
@@ -104,7 +114,6 @@ class OrderRepository(BaseRepository):
                 OrderRecord.nm_id.in_(workspace_sku_select(workspace_id)),
                 OrderRecord.order_date >= date_from,
                 OrderRecord.order_date <= date_to,
-                OrderRecord.is_cancel.is_(False),
             )
             .group_by(OrderRecord.order_date)
             .order_by(OrderRecord.order_date)
@@ -113,8 +122,9 @@ class OrderRepository(BaseRepository):
             OrderDayTotal(
                 order_date=row[0],
                 orders=int(row[1]),
-                amount_seller=Decimal(row[2]),
-                amount_paid=Decimal(row[3]),
+                cancelled=int(row[2]),
+                amount_seller=Decimal(row[3]),
+                amount_paid=Decimal(row[4]),
             )
             for row in (await self._session.execute(stmt)).all()
         ]

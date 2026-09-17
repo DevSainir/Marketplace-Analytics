@@ -35,9 +35,16 @@ from src.modules.workspaces.contract import LaneStep, WorkspaceTokenBundle
 
 logger = get_logger(__name__)
 
-#: Where a walk with no cursor starts. Before WB existed in its current form, so
-#: it is "everything" without pretending to know when the seller began: the feed
-#: simply answers with their first order.
+#: Where a walk with no cursor starts. Deliberately absurd, so the feed itself
+#: decides how far back it goes rather than us guessing.
+#:
+#: Measured on «Демо» 2026-09-17: asking from 2019 returned 85 119 lines and
+#: the oldest was dated 22.03.2026 — WB's orders archive is about 180 days, and
+#: no `dateFrom` reaches past it. That is SHALLOWER than the analytics funnel's
+#: 365, so this lane is not the deep-history source it looks like: what it adds
+#: is the exact money of each line (the funnel publishes no money at all) and
+#: WB's cancellation flag. The settlement's own two years of history has no
+#: order-level counterpart anywhere in WB's API.
 ORDERS_EPOCH = date(2019, 1, 1)
 
 
