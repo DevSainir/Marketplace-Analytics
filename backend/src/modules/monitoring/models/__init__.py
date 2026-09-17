@@ -25,6 +25,7 @@ from src.modules.monitoring.models.campaigns import (
 from src.modules.monitoring.models.day_actions import SkuDayAction
 from src.modules.monitoring.models.fbs_warehouses import LABEL_MAX_LENGTH, FbsWarehouse
 from src.modules.monitoring.models.matrix_override import MatrixOverride
+from src.modules.monitoring.models.orders import OrderRecord
 from src.modules.monitoring.models.pinned_skus import PinnedSku
 from src.modules.monitoring.models.prices import PriceSnapshot
 from src.modules.monitoring.models.products import ProductCard, ProductSize
@@ -48,6 +49,7 @@ __all__ = [
     "Campaign",
     "FbsWarehouse",
     "MatrixOverride",
+    "OrderRecord",
     "PinnedSku",
     "PriceSnapshot",
     "ProductCard",

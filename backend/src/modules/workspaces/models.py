@@ -94,6 +94,7 @@ class BackfillLane(enum.StrEnum):
     CATALOGUE = "catalogue"  # Каталог — cards, sizes, SKU ownership
     FUNNEL = "funnel"  # Воронка — 365 days, the WB ceiling
     ADVERTISING = "advertising"  # Реклама — to the first campaign
+    ORDERS = "orders"  # Заказы — to the seller's first order, older than the funnel
     PNL = "pnl"  # P&L — to the first settlement report
 
 

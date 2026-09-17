@@ -43,6 +43,7 @@ from src.modules.monitoring.services.backfill import (
     advance_funnel,
     build_ingestion_service,
 )
+from src.modules.monitoring.services.orders_walk import advance_orders
 from src.modules.workspaces.contract import (
     BackfillLane,
     BackfillState,
@@ -242,7 +243,11 @@ def backfill_catalogue(self: Task[object, object], workspace_id: str) -> dict[st
                 else "Нет токена «Контент» — используем уже известные SKU."
             ),
         )
-        for task_name in ("monitoring.backfill_funnel", "monitoring.backfill_advertising"):
+        for task_name in (
+            "monitoring.backfill_funnel",
+            "monitoring.backfill_advertising",
+            "monitoring.backfill_orders",
+        ):
             celery_app.send_task(task_name, kwargs={"workspace_id": workspace_id})
         return {"cards": len(cards)}
 
@@ -344,3 +349,55 @@ def backfill_advertising(
         )
 
     return run_task(_guard(BackfillLane.ADVERTISING, workspace_id, _run()))
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="monitoring.backfill_orders",
+    bind=True,
+    soft_time_limit=_TICK_SOFT_LIMIT_SECONDS,
+    time_limit=_TICK_SOFT_LIMIT_SECONDS + 60,
+    **_TASK_RETRY_KWARGS,
+)
+def backfill_orders(
+    self: Task[object, object], workspace_id: str, chain: str | None = None
+) -> dict[str, object]:
+    """Fetch one page of the orders feed, then queue the next.
+
+    The lane that reaches further back than any other monitoring surface: the
+    funnel answers for a rolling window, while ``supplier/orders`` answers from
+    any date, so this is where «Заказы» older than the harvest come from.
+
+    Unlike the funnel and advertising lanes it needs no catalogue: the feed is
+    account-wide and its rows carry their own ``nm_id``. A кабинет whose cards
+    have not registered yet will simply not SEE these rows until they do —
+    every read joins through ``product_card`` — and the data is already stored
+    by then.
+
+    Args:
+        workspace_id: The workspace being walked.
+        chain: The token of the tick chain this one continues. ``None`` starts a
+            fresh chain and supersedes any other running on this lane.
+    """
+
+    async def _run() -> dict[str, object]:
+        name = "monitoring.backfill_orders"
+        token = await claim_chain(uuid.UUID(workspace_id), BackfillLane.ORDERS, chain)
+        if token is None:
+            logger.info("backfill orders for %s superseded by a newer chain.", workspace_id)
+            return {"superseded": True}
+        if await _yield_to_harvest(
+            task_name=name, workspace_id=workspace_id, lane=BackfillLane.ORDERS, chain=token
+        ):
+            return {"yielded": True}
+        tokens = await _load(workspace_id)
+        cursor = await read_cursor(workspace_id=tokens.workspace_id, lane=BackfillLane.ORDERS)
+        step = await advance_orders(tokens, cursor=cursor)
+        return await _run_step(
+            task_name=name,
+            workspace_id=workspace_id,
+            lane=BackfillLane.ORDERS,
+            step=step,
+            chain=token,
+        )
+
+    return run_task(_guard(BackfillLane.ORDERS, workspace_id, _run()))

@@ -28,26 +28,41 @@ from src.modules.monitoring.models import (
     SalesFunnelDaily,
 )
 from src.modules.monitoring.repos.base import workspace_sku_select
+from src.modules.monitoring.repos.orders import OrderRepository
 
 #: Neutral element for the money sums below.
 _ZERO = Decimal(0)
 
 
 class OrderDay(NamedTuple):
-    """One funnel day, summed over every SKU the workspace owns.
+    """One ordered day, summed over every SKU the workspace owns.
 
-    ``amount`` is what those orders were worth: ``Σ(order_count x seller_price)``
-    over the SKUs of the day, joined to the price snapshot BEFORE the sum
-    because each card is worth its own price. It is ``None`` when not one SKU of
-    that day carried a price snapshot — WB's funnel does not publish a money
-    volume, so a day we never snapshotted a price for has no volume at all, and
-    valuing it at zero would turn «мы не знаем» into «реклама съела всё».
+    Two sources answer this, and they reach different distances. WB's analytics
+    funnel is what a кабинет has from the day this service started harvesting
+    it; the statistics ORDERS feed answers from any date, so it is what the
+    history before that comes from. A day the funnel covers is reported from the
+    funnel — that is the number every other screen shows — and the rest from the
+    order lines.
+
+    ``buyouts`` is therefore ``None`` on a day only the order feed reaches: the
+    funnel's buyout cohort is the only source for it, and a zero there would
+    read as «ничего не выкупили» on months that simply predate the harvest.
+
+    The two money figures are what «ДРР от заказов» divides by, at whichever
+    price base the reader picked. They come from the order lines when there are
+    any — each line carries its own price — and otherwise from
+    ``Σ(order_count x snapshotted price)``, which has no after-СПП half at all.
+    ``None`` means neither was available: a day we cannot value, which must not
+    be valued at zero.
     """
 
     stat_date: date
     orders: int
-    buyouts: int
-    amount: Decimal | None
+    buyouts: int | None
+    #: Σ the seller's own price, before WB's СПП.
+    amount_seller: Decimal | None
+    #: Σ what the customer pays, СПП applied.
+    amount_paid: Decimal | None
 
 
 class AdSpendDay(NamedTuple):
@@ -67,12 +82,11 @@ class AdSpendDay(NamedTuple):
 async def load_order_days(
     session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
 ) -> list[OrderDay]:
-    """Return the workspace's ordered and bought-out units per day.
+    """Return the workspace's ordered units per day, from both sources.
 
-    Days with no funnel row at all are ABSENT from the result rather than zero —
-    that is "we do not know", not "nobody ordered". A gap in coverage is what
-    :func:`funnel_coverage` reports, and filling it with zeroes here would make a
-    hole in the harvest indistinguishable from a day of no demand on the chart.
+    Days no source covers are ABSENT from the result rather than zero — that is
+    "we do not know", not "nobody ordered". Filling a gap in the harvest with
+    zeroes would make it indistinguishable from a day of no demand.
 
     Args:
         session: An open async session (caller owns the transaction).
@@ -82,6 +96,57 @@ async def load_order_days(
 
     Returns:
         Days in ascending date order.
+    """
+    funnel = await _funnel_days(
+        session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
+    )
+    ordered = {
+        row.order_date: row
+        for row in await OrderRepository(session).day_totals(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
+    }
+
+    days: list[OrderDay] = []
+    for day in sorted(funnel.keys() | ordered.keys()):
+        from_funnel = funnel.get(day)
+        from_orders = ordered.get(day)
+        days.append(
+            OrderDay(
+                stat_date=day,
+                # The funnel first where it reaches: it is WB's own analytics
+                # count, and it is what «Сравнение SKU» shows for the same day.
+                orders=from_funnel.orders
+                if from_funnel
+                else (from_orders.orders if from_orders else 0),
+                buyouts=from_funnel.buyouts if from_funnel else None,
+                amount_seller=(
+                    from_orders.amount_seller
+                    if from_orders
+                    else (from_funnel.amount if from_funnel else None)
+                ),
+                amount_paid=from_orders.amount_paid if from_orders else None,
+            )
+        )
+    return days
+
+
+class _FunnelDay(NamedTuple):
+    """One funnel day: counts, and the value the price snapshots can give it."""
+
+    orders: int
+    buyouts: int
+    amount: Decimal | None
+
+
+async def _funnel_days(
+    session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+) -> dict[date, _FunnelDay]:
+    """The analytics funnel's own days, valued at the snapshotted prices.
+
+    The join to the price snapshot happens BEFORE the sum, because each card is
+    worth its own price; a SKU-day with no snapshot contributes its counts and
+    nothing to the money, which is the same silence the per-SKU matrix keeps.
     """
     stmt = (
         select(
@@ -103,15 +168,14 @@ async def load_order_days(
         .group_by(SalesFunnelDaily.stat_date)
         .order_by(SalesFunnelDaily.stat_date)
     )
-    return [
-        OrderDay(
-            stat_date=day,
+    return {
+        day: _FunnelDay(
             orders=int(orders or 0),
             buyouts=int(buyouts or 0),
             amount=None if amount is None else Decimal(amount),
         )
         for day, orders, buyouts, amount in (await session.execute(stmt)).all()
-    ]
+    }
 
 
 async def load_ad_days(

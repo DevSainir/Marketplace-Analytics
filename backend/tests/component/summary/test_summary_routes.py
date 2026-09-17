@@ -54,6 +54,7 @@ class _StubSummaryService:
                 sold_units=6185,
                 orders=20819,
                 buyouts=5665,
+                buyout_orders=20819,
                 uncosted_skus=2,
                 penalties=Decimal("12000"),
                 ad_spend=Decimal("300000"),

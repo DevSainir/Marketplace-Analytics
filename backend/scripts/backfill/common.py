@@ -18,6 +18,7 @@ from src.modules.monitoring.repos import (
     AdvertisingWriteOffRepository,
     CampaignRepository,
     FunnelRepository,
+    OrderRepository,
     PriceRepository,
     ProductCardRepository,
     ProductSizeRepository,
@@ -65,6 +66,7 @@ def _build_service(session: AsyncSession) -> IngestionService:
         advertising_write_off_repo=AdvertisingWriteOffRepository(session),
         price_repo=PriceRepository(session),
         sale_repo=SaleRepository(session),
+        order_repo=OrderRepository(session),
     )
 
 

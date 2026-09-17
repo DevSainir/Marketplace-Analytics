@@ -55,6 +55,7 @@ def build_kpi(
     report: PnlSkuReportResponse,
     orders: int | None,
     buyouts: int | None,
+    buyout_orders: int | None,
     ad_cash: Decimal | None,
     settled_advertising: Decimal,
 ) -> SummaryKpi:
@@ -63,8 +64,10 @@ def build_kpi(
     Args:
         report: The per-SKU P&L for the window — its ``totals`` row is the full
             reconciled window, account-level money included.
-        orders: Funnel orders for the window; ``None`` without coverage.
+        orders: Orders for the window; ``None`` without coverage.
         buyouts: WB's own buyout counter for the window; ``None`` without it.
+        buyout_orders: Orders on the days that counter covers — the only
+            denominator it may be divided by.
         ad_cash: Advertising the seller actually paid for, bonuses removed;
             ``None`` without advertising coverage.
         settled_advertising: The «WB Продвижение» invoices the window's
@@ -101,6 +104,7 @@ def build_kpi(
         sold_units=totals.sold_units - totals.returned_units,
         orders=orders,
         buyouts=buyouts,
+        buyout_orders=buyout_orders,
         uncosted_skus=missing,
         penalties=withheld,
         ad_spend=ad_cash,
@@ -189,7 +193,8 @@ def build_days(
                 revenue_seller=bucket.revenue_seller_price if bucket else None,
                 margin=margin,
                 orders=funnel.orders if funnel else None,
-                orders_amount=funnel.amount if funnel else None,
+                orders_amount_seller=funnel.amount_seller if funnel else None,
+                orders_amount_paid=funnel.amount_paid if funnel else None,
                 sold_units=(bucket.sold_units - bucket.returned_units) if bucket else None,
                 ad_spend=ad_cash,
             )

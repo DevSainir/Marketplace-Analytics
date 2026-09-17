@@ -37,6 +37,7 @@ def test_one_uncosted_sku_withholds_the_whole_margin() -> None:
         report=make_report([costed, uncosted], totals=totals),
         orders=None,
         buyouts=None,
+        buyout_orders=None if None is None else 100,
         ad_cash=None,
         settled_advertising=ZERO,
     )
@@ -54,6 +55,7 @@ def test_a_fully_costed_window_reports_its_margin() -> None:
         report=make_report([row], totals=totals),
         orders=None,
         buyouts=None,
+        buyout_orders=None if None is None else 100,
         ad_cash=Decimal("100"),
         settled_advertising=ZERO,
     )
@@ -79,6 +81,7 @@ def test_advertising_is_subtracted_once_and_the_invoice_is_not_the_copy() -> Non
         report=make_report([row], totals=totals),
         orders=None,
         buyouts=None,
+        buyout_orders=None if None is None else 100,
         ad_cash=Decimal("150"),
         settled_advertising=Decimal("200"),
     )
@@ -101,6 +104,7 @@ def test_without_ad_coverage_the_invoice_stays_inside_the_payout() -> None:
         report=make_report([row], totals=totals),
         orders=None,
         buyouts=None,
+        buyout_orders=None if None is None else 100,
         ad_cash=None,
         settled_advertising=Decimal("200"),
     )
@@ -131,6 +135,7 @@ def test_a_refund_only_sku_without_a_cost_still_withholds_the_margin() -> None:
         report=make_report([refunded], totals=totals),
         orders=None,
         buyouts=None,
+        buyout_orders=None if None is None else 100,
         ad_cash=None,
         settled_advertising=ZERO,
     )
@@ -162,6 +167,7 @@ def test_both_counters_of_the_buyout_travel_rather_than_a_ratio() -> None:
         report=make_report([row], totals=totals),
         orders=100,
         buyouts=27,
+        buyout_orders=None if 27 == None else 100,
         ad_cash=None,
         settled_advertising=ZERO,
     )
@@ -182,6 +188,7 @@ def test_no_funnel_coverage_is_not_zero_orders() -> None:
         report=make_report([row], totals=totals),
         orders=None,
         buyouts=None,
+        buyout_orders=None if None is None else 100,
         ad_cash=None,
         settled_advertising=ZERO,
     )
@@ -204,6 +211,7 @@ def test_both_price_bases_travel_on_every_figure() -> None:
         report=make_report([row], totals=totals),
         orders=None,
         buyouts=None,
+        buyout_orders=None if None is None else 100,
         ad_cash=None,
         settled_advertising=ZERO,
     )
@@ -295,7 +303,13 @@ def test_a_day_the_funnel_misses_has_no_orders_rather_than_zero() -> None:
             make_day(day=date(2026, 7, 20), revenue="1000", margin_profit="500"),
         ],
         order_days=[
-            OrderDay(stat_date=date(2026, 7, 19), orders=40, buyouts=12, amount=Decimal("80000"))
+            OrderDay(
+                stat_date=date(2026, 7, 19),
+                orders=40,
+                buyouts=12,
+                amount_seller=Decimal("80000"),
+                amount_paid=Decimal("70000"),
+            )
         ],
         ad_days=[],
         costed=True,
@@ -318,7 +332,13 @@ def test_a_day_wb_has_not_calculated_still_shows_its_orders_and_its_spend() -> N
     days = build_days(
         buckets=[make_day(day=date(2026, 7, 19), revenue="1000", margin_profit="500")],
         order_days=[
-            OrderDay(stat_date=date(2026, 7, 21), orders=55, buyouts=15, amount=Decimal("110000"))
+            OrderDay(
+                stat_date=date(2026, 7, 21),
+                orders=55,
+                buyouts=15,
+                amount_seller=Decimal("110000"),
+                amount_paid=Decimal("96000"),
+            )
         ],
         ad_days=[AdSpendDay(stat_date=date(2026, 7, 21), spend=Decimal("300"), bonus=ZERO)],
         costed=True,
@@ -358,6 +378,7 @@ def test_the_advertising_invoice_is_not_counted_as_a_withholding() -> None:
         report=report,
         orders=None,
         buyouts=None,
+        buyout_orders=None if None is None else 100,
         ad_cash=Decimal("22000"),
         settled_advertising=Decimal("25000"),
     )

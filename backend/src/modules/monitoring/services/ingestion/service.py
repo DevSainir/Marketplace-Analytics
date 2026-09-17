@@ -23,6 +23,7 @@ from src.integrations.wildberries.schemas import (
     WBFunnelAggregateRow,
     WBFunnelHistoryRow,
     WBNormQueryItem,
+    WBOrderRecord,
     WBPriceGood,
     WBSaleRecord,
     WBStockRow,
@@ -34,6 +35,7 @@ from src.modules.monitoring.repos import (
     AdvertisingWriteOffRepository,
     CampaignRepository,
     FunnelRepository,
+    OrderRepository,
     PriceRepository,
     ProductCardRepository,
     ProductSizeRepository,
@@ -66,6 +68,7 @@ class IngestionService:
         advertising_write_off_repo: AdvertisingWriteOffRepository,
         price_repo: PriceRepository,
         sale_repo: SaleRepository,
+        order_repo: OrderRepository,
     ) -> None:
         """Wire each per-family ingestion unit from the injected repositories."""
         self._funnel = FunnelIngestion(funnel_repo)
@@ -78,7 +81,7 @@ class IngestionService:
         )
         self._stocks = StockIngestion(stock_repo)
         self._prices = PriceIngestion(price_repo)
-        self._sales = SalesIngestion(sale_repo)
+        self._sales = SalesIngestion(sale_repo, order_repo)
         self._catalog = CatalogIngestion(
             product_card_repo=product_card_repo,
             product_size_repo=product_size_repo,
@@ -90,6 +93,10 @@ class IngestionService:
     async def ingest_sales_funnel(self, rows: list[WBFunnelHistoryRow]) -> int:
         """Delegate to :meth:`FunnelIngestion.ingest_sales_funnel`."""
         return await self._funnel.ingest_sales_funnel(rows)
+
+    async def ingest_orders(self, records: list[WBOrderRecord]) -> int:
+        """Delegate to :meth:`SalesIngestion.ingest_orders`."""
+        return await self._sales.ingest_orders(records)
 
     async def ingest_funnel_cohorts(
         self, day: date, rows: list[WBFunnelAggregateRow], *, nm_ids: set[int] | None = None
@@ -210,6 +217,7 @@ class IngestionService:
         customer_prices: list[WBCardProduct] | None = None,
         price_nm_ids: list[int] | None = None,
         sales: list[WBSaleRecord] | None = None,
+        orders: list[WBOrderRecord] | None = None,
         write_offs: list[WBAdvWriteOff] | None = None,
         keep_warehouses: tuple[str, ...] = (),
     ) -> IngestionResult:
@@ -233,6 +241,9 @@ class IngestionService:
                 source failed (the customer side is then left ``NULL``).
             price_nm_ids: The harvested SKUs to snapshot prices for (scopes the
                 account-wide seller feed to this harvest); ``None`` writes all.
+            orders: Raw order lines; ``None`` when the source was not read or
+                failed — which must leave the table untouched rather than
+                sweeping a day to zero.
             sales: Raw per-item sale/return records; ``None`` when the source
                 failed (existing rows are then left untouched).
             write_offs: Raw advertising write-offs naming who funded each charge;
@@ -288,6 +299,8 @@ class IngestionService:
         sales_count = 0
         if sales is not None:
             sales_count = await self.ingest_sales(sales)
+        if orders is not None:
+            await self.ingest_orders(orders)
         # The ledger is only ever swept and rewritten for the window it was
         # actually fetched for, so it needs the window to be known.
         write_off_count = 0

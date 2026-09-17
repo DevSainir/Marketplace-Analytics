@@ -91,6 +91,7 @@ def _service(price_repo: Any) -> IngestionService:
         advertising_write_off_repo=None,  # type: ignore[arg-type]
         price_repo=price_repo,
         sale_repo=None,  # type: ignore[arg-type]
+        order_repo=None,  # type: ignore[arg-type]
     )
 
 

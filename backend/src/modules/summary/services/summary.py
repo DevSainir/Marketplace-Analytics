@@ -164,7 +164,12 @@ class SummaryService:
         )
 
         orders = sum(day.orders for day in order_days) if order_days else None
-        buyouts = sum(day.buyouts for day in order_days) if order_days else None
+        # The buyout counter and its denominator come from the same days: the
+        # funnel is the only source of buyouts, while the orders above now reach
+        # back as far as WB's own order feed does.
+        counted = [day for day in order_days if day.buyouts is not None]
+        buyouts = sum(day.buyouts or 0 for day in counted) if counted else None
+        buyout_orders = sum(day.orders for day in counted) if counted else None
 
         # Composed before the cards, because two of them are built from it: the
         # advertising a card may count is the advertising of the days the
@@ -185,6 +190,7 @@ class SummaryService:
                 report=report,
                 orders=orders,
                 buyouts=buyouts,
+                buyout_orders=buyout_orders,
                 ad_cash=ad_cash,
                 # The invoices the window settled, summed off the day buckets:
                 # the statement's own total would be a second pass for a figure

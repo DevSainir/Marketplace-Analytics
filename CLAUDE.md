@@ -21,9 +21,11 @@ All four are machine-enforced — `backend/tests/unit/core/test_module_boundarie
 
 ## Production is somebody else's business, except one кабинет
 
-**Only «Демо» may be looked at.** Every other кабинет on the box belongs to a paying
-customer, and reading one is a disclosure whether or not anything is written. This holds for
-every test, probe, measurement and "just checking" — there is no read-only exemption.
+**Only «Демо» may be looked at, unless the user asks for another кабинет themselves or
+gives permission.** Every other кабинет on the box belongs to a paying customer, and reading
+one is a disclosure whether or not anything is written. This holds for every test, probe,
+measurement and "just checking" — there is no read-only exemption, and the permission is the
+user's to give rather than yours to infer from the task.
 
 So a probe against production is never a script with its own session: it runs through
 `backend/scripts/diagnose.py`, which hands it a session that is read-only at the transaction

@@ -17,7 +17,8 @@ const day = (over = {}) => ({
   revenue_seller: '1200',
   margin: '300',
   orders: 40,
-  orders_amount: '2000',
+  orders_amount_seller: '2000',
+  orders_amount_paid: '1800',
   sold_units: 12,
   ad_spend: '100',
   ...over,
@@ -43,7 +44,7 @@ describe('drr', () => {
 
 describe('the day charts', () => {
   it('puts ДРР on its own axis, as a percentage', () => {
-    const [count, share] = orderSeries([day()])
+    const [count, share] = orderSeries([day()], { base: 'seller' })
 
     expect(count.axis).toBeUndefined()
     expect(share.axis).toBe('right')

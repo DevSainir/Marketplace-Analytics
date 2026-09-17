@@ -96,10 +96,13 @@ const cards = computed(() => [
   {
     key: 'buyout',
     label: 'Выкуп',
+    // Divided by the orders of the days the counter covers, not by every order
+    // in the window: «Заказов» above now reaches as far back as WB's order feed
+    // does, while the buyout cohort only exists where the funnel does.
     value:
       props.kpi.buyouts === null
         ? pct(ratio(props.kpi.sold_units, props.kpi.orders))
-        : pct(ratio(props.kpi.buyouts, props.kpi.orders)),
+        : pct(ratio(props.kpi.buyouts, props.kpi.buyout_orders)),
     note: props.kpi.buyouts === null ? 'рассчитано: продано к заказано' : 'выкуплено к заказано',
     muted: props.kpi.buyouts === null,
   },

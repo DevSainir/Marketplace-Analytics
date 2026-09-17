@@ -48,8 +48,14 @@ export function revenueSeries(days, { base, costed }) {
   return lines
 }
 
-/** «Заказы и ДРР в день» — the funnel's count against ДРР of the ordered money. */
-export function orderSeries(days) {
+/**
+ * «Заказы и ДРР в день» — the day's orders against ДРР of what they were worth.
+ *
+ * The ordered money follows the same price base as everything else on the page:
+ * a day's orders are worth one thing at the seller's own price and another
+ * after WB's СПП, and the advertising is the same money either way.
+ */
+export function orderSeries(days, { base }) {
   return [
     { name: 'Заказы, шт', color: 'var(--ui-action)', values: days.map((d) => number(d.orders)) },
     {
@@ -57,7 +63,9 @@ export function orderSeries(days) {
       color: 'var(--ui-warn)',
       axis: 'right',
       percent: true,
-      values: days.map((day) => drr(day.ad_spend, day.orders_amount)),
+      values: days.map((day) =>
+        drr(day.ad_spend, base === 'seller' ? day.orders_amount_seller : day.orders_amount_paid),
+      ),
     },
   ]
 }

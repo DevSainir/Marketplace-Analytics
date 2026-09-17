@@ -241,6 +241,7 @@ def _service(cluster_repo: Any, search_repo: Any) -> IngestionService:
         advertising_write_off_repo=None,  # type: ignore[arg-type]
         price_repo=None,  # type: ignore[arg-type]
         sale_repo=None,  # type: ignore[arg-type]
+        order_repo=None,  # type: ignore[arg-type]
     )
 
 

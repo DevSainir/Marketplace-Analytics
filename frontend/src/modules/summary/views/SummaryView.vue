@@ -27,7 +27,7 @@ const store = useSummaryStore()
 const labels = computed(() => store.days.map((day) => day.day))
 
 const dayCharts = computed(() => [
-  { title: 'Заказы и ДРР в день', series: orderSeries(store.days) },
+  { title: 'Заказы и ДРР в день', series: orderSeries(store.days, { base: store.revenueBase }) },
   { title: 'Продажи и ДРР в день', series: saleSeries(store.days, { base: store.revenueBase }) },
 ])
 

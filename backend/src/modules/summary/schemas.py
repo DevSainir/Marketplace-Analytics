@@ -50,6 +50,11 @@ class SummaryKpi(BaseModel):
     orders: int | None
     #: WB's direct buyout counter for the window; ``None`` without coverage.
     buyouts: int | None
+    #: Orders on the days that counter covers. Its own denominator, because
+    #: «Заказов» above now reaches further back than the funnel does: dividing
+    #: one by the other would compare a year of buyouts with two years of
+    #: orders and report a кабинет that buys out a third of what it orders.
+    buyout_orders: int | None
     #: How many SKUs settled units in the window with no cost price on file.
     #: Non-zero is exactly why :attr:`margin` is ``None``.
     uncosted_skus: int
@@ -78,10 +83,12 @@ class SummaryDay(BaseModel):
     margin: Decimal | None
     #: ``None`` on a day the funnel does not cover.
     orders: int | None
-    #: What those orders were worth, ``Σ(заказы x цена продавца)``. ``None``
-    #: when no SKU of that day has a price snapshot — WB's funnel publishes no
-    #: money volume, so without a price there is no volume to publish.
-    orders_amount: Decimal | None
+    #: What those orders were worth at the seller's own price, and at the price
+    #: the customer pays. ``None`` when the day cannot be valued at all — the
+    #: funnel publishes no money volume, so a day reached only by it and never
+    #: priced has no volume, and zero would read as infinite ДРР.
+    orders_amount_seller: Decimal | None
+    orders_amount_paid: Decimal | None
     #: Units WB calculated as sold that day, net of refunds. ``None`` on a day
     #: WB has not calculated.
     sold_units: int | None

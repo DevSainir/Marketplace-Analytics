@@ -103,7 +103,7 @@ class WorkspaceTokenBundle(BaseModel):
 class BackfillLaneStatus(BaseModel):
     """One lane of a workspace's history walk, as the profile renders it."""
 
-    lane: str = Field(description="Lane key: catalogue | funnel | advertising | pnl.")
+    lane: str = Field(description="Lane key: catalogue | funnel | advertising | orders | pnl.")
     label: str = Field(description="Russian lane name, rendered verbatim.")
     state: str = Field(description="pending | running | done | failed.")
     done_units: int = Field(description="Units walked so far (days, windows, pages).")
