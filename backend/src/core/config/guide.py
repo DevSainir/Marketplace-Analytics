@@ -40,6 +40,14 @@ class GuideSettings(BaseSettings):
     #: so a daily run needs one page and this only matters after an outage.
     #: Eight pages is ~640 000 rows, comfortably the whole 188-day window for
     #: any account we have.
+    #:
+    #: **This is a time budget, not a memory one, and it only became one on
+    #: 2026-09-17.** While a run accumulated its pages and handed them over at
+    #: the end, 640 000 decoded orders was ~1.6 GB of Python against a 768 MiB
+    #: worker, and the SECOND page of one first run was enough for the kernel to
+    #: kill the process. The stream now yields 2 000 rows at a time and each
+    #: batch is committed as it lands, so what this number buys is how much of a
+    #: backlog one run may clear — not how much it may hold.
     guide_max_pages_per_run: int = 8
 
     #: Rows of a take/skip feed (reviews, questions) one run captures. The

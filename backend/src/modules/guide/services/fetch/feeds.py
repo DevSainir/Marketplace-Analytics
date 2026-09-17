@@ -2,17 +2,18 @@
 
 Three shapes live here: a cursor stream (orders), a snapshot whose whole content
 is the answer (claims), and take/skip paging (reviews, questions, documents).
-Each returns rows and a resume point; none of them touches the database.
+Each yields batches and the resume point each batch makes safe; none of them
+touches the database.
 """
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any
 
 from src.integrations.wildberries.clients.reference import WBReferenceClient
 from src.modules.guide.services.fetch.common import (
-    CapturedRow,
-    CaptureResult,
+    CaptureBatch,
     CaptureWindow,
     as_rows,
     parse_day,
@@ -24,6 +25,17 @@ from src.modules.guide.services.fetch.common import (
 #: ``lastChangeDate``. A response shorter than this is therefore the last one.
 _ORDERS_PAGE_LIMIT = 80000
 
+#: Rows of the orders stream handed over at a time, and therefore the whole
+#: feed's memory ceiling: ~5 MB at ~2.5 KB a decoded order.
+#:
+#: This number replaced the page as the ceiling on 2026-09-17. Before it, a run
+#: accumulated every page it walked and handed the lot over at the end — eight
+#: pages of 80 000 rows was the documented budget, roughly 1.6 GB of Python
+#: against a 768 MiB worker, and the second page of one first run was enough to
+#: get the process killed. The page limit above is now only WB's own, used to
+#: tell a full response from the last one.
+_ORDERS_BATCH = 2000
+
 #: The orders cursor only accepts ``lastChangeDate``, which is not unique, so
 #: consecutive pages overlap by however many rows share the boundary second.
 #: Rows are keyed by ``srid``, so the overlap upserts onto itself instead of
@@ -32,7 +44,9 @@ _ORDERS_PAGE_LIMIT = 80000
 _ORDERS_PATH = "/api/v1/supplier/orders"
 
 
-async def fetch_orders(client: WBReferenceClient, window: CaptureWindow) -> CaptureResult:
+async def fetch_orders(
+    client: WBReferenceClient, window: CaptureWindow
+) -> AsyncIterator[CaptureBatch]:
     """Walk the orders stream forward from the last ``lastChangeDate`` seen.
 
     On a first run this starts at the floor WB still serves rather than at the
@@ -40,45 +54,58 @@ async def fetch_orders(client: WBReferenceClient, window: CaptureWindow) -> Capt
     than about 181 days, and asking for 2024 simply returns the same first row
     as asking for the cliff.
 
+    **The cursor moves only between pages, never inside one.** WB does not order
+    a page by ``lastChangeDate``, so the largest value seen after half a page is
+    not a point the walk could resume from — rows further down the same page can
+    be older, and a resume from that value would step over them. Rows are
+    therefore yielded with no cursor as they arrive, and the page's maximum is
+    yielded on its own once the page has ended and every row in it is stored.
+
     Args:
         client: Reference client on the statistics host.
         window: Previous cursor and this run's page budget.
 
-    Returns:
-        Every order row whose ``lastChangeDate`` moved since the last run, and
-        the newest ``lastChangeDate`` seen as the next cursor.
+    Yields:
+        Batches of order rows, then the new cursor once a page is complete.
     """
     cursor = window.cursor or f"{window.floor.isoformat()}T00:00:00"
-    rows: list[CapturedRow] = []
     newest = cursor
     for _ in range(max(1, window.max_pages)):
-        payload = await client.get(_ORDERS_PATH, {"dateFrom": cursor, "flag": 0})
-        page = as_rows(
-            payload,
-            key_of=lambda item: item["srid"],
-            day_of=lambda item: parse_day(item.get("date")),
-        )
-        rows.extend(page)
-        if not isinstance(payload, list) or len(payload) < _ORDERS_PAGE_LIMIT:
-            break
-        page_max = max(
-            (str(item.get("lastChangeDate") or "") for item in payload if isinstance(item, dict)),
-            default="",
-        )
+        page_rows = 0
+        page_max = ""
+        async for chunk in client.stream(
+            _ORDERS_PATH, {"dateFrom": cursor, "flag": 0}, batch_size=_ORDERS_BATCH
+        ):
+            page_rows += len(chunk)
+            for item in chunk:
+                if isinstance(item, dict):
+                    stamp = str(item.get("lastChangeDate") or "")
+                    if stamp > page_max:
+                        page_max = stamp
+            yield CaptureBatch(
+                rows=as_rows(
+                    chunk,
+                    key_of=lambda item: item["srid"],
+                    day_of=lambda item: parse_day(item.get("date")),
+                )
+            )
+        if page_max > newest:
+            newest = page_max
+        # Everything WB served for this cursor is now stored, so the walk may
+        # say where it stands.
+        yield CaptureBatch(cursor=newest)
+        if page_rows < _ORDERS_PAGE_LIMIT:
+            return
         if not page_max or page_max <= cursor:
             # A full page that did not advance the cursor: asking again would
             # return the same rows forever. Stop and keep what we have.
-            break
+            return
         cursor = page_max
-        newest = page_max
-    for _, _, payload_row in rows:
-        stamp = str(payload_row.get("lastChangeDate") or "")
-        if stamp > newest:
-            newest = stamp
-    return CaptureResult(rows=rows, cursor=newest)
 
 
-async def fetch_claims(client: WBReferenceClient, window: CaptureWindow) -> CaptureResult:
+async def fetch_claims(
+    client: WBReferenceClient, window: CaptureWindow
+) -> AsyncIterator[CaptureBatch]:
     """Capture every return claim WB still holds, open and archived.
 
     There is no cursor and no window: WB keeps fourteen days and serves all of
@@ -87,26 +114,24 @@ async def fetch_claims(client: WBReferenceClient, window: CaptureWindow) -> Capt
 
     Args:
         client: Reference client on the returns host.
-        window: Unused beyond the row cap; the feed has no date parameters.
+        window: Unused; the feed has no date parameters and no resume point.
 
-    Returns:
-        Open and archived claims, keyed by claim id.
+    Yields:
+        One batch per half — open, then archived.
     """
-    rows: list[CapturedRow] = []
     for archived in ("true", "false"):
         payload = await client.get(
             "/api/v1/claims",
             {"is_archive": archived, "limit": 200, "offset": 0},
         )
         claims = payload.get("claims") if isinstance(payload, dict) else None
-        rows.extend(
-            as_rows(
+        yield CaptureBatch(
+            rows=as_rows(
                 claims,
                 key_of=lambda item: item["id"],
                 day_of=lambda item: parse_day(item.get("dt")),
             )
         )
-    return CaptureResult(rows=rows)
 
 
 async def _take_skip(
@@ -116,18 +141,21 @@ async def _take_skip(
     path: str,
     envelope: str,
     date_field: str,
-) -> CaptureResult:
+) -> AsyncIterator[CaptureBatch]:
     """Walk a ``take``/``skip`` feed oldest-first, resuming from the last offset.
 
     Oldest-first (``order=dateAsc``) rather than newest-first, because the
     offset is only a stable resume point when new rows land at the END of the
     sequence. Newest-first would shift every offset each time a review arrived,
     and the walk would re-read and miss rows in the same pass.
+
+    Each page carries its own new offset, so a run cut short by an error keeps
+    every page before the one that failed.
     """
     skip = int(window.cursor) if window.cursor and window.cursor.isdigit() else 0
     take = 1000
-    rows: list[CapturedRow] = []
-    while len(rows) < window.max_rows:
+    captured = 0
+    while captured < window.max_rows:
         payload = await client.get(
             path, {"isAnswered": "true", "take": take, "skip": skip, "order": "dateAsc"}
         )
@@ -138,29 +166,36 @@ async def _take_skip(
             key_of=lambda item: item["id"],
             day_of=lambda item: parse_day(item.get(date_field)),
         )
-        rows.extend(page)
-        if not isinstance(items, list) or len(items) < take:
-            skip += len(page)
-            break
         skip += len(page)
-    return CaptureResult(rows=rows, cursor=str(skip))
+        captured += len(page)
+        yield CaptureBatch(rows=page, cursor=str(skip))
+        if not isinstance(items, list) or len(items) < take:
+            return
 
 
-async def fetch_feedbacks(client: WBReferenceClient, window: CaptureWindow) -> CaptureResult:
+async def fetch_feedbacks(
+    client: WBReferenceClient, window: CaptureWindow
+) -> AsyncIterator[CaptureBatch]:
     """Capture answered reviews, oldest first, resuming from the last offset."""
-    return await _take_skip(
+    async for batch in _take_skip(
         client, window, path="/api/v1/feedbacks", envelope="feedbacks", date_field="createdDate"
-    )
+    ):
+        yield batch
 
 
-async def fetch_questions(client: WBReferenceClient, window: CaptureWindow) -> CaptureResult:
+async def fetch_questions(
+    client: WBReferenceClient, window: CaptureWindow
+) -> AsyncIterator[CaptureBatch]:
     """Capture answered buyer questions, on the same walk as reviews."""
-    return await _take_skip(
+    async for batch in _take_skip(
         client, window, path="/api/v1/questions", envelope="questions", date_field="createdDate"
-    )
+    ):
+        yield batch
 
 
-async def fetch_documents(client: WBReferenceClient, window: CaptureWindow) -> CaptureResult:
+async def fetch_documents(
+    client: WBReferenceClient, window: CaptureWindow
+) -> AsyncIterator[CaptureBatch]:
     """Capture the document index, one bounded window of history per run.
 
     WB pages this fifty at a time and returns the NEWEST fifty of whatever
@@ -170,9 +205,7 @@ async def fetch_documents(client: WBReferenceClient, window: CaptureWindow) -> C
     start = window.resume_from()
     end = window.yesterday
     if start > end:
-        return CaptureResult(rows=[], captured_through=window.captured_through)
-    rows: list[CapturedRow] = []
-    covered = start
+        return
     for begin, stop in windows(start, end, span_days=31, limit=window.max_windows):
         payload = await client.get(
             "/api/v1/documents/list",
@@ -180,15 +213,14 @@ async def fetch_documents(client: WBReferenceClient, window: CaptureWindow) -> C
         )
         data = payload.get("data") if isinstance(payload, dict) else None
         documents = data.get("documents") if isinstance(data, dict) else None
-        rows.extend(
-            as_rows(
+        yield CaptureBatch(
+            rows=as_rows(
                 documents,
                 key_of=_document_key,
                 day_of=lambda item: parse_day(item.get("creationTime")),
-            )
+            ),
+            captured_through=stop,
         )
-        covered = stop
-    return CaptureResult(rows=rows, captured_through=covered)
 
 
 def _document_key(item: dict[str, Any]) -> str:

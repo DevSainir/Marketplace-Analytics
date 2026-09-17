@@ -23,6 +23,7 @@ harvest that earns money — see the caller for which gate each host gets.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from typing import Any
 
 from src.core.config import Settings
@@ -86,6 +87,38 @@ class WBReferenceClient(BaseWBClient):
             Deliberately untyped: the caller stores it rather than reading it.
         """
         return await self._request("GET", path, params=params)
+
+    async def stream(
+        self, path: str, params: dict[str, Any] | None = None, *, batch_size: int = 2_000
+    ) -> AsyncIterator[list[Any]]:
+        """GET one path and hand its rows over in batches as they arrive.
+
+        For the one feed whose single response does not fit in memory.
+        ``supplier/orders`` is capped by WB at 80 000 rows and offers no page
+        parameter, and a decoded order is ~2.5 KB of Python — so ``get`` on it
+        means a fifth of a gigabyte held at once, which is what OOM-killed the
+        worker on 2026-09-16. Everything else here is small enough that
+        :meth:`get` is the simpler and therefore better choice.
+
+        Args:
+            path: Request path on this client's host.
+            params: Query parameters, already in WB's own casing.
+            batch_size: Rows per batch, and therefore the memory ceiling.
+
+        Yields:
+            Lists of decoded rows in WB's own order. Nothing at all when WB
+            answers ``204``, which is how several of these feeds say "empty".
+
+        Raises:
+            IntegrationError: On a refused gate, an exhausted retry ladder, or a
+                failure part-way through the body. A mid-body failure cannot be
+                retried — see :meth:`_stream_json_items` — so the caller keeps
+                what it has already stored and asks again next run.
+        """
+        async for batch in self._stream_json_items(
+            "GET", path, params=params, batch_size=batch_size
+        ):
+            yield batch
 
     async def run_report(self, path: str, params: dict[str, Any]) -> Any:
         """Drive WB's async report flow: create, poll until done, download.

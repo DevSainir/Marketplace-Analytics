@@ -1,9 +1,17 @@
 """What a walk is handed, what it gives back, and the window arithmetic.
 
-A fetcher is a function of ``(client, window) -> CaptureResult``. It does not
-touch the database, does not know which workspace it is running for and does not
-decide whether to run — all three belong to :mod:`..capture`, which is what
+A fetcher is an async generator of ``(client, window) -> CaptureBatch``. It does
+not touch the database, does not know which workspace it is running for and does
+not decide whether to run — all three belong to :mod:`..capture`, which is what
 makes a fetcher testable with a fake client and nothing else.
+
+**It yields rather than returns, and that is the memory bound of this module.**
+A fetcher used to collect every page of every window into one list and hand the
+whole run over at the end, so its peak was the run: `supplier/orders` alone is
+80 000 rows a page and eight pages a run, and a decoded WB order is ~2.5 KB of
+Python. On 2026-09-16 the second page of a first run took the worker over its
+768 MiB cgroup and the kernel killed it. Yielding moves the ceiling from "what
+one run captures" to "what one batch holds", which is a constant.
 """
 
 from __future__ import annotations
@@ -56,17 +64,28 @@ class CaptureWindow:
 
 
 @dataclass(frozen=True, slots=True)
-class CaptureResult:
-    """What a walk produced, and where the next one should resume.
+class CaptureBatch:
+    """One committable slice of a walk, and where it leaves the watermark.
 
     Attributes:
-        rows: Captured rows, ready to upsert.
-        cursor: New resume point, or ``None`` to leave the old one alone.
+        rows: Captured rows, ready to upsert. May be empty — a batch that
+            carries only a watermark is how a walk says "everything up to here
+            is safely stored".
+        cursor: Resume point, or ``None`` to leave the previous one alone.
+
+            **Only set it where a resume from it would lose nothing.** The
+            orders stream is the case that makes this a rule rather than a
+            style: its cursor is the largest ``lastChangeDate`` in a page, and
+            WB does not order the page by it, so the largest seen SO FAR is not
+            a safe place to resume from — rows later in the same page can be
+            older. So the stream yields rows as they arrive with no cursor, and
+            the cursor once the page has ended.
         captured_through: Last day now fully covered, or ``None`` for a feed
-            that does not walk days.
+            that does not walk days. Same rule: a window's day is safe only once
+            that whole window has been yielded.
     """
 
-    rows: list[CapturedRow]
+    rows: list[CapturedRow] = field(default_factory=list)
     cursor: str | None = None
     captured_through: date | None = None
 
@@ -151,7 +170,7 @@ def parse_day(value: Any) -> date | None:
 
 
 __all__ = [
-    "CaptureResult",
+    "CaptureBatch",
     "CaptureWindow",
     "CapturedRow",
     "as_rows",

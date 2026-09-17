@@ -9,9 +9,13 @@ lives here:
 * **A failure is per source, per workspace.** One WB outage, one missing token
   or one malformed feed must not cost the other ten their run, so every walk is
   caught and recorded rather than raised.
-* **A failed walk does not move its watermark.** The next run re-reads instead
-  of stepping over the gap, which is the whole difference between a late
-  capture and a missing one.
+* **A failed walk keeps the watermark its committed batches earned, and not one
+  step further.** The rows a run stored before it died are real, so re-reading
+  them buys nothing; what must never happen is the watermark passing a row that
+  was never stored. That is why a batch carries the watermark it makes safe
+  rather than the walk announcing one at the end — and why a stream that cannot
+  name a safe point mid-page simply does not carry one (see
+  :class:`~src.modules.guide.services.fetch.common.CaptureBatch`).
 * **The rate gates are the surface's own.** The buckets are keyed per endpoint,
   so these calls queue against themselves and not against the funnel, the
   settlement walk or fullstats — see :func:`_gate_for`.
@@ -19,8 +23,10 @@ lives here:
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import date, timedelta
+from typing import NamedTuple
 
 from src.core.config import Settings, settings
 from src.core.database import AsyncSessionLocal
@@ -37,7 +43,7 @@ from src.integrations.wildberries.rate_limit import (
     statistics_rate_gate,
 )
 from src.modules.guide.repos import GuideRepository
-from src.modules.guide.services.fetch import CaptureWindow
+from src.modules.guide.services.fetch import CaptureBatch, CaptureWindow
 from src.modules.guide.sources import GuideCadence, GuideSource, sources_for
 from src.modules.workspaces.contract import WorkspaceTokenBundle, load_workspace_token_bundles
 
@@ -115,6 +121,7 @@ async def _capture_one(
         max_rows=config.guide_max_rows_per_run,
     )
 
+    mark = _Watermark(cursor=cursor, captured_through=captured_through, rows=0)
     try:
         async with WBReferenceClient(
             config,
@@ -122,10 +129,14 @@ async def _capture_one(
             token=token,
             rate_gate=_gate_for(source, token=token, config=config),
         ) as client:
-            result = await source.fetch(client, window)
+            async for batch in source.fetch(client, window):
+                mark = await _store(
+                    source=source, workspace_id=workspace_id, batch=batch, mark=mark
+                )
     except (IntegrationError, ValueError, KeyError, TypeError) as exc:
         # Recorded, never raised: one bad feed must not cost the other ten their
-        # run, and the watermark stays where it was so the next run re-reads.
+        # run. What the walk had already stored stays stored, and the watermark
+        # stays at the last point every row behind it was written.
         message = f"{type(exc).__name__}: {exc}"
         logger.warning("guide: %s failed for %s (%s).", source.key, bundle.name, message[:200])
         async with AsyncSessionLocal() as session:
@@ -133,31 +144,89 @@ async def _capture_one(
                 source=source.key,
                 workspace_id=workspace_id,
                 status="failed",
-                rows=0,
-                cursor=cursor,
-                captured_through=captured_through,
+                rows=mark.rows,
+                cursor=mark.cursor,
+                captured_through=mark.captured_through,
                 message=message,
             )
             await session.commit()
-        return "failed", 0, message
+        return "failed", mark.rows, message
 
+    if mark.rows == 0:
+        # An empty walk still records a run: "we asked and there was nothing" is
+        # a different state from "nobody has asked", and only the row says which.
+        async with AsyncSessionLocal() as session:
+            await GuideRepository(session).record_run(
+                source=source.key,
+                workspace_id=workspace_id,
+                status="empty",
+                rows=0,
+                cursor=mark.cursor,
+                captured_through=mark.captured_through,
+            )
+            await session.commit()
+        return "empty", 0, ""
+    return "ok", mark.rows, ""
+
+
+class _Watermark(NamedTuple):
+    """How far a walk has got, as the database now records it.
+
+    Attributes:
+        cursor: Resume point for the next run.
+        captured_through: Last day fully covered.
+        rows: Rows stored so far this run, carried because `guide_run.rows`
+            describes the RUN and each batch only knows about itself.
+    """
+
+    cursor: str | None
+    captured_through: date | None
+    rows: int
+
+
+async def _store(
+    *,
+    source: GuideSource,
+    workspace_id: uuid.UUID,
+    batch: CaptureBatch,
+    mark: _Watermark,
+) -> _Watermark:
+    """Commit one batch and the watermark it earned, in one transaction.
+
+    Together, and that is the point: rows written without the watermark are
+    re-read next run (merely wasteful), while a watermark written without its
+    rows steps over them for good. One transaction makes the pair impossible to
+    get out of step, whatever kills the process next.
+
+    Args:
+        source: The feed being walked.
+        workspace_id: Owning tenant.
+        batch: What the walk just produced.
+        mark: Where the walk stood before it.
+
+    Returns:
+        The updated watermark.
+    """
+    moved = _Watermark(
+        cursor=batch.cursor if batch.cursor is not None else mark.cursor,
+        captured_through=(
+            batch.captured_through if batch.captured_through is not None else mark.captured_through
+        ),
+        rows=mark.rows + len(batch.rows),
+    )
     async with AsyncSessionLocal() as session:
         repo = GuideRepository(session)
-        stored = await repo.upsert_records(
-            source=source.key, workspace_id=workspace_id, rows=result.rows
-        )
+        await repo.upsert_records(source=source.key, workspace_id=workspace_id, rows=batch.rows)
         await repo.record_run(
             source=source.key,
             workspace_id=workspace_id,
-            status="ok" if stored else "empty",
-            rows=stored,
-            cursor=result.cursor if result.cursor is not None else cursor,
-            captured_through=(
-                result.captured_through if result.captured_through is not None else captured_through
-            ),
+            status="ok" if moved.rows else "empty",
+            rows=moved.rows,
+            cursor=moved.cursor,
+            captured_through=moved.captured_through,
         )
         await session.commit()
-    return ("ok" if stored else "empty"), stored, ""
+    return moved
 
 
 async def capture_cadence(

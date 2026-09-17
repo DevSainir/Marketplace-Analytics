@@ -10,8 +10,8 @@ files behind it.
 from __future__ import annotations
 
 from src.modules.guide.services.fetch.common import (
+    CaptureBatch,
     CapturedRow,
-    CaptureResult,
     CaptureWindow,
     as_rows,
     parse_day,
@@ -33,7 +33,7 @@ from src.modules.guide.services.fetch.reports import (
 )
 
 __all__ = [
-    "CaptureResult",
+    "CaptureBatch",
     "CaptureWindow",
     "CapturedRow",
     "as_rows",

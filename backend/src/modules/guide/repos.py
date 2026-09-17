@@ -15,8 +15,9 @@ from src.modules.guide.models import GuideRecord, GuideRun
 
 #: asyncpg counts Bind parameters in an int16, so 32767 is the ceiling for one
 #: statement. Six columns per row leaves this chunk size an order of magnitude
-#: clear of it, which matters because the orders feed arrives 80 000 rows at a
-#: time.
+#: clear of it. It also matches the size of the batches the orders walk hands
+#: over, so the common case is exactly one statement per batch — but the chunking
+#: stays, because this repository does not get to assume its caller batched.
 _MAX_ROWS_PER_STATEMENT = 2000
 
 

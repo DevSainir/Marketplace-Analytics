@@ -81,8 +81,10 @@ class GuideRun(Base):
             windowed sources resume from here; a feed with no windows leaves it
             null.
         last_status: ``ok`` | ``empty`` | ``failed`` | ``skipped``. A failed run
-            leaves the cursor untouched, so the next one re-reads rather than
-            stepping over the gap.
+            leaves the cursor at the last point every row behind it was stored —
+            which since 2026-09-17 is not necessarily where the run started, because
+            a walk commits its batches as they arrive. What it never does is move
+            past a row that was captured and not written.
         rows: Rows captured by the last run.
         message: Why it failed, or what it skipped. Never a token — this is read
             from logs and dashboards.

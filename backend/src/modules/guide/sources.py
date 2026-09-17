@@ -37,13 +37,13 @@ the feed to capture is `/api/v3/orders` (60-day window), which carries
 from __future__ import annotations
 
 import enum
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass
 
 from src.core.config import Settings
 from src.integrations.wildberries.clients.reference import WBReferenceClient
 from src.modules.guide.services.fetch import (
-    CaptureResult,
+    CaptureBatch,
     CaptureWindow,
     fetch_acceptance_report,
     fetch_claims,
@@ -81,8 +81,10 @@ class GuideSource:
         tokens: Bundle fields to try in order; the first non-empty one is used.
             A tuple because the tariff feeds are account-independent and any
             seller token answers them, while the rest need one specific scope.
-        fetch: The walk. Takes a client and the previous watermark, returns rows
-            plus the new watermark.
+        fetch: The walk. Takes a client and the previous watermark, and YIELDS
+            batches — each one a slice small enough to hold, carrying the
+            watermark it makes safe. Never a whole run at once: see
+            :class:`~src.modules.guide.services.fetch.common.CaptureBatch`.
         why: What this would be for, the day someone asks. Written now because
             the answer is much harder to reconstruct later.
         retention: What WB will still serve, as measured. The cadence is only
@@ -94,7 +96,7 @@ class GuideSource:
     cadence: GuideCadence
     base_url: str
     tokens: tuple[str, ...]
-    fetch: Callable[[WBReferenceClient, CaptureWindow], Awaitable[CaptureResult]]
+    fetch: Callable[[WBReferenceClient, CaptureWindow], AsyncIterator[CaptureBatch]]
     why: str
     retention: str
 
@@ -279,7 +281,7 @@ def sources_for(cadence: GuideCadence) -> Sequence[GuideSource]:
 
 __all__ = [
     "GUIDE_SOURCES",
-    "CaptureResult",
+    "CaptureBatch",
     "CaptureWindow",
     "GuideCadence",
     "GuideSource",
