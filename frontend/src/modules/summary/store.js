@@ -16,6 +16,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
+import { presetRange } from '@/core/utils/calendarModel'
 import { fetchSummary, fetchSummarySpan } from '@/modules/summary/api'
 import { buildCategories } from '@/modules/summary/categories'
 
@@ -28,10 +29,15 @@ function isoDate(date) {
   return shifted.toISOString().slice(0, 10)
 }
 
-/** `days` back from `end` (inclusive), as an ISO pair. */
+/**
+ * `days` back from `end` (inclusive), as an ISO pair.
+ *
+ * Delegated to `calendarModel` so the window a preset SETS and the window the
+ * controls test for equality are produced by one function: two copies of this
+ * arithmetic is what left every preset unhighlighted.
+ */
 function windowEnding(end, days) {
-  const last = new Date(`${end}T00:00:00`)
-  return { from: isoDate(new Date(last.getTime() - (days - 1) * 86400000)), to: end }
+  return presetRange(days, end)
 }
 
 export const useSummaryStore = defineStore('summary', () => {

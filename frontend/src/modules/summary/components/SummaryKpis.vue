@@ -73,6 +73,7 @@ const cards = computed(() => [
         : `${pct(ratio(props.kpi.margin, revenue.value))} выручки`,
     muted: props.kpi.margin === null,
     negative: props.kpi.margin !== null && Number(props.kpi.margin) < 0,
+    positive: props.kpi.margin !== null && Number(props.kpi.margin) > 0,
   },
   {
     key: 'sold',
@@ -128,7 +129,11 @@ const cards = computed(() => [
       <div class="sum-kpi__label">{{ card.label }}</div>
       <div
         class="sum-kpi__value"
-        :class="{ 'sum-kpi__value--muted': card.muted, 'sum-kpi__value--neg': card.negative }"
+        :class="{
+          'sum-kpi__value--muted': card.muted,
+          'sum-kpi__value--neg': card.negative,
+          'sum-kpi__value--pos': card.positive,
+        }"
       >
         {{ card.value }}
       </div>
@@ -144,21 +149,50 @@ const cards = computed(() => [
    recipe instead: surface, 1px ring, the small shadow. */
 .sum-kpis {
   display: grid;
-  /* Four to a row, so seven figures read as two rows rather than one strip of
-     narrow columns. */
-  grid-template-columns: repeat(4, 1fr);
+  /* Twelve columns rather than four, so both rows span the full width: the
+     first four cards take three columns each, the last three take four. A
+     four-column grid left the second row three-quarters wide with a gap where
+     the eighth card would be. */
+  grid-template-columns: repeat(12, 1fr);
   gap: 10px;
 }
 
+.sum-kpi:nth-child(-n + 4) {
+  grid-column: span 3;
+}
+
+.sum-kpi:nth-child(n + 5) {
+  grid-column: span 4;
+}
+
+/* Narrower: six columns (three cards and three cards, then one full row), then
+   two. The spans are restated because they are what fills each row. */
 @media (max-width: 1100px) {
   .sum-kpis {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .sum-kpi:nth-child(-n + 6) {
+    grid-column: span 2;
+  }
+
+  .sum-kpi:nth-child(n + 7) {
+    grid-column: span 6;
   }
 }
 
 @media (max-width: 640px) {
   .sum-kpis {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .sum-kpi:nth-child(-n + 6),
+  .sum-kpi:nth-child(n + 7) {
+    grid-column: span 1;
+  }
+
+  .sum-kpi:last-child {
+    grid-column: span 2;
   }
 }
 
@@ -195,6 +229,10 @@ const cards = computed(() => [
 
 .sum-kpi__value--neg {
   color: var(--ui-neg);
+}
+
+.sum-kpi__value--pos {
+  color: var(--ui-pos);
 }
 
 .sum-kpi__note {

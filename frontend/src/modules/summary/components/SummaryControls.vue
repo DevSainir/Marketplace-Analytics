@@ -11,7 +11,7 @@
  * sales.
  */
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
-import { PRESETS } from '@/core/utils/calendarModel'
+import { PRESETS, presetRange } from '@/core/utils/calendarModel'
 import { BASES } from '@/modules/summary/categories'
 
 const props = defineProps({
@@ -24,13 +24,19 @@ const props = defineProps({
 })
 const emit = defineEmits(['period', 'preset-days', 'preset-all', 'base'])
 
-/** Whether a preset's window is the one currently loaded. */
+/**
+ * Whether a preset's window is the one currently loaded.
+ *
+ * The range comes from `presetRange`, the same function the picker itself
+ * applies. Computing it here independently is what broke the highlight: this
+ * one went through `toISOString`, which converts to UTC, so east of Greenwich
+ * every start date came out a day early and no preset ever matched the window
+ * it had just set.
+ */
 function isPreset(days) {
   const end = props.span?.date_to
   if (!end || props.dateTo !== end) return false
-  const last = new Date(`${end}T00:00:00`)
-  const from = new Date(last.getTime() - (days - 1) * 86400000)
-  return props.dateFrom === from.toISOString().slice(0, 10)
+  return props.dateFrom === presetRange(days, end).from
 }
 
 const chip = (active) =>

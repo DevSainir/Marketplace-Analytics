@@ -14,6 +14,7 @@ import { RouterLink } from 'vue-router'
 
 import PnlDashboardCards from '@/modules/finreports/components/PnlDashboardCards.vue'
 import ReportFreshnessLine from '@/modules/finreports/components/ReportFreshnessLine.vue'
+import { shiftIsoDate } from '@/modules/finreports/savedPeriod'
 import { useFinReportsStore } from '@/modules/finreports/store'
 
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
@@ -65,8 +66,10 @@ function isPresetActive(days) {
   if (!store.fullSpan || isAllHistory.value) return false
   const end = store.fullSpan.date_to
   if (store.dateTo !== end) return false
-  const start = new Date(new Date(end).getTime() - (days - 1) * 86400000)
-  return store.dateFrom === start.toISOString().slice(0, 10)
+  // `shiftIsoDate`, the same helper the store's own preset uses. Computing it
+  // here went through `toISOString`, which converts to UTC: east of Greenwich
+  // the start came out a day early and no preset was ever highlighted.
+  return store.dateFrom === shiftIsoDate(end, -(days - 1))
 }
 
 onMounted(async () => {
