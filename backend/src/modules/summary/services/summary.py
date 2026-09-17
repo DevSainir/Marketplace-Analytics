@@ -13,7 +13,7 @@ constructor arguments rather than being wired here from their repositories.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.timeutils import moscow_today
 from src.modules.finreports.contract import PnlGrouping, PnlService, SkuReportService
 from src.modules.monitoring.contract import (
+    BUYOUT_LAG_END_DAYS,
+    BUYOUT_LAG_START_DAYS,
+    OrderDay,
     ad_bonus_coverage,
     ad_coverage,
     funnel_coverage,
@@ -35,6 +38,7 @@ from src.modules.summary.services.compose import (
     build_days,
     build_kpi,
     build_rows,
+    buyout_cohort,
     uncosted_skus,
     window_ad_cash,
 )
@@ -73,6 +77,39 @@ class SummaryService:
             date_to=max(ends) if ends else None,
             settled_to=settled[1] if settled else None,
         )
+
+    async def _buyout(
+        self, session: AsyncSession, *, workspace_id: uuid.UUID, days: list[OrderDay]
+    ) -> tuple[int | None, int | None, bool]:
+        """Return the window's buyout cohort, or the standing one if it has none.
+
+        The cohort is lagged by :data:`BUYOUT_LAG_END_DAYS`, the same lag the
+        «Сравнение SKU» matrix applies, and for the same measured reason: inside
+        a fresh cohort the refusals arrive before the buyouts do. On the live
+        кабинет the current week reads 22.2 % against a long-run 26-30 %, on
+        8 % of its deliveries having answered at all.
+
+        A period entirely inside that lag — «7 дней», the page's own default —
+        has no cohort to report, so rather than print a number that is merely
+        early, the standing «21-7 дней назад» window answers instead and the
+        page says that is what it did.
+
+        Returns:
+            ``(bought out, answered, taken from the standing window)``.
+        """
+        cutoff = moscow_today() - timedelta(days=BUYOUT_LAG_END_DAYS)
+        bought, answered = buyout_cohort(days, until=cutoff)
+        if answered:
+            return bought, answered, False
+
+        standing = await load_order_days(
+            session,
+            workspace_id=workspace_id,
+            date_from=moscow_today() - timedelta(days=BUYOUT_LAG_START_DAYS),
+            date_to=cutoff,
+        )
+        bought, answered = buyout_cohort(standing, until=cutoff)
+        return bought, answered, answered is not None
 
     async def build(
         self,
@@ -164,12 +201,9 @@ class SummaryService:
         )
 
         orders = sum(day.orders for day in order_days) if order_days else None
-        # The buyout counter and its denominator come from the same days: the
-        # funnel is the only source of buyouts, while the orders above now reach
-        # back as far as WB's own order feed does.
-        counted = [day for day in order_days if day.buyouts is not None]
-        buyouts = sum(day.buyouts or 0 for day in counted) if counted else None
-        buyout_orders = sum(day.orders for day in counted) if counted else None
+        buyouts, decided, lagged = await self._buyout(
+            session, workspace_id=workspace_id, days=order_days
+        )
 
         # Composed before the cards, because two of them are built from it: the
         # advertising a card may count is the advertising of the days the
@@ -190,7 +224,8 @@ class SummaryService:
                 report=report,
                 orders=orders,
                 buyouts=buyouts,
-                buyout_orders=buyout_orders,
+                buyout_decided=decided,
+                buyout_lagged=lagged,
                 ad_cash=ad_cash,
                 # The invoices the window settled, summed off the day buckets:
                 # the statement's own total would be a second pass for a figure

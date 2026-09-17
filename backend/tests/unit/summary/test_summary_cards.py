@@ -17,7 +17,11 @@ from datetime import date
 from decimal import Decimal
 
 from src.modules.monitoring.contract import AdSpendDay, OrderDay
-from src.modules.summary.services.compose import build_days, build_kpi, window_ad_cash
+from src.modules.summary.services.compose import (
+    build_days,
+    build_kpi,
+    window_ad_cash,
+)
 from tests.unit.summary.builders import ZERO, make_day, make_report, make_row
 
 
@@ -37,7 +41,8 @@ def test_one_uncosted_sku_withholds_the_whole_margin() -> None:
         report=make_report([costed, uncosted], totals=totals),
         orders=None,
         buyouts=None,
-        buyout_orders=None if None is None else 100,
+        buyout_decided=None,
+        buyout_lagged=False,
         ad_cash=None,
         settled_advertising=ZERO,
     )
@@ -55,7 +60,8 @@ def test_a_fully_costed_window_reports_its_margin() -> None:
         report=make_report([row], totals=totals),
         orders=None,
         buyouts=None,
-        buyout_orders=None if None is None else 100,
+        buyout_decided=None,
+        buyout_lagged=False,
         ad_cash=Decimal("100"),
         settled_advertising=ZERO,
     )
@@ -81,7 +87,8 @@ def test_advertising_is_subtracted_once_and_the_invoice_is_not_the_copy() -> Non
         report=make_report([row], totals=totals),
         orders=None,
         buyouts=None,
-        buyout_orders=None if None is None else 100,
+        buyout_decided=None,
+        buyout_lagged=False,
         ad_cash=Decimal("150"),
         settled_advertising=Decimal("200"),
     )
@@ -104,7 +111,8 @@ def test_without_ad_coverage_the_invoice_stays_inside_the_payout() -> None:
         report=make_report([row], totals=totals),
         orders=None,
         buyouts=None,
-        buyout_orders=None if None is None else 100,
+        buyout_decided=None,
+        buyout_lagged=False,
         ad_cash=None,
         settled_advertising=Decimal("200"),
     )
@@ -135,7 +143,8 @@ def test_a_refund_only_sku_without_a_cost_still_withholds_the_margin() -> None:
         report=make_report([refunded], totals=totals),
         orders=None,
         buyouts=None,
-        buyout_orders=None if None is None else 100,
+        buyout_decided=None,
+        buyout_lagged=False,
         ad_cash=None,
         settled_advertising=ZERO,
     )
@@ -143,14 +152,16 @@ def test_a_refund_only_sku_without_a_cost_still_withholds_the_margin() -> None:
     assert kpi.margin is None
 
 
-def test_both_counters_of_the_buyout_travel_rather_than_a_ratio() -> None:
-    """Units, orders and WB's own counter go out raw; the page divides them.
+def test_the_buyout_counter_travels_with_its_own_denominator() -> None:
+    """Bought out and ANSWERED go out raw; the page divides them.
 
-    «Выкуп» is settled units over orders so it agrees with the two cards beside
-    it — a reader divides those in their head, and a third number in that
-    position reads as an error. WB's direct counter is carried alongside, and
-    neither ratio is computed here: a percentage is presentation, and computing
-    it server-side is what would force a round trip to change a price base.
+    The denominator is deliveries the buyer answered — bought out or refused —
+    which is WB's own definition and the one «Сравнение SKU» has always used.
+    Dividing by ORDERS instead is what made this card climb for three weeks
+    after every order: an order still in transit counted against the rate as
+    though it had been refused. Measured on the live кабинет, the orders-based
+    figure reads 16 % on a week-old cohort and 26 % on a month-old one, while
+    the answered-based figure reads 27.8 % and 26.6 %.
     """
     row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
     totals = make_row(
@@ -167,12 +178,14 @@ def test_both_counters_of_the_buyout_travel_rather_than_a_ratio() -> None:
         report=make_report([row], totals=totals),
         orders=100,
         buyouts=27,
-        buyout_orders=None if 27 == None else 100,
+        buyout_decided=100,
+        buyout_lagged=False,
         ad_cash=None,
         settled_advertising=ZERO,
     )
 
-    assert (kpi.sold_units, kpi.orders, kpi.buyouts) == (30, 100, 27)
+    assert (kpi.sold_units, kpi.orders) == (30, 100)
+    assert (kpi.buyouts, kpi.buyout_decided) == (27, 100)
 
 
 def test_no_funnel_coverage_is_not_zero_orders() -> None:
@@ -188,7 +201,8 @@ def test_no_funnel_coverage_is_not_zero_orders() -> None:
         report=make_report([row], totals=totals),
         orders=None,
         buyouts=None,
-        buyout_orders=None if None is None else 100,
+        buyout_decided=None,
+        buyout_lagged=False,
         ad_cash=None,
         settled_advertising=ZERO,
     )
@@ -211,7 +225,8 @@ def test_both_price_bases_travel_on_every_figure() -> None:
         report=make_report([row], totals=totals),
         orders=None,
         buyouts=None,
-        buyout_orders=None if None is None else 100,
+        buyout_decided=None,
+        buyout_lagged=False,
         ad_cash=None,
         settled_advertising=ZERO,
     )
@@ -307,6 +322,7 @@ def test_a_day_the_funnel_misses_has_no_orders_rather_than_zero() -> None:
                 stat_date=date(2026, 7, 19),
                 orders=40,
                 buyouts=12,
+                decided=30,
                 amount_seller=Decimal("80000"),
                 amount_paid=Decimal("70000"),
             )
@@ -336,6 +352,7 @@ def test_a_day_wb_has_not_calculated_still_shows_its_orders_and_its_spend() -> N
                 stat_date=date(2026, 7, 21),
                 orders=55,
                 buyouts=15,
+                decided=40,
                 amount_seller=Decimal("110000"),
                 amount_paid=Decimal("96000"),
             )
@@ -378,7 +395,8 @@ def test_the_advertising_invoice_is_not_counted_as_a_withholding() -> None:
         report=report,
         orders=None,
         buyouts=None,
-        buyout_orders=None if None is None else 100,
+        buyout_decided=None,
+        buyout_lagged=False,
         ad_cash=Decimal("22000"),
         settled_advertising=Decimal("25000"),
     )

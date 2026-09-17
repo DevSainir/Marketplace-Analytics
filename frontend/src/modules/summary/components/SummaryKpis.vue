@@ -88,23 +88,25 @@ const cards = computed(() => [
     note: props.kpi.orders === null ? 'нет данных воронки' : 'штук',
     muted: props.kpi.orders === null,
   },
-  // WB's own counter, not «продано к заказано». The two read the same but are
-  // not the same measurement: the funnel counts a buyout on the day it happens,
-  // while «продано» is what WB CALCULATED in the window — a sale ordered before
-  // it, settled inside it, and refunds netted off. The two clocks differ by the
-  // settlement lag, so the ratio between them was a number with no period.
+  // WB's own definition: bought out over ANSWERED deliveries — bought out plus
+  // refused — never over orders. An order still in transit belongs to neither
+  // half, which is what stops the figure starting near zero and climbing for
+  // three weeks after every cohort.
   {
     key: 'buyout',
     label: 'Выкуп',
-    // Divided by the orders of the days the counter covers, not by every order
-    // in the window: «Заказов» above now reaches as far back as WB's order feed
-    // does, while the buyout cohort only exists where the funnel does.
-    value:
-      props.kpi.buyouts === null
-        ? pct(ratio(props.kpi.sold_units, props.kpi.orders))
-        : pct(ratio(props.kpi.buyouts, props.kpi.buyout_orders)),
-    note: props.kpi.buyouts === null ? 'рассчитано: продано к заказано' : 'выкуплено к заказано',
-    muted: props.kpi.buyouts === null,
+    value: pct(ratio(props.kpi.buyouts, props.kpi.buyout_decided)),
+    // The lag says whose period the figure describes. A window entirely inside
+    // it — the page's own default week — has no answered deliveries of its own,
+    // so the standing window answers and the card says so rather than passing
+    // one period's rate off as another's.
+    note:
+      props.kpi.buyout_decided === null
+        ? 'нет данных воронки'
+        : props.kpi.buyout_lagged
+          ? 'за 21–7 дней до сегодня'
+          : 'выкуплено из решённых',
+    muted: props.kpi.buyout_decided === null,
   },
   {
     key: 'penalties',

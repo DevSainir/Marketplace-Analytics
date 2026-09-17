@@ -44,9 +44,18 @@ class OrderDay(NamedTuple):
     funnel — that is the number every other screen shows — and the rest from the
     order lines.
 
-    ``buyouts`` is therefore ``None`` on a day only the order feed reaches: the
-    funnel's buyout cohort is the only source for it, and a zero there would
-    read as «ничего не выкупили» on months that simply predate the harvest.
+    ``buyouts`` and ``decided`` are therefore ``None`` on a day only the order
+    feed reaches: the funnel's buyout cohort is the only source for them, and a
+    zero there would read as «ничего не выкупили» on months that simply predate
+    the harvest.
+
+    ``decided`` is deliveries the buyer has ANSWERED — bought out or refused —
+    which is the denominator WB's own «Процент выкупа» uses and the matrix has
+    used since it was written. Orders still in transit are in neither half, so
+    the ratio does not start near zero and climb for three weeks the way
+    buyouts-over-orders does. Measured on «Демо»: by the second week the
+    decided ratio is already 26-28 %, its long-run band, while the orders ratio
+    is still at 16 %.
 
     The two money figures are what «ДРР от заказов» divides by, at whichever
     price base the reader picked. They come from the order lines when there are
@@ -59,6 +68,10 @@ class OrderDay(NamedTuple):
     stat_date: date
     orders: int
     buyouts: int | None
+    #: Bought out plus refused — the deliveries that have been answered. ``None``
+    #: where the cohort pass has never refreshed the day, which is not "nothing
+    #: was refused" but "we have not been told yet".
+    decided: int | None
     #: Σ the seller's own price, before WB's СПП.
     amount_seller: Decimal | None
     #: Σ what the customer pays, СПП applied.
@@ -116,10 +129,13 @@ async def load_order_days(
                 stat_date=day,
                 # The funnel first where it reaches: it is WB's own analytics
                 # count, and it is what «Сравнение SKU» shows for the same day.
-                orders=from_funnel.orders
-                if from_funnel
-                else (from_orders.orders if from_orders else 0),
+                orders=(
+                    from_funnel.orders
+                    if from_funnel
+                    else (from_orders.orders if from_orders else 0)
+                ),
                 buyouts=from_funnel.buyouts if from_funnel else None,
+                decided=from_funnel.decided if from_funnel else None,
                 amount_seller=(
                     from_orders.amount_seller
                     if from_orders
@@ -136,6 +152,7 @@ class _FunnelDay(NamedTuple):
 
     orders: int
     buyouts: int
+    decided: int | None
     amount: Decimal | None
 
 
@@ -148,11 +165,19 @@ async def _funnel_days(
     worth its own price; a SKU-day with no snapshot contributes its counts and
     nothing to the money, which is the same silence the per-SKU matrix keeps.
     """
+    # A SKU-day whose `cancel_count` is still NULL has never been through the
+    # cohort pass: counting it as «no refusals» would invent a 100 % cohort, so
+    # its buyouts stay out of the decided sum entirely — the same exclusion the
+    # matrix makes, and the reason «Процент выкупа» there reads WB's own figure.
+    decided = func.sum(SalesFunnelDaily.buyout_count + SalesFunnelDaily.cancel_count).filter(
+        SalesFunnelDaily.cancel_count.is_not(None)
+    )
     stmt = (
         select(
             SalesFunnelDaily.stat_date,
             func.sum(SalesFunnelDaily.order_count),
             func.sum(SalesFunnelDaily.buyout_count),
+            decided,
             func.sum(SalesFunnelDaily.order_count * PriceSnapshot.seller_price),
         )
         .outerjoin(
@@ -172,9 +197,10 @@ async def _funnel_days(
         day: _FunnelDay(
             orders=int(orders or 0),
             buyouts=int(buyouts or 0),
+            decided=None if decided is None else int(decided),
             amount=None if amount is None else Decimal(amount),
         )
-        for day, orders, buyouts, amount in (await session.execute(stmt)).all()
+        for day, orders, buyouts, decided, amount in (await session.execute(stmt)).all()
     }
 
 

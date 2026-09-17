@@ -60,6 +60,10 @@ from src.modules.monitoring.services.exports import (
     stock_day_span,
 )
 from src.modules.monitoring.services.ingestion import IngestionService
+from src.modules.monitoring.services.matrix.base_state import (
+    BUYOUT_LAG_END_DAYS,
+    BUYOUT_LAG_START_DAYS,
+)
 from src.modules.monitoring.services.refresh_tracking import (
     bind_task_to_workspace,
     claim_cohort_pass,
@@ -70,6 +74,8 @@ from src.modules.monitoring.services.refresh_tracking import (
 )
 
 __all__ = [
+    "BUYOUT_LAG_END_DAYS",
+    "BUYOUT_LAG_START_DAYS",
     "AdDay",
     "AdSpendDay",
     "AnalyticsService",

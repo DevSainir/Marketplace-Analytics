@@ -55,7 +55,8 @@ def build_kpi(
     report: PnlSkuReportResponse,
     orders: int | None,
     buyouts: int | None,
-    buyout_orders: int | None,
+    buyout_decided: int | None,
+    buyout_lagged: bool,
     ad_cash: Decimal | None,
     settled_advertising: Decimal,
 ) -> SummaryKpi:
@@ -65,9 +66,11 @@ def build_kpi(
         report: The per-SKU P&L for the window — its ``totals`` row is the full
             reconciled window, account-level money included.
         orders: Orders for the window; ``None`` without coverage.
-        buyouts: WB's own buyout counter for the window; ``None`` without it.
-        buyout_orders: Orders on the days that counter covers — the only
-            denominator it may be divided by.
+        buyouts: Deliveries bought out over the cohort window.
+        buyout_decided: Deliveries answered over the same window — the only
+            denominator the buyouts may be divided by.
+        buyout_lagged: Whether those two came from the standing window rather
+            than from the chosen period.
         ad_cash: Advertising the seller actually paid for, bonuses removed;
             ``None`` without advertising coverage.
         settled_advertising: The «WB Продвижение» invoices the window's
@@ -104,7 +107,8 @@ def build_kpi(
         sold_units=totals.sold_units - totals.returned_units,
         orders=orders,
         buyouts=buyouts,
-        buyout_orders=buyout_orders,
+        buyout_decided=buyout_decided,
+        buyout_lagged=buyout_lagged,
         uncosted_skus=missing,
         penalties=withheld,
         ad_spend=ad_cash,
@@ -265,3 +269,33 @@ def window_ad_cash(days: list[SummaryDay], *, covered: bool) -> Decimal | None:
         (day.ad_spend or _ZERO for day in days if day.revenue_paid is not None),
         _ZERO,
     )
+
+
+def buyout_cohort(days: list[OrderDay], *, until: date) -> tuple[int | None, int | None]:
+    """Sum the buyout cohort over the days that have answered, up to ``until``.
+
+    WB's own definition of «Процент выкупа»: bought out over bought out plus
+    refused. A day the cohort pass has never refreshed carries no refusals to
+    add, so it is skipped rather than read as «none were refused» — that
+    exclusion is what makes the matrix's figure match WB's, and the same reason
+    applies here.
+
+    Args:
+        days: The window's days.
+        until: Newest day that may contribute — the freshest cohorts are
+            excluded by the caller's lag, because within them refusals land
+            before buyouts do and the ratio reads far too low.
+
+    Returns:
+        ``(bought out, answered)``, or ``(None, None)`` when no day qualifies.
+    """
+    bought = 0
+    answered = 0
+    seen = False
+    for day in days:
+        if day.stat_date > until or day.decided is None or day.buyouts is None:
+            continue
+        seen = True
+        bought += day.buyouts
+        answered += day.decided
+    return (bought, answered) if seen else (None, None)

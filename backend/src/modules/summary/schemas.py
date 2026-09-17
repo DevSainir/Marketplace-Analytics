@@ -48,13 +48,20 @@ class SummaryKpi(BaseModel):
     sold_units: int
     #: ``None`` when the funnel does not cover the window.
     orders: int | None
-    #: WB's direct buyout counter for the window; ``None`` without coverage.
+    #: Deliveries bought out, over the lagged cohort window. ``None`` without
+    #: coverage.
     buyouts: int | None
-    #: Orders on the days that counter covers. Its own denominator, because
-    #: «Заказов» above now reaches further back than the funnel does: dividing
-    #: one by the other would compare a year of buyouts with two years of
-    #: orders and report a кабинет that buys out a third of what it orders.
-    buyout_orders: int | None
+    #: Deliveries ANSWERED — bought out or refused — over the same window, and
+    #: the only denominator :attr:`buyouts` may be divided by. WB's own
+    #: «Процент выкупа» is defined this way, and it is what keeps the figure
+    #: from starting near zero and climbing for three weeks: an order still in
+    #: transit belongs to neither half rather than counting as a refusal.
+    buyout_decided: int | None
+    #: ``True`` when the figure had to be taken from the standing
+    #: «21-7 дней назад» window because the chosen period is too fresh to have
+    #: decided deliveries of its own. The page says so rather than passing one
+    #: period's rate off as another's.
+    buyout_lagged: bool
     #: How many SKUs settled units in the window with no cost price on file.
     #: Non-zero is exactly why :attr:`margin` is ``None``.
     uncosted_skus: int
