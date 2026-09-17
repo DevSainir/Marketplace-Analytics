@@ -22,9 +22,11 @@ turns into a monitoring outage at exactly the moment monitoring is needed.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Iterator
+from pathlib import Path
 from typing import Final, cast
 
+from prometheus_client.core import GaugeMetricFamily
 from sqlalchemy.pool import QueuePool
 
 from src.core.database import engine
@@ -66,6 +68,80 @@ _CONTROLS: Final[tuple[str, ...]] = (
     CONTROL_SESSION_REVOCATION,
     CONTROL_LOGIN_BACKOFF,
 )
+
+
+#: Where cgroup v2 publishes what a container is charged for and what it is
+#: allowed. Read rather than derived: this is the kernel's own accounting, and
+#: it is the exact pair of numbers it compares before sending a SIGKILL.
+_CGROUP_USAGE = Path("/sys/fs/cgroup/memory.current")
+_CGROUP_LIMIT = Path("/sys/fs/cgroup/memory.max")
+
+#: The two series :class:`CgroupMemoryCollector` publishes, named here because
+#: `alerts.yml` divides one by the other and nothing else in this codebase
+#: declares them — they are produced by a collector rather than by a metric
+#: object, so the scan in `tests/unit/core/test_alert_rules.py` cannot see them.
+#: A test binds the alert to these constants instead.
+CGROUP_MEMORY_USED_SERIES: Final[str] = "celery_worker_memory_bytes"
+CGROUP_MEMORY_LIMIT_SERIES: Final[str] = "celery_worker_memory_limit_bytes"
+
+
+def _read_cgroup_bytes(path: Path) -> float | None:
+    """Read one cgroup memory file, or ``None`` when it says nothing usable.
+
+    ``memory.max`` holds the literal ``max`` on an unlimited cgroup, and neither
+    file exists outside cgroup v2 (a developer's macOS, a v1 host). Both are
+    "there is no number here", and absent is the honest exposition for that —
+    a zero would be read as a limit of nothing.
+    """
+    try:
+        raw = path.read_text().strip()
+    except OSError:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+class CgroupMemoryCollector:
+    """Publishes the worker container's memory against its ceiling, per scrape.
+
+    **The one number the OOM kills were invisible in.** Three prefork children
+    were SIGKILLed in the twelve hours to 2026-09-17 01:06 and Prometheus held
+    no evidence of any of them: `process_resident_memory_bytes` comes from
+    `prometheus_client`'s default process collector, which multiprocess mode
+    drops — so of this deployment only the two API containers ever reported a
+    resident set, and the one container whose working set is driven by data
+    volume reported none. The kills were found in `dmesg`, by hand, the morning
+    after.
+
+    A collector rather than a gauge somebody sets, for the reason the module
+    docstring gives: this is a fact about a live system, true continuously, and
+    a gauge written at task boundaries would miss the growth *inside* the task —
+    which is the only place it has ever mattered.
+
+    Unlabelled, and deliberately: `/metrics` has no tenancy check because it has
+    no tenant, and "which container" is already the scrape target's job.
+    """
+
+    def collect(self) -> Iterator[GaugeMetricFamily]:
+        """Yield current usage and the ceiling, omitting whichever is unknown."""
+        usage = _read_cgroup_bytes(_CGROUP_USAGE)
+        if usage is not None:
+            gauge = GaugeMetricFamily(
+                CGROUP_MEMORY_USED_SERIES,
+                "Memory this worker's cgroup is charged for, parent and children together.",
+            )
+            gauge.add_metric([], usage)
+            yield gauge
+        limit = _read_cgroup_bytes(_CGROUP_LIMIT)
+        if limit is not None:
+            ceiling = GaugeMetricFamily(
+                CGROUP_MEMORY_LIMIT_SERIES,
+                "The cgroup ceiling the kernel compares that usage against.",
+            )
+            ceiling.add_metric([], limit)
+            yield ceiling
 
 
 def sample_pool() -> None:
@@ -188,6 +264,9 @@ async def probe_dependencies() -> None:
 
 
 __all__ = [
+    "CGROUP_MEMORY_LIMIT_SERIES",
+    "CGROUP_MEMORY_USED_SERIES",
+    "CgroupMemoryCollector",
     "probe_dependencies",
     "refresh_sampled_metrics",
     "sample_degraded_controls",

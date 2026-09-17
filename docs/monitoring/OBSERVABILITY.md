@@ -322,7 +322,7 @@ during what" without carrying anything a caller submitted.
 
 ## Alerts
 
-`docker/observability/alerts.yml`, 23 rules in six groups. Two conventions:
+`docker/observability/alerts.yml`, 25 rules in six groups. Two conventions:
 `for:` is never zero (an alert that fires on one bad scrape fires on a deploy,
 and an alert that fires on a deploy gets muted), and every annotation says what
 to *do*, because the person reading it at 03:00 is not the person who wrote it.
@@ -344,6 +344,28 @@ task-level success metric can see that.
 
 **`SecurityControlDegraded`** — binds to the P1.2 ledger. Two of these at once
 is the correlated failure that ledger was built to surface.
+
+**`WorkerKilled` and `WorkerMemoryNearLimit`** — the pair added on 2026-09-17,
+after three prefork children were OOM-killed in twelve hours with no trace in
+Prometheus at all. Both gaps were structural rather than an oversight. The
+worker publishes no `process_resident_memory_bytes`, because multiprocess mode
+drops `prometheus_client`'s default process collector — so the deployment's two
+API containers reported a resident set and the one container whose working set
+is driven by data volume reported none. And a killed child's task lands in
+`celery_tasks_total{state="failure"}`, where three events in half a day is
+0.00007/s against `TaskFailureRate`'s threshold of 0.05.
+
+So the memory figure comes from a **collector reading the cgroup**
+(`CgroupMemoryCollector`, registered on the worker's registry because the worker
+has no exposition route to sample from), publishing
+`celery_worker_memory_bytes` against `celery_worker_memory_limit_bytes` — the
+kernel's own two numbers, the pair it compares before sending the signal. And
+`celery_worker_lost_total` counts the abandonment separately from the failure,
+because it is a different event: nothing unwound, nothing was logged by the
+task, and `acks_on_failure_or_timeout` acknowledges the message on the way past,
+so the work is not retried. Note the ratio's shape: a cgroup with no limit
+publishes no ceiling at all rather than a zero, which leaves the alert's
+expression undefined instead of confidently wrong.
 
 ### The backfill group, and why it alerts on an absence
 

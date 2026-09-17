@@ -1,0 +1,160 @@
+"""The worker's memory, and the death it ends in, must both leave a series.
+
+Written after 2026-09-17, when three prefork children were OOM-killed in twelve
+hours and Prometheus held no evidence of any of them. Two gaps made that
+possible and both are pinned here: multiprocess mode drops the default process
+collector, so the one container whose working set is driven by data volume was
+the one container publishing no resident set at all; and a killed child's task
+lands in ``celery_tasks_total{state="failure"}``, where three events in half a
+day is 0.00007/s against an alert threshold of 0.05.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Any
+
+import pytest
+import yaml
+from celery.exceptions import WorkerLostError
+from prometheus_client import CollectorRegistry
+
+from src.core.observability import collectors
+from src.core.observability.celery_runtime import _record_task_failure
+from src.core.observability.collectors import (
+    CGROUP_MEMORY_LIMIT_SERIES,
+    CGROUP_MEMORY_USED_SERIES,
+    CgroupMemoryCollector,
+)
+from src.core.observability.metrics import CELERY_WORKER_LOST
+
+ALERTS_FILE = Path(__file__).resolve().parents[3] / "docker" / "observability" / "alerts.yml"
+
+
+@pytest.fixture
+def cgroup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Point the collector at a writable stand-in for ``/sys/fs/cgroup``."""
+    monkeypatch.setattr(collectors, "_CGROUP_USAGE", tmp_path / "memory.current")
+    monkeypatch.setattr(collectors, "_CGROUP_LIMIT", tmp_path / "memory.max")
+    return tmp_path
+
+
+def _samples(registry: CollectorRegistry) -> dict[str, float]:
+    """Flatten a registry's exposition into ``{series name: value}``."""
+    return {sample.name: sample.value for metric in registry.collect() for sample in metric.samples}
+
+
+def test_the_worker_publishes_what_it_is_using_and_what_it_is_allowed(cgroup: Path) -> None:
+    """Both halves, because neither one alone says whether there is room left.
+
+    768 MiB is only alarming next to the usage, and 640 MB is only alarming next
+    to the ceiling. The alert divides one by the other.
+    """
+    (cgroup / "memory.current").write_text("279961600\n")
+    (cgroup / "memory.max").write_text("805306368\n")
+    registry = CollectorRegistry()
+    registry.register(CgroupMemoryCollector())
+
+    samples = _samples(registry)
+
+    assert samples[CGROUP_MEMORY_USED_SERIES] == 279961600
+    assert samples[CGROUP_MEMORY_LIMIT_SERIES] == 805306368
+
+
+def test_an_uncapped_cgroup_publishes_no_ceiling(cgroup: Path) -> None:
+    """``memory.max`` reads ``max`` when nothing limits the container.
+
+    Exposing that as a number would be a lie in whichever direction it was
+    rounded — zero reads as "no memory allowed", and a huge value invents a
+    ceiling the kernel does not have. Absent is the honest answer, and it makes
+    the alert's ratio silently undefined rather than confidently wrong.
+    """
+    (cgroup / "memory.current").write_text("279961600\n")
+    (cgroup / "memory.max").write_text("max\n")
+    registry = CollectorRegistry()
+    registry.register(CgroupMemoryCollector())
+
+    samples = _samples(registry)
+
+    assert samples[CGROUP_MEMORY_USED_SERIES] == 279961600
+    assert CGROUP_MEMORY_LIMIT_SERIES not in samples
+
+
+def test_a_host_with_no_cgroup_v2_publishes_nothing_and_does_not_raise(cgroup: Path) -> None:
+    """A developer's laptop has neither file, and a scrape there must still work.
+
+    This collector runs inside the same exposition as every other metric. A
+    raise here would cost the whole scrape — the module's standing rule is that
+    a failed sample costs one gauge and never the scrape.
+    """
+    registry = CollectorRegistry()
+    registry.register(CgroupMemoryCollector())
+
+    samples = _samples(registry)
+
+    assert samples == {}
+
+
+def test_the_memory_alert_reads_the_series_the_collector_actually_publishes() -> None:
+    """These two names are declared by a collector, so no metric scan can check them.
+
+    ``test_alert_rules.py`` validates alert expressions against the metric
+    OBJECTS in ``metrics.py``, and a collector defines none — so a typo in
+    either name would produce a rule that evaluates to nothing for ever, which
+    is the exact failure that file exists to prevent.
+    """
+    document = yaml.safe_load(ALERTS_FILE.read_text())
+    rules = {rule["alert"]: rule for group in document["groups"] for rule in group["rules"]}
+
+    expression = rules["WorkerMemoryNearLimit"]["expr"]
+
+    named = set(re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", expression))
+    assert {name for name in named if "_" in name} == {
+        CGROUP_MEMORY_USED_SERIES,
+        CGROUP_MEMORY_LIMIT_SERIES,
+    }
+
+
+def test_a_task_that_died_with_its_worker_is_counted_apart_from_one_that_raised() -> None:
+    """A killed child is an absence, not a failure, and needs its own series.
+
+    Both are counted as failures — that part is unchanged — but only this one
+    means the work was abandoned without unwinding and will not be retried. Left
+    inside the general failure rate it is unreachable: the rate alert needs
+    0.05/s and this happens three times a day.
+    """
+    task = type("Task", (), {"name": "finreports.harvest_finance"})()
+    before = CELERY_WORKER_LOST.labels(task_name=task.name)._value.get()
+
+    _record_task_failure(sender=task, exception=ValueError("ordinary"))
+    _record_task_failure(sender=task, exception=WorkerLostError("signal 9 (SIGKILL)"))
+
+    assert CELERY_WORKER_LOST.labels(task_name=task.name)._value.get() == before + 1
+
+
+def test_the_worker_registry_carries_the_memory_collector(
+    monkeypatch: pytest.MonkeyPatch, cgroup: Path
+) -> None:
+    """The exporter renders a registry and calls nothing else.
+
+    The worker has no exposition route, so ``refresh_sampled_metrics`` — which
+    is what keeps every other sampled gauge current — never runs there. Being
+    registered on the registry is the only way this reading reaches a scrape.
+    """
+    from src.core.observability import celery_runtime
+
+    (cgroup / "memory.current").write_text("1234\n")
+    # The real switch: multiprocess mode is derived from this path being set,
+    # never declared separately (`src.core.config.observability`).
+    multiproc = cgroup / "multiproc"
+    multiproc.mkdir()
+    monkeypatch.setattr(celery_runtime.settings, "prometheus_multiproc_dir", str(multiproc))
+    # `MultiProcessCollector` reads the directory from the environment rather
+    # than from settings — see `prepare_multiprocess_dir`, which exports it for
+    # the same reason.
+    monkeypatch.setenv("PROMETHEUS_MULTIPROC_DIR", str(multiproc))
+
+    registry: Any = celery_runtime.build_worker_registry()
+
+    assert _samples(registry)[CGROUP_MEMORY_USED_SERIES] == 1234

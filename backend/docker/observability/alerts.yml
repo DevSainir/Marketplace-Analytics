@@ -230,6 +230,59 @@ groups:
         annotations:
           summary: "Задача {{ $labels.task_name }} падает раз за разом."
 
+      # The two rules below are about the same failure from opposite ends: the
+      # cgroup OOM killer taking a prefork child mid-task. `TaskFailureRate`
+      # above cannot see it — three kills in twelve hours is 0.00007/s against
+      # a threshold of 0.05 — and until 2026-09-17 nothing else could either:
+      # the worker published no memory series at all, so the kills lived only
+      # in `dmesg`.
+      #
+      # `WorkerKilled` is the aftermath and fires on one. That is not a low
+      # threshold, it is the right one: the child died with no unwind, the
+      # message is acknowledged rather than requeued, and the tasks that had
+      # not run yet simply did not happen. On 2026-09-17 the 01:00 finance
+      # harvest died on its first seller and the other four waited four hours
+      # for the next tick.
+      - alert: WorkerKilled
+        expr: increase(celery_worker_lost_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Задача {{ $labels.task_name }} оборвалась вместе с процессом воркера."
+          description: >-
+            Процесс убит снаружи — почти всегда это ядро за перерасход
+            памяти. Задача не переигрывается: сообщение подтверждено, и всё,
+            что она не успела сделать, просто не сделано до следующего тика.
+            Смотрите `celery_worker_memory_bytes` за тот же час и
+            `dmesg -T | grep -i "killed process"` на хосте. Если это память,
+            виноват не последний кусок, а дно: ребёнок Celery накапливает
+            свой максимум RSS, поэтому та же работа проходит на свежем
+            воркере и падает через несколько часов.
+
+      # The approach, so the kill above stops being the first news. 85% of the
+      # ceiling with a fresh pool sitting at ~35% (267 MB of 768 MiB, measured
+      # 2026-09-17) is a long way from normal and still leaves room to look.
+      # Ten minutes because the growth that matters here is the ratchet across
+      # tasks, measured in hours — a task's own spike is not something anyone
+      # can act on inside its run.
+      - alert: WorkerMemoryNearLimit
+        expr: |
+          celery_worker_memory_bytes / celery_worker_memory_limit_bytes > 0.85
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Воркер занял {{ $value | humanizePercentage }} своего потолка памяти."
+          description: >-
+            Ещё не убит, но запас кончается. Штатное дно свежего пула —
+            около трети потолка; всё, что выше, это накопленный максимум
+            детей плюс то, что держит текущая задача. `--max-memory-per-child`
+            должен переработать ребёнка раньше ядра, так что держащаяся
+            высоко цифра означает либо одну задачу, которой честно нужно
+            столько, либо родителя, который растёт сам — второе он делать не
+            должен.
+
   # -------------------------------------------------------------------------
       - alert: SettlementHistoryHasGaps
         expr: finreports_settlement_gap_days > 0

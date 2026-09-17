@@ -41,11 +41,13 @@ forever as though the process were still live).
 
 from __future__ import annotations
 
+import contextlib
 import os
 import time
 from pathlib import Path
 from typing import Any
 
+from celery.exceptions import WorkerLostError
 from celery.signals import (
     before_task_publish,
     celeryd_init,
@@ -62,7 +64,12 @@ from prometheus_client import CollectorRegistry, multiprocess, start_http_server
 from src.core.config import settings
 from src.core.logcontext import bind_task, current_trace_id, reset_context
 from src.core.logging import adopt_celery_loggers, configure_logging, get_logger
-from src.core.observability.metrics import CELERY_TASK_DURATION, CELERY_TASKS, set_app_info
+from src.core.observability.metrics import (
+    CELERY_TASK_DURATION,
+    CELERY_TASKS,
+    CELERY_WORKER_LOST,
+    set_app_info,
+)
 from src.core.observability.sentry import configure_sentry
 
 logger = get_logger(__name__)
@@ -215,16 +222,36 @@ def _record_task_outcome(
 
 
 @task_failure.connect  # type: ignore[untyped-decorator]
-def _record_task_failure(sender: Any = None, **_kwargs: Any) -> None:
-    """Count a task that raised.
+def _record_task_failure(
+    sender: Any = None, exception: BaseException | None = None, **_kwargs: Any
+) -> None:
+    """Count a task that raised, and separately one that was never finished.
 
     Separate from ``task_postrun``'s ``state`` label rather than derived from
     it: ``postrun`` reports the state Celery recorded, and a task killed by the
     soft time limit or lost to a worker restart does not always reach it. A
     failure counted in two places is a rounding error; a failure counted in
     none is a silent one.
+
+    ``WorkerLostError`` is counted twice over for the opposite reason — it is
+    not really a failure at all, it is an ABSENCE. The child died mid-run, so
+    nothing unwound, nothing was logged by the task itself, and the message is
+    acknowledged on the way past rather than requeued. Left inside the general
+    failure rate it is unfindable: see :data:`~src.core.observability.metrics`
+    ``CELERY_WORKER_LOST`` for the arithmetic.
+
+    This handler runs in the PARENT process for that case — the child that
+    would normally record it no longer exists — which is also why it cannot be
+    done anywhere closer to the task.
+
+    Args:
+        sender: The task whose execution failed.
+        exception: What it failed with, as Celery passes it to the signal.
     """
-    CELERY_TASKS.labels(task_name=getattr(sender, "name", "unknown"), state="failure").inc()
+    name = getattr(sender, "name", "unknown")
+    CELERY_TASKS.labels(task_name=name, state="failure").inc()
+    if isinstance(exception, WorkerLostError):
+        CELERY_WORKER_LOST.labels(task_name=name).inc()
 
 
 @task_retry.connect  # type: ignore[untyped-decorator]
@@ -275,10 +302,36 @@ def build_worker_registry() -> CollectorRegistry:
     if not settings.multiprocess_metrics_enabled:
         from prometheus_client import REGISTRY
 
+        _register_cgroup_memory(REGISTRY)
         return REGISTRY
     registry = CollectorRegistry()
     multiprocess.MultiProcessCollector(registry)  # type: ignore[no-untyped-call]
+    _register_cgroup_memory(registry)
     return registry
+
+
+def _register_cgroup_memory(registry: CollectorRegistry) -> None:
+    """Add the container's memory reading to a worker registry.
+
+    Registered as a collector instead of living in
+    :func:`~src.core.observability.collectors.refresh_sampled_metrics` because
+    the worker has no exposition route to call it from: its exporter is
+    ``prometheus_client``'s own HTTP server, which renders the registry and
+    nothing else. A collector is the one hook that server does invoke.
+
+    Duplicate registration is tolerated rather than prevented. In multiprocess
+    mode the registry above is fresh every time, so this cannot fire; outside it
+    (a single-process worker, a test) the registry is the shared default one and
+    a second call would otherwise raise where the first had already succeeded.
+    """
+    # Imported here rather than at module scope, following `collectors` own
+    # handling of the reverse edge: that module imports this package's metrics,
+    # and keeping this one local leaves the import graph of a worker's startup
+    # path as thin as it was.
+    from src.core.observability.collectors import CgroupMemoryCollector
+
+    with contextlib.suppress(ValueError):
+        registry.register(CgroupMemoryCollector())
 
 
 def prepare_multiprocess_dir() -> None:

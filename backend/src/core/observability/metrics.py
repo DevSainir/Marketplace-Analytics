@@ -152,6 +152,27 @@ CELERY_TASK_DURATION: Final[Histogram] = Histogram(
     buckets=(0.5, 1.0, 5.0, 15.0, 60.0, 300.0, 900.0, 1800.0, 3600.0),
 )
 
+#: Tasks whose prefork child died mid-run — in practice, the cgroup OOM killer.
+#:
+#: Counted apart from `celery_tasks_total{state="failure"}` because the two
+#: differ in what they mean and in what an alert on them may say. An ordinary
+#: failure is a task that ran and raised; this is a task that did not finish and
+#: will not be retried — `acks_on_failure_or_timeout` acknowledges the message on
+#: the way past, so nothing redelivers it (verified in Celery's
+#: `Request.on_failure`, and on prod 2026-09-17, where the 01:00 finance harvest
+#: died on its first workspace and the remaining four simply waited for the
+#: 05:00 tick).
+#:
+#: It also cannot be reached through the failure RATE. Three of these in twelve
+#: hours is 0.00007/s against a `TaskFailureRate` threshold of 0.05 — the shape
+#: that alert is built for, a task failing over and over, is the opposite of
+#: this one, which is rare and matters every single time.
+CELERY_WORKER_LOST: Final[Counter] = Counter(
+    "celery_worker_lost_total",
+    "Tasks abandoned because the worker process running them died.",
+    ["task_name"],
+)
+
 # --------------------------------------------------------------------------- #
 # Harvest — the business outcome, not the transport.
 # --------------------------------------------------------------------------- #
@@ -414,6 +435,7 @@ __all__ = [
     "CELERY_QUEUE_LENGTH",
     "CELERY_TASKS",
     "CELERY_TASK_DURATION",
+    "CELERY_WORKER_LOST",
     "DEPENDENCY_PROBE_DURATION",
     "DEPENDENCY_UP",
     "HARVEST_DURATION",
