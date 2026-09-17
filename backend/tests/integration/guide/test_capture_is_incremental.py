@@ -168,9 +168,7 @@ async def test_a_walk_that_finishes_records_its_last_cursor_and_row_count(
     assert (run.cursor, run.rows, run.last_status) == ("2026-09-11T23:40:00", 2, "ok")
 
 
-async def test_a_feed_that_cannot_be_stored_fails_alone(
-    wb: None, db_session: AsyncSession
-) -> None:
+async def test_a_feed_that_cannot_be_stored_fails_alone(wb: None, db_session: AsyncSession) -> None:
     """One bad feed must not cost the other ten their run — storage errors too.
 
     The module has promised this since it was written, and the promise held only
@@ -187,9 +185,7 @@ async def test_a_feed_that_cannot_be_stored_fails_alone(
     async def walk(_client: Any, _window: CaptureWindow) -> AsyncIterator[CaptureBatch]:
         yield CaptureBatch(rows=[("a", None, {"price": Decimal("1.5")})])
 
-    status, rows, message = await capture._capture_one(
-        _source(walk), _tokens(), config=settings
-    )
+    status, rows, message = await capture._capture_one(_source(walk), _tokens(), config=settings)
 
     assert (status, rows) == ("failed", 0)
     assert "Decimal" in message
