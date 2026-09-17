@@ -166,6 +166,17 @@ class SummaryService:
         orders = sum(day.orders for day in order_days) if order_days else None
         buyouts = sum(day.buyouts for day in order_days) if order_days else None
 
+        # Composed before the cards, because two of them are built from it: the
+        # advertising a card may count is the advertising of the days the
+        # settlement covers, and those days are exactly what this produces.
+        days = build_days(
+            buckets=buckets,
+            order_days=order_days,
+            ad_days=ad_days,
+            costed=uncosted_skus(report) == 0,
+        )
+        ad_cash = window_ad_cash(days, covered=bool(ad_days))
+
         return SummaryResponse(
             date_from=date_from,
             date_to=date_to,
@@ -174,18 +185,13 @@ class SummaryService:
                 report=report,
                 orders=orders,
                 buyouts=buyouts,
-                ad_cash=window_ad_cash(ad_days),
+                ad_cash=ad_cash,
                 # The invoices the window settled, summed off the day buckets:
                 # the statement's own total would be a second pass for a figure
                 # the buckets already partition.
                 settled_advertising=sum((bucket.advertising for bucket in buckets), Decimal(0)),
             ),
-            days=build_days(
-                buckets=buckets,
-                order_days=order_days,
-                ad_days=ad_days,
-                costed=uncosted_skus(report) == 0,
-            ),
+            days=days,
             rows=build_rows(report),
             coverage=SummaryCoverage(
                 # min/max rather than the ends of the list: the repository

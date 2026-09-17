@@ -228,14 +228,35 @@ def build_rows(report: PnlSkuReportResponse) -> list[SummarySkuRow]:
     ]
 
 
-def window_ad_cash(ad_days: list[AdSpendDay]) -> Decimal | None:
-    """Return what the window's advertising actually cost the seller.
+def window_ad_cash(days: list[SummaryDay], *, covered: bool) -> Decimal | None:
+    """Return what advertising cost on the days the window's figures cover.
 
-    ``None`` when the advertising statistics have nothing for the window, which
-    is not the same as a window that ran no ads: the first must not lower a cost.
+    The days WB has CALCULATED, not every day of the window. A window may run
+    past the last settlement — orders and advertising land daily, settlements
+    weekly and late — and counting the tail's advertising against revenue that
+    does not exist yet inflates every figure built on it. Measured on the live
+    кабинет for 10.09-16.09: the card read 16.22 % against a chart whose worst
+    day was 10.49 %, because 887 113 of the 1 360 926 spent had no revenue to be
+    a share of.
+
+    The same restriction is what keeps the margin honest, and for the same
+    reason: subtracting seven days of advertising from four days of payout is a
+    loss the кабинет did not make. It also makes Σ of the chart's daily margins
+    equal the margin card exactly, which is a tested invariant.
+
+    Args:
+        days: The window's days, already composed — a day WB has not calculated
+            carries no revenue and is therefore not counted.
+        covered: Whether the advertising statistics cover the window at all.
+            Without coverage the answer is ``None``: "we do not know" must never
+            lower a cost, and zero would.
+
+    Returns:
+        The seller's own advertising spend over the settled days, or ``None``.
     """
-    if not ad_days:
+    if not covered:
         return None
-    spend = sum((day.spend for day in ad_days), _ZERO)
-    bonus = sum((day.bonus for day in ad_days), _ZERO)
-    return spend - min(bonus, spend)
+    return sum(
+        (day.ad_spend or _ZERO for day in days if day.revenue_paid is not None),
+        _ZERO,
+    )

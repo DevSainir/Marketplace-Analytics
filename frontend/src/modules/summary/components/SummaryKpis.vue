@@ -117,7 +117,7 @@ const cards = computed(() => [
     key: 'drr',
     label: 'Средний ДРР',
     value: pct(ratio(props.kpi.ad_spend, revenue.value)),
-    note: props.kpi.ad_spend === null ? 'нет данных рекламы' : 'реклама к выручке',
+    note: props.kpi.ad_spend === null ? 'нет данных рекламы' : 'реклама к выручке, расчётные дни',
     muted: props.kpi.ad_spend === null,
   },
 ])

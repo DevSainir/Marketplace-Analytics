@@ -271,7 +271,7 @@ def test_the_bonus_is_spread_over_the_window_and_never_exceeds_a_day() -> None:
     )
 
     assert [day.ad_spend for day in days] == [Decimal("25.00"), Decimal("75.00")]
-    assert sum(day.ad_spend or ZERO for day in days) == window_ad_cash(ad_days)
+    assert sum(day.ad_spend or ZERO for day in days) == window_ad_cash(days, covered=True)
 
 
 def test_an_uncosted_window_draws_revenue_without_margin() -> None:
@@ -364,3 +364,37 @@ def test_the_advertising_invoice_is_not_counted_as_a_withholding() -> None:
 
     assert kpi.penalties == Decimal("9000")
     assert kpi.ad_spend == Decimal("22000")
+
+
+def test_the_card_counts_the_advertising_of_the_days_it_has_revenue_for() -> None:
+    """Advertising a window cannot yet have earned on is not charged to it.
+
+    A window routinely runs past the last settlement: WB calculates weekly and
+    serves late while the promotion statistics land daily. Counting that tail's
+    spend against revenue that does not exist yet inflated «Средний ДРР» to
+    16.22 % on a live кабинет whose worst DRAWN day was 10.49 % — and
+    understated the margin by the same money.
+    """
+    days = build_days(
+        buckets=[make_day(day=date(2026, 9, 13), revenue="1000", margin_profit="500")],
+        order_days=[],
+        ad_days=[
+            AdSpendDay(stat_date=date(2026, 9, 13), spend=Decimal("100"), bonus=ZERO),
+            AdSpendDay(stat_date=date(2026, 9, 14), spend=Decimal("400"), bonus=ZERO),
+        ],
+        costed=True,
+    )
+
+    assert window_ad_cash(days, covered=True) == Decimal("100")
+
+
+def test_without_advertising_coverage_the_answer_is_unknown_rather_than_zero() -> None:
+    """A кабинет we have no promotion statistics for has not advertised for free."""
+    days = build_days(
+        buckets=[make_day(day=date(2026, 9, 13), revenue="1000", margin_profit="500")],
+        order_days=[],
+        ad_days=[],
+        costed=True,
+    )
+
+    assert window_ad_cash(days, covered=False) is None

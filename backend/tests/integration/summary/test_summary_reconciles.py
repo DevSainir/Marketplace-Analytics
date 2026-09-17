@@ -350,3 +350,41 @@ async def test_the_ordered_money_needs_a_price_and_says_so_when_it_has_none(
 
     assert days[0].amount == Decimal("100000")
     assert days[1].amount is None
+
+
+async def test_a_window_reaching_past_the_settlement_charges_only_what_it_earned_on(
+    db_session: AsyncSession, catalogued: None
+) -> None:
+    """Advertising burnt after the last settled day is not this window's cost.
+
+    The window ends four days past anything WB has calculated — the normal shape
+    of «последняя неделя», since the funnel and the promotion statistics land
+    daily and settlements weekly and late. Both figures the advertising enters
+    must ignore that tail: «Средний ДРР» divided seven days of spend by four
+    days of revenue and read 16.22 % on the live кабинет against a chart whose
+    worst drawn day was 10.49 %, and the margin lost the same money twice over.
+
+    The margin invariant is the sharper half: Σ of the chart's days must equal
+    the card, and it cannot while the card subtracts advertising no day of the
+    chart does.
+    """
+    db_session.add(
+        AdvertisingStatDaily(
+            stat_date=WINDOW_TO + timedelta(days=2),
+            campaign_id=2,
+            app_type=1,
+            nm_id=SKU_A,
+            spend=Decimal("900"),
+        )
+    )
+    await db_session.flush()
+
+    summary = await _service(db_session).build(
+        db_session,
+        workspace_id=WORKSPACE,
+        date_from=WINDOW_FROM,
+        date_to=WINDOW_TO + timedelta(days=4),
+    )
+
+    assert summary.kpi.ad_spend == Decimal("150")
+    assert sum(day.margin for day in summary.days if day.margin is not None) == summary.kpi.margin
