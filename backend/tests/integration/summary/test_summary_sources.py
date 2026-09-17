@@ -194,3 +194,61 @@ async def test_a_window_too_fresh_to_have_a_cohort_borrows_the_standing_one(
 
     assert summary.kpi.buyout_lagged is True
     assert (summary.kpi.buyouts, summary.kpi.buyout_decided) == (27, 100)
+
+
+async def test_a_half_answered_period_is_not_reported_as_its_own_rate(
+    db_session: AsyncSession, catalogued: None
+) -> None:
+    """A week whose oldest days have barely answered borrows the standing rate.
+
+    The lag alone does not save this one: for a week ending today, its oldest
+    day or two DO clear the seven-day cut, and they are answered just past half.
+    Measured on «Демо» for 10-16.09, that cohort read 29.6 % — 89 buyouts of
+    301 answered deliveries against 1 151 orders — while the кабинет settles at
+    26.4 %. The same кабинет's 8 %-answered cohort read 22 %: half-answered is
+    noisy in both directions, so the period answers for itself only once most of
+    what it ordered has been answered.
+    """
+    today = moscow_today()
+    db_session.add_all(
+        [
+            # The standing window: fully answered, 25 %.
+            SalesFunnelDaily(
+                stat_date=today - timedelta(days=14),
+                nm_id=SKU_A,
+                order_count=400,
+                buyout_count=100,
+                cancel_count=300,
+            ),
+            # The chosen week's one qualifying day: answered a third, reads 50 %.
+            SalesFunnelDaily(
+                stat_date=today - timedelta(days=8),
+                nm_id=SKU_A,
+                order_count=300,
+                buyout_count=50,
+                cancel_count=50,
+            ),
+            SalesFunnelDaily(
+                stat_date=today - timedelta(days=3),
+                nm_id=SKU_A,
+                order_count=300,
+                buyout_count=2,
+                cancel_count=4,
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    summary = await _service(db_session).build(
+        db_session,
+        workspace_id=WORKSPACE,
+        date_from=today - timedelta(days=8),
+        date_to=today,
+    )
+
+    # The standing window overlaps the period's own qualifying day — it reaches
+    # back 21 days and ends where the lag does — so the reported cohort is both
+    # days, 150 of 500. What matters is that it is NOT the period's own 50 of
+    # 100, and that the flag says where the figure came from.
+    assert summary.kpi.buyout_lagged is True
+    assert (summary.kpi.buyouts, summary.kpi.buyout_decided) == (150, 500)

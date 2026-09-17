@@ -122,7 +122,7 @@ const cards = computed(() => [
     key: 'drr',
     label: 'Средний ДРР',
     value: pct(ratio(props.kpi.ad_spend, revenue.value)),
-    note: props.kpi.ad_spend === null ? 'нет данных рекламы' : 'реклама к выручке, расчётные дни',
+    note: props.kpi.ad_spend === null ? 'нет данных рекламы' : 'реклама к выручке',
     muted: props.kpi.ad_spend === null,
   },
 ])
@@ -142,107 +142,22 @@ const cards = computed(() => [
       >
         {{ card.value }}
       </div>
-      <div class="sum-kpi__note">{{ card.note }}</div>
+      <div class="sum-kpi__note">
+        {{ card.note }}
+        <!-- The explanation rides the note rather than the value: a card whose
+             number came from a different period has to say so, and there is no
+             room to say it in full under a figure. -->
+        <span v-if="card.hint" class="sum-kpi__hint" tabindex="0" role="note">
+          <svg viewBox="0 0 16 16" aria-hidden="true" class="sum-kpi__icon">
+            <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.4" />
+            <circle cx="8" cy="4.6" r="0.95" fill="currentColor" />
+            <path d="M8 7.2v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+          </svg>
+          <span class="ui-glass ui-glass--pop sum-kpi__tip">{{ card.hint }}</span>
+        </span>
+      </div>
     </div>
   </div>
 </template>
 
-<style scoped>
-/* Separate tiles, not one ruled block. Seven figures never fill their last row,
-   and the shared-background trick left the remainder as an empty slab inside
-   the block's own frame — worse than a gap. Each card carries the page's card
-   recipe instead: surface, 1px ring, the small shadow. */
-.sum-kpis {
-  display: grid;
-  /* Twelve columns rather than four, so both rows span the full width: the
-     first four cards take three columns each, the last three take four. A
-     four-column grid left the second row three-quarters wide with a gap where
-     the eighth card would be. */
-  grid-template-columns: repeat(12, 1fr);
-  gap: 10px;
-}
-
-.sum-kpi:nth-child(-n + 4) {
-  grid-column: span 3;
-}
-
-.sum-kpi:nth-child(n + 5) {
-  grid-column: span 4;
-}
-
-/* Narrower: six columns (three cards and three cards, then one full row), then
-   two. The spans are restated because they are what fills each row. */
-@media (max-width: 1100px) {
-  .sum-kpis {
-    grid-template-columns: repeat(6, 1fr);
-  }
-
-  .sum-kpi:nth-child(-n + 6) {
-    grid-column: span 2;
-  }
-
-  .sum-kpi:nth-child(n + 7) {
-    grid-column: span 6;
-  }
-}
-
-@media (max-width: 640px) {
-  .sum-kpis {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .sum-kpi:nth-child(-n + 6),
-  .sum-kpi:nth-child(n + 7) {
-    grid-column: span 1;
-  }
-
-  .sum-kpi:last-child {
-    grid-column: span 2;
-  }
-}
-
-.sum-kpi {
-  padding: 13px 15px 14px;
-  border-radius: var(--ui-r-md);
-  background: var(--ui-surface);
-  box-shadow: var(--ui-sh-xs);
-}
-
-.sum-kpi__label {
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ui-faint);
-}
-
-.sum-kpi__value {
-  /* The app's own face, not the borrowed page's monospace: the design system
-     sets KPIs in the body font, and tabular figures are what keeps a column of
-     them aligned. */
-  margin-top: 5px;
-  font-size: 1.3125rem;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  color: var(--ui-ink);
-}
-
-.sum-kpi__value--muted {
-  color: var(--ui-faint);
-}
-
-.sum-kpi__value--neg {
-  color: var(--ui-neg);
-}
-
-.sum-kpi__value--pos {
-  color: var(--ui-pos);
-}
-
-.sum-kpi__note {
-  margin-top: 2px;
-  font-size: 0.6875rem;
-  color: var(--ui-faint);
-}
-</style>
+<style scoped src="@/modules/summary/components/SummaryKpis.css"></style>

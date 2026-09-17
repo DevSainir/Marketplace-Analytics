@@ -43,6 +43,12 @@ from src.modules.summary.services.compose import (
     window_ad_cash,
 )
 
+#: How much of a period's ordering must have been ANSWERED before the period's
+#: own buyout rate is reported. Half, because the ratio is noisy below that and
+#: settles above it: measured on «Демо», a cohort 8 % answered read 22 %,
+#: one 60 % answered read 30 %, and the кабинет's own rate is 26-28 %.
+_ANSWERED_ENOUGH = 0.5
+
 
 class SummaryService:
     """Builds the «Сводка» for a workspace and window."""
@@ -89,17 +95,26 @@ class SummaryService:
         кабинет the current week reads 22.2 % against a long-run 26-30 %, on
         8 % of its deliveries having answered at all.
 
-        A period entirely inside that lag — «7 дней», the page's own default —
-        has no cohort to report, so rather than print a number that is merely
-        early, the standing «21-7 дней назад» window answers instead and the
-        page says that is what it did.
+        The lag alone is not enough, which a week-long period shows: only its
+        oldest day or two clear it, and they are answered barely past half.
+        Measured on «Демо» for 10-16.09, that cohort read 29.6 % — 89
+        buyouts out of 301 answered deliveries, against 1 151 orders — while
+        the кабинет's settled rate is 26.4 %. A half-answered cohort is noisy in
+        BOTH directions: at 8 % answered the same кабинет read 22 %, at 60 % it
+        read 30 %.
+
+        So the period answers for itself only when most of what it ordered has
+        been answered. Otherwise the standing «21-7 дней назад» window answers
+        instead, and the page says that is what it did rather than passing one
+        period's rate off as another's.
 
         Returns:
             ``(bought out, answered, taken from the standing window)``.
         """
         cutoff = moscow_today() - timedelta(days=BUYOUT_LAG_END_DAYS)
         bought, answered = buyout_cohort(days, until=cutoff)
-        if answered:
+        ordered = sum(day.orders for day in days)
+        if answered and ordered and answered >= ordered * _ANSWERED_ENOUGH:
             return bought, answered, False
 
         standing = await load_order_days(
