@@ -278,12 +278,18 @@ class PnlRepository:
         оплате» then reports a full period of withholdings against a partial
         payout: a large, plausible loss. The caller turns this into a caveat.
         """
+        # The operation goes in the WHERE, not in a FILTER on the counts: the
+        # two are equivalent — every row counted here is a sale either way —
+        # but only the WHERE lets Postgres use `ix_logistics_txn_sale`, whose
+        # predicate is that same operation. As a FILTER this read the whole
+        # window and cost 3.7 s of every P&L on the largest кабинет.
         stmt = select(
-            func.count().filter(_T.supplier_oper_name.in_(list(SALE_OPERS))),
-            func.count().filter(
-                _T.supplier_oper_name.in_(list(SALE_OPERS)), _T.retail_amount != _ZERO
-            ),
-        ).where(*self._window(workspace_id, date_from, date_to))
+            func.count(),
+            func.count().filter(_T.retail_amount != _ZERO),
+        ).where(
+            *self._window(workspace_id, date_from, date_to),
+            _T.supplier_oper_name.in_(list(SALE_OPERS)),
+        )
         row = (await self._session.execute(stmt)).one()
         return int(row[0]), int(row[1])
 
