@@ -144,16 +144,19 @@ async def advance_pnl(
         build_ingestion=build_ingestion,
         gate=gate,
     )
-    if outcome is None:
+    if not outcome.ok:
+        # Whatever the request did commit before it died counts towards the
+        # lane's total — the rows are in the database and upserted by `rrd_id`,
+        # so the retry rewrites them rather than adding them twice.
         return LaneStep(
             done=None,
-            total=total,
+            total=total + outcome.rows,
             cursor=_format_cursor(span_from, span_to, rrd_id, empties, search_to),
             finished=False,
             message="Wildberries не отдал страницу — повторим через 15 минут.",
         )
 
-    rows, next_cursor = outcome
+    rows, next_cursor = outcome.rows, outcome.next_cursor
     if next_cursor is None and rows == 0:
         # WB served NOTHING. That is the answer for an exhausted window and for
         # a window it is briefly not serving, and the two are indistinguishable

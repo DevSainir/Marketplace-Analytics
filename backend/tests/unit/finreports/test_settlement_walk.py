@@ -17,13 +17,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from types import SimpleNamespace
 from typing import Any, ClassVar, Self
 
 import pytest
 
 from src.core.exceptions import IntegrationError
-from src.integrations.wildberries.clients.finance import WBFinanceClient
 from src.modules.finreports.tasks import settlement as settlement_module
 from src.modules.finreports.tasks.settlement import walk_settlement_windows
 from src.modules.workspaces.contract import WorkspaceTokenBundle
@@ -32,18 +30,14 @@ pytestmark = pytest.mark.unit
 
 _FROM, _TO = date(2026, 8, 24), date(2026, 9, 6)  # two weeks
 
-#: The client's own page size, which is what "a full page" means to the walk.
-_PAGE_LIMIT = WBFinanceClient(
-    SimpleNamespace(  # type: ignore[arg-type]
-        wb_statistics_base_url="https://wb.test",
-        wb_http_timeout_seconds=1.0,
-        wb_max_retries=0,
-        wb_retry_backoff_seconds=0.0,
-        wb_retry_max_backoff_seconds=0.0,
-        wb_rate_pacing_enabled=False,
-    ),
-    token="probe",
-).page_limit
+#: What "a full request" means to the walk, owned by the fake client below.
+#:
+#: Deliberately NOT the real client's 100 000. The walk must read the number off
+#: the client rather than carry a copy of it — a fake whose limit differs from
+#: production's is what makes that difference observable here, and building a
+#: hundred thousand rows to prove it would cost every run of this file a second
+#: and several hundred megabytes.
+_STREAM_LIMIT = 4
 
 
 class _Row:
@@ -76,25 +70,8 @@ class _RecordingSession:
     async def __aexit__(self, *_exc: object) -> None:
         self._journal.append("session-close")
 
-    def begin_nested(self) -> _Savepoint:
-        return _Savepoint(self._journal)
-
     async def commit(self) -> None:
         self._journal.append("commit")
-
-
-class _Savepoint:
-    """The per-week savepoint, which is not the session."""
-
-    def __init__(self, journal: list[str]) -> None:
-        self._journal = journal
-
-    async def __aenter__(self) -> Self:
-        self._journal.append("savepoint")
-        return self
-
-    async def __aexit__(self, *_exc: object) -> None:
-        return None
 
 
 class _FakeIngestion:
@@ -144,19 +121,20 @@ def journal(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         failing_second: ClassVar[set[date]] = set()
 
         @property
-        def page_limit(self) -> int:
-            return _PAGE_LIMIT
+        def stream_limit(self) -> int:
+            return _STREAM_LIMIT
 
-        async def fetch_report_page(
+        async def stream_report_rows(
             self, *, date_from: date, date_to: date, cursor: int = 0
-        ) -> list[Any]:
+        ) -> Any:
             entries.append(f"fetch:{date_from}..{date_to}@{cursor}")
             if date_from in (_Client.failing if cursor == 0 else _Client.failing_second):
                 raise IntegrationError("WB withheld this page.")
             if date_from in _Client.paged and cursor == 0:
-                # A full page, so the walk must come back for a second one.
-                return [_row(index) for index in range(_PAGE_LIMIT)]
-            return [_row(1), _row(2)]
+                # A full request, so the walk must come back for a second one.
+                yield [_row(index) for index in range(_STREAM_LIMIT)]
+                return
+            yield [_row(1), _row(2)]
 
     _Client.failing = set()
     _Client.failing_second = set()
@@ -190,14 +168,12 @@ async def test_each_page_is_one_request_and_one_commit(journal: list[str]) -> No
     assert journal == [
         "token:/api/v5/supplier/reportDetailByPeriod",
         "session-open",
-        "savepoint",
         "fetch:2026-08-24..2026-08-30@0",
         "ingest:2",
         "commit",
         "session-close",
         "token:/api/v5/supplier/reportDetailByPeriod",
         "session-open",
-        "savepoint",
         "fetch:2026-08-31..2026-09-06@0",
         "ingest:2",
         "commit",
@@ -317,12 +293,12 @@ async def test_a_second_page_costs_a_second_token_and_a_second_transaction(
         build_ingestion=_ingestion_factory(journal),
     )
 
-    assert (rows, failed) == (_PAGE_LIMIT + 2, 0)
+    assert (rows, failed) == (_STREAM_LIMIT + 2, 0)
     assert journal.count("token:/api/v5/supplier/reportDetailByPeriod") == 2
     assert journal.count("commit") == 2
     # The second request pages from the last row of the first, so no row is
     # fetched — or upserted — twice.
-    assert journal[-4] == f"fetch:2026-08-24..2026-08-30@{900_000_000_000 + _PAGE_LIMIT - 1}"
+    assert journal[-4] == f"fetch:2026-08-24..2026-08-30@{900_000_000_000 + _STREAM_LIMIT - 1}"
 
 
 async def test_a_page_committed_before_a_failure_is_kept(journal: list[str]) -> None:
@@ -347,5 +323,5 @@ async def test_a_page_committed_before_a_failure_is_kept(journal: list[str]) -> 
 
     # The first page is committed and kept; the week is reported incomplete
     # rather than reported as a week that small.
-    assert (rows, failed) == (_PAGE_LIMIT, 1)
+    assert (rows, failed) == (_STREAM_LIMIT, 1)
     assert journal.count("commit") == 1

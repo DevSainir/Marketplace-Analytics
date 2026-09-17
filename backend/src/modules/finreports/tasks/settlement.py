@@ -18,9 +18,12 @@ request**, each week its own transaction.
 
 * **A week per window, and one REQUEST per page of it.** WB forms one
   realization report a week, so a week is the natural window — but a week is
-  not automatically one page: the first seller measured (2026-09-07) has weeks
-  past the 10 000-row page limit, and a second page is a second quarter-hour.
-  So the walk paces itself per page, not per week.
+  not automatically one page, and a second page is a second quarter-hour. So
+  the walk paces itself per page, not per week. What a page holds is WB's own
+  maximum of 100 000 rows, because the body is streamed rather than decoded:
+  while it was decoded the ceiling was the worker's heap instead (10 000 rows,
+  ~125 MB), and the seller measured on 2026-09-07 had weeks that did not fit
+  in one.
 * **The wait happens with no transaction open.** The token for each page is
   taken before the session exists, so a fifteen-minute wait costs wall-clock
   and nothing else. Inside the transaction the walk holds a gate it has already
@@ -97,6 +100,27 @@ def settlement_windows(*, date_from: date, date_to: date) -> list[tuple[date, da
         windows.append((cursor, window_end))
         cursor = window_end + timedelta(days=1)
     return windows
+
+
+class _Page(NamedTuple):
+    """What one request to WB achieved.
+
+    Attributes:
+        rows: Rows COMMITTED by this request — including the batches a request
+            that died part-way had already written. Counting only the requests
+            that finished would under-report `harvest_rows_processed_total`,
+            the one metric that answers "did this harvest do anything", by
+            exactly the rows that are hardest to notice are missing.
+        next_cursor: ``rrdid`` to resume from, or ``None`` when this was the
+            window's last request.
+        ok: False when WB withheld the body or died part-way through it. The
+            rows above still stand — they are committed and upserted by
+            ``rrd_id`` — but the window is not finished and must be re-asked.
+    """
+
+    rows: int
+    next_cursor: int | None
+    ok: bool
 
 
 class SettlementWalk(NamedTuple):
@@ -202,6 +226,17 @@ async def _harvest_window(
         ``(rows, complete)``. ``complete`` is False when WB withheld a page or
         the walk ran out of rate budget part-way — the rows already committed
         stay committed, and the week's remainder falls to a later tick.
+
+    **The page is streamed, and that is a rate decision as much as a memory
+    one.** The buffered alternative decoded the whole response before ingesting
+    any of it, which capped the request at 10 000 rows (~125 MB of transient
+    heap) and therefore capped what one quarter-hour window could collect. The
+    hourly tick kept that cap long after the backfill had stopped needing it,
+    and then met it from the other side: on 2026-09-17 it asked for a week WB
+    would have served in one request and could not afford the decode, on a
+    worker whose pool floor had ratcheted to 500 MB. Streaming makes one request
+    worth ten, which on an endpoint serving four an hour is the difference
+    between finishing a week and reporting it short.
     """
     rows = 0
     cursor = 0
@@ -220,7 +255,7 @@ async def _harvest_window(
                 exc,
             )
             return rows, False
-        page = await _ingest_one_page(
+        page = await _ingest_one_streamed_page(
             tokens=tokens,
             window_from=window_from,
             window_to=window_to,
@@ -228,11 +263,13 @@ async def _harvest_window(
             build_ingestion=build_ingestion,
             gate=gate,
         )
-        if page is None:
+        # Added before the check, never inside it: a request that died mid-body
+        # has already committed whatever batches reached the database, and those
+        # rows are as real as any other.
+        rows += page.rows
+        if not page.ok:
             return rows, False
-        page_rows, next_cursor = page
-        rows += page_rows
-        if next_cursor is None:
+        if page.next_cursor is None:
             logger.info(
                 "finreports: settlement %s..%s ingested %d rows for %s.",
                 window_from,
@@ -241,7 +278,7 @@ async def _harvest_window(
                 tokens.name,
             )
             return rows, True
-        cursor = next_cursor
+        cursor = page.next_cursor
 
 
 async def _ingest_one_streamed_page(
@@ -252,18 +289,20 @@ async def _ingest_one_streamed_page(
     cursor: int,
     build_ingestion: object,
     gate: RateGate,
-) -> tuple[int, int | None] | None:
+) -> _Page:
     """Fetch one request's worth of settlement rows by streaming, and commit it.
 
-    Same contract as :func:`_ingest_one_page` and a different trade. That one
-    decodes the whole response, so the number of rows it may ask for is capped
-    by the worker's heap — 10 000, measured at ~125 MB. This one parses the body
-    as it arrives and ingests it in batches, so the ceiling is the batch and WB's
-    own maximum of 100 000 becomes affordable.
+    The only way a page is read, since 2026-09-17. It replaced a buffered one
+    that decoded the whole response first, and therefore could only ask for as
+    many rows as the worker's heap would hold — 10 000, measured at ~125 MB.
+    This one parses the body as it arrives and ingests it in batches, so the
+    ceiling is the batch and WB's own maximum of 100 000 becomes affordable.
 
     On an endpoint serving roughly four requests an hour that is the whole
-    schedule rather than an efficiency: NEVA's remaining backfill is 33 requests
-    at 10 000 rows and 4 at 100 000.
+    schedule rather than an efficiency: NEVA's remaining backfill was 33 requests
+    at 10 000 rows and 4 at 100 000. The hourly tick kept the buffered path for
+    two days longer than the backfill did, which is how it came to ask for a
+    week it could not afford to decode on a worker already at 500 MB.
 
     The ``rrd_id`` of the last row is tracked as batches go past, because the
     walk's cursor must survive a body no caller ever held in one piece.
@@ -275,8 +314,8 @@ async def _ingest_one_streamed_page(
     reports failure, keeps its cursor, and is re-fetched into the same upsert.
 
     Returns:
-        ``(rows, next_cursor)`` with ``next_cursor`` ``None`` when this was the
-        window's last page, or ``None`` when WB withheld it.
+        A :class:`_Page`. Its ``rows`` are what reached the database, which on
+        a failed request is not zero.
     """
     total = 0
     last_rrd_id: int | None = None
@@ -322,10 +361,10 @@ async def _ingest_one_streamed_page(
                 tokens.name,
                 exc,
             )
-            return None
+            return _Page(total, None, ok=False)
     # Fewer rows than we asked for means WB has served the window to its end.
     if total < stream_limit or last_rrd_id is None:
-        return total, None
+        return _Page(total, None, ok=True)
     if last_rrd_id <= cursor:
         logger.error(
             "finreports: settlement %s..%s for %s stalled — a full page did not "
@@ -335,80 +374,8 @@ async def _ingest_one_streamed_page(
             tokens.name,
             cursor,
         )
-        return total, None
-    return total, last_rrd_id
-
-
-async def _ingest_one_page(
-    *,
-    tokens: WorkspaceTokenBundle,
-    window_from: date,
-    window_to: date,
-    cursor: int,
-    build_ingestion: object,
-    gate: RateGate,
-) -> tuple[int, int | None] | None:
-    """Fetch one page, commit it, and report where the walk stands.
-
-    The page is streamed into the transaction rather than collected first: a
-    settlement row costs ~9.7 KB while it is being validated, and holding more
-    than a page is what OOM-killed the 2026-08-11 harvest. The SAVEPOINT keeps
-    the page all-or-nothing.
-
-    The client is handed a gate whose token this page has already taken — a
-    second acquire here would wait out another full refill, inside the very
-    transaction the outer wait exists to protect.
-
-    Returns:
-        ``(rows, next_cursor)`` with ``next_cursor`` ``None`` when this was the
-        window's last page, or ``None`` when WB withheld the page.
-    """
-    async with AsyncSessionLocal() as session:
-        ingestion: IngestionService = build_ingestion(session)  # type: ignore[operator]
-        try:
-            async with (
-                session.begin_nested(),
-                WBFinanceClient(
-                    settings,
-                    token=tokens.statistics,
-                    max_retries=MAX_RETRIES,
-                    rate_gate=_SpentToken(gate),
-                ) as client,
-            ):
-                page = await client.fetch_report_page(
-                    date_from=window_from, date_to=window_to, cursor=cursor
-                )
-                page_limit = client.page_limit
-                rows = await ingestion.ingest_finance_report(
-                    _one_page(page), workspace_id=tokens.workspace_id
-                )
-        except IntegrationError as exc:
-            logger.warning(
-                "finreports: settlement %s..%s failed for %s: %s",
-                window_from,
-                window_to,
-                tokens.name,
-                exc,
-            )
-            return None
-        await session.commit()
-    # A short page is the last one. A full page whose cursor does not advance
-    # would loop forever asking WB the same question every fifteen minutes, so
-    # it ends the window instead.
-    if len(page) < page_limit:
-        return rows, None
-    next_cursor = page[-1].rrd_id
-    if next_cursor <= cursor:
-        logger.error(
-            "finreports: settlement %s..%s for %s stalled — a full page did not advance "
-            "rrd_id past %d.",
-            window_from,
-            window_to,
-            tokens.name,
-            cursor,
-        )
-        return rows, None
-    return rows, next_cursor
+        return _Page(total, None, ok=True)
+    return _Page(total, last_rrd_id, ok=True)
 
 
 async def _one_page(

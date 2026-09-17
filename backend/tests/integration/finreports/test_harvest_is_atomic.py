@@ -1,22 +1,30 @@
-"""One workspace's harvest still commits whole, now that it streams.
+"""What a harvest keeps when the settlement walk dies part-way.
 
-The finance report is no longer fetched and then written — it is written page by
-page as it arrives, because holding a settlement window is what OOM-killed the
-2026-08-11 harvest. That trades a memory bound for a correctness hazard: a walk
-that dies half-way now dies with rows already in the transaction, and a
-half-ingested settlement window does not look like an error. It looks like a
-quiet week (`docs/finreports/PNL.md` §1).
+The finance report is not fetched and then written — it is written as it
+arrives, because holding a settlement window is what OOM-killed the 2026-08-11
+harvest. That trades a memory bound for a correctness hazard: a walk that dies
+half-way dies with rows already committed, and a half-ingested settlement window
+does not look like an error. It looks like a quiet week
+(`docs/finreports/PNL.md` §1).
 
-`harvest_workspace` answers that with a SAVEPOINT around the walk, and these
-tests exercise the real function against real PostgreSQL — fake WB, real
-transaction semantics. Testing `begin_nested` on its own would prove that
-PostgreSQL has savepoints, not that the harvest uses one.
+**The unit that is all-or-nothing is the batch**, and has been since the walk
+started streaming its pages (2026-09-17). Not the week — WB serves this endpoint
+four times an hour and no transaction may be held across that wait — and no
+longer the page either, because one transaction over a whole page put back the
+ceiling the streaming had just removed. What makes that safe is not atomicity
+but idempotence: the cursor advances only on a completed request, every row is
+upserted by `rrd_id`, and the week is REPORTED incomplete so the next tick asks
+again.
+
+These tests exercise the real `harvest_workspace` against real PostgreSQL — fake
+WB, real transaction semantics — because what is under test is which rows
+survive a commit boundary, and a fake session cannot have one.
 """
 
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from datetime import date
 from types import TracebackType
 from typing import Any, Self
@@ -123,23 +131,32 @@ class _FakeFinanceClient:
     ) -> None:
         return None
 
-    #: Set by the test: True makes the second page raise, as a WB timeout does.
+    #: Set by the test: True makes the second request raise, as a WB timeout does.
     fail_mid_walk = False
 
+    #: Set by the test: True makes the FIRST request raise after it has already
+    #: handed over a batch — the case the per-batch commit exists for, and the
+    #: one no other arrangement of these fakes reaches.
+    fail_after_first_batch = False
+
     @property
-    def page_limit(self) -> int:
-        """Small, so this test's three rows still make a multi-page walk."""
+    def stream_limit(self) -> int:
+        """Small, so this test's three rows still make a multi-request walk."""
         return 2
 
-    async def fetch_report_page(
+    async def stream_report_rows(
         self, *, date_from: date, date_to: date, cursor: int = 0
-    ) -> list[WBReportDetailRow]:
-        """Serve a full page, then either the last page or WB giving up."""
+    ) -> AsyncIterator[list[WBReportDetailRow]]:
+        """Serve a full request, then either the last one or WB giving up."""
         if cursor == 0:
-            return [_settlement(1), _settlement(2)]
+            if self.fail_after_first_batch:
+                yield [_settlement(1)]
+                raise IntegrationError("reportDetailByPeriod died mid-body.")
+            yield [_settlement(1), _settlement(2)]
+            return
         if self.fail_mid_walk:
             raise IntegrationError("reportDetailByPeriod timed out on page 2.")
-        return [_settlement(3)]
+        yield [_settlement(3)]
 
 
 class _FakeStorageClient:
@@ -244,8 +261,10 @@ def wb(
 
     monkeypatch.setattr(workspace, "warm_settlement_rollup", no_warming)
     _FakeFinanceClient.fail_mid_walk = False
+    _FakeFinanceClient.fail_after_first_batch = False
     yield _FakeFinanceClient
     _FakeFinanceClient.fail_mid_walk = False
+    _FakeFinanceClient.fail_after_first_batch = False
 
 
 async def _settled_rows(session: AsyncSession) -> int:
@@ -284,14 +303,12 @@ async def test_a_completed_harvest_commits_every_page(
 async def test_a_walk_that_dies_mid_page_leaves_no_settlement_rows(
     wb: type[_FakeFinanceClient], db_session: AsyncSession
 ) -> None:
-    """The page that failed leaves nothing behind; the pages before it stand.
+    """The request that failed leaves nothing behind; the ones before it stand.
 
-    Atomicity is per PAGE now, not per window: WB serves this endpoint once
-    per quarter of an hour, and no transaction may be held open across that
-    wait. So the first page's two rows are committed and kept, the failed page
-    contributes nothing, and the week is reported incomplete — which is what
-    `finance_windows_failed` is for. What must never happen is a page torn in
-    half, and the savepoint is still what prevents it.
+    WB serves this endpoint once per quarter of an hour, and no transaction may
+    be held open across that wait — so the first request's two rows are
+    committed and kept, the failed request contributes nothing, and the week is
+    reported incomplete, which is what `finance_windows_failed` is for.
     """
     wb.fail_mid_walk = True
 
@@ -303,6 +320,31 @@ async def test_a_walk_that_dies_mid_page_leaves_no_settlement_rows(
     # The rest of the harvest still committed — a failed WB source has never
     # been a reason to throw away the sources that worked.
     assert await _storage_rows(db_session) == 1
+
+
+async def test_a_request_that_dies_after_a_batch_keeps_that_batch(
+    wb: type[_FakeFinanceClient], db_session: AsyncSession
+) -> None:
+    """A half-read page is kept, not discarded, and the week is still called short.
+
+    This is the trade the per-batch commit makes, and it only looks wrong until
+    you count what the alternative costs: one transaction over a 100 000-row
+    page is the state that OOM-killed the worker on 2026-09-15. Keeping the
+    batch is safe because nothing downstream trusts a row count — the cursor did
+    not advance, every row upserts by `rrd_id`, and `finance_windows_failed`
+    says the week is not finished.
+
+    The failure this pins is the tempting simplification: roll the page back on
+    error. The rows would be re-fetched to exactly the same place, and 217
+    seconds of WB's budget would be spent doing it.
+    """
+    wb.fail_after_first_batch = True
+
+    counts = await harvest_workspace(tokens=_tokens(), date_from=_FROM, date_to=_TO, on_date=_TO)
+
+    assert counts["finance"] == 1
+    assert counts["finance_windows_failed"] == 1
+    assert await _settled_rows(db_session) == 1
 
 
 async def test_the_walk_inside_the_transaction_retries_less_than_the_default(

@@ -394,7 +394,7 @@ async def test_a_streamed_page_commits_every_batch_as_it_lands(
         gate=NullRateGate(),
     )
 
-    assert outcome == (5, None)
+    assert (outcome.rows, outcome.next_cursor, outcome.ok) == (5, None, True)
     assert session.commits == len(batches), (
         f"committed {session.commits} times for {len(batches)} batches — the page "
         "is still one transaction"

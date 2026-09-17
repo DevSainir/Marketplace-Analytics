@@ -27,7 +27,12 @@ from src.integrations.wildberries.schemas import WBReportDetailRow
 class WBFinanceClient(BaseWBClient):
     """Client for the WB realization/finance report (``reportDetailByPeriod``)."""
 
-    #: Rows asked for per request, for callers that decode a whole page at once.
+    #: Rows asked for per request by :meth:`iter_report_pages`, the one path
+    #: left that decodes a whole page at once. **No harvest uses it.** The
+    #: settlement walk moved to :meth:`stream_report_rows` on 2026-09-17, taking
+    #: the single-page ``fetch_report_page`` with it; this constant survives
+    #: because the generator below still holds a decoded page, and it is a
+    #: number nobody should raise.
     #:
     #: **A memory ceiling, not a throughput knob.** A settlement row costs ~12.5
     #: KB while it is being validated (measured live 2026-09-14: 25 000 rows
@@ -156,60 +161,6 @@ class WBFinanceClient(BaseWBClient):
     def stream_limit(self) -> int:
         """Rows a streamed request asks WB for — the caller's short-page test."""
         return self._STREAM_LIMIT
-
-    @property
-    def page_limit(self) -> int:
-        """Rows this client asks for per request.
-
-        Public because the caller that paces itself per page needs it to tell
-        a last page from a full one, and reaching into ``_PAGE_LIMIT`` for that
-        makes every test fake of this client wrong in a way only production
-        notices.
-        """
-        return self._PAGE_LIMIT
-
-    async def fetch_report_page(
-        self, *, date_from: date, date_to: date, cursor: int = 0
-    ) -> list[WBReportDetailRow]:
-        """Fetch ONE page of the window, starting after ``cursor``.
-
-        The single-request half of :meth:`iter_report_pages`, for the caller
-        that cannot afford a loop: WB serves this endpoint once per ~15 minutes
-        per token, so a walk of several pages has to put a wait — and a
-        transaction boundary — between them, which a generator that owns its own
-        loop cannot express.
-
-        Args:
-            date_from: Inclusive settlement-date window start.
-            date_to: Inclusive settlement-date window end.
-            cursor: ``rrdid`` to page from; 0 for the first page. The cursor is
-                exclusive, so a row is returned exactly once across a walk.
-
-        Returns:
-            The page's rows. A page shorter than :attr:`_PAGE_LIMIT` is the last
-            one; an empty list means the window is exhausted (or was empty).
-
-        Raises:
-            IntegrationError: On an unexpected response shape.
-        """
-        payload = await self._request(
-            "GET",
-            SETTLEMENT_REPORT_PATH,
-            params={
-                "dateFrom": date_from.isoformat(),
-                "dateTo": date_to.isoformat(),
-                "rrdid": cursor,
-                "limit": self._PAGE_LIMIT,
-            },
-        )
-        # WB answers an empty window with 204/null rather than an empty list.
-        if payload is None:
-            return []
-        if not isinstance(payload, list):
-            raise IntegrationError(
-                "Unexpected reportDetailByPeriod response shape (expected a list)."
-            )
-        return _validate_draining(payload)
 
     async def iter_report_pages(
         self, *, date_from: date, date_to: date

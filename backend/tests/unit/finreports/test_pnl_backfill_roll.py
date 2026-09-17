@@ -27,6 +27,7 @@ import pytest
 
 from src.modules.finreports.tasks.backfill import walk
 from src.modules.finreports.tasks.backfill.span import PNL_EMPTY_STOP, _format_cursor, _parse_cursor
+from src.modules.finreports.tasks.settlement import _Page
 from src.modules.workspaces.schemas import WorkspaceTokenBundle
 
 TODAY = date(2026, 9, 12)
@@ -90,11 +91,11 @@ def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(walk, "read_settled_days", _coverage)
 
 
-def _answer(monkeypatch: pytest.MonkeyPatch, outcome: tuple[int, int | None] | None) -> None:
-    """Make WB answer every page of this test the same way."""
+def _answer(monkeypatch: pytest.MonkeyPatch, rows: int, next_cursor: int | None) -> None:
+    """Make WB answer every request of this test the same way, and succeed."""
 
-    async def _page(**_kwargs: Any) -> tuple[int, int | None] | None:
-        return outcome
+    async def _page(**_kwargs: Any) -> _Page:
+        return _Page(rows, next_cursor, ok=True)
 
     monkeypatch.setattr(walk, "_ingest_one_streamed_page", _page)
 
@@ -107,7 +108,7 @@ async def test_an_exhausted_span_moves_to_the_next_hole_instead_of_ending_the_la
     Three empty answers conclude the PRE-HISTORY span and nothing more. A lane
     that reports ``finished`` here is claiming a 715-day hole is filled.
     """
-    _answer(monkeypatch, (0, None))
+    _answer(monkeypatch, rows=0, next_cursor=None)
     cursor = _format_cursor(*NEWEST_CHUNK, 0, PNL_EMPTY_STOP - 1, NEWEST_CHUNK[1])
 
     step = await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
@@ -127,7 +128,7 @@ async def test_the_last_page_of_a_span_moves_on_rather_than_finishing(
     its end. That ends the WINDOW. Whether it ends the lane is a question only
     the coverage can answer.
     """
-    _answer(monkeypatch, (120, None))
+    _answer(monkeypatch, rows=120, next_cursor=None)
     cursor = _format_cursor(*NEWEST_CHUNK, 4242, 0, NEWEST_CHUNK[1])
 
     step = await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
@@ -146,7 +147,7 @@ async def test_the_search_ceiling_moves_below_the_span_just_concluded(
     concluded once, and the next search starts further back. It moves DOWN now,
     because the walk runs newest to oldest.
     """
-    _answer(monkeypatch, (0, None))
+    _answer(monkeypatch, rows=0, next_cursor=None)
     cursor = _format_cursor(*NEWEST_CHUNK, 0, PNL_EMPTY_STOP - 1, NEWEST_CHUNK[1])
 
     step = await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
@@ -169,7 +170,7 @@ async def test_a_lane_with_no_holes_left_really_does_finish(
         return contiguous
 
     monkeypatch.setattr(walk, "read_settled_days", _coverage)
-    _answer(monkeypatch, (0, None))
+    _answer(monkeypatch, rows=0, next_cursor=None)
     cursor = _format_cursor(
         date(2021, 9, 13), date(2026, 5, 31), 0, PNL_EMPTY_STOP - 1, date(2021, 9, 13)
     )
@@ -187,7 +188,7 @@ async def test_a_new_workspace_is_walked_newest_first(monkeypatch: pytest.Monkey
     nothing but the direction decides whether the seller's first settlement rows
     are this month's or two years ago's.
     """
-    _answer(monkeypatch, (0, None))
+    _answer(monkeypatch, rows=0, next_cursor=None)
 
     async def _nothing(_workspace_id: uuid.UUID) -> list[date]:
         return []
