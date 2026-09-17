@@ -27,39 +27,23 @@ from src.integrations.wildberries.schemas import WBReportDetailRow
 class WBFinanceClient(BaseWBClient):
     """Client for the WB realization/finance report (``reportDetailByPeriod``)."""
 
-    #: Rows asked for per request by :meth:`iter_report_pages`, the one path
-    #: left that decodes a whole page at once. **No harvest uses it.** The
-    #: settlement walk moved to :meth:`stream_report_rows` on 2026-09-17, taking
-    #: the single-page ``fetch_report_page`` with it; this constant survives
-    #: because the generator below still holds a decoded page, and it is a
-    #: number nobody should raise.
-    #:
-    #: **A memory ceiling, not a throughput knob.** A settlement row costs ~12.5
-    #: KB while it is being validated (measured live 2026-09-14: 25 000 rows
-    #: took a worker from 92 MB to 405 MB), because the decoded dict and the
-    #: :class:`WBReportDetailRow` coexist. WB allows 100 000, which at that rate
-    #: is ~1.25 GB of transient heap against a 768 MiB worker — and asking for
-    #: it is what OOM-killed the 2026-08-11 harvest.
-    #:
-    #: :meth:`stream_report_rows` is not bound by this. It parses the body as it
-    #: arrives, so its peak is the batch rather than the page, and it uses
-    #: :data:`_STREAM_LIMIT` instead.
-    _PAGE_LIMIT = 10_000
-
     #: Rows asked for per request when the caller streams.
     #:
     #: WB's documented maximum, verified live 2026-09-14 on a 25 000-row ask
-    #: that it answered in full. Worth having as its own constant because the
-    #: two numbers answer different questions: ``_PAGE_LIMIT`` is "how much can
-    #: we hold", this is "how few requests can we get away with". On an endpoint
-    #: serving ~4 requests an hour the second question is the schedule — NEVA's
-    #: remaining backfill is 33 pages at 10 000 and 4 at 100 000.
+    #: that it answered in full. Affordable only because the body is parsed as
+    #: it arrives: the walk that decoded whole pages was held to 10 000 rows by
+    #: the worker's heap, and asking WB for its 100 000 anyway is what
+    #: OOM-killed the 2026-08-11 harvest. On an endpoint serving ~4 requests an
+    #: hour that limit is the schedule rather than an efficiency — NEVA's
+    #: remaining backfill is 33 requests at 10 000 rows and 4 at 100 000.
     _STREAM_LIMIT = 100_000
 
     #: Rows handed over at a time by :meth:`stream_report_rows`, and therefore
-    #: the real memory ceiling of a streamed walk: ~25 MB at 12.5 KB a row.
-    #: Small enough that page size stops mattering, large enough that the
-    #: per-batch transaction overhead stays irrelevant beside a WB round trip.
+    #: the real memory ceiling of a streamed walk: ~25 MB at 12.5 KB a row (a
+    #: settlement row costs that much while the decoded dict and the
+    #: :class:`WBReportDetailRow` coexist). Small enough that the request's row
+    #: count stops mattering, large enough that the per-batch transaction
+    #: overhead stays irrelevant beside a WB round trip.
     _STREAM_BATCH = 2_000
 
     #: Rows the freshness probe asks for. It only needs to know whether the
@@ -161,76 +145,6 @@ class WBFinanceClient(BaseWBClient):
     def stream_limit(self) -> int:
         """Rows a streamed request asks WB for — the caller's short-page test."""
         return self._STREAM_LIMIT
-
-    async def iter_report_pages(
-        self, *, date_from: date, date_to: date
-    ) -> AsyncGenerator[list[WBReportDetailRow], None]:
-        """Yield the window's settlement rows one ``rrdid`` page at a time.
-
-        Endpoint: ``GET /api/v5/supplier/reportDetailByPeriod``. Pages by
-        ``rrdid`` (the last row's ``rrd_id``) until a short page is returned. A
-        full page whose last ``rrd_id`` does not advance would loop forever —
-        that pass raises instead, so the harvest records the source as failed.
-
-        **Nothing accumulates across pages.** This used to return the whole
-        window as one list, which made the caller's peak memory a function of
-        how much the seller sold — it grew on its own until it crossed the
-        worker's cgroup limit and the 2026-08-11 harvest was killed mid-walk.
-        The generator holds at most one page (:data:`_PAGE_LIMIT` rows), so a
-        caller that ingests each page as it arrives has a peak fixed by that
-        constant. The cursor state that survives a page is two integers.
-
-        Args:
-            date_from: Inclusive settlement-date window start.
-            date_to: Inclusive settlement-date window end.
-
-        Yields:
-            Non-empty pages of :class:`WBReportDetailRow`, in WB's own
-            ``rrd_id`` order. Pages do not overlap: the cursor is exclusive, so
-            a row is yielded exactly once.
-
-        Raises:
-            IntegrationError: On an unexpected response shape or a stalled cursor.
-        """
-        cursor = 0
-        previous_cursor: int | None = None
-        while True:
-            payload = await self._request(
-                "GET",
-                SETTLEMENT_REPORT_PATH,
-                params={
-                    "dateFrom": date_from.isoformat(),
-                    "dateTo": date_to.isoformat(),
-                    "rrdid": cursor,
-                    "limit": self._PAGE_LIMIT,
-                },
-            )
-            # WB returns null (not []) for an empty window — treat as "done".
-            if payload is None:
-                return
-            if not isinstance(payload, list):
-                raise IntegrationError(
-                    "Unexpected reportDetailByPeriod response shape (expected a list)."
-                )
-            page_size = len(payload)
-            page = _validate_draining(payload)
-            # ``payload`` is now empty, but the name still pins the (already
-            # freed) list in this frame across the yield below. Dropping it
-            # keeps the generator's retained set to the validated page alone.
-            del payload
-            if page:
-                yield page
-            if page_size < self._PAGE_LIMIT:
-                return
-            next_cursor = page[-1].rrd_id
-            if previous_cursor is not None and next_cursor <= previous_cursor:
-                raise IntegrationError(
-                    "reportDetailByPeriod pagination stalled: a full page did not "
-                    f"advance rrd_id past {previous_cursor}."
-                )
-            previous_cursor = next_cursor
-            cursor = next_cursor
-            del page
 
     async def stream_report_rows(
         self,

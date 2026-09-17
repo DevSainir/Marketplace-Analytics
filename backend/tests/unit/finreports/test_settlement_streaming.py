@@ -7,12 +7,11 @@ limit and the harvest was OOM-killed mid-walk (`signal 9`), leaving the week
 unharvested. A settlement row costs ~9.7 KB while it is being validated, so the
 old 100 000-row page alone was ~1 GB.
 
-Memory is not something a normal assertion can see, which is why the first test
-here counts live model instances directly: it fails if a future refactor
-reintroduces an accumulator, and no other test would.
-
-The rest pin the properties the streaming rewrite had to preserve, each of which
-would otherwise fail quietly rather than loudly:
+Memory is not something a normal assertion can see. The client's half of that
+property — that nothing larger than one batch is ever held — is counted
+directly in `tests/unit/integrations/test_wb_streaming_reader.py`; the tests
+here pin what the streaming rewrite had to preserve on the way into the
+database, each of which would otherwise fail quietly rather than loudly:
 
 * a report whose rows straddle a page boundary keeps the period WB stated, not
   the last page's slice of it;
@@ -25,18 +24,15 @@ would otherwise fail quietly rather than loudly:
 
 from __future__ import annotations
 
-import gc
 import uuid
 from collections.abc import AsyncGenerator, Sequence
 from datetime import date
 from types import SimpleNamespace
 from typing import Any
 
-import httpx
 import pytest
 
 from src.core.exceptions import IntegrationError
-from src.integrations.wildberries.clients.finance import WBFinanceClient
 from src.integrations.wildberries.rate_limit import NullRateGate
 from src.integrations.wildberries.schemas.finance import WBReportDetailRow
 from src.modules.finreports.services.ingestion.service import IngestionService
@@ -45,12 +41,8 @@ pytestmark = pytest.mark.unit
 
 _WORKSPACE = uuid.UUID("019f657a-a70c-780a-ac98-f010a1916615")
 
-#: Rows the fake WB serves per page in these tests. Small enough to keep them
-#: fast; the property under test does not depend on the size.
-_PAGE = 4
-
-#: `rrd_id`s live in a range no other test uses, so the live-object count below
-#: cannot be polluted by rows another module left reachable.
+#: `rrd_id`s live in a range no other test uses, so a row built here is
+#: recognisable wherever it surfaces.
 _RRD_BASE = 900_000_000_000
 
 
@@ -63,117 +55,6 @@ def _row(index: int, *, report_id: int = 969371534, **extra: Any) -> dict[str, A
         "currency_name": "KGS",
         **extra,
     }
-
-
-def _paged_transport(pages: Sequence[list[dict[str, Any]]]) -> httpx.MockTransport:
-    """Serve `pages` in order, one per request, then an empty page.
-
-    Answers whatever the client asks for rather than honouring the `rrdid`
-    cursor: the cursor is the client's business and is asserted separately.
-    """
-    remaining = list(pages)
-
-    def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=remaining.pop(0) if remaining else [])
-
-    return httpx.MockTransport(handler)
-
-
-def _client(transport: httpx.MockTransport, *, page_limit: int = _PAGE) -> WBFinanceClient:
-    """A finance client whose transport is fake and whose page size is tiny.
-
-    Pacing off: the settlement walk takes one token per page from a bucket
-    that refills every 61 s, so a paced multi-page test would spend minutes
-    asleep proving nothing about the walk. The gate has its own tests in
-    ``tests/unit/integrations/test_wb_rate_pacing.py``.
-    """
-    from src.core.config import settings
-
-    client = WBFinanceClient(
-        settings.model_copy(update={"wb_rate_pacing_enabled": False}), token="stat-token"
-    )
-    client._PAGE_LIMIT = page_limit  # type: ignore[misc]
-    client._client = httpx.AsyncClient(base_url="https://wb.test", transport=transport)
-    return client
-
-
-def _live_rows() -> int:
-    """How many settlement models built by this module are still reachable."""
-    gc.collect()
-    return sum(
-        1 for obj in gc.get_objects() if type(obj) is WBReportDetailRow and obj.rrd_id >= _RRD_BASE
-    )
-
-
-async def test_the_walk_never_holds_more_than_one_page() -> None:
-    """Live row objects stay bounded by the page size, not by the window.
-
-    This is the whole point of the rewrite. Four pages of four rows: an
-    accumulating client would have 16 rows alive by the end, a streaming one at
-    most 4 — the page the generator is suspended on.
-    """
-    pages = [[_row(page * _PAGE + i) for i in range(_PAGE)] for page in range(4)]
-    client = _client(_paged_transport(pages))
-    consumed = 0
-    high_water = 0
-
-    async with client:
-        async for page in client.iter_report_pages(
-            date_from=date(2026, 7, 13), date_to=date(2026, 7, 19)
-        ):
-            consumed += len(page)
-            assert len(page) <= _PAGE
-            # Release the caller's own reference, so what is left alive is what
-            # the generator itself is holding across the yield.
-            del page
-            high_water = max(high_water, _live_rows())
-
-    assert consumed == 16
-    assert high_water <= _PAGE
-
-
-async def test_the_walk_stops_on_a_short_page_and_follows_the_cursor() -> None:
-    """A page shorter than the limit ends the walk; each request resumes after it."""
-    cursors: list[str] = []
-    pages = [[_row(i) for i in range(_PAGE)], [_row(_PAGE + i) for i in range(2)]]
-    remaining = list(pages)
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        cursors.append(request.url.params["rrdid"])
-        return httpx.Response(200, json=remaining.pop(0) if remaining else [])
-
-    client = _client(httpx.MockTransport(handler))
-
-    async with client:
-        collected = [
-            row
-            async for page in client.iter_report_pages(
-                date_from=date(2026, 7, 13), date_to=date(2026, 7, 19)
-            )
-            for row in page
-        ]
-
-    assert [row.rrd_id for row in collected] == [_RRD_BASE + i for i in range(_PAGE + 2)]
-    # Two requests only — the short second page ends the walk without a probe
-    # for a third.
-    assert cursors == ["0", str(_RRD_BASE + _PAGE - 1)]
-
-
-async def test_a_stalled_cursor_raises_instead_of_looping_forever() -> None:
-    """A full page that does not advance `rrd_id` is a bug WB could ship any day."""
-    page = [_row(i) for i in range(_PAGE)]
-    client = _client(_paged_transport([page, page, page]))
-
-    async def walk() -> None:
-        """Drain the whole walk, so a stall would spin here forever."""
-        async with client:
-            async for _ in client.iter_report_pages(
-                date_from=date(2026, 7, 13), date_to=date(2026, 7, 19)
-            ):
-                pass
-
-    with pytest.raises(IntegrationError, match="pagination stalled"):
-        await walk()
 
 
 class _RecordingRepo:
@@ -399,3 +280,61 @@ async def test_a_streamed_page_commits_every_batch_as_it_lands(
         f"committed {session.commits} times for {len(batches)} batches — the page "
         "is still one transaction"
     )
+
+
+async def test_a_full_request_that_does_not_advance_ends_the_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stalled `rrdid` must end the window, not be asked for forever.
+
+    The walk's exit test is "fewer rows than we asked for". WB could serve a
+    full request whose last `rrd_id` is the one we paged FROM any day, and
+    without this guard the window would be re-fetched at one request per
+    fifteen minutes until somebody noticed — spending the token budget every
+    other workspace's harvest needs. The guard used to be the client's, in the
+    generator that owned the loop; it moved here with the cursor.
+    """
+    from src.modules.finreports.tasks import settlement
+
+    session = _CountingSession()
+    cursor = _RRD_BASE + 10
+
+    class _StalledClient:
+        #: Matches the row count below, so the request reads as a FULL one and
+        #: the short-request exit does not fire before the guard is reached.
+        stream_limit = 2
+
+        async def __aenter__(self) -> _StalledClient:
+            return self
+
+        async def __aexit__(self, *_exc: object) -> None:
+            return None
+
+        async def stream_report_rows(self, **_kw: Any) -> Any:
+            """Serve a full request that ends on the row we paged from."""
+            yield [
+                WBReportDetailRow.model_validate(_row(9)),
+                WBReportDetailRow.model_validate(_row(10)),
+            ]
+
+    class _Ingestion:
+        async def ingest_finance_report(self, pages: Any, **_kw: Any) -> int:
+            written = 0
+            async for page in pages:
+                written += len(page)
+            return written
+
+    monkeypatch.setattr(settlement, "AsyncSessionLocal", lambda: session)
+    monkeypatch.setattr(settlement, "WBFinanceClient", lambda *a, **k: _StalledClient())
+
+    outcome = await settlement._ingest_one_streamed_page(
+        tokens=SimpleNamespace(statistics="t", workspace_id=uuid.uuid4(), name="NEVA"),
+        window_from=date(2026, 7, 9),
+        window_to=date(2026, 8, 8),
+        cursor=cursor,
+        build_ingestion=lambda _s: _Ingestion(),
+        gate=NullRateGate(),
+    )
+
+    # The rows it did serve are kept and committed; the window simply ends.
+    assert (outcome.rows, outcome.next_cursor, outcome.ok) == (2, None, True)

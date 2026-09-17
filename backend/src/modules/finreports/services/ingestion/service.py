@@ -69,7 +69,7 @@ class IngestionService:
         the next, so neither this method nor its caller ever holds more than a
         page. Taking a whole window as a list is what made the peak scale with
         the seller's history — see
-        :meth:`~src.integrations.wildberries.clients.finance.WBFinanceClient.iter_report_pages`.
+        :meth:`~src.integrations.wildberries.clients.finance.WBFinanceClient.stream_report_rows`.
 
         Every statement here goes to the caller's session and **nothing is
         committed**: the harvest's all-or-nothing property is the caller's to

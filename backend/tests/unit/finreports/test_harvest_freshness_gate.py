@@ -271,9 +271,9 @@ async def test_the_probe_names_the_report_it_found() -> None:
 async def test_the_probe_costs_one_request_and_does_not_walk_the_report() -> None:
     """The gate must stay cheap — pagination here would defeat its whole purpose.
 
-    ``iter_report_pages`` follows the ``rrdid`` cursor over the whole window; if
-    the probe ever did the same, the "is there anything new?" question would
-    cost as much as the harvest it is meant to avoid.
+    The harvest follows the ``rrdid`` cursor over the whole window, a request
+    at a time; if the probe ever did the same, the "is there anything new?"
+    question would cost as much as the harvest it is meant to avoid.
     """
     calls: list[httpx.Request] = []
 
