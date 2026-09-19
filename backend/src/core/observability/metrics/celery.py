@@ -107,6 +107,34 @@ CELERY_TASK_PEAK_MEMORY: Final[Histogram] = Histogram(
     buckets=_MEMORY_BUCKETS,
 )
 
+#: The child's high-water RSS when a task STARTED, by task.
+#:
+#: The one memory reading a task that dies still leaves behind, and the gap that
+#: cost a day to notice. The two histograms above are written at
+#: ``task_postrun``, so the twenty-one harvests the kernel killed on 09-18
+#: recorded nothing at all — the surviving runs put `harvest_finance` at 369 MB
+#: of growth while the cgroup gauge was touching 767 MB, and only the second
+#: number was true.
+#:
+#: Recorded at ``task_prerun``, so it is written before anything can go wrong.
+#: It does not say what the task then needed — nothing in this process can, once
+#: the process is gone — but it says what it was given: the floor already spent
+#: when it began. Paired with ``celery_worker_lost_total``, which names the task
+#: from the PARENT and therefore survives, that is enough to tell "this task
+#: wants too much" from "this task was handed too little", which is the question
+#: the whole 09-18 diagnosis turned on.
+#:
+#: A histogram rather than a gauge on purpose: a gauge belonging to a child that
+#: has died is retired by `mark_process_dead`, which would delete the evidence
+#: at exactly the moment it became interesting. Histogram files outlive their
+#: process, because their counts have to.
+CELERY_TASK_START_MEMORY: Final[Histogram] = Histogram(
+    "celery_task_start_memory_bytes",
+    "Worker child's high-water resident set when a task began.",
+    ["task_name"],
+    buckets=_MEMORY_BUCKETS,
+)
+
 #: How much a task RAISED that high-water mark, by task.
 #:
 #: The attribution half, and the reason both exist. A high-water mark is

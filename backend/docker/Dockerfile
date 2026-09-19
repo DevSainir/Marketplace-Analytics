@@ -161,19 +161,48 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
 # were all a child that had already ratcheted past 500 MB meeting an ordinary
 # allocation.
 #
-# 300 MB (Celery reads KiB, and compares the child's PEAK RSS after each task,
-# so a child that spikes once is retired even if it has since shrunk). The
-# arithmetic against the 768 MiB cap in compose: parent 156 MB measured, two
-# children, so 156 + 2 x 300 = 756 MB of RSS — and the cgroup counts a page
-# shared by fork only once, which is why the same pool reads 267 MB in
-# `memory.current` while its three processes report 433 MB between them. A fresh
-# child is ~147 MB, so this lets one roughly double before it is retired.
+# 220 MB — and how that number is arrived at is worth more than the number,
+# because the first attempt at it was 300 and 300 is what let the 09-18 outage
+# happen. Celery reads KiB and compares the child's PEAK RSS after each task, so
+# a child that spikes once is retired even if it has since shrunk.
 #
-# The difference this buys is the whole point: Celery retires a child BETWEEN
-# tasks, cleanly, and the next task runs in a new one. The kernel does it
-# mid-task, with a SIGKILL, and `acks_on_failure_or_timeout` then acknowledges
-# the message — so the work is not requeued, it is simply gone until the next
-# tick.
+# **The limit does not cap what a task may allocate. It caps the FLOOR the next
+# task has to fit above.** The check runs between tasks, so a single task that
+# needs more than the cgroup has left is killed by the kernel regardless of what
+# is written here — which is exactly what happened twenty-one times on 09-18.
+# What the limit decides is how much of the 768 MiB is already spoken for when
+# that task starts.
+#
+# The arithmetic, in the only units that matter. The cgroup counts a page shared
+# by fork once, so it is not the sum of the RSS figures: a fresh pool reads
+# 294 MB in `memory.current` while its three processes report 439 MB between
+# them. Per child, ~147 MB of that is shared with the parent and the rest is its
+# own. So the floor a limit L permits is roughly `parent + 2 x (L - 147)`:
+#
+#   L = 300  ->  156 + 2 x 153  =  ~562 MB   (measured before the 09-19 reboot:
+#                                             554 MB. The model was right and
+#                                             the number was still wrong.)
+#   L = 220  ->  156 + 2 x  73  =  ~302 MB
+#
+# That is the whole change: ~250 MB more room for whatever a task legitimately
+# needs, bought by recycling children sooner.
+#
+# What it costs is a fork — cheap, from a parent that has already imported
+# everything — and the child's warm state: its Postgres pool, its Redis pool,
+# its HTTP clients. Once an hour that is nothing; once a minute it would be
+# connection churn. The measured growth per task says it will be rare:
+# `celery_task_memory_growth_bytes` over 48 h puts `ab_tests.poll_rotations` at
+# 4.3 MB, `refresh_buyout_cohorts` at 2.9 MB and `sweep_stalled_backfills` at
+# 0.3 MB. The one outlier was `harvest_finance` at 369 MB, and that was the
+#
+# Lowering this was NOT the fix for 09-18 and must not be read as one — the fix
+# was not materialising 115 366 rows. This is what stops the next unbudgeted
+# allocation meeting a floor that has already eaten two thirds of the box.
+#
+# The difference the limit buys at all: Celery retires a child BETWEEN tasks,
+# cleanly, and the next task runs in a new one. The kernel does it mid-task,
+# with a SIGKILL, and `acks_on_failure_or_timeout` then acknowledges the message
+# — so the work is not requeued, it is simply gone until the next tick.
 CMD ["celery", "-A", "src.core.celery_app.celery_app", "worker", \
      "--loglevel=INFO", "--concurrency=2", "--max-tasks-per-child=100", \
-     "--max-memory-per-child=307200"]
+     "--max-memory-per-child=225280"]

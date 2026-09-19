@@ -70,6 +70,7 @@ from src.core.observability.metrics import (
     CELERY_TASK_DURATION,
     CELERY_TASK_MEMORY_GROWTH,
     CELERY_TASK_PEAK_MEMORY,
+    CELERY_TASK_START_MEMORY,
     CELERY_TASKS,
     CELERY_WORKER_LOST,
     set_app_info,
@@ -206,7 +207,14 @@ def _bind_task_context(task_id: str, task: Any = None, **_kwargs: Any) -> None:
         task_name=getattr(task, "name", "unknown"),
         trace_id=inherited,
     )
-    _started_at[task_id] = _TaskStart(clock=time.perf_counter(), peak_kb=_peak_rss_kb())
+    peak_kb = _peak_rss_kb()
+    if peak_kb > 0:
+        # Written here and not only at the end, because a task the kernel kills
+        # never reaches the end. See `CELERY_TASK_START_MEMORY`.
+        CELERY_TASK_START_MEMORY.labels(task_name=getattr(task, "name", "unknown")).observe(
+            peak_kb * 1024
+        )
+    _started_at[task_id] = _TaskStart(clock=time.perf_counter(), peak_kb=peak_kb)
 
 
 def _header(request: Any, name: str) -> str | None:

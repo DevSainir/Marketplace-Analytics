@@ -35,6 +35,7 @@ from src.core.observability.collectors import (
 from src.core.observability.metrics import (
     CELERY_TASK_MEMORY_GROWTH,
     CELERY_TASK_PEAK_MEMORY,
+    CELERY_TASK_START_MEMORY,
     CELERY_WORKER_LOST,
 )
 
@@ -283,3 +284,46 @@ def test_preparing_the_metrics_directory_arms_the_sweep(
     celery_runtime.prepare_multiprocess_dir()
 
     assert celery_runtime._sweep_own_metric_files in registered
+
+
+def test_a_task_records_the_floor_it_started_from_before_it_can_die(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The reading a killed task still leaves, and the gap that cost a day.
+
+    Peak and growth are written at `task_postrun`, so the twenty-one harvests
+    the kernel killed on 2026-09-18 recorded neither: the surviving runs put
+    `finreports.harvest_finance` at 369 MB of growth while the cgroup gauge was
+    touching 767 MB, and only the second number was true.
+
+    This one is written before the task body runs, so it survives whatever
+    happens next. It cannot say what the task went on to need — nothing inside
+    a process that no longer exists can — but it says what it was handed, and
+    "this task wants too much" versus "this task was given too little" is the
+    distinction the whole diagnosis turned on.
+    """
+    monkeypatch.setattr(celery_runtime, "mem_rss", lambda: 540_000.0)
+    task = type("Task", (), {"name": "finreports.harvest_finance"})()
+    before = _observed(CELERY_TASK_START_MEMORY, task.name)
+
+    _bind_task_context(task_id="t-floor", task=task)
+
+    assert _observed(CELERY_TASK_START_MEMORY, task.name) == before + 540_000.0 * 1024
+
+
+def test_a_platform_that_cannot_report_memory_records_no_floor_either(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Zero is "we could not read it", and it must not land in the lowest bucket.
+
+    Same rule as the other two: billiard treats a zero from `mem_rss` as
+    "unable to determine memory usage", and a fabricated 0 MB floor would argue
+    for a lower limit than the evidence supports.
+    """
+    monkeypatch.setattr(celery_runtime, "mem_rss", lambda: 0)
+    task = type("Task", (), {"name": "guide.capture_monthly"})()
+    before = _observed(CELERY_TASK_START_MEMORY, task.name)
+
+    _bind_task_context(task_id="t-floor-none", task=task)
+
+    assert _observed(CELERY_TASK_START_MEMORY, task.name) == before
