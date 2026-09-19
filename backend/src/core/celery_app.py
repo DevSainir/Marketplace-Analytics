@@ -140,27 +140,31 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=5, minute=0),
     },
     #
-    # Hourly, not daily. WB publishes the weekly realization report on no fixed
-    # day *and no fixed hour*: report 978271922 (03.08-09.08.2026) was formed on
-    # 10.08 after that day's 08:00 run had already asked and been told there was
-    # nothing, so the P&L showed an empty week for a full day until the next
-    # run. One check a day means up to 24h of staleness every time WB publishes
-    # during working hours.
+    # Still hourly, and it now costs almost nothing. WB publishes the weekly
+    # realization report on no fixed HOUR — report 978271922 was formed on
+    # 10.08 after that day's 08:00 run had already asked and been told there
+    # was nothing — so a daily check means up to 24 h of staleness every time.
+    # The tick stays frequent for that reason alone.
     #
-    # Ticking hourly is affordable only because of the freshness gate
-    # (src/modules/finreports/tasks/freshness.py): a tick with nothing new costs
-    # one `limit=1` request per workspace and stops there. Only a tick that
-    # finds an unharvested report pays for the walk, and harvest_all_workspaces
-    # holds a Redis lock so the next tick cannot start a second copy alongside
-    # it.
+    # What changed on 2026-09-19 is what a tick SPENDS. It used to send one
+    # `limit=1` settlement request per workspace per tick: 21 a day, 147
+    # between one weekly report and the next, against an endpoint that serves
+    # about 94 requests a day. Most of a seller's entire settlement budget was
+    # going on asking whether a report existed on days WB could not have formed
+    # one.
     #
-    # What a tick may spend is set by WB, not by us: `reportDetailByPeriod`
-    # serves ONE request per ~15 minutes per seller token (measured 2026-09-07,
-    # `x-ratelimit-reset: 917`). An hourly tick's probe is one of the four
-    # tokens that hour, and a tick that harvests spends one more per week it
-    # walks — see src/modules/finreports/tasks/settlement.py, which is why the
-    # walk covers a week per request and no longer re-reads a rolling 28 days
-    # it already holds.
+    # It can be derived instead. Measured over all 142 reports «Демо»
+    # holds: `create_dt` is `date_to + 1` in every one of them, and a period
+    # ends on a Sunday or a month end. So the gate first asks our own database
+    # which periods WB must have formed and which of those we hold — SQL, no WB
+    # request — and only reaches for WB when that list is non-empty. See
+    # `src/modules/finreports/services/publication.py` for the arithmetic and
+    # `tasks/freshness.py` for the gate.
+    #
+    # A tick therefore costs one indexed read per workspace on the ~six days a
+    # week when nothing can have been published, and one probe plus one walk
+    # window per week when something has. `harvest_all_workspaces` holds a
+    # Redis lock so the next tick cannot start a second copy alongside it.
     #
     # harvest and cohort refresh own those hours, and the walk competes with
     # them for the same rate-limited analytics surfaces.

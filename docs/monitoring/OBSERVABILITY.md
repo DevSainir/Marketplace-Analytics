@@ -322,7 +322,7 @@ during what" without carrying anything a caller submitted.
 
 ## Alerts
 
-`docker/observability/alerts.yml`, 25 rules in six groups. Two conventions:
+`docker/observability/alerts.yml`, 26 rules in six groups. Two conventions:
 `for:` is never zero (an alert that fires on one bad scrape fires on a deploy,
 and an alert that fires on a deploy gets muted), and every annotation says what
 to *do*, because the person reading it at 03:00 is not the person who wrote it.
@@ -366,6 +366,26 @@ task, and `acks_on_failure_or_timeout` acknowledges the message on the way past,
 so the work is not retried. Note the ratio's shape: a cgroup with no limit
 publishes no ceiling at all rather than a zero, which leaves the alert's
 expression undefined instead of confidently wrong.
+
+**`WbRateBlockEscalating`** — added 2026-09-19, and it exists because the
+quantity it watches had no metric at all. The three metrics next to it describe
+WB's limiter as a *level*: `wb_rate_limit_quota_remaining` is a gauge nothing
+decays (its own comment explains why it cannot be alerted on), and
+`wb_rate_limit_wait_seconds_total` counts how long we queued. A penalty block
+is neither — it is an **event with a magnitude**, and what matters is the
+magnitude growing from one event to the next.
+
+`wb_rate_limit_block_seconds` is therefore a histogram, observed once per block
+with the wait WB itself demanded in `X-Ratelimit-Retry`, with buckets running
+from a minute to a week. The span is not defensive: on 2026-09-17 the settlement
+endpoint went 28 197 → 18 624 → **302 940 s** against one workspace — nine hours
+to a hundred and five — and buckets stopping at an hour would have recorded all
+three as `+Inf`. That escalation was found two days later by reading logs,
+which is the failure this rule is meant to replace.
+
+It records what WB **demanded**, not the longer block we then serve. The margin
+in `penalise` is our policy (`_BLOCK_MARGIN`, 1.25) and folding it in would make
+the series describe us rather than WB.
 
 ### The backfill group, and why it alerts on an absence
 

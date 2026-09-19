@@ -40,7 +40,11 @@ from redis.exceptions import RedisError
 
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
-from src.core.observability.metrics import WB_RATE_LIMIT_REMAINING, WB_RATE_LIMIT_WAIT
+from src.core.observability.metrics import (
+    WB_RATE_LIMIT_BLOCK,
+    WB_RATE_LIMIT_REMAINING,
+    WB_RATE_LIMIT_WAIT,
+)
 from src.integrations.wildberries.endpoints import endpoint_label
 from src.integrations.wildberries.rate_limit_lua import (
     ACQUIRE_SLOT_LUA,
@@ -50,6 +54,36 @@ from src.integrations.wildberries.rate_limit_lua import (
 )
 
 logger = get_logger(__name__)
+
+
+#: How much longer than WB demanded a penalty block is served.
+#:
+#: Every measurement we have says WB's ``X-Ratelimit-Retry`` is the remainder
+#: of a window WB is free to extend, not a promise about when it reopens: a
+#: 1594 s block still had 694 s left after 900 s (2026-09-09), and a request
+#: 18 minutes after a good page drew 2762 s where the published reset is 917
+#: (2026-09-12/14).
+#:
+#: The two errors are not symmetric, which is the whole argument for a number
+#: above 1. Waiting 25% longer than necessary delays one report by minutes.
+#: Waiting 25% too little sends a probe into an open window, and WB answers
+#: that by restarting the window longer — 28 197 s became 302 940 s that way
+#: on 2026-09-17, so the cheap mistake cost four and a half days.
+#:
+#: 1.25 rather than something larger because the margin is the *second* line of
+#: defence. The first is not probing an endpoint we have no reason to think has
+#: anything new (see `probe_schedule` in the finreports tasks); a margin big
+#: enough to survive bad scheduling would be admitting the schedule is bad.
+_BLOCK_MARGIN = 1.25
+
+#: Extra milliseconds the bucket key outlives the block it records.
+#:
+#: The key expiring is read by every caller as «no block stands», which is the
+#: one state we may never enter by mistake — it is how a probe gets sent into a
+#: window WB has not reopened. Five minutes on top of one full block length
+#: (applied in the Lua) makes an accidental expiry take a clock error of hours
+#: rather than of seconds.
+_BLOCK_GRACE_MS = 300_000.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -327,16 +361,27 @@ class TokenBucketRateGate:
                 self._local_next_allowed[endpoint] = time.monotonic() + bucket.refill_ms / 1000.0
 
     async def penalise(self, endpoint: str, seconds: float) -> None:
-        """Shut this endpoint for the wait WB demanded, overriding our refill.
+        """Shut this endpoint for longer than the wait WB demanded.
 
         ``observe`` can only clamp the bucket to empty, after which it reopens
         one ``refill_seconds`` later — a local constant that has no way of
         knowing what WB actually imposed. On the statistics surface those two
         numbers disagree badly: the refill is 15 minutes and a measured penalty
         ran to 1594 s, so the next request went out 694 s early, collected its
-        own 429, and restarted the window (prod, 2026-09-09). WB states the
-        remainder in ``X-Ratelimit-Retry``; this is where that number is
-        believed instead of guessed at.
+        own 429, and restarted the window (prod, 2026-09-09).
+
+        WB states the remainder in ``X-Ratelimit-Retry``, and this is where
+        that number is believed **as a floor** rather than as the truth. The
+        distinction is what the 2026-09-17 escalation was made of: three
+        successive blocks of 28 197, 18 624 and 302 940 s, each one served
+        exactly as long as WB said and each one followed by a probe that WB
+        answered with a longer block. Serving what WB says is what our state
+        said was safe; every measurement we have says otherwise.
+
+        So the demanded wait is multiplied by :data:`_BLOCK_MARGIN`, and a
+        refusal arriving with no block of ours standing doubles the last block
+        instead — see :data:`~src.integrations.wildberries.rate_limit_lua.PENALISE_LUA`,
+        which holds that arithmetic so it is atomic with the write.
 
         Args:
             endpoint: Request path whose bucket WB has blocked.
@@ -345,13 +390,12 @@ class TokenBucketRateGate:
         """
         if seconds <= 0:
             return
+        # WB's own number, before our margin. The metric describes WB; the
+        # margin is our policy and would make the series describe us.
+        WB_RATE_LIMIT_BLOCK.labels(
+            surface=self._surface, endpoint=endpoint_label(endpoint)
+        ).observe(seconds)
         bucket = self._bucket(endpoint)
-        block_ms = seconds * 1000.0
-        # The key must outlive the block it is recording. The standing TTL is
-        # sized for a refill, and a penalty can be twice that: letting the key
-        # expire mid-block would restore a full bucket and send the next
-        # request straight back into WB's window.
-        ttl_ms = int(max(bucket.ttl_ms, block_ms + 60_000.0))
         try:
             await cast(
                 Awaitable[Any],
@@ -359,10 +403,11 @@ class TokenBucketRateGate:
                     PENALISE_LUA,
                     1,
                     self._key(endpoint),
-                    str(block_ms),
+                    str(seconds * 1000.0),
                     str(bucket.capacity),
-                    str(ttl_ms),
+                    str(_BLOCK_GRACE_MS),
+                    str(_BLOCK_MARGIN),
                 ),
             )
         except RedisError:
-            self._local_next_allowed[endpoint] = time.monotonic() + seconds
+            self._local_next_allowed[endpoint] = time.monotonic() + seconds * _BLOCK_MARGIN

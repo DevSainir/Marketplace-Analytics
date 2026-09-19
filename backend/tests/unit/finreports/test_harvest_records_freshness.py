@@ -34,6 +34,17 @@ from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
 
+
+async def _never_blocked(_tokens: object) -> float:
+    """No penalty block stands.
+
+    Stubbed rather than left to the real gate because the real gate reaches
+    Redis, and a unit test that quietly talks to a live Redis drains the
+    bucket a developer's next run depends on.
+    """
+    return 0.0
+
+
 WORKSPACE = uuid.UUID("019f657a-0000-7000-8000-0000000000f1")
 SETTLED = date(2026, 9, 6)
 
@@ -132,6 +143,10 @@ class _FakeReportRepo:
     async def latest_settled_date(self, *, workspace_id: uuid.UUID) -> date | None:
         return _FakeReportRepo.settled_after
 
+    async def period_ends_since(self, *, workspace_id: uuid.UUID, since: date) -> list[date]:
+        """The periods already held — empty, so the gate sees every one as missing."""
+        return []
+
 
 def _bundle() -> WorkspaceTokenBundle:
     """One workspace with a usable statistics token."""
@@ -184,6 +199,7 @@ def redis_and_walk(monkeypatch: pytest.MonkeyPatch) -> Any:
         monkeypatch.setattr(fleet, "FinancialReportRepository", _FakeReportRepo)
         monkeypatch.setattr(freshness, "FinancialReportRepository", _FakeReportRepo)
         monkeypatch.setattr(fleet, "load_workspace_token_bundles", _bundles)
+        monkeypatch.setattr(fleet, "settlement_blocked_for", _never_blocked)
         monkeypatch.setattr(fleet, "check_freshness", _check)
         monkeypatch.setattr(fleet, "harvest_workspace", _walk)
 

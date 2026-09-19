@@ -88,7 +88,15 @@ def test_only_a_definite_wb_answer_of_nothing_stops_a_harvest() -> None:
     """
     stops = {o for o in FreshnessOutcome if not o.should_harvest}
 
-    assert stops == {FreshnessOutcome.UP_TO_DATE, FreshnessOutcome.WB_EMPTY}
+    assert stops == {
+        FreshnessOutcome.UP_TO_DATE,
+        FreshnessOutcome.WB_EMPTY,
+        # The one deliberate fail-closed. WB has already refused; walking does
+        # not fetch the missing report, it lengthens the refusal — measured on
+        # 2026-09-17, three requests into a standing block took it from
+        # 28 197 s to 302 940 s.
+        FreshnessOutcome.RATE_BLOCKED,
+    }
 
 
 # --- round trip -----------------------------------------------------------

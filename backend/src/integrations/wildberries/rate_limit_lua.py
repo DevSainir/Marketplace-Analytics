@@ -4,8 +4,10 @@ Four scripts over one hash per ``(surface, endpoint, token)``. They are here as
 a set rather than beside their callers because they are one mechanism read four
 ways, and the invariants that matter are BETWEEN them: `PEEK` must agree with
 `ACQUIRE` about the same bucket while writing nothing, and both must let
-`PENALISE`'s ``blocked_until`` outrank the refill estimate — WB's own number is
-the only trustworthy one, and the two disagreed by minutes in production.
+`PENALISE`'s ``blocked_until`` outrank the refill estimate — our refill is a
+constant that knows nothing about a block, and the two disagreed by minutes in
+production. WB's own number is the better of the two and still not the truth:
+`PENALISE` treats it as a floor and says why.
 
 Every script reads the clock with Redis's own ``TIME``. Container clocks drift,
 and a bucket shared by the API, the worker and beat is exactly where that drift
@@ -136,24 +138,74 @@ redis.call('PEXPIRE', KEYS[1], ttl_ms)
 return tostring(tokens)
 """
 
-#: Shut this endpoint until WB says it reopens. Called with the wait WB itself
-#: demanded (`X-Ratelimit-Retry`), which is the only trustworthy number here:
-#: measured on prod 2026-09-09, a 429 demanding 1594 s was followed 900 s later
-#: — one local refill — by a second 429 demanding exactly 694 s, the remainder.
+#: Shut this endpoint until WB says it reopens — and then some.
+#:
+#: Called with the wait WB itself demanded (`X-Ratelimit-Retry`). That number is
+#: the best information available and it is still **a floor rather than the
+#: truth**: measured on prod 2026-09-09, a 429 demanding 1594 s was followed
+#: 900 s later by a second demanding exactly 694 s, the remainder — WB was
+#: counting down from its own longer window the whole time. Measured again on
+#: 2026-09-12/14, a request 18 minutes after a good page drew 2762 s where the
+#: published reset is 917.
+#:
+#: So two corrections are applied here rather than believed away:
+#:
+#: * ``ARGV[4]`` is a MARGIN multiplier on what WB said. Waiting longer than
+#:   demanded costs one delayed report; waiting less costs a restarted block,
+#:   and the blocks escalate.
+#: * ``last_block_ms`` is the ESCALATION MEMORY. A 429 arriving when no block of
+#:   ours stood means our model of WB's window was too short — the margin was
+#:   not enough — so the new block is at least twice the last one we served.
+#:   That is the loop the settlement endpoint fell into on 2026-09-17, where
+#:   28 197 s became 18 624 s became 302 940 s: each of our estimates expired
+#:   early, each probe restarted WB's window harder, and nothing in our state
+#:   remembered that the previous guess had already been proved wrong.
+#:
+#: The memory decays with the key, whose TTL outlives the block it records by
+#: the block's own length. A one-off block therefore stops shaping the endpoint
+#: roughly one block after it lifts, instead of poisoning it for ever.
 #:
 #: `tokens` is restored to capacity as of the moment the block lifts, because
 #: WB's reset IS the start of a fresh window; trickling from a refill estimate
 #: would keep punishing the caller after WB had stopped.
+#:
+#: Returns ``{until_ms, block_ms}`` so the caller can record what it actually
+#: served — the metric records what WB demanded, and the two differ on purpose.
 PENALISE_LUA = """
 local now = redis.call('TIME')
 local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
-local block_ms = tonumber(ARGV[1])
+local demanded_ms = tonumber(ARGV[1])
 local capacity = tonumber(ARGV[2])
-local ttl_ms = tonumber(ARGV[3])
+local grace_ms = tonumber(ARGV[3])
+local margin = tonumber(ARGV[4])
+if margin == nil or margin < 1 then
+  margin = 1
+end
+local state = redis.call('HMGET', KEYS[1], 'blocked_until', 'last_block_ms')
+local prev_until = tonumber(state[1])
+local last_block = tonumber(state[2])
+local block_ms = demanded_ms * margin
+-- Nothing of ours stood in the way and WB refused anyway: the previous block
+-- was too short, whatever WB said about it then or says about it now.
+if (prev_until == nil or prev_until <= now_ms) and last_block ~= nil and last_block > 0 then
+  block_ms = math.max(block_ms, last_block * 2)
+end
+-- A block already standing is never shortened. WB restarting its window is the
+-- normal case here, and taking the smaller of the two numbers would hand the
+-- next caller a slot inside a window that is demonstrably still open.
+if prev_until ~= nil and prev_until > now_ms + block_ms then
+  block_ms = prev_until - now_ms
+end
 local until_ms = now_ms + block_ms
-redis.call('HSET', KEYS[1], 'tokens', capacity, 'ts', until_ms, 'blocked_until', until_ms)
-redis.call('PEXPIRE', KEYS[1], ttl_ms)
-return tostring(until_ms)
+redis.call('HSET', KEYS[1],
+  'tokens', capacity, 'ts', until_ms,
+  'blocked_until', until_ms, 'last_block_ms', block_ms)
+-- The key must outlive the block by a wide margin, because its expiry is read
+-- as «no block» — the single state we may never enter by accident. Sized from
+-- the block itself rather than from the bucket's refill, which knows nothing
+-- about it.
+redis.call('PEXPIRE', KEYS[1], math.ceil(block_ms + grace_ms))
+return {tostring(until_ms), tostring(block_ms)}
 """
 
 

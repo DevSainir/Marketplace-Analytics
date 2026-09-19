@@ -14,7 +14,7 @@ tests below exist to keep it that way.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 import httpx
@@ -90,35 +90,60 @@ class _FakeFinanceClient:
 # --- probe_window ---------------------------------------------------------
 
 
-def test_the_probe_window_starts_the_day_after_the_last_settled_day() -> None:
-    """Days already covered are excluded, so any row found belongs to a new report."""
-    window = probe_window(latest_settled=date(2026, 8, 2), today=TODAY)
+def test_nothing_is_asked_about_a_period_wb_cannot_have_formed_yet() -> None:
+    """The saving, and the whole reason the hourly probe could be retired.
 
-    assert window == (date(2026, 8, 3), date(2026, 8, 3))
-
-
-def test_the_probe_window_never_includes_today() -> None:
-    """WB serves no data for the current day, so asking about it proves nothing."""
-    window = probe_window(latest_settled=date(2026, 7, 20), today=TODAY)
-
-    assert window == (date(2026, 7, 21), date(2026, 8, 3))
-
-
-def test_there_is_no_probe_window_once_settled_through_yesterday() -> None:
-    """No unseen day exists, so the gate can answer without spending a request."""
-    window = probe_window(latest_settled=date(2026, 8, 3), today=TODAY)
+    04.08.2026 is a Tuesday. The period 03.08-09.08 is still open, so its
+    report cannot exist before 10.08 — and until 2026-09-19 the gate spent a
+    settlement request asking about it anyway, twenty-one times a day, six days
+    a week. There is nothing to ask.
+    """
+    window = probe_window(latest_settled=date(2026, 8, 2), held_ends=[], today=TODAY)
 
     assert window is None
 
 
-def test_a_report_settling_past_yesterday_still_yields_no_window() -> None:
-    """A period ending in the future must not invert the window into a valid range.
+def test_the_window_opens_at_the_oldest_period_wb_has_formed_but_we_lack() -> None:
+    """Oldest, not newest, and the distinction is the 31.08 incident in miniature.
 
-    WB states a report's period itself, and it has served ``date_to`` a day past
-    the last settled row; an inverted range would be sent to WB as dateFrom >
-    dateTo and answered unpredictably.
+    Two periods are formed and unheld here — 27.07-31.07 (stamped 01.08) and
+    01.08-02.08 (stamped 03.08). Starting at the newer one would ask WB a
+    question the older report cannot answer, and the older report would then
+    never be asked about again.
     """
-    window = probe_window(latest_settled=date(2026, 8, 10), today=TODAY)
+    window = probe_window(latest_settled=date(2026, 7, 26), held_ends=[], today=TODAY)
+
+    assert window == (date(2026, 7, 27), date(2026, 8, 3))
+
+
+def test_the_window_never_includes_today() -> None:
+    """WB serves no data for the current day, so asking about it proves nothing."""
+    window = probe_window(latest_settled=date(2026, 7, 26), held_ends=[], today=TODAY)
+
+    assert window is not None
+    assert window[1] == TODAY - timedelta(days=1)
+
+
+def test_a_report_held_out_of_order_does_not_close_the_window_behind_it() -> None:
+    """Holding the newer report is not holding the older one.
+
+    This is the failure that cost every workspace 31.08.2026: the 01.09-06.09
+    report landed first, every forward-looking cursor jumped past 31.08, and
+    the day became unreachable. Here the older period is still missing, so the
+    window still opens on it.
+    """
+    window = probe_window(
+        latest_settled=date(2026, 7, 26), held_ends=[date(2026, 8, 2)], today=TODAY
+    )
+
+    assert window == (date(2026, 7, 27), date(2026, 8, 3))
+
+
+def test_a_complete_history_yields_no_window() -> None:
+    """Every formed period held: the gate answers without spending a request."""
+    window = probe_window(
+        latest_settled=date(2026, 8, 2), held_ends=[date(2026, 8, 2)], today=TODAY
+    )
 
     assert window is None
 
@@ -133,7 +158,9 @@ async def test_a_never_harvested_workspace_is_harvested_without_asking_wb(
     fake = _FakeFinanceClient()
     monkeypatch.setattr(freshness, "WBFinanceClient", fake)
 
-    verdict = await check_freshness(tokens=_tokens(), latest_settled=None, today=TODAY)
+    verdict = await check_freshness(
+        tokens=_tokens(), latest_settled=None, held_ends=[], today=TODAY
+    )
 
     assert verdict.outcome is FreshnessOutcome.NEVER_HARVESTED
     assert verdict.should_harvest is True
@@ -147,11 +174,13 @@ async def test_an_empty_probe_window_skips_the_harvest(
     fake = _FakeFinanceClient(row=None)
     monkeypatch.setattr(freshness, "WBFinanceClient", fake)
 
-    verdict = await check_freshness(tokens=_tokens(), latest_settled=date(2026, 8, 2), today=TODAY)
+    verdict = await check_freshness(
+        tokens=_tokens(), latest_settled=date(2026, 7, 26), held_ends=[], today=TODAY
+    )
 
     assert verdict.outcome is FreshnessOutcome.WB_EMPTY
     assert verdict.should_harvest is False
-    assert fake.windows == [(date(2026, 8, 3), date(2026, 8, 3))]
+    assert fake.windows == [(date(2026, 7, 27), date(2026, 8, 3))]
 
 
 async def test_a_row_past_our_history_triggers_the_harvest(
@@ -163,7 +192,9 @@ async def test_a_row_past_our_history_triggers_the_harvest(
     )
     monkeypatch.setattr(freshness, "WBFinanceClient", fake)
 
-    verdict = await check_freshness(tokens=_tokens(), latest_settled=date(2026, 7, 26), today=TODAY)
+    verdict = await check_freshness(
+        tokens=_tokens(), latest_settled=date(2026, 7, 26), held_ends=[], today=TODAY
+    )
 
     assert verdict.outcome is FreshnessOutcome.WB_HAS_NEW
     assert verdict.should_harvest is True
@@ -179,7 +210,9 @@ async def test_a_failed_probe_harvests_anyway(monkeypatch: pytest.MonkeyPatch) -
     fake = _FakeFinanceClient(error=IntegrationError("429 from WB"))
     monkeypatch.setattr(freshness, "WBFinanceClient", fake)
 
-    verdict = await check_freshness(tokens=_tokens(), latest_settled=date(2026, 8, 2), today=TODAY)
+    verdict = await check_freshness(
+        tokens=_tokens(), latest_settled=date(2026, 7, 26), held_ends=[], today=TODAY
+    )
 
     assert verdict.outcome is FreshnessOutcome.PROBE_FAILED
     assert verdict.should_harvest is True
@@ -197,7 +230,9 @@ async def test_a_history_reaching_yesterday_records_that_nothing_was_asked(
     fake = _FakeFinanceClient()
     monkeypatch.setattr(freshness, "WBFinanceClient", fake)
 
-    verdict = await check_freshness(tokens=_tokens(), latest_settled=date(2026, 8, 3), today=TODAY)
+    verdict = await check_freshness(
+        tokens=_tokens(), latest_settled=date(2026, 8, 2), held_ends=[date(2026, 8, 2)], today=TODAY
+    )
 
     assert verdict.outcome is FreshnessOutcome.UP_TO_DATE
     assert verdict.should_harvest is False
@@ -211,7 +246,9 @@ async def test_a_verdict_from_a_real_request_carries_the_window_it_asked_about(
     fake = _FakeFinanceClient(row=None)
     monkeypatch.setattr(freshness, "WBFinanceClient", fake)
 
-    verdict = await check_freshness(tokens=_tokens(), latest_settled=date(2026, 7, 26), today=TODAY)
+    verdict = await check_freshness(
+        tokens=_tokens(), latest_settled=date(2026, 7, 26), held_ends=[], today=TODAY
+    )
 
     assert (verdict.probe_from, verdict.probe_to) == (date(2026, 7, 27), date(2026, 8, 3))
 
@@ -223,10 +260,66 @@ async def test_a_verdict_reached_without_a_request_names_no_window(
     fake = _FakeFinanceClient()
     monkeypatch.setattr(freshness, "WBFinanceClient", fake)
 
-    verdict = await check_freshness(tokens=_tokens(), latest_settled=None, today=TODAY)
+    verdict = await check_freshness(
+        tokens=_tokens(), latest_settled=None, held_ends=[], today=TODAY
+    )
 
     assert verdict.probe_from is None
     assert verdict.probe_to is None
+
+
+async def test_a_standing_block_stops_the_tick_before_anything_is_sent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The one place this gate fails closed, and the reason it must.
+
+    Until 2026-09-19 the probe went out first and its 429 was read as «we
+    learned nothing, harvest anyway», so a blocked endpoint drew a probe AND a
+    walk on every tick. WB answers a request made inside an open block by
+    restarting the block longer: measured on «Демо», 28 197 s became
+    18 624 s became 302 940 s — nine hours to a hundred and five — in three
+    steps over 2026-09-17.
+
+    A block is not an unanswered question. It is an answer.
+    """
+    fake = _FakeFinanceClient(row=None)
+    monkeypatch.setattr(freshness, "WBFinanceClient", fake)
+
+    verdict = await check_freshness(
+        tokens=_tokens(),
+        latest_settled=date(2026, 7, 26),
+        held_ends=[],
+        today=TODAY,
+        blocked_for=34_801.0,
+    )
+
+    assert verdict.outcome is FreshnessOutcome.RATE_BLOCKED
+    assert verdict.should_harvest is False
+    assert fake.windows == [], "a blocked endpoint must not be probed"
+
+
+async def test_a_workspace_with_nothing_outstanding_is_not_reported_as_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Order matters: «done» outranks «blocked».
+
+    A seller holding every report WB has formed is not waiting on anything, and
+    saying «ВБ ограничил доступ» on their P&L would be alarming about a
+    limiter that is costing them nothing. The block only means something once
+    there is a request we would otherwise have sent.
+    """
+    fake = _FakeFinanceClient()
+    monkeypatch.setattr(freshness, "WBFinanceClient", fake)
+
+    verdict = await check_freshness(
+        tokens=_tokens(),
+        latest_settled=date(2026, 8, 2),
+        held_ends=[date(2026, 8, 2)],
+        today=TODAY,
+        blocked_for=34_801.0,
+    )
+
+    assert verdict.outcome is FreshnessOutcome.UP_TO_DATE
 
 
 # --- WBFinanceClient.fetch_first_row -------------------------------------

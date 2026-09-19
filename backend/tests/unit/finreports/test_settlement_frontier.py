@@ -119,10 +119,10 @@ def test_the_gate_stays_open_on_the_monday_the_report_lands() -> None:
     behind it. Read off the frontier, the probe covers exactly the week WB has
     just published.
     """
-    assert probe_window(latest_settled=WATERMARK, today=TODAY) is None
+    assert probe_window(latest_settled=WATERMARK, held_ends=[], today=TODAY) is None
 
     frontier = settlement_frontier(watermark=WATERMARK, covered_through=COVERED)
-    assert probe_window(latest_settled=frontier, today=TODAY) == MISSED_WEEK
+    assert probe_window(latest_settled=frontier, held_ends=[], today=TODAY) == MISSED_WEEK
 
 
 def test_the_walk_that_follows_covers_the_week_the_probe_found() -> None:
@@ -166,6 +166,10 @@ class _FakeReportRepo:
 
     async def latest_settled_date(self, *, workspace_id: uuid.UUID) -> date:
         return COVERED
+
+    async def period_ends_since(self, *, workspace_id: uuid.UUID, since: date) -> list[date]:
+        """Only the published-to-us report is held; the open week is missing."""
+        return [COVERED]
 
 
 class _FakeRedis:

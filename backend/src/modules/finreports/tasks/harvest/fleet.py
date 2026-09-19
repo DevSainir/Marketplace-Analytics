@@ -10,6 +10,7 @@ walks everybody costs the fleet's WB budget.
 from __future__ import annotations
 
 import uuid
+from datetime import timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,10 +28,14 @@ from src.modules.finreports.repos import (
     FinancialReportRepository,
     SettlementWatermarkRepository,
 )
-from src.modules.finreports.services.freshness_record import FreshnessRecordStore
+from src.modules.finreports.services.freshness_record import (
+    FreshnessOutcome,
+    FreshnessRecordStore,
+)
 from src.modules.finreports.tasks.freshness import (
     check_freshness,
     freshness_record_store,
+    settlement_blocked_for,
     verdict_from_walk,
 )
 from src.modules.finreports.tasks.gaps import survey_settlement_gaps
@@ -152,6 +157,18 @@ async def _harvest_all_workspaces(
             )
             for bundle in bundles
         }
+        # The periods we can prove we hold, which is what the gate now compares
+        # WB's own period arithmetic against instead of sending a request. The
+        # window is a little wider than the reconciliation's reach, so a report
+        # WB serves weeks late is still recognised as the missing one rather
+        # than as a period nobody remembers asking for.
+        held_ends = {
+            bundle.workspace_id: await report_repo.period_ends_since(
+                workspace_id=bundle.workspace_id,
+                since=today - timedelta(days=RECONCILE_LOOKBACK_DAYS + 7),
+            )
+            for bundle in bundles
+        }
     # Surveyed on EVERY tick, not only the nightly one: the survey is SQL and
     # costs no WB request, so there is no reason to learn about a hole only when
     # its turn comes round. Rationing is about the walk, not about knowing.
@@ -167,7 +184,14 @@ async def _harvest_all_workspaces(
         if not bundle.statistics:
             continue
         verdict = await check_freshness(
-            tokens=bundle, latest_settled=settled[bundle.workspace_id], today=today
+            tokens=bundle,
+            latest_settled=settled[bundle.workspace_id],
+            held_ends=held_ends[bundle.workspace_id],
+            today=today,
+            # Read from the shared Redis bucket, not from WB: asking WB whether
+            # WB will accept a request is the one thing that cannot be done
+            # here, and a peek takes no token.
+            blocked_for=await settlement_blocked_for(bundle),
         )
         # Recorded BEFORE the branch, so "asked WB and there was nothing" leaves
         # the same trace as "asked WB and harvested". Recording only on the
@@ -181,6 +205,18 @@ async def _harvest_all_workspaces(
         # a workspace the survey can see a hole in. Both are the same statement:
         # a day we know is missing is not a day to ask a forward question about.
         thorough = reconcile or bundle.workspace_id in repairing
+        # A standing block outranks «thorough», and it is the only verdict that
+        # does. Everything else `thorough` overrides is a claim about the DATA
+        # — «nothing newer exists» — and overriding it is the whole point of a
+        # reconciliation pass, which exists to ask about days the forward
+        # question cannot see. `RATE_BLOCKED` is a claim about the CHANNEL:
+        # WB has refused, and walking anyway does not fetch the missing day, it
+        # lengthens the refusal. The router refuses a click for the same reason
+        # before it ever enqueues; this is the same rule for the path that has
+        # no router in front of it.
+        if verdict.outcome is FreshnessOutcome.RATE_BLOCKED:
+            totals["workspaces_skipped"] += 1
+            continue
         if not verdict.should_harvest and not thorough:
             totals["workspaces_skipped"] += 1
             continue
@@ -190,6 +226,17 @@ async def _harvest_all_workspaces(
             days=days,
             lookback_days=RECONCILE_LOOKBACK_DAYS if thorough else 0,
         )
+        # The span must reach whatever the gate was asking about, or the walk
+        # can be sent out for a report it structurally cannot fetch. That is
+        # not hypothetical — it is the 31.08 failure restated one layer down:
+        # the gate asks from the oldest period WB has formed and we do not
+        # hold, while `walk_span` starts at the watermark, and the watermark
+        # had jumped past 31.08 the moment the 01.09-06.09 report landed. One
+        # `min` makes the two agree, and makes «Обновить» mean what a person
+        # pressing it thinks it means: the request goes out for the missing
+        # report, not for the days after it.
+        if verdict.probe_from is not None:
+            date_from = min(date_from, verdict.probe_from)
         counts = await harvest_workspace(
             tokens=bundle, date_from=date_from, date_to=date_to, on_date=today
         )

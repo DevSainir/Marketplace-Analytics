@@ -82,3 +82,46 @@ WB_RATE_LIMIT_WAIT: Final[Counter] = Counter(
     "Cumulative seconds spent waiting on the client-side WB rate gate.",
     ["surface", "endpoint"],
 )
+
+#: Bucket edges for a penalty block WB demanded, in seconds.
+#:
+#: The span is deliberately enormous — a minute to a week — because that is the
+#: span the measurements cover. On 2026-09-17 the settlement endpoint escalated
+#: 28 197 -> 18 624 -> 302 940 s against one workspace, and the last of those is
+#: four and a half days. Buckets that stopped at an hour would have recorded
+#: all three as «+Inf» and said nothing about the escalation, which is the only
+#: thing worth seeing here.
+_BLOCK_BUCKETS: Final[tuple[float, ...]] = (
+    60.0,
+    300.0,
+    900.0,
+    1_800.0,
+    3_600.0,
+    10_800.0,
+    32_400.0,
+    86_400.0,
+    259_200.0,
+    604_800.0,
+)
+
+#: How long WB shut an endpoint for, per penalty block, as WB itself stated it.
+#:
+#: A histogram rather than a gauge, and the distinction is the reason this
+#: exists. `WB_RATE_LIMIT_REMAINING` above is a gauge nothing decays, so it
+#: cannot be alerted on — its own comment says so. A block is an EVENT: it
+#: happens at an instant, it has a magnitude, and what matters is the magnitude
+#: growing across events. `increase(..._count[6h])` says how often we are being
+#: refused and the bucket distribution says how hard, so an escalation from
+#: nine hours to a hundred and five is visible while it is happening rather
+#: than excavated from logs two days later, which is what it cost the first
+#: time (prod, 2026-09-17).
+#:
+#: Recorded with the wait WB DEMANDED, not the longer one we then serve — the
+#: margin in `penalise` is our policy and would make the series describe us
+#: rather than WB.
+WB_RATE_LIMIT_BLOCK: Final[Histogram] = Histogram(
+    "wb_rate_limit_block_seconds",
+    "Length of a penalty block WB demanded, per block.",
+    ["surface", "endpoint"],
+    buckets=_BLOCK_BUCKETS,
+)

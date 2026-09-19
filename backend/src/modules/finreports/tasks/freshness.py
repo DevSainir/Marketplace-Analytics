@@ -1,46 +1,39 @@
 """The freshness gate in front of the finreports harvest.
 
-WB publishes the weekly realization report on no fixed day and no fixed hour —
-usually one a week, sometimes two in a week, sometimes none — so the harvest
-runs hourly and asks first: *is there a report we do not already hold?* One
-request over the days after everything harvested answers it, and only a
-windows per workspace).
+**Since 2026-09-19 this gate mostly answers without asking WB anything.** It
+used to send one ``limit=1`` settlement request per workspace per hour on the
+premise that WB publishes «on no fixed day and no fixed hour». The second half
+is true; the first is not, and measuring it is what retired the hourly probe:
+over all 142 reports «Демо» holds, ``create_dt`` is ``date_to + 1`` without
+exception, and every settlement period ends on a Sunday or a month end. The
+arithmetic is in :mod:`src.modules.finreports.services.publication`.
 
-This gate is what buys the schedule its frequency. Asking every hour is what
-keeps a report published at 09:15 from sitting unharvested until the next
-morning; asking cheaply is what makes twenty-odd ticks a day affordable on a
-~1 req/min surface.
+So the question «is there a report we do not hold» is now asked of our own
+database first — which periods must WB have formed by today, and which of them
+have no report — and of WB only when that list is non-empty. Between one report
+and the next that is 147 requests per workspace not sent, and on the settlement
+endpoint's ~94-per-day budget those 147 were most of it.
 
-The gate is deliberately asymmetric. Skipping is only ever decided by a WB answer
-that came back *empty*; every other outcome — a workspace never harvested, a
-probe that raised — harvests. A gate that fails closed would turn a transient WB
-error into a silently skipped settlement day, which is the failure mode this
-module exists to avoid, not to introduce.
+The gate is deliberately asymmetric. Skipping on the strength of WB's answer is
+only ever decided by an answer that came back *empty*; a probe that raised
+harvests anyway. A gate that fails closed would turn a transient WB error into
+a silently skipped settlement day, which is the failure mode this module exists
+to avoid, not to introduce.
 
-The window starts the day after the **settlement frontier** — the earlier of the
-walk's watermark and the last day a harvested report actually covers (see
-:func:`~src.modules.finreports.tasks.spans.settlement_frontier`). Not the
-watermark alone, which was this gate's second way of going quiet: a window WB
-answers empty completes like any other, WB forms a week's report the day after
-the week ends, and so every Sunday-night tick certified the open week and shut
-the gate on the report that landed on Monday. On 2026-09-14 that answered
-«settled through 13.09 — nothing newer can exist yet» to every tick for three
-workspaces, «Обновить» included, over a week WB had already published.
+**It does fail closed on one thing, on purpose: a standing penalty block.**
+Before 2026-09-19 the probe went out first and its refusal was read as «we
+learned nothing, harvest anyway», so a blocked endpoint got a probe AND a walk,
+each of which restarted WB's window longer. That is the loop that took the
+settlement endpoint from a 28 197 s block to a 302 940 s one in three steps on
+2026-09-17. A block is not an unanswered question — it is an answer, and the
+answer is «do not ask».
 
-What the gate still does NOT catch, by design: anything WB serves for days
-BEHIND the frontier — an amendment to a report we hold, or a supplementary
-report WB forms for an earlier day and starts serving later. There the gate
-answers «есть ли что-то новее», which is the wrong question for a back-dated
-report and answers "no" precisely when one exists.
-
-That is not a theoretical hole: report 983241109 covered 2026-08-31 alone, was
-formed on 09-01, and was still unserved on 09-06 when eighty probes over
-31.08..05.09 all answered 204. On 09-07 the 01.09-06.09 report landed, the
-watermark jumped to 09-06, and the day left the reachable window before WB ever
-served it. Every workspace lost a day of settlement in silence.
-
-Catching that is the daily reconciliation pass's job, not this gate's — see
-``reconcile`` in :func:`~src.modules.finreports.tasks.harvest.harvest_all_workspaces`.
+What the gate still cannot do is see the hour. A report formed on 01.09 may be
+served on 01.09 or, as 983241109 was, on 09.09. That is why the missing-period
+list is the trigger rather than a calendar: a period stays on it until its
+report is actually held, so a late report is asked about every tick of every
+day until it arrives instead of leaving the reachable window behind a watermark
+that jumped over it.
 
 The verdict it reaches is not thrown away: it is recorded per workspace (see
 :mod:`src.modules.finreports.services.freshness_record`) so the P&L page can say
@@ -51,6 +44,7 @@ nothing without «и мы спросили 12 минут назад».
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
 
 from src.core.config import settings
@@ -59,6 +53,8 @@ from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.redis import get_redis
 from src.integrations.wildberries.clients import WBFinanceClient
+from src.integrations.wildberries.endpoints import SETTLEMENT_REPORT_PATH
+from src.integrations.wildberries.rate_limit import statistics_rate_gate
 from src.modules.finreports.constants import FRESHNESS_RECORD_TTL_SECONDS
 from src.modules.finreports.repos import FinancialReportRepository
 from src.modules.finreports.services.freshness_record import (
@@ -67,17 +63,54 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessVerdict,
     RedisFreshnessRecordStore,
 )
+from src.modules.finreports.services.publication import missing_periods
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 logger = get_logger(__name__)
 
 
-def probe_window(*, latest_settled: date, today: date) -> tuple[date, date] | None:
+async def settlement_blocked_for(tokens: WorkspaceTokenBundle) -> float:
+    """Seconds WB has this workspace's settlement endpoint shut for, or 0.
+
+    Answered from the shared Redis bucket, which `penalise` writes WB's own
+    ``X-Ratelimit-Retry`` into. It takes no token and sends nothing: asking WB
+    whether WB will accept a request is the one thing that cannot be done
+    here, and a peek that spent a slot would cost the harvest a quarter of an
+    hour every time a tick looked.
+
+    Args:
+        tokens: The workspace whose bucket to inspect. Buckets are per seller
+            token, so one tenant's block says nothing about another's — which
+            is the assumption the 23.09.2026 experiment is meant to test.
+
+    Returns:
+        Seconds to wait, or ``0.0`` when nothing stands in the way — including
+        when Redis is unreachable or the workspace has no statistics token.
+        Fails open, because a bucket we cannot read is not a block.
+    """
+    if not tokens.statistics:
+        return 0.0
+    gate = statistics_rate_gate(settings, token=tokens.statistics)
+    return await gate.retry_after(SETTLEMENT_REPORT_PATH)
+
+
+def probe_window(
+    *, latest_settled: date, held_ends: Iterable[date], today: date
+) -> tuple[date, date] | None:
     """The settlement window to ask WB about, or ``None`` if asking is pointless.
 
-    Starts the day after the settlement frontier — anything WB serves there
-    belongs to a report we do not have. Ends yesterday, because WB has no data
-    for today.
+    Asking is pointless in the one case WB's own arithmetic settles: every
+    period WB can have formed by today already has a report on file. That is
+    the common case by a wide margin — a report is published once a week and
+    the tick runs twenty-one times a day — and it is the whole saving, so it is
+    established before anything is sent.
+
+    When something IS missing the window spans from the oldest missing
+    period's first day to yesterday. The oldest, not the newest: a period that
+    WB formed but has not served yet stays missing, and starting the window
+    after it is precisely how 31.08.2026 was lost. Ending yesterday rather than
+    at the missing period's end keeps one request answering for every missing
+    period at once.
 
     Args:
         latest_settled: The settlement frontier: the last day that was both
@@ -85,19 +118,29 @@ def probe_window(*, latest_settled: date, today: date) -> tuple[date, date] | No
             merely asked about and found empty is NOT settled — WB had not
             published it yet, which is the whole reason this is not the
             watermark.
+        held_ends: ``date_to`` of every report already held, so a period served
+            out of order is not counted as missing twice.
         today: Today in Moscow time.
 
     Returns:
-        The inclusive ``(date_from, date_to)`` to probe, or ``None`` when the
-        harvested history already reaches yesterday and no unseen day exists.
+        The inclusive ``(date_from, date_to)`` to probe, or ``None`` when every
+        period WB has formed is already held.
     """
-    date_from = latest_settled + timedelta(days=1)
+    missing = missing_periods(settled_through=latest_settled, held_ends=held_ends, today=today)
+    if not missing:
+        return None
+    date_from = missing[0].date_from
     date_to = today - timedelta(days=1)
     return (date_from, date_to) if date_from <= date_to else None
 
 
 async def check_freshness(
-    *, tokens: WorkspaceTokenBundle, latest_settled: date | None, today: date
+    *,
+    tokens: WorkspaceTokenBundle,
+    latest_settled: date | None,
+    held_ends: Iterable[date],
+    today: date,
+    blocked_for: float = 0.0,
 ) -> FreshnessVerdict:
     """Ask whether WB holds a settlement report this workspace has not harvested.
 
@@ -115,7 +158,11 @@ async def check_freshness(
         tokens: The workspace's decrypted WB credentials.
         latest_settled: The settlement frontier (see :func:`probe_window`), or
             ``None`` if the workspace has never been harvested.
+        held_ends: ``date_to`` of every settlement report already held.
         today: Today in Moscow time.
+        blocked_for: Seconds this workspace's settlement endpoint is shut for,
+            read from the shared rate bucket at no cost in WB requests. Any
+            positive value stops the tick dead — see :attr:`RATE_BLOCKED`.
 
     Returns:
         The :class:`FreshnessVerdict` for this workspace, right now.
@@ -126,14 +173,29 @@ async def check_freshness(
             outcome=FreshnessOutcome.NEVER_HARVESTED, checked_at=datetime.now(UTC)
         )
 
-    window = probe_window(latest_settled=latest_settled, today=today)
+    window = probe_window(latest_settled=latest_settled, held_ends=held_ends, today=today)
     if window is None:
         logger.info(
-            "finreports: %s is settled through %s — nothing newer can exist yet, skipping.",
+            "finreports: %s holds every report WB can have formed by %s — skipping.",
             tokens.name,
-            latest_settled,
+            today,
         )
         return FreshnessVerdict(outcome=FreshnessOutcome.UP_TO_DATE, checked_at=datetime.now(UTC))
+
+    # Checked AFTER the cheap skip and BEFORE anything is sent. After, because
+    # a workspace with nothing outstanding should not be reported as blocked —
+    # it is simply done. Before, because this is the whole correction: the
+    # probe used to go out into a standing block, be refused, and be read as
+    # «we learned nothing, harvest anyway», so one blocked endpoint drew two
+    # more requests per tick and each of them lengthened the block.
+    if blocked_for > 0:
+        logger.warning(
+            "finreports: WB has the settlement endpoint shut for %s for another %.0fs "
+            "— not probing and not harvesting; a request inside the block lengthens it.",
+            tokens.name,
+            blocked_for,
+        )
+        return FreshnessVerdict(outcome=FreshnessOutcome.RATE_BLOCKED, checked_at=datetime.now(UTC))
 
     date_from, date_to = window
     try:
@@ -238,5 +300,6 @@ __all__ = [
     "check_freshness",
     "freshness_record_store",
     "probe_window",
+    "settlement_blocked_for",
     "verdict_from_walk",
 ]

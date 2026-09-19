@@ -82,6 +82,7 @@ from src.core.observability.metrics.security import (
 from src.core.observability.metrics.wildberries import (
     WB_API_DURATION,
     WB_API_REQUESTS,
+    WB_RATE_LIMIT_BLOCK,
     WB_RATE_LIMIT_REMAINING,
     WB_RATE_LIMIT_WAIT,
 )
@@ -112,6 +113,7 @@ __all__ = [
     "SETTLEMENT_GAP_DAYS",
     "WB_API_DURATION",
     "WB_API_REQUESTS",
+    "WB_RATE_LIMIT_BLOCK",
     "WB_RATE_LIMIT_REMAINING",
     "WB_RATE_LIMIT_WAIT",
     "set_app_info",

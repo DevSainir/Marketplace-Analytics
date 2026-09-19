@@ -257,13 +257,18 @@ async def test_a_penalty_block_outranks_the_refill_in_the_peek_too(redis_client:
     The two disagree badly on the settlement surface — a measured penalty ran to
     1594 s against a 900 s refill (prod 2026-09-09). Reporting the refill would
     send the seller back exactly early enough to restart WB's window.
+
+    The number the peek reports is the block we SERVE, which since 2026-09-19
+    is WB's demand plus a margin — see the margin test below for why WB's
+    figure is a floor. The seller is told when the button will work, and it
+    would be a poor button that opened before the endpoint did.
     """
     gate = _gate(redis_client, capacity=3, max_wait=5.0)
 
     await gate.penalise(ENDPOINT, 30.0)
     peeked = await gate.retry_after(ENDPOINT)
 
-    assert 29.0 <= peeked <= 30.0
+    assert 30.0 < peeked <= 38.0
 
 
 async def test_one_gate_peeks_at_what_another_process_spent(redis_client: Any) -> None:
@@ -363,3 +368,68 @@ async def test_peek_and_acquire_agree_about_an_untouched_bucket(redis_client: An
         await gate.acquire("/fresh-agree", reserve_seconds=5.0)
 
     assert peeked > 0, "peek promised a window that acquire refuses"
+
+
+# --------------------------------------------------------------------------- #
+# A penalty block, and why WB's own number is not enough
+# --------------------------------------------------------------------------- #
+async def test_a_block_is_served_longer_than_wb_demanded(redis_client: Any) -> None:
+    """The margin, against the real Lua rather than the fail-open fallback.
+
+    ``X-Ratelimit-Retry`` is the remainder of a window WB is free to extend,
+    not a promise about when it reopens — measured 2026-09-09, a 1594 s block
+    still had 694 s left after 900 s. Serving exactly what WB says is what put
+    a probe back inside an open window, and WB answers that by restarting the
+    window longer.
+    """
+    gate = _gate(redis_client, max_wait=0.0)
+
+    await gate.penalise(ENDPOINT, 10.0)
+
+    shut_for = await gate.retry_after(ENDPOINT)
+    assert shut_for > 10.0, "the block must outlast the wait WB stated"
+    assert shut_for <= 13.0, "and not by an order of magnitude — 25% is the policy"
+
+
+async def test_a_refusal_with_no_block_standing_doubles_the_last_one(
+    redis_client: Any,
+) -> None:
+    """The escalation memory, which is the 2026-09-17 incident in one assertion.
+
+    Three blocks in a row that day — 28 197 s, then 18 624 s, then 302 940 s.
+    Each was served exactly as long as WB asked, each expired while WB's own
+    window was still running, and each probe that followed was answered with a
+    harder block. Nothing in our state remembered that the previous estimate
+    had already been proved too short.
+
+    So a 429 arriving when nothing of ours stands is treated as evidence about
+    US, not about WB: whatever WB says this time, the block is at least twice
+    what we last served.
+    """
+    gate = _gate(redis_client, max_wait=0.0)
+    await gate.penalise(ENDPOINT, 4.0)
+    # Let our own block lapse, the way a short estimate lapses in production
+    # while WB is still counting.
+    await asyncio.sleep(5.1)
+    assert await gate.retry_after(ENDPOINT) == 0.0
+
+    # WB refuses again and, as it did on 09-17, asks for LESS than last time.
+    await gate.penalise(ENDPOINT, 1.0)
+
+    shut_for = await gate.retry_after(ENDPOINT)
+    assert shut_for > 5.0, "a repeat refusal must escalate, not shrink to what WB said"
+
+
+async def test_a_standing_block_is_never_shortened(redis_client: Any) -> None:
+    """A second, smaller refusal inside an open block must not reopen it early.
+
+    WB restarting its window is the normal case here, and taking the smaller
+    of the two numbers would hand the next caller a slot inside a window that
+    is demonstrably still open — which is the mistake, not a recovery from it.
+    """
+    gate = _gate(redis_client, max_wait=0.0)
+    await gate.penalise(ENDPOINT, 30.0)
+
+    await gate.penalise(ENDPOINT, 1.0)
+
+    assert await gate.retry_after(ENDPOINT) > 20.0

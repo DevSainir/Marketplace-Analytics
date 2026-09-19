@@ -52,11 +52,25 @@ def freshness_key(workspace_id: uuid.UUID) -> str:
 class FreshnessOutcome(enum.StrEnum):
     """What the gate found the last time it looked.
 
-    Five outcomes, and the asymmetry between them is the gate's whole rule:
-    **only a definite "WB has nothing" may skip a harvest.** A workspace nobody
-    has harvested yet and a probe that never got an answer both harvest — an
-    unanswered question is not a "no", and failing closed there would postpone a
-    settlement week out of the P&L on one transient WB error.
+    Six outcomes, and the asymmetry between them is the gate's whole rule.
+
+    **Only a definite "WB has nothing" may skip on the strength of the data.**
+    A workspace nobody has harvested yet and a probe that never got an answer
+    both harvest — an unanswered question is not a "no", and failing closed
+    there would postpone a settlement week out of the P&L on one transient WB
+    error.
+
+    :attr:`UP_TO_DATE` reaches its skip without asking WB anything, and that is
+    not an exception to the rule but the strongest form of it: since 2026-09-19
+    it means «we hold a report for every period WB can have formed», derived
+    from WB's own period arithmetic (see
+    :mod:`src.modules.finreports.services.publication`) rather than from a
+    silence we chose to read as a no.
+
+    :attr:`RATE_BLOCKED` is the one place this gate deliberately fails closed,
+    and it does so because the alternative is not «ask anyway» but «make the
+    block longer»: on 2026-09-17 each request sent into a standing block was
+    answered with a longer one, 28 197 s to 302 940 s in three steps.
 
     :attr:`should_harvest` is where that rule lives, so no call site restates it.
     """
@@ -71,17 +85,27 @@ class FreshnessOutcome(enum.StrEnum):
     WB_EMPTY = "wb_empty"
     #: WB served a settled row past our history — a report we do not hold.
     WB_HAS_NEW = "wb_has_new"
-    #: WB did not answer (rate limit, 5xx, timeout). Nothing was learned.
+    #: WB did not answer (5xx, timeout). Nothing was learned.
     PROBE_FAILED = "probe_failed"
+    #: WB has this endpoint shut under a penalty block. Nothing was asked and
+    #: nothing may be: a request inside an open block is what makes the next
+    #: block longer.
+    RATE_BLOCKED = "rate_blocked"
 
     @property
     def should_harvest(self) -> bool:
         """Whether this outcome lets the harvest run.
 
-        Fails open by construction: only the two outcomes that positively
-        establish "there is nothing to fetch" stop a walk.
+        Fails open by construction, with one deliberate exception. The
+        outcomes that positively establish "there is nothing to fetch" stop a
+        walk; so does :attr:`RATE_BLOCKED`, where WB has already refused and
+        walking would only lengthen the refusal.
         """
-        return self not in (FreshnessOutcome.UP_TO_DATE, FreshnessOutcome.WB_EMPTY)
+        return self not in (
+            FreshnessOutcome.UP_TO_DATE,
+            FreshnessOutcome.WB_EMPTY,
+            FreshnessOutcome.RATE_BLOCKED,
+        )
 
 
 @dataclass(frozen=True)

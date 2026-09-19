@@ -100,6 +100,36 @@ class FinancialReportRepository(BaseRepository):
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
+    async def period_ends_since(self, *, workspace_id: uuid.UUID, since: date) -> list[date]:
+        """Return the ``date_to`` of every report covering a period after ``since``.
+
+        What the freshness gate compares WB's period arithmetic against: the
+        set of periods we can prove we hold. ``latest_settled_date`` above is
+        not a substitute — it is a maximum, and a maximum cannot see a hole
+        behind it, which is exactly what a report WB serves out of order
+        leaves. On 2026-09-07 the 01.09-06.09 report raised that maximum to
+        06.09 while 31.08 was still unharvested, and the gate then asked only
+        about days after 06.09 for ever.
+
+        Bounded rather than the whole history: the gate only reasons about
+        periods WB can still be about to serve, and reading 142 rows to answer
+        a question about the last three is waste on a query that runs twenty-one
+        times a day per workspace.
+
+        Args:
+            workspace_id: Tenancy scope.
+            since: Only reports whose period ends on or after this day.
+
+        Returns:
+            The period ends, unordered — the caller reads membership only.
+        """
+        stmt = select(FinancialReport.date_to).where(
+            FinancialReport.workspace_id == workspace_id,
+            FinancialReport.date_to.isnot(None),
+            FinancialReport.date_to >= since,
+        )
+        return [row for row in (await self._session.execute(stmt)).scalars() if row is not None]
+
     async def settlement_gap_days(
         self, *, workspace_id: uuid.UUID, since: date, through: date
     ) -> list[date]:
