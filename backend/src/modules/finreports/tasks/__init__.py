@@ -1,6 +1,7 @@
 """Celery tasks for the ``finreports`` module.
 
   historical settlement rows price against the tariff that was live then.
+  internal workspace, and deliberately NOT part of it. See the task.
   The gate that decides that is :mod:`.freshness`, and it is what makes an
   hourly tick cost one request per workspace on the quiet hours. An hourly tick
   also repairs one workspace the gap survey can see a hole in, so a missing week
@@ -53,6 +54,32 @@ def harvest_finance(
     """
     scope = uuid.UUID(workspace_id) if workspace_id else None
     return run_task(harvest_all_workspaces(days=days, workspace_id=scope, reconcile=reconcile))
+
+
+
+    A task of its own since 2026-09-19, and the separation is the point rather
+    than tidiness. It used to be awaited inside `harvest_workspace`, which made
+    "best-effort" a claim the code could not keep: the computation re-prices the
+    115 366 rows in one allocation — ~269 MB, measured on prod — against a
+    768 MiB cgroup whose floor had ratcheted past 550 MB. The kernel killed the
+    child mid-run, and a SIGKILL cannot be caught, swallowed or logged by the
+    caller that meant the work to be optional. It took the harvest's own outcome
+    recording with it and every workspace still queued behind that one. Twenty-
+    one hourly harvests died that way inside twenty-four hours and the P&L went
+    six days stale.
+
+    Nothing waits on this, so nothing needs it to be inline. As its own task it
+    dies alone, and `celery_worker_lost_total` names the warm-up instead of
+    blaming the harvest that had already finished.
+
+    **No retry.** The summary is a cache of an answer the read path can always
+    recompute, and the next hourly harvest enqueues this again — a retry would
+    only spend the same memory sooner.
+
+    Args:
+        workspace_id: Workspace UUID as a string; Celery serializes JSON only.
+        name: The workspace's display name, for the log line.
+    """
 
 
 from src.modules.finreports.tasks.backfill import backfill_pnl  # noqa: E402

@@ -260,6 +260,13 @@ def wb(
         return None
 
     monkeypatch.setattr(workspace, "warm_settlement_rollup", no_warming)
+
+    class _Broker:
+        @staticmethod
+        def send_task(_name: str, **_kwargs: object) -> None:
+            return None
+
+    monkeypatch.setattr(workspace, "celery_app", _Broker)
     _FakeFinanceClient.fail_mid_walk = False
     _FakeFinanceClient.fail_after_first_batch = False
     yield _FakeFinanceClient

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from src.core.celery_app import celery_app
 from src.core.logcontext import bind_workspace
 from src.core.logging import get_logger
 from src.core.observability.harvest import harvest_timer, record_harvest_outcome
@@ -21,6 +22,7 @@ from src.modules.finreports.tasks.harvest.persistence import (
 )
 from src.modules.finreports.tasks.ingestion_factory import build_ingestion
 from src.modules.finreports.tasks.settlement import walk_settlement_windows
+from src.modules.finreports.tasks.warmup import warm_settlement_rollup
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 logger = get_logger(__name__)
@@ -113,6 +115,22 @@ async def _harvest_workspace(
     if tokens.internal_features:
         # it would re-price an empty ledger and cache an answer no request can
         # ask for.
+        #
+        # **Enqueued, not awaited, since 2026-09-19**, and the reason is the
+        # whole point of calling it best-effort. Awaited, it was not
+        # (~269 MB, measured), and on a worker whose floor had ratcheted that
+        # is over the cgroup cap. The kernel does not care that the caller
+        # meant it to be optional — it killed the child, and with it the
+        # `record_harvest_outcome` below and every workspace still queued
+        # behind this one. Twenty-one hourly harvests died that way between
+        # 09-18 01:56 and 09-19 01:56, and the P&L went six days stale.
+        #
+        # A separate task cannot do that. It dies alone, it is acknowledged
+        # rather than requeued, and `celery_worker_lost_total` names it instead
+        # of blaming the harvest.
+        celery_app.send_task(
+            kwargs={"workspace_id": str(tokens.workspace_id), "name": tokens.name},
+        )
     record_harvest_outcome(
         _HARVEST_FINANCE,
         counts=_row_counts(counts),

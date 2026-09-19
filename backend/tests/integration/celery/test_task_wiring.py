@@ -23,6 +23,10 @@ EXPECTED_TASKS: list[str] = [
     "monitoring.refresh_buyout_cohorts",
     "monitoring.carry_day_headers",
     "auth.purge_expired_refresh_tokens",
+    # Enqueued by the harvest, never scheduled — so beat's own check below
+    # cannot see it, and a rename would silently stop the cache being warmed
+    # while everything kept reporting success. It is listed here for exactly
+    # that reason: it is the one finreports task with no schedule behind it.
     # The history backfill. Its lanes are chains of self-enqueueing ticks, and
     # the watchdog restarts them BY NAME — so a rename that skipped either side
     # leaves a dead lane with nothing scheduled to notice, which is exactly the

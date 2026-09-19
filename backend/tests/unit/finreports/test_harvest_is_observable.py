@@ -87,6 +87,13 @@ def harvest_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(workspace, "warm_settlement_rollup", _warm)
 
+    class _Broker:
+        @staticmethod
+        def send_task(_name: str, **_kwargs: object) -> None:
+            return None
+
+    monkeypatch.setattr(workspace, "celery_app", _Broker)
+
 
 def _bundle() -> WorkspaceTokenBundle:
     """A workspace with no WB tokens: nothing to fetch, everything to record.
