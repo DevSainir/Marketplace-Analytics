@@ -105,8 +105,17 @@ Redis:
 ## House style
 
 * Docstrings on modules, classes and public functions carry the *why* — the part no reader can
-  recover from the code. Russian is fine there and in user-facing strings; ruff is already
-  configured for the confusables that produces.
+  recover from the code.
+* **Everything written for a developer is in English**: docstrings, comments, test names, commit
+  messages. This line used to say Russian was fine in a docstring and it was wrong — the codebase
+  is English-identified throughout, so a Russian sentence explaining an English name reads as two
+  halves of different files, and the same rule has a mechanical edge on the commit side
+  (`git-workflow`).
+* **Everything written for a user stays Russian**: UI copy, exception messages, alert text. That is
+  not a leftover, it is enforced — `backend/tests/unit/core/test_messages_are_russian.py` fails on
+  an English one. `allowed-confusables` in `backend/pyproject.toml` keeps RUF001-003 off the
+  Latin-lookalike letters those strings are built from; the list is per LETTER and not per context,
+  so a Russian word outside it (a «б», say) trips the check wherever it is written.
 * Routes declare their status code and their documented failure responses explicitly.
 * `make lint typecheck` (ruff, eslint, `mypy --strict`) is a gate, not a suggestion.
 

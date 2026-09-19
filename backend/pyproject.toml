@@ -105,9 +105,10 @@ select = ["E", "F", "I", "N", "UP", "B", "C4", "ASYNC", "S", "RUF", "SIM", "RET"
 # B008: FastAPI intentionally calls Query()/Depends() in argument defaults.
 # S101: asserts are allowed in tests.
 ignore = ["B008", "S101"]
-# Docstrings/labels are written in Russian; short words like «РК», «На» or «с
-# НДС» are built only from Latin-lookalike letters, which RUF001-003 would flag
-# as ambiguous — these are legitimate Cyrillic, not confusables.
+# User-facing strings and WB labels are written in Russian (docstrings and
+# comments are English — see the `git-workflow` skill); short words like «РК»,
+# «На» or «с НДС» are built only from Latin-lookalike letters, which RUF001-003
+# would flag as ambiguous — these are legitimate Cyrillic, not confusables.
 #
 # What this list gives up is the check that would catch a Latin lookalike inside
 # a WB label we compare against — «Продажa» with a Latin `a` would silently match

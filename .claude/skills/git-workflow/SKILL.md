@@ -109,6 +109,23 @@ before anyone decided it was.
 
 ## Writing the message
 
+**In English.** Every commit message, subject and body — no exceptions, whatever language the
+conversation that produced the change was held in. This is not a style preference, it is what the
+release pipeline is built on: `.github/scripts/release_notes_ru.py` sends the commit subjects to
+Gemini and asks for Russian *and* a change out of the imperative
+(`add Balance table` → «была добавлена таблица Баланс»). A subject that arrives already in Russian
+has nothing to translate, comes back mangled or unchanged, and when the model is unreachable the
+documented fallback — "grouped English notes" — is not English either. `docs/RELEASES.md` has the
+detail.
+
+The history already holds Russian subjects. They are not the standard; they are what this rule was
+written to stop, and matching them is not a reason.
+
+The same rule covers every other piece of supporting text in the repo — comments, docstrings,
+test names, TODOs. What stays Russian is what a *user* reads: UI copy, error messages sellers see,
+alert text, and the documents written for the team (`docs/**`, skill files). See
+`backend-architecture` and `design-system` for that boundary.
+
 Subject in the imperative, scope = the module (`monitoring`, `finreports`, `users`, `workspaces`,
 `core`, `frontend`). The body is for **why**, and it is worth writing: these messages become the
 changelog and, translated, the release note the team actually reads. What the diff already shows

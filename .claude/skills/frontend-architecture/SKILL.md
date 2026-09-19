@@ -49,6 +49,14 @@ mutates a prop, and props are not destructured — `toRefs` when it is unavoidab
   backend turned into a ~50 s white screen; the measured budgets are in the `testing` skill's
   coverage map.
 
+## House style
+
+* Every component, composable and store carries a block comment saying *why* it exists — the part
+  the code cannot state. **In English**, like every comment, JSDoc and test name in the repo.
+* **Russian is for what a user reads**: labels, headings, placeholders, empty states, error text.
+  English identifiers behind a Russian UI is how this codebase works — see `design-system` for the
+  vocabulary those strings use, and `git-workflow` for the same boundary on commit messages.
+
 ## Running it
 
 Dev is Vite on `:5173` proxying to Uvicorn on `:8000`; the backend's CORS middleware allows that
