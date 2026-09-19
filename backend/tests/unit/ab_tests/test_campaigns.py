@@ -48,9 +48,15 @@ def test_campaigns_that_do_not_name_the_sku_are_left_out() -> None:
     assert campaigns_for_sku(adverts, nm_id=NM_TROUSERS) == [2]
 
 
-def test_harvested_ids_survive_a_campaign_wb_no_longer_lists() -> None:
-    """An archived campaign's counters are still part of what a photo earned."""
-    adverts = [_advert(97455930, NM_TROUSERS)]
+def test_a_harvested_campaign_is_read_while_it_is_still_running() -> None:
+    """The harvest can name a campaign this card's settings do not.
+
+    An automatic campaign picks cards up on its own, so ``nm_settings`` need not
+    mention the SKU whose traffic it is bringing. Recent traffic is the other
+    way of knowing — but only for as long as WB still says the campaign can
+    deliver.
+    """
+    adverts = [_advert(97455930, NM_TROUSERS), _advert(97136532, NM_OTHER)]
 
     assert campaigns_for_sku(adverts, nm_id=NM_TROUSERS, known=[97136532, 97455930]) == [
         97136532,
@@ -58,26 +64,57 @@ def test_harvested_ids_survive_a_campaign_wb_no_longer_lists() -> None:
     ]
 
 
+def test_a_harvested_campaign_wb_has_finished_is_not_read_again() -> None:
+    """The month-old ids are precisely the campaigns that have since ended.
+
+    What each of them earned is already in the windows it earned it in. Asking
+    WB about it again gets a day's cumulative counters with no snapshot to
+    difference them against, and the page grows a branch for a campaign that
+    served nothing during the test.
+    """
+    adverts = [_advert(97455930, NM_TROUSERS), _advert(97136532, NM_OTHER, status=7)]
+
+    assert campaigns_for_sku(adverts, nm_id=NM_TROUSERS, known=[97136532]) == [97455930]
+
+
 @pytest.mark.parametrize(
     "status",
     [
         pytest.param(9, id="идут показы"),
         pytest.param(11, id="на паузе"),
-        pytest.param(7, id="завершена"),
-        pytest.param(4, id="готова к запуску"),
     ],
 )
-def test_status_does_not_decide_whether_a_campaign_is_read(status: int) -> None:
-    """A campaign switched off mid-test still served the half before it.
+def test_a_campaign_that_can_still_deliver_is_read(status: int) -> None:
+    """Active and paused are the two statuses a campaign can still serve from.
 
-    Counters are cumulative and differenced, so a campaign that is no longer
-    running can only contribute traffic the card really earned. Filtering on
-    status would drop exactly the campaign a seller paused halfway through the
-    test they are trying to read.
+    The same pair monitoring's harvest planner keeps. A paused campaign is one
+    click from running again, and the seller who paused it mid-test expects the
+    half it served to go on being counted.
     """
     adverts = [_advert(97455930, NM_TROUSERS, status=status)]
 
     assert campaigns_for_sku(adverts, nm_id=NM_TROUSERS) == [97455930]
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        pytest.param(7, id="завершена"),
+        pytest.param(4, id="готова к запуску"),
+        pytest.param(8, id="отклонена"),
+        pytest.param(-1, id="удаляется"),
+    ],
+)
+def test_a_campaign_that_cannot_deliver_is_left_out(status: int) -> None:
+    """Every other status is past tense, or has never started.
+
+    A card advertised for a month names a dozen of them, and reading each one
+    put a branch of «0 показов» under every figure of «Итог по тесту» —
+    observed on production 2026-09-19, seven campaigns where two were running.
+    """
+    adverts = [_advert(97455930, NM_TROUSERS, status=status)]
+
+    assert campaigns_for_sku(adverts, nm_id=NM_TROUSERS) == []
 
 
 def test_a_card_with_no_campaigns_reads_nothing_rather_than_everything() -> None:

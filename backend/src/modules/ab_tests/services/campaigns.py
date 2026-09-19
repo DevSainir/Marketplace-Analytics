@@ -21,9 +21,9 @@ guarantees the two-hour tests are the ones it fails.
 
 So the campaigns are read live, from WB's own ``/api/advert/v2/adverts``, which
 carries each campaign's ``nm_settings`` and therefore says directly which ones
-name this SKU. The harvested ids are kept alongside them: a campaign that served
-last week and has since been archived may be absent from the listing while its
-counters are still part of what a variant earned.
+name this SKU — and its ``status``, which says whether it can still deliver.
+Only campaigns that can are read; see :func:`campaigns_for_sku` for what asking
+about the finished ones was costing the page.
 
 **What sort of campaign it is** is decided here too, because the same listing
 carries it and because the answer is the order the page shows them in. Two
@@ -76,6 +76,13 @@ KIND_LABELS: dict[str, str] = {
     CampaignKind.CPC: "CPC",
     CampaignKind.UNKNOWN: "Реклама",
 }
+
+#: WB campaign statuses from which a campaign can still deliver: 9 «идут
+#: показы» and 11 «на паузе». The same pair monitoring's harvest planner keeps
+#: (``modules.monitoring.tasks.planning._HARVESTABLE_STATUSES``) — repeated
+#: rather than imported because a module may not reach past another's contract,
+#: and both places name it in their own docstring for exactly that reason.
+RUNNING_STATUSES: frozenset[int] = frozenset({9, 11})
 
 #: WB's own word for a pay-per-click campaign, in ``settings.payment_type``.
 _CPC_PAYMENT: str = "cpc"
@@ -153,35 +160,53 @@ def display_name(*, name: str, kind: str, campaign_id: int) -> str:
 def campaigns_for_sku(
     adverts: Iterable[WBAdvertV2], *, nm_id: int, known: Sequence[int] = ()
 ) -> list[int]:
-    """Return every campaign id whose counters may carry this SKU's traffic.
+    """Return every RUNNING campaign whose counters may carry this SKU's traffic.
 
-    Statuses are deliberately not filtered. A campaign paused or finished
-    mid-test still served part of it, and the counters are read cumulatively and
-    differenced — so including one that is no longer running costs a slot in the
-    request and can only ever add traffic the card really earned. Filtering to
-    «идут показы» would drop exactly the campaign a seller switched off halfway
-    through the test they are trying to read.
+    Statuses used to be deliberately not filtered, on the reasoning that a
+    campaign finished mid-test still paid for part of it and that re-reading a
+    dead one could only ever add traffic the card really earned. Production
+    disagreed. A card that has been advertised for a month names a dozen
+    campaigns WB has since completed, and every one of them can still turn up
+    in a fullstats answer — at which point :func:`..services.collection.
+    window_delta` has no snapshot for it, treats its whole day as one interval's
+    gain, and the page grows a branch for a campaign that served nothing during
+    the test. Six or seven of those, most reading «0 показов», under every
+    figure of «Итог по тесту».
+
+    So the rule is monitoring's — see its ``_advertising_harvest_ids``: a
+    campaign is read while WB says it is **active or paused**, the two statuses
+    from which it can still deliver. Anything already completed, declined or
+    being deleted is past tense, and what it earned is already recorded in the
+    windows it earned it in; nothing is lost by not asking about it again.
+
+    ``known`` — the ids harvested from recent traffic — is filtered by the same
+    rule rather than trusted: it is a 30-day history, so it is precisely the
+    list of campaigns that have finished.
 
     Args:
-        adverts: WB's campaign listing, each carrying its per-SKU settings.
+        adverts: WB's campaign listing, each carrying its status and its
+            per-SKU settings.
         nm_id: The card under test.
-        known: Ids already discovered from harvested traffic, kept so an
-            archived campaign's history is not lost when WB stops listing it.
+        known: Ids already discovered from harvested traffic, kept for a
+            campaign that is running but whose ``nm_settings`` do not name this
+            card (an automatic campaign picking it up on its own).
 
     Returns:
         Campaign ids, ascending and without duplicates.
     """
-    live = {
+    running = {advert.campaign_id for advert in adverts if advert.status in RUNNING_STATUSES}
+    names_sku = {
         advert.campaign_id
         for advert in adverts
         if any(setting.nm_id == nm_id for setting in advert.nm_settings)
     }
-    return sorted(live | {int(campaign_id) for campaign_id in known})
+    return sorted((running & names_sku) | (running & {int(cid) for cid in known}))
 
 
 __all__ = [
     "KIND_LABELS",
     "KIND_ORDER",
+    "RUNNING_STATUSES",
     "CampaignKind",
     "campaigns_for_sku",
     "classify",

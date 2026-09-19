@@ -171,6 +171,30 @@ def test_a_campaign_with_no_traffic_is_not_a_column() -> None:
     assert [ref.campaign_id for ref in refs] == [UNI]
 
 
+def test_a_campaign_that_showed_the_card_to_nobody_is_not_a_column() -> None:
+    """Spend with no показы and no клики measures nothing the page compares.
+
+    A campaign WB has since finished can still turn up in a fullstats answer
+    with a rouble against it and no traffic. Its column is dashes, and seven of
+    those under every figure of «Итог по тесту» is what the split was supposed
+    to make readable — observed on production 2026-09-19.
+    """
+    first = _variant(1)
+    billed = _window(first, campaign_id=CPC, at=5, views=0, clicks=0)
+    billed.spend = Decimal("1")
+    windows = [_window(first, campaign_id=UNI, at=5, views=100, clicks=4), billed]
+
+    refs = campaigns_with_traffic(
+        windows=windows,
+        registered=[
+            _registered(UNI, name="Единая по платьям", kind=CampaignKind.UNI),
+            _registered(CPC, name="CPC тест", kind=CampaignKind.CPC),
+        ],
+    )
+
+    assert [ref.campaign_id for ref in refs] == [UNI]
+
+
 def test_the_campaigns_are_ordered_unified_first_and_cpc_last() -> None:
     """The order the seller reads on every other screen, whichever pair is running."""
     first = _variant(1)

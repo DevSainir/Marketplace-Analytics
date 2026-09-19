@@ -20,11 +20,14 @@ question the page asks:
   which is what lets the timeline show only the laps a campaign actually ran
   for.
 
-**A campaign appears only once it has earned something.** The register knows
-every campaign the poller has read counters from, and a card can name a
-campaign that never served it; a branch of zeroes is not a finding. This is
-also what keeps the one-campaign case looking exactly as it did before the
-split: one entry, and the page renders its old self.
+**A campaign appears only once it has SHOWN the card to somebody.** The
+register knows every campaign the poller has read counters from, and a card can
+name a campaign that never served it; a branch of zeroes is not a finding. Nor
+is a branch of spend with no показы and no клики: whatever WB billed there, it
+put none of the photos in front of anybody, so it measures nothing the page is
+comparing and its column of dashes only crowds out the one or two campaigns
+that do. This is also what keeps the one-campaign case looking exactly as it
+did before the split: one entry, and the page renders its old self.
 """
 
 from __future__ import annotations
@@ -78,13 +81,13 @@ def campaigns_with_traffic(
         registered: The register's rows, which carry the names and the kinds.
 
     Returns:
-        One entry per campaign that has at least one window, ordered «Единая,
-        Руч. поиск, Руч. полки, CPC» and then by id. A campaign with windows
-        but no register row — the legacy ``0``, or one archived before it was
-        ever named — is included without a kind rather than dropped: its
-        traffic is on the page and has to be accounted for.
+        One entry per campaign that measured at least one impression or click,
+        ordered «Единая, Руч. поиск, Руч. полки, CPC» and then by id. A campaign
+        with traffic but no register row — the legacy ``0``, or one archived
+        before it was ever named — is included without a kind rather than
+        dropped: its traffic is on the page and has to be accounted for.
     """
-    earned = {row.campaign_id for row in windows}
+    earned = {row.campaign_id for row in windows if row.views or row.clicks}
     known = {row.campaign_id: row for row in registered}
 
     refs = [
