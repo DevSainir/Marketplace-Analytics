@@ -17,6 +17,7 @@ from datetime import date
 import pytest
 
 from src.modules.finreports.services.publication import (
+    is_probe_hour,
     missing_periods,
     period_from,
     periods_from,
@@ -142,3 +143,48 @@ def test_a_complete_history_asks_for_nothing() -> None:
     )
 
     assert missing == []
+
+
+# --- the probe cadence ----------------------------------------------------
+
+
+def test_the_day_a_report_is_formed_is_asked_about_every_tick_from_eight() -> None:
+    """Frequency is bought where it pays: the day the report almost always lands.
+
+    Nothing has ever arrived before 08:00 MSK — the four most recent
+    same-day harvests first answered at 10:03, 10:03, 10:04 and 12:54 — so the
+    ticks at 00, 01, 02 and 04 were asking a question WB could not yet answer.
+    That is four of the nine requests a report day costs, every week, per
+    seller, against a budget of about 94 a day.
+    """
+    early = [h for h in range(24) if is_probe_hour(overdue_days=0, hour_msk=h)]
+
+    assert early == list(range(8, 24))
+
+
+def test_a_report_days_late_is_asked_about_three_times_a_day() -> None:
+    """The tail has to exist and has to be cheap.
+
+    Report 983241109 was eight days late. A period stays on the missing list
+    until its report is held, which is what makes that recoverable at all —
+    but at twenty-one ticks a day it would have cost 168 requests against a
+    daily budget of 94, which is worse than the probe it replaced.
+    """
+    hours = [h for h in range(24) if is_probe_hour(overdue_days=8, hour_msk=h)]
+
+    assert hours == [8, 14, 20]
+
+
+def test_the_cadence_only_ever_slows_down() -> None:
+    """A later day must never ask more often than an earlier one.
+
+    Stated as a property because the three bands are easy to edit into
+    something that spikes in the middle, and the spike would land exactly on
+    the workspaces WB is already refusing.
+    """
+    counts = [
+        sum(is_probe_hour(overdue_days=d, hour_msk=h) for h in range(24)) for d in range(0, 10)
+    ]
+
+    assert counts == sorted(counts, reverse=True)
+    assert min(counts) > 0, "the door never closes on a report WB still owes"

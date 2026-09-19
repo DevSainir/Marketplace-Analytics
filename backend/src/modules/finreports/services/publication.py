@@ -132,4 +132,63 @@ def missing_periods(
     return [p for p in periods_from(start, through=today) if p.date_to not in held]
 
 
-__all__ = ["Period", "missing_periods", "period_from", "periods_from"]
+#: Moscow hour before which a report formed today has never been seen.
+#:
+#: WB stamps ``create_dt`` at midnight and serves the rows later. Measured on
+#: the four most recent reports «Демо» harvested on the day they were
+#: formed, the rows first answered at 10:03, 10:03, 10:04 and 12:54 MSK; the
+#: latest was 18:30. Nothing has ever arrived before 08:00, and the harvest
+#: schedule skips 05:00-07:00 anyway, so the four ticks at 00, 01, 02 and 04
+#: were asking WB a question it could not yet answer — four of the nine
+#: requests a report day costs, thrown away every week per seller.
+_EARLIEST_ARRIVAL_HOUR_MSK = 8
+
+#: Moscow hours a period overdue by one or two days may be asked about.
+_OVERDUE_HOURS_MSK = (8, 12, 16, 20)
+
+#: And by three or more. WB has served a report eight days late exactly once
+#: (983241109), so this tail must exist and must be cheap: three requests a day
+#: keeps the door open for the price of a tenth of the endpoint's budget.
+_STALE_HOURS_MSK = (8, 14, 20)
+
+
+def is_probe_hour(*, overdue_days: int, hour_msk: int) -> bool:
+    """Whether a period this overdue may be asked about at this hour.
+
+    A missing period stays missing until its report is held, which is what
+    makes a late report reachable at all — and, unpaced, what would make one
+    cost more than the hourly probe ever did: 983241109 was eight days late,
+    and twenty-one ticks a day over eight days is 168 requests against a budget
+    of about 94 a day.
+
+    So the cadence decays. On the day WB forms the report it is asked about
+    every tick from 08:00 MSK, because that is the day it almost always
+    arrives and an hour of staleness is the thing frequency is buying. After
+    that the odds fall and the cadence falls with them.
+
+    The decay is a function of the clock and nothing else — no «last probed»
+    marker, no state to go stale or disagree between processes. Two workers
+    ticking at once reach the same answer.
+
+    Args:
+        overdue_days: Days since the period's ``created_on``. Zero on the day
+            WB stamps the report.
+        hour_msk: Hour of day in Moscow time, 0-23.
+
+    Returns:
+        Whether to ask WB now.
+    """
+    if overdue_days <= 0:
+        return hour_msk >= _EARLIEST_ARRIVAL_HOUR_MSK
+    if overdue_days <= 2:
+        return hour_msk in _OVERDUE_HOURS_MSK
+    return hour_msk in _STALE_HOURS_MSK
+
+
+__all__ = [
+    "Period",
+    "is_probe_hour",
+    "missing_periods",
+    "period_from",
+    "periods_from",
+]

@@ -18,7 +18,7 @@ from src.core.database import AsyncSessionLocal
 from src.core.locks import single_flight
 from src.core.logging import get_logger
 from src.core.redis import get_redis
-from src.core.timeutils import moscow_today
+from src.core.timeutils import moscow_hour, moscow_today
 from src.modules.finreports.constants import (
     HARVEST_LOCK_KEY,
     HARVEST_LOCK_TTL_SECONDS,
@@ -136,6 +136,7 @@ async def _harvest_all_workspaces(
     to 09-06 and nothing would ever ask again.
     """
     today = moscow_today()
+    hour_msk = moscow_hour()
     async with AsyncSessionLocal() as session:
         bundles = await _bundles_to_walk(session, workspace_id=workspace_id)
         # BOTH dates, and the earlier of them — see `settlement_frontier`, which
@@ -188,11 +189,27 @@ async def _harvest_all_workspaces(
             latest_settled=settled[bundle.workspace_id],
             held_ends=held_ends[bundle.workspace_id],
             today=today,
+            hour_msk=hour_msk,
+            # «Обновить» and the nightly pass both arrive as `reconcile`, and
+            # both must reach WB whatever the hour: a button that quietly did
+            # nothing is worse than no button, and a safety net that only
+            # catches at four preset hours is not much of one.
+            paced=not reconcile,
             # Read from the shared Redis bucket, not from WB: asking WB whether
             # WB will accept a request is the one thing that cannot be done
             # here, and a peek takes no token.
             blocked_for=await settlement_blocked_for(bundle),
         )
+        # `None` is a tick that asked nothing because the cadence paced it out
+        # — see `is_probe_hour`. Nothing was learned, so nothing is recorded:
+        # the standing verdict is still the most recent true one, and writing
+        # over it would be claiming a check that did not happen. It must also
+        # NOT be overridden by `thorough` below, for the same reason the probe
+        # hours exist at all — a reconciliation pass that ignored the pace
+        # would spend the whole budget on the days WB is late.
+        if verdict is None:
+            totals["workspaces_skipped"] += 1
+            continue
         # Recorded BEFORE the branch, so "asked WB and there was nothing" leaves
         # the same trace as "asked WB and harvested". Recording only on the
         # harvesting path would leave a quiet week and a dead worker looking

@@ -75,6 +75,10 @@ service runs instrumented whether or not anything is watching it.
 `docs/finreports/` holds what no skill covers: how the P&L is derived from WB's weekly
 Read `PNL.md` before changing anything that touches a settlement figure — most of the ways to
 get it wrong produce a plausible statement rather than an error.
+`RATE_LIMIT_EXPERIMENT.md` is a **dated, single-shot measurement to run on 23.09.2026** — it
+settles whether WB meters the settlement report per seller token or per egress IP, which is
+the number the кабинет ceiling is computed from. It costs two requests and cannot be repeated
+for days if it is run wrong.
 
 `docs/RELEASES.md` covers versioning: the version is **derived from your commit messages**, never
 typed, so a `feat:`, a `feat-minor:` and a `fix:` are not interchangeable (which to use, and the

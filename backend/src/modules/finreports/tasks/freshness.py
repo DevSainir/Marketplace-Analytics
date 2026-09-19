@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
 from src.core.config import settings
@@ -63,10 +64,19 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessVerdict,
     RedisFreshnessRecordStore,
 )
-from src.modules.finreports.services.publication import missing_periods
+from src.modules.finreports.services.publication import is_probe_hour, missing_periods
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 logger = get_logger(__name__)
+
+#: The one Moscow hour every cadence in :func:`is_probe_hour` includes.
+#:
+#: The default for callers that have no clock of their own — tests, and any
+#: future caller reasoning purely about dates. Defaulting to an hour that some
+#: cadence excludes would make the gate answer «nothing to do» for a reason the
+#: caller never asked about, which is the quietest way for this module to go
+#: wrong.
+_ALWAYS_A_PROBE_HOUR_MSK = 8
 
 
 async def settlement_blocked_for(tokens: WorkspaceTokenBundle) -> float:
@@ -94,9 +104,26 @@ async def settlement_blocked_for(tokens: WorkspaceTokenBundle) -> float:
     return await gate.retry_after(SETTLEMENT_REPORT_PATH)
 
 
+@dataclass(frozen=True, slots=True)
+class Outstanding:
+    """A settlement window WB owes us, and how late it is.
+
+    Attributes:
+        date_from: First day to ask WB about — the oldest missing period's
+            start, never a later one.
+        date_to: Yesterday. WB serves nothing for today.
+        overdue_days: Days since WB stamped the oldest missing report. Zero on
+            the day it was formed, which is the day it nearly always arrives.
+    """
+
+    date_from: date
+    date_to: date
+    overdue_days: int
+
+
 def probe_window(
     *, latest_settled: date, held_ends: Iterable[date], today: date
-) -> tuple[date, date] | None:
+) -> Outstanding | None:
     """The settlement window to ask WB about, or ``None`` if asking is pointless.
 
     Asking is pointless in the one case WB's own arithmetic settles: every
@@ -123,7 +150,7 @@ def probe_window(
         today: Today in Moscow time.
 
     Returns:
-        The inclusive ``(date_from, date_to)`` to probe, or ``None`` when every
+        The window to ask about and how overdue it is, or ``None`` when every
         period WB has formed is already held.
     """
     missing = missing_periods(settled_through=latest_settled, held_ends=held_ends, today=today)
@@ -131,7 +158,11 @@ def probe_window(
         return None
     date_from = missing[0].date_from
     date_to = today - timedelta(days=1)
-    return (date_from, date_to) if date_from <= date_to else None
+    if date_from > date_to:
+        return None
+    return Outstanding(
+        date_from=date_from, date_to=date_to, overdue_days=(today - missing[0].created_on).days
+    )
 
 
 async def check_freshness(
@@ -140,8 +171,10 @@ async def check_freshness(
     latest_settled: date | None,
     held_ends: Iterable[date],
     today: date,
+    hour_msk: int = _ALWAYS_A_PROBE_HOUR_MSK,
+    paced: bool = True,
     blocked_for: float = 0.0,
-) -> FreshnessVerdict:
+) -> FreshnessVerdict | None:
     """Ask whether WB holds a settlement report this workspace has not harvested.
 
     Returns a *recorded* verdict rather than a bare ``bool``. The bool was
@@ -160,12 +193,25 @@ async def check_freshness(
             ``None`` if the workspace has never been harvested.
         held_ends: ``date_to`` of every settlement report already held.
         today: Today in Moscow time.
+        hour_msk: The hour now, Moscow time — the probe cadence decays with
+            how overdue a report is, so not every tick asks.
+        paced: Whether that cadence applies. False for the two callers that
+            must reach WB whatever the hour: «Обновить», which exists for the
+            case where waiting is not the answer and would be a poor button if
+            it silently did nothing, and the nightly reconciliation pass,
+            which is the safety net and costs one probe a day. A standing
+            block still stops both — that is a claim about the channel, not
+            about the clock.
         blocked_for: Seconds this workspace's settlement endpoint is shut for,
             read from the shared rate bucket at no cost in WB requests. Any
             positive value stops the tick dead — see :attr:`RATE_BLOCKED`.
 
     Returns:
-        The :class:`FreshnessVerdict` for this workspace, right now.
+        The :class:`FreshnessVerdict` for this workspace, or ``None`` when this
+        tick asked nothing and learned nothing — a paced-out probe hour. The
+        caller must skip the workspace and leave its recorded verdict alone:
+        overwriting a true record with a verdict no request supports is the
+        failure this module exists to prevent.
     """
     if latest_settled is None:
         logger.info("finreports: %s has no reports yet — harvesting.", tokens.name)
@@ -182,6 +228,28 @@ async def check_freshness(
         )
         return FreshnessVerdict(outcome=FreshnessOutcome.UP_TO_DATE, checked_at=datetime.now(UTC))
 
+    # Paced, and this is where «a missing period stays missing» stops being
+    # free. Keeping a period on the list until its report is held is what makes
+    # a late report reachable at all — but WB has been eight days late once
+    # (983241109), and twenty-one ticks a day across eight days is 168 requests
+    # against a budget of about 94. So the cadence decays with how overdue the
+    # report is; see :func:`is_probe_hour`.
+    #
+    # `None`, not a verdict. A tick that did not ask learned nothing, and
+    # writing any outcome here would overwrite a true record with a claim this
+    # tick cannot support — «загружены по вчерашний день» over a week WB has
+    # published, which is precisely the bug this module was rewritten to stop
+    # telling. The previous verdict stands, and its `checked_at` ages honestly.
+    if paced and not is_probe_hour(overdue_days=window.overdue_days, hour_msk=hour_msk):
+        logger.debug(
+            "finreports: %s has an outstanding report %d day(s) overdue, "
+            "but %02d:00 MSK is not one of its probe hours.",
+            tokens.name,
+            window.overdue_days,
+            hour_msk,
+        )
+        return None
+
     # Checked AFTER the cheap skip and BEFORE anything is sent. After, because
     # a workspace with nothing outstanding should not be reported as blocked —
     # it is simply done. Before, because this is the whole correction: the
@@ -197,7 +265,7 @@ async def check_freshness(
         )
         return FreshnessVerdict(outcome=FreshnessOutcome.RATE_BLOCKED, checked_at=datetime.now(UTC))
 
-    date_from, date_to = window
+    date_from, date_to = window.date_from, window.date_to
     try:
         async with WBFinanceClient(settings, token=tokens.statistics) as client:
             row = await client.fetch_first_row(date_from=date_from, date_to=date_to)
@@ -297,6 +365,7 @@ async def verdict_from_walk(
 
 
 __all__ = [
+    "Outstanding",
     "check_freshness",
     "freshness_record_store",
     "probe_window",

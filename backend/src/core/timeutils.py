@@ -32,6 +32,16 @@ def moscow_today() -> date:
     return datetime.now(tz=MOSCOW_TZ).date()
 
 
+def moscow_hour() -> int:
+    """Return the current hour in Moscow time (0-23).
+
+    The settlement probe's cadence is a function of the clock and nothing
+    else — no «last probed» marker to go stale or to disagree between prefork
+    workers. This is the clock it reads.
+    """
+    return datetime.now(tz=MOSCOW_TZ).hour
+
+
 def operating_today(now: datetime | None = None) -> date:
     """Return the current date on the team's operating clock (Bishkek, UTC+6).
 

@@ -122,7 +122,9 @@ def test_the_gate_stays_open_on_the_monday_the_report_lands() -> None:
     assert probe_window(latest_settled=WATERMARK, held_ends=[], today=TODAY) is None
 
     frontier = settlement_frontier(watermark=WATERMARK, covered_through=COVERED)
-    assert probe_window(latest_settled=frontier, held_ends=[], today=TODAY) == MISSED_WEEK
+    window = probe_window(latest_settled=frontier, held_ends=[], today=TODAY)
+    assert window is not None
+    assert (window.date_from, window.date_to) == MISSED_WEEK
 
 
 def test_the_walk_that_follows_covers_the_week_the_probe_found() -> None:
