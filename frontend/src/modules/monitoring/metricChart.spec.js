@@ -388,12 +388,21 @@ describe('buildMetricChart', () => {
     })
 
     it('fills the leading series and only the leading one', () => {
-      // The fill gives the plot a baseline to read heights against; two
+      // The fill gives the plot a floor to read heights against; two
       // translucent ones over each other become mud.
       const chart = chartOf(['carts', 'orders'])
 
       expect(chart.option.series[0].areaStyle).toBeTruthy()
       expect(chart.option.series[1].areaStyle).toBeUndefined()
+    })
+
+    it('fills a mixed pick too, index or no index', () => {
+      // The fill is not a measurement — it is what tells the eye where the
+      // bottom of the plot is. Withholding it from a rebased plot left the
+      // page's own default selection with no floor at all.
+      const chart = chartOf(['spend', 'orders'])
+
+      expect(chart.option.series[0].areaStyle).toBeTruthy()
     })
 
     it('lets a whole line answer a hover, not just its twenty dots', () => {

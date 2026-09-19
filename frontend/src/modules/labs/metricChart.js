@@ -389,10 +389,6 @@ export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}
       axisMax: top ? Math.ceil(top) : undefined,
       hover,
       series,
-      // The area under a line is «сколько всего», which is a statement about a
-      // quantity. Under an index it would be the area under a ratio, so a
-      // rebased plot gets none.
-      filled: !rebase,
     }),
   }
 }

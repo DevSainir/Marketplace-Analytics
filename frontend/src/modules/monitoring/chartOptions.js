@@ -108,12 +108,17 @@ export function shortDayLabel(iso) {
  * 1,6px and a 3,5px dot rather than 2px and 5px: at a year's density a 5px dot
  * is a bead necklace instead of a day.
  *
- * `filled` gets the area under it. It is what gives the plot a baseline to read
- * heights against, and at most one series ever has it — two translucent fills
- * over each other stop being a fill and become mud. The caller decides: an area
- * under an INDEX measures nothing, so a rebased plot gets no fill at all.
+ * `leading` gets the area under it. It is what gives the plot a floor to read
+ * heights against, and exactly one series ever has it — two translucent fills
+ * over each other stop being a fill and become mud.
+ *
+ * It is drawn whether or not the plot is an index. The area under an index is
+ * not a quantity, and that was once reason enough to withhold it; what the
+ * argument missed is that the fill is not a measurement in the first place. It
+ * is the thing that tells the eye where the bottom of the plot is, and a plot
+ * of five lines and no floor was the version nobody recognised.
  */
-function seriesMark(series, color, filled) {
+function seriesMark(series, color, leading) {
   return {
     name: series.name,
     data: series.data,
@@ -128,7 +133,7 @@ function seriesMark(series, color, filled) {
     symbolSize: 3.5,
     emphasis: { scale: 2.4 },
     lineStyle: { width: 1.6 },
-    ...(filled ? { areaStyle: { color, opacity: AREA_OPACITY } } : {}),
+    ...(leading ? { areaStyle: { color, opacity: AREA_OPACITY } } : {}),
     // Without this a line only answers a hover on one of its DOTS — the path
     // between them is inert, and «hovering this line» is a 5px target twenty
     // times a window rather than the line the reader is pointing at.
@@ -345,12 +350,11 @@ export function focusedPoints(points, hover) {
  * already share one — see `metricChart.js` for when those numbers are the
  * metrics themselves and when they are an index.
  *
- * @param {{days: string[], axisMax?: number, hover?: object, filled?: boolean,
+ * @param {{days: string[], axisMax?: number, hover?: object,
  *   series: Array<{name: string, unit: string, group?: string,
  *   data: Array<number|null>, raw?: Array<number|null>, color: string}>}} spec
- *   `filled` puts the area under the FIRST series; see {@link seriesMark}.
  */
-export function buildChartOption({ days, axisMax = DEFAULT_AXIS_MAX, hover, series, filled }) {
+export function buildChartOption({ days, axisMax = DEFAULT_AXIS_MAX, hover, series }) {
   const weekly = days.length > WEEKLY_FROM_DAYS
   const starts = weekStarts(days)
   // Every day up to a month, every week past it — for the dates AND for the
@@ -394,6 +398,6 @@ export function buildChartOption({ days, axisMax = DEFAULT_AXIS_MAX, hover, seri
       },
     },
     yAxis: valueAxis(axisMax),
-    series: series.map((entry, index) => seriesMark(entry, entry.color, filled && !index)),
+    series: series.map((entry, index) => seriesMark(entry, entry.color, !index)),
   }
 }
