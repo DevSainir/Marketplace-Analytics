@@ -34,6 +34,7 @@
 import { computed } from 'vue'
 
 import { STATUS_LABELS } from '@/modules/abTests'
+import { campaignKindLabel } from '@/modules/abTests/campaignKinds'
 import SummaryFacts from '@/modules/abTests/components/SummaryFacts.vue'
 import SummaryMetricTile from '@/modules/abTests/components/SummaryMetricTile.vue'
 
@@ -72,12 +73,19 @@ const split = computed(() => campaigns.value.length > 1)
  *
  * @param {string} key The campaign field to read.
  * @param {(value: unknown) => string} format How the trunk formats the same figure.
- * @returns {Array<{name: string, value: string}>} One branch per campaign, empty when only one paid.
+ * @returns {Array<{id: number, name: string, title: string, value: string}>} One branch per
+ *   campaign, empty when only one paid.
  */
 function branches(key, format) {
   if (!split.value) return []
   return campaigns.value.map((campaign) => ({
-    name: campaign.name,
+    id: campaign.campaign_id,
+    // The KIND, not the campaign's own name: see `campaignKinds.js` for what
+    // «M-B…» four times over was telling the reader.
+    name: campaignKindLabel(campaign),
+    // The seller's own name is a hover away, which is also what tells two
+    // campaigns of the same kind apart.
+    title: campaign.name,
     value: format(campaign[key]),
   }))
 }

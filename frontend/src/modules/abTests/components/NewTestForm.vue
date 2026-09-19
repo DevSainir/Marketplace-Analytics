@@ -27,6 +27,11 @@ const pickedSku = ref(null)
 
 const ready = computed(() => !!form.value.name.trim() && !!pickedSku.value)
 
+/** True in «показы и время», where the two bounds share one row of the grid. */
+const bothBounds = computed(
+  () => usesBudget(form.value.trigger_mode) && usesSlot(form.value.trigger_mode),
+)
+
 function submit() {
   // Only the settings the chosen mode reads travel. The backend REFUSES a body
   // carrying one it would not, rather than ignoring it — a dropped field would
@@ -82,28 +87,34 @@ defineExpose({ reset })
         </select>
       </label>
 
-      <label v-if="usesBudget(form.trigger_mode)" class="block">
-        <span class="text-tiny font-medium uppercase tracking-wide text-muted">
-          Показов на вариант
-        </span>
-        <input
-          v-model="form.impression_budget"
-          data-testid="impression-budget"
-          inputmode="numeric"
-          class="mt-xs h-11 w-full rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
-        />
-      </label>
-      <label v-if="usesSlot(form.trigger_mode)" class="block">
-        <span class="text-tiny font-medium uppercase tracking-wide text-muted">
-          Минут на вариант
-        </span>
-        <input
-          v-model="form.slot_minutes"
-          data-testid="slot-minutes"
-          inputmode="numeric"
-          class="mt-xs h-11 w-full rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
-        />
-      </label>
+      <!-- Both bounds live in ONE cell of the grid, side by side when the mode
+           reads both. They are one setting — «столько показов или столько
+           минут» — and on two rows they read as two, while a 5-item grid of
+           2 columns leaves the second one alone on a row of its own. -->
+      <div class="grid gap-sm" :class="bothBounds ? 'grid-cols-2' : 'grid-cols-1'">
+        <label v-if="usesBudget(form.trigger_mode)" class="block">
+          <span class="text-tiny font-medium uppercase tracking-wide text-muted">
+            Показов на вариант
+          </span>
+          <input
+            v-model="form.impression_budget"
+            data-testid="impression-budget"
+            inputmode="numeric"
+            class="mt-xs h-11 w-full rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
+          />
+        </label>
+        <label v-if="usesSlot(form.trigger_mode)" class="block">
+          <span class="text-tiny font-medium uppercase tracking-wide text-muted">
+            Минут на вариант
+          </span>
+          <input
+            v-model="form.slot_minutes"
+            data-testid="slot-minutes"
+            inputmode="numeric"
+            class="mt-xs h-11 w-full rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
+          />
+        </label>
+      </div>
     </div>
 
     <div class="mt-lg flex flex-wrap items-center gap-sm">

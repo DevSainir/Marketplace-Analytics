@@ -24,7 +24,11 @@ const props = defineProps({
   value: { type: String, required: true },
   /** The explanation behind the label; omitted for a self-evident one. */
   hint: { type: String, default: '' },
-  /** `[{ name, value }]` per campaign — empty when only one paid. */
+  /**
+   * `[{ id, name, title, value }]` per campaign — empty when only one paid.
+   * `name` is the kind's short label; `title` the campaign's own name, which
+   * is what tells two of the same kind apart on hover.
+   */
   branches: { type: Array, default: () => [] },
   /** Which `data-testid` the figure carries, so the page's tests can find it. */
   testid: { type: String, default: '' },
@@ -58,9 +62,18 @@ const span = computed(() => `${50 / props.branches.length}%`)
     <div v-if="split" class="ab-tile__tree mt-sm" data-testid="tile-branches">
       <div class="ab-tile__fork" :style="{ left: span, right: span }"></div>
       <div class="ab-tile__branches">
-        <div v-for="branch in branches" :key="branch.name" class="ab-tile__branch px-xs">
+        <!-- Keyed by campaign id, not by the label: two «Единая» campaigns on
+             one card are two branches with the same name. -->
+        <div
+          v-for="branch in branches"
+          :key="branch.id ?? branch.name"
+          class="ab-tile__branch px-xs"
+        >
           <p class="text-base font-semibold tabular-nums text-primary">{{ branch.value }}</p>
-          <p class="ab-tile__branch-name text-micro text-muted" :title="branch.name">
+          <p
+            class="ab-tile__branch-name text-micro text-muted"
+            :title="branch.title || branch.name"
+          >
             {{ branch.name }}
           </p>
         </div>

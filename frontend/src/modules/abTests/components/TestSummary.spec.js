@@ -171,7 +171,29 @@ describe('the per-campaign fork', () => {
     const views = plain(forks[0].text())
     expect(views).toContain('9 000')
     expect(views).toContain('3 345')
-    expect(views).toContain('Единая ставка')
+  })
+
+  it('names each branch by its KIND, not by what the seller called the campaign', () => {
+    // Under a figure four branches wide there is room for about eight
+    // characters, and a seller's own «M-BLK-2 автоворонка сент» arrived as
+    // «M-B…» on every branch. What the fork is for is «Единая against CPC».
+    const wrapper = mount(TestSummary, { props: { test: test({ campaigns: CAMPAIGNS }) } })
+
+    const views = plain(wrapper.findAll('[data-testid="tile-branches"]')[0].text())
+    expect(views).toContain('Единая')
+    expect(views).toContain('CPC')
+    expect(views).not.toContain('Единая ставка')
+  })
+
+  it('keeps the campaign own name a hover away', () => {
+    const wrapper = mount(TestSummary, { props: { test: test({ campaigns: CAMPAIGNS }) } })
+
+    const names = wrapper
+      .findAll('[data-testid="tile-branches"]')[0]
+      .findAll('.ab-tile__branch-name')
+      .map((node) => node.attributes('title'))
+
+    expect(names).toEqual(['Единая ставка', 'CPC — поиск'])
   })
 
   it('stays the plain figure it always was while only one campaign is running', () => {

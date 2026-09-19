@@ -7,7 +7,7 @@
  * a trigger becomes editable in more than one place. Which fields those are
  * lives in `trigger.js`, alongside the create form's copy of the same question.
  */
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import { TRIGGER_MODES, triggerPayload, usesBudget, usesSlot } from '@/modules/abTests/trigger'
 
@@ -33,6 +33,11 @@ watch(
   { immediate: true },
 )
 
+/** True in «показы и время», where the two bounds share one line. */
+const bothBounds = computed(
+  () => usesBudget(draft.value.trigger_mode) && usesSlot(draft.value.trigger_mode),
+)
+
 function save() {
   // Only what the chosen mode reads travels; sending anything else is a 422.
   emit('save', triggerPayload(draft.value))
@@ -53,28 +58,35 @@ function save() {
         </option>
       </select>
     </label>
-    <label v-if="usesBudget(draft.trigger_mode)" class="block">
-      <span class="text-tiny font-medium uppercase tracking-wide text-muted">
-        Показов на вариант
-      </span>
-      <input
-        v-model="draft.impression_budget"
-        data-testid="edit-impression-budget"
-        inputmode="numeric"
-        class="mt-xs h-10 rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
-      />
-    </label>
-    <label v-if="usesSlot(draft.trigger_mode)" class="block">
-      <span class="text-tiny font-medium uppercase tracking-wide text-muted">
-        Минут на вариант
-      </span>
-      <input
-        v-model="draft.slot_minutes"
-        data-testid="edit-slot-minutes"
-        inputmode="numeric"
-        class="mt-xs h-10 rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
-      />
-    </label>
+    <!-- Both bounds on one line, each half the width of a single one: they are
+         one setting read as «столько показов ИЛИ столько минут», and the row
+         already carries a mode select and two buttons to fit beside them. -->
+    <div class="flex items-end gap-sm">
+      <label v-if="usesBudget(draft.trigger_mode)" class="block">
+        <span class="text-tiny font-medium uppercase tracking-wide text-muted">
+          Показов на вариант
+        </span>
+        <input
+          v-model="draft.impression_budget"
+          data-testid="edit-impression-budget"
+          inputmode="numeric"
+          class="mt-xs h-10 rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
+          :class="bothBounds ? 'w-24' : 'w-44'"
+        />
+      </label>
+      <label v-if="usesSlot(draft.trigger_mode)" class="block">
+        <span class="text-tiny font-medium uppercase tracking-wide text-muted">
+          Минут на вариант
+        </span>
+        <input
+          v-model="draft.slot_minutes"
+          data-testid="edit-slot-minutes"
+          inputmode="numeric"
+          class="mt-xs h-10 rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
+          :class="bothBounds ? 'w-24' : 'w-44'"
+        />
+      </label>
+    </div>
     <button
       type="button"
       class="inline-flex h-10 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:opacity-50"
