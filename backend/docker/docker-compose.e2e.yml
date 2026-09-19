@@ -47,13 +47,35 @@
 # The caps are the third leg. Compose limits are enforced by the kernel on the
 # container, so unlike the runner's own systemd limits they also bound a
 # `docker build`'s children and anything the stack spawns. Sized to leave the
-# live stack its working set on a 4 GB box: the whole e2e topology is allowed
-# ~1 GB and one of the two cores.
+# live stack its working set on a 4 GB box.
+#
+# The budget is stated here in full because getting it wrong took the service
+# down on 2026-09-19, and the comment this replaces was itself part of how:
+# it claimed "~1 GB" while `postgres` and `redis` inherited the base file's
+# 384m and 96m uncapped by this overlay, making the real topology 1536m. The
+# box has 3915 MB and NO SWAP, against 3424 MB of limits for the live stack
+# and the observability overlay together — so the true figure oversubscribed
+# the machine by a gigabyte, and memory pressure has nowhere to go but the
+# OOM killer. Every service is therefore listed below, including the two that
+# need no image change, so that the total is readable in one place:
+#
+#   frontend 64 + api 320 + api_standby 256 + worker 320 + beat 192
+#   + postgres 256 + redis 64  =  1472m
+#
+# `restart` is the other half of that lesson. The base file says
+# `unless-stopped`, which is right for a stack that is meant to stay up and
+# catastrophic for one that is not: when the runner died mid-run on
+# 2026-09-19 the teardown step never ran, and Docker faithfully restarted this
+# throwaway stack on every boot thereafter. Worse, `beat` was capped at 96m —
+# below the ~148m it actually uses — so it was OOM-killed and restarted every
+# 45 seconds, churning the box until nothing could be scheduled and sshd
+# itself could no longer answer. A throwaway stack must die when it dies.
 # ---------------------------------------------------------------------------
 
 services:
   frontend:
     image: marketplace-service-frontend:e2e
+    restart: "no"
     # The self-contained variant: it carries its own release (the built SPA,
     # the snippets and nginx.ci.conf) instead of reading one from the host.
     #
@@ -71,23 +93,43 @@ services:
   # are redirected so neither production image can be rebuilt from here.
   api:
     image: marketplace-service-api:e2e
+    restart: "no"
     mem_limit: 320m
     cpus: 0.4
 
   api_standby:
     image: marketplace-service-api:e2e
+    restart: "no"
     mem_limit: 256m
     cpus: 0.25
 
   migrate:
     image: marketplace-service-api:e2e
+    restart: "no"
 
   worker:
     image: marketplace-service-worker:e2e
+    restart: "no"
     mem_limit: 320m
     cpus: 0.4
 
   beat:
     image: marketplace-service-worker:e2e
-    mem_limit: 96m
+    restart: "no"
+    # 96m until 2026-09-19, which is below what beat actually resident-sets
+    # (~148m on the live stack). The kernel killed it every 45 seconds and
+    # `restart: unless-stopped` brought it straight back; that loop is what
+    # turned a tight box into an unreachable one.
+    mem_limit: 192m
     cpus: 0.1
+
+  # No image change needed for these two — they are here only so the overlay
+  # caps them itself instead of silently inheriting production's sizing, and
+  # so the budget above adds up on the page.
+  postgres:
+    restart: "no"
+    mem_limit: 256m
+
+  redis:
+    restart: "no"
+    mem_limit: 64m

@@ -587,6 +587,35 @@ jobs:
           echo "Seed will target: ${SEED_PG_CONTAINER} (compose postgres: ${seed_pg})"
           echo "Isolation checks passed."
 
+      # BEFORE the work, for the same reason the disk reclaim in `verify` is:
+      # the teardown at the bottom of this job is `if: always()`, and
+      # `always()` is a promise the runner can only keep while it is alive. On
+      # 2026-09-19 it was not — the box ran out of memory mid-tier, the runner
+      # lost communication, and no further step of any kind executed. The
+      # throwaway stack was left running, `restart: unless-stopped` (since
+      # fixed in docker-compose.e2e.yml) brought it back on every boot, and
+      # 1.5 GB of test containers sat on a 3.9 GB box with no swap beside the
+      # live service until somebody rebooted and removed them by hand.
+      #
+      # So the invariant is established here rather than only promised at the
+      # end: whatever the last run left behind, this one starts from nothing.
+      # Scoped by project name alone — never `-f`, which would resolve the
+      # base file and name the PRODUCTION project — and `|| true` because the
+      # overwhelmingly common case is that there is nothing to remove.
+      - name: Remove any stack a previous run left behind
+        run: |
+          set -euo pipefail
+          if [ "${COMPOSE_PROJECT_NAME}" != "marketplace-e2e" ]; then
+            echo "::error::Refusing to clean up: project is '${COMPOSE_PROJECT_NAME}'." >&2
+            exit 1
+          fi
+          leftover=$(docker ps -aq --filter "label=com.docker.compose.project=marketplace-e2e" | wc -l)
+          echo "${leftover} leftover marketplace-e2e container(s)."
+          if [ "${leftover}" -gt 0 ]; then
+            echo "::warning::A previous run did not tear its stack down; removing it."
+          fi
+          docker compose -p marketplace-e2e down -v --remove-orphans || true
+
       # The e2e overlay builds the frontend's self-contained `e2e` target,
       # which carries a plain-HTTP config and its own copy of the bundle.
       # Without it nginx cannot load its config at all — the production one
