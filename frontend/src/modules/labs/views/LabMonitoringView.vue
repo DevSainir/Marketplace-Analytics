@@ -15,7 +15,6 @@
 import { computed, ref } from 'vue'
 
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
-import FittedMetricsChart from '@/modules/labs/components/FittedMetricsChart.vue'
 import MatrixEditToolbar from '@/modules/labs/components/MatrixEditToolbar.vue'
 import MetricsChart from '@/modules/labs/components/MetricsChart.vue'
 import MetricsTable from '@/modules/labs/components/MetricsTable.vue'
@@ -162,16 +161,17 @@ const SECTIONS = [
 
       <div id="ui-sec-chart"><MetricsChart :view="matrixView" /></div>
 
-      <!-- The long window, on a YEAR of days (`longWindow.js`) rather than on
-           the ten the rest of the sandbox uses: at ten days the question this
-           block exists to answer is not being asked. No sideways ribbon — the
-           plot is the card's width, every day in it. -->
+      <!-- The SAME chart component, handed a YEAR of days (`longWindow.js`)
+           instead of the ten the rest of the sandbox runs on. Nothing about it
+           is long-window-specific any more — that is the thing worth being able
+           to look at, and at ten days it cannot be seen. -->
       <div id="ui-sec-year" class="mt-2xl border-t border-border-subtle pt-lg">
-        <FittedMetricsChart
-          :view="longMatrixView"
-          title="График за год"
-          note="Год целиком, без горизонтальной прокрутки. Всё линиями, точка на каждый день; по неделям разбита ось — вертикаль и дата на каждом понедельнике."
-        />
+        <h2 class="text-h2 font-semibold text-primary">Тот же график на годе</h2>
+        <p class="mt-xs max-w-3xl text-base text-muted">
+          Год целиком, без горизонтальной прокрутки: всё линиями, точка на каждый день, по неделям
+          разбита только ось — вертикаль и дата на каждом понедельнике.
+        </p>
+        <MetricsChart :view="longMatrixView" :default-metrics="['carts', 'orders']" />
       </div>
 
       <!-- «Рекламные кластеры» — DORMANT here too, so this sandbox stays a

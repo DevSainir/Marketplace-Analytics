@@ -7,22 +7,21 @@
  * chart adds is putting a reader's own handful of them side by side — which
  * makes the picker the feature and the slides scaffolding.
  *
- * Everything is drawn as an index (see `metricChart.js`); there is no mode to
- * switch, and the left-hand scale is a ruler of заказов rather than a scale
- * that re-fits itself to whatever was ticked.
+ * The whole window sits on the card's own width — there is no sideways ribbon
+ * and no second copy of the plot with a pinned axis beside it. That layout was
+ * right for a fortnight and unusable for a year, which is what the window
+ * picker above happily asks for.
  *
  * Dumb by contract: the view hands it the matrix, it emits nothing.
  */
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 
-import { vDragScroll } from '@/core/utils/dragScroll'
 import ChartMetricPicker from '@/modules/labs/components/ChartMetricPicker.vue'
 import {
   SKU_DEFAULT_METRICS,
   SKU_METRIC_GROUPS,
   buildMetricChart,
 } from '@/modules/labs/metricChart'
-import { useChartRibbon } from '@/modules/labs/useChartRibbon'
 
 // ECharts is ~185 kB gzipped — three times the rest of this route put together.
 // Loading it asynchronously keeps it out of the view's own chunk, so the daily
@@ -93,11 +92,6 @@ function onPlotReady(instance) {
 
 /** Height enough for several series to have room to move. */
 const CHART_HEIGHT = '360px'
-
-// The plot is drawn at its natural width and scrolled sideways; the y axis is
-// pinned beside it like the table's frozen first column.
-const { scroller, plotWidth, axisOption, plotOption } = useChartRibbon(chart)
-const axisWidth = computed(() => `${chart.value?.axisGutter ?? 74}px`)
 </script>
 
 <template>
@@ -135,26 +129,10 @@ const axisWidth = computed(() => `${chart.value?.axisGutter ?? 74}px`)
           </li>
         </ul>
 
-        <!-- The y axis stands still while the days scroll past it, the way the
-             metrics table pins its metric names. -->
-        <div class="mt-xs flex" :style="{ height: CHART_HEIGHT }">
-          <BaseChart
-            key="axis"
-            class="shrink-0"
-            :option="axisOption"
-            :height="CHART_HEIGHT"
-            :style="{ width: axisWidth }"
-          />
-          <div ref="scroller" v-drag-scroll class="chart-scroll min-w-0 flex-1">
-            <div :style="{ minWidth: '100%', width: plotWidth, height: CHART_HEIGHT }">
-              <BaseChart
-                key="plot"
-                :option="plotOption"
-                :height="CHART_HEIGHT"
-                @ready="onPlotReady"
-              />
-            </div>
-          </div>
+        <!-- One plot, the card's width. The axis is drawn in the same canvas:
+             there is nothing for it to scroll away from any more. -->
+        <div class="mt-xs">
+          <BaseChart :option="chart.option" :height="CHART_HEIGHT" @ready="onPlotReady" />
         </div>
       </template>
 
@@ -164,29 +142,3 @@ const axisWidth = computed(() => `${chart.value?.axisGutter ?? 74}px`)
     </div>
   </section>
 </template>
-
-<style scoped>
-/* Native scroll, matching the metrics table's ribbon exactly
-   (`.matrix-scroll`): the scrollbar is hidden because macOS overlay scrollbars
-   otherwise pin a white track over the card, and `v-drag-scroll` supplies wheel
-   and drag panning.
-
-   `overflow: auto`, not `overflow-y: hidden` — the directive decides per
-   gesture whether a trackpad swipe is vertical (the page scrolls, the ribbon
-   holds still) or sideways; pinning the axis here stopped the page scrolling
-   under the cursor. */
-.chart-scroll {
-  overflow: auto;
-  scrollbar-width: none;
-}
-.chart-scroll::-webkit-scrollbar {
-  display: none;
-}
-.chart-scroll.drag-scrolling {
-  cursor: grabbing;
-  user-select: none;
-}
-.chart-scroll.wheel-axis-locked {
-  overflow-x: hidden;
-}
-</style>

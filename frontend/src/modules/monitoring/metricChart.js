@@ -10,43 +10,23 @@
  * prices and CTR, an account-wide sum does not — so the catalogue is a
  * parameter and everything else is shared.
  *
- * Metrics are plotted as an INDEX — rebased to 100 at the window's first
- * reported day. There is no «Значения» mode any more, because there never was
- * an honest one: «Заказы, ₽» at 500 000 beside «Затраты, ₽» at 7 000 share a
- * unit, therefore an axis, and the smaller of the two is a flat line at the
- * bottom of the plot. What a reader compares here is SHAPE; the real values are
- * a hover away, and the table above holds every one of them.
+ * A MIXED pick is plotted as an index — rebased to 100 at the window's first
+ * reported day. There is no «Значения» mode for one, because there never was an
+ * honest one: «Заказы, ₽» at 500 000 beside «Затраты, ₽» at 7 000 share a unit,
+ * therefore an axis, and the smaller of the two is a flat line at the bottom of
+ * the plot. What a reader compares there is SHAPE; the real values are a hover
+ * away, and the table above holds every one of them.
  *
- * ЗАКАЗЫ are the exception, and the reason the plot is readable at all. The
- * left-hand scale is a scale of заказов, so a series that counts заказы is
- * drawn AS IT IS: 120 заказов lands a little above the 120 line. That gives
- * every other series a real quantity to be a shape against, instead of a ruler
- * with no relationship to anything on the canvas.
+ * A pick whose metrics all share a unit is drawn AS IT IS, and that is the
+ * ordinary case — корзины against заказы, показы against клики. One axis is
+ * already true for all of them, so the numbers on it are the numbers. See
+ * `sharesOneUnit`.
  */
-import {
-  AXIS_GUTTER_PX,
-  buildChartOption,
-  colorForMetric,
-  dayWidthFor,
-  niceCeiling,
-} from '@/modules/monitoring/chartOptions'
+import { buildChartOption, colorForMetric } from '@/modules/monitoring/chartOptions'
 import { COLUMNS_PER_DAY, TRAFFIC_COLUMNS } from '@/modules/monitoring/metricsMatrix'
 
 /** Column index of each backend bucket within a day section of `row.cells`. */
 const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key, index]))
-
-/**
- * The backend metric the left-hand ruler is a scale of.
- *
- * Matched on `metric` rather than on the catalogue key, so every entry reading
- * that row is covered by one rule: «Заказы, шт» on both pages, and «Заказы
- * органика, шт», which is the same count of the same thing through one traffic
- * bucket. All three are true on a scale of заказов and are drawn unrebased.
- *
- * «Заказы, ₽» is NOT one of them — it reads `order_sum`, and roubles on a scale
- * of заказов would be a number in the wrong units sitting on a real gridline.
- */
-const RULER_METRIC = 'orders'
 
 /**
  * The metrics on offer, in the order everything downstream reads them.
@@ -61,9 +41,10 @@ const RULER_METRIC = 'orders'
  * «Реклама», «Воронка» and «Общие» are where a reader LOOKS for a metric. The
  * chart uses them too, but only to group the hover.
  *
- * `type: 'bar'` on остатки, корзины and заказы, and deliberately no `stack`:
- * they stand side by side as separate columns per day. Stacked they would draw
- * a total that means nothing — a cart is not a unit of stock.
+ * Nothing is a column any more, at any window length: a card a year wide drew
+ * 365 of them at 1,5px each, and folding them into weeks — the other candidate
+ * — puts a weekly quantity beside daily ones and invites the reader to compare
+ * them. Everything is a line with a point per day.
  */
 export const SKU_METRIC_GROUPS = [
   {
@@ -100,7 +81,6 @@ export const SKU_METRIC_GROUPS = [
         bucket: 'total',
         name: 'Корзины, шт',
         unit: 'number',
-        type: 'bar',
       },
       {
         key: 'cart_conversion',
@@ -115,7 +95,6 @@ export const SKU_METRIC_GROUPS = [
         bucket: 'total',
         name: 'Заказы, шт',
         unit: 'number',
-        type: 'bar',
       },
       {
         key: 'order_conversion',
@@ -159,7 +138,6 @@ export const SKU_METRIC_GROUPS = [
         source: 'stockRows',
         name: 'Остатки на складах, шт',
         unit: 'number',
-        type: 'bar',
       },
     ],
   },
@@ -214,7 +192,6 @@ export const AGGREGATE_METRIC_GROUPS = [
         bucket: 'total',
         name: 'Корзины, шт',
         unit: 'number',
-        type: 'bar',
       },
       {
         key: 'cart_conversion',
@@ -229,7 +206,6 @@ export const AGGREGATE_METRIC_GROUPS = [
         bucket: 'total',
         name: 'Заказы, шт',
         unit: 'number',
-        type: 'bar',
       },
       {
         key: 'order_conversion',
@@ -263,7 +239,6 @@ export const AGGREGATE_METRIC_GROUPS = [
         source: 'stockTotalRows',
         name: 'Остатки, шт',
         unit: 'number',
-        type: 'bar',
       },
     ],
   },
@@ -329,23 +304,52 @@ function maxOf(values) {
 }
 
 /**
- * Where the left-hand ruler tops out.
+ * Do all the picked metrics measure the same kind of thing?
  *
- * The scale is a scale of ЗАКАЗОВ — the one quantity the page is about, and
- * the one series drawn against it unrebased. It is read off the window's orders
- * whether or not «Заказы» is ticked, so ticking a metric never moves the scale
- * under the others.
+ * The index exists because «Заказы, ₽» at 500 000 beside «Затраты, ₽» at 7 000
+ * share a unit, therefore an axis, and the smaller of the two is a flat line
+ * along the bottom. That covers a MIXED pick and nothing else. Корзины against
+ * заказы are both штуки — the axis is already true for both, and rebasing them
+ * costs the thing an axis is for, numbers that are the numbers, while buying
+ * nothing. It also stopped two series being drawn on different footings, an
+ * index against a raw count, which put one line at exactly 100 on the left edge
+ * of the plot with nothing to say it was not a measurement.
  *
- * The one thing that does raise it is a series that would otherwise be CUT: a
- * metric that tripled plots at 300 and a ruler stopping at 150 would draw it as
- * a line that stops, which is a lie a chart must not tell.
+ * @param {Array<{unit: string}>} series The picked metrics.
+ * @returns {boolean} True when one axis is honest for all of them as they are.
  */
-function axisCeiling(view, catalogue, series) {
-  const orders = catalogue.orders ? maxOf(readSeries(view, catalogue.orders)) : null
-  const plotted = maxOf(series.flatMap((entry) => entry.data))
-  // `niceCeiling` of nothing is the default ruler — a window with no заказы at
-  // all still needs a scale, and 0-500 is the shape of the ones that do.
-  return Math.max(niceCeiling(orders), plotted == null ? 0 : niceCeiling(plotted))
+function sharesOneUnit(series) {
+  return new Set(series.map((entry) => entry.unit)).size <= 1
+}
+
+/**
+ * The metrics a reader picked, resolved against the catalogue and read off the
+ * matrix — everything a plot needs except the decision how to draw them.
+ *
+ * @param {object} view A display matrix (`matrixView` shape).
+ * @param {{metrics?: string[], groups?: Array<object>}} [options]
+ * @returns {Array<{key: string, name: string, unit: string, group: string,
+ *   color: string, values: Array<number|null>}>} In catalogue order, whatever
+ *   order they were ticked in.
+ */
+function metricSeriesSpecs(view, { metrics = [], groups = [] } = {}) {
+  const catalogue = metricsByKey(groups)
+  const order = catalogueOrder(groups)
+
+  return metrics
+    .filter((key) => catalogue[key])
+    .sort((a, b) => order.get(a) - order.get(b))
+    .map((key) => {
+      const entry = catalogue[key]
+      return {
+        key,
+        name: entry.name,
+        unit: entry.unit ?? 'number',
+        group: entry.group,
+        color: colorForMetric(key),
+        values: readSeries(view, entry),
+      }
+    })
 }
 
 /**
@@ -355,50 +359,40 @@ function axisCeiling(view, catalogue, series) {
  * @param {{metrics?: string[], groups?: Array<object>, hover?: object}} [options]
  *   The reader's picks, the catalogue to resolve them against, and the live
  *   holder saying which series the cursor is on (see `focusedPoints`).
- * @returns {object|null} `{dayCount, axisGutter, legend, empty, option}`, or
- *   null when the window has no days at all.
+ * @returns {object|null} `{legend, empty, option}`, or null when the window has
+ *   no days at all.
  */
 export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}) {
   if (!view?.days?.length) return null
   const days = view.days.map((day) => day.iso)
-  const catalogue = metricsByKey(groups)
-  const order = catalogueOrder(groups)
 
-  const series = metrics
-    .filter((key) => catalogue[key])
-    .sort((a, b) => order.get(a) - order.get(b))
-    .map((key) => {
-      const entry = catalogue[key]
-      return {
-        name: entry.name,
-        type: entry.type ?? 'line',
-        unit: entry.unit ?? 'number',
-        group: entry.group,
-        color: colorForMetric(key),
-        // Заказы are what the scale measures, so they are drawn as they are.
-        ...(entry.metric === RULER_METRIC
-          ? { data: readSeries(view, entry) }
-          : indexed(readSeries(view, entry))),
-      }
-    })
+  const specs = metricSeriesSpecs(view, { metrics, groups })
+  const rebase = !sharesOneUnit(specs)
+
+  const series = specs.map((spec) => ({
+    name: spec.name,
+    unit: spec.unit,
+    group: spec.group,
+    color: spec.color,
+    ...(rebase ? indexed(spec.values) : { data: spec.values }),
+  }))
+
+  // The scale stops at what was actually plotted — see `ruleStep` for why it is
+  // not rounded up past it.
+  const top = maxOf(series.flatMap((entry) => entry.data))
 
   return {
-    dayCount: days.length,
-    // Pixels per day, so the ribbon and the plot are laid out to one number.
-    dayWidth: dayWidthFor(days.length),
-    // What the ribbon re-pins on: a new window or a new pick is a new question,
-    // and a question is asked of the LAST few days. Derived from the series
-    // rather than counted, so an unrelated re-render does not look like one.
-    key: `${days.length}:${series.map((entry) => entry.name).join('|')}`,
-    // One axis, always — so one column, always.
-    axisGutter: AXIS_GUTTER_PX,
     legend: series.map((entry) => ({ name: entry.name, color: entry.color })),
     empty: !series.length || series.every((entry) => entry.data.every((value) => value == null)),
     option: buildChartOption({
       days,
-      axisMax: axisCeiling(view, catalogue, series),
+      axisMax: top ? Math.ceil(top) : undefined,
       hover,
       series,
+      // The area under a line is «сколько всего», which is a statement about a
+      // quantity. Under an index it would be the area under a ratio, so a
+      // rebased plot gets none.
+      filled: !rebase,
     }),
   }
 }

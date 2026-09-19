@@ -97,30 +97,38 @@ export function shortDayLabel(iso) {
   return `${day}.${month}`
 }
 
-/** One series' mark spec: 2px lines, rounded bar ends, its own fixed hue. */
-function seriesMark(series, color, dayWidth) {
-  const shared = { name: series.name, data: series.data, color, z: 3 }
-  if (series.type === 'bar') {
-    return {
-      ...shared,
-      type: 'bar',
-      itemStyle: { borderRadius: [4, 4, 0, 0] },
-      barMaxWidth: Math.round(dayWidth * BAR_WIDTH_RATIO),
-    }
-  }
+/**
+ * One series' mark: a thin line, a dot per day, its own fixed hue.
+ *
+ * **Everything is a line.** Columns were dropped at every window length — a
+ * card that is a year wide draws 365 of them at 1,5px each, which is a texture
+ * rather than a bar, and folding them into weeks (the other candidate) puts a
+ * weekly quantity next to daily ones and invites the reader to compare them.
+ *
+ * 1,6px and a 3,5px dot rather than 2px and 5px: at a year's density a 5px dot
+ * is a bead necklace instead of a day.
+ *
+ * `filled` gets the area under it. It is what gives the plot a baseline to read
+ * heights against, and at most one series ever has it — two translucent fills
+ * over each other stop being a fill and become mud. The caller decides: an area
+ * under an INDEX measures nothing, so a rebased plot gets no fill at all.
+ */
+function seriesMark(series, color, filled) {
   return {
-    ...shared,
+    name: series.name,
+    data: series.data,
+    color,
+    z: 3,
     type: 'line',
     smooth: false,
-    // Every day gets a dot. The plot is laid out at a fixed width PER DAY and
-    // scrolled (see `DAY_WIDTH`), so there is always room for them — and on a
-    // near-flat series they are what makes one day legibly different from the
-    // next, rather than a line that looks straight.
+    // Every day gets a dot: on a near-flat series they are what makes one day
+    // legibly different from the next, rather than a line that looks straight.
     showSymbol: true,
     symbol: 'circle',
-    symbolSize: 5,
-    emphasis: { scale: 1.8 },
-    lineStyle: { width: 2 },
+    symbolSize: 3.5,
+    emphasis: { scale: 2.4 },
+    lineStyle: { width: 1.6 },
+    ...(filled ? { areaStyle: { color, opacity: AREA_OPACITY } } : {}),
     // Without this a line only answers a hover on one of its DOTS — the path
     // between them is inert, and «hovering this line» is a 5px target twenty
     // times a window rather than the line the reader is pointing at.
@@ -131,92 +139,124 @@ function seriesMark(series, color, dayWidth) {
   }
 }
 
-/**
- * Plot geometry, in pixels and shared by both copies of a chart (see
- * `axisOnlyOption`). `PLOT_BOTTOM` is the strip the day labels sit in.
- */
+/** Plot geometry. `PLOT_BOTTOM` is the strip the dates sit in, rotated or not. */
 const PLOT_TOP = 12
-const PLOT_BOTTOM = 30
+const PLOT_BOTTOM = 54
 
-/** Width of the pinned y-axis column, wide enough for «12 000». */
+/** Width of the y-axis column, wide enough for «12 000». */
 export const AXIS_GUTTER_PX = 74
 
-/**
- * Width per day — the plot is laid out at a fixed one and scrolled sideways.
- *
- * Squeezing a month into the card is what made the charts unreadable in the
- * first place: at ~24px a day two bars have no room to be two bars, and a
- * line's daily moves are sub-pixel. 72px holds three grouped columns with air
- * between the days, which is what the chart is actually asked to carry, since
- * остатки, корзины and заказы stand side by side rather than stacking.
- *
- * A quarter is a different question, though. Past two months the reader is
- * looking for a trend rather than reading Tuesday against Wednesday, and 90
- * days at 72px is six screens of ribbon to drag through to see one. So a long
- * window tightens to 44px — still two and a half columns wide, and it fits
- * about two thirds more days in the card at once.
- *
- * One step, not a curve: a width that slid with the day count would redraw the
- * whole plot at a new scale every time the calendar moved by a day.
- */
-export const DAY_WIDTH_PX = 72
-const DENSE_DAY_WIDTH_PX = 44
-const DENSE_FROM_DAYS = 60
+/** Ink of the weekly uprights, and of the horizontal rules. */
+const GRID_UPRIGHT = '#E8E8E8'
+const GRID_RULE = '#D9D9D9'
 
-/** How wide one day is drawn in a window of `dayCount` days. */
-export function dayWidthFor(dayCount) {
-  return dayCount >= DENSE_FROM_DAYS ? DENSE_DAY_WIDTH_PX : DAY_WIDTH_PX
+/**
+ * The date axis, in its two weights.
+ *
+ * Up to a month every day gets its own date, read straight: the date is what
+ * every other number on the row is about, so it is sized for it rather than
+ * being the smallest type on the canvas.
+ *
+ * Past a month that cannot hold — 13px bold dates fit about once a fortnight,
+ * so the plot read as a fortnightly scale while the uprights under it were
+ * weekly. So a long window drops to a date per WEEK at 9px and 60°, which is
+ * what makes all 52 of a year fit.
+ */
+const DAILY_DATE = { color: INK_PRIMARY, fontSize: 13, fontWeight: 600 }
+const WEEKLY_DATE = { color: '#8A8A8A', fontSize: 9, rotate: 60 }
+
+/** Above this many days the axis switches to the weekly ruler. */
+const WEEKLY_FROM_DAYS = 32
+
+/** Opacity of the leading series' area fill. */
+const AREA_OPACITY = 0.22
+
+/**
+ * The window's weeks, Monday-first — the division the axis is drawn on.
+ *
+ * A day is what everything else on the page is read at, so every point stays
+ * daily; what a long window needs is somewhere to stand, and the week is it.
+ *
+ * `Date.UTC` via the ISO string: a local-time parse shifts the day back an hour
+ * east of Greenwich and puts every Monday in the previous week.
+ *
+ * @param {string[]} days ISO days, oldest first.
+ * @returns {Set<number>} Indexes of the days that open a week. The first one is
+ *   always included, whatever weekday the window happens to begin on.
+ */
+export function weekStarts(days) {
+  const starts = new Set()
+  days.forEach((iso, index) => {
+    const weekday = (new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7
+    if (weekday === 0 || !index) starts.add(index)
+  })
+  return starts
 }
 
+/** How many rules the plot carries between the baseline and the top. */
+const RULE_COUNT = 4
+
+/** The gaps a reader recognises, per power of ten. */
+const NICE_STEPS = [1, 2, 5, 10]
+
 /**
- * A column's cap as a share of its day, so the bars tighten with the ribbon.
+ * A readable gap between two horizontal rules — 1, 2 or 5 times a power of ten.
  *
- * Left at a fixed 28px, a dense window would draw three 28px columns into 44px
- * of day: they would touch their neighbours and the day boundaries would stop
- * being visible, which is the one thing the tighter layout must not cost.
+ * The scale stops at the data's own maximum rather than at a rounded ceiling
+ * above it (a ruler stopping at 80 for a 69 spends a fifth of the canvas on
+ * nothing), so the step cannot be a quarter of a round number: `283 / 4` is
+ * 70,75 and a rule at 70,75 is a number nobody reads. Rounding the STEP puts
+ * the rules on 0, 100, 200 and leaves the odd number where it belongs — at the
+ * top, where it is the one fact the axis is reporting.
+ *
+ * @param {number} top The largest value plotted.
+ * @returns {number} The gap between rules.
  */
-const BAR_WIDTH_RATIO = 0.39
+export function ruleStep(top) {
+  const rough = top / RULE_COUNT
+  const power = 10 ** Math.floor(Math.log10(rough))
+  const scaled = rough / power
+  // NEAREST of the four, measured in ratio rather than in difference — a step
+  // rounded up every time draws two rules where four were asked for, and 1,07
+  // is much closer to 1 than to 2 however it is written.
+  const nice = NICE_STEPS.reduce((best, candidate) =>
+    Math.abs(Math.log10(scaled / candidate)) < Math.abs(Math.log10(scaled / best))
+      ? candidate
+      : best,
+  )
+  return nice * power
+}
 
 /** What the orders ruler falls back to when the window reports no заказы. */
 export const DEFAULT_AXIS_MAX = 500
 
 /**
- * Round a value up to a readable top tick — 430 -> 450, 512 -> 550, 12 -> 15.
+ * The single value axis, topping out at what was actually plotted.
  *
- * Half a power of ten is the step, so the ceiling lands on a number a reader
- * recognises as round without ECharts printing «481 900,432» at the top of the
- * scale.
- */
-export function niceCeiling(value) {
-  if (!Number.isFinite(value) || value <= 0) return DEFAULT_AXIS_MAX
-  const step = 10 ** Math.floor(Math.log10(value)) / 2
-  return Math.ceil(value / step) * step
-}
-
-/**
- * The single value axis: a ruler of ЗАКАЗОВ, and nothing else.
+ * It used to round up to a «nice» ceiling above the data, which spent a fifth
+ * of the canvas on empty air; the rules are put on round numbers by
+ * {@link ruleStep} instead, and the top of the scale is left as the one odd
+ * number the axis is there to report.
  *
- * Every series is drawn as an index (see `metricChart.js`), so no axis can be
- * true for all of them at once and a scale that re-fitted itself to whatever
- * was ticked told the reader nothing — the same line landed at a different
- * height on every visit. The scale is therefore anchored to one quantity the
- * page is actually about, заказы per day, and carries no unit name: the numbers
- * are заказы, the marks are shapes, and the hover holds the real values.
+ * It carries no unit name. When every picked metric shares a unit the numbers
+ * are that unit; when the pick is mixed they are an index, and the hover holds
+ * the real values either way — see `metricChart.js`.
  */
-function ordersAxis(max) {
+function valueAxis(max) {
   return {
     type: 'value',
     min: 0,
     max,
+    ...(max ? { interval: ruleStep(max) } : {}),
     axisLine: { show: false },
     axisTick: { show: false },
     axisLabel: {
       color: INK_MUTED,
-      fontSize: 11,
+      fontSize: 10,
       hideOverlap: true,
       formatter: (value) => formatNumber(value),
     },
-    splitLine: { lineStyle: { color: LINE_GRID, width: 1.5, type: [6, 4] } },
+    splitLine: { lineStyle: { color: GRID_RULE, width: 1, type: [4, 4] } },
   }
 }
 
@@ -293,98 +333,39 @@ export function focusedPoints(points, hover) {
 }
 
 /**
- * The same chart with its y axis muted — the copy that scrolls.
- *
- * Its labels belong to the pinned copy standing to its left; drawn here too
- * they would scroll away mid-ribbon and collide with the data on the way out.
- *
- * @param {object} option A built chart option.
- * @returns {object} The same option, minus the y-axis furniture.
- */
-export function plotOnlyOption(option) {
-  const muted = (axis) => ({ ...axis, axisLabel: { ...axis.axisLabel, show: false }, name: '' })
-  return {
-    ...option,
-    yAxis: Array.isArray(option.yAxis) ? option.yAxis.map(muted) : muted(option.yAxis),
-  }
-}
-
-/**
- * The same chart, reduced to its y axis — the frozen column of a scrolling plot.
- *
- * The plot is drawn at a fixed width per day and scrolled sideways, which took
- * the y axis off screen with it: gridlines survived, the numbers did not. So
- * the chart is rendered TWICE, side by side — this copy pinned at the card's
- * left edge showing only the axis, the wide one scrolling beside it with its
- * own labels switched off.
- *
- * The two agree without any extent arithmetic here, and that is the point of
- * doing it this way: an axis extent is a pure function of the DATA and the axis
- * config, neither of which depends on how wide the canvas is. Give both copies
- * the same series, the same height and the same grid top/bottom, and ECharts
- * independently arrives at the same ticks in the same places. The series are
- * kept (invisible) for exactly that reason — dropping them would drop the
- * extent with them.
- *
- * @param {object} option A built chart option.
- * @returns {object} The same option, stripped to the axis.
- */
-export function axisOnlyOption(option, gutter = AXIS_GUTTER_PX) {
-  const mapAxis = (axis, fn) => (Array.isArray(axis) ? axis.map(fn) : fn(axis))
-  return {
-    ...option,
-    animation: false,
-    tooltip: { show: false },
-    // The gutter is the whole canvas here, so the grid is pushed to its right
-    // edge and the labels render in the space to the left of it.
-    grid: mapAxis(option.grid, (grid) => ({ ...grid, left: gutter - 6, right: 0 })),
-    xAxis: mapAxis(option.xAxis, (axis) => ({
-      ...axis,
-      axisLabel: { ...axis.axisLabel, show: false },
-      axisLine: { show: false },
-      splitLine: { show: false },
-    })),
-    yAxis: mapAxis(option.yAxis, (axis) => ({ ...axis, splitLine: { show: false } })),
-    // Present in the data, absent on screen: they set the extent and draw
-    // nothing. `silent` keeps them from answering a hover that is not theirs.
-    series: option.series.map((entry) => ({
-      ...entry,
-      silent: true,
-      showSymbol: false,
-      lineStyle: { ...entry.lineStyle, opacity: 0 },
-      itemStyle: { ...entry.itemStyle, opacity: 0, borderWidth: 0 },
-    })),
-  }
-}
-
-/**
  * A complete ECharts option for one chart.
  *
- * One axis, always: every series is an index, so a second scale would be a
- * second ruler for the same unitless numbers.
+ * The whole window on the card's own width — no ribbon, no second copy of the
+ * plot with a pinned axis beside it. That layout existed because the plot was
+ * drawn at a fixed width per day and scrolled sideways, which is right for a
+ * fortnight and wrong for a year: 365 days at 44px is nine metres to drag
+ * through, and the shape a reader came for is never on screen at once.
  *
- * @param {{days: string[], axisMax: number, hover?: object,
- *   series: Array<{name: string, type: string, unit: string, group?: string,
+ * One axis, always. A second scale would be a second ruler for numbers that
+ * already share one — see `metricChart.js` for when those numbers are the
+ * metrics themselves and when they are an index.
+ *
+ * @param {{days: string[], axisMax?: number, hover?: object, filled?: boolean,
+ *   series: Array<{name: string, unit: string, group?: string,
  *   data: Array<number|null>, raw?: Array<number|null>, color: string}>}} spec
+ *   `filled` puts the area under the FIRST series; see {@link seriesMark}.
  */
-export function buildChartOption({ days, axisMax = DEFAULT_AXIS_MAX, hover, series }) {
-  const hasBar = series.some((entry) => entry.type === 'bar')
-  // Derived here rather than passed in, so the pinned axis copy and the
-  // scrolling copy cannot disagree about how wide a day is.
-  const dayWidth = dayWidthFor(days.length)
+export function buildChartOption({ days, axisMax = DEFAULT_AXIS_MAX, hover, series, filled }) {
+  const weekly = days.length > WEEKLY_FROM_DAYS
+  const starts = weekStarts(days)
+  // Every day up to a month, every week past it — for the dates AND for the
+  // uprights, so a label always has an upright under it.
+  const tick = weekly ? (index) => starts.has(index) : undefined
 
   return {
     animationDuration: 300,
-    // A fixed allowance under the plot for the day labels and the scroll
-    // handle. Explicit pixels, NOT `containLabel`: this plot is rendered twice
-    // — once wide inside the scroller and once as a narrow pinned axis beside
-    // it — and `containLabel` sizes the grid around whichever labels each copy
-    // happens to show, which would slide the two apart vertically by a few
-    // pixels and leave every gridline off by that much.
-    grid: { left: 0, right: 8, top: PLOT_TOP, bottom: PLOT_BOTTOM },
+    // Explicit pixels rather than `containLabel`: the bottom strip has to hold
+    // a date rotated to {@link DATE_ROTATE}, and the left one a five-figure
+    // number, whether or not this particular window happens to have either.
+    grid: { left: AXIS_GUTTER_PX, right: 12, top: PLOT_TOP, bottom: PLOT_BOTTOM },
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: hasBar ? 'shadow' : 'line' },
+      axisPointer: { type: 'line' },
       backgroundColor: '#FFFFFF',
       borderColor: LINE_SUBTLE,
       borderWidth: 1,
@@ -395,17 +376,24 @@ export function buildChartOption({ days, axisMax = DEFAULT_AXIS_MAX, hover, seri
     xAxis: {
       type: 'category',
       data: days.map(shortDayLabel),
-      boundaryGap: hasBar,
+      // The first day sits ON the origin rather than half a category in, which
+      // is what the leading series' filled area needs to close against.
+      boundaryGap: false,
       axisLine: { lineStyle: { color: LINE_SUBTLE } },
       axisTick: { show: false },
-      // The date is what every other number on the row is about, so it is read
-      // first and sized for it — not the smallest type on the canvas.
-      axisLabel: { color: INK_PRIMARY, fontSize: 13, fontWeight: 600, hideOverlap: true },
-      // Solid uprights between the days, to go with the dashed horizontals:
-      // at 72px a day the columns of one date drift a long way from its label.
-      splitLine: { show: true, lineStyle: { color: LINE_SUBTLE, width: 1 } },
+      // A date per week, not per day: at a year's width a label per day is an
+      // inkblot. `hideOverlap` thins them further on a narrow card.
+      axisLabel: { ...(weekly ? WEEKLY_DATE : DAILY_DATE), hideOverlap: true, interval: tick },
+      // The uprights carry the same division as the dates, and they stay
+      // whatever `hideOverlap` does to those — the scale has to survive a card
+      // too narrow to print every one of them.
+      splitLine: {
+        show: true,
+        interval: tick,
+        lineStyle: { color: weekly ? GRID_UPRIGHT : LINE_SUBTLE, width: 1 },
+      },
     },
-    yAxis: ordersAxis(axisMax),
-    series: series.map((entry) => seriesMark(entry, entry.color, dayWidth)),
+    yAxis: valueAxis(axisMax),
+    series: series.map((entry, index) => seriesMark(entry, entry.color, filled && !index)),
   }
 }

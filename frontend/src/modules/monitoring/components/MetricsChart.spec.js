@@ -141,28 +141,41 @@ describe('MetricsChart', () => {
     expect(wrapper.text()).toContain('нет данных')
   })
 
-  it('plots the index rather than the raw value', () => {
-    // Behaviour, not wiring: the metric reaches the plot rebased to 100 at the
-    // window's first reported day.
+  it('plots a single-unit pick as the values themselves', () => {
+    // Behaviour, not wiring: one unit in the pick means one axis is already
+    // true for it, so the numbers reach the plot unrebased.
     const wrapper = mountChart({
       view: matrixView([row('spend', { total: [200, 400] })]),
       defaultMetrics: ['spend'],
     })
 
     const plotted = wrapper.findComponent({ name: 'BaseChart' }).props('option')
+    expect(plotted.series[0].data).toEqual([200, 400])
+  })
+
+  it('plots a mixed pick as an index', () => {
+    // Roubles beside a count: one axis cannot be true for both, so both become
+    // shapes and the hover keeps the quantities.
+    const wrapper = mountChart({
+      view: matrixView([row('spend', { total: [200, 400] }), row('orders', { total: [1, 1] })]),
+      defaultMetrics: ['spend', 'orders'],
+    })
+
+    const plotted = wrapper.findComponent({ name: 'BaseChart' }).props('option')
     expect(plotted.series[0].data).toEqual([100, 200])
   })
 
-  it('pins the y axis beside the plot rather than inside the scroller', async () => {
-    // The frozen column: the axis stands still while the days scroll past it,
-    // the way the metrics table pins its metric names.
+  it('draws one plot with its axis inside it, not two side by side', async () => {
+    // There is no ribbon any more, so there is nothing for a pinned axis copy
+    // to stand beside: the whole window is on the card's own width.
     const wrapper = mountChart()
 
     const charts = wrapper.findAllComponents({ name: 'BaseChart' })
-    expect(charts).toHaveLength(2)
-    // The scrolling copy hides the labels the pinned copy carries.
-    const plot = charts[1].props('option')
-    expect([plot.yAxis].flat().every((axis) => axis.axisLabel.show === false)).toBe(true)
+    expect(charts).toHaveLength(1)
+    // And it shows its own numbers: the muted copy existed only to stop them
+    // scrolling away from the pinned one.
+    const axes = [charts[0].props('option').yAxis].flat()
+    expect(axes.every((axis) => axis.axisLabel.show !== false)).toBe(true)
   })
 
   it('offers the catalogue it was handed, not the per-SKU one', async () => {

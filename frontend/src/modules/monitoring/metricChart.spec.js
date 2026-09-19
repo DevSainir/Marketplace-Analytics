@@ -60,8 +60,8 @@ describe('buildMetricChart', () => {
       // so this pins the arithmetic rather than the absence of a crash.
       const chart = chartOf(['spend'], [row('spend', { total: [10, 20, 30] })])
 
-      // Rebased to 100 at the first day: 10, 20, 30 is «doubled, then tripled».
-      expect(seriesNamed(chart, 'Затраты, ₽').data).toEqual([100, 200, 300])
+      // One unit in the pick, so the numbers are the numbers.
+      expect(seriesNamed(chart, 'Затраты, ₽').data).toEqual([10, 20, 30])
     })
 
     it('reads CPM out of the day\u2019s «Общая» column', () => {
@@ -70,7 +70,7 @@ describe('buildMetricChart', () => {
       // ever goes back to being blank.
       const chart = chartOf(['cpm'], [row('cpm', { total: [150, 300, 225] })])
 
-      expect(seriesNamed(chart, 'CPM, \u20bd').data).toEqual([100, 200, 150])
+      expect(seriesNamed(chart, 'CPM, \u20bd').data).toEqual([150, 300, 225])
     })
 
     it('reads a mini-block metric off its one-cell-per-day row', () => {
@@ -78,7 +78,7 @@ describe('buildMetricChart', () => {
       // carries a single «Общая» cell per day, so the stride must not apply.
       const chart = chartOf(['customer_price'], [row('customer_price', { total: [990, 890, 890] })])
 
-      expect(seriesNamed(chart, 'Цена покупателя, ₽').data).toEqual([100, 89.9, 89.9])
+      expect(seriesNamed(chart, 'Цена покупателя, ₽').data).toEqual([990, 890, 890])
     })
 
     it('renders a day WB served nothing as a gap, not as a zero', () => {
@@ -99,12 +99,30 @@ describe('buildMetricChart', () => {
     })
   })
 
-  describe('everything is an index', () => {
+  describe('a mixed pick is an index', () => {
+    /** Roubles beside a count — the case one axis cannot be true for. */
+    const mixed = (rows) => chartOf(['spend', 'orders'], rows)
+
+    it('draws a pick that shares a unit as it is', () => {
+      // Корзины against заказы are both штуки: the axis is already true for
+      // both, so rebasing them would cost an axis whose numbers are the numbers
+      // and buy nothing.
+      const chart = chartOf(
+        ['carts', 'orders'],
+        [row('carts', { total: [40, 60, 50] }), row('orders', { total: [10, 20, 15] })],
+      )
+
+      expect(seriesNamed(chart, 'Корзины, шт').data).toEqual([40, 60, 50])
+      expect(seriesNamed(chart, 'Заказы, шт').data).toEqual([10, 20, 15])
+    })
+
     it('rebases each series to 100 at its first reported day', () => {
-      // The answer to metrics whose scales do not fit together: «Заказы, ₽» at
-      // 500 000 and «Затраты, ₽» at 7 000 share a unit and would share an axis,
-      // which flattens the smaller one. Indexed, both are shapes.
-      const chart = chartOf(['spend'], [row('spend', { total: [200, 400, 100] })])
+      // «Заказы, ₽» at 500 000 and «Затраты, ₽» at 7 000 share an axis, which
+      // flattens the smaller one. Indexed, both are shapes.
+      const chart = mixed([
+        row('spend', { total: [200, 400, 100] }),
+        row('orders', { total: [1, 1, 1] }),
+      ])
 
       expect(seriesNamed(chart, 'Затраты, ₽').data).toEqual([100, 200, 50])
     })
@@ -112,13 +130,16 @@ describe('buildMetricChart', () => {
     it('takes the baseline from the first day that reported, not from day one', () => {
       // A window often opens on blank days; rebasing against nothing would drop
       // the series entirely.
-      const chart = chartOf(['spend'], [row('spend', { total: [null, 50, 100] })])
+      const chart = mixed([
+        row('spend', { total: [null, 50, 100] }),
+        row('orders', { total: [1, 1, 1] }),
+      ])
 
       expect(seriesNamed(chart, 'Затраты, ₽').data).toEqual([null, 100, 200])
     })
 
     it('leaves an all-blank series alone rather than dividing by nothing', () => {
-      const chart = chartOf(['spend'], [row('spend', { total: [null, null, null] })])
+      const chart = mixed([row('spend', { total: [null, null, null] })])
 
       expect(seriesNamed(chart, 'Затраты, ₽').data).toEqual([null, null, null])
     })
@@ -153,48 +174,46 @@ describe('buildMetricChart', () => {
     })
   })
 
-  describe('the left-hand ruler', () => {
-    it('is a scale of заказов, read from the window rather than from the picks', () => {
-      // The marks are indices, so no scale can be true for all of them. It is
-      // anchored to the one quantity the page is about instead — and ticking a
-      // metric must not move it under the others.
-      const rows = [row('orders', { total: [400, 430, 420] })]
+  describe('the value axis', () => {
+    it('tops out at what was actually plotted, not above it', () => {
+      // It used to round up to a «nice» ceiling: 430 became 450, and a fifth of
+      // the canvas was empty air above the data.
+      const chart = chartOf(['spend'], [row('spend', { total: [400, 430, 420] })])
 
-      const withOrders = chartOf(['orders', 'spend'], rows)
-      const withoutOrders = chartOf(['spend'], rows)
+      expect(axisOf(chart).max).toBe(430)
+    })
 
-      expect(axisOf(withOrders).max).toBe(450)
-      expect(axisOf(withoutOrders).max).toBe(450)
+    it('puts the rules on numbers a reader recognises', () => {
+      // The top is an odd number by design, so the rules cannot be a quarter of
+      // it: 430 / 4 is 107,5.
+      const chart = chartOf(['spend'], [row('spend', { total: [400, 430, 420] })])
+
+      expect(axisOf(chart).interval).toBe(100)
     })
 
     it('starts at zero and carries no unit name', () => {
-      // The numbers are заказы and the marks are shapes; naming the axis «шт»
-      // would claim the shapes were counts too.
-      const chart = chartOf(['spend'], [row('orders', { total: [10, 20, 30] })])
+      // A mixed pick plots indices, and naming the axis would claim those were
+      // quantities too.
+      const chart = chartOf(['spend'], [row('spend', { total: [10, 20, 30] })])
 
       expect(axisOf(chart).min).toBe(0)
       expect(axisOf(chart).name).toBeUndefined()
     })
 
-    it('falls back to a round ceiling when the window reports no заказы', () => {
-      expect(axisOf(chartOf(['spend'], [row('spend', { total: [1, 2, 3] })])).max).toBe(500)
+    it('falls back to a round ceiling when the window reports nothing at all', () => {
+      expect(axisOf(chartOf(['spend'])).max).toBe(500)
     })
 
-    it('rises rather than cutting a series off the top of the plot', () => {
-      // «Затраты» tripled indexes at 300; a ruler stopping at the day's 8
-      // заказов would draw a line that simply stops, which is a lie.
+    it('never cuts a series off the top of the plot', () => {
       const chart = chartOf(
-        ['spend'],
+        ['spend', 'orders'],
         [row('spend', { total: [100, 300, 100] }), row('orders', { total: [8, 8, 8] })],
       )
-
-      expect(axisOf(chart).max).toBeGreaterThanOrEqual(300)
-    })
-
-    it('keeps the frozen column one axis wide, whatever was picked', () => {
-      expect(chartOf(['spend', 'orders', 'order_conversion']).axisGutter).toBe(
-        chartOf(['spend']).axisGutter,
+      const top = Math.max(
+        ...chart.option.series.flatMap((entry) => entry.data).filter((value) => value != null),
       )
+
+      expect(axisOf(chart).max).toBeGreaterThanOrEqual(top)
     })
   })
 
@@ -293,7 +312,10 @@ describe('buildMetricChart', () => {
       // An index is a shape, not a quantity: a reader who wants to know what
       // «200» meant in roubles must not have to leave the chart to find out.
       // The index itself is already on the canvas.
-      const chart = chartOf(['spend'], [row('spend', { total: [200, 400, 100] })])
+      const chart = chartOf(
+        ['spend', 'orders'],
+        [row('spend', { total: [200, 400, 100] }), row('orders', { total: [1, 1, 1] })],
+      )
 
       const hover = hoverOf(chart, [point(0, 'Затраты, ₽', 200)])
 
@@ -356,13 +378,22 @@ describe('buildMetricChart', () => {
   })
 
   describe('marks', () => {
-    it('draws остатки, корзины and заказы as columns standing side by side', () => {
-      // Three separate counts, so they are never stacked: a stack would draw a
-      // total in which a cart is a unit of stock.
+    it('draws everything as a line — nothing is a column', () => {
+      // Columns were dropped at every window length: a year draws 365 of them
+      // at 1,5px each, and folding them into weeks puts a weekly quantity
+      // beside daily ones.
       const chart = chartOf(['carts', 'orders', 'stock_quantity'])
 
-      expect(chart.option.series.map((entry) => entry.type)).toEqual(['bar', 'bar', 'bar'])
-      expect(chart.option.series.every((entry) => !entry.stack)).toBe(true)
+      expect(chart.option.series.every((entry) => entry.type === 'line')).toBe(true)
+    })
+
+    it('fills the leading series and only the leading one', () => {
+      // The fill gives the plot a baseline to read heights against; two
+      // translucent ones over each other become mud.
+      const chart = chartOf(['carts', 'orders'])
+
+      expect(chart.option.series[0].areaStyle).toBeTruthy()
+      expect(chart.option.series[1].areaStyle).toBeUndefined()
     })
 
     it('lets a whole line answer a hover, not just its twenty dots', () => {
@@ -392,18 +423,6 @@ describe('buildMetricChart', () => {
       )
     })
 
-    it('reports the day count the scrolling ribbon is sized from', () => {
-      expect(chartOf(['spend']).dayCount).toBe(DAYS.length)
-    })
-
-    it('changes its key when the question changes, so the ribbon re-pins', () => {
-      // The ribbon jumps back to the newest days on a new key. A pick is a new
-      // question about how things are NOW, so it must not be answered a
-      // fortnight back, wherever the reader happened to leave the scroll.
-      expect(chartOf(['spend', 'orders']).key).not.toBe(chartOf(['spend']).key)
-      expect(chartOf(['spend']).key).toBe(chartOf(['spend']).key)
-    })
-
     it('flags a selection whose every series is blank', () => {
       // So the component can say «нет данных» instead of drawing empty axes.
       expect(chartOf(['spend'], [row('spend', { total: [null, null, null] })]).empty).toBe(true)
@@ -416,40 +435,56 @@ describe('buildMetricChart', () => {
   })
 
   describe('a long window', () => {
-    /** The same chart over `count` days — the window, not the picks, is the input. */
-    const over = (count) =>
-      buildMetricChart(
+    /** The same chart over a run of consecutive days. */
+    const over = (count) => {
+      const days = Array.from({ length: count }, (_, i) => {
+        const day = new Date('2026-01-05T00:00:00Z') // a Monday
+        day.setUTCDate(day.getUTCDate() + i)
+        return day.toISOString().slice(0, 10)
+      })
+      return buildMetricChart(
         buildMetricsMatrix({
           nm_id: 1,
           matrix: {
-            days: Array.from({ length: count }, (_, i) => `2026-0${1 + Math.floor(i / 28)}-01`),
+            days,
             buckets: TRAFFIC_COLUMNS.map((column) => column.key),
             rows: [],
           },
         }),
         { metrics: ['orders'], groups: SKU_METRIC_GROUPS },
       )
+    }
 
-    it('draws its days closer together, so more of them fit the card', () => {
-      // Past two months the reader is after a trend, not Tuesday against
-      // Wednesday — and a quarter at the full width is six screens of ribbon.
-      expect(over(60).dayWidth).toBeLessThan(over(59).dayWidth)
+    it('divides the axis by ONE week', () => {
+      // The division was always weekly in the data, but the dates were sized so
+      // that only every second one fitted — and the plot read as fortnightly.
+      const isStart = over(90).option.xAxis.splitLine.interval
+
+      expect([0, 7, 14, 21].map(isStart)).toEqual([true, true, true, true])
+      expect([1, 6, 8, 13].map(isStart)).toEqual([false, false, false, false])
     })
 
-    it('keeps the full width right up to the threshold', () => {
-      // One step, not a curve: a width that slid with the day count would
-      // rescale the whole plot every time the calendar moved by a day.
-      expect(over(30).dayWidth).toBe(over(59).dayWidth)
-      expect(over(60).dayWidth).toBe(over(90).dayWidth)
+    it('labels the same days the uprights stand on', () => {
+      const chart = over(90)
+
+      expect(chart.option.xAxis.axisLabel.interval(7)).toBe(true)
+      expect(chart.option.xAxis.axisLabel.interval(8)).toBe(false)
     })
 
-    it('thins the columns with it, so days stay visibly apart', () => {
-      // Three 28px columns in a 44px day would touch their neighbours and the
-      // day boundaries would stop reading.
-      const width = (chart) => chart.option.series[0].barMaxWidth
+    it('keeps a date on every day while a month still fits', () => {
+      // The weekly ruler is what a long window needs; imposing it on a
+      // fortnight would leave two labels under ten days of data.
+      const short = over(28).option.xAxis
 
-      expect(width(over(60))).toBeLessThan(width(over(59)))
-      expect(width(over(60))).toBeLessThan(over(60).dayWidth / 2)
+      expect(short.axisLabel.interval).toBeUndefined()
+      expect(short.splitLine.interval).toBeUndefined()
+    })
+
+    it('keeps the whole window on one canvas, however long it is', () => {
+      // No ribbon to scroll and no per-day width to multiply out: a year has to
+      // be on screen at once, which is the whole point of the layout.
+      expect(over(365)).not.toHaveProperty('dayWidth')
+      expect(over(365).option.xAxis.data).toHaveLength(365)
     })
   })
 
