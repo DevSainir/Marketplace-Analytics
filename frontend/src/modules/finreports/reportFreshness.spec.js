@@ -197,3 +197,37 @@ describe('describeFreshness', () => {
     expect(describeFreshness({ latest_report: null, last_check: null }, NOW)).toBeNull()
   })
 })
+
+describe('a WB rate block', () => {
+  it('is never worded as «нового ничего нет»', () => {
+    const line = describeFreshness(
+      {
+        latest_report: {
+          report_id: 989286628,
+          date_from: '2026-09-07',
+          date_to: '2026-09-13',
+          harvested_at: '2026-09-14T09:54:14Z',
+        },
+        last_check: { outcome: 'rate_blocked', checked_at: '2026-09-17T10:00:00Z' },
+        running: false,
+      },
+      new Date('2026-09-17T10:05:00Z'),
+    )
+
+    expect(line.text).toContain('ограничил доступ')
+    expect(line.text).not.toContain('не опубликовал')
+  })
+
+  it('is a warning, because the statement may be short a week', () => {
+    const line = describeFreshness(
+      {
+        latest_report: null,
+        last_check: { outcome: 'rate_blocked', checked_at: '2026-09-17T10:00:00Z' },
+        running: false,
+      },
+      new Date('2026-09-17T10:05:00Z'),
+    )
+
+    expect(line.tone).toBe('warning')
+  })
+})

@@ -36,13 +36,20 @@ class LatestReportOut(BaseModel):
 class FreshnessCheckOut(BaseModel):
     """What the hourly gate found the last time it asked WB for something newer."""
 
-    outcome: Literal["never_harvested", "up_to_date", "wb_empty", "wb_has_new", "probe_failed"] = (
-        Field(
-            description=(
-                "'wb_empty' is the only one that means «нового ничего нет». "
-                "'probe_failed' means WB did not answer — an unanswered question, "
-                "never to be rendered as reassurance."
-            )
+    outcome: Literal[
+        "never_harvested",
+        "up_to_date",
+        "wb_empty",
+        "wb_has_new",
+        "probe_failed",
+        "rate_blocked",
+    ] = Field(
+        description=(
+            "'wb_empty' is the only one that means «нового ничего нет». "
+            "'probe_failed' means WB did not answer — an unanswered question, "
+            "never to be rendered as reassurance. 'rate_blocked' means WB has "
+            "the endpoint shut and we did not ask: also not reassurance, and "
+            "the one case where waiting is genuinely the only option."
         )
     )
     checked_at: datetime = Field(

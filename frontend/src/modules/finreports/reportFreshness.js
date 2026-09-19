@@ -152,6 +152,12 @@ function describeCheck(check, held) {
       // Never «новых отчётов нет». WB did not answer; saying nothing is new
       // would report silence as reassurance.
       return 'Не удалось спросить Wildberries — данные могут быть неполными'
+    case 'rate_blocked':
+      // Also not reassurance, and deliberately not phrased as our failure:
+      // WB has shut the endpoint, and pressing «Обновить» again is the one
+      // thing that makes it worse — a request inside an open block restarts
+      // it longer.
+      return 'Wildberries временно ограничил доступ — ждём и загрузим сами'
     default:
       // An outcome this build does not know is not an outcome it may narrate.
       return ''
@@ -202,6 +208,9 @@ export function describeFreshness(state, now = new Date()) {
   const stale = Number.isNaN(checkedAt.getTime()) || now.getTime() - checkedAt.getTime() >= DAY_MS
   return {
     text: parts.join(' · '),
-    tone: check.outcome === 'probe_failed' || stale ? 'warning' : 'muted',
+    tone:
+      check.outcome === 'probe_failed' || check.outcome === 'rate_blocked' || stale
+        ? 'warning'
+        : 'muted',
   }
 }
