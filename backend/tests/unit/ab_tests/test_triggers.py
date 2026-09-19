@@ -130,3 +130,30 @@ def test_an_empty_edit_changes_nothing() -> None:
     resolved = resolve(mode=None, impression_budget=None, slot_minutes=None, current=CURRENT_TIME)
 
     assert resolved == CURRENT_TIME
+
+
+def test_both_bounds_are_accepted_in_either_mode() -> None:
+    """«Показы и время» is the mode that reads both, so it takes both.
+
+    The refusal in the single-bound modes is about a field that would be
+    silently ignored. Here neither is ignored: whichever is reached first ends
+    the turn.
+    """
+    resolved = resolve(mode=TriggerMode.EITHER, impression_budget=1_000, slot_minutes=20)
+
+    assert resolved.mode is TriggerMode.EITHER
+    assert resolved.impression_budget == 1_000
+    assert resolved.slot_minutes == 20
+
+
+def test_switching_to_either_keeps_whatever_the_other_bound_was() -> None:
+    """A test moved onto both bounds does not arrive with a blank one."""
+    resolved = resolve(
+        mode=TriggerMode.EITHER,
+        impression_budget=None,
+        slot_minutes=None,
+        current=CURRENT_IMPRESSIONS,
+    )
+
+    assert resolved.impression_budget == 2_000
+    assert resolved.slot_minutes == 45

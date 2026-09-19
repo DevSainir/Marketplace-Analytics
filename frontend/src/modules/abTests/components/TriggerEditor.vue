@@ -2,12 +2,14 @@
 /**
  * Inline editor for a test's rotation trigger.
  *
- * Its own component because the two triggers are mutually exclusive and the
- * form has to send only the one in force — the API refuses a body carrying the
- * other mode's setting rather than dropping it. Keeping that in one place stops
- * the rule from being re-derived wherever a trigger becomes editable.
+ * Its own component because the form has to send only the settings the chosen
+ * mode reads — the API refuses a body carrying one it would not — and because
+ * a trigger becomes editable in more than one place. Which fields those are
+ * lives in `trigger.js`, alongside the create form's copy of the same question.
  */
 import { ref, watch } from 'vue'
+
+import { TRIGGER_MODES, triggerPayload, usesBudget, usesSlot } from '@/modules/abTests/trigger'
 
 const props = defineProps({
   /** The test being edited, as the detail endpoint returns it. */
@@ -32,13 +34,8 @@ watch(
 )
 
 function save() {
-  // Only the chosen mode's setting travels; sending both is a 422.
-  emit('save', {
-    trigger_mode: draft.value.trigger_mode,
-    ...(draft.value.trigger_mode === 'impressions'
-      ? { impression_budget: Number(draft.value.impression_budget) }
-      : { slot_minutes: Number(draft.value.slot_minutes) }),
-  })
+  // Only what the chosen mode reads travels; sending anything else is a 422.
+  emit('save', triggerPayload(draft.value))
 }
 </script>
 
@@ -51,11 +48,12 @@ function save() {
         data-testid="edit-trigger-mode"
         class="mt-xs h-10 rounded-input bg-surface px-md text-base text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
       >
-        <option value="impressions">По показам</option>
-        <option value="time">По времени</option>
+        <option v-for="mode in TRIGGER_MODES" :key="mode.value" :value="mode.value">
+          {{ mode.label }}
+        </option>
       </select>
     </label>
-    <label v-if="draft.trigger_mode === 'impressions'" class="block">
+    <label v-if="usesBudget(draft.trigger_mode)" class="block">
       <span class="text-tiny font-medium uppercase tracking-wide text-muted">
         Показов на вариант
       </span>
@@ -66,7 +64,7 @@ function save() {
         class="mt-xs h-10 rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
       />
     </label>
-    <label v-else class="block">
+    <label v-if="usesSlot(draft.trigger_mode)" class="block">
       <span class="text-tiny font-medium uppercase tracking-wide text-muted">
         Минут на вариант
       </span>
@@ -95,8 +93,9 @@ function save() {
     </button>
     <p class="w-full text-tiny text-muted">
       Новый триггер читается ближайшим проходом. Если снизить бюджет ниже того, что текущее фото уже
-      набрало, оно сменится в течение нескольких минут; в режиме «по времени» слот считается с
-      момента установки фото, а не с момента правки.
+      набрало за свой ход, оно сменится в течение нескольких минут; слот считается с момента
+      установки фото, а не с момента правки. В режиме «показы и время» фото меняется по тому
+      условию, которое наступит раньше.
     </p>
   </div>
 </template>

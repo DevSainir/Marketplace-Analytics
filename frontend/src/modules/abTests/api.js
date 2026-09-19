@@ -85,7 +85,7 @@ export async function setTestStatus(testId, status) {
  * names no mode it resolves one from the stored test.
  *
  * @param {string} testId Test identifier.
- * @param {{name?: string, trigger_mode?: 'impressions'|'time',
+ * @param {{name?: string, trigger_mode?: 'impressions'|'time'|'either',
  *          impression_budget?: number, slot_minutes?: number}} payload
  * @returns {Promise<object>} The updated test.
  */

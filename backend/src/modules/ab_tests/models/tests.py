@@ -59,12 +59,6 @@ DEFAULT_SLOT_MINUTES: int = 60
 class TriggerMode(enum.StrEnum):
     """What makes a test advance to its next photo.
 
-    The two are **mutually exclusive** by design, not by accident. A test that
-    rotated on "10 000 impressions OR 2 hours, whichever first" would produce
-    variants measured over different exposures, and the whole point of the
-    budget is that the arms are comparable. Whichever mode is chosen, the other
-    one's setting is ignored — and the API refuses a request that sets it.
-
     ``IMPRESSIONS`` — equal audience per photo, unequal wall-clock. The
     statistically sound default: every variant is judged on the same number of
     chances.
@@ -74,10 +68,22 @@ class TriggerMode(enum.StrEnum):
     is switched off (nothing accumulates, so an impression budget would never
     fire), and because a fixed slot cycles variants through the same hours of
     the day, which balances the time-of-day effect faster.
+
+    ``EITHER`` — both settings are in force and the FIRST one reached advances
+    the rotation. It used to be refused on the grounds that arms measured over
+    different exposures are not comparable, and that is still true of the
+    number a trigger fires on; what the refusal ignored is the failure the
+    seller actually meets. A budget alone stalls a photo for days when the
+    advertising slows, and a slot alone hands one photo a burst of traffic
+    another never saw. Naming both bounds the turn from both sides — «не дольше
+    20 минут и не больше 1 000 показов» — and every window records the exposure
+    a turn really got, so the result table divides by what was measured rather
+    than by what was budgeted.
     """
 
     IMPRESSIONS = "impressions"
     TIME = "time"
+    EITHER = "either"
 
 
 class AbTestStatus(enum.StrEnum):
@@ -121,9 +127,9 @@ class AbTest(Base):
         status: See :class:`AbTestStatus`.
         trigger_mode: What advances the rotation — see :class:`TriggerMode`.
         impression_budget: Ad impressions one variant must gather before the
-            next one is installed. Read only in ``IMPRESSIONS`` mode.
-        slot_minutes: How long one variant stays up. Read only in ``TIME``
-            mode.
+            next one is installed. Read in ``IMPRESSIONS`` and ``EITHER`` mode.
+        slot_minutes: How long one variant stays up. Read in ``TIME`` and
+            ``EITHER`` mode.
         active_variant_id: The variant currently on the card, or ``None`` for a
             test that has not started (or has finished).
         paused_by_ads: True when the ROTATION paused this test because nothing

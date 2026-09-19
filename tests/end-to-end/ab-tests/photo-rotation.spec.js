@@ -52,9 +52,10 @@ test("a test is created, takes photos, and shows them as columns of the result t
   await page.getByTestId("sku-option").first().click();
   await expect(page.getByTestId("picked-sku")).toContainText("995716075");
 
-  // The two triggers are mutually exclusive, and the form has to send only the
-  // one in use: the API refuses a body carrying the other mode's setting, so a
-  // form that rendered both fields would 422 on every submit.
+  // A single-bound mode sends only the bound it reads: the API refuses a body
+  // carrying the other one, so a form that rendered both fields here would 422
+  // on every submit. («Показы и время» is the mode that shows both, and the
+  // one the unit tier covers.)
   await page.getByTestId("trigger-mode").selectOption("time");
   await expect(page.getByTestId("slot-minutes")).toBeVisible();
   await expect(page.getByTestId("impression-budget")).toHaveCount(0);

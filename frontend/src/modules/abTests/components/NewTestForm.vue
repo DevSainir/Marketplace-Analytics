@@ -1,14 +1,16 @@
 <script setup>
 /**
- * The «Новый тест» panel — name, article, and the one trigger that will move it.
+ * The «Новый тест» panel — name, article, and the trigger that will move it.
  *
  * Its own component rather than markup inside the list view: the view was over
- * the 250-line ceiling with it inline, and the exclusivity rule below is the
- * same one `TriggerEditor` applies to a test that already exists.
+ * the 250-line ceiling with it inline. Which settings a mode sends is
+ * `trigger.js`'s answer, the same one `TriggerEditor` applies to a test that
+ * already exists.
  */
 import { computed, ref } from 'vue'
 
 import SkuPicker from '@/modules/abTests/components/SkuPicker.vue'
+import { TRIGGER_MODES, triggerPayload, usesBudget, usesSlot } from '@/modules/abTests/trigger'
 
 defineProps({
   /** Catalogue options for the article picker, as the store loaded them. */
@@ -26,17 +28,13 @@ const pickedSku = ref(null)
 const ready = computed(() => !!form.value.name.trim() && !!pickedSku.value)
 
 function submit() {
-  // Exactly one trigger travels. The backend REFUSES a body carrying the other
-  // mode's setting rather than ignoring it, so sending both would 422 — and
-  // that refusal is deliberate: "10 000 impressions or 2 hours, whichever
-  // first" would measure the photos over different exposures.
+  // Only the settings the chosen mode reads travel. The backend REFUSES a body
+  // carrying one it would not, rather than ignoring it — a dropped field would
+  // leave the seller believing they configured something they did not.
   emit('submit', {
     name: form.value.name.trim(),
     nm_id: pickedSku.value.nm_id,
-    trigger_mode: form.value.trigger_mode,
-    ...(form.value.trigger_mode === 'impressions'
-      ? { impression_budget: Number(form.value.impression_budget) }
-      : { slot_minutes: Number(form.value.slot_minutes) }),
+    ...triggerPayload(form.value),
   })
 }
 
@@ -78,12 +76,13 @@ defineExpose({ reset })
           data-testid="trigger-mode"
           class="mt-xs h-11 w-full rounded-input bg-surface px-md text-base text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
         >
-          <option value="impressions">По показам</option>
-          <option value="time">По времени</option>
+          <option v-for="mode in TRIGGER_MODES" :key="mode.value" :value="mode.value">
+            {{ mode.label }}
+          </option>
         </select>
       </label>
 
-      <label v-if="form.trigger_mode === 'impressions'" class="block">
+      <label v-if="usesBudget(form.trigger_mode)" class="block">
         <span class="text-tiny font-medium uppercase tracking-wide text-muted">
           Показов на вариант
         </span>
@@ -94,7 +93,7 @@ defineExpose({ reset })
           class="mt-xs h-11 w-full rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
         />
       </label>
-      <label v-else class="block">
+      <label v-if="usesSlot(form.trigger_mode)" class="block">
         <span class="text-tiny font-medium uppercase tracking-wide text-muted">
           Минут на вариант
         </span>

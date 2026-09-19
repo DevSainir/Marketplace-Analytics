@@ -7,12 +7,14 @@ them. Two copies of "which field belongs to which mode" is exactly the kind of
 duplication that drifts: the create path would keep refusing a stray field while
 the edit path quietly accepted it.
 
-**The rule.** A test rotates either on impressions or on time, never on
-"whichever comes first". Sending the other mode's setting is refused rather than
-ignored, because a silently dropped field leaves the user believing they
-configured something they did not — and because a test measured partly by
-audience and partly by clock judges its photos on different exposures, which is
-the one thing a budget exists to prevent.
+**The rule.** A test names one bound, the other, or both. In a single-bound
+mode the OTHER mode's setting is refused rather than ignored, because a
+silently dropped field leaves the user believing they configured something they
+did not. ``EITHER`` is the mode that accepts both, and it accepts them *because
+it reads both* — the first one reached ends the turn.
+
+Both numbers are stored whichever mode is in force, so switching between the
+three never loses what the unused bound was set to.
 """
 
 from __future__ import annotations
@@ -31,10 +33,11 @@ from src.modules.ab_tests.models import (
 class TriggerSettings:
     """A resolved, self-consistent rotation trigger.
 
-    Both numbers are always populated: the unused one keeps its stored (or
+    Both numbers are always populated: an unused one keeps its stored (or
     default) value so switching modes back and forth does not lose what the
-    other mode was set to. Only the one named by ``mode`` is ever read by
-    :mod:`.rotation`.
+    other mode was set to. Which of them :mod:`.rotation` actually reads is
+    ``mode``'s business — one each in ``IMPRESSIONS``/``TIME``, both in
+    ``EITHER``.
     """
 
     mode: TriggerMode
@@ -63,7 +66,8 @@ def resolve(
 
     Raises:
         ValidationError: If the payload carries the setting belonging to the
-            mode that will NOT be in force.
+            mode that will NOT be in force. ``EITHER`` has no such setting —
+            it is in force for both.
     """
     base = current or TriggerSettings(
         mode=TriggerMode.IMPRESSIONS,
@@ -80,6 +84,7 @@ def resolve(
         raise ValidationError(
             "В режиме «по времени» бюджет показов не задаётся — уберите impression_budget."
         )
+    # EITHER reads both, so both are accepted; there is nothing to refuse.
 
     return TriggerSettings(
         mode=effective,

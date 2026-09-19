@@ -17,6 +17,7 @@ import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { STATUS_LABELS } from '@/modules/abTests'
+import { triggerLabel } from '@/modules/abTests/trigger'
 
 const props = defineProps({
   /** The open test, or null while it loads. */
@@ -26,13 +27,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['delete', 'edit-trigger'])
 
-/** How this test rotates, in words — only the setting its mode actually uses. */
-const triggerLabel = computed(() => {
-  if (!props.test) return ''
-  return props.test.trigger_mode === 'time'
-    ? `Смена фото каждые ${count(props.test.slot_minutes)} мин`
-    : `Смена фото каждые ${count(props.test.impression_budget)} показов`
-})
+/** How this test rotates, in words — only the settings its mode actually uses. */
+const triggerText = computed(() => triggerLabel(props.test))
 
 /** Whether the trigger may still be edited — a finished test's is history. */
 const canEditTrigger = computed(
@@ -49,10 +45,6 @@ function remove() {
   }
   armed.value = false
   emit('delete')
-}
-
-function count(value) {
-  return Number(value ?? 0).toLocaleString('ru-RU')
 }
 </script>
 
@@ -90,7 +82,7 @@ function count(value) {
     <p v-if="test" class="mt-xs flex flex-wrap items-center gap-x-sm text-tiny text-muted">
       <span>{{ STATUS_LABELS[test.status] || test.status }}</span>
       <span>·</span>
-      <span>{{ triggerLabel }}</span>
+      <span>{{ triggerText }}</span>
       <button
         v-if="canEditTrigger"
         type="button"

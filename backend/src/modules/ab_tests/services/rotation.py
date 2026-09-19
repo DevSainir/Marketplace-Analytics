@@ -20,13 +20,7 @@ The decision therefore walks the photos still in the rotation, and treats the
 live photo being excluded as a reason to move on now rather than at the end of
 its slot — that is what excluding it during its own turn has to mean.
 
-**The two triggers are mutually exclusive.** A test advances either on the
-impressions its live photo has gathered, or on how long that photo has been up,
-never on whichever comes first. Mixing them would make the arms incomparable in
-the one way that matters: variants would be judged on different exposures, and
-the whole reason to have a budget is that they are judged on the same one.
-
-Which to prefer:
+**A turn ends on impressions, on the clock, or on whichever comes first.**
 
 * **Impressions** is the statistically sound default — every photo gets the same
   number of chances, so a difference in CTR is a difference in the photo.
@@ -34,6 +28,19 @@ Which to prefer:
   all on a card with no advertising running: nothing accumulates there, so an
   impression budget would never fire and the test would sit on its first photo
   forever.
+* **Either** holds both bounds at once and ends the turn at the first of them.
+  It is the mode for a card whose advertising is uneven: the budget still gives
+  a photo its audience when traffic is there, and the slot stops it sitting on
+  the card all day when traffic dries up.
+
+**The counters are read per TURN, not per photo's lifetime.** The rotation is a
+circle, so a photo comes back round; counting every impression it has ever
+gathered meant that from its second lap on it started each turn already over
+budget, the trigger fired on the first pass, and the whole test collapsed into a
+photo change every polling period. Observed in production on 2026-09-19 — a
+rotation swapping every five minutes, which is exactly the beat interval. What
+the budget means is «сколько эта картинка наберёт за ход», so
+``impressions_for_active`` counts the current turn only.
 """
 
 from __future__ import annotations
@@ -70,13 +77,15 @@ class RotationState:
         active_is_excluded: Whether the photo on the card has just been taken
             out of the rotation. It then moves on the next pass rather than
             finishing a slot nobody wants it to finish.
-        trigger_mode: Which of the two rules applies.
+        trigger_mode: Which rule (or pair of rules) applies.
         impressions_for_active: Ad impressions attributed to the live photo
-            across all of its exposures. Read only in ``IMPRESSIONS`` mode.
+            **during its current turn** — see the module docstring for what
+            counting its whole lifetime did instead. Read in ``IMPRESSIONS``
+            and ``EITHER`` mode.
         impression_budget: What one photo must gather before the next goes up.
-        active_since: When the live photo was installed. Read only in ``TIME``
-            mode; ``None`` when nothing is live.
-        slot_minutes: How long one photo stays up in ``TIME`` mode.
+        active_since: When the live photo was installed. Read in ``TIME`` and
+            ``EITHER`` mode; ``None`` when nothing is live.
+        slot_minutes: How long one photo stays up before its turn ends.
         now: The moment the decision is being made.
     """
 
@@ -128,19 +137,34 @@ def _trigger_met(state: RotationState) -> bool:
         state: The test's current rotation state.
 
     Returns:
-        ``True`` when the configured trigger — and only the configured one —
-        has been reached. The time trigger allows :data:`SLOT_TOLERANCE`; the
-        impression budget does not, because impressions are counted, not
-        clocked, and a budget that fires early would measure the arms over
-        different exposures.
+        ``True`` when a trigger the mode has in force has been reached —
+        either of them in ``EITHER``, the configured one otherwise. The time
+        trigger allows :data:`SLOT_TOLERANCE`; the impression budget does not,
+        because impressions are counted, not clocked, and a budget that fired
+        early would measure the arms over different exposures.
     """
-    if state.trigger_mode == TriggerMode.TIME:
-        if state.active_since is None:
-            return False
-        slot = timedelta(minutes=state.slot_minutes) - SLOT_TOLERANCE
-        return state.now - state.active_since >= slot
+    mode = state.trigger_mode
+    if mode in {TriggerMode.TIME, TriggerMode.EITHER} and _slot_served(state):
+        return True
+    if mode in {TriggerMode.IMPRESSIONS, TriggerMode.EITHER}:
+        return state.impressions_for_active >= state.impression_budget
+    return False
 
-    return state.impressions_for_active >= state.impression_budget
+
+def _slot_served(state: RotationState) -> bool:
+    """Has the live photo been up for its whole slot?
+
+    Args:
+        state: The test's current rotation state.
+
+    Returns:
+        ``False`` when nothing is live — a photo that was never installed has
+        not served anything, whatever the clock says.
+    """
+    if state.active_since is None:
+        return False
+    slot = timedelta(minutes=state.slot_minutes) - SLOT_TOLERANCE
+    return state.now - state.active_since >= slot
 
 
 def decide(state: RotationState) -> RotationDecision:

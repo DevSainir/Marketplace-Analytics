@@ -407,7 +407,7 @@ export const useAbTestsStore = defineStore('abTests', () => {
    * trigger shown on screen is the one the next poll will actually read.
    *
    * @param {string} testId Test identifier.
-   * @param {{name?: string, trigger_mode?: 'impressions'|'time',
+   * @param {{name?: string, trigger_mode?: 'impressions'|'time'|'either',
    *          impression_budget?: number, slot_minutes?: number}} payload
    * @returns {Promise<boolean>} Whether the change was accepted.
    */

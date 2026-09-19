@@ -31,30 +31,30 @@ class AbTestCreate(BaseModel):
     ``nm_id`` resolves to. Taking it from the client would let the two disagree,
     and the seller article is what the list is searched by.
 
-    The two triggers are mutually exclusive, and the model enforces it rather
-    than quietly ignoring the unused one: sending ``slot_minutes`` with
-    ``trigger_mode="impressions"`` is a 422, not a silently dropped field. A
-    test that rotated on "either, whichever first" would measure its variants
-    over different exposures, which is the one thing a budget exists to prevent.
+    A single-bound mode refuses the other bound rather than quietly ignoring
+    it: sending ``slot_minutes`` with ``trigger_mode="impressions"`` is a 422,
+    not a silently dropped field. ``trigger_mode="either"`` is the mode that
+    takes both, because it is the mode that reads both — whichever is reached
+    first ends the turn.
     """
 
     nm_id: int = Field(gt=0, description="Артикул WB, чьё главное фото ротируется")
     name: str = Field(min_length=1, max_length=255, description="Название теста")
     trigger_mode: TriggerMode = Field(
         default=TriggerMode.IMPRESSIONS,
-        description="Что двигает ротацию: показы или время",
+        description="Что двигает ротацию: показы, время или что наступит раньше",
     )
     impression_budget: int | None = Field(
         default=None,
         ge=100,
         le=10_000_000,
-        description="Показов на вариант. Только для режима «по показам»",
+        description="Показов на вариант. Режимы «по показам» и «показы и время»",
     )
     slot_minutes: int | None = Field(
         default=None,
         ge=5,
         le=20_160,
-        description="Минут на вариант. Только для режима «по времени»",
+        description="Минут на вариант. Режимы «по времени» и «показы и время»",
     )
 
     @model_validator(mode="after")
@@ -100,28 +100,29 @@ class AbTestSettingsUpdate(BaseModel):
     """Request body for changing a test's name or its rotation trigger.
 
     Every field is optional: sending only ``impression_budget`` keeps the mode
-    the test already has. The exclusivity is checked against the *resolved*
+    the test already has. The bound rule is checked against the *resolved*
     mode — the one in the body if it names one, otherwise the stored one — so
     "set slot_minutes on a test that is still counting impressions" is refused
-    even though the body never mentions a mode. That check needs the stored
-    test, so it happens in the service rather than here.
+    even though the body never mentions a mode, while a test in режиме
+    «either» takes either field on its own. That check needs the stored test, so it
+    happens in the service rather than here.
     """
 
     name: str | None = Field(default=None, min_length=1, max_length=255)
     trigger_mode: TriggerMode | None = Field(
-        default=None, description="Сменить режим: показы или время"
+        default=None, description="Сменить режим: показы, время или оба сразу"
     )
     impression_budget: int | None = Field(
         default=None,
         ge=100,
         le=10_000_000,
-        description="Показов на вариант. Только для режима «по показам»",
+        description="Показов на вариант. Режимы «по показам» и «показы и время»",
     )
     slot_minutes: int | None = Field(
         default=None,
         ge=5,
         le=20_160,
-        description="Минут на вариант. Только для режима «по времени»",
+        description="Минут на вариант. Режимы «по времени» и «показы и время»",
     )
 
 

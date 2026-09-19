@@ -1,4 +1,4 @@
-"""Component tests for configuring a test — the two mutually exclusive triggers.
+"""Component tests for configuring a test — which bounds each mode accepts.
 
 Split from the route tests when the file passed the 500-line ceiling. These
 cases are about what a *configuration* is allowed to be; the others are about
@@ -14,15 +14,14 @@ from src.core.exceptions import ValidationError as DomainValidationError
 from tests.component.ab_tests.conftest import CARD, NM_ID, TEST_ID, _StubCatalog, _StubCatalogue
 
 
-async def test_the_two_triggers_are_mutually_exclusive(
+async def test_a_single_bound_mode_refuses_the_other_bound(
     client: httpx.AsyncClient, headers: dict[str, str]
 ) -> None:
-    """Sending the other mode's setting is refused, not silently ignored.
+    """Sending a setting the mode will not read is refused, not silently ignored.
 
-    A test that rotated on "10 000 impressions or 2 hours, whichever first"
-    would measure its variants over different exposures, which is the one thing
-    a budget exists to prevent. Dropping the extra field quietly would leave the
-    user believing they had configured something they had not.
+    Dropping it quietly would leave the user believing they had configured
+    something they had not. The mode that reads both is «either», and it is
+    tested below.
     """
     by_impressions = await client.post(
         "/api/ab-tests",
@@ -68,6 +67,31 @@ async def test_each_trigger_is_accepted_on_its_own(
     payloads = [call[1]["payload"] for call in catalog.calls if call[0] == "create_test"]
     assert payloads[0].impression_budget == 2000
     assert payloads[1].slot_minutes == 30
+
+
+async def test_both_bounds_are_accepted_together_in_either_mode(
+    client: httpx.AsyncClient, headers: dict[str, str], catalog: _StubCatalog
+) -> None:
+    """«Показы и время» takes both, because the rotation reads both.
+
+    The turn ends at whichever arrives first — 1 000 показов on a card the
+    advertising is pushing, twenty minutes on one it is not.
+    """
+    response = await client.post(
+        "/api/ab-tests",
+        headers=headers,
+        json={
+            "nm_id": NM_ID,
+            "name": "Тест",
+            "trigger_mode": "either",
+            "impression_budget": 1000,
+            "slot_minutes": 20,
+        },
+    )
+
+    assert response.status_code == 201
+    payload = next(call[1]["payload"] for call in catalog.calls if call[0] == "create_test")
+    assert (payload.impression_budget, payload.slot_minutes) == (1000, 20)
 
 
 async def test_creating_a_test_validates_the_article(
@@ -135,7 +159,7 @@ async def test_a_finished_test_refuses_a_settings_change(
 async def test_the_patch_rejects_a_setting_from_the_other_mode(
     client: httpx.AsyncClient, headers: dict[str, str], catalog: _StubCatalog
 ) -> None:
-    """The exclusivity holds on edit, not just on create.
+    """The bound rule holds on edit, not just on create.
 
     The service resolves the mode from the stored test when the body does not
     name one, so this refusal can only come from there — which is why the case

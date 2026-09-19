@@ -125,6 +125,39 @@ describe('the creation form sends one trigger, never both', () => {
   })
 })
 
+describe('the creation form can bound a turn from both sides', () => {
+  it('shows both fields in «показы и время»', async () => {
+    const wrapper = mountView(AbTestsView)
+    await wrapper.get('[data-testid="new-test"]').trigger('click')
+
+    await wrapper.get('[data-testid="trigger-mode"]').setValue('either')
+
+    expect(wrapper.find('[data-testid="impression-budget"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="slot-minutes"]').exists()).toBe(true)
+  })
+
+  it('posts both settings, because the rotation reads both', async () => {
+    createTest.mockResolvedValue(detail())
+    const wrapper = mountView(AbTestsView)
+    await wrapper.get('[data-testid="new-test"]').trigger('click')
+    await wrapper.get('[data-testid="test-name"]').setValue('Тест')
+    await wrapper.get('[data-testid="sku-search"]').trigger('focus')
+    await flushPromises()
+    await wrapper.get('[data-testid="sku-option"]').trigger('click')
+    await wrapper.get('[data-testid="trigger-mode"]').setValue('either')
+    await wrapper.get('[data-testid="impression-budget"]').setValue('1000')
+    await wrapper.get('[data-testid="slot-minutes"]').setValue('20')
+
+    await wrapper.get('[data-testid="create-test"]').trigger('click')
+    await flushPromises()
+
+    const sent = createTest.mock.calls[0][0]
+    expect(sent.trigger_mode).toBe('either')
+    expect(sent.impression_budget).toBe(1000)
+    expect(sent.slot_minutes).toBe(20)
+  })
+})
+
 describe('the detail page reports the trigger in force', () => {
   it('reads the slot length in time mode', async () => {
     fetchTest.mockResolvedValue(detail({ trigger_mode: 'time', slot_minutes: 30 }))
@@ -148,6 +181,20 @@ describe('the detail page reports the trigger in force', () => {
     expect(header).toContain('Смена фото каждые')
     expect(header).toContain('показов')
     expect(header).not.toContain('мин')
+  })
+
+  it('names both bounds, joined by «или», in «показы и время»', async () => {
+    // «или», never «и»: the turn ends at the FIRST of them, and «и» would read
+    // as a photo waiting for both.
+    fetchTest.mockResolvedValue(
+      detail({ trigger_mode: 'either', impression_budget: 1000, slot_minutes: 20 }),
+    )
+    const wrapper = mountView(AbTestDetailView)
+    await flushPromises()
+
+    const header = wrapper.get('header').text()
+    expect(header).toContain('показов или')
+    expect(header).toContain('20 мин')
   })
 
   it('offers the editor while the test can still rotate', async () => {

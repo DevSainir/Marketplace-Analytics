@@ -1,11 +1,11 @@
 """Unit tests for the rotation decision (ab_tests/services/rotation.py).
 
 The rotation is the whole product: a photo stays on the card until its turn is
-over, then the next one goes up. What ends a turn is one of **two mutually
-exclusive** triggers, and most of this file is about that exclusivity — a test
-configured by impressions must ignore the clock entirely, and one configured by
-time must ignore the counter, because "whichever comes first" would judge the
-variants on different exposures and make the comparison meaningless.
+over, then the next one goes up. What ends a turn is a bound on the audience, a
+bound on the clock, or both at once — and most of this file is about which of
+them each mode reads. A test configured by impressions must ignore the clock
+entirely and one configured by time must ignore the counter, while «показы и
+время» ends the turn at whichever arrives first.
 """
 
 from __future__ import annotations
@@ -394,3 +394,61 @@ def test_the_impression_budget_is_configurable_per_test(budget: int) -> None:
         decide(_state(active=VARIANTS[0], impressions=budget - 1, budget=budget)).action
         is RotationAction.HOLD
     )
+
+
+# --------------------------------------------------------------------------- #
+# Trigger: either — whichever comes first
+# --------------------------------------------------------------------------- #
+
+
+def test_either_mode_advances_on_the_budget_before_the_slot_is_up() -> None:
+    """Traffic arrived fast, so the audience bound is the one that fires.
+
+    The point of the mode: a photo that has had its 10 000 chances does not go
+    on standing there for the rest of the hour.
+    """
+    decision = decide(
+        _state(
+            active=VARIANTS[0],
+            mode=TriggerMode.EITHER,
+            impressions=10_000,
+            active_since=NOW - timedelta(minutes=5),
+        )
+    )
+
+    assert decision.action is RotationAction.ADVANCE
+    assert decision.variant_id == VARIANTS[1]
+
+
+def test_either_mode_advances_on_the_slot_before_the_budget_is_met() -> None:
+    """Traffic dried up, so the clock is the one that fires.
+
+    This is the failure the mode exists for: on a budget alone the photo would
+    sit on the card for days waiting for impressions that are not coming.
+    """
+    decision = decide(
+        _state(
+            active=VARIANTS[0],
+            mode=TriggerMode.EITHER,
+            impressions=12,
+            active_since=NOW - timedelta(minutes=SLOT_MINUTES),
+        )
+    )
+
+    assert decision.action is RotationAction.ADVANCE
+    assert decision.variant_id == VARIANTS[1]
+
+
+def test_either_mode_holds_while_both_bounds_are_unmet() -> None:
+    """Neither reached is still a hold — «или» is not «всегда»."""
+    decision = decide(
+        _state(
+            active=VARIANTS[0],
+            mode=TriggerMode.EITHER,
+            impressions=9_999,
+            active_since=NOW - timedelta(minutes=SLOT_MINUTES - 1),
+        )
+    )
+
+    assert decision.action is RotationAction.HOLD
+    assert decision.variant_id == VARIANTS[0]
