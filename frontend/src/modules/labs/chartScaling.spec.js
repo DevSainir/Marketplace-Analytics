@@ -1,17 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildFittedChart, foldWeekly, weeksOf } from '@/modules/labs/chartScaling'
+import { buildFittedChart, ruleStep, weeksOf } from '@/modules/labs/chartScaling'
 import { SKU_METRIC_GROUPS } from '@/modules/labs/metricChart'
 import { COLUMNS_PER_DAY, TRAFFIC_COLUMNS } from '@/modules/labs/metricsMatrix'
 
 /**
- * The two long-window layouts (`chartScaling.js`).
+ * The long-window layout (`chartScaling.js`).
  *
- * A sandbox, but the arithmetic under it is not decorative: a weekly fold that
- * sums остатки draws a warehouse holding seven times what it holds, and one
- * that indexes before folding rebases on a day instead of a week. Both are the
- * kind of wrong that looks plausible, so they are pinned here rather than
- * eyeballed on the page.
+ * A sandbox, but the two rules under it are the ones a redraw quietly breaks:
+ * the week division has to be the WEEK (a fortnight looked identical and was
+ * wrong), and nothing may come back as a column.
  */
 
 const MONDAY = '2026-01-05'
@@ -44,33 +42,14 @@ describe('weeksOf', () => {
   })
 })
 
-describe('foldWeekly', () => {
-  const weeks = weeksOf(isoDays(14))
-
-  it('sums a flow and parks it at the middle of its week', () => {
-    const folded = foldWeekly(Array(14).fill(2), weeks, 'sum')
-
-    expect(folded[weeks[0].mid]).toBe(14)
-    expect(folded[weeks[1].mid]).toBe(14)
-    // Everywhere else is null, not zero: one daily axis carries both the
-    // weekly columns and the daily lines.
-    expect(folded.filter((value) => value != null)).toHaveLength(2)
-  })
-
-  it('averages a level instead of summing it', () => {
-    const folded = foldWeekly(Array(14).fill(700), weeks, 'avg')
-
-    expect(folded[weeks[0].mid]).toBe(700)
-  })
-
-  it('leaves a week nobody reported as null', () => {
-    const values = Array(14).fill(null)
-    values[8] = 5
-
-    const folded = foldWeekly(values, weeks, 'sum')
-
-    expect(folded[weeks[0].mid]).toBeNull()
-    expect(folded[weeks[1].mid]).toBe(5)
+describe('ruleStep', () => {
+  it('puts the rules on numbers a reader recognises', () => {
+    // The scale stops at the data's own maximum, so the step cannot be a
+    // quarter of a round ceiling: 283 / 4 is 70,75.
+    expect(ruleStep(283)).toBe(100)
+    // The reference's own scale: 0, 20, 40 and its 67 at the top.
+    expect(ruleStep(67)).toBe(20)
+    expect(ruleStep(9)).toBe(5)
   })
 })
 
@@ -103,36 +82,67 @@ describe('buildFittedChart', () => {
   const days = isoDays(14)
   const view = viewOf(days, { orders: Array(14).fill(3), carts: Array(14).fill(10) })
 
-  it('folds the columns into weeks in «weekly-bars»', () => {
+  it('draws every metric as a daily line — nothing is a column', () => {
+    // Columns were tried and dropped: a weekly column is a different quantity
+    // from the daily numbers beside it.
     const chart = buildFittedChart(view, {
-      metrics: ['orders'],
+      metrics: ['orders', 'carts'],
       groups: SKU_METRIC_GROUPS,
-      mode: 'weekly-bars',
     })
 
-    const drawn = chart.option.series[0].data.filter((value) => value != null)
-    expect(drawn).toEqual([21, 21])
+    expect(chart.option.series.map((entry) => entry.type)).toEqual(['line', 'line'])
+    expect(chart.option.series[0].data).toHaveLength(14)
   })
 
-  it('draws every column as a daily line in «lines»', () => {
+  it('divides the axis by ONE week', () => {
+    const chart = buildFittedChart(view, { metrics: ['orders'], groups: SKU_METRIC_GROUPS })
+    const isStart = chart.option.xAxis.splitLine.interval
+
+    // Day 0 and day 7 are Mondays; a fortnightly division would miss day 7,
+    // which is exactly what it looked like on the page.
+    expect([0, 7].map(isStart)).toEqual([true, true])
+    expect([1, 6, 8].map(isStart)).toEqual([false, false, false])
+  })
+
+  it('fills the leading series and only the leading one', () => {
+    // Two translucent fills over each other stop being a fill and become mud.
     const chart = buildFittedChart(view, {
-      metrics: ['orders'],
+      metrics: ['carts', 'orders'],
       groups: SKU_METRIC_GROUPS,
-      mode: 'lines',
     })
 
-    expect(chart.option.series[0].type).toBe('line')
-    expect(chart.option.series[0].data).toHaveLength(14)
+    expect(chart.option.series[0].areaStyle).toBeTruthy()
+    expect(chart.option.series[1].areaStyle).toBeUndefined()
+  })
+
+  it('draws metrics that share a unit as they are', () => {
+    // Both are штуки, so the axis is already true for both. Rebasing them to
+    // 100 costs an axis whose numbers are the numbers, and buys nothing.
+    const chart = buildFittedChart(view, {
+      metrics: ['carts', 'orders'],
+      groups: SKU_METRIC_GROUPS,
+    })
+
+    expect(chart.option.series.map((entry) => entry.data[0])).toEqual([10, 3])
+  })
+
+  it('still rebases a mixed pick, where one axis cannot be true for both', () => {
+    // «Затраты, ₽» beside «Заказы, шт» is the case the index exists for.
+    const mixed = buildFittedChart(view, {
+      metrics: ['spend', 'orders'],
+      groups: SKU_METRIC_GROUPS,
+    })
+
+    // Spend has no values in this fixture, so the check is on the shape: the
+    // non-ruler series carries `raw` alongside its plotted index.
+    expect(mixed.option.series[0]).toHaveProperty('data')
+    expect(mixed.option.series[1].data[0]).toBe(3)
   })
 
   it('leaves the plot one card wide — there is no ribbon to scroll', () => {
     // The live chart reports a `dayWidth` the scroller multiplies out. Nothing
     // here does: a year has to be on screen at once, which is the whole point.
-    const chart = buildFittedChart(view, {
-      metrics: ['orders', 'carts'],
-      groups: SKU_METRIC_GROUPS,
-      mode: 'weekly-bars',
-    })
+    const chart = buildFittedChart(view, { metrics: ['orders'], groups: SKU_METRIC_GROUPS })
 
     expect(chart).not.toHaveProperty('dayWidth')
     expect(chart.option.xAxis.data).toHaveLength(14)

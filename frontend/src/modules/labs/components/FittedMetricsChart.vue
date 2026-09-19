@@ -2,35 +2,32 @@
 /**
  * SANDBOX — the metrics chart with the ribbon taken away.
  *
- * Same picker, same catalogue, same colours as `MetricsChart.vue`; the one
- * difference is that the plot is the card's width instead of a fixed width per
- * day, so a quarter or a year is on screen at once. Which of the two fitting
- * experiments it draws is `mode` — see `chartScaling.js` for what each does and
- * why the day survives both.
+ * Same picker, same catalogue, same colours as `MetricsChart.vue`; what differs
+ * is that the plot is the card's width instead of a fixed width per day, so a
+ * quarter or a year is on screen at once — and that it is drawn the way the
+ * reference draws one. `chartScaling.js` holds both halves of that.
  *
  * Dumb by contract: it is handed a matrix and emits nothing.
  */
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 
 import ChartMetricPicker from '@/modules/labs/components/ChartMetricPicker.vue'
-import { buildFittedChart } from '@/modules/labs/chartScaling'
-import { SKU_DEFAULT_METRICS, SKU_METRIC_GROUPS } from '@/modules/labs/metricChart'
+import { LONG_DEFAULT_METRICS, buildFittedChart } from '@/modules/labs/chartScaling'
+import { SKU_METRIC_GROUPS } from '@/modules/labs/metricChart'
 
 const BaseChart = defineAsyncComponent(() => import('@/core/components/BaseChart.vue'))
 
 const props = defineProps({
   /** A live display matrix (`matrixView` shape). */
   view: { type: Object, required: true },
-  /** Which experiment to draw: `weekly-bars` or `lines`. */
-  mode: { type: String, default: 'weekly-bars' },
-  /** Block heading, so the two copies on the page say which is which. */
-  title: { type: String, required: true },
+  /** Block heading. */
+  title: { type: String, default: 'График' },
   /** One line under the heading saying what the reader is looking at. */
   note: { type: String, default: '' },
   /** The metric catalogue this page offers. */
   groups: { type: Array, default: () => SKU_METRIC_GROUPS },
   /** Which metrics to open on. */
-  defaultMetrics: { type: Array, default: () => SKU_DEFAULT_METRICS },
+  defaultMetrics: { type: Array, default: () => LONG_DEFAULT_METRICS },
 })
 
 const metrics = ref([...props.defaultMetrics])
@@ -43,12 +40,7 @@ watch(metrics, () => {
 })
 
 const chart = computed(() =>
-  buildFittedChart(props.view, {
-    metrics: metrics.value,
-    groups: props.groups,
-    mode: props.mode,
-    hover,
-  }),
+  buildFittedChart(props.view, { metrics: metrics.value, groups: props.groups, hover }),
 )
 
 /** Narrow the hover to the mark under the cursor — as the live chart does. */
