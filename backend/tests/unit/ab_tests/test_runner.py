@@ -19,6 +19,7 @@ import pytest
 from src.core.exceptions import IntegrationError
 from src.modules.ab_tests.models import TriggerMode
 from src.modules.ab_tests.services.collection import Counters
+from src.modules.ab_tests.services.rotation import RotationAction
 from src.modules.ab_tests.services.runner import Snapshot
 from tests.support.ab_tests_runner import (
     CAMPAIGN,
@@ -363,3 +364,44 @@ async def test_a_campaign_that_brought_nothing_this_pass_writes_no_row() -> None
     await runner.poll(test, days=[DAY], now=T1)
 
     assert [row.campaign_id for row in windows.rows] == [CAMPAIGN]
+
+
+async def test_a_photo_coming_round_again_starts_its_budget_from_zero() -> None:
+    """A second turn is measured from the moment it began, not from ever.
+
+    The rotation is a circle, so every photo comes back. Counting its whole
+    lifetime meant a returning photo arrived already over budget: the trigger
+    fired on the first pass of every later turn and the rotation collapsed into
+    a photo change every polling period. Observed on production 2026-09-19 —
+    installs five minutes apart, which is the beat interval exactly.
+    """
+    first, second = make_variant(1), make_variant(2)
+    test = running_test([first, second], active=first)
+    windows = FakeWindows()
+    # Its first lap, long since finished: the whole budget, and then some.
+    await windows.append(
+        test_id=test.id,
+        variant_id=first.id,
+        campaign_id=CAMPAIGN,
+        window_start=T0 - timedelta(hours=6),
+        window_end=T0 - timedelta(hours=6) + timedelta(minutes=5),
+        counters=Counters(views=14_000),
+    )
+    installer = FakeInstaller()
+    runner = build_runner(
+        reading=one_campaign({DAY: Counters(views=520)}),
+        windows=windows,
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=400)}))
+        ),
+        # Its SECOND turn started at T0 — a minute of traffic ago.
+        exposures=FakeExposures(active_since=T0),
+        installer=installer,
+        tests=FakeTests(),
+    )
+
+    outcome = await runner.poll(test, days=[DAY], now=T1)
+
+    assert outcome.action is RotationAction.HOLD
+    assert installer.installed == []
+    assert test.active_variant_id == first.id

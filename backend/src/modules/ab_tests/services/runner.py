@@ -112,7 +112,9 @@ class _Windows(Protocol):
         counters: Counters,
     ) -> None: ...
 
-    async def impressions_for_variant(self, *, variant_id: uuid.UUID) -> int: ...
+    async def impressions_for_variant(
+        self, *, variant_id: uuid.UUID, since: datetime | None = None
+    ) -> int: ...
 
 
 class _Exposures(Protocol):
@@ -297,18 +299,24 @@ class RotationRunner:
         await self._snapshots.save(test_id=test.id, by_campaign=current, captured_at=now)
 
         active = next((v for v in test.variants if v.id == test.active_variant_id), None)
+        # Read once and used twice: the clock the time trigger measures against
+        # IS the boundary the impression budget counts from, because both ask
+        # about the same thing — the turn the live photo is serving now.
+        active_since = await self._exposures.active_since(test_id=test.id)
         decision = decide(
             RotationState(
                 active_variant_id=test.active_variant_id,
                 variant_ids=[v.id for v in test.variants if not v.is_excluded],
                 trigger_mode=test.trigger_mode,
                 impressions_for_active=(
-                    await self._windows.impressions_for_variant(variant_id=test.active_variant_id)
+                    await self._windows.impressions_for_variant(
+                        variant_id=test.active_variant_id, since=active_since
+                    )
                     if test.active_variant_id is not None
                     else 0
                 ),
                 impression_budget=test.impression_budget,
-                active_since=await self._exposures.active_since(test_id=test.id),
+                active_since=active_since,
                 slot_minutes=test.slot_minutes,
                 now=now,
                 active_is_excluded=active is not None and active.is_excluded,

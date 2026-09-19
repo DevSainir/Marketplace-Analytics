@@ -90,11 +90,16 @@ class AppendedWindow:
 
 
 class FakeWindows:
-    """In-memory interval store."""
+    """In-memory interval store.
 
-    def __init__(self, impressions: dict[uuid.UUID, int] | None = None) -> None:
+    Impressions are summed out of the recorded rows rather than kept in a
+    counter beside them, so ``since`` behaves here exactly as the SQL does: a
+    photo's second turn starts at zero, which is the rule that keeps a rotation
+    from collapsing into a swap every pass.
+    """
+
+    def __init__(self) -> None:
         self.rows: list[AppendedWindow] = []
-        self.impressions = impressions or {}
 
     async def append(
         self,
@@ -109,10 +114,15 @@ class FakeWindows:
         self.rows.append(
             AppendedWindow(variant_id, campaign_id, window_start, window_end, counters)
         )
-        self.impressions[variant_id] = self.impressions.get(variant_id, 0) + counters.views
 
-    async def impressions_for_variant(self, *, variant_id: uuid.UUID) -> int:
-        return self.impressions.get(variant_id, 0)
+    async def impressions_for_variant(
+        self, *, variant_id: uuid.UUID, since: datetime | None = None
+    ) -> int:
+        return sum(
+            row.counters.views
+            for row in self.rows
+            if row.variant_id == variant_id and (since is None or row.window_start >= since)
+        )
 
 
 class FakeSnapshots:

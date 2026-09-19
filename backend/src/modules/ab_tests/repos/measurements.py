@@ -83,22 +83,37 @@ class WindowRepository:
         )
         await self._session.flush()
 
-    async def impressions_for_variant(self, *, variant_id: uuid.UUID) -> int:
-        """Every impression credited to one photo, across all of its turns.
+    async def impressions_for_variant(
+        self, *, variant_id: uuid.UUID, since: datetime | None = None
+    ) -> int:
+        """Impressions credited to one photo, optionally within one turn.
 
         Summed across campaigns on purpose: the rotation's budget is «сколько
         раз это фото показали», and a card pushed by two campaigns reaches that
         number twice as fast because it really was shown twice as often.
 
+        ``since`` is what makes this a TURN and not a lifetime. The rotation is
+        a circle, so a photo comes back round; the budget it has to meet is the
+        one for the turn it is serving now. Without the bound, a photo returning
+        for its second lap arrived already over budget and was replaced on the
+        very next pass — see :mod:`..services.rotation`. A rotation always lands
+        on a window boundary (the runner closes the window, moves the baseline,
+        then swaps), so ``window_start >= since`` selects exactly the windows of
+        the current turn and splits none of them.
+
         Args:
             variant_id: The photo.
+            since: When its current turn began. ``None`` sums every turn, which
+                is what the result table wants and the trigger does not.
 
         Returns:
-            Summed views; 0 when the photo has never been live.
+            Summed views; 0 when the photo has gathered nothing.
         """
         stmt = select(func.coalesce(func.sum(VariantStatWindow.views), 0)).where(
             VariantStatWindow.variant_id == variant_id
         )
+        if since is not None:
+            stmt = stmt.where(VariantStatWindow.window_start >= since)
         return int((await self._session.execute(stmt)).scalar_one())
 
     async def windows_for_test(self, *, test_id: uuid.UUID) -> list[VariantStatWindow]:
