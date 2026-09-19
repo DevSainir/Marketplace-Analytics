@@ -2,9 +2,12 @@
 /**
  * The «Комментарий» row of the metrics table: one note per day.
  *
- * Collapsed to just its label until the chevron — or a click anywhere on the
- * row — opens it, so the table opens on numbers and the notes are there when
- * wanted.
+ * Open by default, and collapsible from the chevron. It used to open collapsed,
+ * on the reasoning that the table is read for its numbers; in use the notes are
+ * what the day is read THROUGH — «почему вторник просел» is answered by the
+ * comment, not by the row above it — and every reader was opening the band on
+ * arrival. The chevron still closes it for the readings where the grid is the
+ * whole question.
  *
  * Every day is one card, open or collapsed — the same glass pane the
  * «Цены/Остатки» and «Действия» rows use, so the three bands below the grid
@@ -35,7 +38,7 @@ const props = defineProps({
 
 const emit = defineEmits(['comment'])
 
-const commentsExpanded = ref(false)
+const commentsExpanded = ref(true)
 
 /** The stored note of a day, or a blank one. */
 function noteOf(iso) {
@@ -138,9 +141,12 @@ function commitNote(iso, field) {
               @keydown.enter.prevent="$event.target.blur()"
               @keydown.esc.prevent="$event.target.blur()"
             />
+            <!-- Ten rows, not two. A day's note is a paragraph about what was
+                 done and what it did; at two rows every one of them was read
+                 through a slot showing its first line and scrolled by hand. -->
             <textarea
               v-model="commentDrafts[day.iso]"
-              rows="2"
+              rows="10"
               maxlength="2000"
               class="comment-input"
               :disabled="commentSavingDays.has(day.iso)"

@@ -210,11 +210,9 @@ describe('table composition', () => {
   it('forwards a day-note edit from the comments section to its own listener', async () => {
     const wrapper = mountTable()
 
-    // The notes row opens collapsed, so the inputs do not exist until it is
-    // expanded — which is itself part of what this asserts still works through
-    // the component boundary.
-    await wrapper.find('.comment-toggle').trigger('click')
-
+    // The notes row opens EXPANDED, so the inputs are there to be typed into
+    // without a click first — which is itself part of what this asserts still
+    // works through the component boundary.
     const input = wrapper.find('.comment-header-input')
     await input.setValue('Новый заголовок')
     await input.trigger('blur')
@@ -222,5 +220,25 @@ describe('table composition', () => {
     expect(wrapper.emitted('comment')?.[0]).toEqual([
       { day: DAY, patch: { header: 'Новый заголовок' } },
     ])
+  })
+
+  it('opens the notes band expanded and still lets it be closed', async () => {
+    // Открыт по умолчанию: комментарий — это то, ЧЕРЕЗ что читают день, и
+    // раскрывали его всё равно каждый раз. Свернуть по-прежнему можно.
+    const wrapper = mountTable()
+
+    expect(wrapper.find('.comment-input').exists()).toBe(true)
+
+    await wrapper.find('.comment-toggle').trigger('click')
+
+    expect(wrapper.find('.comment-input').exists()).toBe(false)
+  })
+
+  it('gives a day note ten rows to be written in', () => {
+    // Двух строк хватало на первую строку заметки; остальное читалось
+    // прокруткой внутри поля.
+    const wrapper = mountTable()
+
+    expect(wrapper.find('.comment-input').attributes('rows')).toBe('10')
   })
 })
