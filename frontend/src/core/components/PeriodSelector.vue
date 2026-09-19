@@ -3,9 +3,10 @@
  * Custom date-range picker: ONE control that opens a single calendar popover.
  *
  * Flow: click the field → the calendar opens → click the start day → click the
- * end day → the popover closes with the range set; between the two, hovering
- * previews. A preset (`presetRange`) also emits `apply` — a hand-picked range
- * waits for its second click, but «30 дней» is the whole decision already.
+ * end day → the popover closes, the range is set AND applied; between the two,
+ * hovering previews. The second click is the whole decision, the same way a
+ * preset is, so it does not wait for a button: the popover closing with nothing
+ * happening read as a control that had not worked.
  *
  * Lives in `core/`: two modules pick periods with it — monitoring's matrix and
  * the finreports P&L.
@@ -108,6 +109,9 @@ function pickDay(cell) {
   emit('update:from', s)
   emit('update:to', e)
   emit('range', { from: s, to: e })
+  // Last, exactly as in `applyPreset`: a listener that reads the parent's refs
+  // rather than the event has to see the new window by the time it runs.
+  emit('apply')
   open.value = false
 }
 

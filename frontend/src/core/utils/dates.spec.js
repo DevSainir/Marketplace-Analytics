@@ -1,4 +1,4 @@
-import { isoDaysAgo, isoLocalDate } from '@/core/utils/dates'
+import { MAX_WINDOW_DAYS, daysBetween, isoDaysAgo, isoLocalDate } from '@/core/utils/dates'
 
 describe('isoLocalDate', () => {
   it('formats using local date parts, not UTC', () => {
@@ -27,5 +27,27 @@ describe('isoDaysAgo', () => {
     expect(isoDaysAgo(0)).toBe('2026-07-08')
     expect(isoDaysAgo(6)).toBe('2026-07-02')
     expect(isoDaysAgo(8)).toBe('2026-06-30')
+  })
+})
+
+describe('daysBetween', () => {
+  it('counts whole days the way the API counts a window', () => {
+    // The backend compares `(end - start).days` against its own ceiling, so
+    // this has to be the same number — one off either way puts the page's note
+    // and the API's refusal on different days.
+    expect(daysBetween('2026-07-01', '2026-07-01')).toBe(0)
+    expect(daysBetween('2026-07-01', '2026-07-08')).toBe(7)
+  })
+
+  it('is not thrown by a daylight-saving jump', () => {
+    // Parsed as UTC on purpose: a local-time parse makes the clock-change month
+    // 23 or 25 hours long, and the rounding then lands a day out.
+    expect(daysBetween('2026-03-01', '2026-04-01')).toBe(31)
+  })
+
+  it('agrees with the ceiling the API enforces', () => {
+    // A year is inside the bound; the day after it is not.
+    expect(daysBetween('2025-09-19', '2026-09-19')).toBeLessThanOrEqual(MAX_WINDOW_DAYS)
+    expect(daysBetween('2025-09-01', '2026-09-19')).toBeGreaterThan(MAX_WINDOW_DAYS)
   })
 })

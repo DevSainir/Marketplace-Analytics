@@ -19,3 +19,21 @@ export function isoDaysAgo(days) {
   date.setDate(date.getDate() - days)
   return isoLocalDate(date)
 }
+
+/**
+ * Widest analysis window the API will answer for, in days between the two ends.
+ *
+ * Mirrors `backend/src/modules/monitoring/constants.py#MAX_WINDOW_DAYS`. It is
+ * a bound on the work one request can demand — an unbounded `date_from` was a
+ * memory and latency problem — and it is repeated here so the UI can say so
+ * before asking, rather than showing the seller a failed request for a range
+ * the calendar let them pick.
+ */
+export const MAX_WINDOW_DAYS = 366
+
+/** Whole days between two ISO dates, the way the API counts a window. */
+export function daysBetween(fromIso, toIso) {
+  const from = new Date(`${fromIso}T00:00:00Z`)
+  const to = new Date(`${toIso}T00:00:00Z`)
+  return Math.round((to - from) / 86_400_000)
+}

@@ -2,7 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { isoDaysAgo } from '@/core/utils/dates'
+import { MAX_WINDOW_DAYS, isoDaysAgo } from '@/core/utils/dates'
 
 import MatrixEditToolbar from '@/modules/monitoring/components/MatrixEditToolbar.vue'
 import MetricsTable from '@/modules/monitoring/components/MetricsTable.vue'
@@ -32,12 +32,13 @@ const DEFAULT_FROM = isoDaysAgo(30)
 const DEFAULT_TO = isoDaysAgo(0)
 
 // Handlers push a query; the watcher inside does all the fetching.
-const { dateFrom, dateTo, handleSelect, handleApply, applyPeriod } = useSearchQuerySync({
-  route,
-  router,
-  store,
-  defaults: { from: DEFAULT_FROM, to: DEFAULT_TO },
-})
+const { dateFrom, dateTo, windowTooWide, handleSelect, handleApply, applyPeriod } =
+  useSearchQuerySync({
+    route,
+    router,
+    store,
+    defaults: { from: DEFAULT_FROM, to: DEFAULT_TO },
+  })
 
 /** Pick the search-relevant params out of a route query (arrays/absent → defaults). */
 const product = computed(() => store.currentProduct)
@@ -135,7 +136,7 @@ onMounted(() => store.fetchPins())
         @recolor="store.setPinColor"
       />
 
-      <p v-if="store.skuListError" class="mt-sm text-tiny text-status-negative">
+      <p v-if="store.skuListError && !windowTooWide" class="mt-sm text-tiny text-status-negative">
         Не удалось загрузить список SKU: {{ store.skuListError }}
       </p>
 
@@ -145,8 +146,13 @@ onMounted(() => store.fetchPins())
         @select="handleSelect"
       />
 
-      <!-- Detail states -->
-      <p v-if="store.loading" class="mt-lg text-center text-base text-muted">
+      <!-- Detail states. The window bound leads, said as a bound and not a fault. -->
+      <p v-if="windowTooWide" class="mt-lg text-base text-muted">
+        Период больше {{ MAX_WINDOW_DAYS }} дней не показываем — выберите отрезок покороче, и данные
+        появятся снова.
+      </p>
+
+      <p v-else-if="store.loading" class="mt-lg text-center text-base text-muted">
         Загружаем статистику {{ skuLabel }}…
       </p>
 
@@ -214,7 +220,14 @@ onMounted(() => store.fetchPins())
           />
         </div>
 
-        <div id="sec-chart"><MetricsChart :view="matrix" /></div>
+        <div id="sec-chart">
+          <!-- The page's own control again: by here the top one is offscreen. -->
+          <div class="mt-lg flex justify-end">
+            <PeriodSelector v-model:from="dateFrom" v-model:to="dateTo" @apply="applyPeriod" />
+          </div>
+
+          <MetricsChart :view="matrix" />
+        </div>
 
         <!-- «Рекламные кластеры» — DORMANT, hidden on purpose. Not dead code;
              see the block comment in <script setup>. Restore with:

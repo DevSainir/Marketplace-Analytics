@@ -17,6 +17,8 @@
  */
 import { ref, watch } from 'vue'
 
+import { MAX_WINDOW_DAYS, daysBetween } from '@/core/utils/dates'
+
 /**
  * @param {object} options
  * @param {import('vue-router').RouteLocationNormalizedLoaded} options.route
@@ -25,6 +27,7 @@ import { ref, watch } from 'vue'
  * @param {{from: string, to: string}} options.defaults Window defaults, applied
  *   when the URL omits them.
  * @returns {{dateFrom: import('vue').Ref<string>, dateTo: import('vue').Ref<string>,
+ *   windowTooWide: import('vue').Ref<boolean>,
  *   handleSelect: (item: {nm_id: number}) => void, handleApply: (query: string) => void,
  *   applyPeriod: () => void}}
  */
@@ -44,6 +47,17 @@ export function useSearchQuerySync({ route, router, store, defaults }) {
   const dateFrom = ref(initial.date_from)
   const dateTo = ref(initial.date_to)
 
+  /**
+   * Is the chosen window wider than the API will answer for?
+   *
+   * Asked BEFORE fetching rather than discovered from the answer. The limit is
+   * a property of the feature, not a mistake the seller made, and two red
+   * «не удалось загрузить» boxes — one for the SKU list, one for the card — is
+   * not how a product states its own bounds. The page says the bound in a line
+   * of ordinary text instead, and nothing is requested until the range fits.
+   */
+  const windowTooWide = ref(false)
+
   // The URL is the single source of truth (deep-linkable, survives refresh and
   // back/forward): handlers only push a new query, this watcher does ALL
   // fetching — the SKU list follows the window, the detail follows sku + window.
@@ -57,6 +71,11 @@ export function useSearchQuerySync({ route, router, store, defaults }) {
       // Back/forward must also rewind the period selector.
       dateFrom.value = search.date_from
       dateTo.value = search.date_to
+
+      windowTooWide.value = daysBetween(search.date_from, search.date_to) > MAX_WINDOW_DAYS
+      // Neither request can succeed, and both would fail loudly. The note the
+      // page shows instead is the whole answer.
+      if (windowTooWide.value) return
 
       if (!old || old.date_from !== search.date_from || old.date_to !== search.date_to) {
         store.fetchSkuList({ date_from: search.date_from, date_to: search.date_to })
@@ -103,5 +122,5 @@ export function useSearchQuerySync({ route, router, store, defaults }) {
     })
   }
 
-  return { dateFrom, dateTo, handleSelect, handleApply, applyPeriod }
+  return { dateFrom, dateTo, windowTooWide, handleSelect, handleApply, applyPeriod }
 }

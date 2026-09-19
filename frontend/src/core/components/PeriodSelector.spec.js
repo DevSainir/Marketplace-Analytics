@@ -55,9 +55,11 @@ describe('PeriodSelector', () => {
     expect(wrapper.emitted('update:to')[0]).toEqual(['2026-03-10'])
   })
 
-  it('leaves a hand-picked range to the page, with no apply of its own', async () => {
-    // Two clicks in the grid, and the popover closes with the range set — but
-    // «Применить» still exists, and a page that drafts periods keeps drafting.
+  it('applies a hand-picked range on its second click', async () => {
+    // The second click is the whole decision, the same way a preset is. The
+    // popover closing with nothing happening read as a control that had not
+    // worked, and the button that would have finished the job is a screen away
+    // by the time the calendar is open.
     const wrapper = await openCalendar(mountPicker())
     const days = wrapper.findAll('.day:not([disabled])')
 
@@ -65,6 +67,14 @@ describe('PeriodSelector', () => {
     await days[5].trigger('click')
 
     expect(wrapper.emitted('update:from')).toHaveLength(1)
+    expect(wrapper.emitted('apply')).toHaveLength(1)
+  })
+
+  it('applies nothing on the FIRST click, while the range is still half-made', async () => {
+    const wrapper = await openCalendar(mountPicker())
+
+    await wrapper.findAll('.day:not([disabled])')[0].trigger('click')
+
     expect(wrapper.emitted('apply')).toBeUndefined()
   })
 })
