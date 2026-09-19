@@ -273,7 +273,7 @@ export const AGGREGATE_METRIC_GROUPS = [
 export const AGGREGATE_DEFAULT_METRICS = ['spend', 'views', 'carts', 'orders']
 
 /** Index a group list by metric key, each entry carrying its group's title. */
-function metricsByKey(groups) {
+export function metricsByKey(groups) {
   return Object.fromEntries(
     groups.flatMap((group) =>
       group.items.map((item) => [item.key, { ...item, group: group.title }]),
@@ -312,8 +312,12 @@ const round2 = (value) => Math.round(value * 100) / 100
  * know what «118» meant in roubles must not leave the chart to find out. A
  * series plotted unrebased never gets one — there is no second number to show,
  * and «374 (374)» reads as a mistake.
+ *
+ * Exported for `chartScaling.js`, which re-indexes the same metric over WEEKS
+ * rather than days: a weekly column is the sum of its days' real values, and
+ * an index has to be rebased on the series it is actually drawn from.
  */
-function indexed(data) {
+export function indexed(data) {
   const base = data.find((value) => value != null && value !== 0)
   if (base == null) return { data }
   return {
@@ -339,13 +343,55 @@ function maxOf(values) {
  * The one thing that does raise it is a series that would otherwise be CUT: a
  * metric that tripled plots at 300 and a ruler stopping at 150 would draw it as
  * a line that stops, which is a lie a chart must not tell.
+ *
+ * Exported for `chartScaling.js`, whose weekly layout plots the same заказы
+ * folded into weeks and must therefore read the same ruler.
  */
-function axisCeiling(view, catalogue, series) {
+export function axisCeiling(view, catalogue, series) {
   const orders = catalogue.orders ? maxOf(readSeries(view, catalogue.orders)) : null
   const plotted = maxOf(series.flatMap((entry) => entry.data))
   // `niceCeiling` of nothing is the default ruler — a window with no заказы at
   // all still needs a scale, and 0-500 is the shape of the ones that do.
   return Math.max(niceCeiling(orders), plotted == null ? 0 : niceCeiling(plotted))
+}
+
+/**
+ * The metrics a reader picked, resolved against the catalogue and read off the
+ * matrix — everything a plot needs EXCEPT the decision how to draw them.
+ *
+ * Split out of :func:`buildMetricChart` so a second layout can read the same
+ * series without a second copy of the catalogue lookup, the ordering rule and
+ * the cell read. `chartScaling.js` (the sandbox's fit-to-the-card experiments)
+ * is that second reader: it folds the counts into weeks before indexing them,
+ * which it can only do from the REAL values.
+ *
+ * @param {object} view A display matrix (`matrixView` shape).
+ * @param {{metrics?: string[], groups?: Array<object>}} [options]
+ * @returns {Array<{key: string, name: string, type: string, unit: string,
+ *   group: string, color: string, values: Array<number|null>,
+ *   isRuler: boolean}>} In catalogue order, whatever order they were ticked in.
+ */
+export function metricSeriesSpecs(view, { metrics = [], groups = [] } = {}) {
+  const catalogue = metricsByKey(groups)
+  const order = catalogueOrder(groups)
+
+  return metrics
+    .filter((key) => catalogue[key])
+    .sort((a, b) => order.get(a) - order.get(b))
+    .map((key) => {
+      const entry = catalogue[key]
+      return {
+        key,
+        name: entry.name,
+        type: entry.type ?? 'line',
+        unit: entry.unit ?? 'number',
+        group: entry.group,
+        color: colorForMetric(key),
+        values: readSeries(view, entry),
+        // A scale of заказов: the one series drawn against it unrebased.
+        isRuler: entry.metric === RULER_METRIC,
+      }
+    })
 }
 
 /**
@@ -362,25 +408,16 @@ export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}
   if (!view?.days?.length) return null
   const days = view.days.map((day) => day.iso)
   const catalogue = metricsByKey(groups)
-  const order = catalogueOrder(groups)
 
-  const series = metrics
-    .filter((key) => catalogue[key])
-    .sort((a, b) => order.get(a) - order.get(b))
-    .map((key) => {
-      const entry = catalogue[key]
-      return {
-        name: entry.name,
-        type: entry.type ?? 'line',
-        unit: entry.unit ?? 'number',
-        group: entry.group,
-        color: colorForMetric(key),
-        // Заказы are what the scale measures, so they are drawn as they are.
-        ...(entry.metric === RULER_METRIC
-          ? { data: readSeries(view, entry) }
-          : indexed(readSeries(view, entry))),
-      }
-    })
+  const series = metricSeriesSpecs(view, { metrics, groups }).map((spec) => ({
+    name: spec.name,
+    type: spec.type,
+    unit: spec.unit,
+    group: spec.group,
+    color: spec.color,
+    // Заказы are what the scale measures, so they are drawn as they are.
+    ...(spec.isRuler ? { data: spec.values } : indexed(spec.values)),
+  }))
 
   return {
     dayCount: days.length,
