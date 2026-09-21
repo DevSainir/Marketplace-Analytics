@@ -1,5 +1,5 @@
 /*
- * Styles for StockBreakdownTable.vue — kept beside the component rather than inside it so
+ * Styles for StockCompareTable.vue — kept beside the component rather than inside it so
  * the SFC stays readable at a glance (architecture rule: a component under 250
  * lines). Still `scoped`: the component references this file with
  * `<style scoped src="...">`, so Vue attaches its scope attribute exactly as it
@@ -30,21 +30,45 @@
   user-select: none;
 }
 
-/* The frozen pane's two columns. Every left-offset below derives from these,
-   so the pane can be re-tuned in one place.
+/* The frozen size column and each day group's «Всего». Every width below
+   derives from these, so the grid can be re-tuned in one place.
    `--col-size-w` fits a full composite WB size («42/170-177», the widest
    shape in practice — plain «XL» sellers just leave slack); `--col-total-w`
-   fits its own «Всего» header, which outruns the 4-digit totals below it. */
+   fits its own «Всего» header, which outruns the 4-digit totals below it;
+   `--col-wh-min-w` is the narrowest a warehouse column may be squeezed to
+   before the grid gives up and scrolls instead. */
 .app-datatable {
   --col-size-w: 4.25rem;
   --col-total-w: 3rem;
+  --col-wh-min-w: 2.9rem;
+}
+
+/* BOTH days on screen, always — the point of the panel.
+   Fixed layout spreads each day group over half the width left by the frozen
+   size column, so the warehouse columns stretch to fill it. The `max()` is the
+   floor: once a day holds more warehouses than half a screen can carry at
+   `--col-wh-min-w` each, the table grows past the container and the ribbon
+   scrolls rather than squeezing the numbers into each other. */
+table {
+  table-layout: fixed;
+  width: max(
+    100%,
+    calc(
+      var(--col-size-w) + (var(--col-total-w) + var(--col-wh-min-w) * var(--day-warehouses, 1)) *
+        var(--days, 2)
+    )
+  );
+  /* Collapsed borders detach from sticky cells while scrolling — the frozen
+     column's right border would stay behind. Separate borders travel WITH the
+     cell (same fix as the matrix table). */
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 /* Compact grid: WB warehouse lists run to dozens of columns — smaller type
    and tighter cells than the generic skin, and the horizontal padding is
    trimmed to the minimum that still separates adjacent numbers, since every
-   pixel saved here buys another warehouse column on screen. Heights are
-   EXPLICIT so the two side-by-side day tables stay row-aligned. */
+   pixel saved here buys another warehouse column on screen. */
 thead th {
   height: 26px;
   padding: 4px 5px;
@@ -61,8 +85,8 @@ tfoot td {
   font-size: 11px;
 }
 
-/* Zebra stripes; the frozen pane keeps its own solid backgrounds (declared
-   later, so they win over the stripe). */
+/* Zebra stripes; the frozen column keeps its own solid background (declared
+   later, so it wins over the stripe). */
 tbody tr:nth-child(even) td {
   background: var(--ui-zebra);
 }
@@ -71,16 +95,13 @@ tbody tr:hover td {
   background: var(--ui-sunk);
 }
 
-/* Collapsed borders detach from sticky cells while scrolling — the frozen
-   pane's right border would stay behind. Separate borders travel WITH the
-   cell (same fix as the matrix table). */
-table {
-  border-collapse: separate;
-  border-spacing: 0;
+/* While that day's snapshot is being fetched — only its own columns fade. */
+td.is-loading {
+  opacity: 0.45;
 }
 
 /* Numbers right-align; their column headers follow (the skin's generic
-   `thead th` is left-aligned). */
+   `thead th` is left-aligned). The day label centres over its group. */
 thead th.col-total,
 thead th.col-wh,
 td.cell-total,
@@ -88,12 +109,14 @@ tbody td:not(.cell-size),
 tfoot td:not(.cell-size) {
   text-align: right;
 }
+thead th.col-day {
+  text-align: center;
+  font-size: 11px;
+}
 
-/* Frozen pane — the size label and its «Всего» total: sticky on the left
-   with explicit backgrounds so they mask the warehouse columns scrolling
-   underneath. The corner header cells keep the skin's `sticky top-0` and
-   additionally pin left. Both columns are fixed-width so each knows the next
-   one's offset. */
+/* Frozen column — the size label: sticky on the left with an explicit
+   background so it masks the day groups scrolling underneath. The corner
+   header cell keeps the skin's `sticky top-0` and additionally pins left. */
 th.col-size,
 td.cell-size {
   width: var(--col-size-w);
@@ -103,8 +126,6 @@ td.cell-size {
 th.col-total,
 td.cell-total {
   width: var(--col-total-w);
-  min-width: var(--col-total-w);
-  max-width: var(--col-total-w);
 }
 /* Sizes past the common shape — a longer composite, or the `chrt 123456`
    fallback for a size the content catalogue hasn't synced — would overrun
@@ -114,30 +135,29 @@ td.cell-size {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-thead th.col-size,
-thead th.col-total {
+thead th.col-size {
   left: 0;
   z-index: 30;
   background: var(--ui-surface);
 }
-td.cell-size,
-td.cell-total {
+td.cell-size {
   position: sticky;
   left: 0;
   z-index: 20;
   background: var(--ui-surface);
 }
-thead th.col-total,
-td.cell-total {
-  left: var(--col-size-w);
-  border-right: 3px solid var(--ui-rule);
-}
 /* The skin's row-hover tint sits on the transparent `<tr>`; the solid frozen
-   cells would ignore it, so tint them explicitly (matching the skin's
-   bg-canvas row hover). */
-tbody tr:hover td.cell-size,
-tbody tr:hover td.cell-total {
+   cell would ignore it, so tint it explicitly (matching the skin's row hover). */
+tbody tr:hover td.cell-size {
   background: var(--ui-sunk);
+}
+
+/* Where one day ends and the next begins: the rule that makes the group
+   readable as a day rather than as more columns. It also closes the frozen
+   column off from the first day. */
+th.day-start,
+td.day-start {
+  border-left: 3px solid var(--ui-rule);
 }
 
 /* Totals row: pinned to the bottom edge, separated like the header. */
@@ -148,14 +168,20 @@ tfoot td {
   background: var(--ui-surface);
   white-space: nowrap;
 }
+tfoot td.cell-size {
+  z-index: 20;
+}
 
 /* The «Всего» column, as a distribution.
-   A thin bar under each size's total, its width that size's share of the SKU's
-   whole remaining stock. It turns the frozen column from a list of numbers into
+   A thin bar under each size's total, its width that size's share of the day's
+   whole remaining stock. It turns the column from a list of numbers into
    the shape of the size curve — whether the stock is spread across the sizes
    that sell or piled on the two that do not. Recessive on purpose: 3px, rounded,
    under the figure, and it never competes with the digits above it. */
-.cell-total--share::after {
+tbody td.cell-total {
+  position: relative;
+}
+tbody td.cell-total::after {
   content: '';
   position: absolute;
   left: 8px;

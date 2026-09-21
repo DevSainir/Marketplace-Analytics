@@ -1,10 +1,9 @@
 /**
  * The row set the two-day stock comparison shares.
  *
- * Both side-by-side tables render the UNION of the two days' sizes so their rows
- * align 1:1 (a size absent on one day shows blank there). Each table still
- * carries its own «Размер» column, so the labels repeat by design: it keeps each
- * day readable on its own, and the pair still compares row by row.
+ * The single grid renders the UNION of the two days' sizes, so every row exists
+ * under both days and a size absent from one of them shows blank there rather
+ * than shifting the rows below it. One «Размер» column labels the pair.
  *
  * Pure, and out of the view because the view composes rather than computes —
  * `MonitoringView` is at its 250-line ceiling and this was the piece with the

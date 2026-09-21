@@ -57,7 +57,7 @@ function togglePin() {
 }
 
 // --- two-day stock comparison ----------------------------------------------
-// Both tables share one row set (see the helper for why).
+// Both day groups share one row set (see the helper for why).
 const sharedStockSizes = computed(() => unionStockSizes(store.stockCompare))
 
 function onStockDayChange(side, iso) {
