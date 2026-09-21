@@ -69,6 +69,34 @@ SELECT t.table_schema || '.' || t.table_name
 SQL
 }
 
+# Is the scratch server the one we may restore into?
+#
+# **Not the same question as `pg_isready` on the default socket**, and the
+# difference cost a failed run on 2026-09-20. postgres:16-alpine's entrypoint
+# initialises an empty data directory by starting a TEMPORARY server, running
+# the init steps against it, and then shutting it down before exec'ing the real
+# one. That temporary server listens on the Unix socket, so plain `pg_isready`
+# answers "accepting connections" during a phase that ends with the socket
+# going away — and the very next `psql` gets
+# `connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed:
+# No such file or directory`, one second after the gate said go.
+#
+# The temporary server is started with `listen_addresses=''`, so it is
+# unreachable over TCP while the real one is not. Asking on 127.0.0.1 is
+# therefore the question that distinguishes them; the loopback interface exists
+# inside `--network none`, so this costs nothing. The `SELECT 1` on top is
+# belt-and-braces against a future entrypoint that keeps TCP open: a server
+# that answers a query and is about to be shut down is a narrower window than
+# one that merely accepts a handshake.
+restore_check_is_really_ready() {
+    docker exec "${RESTORE_CONTAINER}" \
+        pg_isready -h 127.0.0.1 -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" \
+        >/dev/null 2>&1 &&
+        docker exec -e PGPASSWORD="${POSTGRES_PASSWORD}" "${RESTORE_CONTAINER}" \
+            psql -h 127.0.0.1 -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" \
+            -tAq -c 'SELECT 1' >/dev/null 2>&1
+}
+
 # Restores `archive` into a throwaway Postgres and asserts it came back whole.
 # `expected_tables` and `expected_nonempty` are the inventories captured from
 # the live database at dump time.
@@ -95,8 +123,7 @@ run_restore_check() {
         >/dev/null || die "Could not start the restore-check container."
 
     started=$(date +%s)
-    until docker exec "${RESTORE_CONTAINER}" \
-        pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" >/dev/null 2>&1; do
+    until restore_check_is_really_ready; do
         [ $(($(date +%s) - started)) -lt 120 ] ||
             die "Restore-check PostgreSQL did not become ready within 120s."
         sleep 2
