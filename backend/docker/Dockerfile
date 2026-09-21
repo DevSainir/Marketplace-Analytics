@@ -30,7 +30,7 @@
 # base-image-freshness.yml` fails once a week when a pin has drifted from its
 # tag — refreshing is meant to be a deliberate act with a diff, not an accident
 # of whenever a build happened to run.
-FROM python:3.12-slim@sha256:e5c9fa26ffb76e11e0f054f30dc2523a2f9693f0c36c0cf1e39b27e152d899fc AS builder
+FROM python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9 AS builder
 
 # uv resolves and installs from uv.lock, so the image gets byte-identical
 # dependencies to CI and to a developer's machine. The uv image carries both a
@@ -71,7 +71,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ---------------------------------------------------------------- runtime base
 # Everything both images share. Neither `base` nor anything below re-installs a
 # dependency — they only copy the environment the builder resolved.
-FROM python:3.12-slim@sha256:e5c9fa26ffb76e11e0f054f30dc2523a2f9693f0c36c0cf1e39b27e152d899fc AS base
+FROM python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9 AS base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

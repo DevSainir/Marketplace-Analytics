@@ -20,7 +20,7 @@
 # base-image-freshness.yml` fails once a week when a pin has drifted from its
 # tag — refreshing is meant to be a deliberate act with a diff, not an accident
 # of whenever a build happened to run.
-FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS builder
+FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS builder
 
 WORKDIR /app
 
@@ -58,7 +58,7 @@ COPY docker/nginx.conf /conf.d/app.conf
 COPY --from=builder /app/dist /html/
 
 # ---------------------------------------------------------------------------
-FROM nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 AS runtime
+FROM nginx:1.30-alpine@sha256:ef8676b33d681f272ba429b27658bdd7e640963279714c96bddf1dc76307f7b6 AS runtime
 
 # The stock server, removed with nothing put in its place — the config arrives
 # with the release. /etc/nginx/conf.d and /etc/nginx/snippets become symlinks
