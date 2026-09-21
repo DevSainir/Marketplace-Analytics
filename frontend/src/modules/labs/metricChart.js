@@ -17,11 +17,12 @@
  * the plot. What a reader compares there is SHAPE; the real values are a hover
  * away, and the table above holds every one of them.
  *
- * Штуки are read down the LEFT edge and рубли down the RIGHT, always, whatever
- * is ticked — see `AXES`. Those series are drawn as they are, so every number
- * on either scale is the number. Anything that is neither belongs on neither
- * ruler and is drawn as an INDEX instead, rebased to 100 at the window's first
- * reported day, on a third axis that is never shown.
+ * The FUNNEL's counts are read down the LEFT edge and рубли down the RIGHT,
+ * always, whatever is ticked — see `AXES` and `COUNT_RULER_METRICS`. Those
+ * series are drawn as they are, so every number on either scale is the number.
+ * Everything else — показы, клики, проценты — is drawn as an INDEX instead,
+ * rebased to 100 at the window's first reported day, on a third axis that is
+ * never shown.
  *
  * ЗАКАЗЫ are never rebased, even in a mixed pick, and that is what makes the
  * left-hand scale readable at all: it is a scale of заказов, so 120 заказов
@@ -326,18 +327,37 @@ function indexed(data) {
  * else. A scale that changes meaning when you look at a second thing is not a
  * scale.
  *
- * Anything that is neither штуки nor рубли — проценты, and whatever else the
- * catalogue grows — has no ruler it belongs on and is drawn as an INDEX,
- * rebased to 100 at the window's first reported day. Those go on a third axis
- * that is never drawn: an index has no unit, so there is nothing for a ruler to
- * say, and the hover holds the real percentage.
+ * Everything else is drawn as an INDEX, rebased to 100 at the window's first
+ * reported day, on a third axis that is never drawn: an index has no unit, so a
+ * ruler would have nothing to say, the hover holds the real value, and keeping
+ * it off the other two is what stops «100» landing on the «100 штук» gridline.
  */
 const AXES = { count: 0, money: 1, index: 2 }
 
-/** Which of {@link AXES} a unit belongs to. */
-function axisForUnit(unit) {
-  if (unit === 'number') return AXES.count
-  if (unit === 'currency') return AXES.money
+/**
+ * The catalogue keys the left-hand ruler is a scale of: the FUNNEL's counts.
+ *
+ * Not every metric measured in штуках. Показы run to five figures and клики to
+ * four while заказы run to two, so a ruler true for the first two draws the
+ * third along the axis — which is the complaint that produced this list. The
+ * funnel's own counts share an order of magnitude with each other, and they are
+ * what the page is about; the advertising counters are shapes against them.
+ *
+ * Keyed by CATALOGUE key rather than by unit, because «Клики» and «Заказы» are
+ * both штуки and only one of them belongs here.
+ */
+const COUNT_RULER_METRICS = new Set([
+  'carts',
+  'orders',
+  'orders_organic',
+  'stock_quantity',
+  'stock_total',
+])
+
+/** Which of {@link AXES} one picked metric is read against. */
+function axisForMetric(spec) {
+  if (COUNT_RULER_METRICS.has(spec.key)) return AXES.count
+  if (spec.unit === 'currency') return AXES.money
   return AXES.index
 }
 
@@ -397,7 +417,7 @@ export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}
   const columns = days.length <= BARS_UP_TO_DAYS
 
   const series = specs.map((spec) => {
-    const axisIndex = axisForUnit(spec.unit)
+    const axisIndex = axisForMetric(spec)
     return {
       name: spec.name,
       type: columns ? spec.type : 'line',

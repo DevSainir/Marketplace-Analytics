@@ -136,11 +136,21 @@ describe('buildMetricChart', () => {
       expect([alone.option.yAxis].flat()[1].max).toBe([withCounts.option.yAxis].flat()[1].max)
     })
 
-    it('sends every series to the ruler for its unit', () => {
-      const chart = chartOf(['spend', 'views', 'ctr'])
+    it('keeps the left ruler for the FUNNEL, not for everything in штуках', () => {
+      // Показы run to five figures and клики to four while заказы run to two:
+      // one ruler true for the first two draws the third along the axis, which
+      // is the complaint that produced the list.
+      const chart = chartOf(['spend', 'views', 'clicks', 'carts', 'orders'])
 
-      // Затраты → рубли, показы → штуки, CTR → the index scale.
-      expect(chart.option.series.map((entry) => entry.yAxisIndex)).toEqual([1, 0, 2])
+      // Затраты → рубли; показы and клики → the index; корзины and заказы →
+      // the counts ruler they share an order of magnitude with.
+      expect(chart.option.series.map((entry) => entry.yAxisIndex)).toEqual([1, 2, 2, 0, 0])
+    })
+
+    it('sends a percent to the index, like everything else without a ruler', () => {
+      const chart = chartOf(['ctr', 'orders'])
+
+      expect(chart.option.series.map((entry) => entry.yAxisIndex)).toEqual([2, 0])
     })
   })
 
