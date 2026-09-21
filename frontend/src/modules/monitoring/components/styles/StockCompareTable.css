@@ -34,11 +34,12 @@
    In PIXELS on purpose: the component reads both back with `getComputedStyle`
    to size a day group, and `4.25rem` would come back as the string it is.
    `--col-size-w` fits a full composite WB size («42/170-177», the widest shape
-   in practice — plain «XL» sellers just leave slack); `--col-total-w` fits its
-   own «Всего» header, which outruns the 4-digit totals below it. */
+   in practice — plain «XL» sellers just leave slack); `--col-total-w` holds a
+   six-figure «Всего» — a big seller's whole day across every warehouse — which
+   is wider than either the cells below it or its own header. */
 .app-datatable {
   --col-size-w: 68px;
-  --col-total-w: 48px;
+  --col-total-w: 56px;
   /* Until the first measurement lands (see the component): a sane group width
      rather than an invalid table width. */
   --group-w: 20rem;

@@ -27,17 +27,22 @@ const SIZES = [
   { chrt_id: 2, tech_size: 'M' },
 ]
 
+/** jsdom lays nothing out, so the scroll container needs a width to measure. */
+Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, value: 1232 })
+
+/** The day props the grid takes, one entry per day of cells given. */
+function dayProps(cellsPerDay) {
+  return cellsPerDay.map((cells, index) => ({
+    key: `2026-07-1${index}`,
+    label: `1${index}.07.2026`,
+    cells,
+  }))
+}
+
 /** One argument per day, oldest first: that day's cells. */
 function mountTable(...cellsPerDay) {
   return mount(StockCompareTable, {
-    props: {
-      days: cellsPerDay.map((cells, index) => ({
-        key: `2026-07-1${index}`,
-        label: `1${index}.07.2026`,
-        cells,
-      })),
-      sizeOrder: SIZES,
-    },
+    props: { days: dayProps(cellsPerDay), sizeOrder: SIZES },
     global: { stubs: { Teleport: true } },
   })
 }
@@ -123,6 +128,23 @@ describe('StockCompareTable', () => {
       '2',
       '2',
     ])
+  })
+
+  it('measures a day group once the stock arrives, not only at mount', async () => {
+    // The stock comes in its own request, so at mount there is no grid to
+    // measure yet. Measuring only there left `--group-w` at zero — and the
+    // colgroup divides that between the day's warehouses, so every warehouse
+    // column collapsed and the grid became a row of «Всего».
+    const wrapper = mountTable()
+
+    expect(wrapper.attributes('style')).not.toContain('--group-w')
+
+    await wrapper.setProps({ days: dayProps([[cell(1, 'S', 'Казань', 3)]]) })
+    await wrapper.vm.$nextTick()
+
+    // (1232 - the size column) / 2 — the size column measures 0 in jsdom, which
+    // has no stylesheet to read it from.
+    expect(wrapper.attributes('style')).toContain('--group-w: 616px')
   })
 
   it('says so when no day of the period holds any stock', () => {

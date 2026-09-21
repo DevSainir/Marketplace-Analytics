@@ -1,7 +1,8 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed } from 'vue'
 
 import { pivotRows, pivotWarehouses, sizeShare } from '@/modules/monitoring/stockPivot'
+import { useStockRibbonLayout } from '@/modules/monitoring/useStockRibbonLayout'
 import { useWarehouseNameTip } from '@/modules/monitoring/useWarehouseNameTip'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
@@ -86,50 +87,14 @@ function warehouseColumnWidth(day) {
   return `calc((var(--group-w) - var(--col-total-w)) / ${day.warehouses.length})`
 }
 
-const root = ref(null)
-const scroll = ref(null)
-/** Half of what the frozen size column leaves — one day group, in px. */
-const groupWidth = ref(0)
-
-/** Read a px-valued custom property off the grid (they are px so this can). */
-function cssPx(name) {
-  return parseFloat(getComputedStyle(root.value).getPropertyValue(name)) || 0
-}
-
-function measureGroupWidth() {
-  if (!scroll.value || !root.value) return
-  groupWidth.value = Math.max((scroll.value.clientWidth - cssPx('--col-size-w')) / 2, 0)
-}
-
-/** Start at the right edge: «сегодня» first, older days appear scrolling left. */
-function scrollToNewestDay() {
-  if (scroll.value) scroll.value.scrollLeft = scroll.value.scrollWidth
-}
-
-let observer = null
-
-onMounted(() => {
-  measureGroupWidth()
-  // The group is half the VIEWPORT's share, so it moves with the window, not
-  // with the data.
-  observer = new ResizeObserver(measureGroupWidth)
-  if (scroll.value) observer.observe(scroll.value)
-  nextTick(scrollToNewestDay)
-})
-
-onBeforeUnmount(() => observer?.disconnect())
-
-watch(
-  () => props.days,
-  () => nextTick(scrollToNewestDay),
-)
+const { root, scroll, groupWidth } = useStockRibbonLayout({ daysSource: () => props.days })
 </script>
 
 <template>
   <div
     ref="root"
     class="app-datatable"
-    :style="{ '--days': days.length, '--group-w': `${groupWidth}px` }"
+    :style="{ '--days': days.length, ...(groupWidth ? { '--group-w': `${groupWidth}px` } : {}) }"
   >
     <div v-if="!hasStock" class="px-md py-xl text-center text-base text-muted">
       {{ emptyMessage }}
