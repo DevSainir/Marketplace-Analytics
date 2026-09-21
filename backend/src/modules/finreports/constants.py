@@ -65,6 +65,28 @@ RECONCILE_LOOKBACK_DAYS: int = 14
 #: uncovered a week later is ours.
 SETTLEMENT_PUBLICATION_GRACE_DAYS: int = 7
 
+#: How long a formed period may go unserved before we stop asking for it.
+#:
+#: A period stays on the missing list until its report is HELD — that is what
+#: makes a report WB serves days late reachable at all, and it is why 31.08.2026
+#: would not be lost again. Unbounded, it is also a slow catastrophe: a period
+#: WB will never serve (and those exist — see GAP_REPAIR_COOLDOWN_SECONDS) keeps
+#: the probe window's start pinned to it for ever, and the walk span is measured
+#: from there. Six months stuck is a 180-day span, 26 weekly windows, six and a
+#: half hours of quarter-hourly requests — three times a day, holding the
+#: fleet-wide lock and starving every other seller.
+#:
+#: Fourteen days, matching :data:`RECONCILE_LOOKBACK_DAYS` so the two horizons
+#: cannot disagree. The longest WB has ever been late is **eight** days (report
+#: 983241109, stamped 01.09.2026 and first served 09.09), so this covers the
+#: worst measured case with most of a week to spare.
+#:
+#: Abandoning is not forgetting. The period stops costing forward probes; it
+#: stays a hole in `survey_settlement_gaps` and in the `SettlementHistoryHasGaps`
+#: alert, and the reconciliation lookback — the same fourteen days, which is why
+#: the two are one number — still re-walks it whenever a thorough pass runs.
+SETTLEMENT_PERIOD_ABANDON_DAYS: int = 14
+
 #: How long an hourly tick waits before re-walking the same workspace's hole.
 #:
 #: The hourly pass repairs a gap the survey can see instead of leaving it to the

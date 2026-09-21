@@ -114,15 +114,23 @@ def test_the_window_opens_at_the_oldest_period_wb_has_formed_but_we_lack() -> No
     window = probe_window(latest_settled=date(2026, 7, 26), held_ends=[], today=TODAY)
 
     assert window is not None
-    assert (window.date_from, window.date_to) == (date(2026, 7, 27), date(2026, 8, 3))
+    assert (window.date_from, window.date_to) == (date(2026, 7, 27), date(2026, 8, 2))
 
 
-def test_the_window_never_includes_today() -> None:
-    """WB serves no data for the current day, so asking about it proves nothing."""
+def test_the_window_stops_at_the_last_period_wb_has_closed() -> None:
+    """Not at yesterday, and the difference is a request per seller per cycle.
+
+    04.08.2026 is a Tuesday: the period 03.08-09.08 is open and cannot have a
+    report, so a window running to yesterday (03.08) reaches into it. Harmless
+    for the probe, which is one request whatever its width — but the WALK is
+    cut into weekly windows and pays for every one, and that one could only
+    ever be answered 204.
+    """
     window = probe_window(latest_settled=date(2026, 7, 26), held_ends=[], today=TODAY)
 
     assert window is not None
-    assert window.date_to == TODAY - timedelta(days=1)
+    assert window.date_to == date(2026, 8, 2)
+    assert window.date_to < TODAY - timedelta(days=1)
 
 
 def test_a_report_held_out_of_order_does_not_close_the_window_behind_it() -> None:
@@ -132,13 +140,17 @@ def test_a_report_held_out_of_order_does_not_close_the_window_behind_it() -> Non
     report landed first, every forward-looking cursor jumped past 31.08, and
     the day became unreachable. Here the older period is still missing, so the
     window still opens on it.
+
+    And closes on it: holding 01.08-02.08 takes that period out of the
+    question, so the window is exactly the one period still owed rather than
+    everything between them.
     """
     window = probe_window(
         latest_settled=date(2026, 7, 26), held_ends=[date(2026, 8, 2)], today=TODAY
     )
 
     assert window is not None
-    assert (window.date_from, window.date_to) == (date(2026, 7, 27), date(2026, 8, 3))
+    assert (window.date_from, window.date_to) == (date(2026, 7, 27), date(2026, 7, 31))
 
 
 def test_a_complete_history_yields_no_window() -> None:
@@ -182,7 +194,7 @@ async def test_an_empty_probe_window_skips_the_harvest(
 
     assert verdict.outcome is FreshnessOutcome.WB_EMPTY
     assert verdict.should_harvest is False
-    assert fake.windows == [(date(2026, 7, 27), date(2026, 8, 3))]
+    assert fake.windows == [(date(2026, 7, 27), date(2026, 8, 2))]
 
 
 async def test_a_row_past_our_history_triggers_the_harvest(
@@ -253,7 +265,7 @@ async def test_a_verdict_from_a_real_request_carries_the_window_it_asked_about(
     )
 
     assert verdict is not None
-    assert (verdict.probe_from, verdict.probe_to) == (date(2026, 7, 27), date(2026, 8, 3))
+    assert (verdict.probe_from, verdict.probe_to) == (date(2026, 7, 27), date(2026, 8, 2))
 
 
 async def test_a_verdict_reached_without_a_request_names_no_window(
@@ -269,144 +281,6 @@ async def test_a_verdict_reached_without_a_request_names_no_window(
 
     assert verdict.probe_from is None
     assert verdict.probe_to is None
-
-
-async def test_a_standing_block_stops_the_tick_before_anything_is_sent(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The one place this gate fails closed, and the reason it must.
-
-    Until 2026-09-19 the probe went out first and its 429 was read as «we
-    learned nothing, harvest anyway», so a blocked endpoint drew a probe AND a
-    walk on every tick. WB answers a request made inside an open block by
-    restarting the block longer: measured on «Демо», 28 197 s became
-    18 624 s became 302 940 s — nine hours to a hundred and five — in three
-    steps over 2026-09-17.
-
-    A block is not an unanswered question. It is an answer.
-    """
-    fake = _FakeFinanceClient(row=None)
-    monkeypatch.setattr(freshness, "WBFinanceClient", fake)
-
-    verdict = await check_freshness(
-        tokens=_tokens(),
-        latest_settled=date(2026, 7, 26),
-        held_ends=[],
-        today=TODAY,
-        blocked_for=34_801.0,
-    )
-
-    assert verdict.outcome is FreshnessOutcome.RATE_BLOCKED
-    assert verdict.should_harvest is False
-    assert fake.windows == [], "a blocked endpoint must not be probed"
-
-
-async def test_a_workspace_with_nothing_outstanding_is_not_reported_as_blocked(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Order matters: «done» outranks «blocked».
-
-    A seller holding every report WB has formed is not waiting on anything, and
-    saying «ВБ ограничил доступ» on their P&L would be alarming about a
-    limiter that is costing them nothing. The block only means something once
-    there is a request we would otherwise have sent.
-    """
-    fake = _FakeFinanceClient()
-    monkeypatch.setattr(freshness, "WBFinanceClient", fake)
-
-    verdict = await check_freshness(
-        tokens=_tokens(),
-        latest_settled=date(2026, 8, 2),
-        held_ends=[date(2026, 8, 2)],
-        today=TODAY,
-        blocked_for=34_801.0,
-    )
-
-    assert verdict.outcome is FreshnessOutcome.UP_TO_DATE
-
-
-async def test_a_paced_out_tick_records_nothing_at_all(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A tick that did not ask must not overwrite the verdict of one that did.
-
-    ``None``, not ``UP_TO_DATE``. The cadence exists so a report WB is days
-    late does not cost 21 requests a day, but a paced-out tick has learned
-    nothing — and writing «загружены по вчерашний день» over a week WB has
-    published is the exact bug this module was rewritten to stop telling. The
-    previous verdict stands and its `checked_at` ages honestly, which is what
-    the page reads staleness from.
-
-    04:00 MSK, against a period three days overdue: outside every band.
-    """
-    fake = _FakeFinanceClient(row=None)
-    monkeypatch.setattr(freshness, "WBFinanceClient", fake)
-
-    verdict = await check_freshness(
-        tokens=_tokens(),
-        latest_settled=date(2026, 7, 26),
-        held_ends=[],
-        today=TODAY,
-        hour_msk=4,
-    )
-
-    assert verdict is None
-    assert fake.windows == []
-
-
-async def test_the_button_reaches_wb_whatever_the_hour(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """«Обновить» is not paced, and that is the point of it.
-
-    A button that quietly did nothing because the clock said 04:00 would be
-    worse than no button — this one exists precisely for the case where
-    waiting for the next scheduled tick is not the answer. The nightly
-    reconciliation pass arrives the same way and is exempt for the same
-    reason: a safety net that catches at three preset hours is not much of a
-    net.
-    """
-    fake = _FakeFinanceClient(row=None)
-    monkeypatch.setattr(freshness, "WBFinanceClient", fake)
-
-    verdict = await check_freshness(
-        tokens=_tokens(),
-        latest_settled=date(2026, 7, 26),
-        held_ends=[],
-        today=TODAY,
-        hour_msk=4,
-        paced=False,
-    )
-
-    assert verdict is not None
-    assert verdict.outcome is FreshnessOutcome.WB_EMPTY
-    assert fake.windows == [(date(2026, 7, 27), date(2026, 8, 3))]
-
-
-async def test_a_block_stops_the_button_too(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The one thing «Обновить» may not override.
-
-    Unpaced means «the clock does not stop you». A penalty block is not the
-    clock — WB has refused, and a request inside an open block restarts it
-    longer, so pressing the button harder is the single action that makes the
-    seller's report arrive later rather than sooner.
-    """
-    fake = _FakeFinanceClient(row=None)
-    monkeypatch.setattr(freshness, "WBFinanceClient", fake)
-
-    verdict = await check_freshness(
-        tokens=_tokens(),
-        latest_settled=date(2026, 7, 26),
-        held_ends=[],
-        today=TODAY,
-        hour_msk=4,
-        paced=False,
-        blocked_for=34_801.0,
-    )
-
-    assert verdict is not None
-    assert verdict.outcome is FreshnessOutcome.RATE_BLOCKED
-    assert fake.windows == []
 
 
 # --- WBFinanceClient.fetch_first_row -------------------------------------

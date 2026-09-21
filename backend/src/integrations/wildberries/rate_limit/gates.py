@@ -51,9 +51,22 @@ from src.integrations.wildberries.rate_limit_lua import (
     CLAMP_SLOTS_LUA,
     PEEK_SLOT_LUA,
     PENALISE_LUA,
+    SHARE_BLOCK_LUA,
+    SHARED_BLOCK_LEFT_LUA,
 )
 
 logger = get_logger(__name__)
+
+
+def _until_ms(penalise_result: Any) -> float:
+    """Read the absolute block end out of what ``PENALISE_LUA`` returned.
+
+    The script answers ``{until_ms, block_ms}`` as strings, and redis-py hands
+    back bytes. Parsed here rather than at the call site so the one place that
+    knows the script's shape is next to the one place that calls it.
+    """
+    first = penalise_result[0]
+    return float(first.decode() if isinstance(first, bytes) else first)
 
 
 #: How much longer than WB demanded a penalty block is served.
@@ -168,6 +181,7 @@ class TokenBucketRateGate:
         refill_seconds: float,
         max_wait_seconds: float,
         endpoint_buckets: Mapping[str, tuple[int, float]] | None = None,
+        shared_block: bool = False,
     ) -> None:
         """Configure the bucket.
 
@@ -201,10 +215,38 @@ class TokenBucketRateGate:
         # weaker (each process paces itself), but far better than no pacing.
         self._local_next_allowed: dict[str, float] = {}
         self._degraded = False
+        self._shared_block = shared_block
 
     def _key(self, endpoint: str) -> str:
         """Build the Redis key for one endpoint's bucket."""
         return f"wb:bucket:{self._surface}:{endpoint}:{self._fingerprint}"
+
+    def _shared_key(self, endpoint: str) -> str:
+        """The block key shared by every token on this surface's endpoint.
+
+        No fingerprint, on purpose: this is the one piece of state that is
+        deliberately not per seller.
+        """
+        return f"wb:block:{self._surface}:{endpoint}"
+
+    async def _shared_block_ms(self, endpoint: str) -> float:
+        """Milliseconds this endpoint is shut for everyone, 0 when it is not.
+
+        Fails open on a Redis error, like everything else here: a block we
+        cannot read is not a block, and refusing every harvest on a cache
+        outage would be failing closed on the control that exists to keep
+        harvests running.
+        """
+        if not self._shared_block:
+            return 0.0
+        try:
+            result = await cast(
+                Awaitable[Any],
+                self._redis.eval(SHARED_BLOCK_LEFT_LUA, 1, self._shared_key(endpoint)),
+            )
+        except RedisError:
+            return 0.0
+        return max(float(result), 0.0)
 
     def _bucket(self, endpoint: str) -> _Bucket:
         """The bucket size WB meters this endpoint with."""
@@ -222,7 +264,14 @@ class TokenBucketRateGate:
         """
         waited = 0.0
         while True:
-            wait_ms = await self._take_token(endpoint, reserve_seconds)
+            # Checked BEFORE the token is taken, so a caller refused by
+            # somebody else's block does not also spend its own budget doing
+            # it. The two waits are combined by `max`: our bucket and WB's
+            # refusal are different constraints and both have to be satisfied.
+            wait_ms = max(
+                await self._shared_block_ms(endpoint),
+                await self._take_token(endpoint, reserve_seconds),
+            )
             if wait_ms <= 0:
                 return
             wait_seconds = wait_ms / 1000.0
@@ -320,7 +369,7 @@ class TokenBucketRateGate:
             )
         except RedisError:
             return 0.0
-        return max(float(result) / 1000.0, 0.0)
+        return max(float(result), await self._shared_block_ms(endpoint), 0.0) / 1000.0
 
     async def observe(self, endpoint: str, remaining: int | None) -> None:
         """Clamp the bucket to WB's own count of what is left.
@@ -397,7 +446,7 @@ class TokenBucketRateGate:
         ).observe(seconds)
         bucket = self._bucket(endpoint)
         try:
-            await cast(
+            result = await cast(
                 Awaitable[Any],
                 self._redis.eval(
                     PENALISE_LUA,
@@ -409,5 +458,21 @@ class TokenBucketRateGate:
                     str(_BLOCK_MARGIN),
                 ),
             )
+            if self._shared_block:
+                # The same instant, written where every other token will see
+                # it. Without this the fleet walk earns the block once per
+                # seller: it is sequential, so seller 2 is refused a minute
+                # after seller 1 was, knowing nothing about it — which is what
+                # five countdowns 0.77 s apart looked like on 2026-09-17.
+                await cast(
+                    Awaitable[Any],
+                    self._redis.eval(
+                        SHARE_BLOCK_LUA,
+                        1,
+                        self._shared_key(endpoint),
+                        str(_until_ms(result)),
+                        str(_BLOCK_GRACE_MS),
+                    ),
+                )
         except RedisError:
             self._local_next_allowed[endpoint] = time.monotonic() + seconds * _BLOCK_MARGIN

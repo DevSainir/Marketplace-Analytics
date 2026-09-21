@@ -209,9 +209,60 @@ return {tostring(until_ms), tostring(block_ms)}
 """
 
 
+#: Record a penalty block against an endpoint for EVERY token, not just the one
+#: that earned it.
+#:
+#: The bucket above is keyed per seller token, and for the ordinary budget that
+#: is right: the fleet has probed this endpoint on five tokens within the same
+#: second, twenty-one times a day, for months, and has not been refused for it.
+#: A strictly per-IP budget of one request per 917 s could not have survived
+#: that, so the ordinary metering is very probably per token.
+#:
+#: **The punishment is not.** On 2026-09-17 five distinct token fingerprints
+#: ended up holding `blocked_until` values 0.77 s apart — one shared countdown,
+#: five separate 429s. Whatever WB meters per token, it appears to *refuse* per
+#: caller. Left per-token, that shape is a cascade: the fleet walk is
+#: sequential, so seller 1 is refused and blocked, seller 2 knows nothing about
+#: it and is refused and blocked, and five escalating blocks are earned where
+#: one was deserved.
+#:
+#: So the block is written twice — once to the token's own bucket, once here,
+#: to a key naming only the surface and the endpoint. It is never shortened:
+#: whichever refusal reaches furthest into the future is the one that stands.
+SHARE_BLOCK_LUA = """
+local now = redis.call('TIME')
+local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
+local until_ms = tonumber(ARGV[1])
+local grace_ms = tonumber(ARGV[2])
+local current = tonumber(redis.call('GET', KEYS[1]))
+if current == nil or current < until_ms then
+  redis.call('SET', KEYS[1], until_ms, 'PX', math.ceil(until_ms - now_ms + grace_ms))
+end
+return tostring(until_ms)
+"""
+
+#: Milliseconds the endpoint stays shut for everyone, 0 when it does not.
+#:
+#: Read through Redis rather than compared against the caller's clock for the
+#: same reason every script here reads ``TIME``: a bucket consulted by the API,
+#: the worker and beat is exactly where container clock drift would show up as
+#: two processes disagreeing about whether a window is open.
+SHARED_BLOCK_LEFT_LUA = """
+local now = redis.call('TIME')
+local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
+local until_ms = tonumber(redis.call('GET', KEYS[1]))
+if until_ms == nil or until_ms <= now_ms then
+  return 0
+end
+return until_ms - now_ms
+"""
+
+
 __all__ = [
     "ACQUIRE_SLOT_LUA",
     "CLAMP_SLOTS_LUA",
     "PEEK_SLOT_LUA",
     "PENALISE_LUA",
+    "SHARED_BLOCK_LEFT_LUA",
+    "SHARE_BLOCK_LUA",
 ]

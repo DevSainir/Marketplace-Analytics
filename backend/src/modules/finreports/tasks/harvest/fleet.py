@@ -32,6 +32,7 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessOutcome,
     FreshnessRecordStore,
 )
+from src.modules.finreports.services.publication import period_from
 from src.modules.finreports.tasks.freshness import (
     check_freshness,
     freshness_record_store,
@@ -40,6 +41,7 @@ from src.modules.finreports.tasks.freshness import (
 )
 from src.modules.finreports.tasks.gaps import survey_settlement_gaps
 from src.modules.finreports.tasks.harvest.workspace import harvest_workspace
+from src.modules.finreports.tasks.publication_spread import record_publication_spread
 from src.modules.finreports.tasks.repair import gap_repair_due
 from src.modules.finreports.tasks.spans import (
     reconciliation_slice,
@@ -243,22 +245,56 @@ async def _harvest_all_workspaces(
             days=days,
             lookback_days=RECONCILE_LOOKBACK_DAYS if thorough else 0,
         )
-        # The span must reach whatever the gate was asking about, or the walk
-        # can be sent out for a report it structurally cannot fetch. That is
-        # not hypothetical — it is the 31.08 failure restated one layer down:
-        # the gate asks from the oldest period WB has formed and we do not
-        # hold, while `walk_span` starts at the watermark, and the watermark
-        # had jumped past 31.08 the moment the 01.09-06.09 report landed. One
-        # `min` makes the two agree, and makes «Обновить» mean what a person
-        # pressing it thinks it means: the request goes out for the missing
-        # report, not for the days after it.
-        if verdict.probe_from is not None:
-            date_from = min(date_from, verdict.probe_from)
+        # The span is aligned to what the gate asked about, and on the ordinary
+        # path it is set to exactly that.
+        #
+        # Two things are going on. The first is correctness: the span MUST
+        # reach the gate's window, or the walk is sent out for a report it
+        # structurally cannot fetch — the 31.08 failure restated one layer
+        # down, since `walk_span` starts at the watermark and the watermark had
+        # jumped past 31.08 the moment the 01.09-06.09 report landed.
+        #
+        # The second is cost, and it is why the ordinary path ASSIGNS rather
+        # than taking a minimum. `walk_span` starts AT the last settled day, so
+        # its span runs 13.09..20.09 — eight days, which `settlement_windows`
+        # cuts into two weekly windows and therefore two quarter-hourly
+        # requests, one of them re-reading a week already on file. Starting at
+        # the missing period's own first day makes it 14.09..20.09: one window,
+        # one request. Half the walk, per seller, per cycle.
+        #
+        # What that re-read was buying is WB's amendments to a week we already
+        # hold, and it is not thrown away — it moves to the thorough path,
+        # which keeps the `min` and reaches RECONCILE_LOOKBACK_DAYS behind the
+        # watermark. So an amendment is picked up by the nightly pass or by
+        # «Обновить» within a day, instead of within an hour, and that is the
+        # whole price.
+        if verdict.probe_from is not None and verdict.probe_to is not None:
+            date_from = min(date_from, verdict.probe_from) if thorough else verdict.probe_from
+            # And it stops where the gate stopped. `walk_span` ends at
+            # yesterday, which on any day but a Monday reaches into the period
+            # WB has not closed yet — an extra weekly window, an extra
+            # quarter-hourly request, and 204 the only answer it can get.
+            date_to = max(verdict.probe_to, date_to) if thorough else verdict.probe_to
         counts = await harvest_workspace(
             tokens=bundle, date_from=date_from, date_to=date_to, on_date=today
         )
         for key, value in counts.items():
             totals[key] += value
+        if counts.get("finance") and verdict.probe_from is not None:
+            # The measurement shared discovery is waiting on: did WB serve this
+            # period to everyone at once? Every seller is asking that question
+            # for itself, once an hour, on the day the report lands — one
+            # answer could serve the fleet, and at fifty sellers that is the
+            # difference between a ceiling of eighteen per egress address and
+            # sixty. Nothing we hold says whether WB publishes simultaneously,
+            # so this records it before anything is built on it.
+            async with AsyncSessionLocal() as session:
+                await record_publication_spread(
+                    session,
+                    workspace_id=bundle.workspace_id,
+                    period_end=period_from(verdict.probe_from).date_to,
+                    name=bundle.name,
+                )
         # And recorded AGAIN, from what the walk found. The walk asks WB about
         # the same days the probe did, so a completed one is strictly better
         # evidence — and throwing it away is the same discard bug one level up.

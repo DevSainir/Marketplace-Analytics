@@ -103,10 +103,16 @@ def test_a_period_wb_cannot_have_stamped_yet_is_not_offered() -> None:
     settled_through = date(2026, 9, 6)
 
     on_the_sunday = missing_periods(
-        settled_through=settled_through, held_ends=[], today=date(2026, 9, 13)
+        settled_through=settled_through,
+        held_ends=[],
+        today=date(2026, 9, 13),
+        abandon_after_days=14,
     )
     on_the_monday = missing_periods(
-        settled_through=settled_through, held_ends=[], today=date(2026, 9, 14)
+        settled_through=settled_through,
+        held_ends=[],
+        today=date(2026, 9, 14),
+        abandon_after_days=14,
     )
 
     assert on_the_sunday == []
@@ -128,7 +134,9 @@ def test_a_period_served_out_of_order_does_not_hide_the_one_behind_it() -> None:
     missing = missing_periods(
         settled_through=date(2026, 8, 30),
         held_ends=[date(2026, 9, 6), date(2026, 9, 13)],
-        today=date(2026, 9, 19),
+        # Day 8 of 31.08 being unserved — the day WB actually served it.
+        today=date(2026, 9, 9),
+        abandon_after_days=14,
     )
 
     assert [p.date_to for p in missing] == [date(2026, 8, 31)]
@@ -140,6 +148,7 @@ def test_a_complete_history_asks_for_nothing() -> None:
         settled_through=date(2026, 9, 13),
         held_ends=[date(2026, 9, 13)],
         today=date(2026, 9, 19),
+        abandon_after_days=14,
     )
 
     assert missing == []
@@ -188,3 +197,42 @@ def test_the_cadence_only_ever_slows_down() -> None:
 
     assert counts == sorted(counts, reverse=True)
     assert min(counts) > 0, "the door never closes on a report WB still owes"
+
+
+# --- the abandonment horizon ----------------------------------------------
+
+
+def test_a_period_wb_has_had_long_enough_for_stops_being_asked_about() -> None:
+    """Without a horizon the list's first element pins the walk span for ever.
+
+    A period WB will never serve — and the constants next door record that
+    those exist — keeps the probe window's start on itself, and the walk span
+    is measured from there. Six months stuck is a 180-day span, twenty-six
+    weekly windows, six and a half hours of quarter-hourly requests, three
+    times a day, for one seller.
+    """
+    stuck_since_january = missing_periods(
+        settled_through=date(2026, 1, 1),
+        held_ends=[],
+        today=date(2026, 9, 21),
+        abandon_after_days=14,
+    )
+
+    assert [str(p.date_to) for p in stuck_since_january] == ["2026-09-13", "2026-09-20"]
+
+
+def test_the_horizon_still_covers_the_worst_case_wb_has_ever_produced() -> None:
+    """Fourteen days is not an arbitrary number: the record is eight.
+
+    Report 983241109 (31.08 alone) was stamped 01.09 and first served on
+    09.09. A horizon that gave up before then would have lost exactly the day
+    this whole mechanism was built to keep.
+    """
+    on_the_day_wb_served_it = missing_periods(
+        settled_through=date(2026, 8, 30),
+        held_ends=[date(2026, 9, 6)],
+        today=date(2026, 9, 9),
+        abandon_after_days=14,
+    )
+
+    assert [str(p.date_to) for p in on_the_day_wb_served_it] == ["2026-08-31"]

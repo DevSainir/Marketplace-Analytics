@@ -46,7 +46,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
@@ -56,7 +56,10 @@ from src.core.redis import get_redis
 from src.integrations.wildberries.clients import WBFinanceClient
 from src.integrations.wildberries.endpoints import SETTLEMENT_REPORT_PATH
 from src.integrations.wildberries.rate_limit import statistics_rate_gate
-from src.modules.finreports.constants import FRESHNESS_RECORD_TTL_SECONDS
+from src.modules.finreports.constants import (
+    FRESHNESS_RECORD_TTL_SECONDS,
+    SETTLEMENT_PERIOD_ABANDON_DAYS,
+)
 from src.modules.finreports.repos import FinancialReportRepository
 from src.modules.finreports.services.freshness_record import (
     FreshnessOutcome,
@@ -111,7 +114,13 @@ class Outstanding:
     Attributes:
         date_from: First day to ask WB about — the oldest missing period's
             start, never a later one.
-        date_to: Yesterday. WB serves nothing for today.
+        date_to: Last day to ask about — the NEWEST missing period's end, not
+            yesterday. The difference is a whole request per seller per cycle:
+            a span running to yesterday reaches into the period WB has not
+            closed yet, and `settlement_windows` cuts that into an extra
+            weekly window whose answer can only be 204. On 23.09.2026 the span
+            14.09..22.09 would have been two requests where 14.09..20.09 is
+            one.
         overdue_days: Days since WB stamped the oldest missing report. Zero on
             the day it was formed, which is the day it nearly always arrives.
     """
@@ -132,12 +141,20 @@ def probe_window(
     the tick runs twenty-one times a day — and it is the whole saving, so it is
     established before anything is sent.
 
-    When something IS missing the window spans from the oldest missing
-    period's first day to yesterday. The oldest, not the newest: a period that
-    WB formed but has not served yet stays missing, and starting the window
-    after it is precisely how 31.08.2026 was lost. Ending yesterday rather than
-    at the missing period's end keeps one request answering for every missing
-    period at once.
+    When something IS missing the window spans the missing periods exactly:
+    from the oldest one's first day to the newest one's last. The oldest, not
+    the newest, because a period WB formed and has not served yet stays
+    missing, and starting the window after it is precisely how 31.08.2026 was
+    lost. One window covers all of them, so a seller short two periods still
+    costs one question.
+
+    It stops at the newest missing period's END rather than at yesterday, and
+    that is worth a request per seller per cycle. Yesterday reaches into the
+    period WB has not closed, which cannot have a report — harmless for the
+    probe, which is one request whatever its width, but the WALK is cut into
+    weekly windows and pays for every one. On 23.09.2026 the span 14.09..22.09
+    is two requests where 14.09..20.09 is one, and the second could only ever
+    be answered 204.
 
     Args:
         latest_settled: The settlement frontier: the last day that was both
@@ -153,15 +170,18 @@ def probe_window(
         The window to ask about and how overdue it is, or ``None`` when every
         period WB has formed is already held.
     """
-    missing = missing_periods(settled_through=latest_settled, held_ends=held_ends, today=today)
+    missing = missing_periods(
+        settled_through=latest_settled,
+        held_ends=held_ends,
+        today=today,
+        abandon_after_days=SETTLEMENT_PERIOD_ABANDON_DAYS,
+    )
     if not missing:
         return None
-    date_from = missing[0].date_from
-    date_to = today - timedelta(days=1)
-    if date_from > date_to:
-        return None
     return Outstanding(
-        date_from=date_from, date_to=date_to, overdue_days=(today - missing[0].created_on).days
+        date_from=missing[0].date_from,
+        date_to=missing[-1].date_to,
+        overdue_days=(today - missing[0].created_on).days,
     )
 
 
@@ -228,6 +248,33 @@ async def check_freshness(
         )
         return FreshnessVerdict(outcome=FreshnessOutcome.UP_TO_DATE, checked_at=datetime.now(UTC))
 
+    # Checked after the cheap skip and before everything else, including the
+    # cadence. After the skip, because a workspace with nothing outstanding is
+    # not blocked — it is simply done, and «ВБ ограничил доступ» on its P&L
+    # would be alarming about a limiter costing it nothing.
+    #
+    # Before the cadence, and that ordering is the honest one rather than the
+    # cheap one. Both checks are free, so the cost is identical either way;
+    # what differs is what the page says during a long block. Behind the
+    # cadence, a seller in the middle of a four-day block sees a verdict at
+    # four hours a day and silence in between — silence that ages into
+    # «неизвестно, когда мы спрашивали», which is what a DEAD harvester looks
+    # like. The block is the true and stable answer, and it should be the one
+    # on the page for every tick of it.
+    #
+    # The check itself is the whole correction of 2026-09-17: the probe used
+    # to go out into a standing block, be refused, and be read as «we learned
+    # nothing, harvest anyway», so one blocked endpoint drew two more requests
+    # per tick and each of them lengthened the block.
+    if blocked_for > 0:
+        logger.warning(
+            "finreports: WB has the settlement endpoint shut for %s for another %.0fs "
+            "— not probing and not harvesting; a request inside the block lengthens it.",
+            tokens.name,
+            blocked_for,
+        )
+        return FreshnessVerdict(outcome=FreshnessOutcome.RATE_BLOCKED, checked_at=datetime.now(UTC))
+
     # Paced, and this is where «a missing period stays missing» stops being
     # free. Keeping a period on the list until its report is held is what makes
     # a late report reachable at all — but WB has been eight days late once
@@ -249,21 +296,6 @@ async def check_freshness(
             hour_msk,
         )
         return None
-
-    # Checked AFTER the cheap skip and BEFORE anything is sent. After, because
-    # a workspace with nothing outstanding should not be reported as blocked —
-    # it is simply done. Before, because this is the whole correction: the
-    # probe used to go out into a standing block, be refused, and be read as
-    # «we learned nothing, harvest anyway», so one blocked endpoint drew two
-    # more requests per tick and each of them lengthened the block.
-    if blocked_for > 0:
-        logger.warning(
-            "finreports: WB has the settlement endpoint shut for %s for another %.0fs "
-            "— not probing and not harvesting; a request inside the block lengthens it.",
-            tokens.name,
-            blocked_for,
-        )
-        return FreshnessVerdict(outcome=FreshnessOutcome.RATE_BLOCKED, checked_at=datetime.now(UTC))
 
     date_from, date_to = window.date_from, window.date_to
     try:

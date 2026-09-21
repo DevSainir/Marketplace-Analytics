@@ -100,7 +100,7 @@ def periods_from(start: date, *, through: date) -> Iterator[Period]:
 
 
 def missing_periods(
-    *, settled_through: date, held_ends: Iterable[date], today: date
+    *, settled_through: date, held_ends: Iterable[date], today: date, abandon_after_days: int
 ) -> list[Period]:
     """Every period WB has formed that we do not hold a report for.
 
@@ -121,15 +121,28 @@ def missing_periods(
         held_ends: ``date_to`` of every report already held. Only membership is
             read, so any iterable of dates will do.
         today: Today in Moscow time.
+        abandon_after_days: Stop offering a period this many days after WB
+            stamped it. **Not optional, and not cosmetic.** Without a horizon a
+            period WB will never serve pins this list's first element for ever,
+            and the caller measures its walk span from there: six months stuck
+            is a 180-day span and twenty-six quarter-hourly requests, three
+            times a day, for one seller. See
+            :data:`~src.modules.finreports.constants.SETTLEMENT_PERIOD_ABANDON_DAYS`.
 
     Returns:
-        The missing periods, oldest first. Empty when the history is complete
-        up to the last period WB has formed — which is the state that lets a
-        tick skip without asking WB anything.
+        The missing periods, oldest first, excluding any WB has had long enough
+        to serve and has not. Empty when the history is complete up to the last
+        period WB has formed — which is the state that lets a tick skip without
+        asking WB anything.
     """
     held = set(held_ends)
     start = settled_through + timedelta(days=1)
-    return [p for p in periods_from(start, through=today) if p.date_to not in held]
+    give_up_before = today - timedelta(days=abandon_after_days)
+    return [
+        p
+        for p in periods_from(start, through=today)
+        if p.date_to not in held and p.created_on > give_up_before
+    ]
 
 
 #: Moscow hour before which a report formed today has never been seen.

@@ -161,6 +161,15 @@ def statistics_rate_gate(settings: Settings, *, token: str) -> RateGate:
     fifteen-minute penalty block rather than a Retry-After the ladder could
     honour — so the request must not be sent, not merely retried.
 
+    **The bucket is per token; a penalty block is not** (``shared_block``).
+    Five tokens have probed this surface within the same second, twenty-one
+    times a day, for months without being refused — so the ordinary budget is
+    very probably metered per token. But on 2026-09-17 five distinct
+    fingerprints ended up holding block expiries 0.77 s apart, which is one
+    refusal seen five times rather than five refusals. The fleet walk is
+    sequential, so per-token blocks turn that into a cascade: every seller in
+    turn earns its own escalating block from the same shut door.
+
     Args:
         settings: Bucket parameters and the Redis DSN.
         token: The workspace's statistics token — the bucket is per token, so
@@ -180,6 +189,7 @@ def statistics_rate_gate(settings: Settings, *, token: str) -> RateGate:
         refill_seconds=settings.wb_statistics_bucket_refill_seconds,
         max_wait_seconds=settings.wb_statistics_max_queue_seconds,
         endpoint_buckets=STATISTICS_ENDPOINT_BUCKETS,
+        shared_block=True,
     )
 
 
@@ -210,6 +220,7 @@ def settlement_walk_rate_gate(settings: Settings, *, token: str) -> RateGate:
         refill_seconds=settings.wb_statistics_bucket_refill_seconds,
         max_wait_seconds=settings.wb_statistics_walk_queue_seconds,
         endpoint_buckets=STATISTICS_ENDPOINT_BUCKETS,
+        shared_block=True,
     )
 
 

@@ -126,3 +126,32 @@ SETTLEMENT_GAP_DAYS: Final[Gauge] = Gauge(
     "Settlement days covered by no harvested report, summed over all workspaces.",
     multiprocess_mode="livemostrecent",
 )
+
+
+#: Bucket edges, in hours, for how far apart sellers receive the same report.
+#:
+#: Fine at the bottom because the interesting question is «is it zero», and
+#: coarse at the top because anything past a day is «staggered» whatever the
+#: exact figure.
+_SPREAD_BUCKETS: Final[tuple[float, ...]] = (0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 24.0, 48.0)
+
+#: Hours between the FIRST seller to receive a settlement period and this one.
+#:
+#: The measurement that decides whether shared discovery is worth building. On
+#: the report day every seller currently spends its own requests asking WB the
+#: same question — «are you serving today's report» — and one answer could
+#: serve the fleet. That is only true if WB publishes to everyone at once, and
+#: nothing we hold says whether it does.
+#:
+#: Read it as an UPPER BOUND on WB's own spread, never as a measurement of it:
+#: the figure includes our probe cadence, our rate budget and anything that
+#: delayed one seller's tick. So a distribution piled into the bottom bucket is
+#: conclusive — WB published simultaneously and we saw it — while a wide one is
+#: ambiguous and needs the logs, which name the seller, to interpret.
+#:
+#: Fleet-wide and unlabelled by tenant, like everything on `/metrics`.
+SETTLEMENT_PUBLICATION_SPREAD: Final[Histogram] = Histogram(
+    "settlement_publication_spread_hours",
+    "Hours between the first seller receiving a settlement period and this one.",
+    buckets=_SPREAD_BUCKETS,
+)
