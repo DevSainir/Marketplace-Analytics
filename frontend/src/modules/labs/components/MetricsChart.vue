@@ -17,6 +17,7 @@
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 
 import ChartMetricPicker from '@/modules/labs/components/ChartMetricPicker.vue'
+import { isOnMark } from '@/modules/labs/chartOptions'
 import {
   SKU_DEFAULT_METRICS,
   SKU_METRIC_GROUPS,
@@ -66,11 +67,11 @@ const chart = computed(() =>
  * Tell the chart apart from the day it sits in.
  *
  * A hover anywhere in a day's column answers with every metric — that is the
- * question «what happened on the 5th». A hover that lands ON a line or a bar is
- * a question about that metric, and ECharts already knows which one: `mouseover`
- * fires for the mark under the cursor. Re-showing the tooltip at the same pixel
- * is what makes the narrowed list appear on the frame the mark is entered,
- * rather than on the next mouse move.
+ * question «what happened on the 5th». A hover that lands ON a line, a dot or a
+ * bar is a question about that metric, and ECharts already knows which one:
+ * `mouseover` fires for the mark under the cursor. Re-showing the tooltip at
+ * the same pixel is what makes the narrowed list appear on the frame the mark
+ * is entered, rather than on the next mouse move.
  */
 function onPlotReady(instance) {
   /** Re-ask for the tooltip where the cursor already is, with `hover` updated. */
@@ -78,8 +79,34 @@ function onPlotReady(instance) {
     const { offsetX, offsetY } = params.event ?? {}
     if (offsetX != null) instance.dispatchAction({ type: 'showTip', x: offsetX, y: offsetY })
   }
+
+  /** Where this series' point for the hovered day actually sits, in pixels. */
+  const markY = (params) => {
+    if (params.value == null) return null
+    const at = instance.convertToPixel({ seriesIndex: params.seriesIndex }, [
+      params.dataIndex,
+      params.value,
+    ])
+    return at ? at[1] : null
+  }
+
+  const onTheMark = (params) =>
+    isOnMark({
+      subType: params.componentSubType,
+      cursorY: params.event?.offsetY,
+      markY: markY(params),
+    })
+
   instance.on('mouseover', (params) => {
     if (params.componentType !== 'series') return
+    if (!onTheMark(params)) {
+      // Inside the fill: the day's whole list is the honest answer, and
+      // leaving a stale focus behind would keep answering with one metric.
+      if (hover.index == null) return
+      hover.index = null
+      reshow(params)
+      return
+    }
     hover.index = params.seriesIndex
     reshow(params)
   })

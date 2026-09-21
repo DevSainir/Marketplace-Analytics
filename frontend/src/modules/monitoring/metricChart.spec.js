@@ -1,4 +1,4 @@
-import { METRIC_COLORS } from '@/modules/monitoring/chartOptions'
+import { METRIC_COLORS, isOnMark } from '@/modules/monitoring/chartOptions'
 import {
   AGGREGATE_METRIC_GROUPS,
   SKU_METRIC_GROUPS,
@@ -174,6 +174,35 @@ describe('buildMetricChart', () => {
     })
   })
 
+  describe('the ruler of заказов', () => {
+    it('draws заказы as the count they are, even in a mixed pick', () => {
+      // The left-hand scale is a scale of заказов: 120 заказов lands a little
+      // above the 120 line. Rebasing them too left the page with a ruler that
+      // had no relationship to anything drawn on it.
+      const chart = chartOf(
+        ['spend', 'orders'],
+        [row('spend', { total: [200, 400, 100] }), row('orders', { total: [10, 20, 15] })],
+      )
+
+      expect(seriesNamed(chart, 'Заказы, шт').data).toEqual([10, 20, 15])
+      expect(seriesNamed(chart, 'Затраты, ₽').data).toEqual([100, 200, 50])
+    })
+
+    it('covers «Заказы органика» by the same rule', () => {
+      // The same count of the same thing through one traffic bucket, so it is
+      // true on the same scale.
+      const chart = buildMetricChart(
+        matrixView([
+          row('orders', { total: [10, 20, 15], organic: [4, 8, 6] }),
+          row('spend', { total: [200, 400, 100] }),
+        ]),
+        { metrics: ['spend', 'orders_organic'], groups: AGGREGATE_METRIC_GROUPS },
+      )
+
+      expect(seriesNamed(chart, 'Заказы органика, шт').data).toEqual([4, 8, 6])
+    })
+  })
+
   describe('the value axis', () => {
     it('tops out at what was actually plotted, not above it', () => {
       // It used to round up to a «nice» ceiling: 430 became 450, and a fifth of
@@ -305,6 +334,27 @@ describe('buildMetricChart', () => {
     })
   })
 
+  describe('what counts as hovering a metric', () => {
+    it('is the dot and the line through it, not the fill under them', () => {
+      // The fill belongs to its series as far as ECharts is concerned, so a
+      // cursor anywhere in the band arrived as «наведён на Затраты» and
+      // answered with Затраты alone — over most of the plot.
+      expect(isOnMark({ cursorY: 100, markY: 104 })).toBe(true)
+      expect(isOnMark({ cursorY: 100, markY: 260 })).toBe(false)
+    })
+
+    it('counts a column whole — it has no fill to be confused with', () => {
+      expect(isOnMark({ subType: 'bar', cursorY: 300, markY: 40 })).toBe(true)
+    })
+
+    it('reads «cannot tell» as «not on it»', () => {
+      // ECharts reports an area hover with no value at all, so the unknown case
+      // IS the fill case, and the day's whole list answers both.
+      expect(isOnMark({ cursorY: 100, markY: null })).toBe(false)
+      expect(isOnMark({ cursorY: null, markY: 100 })).toBe(false)
+    })
+  })
+
   describe('the hover', () => {
     const hoverOf = (chart, points) => chart.option.tooltip.formatter(points)
 
@@ -378,22 +428,23 @@ describe('buildMetricChart', () => {
   })
 
   describe('marks', () => {
-    it('draws everything as a line — nothing is a column', () => {
-      // Columns were dropped at every window length: a year draws 365 of them
-      // at 1,5px each, and folding them into weeks puts a weekly quantity
-      // beside daily ones.
+    it('draws корзины, заказы and остатки as columns on a short window', () => {
+      // Three separate counts, so they are never stacked: a stack would draw a
+      // total in which a cart is a unit of stock.
       const chart = chartOf(['carts', 'orders', 'stock_quantity'])
 
-      expect(chart.option.series.every((entry) => entry.type === 'line')).toBe(true)
+      expect(chart.option.series.map((entry) => entry.type)).toEqual(['bar', 'bar', 'bar'])
+      expect(chart.option.series.every((entry) => !entry.stack)).toBe(true)
     })
 
-    it('fills the leading series and only the leading one', () => {
-      // The fill gives the plot a floor to read heights against; two
-      // translucent ones over each other become mud.
-      const chart = chartOf(['carts', 'orders'])
+    it('fills the first LINE, and only it', () => {
+      // A column has no area, so the fill goes to the first series that is not
+      // one. Two translucent fills over each other become mud.
+      const chart = chartOf(['spend', 'carts', 'ctr'])
 
       expect(chart.option.series[0].areaStyle).toBeTruthy()
-      expect(chart.option.series[1].areaStyle).toBeUndefined()
+      expect(chart.option.series[1].areaStyle).toBeUndefined() // корзины — столбец
+      expect(chart.option.series[2].areaStyle).toBeUndefined()
     })
 
     it('fills a mixed pick too, index or no index', () => {
@@ -480,13 +531,22 @@ describe('buildMetricChart', () => {
       expect(chart.option.xAxis.axisLabel.interval(8)).toBe(false)
     })
 
-    it('keeps a date on every day while a month still fits', () => {
+    it('asks for a date on every day while a month still fits', () => {
       // The weekly ruler is what a long window needs; imposing it on a
-      // fortnight would leave two labels under ten days of data.
+      // fortnight would leave two labels under ten days of data. `0` is «every
+      // category» — ECharts still drops the ones that physically overlap, but
+      // its own auto step is conservative enough to print a month on odd days.
       const short = over(28).option.xAxis
 
-      expect(short.axisLabel.interval).toBeUndefined()
-      expect(short.splitLine.interval).toBeUndefined()
+      expect(short.axisLabel.interval).toBe(0)
+      expect(short.splitLine.interval).toBe(0)
+    })
+
+    it('turns the columns into lines once a month is past', () => {
+      // A column needs room; 365 of them across a card is 1,5px each, which is
+      // a texture rather than a bar.
+      expect(over(31).option.series[0].type).toBe('bar')
+      expect(over(90).option.series[0].type).toBe('line')
     })
 
     it('keeps the whole window on one canvas, however long it is', () => {

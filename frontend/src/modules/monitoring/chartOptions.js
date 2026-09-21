@@ -98,32 +98,39 @@ export function shortDayLabel(iso) {
 }
 
 /**
- * One series' mark: a thin line, a dot per day, its own fixed hue.
+ * One series' mark: a column, or a thin line with a dot per day.
  *
- * **Everything is a line.** Columns were dropped at every window length — a
- * card that is a year wide draws 365 of them at 1,5px each, which is a texture
- * rather than a bar, and folding them into weeks (the other candidate) puts a
- * weekly quantity next to daily ones and invites the reader to compare them.
+ * **Columns only while they fit.** Корзины, заказы and остатки are columns up
+ * to {@link BARS_UP_TO_DAYS} and lines past it — a card a year wide would draw
+ * 365 of them at 1,5px each, which is a texture rather than a bar. Never
+ * stacked: a stack would draw a total in which a cart is a unit of stock.
  *
- * 1,6px and a 3,5px dot rather than 2px and 5px: at a year's density a 5px dot
- * is a bead necklace instead of a day.
+ * A line is 1,6px with a 3,5px dot rather than 2px and 5px: at a year's density
+ * a 5px dot is a bead necklace instead of a day.
  *
- * `leading` gets the area under it. It is what gives the plot a floor to read
- * heights against, and exactly one series ever has it — two translucent fills
- * over each other stop being a fill and become mud.
+ * `filled` gets the area under it — at most one series ever does, and it is the
+ * first LINE in the pick, since a column has no area to fill. It is what tells
+ * the eye where the bottom of the plot is; two translucent fills over each
+ * other stop being a fill and become mud.
  *
  * It is drawn whether or not the plot is an index. The area under an index is
  * not a quantity, and that was once reason enough to withhold it; what the
- * argument missed is that the fill is not a measurement in the first place. It
- * is the thing that tells the eye where the bottom of the plot is, and a plot
- * of five lines and no floor was the version nobody recognised.
+ * argument missed is that the fill is not a measurement in the first place.
  */
-function seriesMark(series, color, leading) {
+function seriesMark(series, color, filled) {
+  const shared = { name: series.name, data: series.data, color, z: 3 }
+  if (series.type === 'bar') {
+    return {
+      ...shared,
+      type: 'bar',
+      itemStyle: { borderRadius: [3, 3, 0, 0] },
+      // A share of the day's own slot, so the columns tighten with the window
+      // instead of touching their neighbours once a month is on screen.
+      barMaxWidth: '70%',
+    }
+  }
   return {
-    name: series.name,
-    data: series.data,
-    color,
-    z: 3,
+    ...shared,
     type: 'line',
     smooth: false,
     // Every day gets a dot: on a near-flat series they are what makes one day
@@ -133,7 +140,7 @@ function seriesMark(series, color, leading) {
     symbolSize: 3.5,
     emphasis: { scale: 2.4 },
     lineStyle: { width: 1.6 },
-    ...(leading ? { areaStyle: { color, opacity: AREA_OPACITY } } : {}),
+    ...(filled ? { areaStyle: { color, opacity: AREA_OPACITY } } : {}),
     // Without this a line only answers a hover on one of its DOTS — the path
     // between them is inert, and «hovering this line» is a 5px target twenty
     // times a window rather than the line the reader is pointing at.
@@ -158,20 +165,30 @@ const GRID_RULE = '#D9D9D9'
 /**
  * The date axis, in its two weights.
  *
- * Up to a month every day gets its own date, read straight: the date is what
- * every other number on the row is about, so it is sized for it rather than
- * being the smallest type on the canvas.
+ * Up to a month every day gets its own date, read straight. 11px is what fits
+ * 31 of them across a card now that the window is not scrolled: at 13px
+ * `hideOverlap` dropped every second one, and a month labelled on odd days is
+ * harder to read than a month labelled small.
  *
  * Past a month that cannot hold — 13px bold dates fit about once a fortnight,
  * so the plot read as a fortnightly scale while the uprights under it were
  * weekly. So a long window drops to a date per WEEK at 9px and 60°, which is
  * what makes all 52 of a year fit.
  */
-const DAILY_DATE = { color: INK_PRIMARY, fontSize: 13, fontWeight: 600 }
+const DAILY_DATE = { color: INK_PRIMARY, fontSize: 11, fontWeight: 600 }
 const WEEKLY_DATE = { color: '#8A8A8A', fontSize: 9, rotate: 60 }
 
-/** Above this many days the axis switches to the weekly ruler. */
-const WEEKLY_FROM_DAYS = 32
+/**
+ * Up to this many days a window is drawn in its SHORT form: a date and an
+ * upright per day, and the counts (корзины, заказы, остатки) as columns.
+ *
+ * A month is what a column needs to stay a column — 31 days across a card is
+ * ~35px of slot, and past that they thin to a texture. The date axis changes at
+ * the same point, because a 13px date fits about as far as a column does: a
+ * window is either short or long, not short for its marks and long for its
+ * ruler.
+ */
+export const BARS_UP_TO_DAYS = 32
 
 /** Opacity of the leading series' area fill. */
 const AREA_OPACITY = 0.22
@@ -316,11 +333,39 @@ function groupedTooltip(series, hover) {
 }
 
 /**
+ * How close to a mark the cursor has to be for the hover to be about it.
+ *
+ * The filled area belongs to its series as far as ECharts is concerned, so a
+ * cursor anywhere inside the band — most of the plot — arrived as «наведён на
+ * Затраты» and answered with Затраты alone. The fill is not a mark, it is the
+ * floor; a question about one metric is asked by pointing at the metric.
+ */
+const MARK_REACH_PX = 14
+
+/**
+ * Is the cursor ON a series' mark, or merely somewhere inside its fill?
+ *
+ * @param {{subType?: string, cursorY?: number|null, markY?: number|null}} where
+ *   `subType` is ECharts' `componentSubType`; `markY` is the pixel the series'
+ *   own point for that day sits at.
+ * @returns {boolean} A column is its whole height and has no fill to be
+ *   confused with, so it always counts. Otherwise the cursor has to be within
+ *   {@link MARK_REACH_PX} of the point. **Unknown counts as «no»**: ECharts
+ *   reports an area hover with no value at all, so «cannot tell» and «in the
+ *   fill» are the same case, and the day's full list answers both.
+ */
+export function isOnMark({ subType, cursorY, markY }) {
+  if (subType === 'bar') return true
+  if (cursorY == null || markY == null) return false
+  return Math.abs(cursorY - markY) <= MARK_REACH_PX
+}
+
+/**
  * Narrow a day's points to the one the cursor is actually on.
  *
  * A hover over the whole day is a question about the day and answers with
- * every metric. A hover that lands ON a line or a column is a question about
- * THAT metric, and answering it with five others is the reader doing the
+ * every metric. A hover that lands ON a dot, a line or a column (see
+ * {@link isOnMark}) is a question about THAT metric, and answering it with five others is the reader doing the
  * filtering the chart could have done. The exception is a crossing: when two
  * metrics plot at the same point there is no telling which one was aimed at,
  * so both are shown.
@@ -355,11 +400,19 @@ export function focusedPoints(points, hover) {
  *   data: Array<number|null>, raw?: Array<number|null>, color: string}>}} spec
  */
 export function buildChartOption({ days, axisMax = DEFAULT_AXIS_MAX, hover, series }) {
-  const weekly = days.length > WEEKLY_FROM_DAYS
+  const weekly = days.length > BARS_UP_TO_DAYS
+  const hasBar = series.some((entry) => entry.type === 'bar')
+  // The fill belongs to the first LINE, not the first series: with корзины
+  // ticked first the leading entry is a column, which has no area.
+  const fillIndex = series.findIndex((entry) => entry.type !== 'bar')
   const starts = weekStarts(days)
   // Every day up to a month, every week past it — for the dates AND for the
   // uprights, so a label always has an upright under it.
-  const tick = weekly ? (index) => starts.has(index) : undefined
+  // `0` is «every category», not «auto»: ECharts' own auto step is computed
+  // from the axis length and is conservative enough to print a month on odd
+  // days. `hideOverlap` below still thins them if the card is genuinely too
+  // narrow, which is the behaviour actually wanted.
+  const tick = weekly ? (index) => starts.has(index) : 0
 
   return {
     animationDuration: 300,
@@ -369,7 +422,7 @@ export function buildChartOption({ days, axisMax = DEFAULT_AXIS_MAX, hover, seri
     grid: { left: AXIS_GUTTER_PX, right: 12, top: PLOT_TOP, bottom: PLOT_BOTTOM },
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'line' },
+      axisPointer: { type: hasBar ? 'shadow' : 'line' },
       backgroundColor: '#FFFFFF',
       borderColor: LINE_SUBTLE,
       borderWidth: 1,
@@ -380,9 +433,9 @@ export function buildChartOption({ days, axisMax = DEFAULT_AXIS_MAX, hover, seri
     xAxis: {
       type: 'category',
       data: days.map(shortDayLabel),
-      // The first day sits ON the origin rather than half a category in, which
-      // is what the leading series' filled area needs to close against.
-      boundaryGap: false,
+      // Lines close their area against the origin; columns need the half-slot
+      // either side, or the first and last of them are cut in half by the grid.
+      boundaryGap: hasBar,
       axisLine: { lineStyle: { color: LINE_SUBTLE } },
       axisTick: { show: false },
       // A date per week, not per day: at a year's width a label per day is an
@@ -398,6 +451,6 @@ export function buildChartOption({ days, axisMax = DEFAULT_AXIS_MAX, hover, seri
       },
     },
     yAxis: valueAxis(axisMax),
-    series: series.map((entry, index) => seriesMark(entry, entry.color, !index)),
+    series: series.map((entry, index) => seriesMark(entry, entry.color, index === fillIndex)),
   }
 }

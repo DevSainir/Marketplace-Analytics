@@ -21,9 +21,32 @@
  * ordinary case — корзины against заказы, показы against клики. One axis is
  * already true for all of them, so the numbers on it are the numbers. See
  * `sharesOneUnit`.
+ *
+ * ЗАКАЗЫ are never rebased, even in a mixed pick, and that is what makes the
+ * left-hand scale readable at all: it is a scale of заказов, so 120 заказов
+ * lands a little above the 120 line. Every other series is a shape against a
+ * real quantity rather than against a ruler with no relationship to anything
+ * on the canvas.
  */
-import { buildChartOption, colorForMetric } from '@/modules/monitoring/chartOptions'
+import {
+  BARS_UP_TO_DAYS,
+  buildChartOption,
+  colorForMetric,
+} from '@/modules/monitoring/chartOptions'
 import { COLUMNS_PER_DAY, TRAFFIC_COLUMNS } from '@/modules/monitoring/metricsMatrix'
+
+/**
+ * The backend metric the left-hand ruler is a scale of.
+ *
+ * Matched on `metric` rather than on the catalogue key, so every entry reading
+ * that row is covered by one rule: «Заказы, шт» on both pages, and «Заказы
+ * органика, шт», which is the same count of the same thing through one traffic
+ * bucket. All three are true on a scale of заказов and are drawn unrebased.
+ *
+ * «Заказы, ₽» is NOT one of them — it reads `order_sum`, and roubles on a scale
+ * of заказов would be a number in the wrong units sitting on a real gridline.
+ */
+const RULER_METRIC = 'orders'
 
 /** Column index of each backend bucket within a day section of `row.cells`. */
 const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key, index]))
@@ -41,10 +64,14 @@ const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key,
  * «Реклама», «Воронка» and «Общие» are where a reader LOOKS for a metric. The
  * chart uses them too, but only to group the hover.
  *
- * Nothing is a column any more, at any window length: a card a year wide drew
- * 365 of them at 1,5px each, and folding them into weeks — the other candidate
- * — puts a weekly quantity beside daily ones and invites the reader to compare
- * them. Everything is a line with a point per day.
+ * `type: 'bar'` on остатки, корзины and заказы, and deliberately no `stack`:
+ * they stand side by side as separate columns per day. Stacked they would draw
+ * a total that means nothing — a cart is not a unit of stock.
+ *
+ * Those columns are drawn only while the window is short enough to hold them —
+ * see {@link BARS_UP_TO_DAYS}. Past that they become lines like everything
+ * else, because a card a year wide draws 365 columns at 1,5px each, which is a
+ * texture rather than a bar.
  */
 export const SKU_METRIC_GROUPS = [
   {
@@ -81,6 +108,7 @@ export const SKU_METRIC_GROUPS = [
         bucket: 'total',
         name: 'Корзины, шт',
         unit: 'number',
+        type: 'bar',
       },
       {
         key: 'cart_conversion',
@@ -95,6 +123,7 @@ export const SKU_METRIC_GROUPS = [
         bucket: 'total',
         name: 'Заказы, шт',
         unit: 'number',
+        type: 'bar',
       },
       {
         key: 'order_conversion',
@@ -138,6 +167,7 @@ export const SKU_METRIC_GROUPS = [
         source: 'stockRows',
         name: 'Остатки на складах, шт',
         unit: 'number',
+        type: 'bar',
       },
     ],
   },
@@ -192,6 +222,7 @@ export const AGGREGATE_METRIC_GROUPS = [
         bucket: 'total',
         name: 'Корзины, шт',
         unit: 'number',
+        type: 'bar',
       },
       {
         key: 'cart_conversion',
@@ -206,6 +237,7 @@ export const AGGREGATE_METRIC_GROUPS = [
         bucket: 'total',
         name: 'Заказы, шт',
         unit: 'number',
+        type: 'bar',
       },
       {
         key: 'order_conversion',
@@ -239,6 +271,7 @@ export const AGGREGATE_METRIC_GROUPS = [
         source: 'stockTotalRows',
         name: 'Остатки, шт',
         unit: 'number',
+        type: 'bar',
       },
     ],
   },
@@ -328,9 +361,9 @@ function sharesOneUnit(series) {
  *
  * @param {object} view A display matrix (`matrixView` shape).
  * @param {{metrics?: string[], groups?: Array<object>}} [options]
- * @returns {Array<{key: string, name: string, unit: string, group: string,
- *   color: string, values: Array<number|null>}>} In catalogue order, whatever
- *   order they were ticked in.
+ * @returns {Array<{key: string, name: string, type: string, unit: string,
+ *   group: string, color: string, values: Array<number|null>, isRuler: boolean}>}
+ *   In catalogue order, whatever order they were ticked in.
  */
 function metricSeriesSpecs(view, { metrics = [], groups = [] } = {}) {
   const catalogue = metricsByKey(groups)
@@ -344,10 +377,13 @@ function metricSeriesSpecs(view, { metrics = [], groups = [] } = {}) {
       return {
         key,
         name: entry.name,
+        type: entry.type ?? 'line',
         unit: entry.unit ?? 'number',
         group: entry.group,
         color: colorForMetric(key),
         values: readSeries(view, entry),
+        // Заказы are what the scale measures, so they are drawn as they are.
+        isRuler: entry.metric === RULER_METRIC,
       }
     })
 }
@@ -368,13 +404,16 @@ export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}
 
   const specs = metricSeriesSpecs(view, { metrics, groups })
   const rebase = !sharesOneUnit(specs)
+  // Columns need room. Past a month there is none, and they become lines.
+  const columns = days.length <= BARS_UP_TO_DAYS
 
   const series = specs.map((spec) => ({
     name: spec.name,
+    type: columns ? spec.type : 'line',
     unit: spec.unit,
     group: spec.group,
     color: spec.color,
-    ...(rebase ? indexed(spec.values) : { data: spec.values }),
+    ...(rebase && !spec.isRuler ? indexed(spec.values) : { data: spec.values }),
   }))
 
   // The scale stops at what was actually plotted — see `ruleStep` for why it is
