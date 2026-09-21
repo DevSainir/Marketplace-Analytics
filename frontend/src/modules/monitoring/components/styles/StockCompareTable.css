@@ -34,30 +34,22 @@
    derives from these, so the grid can be re-tuned in one place.
    `--col-size-w` fits a full composite WB size («42/170-177», the widest
    shape in practice — plain «XL» sellers just leave slack); `--col-total-w`
-   fits its own «Всего» header, which outruns the 4-digit totals below it;
-   `--col-wh-min-w` is the narrowest a warehouse column may be squeezed to
-   before the grid gives up and scrolls instead. */
+   fits its own «Всего» header, which outruns the 4-digit totals below it. */
 .app-datatable {
   --col-size-w: 4.25rem;
   --col-total-w: 3rem;
-  --col-wh-min-w: 2.9rem;
 }
 
-/* BOTH days on screen, always — the point of the panel.
-   Fixed layout spreads each day group over half the width left by the frozen
-   size column, so the warehouse columns stretch to fill it. The `max()` is the
-   floor: once a day holds more warehouses than half a screen can carry at
-   `--col-wh-min-w` each, the table grows past the container and the ribbon
-   scrolls rather than squeezing the numbers into each other. */
+/* EXACTLY two day groups in the viewport, never a sliver of a third — the
+   daily matrix's own rule (`.app-datatable--matrix table` in main.css), with
+   the frozen size column standing in for its metric column. Fixed layout
+   spreads each day's colspan evenly, and the width is sized so ONE day group
+   is half of what the size column leaves. With the two days this panel shows
+   that comes out at exactly the container's width: full-bleed, both days read
+   at once, and the ribbon scrolls only if a third day is ever added. */
 table {
   table-layout: fixed;
-  width: max(
-    100%,
-    calc(
-      var(--col-size-w) + (var(--col-total-w) + var(--col-wh-min-w) * var(--day-warehouses, 1)) *
-        var(--days, 2)
-    )
-  );
+  width: calc((100% - var(--col-size-w)) / 2 * var(--days, 2) + var(--col-size-w));
   /* Collapsed borders detach from sticky cells while scrolling — the frozen
      column's right border would stay behind. Separate borders travel WITH the
      cell (same fix as the matrix table). */

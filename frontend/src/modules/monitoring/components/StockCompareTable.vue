@@ -13,11 +13,10 @@ import { formatNumber } from '@/core/utils/format'
  * It used to be two tables side by side, one per day, each with its own size
  * column — which meant two scroll containers, two row sets kept in sync by
  * hand, and the size labels printed twice. This is a single table built like
- * the daily metrics matrix: the size column is frozen on the left, every day is
- * a column GROUP («Всего» + that day's warehouses), and the groups are sized so
- * both days sit on screen at once. Only when a day holds more warehouses than
- * half the width can carry does the grid overflow, and then it scrolls
- * horizontally — the size column staying put.
+ * the daily metrics matrix, down to its width rule: the size column is frozen
+ * on the left, every day is a column GROUP («Всего» + that day's warehouses),
+ * and one group is half of what the size column leaves — so the grid fills its
+ * container and both days are read at once, whatever a day's warehouse count.
  *
  * Both days render the SAME warehouse columns (the union, fullest first across
  * the pair) and the same size rows, so a row reads straight across: the same
@@ -81,10 +80,7 @@ const hasStock = computed(() => warehouses.value.length > 0)
 </script>
 
 <template>
-  <div
-    class="app-datatable"
-    :style="{ '--day-warehouses': warehouses.length, '--days': days.length }"
-  >
+  <div class="app-datatable" :style="{ '--days': days.length }">
     <div v-if="!hasStock" class="px-md py-xl text-center text-base text-muted">
       {{ emptyMessage }}
     </div>
