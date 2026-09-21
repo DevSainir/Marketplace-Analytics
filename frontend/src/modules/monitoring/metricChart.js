@@ -17,10 +17,11 @@
  * the plot. What a reader compares there is SHAPE; the real values are a hover
  * away, and the table above holds every one of them.
  *
- * A pick whose metrics all share a unit is drawn AS IT IS, and that is the
- * ordinary case — корзины against заказы, показы against клики. One axis is
- * already true for all of them, so the numbers on it are the numbers. See
- * `sharesOneUnit`.
+ * Most picks are drawn AS THEY ARE, on one or two rulers split by MAGNITUDE —
+ * see `rulerPlan`. Small amplitudes down the left edge, large ones down the
+ * right, and every number on the plot is then the number. Only a pick spanning
+ * three separate magnitudes has nowhere to hang its third scale, and only that
+ * one falls back to the index.
  *
  * ЗАКАЗЫ are never rebased, even in a mixed pick, and that is what makes the
  * left-hand scale readable at all: it is a scale of заказов, so 120 заказов
@@ -337,22 +338,49 @@ function maxOf(values) {
 }
 
 /**
- * Do all the picked metrics measure the same kind of thing?
+ * How far apart two series' magnitudes may be before they need separate rulers.
  *
- * The index exists because «Заказы, ₽» at 500 000 beside «Затраты, ₽» at 7 000
- * share a unit, therefore an axis, and the smaller of the two is a flat line
- * along the bottom. That covers a MIXED pick and nothing else. Корзины against
- * заказы are both штуки — the axis is already true for both, and rebasing them
- * costs the thing an axis is for, numbers that are the numbers, while buying
- * nothing. It also stopped two series being drawn on different footings, an
- * index against a raw count, which put one line at exactly 100 on the left edge
- * of the plot with nothing to say it was not a measurement.
- *
- * @param {Array<{unit: string}>} series The picked metrics.
- * @returns {boolean} True when one axis is honest for all of them as they are.
+ * Twelvefold. Below that the smaller one still has a readable amplitude on the
+ * larger one's scale; above it, it is a flat line along the bottom — which is
+ * the failure the index was invented for, and which a second ruler answers
+ * without giving up the real numbers.
  */
-function sharesOneUnit(series) {
-  return new Set(series.map((entry) => entry.unit)).size <= 1
+const SPLIT_RATIO = 12
+
+/**
+ * Which ruler each series is read against, decided by MAGNITUDE.
+ *
+ * Not by unit. «Показы» at 16 000 and «Корзины» at 120 are both штуки, and one
+ * scale for them draws корзины as a line along the axis; «Затраты, ₽» at 3 000
+ * and «Показы» at 16 000 are different units and share a scale perfectly well.
+ * What a ruler measures is an amplitude, and the hover holds the units — the
+ * axis has never carried one.
+ *
+ * The pick is sorted by its own maxima and cut wherever consecutive ones are
+ * more than {@link SPLIT_RATIO} apart. One cut is two rulers, left for the
+ * smaller amplitudes and right for the larger, exactly as many as a plot has
+ * edges. Two cuts or more is a third scale with nowhere to go, and only then
+ * does the whole pick fall back to the index.
+ *
+ * @param {Array<{values: Array<number|null>}>} specs The picked metrics.
+ * @returns {{axisOf: (spec: object) => number, rebase: boolean}}
+ */
+function rulerPlan(specs) {
+  const tops = new Map(specs.map((spec) => [spec, maxOf(spec.values) ?? 0]))
+  const ranked = specs
+    .filter((spec) => tops.get(spec) > 0)
+    .sort((a, b) => tops.get(a) - tops.get(b))
+
+  const cuts = ranked.filter(
+    (spec, index) => index > 0 && tops.get(spec) / tops.get(ranked[index - 1]) > SPLIT_RATIO,
+  )
+  if (cuts.length > 1) return { axisOf: () => 0, rebase: true }
+
+  const [cut] = cuts
+  // A series with nothing in the window has no magnitude to place, and the
+  // left-hand ruler is the one that carries the grid.
+  const upper = cut ? new Set(ranked.slice(ranked.indexOf(cut))) : new Set()
+  return { axisOf: (spec) => (upper.has(spec) ? 1 : 0), rebase: false }
 }
 
 /**
@@ -403,7 +431,7 @@ export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}
   const days = view.days.map((day) => day.iso)
 
   const specs = metricSeriesSpecs(view, { metrics, groups })
-  const rebase = !sharesOneUnit(specs)
+  const { axisOf, rebase } = rulerPlan(specs)
   // Columns need room. Past a month there is none, and they become lines.
   const columns = days.length <= BARS_UP_TO_DAYS
 
@@ -413,21 +441,33 @@ export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}
     unit: spec.unit,
     group: spec.group,
     color: spec.color,
+    axisIndex: axisOf(spec),
     ...(rebase && !spec.isRuler ? indexed(spec.values) : { data: spec.values }),
   }))
-
-  // The scale stops at what was actually plotted — see `ruleStep` for why it is
-  // not rounded up past it.
-  const top = maxOf(series.flatMap((entry) => entry.data))
 
   return {
     legend: series.map((entry) => ({ name: entry.name, color: entry.color })),
     empty: !series.length || series.every((entry) => entry.data.every((value) => value == null)),
-    option: buildChartOption({
-      days,
-      axisMax: top ? Math.ceil(top) : undefined,
-      hover,
-      series,
-    }),
+    option: buildChartOption({ days, rulers: rulersFor(series, rebase), hover, series }),
   }
+}
+
+/**
+ * One ruler per axis the series were assigned to, topped out at its own data.
+ *
+ * The scale stops at what was actually plotted rather than a round number above
+ * it — see `ruleStep`. Its colour is its first series', which is the only thing
+ * on the canvas that says which lines a right-hand scale belongs to.
+ *
+ * @param {Array<{axisIndex: number, color: string, data: Array<number|null>}>} series
+ * @param {boolean} rebase True when everything shares one scale of indices.
+ * @returns {Array<{max: number|undefined, color: string}>} Left ruler first.
+ */
+function rulersFor(series, rebase) {
+  const count = rebase ? 1 : Math.max(1, new Set(series.map((entry) => entry.axisIndex)).size)
+  return Array.from({ length: count }, (_, axis) => {
+    const mine = series.filter((entry) => entry.axisIndex === axis)
+    const top = maxOf(mine.flatMap((entry) => entry.data))
+    return { max: top ? Math.ceil(top) : undefined, color: mine[0]?.color }
+  })
 }

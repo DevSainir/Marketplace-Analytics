@@ -153,12 +153,17 @@ describe('MetricsChart', () => {
     expect(plotted.series[0].data).toEqual([200, 400])
   })
 
-  it('plots a mixed pick as an index', () => {
-    // Roubles beside a count: one axis cannot be true for both, so both become
-    // shapes and the hover keeps the quantities.
+  it('plots a pick of three magnitudes as an index', () => {
+    // ~8 000, ~400 and ~20 at once is one scale more than a plot has edges, so
+    // every series becomes a shape and the hover keeps the quantities. Two
+    // magnitudes get a ruler each and stay real.
     const wrapper = mountChart({
-      view: matrixView([row('spend', { total: [200, 400] }), row('orders', { total: [1, 1] })]),
-      defaultMetrics: ['spend', 'orders'],
+      view: matrixView([
+        row('spend', { total: [4000, 8000] }),
+        row('cpm', { total: [200, 400] }),
+        row('orders', { total: [10, 20] }),
+      ]),
+      defaultMetrics: ['spend', 'cpm', 'orders'],
     })
 
     const plotted = wrapper.findComponent({ name: 'BaseChart' }).props('option')
