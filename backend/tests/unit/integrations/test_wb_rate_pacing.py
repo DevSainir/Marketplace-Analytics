@@ -17,6 +17,7 @@ own header is the feedback that keeps it honest.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import httpx
@@ -27,6 +28,8 @@ from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.base import BaseWBClient
 from src.integrations.wildberries.rate_limit import (
     ADVERTISING_ENDPOINT_BUCKETS,
+    ANALYTICS_ENDPOINT_BUCKETS,
+    STATISTICS_ENDPOINT_BUCKETS,
     NullRateGate,
     TokenBucketRateGate,
     analytics_rate_gate,
@@ -422,3 +425,47 @@ async def test_an_unlisted_advertising_endpoint_keeps_the_conservative_default(
     await gate.acquire("/adv/v1/budget")
 
     assert slept == [pytest.approx(20.0)]
+
+
+# --------------------------------------------------------------------------- #
+# The measured table, pinned so a comment cannot drift from the code
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(
+    ("surface_buckets", "endpoint", "burst", "refill"),
+    [
+        # Measured on «Демо» 2026-09-21 by bursting each endpoint and
+        # reading WB's own `x-ratelimit-limit` / `reset` / `retry`.
+        (STATISTICS_ENDPOINT_BUCKETS, "/api/v1/supplier/orders", 10, 60.0),
+        (ANALYTICS_ENDPOINT_BUCKETS, "/api/analytics/v1/stocks-report/wb-warehouses", 1, 20.0),
+        (ADVERTISING_ENDPOINT_BUCKETS, "/adv/v1/promotion/count", 5, 0.2),
+    ],
+)
+def test_every_measured_endpoint_is_paced_at_the_rate_wb_published(
+    surface_buckets: Mapping[str, tuple[int, float]],
+    endpoint: str,
+    burst: int,
+    refill: float,
+) -> None:
+    """The table is evidence, so it belongs where it cannot rot unnoticed.
+
+    Every one of these was wrong in the same way before 2026-09-21: the
+    surface's single default stood in for endpoints WB meters separately, and
+    reason it went unnoticed for so long is that an analytics overrun does not
+    answer 429 — it answers HTTP 500, or holds the socket open until our own
+    timeout, which reads like a WB outage rather than like our mistake.
+    """
+    assert surface_buckets[endpoint] == (burst, refill)
+
+
+def test_the_orders_burst_is_not_mistaken_for_a_rate_again() -> None:
+    """`x-ratelimit-limit: 10` is a BURST, and the refill is a minute.
+
+    Read as «ten a minute» on 2026-09-12, which put the walk at three times
+    WB's rate for nine days. Only the 429 carries the second number —
+    `reset: 599, retry: 59` — and nothing in a 200 response distinguishes a
+    ten-deep bucket refilling every minute from one refilling every six
+    seconds.
+    """
+    burst, refill = STATISTICS_ENDPOINT_BUCKETS["/api/v1/supplier/orders"]
+
+    assert burst / refill == pytest.approx(1 / 6.0), "ten tokens over ten minutes"

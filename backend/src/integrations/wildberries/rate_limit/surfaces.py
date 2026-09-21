@@ -41,6 +41,36 @@ ADVERTISING_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 }
 
 
+#: Analytics endpoints WB meters differently from ``sales-funnel``, which the
+#: surface default is sized from.
+#:
+#: **The surface default was the only number here until 2026-09-21, and it was
+#: wrong for four of the five endpoints we call.** Measured that day by
+#: bursting each one on «Демо» and reading WB's own headers:
+#:
+#: ===================================== ======= ======= =======
+#: endpoint                              burst   reset   retry
+#: ===================================== ======= ======= =======
+#: sales-funnel/products/history             3      60      20
+#: stocks-report/wb-warehouses               1      20      20
+#: ===================================== ======= ======= =======
+#:
+#: Only the first matches the default of three tokens refilling every twenty
+#: times** WB's rate, and on this surface an overrun does not come back as a
+#: clean 429 — it comes back as HTTP 500 or a socket held open until the
+#: client's own timeout, which reads like a WB outage rather than like our
+#: mistake.
+#:
+#: are deliberately absent and keep the default: unmeasured means paced
+#: conservatively, which is the safe direction.
+ANALYTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
+    "/api/analytics/v1/stocks-report/wb-warehouses": (1, 20.0),
+    # Burst five, then one a minute — WB's `reset: 300` over a burst of 5.
+    # The harvest asks for one report per workspace per run, so the burst is
+    # never spent; what matters is that a retry cannot fire inside the minute.
+}
+
+
 #: Statistics endpoints WB meters far more generously than
 #: ``/api/v5/supplier/reportDetailByPeriod``, whose ONE request per ~15 minutes
 #: the surface default is sized from.
@@ -55,6 +85,11 @@ ADVERTISING_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 #:
 #: The settlement walk is untouched by this — the bucket is keyed per endpoint,
 #: so a path that is not listed here keeps the strict default it has always had.
+#: That correction is also why the rest of this note reads oddly: it argued
+#: from «ten a minute» and reached the right shape for the wrong reason. One
+#: token per 20 s was chosen as «comfortably inside WB's limit» and was in fact
+#: three times outside it.
+#:
 #: ``supplier/sales`` is listed for the opposite reason to ``supplier/orders``:
 #: not to speed it up, but because it was PACED BY NOTHING AT ALL until
 #: 2026-09-15 (``WBStatisticsClient`` passed no gate), and the surface default it
@@ -66,7 +101,13 @@ ADVERTISING_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 #: person leaning on «Обновить» — every press fires this account-wide feed, and
 #: it is the harshest limiter WB exposes (a 39-second 429 backoff, measured).
 STATISTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
-    "/api/v1/supplier/orders": (1, 20.0),
+    # Ten tokens, one back every minute. NOT ten a minute, which is how
+    # `x-ratelimit-limit: 10` was read on 2026-09-12 and what this entry said
+    # until 2026-09-21: burst and rate are different numbers, and only the
+    # 429 carries the second one. Measured on «Демо» that day —
+    # `limit: 10, reset: 599, retry: 59` — so the refill is one per minute and
+    # the old pacing of one per twenty seconds was three times WB's rate.
+    "/api/v1/supplier/orders": (10, 60.0),
     "/api/v1/supplier/sales": (1, 60.0),
 }
 
@@ -123,6 +164,7 @@ def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
         capacity=settings.wb_analytics_bucket_capacity,
         refill_seconds=settings.wb_analytics_bucket_refill_seconds,
         max_wait_seconds=settings.wb_analytics_max_queue_seconds,
+        endpoint_buckets=ANALYTICS_ENDPOINT_BUCKETS,
     )
 
 
