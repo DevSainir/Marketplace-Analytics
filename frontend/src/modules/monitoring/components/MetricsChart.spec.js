@@ -153,17 +153,12 @@ describe('MetricsChart', () => {
     expect(plotted.series[0].data).toEqual([200, 400])
   })
 
-  it('plots a pick of three magnitudes as an index', () => {
-    // ~8 000, ~400 and ~20 at once is one scale more than a plot has edges, so
-    // every series becomes a shape and the hover keeps the quantities. Two
-    // magnitudes get a ruler each and stay real.
+  it('plots what has no ruler as an index', () => {
+    // Штуки and рубли each have a fixed scale; a percent has neither, so it is
+    // drawn as a shape and the hover keeps the quantity.
     const wrapper = mountChart({
-      view: matrixView([
-        row('spend', { total: [4000, 8000] }),
-        row('cpm', { total: [200, 400] }),
-        row('orders', { total: [10, 20] }),
-      ]),
-      defaultMetrics: ['spend', 'cpm', 'orders'],
+      view: matrixView([row('ctr', { total: [2, 4] })]),
+      defaultMetrics: ['ctr'],
     })
 
     const plotted = wrapper.findComponent({ name: 'BaseChart' }).props('option')
@@ -177,10 +172,10 @@ describe('MetricsChart', () => {
 
     const charts = wrapper.findAllComponents({ name: 'BaseChart' })
     expect(charts).toHaveLength(1)
-    // And it shows its own numbers: the muted copy existed only to stop them
-    // scrolling away from the pinned one.
+    // And the two unit scales show their own numbers: the muted copy existed
+    // only to stop them scrolling away from the pinned one.
     const axes = [charts[0].props('option').yAxis].flat()
-    expect(axes.every((axis) => axis.axisLabel.show !== false)).toBe(true)
+    expect(axes.slice(0, 2).every((axis) => axis.axisLabel.show !== false)).toBe(true)
   })
 
   it('offers the catalogue it was handed, not the per-SKU one', async () => {

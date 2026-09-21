@@ -99,130 +99,90 @@ describe('buildMetricChart', () => {
     })
   })
 
-  describe('three magnitudes is an index', () => {
-    /**
-     * Три порядка сразу: ~4 000, ~400 and ~20. Two of them can have a ruler
-     * each; the third has no edge left, and only then is everything a shape.
-     */
-    const three = (extra = []) =>
-      chartOf(
-        ['spend', 'cpm', 'orders'],
-        [
-          row('spend', { total: [4000, 8000, 2000] }),
-          row('cpm', { total: [200, 400, 100] }),
-          row('orders', { total: [10, 20, 15] }),
-          ...extra,
-        ],
-      )
+  describe('the rulers are fixed', () => {
+    const counts = row('orders', { total: [10, 20, 15] })
+    const money = row('spend', { total: [200, 400, 100] })
 
-    it('rebases each series to 100 at its first reported day', () => {
-      expect(seriesNamed(three(), 'Затраты, ₽').data).toEqual([100, 200, 50])
-      expect(seriesNamed(three(), 'CPM, ₽').data).toEqual([100, 200, 50])
+    it('reads штуки down the left edge and рубли down the right', () => {
+      const chart = chartOf(['spend', 'orders'], [money, counts])
+      const axes = [chart.option.yAxis].flat()
+
+      expect(axes[0].position).toBe('left')
+      expect(axes[1].position).toBe('right')
+      // Both drawn as they are: neither scale is an index.
+      expect(seriesNamed(chart, 'Заказы, шт').data).toEqual([10, 20, 15])
+      expect(seriesNamed(chart, 'Затраты, ₽').data).toEqual([200, 400, 100])
+    })
+
+    it('keeps BOTH scales even when only one of them has anything on it', () => {
+      // The point of a fixed scale. A ruler that appears and disappears with
+      // the selection is what made «Заказы» a readable column one moment and a
+      // smear along the axis the next.
+      const chart = chartOf(['cpc'], [row('cpc', { total: [10, 12, 11] })])
+      const axes = [chart.option.yAxis].flat()
+
+      expect(axes[0].position).toBe('left')
+      expect(axes[1].position).toBe('right')
+      expect(axes[0].max).toBe(500) // ничего в штуках — шкала на месте
+      expect(axes[1].max).toBe(12)
+    })
+
+    it('does not let one unit move the other one scale', () => {
+      // Ticking «Клики» must not rescale «Заказы» — both are штуки, but the
+      // money ruler cannot move at all, and that is the half that used to.
+      const alone = chartOf(['spend'], [money])
+      const withCounts = chartOf(['spend', 'orders'], [money, counts])
+
+      expect([alone.option.yAxis].flat()[1].max).toBe([withCounts.option.yAxis].flat()[1].max)
+    })
+
+    it('sends every series to the ruler for its unit', () => {
+      const chart = chartOf(['spend', 'views', 'ctr'])
+
+      // Затраты → рубли, показы → штуки, CTR → the index scale.
+      expect(chart.option.series.map((entry) => entry.yAxisIndex)).toEqual([1, 0, 2])
+    })
+  })
+
+  describe('what has no ruler is an index', () => {
+    const counts = row('orders', { total: [10, 20, 15] })
+
+    it('rebases a percent to 100 at its first reported day', () => {
+      const chart = chartOf(['ctr', 'orders'], [row('ctr', { total: [2, 4, 1] }), counts])
+
+      expect(seriesNamed(chart, 'CTR, %').data).toEqual([100, 200, 50])
+      expect(seriesNamed(chart, 'Заказы, шт').data).toEqual([10, 20, 15])
     })
 
     it('takes the baseline from the first day that reported, not from day one', () => {
       // A window often opens on blank days; rebasing against nothing would drop
       // the series entirely.
-      const chart = chartOf(
-        ['spend', 'cpm', 'orders'],
-        [
-          row('spend', { total: [null, 4000, 8000] }),
-          row('cpm', { total: [200, 400, 100] }),
-          row('orders', { total: [10, 20, 15] }),
-        ],
-      )
+      const chart = chartOf(['ctr'], [row('ctr', { total: [null, 2, 4] })])
 
-      expect(seriesNamed(chart, 'Затраты, ₽').data).toEqual([null, 100, 200])
+      expect(seriesNamed(chart, 'CTR, %').data).toEqual([null, 100, 200])
     })
 
     it('leaves an all-blank series alone rather than dividing by nothing', () => {
-      const chart = chartOf(
-        ['spend', 'cpm', 'orders'],
-        [
-          row('spend', { total: [null, null, null] }),
-          row('cpm', { total: [200, 400, 100] }),
-          row('orders', { total: [10, 20, 15] }),
-        ],
-      )
+      const chart = chartOf(['ctr'], [row('ctr', { total: [null, null, null] })])
 
-      expect(seriesNamed(chart, 'Затраты, ₽').data).toEqual([null, null, null])
+      expect(seriesNamed(chart, 'CTR, %').data).toEqual([null, null, null])
     })
 
-    it('draws заказы unrebased even there, so the left ruler measures something', () => {
-      // 20 заказов sits on the 20 line. Indexed, it would sit at 100 and the
-      // numbers down the left would mean nothing at all.
-      expect(seriesNamed(three(), 'Заказы, шт').data).toEqual([10, 20, 15])
-    })
-
-    it('puts every metric on the one axis there is', () => {
-      const chart = three()
-
-      expect([chart.option.yAxis].flat()).toHaveLength(1)
-      expect(chart.option.series.every((entry) => entry.yAxisIndex === 0)).toBe(true)
-    })
-  })
-
-  describe('a ruler per magnitude', () => {
-    /** Two orders apart: ~400 and ~20, which is past `SPLIT_RATIO`. */
-    const twoScales = () =>
-      chartOf(
-        ['spend', 'orders'],
-        [row('spend', { total: [200, 400, 100] }), row('orders', { total: [10, 20, 15] })],
-      )
-
-    it('gives each magnitude its own edge and keeps the numbers real', () => {
-      // One scale cannot be true for «Затраты» at 400 and «Заказы» at 20 at
-      // once — the smaller is a line along the axis. Two can, and then every
-      // number on the plot is the number.
-      const chart = twoScales()
+    it('draws its scale nowhere — an index has no unit to report', () => {
+      const chart = chartOf(['ctr', 'orders'], [row('ctr', { total: [2, 4, 1] }), counts])
       const axes = [chart.option.yAxis].flat()
 
-      expect(axes).toHaveLength(2)
-      expect(axes.map((axis) => axis.position)).toEqual(['left', 'right'])
-      expect(seriesNamed(chart, 'Затраты, ₽').data).toEqual([200, 400, 100])
-      expect(seriesNamed(chart, 'Заказы, шт').data).toEqual([10, 20, 15])
+      expect(axes).toHaveLength(3)
+      expect(axes[2].axisLabel.show).toBe(false)
+      expect(axes[2].splitLine.show).toBe(false)
     })
 
-    it('puts the small amplitudes on the left, the large ones on the right', () => {
-      const chart = twoScales()
-      const axes = [chart.option.yAxis].flat()
+    it('keeps the index off the scales that have units', () => {
+      // The whole reason it has its own axis: an index of 100 landing on «100
+      // штук» would be a number in the wrong units on a real gridline.
+      const chart = chartOf(['ctr', 'orders'], [row('ctr', { total: [2, 4, 1] }), counts])
 
-      expect(axes[0].max).toBe(20) // заказы
-      expect(axes[1].max).toBe(400) // затраты
-    })
-
-    it('splits by magnitude, NOT by unit', () => {
-      // «Показы» and «Корзины» are both штуки and two orders apart; «Затраты»
-      // is roubles and sits with показы perfectly well. A unit is not an
-      // amplitude, and it is amplitude a ruler measures.
-      const chart = chartOf(
-        ['spend', 'views', 'carts'],
-        [
-          row('spend', { total: [2000, 3000, 2500] }),
-          row('views', { total: [14000, 16000, 15000] }),
-          row('carts', { total: [100, 120, 110] }),
-        ],
-      )
-
-      // Корзины alone on the small ruler; затраты and показы share the large.
-      expect(chart.option.series.map((entry) => entry.yAxisIndex)).toEqual([1, 1, 0])
-    })
-
-    it('keeps one pick of one magnitude on one ruler', () => {
-      const chart = chartOf(
-        ['carts', 'orders'],
-        [row('carts', { total: [40, 60, 50] }), row('orders', { total: [10, 20, 15] })],
-      )
-
-      expect([chart.option.yAxis].flat()).toHaveLength(1)
-      expect(seriesNamed(chart, 'Корзины, шт').data).toEqual([40, 60, 50])
-    })
-
-    it('draws the rules from ONE axis, so the grid lines up with something', () => {
-      const axes = [twoScales().option.yAxis].flat()
-
-      expect(axes[0].splitLine.show).not.toBe(false)
-      expect(axes[1].splitLine.show).toBe(false)
+      expect([chart.option.yAxis].flat()[0].max).toBe(20) // заказы, не индекс
     })
   })
 
@@ -249,7 +209,7 @@ describe('buildMetricChart', () => {
       // the canvas was empty air above the data.
       const chart = chartOf(['spend'], [row('spend', { total: [400, 430, 420] })])
 
-      expect(axisOf(chart).max).toBe(430)
+      expect([chart.option.yAxis].flat()[1].max).toBe(430)
     })
 
     it('puts the rules on numbers a reader recognises', () => {
@@ -257,7 +217,7 @@ describe('buildMetricChart', () => {
       // it: 430 / 4 is 107,5.
       const chart = chartOf(['spend'], [row('spend', { total: [400, 430, 420] })])
 
-      expect(axisOf(chart).interval).toBe(100)
+      expect([chart.option.yAxis].flat()[1].interval).toBe(100)
     })
 
     it('starts at zero and carries no unit name', () => {
@@ -270,19 +230,18 @@ describe('buildMetricChart', () => {
     })
 
     it('falls back to a round ceiling when the window reports nothing at all', () => {
-      expect(axisOf(chartOf(['spend'])).max).toBe(500)
+      expect([chartOf(['spend']).option.yAxis].flat()[1].max).toBe(500)
     })
 
-    it('never cuts a series off the top of the plot', () => {
+    it('never cuts a series off the top of its own scale', () => {
       const chart = chartOf(
         ['spend', 'orders'],
         [row('spend', { total: [100, 300, 100] }), row('orders', { total: [80, 80, 80] })],
       )
-      const top = Math.max(
-        ...chart.option.series.flatMap((entry) => entry.data).filter((value) => value != null),
-      )
+      const axes = [chart.option.yAxis].flat()
 
-      expect(axisOf(chart).max).toBeGreaterThanOrEqual(top)
+      expect(axes[0].max).toBeGreaterThanOrEqual(80) // заказы
+      expect(axes[1].max).toBeGreaterThanOrEqual(300) // затраты
     })
   })
 
@@ -402,19 +361,12 @@ describe('buildMetricChart', () => {
       // An index is a shape, not a quantity: a reader who wants to know what
       // «200» meant in roubles must not have to leave the chart to find out.
       // The index itself is already on the canvas.
-      const chart = chartOf(
-        ['spend', 'cpm', 'orders'],
-        [
-          row('spend', { total: [4000, 8000, 2000] }),
-          row('cpm', { total: [200, 400, 100] }),
-          row('orders', { total: [10, 20, 15] }),
-        ],
-      )
+      // CTR has no ruler of its own, so it is the series drawn as a shape.
+      const chart = chartOf(['ctr'], [row('ctr', { total: [2, 4, 1] })])
 
-      const hover = hoverOf(chart, [point(0, 'Затраты, ₽', 100)])
+      const hover = hoverOf(chart, [point(0, 'CTR, %', 100)])
 
-      // A non-breaking space groups the thousands, so match loosely.
-      expect(hover).toMatch(/8\s000/) // the roubles actually spent that day
+      expect(hover).toContain('4') // the CTR actually measured that day
       expect(hover).not.toContain('(100)') // not the index it plots at
     })
 

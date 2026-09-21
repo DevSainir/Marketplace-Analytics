@@ -17,11 +17,11 @@
  * the plot. What a reader compares there is SHAPE; the real values are a hover
  * away, and the table above holds every one of them.
  *
- * Most picks are drawn AS THEY ARE, on one or two rulers split by MAGNITUDE —
- * see `rulerPlan`. Small amplitudes down the left edge, large ones down the
- * right, and every number on the plot is then the number. Only a pick spanning
- * three separate magnitudes has nowhere to hang its third scale, and only that
- * one falls back to the index.
+ * Штуки are read down the LEFT edge and рубли down the RIGHT, always, whatever
+ * is ticked — see `AXES`. Those series are drawn as they are, so every number
+ * on either scale is the number. Anything that is neither belongs on neither
+ * ruler and is drawn as an INDEX instead, rebased to 100 at the window's first
+ * reported day, on a third axis that is never shown.
  *
  * ЗАКАЗЫ are never rebased, even in a mixed pick, and that is what makes the
  * left-hand scale readable at all: it is a scale of заказов, so 120 заказов
@@ -35,19 +35,6 @@ import {
   colorForMetric,
 } from '@/modules/monitoring/chartOptions'
 import { COLUMNS_PER_DAY, TRAFFIC_COLUMNS } from '@/modules/monitoring/metricsMatrix'
-
-/**
- * The backend metric the left-hand ruler is a scale of.
- *
- * Matched on `metric` rather than on the catalogue key, so every entry reading
- * that row is covered by one rule: «Заказы, шт» on both pages, and «Заказы
- * органика, шт», which is the same count of the same thing through one traffic
- * bucket. All three are true on a scale of заказов and are drawn unrebased.
- *
- * «Заказы, ₽» is NOT one of them — it reads `order_sum`, and roubles on a scale
- * of заказов would be a number in the wrong units sitting on a real gridline.
- */
-const RULER_METRIC = 'orders'
 
 /** Column index of each backend bucket within a day section of `row.cells`. */
 const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key, index]))
@@ -331,56 +318,37 @@ function indexed(data) {
   }
 }
 
+/**
+ * The three scales a plot has, and which one a metric is read against.
+ *
+ * **They are fixed.** Whatever is ticked, штуки are down the left edge and
+ * рубли down the right, and both rulers are drawn even when nothing is on
+ * them. The alternative was tried and is worse than it sounds: rulers chosen
+ * from the data meant that ticking one more metric silently re-scaled the
+ * others, so «Заказы» could be a readable column one moment and a smear along
+ * the axis the next, with the number down the side now measuring something
+ * else. A scale that changes meaning when you look at a second thing is not a
+ * scale.
+ *
+ * Anything that is neither штуки nor рубли — проценты, and whatever else the
+ * catalogue grows — has no ruler it belongs on and is drawn as an INDEX,
+ * rebased to 100 at the window's first reported day. Those go on a third axis
+ * that is never drawn: an index has no unit, so there is nothing for a ruler to
+ * say, and the hover holds the real percentage.
+ */
+const AXES = { count: 0, money: 1, index: 2 }
+
+/** Which of {@link AXES} a unit belongs to. */
+function axisForUnit(unit) {
+  if (unit === 'number') return AXES.count
+  if (unit === 'currency') return AXES.money
+  return AXES.index
+}
+
 /** The largest finite number in a list, or `null` when there is none. */
 function maxOf(values) {
   const finite = values.filter((value) => value != null && Number.isFinite(value))
   return finite.length ? Math.max(...finite) : null
-}
-
-/**
- * How far apart two series' magnitudes may be before they need separate rulers.
- *
- * Twelvefold. Below that the smaller one still has a readable amplitude on the
- * larger one's scale; above it, it is a flat line along the bottom — which is
- * the failure the index was invented for, and which a second ruler answers
- * without giving up the real numbers.
- */
-const SPLIT_RATIO = 12
-
-/**
- * Which ruler each series is read against, decided by MAGNITUDE.
- *
- * Not by unit. «Показы» at 16 000 and «Корзины» at 120 are both штуки, and one
- * scale for them draws корзины as a line along the axis; «Затраты, ₽» at 3 000
- * and «Показы» at 16 000 are different units and share a scale perfectly well.
- * What a ruler measures is an amplitude, and the hover holds the units — the
- * axis has never carried one.
- *
- * The pick is sorted by its own maxima and cut wherever consecutive ones are
- * more than {@link SPLIT_RATIO} apart. One cut is two rulers, left for the
- * smaller amplitudes and right for the larger, exactly as many as a plot has
- * edges. Two cuts or more is a third scale with nowhere to go, and only then
- * does the whole pick fall back to the index.
- *
- * @param {Array<{values: Array<number|null>}>} specs The picked metrics.
- * @returns {{axisOf: (spec: object) => number, rebase: boolean}}
- */
-function rulerPlan(specs) {
-  const tops = new Map(specs.map((spec) => [spec, maxOf(spec.values) ?? 0]))
-  const ranked = specs
-    .filter((spec) => tops.get(spec) > 0)
-    .sort((a, b) => tops.get(a) - tops.get(b))
-
-  const cuts = ranked.filter(
-    (spec, index) => index > 0 && tops.get(spec) / tops.get(ranked[index - 1]) > SPLIT_RATIO,
-  )
-  if (cuts.length > 1) return { axisOf: () => 0, rebase: true }
-
-  const [cut] = cuts
-  // A series with nothing in the window has no magnitude to place, and the
-  // left-hand ruler is the one that carries the grid.
-  const upper = cut ? new Set(ranked.slice(ranked.indexOf(cut))) : new Set()
-  return { axisOf: (spec) => (upper.has(spec) ? 1 : 0), rebase: false }
 }
 
 /**
@@ -390,8 +358,8 @@ function rulerPlan(specs) {
  * @param {object} view A display matrix (`matrixView` shape).
  * @param {{metrics?: string[], groups?: Array<object>}} [options]
  * @returns {Array<{key: string, name: string, type: string, unit: string,
- *   group: string, color: string, values: Array<number|null>, isRuler: boolean}>}
- *   In catalogue order, whatever order they were ticked in.
+ *   group: string, color: string, values: Array<number|null>}>} In catalogue
+ *   order, whatever order they were ticked in.
  */
 function metricSeriesSpecs(view, { metrics = [], groups = [] } = {}) {
   const catalogue = metricsByKey(groups)
@@ -410,8 +378,6 @@ function metricSeriesSpecs(view, { metrics = [], groups = [] } = {}) {
         group: entry.group,
         color: colorForMetric(key),
         values: readSeries(view, entry),
-        // Заказы are what the scale measures, so they are drawn as they are.
-        isRuler: entry.metric === RULER_METRIC,
       }
     })
 }
@@ -431,43 +397,50 @@ export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}
   const days = view.days.map((day) => day.iso)
 
   const specs = metricSeriesSpecs(view, { metrics, groups })
-  const { axisOf, rebase } = rulerPlan(specs)
   // Columns need room. Past a month there is none, and they become lines.
   const columns = days.length <= BARS_UP_TO_DAYS
 
-  const series = specs.map((spec) => ({
-    name: spec.name,
-    type: columns ? spec.type : 'line',
-    unit: spec.unit,
-    group: spec.group,
-    color: spec.color,
-    axisIndex: axisOf(spec),
-    ...(rebase && !spec.isRuler ? indexed(spec.values) : { data: spec.values }),
-  }))
+  const series = specs.map((spec) => {
+    const axisIndex = axisForUnit(spec.unit)
+    return {
+      name: spec.name,
+      type: columns ? spec.type : 'line',
+      unit: spec.unit,
+      group: spec.group,
+      color: spec.color,
+      axisIndex,
+      ...(axisIndex === AXES.index ? indexed(spec.values) : { data: spec.values }),
+    }
+  })
 
   return {
     legend: series.map((entry) => ({ name: entry.name, color: entry.color })),
     empty: !series.length || series.every((entry) => entry.data.every((value) => value == null)),
-    option: buildChartOption({ days, rulers: rulersFor(series, rebase), hover, series }),
+    option: buildChartOption({ days, rulers: rulersFor(series), hover, series }),
   }
 }
 
 /**
- * One ruler per axis the series were assigned to, topped out at its own data.
+ * The three rulers, always all three, in {@link AXES} order.
  *
- * The scale stops at what was actually plotted rather than a round number above
- * it — see `ruleStep`. Its colour is its first series', which is the only thing
- * on the canvas that says which lines a right-hand scale belongs to.
+ * Each stops at what was actually plotted on it rather than a round number
+ * above it — see `ruleStep`. Its colour is its first series', which is the only
+ * thing on the canvas that says which lines a right-hand scale belongs to; an
+ * empty ruler keeps the muted default and its scale's fallback ceiling, because
+ * it is drawn whether or not anything is on it.
  *
  * @param {Array<{axisIndex: number, color: string, data: Array<number|null>}>} series
- * @param {boolean} rebase True when everything shares one scale of indices.
- * @returns {Array<{max: number|undefined, color: string}>} Left ruler first.
+ * @returns {Array<{max: number|undefined, color: string|undefined, shown: boolean}>}
  */
-function rulersFor(series, rebase) {
-  const count = rebase ? 1 : Math.max(1, new Set(series.map((entry) => entry.axisIndex)).size)
-  return Array.from({ length: count }, (_, axis) => {
+function rulersFor(series) {
+  return Object.values(AXES).map((axis) => {
     const mine = series.filter((entry) => entry.axisIndex === axis)
     const top = maxOf(mine.flatMap((entry) => entry.data))
-    return { max: top ? Math.ceil(top) : undefined, color: mine[0]?.color }
+    return {
+      max: top ? Math.ceil(top) : undefined,
+      color: mine[0]?.color,
+      // The index has no unit, so there is nothing for a ruler to say.
+      shown: axis !== AXES.index,
+    }
   })
 }

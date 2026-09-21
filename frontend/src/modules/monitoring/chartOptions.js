@@ -287,7 +287,13 @@ export const DEFAULT_AXIS_MAX = 500
  * are that unit; when the pick is mixed they are an index, and the hover holds
  * the real values either way — see `metricChart.js`.
  */
-function valueAxis({ max = DEFAULT_AXIS_MAX, position = 'left', color = INK_MUTED, rules = true }) {
+function valueAxis({
+  max = DEFAULT_AXIS_MAX,
+  position = 'left',
+  color = INK_MUTED,
+  rules = true,
+  shown = true,
+}) {
   return {
     type: 'value',
     position,
@@ -297,6 +303,7 @@ function valueAxis({ max = DEFAULT_AXIS_MAX, position = 'left', color = INK_MUTE
     axisLine: { show: false },
     axisTick: { show: false },
     axisLabel: {
+      show: shown,
       // Coloured by the ruler's own first series, which is the only thing that
       // says WHICH lines a second scale belongs to.
       color,
@@ -313,11 +320,18 @@ function valueAxis({ max = DEFAULT_AXIS_MAX, position = 'left', color = INK_MUTE
 }
 
 /**
- * Build the plot's rulers — one per unit, and at most the two a plot has edges
- * for.
+ * Build the plot's rulers: штуки left, рубли right, and the index on a scale
+ * that is never drawn.
  *
- * @param {Array<{max: number|undefined, color: string}>} rulers Ordered; the
- *   first is the left-hand scale.
+ * The first two are drawn whether or not anything is on them — that is the
+ * point of a fixed scale, and an axis that appears and disappears with the
+ * selection is what made «Заказы» a readable column one moment and a smear the
+ * next. The third carries the unitless series and shows nothing: an index has
+ * no unit, so a ruler would have nothing to say, and the hover holds the real
+ * value.
+ *
+ * @param {Array<{max: number|undefined, color: string|undefined, shown: boolean}>} rulers
+ *   In axis order — see `metricChart.js#AXES`.
  * @returns {Array<object>} ECharts yAxis configs.
  */
 function valueAxes(rulers) {
@@ -326,8 +340,11 @@ function valueAxes(rulers) {
     valueAxis({
       max: ruler.max,
       color: ruler.color,
-      position: index ? 'right' : 'left',
-      rules: !index,
+      position: index === 1 ? 'right' : 'left',
+      // The left-hand scale carries the grid; a second set of rules at another
+      // interval is a grid nothing lines up with.
+      rules: index === 0,
+      shown: ruler.shown !== false,
     }),
   )
 }
@@ -441,9 +458,9 @@ export function focusedPoints(points, hover) {
  * fortnight and wrong for a year: 365 days at 44px is nine metres to drag
  * through, and the shape a reader came for is never on screen at once.
  *
- * One ruler per unit, and at most two — a plot has two edges to hang them on.
- * See `metricChart.js` for which picks get real numbers on two scales and
- * which fall back to one scale of indices.
+ * Штуки down the left edge and рубли down the right, fixed, whatever is
+ * ticked; anything that is neither is an index on a scale that is never drawn.
+ * See `metricChart.js#AXES`.
  *
  * @param {{days: string[], rulers?: Array<{max: number|undefined, color: string}>,
  *   hover?: object, series: Array<{name: string, unit: string, group?: string,
@@ -469,8 +486,9 @@ export function buildChartOption({ days, rulers = [], hover, series }) {
     // number, whether or not this particular window happens to have either.
     grid: {
       left: AXIS_GUTTER_PX,
-      // A second ruler needs its own column, and it is wider: a right-hand
-      // scale is the money one often enough that «1 527 868 ₽» has to fit.
+      // The right-hand column is reserved whatever is ticked, because the
+      // ruler in it is. It is the wider of the two: the money scale is the one
+      // that has to fit «1 527 868».
       right: rulers.length > 1 ? AXIS_GUTTER_PX + 20 : 12,
       top: PLOT_TOP,
       bottom: PLOT_BOTTOM,
