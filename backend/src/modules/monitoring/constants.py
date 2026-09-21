@@ -22,6 +22,17 @@ MAX_WINDOW_DAYS: int = 366
 #: days we SELECT, and bounded nothing about the days a caller can assert.
 MAX_MATRIX_DAYS: int = MAX_WINDOW_DAYS + 1
 
+#: Most snapshot days one stock-range request may carry.
+#:
+#: The «Остатки по складам» ribbon serves a FULL size x warehouse breakdown per
+#: day, so its response grows with days x sizes x warehouses — a year of a
+#: catalogue SKU sitting in fifty warehouses is a few hundred thousand cells in
+#: one body. The window ceiling above bounds the days we SELECT and bounds this
+#: not at all, so the ribbon keeps only the most recent days of the window. Two
+#: months is far past what anyone scrolls two days at a time, and the default
+#: window is 30 days, so in practice nothing is ever dropped.
+MAX_STOCK_RANGE_DAYS: int = 62
+
 #: Most SKUs one request may name. Comfortably above the largest real catalogue
 #: on the platform, and short of a query whose ``IN`` list is its own denial of
 #: service. Applies to every list of ``nm_ids`` a caller supplies.
@@ -30,5 +41,6 @@ MAX_NM_IDS_PER_REQUEST: int = 10_000
 __all__ = [
     "MAX_MATRIX_DAYS",
     "MAX_NM_IDS_PER_REQUEST",
+    "MAX_STOCK_RANGE_DAYS",
     "MAX_WINDOW_DAYS",
 ]

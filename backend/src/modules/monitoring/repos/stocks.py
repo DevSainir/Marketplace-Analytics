@@ -98,6 +98,40 @@ class StockRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_for_sku_window(
+        self, *, nm_id: int, date_from: date, date_to: date
+    ) -> list[StockSnapshot]:
+        """Return one SKU's size x warehouse rows for EVERY day in a window.
+
+        Feeds the «Остатки по складам» ribbon, which renders one column group
+        per day of the analysis window. One query for the whole window rather
+        than one per day: the ribbon asks for a month at a time, and thirty
+        round trips to build one screen is the shape this replaced.
+
+        Args:
+            nm_id: WB SKU identifier.
+            date_from: Inclusive window start.
+            date_to: Inclusive window end.
+
+        Returns:
+            The window's rows, ordered by day, then warehouse, then size.
+        """
+        stmt = (
+            select(StockSnapshot)
+            .where(
+                StockSnapshot.nm_id == nm_id,
+                StockSnapshot.stat_date >= date_from,
+                StockSnapshot.stat_date <= date_to,
+            )
+            .order_by(
+                StockSnapshot.stat_date,
+                StockSnapshot.warehouse_name,
+                StockSnapshot.chrt_id,
+            )
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
     async def daily_totals_for_sku(
         self, *, nm_id: int, date_from: date, date_to: date
     ) -> list[StockDailyTotal]:

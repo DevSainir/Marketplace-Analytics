@@ -52,7 +52,7 @@ class StockDetail(BaseModel):
 
 
 class StockDayResponse(BaseModel):
-    """One exact snapshot day's stock breakdown (the two-day comparison view).
+    """One exact snapshot day's stock breakdown.
 
     ``stock`` is empty (all zeros, no cells) when no snapshot was captured on
     the requested day — snapshots are never carried onto other days.
@@ -60,3 +60,22 @@ class StockDayResponse(BaseModel):
 
     stat_date: date = Field(description="The requested snapshot day.")
     stock: StockDetail
+
+
+class StockRangeResponse(BaseModel):
+    """Every day of the analysis window, oldest first.
+
+    Feeds the «Остатки по складам» ribbon, which renders one column group per
+    day and scrolls sideways through them. EVERY calendar day of the window is
+    present, including the ones WB never reported — a missing day is an empty
+    breakdown rather than a gap in the list, so the ribbon's columns and the
+    days they claim to be cannot drift apart.
+
+    ``days`` may be shorter than the window asked for: the ribbon keeps only the
+    most recent ``MAX_STOCK_RANGE_DAYS`` days (see the module's constants for
+    why a full breakdown per day cannot be served for a year at a time).
+    """
+
+    days: list[StockDayResponse] = Field(
+        default_factory=list, description="One entry per day of the window, oldest first."
+    )

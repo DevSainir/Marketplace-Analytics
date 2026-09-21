@@ -119,7 +119,7 @@ async def test_a_non_numeric_sku_id_is_422(
 ) -> None:
     """The path parameter is typed, so garbage never reaches the guard."""
     response = await client.get(
-        "/api/v1/monitoring/skus/abc/stock?on_date=2026-07-01", headers=headers
+        "/api/v1/monitoring/skus/abc/stock?date_from=2026-07-01", headers=headers
     )
 
     assert response.status_code == 422

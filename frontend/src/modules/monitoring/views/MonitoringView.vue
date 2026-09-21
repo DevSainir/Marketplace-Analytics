@@ -56,13 +56,10 @@ function togglePin() {
   store.toggleSkuPin(product.value.nm_id, product.value.vendor_code ?? null)
 }
 
-// --- two-day stock comparison ----------------------------------------------
-// Both day groups share one row set (see the helper for why).
-const sharedStockSizes = computed(() => unionStockSizes(store.stockCompare))
-
-function onStockDayChange(side, iso) {
-  if (iso) store.fetchStockCompareSide(side, iso)
-}
+// --- the «Остатки по складам» ribbon ---------------------------------------
+// Every day group shares one row set (see the helper for why). The days
+// themselves come from the page's period, so there is nothing to pick here.
+const sharedStockSizes = computed(() => unionStockSizes(store.stockDays))
 
 // The daily table's whole editing surface: the rows it renders, the lock, the
 // three commits it can make and the undo/redo keys.
@@ -213,10 +210,9 @@ onMounted(() => store.fetchPins())
         <div id="sec-stock">
           <StockComparePanel
             v-if="product.stock"
-            :sides="store.stockCompare"
+            :days="store.stockDays"
             :size-order="sharedStockSizes"
-            :max-date="DEFAULT_TO"
-            @change-day="onStockDayChange"
+            :loading="store.stockDaysLoading"
           />
         </div>
 

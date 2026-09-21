@@ -104,17 +104,19 @@ export async function saveMatrix(nmId, base, params = {}) {
 }
 
 /**
- * GET /v1/monitoring/skus/{nm_id}/stock — one exact snapshot day's
- * size × warehouse stock breakdown (a side of the two-day comparison).
+ * GET /v1/monitoring/skus/{nm_id}/stock — one size × warehouse breakdown per
+ * day of the window, which is what the «Остатки по складам» ribbon scrolls
+ * through. Unobserved days come back as empty breakdowns, never as gaps.
  *
  * @param {number} nmId WB SKU identifier.
- * @param {string} onDate ISO date of the snapshot day.
+ * @param {{date_from?: string, date_to?: string}} [params] The analysis window;
+ *   the backend applies its own defaults and ceiling when either is missing.
  * @param {AbortSignal} [signal]
- * @returns {Promise<{stat_date: string, stock: object}>}
+ * @returns {Promise<{days: Array<{stat_date: string, stock: object}>}>}
  */
-export async function fetchStockDay(nmId, onDate, signal) {
+export async function fetchStockRange(nmId, params = {}, signal) {
   const { data } = await apiClient.get(`/v1/monitoring/skus/${nmId}/stock`, {
-    params: { on_date: onDate },
+    params,
     signal,
   })
   return data

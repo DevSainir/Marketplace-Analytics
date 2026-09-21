@@ -3,10 +3,10 @@ import { mount } from '@vue/test-utils'
 import StockCompareTable from '@/modules/monitoring/components/StockCompareTable.vue'
 
 /**
- * The united two-day stock grid: ONE table, one size column, a column group per
- * day. What is pinned here is the part the pivot helpers cannot see — that the
- * groups repeat the same warehouse columns in the same order, so a row reads
- * straight across the pair.
+ * The «Остатки по складам» ribbon: ONE table, one size column, a column group
+ * per day of the period. What is pinned here is the part the pivot helpers
+ * cannot see — that every group repeats the same warehouse columns in the same
+ * order, so a row reads straight across the days.
  */
 const cell = (chrt_id, tech_size, warehouse_name, quantity) => ({
   chrt_id,
@@ -20,14 +20,15 @@ const SIZES = [
   { chrt_id: 2, tech_size: 'M' },
 ]
 
-function mountTable(leftCells, rightCells, sizeOrder = SIZES) {
+function mountTable(...cellsPerDay) {
   return mount(StockCompareTable, {
     props: {
-      days: [
-        { key: 'left', label: '10.07.2026', loading: false, cells: leftCells },
-        { key: 'right', label: '11.07.2026', loading: false, cells: rightCells },
-      ],
-      sizeOrder,
+      days: cellsPerDay.map((cells, index) => ({
+        key: `2026-07-1${index}`,
+        label: `1${index}.07.2026`,
+        cells,
+      })),
+      sizeOrder: SIZES,
     },
     global: { stubs: { Teleport: true } },
   })
@@ -40,7 +41,16 @@ function rowText(wrapper, index) {
 }
 
 describe('StockCompareTable', () => {
-  it('prints one size column for the pair, not one per day', () => {
+  it('gives the width rule one day group per day', () => {
+    // `--days` is what sizes a group at half the grid: two days on screen and
+    // the rest of the period a sideways scroll away.
+    const wrapper = mountTable([cell(1, 'S', 'Казань', 1)], [], [], [])
+
+    expect(wrapper.find('.app-datatable').attributes('style')).toContain('--days: 4')
+    expect(wrapper.findAll('thead tr')[0].findAll('th')).toHaveLength(5)
+  })
+
+  it('prints one size column for the period, not one per day', () => {
     const wrapper = mountTable([cell(1, 'S', 'Казань', 3)], [cell(1, 'S', 'Казань', 2)])
 
     expect(wrapper.findAll('table')).toHaveLength(1)

@@ -228,6 +228,103 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/auth/sessions': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * My Sessions
+     * @description List this account's open sessions.
+     *
+     *     Guard: ``CurrentUser`` — own-account data, and the narrowest guard that
+     *     works. A membership-derived one would be wrong rather than merely stricter:
+     *     an account with no organisation still has sessions, and being locked out of
+     *     the list of your own logins is not a thing a paywall should decide.
+     *
+     *     Scoped by ``user_id`` in the query, never filtered afterwards, so there is
+     *     no arrangement of arguments that returns somebody else's row.
+     *
+     *     The response carries no token, no hash and no secret — a session is
+     *     identified by its family id, which is all that ending one needs.
+     */
+    get: operations['my_sessions_api_v1_auth_sessions_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/auth/sessions/{family_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * End One Session
+     * @description End one named session of the calling account.
+     *
+     *     Guard: ``CurrentUser``. Not ``WritingAccess`` — this writes nothing of the
+     *     organisation's and belongs to the same family as ``/logout``: the
+     *     authorisation is the token, and a read-only manager is entitled to end their
+     *     own stolen phone's session.
+     *
+     *     Ownership is decided in SQL (``family_belongs_to``), and a lineage belonging
+     *     to somebody else answers **404, not 403**: a family id could only have come
+     *     from another account's list, and confirming it exists would make this an
+     *     oracle. Whoever owns it sees no difference.
+     *
+     *     Ending the session you are speaking on is allowed and means logging out —
+     *     the cookie is cleared so the SPA does not keep a dead one around.
+     */
+    delete: operations['end_one_session_api_v1_auth_sessions__family_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/auth/password': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Change Password
+     * @description Change your own password, from inside a session.
+     *
+     *     Guard: ``CurrentUser`` plus the current password in the body. The second
+     *     half is the one that matters: without it a live session is enough to lock
+     *     the owner out of their own account, and a stolen laptop becomes a stolen
+     *     account. The next-weaker guard — "authenticated" alone — is exactly that
+     *     hole.
+     *
+     *     On the auth rate-limit budget, the same one login is on, because guessing
+     *     the current password here is guessing it at ``/login`` by another door.
+     *
+     *     Every OTHER session ends. This one does not: whoever changed the password
+     *     has proved themselves twice in the same request, and signing them out would
+     *     be a puzzle rather than a control.
+     */
+    post: operations['change_password_api_v1_auth_password_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/auth/confirm-email': {
     parameters: {
       query?: never
@@ -410,6 +507,13 @@ export interface paths {
      *
      *     Recorded in the audit trail with the resulting grant, because "who could
      *     read the P&L in July" is a question that gets asked after somebody leaves.
+     *
+     *     **Only when something actually changed.** Opening the form and pressing
+     *     save writes the same grant back, and recording that produced entries saying
+     *     «Изменён доступ» about a change that did not happen — which turns a trail
+     *     meant to be read into one that has to be searched. The comparison is made
+     *     here rather than in the service because "was this worth recording" is a
+     *     question about the audit trail, not about the membership.
      */
     patch: operations['set_member_access_api_v1_organizations_members__user_id__access_patch']
     trace?: never
@@ -1047,10 +1151,20 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Get Stock Day
-     * @description Return one snapshot day's stock breakdown (two-day comparison view).
+     * Get Stock Range
+     * @description Return the window's stock breakdowns, one per day.
+     *
+     *     Read-only, and tenancy comes from :data:`WorkspaceSku` — the same guard the
+     *     rest of the per-SKU surface uses, which reports a SKU belonging to another
+     *     workspace as missing rather than forbidden. The next-weaker guard (the
+     *     router's membership dependency alone) would leave the path ``nm_id``
+     *     unchecked, and this returns a competitor's warehouse map.
+     *
+     *     The window is resolved and bounded server-side, and the ribbon keeps only
+     *     its most recent days (``MAX_STOCK_RANGE_DAYS``) — one full breakdown per day
+     *     for a year is a body no screen reads and every caller could ask for.
      */
-    get: operations['get_stock_day_api_v1_monitoring_skus__nm_id__stock_get']
+    get: operations['get_stock_range_api_v1_monitoring_skus__nm_id__stock_get']
     put?: never
     post?: never
     delete?: never
@@ -1499,9 +1613,26 @@ export interface paths {
      * Trigger Harvest
      * @description Ask WB now for any finance report we do not already hold.
      *
-     *     Enqueues the same task the schedule runs, so the freshness gate still
-     *     applies: a workspace WB has published nothing new for is skipped after one
-     *     request rather than walked.
+     *     **The gate does not apply to a person.** This used to enqueue the ordinary
+     *     gated tick, so a click answered whatever the hourly schedule had already
+     *     answered — and the one moment somebody presses «Обновить» is the moment the
+     *     schedule has just told them the statement is complete when it is not. On
+     *     2026-09-14 the click was logged as «settled through 13.09 — nothing newer can
+     *     exist yet, skipping» over a week WB had published that morning.
+     *
+     *     So the click walks the reconciliation span: the days behind our coverage as
+     *     well as the ones after it, whatever the gate says. That is the only shape
+     *     that answers the question actually being asked, which is not «есть ли что-то
+     *     новее» but «догони то, что у WB уже есть, а у нас нет». It costs more — a
+     *     fortnight is three windows of WB's quarter-hourly budget — and it is spent on
+     *     the caller's own workspace, once, because a person asked.
+     *
+     *     The earlier reasoning for the gated version, kept because it was not wrong
+     *     about the cost: widening a click into a fortnight of re-reads spends a
+     *     seller's settlement budget on data already on file, and the daily pass covers
+     *     it anyway. What it got wrong is «anyway» — the daily pass takes one workspace
+     *     a night, so «anyway» is up to five days, and this button exists precisely for
+     *     the case where waiting is not the answer.
      *
      *     **Every outcome is an answer, and none of them is a wait.** WB meters the
      *     settlement report at one request per ~15 minutes, so a click shortly after
@@ -1723,13 +1854,78 @@ export interface paths {
     }
     /**
      * Изображение варианта
-     * @description Stream a variant's stored original.
+     * @description Stream a variant's stored image, full size or as a thumbnail.
      *
      *     Served from our own store rather than WB's CDN because a variant that has
      *     not been installed yet has no WB URL at all, and one that has been replaced
      *     no longer has one.
+     *
+     *     ``size=thumb`` is what every screen in the SPA asks for, and it is not a
+     *     nicety: the originals are phone photos of eight or nine megabytes, and the
+     *     largest any of them is drawn at is 88 CSS pixels. The full size stays the
+     *     default because the full size is what WB is sent.
      */
     get: operations['get_variant_image_api_ab_tests__test_id__variants__variant_id__image_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/summary/span': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Summary Span
+     * @description Return the days this кабинет has data for.
+     *
+     *     Its own route rather than a field on the summary because the picker needs it
+     *     BEFORE a window is chosen, and because it is answered off the report headers
+     *     and two min/max reads — a hundred rows and two index lookups — while a
+     *     summary is a pass over the settlement rollup.
+     */
+    get: operations['get_summary_span_api_v1_summary_span_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/summary': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Summary
+     * @description Return every figure the «Сводка» page draws for one window.
+     *
+     *     The window is the ONLY parameter. Price base, grouping and sort order used
+     *     to be query parameters, and every click on one of them cost a round trip
+     *     over the whole settlement window; both bases now travel in the response and
+     *     the rows arrive ungrouped, so the page answers those from data it holds.
+     *
+     *     **This GET writes, and deliberately.** Reading a window fills the settlement
+     *     rollup for the days it did not already cover — a cache that verifies itself
+     *     against the detail's own row counts and rebuilds whatever disagrees. Nothing
+     *     a caller sends decides what is written: the content is derived from the
+     *     кабинет's own settlement rows, and the tenant is bound by
+     *     :data:`CurrentWorkspaceId` exactly as for the read.
+     *
+     *     Otherwise read-only; the guard lives on the aggregating router
+     *     (:mod:`src.modules.summary.routers`) so no route here can forget it.
+     */
+    get: operations['get_summary_api_v1_summary_get']
     put?: never
     post?: never
     delete?: never
@@ -1750,11 +1946,11 @@ export interface components {
      *     ``nm_id`` resolves to. Taking it from the client would let the two disagree,
      *     and the seller article is what the list is searched by.
      *
-     *     The two triggers are mutually exclusive, and the model enforces it rather
-     *     than quietly ignoring the unused one: sending ``slot_minutes`` with
-     *     ``trigger_mode="impressions"`` is a 422, not a silently dropped field. A
-     *     test that rotated on "either, whichever first" would measure its variants
-     *     over different exposures, which is the one thing a budget exists to prevent.
+     *     A single-bound mode refuses the other bound rather than quietly ignoring
+     *     it: sending ``slot_minutes`` with ``trigger_mode="impressions"`` is a 422,
+     *     not a silently dropped field. ``trigger_mode="either"`` is the mode that
+     *     takes both, because it is the mode that reads both — whichever is reached
+     *     first ends the turn.
      */
     AbTestCreate: {
       /**
@@ -1768,18 +1964,18 @@ export interface components {
        */
       name: string
       /**
-       * @description Что двигает ротацию: показы или время
+       * @description Что двигает ротацию: показы, время или что наступит раньше
        * @default impressions
        */
       trigger_mode: components['schemas']['TriggerMode']
       /**
        * Impression Budget
-       * @description Показов на вариант. Только для режима «по показам»
+       * @description Показов на вариант. Режимы «по показам» и «показы и время»
        */
       impression_budget?: number | null
       /**
        * Slot Minutes
-       * @description Минут на вариант. Только для режима «по времени»
+       * @description Минут на вариант. Режимы «по времени» и «показы и время»
        */
       slot_minutes?: number | null
     }
@@ -1855,6 +2051,11 @@ export interface components {
       active_since?: string | null
       /** @description Итог по тесту целиком — сумма строк таблицы */
       summary: components['schemas']['AbTestSummary']
+      /**
+       * Campaigns
+       * @description Рекламные кампании, которые реально принесли тесту трафик, в порядке «Единая, Руч. поиск, Руч. полки, CPC». Одна кампания — страница выглядит как раньше; две и больше — появляются разрез и выбор РК. Кампания, выключенная посреди теста, остаётся здесь: её показы никуда не делись.
+       */
+      campaigns?: components['schemas']['CampaignTotals'][]
     }
     /**
      * AbTestRead
@@ -1914,25 +2115,26 @@ export interface components {
      * @description Request body for changing a test's name or its rotation trigger.
      *
      *     Every field is optional: sending only ``impression_budget`` keeps the mode
-     *     the test already has. The exclusivity is checked against the *resolved*
+     *     the test already has. The bound rule is checked against the *resolved*
      *     mode — the one in the body if it names one, otherwise the stored one — so
      *     "set slot_minutes on a test that is still counting impressions" is refused
-     *     even though the body never mentions a mode. That check needs the stored
-     *     test, so it happens in the service rather than here.
+     *     even though the body never mentions a mode, while a test in режиме
+     *     «either» takes either field on its own. That check needs the stored test, so it
+     *     happens in the service rather than here.
      */
     AbTestSettingsUpdate: {
       /** Name */
       name?: string | null
-      /** @description Сменить режим: показы или время */
+      /** @description Сменить режим: показы, время или оба сразу */
       trigger_mode?: components['schemas']['TriggerMode'] | null
       /**
        * Impression Budget
-       * @description Показов на вариант. Только для режима «по показам»
+       * @description Показов на вариант. Режимы «по показам» и «показы и время»
        */
       impression_budget?: number | null
       /**
        * Slot Minutes
-       * @description Минут на вариант. Только для режима «по времени»
+       * @description Минут на вариант. Режимы «по времени» и «показы и время»
        */
       slot_minutes?: number | null
     }
@@ -2291,7 +2493,7 @@ export interface components {
     BackfillLaneStatus: {
       /**
        * Lane
-       * @description Lane key: catalogue | funnel | advertising | pnl.
+       * @description Lane key: catalogue | funnel | advertising | orders | pnl.
        */
       lane: string
       /**
@@ -2553,6 +2755,71 @@ export interface components {
       orders: number
       /** @description Derived CPM/CTR/CPC for this row. */
       metrics: components['schemas']['AdMetrics']
+    }
+    /**
+     * CampaignTotals
+     * @description What one advertising campaign brought the test, over all of its photos.
+     *
+     *     The branches under each figure of «Итог по тесту». They sum to the figure
+     *     above them, because both are summed from the same interval rows — the split
+     *     happens where the counters arrive, not where they are drawn.
+     */
+    CampaignTotals: {
+      /**
+       * Campaign Id
+       * @description Идентификатор кампании в WB; 0 — данные до разделения
+       */
+      campaign_id: number
+      /**
+       * Name
+       * @description Название кампании в кабинете WB
+       */
+      name: string
+      /**
+       * Kind
+       * @description Тип кампании: uni | manual_search | manual_shelves | cpc | unknown
+       */
+      kind: string
+      /**
+       * Views
+       * @description Показы, которые дала эта РК
+       */
+      views: number
+      /**
+       * Clicks
+       * @description Переходы в карточку с этой РК
+       */
+      clicks: number
+      /**
+       * Atbs
+       * @description Добавления в корзину с этой РК
+       */
+      atbs: number
+      /**
+       * Orders
+       * @description Заказы с этой РК
+       */
+      orders: number
+      /**
+       * Spend
+       * @description Расход этой РК за засчитанные отрезки
+       */
+      spend: string
+      /**
+       * Click Through
+       * @description CTR этой РК по всему тесту, %
+       */
+      click_through: string | null
+      /**
+       * Add To Cart
+       * @description Корзины / клики этой РК, %
+       */
+      add_to_cart: string | null
+      /**
+       * Order Rate
+       * @description Заказы / корзины этой РК, %
+       */
+      order_rate: string | null
     }
     /**
      * ClusterDayStat
@@ -2974,6 +3241,32 @@ export interface components {
       email: string
     }
     /**
+     * ExposureCampaignCounts
+     * @description What one turn earned from one campaign.
+     *
+     *     Absent for a campaign that earned nothing in the turn — the timeline reads
+     *     «эта РК работала в этом круге» off the presence of an entry.
+     */
+    ExposureCampaignCounts: {
+      /** Campaign Id */
+      campaign_id: number
+      /**
+       * Views
+       * @default 0
+       */
+      views: number
+      /**
+       * Clicks
+       * @default 0
+       */
+      clicks: number
+      /**
+       * Click Through
+       * @description CTR за эту установку, %
+       */
+      click_through?: string | null
+    }
+    /**
      * ExposureRow
      * @description One turn in «История действий»: a photo installed, and what it earned.
      */
@@ -3025,6 +3318,11 @@ export interface components {
        * @description CTR за эту установку, %
        */
       click_through?: string | null
+      /**
+       * Campaigns
+       * @description Та же установка в разрезе РК; РК без трафика в ней отсутствуют
+       */
+      campaigns?: components['schemas']['ExposureCampaignCounts'][]
     }
     /**
      * FreshnessCheckOut
@@ -3033,10 +3331,16 @@ export interface components {
     FreshnessCheckOut: {
       /**
        * Outcome
-       * @description 'wb_empty' is the only one that means «нового ничего нет». 'probe_failed' means WB did not answer — an unanswered question, never to be rendered as reassurance.
+       * @description 'wb_empty' is the only one that means «нового ничего нет». 'probe_failed' means WB did not answer — an unanswered question, never to be rendered as reassurance. 'rate_blocked' means WB has the endpoint shut and we did not ask: also not reassurance, and the one case where waiting is genuinely the only option.
        * @enum {string}
        */
-      outcome: 'never_harvested' | 'up_to_date' | 'wb_empty' | 'wb_has_new' | 'probe_failed'
+      outcome:
+        | 'never_harvested'
+        | 'up_to_date'
+        | 'wb_empty'
+        | 'wb_has_new'
+        | 'probe_failed'
+        | 'rate_blocked'
       /**
        * Checked At
        * Format: date-time
@@ -3863,6 +4167,35 @@ export interface components {
       name: string
     }
     /**
+     * PasswordChangeRequest
+     * @description Payload for a signed-in account changing its own password.
+     *
+     *     The current password is part of the payload, not decoration: without it
+     *     anyone holding a live session could lock the owner out of their own account.
+     *     No mailed code — see :mod:`src.modules.users.services.password_change` for
+     *     why one would prove nothing here.
+     */
+    PasswordChangeRequest: {
+      /** Current Password */
+      current_password: string
+      /**
+       * New Password
+       * @description The replacement.
+       */
+      new_password: string
+    }
+    /**
+     * PasswordChangedResponse
+     * @description What changed, once the password did.
+     */
+    PasswordChangedResponse: {
+      /**
+       * Other Sessions Ended
+       * @description How many other sessions were signed out. Zero is normal for an account used on one device.
+       */
+      other_sessions_ended: number
+    }
+    /**
      * PasswordResetConfirmRequest
      * @description Payload setting a new password against a mailed code.
      */
@@ -4030,7 +4363,7 @@ export interface components {
      * @description How the statement's rows are cut.
      * @enum {string}
      */
-    PnlGrouping: 'total' | 'week' | 'month' | 'sku'
+    PnlGrouping: 'total' | 'day' | 'week' | 'month' | 'sku'
     /**
      * PnlResponse
      * @description The statement for a window, plus its per-bucket breakdown.
@@ -4158,6 +4491,10 @@ export interface components {
       advertising: string | null
       /** Advertising Pct */
       advertising_pct: string | null
+      /** Ad Bonus */
+      ad_bonus: string | null
+      /** Advertising Cash */
+      advertising_cash: string | null
       /** Payout For Goods */
       payout_for_goods: string
       /** Payout Net */
@@ -4330,6 +4667,45 @@ export interface components {
        * @description Russian, user-facing description of what is happening right now, rendered verbatim under the refresh button.
        */
       message?: string | null
+    }
+    /**
+     * SessionRead
+     * @description One live login lineage, as its owner sees it.
+     *
+     *     Carries no token, no hash and no id of anything but the lineage itself —
+     *     ending a session needs the family id and nothing else, and a response DTO is
+     *     where a secret would escape if one ever could.
+     *
+     *     ``user_agent`` travels raw. Turning it into «Chrome на macOS» is the SPA's
+     *     job: it is presentation, it changes with every browser release, and a string
+     *     the parser does not recognise should be shown as nothing rather than as a
+     *     confident guess about a device somebody is deciding whether to trust.
+     */
+    SessionRead: {
+      /**
+       * Family Id
+       * Format: uuid
+       */
+      family_id: string
+      /** User Agent */
+      user_agent?: string | null
+      /** Ip Address */
+      ip_address?: string | null
+      /**
+       * Started At
+       * Format: date-time
+       */
+      started_at: string
+      /**
+       * Last Seen At
+       * Format: date-time
+       */
+      last_seen_at: string
+      /**
+       * Is Current
+       * @default false
+       */
+      is_current: boolean
     }
     /**
      * SessionsRevokedResponse
@@ -4733,7 +5109,7 @@ export interface components {
     }
     /**
      * StockDayResponse
-     * @description One exact snapshot day's stock breakdown (the two-day comparison view).
+     * @description One exact snapshot day's stock breakdown.
      *
      *     ``stock`` is empty (all zeros, no cells) when no snapshot was captured on
      *     the requested day — snapshots are never carried onto other days.
@@ -4782,6 +5158,27 @@ export interface components {
       cells?: components['schemas']['StockCell'][]
     }
     /**
+     * StockRangeResponse
+     * @description Every day of the analysis window, oldest first.
+     *
+     *     Feeds the «Остатки по складам» ribbon, which renders one column group per
+     *     day and scrolls sideways through them. EVERY calendar day of the window is
+     *     present, including the ones WB never reported — a missing day is an empty
+     *     breakdown rather than a gap in the list, so the ribbon's columns and the
+     *     days they claim to be cannot drift apart.
+     *
+     *     ``days`` may be shorter than the window asked for: the ribbon keeps only the
+     *     most recent ``MAX_STOCK_RANGE_DAYS`` days (see the module's constants for
+     *     why a full breakdown per day cannot be served for a year at a time).
+     */
+    StockRangeResponse: {
+      /**
+       * Days
+       * @description One entry per day of the window, oldest first.
+       */
+      days?: components['schemas']['StockDayResponse'][]
+    }
+    /**
      * StockSizeTotal
      * @description Per-size stock rolled up across all warehouses.
      */
@@ -4828,6 +5225,158 @@ export interface components {
      */
     SubscriptionState: 'active' | 'grace' | 'expired'
     /**
+     * SummaryCoverage
+     * @description What the window actually rests on, per source.
+     *
+     *     The three feeds end on different days — settlements lag the funnel by a
+     *     couple of days because WB has not calculated them yet — so a window that
+     *     looks complete can be complete in one figure and short in another.
+     */
+    SummaryCoverage: {
+      /** Settlement From */
+      settlement_from: string | null
+      /** Settlement To */
+      settlement_to: string | null
+      /** Funnel From */
+      funnel_from: string | null
+      /** Funnel To */
+      funnel_to: string | null
+      /** Advertising From */
+      advertising_from: string | null
+      /** Advertising To */
+      advertising_to: string | null
+    }
+    /**
+     * SummaryDay
+     * @description One day of the window, as the three charts read it.
+     */
+    SummaryDay: {
+      /**
+       * Day
+       * Format: date
+       */
+      day: string
+      /** Revenue Paid */
+      revenue_paid: string | null
+      /** Revenue Seller */
+      revenue_seller: string | null
+      /** Margin */
+      margin: string | null
+      /** Orders */
+      orders: number | null
+      /** Orders Amount Seller */
+      orders_amount_seller: string | null
+      /** Orders Amount Paid */
+      orders_amount_paid: string | null
+      /** Sold Units */
+      sold_units: number | null
+      /** Ad Spend */
+      ad_spend: string | null
+    }
+    /**
+     * SummaryKpi
+     * @description The headline cards.
+     *
+     *     There is deliberately no fixed-cost line and no «Прибыль»: this service has
+     *     no source for taxes, salaries or rent, and a «Прибыль» computed without them
+     *     would be a margin wearing a more confident name.
+     */
+    SummaryKpi: {
+      /** Revenue Paid */
+      revenue_paid: string
+      /** Revenue Seller */
+      revenue_seller: string
+      /** Margin */
+      margin: string | null
+      /** Sold Units */
+      sold_units: number
+      /** Orders */
+      orders: number | null
+      /** Buyouts */
+      buyouts: number | null
+      /** Buyout Decided */
+      buyout_decided: number | null
+      /** Buyout Lagged */
+      buyout_lagged: boolean
+      /** Uncosted Skus */
+      uncosted_skus: number
+      /** Penalties */
+      penalties: string
+      /** Ad Spend */
+      ad_spend: string | null
+    }
+    /**
+     * SummaryResponse
+     * @description Everything the «Сводка» page draws, for one window.
+     */
+    SummaryResponse: {
+      /**
+       * Date From
+       * Format: date
+       */
+      date_from: string
+      /**
+       * Date To
+       * Format: date
+       */
+      date_to: string
+      /** Currency */
+      currency: string
+      kpi: components['schemas']['SummaryKpi']
+      /** Days */
+      days: components['schemas']['SummaryDay'][]
+      /** Rows */
+      rows: components['schemas']['SummarySkuRow'][]
+      coverage: components['schemas']['SummaryCoverage']
+    }
+    /**
+     * SummarySkuRow
+     * @description One article's contribution, ungrouped.
+     *
+     *     The page folds these by subject or brand itself. They are sent per article
+     *     because that is the finest grain the settlement has — anything coarser can
+     *     be derived from it, and nothing coarser can be un-derived.
+     */
+    SummarySkuRow: {
+      /** Nm Id */
+      nm_id: number
+      /** Code */
+      code: string
+      /** Subject */
+      subject: string
+      /** Brand */
+      brand: string
+      /** Revenue Paid */
+      revenue_paid: string
+      /** Revenue Seller */
+      revenue_seller: string
+      /** Margin */
+      margin: string | null
+      /** Sold Units */
+      sold_units: number
+    }
+    /**
+     * SummarySpan
+     * @description The days a кабинет has data for, for the period picker.
+     *
+     *     Every feed, not the settlement alone: orders and advertising arrive daily
+     *     while WB calculates settlements weekly, so ending every preset on the last
+     *     settled day hid several days of the two figures that ARE current. The
+     *     settlement's own end travels separately, because that is what the revenue
+     *     line can be drawn to.
+     *
+     *     Answered off the report headers and two min/max reads rather than the
+     *     settlement detail, so the picker opens instantly.
+     */
+    SummarySpan: {
+      /** Date From */
+      date_from: string | null
+      /** Date To */
+      date_to: string | null
+      /** Settled To */
+      settled_to?: string | null
+    }
+    /**
      * TokenPairResponse
      * @description Access-token response body.
      *
@@ -4856,12 +5405,6 @@ export interface components {
      * TriggerMode
      * @description What makes a test advance to its next photo.
      *
-     *     The two are **mutually exclusive** by design, not by accident. A test that
-     *     rotated on "10 000 impressions OR 2 hours, whichever first" would produce
-     *     variants measured over different exposures, and the whole point of the
-     *     budget is that the arms are comparable. Whichever mode is chosen, the other
-     *     one's setting is ignored — and the API refuses a request that sets it.
-     *
      *     ``IMPRESSIONS`` — equal audience per photo, unequal wall-clock. The
      *     statistically sound default: every variant is judged on the same number of
      *     chances.
@@ -4871,9 +5414,20 @@ export interface components {
      *     is switched off (nothing accumulates, so an impression budget would never
      *     fire), and because a fixed slot cycles variants through the same hours of
      *     the day, which balances the time-of-day effect faster.
+     *
+     *     ``EITHER`` — both settings are in force and the FIRST one reached advances
+     *     the rotation. It used to be refused on the grounds that arms measured over
+     *     different exposures are not comparable, and that is still true of the
+     *     number a trigger fires on; what the refusal ignored is the failure the
+     *     seller actually meets. A budget alone stalls a photo for days when the
+     *     advertising slows, and a slot alone hands one photo a burst of traffic
+     *     another never saw. Naming both bounds the turn from both sides — «не дольше
+     *     20 минут и не больше 1 000 показов» — and every window records the exposure
+     *     a turn really got, so the result table divides by what was measured rather
+     *     than by what was budgeted.
      * @enum {string}
      */
-    TriggerMode: 'impressions' | 'time'
+    TriggerMode: 'impressions' | 'time' | 'either'
     /**
      * UserLoginRequest
      * @description Payload to authenticate with email + password.
@@ -4941,6 +5495,68 @@ export interface components {
       input?: unknown
       /** Context */
       ctx?: Record<string, never>
+    }
+    /**
+     * VariantCampaignMetrics
+     * @description One photo's figures inside ONE campaign.
+     *
+     *     Everything is recomputed within the campaign, the gap to the leader
+     *     included: a photo can lead «Единая» and trail «CPC», and that is precisely
+     *     what the whole-test row cannot show.
+     */
+    VariantCampaignMetrics: {
+      /**
+       * Campaign Id
+       * @description Кампания, в которой посчитаны эти числа
+       */
+      campaign_id: number
+      /** Views */
+      views: number
+      /** Clicks */
+      clicks: number
+      /** Atbs */
+      atbs: number
+      /** Orders */
+      orders: number
+      /** Spend */
+      spend: string
+      /**
+       * Click Through
+       * @description Доля переходов в карточку, %
+       */
+      click_through: string | null
+      /**
+       * Add To Cart
+       * @description Доля добавлений в корзину, %
+       */
+      add_to_cart: string | null
+      /**
+       * Order Rate
+       * @description Доля оформлений заказов, %
+       */
+      order_rate: string | null
+      /**
+       * Ctr Gap
+       * @description Отставание CTR от лучшего В ЭТОЙ РК, п.п.
+       */
+      ctr_gap: string | null
+      /**
+       * Ctr Result
+       * @description То же отставание в процентах
+       */
+      ctr_result: string | null
+      /**
+       * Rounds Played
+       * @description В скольких кругах эта РК приносила показы этому фото. Не круги теста: РК, выключенная на четвёртом круге, сыграла четыре.
+       * @default 0
+       */
+      rounds_played: number
+      /**
+       * Rounds Won
+       * @description В скольких из них у фото был лучший CTR
+       * @default 0
+       */
+      rounds_won: number
     }
     /**
      * VariantExclusionUpdate
@@ -5058,6 +5674,11 @@ export interface components {
        * @description Сколько полных дней зачтено этому фото
        */
       days_measured: number
+      /**
+       * Campaigns
+       * @description Те же метрики отдельно по каждой рекламной кампании, в порядке «Единая, Руч. поиск, Руч. полки, CPC». Пусто у теста без измерений.
+       */
+      campaigns?: components['schemas']['VariantCampaignMetrics'][]
     }
     /**
      * WeekPeriod
@@ -5481,6 +6102,121 @@ export interface operations {
         content: {
           'application/json': components['schemas']['HTTPValidationError']
         }
+      }
+    }
+  }
+  my_sessions_api_v1_auth_sessions_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The caller's own live sessions, newest activity first. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SessionRead'][]
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  end_one_session_api_v1_auth_sessions__family_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        family_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description That session is over. */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such session on this account. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  change_password_api_v1_auth_password_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PasswordChangeRequest']
+      }
+    }
+    responses: {
+      /** @description Password changed; the other sessions are over. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PasswordChangedResponse']
+        }
+      }
+      /** @description Missing token, or the current password is wrong. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The new password is unusable (too weak, public, or unchanged). */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Too many attempts; retry later. */
+      429: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
       }
     }
   }
@@ -7037,11 +7773,13 @@ export interface operations {
       }
     }
   }
-  get_stock_day_api_v1_monitoring_skus__nm_id__stock_get: {
+  get_stock_range_api_v1_monitoring_skus__nm_id__stock_get: {
     parameters: {
-      query: {
-        /** @description Exact snapshot day (empty breakdown when unobserved). */
-        on_date: string
+      query?: {
+        /** @description Inclusive start. */
+        date_from?: string | null
+        /** @description Inclusive end. */
+        date_to?: string | null
       }
       header?: {
         /** @description Active workspace id (UUID) the request operates in. */
@@ -7054,13 +7792,13 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description The day's size x warehouse stock breakdown. */
+      /** @description One size x warehouse stock breakdown per day of the window. */
       200: {
         headers: {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['StockDayResponse']
+          'application/json': components['schemas']['StockRangeResponse']
         }
       }
       /** @description Unauthorized access token. */
@@ -7070,7 +7808,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Invalid date. */
+      /** @description Invalid date window. */
       422: {
         headers: {
           [name: string]: unknown
@@ -8518,7 +9256,10 @@ export interface operations {
   }
   get_variant_image_api_ab_tests__test_id__variants__variant_id__image_get: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description thumb — уменьшенная копия для списков и таймлайна */
+        size?: 'full' | 'thumb'
+      }
       header?: {
         /** @description Active workspace id (UUID) the request operates in. */
         'X-Workspace-Id'?: string | null
@@ -8555,6 +9296,101 @@ export interface operations {
         content: {
           'application/json': components['schemas']['HTTPValidationError']
         }
+      }
+    }
+  }
+  get_summary_span_api_v1_summary_span_get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Диапазон рассчитанных дней кабинета. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SummarySpan']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Раздел доступен только внутренним учётным записям. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_summary_api_v1_summary_get: {
+    parameters: {
+      query?: {
+        /** @description Inclusive settlement-date start. */
+        date_from?: string | null
+        /** @description Inclusive settlement-date end. */
+        date_to?: string | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Сводные показатели кабинета за период. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SummaryResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Раздел доступен только внутренним учётным записям. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Период инвертирован или длиннее допустимого. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
       }
     }
   }

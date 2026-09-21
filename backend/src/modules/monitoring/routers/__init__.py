@@ -42,7 +42,7 @@ from src.modules.monitoring.schemas import (
     SkuDetailResponse,
     SkuLookupResponse,
     SkuSummaryListResponse,
-    StockDayResponse,
+    StockRangeResponse,
 )
 from src.modules.organizations.contract import WritingAccess, require_monitoring
 
@@ -282,21 +282,33 @@ async def get_sku_detail(
 
 @router.get(
     "/skus/{nm_id}/stock",
-    response_model=StockDayResponse,
+    response_model=StockRangeResponse,
     status_code=status.HTTP_200_OK,
     responses={
-        200: {"description": "The day's size x warehouse stock breakdown."},
+        200: {"description": "One size x warehouse stock breakdown per day of the window."},
         401: {"description": "Unauthorized access token."},
-        422: {"description": "Invalid date."},
+        422: {"description": "Invalid date window."},
     },
 )
-async def get_stock_day(
+async def get_stock_range(
     nm_id: WorkspaceSku,
     service: AnalyticsServiceDep,
-    on_date: date = Query(description="Exact snapshot day (empty breakdown when unobserved)."),
-) -> StockDayResponse:
-    """Return one snapshot day's stock breakdown (two-day comparison view)."""
-    return await service.get_stock_day(nm_id=nm_id, on_date=on_date)
+    date_from: date | None = Query(default=None, description="Inclusive start."),
+    date_to: date | None = Query(default=None, description="Inclusive end."),
+) -> StockRangeResponse:
+    """Return the window's stock breakdowns, one per day.
+
+    Read-only, and tenancy comes from :data:`WorkspaceSku` — the same guard the
+    rest of the per-SKU surface uses, which reports a SKU belonging to another
+    workspace as missing rather than forbidden. The next-weaker guard (the
+    router's membership dependency alone) would leave the path ``nm_id``
+    unchecked, and this returns a competitor's warehouse map.
+
+    The window is resolved and bounded server-side, and the ribbon keeps only
+    its most recent days (``MAX_STOCK_RANGE_DAYS``) — one full breakdown per day
+    for a year is a body no screen reads and every caller could ask for.
+    """
+    return await service.get_stock_range(nm_id=nm_id, date_from=date_from, date_to=date_to)
 
 
 @router.put(

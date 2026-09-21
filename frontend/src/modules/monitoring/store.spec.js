@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import {
   fetchSkuDetail,
   fetchSkuSummary,
-  fetchStockDay,
+  fetchStockRange,
   getRefreshStatus,
   lookupSkus,
   refreshAllSkus,
@@ -14,7 +14,7 @@ import { useMonitoringStore } from '@/modules/monitoring/store'
 vi.mock('@/modules/monitoring/api', () => ({
   fetchSkuDetail: vi.fn(),
   fetchSkuSummary: vi.fn(),
-  fetchStockDay: vi.fn(),
+  fetchStockRange: vi.fn(),
   getRefreshStatus: vi.fn(),
   lookupSkus: vi.fn(),
   refreshAllSkus: vi.fn(),
@@ -353,11 +353,11 @@ describe('request cancellation', () => {
 describe('refreshFromWb', () => {
   beforeEach(async () => {
     fetchSkuDetail.mockResolvedValue(DETAIL)
-    fetchStockDay.mockResolvedValue({ stock: null })
+    fetchStockRange.mockResolvedValue({ days: [] })
     await store.fetchProductData('953770957')
     vi.clearAllMocks()
     fetchSkuDetail.mockResolvedValue(DETAIL)
-    fetchStockDay.mockResolvedValue({ stock: null })
+    fetchStockRange.mockResolvedValue({ days: [] })
   })
 
   it('re-fetches the detail once the harvest task reports success', async () => {

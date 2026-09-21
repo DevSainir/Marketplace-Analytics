@@ -9,13 +9,12 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
-import { isoDaysAgo } from '@/core/utils/dates'
 import {
   fetchPinnedSkus,
   fetchSkuDetail,
   fetchAggregateCharts,
   fetchSkuSummary,
-  fetchStockDay,
+  fetchStockRange,
   getRefreshStatus,
   lookupSkus,
   previewMatrixEdit,
@@ -295,39 +294,31 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     }
   }
 
-  // --- two-day stock comparison --------------------------------------------
-  // The «Остатки по складам» section shows TWO snapshot days side by side for
-  // visual dynamics: right = today, left = yesterday by default; each side has
-  // its own day picker. Sides are fetched independently per picked day.
-  const stockCompare = ref({
-    left: { date: isoDaysAgo(1), loading: false, stock: null },
-    right: { date: isoDaysAgo(0), loading: false, stock: null },
-  })
+  // --- the «Остатки по складам» ribbon ---------------------------------------
+  // One size × warehouse breakdown per DAY of the page's window, which the
+  // section renders as one column group per day and scrolls sideways through.
+  // It follows the period chosen at the top of the page — there is no day
+  // picker of its own to disagree with it — so it reloads with the detail.
+  const stockDays = ref([])
+  const stockDaysLoading = ref(false)
 
-  /** Fetch one side's snapshot; optionally repointing it to a new day first. */
-  async function fetchStockCompareSide(side, newDate = null) {
+  /** (Re)load the ribbon for the current SKU over the current window. */
+  async function fetchStockRibbon() {
     const nmId = currentProduct.value?.nm_id
     if (!nmId) return
-    const entry = stockCompare.value[side]
-    if (newDate) entry.date = newDate
-    entry.loading = true
+    stockDaysLoading.value = true
     try {
-      const result = await fetchStockDay(nmId, entry.date)
+      const result = await fetchStockRange(nmId, lastParams)
       // Apply only while the same SKU is displayed (SKU-switch race guard).
-      if (currentProduct.value?.nm_id === nmId) entry.stock = result.stock
+      if (currentProduct.value?.nm_id === nmId) stockDays.value = result.days
     } catch (err) {
       if (currentProduct.value?.nm_id === nmId) {
-        entry.stock = null
+        stockDays.value = []
         actionError.value = extractErrorMessage(err)
       }
     } finally {
-      entry.loading = false
+      stockDaysLoading.value = false
     }
-  }
-
-  /** (Re)load both comparison sides for the current SKU. */
-  function fetchStockCompare() {
-    return Promise.all([fetchStockCompareSide('left'), fetchStockCompareSide('right')])
   }
 
   // --- day notes («Комментарий» + its header) --------------------------------
@@ -573,7 +564,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   /** Load a detail response: seed the product, working copy, and display view. */
   function loadMatrix(detail) {
     currentProduct.value = detail
-    fetchStockCompare()
+    fetchStockRibbon()
     workingBase.value = detail.matrix_base
     currentMatrix = detail.matrix
     // Same window (save / refresh) → patch the existing table in place so only
@@ -850,10 +841,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     notFound.value = null
     currentProduct.value = null
     lookupMatches.value = []
-    stockCompare.value = {
-      left: { date: isoDaysAgo(1), loading: false, stock: null },
-      right: { date: isoDaysAgo(0), loading: false, stock: null },
-    }
+    stockDays.value = []
     clearMatrixEditState()
   }
 
@@ -888,8 +876,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     saveDayComment,
     actionSavingDays,
     saveDayAction,
-    stockCompare,
-    fetchStockCompareSide,
+    stockDays,
+    stockDaysLoading,
     fetchProductData,
     reset,
     // matrix editing

@@ -44,9 +44,8 @@
    daily matrix's own rule (`.app-datatable--matrix table` in main.css), with
    the frozen size column standing in for its metric column. Fixed layout
    spreads each day's colspan evenly, and the width is sized so ONE day group
-   is half of what the size column leaves. With the two days this panel shows
-   that comes out at exactly the container's width: full-bleed, both days read
-   at once, and the ribbon scrolls only if a third day is ever added. */
+   is half of what the size column leaves: two days fill the screen and the
+   rest of the period is a sideways scroll away. */
 table {
   table-layout: fixed;
   width: calc((100% - var(--col-size-w)) / 2 * var(--days, 2) + var(--col-size-w));
@@ -85,11 +84,6 @@ tbody tr:nth-child(even) td {
 /* Striped cells would otherwise mask the skin's transparent row hover. */
 tbody tr:hover td {
   background: var(--ui-sunk);
-}
-
-/* While that day's snapshot is being fetched — only its own columns fade. */
-td.is-loading {
-  opacity: 0.45;
 }
 
 /* Numbers right-align; their column headers follow (the skin's generic

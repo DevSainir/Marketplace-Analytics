@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import { pivotRows, sharedWarehouses, sizeShare } from '@/modules/monitoring/stockPivot'
 import { useWarehouseNameTip } from '@/modules/monitoring/useWarehouseNameTip'
@@ -8,27 +8,27 @@ import { vDragScroll } from '@/core/utils/dragScroll'
 import { formatNumber } from '@/core/utils/format'
 
 /**
- * Sizes × (day × warehouses) stock matrix: ONE grid for the whole comparison.
+ * Sizes × (day × warehouses) stock matrix: ONE grid for the whole period.
  *
- * It used to be two tables side by side, one per day, each with its own size
- * column — which meant two scroll containers, two row sets kept in sync by
- * hand, and the size labels printed twice. This is a single table built like
- * the daily metrics matrix, down to its width rule: the size column is frozen
- * on the left, every day is a column GROUP («Всего» + that day's warehouses),
- * and one group is half of what the size column leaves — so the grid fills its
- * container and both days are read at once, whatever a day's warehouse count.
+ * It used to be a table per day, two of them side by side — each with its own
+ * size column, its own scroll container and its own day picker. This is a
+ * single table built like the daily metrics matrix, down to its width rule: the
+ * size column is frozen on the left, every day is a column GROUP («Всего» +
+ * that day's warehouses), and one group is half of what the size column
+ * leaves — so EXACTLY two days fill the screen and the rest of the period is a
+ * horizontal scroll away, newest day first.
  *
- * Both days render the SAME warehouse columns (the union, fullest first across
- * the pair) and the same size rows, so a row reads straight across: the same
- * size at the same warehouse, yesterday then today.
+ * Every day renders the SAME warehouse columns (the union over the period,
+ * fullest first) and the same size rows, so a row reads straight across: the
+ * same size at the same warehouse, day after day.
  *
  * Native `<table>`, same reasoning as MetricsTable.vue: fixed column order, no
  * sorting and no pagination, so PrimeVue's machinery would add only overhead.
  */
 const props = defineProps({
   /**
-   * The days to compare, oldest first.
-   * @type {Array<{key: string, label: string, loading: boolean, cells: object[]}>}
+   * The days to render, oldest first.
+   * @type {Array<{key: string, label: string, cells: object[]}>}
    */
   days: { type: Array, required: true },
   /**
@@ -36,7 +36,7 @@ const props = defineProps({
    * sizes, so a size missing from one day renders as a blank cell there.
    */
   sizeOrder: { type: Array, default: () => [] },
-  /** Message when not one of the days has any stock at all. */
+  /** Message when not one day of the period holds any stock. */
   emptyMessage: { type: String, default: 'Нет складских остатков по этому SKU.' },
 })
 
@@ -58,7 +58,7 @@ function shortWarehouseName(name) {
   return name.length > 8 ? `${name.slice(0, 8)}…` : name
 }
 
-/** The warehouse columns every day repeats — the union, fullest pair-wise first. */
+/** The warehouse columns every day repeats — the union, fullest first. */
 const warehouses = computed(() => sharedWarehouses(props.days.map((day) => day.cells)))
 
 /** Per day: its rows (in the shared order), its per-warehouse and grand totals. */
@@ -77,6 +77,19 @@ const columns = computed(() =>
 )
 
 const hasStock = computed(() => warehouses.value.length > 0)
+
+const scroll = ref(null)
+
+/** Start at the right edge: «сегодня» first, older days appear scrolling left. */
+function scrollToNewestDay() {
+  if (scroll.value) scroll.value.scrollLeft = scroll.value.scrollWidth
+}
+
+onMounted(scrollToNewestDay)
+watch(
+  () => props.days,
+  () => nextTick(scrollToNewestDay),
+)
 </script>
 
 <template>
@@ -85,10 +98,10 @@ const hasStock = computed(() => warehouses.value.length > 0)
       {{ emptyMessage }}
     </div>
 
-    <div v-else v-drag-scroll class="stock-scroll">
+    <div v-else ref="scroll" v-drag-scroll class="stock-scroll">
       <table>
         <thead>
-          <!-- Row 1: one label spanning each day's whole group. -->
+          <!-- Row 1: one date spanning each day's whole group. -->
           <tr>
             <th class="col-size" rowspan="2">Размер</th>
             <th
@@ -124,17 +137,11 @@ const hasStock = computed(() => warehouses.value.length > 0)
             <template v-for="day in columns" :key="day.key">
               <td
                 class="cell-total day-start font-semibold tabular-nums"
-                :class="day.loading ? 'is-loading' : ''"
                 :style="{ '--share': sizeShare(day.rows[index]?.total, day.grandTotal) }"
               >
                 {{ day.rows[index]?.total ? formatNumber(day.rows[index].total) : '' }}
               </td>
-              <td
-                v-for="wh in warehouses"
-                :key="`${day.key}:${wh}`"
-                class="tabular-nums"
-                :class="day.loading ? 'is-loading' : ''"
-              >
+              <td v-for="wh in warehouses" :key="`${day.key}:${wh}`" class="tabular-nums">
                 <!-- Zeros read as blanks — only real remainders carry a number. -->
                 <span v-if="day.rows[index]?.quantities[wh]">{{
                   formatNumber(day.rows[index].quantities[wh])

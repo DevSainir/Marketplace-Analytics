@@ -58,6 +58,7 @@ from src.modules.monitoring.schemas.stocks import (
     StockCell,
     StockDayResponse,
     StockDetail,
+    StockRangeResponse,
     StockSizeTotal,
 )
 from src.modules.monitoring.schemas.summary import (
@@ -113,6 +114,7 @@ __all__ = [
     "StockCell",
     "StockDayResponse",
     "StockDetail",
+    "StockRangeResponse",
     "StockSizeTotal",
     "compute_ad_metrics",
     "compute_funnel_totals",

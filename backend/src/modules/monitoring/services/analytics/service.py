@@ -35,7 +35,7 @@ from src.modules.monitoring.schemas import (
     SkuDetailResponse,
     SkuLookupResponse,
     SkuSummaryListResponse,
-    StockDayResponse,
+    StockRangeResponse,
 )
 from src.modules.monitoring.schemas.aggregate import AggregateChartsResponse
 from src.modules.monitoring.schemas.matrix import (
@@ -274,8 +274,12 @@ class AnalyticsService:
         )
 
     # ------------------------------------------------------------------ #
-    # Stock days + warehouse marks
+    # Stock ribbon + warehouse marks
     # ------------------------------------------------------------------ #
-    async def get_stock_day(self, *, nm_id: int, on_date: date) -> StockDayResponse:
-        """Delegate to :meth:`StockViewAnalytics.get_stock_day`."""
-        return await self._stock_view.get_stock_day(nm_id=nm_id, on_date=on_date)
+    async def get_stock_range(
+        self, *, nm_id: int, date_from: date | None, date_to: date | None
+    ) -> StockRangeResponse:
+        """Delegate to :meth:`StockViewAnalytics.get_stock_range`."""
+        return await self._stock_view.get_stock_range(
+            nm_id=nm_id, date_from=date_from, date_to=date_to
+        )
