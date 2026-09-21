@@ -387,6 +387,22 @@ It records what WB **demanded**, not the longer block we then serve. The margin
 in `penalise` is our policy (`_BLOCK_MARGIN`, 1.25) and folding it in would make
 the series describe us rather than WB.
 
+One metric added 2026-09-21 has no alert and is not meant to get one:
+**`settlement_publication_spread_hours`** exists to answer a design question and then, most
+likely, to be deleted. On the day WB forms a settlement report every seller spends its own
+quarter-hourly requests asking the same thing — «are you serving it yet» — and one answer
+could serve the whole fleet, which at fifty sellers is the difference between a ceiling of
+twenty-three per egress address and ninety-one. That is only true if WB publishes to everyone
+at once, and nothing we held said whether it does. The histogram records how long after the
+first seller each one receives the same period.
+
+Read it as an **upper bound** on WB's own spread, never as a measurement of it: our probe
+cadence, our rate budget and any tick a seller missed are all inside the figure. A
+distribution piled into the bottom bucket is conclusive — WB published simultaneously and we
+watched it. A wide one is ambiguous, and the logs, which carry `workspace_id`, are where it
+gets interpreted. The usual split: the metric says whether the fleet saw it together, the
+logs say who was late.
+
 ### The backfill group, and why it alerts on an absence
 
 A new organisation's history arrives as four lanes of self-enqueueing ticks —
