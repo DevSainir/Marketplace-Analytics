@@ -37,6 +37,10 @@ FROM python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b
 # version tag and its digest: the version says what this is, the digest is what
 # actually decides. An unpinned `:latest` would make the build non-reproducible
 # in exactly the way the lock file exists to prevent.
+#
+# build-only: the two binaries land in `builder`, and `base` copies only the
+# resolved /app/.venv out of it. Nothing from this image reaches a running
+# container, which is why the CVE scan skips it — see base-image-freshness.yml.
 COPY --from=ghcr.io/astral-sh/uv:0.11.32@sha256:df4cae8f3a96d175e2e5f992e597550000edbe78fdc2594d5cd8de1a217f504c /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \

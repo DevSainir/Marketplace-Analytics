@@ -20,6 +20,11 @@
 # base-image-freshness.yml` fails once a week when a pin has drifted from its
 # tag — refreshing is meant to be a deliberate act with a diff, not an accident
 # of whenever a build happened to run.
+#
+# build-only: this stage runs `npm ci` and Vite, and the `release` stage below
+# takes /app/dist out of it. The image itself — Node, and the npm tree bundled
+# with it — is never started anywhere. The CVE scan skips it for that reason;
+# the freshness check above still covers it.
 FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS builder
 
 WORKDIR /app

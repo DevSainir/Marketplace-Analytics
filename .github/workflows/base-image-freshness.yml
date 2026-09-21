@@ -19,9 +19,19 @@
 # this tag moved?" and "is what we pinned known-vulnerable?" are different
 # facts, and a pin can be perfectly current while carrying a CVE published
 # yesterday — nothing upstream has to move for our image to become a problem. So
-# Trivy scans the same digests, and the two jobs report independently rather
+# Trivy scans those digests too, and the two jobs report independently rather
 # than one gating the other: a stale pin and a vulnerable pin want different
 # responses from whoever reads the run.
+#
+# THE TWO JOBS DO NOT COVER THE SAME LIST, and the difference is deliberate.
+# Freshness looks at every pinned image, because a stale builder is still a
+# reproducibility problem worth a diff. The CVE scan looks only at the images
+# that reach a running container: a finding in a stage whose output is a
+# directory we copy out is not a finding anybody can be asked to act on, and a
+# gate that is red for reasons nobody can act on is a gate that gets muted —
+# the same failure `--ignore-unfixed` below was written to avoid, arriving from
+# the other direction. `# build-only` above a pinned reference is what excludes
+# it; unmarked means scanned.
 
 name: base images
 
@@ -125,17 +135,51 @@ jobs:
 
       # The images to scan come from the Dockerfiles, for the same reason the
       # freshness job reads them there: one list, or the two drift apart.
-      - name: Collect the pinned images
+      #
+      # But not ALL of them — only the ones that reach a running container.
+      # A `# build-only` comment above a pinned reference excludes it, and the
+      # comment sits next to the stage it describes rather than in a list here,
+      # for the same one-list reason. UNMARKED MEANS SCANNED: a new pin nobody
+      # classified is a pin this job looks at, so forgetting the marker costs a
+      # false alarm rather than a blind spot.
+      #
+      # What is skipped is printed, because a coverage bound nobody states
+      # reads as full coverage the moment the person who set it moves on.
+      - name: Collect the pinned images that reach production
         id: images
         run: |
           set -euo pipefail
-          refs=$(grep -rhoE '[a-z0-9./-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}' \
-                   backend/docker/Dockerfile frontend/docker/Dockerfile | sort -u)
-          if [ -z "$refs" ]; then
-            echo "::error::No digest-pinned images found — the grep or the Dockerfiles changed shape."
+          classify() {
+            awk '
+              /^[[:space:]]*#[[:space:]]*build-only([[:space:]]|:|$)/ { mark = 1; next }
+              {
+                if (match($0, /[a-z0-9.\/-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}/)) {
+                  print (mark ? "build-only" : "shipped") "\t" substr($0, RSTART, RLENGTH)
+                  mark = 0
+                  next
+                }
+                if ($0 !~ /^[[:space:]]*(#|$)/) mark = 0
+              }
+            ' backend/docker/Dockerfile frontend/docker/Dockerfile | sort -u
+          }
+          all=$(classify)
+          if [ -z "$all" ]; then
+            echo "::error::No digest-pinned images found — the awk or the Dockerfiles changed shape."
             exit 1
           fi
-          echo "$refs"
+          refs=$(printf '%s\n' "$all" | awk -F'\t' '$1 == "shipped" { print $2 }')
+          skipped=$(printf '%s\n' "$all" | awk -F'\t' '$1 == "build-only" { print $2 }')
+          if [ -z "$refs" ]; then
+            echo "::error::Every pinned image is marked build-only — this run would prove nothing."
+            exit 1
+          fi
+          echo "Scanning:"
+          printf '  %s\n' $refs
+          if [ -n "$skipped" ]; then
+            echo "Not scanned, marked build-only in the Dockerfile:"
+            printf '  %s\n' $skipped
+            echo "::notice::This run says nothing about $(printf '%s\n' "$skipped" | wc -l | tr -d ' ') build-only image(s)."
+          fi
           {
             echo 'refs<<EOF'
             echo "$refs"
