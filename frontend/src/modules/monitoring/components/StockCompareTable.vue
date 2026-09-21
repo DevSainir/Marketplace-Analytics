@@ -1,7 +1,7 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-import { pivotRows, sharedWarehouses, sizeShare } from '@/modules/monitoring/stockPivot'
+import { pivotRows, pivotWarehouses, sizeShare } from '@/modules/monitoring/stockPivot'
 import { useWarehouseNameTip } from '@/modules/monitoring/useWarehouseNameTip'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
@@ -12,15 +12,23 @@ import { formatNumber } from '@/core/utils/format'
  *
  * It used to be a table per day, two of them side by side — each with its own
  * size column, its own scroll container and its own day picker. This is a
- * single table built like the daily metrics matrix, down to its width rule: the
- * size column is frozen on the left, every day is a column GROUP («Всего» +
- * that day's warehouses), and one group is half of what the size column
- * leaves — so EXACTLY two days fill the screen and the rest of the period is a
- * horizontal scroll away, newest day first.
+ * single table arranged like the daily metrics matrix: the size column frozen
+ * on the left, one column GROUP per day, EXACTLY two days on screen and the
+ * rest of the period a horizontal scroll away, newest day first.
  *
- * Every day renders the SAME warehouse columns (the union over the period,
- * fullest first) and the same size rows, so a row reads straight across: the
- * same size at the same warehouse, day after day.
+ * Each day shows ONLY the warehouses that held stock THAT day. A seller's
+ * warehouse list over a quarter runs to dozens, nearly all of them long since
+ * emptied, and carrying the union would spend the width of every day on columns
+ * that are blank on the day you are looking at.
+ *
+ * Which is why the widths come from a `<colgroup>` and not from the cells. Days
+ * hold different numbers of columns, and a table left to itself gives every
+ * COLUMN an equal share — so the day with twelve warehouses would be three
+ * times the width of the day with four and «two days on screen» would mean
+ * whatever the data felt like. The colgroup gives every day the same measured
+ * width and lets it divide that between its own warehouses. (The width has to
+ * be in px: a `calc()` mixing a percentage into a `<col>` is dropped, which is
+ * what `--group-w` and the observer below are for.)
  *
  * Native `<table>`, same reasoning as MetricsTable.vue: fixed column order, no
  * sorting and no pagination, so PrimeVue's machinery would add only overhead.
@@ -58,34 +66,59 @@ function shortWarehouseName(name) {
   return name.length > 8 ? `${name.slice(0, 8)}…` : name
 }
 
-/** The warehouse columns every day repeats — the union, fullest first. */
-const warehouses = computed(() => sharedWarehouses(props.days.map((day) => day.cells)))
-
-/** Per day: its rows (in the shared order), its per-warehouse and grand totals. */
+/** Per day: the warehouses it actually stocked, its rows, and its total. */
 const columns = computed(() =>
   props.days.map((day) => {
-    const rows = pivotRows(day.cells, props.sizeOrder, sizeLabel)
-    const totals = {}
-    for (const row of rows) {
-      for (const [name, quantity] of Object.entries(row.quantities)) {
-        totals[name] = (totals[name] ?? 0) + quantity
-      }
+    const warehouses = pivotWarehouses(day.cells)
+    return {
+      ...day,
+      warehouses,
+      rows: pivotRows(day.cells, props.sizeOrder, sizeLabel),
+      grandTotal: warehouses.reduce((sum, warehouse) => sum + warehouse.total, 0),
     }
-    const grandTotal = rows.reduce((sum, row) => sum + row.total, 0)
-    return { ...day, rows, totals, grandTotal }
   }),
 )
 
-const hasStock = computed(() => warehouses.value.length > 0)
+const hasStock = computed(() => columns.value.some((day) => day.warehouses.length))
 
+/** One day's warehouse column width: its share of the day's own group. */
+function warehouseColumnWidth(day) {
+  return `calc((var(--group-w) - var(--col-total-w)) / ${day.warehouses.length})`
+}
+
+const root = ref(null)
 const scroll = ref(null)
+/** Half of what the frozen size column leaves — one day group, in px. */
+const groupWidth = ref(0)
+
+/** Read a px-valued custom property off the grid (they are px so this can). */
+function cssPx(name) {
+  return parseFloat(getComputedStyle(root.value).getPropertyValue(name)) || 0
+}
+
+function measureGroupWidth() {
+  if (!scroll.value || !root.value) return
+  groupWidth.value = Math.max((scroll.value.clientWidth - cssPx('--col-size-w')) / 2, 0)
+}
 
 /** Start at the right edge: «сегодня» first, older days appear scrolling left. */
 function scrollToNewestDay() {
   if (scroll.value) scroll.value.scrollLeft = scroll.value.scrollWidth
 }
 
-onMounted(scrollToNewestDay)
+let observer = null
+
+onMounted(() => {
+  measureGroupWidth()
+  // The group is half the VIEWPORT's share, so it moves with the window, not
+  // with the data.
+  observer = new ResizeObserver(measureGroupWidth)
+  if (scroll.value) observer.observe(scroll.value)
+  nextTick(scrollToNewestDay)
+})
+
+onBeforeUnmount(() => observer?.disconnect())
+
 watch(
   () => props.days,
   () => nextTick(scrollToNewestDay),
@@ -93,13 +126,30 @@ watch(
 </script>
 
 <template>
-  <div class="app-datatable" :style="{ '--days': days.length }">
+  <div
+    ref="root"
+    class="app-datatable"
+    :style="{ '--days': days.length, '--group-w': `${groupWidth}px` }"
+  >
     <div v-if="!hasStock" class="px-md py-xl text-center text-base text-muted">
       {{ emptyMessage }}
     </div>
 
     <div v-else ref="scroll" v-drag-scroll class="stock-scroll">
       <table>
+        <!-- The widths live here, not on the cells: see the note above. -->
+        <colgroup>
+          <col class="col-size" />
+          <template v-for="day in columns" :key="day.key">
+            <col class="col-total" />
+            <col
+              v-for="wh in day.warehouses"
+              :key="`${day.key}:${wh.name}`"
+              :style="{ width: warehouseColumnWidth(day) }"
+            />
+          </template>
+        </colgroup>
+
         <thead>
           <!-- Row 1: one date spanning each day's whole group. -->
           <tr>
@@ -108,24 +158,24 @@ watch(
               v-for="day in columns"
               :key="day.key"
               class="col-day day-start"
-              :colspan="warehouses.length + 1"
+              :colspan="day.warehouses.length + 1"
             >
               {{ day.label }}
-              <span v-if="!day.cells.length" class="text-muted">· нет снимка</span>
+              <span v-if="!day.warehouses.length" class="text-muted">· нет остатков</span>
             </th>
           </tr>
-          <!-- Row 2: that day's «Всего», then the shared warehouse columns. -->
+          <!-- Row 2: that day's «Всего», then the warehouses it stocked. -->
           <tr>
             <template v-for="day in columns" :key="day.key">
               <th class="col-total day-start">Всего</th>
               <th
-                v-for="wh in warehouses"
-                :key="`${day.key}:${wh}`"
+                v-for="wh in day.warehouses"
+                :key="`${day.key}:${wh.name}`"
                 class="col-wh"
-                @mouseenter="showNameTip($event, wh)"
+                @mouseenter="showNameTip($event, wh.name)"
                 @mouseleave="hideNameTip"
               >
-                {{ shortWarehouseName(wh) }}
+                {{ shortWarehouseName(wh.name) }}
               </th>
             </template>
           </tr>
@@ -141,10 +191,10 @@ watch(
               >
                 {{ day.rows[index]?.total ? formatNumber(day.rows[index].total) : '' }}
               </td>
-              <td v-for="wh in warehouses" :key="`${day.key}:${wh}`" class="tabular-nums">
+              <td v-for="wh in day.warehouses" :key="`${day.key}:${wh.name}`" class="tabular-nums">
                 <!-- Zeros read as blanks — only real remainders carry a number. -->
-                <span v-if="day.rows[index]?.quantities[wh]">{{
-                  formatNumber(day.rows[index].quantities[wh])
+                <span v-if="day.rows[index]?.quantities[wh.name]">{{
+                  formatNumber(day.rows[index].quantities[wh.name])
                 }}</span>
               </td>
             </template>
@@ -159,11 +209,11 @@ watch(
                 {{ day.grandTotal ? formatNumber(day.grandTotal) : '' }}
               </td>
               <td
-                v-for="wh in warehouses"
-                :key="`${day.key}:${wh}`"
+                v-for="wh in day.warehouses"
+                :key="`${day.key}:${wh.name}`"
                 class="font-semibold tabular-nums"
               >
-                {{ day.totals[wh] ? formatNumber(day.totals[wh]) : '' }}
+                {{ wh.total ? formatNumber(wh.total) : '' }}
               </td>
             </template>
           </tr>

@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  pivotRows,
-  pivotWarehouses,
-  sharedWarehouses,
-  sizeShare,
-} from '@/modules/monitoring/stockPivot'
+import { pivotRows, pivotWarehouses, sizeShare } from '@/modules/monitoring/stockPivot'
 
 /**
  * The «Остатки» grid's arithmetic. Pure functions, so they are pinned here
@@ -99,28 +94,5 @@ describe('sizeShare', () => {
 
   it('is safe when nothing is in stock at all', () => {
     expect(sizeShare(0, 0)).toBe(0)
-  })
-})
-
-describe('sharedWarehouses', () => {
-  it('orders the union of the days by their combined stock', () => {
-    // Казань is the fuller of the two ACROSS the pair, though on the second day
-    // alone Коледино holds more — one order for the whole grid, or the columns
-    // stop lining up.
-    const yesterday = [cell(1, 'S', 'Казань', 40), cell(1, 'S', 'Коледино', 5)]
-    const today = [cell(1, 'S', 'Коледино', 20), cell(1, 'S', 'Тула', 1)]
-
-    const result = sharedWarehouses([yesterday, today])
-
-    expect(result).toEqual(['Казань', 'Коледино', 'Тула'])
-  })
-
-  it('keeps a warehouse that emptied out overnight', () => {
-    const yesterday = [cell(1, 'S', 'Казань', 12)]
-    const today = [cell(1, 'S', 'Казань', 0)]
-
-    const result = sharedWarehouses([yesterday, today])
-
-    expect(result).toEqual(['Казань'])
   })
 })

@@ -28,21 +28,6 @@ export function pivotWarehouses(cells) {
 }
 
 /**
- * The warehouse columns a multi-day comparison repeats under every day.
- *
- * The union of the days' warehouses, ordered by their COMBINED remaining stock
- * — one order for the whole grid, so the same column sits under both days and a
- * row reads straight across. A warehouse that emptied out overnight keeps its
- * column (it was full on the other day); one empty on every day still drops.
- *
- * @param {Array<Array<object>>} cellsPerDay one `StockDetail.cells` array per day
- * @returns {string[]} warehouse names, fullest pair-wise first
- */
-export function sharedWarehouses(cellsPerDay) {
-  return pivotWarehouses(cellsPerDay.flat()).map((warehouse) => warehouse.name)
-}
-
-/**
  * One row per size, each carrying its per-warehouse quantities and its total.
  *
  * @param {Array<object>} cells `StockDetail.cells` for one day
