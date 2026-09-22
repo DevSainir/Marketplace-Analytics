@@ -129,7 +129,7 @@ def _shared_gate(redis: Any, *, token: str) -> TokenBucketRateGate:
         capacity=1,
         refill_seconds=0.2,
         max_wait_seconds=0.0,
-        shared_block=True,
+        shared_block=(ENDPOINT,),
     )
 
 
@@ -200,3 +200,40 @@ async def test_a_gate_without_shared_blocks_is_unaffected_by_one(
     )
 
     assert await unshared.retry_after(ENDPOINT) == 0.0
+
+
+async def test_only_the_named_endpoint_shares_its_block(redis_client: Any) -> None:
+    """The sharing is one endpoint's rule, and must not spread to its surface.
+
+    The evidence for sharing is about `reportDetailByPeriod` and nothing else:
+    five sellers holding one countdown there on 2026-09-17. Everything
+    measured since says the surface at large does not behave that way — the
+    ordinary bucket is not keyed on the egress address (2026-09-22, a bucket
+    emptied from one address stayed empty for the same token from another),
+    and `/api/v1/supplier/orders` does not escalate at all. Sharing its block
+    would stall four sellers over a refusal that costs the fifth nothing.
+    """
+    other = "/api/v1/supplier/orders"
+    earner = TokenBucketRateGate(
+        redis_client,
+        surface="statistics-test",
+        token="seller-seven",
+        capacity=1,
+        refill_seconds=0.2,
+        max_wait_seconds=0.0,
+        shared_block=(ENDPOINT,),
+    )
+    bystander = TokenBucketRateGate(
+        redis_client,
+        surface="statistics-test",
+        token="seller-eight",
+        capacity=1,
+        refill_seconds=0.2,
+        max_wait_seconds=0.0,
+        shared_block=(ENDPOINT,),
+    )
+
+    await earner.penalise(other, 30.0)
+
+    assert await bystander.retry_after(other) == 0.0, "an unshared endpoint stays private"
+    assert await bystander.retry_after(ENDPOINT) == 0.0, "and shares nothing across paths"

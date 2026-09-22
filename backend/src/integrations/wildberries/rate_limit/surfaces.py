@@ -15,6 +15,7 @@ from collections.abc import Mapping
 
 from src.core.config import Settings
 from src.core.redis import get_redis
+from src.integrations.wildberries.endpoints import SETTLEMENT_REPORT_PATH
 from src.integrations.wildberries.rate_limit.gates import (
     NullRateGate,
     RateGate,
@@ -203,14 +204,20 @@ def statistics_rate_gate(settings: Settings, *, token: str) -> RateGate:
     fifteen-minute penalty block rather than a Retry-After the ladder could
     honour — so the request must not be sent, not merely retried.
 
-    **The bucket is per token; a penalty block is not** (``shared_block``).
-    Five tokens have probed this surface within the same second, twenty-one
-    times a day, for months without being refused — so the ordinary budget is
-    very probably metered per token. But on 2026-09-17 five distinct
-    fingerprints ended up holding block expiries 0.77 s apart, which is one
-    refusal seen five times rather than five refusals. The fleet walk is
-    sequential, so per-token blocks turn that into a cascade: every seller in
-    turn earns its own escalating block from the same shut door.
+    **The bucket is per token; one endpoint's penalty block is not**
+    (``shared_block``). On 2026-09-17 five distinct fingerprints ended up
+    holding block expiries 0.77 s apart on ``reportDetailByPeriod``, with the
+    demanded values falling as the requests went out — one deadline counted
+    down, not five refusals. The fleet walk is sequential, so a per-token block
+    turns that into a cascade: every seller in turn earns its own escalating
+    block from the same shut door.
+
+    Scoped to that ONE path, and deliberately not to the surface. The ordinary
+    bucket is per token and measurably not per address — 2026-09-22, the
+    documents bucket stayed empty for the same token from a different egress —
+    and ``/api/v1/supplier/orders`` does not escalate at all, so sharing its
+    block would stall four sellers over a refusal that costs the fifth
+    nothing.
 
     Args:
         settings: Bucket parameters and the Redis DSN.
@@ -231,7 +238,7 @@ def statistics_rate_gate(settings: Settings, *, token: str) -> RateGate:
         refill_seconds=settings.wb_statistics_bucket_refill_seconds,
         max_wait_seconds=settings.wb_statistics_max_queue_seconds,
         endpoint_buckets=STATISTICS_ENDPOINT_BUCKETS,
-        shared_block=True,
+        shared_block=(SETTLEMENT_REPORT_PATH,),
     )
 
 
@@ -262,7 +269,7 @@ def settlement_walk_rate_gate(settings: Settings, *, token: str) -> RateGate:
         refill_seconds=settings.wb_statistics_bucket_refill_seconds,
         max_wait_seconds=settings.wb_statistics_walk_queue_seconds,
         endpoint_buckets=STATISTICS_ENDPOINT_BUCKETS,
-        shared_block=True,
+        shared_block=(SETTLEMENT_REPORT_PATH,),
     )
 
 

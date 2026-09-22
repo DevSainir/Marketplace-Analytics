@@ -31,7 +31,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import time
-from collections.abc import Awaitable, Mapping
+from collections.abc import Awaitable, Collection, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
@@ -181,7 +181,7 @@ class TokenBucketRateGate:
         refill_seconds: float,
         max_wait_seconds: float,
         endpoint_buckets: Mapping[str, tuple[int, float]] | None = None,
-        shared_block: bool = False,
+        shared_block: Collection[str] = (),
     ) -> None:
         """Configure the bucket.
 
@@ -215,7 +215,7 @@ class TokenBucketRateGate:
         # weaker (each process paces itself), but far better than no pacing.
         self._local_next_allowed: dict[str, float] = {}
         self._degraded = False
-        self._shared_block = shared_block
+        self._shared_block = frozenset(shared_block)
 
     def _key(self, endpoint: str) -> str:
         """Build the Redis key for one endpoint's bucket."""
@@ -237,7 +237,7 @@ class TokenBucketRateGate:
         outage would be failing closed on the control that exists to keep
         harvests running.
         """
-        if not self._shared_block:
+        if endpoint not in self._shared_block:
             return 0.0
         try:
             result = await cast(
@@ -458,7 +458,7 @@ class TokenBucketRateGate:
                     str(_BLOCK_MARGIN),
                 ),
             )
-            if self._shared_block:
+            if endpoint in self._shared_block:
                 # The same instant, written where every other token will see
                 # it. Without this the fleet walk earns the block once per
                 # seller: it is sequential, so seller 2 is refused a minute
