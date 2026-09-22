@@ -89,13 +89,15 @@ class AccessLevel(enum.StrEnum):
 class ModuleKey(enum.StrEnum):
     """The product surfaces a manager can be granted or denied.
 
-    Deliberately coarser than the navigation. «Сравнение SKU» is not here because it
-    renders monitoring's own data: a manager who may not see the monitoring
-    tables must not see the same numbers drawn as lines, and two switches that
-    must always agree are a bug waiting for someone to set them apart.
+    Deliberately coarser than the navigation. «Сводка» is not here, and for the
+    opposite reason to the page it replaced: it draws BOTH of the surfaces below
+    — the settlement's money and monitoring's demand — so it asks for both
+    grants rather than introducing a third switch that would have to agree with
+    them. Two switches that must always agree are a bug waiting for somebody to
+    set them apart.
     """
 
-    #: Мониторинг, and «Сравнение SKU» with it.
+    #: Мониторинг — карточки и воронка.
     MONITORING = "monitoring"
     #: P&L — the profit-and-loss statement built from WB's settlement detail.
     FINREPORTS = "finreports"

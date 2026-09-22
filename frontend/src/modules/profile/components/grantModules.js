@@ -7,8 +7,10 @@
  * `ModuleKey`; the labels are this page's own.
  */
 export const GRANT_MODULES = [
-  { key: 'monitoring', label: 'Мониторинг', hint: 'Карточки, воронка, «Сравнение SKU»' },
+  { key: 'monitoring', label: 'Мониторинг', hint: 'Карточки и воронка' },
   { key: 'finreports', label: 'P&L', hint: 'Прибыль, себестоимость, логистика' },
+  // «Сводка» needs BOTH of the above — it shows the P&L's money beside
+  // monitoring's demand — so it is not a switch of its own.
   { key: 'ab_tests', label: 'A/Б-тесты', hint: 'Ротация фото' },
 ]
 

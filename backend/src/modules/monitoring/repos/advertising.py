@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, cast
@@ -282,67 +282,6 @@ class AdvertisingRepository(BaseRepository):
                 nm_id=row.nm_id,
                 add_to_cart=int(row.add_to_cart),
                 orders=int(row.orders),
-            )
-            for row in result.all()
-        ]
-
-    async def daily_totals(
-        self,
-        *,
-        workspace_id: uuid.UUID,
-        date_from: date,
-        date_to: date,
-        nm_ids: Sequence[int] | None = None,
-    ) -> list[AdDayTotal]:
-        """Return per-DAY advertising totals summed ACROSS SKUs.
-
-        Deliberately NOT split by traffic bucket. A bucket is the result of
-        classifying a CAMPAIGN-day (bid type, placements, payment model, its
-        normquery slice, and which campaigns delivered enough to count) — a
-        per-SKU judgement that does not survive being summed over an account.
-        The «Сравнение SKU» page therefore aggregates the totals only, and the
-        per-SKU page keeps the bucket columns.
-
-        The rows are the campaigns' own numbers for these cards, so a campaign
-        running several SKUs contributes each of them once.
-
-        Args:
-            workspace_id: Restrict to SKUs owned by this workspace.
-            date_from: Inclusive window start.
-            date_to: Inclusive window end.
-            nm_ids: Restrict further to these SKUs; ``None`` means all of them.
-
-        Returns:
-            One :class:`AdDayTotal` per day with advertising, ascending by date.
-        """
-        stmt = (
-            select(
-                AdvertisingStatDaily.stat_date,
-                func.sum(AdvertisingStatDaily.views).label("views"),
-                func.sum(AdvertisingStatDaily.clicks).label("clicks"),
-                func.sum(AdvertisingStatDaily.add_to_cart).label("add_to_cart"),
-                func.sum(AdvertisingStatDaily.orders).label("orders"),
-                func.sum(AdvertisingStatDaily.spend).label("spend"),
-            )
-            .where(
-                AdvertisingStatDaily.stat_date >= date_from,
-                AdvertisingStatDaily.stat_date <= date_to,
-                AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id)),
-            )
-            .group_by(AdvertisingStatDaily.stat_date)
-            .order_by(AdvertisingStatDaily.stat_date)
-        )
-        if nm_ids is not None:
-            stmt = stmt.where(AdvertisingStatDaily.nm_id.in_(list(nm_ids)))
-        result = await self._session.execute(stmt)
-        return [
-            AdDayTotal(
-                stat_date=row.stat_date,
-                views=int(row.views),
-                clicks=int(row.clicks),
-                add_to_cart=int(row.add_to_cart),
-                orders=int(row.orders),
-                spend=float(row.spend),
             )
             for row in result.all()
         ]

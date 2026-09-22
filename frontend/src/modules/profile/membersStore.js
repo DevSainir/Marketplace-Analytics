@@ -30,8 +30,11 @@ import {
 
 /** Every grantable surface, in the order the UI lists them. */
 export const MODULES = [
-  { key: 'monitoring', label: 'Мониторинг', hint: 'Включая «Сравнение SKU»' },
+  { key: 'monitoring', label: 'Мониторинг', hint: 'Карточки и воронка' },
   { key: 'finreports', label: 'P&L', hint: 'Отчёт о прибылях и убытках, себестоимость' },
+  // «Сводка» is not a grant of its own: it draws both of the above, so it
+  // opens only for somebody who has both. Said here because a manager given
+  // one of the two would otherwise wonder where the page went.
   { key: 'ab_tests', label: 'A/Б-тесты', hint: 'Ротация фото' },
 ]
 

@@ -90,7 +90,7 @@ class SummaryService:
         """Return the window's buyout cohort, or the standing one if it has none.
 
         The cohort is lagged by :data:`BUYOUT_LAG_END_DAYS`, the same lag the
-        «Сравнение SKU» matrix applies, and for the same measured reason: inside
+        «Мониторинг SKU» matrix applies, and for the same measured reason: inside
         a fresh cohort the refusals arrive before the buyouts do. On the live
         кабинет the current week reads 22.2 % against a long-run 26-30 %, on
         8 % of its deliveries having answered at all.

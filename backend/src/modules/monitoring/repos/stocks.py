@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, cast
@@ -158,58 +158,6 @@ class StockRepository(BaseRepository):
             .group_by(StockSnapshot.stat_date)
             .order_by(StockSnapshot.stat_date)
         )
-        result = await self._session.execute(stmt)
-        return [
-            StockDailyTotal(
-                stat_date=row.stat_date,
-                quantity=int(row.quantity),
-                in_way_to_client=int(row.in_way_to_client),
-                in_way_from_client=int(row.in_way_from_client),
-            )
-            for row in result.all()
-        ]
-
-    async def daily_totals(
-        self,
-        *,
-        workspace_id: uuid.UUID,
-        date_from: date,
-        date_to: date,
-        nm_ids: Sequence[int] | None = None,
-    ) -> list[StockDailyTotal]:
-        """Return per-DAY stock totals summed ACROSS SKUs (and sizes/warehouses).
-
-        The account-wide sibling of :meth:`daily_totals_for_sku`. Stock is a
-        SNAPSHOT rather than a flow, so summing cards on a day is meaningful
-        («how many units did we hold that day») in a way that summing days
-        would not be.
-
-        Args:
-            workspace_id: Restrict to SKUs owned by this workspace.
-            date_from: Inclusive window start.
-            date_to: Inclusive window end.
-            nm_ids: Restrict further to these SKUs; ``None`` means all of them.
-
-        Returns:
-            One :class:`StockDailyTotal` per snapshot day, ascending by date.
-        """
-        stmt = (
-            select(
-                StockSnapshot.stat_date,
-                func.sum(StockSnapshot.quantity).label("quantity"),
-                func.sum(StockSnapshot.in_way_to_client).label("in_way_to_client"),
-                func.sum(StockSnapshot.in_way_from_client).label("in_way_from_client"),
-            )
-            .where(
-                StockSnapshot.stat_date >= date_from,
-                StockSnapshot.stat_date <= date_to,
-                StockSnapshot.nm_id.in_(workspace_sku_select(workspace_id)),
-            )
-            .group_by(StockSnapshot.stat_date)
-            .order_by(StockSnapshot.stat_date)
-        )
-        if nm_ids is not None:
-            stmt = stmt.where(StockSnapshot.nm_id.in_(list(nm_ids)))
         result = await self._session.execute(stmt)
         return [
             StockDailyTotal(
