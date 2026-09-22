@@ -184,3 +184,35 @@ sha256_of() {
         shasum -a 256 "$1" | cut -d' ' -f1
     fi
 }
+
+# An append-only record of what this box actually wrote, kept next to the job
+# rather than in the bucket.
+#
+# The checksum already travels as S3 user-metadata, and `upload_one` reads it
+# back — but both the object and its metadata are written by the same
+# credentials, so that check proves the transfer, not the provenance. age
+# encrypts to a *public* key, which is in git: anyone who can write to a bucket
+# can put an artifact there that decrypts perfectly. This file is the copy the
+# bucket's credentials cannot reach, and `restore.sh fetch` checks a download
+# against it.
+#
+# It does not defend against an attacker who already has this box — nothing
+# stored here could. That case is why the weekly report carries the checksum
+# out to Telegram as well.
+record_artifact_sha() {
+    local filename=$1 sha=$2 ledger="${BACKUP_STATE_DIR}/artifact-sha256.log"
+
+    printf '%s  %s\n' "${sha}" "${filename}" >>"${ledger}"
+    chmod 600 "${ledger}"
+}
+
+# The checksum this box recorded for an artifact, or nothing if it never wrote
+# one. Prints the LAST match: a name written more than once should be judged by
+# the most recent thing written under it.
+recorded_artifact_sha() {
+    local filename=$1 ledger="${BACKUP_STATE_DIR}/artifact-sha256.log"
+
+    [ -r "${ledger}" ] || return 0
+    awk -v name="${filename}" '$2 == name { sha = $1 } END { if (sha) print sha }' \
+        "${ledger}"
+}

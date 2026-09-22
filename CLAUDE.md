@@ -45,6 +45,11 @@ description says when it applies, so they load themselves when the work calls fo
 sitting in every conversation. Read them directly (they are plain markdown) when working without
 that mechanism, and put new project guidance in the relevant skill rather than here.
 
+`docs/security/BACKUP_KEYS.md` explains the backup key scheme — why the archives are
+encrypted to two `age` recipients, which of the three keys lives where, and the one
+property the move away from a symmetric passphrase gave up. Read it before touching
+`scripts/backup/recipients/` or either encryption key.
+
 `docs/security/HARDENING.md` is the live weakness register — what is fixed, what blocks a
 public launch, and what was decided against on purpose. Read the entry before changing
 anything it names: several of them record *why* a choice was made, including the ones where

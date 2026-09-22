@@ -159,6 +159,7 @@ PLAIN_ARCHIVE=""
 ENCRYPTED_SIZE=$(file_size "${ENCRYPTED_ARCHIVE}")
 ENCRYPTED_SHA=$(sha256_of "${ENCRYPTED_ARCHIVE}")
 log "Artifact ${ENCRYPTED_NAME}: $(human_bytes "${ENCRYPTED_SIZE}"), sha256 ${ENCRYPTED_SHA}."
+record_artifact_sha "${ENCRYPTED_NAME}" "${ENCRYPTED_SHA}"
 
 # --- Weekly rehearsal, before anything is pushed ----------------------------
 if [ "${DEEP_CHECK}" -eq 1 ]; then
@@ -195,8 +196,15 @@ find "${BACKUP_LOG_DIR}" -maxdepth 1 -name 'backup-*.log' \
 # of a 5 KB file and turns that into a line in the Sunday report.
 SECRETS_NOTE=$(secrets_bundle_drift_note)
 
+# The checksum goes to Telegram deliberately, and it is the only part of this
+# message that is not just reassurance. Artifacts are encrypted to a PUBLIC
+# key, so anyone able to write to a bucket can leave one there that decrypts
+# and restores cleanly — the symmetric passphrase used to make that impossible.
+# A checksum that has left the box, into a channel the bucket's credentials
+# cannot reach, is what makes such a swap visible: compare before restoring.
 SUMMARY="✅ Backup OK on $(hostname)
 ${ENCRYPTED_NAME} — $(human_bytes "${ENCRYPTED_SIZE}")
+sha256 ${ENCRYPTED_SHA}
 tiers: ${TIERS[*]} → ${BACKUP_DESTINATIONS[*]}
 deep restore check: $([ "${DEEP_CHECK}" -eq 1 ] && echo passed || echo "not due")
 ${SECRETS_NOTE}"

@@ -54,7 +54,7 @@ cmd_list() {
 cmd_fetch() {
     local dest=${1:?destination required} key=${2:?object key required}
     local outdir=${3:-${BACKUP_ARTIFACT_DIR}}
-    local bucket filename expected actual
+    local bucket filename expected actual recorded
 
     bucket=$(dest_var "${dest}" bucket) || die "Unknown destination: ${dest}"
     filename=${key##*/}
@@ -74,6 +74,21 @@ cmd_fetch() {
     if [ -n "${expected}" ] && [ "${expected}" != "None" ] && [ "${expected}" != "${actual}" ]; then
         die "Checksum mismatch on ${filename}: object says ${expected}, file is ${actual}."
     fi
+    # The check above proves the download matches what the bucket says it
+    # should be — and both were written by the same credentials, so it says
+    # nothing about who put them there. Artifacts are encrypted to a public
+    # key, so a forged one decrypts and restores perfectly. The ledger this box
+    # kept when it wrote the artifact is the record those credentials cannot
+    # reach.
+    recorded=$(recorded_artifact_sha "${filename}")
+    if [ -z "${recorded}" ]; then
+        warn "No local record of ${filename} — either this box did not write it, or the state directory is gone. Compare against the checksum in the weekly Telegram report before restoring."
+    elif [ "${recorded}" != "${actual}" ]; then
+        die "${filename} is NOT what this box uploaded: recorded ${recorded}, downloaded ${actual}. Treat the object as tampered with and do not restore it."
+    else
+        log "Provenance: matches the checksum recorded when this artifact was written."
+    fi
+
     log "Downloaded ${outdir}/${filename} ($(human_bytes "$(file_size "${outdir}/${filename}")"), checksum verified)."
 
     if [ -n "${BACKUP_DECRYPT_TO_PLAIN:-}" ]; then

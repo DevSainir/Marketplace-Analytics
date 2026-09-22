@@ -86,6 +86,9 @@ already holds the live database gains very little from being unable to read its
 own backups, so the trade goes the other way: keep the rehearsal, accept that a
 shell on the VPS can read the archives.
 
+`docs/security/BACKUP_KEYS.md` is the long form of all of this — the key scheme,
+what it defends against, and what it does not.
+
 **The recipient list is public and it is in git on purpose.** It is the one part
 of this that a machine can check, and the failure it protects against is silent:
 a wrong character in the offline recipient yields archives nobody can ever open,
