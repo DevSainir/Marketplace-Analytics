@@ -15,7 +15,11 @@ from collections.abc import Mapping
 
 from src.core.config import Settings
 from src.core.redis import get_redis
-from src.integrations.wildberries.endpoints import SETTLEMENT_REPORT_PATH
+from src.integrations.wildberries.endpoints import (
+    SALES_REPORTS_DETAILED_PATH,
+    SALES_REPORTS_LIST_PATH,
+    SETTLEMENT_REPORT_PATH,
+)
 from src.integrations.wildberries.rate_limit.gates import (
     NullRateGate,
     RateGate,
@@ -166,6 +170,58 @@ def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
         refill_seconds=settings.wb_analytics_bucket_refill_seconds,
         max_wait_seconds=settings.wb_analytics_max_queue_seconds,
         endpoint_buckets=ANALYTICS_ENDPOINT_BUCKETS,
+    )
+
+
+#: The two Finance-surface report methods, both documented and measured at one
+#: request a minute, burst 1 (2026-09-22).
+#:
+#: They are SEPARATE buckets, which is the whole reason discovery stops being
+#: expensive: asking «is there a new report» through `sales-reports/list` no
+#: longer spends the budget that fetching one through `detailed` needs. On the
+#: endpoint they replace those were the same request against the same bucket,
+#: and the arithmetic in `finreports/services/publication.py` exists to avoid
+#: spending it.
+FINANCE_REPORT_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
+    SALES_REPORTS_LIST_PATH: (1, 60.0),
+    SALES_REPORTS_DETAILED_PATH: (1, 60.0),
+}
+
+
+def finance_reports_rate_gate(settings: Settings, *, token: str) -> RateGate:
+    """Build the pacing gate for WB's realization reports on the Finance surface.
+
+    No `shared_block`. The statistics settlement path shares one because five
+    sellers were measured holding a single countdown there on 2026-09-17 — an
+    endpoint WB had already switched off. Nothing suggests this surface behaves
+    that way, and sharing a block on no evidence stalls four sellers over a
+    refusal that costs the fifth nothing.
+
+    Args:
+        settings: Bucket parameters and the Redis DSN.
+        token: The workspace's «Финансы» token — the bucket is per token, and
+            WB meters per seller account, so one seller's walk never throttles
+            another's.
+
+    Returns:
+        A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`
+        when pacing is switched off (unit tests, or no Redis available).
+    """
+    if not settings.wb_rate_pacing_enabled:
+        return NullRateGate()
+    return TokenBucketRateGate(
+        get_redis(),
+        surface="finance",
+        token=token,
+        # Nothing on this surface is looser than the two report methods, so the
+        # default is the same figure: an endpoint we have not measured is paced
+        # conservatively rather than unpaced.
+        capacity=1,
+        refill_seconds=60.0,
+        # A page is worth waiting a minute for; the walk takes its token before
+        # opening a transaction, so waiting costs wall clock and nothing else.
+        max_wait_seconds=settings.wb_statistics_walk_queue_seconds,
+        endpoint_buckets=FINANCE_REPORT_ENDPOINT_BUCKETS,
     )
 
 

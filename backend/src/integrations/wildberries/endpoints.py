@@ -37,6 +37,21 @@ _ID_SEGMENT_RE = re.compile(
 #: silently.
 SETTLEMENT_REPORT_PATH = "/api/v5/supplier/reportDetailByPeriod"
 
+#: Its replacement, on the Finance surface. WB announced the shutdown of the
+#: path above for 15.07.2026 and removed it from the documentation; these two
+#: are what it points at, at fifteen times the rate. See
+#: ``docs/finreports/MIGRATION_TO_FINANCE_V1.md``.
+SALES_REPORTS_LIST_PATH = "/api/finance/v1/sales-reports/list"
+
+#: Detail rows for ONE report. The ``{id}`` is interpolated, so the raw path is
+#: never a metric label — :func:`endpoint_label` collapses it back to this.
+SALES_REPORTS_DETAILED_PATH = "/api/finance/v1/sales-reports/detailed/{id}"
+
+
+def sales_report_detail_path(report_id: int) -> str:
+    """The detail path for one report, as sent to WB."""
+    return f"/api/finance/v1/sales-reports/detailed/{report_id}"
+
 
 def endpoint_label(path: str) -> str:
     """Collapse a request path onto the route it belongs to.
@@ -50,4 +65,10 @@ def endpoint_label(path: str) -> str:
     return _ID_SEGMENT_RE.sub("/{id}", path)
 
 
-__all__ = ["SETTLEMENT_REPORT_PATH", "endpoint_label"]
+__all__ = [
+    "SALES_REPORTS_DETAILED_PATH",
+    "SALES_REPORTS_LIST_PATH",
+    "SETTLEMENT_REPORT_PATH",
+    "endpoint_label",
+    "sales_report_detail_path",
+]

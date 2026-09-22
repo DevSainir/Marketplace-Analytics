@@ -27,9 +27,19 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from src.integrations.wildberries.schemas.base import RawBase
+
+
+def _camel(name: str) -> str:
+    """snake_case -> camelCase, which is how the Finance surface spells fields.
+
+    Only used as the DEFAULT alias on :class:`WBFinanceReportRow`; the twenty
+    fields WB renamed outright carry an explicit alias that overrides it.
+    """
+    head, *rest = name.split("_")
+    return head + "".join(part.title() for part in rest)
 
 
 class WBReportDetailRow(RawBase):
@@ -148,3 +158,98 @@ class WBReportDetailRow(RawBase):
     #: DBS («доставка силами продавца») rows settle differently — kept so the
     #: P&L can tell them apart from ordinary FBO rows if that ever matters.
     srv_dbs: bool = False
+
+
+class WBFinanceReportRow(WBReportDetailRow):
+    """The same settlement row, as the Finance surface spells it.
+
+    `reportDetailByPeriod` was announced for shutdown on 15.07.2026 and is gone
+    from WB's documentation; `POST /api/finance/v1/sales-reports/detailed/{id}`
+    replaces it at fifteen times the rate. The payload is the same report with
+    camelCase names, money as strings, and twenty fields renamed.
+
+    **A subclass, so the field names the rest of the service reads never
+    change.** `ingestion/rows.py::settlement_row` maps sixty attributes onto
+    `logistics_transaction`, and every column keeps its name; putting the
+    translation in aliases here means that function, the model, the
+    repositories, the P&L and the claim are untouched by the migration.
+
+    **The renames are NOT derivable from camelCase.** Some `ppvz_` prefixes
+    survived (`ppvzReward`, `ppvzSalesCommission`) and some were dropped
+    (`vw`, `forPay`), so a converter would silently leave the money columns
+    null. Hence a table, and hence
+    `docs/finreports/MIGRATION_TO_FINANCE_V1.md` phase 2, which diffs a whole
+    report against what we already hold before anything is cut over.
+
+    Three of these are inferences rather than observations, and are what that
+    diff is really for: `sellerPromo` is assumed to be the old
+    `supplier_promo` (the payload also carries `sellerPromoId` and
+    `sellerPromoDiscount`), `sku` the old `barcode`, and `country` the old
+    `site_country`.
+
+    Money arriving as a string is an improvement: pydantic parses `"638402.03"`
+    to an exact `Decimal`, where a JSON float had to be trusted.
+    """
+
+    realizationreport_id: int = Field(default=0, alias="reportId")
+    create_dt: date | None = Field(default=None, alias="createDate")
+    rr_dt: date | None = Field(default=None, alias="rrDate")
+    sa_name: str = Field(default="", alias="vendorCode")
+    ts_name: str = Field(default="", alias="techSize")
+    barcode: str = Field(default="", alias="sku")
+    currency_name: str = Field(default="", alias="currency")
+    site_country: str = Field(default="", alias="country")
+    supplier_oper_name: str = Field(default="", alias="sellerOperName")
+    supplier_promo: Decimal = Field(default=Decimal(0), alias="sellerPromo")
+    retail_price_withdisc_rub: Decimal = Field(default=Decimal(0), alias="retailPriceWithDisc")
+    delivery_rub: Decimal = Field(default=Decimal(0), alias="deliveryService")
+    storage_fee: Decimal = Field(default=Decimal(0), alias="paidStorage")
+    acceptance: Decimal = Field(default=Decimal(0), alias="paidAcceptance")
+    ppvz_for_pay: Decimal = Field(default=Decimal(0), alias="forPay")
+    ppvz_vw: Decimal = Field(default=Decimal(0), alias="vw")
+    ppvz_vw_nds: Decimal = Field(default=Decimal(0), alias="vwNds")
+    ppvz_spp_prc: Decimal = Field(default=Decimal(0), alias="spp")
+    ppvz_kvw_prc_base: Decimal = Field(default=Decimal(0), alias="kvwBase")
+    ppvz_kvw_prc: Decimal = Field(default=Decimal(0), alias="kvw")
+
+    #: WB's own name for the product, new on this surface. Today the P&L joins
+    #: the content cards for it; nothing reads this yet.
+    title: str = ""
+    #: The warehouse's logistics coefficient, also new — and directly the
+    warehouse_logistics_coeff: Decimal | None = Field(default=None, alias="warehouseLogisticsCoeff")
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True, alias_generator=_camel)
+
+
+class WBFinanceReportHeader(RawBase):
+    """One report from `POST /api/finance/v1/sales-reports/list`.
+
+    The discovery method the old surface had no equivalent of: it names every
+    report WB has formed for the seller, with `createDate` served rather than
+    derived from the period arithmetic in
+    `src.modules.finreports.services.publication`.
+
+    It also carries WB's OWN totals for the report. `docs/finreports/PNL.md`
+    warns that most ways to get a settlement figure wrong produce a plausible
+    statement rather than an error; these sums are the first thing the
+    statement can be checked against.
+    """
+
+    report_id: int = Field(alias="reportId")
+    date_from: date = Field(alias="dateFrom")
+    date_to: date = Field(alias="dateTo")
+    create_date: date = Field(alias="createDate")
+    currency: str = ""
+    #: 1 for the weekly realization report. Daily reports exist; what the other
+    #: values mean is not yet pinned, so nothing filters on this.
+    report_type: int = Field(default=0, alias="reportType")
+
+    retail_amount_sum: Decimal = Field(default=Decimal(0), alias="retailAmountSum")
+    for_pay_sum: Decimal = Field(default=Decimal(0), alias="forPaySum")
+    delivery_service_sum: Decimal = Field(default=Decimal(0), alias="deliveryServiceSum")
+    paid_storage_sum: Decimal = Field(default=Decimal(0), alias="paidStorageSum")
+    paid_acceptance_sum: Decimal = Field(default=Decimal(0), alias="paidAcceptanceSum")
+    deduction_sum: Decimal = Field(default=Decimal(0), alias="deductionSum")
+    penalty_sum: Decimal = Field(default=Decimal(0), alias="penaltySum")
+    additional_payment_sum: Decimal = Field(default=Decimal(0), alias="additionalPaymentSum")
+    bank_payment_sum: Decimal = Field(default=Decimal(0), alias="bankPaymentSum")

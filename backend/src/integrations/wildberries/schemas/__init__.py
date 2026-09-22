@@ -44,7 +44,11 @@ from src.integrations.wildberries.schemas.content import (
     WBCardPhoto,
     WBCardSize,
 )
-from src.integrations.wildberries.schemas.finance import WBReportDetailRow
+from src.integrations.wildberries.schemas.finance import (
+    WBFinanceReportHeader,
+    WBFinanceReportRow,
+    WBReportDetailRow,
+)
 from src.integrations.wildberries.schemas.marketplace import WBFbsStockRow, WBFbsWarehouse
 from src.integrations.wildberries.schemas.prices import WBPriceGood, WBPriceSize
 from src.integrations.wildberries.schemas.statistics import WBOrderPrice, WBSaleRecord
@@ -72,6 +76,8 @@ __all__ = [
     "WBCardSizePrice",
     "WBFbsStockRow",
     "WBFbsWarehouse",
+    "WBFinanceReportHeader",
+    "WBFinanceReportRow",
     "WBFunnelAggregateRow",
     "WBFunnelAggregateSelected",
     "WBFunnelAggregateStatistic",

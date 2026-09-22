@@ -63,6 +63,8 @@ class StreamingJSONMixin:
         path: str,
         *,
         params: dict[str, Any] | None = None,
+        json_body: Any | None = None,
+        rate_key: str | None = None,
         batch_size: int = 2_000,
         reserve_seconds: float = 0.0,
         use_float: bool = False,
@@ -95,6 +97,13 @@ class StreamingJSONMixin:
             method: HTTP verb.
             path: Path appended to the client's base URL.
             params: Optional query-string parameters.
+            json_body: Optional JSON request body. The finance report's
+                replacement methods are POST — the page size and the ``rrdId``
+                cursor travel in the body rather than the query string.
+            rate_key: Bucket key to pace on when it is not the path — see
+                :meth:`BaseWBClient._request`. The Finance detail method
+                carries the report id IN the path and is metered per method,
+                so every report would otherwise get its own empty bucket.
             batch_size: Rows to accumulate before handing a batch over. The
                 memory ceiling, in rows.
             reserve_seconds: Passed to the rate gate — non-zero marks this as
@@ -123,7 +132,13 @@ class StreamingJSONMixin:
         """
         endpoint = endpoint_label(path)
         response = await self._open_stream(
-            method, path, params=params, endpoint=endpoint, reserve_seconds=reserve_seconds
+            method,
+            path,
+            params=params,
+            json_body=json_body,
+            rate_key=rate_key or path,
+            endpoint=endpoint,
+            reserve_seconds=reserve_seconds,
         )
         if response is None:
             return
@@ -158,6 +173,8 @@ class StreamingJSONMixin:
         path: str,
         *,
         params: dict[str, Any] | None,
+        json_body: Any | None,
+        rate_key: str,
         endpoint: str,
         reserve_seconds: float,
     ) -> httpx.Response | None:
@@ -175,12 +192,12 @@ class StreamingJSONMixin:
         last_exc: httpx.HTTPError | None = None
         for attempt in range(self._max_retries + 1):
             try:
-                await self._rate_gate.acquire(path, reserve_seconds=reserve_seconds)
+                await self._rate_gate.acquire(rate_key, reserve_seconds=reserve_seconds)
             except IntegrationError:
                 self._count(endpoint, "rate_blocked", None)
                 raise
             started = time.perf_counter()
-            request = self._client.build_request(method, path, params=params)
+            request = self._client.build_request(method, path, params=params, json=json_body)
             response = await self._client.send(request, stream=True)
             try:
                 elapsed = time.perf_counter() - started
@@ -199,7 +216,7 @@ class StreamingJSONMixin:
                     raise IntegrationError(f"WildBerries API error {status} on {path}.") from exc
                 demanded = _server_demanded_wait(exc.response)
                 if status == 429 and demanded is not None:
-                    await self._rate_gate.penalise(path, demanded)
+                    await self._rate_gate.penalise(rate_key, demanded)
                 await asyncio.sleep(demanded if demanded is not None else 2**attempt)
                 continue
             except Exception:

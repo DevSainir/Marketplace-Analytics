@@ -172,6 +172,7 @@ class BaseWBClient(StreamingJSONMixin):
         json_body: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
         files: dict[str, tuple[str, bytes, str]] | None = None,
+        rate_key: str | None = None,
         skip_rate_gate: bool = False,
     ) -> Any:
         """Perform an async request and return the decoded JSON payload.
@@ -185,6 +186,16 @@ class BaseWBClient(StreamingJSONMixin):
                 content_type)}``. WB's media upload is the only surface that
                 takes one; it goes through the same gate and retry ladder as
                 every other call because its bucket is metered the same way.
+            rate_key: Bucket key to pace on, when it is not the path.
+
+                The bucket is keyed on the raw path on purpose — WB meters
+                ``/api/v3/stocks/{warehouse_id}`` per warehouse, and collapsing
+                it would make two warehouses share a budget they do not share.
+                The Finance report is the opposite case: WB meters
+                ``/api/finance/v1/sales-reports/detailed/{reportId}`` per
+                METHOD, so keying on the raw path would give every report its
+                own fresh bucket and pace nothing at all. Those two cannot be
+                told apart from the path, so the caller says which it is.
 
         Every attempt — the first and each retry — passes the rate gate first,
         so a retry can never re-enter an empty WB bucket. WB's own
@@ -211,7 +222,7 @@ class BaseWBClient(StreamingJSONMixin):
         for attempt in range(self._max_retries + 1):
             if not skip_rate_gate:
                 try:
-                    await self._rate_gate.acquire(path)
+                    await self._rate_gate.acquire(rate_key or path)
                 except IntegrationError:
                     # The gate refused to send at all: WB's stated wait exceeds
                     # the queue cap. Counted, because it is a real WB failure
@@ -275,7 +286,7 @@ class BaseWBClient(StreamingJSONMixin):
                     # window, so the hourly finance tick kept re-blocking
                     # itself. The retry branch below needs no equivalent: it
                     # already sleeps the demanded wait.
-                    await self._rate_gate.penalise(path, demanded)
+                    await self._rate_gate.penalise(rate_key or path, demanded)
                     logger.warning(
                         "WB API %s on %s %s demands a %.0fs wait (penalty block); not retrying.",
                         status,
