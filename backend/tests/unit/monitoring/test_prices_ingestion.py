@@ -287,3 +287,53 @@ async def test_other_days_and_cancelled_lines_do_not_price_the_day() -> None:
     )
 
     assert count == 0
+
+
+async def test_the_top_up_only_asks_about_the_skus_it_was_given() -> None:
+    """The evening pass is scoped to the gaps, not to whatever the orders cover.
+
+    A SKU that already has a price must not even be attempted — the database
+    would refuse the write, but spending the attempt would still let a future
+    change to that guard go unnoticed here.
+    """
+    repo = _CapturingPriceRepo()
+    attempted: list[int] = []
+
+    async def fill(
+        *, stat_date: date, nm_id: int, customer_price: float, spp: float | None, source: str
+    ) -> bool:
+        attempted.append(nm_id)
+        return True
+
+    repo.fill_missing_customer_price = fill  # type: ignore[assignment]
+    service = _service(repo)
+
+    filled = await service._prices.fill_missing_from_orders(
+        [_order(1, 430.0, spp=12), _order(2, 555.0, spp=9)],
+        snapshot_date=DAY,
+        nm_ids=[2],
+        regions=("Москва", "Московская область"),
+    )
+
+    assert attempted == [2]
+    assert filled == 1
+
+
+async def test_the_top_up_counts_only_rows_the_database_accepted() -> None:
+    """A refused write is not a fill — the tally must not claim it."""
+    repo = _CapturingPriceRepo()
+
+    async def refuse(**_: object) -> bool:
+        return False
+
+    repo.fill_missing_customer_price = refuse  # type: ignore[assignment]
+    service = _service(repo)
+
+    filled = await service._prices.fill_missing_from_orders(
+        [_order(1, 430.0, spp=12)],
+        snapshot_date=DAY,
+        nm_ids=[1],
+        regions=("Москва",),
+    )
+
+    assert filled == 0

@@ -172,3 +172,57 @@ class PriceIngestion:
             from_orders,
         )
         return count
+
+    async def fill_missing_from_orders(
+        self,
+        order_prices: list[WBOrderPrice],
+        *,
+        snapshot_date: date,
+        nm_ids: list[int],
+        regions: tuple[str, ...] = (),
+    ) -> int:
+        """Fill the day's EMPTY customer prices from orders, touching nothing else.
+
+        The top-up pass. A full harvest writes the whole snapshot; this writes
+        only the holes, because the reason the holes exist is timing: the order
+        feed answers for a SKU once it has sold that day, so a morning harvest
+        finds fewer SKUs than an evening one. Re-running the whole snapshot to
+        catch up would rewrite prices that are already correct and spend every
+        other WB source to do it.
+
+        "Only the holes" is enforced by the UPDATE itself, not by this loop —
+        see :meth:`~src.modules.monitoring.repos.prices.PriceRepository.
+        fill_missing_customer_price`.
+
+        Args:
+            order_prices: Ordered lines witnessing today's prices.
+            snapshot_date: The day being topped up.
+            nm_ids: The SKUs known to be missing a price; others are ignored
+                even when the orders could answer for them.
+            regions: Delivery regions comparable to the storefront ``dest``.
+
+        Returns:
+            The number of snapshot rows actually filled.
+        """
+        modal = _modal_prices(order_prices, snapshot_date=snapshot_date, regions=regions)
+        filled = 0
+        for nm_id in nm_ids:
+            answer = modal.get(nm_id)
+            if answer is None:
+                continue
+            price, spp = answer
+            if await self._prices.fill_missing_customer_price(
+                stat_date=snapshot_date,
+                nm_id=nm_id,
+                customer_price=price,
+                spp=spp,
+                source=_FROM_ORDERS,
+            ):
+                filled += 1
+        logger.info(
+            "Topped up %d of %d missing customer prices for %s.",
+            filled,
+            len(nm_ids),
+            snapshot_date,
+        )
+        return filled

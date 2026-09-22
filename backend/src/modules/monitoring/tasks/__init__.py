@@ -39,6 +39,7 @@ from src.modules.monitoring.tasks.backfill import (
 from src.modules.monitoring.tasks.cohorts import COHORT_REFRESH_DAYS, refresh_buyout_cohorts
 from src.modules.monitoring.tasks.day_headers import carry_day_headers
 from src.modules.monitoring.tasks.discovery import discover_workspace, harvest_all
+from src.modules.monitoring.tasks.price_topup import top_up_customer_prices
 from src.modules.monitoring.tasks.refresh import harvest_sku_window
 
 __all__ = [
@@ -51,4 +52,5 @@ __all__ = [
     "harvest_all",
     "harvest_sku_window",
     "refresh_buyout_cohorts",
+    "top_up_customer_prices",
 ]

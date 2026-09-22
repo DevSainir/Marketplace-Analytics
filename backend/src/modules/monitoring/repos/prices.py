@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import PriceSnapshot
@@ -111,3 +111,60 @@ class PriceRepository(BaseRepository):
             )
             for row in result.all()
         }
+
+    async def skus_missing_customer_price(
+        self, *, workspace_id: uuid.UUID, stat_date: date
+    ) -> list[int]:
+        """Return this workspace's SKUs whose snapshot for a day has no customer price.
+
+        The working set of the top-up pass: a SKU that already has a price is
+        not asked about again, so the pass costs nothing for the ones that are
+        already answered.
+
+        Args:
+            workspace_id: Restrict to SKUs owned by this workspace.
+            stat_date: The snapshot day to look at.
+
+        Returns:
+            SKU ids with a snapshot row on the day and ``customer_price`` NULL.
+        """
+        stmt = select(PriceSnapshot.nm_id).where(
+            PriceSnapshot.stat_date == stat_date,
+            PriceSnapshot.customer_price.is_(None),
+            PriceSnapshot.nm_id.in_(workspace_sku_select(workspace_id)),
+        )
+        result = await self._session.execute(stmt)
+        return [int(nm_id) for nm_id in result.scalars().all()]
+
+    async def fill_missing_customer_price(
+        self, *, stat_date: date, nm_id: int, customer_price: float, spp: float | None, source: str
+    ) -> bool:
+        """Write a customer price ONLY where there is not one already.
+
+        ``customer_price IS NULL`` is part of the statement rather than a check
+        the caller makes first: between reading the gap and writing it a harvest
+        may have filled the row, and a top-up that overwrites a fresher answer
+        with its own is worse than one that does nothing. The database decides,
+        so there is no window in which two passes can disagree.
+
+        Args:
+            stat_date: The snapshot day.
+            nm_id: WB SKU identifier.
+            customer_price: The price to write.
+            spp: WB's loyalty percent, when the source states it.
+            source: Which measurement this is (see the model's ``customer_source``).
+
+        Returns:
+            True when a row was actually filled, False when one was already there.
+        """
+        stmt = (
+            update(PriceSnapshot)
+            .where(
+                PriceSnapshot.stat_date == stat_date,
+                PriceSnapshot.nm_id == nm_id,
+                PriceSnapshot.customer_price.is_(None),
+            )
+            .values(customer_price=customer_price, customer_spp=spp, customer_source=source)
+        )
+        result = await self._session.execute(stmt)
+        return bool(result.rowcount)  # type: ignore[attr-defined]
