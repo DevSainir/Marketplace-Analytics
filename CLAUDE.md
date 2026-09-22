@@ -80,13 +80,13 @@ service runs instrumented whether or not anything is watching it.
 `docs/finreports/` holds what no skill covers: how the P&L is derived from WB's weekly
 Read `PNL.md` before changing anything that touches a settlement figure — most of the ways to
 get it wrong produce a plausible statement rather than an error.
-`MIGRATION_TO_FINANCE_V1.md` is the plan for the biggest outstanding piece of finreports
-work: the settlement endpoint the P&L is built on was **switched off by WB on 15.07.2026**
-and we are still calling it. The replacement runs at fifteen times the rate on a token we
-already hold. Read it before touching anything that paces, probes or walks the settlement
-report — most of that machinery exists only to survive the deprecated endpoint.
-`RATE_LIMIT_EXPERIMENT.md` is a dated single-shot measurement about that same endpoint's
-budget; it becomes moot on cutover and should be deleted then rather than now.
+`MIGRATION_TO_FINANCE_V1.md` records how the P&L moved off the settlement endpoint WB
+switched off on 15.07.2026 — done 22.09.2026, all seven phases. Read it before touching
+anything that paces, probes or walks the report: much of that machinery was built to
+survive the dead endpoint and is now either gone or demoted to a cross-check. Its phase-2
+diff (5508 rows, 61 of 63 columns identical to the value) is the evidence the cutover
+rests on, and its phase-6 note holds a live 128 KGS disagreement with WB's own total that
+is measured rather than fixed.
 
 `docs/RELEASES.md` covers versioning: the version is **derived from your commit messages**, never
 typed, so a `feat:`, a `feat-minor:` and a `fix:` are not interchangeable (which to use, and the
