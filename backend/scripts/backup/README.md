@@ -99,8 +99,9 @@ counts the recipient stanzas on every artifact, and
 
 ### The old symmetric key is not finished yet
 
-`monthly/` keeps objects for 365 days, so symmetric `.gpg` artifacts remain in
-the buckets until **2027-09-21**. `BACKUP_ENCRYPTION_KEY` must stay in
+`monthly/` keeps objects for 365 days, and the last symmetric artifact written
+was `monthly/marketplace-20260901T030002msk.sql.gz.gpg` — so `.gpg` objects are
+in the buckets until **2027-09-01**. `BACKUP_ENCRYPTION_KEY` must stay in
 `backend/.env` and in the password manager until then — `restore.sh` picks the
 scheme from the file extension, so an old object and a new one are restored by
 the same command, but only if that key is still around to be used.

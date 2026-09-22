@@ -100,7 +100,9 @@ create_secrets_bundle() {
     SECRETS_STAGE=""
 
     tar -tzf "${plain}" >/dev/null || die "The secrets tar does not read back."
-    log "Bundle contents verified: $(tar -tzf "${plain}" | grep -c .) entries."
+    # Files only: `tar -C dir .` writes a `./` directory entry too, and a line
+    # saying "2 entries" for one bundled file is a doubt in the wrong place.
+    log "Bundle contents verified: $(tar -tzf "${plain}" | grep -c '[^/]$') file(s)."
 
     age --encrypt --recipients-file "${BACKUP_SECRETS_RECIPIENTS}" \
         --output "${encrypted}" "${plain}" ||
