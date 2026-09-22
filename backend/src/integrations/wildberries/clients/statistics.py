@@ -9,28 +9,13 @@ Authenticated with a dedicated "Статистика" token.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import date, datetime
 
 from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.base import BaseWBClient
 from src.integrations.wildberries.rate_limit import statistics_rate_gate
-from src.integrations.wildberries.schemas import WBOrderRecord, WBSaleRecord
-
-
-@dataclass(frozen=True)
-class WBOrderPage:
-    """One page of the orders feed, and where the next one starts.
-
-    Attributes:
-        records: The page's order lines, deduplicated by ``srid``.
-        next_cursor: ``lastChangeDate`` to ask from next, or ``None`` when the
-            feed has no more pages.
-    """
-
-    records: list[WBOrderRecord]
-    next_cursor: datetime | None
+from src.integrations.wildberries.schemas import WBSaleRecord
 
 
 class WBStatisticsClient(BaseWBClient):
@@ -123,57 +108,3 @@ class WBStatisticsClient(BaseWBClient):
             previous_page_max = page_max
             cursor = page_max.isoformat()
         return list(records.values())
-
-    async def fetch_orders_page(self, *, changed_since: date | datetime) -> WBOrderPage:
-        """Return ONE page of ordered lines, and where the next page starts.
-
-        Endpoint: ``GET /api/v1/supplier/orders`` with ``flag=0`` — ``dateFrom``
-        filters on ``lastChangeDate``, so one call serves both the history walk
-        and the nightly increment. Account-wide, ~1 request/minute, 80 000
-        records a page.
-
-        A page at a time, unlike :meth:`fetch_sales`, because this feed is
-        walked over a кабинет's WHOLE history: the seller's first order to
-        today is hundreds of thousands of lines, and a method that returned all
-        of them would hold the lot in memory to hand back a list nobody wants
-        whole. The caller persists each page and keeps the cursor.
-
-        ``next_cursor`` is ``None`` when the page was not full — the feed is
-        caught up. Otherwise it is the page's newest ``lastChangeDate``, and the
-        next call repeats from there: the bound is inclusive, so pages overlap
-        by whatever shares that timestamp, and ``srid`` deduplicates.
-
-        Args:
-            changed_since: Inclusive lower bound on ``lastChangeDate``.
-
-        Returns:
-            The page and its successor cursor.
-
-        Raises:
-            IntegrationError: On an unexpected response shape, or when a full
-                page fails to advance the cursor — repeating that request would
-                walk the same rows for ever.
-        """
-        payload = await self._request(
-            "GET",
-            "/api/v1/supplier/orders",
-            params={"dateFrom": changed_since.isoformat(), "flag": 0},
-        )
-        if not isinstance(payload, list):
-            raise IntegrationError("Unexpected supplier/orders response shape (expected a list).")
-        records = {row["srid"]: WBOrderRecord.model_validate(row) for row in payload}
-        page = list(records.values())
-        if len(payload) < self._PAGE_LIMIT:
-            return WBOrderPage(records=page, next_cursor=None)
-        page_max = max(record.last_change_date for record in page)
-        asked_from = (
-            changed_since
-            if isinstance(changed_since, datetime)
-            else datetime.combine(changed_since, datetime.min.time())
-        )
-        if page_max.replace(tzinfo=None) <= asked_from.replace(tzinfo=None):
-            raise IntegrationError(
-                "supplier/orders pagination stalled: a full page did not advance "
-                f"lastChangeDate past {asked_from.isoformat()}."
-            )
-        return WBOrderPage(records=page, next_cursor=page_max)

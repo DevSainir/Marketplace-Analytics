@@ -42,7 +42,6 @@ LANE_LABELS: dict[BackfillLane, str] = {
     BackfillLane.CATALOGUE: "Каталог",
     BackfillLane.FUNNEL: "Воронка продаж",
     BackfillLane.ADVERTISING: "Реклама",
-    BackfillLane.ORDERS: "Заказы",
     BackfillLane.PNL: "Финансы (P&L)",
 }
 
@@ -52,7 +51,6 @@ LANE_ORDER: tuple[BackfillLane, ...] = (
     BackfillLane.CATALOGUE,
     BackfillLane.FUNNEL,
     BackfillLane.ADVERTISING,
-    BackfillLane.ORDERS,
     BackfillLane.PNL,
 )
 

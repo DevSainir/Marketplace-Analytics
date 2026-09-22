@@ -12,7 +12,7 @@ ceiling; the fixtures are shared through the module it was split from.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.timeutils import moscow_today
 from src.modules.monitoring.contract import load_ad_days, load_order_days
-from src.modules.monitoring.models import OrderRecord, SalesFunnelDaily
+from src.modules.monitoring.models import SalesFunnelDaily
 from tests.integration.finreports.conftest import (
     OTHER_WORKSPACE,
     SKU_A,
@@ -71,13 +71,10 @@ async def test_the_ordered_money_needs_a_price_and_says_so_when_it_has_none(
 ) -> None:
     """«ДРР от заказов» divides by Σ(заказы x цена) — or by nothing at all.
 
-    WB's funnel publishes counts, never a money volume, so a day reached only by
-    the funnel is worth its orders priced at the seller's own snapshotted price.
-    A day with no snapshot therefore has no volume: reporting zero there would
-    divide that day's advertising by nothing and draw ДРР as infinite spend on a
-    day that was merely unobserved. (Where the ORDERS feed reaches, each line
-    carries its own price and no snapshot is needed — see
-    `test_order_days_prefer_the_lines_wb_serves`.)
+    WB's funnel publishes counts, never a money volume, so a day is worth its
+    orders priced at that day's own snapshot. A day with no snapshot therefore
+    has no volume: reporting zero there would divide that day's advertising by
+    nothing and draw ДРР as infinite spend on a day that was merely unobserved.
     """
     days = await load_order_days(
         db_session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
@@ -85,70 +82,6 @@ async def test_the_ordered_money_needs_a_price_and_says_so_when_it_has_none(
 
     assert days[0].amount_seller == Decimal("100000")
     assert days[1].amount_seller is None
-
-
-async def test_order_days_prefer_the_lines_wb_serves(
-    db_session: AsyncSession, catalogued: None
-) -> None:
-    """The orders feed fills the days the funnel never reached, and prices them.
-
-    «Воронка продаж» is what a кабинет has from the day we started harvesting
-    it; the statistics orders feed answers from any date, which is the only way
-    «Заказы» can cover the same period as the settlement. Two properties make
-    that usable rather than merely present: a day the funnel does cover keeps
-    the funnel's own count (it is what every other screen shows), and a day only
-    the orders feed reaches carries its money from the lines themselves — each
-    one has its price, so «ДРР от заказов» there needs no price snapshot at all.
-
-    The buyout counter stays ``None`` on such a day on purpose: the funnel's
-    cohort is its only source, and zero would read as «ничего не выкупили» on
-    months that simply predate the harvest.
-
-    A cancelled line is COUNTED as an order and priced with the rest. WB's
-    ``isCancel`` covers the customer refusing at the pickup point, which happens
-    for a fortnight afterwards — measured on the live кабинет, 4 % of yesterday
-    and 56 % of ten days back — so excluding them would draw «Заказы в день» as
-    a line that shrinks with age rather than one a seller can read.
-    """
-    older = WINDOW_FROM - timedelta(days=200)
-    db_session.add_all(
-        [
-            OrderRecord(
-                srid="srid-old",
-                nm_id=SKU_A,
-                order_date=older,
-                price_with_disc=Decimal("3000"),
-                finished_price=Decimal("2400"),
-                last_change_date=datetime(2026, 1, 2, 3, 4),
-            ),
-            OrderRecord(
-                srid="srid-cancelled",
-                nm_id=SKU_A,
-                order_date=older,
-                is_cancel=True,
-                price_with_disc=Decimal("9999"),
-                finished_price=Decimal("9999"),
-                last_change_date=datetime(2026, 1, 2, 3, 5),
-            ),
-        ]
-    )
-    await db_session.flush()
-
-    days = {
-        day.stat_date: day
-        for day in await load_order_days(
-            db_session, workspace_id=WORKSPACE, date_from=older, date_to=WINDOW_TO
-        )
-    }
-
-    # The pre-funnel day: counted and priced from the lines, cancelled included.
-    assert days[older].orders == 2
-    assert days[older].amount_seller == Decimal("12999")
-    assert days[older].amount_paid == Decimal("12399")
-    assert days[older].buyouts is None
-    # The funnel's own day is unchanged by any of this.
-    assert days[WINDOW_FROM].orders == 40
-    assert days[WINDOW_FROM].buyouts == 12
 
 
 async def test_a_window_too_fresh_to_have_a_cohort_borrows_the_standing_one(

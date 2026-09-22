@@ -58,7 +58,6 @@ LANE_TASKS: dict[BackfillLane, str] = {
     BackfillLane.CATALOGUE: "monitoring.backfill_catalogue",
     BackfillLane.FUNNEL: "monitoring.backfill_funnel",
     BackfillLane.ADVERTISING: "monitoring.backfill_advertising",
-    BackfillLane.ORDERS: "monitoring.backfill_orders",
     BackfillLane.PNL: "finreports.backfill_pnl",
 }
 

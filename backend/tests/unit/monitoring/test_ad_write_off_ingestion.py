@@ -59,7 +59,6 @@ def _service(write_off_repo: Any) -> IngestionService:
         advertising_write_off_repo=write_off_repo,
         price_repo=None,  # type: ignore[arg-type]
         sale_repo=None,  # type: ignore[arg-type]
-        order_repo=None,  # type: ignore[arg-type]
     )
 
 
