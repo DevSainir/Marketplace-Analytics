@@ -26,8 +26,21 @@ SRC = pathlib.Path(__file__).resolve().parents[3] / "src"
 #: The one package allowed to hold an HTTP client pointed at WB.
 INTEGRATION = SRC / "integrations" / "wildberries"
 
-#: The one module allowed to spell the hosts, so they are configurable.
-CONFIG = SRC / "core" / "config" / "wildberries.py"
+#: The modules allowed to spell the hosts, so they stay configurable. Listed by
+#: name rather than by "anything under config/" so that adding one is a
+#: deliberate edit somebody reads, which is the whole point of the rule.
+#:
+#: ``storefront.py`` joined on 2026-09-22: it always held the public card
+#: endpoint (configured apart from the seller APIs because it is
+#: unauthenticated), but the host was ``card.wb.ru`` and so never matched the
+#: substring below. WB closed that host and the storefront now answers under
+#: ``www.wildberries.ru``.
+CONFIGS = frozenset(
+    {
+        SRC / "core" / "config" / "wildberries.py",
+        SRC / "core" / "config" / "storefront.py",
+    }
+)
 
 
 def _python_files() -> list[pathlib.Path]:
@@ -40,15 +53,16 @@ def test_wb_hosts_are_named_in_one_place() -> None:
     It also silently opts that call out of the settings the test and staging
     environments rely on.
     """
+    allowed = ", ".join(sorted(path.name for path in CONFIGS))
     offenders = [
         str(path.relative_to(SRC))
         for path in _python_files()
-        if path != CONFIG
+        if path not in CONFIGS
         and INTEGRATION not in path.parents
         and "wildberries.ru" in path.read_text(encoding="utf-8")
     ]
 
-    assert not offenders, f"WB hosts named outside {CONFIG.name}: {offenders}"
+    assert not offenders, f"WB hosts named outside {allowed}: {offenders}"
 
 
 def test_only_the_integration_layer_builds_http_clients_for_wb() -> None:

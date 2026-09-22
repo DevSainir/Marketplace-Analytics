@@ -1,4 +1,5 @@
-"""Unit tests for the card.wb.ru client's batching / resilience / validation.
+"""Unit tests for the storefront card client: request shape, batching,
+resilience and validation.
 
 The ``curl`` subprocess itself is not exercised (that needs the real binary and
 network); these tests stub :meth:`WBCardClient._curl_get_json` to drive the
@@ -20,7 +21,9 @@ from src.integrations.wildberries.clients.card import WBCardClient, _scrub
 def _settings(**overrides: Any) -> SimpleNamespace:
     """A stand-in for :class:`Settings` exposing only what the client reads."""
     base = {
-        "wb_card_base_url": "https://card.wb.ru",
+        "wb_card_base_url": "https://www.wildberries.ru",
+        "wb_card_path": "/__internal/u-card/cards/v4/detail",
+        "wb_card_device_id": "site_test0000000000000000000000000",
         "wb_card_dest": -1255563,
         "wb_card_spp": 30,
         "wb_card_proxy": "",
@@ -35,14 +38,21 @@ def _settings(**overrides: Any) -> SimpleNamespace:
 
 
 def _envelope(nm_ids: list[int]) -> dict[str, Any]:
-    """A minimal valid ``/cards/v4/detail`` envelope for the given SKUs."""
+    """The storefront's current envelope: ``products`` at the top level.
+
+    Measured 2026-09-22 — the move off ``card.wb.ru`` dropped the ``data``
+    wrapper. The legacy shape is covered by :func:`_legacy_envelope`.
+    """
     return {
-        "data": {
-            "products": [
-                {"id": nm, "sizes": [{"price": {"product": (nm % 1000) * 100}}]} for nm in nm_ids
-            ]
-        }
+        "products": [
+            {"id": nm, "sizes": [{"price": {"product": (nm % 1000) * 100}}]} for nm in nm_ids
+        ]
     }
+
+
+def _legacy_envelope(nm_ids: list[int]) -> dict[str, Any]:
+    """The pre-2026-09-22 envelope, with ``products`` nested under ``data``."""
+    return {"data": _envelope(nm_ids)}
 
 
 async def test_batches_split_and_merge() -> None:
@@ -177,3 +187,53 @@ async def test_no_more_than_two_batches_are_in_flight_at_once() -> None:
 
     assert len(products) == 8
     assert peak <= 2
+
+
+async def test_request_targets_the_storefront_path_with_the_device_header() -> None:
+    """The URL is the configured storefront path and ``deviceid`` is sent.
+
+    Both are what the move off ``card.wb.ru`` turned load-bearing (2026-09-22):
+    the path because WB retires storefront versions without notice, and the
+    header because it alone is what turns 403 into 200.
+    """
+    client = WBCardClient(_settings())
+    captured: dict[str, Any] = {}
+
+    async def fake_exec(*args: str, **kwargs: Any) -> Any:
+        captured["args"] = args
+        raise OSError("not run")
+
+    import src.integrations.wildberries.clients.card as card_module
+
+    original = asyncio.create_subprocess_exec
+    card_module.asyncio.create_subprocess_exec = fake_exec  # type: ignore[assignment]
+    try:
+        with pytest.raises(IntegrationError):
+            await client.fetch_customer_prices([123])
+    finally:
+        card_module.asyncio.create_subprocess_exec = original  # type: ignore[assignment]
+
+    args = captured["args"]
+    url = args[-1]
+    assert url.startswith("https://www.wildberries.ru/__internal/u-card/cards/v4/detail?")
+    assert url.endswith("&nm=123")
+    assert "dest=-1255563" in url
+    assert "deviceid: site_test0000000000000000000000000" in args
+
+
+async def test_legacy_data_wrapped_envelope_is_still_accepted() -> None:
+    """The pre-move ``{"data": {"products": ...}}`` shape still parses.
+
+    WB moved the wrapper once; nothing says it will not move back, and reading
+    both costs one branch.
+    """
+    client = WBCardClient(_settings())
+
+    async def fake(url: str) -> Any:
+        return _legacy_envelope([777])
+
+    client._curl_get_json = fake  # type: ignore[method-assign]
+
+    products = await client.fetch_customer_prices([777])
+
+    assert [p.nm_id for p in products] == [777]
