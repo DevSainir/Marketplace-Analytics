@@ -10,7 +10,7 @@ and Moscow is a fixed UTC+3), from `/etc/cron.d/marketplace-backup`.
 ## What one run does
 
 ```
-pg_dump ──▶ gzip ──▶ [gates 1-4] ──▶ gpg AES256 ──▶ [gate 5]
+pg_dump ──▶ gzip ──▶ [gates 1-4] ──▶ age (2 keys) ──▶ [gates 5a, 5b]
                                                        │
                                     Sunday only ◀──────┤ [gate 6: real restore]
                                                        │
@@ -35,7 +35,8 @@ A run uploads nothing until all of these pass. In order:
 | 2 | `gzip -t` | corruption in the archive |
 | 3 | `PostgreSQL database dump complete` marker in the tail | a stream that was cut short but still gzipped cleanly |
 | 4 | size ≥ `BACKUP_MIN_BYTES`, and ≥ 50% of the previous run | an empty database; and the likelier case of a dump that lost most of its rows while staying far above any fixed floor |
-| 5 | the encrypted artifact decrypts back to a valid archive | encrypting correctly and decrypting correctly are two different claims |
+| 5a | the encrypted artifact decrypts back to a valid archive | encrypting correctly and decrypting correctly are two different claims |
+| 5b | it carries one recipient stanza per recipient | 5a can only ever test the *online* key. This is what proves the offline one — the key that survives losing this box — is really on the file |
 | 6 | **Sunday:** it restores into a scratch PostgreSQL | everything the other five cannot see |
 
 Gate 6 runs on the **encrypted** file — exactly the bytes that get uploaded —
@@ -59,22 +60,90 @@ A script that deletes plus a bucket that deletes is one deletion rule too many.
 
 ## Encryption
 
-`gpg --symmetric --cipher-algo AES256` with the passphrase in
-`BACKUP_ENCRYPTION_KEY`. The dump contains password hashes, session token
-families and the Fernet-encrypted WB tokens, so it does not sit in a bucket in
-the clear.
+`age`, to the two public keys in `recipients/database.txt`. One file, openable
+by either of them:
 
-> **The passphrase is not in the backups.** It lives in `backend/.env` on the
-> VPS and nowhere else unless you put it somewhere else. Keep a copy in a
-> password manager — losing it means every archive in both buckets is
-> unrecoverable noise.
+| Recipient | Private half lives | What it is for |
+|-----------|--------------------|----------------|
+| online | `BACKUP_ENCRYPTION_IDENTITY` in `backend/.env` on the VPS | so gate 6, the Sunday restore rehearsal, can still decrypt unattended |
+| offline | the maintainer's password manager, never on a server | the real disaster: this box is gone, and so is its `.env` |
+
+The dump holds password hashes, session token families and the Fernet-encrypted
+WB tokens, so it does not sit in a bucket in the clear.
+
+**Why two keys rather than one passphrase.** Until 2026-09-21 this was
+`gpg --symmetric` with `BACKUP_ENCRYPTION_KEY`. That key both encrypted and
+decrypted, so it had to be on the box — and a copy of it in a password manager
+was the only thing standing between a lost VPS and a year of unreadable
+archives. An asymmetric pair splits those two jobs: the box holds a key that
+can *write* archives it is allowed to read back, and the key that matters in a
+disaster has never been anywhere an attacker could reach it.
+
+**Why the online key is there at all.** Removing it is the stricter design, and
+it costs gate 6 — the only gate that proves the artifact restores, and the only
+one that has ever caught anything the other five could not see. A box that
+already holds the live database gains very little from being unable to read its
+own backups, so the trade goes the other way: keep the rehearsal, accept that a
+shell on the VPS can read the archives.
+
+**The recipient list is public and it is in git on purpose.** It is the one part
+of this that a machine can check, and the failure it protects against is silent:
+a wrong character in the offline recipient yields archives nobody can ever open,
+and nothing would notice until the day that key is all there is. So gate 5b
+counts the recipient stanzas on every artifact, and
+`tests/unit/core/test_backup_encryption_recipients.py` pins both keys.
+
+> **No private key is in the backups, and no private key is in git.** The
+> offline key exists in your password manager and nowhere else. Losing it while
+> the VPS is also gone means every archive in both buckets is noise.
+
+### The old symmetric key is not finished yet
+
+`monthly/` keeps objects for 365 days, so symmetric `.gpg` artifacts remain in
+the buckets until **2027-09-21**. `BACKUP_ENCRYPTION_KEY` must stay in
+`backend/.env` and in the password manager until then — `restore.sh` picks the
+scheme from the file extension, so an old object and a new one are restored by
+the same command, but only if that key is still around to be used.
+
+## The secrets bundle
+
+`backup_secrets.sh` encrypts `backend/.env` to a **third** key — one recipient,
+offline only, in `recipients/secrets.txt` — and pushes it to `secrets/` in both
+buckets. This machine cannot decrypt what it just wrote, on purpose.
+
+That separation is the whole design. The nightly archive holds every WB token
+Fernet-encrypted; `.env` holds the Fernet key. Two artifacts, two keys, two
+layers — and the layers only mean anything while they are apart. Putting `.env`
+inside the nightly dump would collapse them: one decrypted archive would then
+yield every customer's live WB token, both buckets' credentials and the database
+password together.
+
+```bash
+backend/scripts/backup/backup_secrets.sh      # after any change to .env
+```
+
+It is deliberately not on cron. Secrets change a few times a year, and a nightly
+job over unchanging input is a nightly opportunity to leak it. The failure this
+job really has is an operator who rotates a key and never re-runs it — so the
+nightly run fingerprints `.env` and the Sunday report says `secrets bundle:
+STALE` when it has drifted.
+
+Objects under `secrets/` are **not** expired by a lifecycle policy, and that is
+intentional: restoring a database archive from March needs the Fernet key as it
+was in March. They are ~2 KB each.
+
+Nothing here can verify the bundle opens. Two claims are checkable and are
+checked — the tar reads back before it is encrypted, and the artifact carries
+exactly one recipient stanza — and the rest is a **human drill**: fetch a bundle
+and decrypt it with the key from your password manager, on a machine that is not
+this one. Do it once after any change to the offline key.
 
 ## Restoring
 
 ```bash
 backend/scripts/backup/restore.sh list cloudfare daily
-backend/scripts/backup/restore.sh fetch cloudfare daily/marketplace-20260808T030000msk.sql.gz.gpg
-backend/scripts/backup/restore.sh load /var/backups/marketplace/artifacts/marketplace-...gpg <container>
+backend/scripts/backup/restore.sh fetch cloudfare daily/marketplace-20260921T030000msk.sql.gz.age
+backend/scripts/backup/restore.sh load /var/backups/marketplace/artifacts/marketplace-...age <container>
 ```
 
 `list` and `fetch` are read-only. `load` drops and recreates the target
@@ -106,8 +175,10 @@ produce a short dump: with no tenant bound, `current_setting` raises and
 ## Configuration
 
 All of it lives in `backend/.env` (see `.env.example` for the annotated list).
-Required: `BACKUP_ENCRYPTION_KEY`, the Postgres credentials, and for each
-storage a URL, bucket, access key and secret. Everything else has a working
+Required: `BACKUP_ENCRYPTION_IDENTITY` (the online age private key), the
+Postgres credentials, and for each storage a URL, bucket, access key and secret.
+`BACKUP_ENCRYPTION_KEY` is still required in practice until the last `.gpg`
+object expires — see above. Everything else has a working
 default in `lib/config.sh`.
 
 Optional Telegram alerting: set `BACKUP_ALERT_TELEGRAM_BOT_TOKEN` and
@@ -138,8 +209,11 @@ Logs: `/var/backups/marketplace/logs/backup-YYYYMMDD.log`, cron's own output in
 | `backup.sh` | orchestration — tier selection, gate order, housekeeping |
 | `restore.sh` | list / fetch / load, for the day you need it |
 | `lib/config.sh` | `.env` parsing (parsed, never sourced), defaults, destination table |
-| `lib/dump.sh` | pg_dump, the archive gates, gpg |
+| `lib/dump.sh` | pg_dump, the archive gates, age encryption, decrypting either era |
 | `lib/verify_restore.sh` | the weekly rehearsal |
 | `lib/upload.sh` | dockerised aws-cli, upload + read-back verification |
 | `lib/log.sh` | logging and alerting |
+| `backup_secrets.sh` | the manual `.env` bundle |
+| `lib/secrets.sh` | bundling, its gates, the staleness fingerprint |
+| `recipients/*.txt` | the public keys, in git so a test can pin them |
 | `cron/marketplace-backup` | the `/etc/cron.d` entry |

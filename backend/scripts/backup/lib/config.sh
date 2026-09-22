@@ -13,6 +13,11 @@
 # in the environment wins, so an operator can override a single knob for one
 # run without editing the file.
 
+# Where this library lives, so the public recipient lists can be found next to
+# the scripts rather than named in .env. They are not secret, and keeping them
+# in git is exactly what lets a test pin them.
+BACKUP_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 load_env_file() {
     local file=$1 line key value
     [ -r "${file}" ] || die "Environment file not readable: ${file}"
@@ -57,6 +62,14 @@ load_env_file() {
 apply_backup_defaults() {
     : "${BACKUP_TZ:=Europe/Moscow}"
     : "${BACKUP_WORK_DIR:=/var/backups/marketplace}"
+
+    # Encryption. Artifacts are age-encrypted to the public keys listed in
+    # recipients/, and BACKUP_ENCRYPTION_IDENTITY is the *online* private half
+    # — the one that lets the Sunday rehearsal decrypt unattended. The offline
+    # half is in a password manager and is not on this machine by design.
+    : "${BACKUP_RECIPIENTS_DIR:=${BACKUP_LIB_DIR}/../recipients}"
+    : "${BACKUP_DB_RECIPIENTS:=${BACKUP_RECIPIENTS_DIR}/database.txt}"
+    : "${BACKUP_SECRETS_RECIPIENTS:=${BACKUP_RECIPIENTS_DIR}/secrets.txt}"
 
     # Where the dump comes from: a throwaway pg_dump container attached to the
     # stack's network, rather than `docker exec` into the running Postgres.
@@ -124,7 +137,7 @@ dest_var() {
 require_config() {
     local missing=() dest field
 
-    for field in POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD BACKUP_ENCRYPTION_KEY; do
+    for field in POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD BACKUP_ENCRYPTION_IDENTITY; do
         [ -n "${!field:-}" ] || missing+=("${field}")
     done
 
@@ -140,7 +153,25 @@ require_config() {
     fi
 
     command -v docker >/dev/null || die "docker is not on PATH."
-    command -v gpg >/dev/null || die "gpg is not installed."
+    command -v age >/dev/null || die "age is not installed (apt-get install age)."
+
+    # gpg is no longer used to WRITE anything. It stays required because the
+    # buckets still hold symmetric .gpg artifacts from before 2026-09-21, and
+    # restore.sh has to be able to open them for as long as they exist — the
+    # monthly tier keeps them for a year.
+    command -v gpg >/dev/null || die "gpg is not installed (still needed for pre-age archives)."
+
+    [ -r "${BACKUP_DB_RECIPIENTS}" ] ||
+        die "Recipient list not readable: ${BACKUP_DB_RECIPIENTS}"
+    [ "$(recipient_count "${BACKUP_DB_RECIPIENTS}")" -ge 2 ] ||
+        die "${BACKUP_DB_RECIPIENTS} names fewer than two recipients — the offline key is what survives losing this box."
     docker network inspect "${BACKUP_DOCKER_NETWORK}" >/dev/null 2>&1 ||
         die "Docker network ${BACKUP_DOCKER_NETWORK} does not exist — is the stack up?"
+}
+
+# The recipients age will actually use: every line that is not blank and not a
+# comment. Used both to configure the encryption and, afterwards, to check that
+# the artifact really carries one stanza per recipient.
+recipient_count() {
+    grep -cE '^[[:space:]]*age1' "$1" || true
 }

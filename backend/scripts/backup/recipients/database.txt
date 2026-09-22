@@ -1,0 +1,21 @@
+# Who can decrypt a nightly database archive.
+#
+# These are PUBLIC keys and belong in git on purpose: the list is the one part
+# of this scheme a machine can check. A typo in the offline recipient produces
+# archives nobody can ever open, and nothing would notice for a year — so the
+# file is pinned by tests/unit/core/test_backup_encryption_recipients.py, and
+# the backup job counts the recipient stanzas in every artifact it writes
+# before it uploads anything.
+#
+# Order is not significant. Comments and blank lines are ignored by age.
+
+# online — the private half lives in BACKUP_ENCRYPTION_IDENTITY in backend/.env
+# on the VPS. It exists so the Sunday restore rehearsal can still decrypt the
+# artifact unattended. Anyone with a shell on the box can read any archive with
+# it; that is the accepted cost of keeping gate 6.
+age1sjqf6h5graeeeex7ervydu284rxqfxhpydcfskh788la77n9fx4s72pdhf
+
+# offline — the private half is in the maintainer's password manager and has
+# never been on a server. This is the recipient that survives losing the box,
+# and the only one that matters during a real disaster.
+age15feryxhrdz9m6y09mr8wrerwzgj6f8ntxvhxyrdlm5aahn0t09nl4ujy86

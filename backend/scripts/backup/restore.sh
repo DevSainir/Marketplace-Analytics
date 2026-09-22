@@ -3,7 +3,7 @@
 #
 #   restore.sh list [hoster|cloudfare] [daily|weekly|monthly]
 #   restore.sh fetch <hoster|cloudfare> <tier/objectname> [outdir]
-#   restore.sh load  <file.sql.gz.gpg | file.sql.gz> <postgres-container>
+#   restore.sh load  <file.sql.gz.age | .sql.gz.gpg | .sql.gz> <container>
 #
 # `list` and `fetch` are read-only and safe to run any time. `load` DESTROYS
 # the target database and asks before it does. It refuses the live production
@@ -77,8 +77,10 @@ cmd_fetch() {
     log "Downloaded ${outdir}/${filename} ($(human_bytes "$(file_size "${outdir}/${filename}")"), checksum verified)."
 
     if [ -n "${BACKUP_DECRYPT_TO_PLAIN:-}" ]; then
-        decrypt_archive "${outdir}/${filename}" >"${outdir}/${filename%.gpg}"
-        log "Decrypted to ${outdir}/${filename%.gpg}."
+        # %.* rather than %.gpg: the suffix is .age now and .gpg on anything
+        # older, and decrypt_archive tells them apart on its own.
+        decrypt_archive "${outdir}/${filename}" >"${outdir}/${filename%.*}"
+        log "Decrypted to ${outdir}/${filename%.*}."
     fi
 }
 
@@ -110,7 +112,7 @@ Stop the stack first, then re-run with BACKUP_ALLOW_PRODUCTION_RESTORE=1."
 
     log "Restoring ${archive##*/} …"
     case ${archive} in
-    *.gpg) decrypt_archive "${archive}" ;;
+    *.age | *.gpg) decrypt_archive "${archive}" ;;
     *) cat "${archive}" ;;
     esac | gzip -dc |
         docker exec -i -e PGPASSWORD="${POSTGRES_PASSWORD}" "${container}" \

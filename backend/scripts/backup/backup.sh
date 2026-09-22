@@ -22,7 +22,9 @@
 #   2. gzip -t decompresses the whole file   (archive integrity)
 #   3. the dump carries pg_dump's own end-of-dump marker  (completeness)
 #   4. the file clears an absolute floor and did not shrink against last run
-#   5. the encrypted artifact decrypts back to a valid archive  (round trip)
+#   5a. the encrypted artifact decrypts back to a valid archive (round trip)
+#   5b. it carries one recipient stanza per recipient, so the offline key —
+#       which cannot be tested here, being offline — really is on the file
 #   6. on Sunday: it restores into a scratch PostgreSQL, with the same tables
 #      the source had and rows in every table that had rows
 # Only then is anything uploaded, and each uploaded object is read back and
@@ -43,6 +45,8 @@ BACKEND_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 . "${SCRIPT_DIR}/lib/verify_restore.sh"
 # shellcheck source=lib/upload.sh
 . "${SCRIPT_DIR}/lib/upload.sh"
+# shellcheck source=lib/secrets.sh
+. "${SCRIPT_DIR}/lib/secrets.sh"
 
 ENV_FILE="${BACKUP_ENV_FILE:-${BACKEND_DIR}/.env}"
 TIER_OVERRIDE=""
@@ -127,7 +131,7 @@ fi
 
 BASENAME="marketplace-${STAMP}msk.sql.gz"
 PLAIN_ARCHIVE="${BACKUP_ARTIFACT_DIR}/${BASENAME}"
-ENCRYPTED_NAME="${BASENAME}.gpg"
+ENCRYPTED_NAME="${BASENAME}.age"
 ENCRYPTED_ARCHIVE="${BACKUP_ARTIFACT_DIR}/${ENCRYPTED_NAME}"
 
 log "=== Backup run ${STAMP} MSK — tiers: ${TIERS[*]}, deep check: $([ "${DEEP_CHECK}" -eq 1 ] && echo yes || echo no) ==="
@@ -173,7 +177,11 @@ fi
 # --- Local housekeeping -----------------------------------------------------
 # Recent artifacts are kept on the VPS so a same-week restore does not need a
 # download; the buckets remain the actual backup.
-{ ls -1t "${BACKUP_ARTIFACT_DIR}"/marketplace-*.sql.gz.gpg 2>/dev/null || true; } |
+# Both extensions, deliberately. Sweeping only `.age` would leave every
+# pre-2026-09-21 `.gpg` artifact on the disk for ever, and this VPS has gone
+# read-only from a slow disk leak before (see lib/verify_restore.sh).
+{ ls -1t "${BACKUP_ARTIFACT_DIR}"/marketplace-*.sql.gz.age \
+    "${BACKUP_ARTIFACT_DIR}"/marketplace-*.sql.gz.gpg 2>/dev/null || true; } |
     tail -n "+$((BACKUP_LOCAL_KEEP + 1))" | while read -r stale; do
     log "Removing local artifact ${stale##*/}"
     rm -f "${stale}"
@@ -182,10 +190,16 @@ done
 find "${BACKUP_LOG_DIR}" -maxdepth 1 -name 'backup-*.log' \
     -mtime "+${BACKUP_LOG_KEEP_DAYS}" -delete 2>/dev/null || true
 
+# The secrets bundle is a manual job, and the way it fails is silence: an
+# operator rotates a key in .env and never runs it again. This costs a sha256
+# of a 5 KB file and turns that into a line in the Sunday report.
+SECRETS_NOTE=$(secrets_bundle_drift_note)
+
 SUMMARY="✅ Backup OK on $(hostname)
 ${ENCRYPTED_NAME} — $(human_bytes "${ENCRYPTED_SIZE}")
 tiers: ${TIERS[*]} → ${BACKUP_DESTINATIONS[*]}
-deep restore check: $([ "${DEEP_CHECK}" -eq 1 ] && echo passed || echo "not due")"
+deep restore check: $([ "${DEEP_CHECK}" -eq 1 ] && echo passed || echo "not due")
+${SECRETS_NOTE}"
 
 log "=== Backup run ${STAMP} MSK finished successfully ==="
 

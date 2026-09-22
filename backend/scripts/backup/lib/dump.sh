@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Producing the artifact: pg_dump → gzip → validity gates → gpg.
+# Producing the artifact: pg_dump → gzip → validity gates → age.
 #
 # The dump is plain SQL rather than pg_dump's custom format on purpose. It is
 # restorable by any `psql` of any vintage without a matching pg_restore, it
@@ -101,33 +101,80 @@ verify_archive() {
     printf '%s' "${size}" >"${BACKUP_STATE_DIR}/last-size"
 }
 
-# Symmetric AES-256. --compress-algo none because the input is already gzipped
-# and gpg's own compression would only burn CPU. The passphrase goes in via a
-# file descriptor, never argv, so it never appears in `ps`.
+# age, to every recipient in recipients/database.txt. Two of them: an online
+# key whose private half is in BACKUP_ENCRYPTION_IDENTITY on this box, and an
+# offline key whose private half has never been on a server. One file, openable
+# by either — which is what makes losing the box survivable, and what the old
+# symmetric passphrase could not do.
 encrypt_archive() {
-    local plain=$1 encrypted=$2
+    local plain=$1 encrypted=$2 expected stanzas
 
-    gpg --batch --yes --quiet \
-        --symmetric \
-        --cipher-algo AES256 \
-        --compress-algo none \
-        --passphrase-fd 3 \
-        --output "${encrypted}" \
-        "${plain}" 3< <(printf '%s' "${BACKUP_ENCRYPTION_KEY}") ||
-        die "gpg encryption failed."
+    age --encrypt --recipients-file "${BACKUP_DB_RECIPIENTS}" \
+        --output "${encrypted}" "${plain}" ||
+        die "age encryption failed."
     chmod 600 "${encrypted}"
 
-    # Round-trip the artifact that will actually be uploaded. Encrypting
-    # correctly and decrypting correctly are two different claims, and only the
-    # second one matters at 03:00 on the night something has gone wrong.
+    # Gate 5a — the artifact that will actually be uploaded decrypts back to a
+    # valid archive. Encrypting correctly and decrypting correctly are two
+    # different claims, and only the second one matters at 03:00.
     decrypt_archive "${encrypted}" | gzip -t ||
         die "Encrypted artifact does not decrypt back to a valid archive."
-    log "Encryption: OK (AES256, round-trip verified)."
+
+    # Gate 5b — and it opens for EVERY key it was meant to. 5a can only ever
+    # prove the online half, because the offline half is deliberately not here.
+    # Without this check a wrong character in the offline recipient would go
+    # unnoticed for a year and be discovered on the one day it is all there is.
+    expected=$(recipient_count "${BACKUP_DB_RECIPIENTS}")
+    stanzas=$(count_recipient_stanzas "${encrypted}")
+    [ "${stanzas}" -eq "${expected}" ] ||
+        die "Artifact carries ${stanzas} recipient stanzas, expected ${expected} — the file and the recipient list disagree."
+
+    log "Encryption: OK (age, ${expected} recipients, round-trip verified)."
 }
 
+# How many keys an artifact was encrypted to, read back off the file itself.
+#
+# age's header is ASCII at the head of the file and ends with a line starting
+# `--- `. Stopping there matters: everything below it is ciphertext and could
+# contain any byte sequence at all. The 16 KiB cap keeps this from ever reading
+# a 100 MB "line" out of that binary if the header is malformed.
+count_recipient_stanzas() {
+    head -c 16384 "$1" | LC_ALL=C awk '
+        /^--- / { exit }
+        /^-> X25519 / { n++ }
+        END { print n + 0 }
+    '
+}
+
+# Opening an artifact, whichever era it came from. The EXTENSION decides, not a
+# setting — the buckets hold age artifacts and, until the monthly tier rolls
+# over a year after 2026-09-21, symmetric gpg ones too. Nobody restoring at
+# 03:00 should have to work out which is in their hand.
+#
+# The identity goes in through a process substitution: it never lands on disk,
+# and `ps` sees the file descriptor rather than the key.
 decrypt_archive() {
-    gpg --batch --quiet --decrypt --passphrase-fd 3 "$1" \
-        3< <(printf '%s' "${BACKUP_ENCRYPTION_KEY}")
+    local archive=$1
+
+    case ${archive} in
+    *.age)
+        [ -n "${BACKUP_ENCRYPTION_IDENTITY:-}" ] ||
+            die "BACKUP_ENCRYPTION_IDENTITY is not set — cannot open ${archive##*/}."
+        age --decrypt \
+            --identity <(printf '%s\n' "${BACKUP_ENCRYPTION_IDENTITY}") \
+            "${archive}" ||
+            die "age could not decrypt ${archive##*/} with the online identity."
+        ;;
+    *.gpg)
+        [ -n "${BACKUP_ENCRYPTION_KEY:-}" ] ||
+            die "${archive##*/} predates age and BACKUP_ENCRYPTION_KEY is not set."
+        gpg --batch --quiet --decrypt --passphrase-fd 3 "${archive}" \
+            3< <(printf '%s' "${BACKUP_ENCRYPTION_KEY}")
+        ;;
+    *)
+        die "Unrecognised artifact format: ${archive##*/}"
+        ;;
+    esac
 }
 
 sha256_of() {
