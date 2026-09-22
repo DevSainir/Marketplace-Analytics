@@ -47,7 +47,7 @@ from src.integrations.wildberries.schemas.content import (
 from src.integrations.wildberries.schemas.finance import WBReportDetailRow
 from src.integrations.wildberries.schemas.marketplace import WBFbsStockRow, WBFbsWarehouse
 from src.integrations.wildberries.schemas.prices import WBPriceGood, WBPriceSize
-from src.integrations.wildberries.schemas.statistics import WBSaleRecord
+from src.integrations.wildberries.schemas.statistics import WBOrderPrice, WBSaleRecord
 )
 
 __all__ = [
@@ -81,6 +81,7 @@ __all__ = [
     "WBNormQueryDaily",
     "WBNormQueryItem",
     "WBNormQueryStat",
+    "WBOrderPrice",
     "WBPriceGood",
     "WBPriceSize",
     "WBReportDetailRow",

@@ -43,6 +43,13 @@ class StorefrontSettings(BaseSettings):
     # continues unbroken. A third region returned different prices, so the
     # parameter is still live; this one is simply Moscow's equal.
     wb_card_dest: int = Field(default=-1255563)
+    # The delivery regions that ``wb_card_dest`` above corresponds to, used to
+    # pick the comparable rows when the customer price is read from the order
+    # feed instead of the storefront. Measured 2026-09-22: that dest returns
+    # prices identical to the Moscow code the storefront itself sends, and СПП
+    # is regional — one value per (day, SKU, region) in 87,6 % of cases against
+    # 27,1 % across regions. Orders from elsewhere are a fallback, not an equal.
+    wb_card_regions: tuple[str, ...] = Field(default=("Москва", "Московская область"))
     # Kept for the URL's shape only. Measured 2026-09-22: ``spp=30`` and
     # ``spp=0`` return byte-identical prices — the endpoint ignores it. It was
     # decoration before the move too; we just had no way to know.

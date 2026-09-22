@@ -52,6 +52,7 @@ from src.integrations.wildberries.schemas import (
     WBFunnelHistoryProduct,
     WBFunnelHistoryRow,
     WBNormQueryItem,
+    WBOrderPrice,
     WBPriceGood,
     WBPriceSize,
     WBSaleRecord,
@@ -306,6 +307,10 @@ class SyntheticStatisticsClient(_SyntheticWBClient, WBStatisticsClient):
 
     async def fetch_sales(self, *, changed_since: date | datetime) -> list[WBSaleRecord]:
         """No synthetic sale-date records."""
+        return []
+
+    async def fetch_order_prices(self, *, changed_since: date | datetime) -> list[WBOrderPrice]:
+        """No synthetic ordered lines, so local runs price from the card feed."""
         return []
 
 

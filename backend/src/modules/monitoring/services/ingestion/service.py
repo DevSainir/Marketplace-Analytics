@@ -23,6 +23,7 @@ from src.integrations.wildberries.schemas import (
     WBFunnelAggregateRow,
     WBFunnelHistoryRow,
     WBNormQueryItem,
+    WBOrderPrice,
     WBPriceGood,
     WBSaleRecord,
     WBStockRow,
@@ -176,10 +177,17 @@ class IngestionService:
         *,
         snapshot_date: date,
         nm_ids: list[int] | None = None,
+        order_prices: list[WBOrderPrice] | None = None,
+        regions: tuple[str, ...] = (),
     ) -> int:
         """Delegate to :meth:`PriceIngestion.ingest_prices`."""
         return await self._prices.ingest_prices(
-            goods, customer, snapshot_date=snapshot_date, nm_ids=nm_ids
+            goods,
+            customer,
+            snapshot_date=snapshot_date,
+            nm_ids=nm_ids,
+            order_prices=order_prices,
+            regions=regions,
         )
 
     async def ingest_sales(self, records: list[WBSaleRecord]) -> int:
@@ -210,6 +218,8 @@ class IngestionService:
         customer_prices: list[WBCardProduct] | None = None,
         price_nm_ids: list[int] | None = None,
         sales: list[WBSaleRecord] | None = None,
+        order_prices: list[WBOrderPrice] | None = None,
+        customer_price_regions: tuple[str, ...] = (),
         write_offs: list[WBAdvWriteOff] | None = None,
         keep_warehouses: tuple[str, ...] = (),
     ) -> IngestionResult:
@@ -235,6 +245,10 @@ class IngestionService:
                 account-wide seller feed to this harvest); ``None`` writes all.
             sales: Raw per-item sale/return records; ``None`` when the source
                 failed (existing rows are then left untouched).
+            order_prices: Ordered lines read only for the customer price they
+                witness, used where the storefront could not answer.
+            customer_price_regions: Delivery regions comparable to the
+                configured storefront ``dest``.
             write_offs: Raw advertising write-offs naming who funded each charge;
                 ``None`` when the source failed or was not asked for (the
                 existing ledger is then left untouched, so a missed pass reads
@@ -283,7 +297,12 @@ class IngestionService:
         price_count = 0
         if prices is not None:
             price_count = await self.ingest_prices(
-                prices, customer_prices or [], snapshot_date=snapshot_date, nm_ids=price_nm_ids
+                prices,
+                customer_prices or [],
+                snapshot_date=snapshot_date,
+                nm_ids=price_nm_ids,
+                order_prices=order_prices,
+                regions=customer_price_regions,
             )
         sales_count = 0
         if sales is not None:

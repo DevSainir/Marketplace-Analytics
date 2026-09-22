@@ -12,7 +12,7 @@ from src.modules.monitoring.models import PriceSnapshot
 from src.modules.monitoring.repos.base import BaseRepository, workspace_sku_select
 
 _CONFLICT = ("stat_date", "nm_id")
-_UPDATE = ("seller_price", "customer_price")
+_UPDATE = ("seller_price", "customer_price", "customer_spp", "customer_source")
 
 
 class PriceRepository(BaseRepository):

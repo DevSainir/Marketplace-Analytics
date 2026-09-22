@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from src.integrations.wildberries.schemas import WBCardProduct, WBPriceGood
+from src.integrations.wildberries.schemas import WBCardProduct, WBOrderPrice, WBPriceGood
 from src.modules.monitoring.services.ingestion import IngestionService
 
 DAY = date(2026, 7, 1)
@@ -117,6 +117,8 @@ async def test_ingest_prices_joins_seller_and_customer_by_sku() -> None:
         "nm_id": 1,
         "seller_price": 500.0,
         "customer_price": 350.0,
+        "customer_spp": None,
+        "customer_source": "storefront",
     }
     # SKU 2: seller only (no storefront row) -> customer None.
     assert by_sku[2]["seller_price"] == 700.0
@@ -158,3 +160,130 @@ async def test_ingest_prices_skips_fully_empty_skus() -> None:
 
     assert count == 0
     assert repo.rows == []
+
+
+def _order(
+    nm_id: int,
+    price: float,
+    *,
+    spp: float = 0.0,
+    region: str = "Москва",
+    day: date = DAY,
+    cancelled: bool = False,
+) -> WBOrderPrice:
+    """One ordered line witnessing a price, with an srid unique per argument set."""
+    return WBOrderPrice.model_validate(
+        {
+            "srid": f"{nm_id}-{price}-{spp}-{region}-{day}-{cancelled}",
+            "nmId": nm_id,
+            "date": f"{day.isoformat()}T10:00:00",
+            "lastChangeDate": f"{day.isoformat()}T11:00:00",
+            "isCancel": cancelled,
+            "finishedPrice": price,
+            "priceWithDisc": price * 1.1,
+            "spp": spp,
+            "regionName": region,
+        }
+    )
+
+
+async def test_orders_fill_the_customer_price_the_storefront_could_not_answer() -> None:
+    """A SKU the storefront skipped is priced from that day's orders instead.
+
+    This is the whole point of the fallback: on 2026-09-22 the storefront went
+    behind an anti-bot challenge and answered for nothing at all.
+    """
+    repo = _CapturingPriceRepo()
+    service = _service(repo)
+    goods = [WBPriceGood.model_validate({"nmID": 1, "sizes": [{"discountedPrice": 500.0}]})]
+
+    count = await service.ingest_prices(
+        goods,
+        [],
+        snapshot_date=DAY,
+        order_prices=[_order(1, 430.0, spp=12), _order(1, 430.0, spp=12), _order(1, 470.0, spp=6)],
+        regions=("Москва", "Московская область"),
+    )
+
+    assert count == 1
+    row = repo.rows[0]
+    assert row["customer_price"] == 430.0
+    assert row["customer_spp"] == 12
+    assert row["customer_source"] == "orders"
+
+
+async def test_the_storefront_still_wins_when_it_answers() -> None:
+    """Orders are a fallback, not a replacement — nothing changes while the
+    storefront works, so reviving it needs no second edit."""
+    repo = _CapturingPriceRepo()
+    service = _service(repo)
+
+    await service.ingest_prices(
+        [WBPriceGood.model_validate({"nmID": 1, "sizes": [{"discountedPrice": 500.0}]})],
+        [WBCardProduct.model_validate({"id": 1, "sizes": [{"price": {"product": 35000}}]})],
+        snapshot_date=DAY,
+        order_prices=[_order(1, 430.0, spp=12)],
+        regions=("Москва", "Московская область"),
+    )
+
+    assert repo.rows[0]["customer_price"] == 350.0
+    assert repo.rows[0]["customer_source"] == "storefront"
+
+
+async def test_the_configured_region_decides_which_orders_count() -> None:
+    """СПП is regional, so the comparable rows are the ones from the region the
+    storefront's fixed ``dest`` stands for — even when another region sold more."""
+    repo = _CapturingPriceRepo()
+    service = _service(repo)
+
+    await service.ingest_prices(
+        [],
+        [],
+        snapshot_date=DAY,
+        order_prices=[
+            _order(1, 430.0, spp=12, region="Москва"),
+            _order(1, 390.0, spp=20, region="Краснодарский край"),
+            _order(1, 390.0, spp=20, region="Краснодарский край"),
+        ],
+        regions=("Москва", "Московская область"),
+    )
+
+    assert repo.rows[0]["customer_price"] == 430.0
+    assert repo.rows[0]["customer_spp"] == 12
+
+
+async def test_a_sku_selling_nowhere_comparable_still_gets_a_price() -> None:
+    """With no order from the configured region, every region is used: a price
+    from the wrong region beats no price at all."""
+    repo = _CapturingPriceRepo()
+    service = _service(repo)
+
+    await service.ingest_prices(
+        [],
+        [],
+        snapshot_date=DAY,
+        order_prices=[_order(1, 390.0, spp=20, region="Иркутская область")],
+        regions=("Москва", "Московская область"),
+    )
+
+    assert repo.rows[0]["customer_price"] == 390.0
+    assert repo.rows[0]["customer_source"] == "orders"
+
+
+async def test_other_days_and_cancelled_lines_do_not_price_the_day() -> None:
+    """Only the snapshot day's live orders witness the snapshot day's price."""
+    repo = _CapturingPriceRepo()
+    service = _service(repo)
+
+    count = await service.ingest_prices(
+        [],
+        [],
+        snapshot_date=DAY,
+        order_prices=[
+            _order(1, 430.0, day=date(2026, 6, 30)),
+            _order(1, 999.0, cancelled=True),
+        ],
+        regions=("Москва", "Московская область"),
+    )
+
+    assert count == 0

@@ -30,6 +30,7 @@ from src.integrations.wildberries.schemas import (
     WBCard,
     WBFunnelHistoryRow,
     WBNormQueryItem,
+    WBOrderPrice,
     WBSaleRecord,
     WBStockRow,
 )
@@ -299,6 +300,20 @@ async def _harvest_sku_window(
                 return None
             return await statistics_client.fetch_sales(changed_since=date_from)
 
+        # The order feed, read ONLY for the price a customer was charged today.
+        # No table, no series: these rows become one column of one day's price
+        # snapshot and are dropped (see
+        # :class:`~src.integrations.wildberries.schemas.statistics.WBOrderPrice`
+        # for why this is not the removed «Заказы» feed coming back).
+        #
+        # Unlike the sales feed above this runs on EVERY path, single-SKU
+        # «Обновить» included, because rewriting today's price with СПП is the
+        # button's whole point — and it is cheap enough to mean it: the window
+        # is today alone rather than the harvest's, and this endpoint's bucket
+        # is 10 requests a minute against the sales feed's one.
+        async def _fetch_order_prices() -> list[WBOrderPrice] | None:
+            return await statistics_client.fetch_order_prices(changed_since=moscow_today())
+
         # WB's advertising write-off ledger — the only feed that says whether a
         # charge came out of the seller's money («Баланс») or out of WB's bonus
         # pool («Кэшбэк»). Without it every per-SKU ДРР, ROI and profit counts
@@ -323,10 +338,18 @@ async def _harvest_sku_window(
         # analytics rate budget. It returns ordinary stock rows (see
         # :mod:`~src.modules.monitoring.tasks.fbs`), and a workspace with no
         # «Маркетплейс» token simply gets an empty list.
-        adv_res, search_res, sales_res, write_off_res, fbs_res = await asyncio.gather(
+        (
+            adv_res,
+            search_res,
+            sales_res,
+            order_price_res,
+            write_off_res,
+            fbs_res,
+        ) = await asyncio.gather(
             _fetch_fullstats(),
             _fetch_search(),
             _fetch_sales(),
+            _fetch_order_prices(),
             _fetch_write_offs(),
             fetch_fbs_stock_rows(settings, token=tokens.marketplace, nm_ids=nm_ids, cards=cards),
             return_exceptions=True,
@@ -337,6 +360,9 @@ async def _harvest_sku_window(
         search_stats = _unwrap(search_res, "search-zone")
         # ``None`` (source failed) leaves the sale/return records untouched.
         sales = _unwrap(sales_res, "sales")
+        # ``None`` (source failed) leaves the customer price to the storefront
+        # alone — which since 2026-09-22 means leaving it NULL.
+        order_prices = _unwrap(order_price_res, "order-prices")
         # ``None`` (source failed OR not requested) leaves the funding ledger
         # untouched — a missed pass must read as «bonuses unknown for this
         # window», never as «this window had no bonuses».
@@ -369,6 +395,7 @@ async def _harvest_sku_window(
                 ("advertising", adv_res),
                 ("search-zone", search_res),
                 ("sales", sales_res),
+                ("order-prices", order_price_res),
                 ("ad-write-offs", write_off_res),
                 ("stocks-fbs", fbs_res),
             )
@@ -420,6 +447,8 @@ async def _harvest_sku_window(
             customer_prices=customer_prices,
             price_nm_ids=nm_ids,
             sales=sales,
+            order_prices=order_prices,
+            customer_price_regions=settings.wb_card_regions,
             write_offs=write_offs,
             keep_warehouses=keep_warehouses,
         )
