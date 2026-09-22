@@ -62,7 +62,8 @@ cmd_fetch() {
 
     # aws-cli only ever sees the mounted directory, so download into it and
     # move afterwards rather than teaching the container about arbitrary paths.
-    BACKUP_ARTIFACT_DIR="${outdir}" run_aws "${dest}" s3 cp \
+    BACKUP_ARTIFACT_DIR="${outdir}" BACKUP_AWS_MOUNT_MODE=rw \
+        run_aws "${dest}" s3 cp \
         "s3://${bucket}/${key}" "/data/${filename}" --only-show-errors ||
         die "Download of ${dest}:${key} failed."
 

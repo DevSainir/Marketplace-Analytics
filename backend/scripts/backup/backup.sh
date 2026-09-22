@@ -171,8 +171,14 @@ fi
 # --- Push -------------------------------------------------------------------
 if [ "${BACKUP_SKIP_UPLOAD:-0}" = "1" ]; then
     warn "--no-upload: nothing was pushed to ${BACKUP_DESTINATIONS[*]}."
+    # Said in the report too, not only in the log. A rehearsal that announces
+    # "tiers: daily → hoster cloudfare" in Telegram is a message claiming a
+    # backup exists where none was uploaded, and it is indistinguishable from
+    # the real thing in a chat somebody reads at 09:00.
+    DESTINATIONS_NOTE="NOT UPLOADED (--no-upload) — local rehearsal only"
 else
     upload_all "${ENCRYPTED_NAME}" "${ENCRYPTED_SHA}" "${ENCRYPTED_SIZE}" "${TIERS[@]}"
+    DESTINATIONS_NOTE="tiers: ${TIERS[*]} → ${BACKUP_DESTINATIONS[*]}"
 fi
 
 # --- Local housekeeping -----------------------------------------------------
@@ -205,7 +211,7 @@ SECRETS_NOTE=$(secrets_bundle_drift_note)
 SUMMARY="✅ Backup OK on $(hostname)
 ${ENCRYPTED_NAME} — $(human_bytes "${ENCRYPTED_SIZE}")
 sha256 ${ENCRYPTED_SHA}
-tiers: ${TIERS[*]} → ${BACKUP_DESTINATIONS[*]}
+${DESTINATIONS_NOTE}
 deep restore check: $([ "${DEEP_CHECK}" -eq 1 ] && echo passed || echo "not due")
 ${SECRETS_NOTE}"
 

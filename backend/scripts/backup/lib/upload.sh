@@ -18,6 +18,14 @@
 export AWS_REQUEST_CHECKSUM_CALCULATION=when_required
 export AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
 
+# The mount is read-only by default: this function exists to push artifacts,
+# and a container that cannot write cannot damage the one local copy of a dump.
+# `restore.sh fetch` is the exception — it is downloading — and it sets
+# BACKUP_AWS_MOUNT_MODE=rw around its own call. That asymmetry was found the
+# hard way on 2026-09-22: fetch had never worked, because aws-cli inside the
+# container was writing its temporary part-file into a read-only /data. Nothing
+# noticed, because the path nobody exercises until an incident is the restore
+# path.
 run_aws() {
     local dest=$1
     shift
@@ -30,7 +38,7 @@ run_aws() {
         -e AWS_DEFAULT_REGION \
         -e AWS_REQUEST_CHECKSUM_CALCULATION \
         -e AWS_RESPONSE_CHECKSUM_VALIDATION \
-        -v "${BACKUP_ARTIFACT_DIR}:/data:ro" \
+        -v "${BACKUP_ARTIFACT_DIR}:/data:${BACKUP_AWS_MOUNT_MODE:-ro}" \
         "${BACKUP_AWSCLI_IMAGE}" \
         --endpoint-url "$(dest_var "${dest}" endpoint)" \
         "$@"
