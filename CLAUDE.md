@@ -80,10 +80,13 @@ service runs instrumented whether or not anything is watching it.
 `docs/finreports/` holds what no skill covers: how the P&L is derived from WB's weekly
 Read `PNL.md` before changing anything that touches a settlement figure — most of the ways to
 get it wrong produce a plausible statement rather than an error.
-`RATE_LIMIT_EXPERIMENT.md` is a **dated, single-shot measurement to run on 23.09.2026** — it
-settles whether WB meters the settlement report per seller token or per egress IP, which is
-the number the кабинет ceiling is computed from. It costs two requests and cannot be repeated
-for days if it is run wrong.
+`MIGRATION_TO_FINANCE_V1.md` is the plan for the biggest outstanding piece of finreports
+work: the settlement endpoint the P&L is built on was **switched off by WB on 15.07.2026**
+and we are still calling it. The replacement runs at fifteen times the rate on a token we
+already hold. Read it before touching anything that paces, probes or walks the settlement
+report — most of that machinery exists only to survive the deprecated endpoint.
+`RATE_LIMIT_EXPERIMENT.md` is a dated single-shot measurement about that same endpoint's
+budget; it becomes moot on cutover and should be deleted then rather than now.
 
 `docs/RELEASES.md` covers versioning: the version is **derived from your commit messages**, never
 typed, so a `feat:`, a `feat-minor:` and a `fix:` are not interchangeable (which to use, and the
