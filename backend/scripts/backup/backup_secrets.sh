@@ -97,6 +97,14 @@ BUNDLE_SIZE=$(file_size "${ENCRYPTED_BUNDLE}")
 BUNDLE_SHA=$(sha256_of "${ENCRYPTED_BUNDLE}")
 log "Artifact ${BUNDLE_NAME}: $(human_bytes "${BUNDLE_SIZE}"), sha256 ${BUNDLE_SHA}."
 
+# Into the same ledger as the database archives, and for a sharper reason. A
+# forged archive costs you a restore of wrong data; a forged bundle is a `.env`
+# an attacker wrote, restored onto a rebuilt box — their Fernet key, their
+# endpoints, their credentials — at the exact moment nobody is in a position to
+# be suspicious. The bundle is encrypted to a public key like everything else
+# here, so nothing about it being unreadable to us makes it unforgeable.
+record_artifact_sha "${BUNDLE_NAME}" "${BUNDLE_SHA}"
+
 if [ "${BACKUP_SKIP_UPLOAD:-0}" = "1" ]; then
     warn "--no-upload: nothing was pushed to ${BACKUP_DESTINATIONS[*]}."
 else

@@ -67,6 +67,23 @@ def test_every_artifact_is_recorded_when_it_is_written() -> None:
     assert recorded_at < uploaded_at, "the checksum is recorded after the upload, not before"
 
 
+def test_the_secrets_bundle_is_recorded_too() -> None:
+    """A forged bundle is worse than a forged archive, not better.
+
+    It cannot be read back here — that is the design — but being unreadable to
+    us does nothing about being forgeable by anyone with the public key. What
+    gets restored from a bundle is the `.env` a rebuilt box will run on.
+    """
+    bundle = _source("backup_secrets.sh")
+
+    assert "record_artifact_sha" in bundle, (
+        "the secrets bundle is uploaded with no record of what was written"
+    )
+    assert bundle.index("record_artifact_sha") < bundle.index("upload_all"), (
+        "the bundle checksum is recorded after the upload, not before"
+    )
+
+
 def test_the_weekly_report_carries_the_checksum() -> None:
     """A checksum that never leaves the box cannot outlive the box.
 
