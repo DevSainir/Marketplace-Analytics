@@ -21,26 +21,6 @@ export async function fetchSkuSummary(params = {}, signal) {
 }
 
 /**
- * GET /v1/monitoring/charts — the account-wide daily series behind «Сравнение SKU».
- *
- * `nmIds` empty means EVERY SKU in the workspace, which is what the page shows
- * until a selection is made. Axios serialises an array parameter as repeated
- * `nm_ids=...`, which is the shape FastAPI expects for a `list[int]` query.
- *
- * @param {{date_from?: string, date_to?: string, nmIds?: number[]}} [params]
- * @param {AbortSignal} [signal] Cancels the request when a newer fetch starts.
- * @returns {Promise<object>} `AggregateChartsResponse`.
- */
-export async function fetchAggregateCharts({ date_from, date_to, nmIds = [] } = {}, signal) {
-  const { data } = await apiClient.get('/v1/monitoring/charts', {
-    params: { date_from, date_to, ...(nmIds.length ? { nm_ids: nmIds } : {}) },
-    paramsSerializer: { indexes: null },
-    signal,
-  })
-  return data
-}
-
-/**
  * GET /v1/monitoring/skus/lookup — resolve a vendor code (or fragment) to
  * matching SKUs.
  *

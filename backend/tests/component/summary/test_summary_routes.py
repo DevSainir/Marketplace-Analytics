@@ -22,6 +22,7 @@ import httpx
 import pytest
 
 from src.core.timeutils import moscow_today
+from src.modules.organizations.contract import ALL_MODULES, EffectiveRole
 from src.modules.summary.deps import get_summary_service
 from src.modules.summary.routers.summary import DEFAULT_WINDOW_DAYS, MAX_WINDOW_DAYS
 from src.modules.summary.schemas import SummaryCoverage, SummaryKpi, SummaryResponse
@@ -93,9 +94,9 @@ def _wire_summary(
 
 
 @pytest.fixture(autouse=True)
-def _internal_caller(login_as: Callable[..., None]) -> None:
-    """The surface is internal-only, so every test is one of us by default."""
-    login_as(is_primary_org=True)
+def _paying_caller(login_as: Callable[..., None]) -> None:
+    """An ordinary paying owner: this page is a product surface, not a lab."""
+    login_as()
 
 
 @pytest.fixture
@@ -104,21 +105,39 @@ def headers(user: Any, workspace: Workspace) -> dict[str, str]:
     return {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
 
 
-async def test_a_customer_cannot_reach_the_summary(
-    client: httpx.AsyncClient, headers: dict[str, str], login_as: Callable[..., None]
+@pytest.mark.parametrize("withheld", ["monitoring", "finreports"])
+async def test_a_manager_needs_both_grants_to_see_the_summary(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    login_as: Callable[..., None],
+    withheld: str,
 ) -> None:
-    """An ordinary tenant gets 403, not a restated margin.
+    """Either grant missing is a 403 — the page shows data from both modules.
 
-    «Сводка» swaps WB's weekly advertising invoice for the burn the statistics
-    recorded and withholds the margin entirely until every SKU is costed.
-    Neither choice has been explained to a customer, and a figure a seller
-    cannot reconcile against WB's own cabinet is worse than no figure.
+    Revenue, margin and withholdings are «Отчёты»; orders, buyout and
+    advertising are «Мониторинг». A manager granted one of the two would
+    otherwise be shown the other one's figures here, which is exactly the
+    access their owner chose not to give.
     """
-    login_as(is_primary_org=False)
+    login_as(
+        role=EffectiveRole.MANAGER,
+        modules=tuple(m for m in ALL_MODULES if m != withheld),
+    )
 
     response = await client.get("/api/v1/summary", headers=headers)
 
     assert response.status_code == 403
+
+
+async def test_a_manager_granted_both_reaches_it(
+    client: httpx.AsyncClient, headers: dict[str, str], login_as: Callable[..., None]
+) -> None:
+    """The other half of the rule: both grants are enough, nothing else is asked."""
+    login_as(role=EffectiveRole.MANAGER, modules=ALL_MODULES)
+
+    response = await client.get("/api/v1/summary", headers=headers)
+
+    assert response.status_code == 200
 
 
 async def test_the_summary_is_scoped_to_the_active_workspace(

@@ -21,12 +21,10 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, status
 
-from src.modules.monitoring.constants import MAX_NM_IDS_PER_REQUEST
 from src.modules.monitoring.deps import AnalyticsServiceDep, CurrentWorkspaceId, WorkspaceSku
 from src.modules.monitoring.routers.clusters import router as clusters_router
 from src.modules.monitoring.routers.refresh import router as refresh_router
 from src.modules.monitoring.schemas import (
-    AggregateChartsResponse,
     CommentUpdateRequest,
     DayActionResponse,
     DayActionState,
@@ -91,40 +89,6 @@ async def get_summary(
         date_to=date_to,
         limit=limit,
         offset=offset,
-    )
-
-
-@router.get(
-    "/charts",
-    response_model=AggregateChartsResponse,
-    status_code=status.HTTP_200_OK,
-    responses={
-        200: {"description": "Account-wide daily series for the window."},
-        401: {"description": "Unauthorized access token."},
-        422: {"description": "Invalid date window."},
-    },
-)
-async def get_aggregate_charts(
-    service: AnalyticsServiceDep,
-    workspace_id: CurrentWorkspaceId,
-    date_from: date | None = Query(default=None, description="Inclusive start."),
-    date_to: date | None = Query(default=None, description="Inclusive end."),
-    nm_ids: list[int] | None = Query(
-        default=None,
-        max_length=MAX_NM_IDS_PER_REQUEST,
-        description=(
-            "SKUs to include. Repeat the parameter for several; omit it "
-            "entirely for every SKU in the workspace, which is what the page "
-            "shows by default."
-        ),
-    ),
-) -> AggregateChartsResponse:
-    """Return the «Сравнение SKU» page's day series, summed over the chosen SKUs."""
-    return await service.get_aggregate_charts(
-        workspace_id=workspace_id,
-        date_from=date_from,
-        date_to=date_to,
-        nm_ids=nm_ids,
     )
 
 

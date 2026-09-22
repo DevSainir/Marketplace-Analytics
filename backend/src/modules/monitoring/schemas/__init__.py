@@ -10,7 +10,6 @@ from src.modules.monitoring.schemas.advertising import (
     CampaignDailyStat,
     compute_ad_metrics,
 )
-from src.modules.monitoring.schemas.aggregate import AggregateChartsResponse
 from src.modules.monitoring.schemas.comment import (
     COMMENT_MAX_LENGTH,
     HEADER_MAX_LENGTH,
@@ -77,7 +76,6 @@ __all__ = [
     "MATRIX_BUCKETS",
     "MATRIX_METRIC_KEYS",
     "AdMetrics",
-    "AggregateChartsResponse",
     "BaselineDemandRead",
     "CampaignAdvertising",
     "CampaignDailyStat",

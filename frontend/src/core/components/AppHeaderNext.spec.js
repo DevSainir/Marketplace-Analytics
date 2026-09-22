@@ -46,3 +46,28 @@ describe('AppHeaderNext auth zone', () => {
     expect(wrapper.text()).not.toContain('Войти')
   })
 })
+
+/** The nav labels the header actually renders. */
+const labels = (wrapper) => wrapper.findAll('nav a').map((link) => link.text())
+
+describe('a page built from two module grants', () => {
+  it('is advertised only when both are granted', () => {
+    const wrapper = mountHeader({
+      isAuthenticated: true,
+      authResolved: true,
+      modules: ['monitoring', 'finreports'],
+    })
+
+    expect(labels(wrapper)).toContain('Сводка')
+  })
+
+  it('stays hidden when one of the two is withheld', () => {
+    const wrapper = mountHeader({
+      isAuthenticated: true,
+      authResolved: true,
+      modules: ['monitoring'],
+    })
+
+    expect(labels(wrapper)).not.toContain('Сводка')
+  })
+})

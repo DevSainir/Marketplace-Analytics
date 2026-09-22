@@ -40,7 +40,7 @@ LEAKED_DETAIL = "card detail row failed validation: 3 validation errors for WBCa
 class _FailingAnalytics:
     """Fails the way the WB clients do, with a message written for a developer."""
 
-    async def get_aggregate_charts(self, **kwargs: Any) -> Any:
+    async def get_summary(self, **kwargs: Any) -> Any:
         """Raise an upstream failure carrying internal detail."""
         raise IntegrationError(LEAKED_DETAIL)
 
@@ -72,7 +72,7 @@ async def test_an_upstream_failure_does_not_return_its_own_detail(
     that the detail does not reach the client at all, by any route through the
     envelope.
     """
-    response = await client.get("/api/v1/monitoring/charts", headers=headers)
+    response = await client.get("/api/v1/monitoring/summary", headers=headers)
 
     assert response.status_code == 502
     assert LEAKED_DETAIL not in response.text
@@ -88,7 +88,7 @@ async def test_the_caller_still_learns_what_kind_of_failure_it_was(
     because the frontend renders ``error.message`` directly — an empty one would
     surface to a seller as a blank error.
     """
-    response = await client.get("/api/v1/monitoring/charts", headers=headers)
+    response = await client.get("/api/v1/monitoring/summary", headers=headers)
 
     body = response.json()["error"]
     assert body["code"] == "integration_error"

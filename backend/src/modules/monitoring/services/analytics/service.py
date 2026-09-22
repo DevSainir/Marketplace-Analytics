@@ -37,13 +37,11 @@ from src.modules.monitoring.schemas import (
     SkuSummaryListResponse,
     StockRangeResponse,
 )
-from src.modules.monitoring.schemas.aggregate import AggregateChartsResponse
 from src.modules.monitoring.schemas.matrix import (
     MatrixBaseState,
     MatrixCellEdit,
     MatrixPreviewResponse,
 )
-from src.modules.monitoring.services.analytics.aggregate import AggregateAnalytics
 from src.modules.monitoring.services.analytics.annotations import DayAnnotationAnalytics
 from src.modules.monitoring.services.analytics.detail import DetailAnalytics
 from src.modules.monitoring.services.analytics.matrix_editing import MatrixEditingAnalytics
@@ -73,11 +71,6 @@ class AnalyticsService:
         day_action_repo: SkuDayActionRepository,
     ) -> None:
         """Wire each sub-service from the injected read repositories."""
-        self._aggregate = AggregateAnalytics(
-            funnel_repo=funnel_repo,
-            advertising_repo=advertising_repo,
-            stock_repo=stock_repo,
-        )
         self._summary = SummaryAnalytics(
             funnel_repo=funnel_repo,
             advertising_repo=advertising_repo,
@@ -152,22 +145,6 @@ class AnalyticsService:
     # ------------------------------------------------------------------ #
     # Detailed view + raw funnel
     # ------------------------------------------------------------------ #
-    async def get_aggregate_charts(
-        self,
-        *,
-        workspace_id: uuid.UUID,
-        date_from: date | None = None,
-        date_to: date | None = None,
-        nm_ids: list[int] | None = None,
-    ) -> AggregateChartsResponse:
-        """Delegate to :meth:`AggregateAnalytics.get_charts`."""
-        return await self._aggregate.get_charts(
-            workspace_id=workspace_id,
-            date_from=date_from,
-            date_to=date_to,
-            nm_ids=nm_ids,
-        )
-
     async def get_detail(
         self,
         *,

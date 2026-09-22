@@ -9,8 +9,6 @@ One responsibility per module:
 
 * :mod:`~src.modules.monitoring.services.analytics.window` — analysis-window
   resolution and validation.
-* :mod:`~src.modules.monitoring.services.analytics.aggregate` — the
-  account-wide daily series behind the «Сравнение SKU» page.
 * :mod:`~src.modules.monitoring.services.analytics.presenters` — pure DTO
   builders shared by the read services.
 * :mod:`~src.modules.monitoring.services.analytics.summary` — the per-SKU
@@ -43,7 +41,6 @@ keep importing :class:`AnalyticsService` exactly as they did from the former
 flat ``services/analytics.py`` module.
 """
 
-from src.modules.monitoring.services.analytics.aggregate import AggregateAnalytics
 from src.modules.monitoring.services.analytics.annotations import DayAnnotationAnalytics
 from src.modules.monitoring.services.analytics.clusters import ClusterAnalytics
 from src.modules.monitoring.services.analytics.detail import DetailAnalytics
@@ -55,7 +52,6 @@ from src.modules.monitoring.services.analytics.summary import SummaryAnalytics
 from src.modules.monitoring.services.analytics.window import resolve_window
 
 __all__ = [
-    "AggregateAnalytics",
     "AnalyticsService",
     "ClusterAnalytics",
     "DayAnnotationAnalytics",

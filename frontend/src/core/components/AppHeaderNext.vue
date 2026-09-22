@@ -34,7 +34,10 @@ const emit = defineEmits(['logout', 'select-workspace'])
 const NAV = [
   { to: '/', label: 'Главная', exact: true },
   { to: '/monitoring', label: 'Мониторинг', module: 'monitoring' },
-  { to: '/charts', label: 'Сравнение SKU', module: 'monitoring' },
+  // Both grants, like the route and the API behind it: the page shows
+  // «Отчёты» money next to «Мониторинг» demand, so one grant alone must
+  // not advertise it.
+  { to: '/summary', label: 'Сводка', modules: ['monitoring', 'finreports'] },
   { to: '/finreports', label: 'P&L', module: 'finreports' },
   { to: '/ab-tests', label: 'A/Б-тесты', module: 'ab_tests', internal: true },
 ]
@@ -46,7 +49,8 @@ const visibleNav = computed(() =>
   NAV.filter(
     (link) =>
       (!link.internal || props.internalFeatures) &&
-      (!link.module || props.modules.includes(link.module)),
+      (!link.module || props.modules.includes(link.module)) &&
+      (link.modules ?? []).every((key) => props.modules.includes(key)),
   ),
 )
 </script>

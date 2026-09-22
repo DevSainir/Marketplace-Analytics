@@ -48,7 +48,7 @@ from src.modules.organizations.deps import (
     require_owner,
     require_writer,
 )
-from src.modules.organizations.models import AuditEvent
+from src.modules.organizations.models import ALL_MODULES, AuditEvent, ModuleKey
 from src.modules.organizations.services import (
     WRITING_ROLES,
     AccessLevel,
@@ -65,6 +65,7 @@ from src.modules.organizations.services import (
 )
 
 __all__ = [
+    "ALL_MODULES",
     "WRITING_ROLES",
     "AbTestsAccess",
     "AccessLevel",
@@ -76,6 +77,7 @@ __all__ = [
     "FinreportsAccess",
     "InternalAccess",
     "MemberAccess",
+    "ModuleKey",
     "MonitoringAccess",
     "OrganizationAccess",
     "OwnerAccess",

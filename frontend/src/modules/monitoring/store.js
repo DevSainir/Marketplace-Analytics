@@ -12,7 +12,6 @@ import { extractErrorMessage } from '@/core/api/axios'
 import {
   fetchPinnedSkus,
   fetchSkuDetail,
-  fetchAggregateCharts,
   fetchSkuSummary,
   fetchStockRange,
   getRefreshStatus,
@@ -118,20 +117,6 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   const skuList = ref([])
   const skuListLoading = ref(false)
   const skuListError = ref(null)
-
-  // --- account-wide charts («Сравнение SKU») -----------------------------------
-  /** The aggregate display matrix the «Сравнение SKU» page draws, or an empty one. */
-  const aggregateView = ref({
-    days: [],
-    rows: [],
-    priceRows: [],
-    stockRows: [],
-    stockTotalRows: [],
-  })
-  const aggregateLoading = ref(false)
-  const aggregateError = ref(null)
-  /** How many SKUs actually contributed a day — the page states its own scope. */
-  const aggregateSkuCount = ref(0)
 
   // --- matrix editing state ---------------------------------------------
   /**
@@ -486,41 +471,6 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   // Controller of the in-flight list fetch; independent from the detail search
   // so refreshing the dropdown never cancels a running SKU analysis.
   let listController = null
-  let aggregateController = null
-
-  /**
-   * Load the account-wide day series for «Сравнение SKU».
-   *
-   * An empty `nmIds` means every SKU in the workspace — the page's default.
-   * The response is a matrix in the SAME shape the per-SKU detail serves, so it
-   * goes through `buildMetricsMatrix` unchanged and the charts cannot end up
-   * reading the two pages differently.
-   *
-   * @param {{date_from?: string, date_to?: string, nmIds?: number[]}} [params]
-   */
-  async function fetchAggregate(params = {}) {
-    aggregateController?.abort()
-    const controller = new AbortController()
-    aggregateController = controller
-
-    aggregateLoading.value = true
-    aggregateError.value = null
-    try {
-      const result = await fetchAggregateCharts(params, controller.signal)
-      aggregateView.value = buildMetricsMatrix(result)
-      aggregateSkuCount.value = result.sku_count ?? 0
-    } catch (err) {
-      if (isAbortError(err)) return
-      aggregateView.value = { days: [], rows: [], priceRows: [], stockRows: [], stockTotalRows: [] }
-      aggregateSkuCount.value = 0
-      aggregateError.value = extractErrorMessage(err)
-    } finally {
-      if (aggregateController === controller) {
-        aggregateLoading.value = false
-        aggregateController = null
-      }
-    }
-  }
 
   /**
    * Load the per-SKU summary listing for the window into `skuList`.
@@ -855,11 +805,6 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     skuListLoading,
     skuListError,
     fetchSkuList,
-    aggregateView,
-    aggregateLoading,
-    aggregateError,
-    aggregateSkuCount,
-    fetchAggregate,
     selectSku,
     totalCarts,
     totalAdClicks,

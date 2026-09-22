@@ -26,6 +26,7 @@ from fastapi import Depends, FastAPI
 from src.core.deps import get_db
 from src.core.logging import JsonFormatter
 from src.modules.organizations.contract import (
+    ALL_MODULES,
     AccessLevel,
     EffectiveRole,
     OrganizationAccess,
@@ -358,6 +359,7 @@ def access_factory(user: User, organization_id: uuid.UUID) -> Callable[..., Orga
         is_primary_org: bool = False,
         org: uuid.UUID | None = organization_id,
         access_level: AccessLevel = AccessLevel.READ_WRITE,
+        modules: tuple[str, ...] = ALL_MODULES,
     ) -> OrganizationAccess:
         # ``access_level`` only means anything for a manager — see
         # ``OrganizationAccess.can_write`` — so it defaults to the value the
@@ -369,6 +371,7 @@ def access_factory(user: User, organization_id: uuid.UUID) -> Callable[..., Orga
             subscription=subscription,
             is_primary_org=is_primary_org,
             access_level=access_level,
+            modules=modules,
         )
 
     return _build
