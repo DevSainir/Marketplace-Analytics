@@ -19,7 +19,6 @@ from src.integrations.wildberries.endpoints import (
     SALES_REPORTS_BY_PERIOD_PATH,
     SALES_REPORTS_DETAILED_PATH,
     SALES_REPORTS_LIST_PATH,
-    SETTLEMENT_REPORT_PATH,
 )
 from src.integrations.wildberries.rate_limit.gates import (
     NullRateGate,
@@ -296,7 +295,6 @@ def statistics_rate_gate(settings: Settings, *, token: str) -> RateGate:
         refill_seconds=settings.wb_statistics_bucket_refill_seconds,
         max_wait_seconds=settings.wb_statistics_max_queue_seconds,
         endpoint_buckets=STATISTICS_ENDPOINT_BUCKETS,
-        shared_block=(SETTLEMENT_REPORT_PATH,),
     )
 
 
@@ -327,7 +325,6 @@ def settlement_walk_rate_gate(settings: Settings, *, token: str) -> RateGate:
         refill_seconds=settings.wb_statistics_bucket_refill_seconds,
         max_wait_seconds=settings.wb_statistics_walk_queue_seconds,
         endpoint_buckets=STATISTICS_ENDPOINT_BUCKETS,
-        shared_block=(SETTLEMENT_REPORT_PATH,),
     )
 
 

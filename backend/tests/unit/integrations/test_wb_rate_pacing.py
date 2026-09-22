@@ -281,10 +281,12 @@ def test_a_finance_client_is_paced_unless_pacing_is_switched_off() -> None:
     perfectly for every seller small enough to fit one page, which is how this
     reached production in the first place.
     """
-    from src.integrations.wildberries.clients.finance import WBFinanceClient
+    from src.integrations.wildberries.clients.finance_reports import WBFinanceReportsClient
 
-    paced = WBFinanceClient(Settings(), token="a-statistics-token")
-    unpaced = WBFinanceClient(Settings(wb_rate_pacing_enabled=False), token="a-statistics-token")
+    paced = WBFinanceReportsClient(Settings(), token="a-statistics-token")
+    unpaced = WBFinanceReportsClient(
+        Settings(wb_rate_pacing_enabled=False), token="a-statistics-token"
+    )
 
     assert isinstance(paced._rate_gate, TokenBucketRateGate)
     assert isinstance(unpaced._rate_gate, NullRateGate)

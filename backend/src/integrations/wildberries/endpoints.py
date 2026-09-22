@@ -35,6 +35,11 @@ _ID_SEGMENT_RE = re.compile(
 #: because the walk now takes its rate token by path, outside the client that
 #: sends the request — and a bucket keyed on a typo would pace nothing at all,
 #: silently.
+#: WB announced its shutdown for 15.07.2026 and removed it from the
+#: documentation. Nothing calls it since 2026-09-22; the constant survives
+#: only so the shared penalty block earned on it in September expires against
+#: the same key it was written under, and so a future reader looking for the
+#: path finds the migration note rather than nothing.
 SETTLEMENT_REPORT_PATH = "/api/v5/supplier/reportDetailByPeriod"
 
 #: Its replacement, on the Finance surface. WB announced the shutdown of the

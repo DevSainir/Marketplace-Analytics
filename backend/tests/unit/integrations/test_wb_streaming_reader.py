@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
-from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -24,7 +23,7 @@ import pytest
 
 from src.core.config import settings
 from src.core.exceptions import IntegrationError
-from src.integrations.wildberries.clients.finance import WBFinanceClient
+from src.integrations.wildberries.clients.finance_reports import WBFinanceReportsClient
 from src.integrations.wildberries.clients.reference import WBReferenceClient
 from src.integrations.wildberries.rate_limit import NullRateGate
 
@@ -43,11 +42,11 @@ def _rows(count: int, *, first_id: int = 1) -> list[dict[str, Any]]:
     ]
 
 
-def _client(handler: Any) -> WBFinanceClient:
+def _client(handler: Any) -> WBFinanceReportsClient:
     # Explicitly unpaced: these are about parsing a body, and the real gate is
     # Redis-backed — it would drain the live settlement bucket and make the
     # result depend on whether Docker happens to be up.
-    client = WBFinanceClient(settings, token="t", rate_gate=NullRateGate())
+    client = WBFinanceReportsClient(settings, token="t", rate_gate=NullRateGate())
     client._client = httpx.AsyncClient(
         transport=httpx.MockTransport(handler), base_url="https://wb.test"
     )
@@ -76,8 +75,7 @@ async def test_every_row_arrives_whole_and_in_order() -> None:
     seen = [
         row
         async for batch in client.stream_report_rows(
-            date_from=date(2026, 7, 9),
-            date_to=date(2026, 8, 8),
+            report_id=989286628,
         )
         for row in batch
     ]
@@ -102,8 +100,7 @@ async def test_nothing_larger_than_a_batch_is_ever_held() -> None:
     sizes = [
         len(batch)
         async for batch in client.stream_report_rows(
-            date_from=date(2026, 7, 9),
-            date_to=date(2026, 8, 8),
+            report_id=989286628,
         )
     ]
 
@@ -122,8 +119,7 @@ async def test_a_refusal_is_raised_rather_than_returned_as_no_rows() -> None:
 
     with pytest.raises(IntegrationError):
         async for _ in client.stream_report_rows(
-            date_from=date(2026, 7, 9),
-            date_to=date(2026, 8, 8),
+            report_id=989286628,
         ):
             pass
 
@@ -131,20 +127,20 @@ async def test_a_refusal_is_raised_rather_than_returned_as_no_rows() -> None:
 async def test_the_streamed_request_asks_for_wb_s_full_allowance() -> None:
     """The point of streaming is the request count, so the limit must actually
     change — a streamed call still asking for 10 000 would be all cost, no gain."""
-    asked: dict[str, str] = {}
+    asked: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        asked.update(dict(request.url.params))
+        # The page size travels in the BODY now: the Finance methods are POST.
+        asked.update(json.loads(request.content))
         return httpx.Response(200, json=[])
 
     client = _client(handler)
     async for _ in client.stream_report_rows(
-        date_from=date(2026, 7, 9),
-        date_to=date(2026, 8, 8),
+        report_id=989286628,
     ):
         pass
 
-    assert asked["limit"] == str(client.stream_limit)
+    assert asked["limit"] == client.stream_limit
     assert client.stream_limit == 100_000
 
 
@@ -200,12 +196,6 @@ async def test_the_settlement_reader_keeps_its_decimals() -> None:
         return httpx.Response(200, content=payload)
 
     client = _client(handler)
-    seen = [
-        row
-        async for batch in client.stream_report_rows(
-            date_from=date(2026, 7, 9), date_to=date(2026, 8, 8)
-        )
-        for row in batch
-    ]
+    seen = [row async for batch in client.stream_report_rows(report_id=989286628) for row in batch]
 
     assert seen[0].ppvz_for_pay == Decimal("10.5")

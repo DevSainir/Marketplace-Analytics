@@ -33,7 +33,6 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessOutcome,
     FreshnessRecordStore,
 )
-from src.modules.finreports.services.publication import period_from
 from src.modules.finreports.tasks.freshness import (
     check_freshness,
     freshness_record_store,
@@ -273,7 +272,7 @@ async def _harvest_all_workspaces(
                 await record_publication_spread(
                     session,
                     workspace_id=bundle.workspace_id,
-                    period_end=period_from(verdict.probe_from).date_to,
+                    period_end=missing[-1].date_to,
                     name=bundle.name,
                 )
         # And recorded AGAIN, from what the walk found. The walk asks WB about

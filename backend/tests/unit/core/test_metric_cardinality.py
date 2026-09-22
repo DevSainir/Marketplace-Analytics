@@ -30,7 +30,7 @@ from prometheus_client.metrics import MetricWrapperBase
 
 from src.core.observability import metrics
 from src.integrations.wildberries.clients.analytics import WBAnalyticsClient
-from src.integrations.wildberries.clients.finance import WBFinanceClient
+from src.integrations.wildberries.clients.finance_reports import WBFinanceReportsClient
 from src.integrations.wildberries.endpoints import endpoint_label
 
 
@@ -91,7 +91,7 @@ def test_a_route_with_no_identifier_is_left_exactly_alone(path: str) -> None:
     ("client", "expected"),
     [
         (WBAnalyticsClient, "analytics"),
-        (WBFinanceClient, "finance"),
+        (WBFinanceReportsClient, "finance"),
         # The two whose derived name would be unreadable, so they name
         # themselves. Pinned because a dashboard and an alert rule are written
         # against these strings.

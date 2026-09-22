@@ -27,15 +27,24 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
+from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logging import get_logger
-from src.core.observability.metrics import SETTLEMENT_PUBLICATION_SPREAD
-from src.modules.finreports.models import FinancialReport
+from src.core.observability.metrics import (
+    SETTLEMENT_PAYOUT_DIVERGENCE,
+    SETTLEMENT_PUBLICATION_SPREAD,
+)
+from src.integrations.wildberries.schemas import WBFinanceReportHeader
+from src.modules.finreports.constants import RETURN_OPERS
+from src.modules.finreports.models import FinancialReport, LogisticsTransaction
 
 logger = get_logger(__name__)
+
+#: The payout column, named once so the signed sum below stays readable.
+_FOR_PAY = LogisticsTransaction.ppvz_for_pay
 
 
 async def record_publication_spread(
@@ -88,4 +97,70 @@ async def record_publication_spread(
     return lag_hours
 
 
-__all__ = ["record_publication_spread"]
+__all__ = ["reconcile_against_wb", "record_publication_spread"]
+
+
+async def reconcile_against_wb(
+    session: AsyncSession, *, header: WBFinanceReportHeader, workspace_id: uuid.UUID, name: str
+) -> Decimal | None:
+    """Compare our payout for one report against WB's own figure.
+
+    The oracle the P&L has never had. ``docs/finreports/PNL.md`` warns that
+    most ways to get a settlement figure wrong produce a plausible statement
+    rather than an error; ``sales-reports/list`` carries WB's own
+    ``forPaySum`` for the same report, so for the first time the statement can
+    be checked against something.
+
+    **What WB totals is not a plain sum.** Worked out against report 989286628
+    on 2026-09-22: ``forPaySum`` is «Продажа» minus «Возврат» minus «Коррекция
+    продаж» plus the standalone compensations — 967 379.90 - 116 946.31 -
+    64.13 + 7 618.21 = 1 024 861.64, to the kopeck. The sign lives in the
+    operation name, never in the value: WB serves refunds POSITIVE, which is
+    the mistake that doubles revenue if a reader sums the column.
+
+    That reconstruction found one live disagreement on its first use, and the
+    check is here rather than as an assertion because of it: our
+    :data:`~src.modules.finreports.constants.RETURN_OPERS` is «Возврат» alone,
+    so «Коррекция продаж» is added where WB subtracts it — 128.26 KGS on that
+    report. Whether that is our bug or WB's convention needs more than one
+    report, which is exactly what this will accumulate.
+
+    Args:
+        session: An open session. Nothing here writes.
+        header: The report header as `sales-reports/list` served it.
+        workspace_id: Whose rows to total.
+        name: The seller's name, for the log line only.
+
+    Returns:
+        WB's figure minus ours, or ``None`` when we hold no rows for the
+        report yet. Zero is agreement.
+    """
+    ours = (
+        await session.execute(
+            select(
+                func.sum(
+                    case(
+                        (LogisticsTransaction.supplier_oper_name.in_(RETURN_OPERS), -_FOR_PAY),
+                        else_=_FOR_PAY,
+                    )
+                )
+            ).where(
+                LogisticsTransaction.workspace_id == workspace_id,
+                LogisticsTransaction.report_id == header.report_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if ours is None:
+        return None
+    difference: Decimal = header.for_pay_sum - ours
+    SETTLEMENT_PAYOUT_DIVERGENCE.observe(abs(float(difference)))
+    if difference:
+        logger.warning(
+            "finreports: report %d for %s totals %s here against WB's %s — %s apart.",
+            header.report_id,
+            name,
+            ours,
+            header.for_pay_sum,
+            difference,
+        )
+    return difference

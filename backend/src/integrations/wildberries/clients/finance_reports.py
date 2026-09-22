@@ -58,6 +58,11 @@ from src.integrations.wildberries.schemas.finance import (
 class WBFinanceReportsClient(BaseWBClient):
     """Client for WB's realization reports on the Finance surface."""
 
+    #: Named rather than derived from the class name, which would give
+    #: «financereports». The metric label and the rate bucket's surface key
+    #: have to read as the same thing, and WB calls it Финансы.
+    WB_SURFACE = "finance"
+
     #: Rows asked for per request. WB's documented maximum, and affordable only
     #: because the body is parsed as it arrives — decoding a 100 000-row page
     #: whole is ~1.25 GB against a 768 MiB worker.

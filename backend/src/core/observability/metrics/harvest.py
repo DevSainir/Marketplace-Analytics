@@ -155,3 +155,21 @@ SETTLEMENT_PUBLICATION_SPREAD: Final[Histogram] = Histogram(
     "Hours between the first seller receiving a settlement period and this one.",
     buckets=_SPREAD_BUCKETS,
 )
+
+
+#: How far our payout for a report is from WB's own figure, per report.
+#:
+#: `sales-reports/list` carries WB's `forPaySum`, so since 2026-09-22 the P&L
+#: can be checked against something rather than only against itself —
+#: `docs/finreports/PNL.md` warns that most ways to get a settlement figure
+#: wrong produce a plausible statement, not an error.
+#:
+#: Buckets start below a kopeck so agreement is distinguishable from
+#: near-agreement, and end high enough that a whole operation class going
+#: unsigned is one bucket rather than `+Inf`. Absolute, because the direction
+#: of the error says nothing the magnitude does not.
+SETTLEMENT_PAYOUT_DIVERGENCE: Final[Histogram] = Histogram(
+    "settlement_payout_divergence",
+    "Absolute gap between WB's own forPaySum for a report and ours.",
+    buckets=(0.005, 1.0, 10.0, 100.0, 1_000.0, 10_000.0, 100_000.0),
+)

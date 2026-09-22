@@ -64,6 +64,7 @@ from src.core.observability.metrics.harvest import (
     HARVEST_PARTIAL,
     HARVEST_ROWS,
     SETTLEMENT_GAP_DAYS,
+    SETTLEMENT_PAYOUT_DIVERGENCE,
     SETTLEMENT_PUBLICATION_SPREAD,
 )
 from src.core.observability.metrics.infrastructure import (
@@ -112,6 +113,7 @@ __all__ = [
     "SECURITY_DEGRADED_CONTROLS",
     "SECURITY_RLS_VIOLATIONS",
     "SETTLEMENT_GAP_DAYS",
+    "SETTLEMENT_PAYOUT_DIVERGENCE",
     "SETTLEMENT_PUBLICATION_SPREAD",
     "WB_API_DURATION",
     "WB_API_REQUESTS",
