@@ -43,6 +43,7 @@ from src.core.config import Settings
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.base import BaseWBClient
 from src.integrations.wildberries.endpoints import (
+    SALES_REPORTS_BY_PERIOD_PATH,
     SALES_REPORTS_DETAILED_PATH,
     SALES_REPORTS_LIST_PATH,
     sales_report_detail_path,
@@ -173,6 +174,46 @@ class WBFinanceReportsClient(BaseWBClient):
             # Left to default to the path, each report would get its own empty
             # bucket and nothing would be paced.
             rate_key=SALES_REPORTS_DETAILED_PATH,
+            batch_size=self._STREAM_BATCH,
+            reserve_seconds=reserve_seconds,
+        ):
+            yield _validate_draining(raw)
+
+    async def stream_rows_by_period(
+        self,
+        *,
+        date_from: date,
+        date_to: date,
+        cursor: int = 0,
+        reserve_seconds: float = 0.0,
+    ) -> AsyncGenerator[list[WBFinanceReportRow], None]:
+        """The same rows, addressed by settlement period rather than report id.
+
+        For the history backfill, which walks a span it has no report ids for
+        yet. Everything else should prefer :meth:`stream_report_rows`: paging
+        one report at a time avoids a hazard a seller documented on WB's forum
+        for the by-period form, where ``rrdId`` is not monotonic by date across
+        report boundaries and a walk can silently stop early.
+
+        Args:
+            date_from: Inclusive settlement-date window start.
+            date_to: Inclusive settlement-date window end.
+            cursor: ``rrdId`` to page from; 0 for the first page.
+            reserve_seconds: Non-zero marks this as background work that yields
+                its window to anything a person is waiting on.
+
+        Yields:
+            Batches of at most :data:`_STREAM_BATCH` validated rows.
+        """
+        async for raw in self._stream_json_items(
+            "POST",
+            SALES_REPORTS_BY_PERIOD_PATH,
+            json_body={
+                "dateFrom": date_from.isoformat(),
+                "dateTo": date_to.isoformat(),
+                "limit": self._STREAM_LIMIT,
+                "rrdId": cursor,
+            },
             batch_size=self._STREAM_BATCH,
             reserve_seconds=reserve_seconds,
         ):

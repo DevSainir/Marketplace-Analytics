@@ -28,7 +28,7 @@ fixes had.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import ClassVar
 
 import pytest
@@ -38,7 +38,6 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessVerdict,
 )
 from src.modules.finreports.tasks import freshness
-from src.modules.finreports.tasks.freshness import probe_window
 from src.modules.finreports.tasks.harvest import (
     fleet,
     harvest_all_workspaces,
@@ -46,7 +45,7 @@ from src.modules.finreports.tasks.harvest import (
     persistence,
     workspace,
 )
-from src.modules.finreports.tasks.settlement import SettlementWalk
+from src.modules.finreports.tasks.settlement import MissingReport, SettlementWalk
 from src.modules.finreports.tasks.spans import settlement_frontier, walk_span
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
@@ -111,22 +110,6 @@ def test_a_fresh_workspace_has_no_frontier_at_all() -> None:
 # --- what the rule buys ---------------------------------------------------
 
 
-def test_the_gate_stays_open_on_the_monday_the_report_lands() -> None:
-    """The behaviour the whole change exists for.
-
-    Read off the watermark, the window is empty and the tick skips — for good,
-    since tomorrow's window starts after 13.09 and the report's rows are all
-    behind it. Read off the frontier, the probe covers exactly the week WB has
-    just published.
-    """
-    assert probe_window(latest_settled=WATERMARK, held_ends=[], today=TODAY) is None
-
-    frontier = settlement_frontier(watermark=WATERMARK, covered_through=COVERED)
-    window = probe_window(latest_settled=frontier, held_ends=[], today=TODAY)
-    assert window is not None
-    assert (window.date_from, window.date_to) == MISSED_WEEK
-
-
 def test_the_walk_that_follows_covers_the_week_the_probe_found() -> None:
     """A gate that opens onto a span starting after the missed week fixes nothing."""
     frontier = settlement_frontier(watermark=WATERMARK, covered_through=COVERED)
@@ -172,6 +155,21 @@ class _FakeReportRepo:
     async def period_ends_since(self, *, workspace_id: uuid.UUID, since: date) -> list[date]:
         """Only the published-to-us report is held; the open week is missing."""
         return [COVERED]
+
+    async def report_ids_since(self, *, workspace_id: uuid.UUID, since: date) -> set[int]:
+        """No report ids held, so WB's whole list reads as missing."""
+        return set()
+
+    async def list_periods(self, *, workspace_id: uuid.UUID) -> list[tuple[int, date, date]]:
+        """What a thorough pass re-walks: the reports on file, newest first.
+
+        «Which ids am I missing» cannot see an amendment to a report already
+        held, and amendments are what the reconciliation pass exists for.
+        """
+        return [
+            (701, COVERED - timedelta(days=10), COVERED - timedelta(days=10)),
+            (702, COVERED, COVERED),
+        ]
 
 
 class _FakeRedis:
@@ -220,12 +218,19 @@ async def test_the_harvest_asks_the_gate_about_the_frontier_not_the_watermark(
 
     async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
         return [
-            WorkspaceTokenBundle(workspace_id=WORKSPACE, name="Демо", statistics="stat-token")
+            WorkspaceTokenBundle(
+                workspace_id=WORKSPACE,
+                name="Демо",
+                statistics="stat-token",
+                finance="a-finance-token",
+            )
         ]
 
-    async def _check(*, latest_settled: date | None, **_kwargs: object) -> FreshnessVerdict:
+    async def _check(
+        *, latest_settled: date | None, **_kwargs: object
+    ) -> tuple[FreshnessVerdict, tuple[()]]:
         asked.append(latest_settled)
-        return FreshnessVerdict(outcome=FreshnessOutcome.WB_EMPTY, checked_at=CHECKED_AT)
+        return FreshnessVerdict(outcome=FreshnessOutcome.WB_EMPTY, checked_at=CHECKED_AT), ()
 
     async def _no_gaps(*_args: object, **_kwargs: object) -> dict[uuid.UUID, list[date]]:
         return {}
@@ -313,15 +318,17 @@ def certified(monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(persistence, "AsyncSessionLocal", _CommittingSession)
         monkeypatch.setattr(persistence, "SettlementWatermarkRepository", _RecordingWatermarkRepo)
         monkeypatch.setattr(persistence, "FinancialReportRepository", _Coverage)
-        monkeypatch.setattr(workspace, "walk_settlement_windows", _walk)
+        monkeypatch.setattr(workspace, "walk_settlement_reports", _walk)
         monkeypatch.setattr(persistence, "build_ingestion", _FakeIngestion)
 
         await harvest_workspace(
             tokens=WorkspaceTokenBundle(
-                workspace_id=WORKSPACE, name="NEVA", statistics="stat-token"
+                workspace_id=WORKSPACE,
+                name="NEVA",
+                statistics="stat-token",
+                finance="a-finance-token",
             ),
-            date_from=MISSED_WEEK[0],
-            date_to=MISSED_WEEK[1],
+            reports=(MissingReport(report_id=1, date_to=MISSED_WEEK[1]),),
             on_date=TODAY,
         )
         return _RecordingWatermarkRepo.advanced

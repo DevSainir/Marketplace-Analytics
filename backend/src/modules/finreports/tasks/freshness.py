@@ -44,21 +44,21 @@ nothing without «и мы спросили 12 минут назад».
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterable
+from collections.abc import Collection
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.redis import get_redis
-from src.integrations.wildberries.clients import WBFinanceClient
-from src.integrations.wildberries.endpoints import SETTLEMENT_REPORT_PATH
-from src.integrations.wildberries.rate_limit import statistics_rate_gate
+from src.integrations.wildberries.clients import WBFinanceReportsClient
+from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
+from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.modules.finreports.constants import (
     FRESHNESS_RECORD_TTL_SECONDS,
-    SETTLEMENT_PERIOD_ABANDON_DAYS,
+    SETTLEMENT_LIST_WINDOW_DAYS,
 )
 from src.modules.finreports.repos import FinancialReportRepository
 from src.modules.finreports.services.freshness_record import (
@@ -67,7 +67,8 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessVerdict,
     RedisFreshnessRecordStore,
 )
-from src.modules.finreports.services.publication import is_probe_hour, missing_periods
+from src.modules.finreports.services.publication import is_probe_hour
+from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 logger = get_logger(__name__)
@@ -101,252 +102,175 @@ async def settlement_blocked_for(tokens: WorkspaceTokenBundle) -> float:
         when Redis is unreachable or the workspace has no statistics token.
         Fails open, because a bucket we cannot read is not a block.
     """
-    if not tokens.statistics:
+    if not tokens.finance:
         return 0.0
-    gate = statistics_rate_gate(settings, token=tokens.statistics)
-    return await gate.retry_after(SETTLEMENT_REPORT_PATH)
+    gate = finance_reports_rate_gate(settings, token=tokens.finance)
+    return await gate.retry_after(SALES_REPORTS_DETAILED_PATH)
 
 
 @dataclass(frozen=True, slots=True)
 class Outstanding:
-    """A settlement window WB owes us, and how late it is.
+    """The reports WB has formed that this workspace does not hold.
 
     Attributes:
-        date_from: First day to ask WB about — the oldest missing period's
-            start, never a later one.
-        date_to: Last day to ask about — the NEWEST missing period's end, not
-            yesterday. The difference is a whole request per seller per cycle:
-            a span running to yesterday reaches into the period WB has not
-            closed yet, and `settlement_windows` cuts that into an extra
-            weekly window whose answer can only be 204. On 23.09.2026 the span
-            14.09..22.09 would have been two requests where 14.09..20.09 is
-            one.
-        overdue_days: Days since WB stamped the oldest missing report. Zero on
-            the day it was formed, which is the day it nearly always arrives.
+        reports: The missing reports, oldest first — the walk's unit of work.
+        overdue_days: Days since WB stamped the oldest of them. Zero on the
+            day it was formed, which is the day it nearly always arrives.
     """
 
-    date_from: date
-    date_to: date
+    reports: tuple[MissingReport, ...]
     overdue_days: int
 
+    @property
+    def span(self) -> tuple[date, date]:
+        """The settlement days these reports cover, for the recorded verdict."""
+        return self.reports[0].date_to, self.reports[-1].date_to
 
-def probe_window(
-    *, latest_settled: date, held_ends: Iterable[date], today: date
+
+async def outstanding_reports(
+    *, tokens: WorkspaceTokenBundle, held: Collection[int], today: date
 ) -> Outstanding | None:
-    """The settlement window to ask WB about, or ``None`` if asking is pointless.
+    """Ask WB which reports it has formed, and return the ones we lack.
 
-    Asking is pointless in the one case WB's own arithmetic settles: every
-    period WB can have formed by today already has a report on file. That is
-    the common case by a wide margin — a report is published once a week and
-    the tick runs twenty-one times a day — and it is the whole saving, so it is
-    established before anything is sent.
-
-    When something IS missing the window spans the missing periods exactly:
-    from the oldest one's first day to the newest one's last. The oldest, not
-    the newest, because a period WB formed and has not served yet stays
-    missing, and starting the window after it is precisely how 31.08.2026 was
-    lost. One window covers all of them, so a seller short two periods still
-    costs one question.
-
-    It stops at the newest missing period's END rather than at yesterday, and
-    that is worth a request per seller per cycle. Yesterday reaches into the
-    period WB has not closed, which cannot have a report — harmless for the
-    probe, which is one request whatever its width, but the WALK is cut into
-    weekly windows and pays for every one. On 23.09.2026 the span 14.09..22.09
-    is two requests where 14.09..20.09 is one, and the second could only ever
-    be answered 204.
+    One request, on a bucket of its own. That separation is the point: on the
+    endpoint this replaced, discovery and fetching were the same request
+    against the same one-per-quarter-hour budget, which is the whole reason
+    :mod:`src.modules.finreports.services.publication` derives a calendar
+    instead of asking. Here asking is cheap and WB's answer is authoritative.
 
     Args:
-        latest_settled: The settlement frontier: the last day that was both
-            walked to completion and covered by a report we hold. A day the walk
-            merely asked about and found empty is NOT settled — WB had not
-            published it yet, which is the whole reason this is not the
-            watermark.
-        held_ends: ``date_to`` of every report already held, so a period served
-            out of order is not counted as missing twice.
+        tokens: The workspace's decrypted WB credentials.
+        held: ``reportId`` of every report already on file.
         today: Today in Moscow time.
 
     Returns:
-        The window to ask about and how overdue it is, or ``None`` when every
-        period WB has formed is already held.
+        The missing reports and how overdue the oldest is, or ``None`` when we
+        hold everything WB has formed.
+
+    Raises:
+        IntegrationError: When WB did not answer. The caller decides what an
+            unanswered question means; this does not guess.
     """
-    missing = missing_periods(
-        settled_through=latest_settled,
-        held_ends=held_ends,
-        today=today,
-        abandon_after_days=SETTLEMENT_PERIOD_ABANDON_DAYS,
+    since = today - timedelta(days=SETTLEMENT_LIST_WINDOW_DAYS)
+    async with WBFinanceReportsClient(settings, token=tokens.finance) as client:
+        listed = await client.list_reports(date_from=since, date_to=today)
+    missing = tuple(
+        MissingReport(report_id=header.report_id, date_to=header.date_to)
+        for header in sorted(listed, key=lambda h: h.date_to)
+        if header.report_id not in held
     )
     if not missing:
         return None
-    return Outstanding(
-        date_from=missing[0].date_from,
-        date_to=missing[-1].date_to,
-        overdue_days=(today - missing[0].created_on).days,
+    oldest = min(
+        header.create_date for header in listed if header.report_id == missing[0].report_id
     )
+    return Outstanding(reports=missing, overdue_days=(today - oldest).days)
 
 
 async def check_freshness(
     *,
     tokens: WorkspaceTokenBundle,
     latest_settled: date | None,
-    held_ends: Iterable[date],
+    held: Collection[int],
     today: date,
     hour_msk: int = _ALWAYS_A_PROBE_HOUR_MSK,
     paced: bool = True,
     blocked_for: float = 0.0,
-) -> FreshnessVerdict | None:
-    """Ask whether WB holds a settlement report this workspace has not harvested.
+) -> tuple[FreshnessVerdict | None, tuple[MissingReport, ...]]:
+    """Ask WB whether it holds a report this workspace has not harvested.
 
-    Returns a *recorded* verdict rather than a bare ``bool``. The bool was
-    enough for the branch and nothing else: a run that asked and found nothing
-    left exactly the trace a run that never happened did, which is why three
-    days of a crashed harvest in August 2026 looked like a quiet week on the
-    P&L. The verdict carries the instant it was reached and the window asked
-    about, so the page can say *why* the statement stops where it does.
-
-    Whether the caller may skip is :attr:`FreshnessVerdict.should_harvest`, not
-    a comparison written here — the fail-open rule lives in one place.
+    Returns a *recorded* verdict rather than a bare bool: a run that asked and
+    found nothing used to leave exactly the trace a run that never happened
+    did, which is why three days of a crashed harvest in August 2026 looked
+    like a quiet week on the P&L.
 
     Args:
         tokens: The workspace's decrypted WB credentials.
-        latest_settled: The settlement frontier (see :func:`probe_window`), or
-            ``None`` if the workspace has never been harvested.
-        held_ends: ``date_to`` of every settlement report already held.
+        latest_settled: The settlement frontier, or ``None`` if this workspace
+            has never been harvested.
+        held: ``reportId`` of every report already on file.
         today: Today in Moscow time.
-        hour_msk: The hour now, Moscow time — the probe cadence decays with
-            how overdue a report is, so not every tick asks.
-        paced: Whether that cadence applies. False for the two callers that
-            must reach WB whatever the hour: «Обновить», which exists for the
-            case where waiting is not the answer and would be a poor button if
-            it silently did nothing, and the nightly reconciliation pass,
-            which is the safety net and costs one probe a day. A standing
-            block still stops both — that is a claim about the channel, not
-            about the clock.
-        blocked_for: Seconds this workspace's settlement endpoint is shut for,
-            read from the shared rate bucket at no cost in WB requests. Any
-            positive value stops the tick dead — see :attr:`RATE_BLOCKED`.
+        hour_msk: The hour now, Moscow time — the cadence decays with how
+            overdue a report is, so not every tick asks.
+        paced: Whether that cadence applies. False for «Обновить» and the
+            nightly reconciliation pass, which must reach WB whatever the hour.
+        blocked_for: Seconds WB has this workspace's report endpoint shut for,
+            read from the shared rate bucket at no cost in WB requests.
 
     Returns:
-        The :class:`FreshnessVerdict` for this workspace, or ``None`` when this
-        tick asked nothing and learned nothing — a paced-out probe hour. The
-        caller must skip the workspace and leave its recorded verdict alone:
-        overwriting a true record with a verdict no request supports is the
-        failure this module exists to prevent.
+        ``(verdict, missing reports)``. The verdict is ``None`` when this tick
+        asked nothing and learned nothing — a paced-out hour — and the caller
+        must then leave the recorded verdict alone rather than overwrite a
+        true record with a claim no request supports.
     """
+    if not tokens.finance:
+        logger.warning(
+            "finreports: %s has no «Финансы» token — the P&L cannot be harvested.", tokens.name
+        )
+        return None, ()
     if latest_settled is None:
         logger.info("finreports: %s has no reports yet — harvesting.", tokens.name)
-        return FreshnessVerdict(
-            outcome=FreshnessOutcome.NEVER_HARVESTED, checked_at=datetime.now(UTC)
-        )
 
-    window = probe_window(latest_settled=latest_settled, held_ends=held_ends, today=today)
-    if window is None:
-        logger.info(
-            "finreports: %s holds every report WB can have formed by %s — skipping.",
-            tokens.name,
-            today,
-        )
-        return FreshnessVerdict(outcome=FreshnessOutcome.UP_TO_DATE, checked_at=datetime.now(UTC))
-
-    # Checked after the cheap skip and before everything else, including the
-    # cadence. After the skip, because a workspace with nothing outstanding is
-    # not blocked — it is simply done, and «ВБ ограничил доступ» on its P&L
-    # would be alarming about a limiter costing it nothing.
-    #
-    # Before the cadence, and that ordering is the honest one rather than the
-    # cheap one. Both checks are free, so the cost is identical either way;
-    # what differs is what the page says during a long block. Behind the
-    # cadence, a seller in the middle of a four-day block sees a verdict at
-    # four hours a day and silence in between — silence that ages into
-    # «неизвестно, когда мы спрашивали», which is what a DEAD harvester looks
-    # like. The block is the true and stable answer, and it should be the one
-    # on the page for every tick of it.
-    #
-    # The check itself is the whole correction of 2026-09-17: the probe used
-    # to go out into a standing block, be refused, and be read as «we learned
-    # nothing, harvest anyway», so one blocked endpoint drew two more requests
-    # per tick and each of them lengthened the block.
+    # Checked before anything is sent, and before the cadence: both are free,
+    # and a block is the true and stable answer a seller should read at every
+    # tick of it rather than four times a day with silence in between.
     if blocked_for > 0:
         logger.warning(
-            "finreports: WB has the settlement endpoint shut for %s for another %.0fs "
-            "— not probing and not harvesting; a request inside the block lengthens it.",
+            "finreports: WB has the report endpoint shut for %s for another %.0fs — "
+            "not asking and not harvesting.",
             tokens.name,
             blocked_for,
         )
-        return FreshnessVerdict(outcome=FreshnessOutcome.RATE_BLOCKED, checked_at=datetime.now(UTC))
+        return FreshnessVerdict(
+            outcome=FreshnessOutcome.RATE_BLOCKED, checked_at=datetime.now(UTC)
+        ), ()
 
-    # Paced, and this is where «a missing period stays missing» stops being
-    # free. Keeping a period on the list until its report is held is what makes
-    # a late report reachable at all — but WB has been eight days late once
-    # (983241109), and twenty-one ticks a day across eight days is 168 requests
-    # against a budget of about 94. So the cadence decays with how overdue the
-    # report is; see :func:`is_probe_hour`.
-    #
-    # `None`, not a verdict. A tick that did not ask learned nothing, and
-    # writing any outcome here would overwrite a true record with a claim this
-    # tick cannot support — «загружены по вчерашний день» over a week WB has
-    # published, which is precisely the bug this module was rewritten to stop
-    # telling. The previous verdict stands, and its `checked_at` ages honestly.
-    if paced and not is_probe_hour(overdue_days=window.overdue_days, hour_msk=hour_msk):
-        logger.debug(
-            "finreports: %s has an outstanding report %d day(s) overdue, "
-            "but %02d:00 MSK is not one of its probe hours.",
+    try:
+        outstanding = await outstanding_reports(tokens=tokens, held=held, today=today)
+    except IntegrationError as exc:
+        # Fail open: an unanswered question is not a "no". The recorded verdict
+        # says so, rather than reporting the silence as reassurance.
+        logger.warning(
+            "finreports: report list failed for %s — harvesting anyway: %s", tokens.name, exc
+        )
+        return FreshnessVerdict(
+            outcome=FreshnessOutcome.PROBE_FAILED, checked_at=datetime.now(UTC)
+        ), ()
+
+    if outstanding is None:
+        logger.info(
+            "finreports: %s holds every report WB has formed by %s — skipping.",
             tokens.name,
-            window.overdue_days,
+            today,
+        )
+        return FreshnessVerdict(
+            outcome=FreshnessOutcome.UP_TO_DATE, checked_at=datetime.now(UTC)
+        ), ()
+
+    if paced and not is_probe_hour(overdue_days=outstanding.overdue_days, hour_msk=hour_msk):
+        logger.debug(
+            "finreports: %s is short %d report(s), oldest %d day(s) overdue, "
+            "but %02d:00 MSK is not one of its hours.",
+            tokens.name,
+            len(outstanding.reports),
+            outstanding.overdue_days,
             hour_msk,
         )
-        return None
+        return None, ()
 
-    date_from, date_to = window.date_from, window.date_to
-    try:
-        async with WBFinanceClient(settings, token=tokens.statistics) as client:
-            row = await client.fetch_first_row(date_from=date_from, date_to=date_to)
-    except IntegrationError as exc:
-        # Fail open: an unanswered question is not a "no". Skipping here would
-        # postpone a settlement day on nothing but a transient WB error — and
-        # the recorded verdict says the question went unanswered, so the page
-        # can admit the data may be incomplete instead of reporting the silence
-        # as "nothing new".
-        logger.warning(
-            "finreports: freshness probe failed for %s (%s..%s) — harvesting anyway: %s",
-            tokens.name,
-            date_from,
-            date_to,
-            exc,
-        )
-        return FreshnessVerdict(
-            outcome=FreshnessOutcome.PROBE_FAILED,
-            checked_at=datetime.now(UTC),
-            probe_from=date_from,
-            probe_to=date_to,
-        )
-
-    if row is None:
-        logger.info(
-            "finreports: no new WB report for %s (%s..%s is empty) — skipping harvest.",
-            tokens.name,
-            date_from,
-            date_to,
-        )
-        return FreshnessVerdict(
-            outcome=FreshnessOutcome.WB_EMPTY,
-            checked_at=datetime.now(UTC),
-            probe_from=date_from,
-            probe_to=date_to,
-        )
-
+    probe_from, probe_to = outstanding.span
     logger.info(
-        "finreports: WB report %s (created %s) is new for %s — harvesting.",
-        row.realizationreport_id,
-        row.create_dt,
+        "finreports: WB has %d report(s) %s does not hold (%s): harvesting.",
+        len(outstanding.reports),
         tokens.name,
+        ", ".join(str(report.report_id) for report in outstanding.reports),
     )
     return FreshnessVerdict(
         outcome=FreshnessOutcome.WB_HAS_NEW,
         checked_at=datetime.now(UTC),
-        probe_from=date_from,
-        probe_to=date_to,
-    )
+        probe_from=probe_from,
+        probe_to=probe_to,
+    ), outstanding.reports
 
 
 def freshness_record_store() -> FreshnessRecordStore:
@@ -400,7 +324,6 @@ __all__ = [
     "Outstanding",
     "check_freshness",
     "freshness_record_store",
-    "probe_window",
     "settlement_blocked_for",
     "verdict_from_walk",
 ]

@@ -48,6 +48,11 @@ SALES_REPORTS_LIST_PATH = "/api/finance/v1/sales-reports/list"
 SALES_REPORTS_DETAILED_PATH = "/api/finance/v1/sales-reports/detailed/{id}"
 
 
+#: Detail rows by PERIOD rather than by report. Same payload, same budget;
+#: the history backfill walks a span it does not yet know the report ids for.
+SALES_REPORTS_BY_PERIOD_PATH = "/api/finance/v1/sales-reports/detailed"
+
+
 def sales_report_detail_path(report_id: int) -> str:
     """The detail path for one report, as sent to WB."""
     return f"/api/finance/v1/sales-reports/detailed/{report_id}"
@@ -66,6 +71,7 @@ def endpoint_label(path: str) -> str:
 
 
 __all__ = [
+    "SALES_REPORTS_BY_PERIOD_PATH",
     "SALES_REPORTS_DETAILED_PATH",
     "SALES_REPORTS_LIST_PATH",
     "SETTLEMENT_REPORT_PATH",

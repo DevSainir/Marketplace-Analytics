@@ -12,7 +12,7 @@ The mapping itself lives in :mod:`.rows` and the upsert column lists in
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import aclosing
 from datetime import date
 from decimal import Decimal
@@ -59,7 +59,7 @@ class IngestionService:
 
     async def ingest_finance_report(
         self,
-        pages: AsyncGenerator[list[WBReportDetailRow], None],
+        pages: AsyncGenerator[Sequence[WBReportDetailRow], None],
         *,
         workspace_id: uuid.UUID,
     ) -> int:

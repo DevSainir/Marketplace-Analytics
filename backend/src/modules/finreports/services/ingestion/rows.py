@@ -10,6 +10,7 @@ a database.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -156,7 +157,7 @@ def report_headers(
 
 def merge_report_headers(
     headers: dict[int, dict[str, Any]],
-    rows: list[WBReportDetailRow],
+    rows: Sequence[WBReportDetailRow],
     *,
     workspace_id: uuid.UUID,
 ) -> None:

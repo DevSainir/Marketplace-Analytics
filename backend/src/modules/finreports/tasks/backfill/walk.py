@@ -14,7 +14,8 @@ from src.core.config import settings
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.timeutils import moscow_today
-from src.integrations.wildberries.rate_limit import statistics_rate_gate
+from src.integrations.wildberries.endpoints import SALES_REPORTS_BY_PERIOD_PATH
+from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
 from src.modules.finreports.tasks.backfill.span import (
     PNL_EMPTY_STOP,
@@ -30,7 +31,10 @@ from src.modules.workspaces.contract import LaneStep, WorkspaceTokenBundle
 logger = get_logger(__name__)
 
 #: The endpoint the gate is keyed on.
-SETTLEMENT_PATH = "/api/v5/supplier/reportDetailByPeriod"
+#: The report's home since 2026-09-22. WB switched the v5 statistics path
+#: off on 15.07.2026; this one serves the same rows at one request a
+#: minute. See ``docs/finreports/MIGRATION_TO_FINANCE_V1.md``.
+SETTLEMENT_PATH = SALES_REPORTS_BY_PERIOD_PATH
 
 
 async def advance_pnl(
@@ -64,7 +68,7 @@ async def advance_pnl(
         continued past a 715-day hole, and a lane that returned ``finished``
         from either ending declared the whole history complete over the hole.
     """
-    if not tokens.statistics:
+    if not tokens.finance:
         return LaneStep(0, 0, None, True, "Нет токена «Статистика» — P&L пропущен.")
 
     today = moscow_today()
@@ -113,7 +117,7 @@ async def advance_pnl(
     # its first step.
     #
     # A tick must never block on a budget it can re-enqueue against instead.
-    gate = statistics_rate_gate(settings, token=tokens.statistics)
+    gate = finance_reports_rate_gate(settings, token=tokens.finance)
     try:
         # Reserving, because this is the walk nobody is waiting on: it takes
         # a window only once the harvest and any «Обновить» have had theirs.
@@ -138,8 +142,7 @@ async def advance_pnl(
     # and decoding a whole page made it a memory question instead.
     outcome = await _ingest_one_streamed_page(
         tokens=tokens,
-        window_from=span_from,
-        window_to=span_to,
+        period=(span_from, span_to),
         cursor=rrd_id,
         build_ingestion=build_ingestion,
         gate=gate,

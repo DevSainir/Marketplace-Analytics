@@ -98,6 +98,7 @@ def _resolve_bundle(
         # to ``unified``, unlike marketplace: these feeds are account-wide, so a
         # unified token answers for its own account and nothing else — there is
         # no warehouse id to point at the wrong seller.
+        finance=pick(TokenKind.FINANCE),
         returns=pick(TokenKind.RETURNS),
         documents=pick(TokenKind.DOCUMENTS),
         feedbacks=pick(TokenKind.FEEDBACK),

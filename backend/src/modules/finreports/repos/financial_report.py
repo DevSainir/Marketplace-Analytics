@@ -100,6 +100,29 @@ class FinancialReportRepository(BaseRepository):
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
+    async def report_ids_since(self, *, workspace_id: uuid.UUID, since: date) -> set[int]:
+        """Return the WB ``reportId`` of every report held whose period ends after ``since``.
+
+        What the freshness gate compares WB's own report list against. Ids
+        rather than dates because ids are what the Finance surface addresses a
+        report by, and because an id cannot be ambiguous the way a period can:
+        a report served out of order, a period WB splits at a month end, and a
+        re-issued report are all just ids we do or do not hold.
+
+        Args:
+            workspace_id: Tenancy scope.
+            since: Only reports whose period ends on or after this day.
+
+        Returns:
+            The ids, as a set — the caller reads membership only.
+        """
+        stmt = select(FinancialReport.report_id).where(
+            FinancialReport.workspace_id == workspace_id,
+            FinancialReport.date_to.isnot(None),
+            FinancialReport.date_to >= since,
+        )
+        return set((await self._session.execute(stmt)).scalars())
+
     async def period_ends_since(self, *, workspace_id: uuid.UUID, since: date) -> list[date]:
         """Return the ``date_to`` of every report covering a period after ``since``.
 

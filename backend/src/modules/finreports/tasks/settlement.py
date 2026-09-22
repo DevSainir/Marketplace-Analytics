@@ -1,64 +1,49 @@
-"""Walking WB's settlement report one week at a time.
+"""Walking WB's settlement report, one report per request.
 
-The report is the P&L's only source, and WB serves it under the tightest budget
-of any surface we touch: measured live on 2026-09-07, `reportDetailByPeriod`
-answers with `x-ratelimit-limit: 1` and `x-ratelimit-reset: 917` — **one request
-per quarter of an hour, per seller token** — and a request made while the bucket
-is empty RESTARTS that window rather than queueing behind it.
+The source moved on 2026-09-22. `GET /api/v5/supplier/reportDetailByPeriod`
+was announced for shutdown on 15.07.2026 and is gone from WB's documentation;
+`POST /api/finance/v1/sales-reports/detailed/{reportId}` replaces it at **one
+request per minute** against the old endpoint's one per ~917 s. See
+``docs/finreports/MIGRATION_TO_FINANCE_V1.md``.
 
-That single fact rules out the shape this walk used to have. It asked for a
-rolling 28-day window and paged through it by `rrdid` inside one open
-transaction, which works for exactly as long as the whole window fits in one
-page. The first seller it did not fit (2026-09-07, 241 SKUs) got its second page
-answered with a 429, and the retry that honoured WB's demanded 897 s wait sat
-inside the transaction until PostgreSQL closed the connection under it.
+That changed the unit of work, and the change is a simplification rather than
+a port. The old endpoint took a PERIOD, so the walk cut a span into ≤7-day
+windows because a week was roughly one report's worth — and then had to carry
+«which window stopped early», a date prefix, and the possibility of a window
+half-covering a report. Here the report id IS the unit: WB names the reports,
+we fetch the ones we do not hold, and a report is either complete or it is
+not.
 
-So the window is now split at the grain WB itself publishes on: **one week per
-request**, each week its own transaction.
+What survives unchanged, because all of it was about the body rather than the
+addressing:
 
-* **A week per window, and one REQUEST per page of it.** WB forms one
-  realization report a week, so a week is the natural window — but a week is
-  not automatically one page, and a second page is a second quarter-hour. So
-  the walk paces itself per page, not per week. What a page holds is WB's own
-  maximum of 100 000 rows, because the body is streamed rather than decoded:
-  while it was decoded the ceiling was the worker's heap instead (10 000 rows,
-  ~125 MB), and the seller measured on 2026-09-07 had weeks that did not fit
-  in one.
-* **The wait happens with no transaction open.** The token for each page is
-  taken before the session exists, so a fifteen-minute wait costs wall-clock
-  and nothing else. Inside the transaction the walk holds a gate it has already
-  paid, precisely so it cannot wait there.
-* **Each page commits on its own.** All-or-nothing cannot span a wait longer
-  than PostgreSQL will hold a transaction, so it is the page that is atomic
-  now, not the week. That is safe because every row is upserted by `rrd_id`
-  and the report header is written with the page it came in on: a week left
-  half-loaded is completed by the next tick, whose span starts at the last
-  settled day. What must never happen — a page torn in half — still cannot,
-  under the SAVEPOINT each one runs in.
-* **An incomplete week is reported, not inferred.** A window whose walk stops
-  early is counted, and the harvest turns that count into a failed source.
-* **The walk certifies only what it finished.** `SettlementWalk.completed_through`
-  stops at the first window that did not complete, and it is that — never the
-  period WB stamps on the report header — that moves the harvest's watermark.
-  The header is written from the first page that lands and already claims the
-  whole stated week, so trusting it skipped five of six days on 2026-09-07 and
-  then told the freshness gate there was nothing left to ask for.
+* **A page per request, and the page is streamed.** WB allows 100 000 rows and
+  decoding them whole is ~1.25 GB against a 768 MiB worker. Parsing as the
+  body arrives moves the ceiling from the page to the batch.
+* **The wait happens with no transaction open.** The token is taken before the
+  session exists, because PostgreSQL closes a transaction left idle for 300 s.
+* **Each batch commits as it lands.** One transaction over a whole page held
+  fifty batches of statement state and OOM-killed the worker on 2026-09-15.
+  Safe because every row is upserted by ``rrd_id`` and the cursor only
+  advances on success.
+* **The walk certifies only its unbroken prefix.** A later report succeeding
+  must never certify a gap in front of it.
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
-from datetime import date, timedelta
+from collections.abc import AsyncGenerator, Sequence
+from datetime import date
 from typing import NamedTuple
 
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
-from src.integrations.wildberries.clients import WBFinanceClient
-from src.integrations.wildberries.endpoints import SETTLEMENT_REPORT_PATH
-from src.integrations.wildberries.rate_limit import RateGate, settlement_walk_rate_gate
-from src.integrations.wildberries.schemas import WBReportDetailRow
+from src.integrations.wildberries.clients import WBFinanceReportsClient
+from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
+from src.integrations.wildberries.rate_limit import RateGate, finance_reports_rate_gate
+from src.integrations.wildberries.schemas import WBFinanceReportRow
 from src.modules.finreports.services import IngestionService
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
@@ -66,40 +51,8 @@ logger = get_logger(__name__)
 
 #: Days per settlement window. WB forms one realization report a week, so a
 #: week is both the natural unit of the data and — under a one-request budget —
-#: the largest window we can be confident fits a single page.
-WINDOW_DAYS = 7
-
-#: Retry ladder for one window's pages. The walk still pages inside an open
-#: transaction, and PostgreSQL closes an idle one after 300 s: one retry bounds
-#: a page at ~80 s (a 30 s timeout, 20 s of backoff, another 30 s timeout). The
-#: 429 this ladder used to fight is now prevented by the gate rather than
 #: survived, so there is nothing left for a second retry to win.
 MAX_RETRIES = 1
-
-
-def settlement_windows(*, date_from: date, date_to: date) -> list[tuple[date, date]]:
-    """Split an inclusive settlement span into consecutive ≤7-day windows.
-
-    Oldest first, so a backfill that runs out of time or budget has covered the
-    early weeks and left the recent ones — the opposite order would leave gaps
-    behind the last settled day, and the next run's window starts from that day.
-
-    Args:
-        date_from: Inclusive first settlement day.
-        date_to: Inclusive last settlement day.
-
-    Returns:
-        The windows to ask WB for, or an empty list when the span is inverted
-        (which is what "nothing to harvest" looks like once every day is
-        covered).
-    """
-    windows: list[tuple[date, date]] = []
-    cursor = date_from
-    while cursor <= date_to:
-        window_end = min(cursor + timedelta(days=WINDOW_DAYS - 1), date_to)
-        windows.append((cursor, window_end))
-        cursor = window_end + timedelta(days=1)
-    return windows
 
 
 class _Page(NamedTuple):
@@ -127,11 +80,15 @@ class SettlementWalk(NamedTuple):
     """What one workspace's settlement walk achieved.
 
     Attributes:
-        rows: Settlement rows ingested across every window.
-        windows_failed: Windows that stopped early — WB withheld a page, or the
-            walk ran out of rate budget part-way.
-        completed_through: Last day of the **unbroken prefix** of completed
-            windows, or ``None`` when the very first window stopped early.
+        rows: Settlement rows ingested across every report.
+        windows_failed: Reports that stopped early — WB withheld a page, or the
+            walk ran out of rate budget part-way. Still named for windows
+            because it is what the harvest reports as a failed source and the
+            alert joins on that name.
+        completed_through: ``date_to`` of the last report in the **unbroken
+            prefix** of completed ones, or ``None`` when the first stopped
+            early. A high-water date cannot describe a gap, so it must never
+            be handed out with one behind it.
     """
 
     rows: int
@@ -139,84 +96,83 @@ class SettlementWalk(NamedTuple):
     completed_through: date | None
 
 
-async def walk_settlement_windows(
+class MissingReport(NamedTuple):
+    """A report WB has formed that this workspace does not hold.
+
+    Attributes:
+        report_id: WB's own ``reportId`` — the walk's unit of work.
+        date_to: Last settlement day the report covers, which is what moves
+            the watermark once the report is complete.
+    """
+
+    report_id: int
+    date_to: date
+
+
+async def walk_settlement_reports(
     *,
     tokens: WorkspaceTokenBundle,
-    date_from: date,
-    date_to: date,
+    reports: Sequence[MissingReport],
     build_ingestion: object,
 ) -> SettlementWalk:
-    """Harvest one workspace's settlement span, a week per request.
+    """Fetch every report this workspace is missing, one request per page.
 
     Args:
         tokens: The workspace's decrypted WB credentials.
-        date_from: Inclusive first settlement day to cover.
-        date_to: Inclusive last settlement day to cover.
+        reports: The reports to fetch, **oldest first**. The order is what the
+            prefix rule below means; a caller that shuffles them would
+            certify a gap.
         build_ingestion: Factory taking a session and returning an
             :class:`IngestionService` — injected rather than imported so this
             module does not reach back into the harvest that calls it.
 
     Returns:
-        A :class:`SettlementWalk`. ``completed_through`` is the only safe basis
-        for a watermark: it stops at the **first** window that did not finish,
-        so a later window that happened to succeed can never certify the days
-        before it. A high-water date cannot describe a gap, so the walk must not
-        hand one out that has a gap behind it.
+        A :class:`SettlementWalk`. ``completed_through`` stops at the **first**
+        report that did not finish, so a later one that happened to succeed
+        can never certify the ones before it.
     """
-    if not tokens.statistics:
+    if not tokens.finance:
         return SettlementWalk(0, 0, None)
 
-    windows = settlement_windows(date_from=date_from, date_to=date_to)
-    gate = settlement_walk_rate_gate(settings, token=tokens.statistics)
+    gate = finance_reports_rate_gate(settings, token=tokens.finance)
     rows = 0
     failed = 0
     completed_through: date | None = None
     prefix_intact = True
-    for window_from, window_to in windows:
-        window_rows, complete = await _harvest_window(
-            tokens=tokens,
-            window_from=window_from,
-            window_to=window_to,
-            gate=gate,
-            build_ingestion=build_ingestion,
+    for report in reports:
+        report_rows, complete = await _harvest_report(
+            tokens=tokens, report=report, gate=gate, build_ingestion=build_ingestion
         )
-        rows += window_rows
+        rows += report_rows
         if complete:
-            # Only while every window before this one also finished. The rows
-            # from a later window still land — they are real and upserted — but
-            # they must not move a mark that would then claim the gap too.
             if prefix_intact:
-                completed_through = window_to
+                completed_through = report.date_to
         else:
             failed += 1
             prefix_intact = False
     if failed:
         logger.error(
-            "finreports: settlement incomplete for %s — %d of %d weeks stopped early "
-            "(%s..%s); the P&L is short those days until a later tick asks again.",
+            "finreports: settlement incomplete for %s — %d of %d report(s) stopped early; "
+            "the P&L is short those days until a later tick asks again.",
             tokens.name,
             failed,
-            len(windows),
-            date_from,
-            date_to,
+            len(reports),
         )
     return SettlementWalk(rows, failed, completed_through)
 
 
-async def _harvest_window(
+async def _harvest_report(
     *,
     tokens: WorkspaceTokenBundle,
-    window_from: date,
-    window_to: date,
+    report: MissingReport,
     gate: RateGate,
     build_ingestion: object,
 ) -> tuple[int, bool]:
-    """Harvest one week, a page per request, and say whether it finished.
+    """Harvest one report, a page per request, and say whether it finished.
 
     Args:
         tokens: The workspace's decrypted WB credentials.
-        window_from: Inclusive first settlement day of this week.
-        window_to: Inclusive last settlement day of this week.
+        report: The report to fetch.
         gate: The walk's rate gate. A token is taken per PAGE, and always
             before the page's session is opened.
         build_ingestion: Factory taking a session and returning an
@@ -225,40 +181,27 @@ async def _harvest_window(
     Returns:
         ``(rows, complete)``. ``complete`` is False when WB withheld a page or
         the walk ran out of rate budget part-way — the rows already committed
-        stay committed, and the week's remainder falls to a later tick.
-
-    **The page is streamed, and that is a rate decision as much as a memory
-    one.** The buffered alternative decoded the whole response before ingesting
-    any of it, which capped the request at 10 000 rows (~125 MB of transient
-    heap) and therefore capped what one quarter-hour window could collect. The
-    hourly tick kept that cap long after the backfill had stopped needing it,
-    and then met it from the other side: on 2026-09-17 it asked for a week WB
-    would have served in one request and could not afford the decode, on a
-    worker whose pool floor had ratcheted to 500 MB. Streaming makes one request
-    worth ten, which on an endpoint serving four an hour is the difference
-    between finishing a week and reporting it short.
+        stay committed, and the remainder falls to a later tick.
     """
     rows = 0
     cursor = 0
     while True:
         try:
             # Outside the session, and this is the whole point: the wait for
-            # WB's next token is minutes long, and PostgreSQL closes a
+            # WB's next token is a minute long, and PostgreSQL closes a
             # transaction left idle for 300 s.
-            await gate.acquire(SETTLEMENT_REPORT_PATH)
+            await gate.acquire(SALES_REPORTS_DETAILED_PATH)
         except IntegrationError as exc:
             logger.warning(
-                "finreports: settlement %s..%s for %s stopped — no rate token: %s",
-                window_from,
-                window_to,
+                "finreports: settlement report %d for %s stopped — no rate token: %s",
+                report.report_id,
                 tokens.name,
                 exc,
             )
             return rows, False
         page = await _ingest_one_streamed_page(
             tokens=tokens,
-            window_from=window_from,
-            window_to=window_to,
+            report_id=report.report_id,
             cursor=cursor,
             build_ingestion=build_ingestion,
             gate=gate,
@@ -271,9 +214,9 @@ async def _harvest_window(
             return rows, False
         if page.next_cursor is None:
             logger.info(
-                "finreports: settlement %s..%s ingested %d rows for %s.",
-                window_from,
-                window_to,
+                "finreports: settlement report %d (through %s) ingested %d rows for %s.",
+                report.report_id,
+                report.date_to,
                 rows,
                 tokens.name,
             )
@@ -284,8 +227,8 @@ async def _harvest_window(
 async def _ingest_one_streamed_page(
     *,
     tokens: WorkspaceTokenBundle,
-    window_from: date,
-    window_to: date,
+    report_id: int = 0,
+    period: tuple[date, date] | None = None,
     cursor: int,
     build_ingestion: object,
     gate: RateGate,
@@ -322,16 +265,21 @@ async def _ingest_one_streamed_page(
     async with AsyncSessionLocal() as session:
         ingestion: IngestionService = build_ingestion(session)  # type: ignore[operator]
         try:
-            async with WBFinanceClient(
+            async with WBFinanceReportsClient(
                 settings,
-                token=tokens.statistics,
+                token=tokens.finance,
                 max_retries=MAX_RETRIES,
                 rate_gate=_SpentToken(gate),
             ) as client:
                 stream_limit = client.stream_limit
-                async for batch in client.stream_report_rows(
-                    date_from=window_from, date_to=window_to, cursor=cursor
-                ):
+                pages = (
+                    client.stream_rows_by_period(
+                        date_from=period[0], date_to=period[1], cursor=cursor
+                    )
+                    if period is not None
+                    else client.stream_report_rows(report_id=report_id, cursor=cursor)
+                )
+                async for batch in pages:
                     if not batch:
                         continue
                     last_rrd_id = batch[-1].rrd_id
@@ -355,9 +303,8 @@ async def _ingest_one_streamed_page(
                     del batch
         except IntegrationError as exc:
             logger.warning(
-                "finreports: settlement %s..%s failed for %s: %s",
-                window_from,
-                window_to,
+                "finreports: settlement %s failed for %s: %s",
+                period or report_id,
                 tokens.name,
                 exc,
             )
@@ -367,10 +314,9 @@ async def _ingest_one_streamed_page(
         return _Page(total, None, ok=True)
     if last_rrd_id <= cursor:
         logger.error(
-            "finreports: settlement %s..%s for %s stalled — a full page did not "
+            "finreports: settlement %s for %s stalled — a full page did not "
             "advance rrd_id past %d.",
-            window_from,
-            window_to,
+            period or report_id,
             tokens.name,
             cursor,
         )
@@ -379,8 +325,8 @@ async def _ingest_one_streamed_page(
 
 
 async def _one_page(
-    page: list[WBReportDetailRow],
-) -> AsyncGenerator[list[WBReportDetailRow], None]:
+    page: list[WBFinanceReportRow],
+) -> AsyncGenerator[list[WBFinanceReportRow], None]:
     """Adapt a single page to the paginated shape the ingestion consumes."""
     if page:
         yield page
@@ -439,4 +385,4 @@ class _SpentToken:
         return await self._shared.retry_after(endpoint)
 
 
-__all__ = ["MAX_RETRIES", "WINDOW_DAYS", "settlement_windows", "walk_settlement_windows"]
+__all__ = ["MAX_RETRIES", "MissingReport", "SettlementWalk", "walk_settlement_reports"]

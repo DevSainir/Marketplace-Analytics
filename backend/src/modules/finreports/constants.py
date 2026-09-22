@@ -87,6 +87,15 @@ SETTLEMENT_PUBLICATION_GRACE_DAYS: int = 7
 #: the two are one number — still re-walks it whenever a thorough pass runs.
 SETTLEMENT_PERIOD_ABANDON_DAYS: int = 14
 
+#: How far back the freshness gate asks WB to list reports.
+#:
+#: The list is one cheap request whatever its width, so this is not a cost
+#: question — it is how far back a report WB serves late is still noticed. It
+#: must comfortably exceed the longest observed lateness (eight days, report
+#: 983241109) and reach past the reconciliation lookback, so a hole the nightly
+#: pass can repair is a hole the hourly tick can also see.
+SETTLEMENT_LIST_WINDOW_DAYS: int = 45
+
 #: How long an hourly tick waits before re-walking the same workspace's hole.
 #:
 #: The hourly pass repairs a gap the survey can see instead of leaving it to the

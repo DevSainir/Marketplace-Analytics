@@ -42,6 +42,7 @@ from src.modules.finreports.tasks.harvest import (
     sources,
     workspace,
 )
+from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -64,6 +65,7 @@ def _tokens() -> WorkspaceTokenBundle:
         workspace_id=_WORKSPACE,
         name="Демо",
         statistics="stat-token",
+        finance="a-finance-token",
         analytics="analytics-token",
         content="content-token",
         internal_features=True,
@@ -145,7 +147,7 @@ class _FakeFinanceClient:
         return 2
 
     async def stream_report_rows(
-        self, *, date_from: date, date_to: date, cursor: int = 0
+        self, *, report_id: int = 0, cursor: int = 0
     ) -> AsyncIterator[list[WBReportDetailRow]]:
         """Serve a full request, then either the last one or WB giving up."""
         if cursor == 0:
@@ -250,9 +252,9 @@ def wb(
     # The settlement walk keeps its own session and its own client: it commits
     # a week at a time, outside the transaction the rest of the harvest shares.
     monkeypatch.setattr(settlement_module, "AsyncSessionLocal", session_factory)
-    monkeypatch.setattr(settlement_module, "WBFinanceClient", _FakeFinanceClient)
+    monkeypatch.setattr(settlement_module, "WBFinanceReportsClient", _FakeFinanceClient)
     monkeypatch.setattr(
-        settlement_module, "settlement_walk_rate_gate", lambda *_a, **_kw: _OpenGate()
+        settlement_module, "finance_reports_rate_gate", lambda *_a, **_kw: _OpenGate()
     )
     monkeypatch.setattr(sources, "WBContentClient", _EmptyContentClient)
 
@@ -299,7 +301,9 @@ async def test_a_completed_harvest_commits_every_page(
     wb: type[_FakeFinanceClient], db_session: AsyncSession
 ) -> None:
     """All three settlement rows land, across the two pages they arrived in."""
-    counts = await harvest_workspace(tokens=_tokens(), date_from=_FROM, date_to=_TO, on_date=_TO)
+    counts = await harvest_workspace(
+        tokens=_tokens(), reports=(MissingReport(report_id=1, date_to=_TO),), on_date=_TO
+    )
 
     assert counts["finance"] == 3
     assert counts["finance_windows_failed"] == 0
@@ -319,7 +323,9 @@ async def test_a_walk_that_dies_mid_page_leaves_no_settlement_rows(
     """
     wb.fail_mid_walk = True
 
-    counts = await harvest_workspace(tokens=_tokens(), date_from=_FROM, date_to=_TO, on_date=_TO)
+    counts = await harvest_workspace(
+        tokens=_tokens(), reports=(MissingReport(report_id=1, date_to=_TO),), on_date=_TO
+    )
 
     assert counts["finance"] == 2
     assert counts["finance_windows_failed"] == 1
@@ -347,7 +353,9 @@ async def test_a_request_that_dies_after_a_batch_keeps_that_batch(
     """
     wb.fail_after_first_batch = True
 
-    counts = await harvest_workspace(tokens=_tokens(), date_from=_FROM, date_to=_TO, on_date=_TO)
+    counts = await harvest_workspace(
+        tokens=_tokens(), reports=(MissingReport(report_id=1, date_to=_TO),), on_date=_TO
+    )
 
     assert counts["finance"] == 1
     assert counts["finance_windows_failed"] == 1
@@ -374,7 +382,9 @@ async def test_the_walk_inside_the_transaction_retries_less_than_the_default(
 
     _FakeFinanceClient.__init__ = spy  # type: ignore[method-assign]
     try:
-        await harvest_workspace(tokens=_tokens(), date_from=_FROM, date_to=_TO, on_date=_TO)
+        await harvest_workspace(
+            tokens=_tokens(), reports=(MissingReport(report_id=1, date_to=_TO),), on_date=_TO
+        )
     finally:
         _FakeFinanceClient.__init__ = original  # type: ignore[method-assign]
 

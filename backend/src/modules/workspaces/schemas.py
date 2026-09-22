@@ -91,6 +91,12 @@ class WorkspaceTokenBundle(BaseModel):
     advertising: str = ""
     prices: str = ""
     statistics: str = ""
+    #: «Финансы». The realization report's home since 2026-09-22: WB switched
+    #: off the statistics-surface `reportDetailByPeriod` on 15.07.2026, and its
+    #: replacement is `POST /api/finance/v1/sales-reports/*`. Falls back to
+    #: ``unified`` like the others; an empty string means this workspace has no
+    #: P&L at all, which the harvest reports rather than ignores.
+    finance: str = ""
     marketplace: str = ""
     #: The three scopes only the `guide` capture needs. They resolve like every
     #: other surface (own category token, else ``unified``), and an empty string

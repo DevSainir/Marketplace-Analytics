@@ -98,7 +98,7 @@ async def test_an_open_window_is_not_padded_with_a_second_one(
     What survives is a spin guard, for the case where the answer is not
     informative at all — Redis down, `retry_after` failing open to zero.
     """
-    monkeypatch.setattr(backfill, "statistics_rate_gate", lambda *_a, **_k: _Gate(0.0))
+    monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(0.0))
 
     assert await backfill._next_page_delay("t") == backfill._MIN_PAGE_GAP_SECONDS
 
@@ -114,7 +114,7 @@ async def test_a_slow_tick_does_not_pay_for_its_own_duration_twice(
     and hand back most of what streaming just saved — and the waste would grow
     with exactly the change meant to speed the walk up.
     """
-    monkeypatch.setattr(backfill, "statistics_rate_gate", lambda *_a, **_k: _Gate(740.0))
+    monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(740.0))
 
     delay = await backfill._next_page_delay("t")
 
@@ -137,7 +137,7 @@ async def test_a_block_is_waited_out_using_wb_s_own_number(
     # own `blocked_until`. A 890 s block is NOT a useful case here: it is shorter
     # than the published budget, so the floor wins and the test would pass
     # whether or not the block was read at all.
-    monkeypatch.setattr(backfill, "statistics_rate_gate", lambda *_a, **_k: _Gate(2762.0))
+    monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(2762.0))
 
     delay = await backfill._next_page_delay("t")
 
@@ -153,7 +153,7 @@ async def test_the_wait_never_outlasts_the_watchdog_s_patience(
         SETTLEMENT_PACE_CEILING_SECONDS,
     )
 
-    monkeypatch.setattr(backfill, "statistics_rate_gate", lambda *_a, **_k: _Gate(99_999.0))
+    monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(99_999.0))
 
     assert await backfill._next_page_delay("t") == SETTLEMENT_PACE_CEILING_SECONDS
 
@@ -169,7 +169,7 @@ async def test_the_backfill_asks_as_a_reserving_caller(monkeypatch: pytest.Monke
     from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
 
     gate = _Gate(0.0)
-    monkeypatch.setattr(backfill, "statistics_rate_gate", lambda *_a, **_k: gate)
+    monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: gate)
 
     await backfill._next_page_delay("t")
 
@@ -189,12 +189,12 @@ def test_the_tick_may_live_long_enough_to_finish_a_streamed_page() -> None:
     a measured ~60 MB per 25 000 — because the point is not to predict the
     duration but to make raising the page size force a look at this number.
     """
-    from src.integrations.wildberries.clients.finance import WBFinanceClient
+    from src.integrations.wildberries.clients.finance_reports import WBFinanceReportsClient
 
-    seconds_needed = (WBFinanceClient._STREAM_LIMIT / 10_000) * 60
+    seconds_needed = (WBFinanceReportsClient._STREAM_LIMIT / 10_000) * 60
 
     assert seconds_needed <= backfill._TICK_SOFT_LIMIT_SECONDS, (
-        f"a {WBFinanceClient._STREAM_LIMIT}-row page needs ~{seconds_needed:.0f}s of "
+        f"a {WBFinanceReportsClient._STREAM_LIMIT}-row page needs ~{seconds_needed:.0f}s of "
         f"headroom; the tick is killed at {backfill._TICK_SOFT_LIMIT_SECONDS}s"
     )
 

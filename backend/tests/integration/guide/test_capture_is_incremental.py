@@ -70,7 +70,9 @@ def _source(walk: Any) -> GuideSource:
 
 def _tokens() -> WorkspaceTokenBundle:
     """A workspace carrying the scope the fake source asks for."""
-    return WorkspaceTokenBundle(workspace_id=_WORKSPACE, name="Демо", statistics="stat-token")
+    return WorkspaceTokenBundle(
+        workspace_id=_WORKSPACE, name="Демо", statistics="stat-token", finance="a-finance-token"
+    )
 
 
 @pytest.fixture

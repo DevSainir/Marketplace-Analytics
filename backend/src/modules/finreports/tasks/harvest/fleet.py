@@ -10,7 +10,7 @@ walks everybody costs the fleet's WB budget.
 from __future__ import annotations
 
 import uuid
-from datetime import timedelta
+from datetime import date, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,7 @@ from src.modules.finreports.constants import (
     HARVEST_LOCK_KEY,
     HARVEST_LOCK_TTL_SECONDS,
     RECONCILE_LOOKBACK_DAYS,
+    SETTLEMENT_LIST_WINDOW_DAYS,
 )
 from src.modules.finreports.repos import (
     FinancialReportRepository,
@@ -43,10 +44,10 @@ from src.modules.finreports.tasks.gaps import survey_settlement_gaps
 from src.modules.finreports.tasks.harvest.workspace import harvest_workspace
 from src.modules.finreports.tasks.publication_spread import record_publication_spread
 from src.modules.finreports.tasks.repair import gap_repair_due
+from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.finreports.tasks.spans import (
     reconciliation_slice,
     settlement_frontier,
-    walk_span,
 )
 from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
@@ -160,15 +161,14 @@ async def _harvest_all_workspaces(
             )
             for bundle in bundles
         }
-        # The periods we can prove we hold, which is what the gate now compares
-        # WB's own period arithmetic against instead of sending a request. The
-        # window is a little wider than the reconciliation's reach, so a report
-        # WB serves weeks late is still recognised as the missing one rather
-        # than as a period nobody remembers asking for.
-        held_ends = {
-            bundle.workspace_id: await report_repo.period_ends_since(
+        # The reports we can prove we hold. WB's own list is what they are
+        # compared against — ids, not periods, because an id cannot be
+        # ambiguous the way a period can: a report served out of order, one WB
+        # splits at a month end and a re-issued one are all just ids.
+        held = {
+            bundle.workspace_id: await report_repo.report_ids_since(
                 workspace_id=bundle.workspace_id,
-                since=today - timedelta(days=RECONCILE_LOOKBACK_DAYS + 7),
+                since=today - timedelta(days=SETTLEMENT_LIST_WINDOW_DAYS),
             )
             for bundle in bundles
         }
@@ -184,12 +184,12 @@ async def _harvest_all_workspaces(
     totals = dict(_EMPTY_TOTALS)
     records: FreshnessRecordStore = freshness_record_store()
     for bundle in bundles:
-        if not bundle.statistics:
+        if not bundle.finance:
             continue
-        verdict = await check_freshness(
+        verdict, missing = await check_freshness(
             tokens=bundle,
             latest_settled=settled[bundle.workspace_id],
-            held_ends=held_ends[bundle.workspace_id],
+            held=held[bundle.workspace_id],
             today=today,
             hour_msk=hour_msk,
             # «Обновить» and the nightly pass both arrive as `reconcile`, and
@@ -239,45 +239,26 @@ async def _harvest_all_workspaces(
         if not verdict.should_harvest and not thorough:
             totals["workspaces_skipped"] += 1
             continue
-        date_from, date_to = walk_span(
-            latest_settled=settled[bundle.workspace_id],
-            today=today,
-            days=days,
-            lookback_days=RECONCILE_LOOKBACK_DAYS if thorough else 0,
-        )
-        # The span is aligned to what the gate asked about, and on the ordinary
-        # path it is set to exactly that.
-        #
-        # Two things are going on. The first is correctness: the span MUST
-        # reach the gate's window, or the walk is sent out for a report it
-        # structurally cannot fetch — the 31.08 failure restated one layer
-        # down, since `walk_span` starts at the watermark and the watermark had
-        # jumped past 31.08 the moment the 01.09-06.09 report landed.
-        #
-        # The second is cost, and it is why the ordinary path ASSIGNS rather
-        # than taking a minimum. `walk_span` starts AT the last settled day, so
-        # its span runs 13.09..20.09 — eight days, which `settlement_windows`
-        # cuts into two weekly windows and therefore two quarter-hourly
-        # requests, one of them re-reading a week already on file. Starting at
-        # the missing period's own first day makes it 14.09..20.09: one window,
-        # one request. Half the walk, per seller, per cycle.
-        #
-        # What that re-read was buying is WB's amendments to a week we already
-        # hold, and it is not thrown away — it moves to the thorough path,
-        # which keeps the `min` and reaches RECONCILE_LOOKBACK_DAYS behind the
-        # watermark. So an amendment is picked up by the nightly pass or by
-        # «Обновить» within a day, instead of within an hour, and that is the
-        # whole price.
-        if verdict.probe_from is not None and verdict.probe_to is not None:
-            date_from = min(date_from, verdict.probe_from) if thorough else verdict.probe_from
-            # And it stops where the gate stopped. `walk_span` ends at
-            # yesterday, which on any day but a Monday reaches into the period
-            # WB has not closed yet — an extra weekly window, an extra
-            # quarter-hourly request, and 204 the only answer it can get.
-            date_to = max(verdict.probe_to, date_to) if thorough else verdict.probe_to
-        counts = await harvest_workspace(
-            tokens=bundle, date_from=date_from, date_to=date_to, on_date=today
-        )
+        # A thorough pass re-asks for reports it already holds — that is what
+        # it is for. WB's list gives the ids; the lookback decides how many of
+        # the held ones to re-walk, since an amendment to a week on file is
+        # invisible to «which ids am I missing».
+        if thorough and not missing:
+            missing = await _reports_to_re_walk(
+                report_repo_for=bundle.workspace_id,
+                today=today,
+            )
+        if not missing:
+            # Nothing to fetch, and on the new surface that is a complete
+            # statement rather than a reason to walk blindly. A failed list
+            # (`PROBE_FAILED`) lands here too: without WB's answer there are
+            # no report ids to ask for, so the honest move is to record that
+            # we could not ask and let the next tick try. The old endpoint
+            # could walk a date span on a hunch; this one cannot, and pretending
+            # otherwise would spend a request to learn nothing.
+            totals["workspaces_skipped"] += 1
+            continue
+        counts = await harvest_workspace(tokens=bundle, reports=missing, on_date=today)
         for key, value in counts.items():
             totals[key] += value
         if counts.get("finance") and verdict.probe_from is not None:
@@ -306,17 +287,47 @@ async def _harvest_all_workspaces(
         # могут быть неполными» over a statement that had just been confirmed
         # complete. The reverse goes stale too: a verdict of «опубликован новый
         # отчёт — загружаем» outlives the load that fetched it.
-        if not counts.get("finance_windows_failed"):
+        if not counts.get("finance_windows_failed") and missing:
             await records.put(
                 bundle.workspace_id,
                 await verdict_from_walk(
                     workspace_id=bundle.workspace_id,
                     settled_before=settled[bundle.workspace_id],
-                    date_from=date_from,
-                    date_to=date_to,
+                    date_from=missing[0].date_to,
+                    date_to=missing[-1].date_to,
                 ),
             )
     return totals
+
+
+async def _reports_to_re_walk(
+    *, report_repo_for: uuid.UUID, today: date
+) -> tuple[MissingReport, ...]:
+    """The held reports a thorough pass should ask WB for again.
+
+    «Which ids am I missing» cannot see an amendment to a report already on
+    file, and amendments are exactly what the reconciliation pass exists for —
+    WB revises a settled week for up to a fortnight. So a thorough pass with
+    nothing missing re-walks what it holds inside
+    :data:`RECONCILE_LOOKBACK_DAYS`, upserting by ``rrd_id`` over the top.
+
+    Args:
+        report_repo_for: Workspace whose held reports to re-walk.
+        today: Today in Moscow time.
+
+    Returns:
+        The reports, oldest first.
+    """
+    since = today - timedelta(days=RECONCILE_LOOKBACK_DAYS)
+    async with AsyncSessionLocal() as session:
+        periods = await FinancialReportRepository(session).list_periods(
+            workspace_id=report_repo_for
+        )
+    return tuple(
+        MissingReport(report_id=report_id, date_to=date_to)
+        for report_id, _date_from, date_to in sorted(periods, key=lambda row: row[2])
+        if date_to >= since
+    )
 
 
 async def _bundles_to_walk(

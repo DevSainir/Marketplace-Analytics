@@ -16,6 +16,7 @@ from collections.abc import Mapping
 from src.core.config import Settings
 from src.core.redis import get_redis
 from src.integrations.wildberries.endpoints import (
+    SALES_REPORTS_BY_PERIOD_PATH,
     SALES_REPORTS_DETAILED_PATH,
     SALES_REPORTS_LIST_PATH,
     SETTLEMENT_REPORT_PATH,
@@ -185,6 +186,7 @@ def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
 FINANCE_REPORT_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
     SALES_REPORTS_LIST_PATH: (1, 60.0),
     SALES_REPORTS_DETAILED_PATH: (1, 60.0),
+    SALES_REPORTS_BY_PERIOD_PATH: (1, 60.0),
 }
 
 

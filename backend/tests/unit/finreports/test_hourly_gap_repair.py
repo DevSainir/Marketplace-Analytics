@@ -18,7 +18,7 @@ hour, holding the fleet-wide lock against everyone else's cheap forward probe.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from redis.exceptions import RedisError
@@ -30,6 +30,7 @@ from src.modules.finreports.services.freshness_record import (
 )
 from src.modules.finreports.tasks import freshness, repair
 from src.modules.finreports.tasks.harvest import fleet, harvest_all_workspaces
+from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
@@ -120,6 +121,21 @@ class _FakeReportRepo:
         """The periods already held — empty, so the gate sees every one as missing."""
         return []
 
+    async def report_ids_since(self, *, workspace_id: uuid.UUID, since: date) -> set[int]:
+        """No report ids held, so WB's whole list reads as missing."""
+        return set()
+
+    async def list_periods(self, *, workspace_id: uuid.UUID) -> list[tuple[int, date, date]]:
+        """What a thorough pass re-walks: the reports on file, newest first.
+
+        «Which ids am I missing» cannot see an amendment to a report already
+        held, and amendments are what the reconciliation pass exists for.
+        """
+        return [
+            (701, SETTLED - timedelta(days=10), SETTLED - timedelta(days=10)),
+            (702, SETTLED, SETTLED),
+        ]
+
 
 @pytest.fixture
 def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
@@ -133,7 +149,9 @@ def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
     spans: list[tuple[date, date]] = []
     redis = _FakeRedis()
 
-    bundle = WorkspaceTokenBundle(workspace_id=WORKSPACE, name="Демо", statistics="stat-token")
+    bundle = WorkspaceTokenBundle(
+        workspace_id=WORKSPACE, name="Демо", statistics="stat-token", finance="a-finance-token"
+    )
 
     async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
         return [bundle]
@@ -141,18 +159,18 @@ def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
     async def _bundle(*_args: object, **_kwargs: object) -> WorkspaceTokenBundle:
         return bundle
 
-    async def _check(**_kwargs: object) -> FreshnessVerdict:
+    async def _check(**_kwargs: object) -> tuple[FreshnessVerdict, tuple[()]]:
         return FreshnessVerdict(
             outcome=FreshnessOutcome.WB_EMPTY,
             checked_at=datetime(2026, 9, 8, 3, 0, tzinfo=UTC),
             probe_from=date(2026, 9, 7),
             probe_to=date(2026, 9, 7),
-        )
+        ), ()
 
     async def _walk(
-        *, tokens: WorkspaceTokenBundle, date_from: date, date_to: date, **_kwargs: object
+        *, tokens: WorkspaceTokenBundle, reports: tuple[MissingReport, ...], **_kwargs: object
     ) -> dict[str, int]:
-        spans.append((date_from, date_to))
+        spans.append((reports[0].date_to, reports[-1].date_to))
         return {"finance_windows_failed": 0}
 
     monkeypatch.setattr(fleet, "get_redis", lambda: redis)

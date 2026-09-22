@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -30,6 +30,7 @@ from src.modules.finreports.services.freshness_record import (
 )
 from src.modules.finreports.tasks import freshness
 from src.modules.finreports.tasks.harvest import fleet, harvest_all_workspaces
+from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
@@ -147,10 +148,27 @@ class _FakeReportRepo:
         """The periods already held — empty, so the gate sees every one as missing."""
         return []
 
+    async def report_ids_since(self, *, workspace_id: uuid.UUID, since: date) -> set[int]:
+        """No report ids held, so WB's whole list reads as missing."""
+        return set()
+
+    async def list_periods(self, *, workspace_id: uuid.UUID) -> list[tuple[int, date, date]]:
+        """What a thorough pass re-walks: the reports on file, newest first.
+
+        «Which ids am I missing» cannot see an amendment to a report already
+        held, and amendments are what the reconciliation pass exists for.
+        """
+        return [
+            (701, SETTLED - timedelta(days=10), SETTLED - timedelta(days=10)),
+            (702, SETTLED, SETTLED),
+        ]
+
 
 def _bundle() -> WorkspaceTokenBundle:
     """One workspace with a usable statistics token."""
-    return WorkspaceTokenBundle(workspace_id=WORKSPACE, name="Демо", statistics="stat-token")
+    return WorkspaceTokenBundle(
+        workspace_id=WORKSPACE, name="Демо", statistics="stat-token", finance="a-finance-token"
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -180,8 +198,16 @@ def redis_and_walk(monkeypatch: pytest.MonkeyPatch) -> Any:
         async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
             return [_bundle()]
 
-        async def _check(**_kwargs: object) -> FreshnessVerdict:
-            return verdict
+        async def _check(**_kwargs: object) -> tuple[FreshnessVerdict, Any]:
+            # A gate that found something hands the walk the reports to fetch;
+            # one that found nothing hands it nothing, and the fleet then has
+            # nothing to walk to. Mirrored here so the fixture can express both.
+            found = (
+                (MissingReport(report_id=901, date_to=SETTLED),)
+                if verdict.should_harvest and verdict.outcome is not FreshnessOutcome.PROBE_FAILED
+                else ()
+            )
+            return verdict, found
 
         async def _walk(*, tokens: WorkspaceTokenBundle, **_kwargs: object) -> dict[str, int]:
             walked.append(tokens.workspace_id)
@@ -264,61 +290,30 @@ async def test_a_tick_that_harvests_records_the_same_way(redis_and_walk: Any) ->
     assert stored.outcome is FreshnessOutcome.WB_HAS_NEW
 
 
-async def test_a_failed_probe_is_recorded_as_a_failure_and_still_harvests(
+async def test_a_list_wb_did_not_answer_leaves_the_warning_and_walks_nothing(
     redis_and_walk: Any,
 ) -> None:
-    """WB not answering may never be stored as «нового ничего нет».
+    """A failed list is recorded as a failure, and nothing is fetched.
 
-    Recorded at the moment of the branch, before the walk it fails open into has
-    proved anything. If a failed probe went down as an empty answer the page
-    would report silence as reassurance — the exact failure this feature exists
-    to prevent — and a harvest that then died would leave that reassurance
-    standing.
+    The old endpoint had no list method, so a failed probe could still be
+    followed by a walk over a guessed date span — and that walk's answer, being
+    better evidence, superseded the probe's. Since 2026-09-22 the reports to
+    fetch ARE the list, so an unanswered list leaves nothing to walk to.
+
+    The verdict must still say so. `probe_failed` is what makes the page warn
+    «данные могут быть неполными» rather than report the silence as a quiet
+    week, which is the failure this record exists to prevent.
     """
     verdict = FreshnessVerdict(
         outcome=FreshnessOutcome.PROBE_FAILED,
         checked_at=datetime(2026, 9, 9, 6, 14, tzinfo=UTC),
-        probe_from=date(2026, 9, 7),
-        probe_to=date(2026, 9, 8),
     )
     redis, walked = redis_and_walk(_FakeRedis(), verdict)
 
     await harvest_all_workspaces(days=28)
 
-    first = FreshnessVerdict.from_json(json.loads(redis.freshness_writes[0]))
-    assert first is not None
-    assert first.outcome is FreshnessOutcome.PROBE_FAILED
-    assert walked == [WORKSPACE]
-
-
-async def test_a_completed_walk_supersedes_the_failed_probe_that_let_it_run(
-    redis_and_walk: Any,
-) -> None:
-    """The walk asked the same days and got an answer — the probe's silence is stale.
-
-    Prod, 2026-09-09: the probe hit the settlement endpoint's 15-minute block
-    and 429'd, the gate failed open, and seven minutes later the walk asked the
-    same window and got 204 — proof there was nothing new. Left at
-    `probe_failed` the page warns «данные могут быть неполными» over a statement
-    that has just been confirmed complete, until the next tick happens to
-    succeed.
-    """
-    redis, walked = redis_and_walk(
-        _FakeRedis(),
-        FreshnessVerdict(
-            outcome=FreshnessOutcome.PROBE_FAILED,
-            checked_at=datetime(2026, 9, 9, 6, 14, tzinfo=UTC),
-            probe_from=date(2026, 9, 7),
-            probe_to=date(2026, 9, 8),
-        ),
-    )
-
-    await harvest_all_workspaces(days=28)
-
-    stored = _stored(redis)
-    assert walked == [WORKSPACE]
-    assert stored is not None
-    assert stored.outcome is FreshnessOutcome.WB_EMPTY
+    assert walked == [], "there are no report ids to fetch"
+    assert _stored(redis) == verdict
 
 
 async def test_a_walk_that_lost_a_window_leaves_the_failure_standing(

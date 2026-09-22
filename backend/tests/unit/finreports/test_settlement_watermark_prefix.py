@@ -26,15 +26,18 @@ from datetime import date
 import pytest
 
 from src.modules.finreports.tasks import settlement as settlement_module
-from src.modules.finreports.tasks.settlement import settlement_windows, walk_settlement_windows
+from src.modules.finreports.tasks.settlement import MissingReport, walk_settlement_reports
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
 
-#: Two whole windows, so a prefix and a gap are both expressible.
-SPAN_FROM, SPAN_TO = date(2026, 9, 1), date(2026, 9, 14)
+#: Two whole reports, so a prefix and a gap are both expressible.
 FIRST_WINDOW_END = date(2026, 9, 7)
 SECOND_WINDOW_END = date(2026, 9, 14)
+REPORTS = (
+    MissingReport(report_id=901, date_to=FIRST_WINDOW_END),
+    MissingReport(report_id=902, date_to=SECOND_WINDOW_END),
+)
 
 
 def _bundle() -> WorkspaceTokenBundle:
@@ -43,44 +46,38 @@ def _bundle() -> WorkspaceTokenBundle:
         workspace_id=uuid.uuid4(),
         name="Демо",
         statistics="a-statistics-token",
+        finance="a-finance-token",
         internal_features=False,
     )
 
 
 @pytest.fixture
 def windows_that(monkeypatch: pytest.MonkeyPatch):
-    """Script each window's outcome, in order, replacing the WB round trip.
+    """Script each report's outcome, in order, replacing the WB round trip.
 
-    `_harvest_window` is the seam because it is the part that talks to WB and to
-    PostgreSQL; what is under test is the rule `walk_settlement_windows` applies
+    `_harvest_report` is the seam because it is the part that talks to WB and to
+    PostgreSQL; what is under test is the rule `walk_settlement_reports` applies
     to its answers. The assertions are all on the returned value.
     """
 
     def _install(*outcomes: bool) -> None:
         remaining = list(outcomes)
 
-        async def _fake_window(*, window_from, window_to, **_: object) -> tuple[int, bool]:
+        async def _fake_window(*, report, **_: object) -> tuple[int, bool]:
             complete = remaining.pop(0)
             return (10 if complete else 0), complete
 
-        monkeypatch.setattr(settlement_module, "_harvest_window", _fake_window)
+        monkeypatch.setattr(settlement_module, "_harvest_report", _fake_window)
 
     return _install
-
-
-async def test_the_span_splits_into_the_two_windows_these_tests_assume() -> None:
-    """Guards the fixture's premise, so a changed window size fails here first."""
-    windows = settlement_windows(date_from=SPAN_FROM, date_to=SPAN_TO)
-
-    assert [end for _start, end in windows] == [FIRST_WINDOW_END, SECOND_WINDOW_END]
 
 
 async def test_a_fully_walked_span_certifies_its_last_day(windows_that) -> None:
     """Every window finished, so the mark reaches the end of the span."""
     windows_that(True, True)
 
-    walk = await walk_settlement_windows(
-        tokens=_bundle(), date_from=SPAN_FROM, date_to=SPAN_TO, build_ingestion=object()
+    walk = await walk_settlement_reports(
+        tokens=_bundle(), reports=REPORTS, build_ingestion=object()
     )
 
     assert walk.windows_failed == 0
@@ -97,8 +94,8 @@ async def test_a_window_that_stopped_early_holds_the_mark_at_the_one_before_it(
     """
     windows_that(True, False)
 
-    walk = await walk_settlement_windows(
-        tokens=_bundle(), date_from=SPAN_FROM, date_to=SPAN_TO, build_ingestion=object()
+    walk = await walk_settlement_reports(
+        tokens=_bundle(), reports=REPORTS, build_ingestion=object()
     )
 
     assert walk.windows_failed == 1
@@ -115,8 +112,8 @@ async def test_a_later_window_cannot_certify_the_gap_before_it(windows_that) -> 
     """
     windows_that(False, True)
 
-    walk = await walk_settlement_windows(
-        tokens=_bundle(), date_from=SPAN_FROM, date_to=SPAN_TO, build_ingestion=object()
+    walk = await walk_settlement_reports(
+        tokens=_bundle(), reports=REPORTS, build_ingestion=object()
     )
 
     assert walk.rows > 0
@@ -127,12 +124,13 @@ async def test_a_later_window_cannot_certify_the_gap_before_it(windows_that) -> 
 async def test_a_workspace_without_a_settlement_token_certifies_nothing(
     windows_that,
 ) -> None:
-    """No token is not the same as a covered span, and must not read as one."""
+    """No «Финансы» token is not the same as a covered span, and must not read
+    as one — a seller we cannot ask for is short a P&L, not up to date."""
     windows_that()
     tokenless = WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="NEVA", internal_features=False)
 
-    walk = await walk_settlement_windows(
-        tokens=tokenless, date_from=SPAN_FROM, date_to=SPAN_TO, build_ingestion=object()
+    walk = await walk_settlement_reports(
+        tokens=tokenless, reports=REPORTS, build_ingestion=object()
     )
 
     assert walk == (0, 0, None)

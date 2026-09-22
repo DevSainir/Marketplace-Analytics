@@ -1,6 +1,6 @@
 """The settlement walk must stream, not accumulate.
 
-`WBFinanceClient` used to return a whole settlement window as one list, so the
+`WBFinanceReportsClient` used to return a whole settlement window as one list, so the
 harvest's peak memory was a function of how much the seller had sold. It grew on
 its own — no code change — until on 2026-08-11 it crossed the worker's cgroup
 limit and the harvest was OOM-killed mid-walk (`signal 9`), leaving the week
@@ -264,12 +264,13 @@ async def test_a_streamed_page_commits_every_batch_as_it_lands(
             return written
 
     monkeypatch.setattr(settlement, "AsyncSessionLocal", lambda: session)
-    monkeypatch.setattr(settlement, "WBFinanceClient", lambda *a, **k: _Client())
+    monkeypatch.setattr(settlement, "WBFinanceReportsClient", lambda *a, **k: _Client())
 
     outcome = await settlement._ingest_one_streamed_page(
-        tokens=SimpleNamespace(statistics="t", workspace_id=uuid.uuid4(), name="NEVA"),
-        window_from=date(2026, 7, 9),
-        window_to=date(2026, 8, 8),
+        tokens=SimpleNamespace(
+            statistics="t", finance="a-finance-token", workspace_id=uuid.uuid4(), name="NEVA"
+        ),
+        report_id=989286628,
         cursor=0,
         build_ingestion=lambda _s: _Ingestion(),
         gate=NullRateGate(),
@@ -325,12 +326,13 @@ async def test_a_full_request_that_does_not_advance_ends_the_window(
             return written
 
     monkeypatch.setattr(settlement, "AsyncSessionLocal", lambda: session)
-    monkeypatch.setattr(settlement, "WBFinanceClient", lambda *a, **k: _StalledClient())
+    monkeypatch.setattr(settlement, "WBFinanceReportsClient", lambda *a, **k: _StalledClient())
 
     outcome = await settlement._ingest_one_streamed_page(
-        tokens=SimpleNamespace(statistics="t", workspace_id=uuid.uuid4(), name="NEVA"),
-        window_from=date(2026, 7, 9),
-        window_to=date(2026, 8, 8),
+        tokens=SimpleNamespace(
+            statistics="t", finance="a-finance-token", workspace_id=uuid.uuid4(), name="NEVA"
+        ),
+        report_id=989286628,
         cursor=cursor,
         build_ingestion=lambda _s: _Ingestion(),
         gate=NullRateGate(),

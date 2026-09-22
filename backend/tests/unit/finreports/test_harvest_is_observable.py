@@ -35,6 +35,7 @@ from src.modules.finreports.tasks.harvest import (
     persistence,
     workspace,
 )
+from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
@@ -144,7 +145,9 @@ async def test_a_finance_harvest_records_both_its_rows_and_its_duration(
     timed_before = _duration_count("ok")
 
     await harvest_workspace(
-        tokens=_bundle(), date_from=_WINDOW[0], date_to=_WINDOW[1], on_date=_WINDOW[1]
+        tokens=_bundle(),
+        reports=(MissingReport(report_id=1, date_to=_WINDOW[1]),),
+        on_date=_WINDOW[1],
     )
 
     assert _rows("finance") is not None
@@ -167,7 +170,9 @@ async def test_a_harvest_that_raises_still_records_the_time_it_burned(
 
     with pytest.raises(RuntimeError, match="went away"):
         await harvest_workspace(
-            tokens=_bundle(), date_from=_WINDOW[0], date_to=_WINDOW[1], on_date=_WINDOW[1]
+            tokens=_bundle(),
+            reports=(MissingReport(report_id=1, date_to=_WINDOW[1]),),
+            on_date=_WINDOW[1],
         )
 
     assert _duration_count("error") == failed_before + 1

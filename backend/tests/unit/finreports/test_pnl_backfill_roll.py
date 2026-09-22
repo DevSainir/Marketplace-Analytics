@@ -57,6 +57,7 @@ def _tokens() -> WorkspaceTokenBundle:
         workspace_id=uuid.UUID("01a07a8d-6e3e-7012-ab9f-34443d93776d"),
         name="NEVA",
         statistics="token",
+        finance="a-finance-token",
     )
 
 
@@ -75,7 +76,7 @@ def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
             # has to be accepted, or every roll test fails for the wrong reason.
             return None
 
-    monkeypatch.setattr(walk, "statistics_rate_gate", lambda *_a, **_k: _Gate())
+    monkeypatch.setattr(walk, "finance_reports_rate_gate", lambda *_a, **_k: _Gate())
     monkeypatch.setattr(walk, "moscow_today", lambda: TODAY)
 
     # These cases are NEVA's real history and it spans two years, so the walk is

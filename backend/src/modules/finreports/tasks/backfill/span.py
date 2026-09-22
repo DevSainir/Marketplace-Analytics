@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from datetime import date, timedelta
 from itertools import pairwise
 
+from src.integrations.wildberries.endpoints import SALES_REPORTS_BY_PERIOD_PATH
 from src.modules.workspaces.contract import LaneStep
 
 #: How far back a new workspace's settlement history is collected.
@@ -45,7 +46,10 @@ PNL_FLOOR_DAYS = 90
 _SEP = "|"
 
 #: The endpoint the gate is keyed on.
-SETTLEMENT_PATH = "/api/v5/supplier/reportDetailByPeriod"
+#: The report's home since 2026-09-22. WB switched the v5 statistics path
+#: off on 15.07.2026; this one serves the same rows at one request a
+#: minute. See ``docs/finreports/MIGRATION_TO_FINANCE_V1.md``.
+SETTLEMENT_PATH = SALES_REPORTS_BY_PERIOD_PATH
 
 #: Seconds before the next page. WB's own budget on this endpoint — asking
 #: sooner restarts its window and makes the lane slower, not faster.

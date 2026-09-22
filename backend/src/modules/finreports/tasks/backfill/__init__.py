@@ -36,7 +36,7 @@ from src.core.logcontext import bind_workspace
 from src.core.logging import get_logger
 from src.core.redis import get_redis
 from src.core.tasks import run_task
-from src.integrations.wildberries.rate_limit import statistics_rate_gate
+from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.integrations.wildberries.rate_limit.surfaces import (
     BACKGROUND_RESERVE_SECONDS,
     SETTLEMENT_PACE_CEILING_SECONDS,
@@ -115,7 +115,7 @@ async def _next_page_delay(token: str) -> int:
     Clamped only where the number stops being informative: a spin guard below,
     the watchdog's patience above.
     """
-    gate = statistics_rate_gate(settings, token=token)
+    gate = finance_reports_rate_gate(settings, token=token)
     shut_for = await gate.retry_after(SETTLEMENT_PATH, reserve_seconds=BACKGROUND_RESERVE_SECONDS)
     return min(
         max(_MIN_PAGE_GAP_SECONDS, int(shut_for) + _WAKE_MARGIN_SECONDS),

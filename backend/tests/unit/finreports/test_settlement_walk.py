@@ -23,12 +23,19 @@ import pytest
 
 from src.core.exceptions import IntegrationError
 from src.modules.finreports.tasks import settlement as settlement_module
-from src.modules.finreports.tasks.settlement import walk_settlement_windows
+from src.modules.finreports.tasks.settlement import MissingReport, walk_settlement_reports
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
 
-_FROM, _TO = date(2026, 8, 24), date(2026, 9, 6)  # two weeks
+#: Two reports WB has formed and we do not hold, oldest first — the walk's
+#: unit of work since the report replaced the date window on 2026-09-22.
+_REPORTS = (
+    MissingReport(report_id=801, date_to=date(2026, 8, 30)),
+    MissingReport(report_id=802, date_to=date(2026, 9, 6)),
+)
+#: Just the first of them, for the cases about one report's paging.
+_ONE_REPORT = _REPORTS[:1]
 
 #: What "a full request" means to the walk, owned by the fake client below.
 #:
@@ -54,7 +61,9 @@ def _row(index: int) -> _Row:
 
 def _tokens() -> WorkspaceTokenBundle:
     """A workspace with the settlement scope and nothing else."""
-    return WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="NEVA", statistics="stat-token")
+    return WorkspaceTokenBundle(
+        workspace_id=uuid.uuid4(), name="NEVA", statistics="stat-token", finance="a-finance-token"
+    )
 
 
 class _RecordingSession:
@@ -103,8 +112,8 @@ def journal(monkeypatch: pytest.MonkeyPatch) -> list[str]:
             return None
 
     class _Client:
-        #: Windows whose walk raises, keyed by their start date.
-        failing: ClassVar[set[date]] = set()
+        #: Reports whose walk raises, keyed by id.
+        failing: ClassVar[set[int]] = set()
 
         def __init__(self, _settings: Any, **kwargs: Any) -> None:
             self._kwargs = kwargs
@@ -115,22 +124,20 @@ def journal(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         async def __aexit__(self, *_exc: object) -> None:
             return None
 
-        #: Windows served as two pages instead of one, keyed by start date.
-        paged: ClassVar[set[date]] = set()
-        #: Windows whose SECOND page raises, keyed by start date.
-        failing_second: ClassVar[set[date]] = set()
+        #: Reports served as two pages instead of one, keyed by id.
+        paged: ClassVar[set[int]] = set()
+        #: Reports whose SECOND page raises, keyed by id.
+        failing_second: ClassVar[set[int]] = set()
 
         @property
         def stream_limit(self) -> int:
             return _STREAM_LIMIT
 
-        async def stream_report_rows(
-            self, *, date_from: date, date_to: date, cursor: int = 0
-        ) -> Any:
-            entries.append(f"fetch:{date_from}..{date_to}@{cursor}")
-            if date_from in (_Client.failing if cursor == 0 else _Client.failing_second):
+        async def stream_report_rows(self, *, report_id: int, cursor: int = 0) -> Any:
+            entries.append(f"fetch:{report_id}@{cursor}")
+            if report_id in (_Client.failing if cursor == 0 else _Client.failing_second):
                 raise IntegrationError("WB withheld this page.")
-            if date_from in _Client.paged and cursor == 0:
+            if report_id in _Client.paged and cursor == 0:
                 # A full request, so the walk must come back for a second one.
                 yield [_row(index) for index in range(_STREAM_LIMIT)]
                 return
@@ -139,8 +146,8 @@ def journal(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     _Client.failing = set()
     _Client.failing_second = set()
     _Client.paged = set()
-    monkeypatch.setattr(settlement_module, "settlement_walk_rate_gate", lambda *_a, **_k: _Gate())
-    monkeypatch.setattr(settlement_module, "WBFinanceClient", _Client)
+    monkeypatch.setattr(settlement_module, "finance_reports_rate_gate", lambda *_a, **_k: _Gate())
+    monkeypatch.setattr(settlement_module, "WBFinanceReportsClient", _Client)
     monkeypatch.setattr(settlement_module, "AsyncSessionLocal", lambda: _RecordingSession(entries))
     return entries
 
@@ -157,24 +164,23 @@ async def test_each_page_is_one_request_and_one_commit(journal: list[str]) -> No
     one page: the first seller measured has weeks past the 10 000-row limit,
     and a second page is a second quarter-hour of WB's budget.
     """
-    rows, failed, _through = await walk_settlement_windows(
+    rows, failed, _through = await walk_settlement_reports(
         tokens=_tokens(),
-        date_from=_FROM,
-        date_to=_TO,
+        reports=_REPORTS,
         build_ingestion=_ingestion_factory(journal),
     )
 
     assert (rows, failed) == (4, 0)
     assert journal == [
-        "token:/api/v5/supplier/reportDetailByPeriod",
+        "token:/api/finance/v1/sales-reports/detailed/{id}",
         "session-open",
-        "fetch:2026-08-24..2026-08-30@0",
+        "fetch:801@0",
         "ingest:2",
         "commit",
         "session-close",
-        "token:/api/v5/supplier/reportDetailByPeriod",
+        "token:/api/finance/v1/sales-reports/detailed/{id}",
         "session-open",
-        "fetch:2026-08-31..2026-09-06@0",
+        "fetch:802@0",
         "ingest:2",
         "commit",
         "session-close",
@@ -188,10 +194,9 @@ async def test_the_token_is_taken_before_the_session_is_opened(journal: list[str
     PostgreSQL close the harvest's connection on 2026-09-07. Every `token:`
     entry must therefore fall outside a `session-open`/`session-close` pair.
     """
-    await walk_settlement_windows(
+    await walk_settlement_reports(
         tokens=_tokens(),
-        date_from=_FROM,
-        date_to=_TO,
+        reports=_REPORTS,
         build_ingestion=_ingestion_factory(journal),
     )
 
@@ -213,12 +218,11 @@ async def test_a_week_wb_withholds_does_not_cost_the_weeks_that_worked(
     The count is what the caller turns into a failed source; without it a P&L
     missing a week looks exactly like a seller who sold nothing that week.
     """
-    settlement_module.WBFinanceClient.failing = {date(2026, 8, 24)}  # type: ignore[attr-defined]
+    settlement_module.WBFinanceReportsClient.failing = {801}  # type: ignore[attr-defined]
 
-    rows, failed, _through = await walk_settlement_windows(
+    rows, failed, _through = await walk_settlement_reports(
         tokens=_tokens(),
-        date_from=_FROM,
-        date_to=_TO,
+        reports=_REPORTS,
         build_ingestion=_ingestion_factory(journal),
     )
 
@@ -244,13 +248,12 @@ async def test_a_window_that_never_gets_a_token_is_counted_not_skipped(
             return None
 
     monkeypatch.setattr(
-        settlement_module, "settlement_walk_rate_gate", lambda *_a, **_k: _RefusingGate()
+        settlement_module, "finance_reports_rate_gate", lambda *_a, **_k: _RefusingGate()
     )
 
-    rows, failed, _through = await walk_settlement_windows(
+    rows, failed, _through = await walk_settlement_reports(
         tokens=_tokens(),
-        date_from=_FROM,
-        date_to=_TO,
+        reports=_REPORTS,
         build_ingestion=_ingestion_factory(journal),
     )
 
@@ -262,10 +265,9 @@ async def test_a_workspace_without_the_settlement_scope_asks_for_nothing(
     journal: list[str],
 ) -> None:
     """No token, no request — and no rate budget spent proving it."""
-    rows, failed, _through = await walk_settlement_windows(
+    rows, failed, _through = await walk_settlement_reports(
         tokens=WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="Асель"),
-        date_from=_FROM,
-        date_to=_TO,
+        reports=_REPORTS,
         build_ingestion=_ingestion_factory(journal),
     )
 
@@ -284,21 +286,20 @@ async def test_a_second_page_costs_a_second_token_and_a_second_transaction(
     the transaction the first page committed in, not inside one held open
     across the wait.
     """
-    settlement_module.WBFinanceClient.paged = {date(2026, 8, 24)}  # type: ignore[attr-defined]
+    settlement_module.WBFinanceReportsClient.paged = {801}  # type: ignore[attr-defined]
 
-    rows, failed, _through = await walk_settlement_windows(
+    rows, failed, _through = await walk_settlement_reports(
         tokens=_tokens(),
-        date_from=_FROM,
-        date_to=date(2026, 8, 30),  # one week, served as two pages
+        reports=_ONE_REPORT,
         build_ingestion=_ingestion_factory(journal),
     )
 
     assert (rows, failed) == (_STREAM_LIMIT + 2, 0)
-    assert journal.count("token:/api/v5/supplier/reportDetailByPeriod") == 2
+    assert journal.count("token:/api/finance/v1/sales-reports/detailed/{id}") == 2
     assert journal.count("commit") == 2
     # The second request pages from the last row of the first, so no row is
     # fetched — or upserted — twice.
-    assert journal[-4] == f"fetch:2026-08-24..2026-08-30@{900_000_000_000 + _STREAM_LIMIT - 1}"
+    assert journal[-4] == f"fetch:801@{900_000_000_000 + _STREAM_LIMIT - 1}"
 
 
 async def test_a_page_committed_before_a_failure_is_kept(journal: list[str]) -> None:
@@ -309,15 +310,12 @@ async def test_a_page_committed_before_a_failure_is_kept(journal: list[str]) -> 
     `rrd_id` and the next tick's span starts at the last settled day, so a week
     left half-loaded completes itself rather than staying wrong.
     """
-    settlement_module.WBFinanceClient.paged = {date(2026, 8, 24)}  # type: ignore[attr-defined]
-    settlement_module.WBFinanceClient.failing_second = {  # type: ignore[attr-defined]
-        date(2026, 8, 24)
-    }
+    settlement_module.WBFinanceReportsClient.paged = {801}  # type: ignore[attr-defined]
+    settlement_module.WBFinanceReportsClient.failing_second = {801}  # type: ignore[attr-defined]
 
-    rows, failed, _through = await walk_settlement_windows(
+    rows, failed, _through = await walk_settlement_reports(
         tokens=_tokens(),
-        date_from=_FROM,
-        date_to=date(2026, 8, 30),
+        reports=_ONE_REPORT,
         build_ingestion=_ingestion_factory(journal),
     )
 

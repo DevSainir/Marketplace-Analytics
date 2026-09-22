@@ -10,6 +10,7 @@ report into the counts and the metrics the fleet walk and the alerts read.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date
 
 from src.core.celery_app import celery_app
@@ -21,7 +22,7 @@ from src.modules.finreports.tasks.harvest.persistence import (
     persist_sources,
 )
 from src.modules.finreports.tasks.ingestion_factory import build_ingestion
-from src.modules.finreports.tasks.settlement import walk_settlement_windows
+from src.modules.finreports.tasks.settlement import MissingReport, walk_settlement_reports
 from src.modules.finreports.tasks.warmup import warm_settlement_rollup
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
@@ -34,7 +35,7 @@ _HARVEST_FINANCE = "finreports.finance"
 
 
 async def harvest_workspace(
-    *, tokens: WorkspaceTokenBundle, date_from: date, date_to: date, on_date: date
+    *, tokens: WorkspaceTokenBundle, reports: Sequence[MissingReport], on_date: date
 ) -> dict[str, int]:
 
     The timer is the other half of the rows ``_harvest_workspace`` records.
@@ -46,21 +47,19 @@ async def harvest_workspace(
 
     Args:
         tokens: The workspace's decrypted WB credentials.
-        date_from: Inclusive settlement-date window start.
-        date_to: Inclusive settlement-date window end.
+        reports: The settlement reports to fetch, oldest first — WB's own
+            ids, from the freshness gate's list call.
         on_date: Snapshot day for the baseline (Moscow time).
 
     Returns:
         Whatever :func:`_harvest_workspace` returns, unchanged.
     """
     with harvest_timer(_HARVEST_FINANCE):
-        return await _harvest_workspace(
-            tokens=tokens, date_from=date_from, date_to=date_to, on_date=on_date
-        )
+        return await _harvest_workspace(tokens=tokens, reports=reports, on_date=on_date)
 
 
 async def _harvest_workspace(
-    *, tokens: WorkspaceTokenBundle, date_from: date, date_to: date, on_date: date
+    *, tokens: WorkspaceTokenBundle, reports: Sequence[MissingReport], on_date: date
 ) -> dict[str, int]:
     """Fetch and persist one workspace's finreports sources.
 
@@ -69,8 +68,8 @@ async def _harvest_workspace(
 
     Args:
         tokens: The workspace's decrypted WB credentials.
-        date_from: Inclusive settlement-date window start.
-        date_to: Inclusive settlement-date window end.
+        reports: The settlement reports to fetch, oldest first — WB's own
+            ids, from the freshness gate's list call.
         on_date: Snapshot day for the baseline (Moscow time).
 
     Returns:
@@ -84,6 +83,8 @@ async def _harvest_workspace(
     # volume in the service, so it is also where an unattributable line costs
     # the most (register P2.2).
     bind_workspace(tokens.workspace_id)
+    span_from = reports[0].date_to if reports else on_date
+    span_to = reports[-1].date_to if reports else on_date
 
     # The settlement report, a week per request and each week its own
     # transaction. It is NOT part of the row commit below: WB serves this
@@ -91,11 +92,8 @@ async def _harvest_workspace(
     # weeks, and waiting is the one thing an open transaction may not do —
     # PostgreSQL closes an idle one after 300 s. See
     # :mod:`src.modules.finreports.tasks.settlement` for what that cost before.
-    walk = await walk_settlement_windows(
-        tokens=tokens,
-        date_from=date_from,
-        date_to=date_to,
-        build_ingestion=build_ingestion,
+    walk = await walk_settlement_reports(
+        tokens=tokens, reports=reports, build_ingestion=build_ingestion
     )
     if walk.completed_through is not None:
         await advance_watermark(
