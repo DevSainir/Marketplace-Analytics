@@ -30,6 +30,7 @@ against instead.
 
 from __future__ import annotations
 
+import time
 from datetime import date, timedelta
 
 from src.core.config import settings
@@ -50,19 +51,44 @@ from src.modules.finreports.tasks.backfill.discovery import (
     parse_cursor,
     survey_backlog,
 )
-from src.modules.finreports.tasks.settlement import walk_settlement_reports
+from src.modules.finreports.tasks.settlement import MissingReport, walk_settlement_reports
 from src.modules.workspaces.contract import LaneStep, WorkspaceTokenBundle
 
 logger = get_logger(__name__)
 
-#: Reports fetched by one tick.
+#: Most reports one tick will fetch.
 #:
-#: One, for now, which is the shape the old lane had for a reason that has
-#: expired: a page cost a quarter of an hour and ~110 MB of RSS, so a tick that
-#: looped would have held a worker slot for most of an hour to no purpose. At
-#: one request a minute the loop is affordable and the constant is where that
-#: change will land.
-REPORTS_PER_TICK = 1
+#: One per tick was the old shape, for a reason that has expired: a page cost a
+#: quarter of an hour of WB's budget and ~110 MB of RSS, so a tick that looped
+#: would have held a worker slot for most of an hour to no purpose.
+#:
+#: At one request a minute the loop is where the throughput is. A tick's own
+#: overhead is a re-enqueue plus the gap the countdown leaves — and the
+#: countdown is read from a bucket the tick has just emptied, with the
+#: background reserve on top, so one report per tick costs roughly three
+#: minutes per report against a budget that allows one. Batching moves the
+#: waiting inside the tick, where it is spent on the next report instead of on
+#: nothing.
+#:
+#: Memory does not bound this: reports are walked one after another, each into
+#: its own session which closes before the next begins, so the peak is one
+#: report's batches whether a tick walks one or twelve. Time does, and that is
+#: :data:`_TICK_WORK_BUDGET_SECONDS` below; this is the belt to its braces.
+REPORTS_PER_TICK = 12
+
+#: How long a tick keeps taking on new reports.
+#:
+#: Ten minutes against the task's fifteen-minute soft limit, so the report in
+#: flight when the budget runs out has five minutes to finish — more than twice
+#: the longest page measured (217 s, at 100 000 rows; the largest report on
+#: «Демо» is 16 801). Overrunning the soft limit is not a slow tick but a
+#: silent one: `SoftTimeLimitExceeded` is not the `IntegrationError` the lane
+#: catches, so nothing would be recorded and nothing re-enqueued.
+#:
+#: Checked BETWEEN reports and never inside one. A report is the unit that can
+#: be left for the next tick; a half-fetched one is not, and abandoning it would
+#: throw away the rate token it had already paid for.
+_TICK_WORK_BUDGET_SECONDS = 10 * 60
 
 #: The longest standing refusal a tick will sit through rather than re-enqueue.
 #:
@@ -146,28 +172,76 @@ async def advance_pnl(
     if not backlog.due:
         return _end_of_sweep(backlog, sweep=sweep, at_sweep_start=at_sweep_start, today=today)
 
-    # Selected newest first, walked oldest first. The selection is what a seller
-    # feels — an interrupted backfill leaves them holding this month rather than
-    # the archive — while the walk's own prefix rule is written for ascending
-    # order and would certify a gap if handed a batch back to front.
-    batch = tuple(sorted(backlog.due[:REPORTS_PER_TICK], key=lambda report: report.date_to))
-    walk = await walk_settlement_reports(
-        tokens=tokens,
-        reports=batch,
-        build_ingestion=build_ingestion,
-        reserve_seconds=BACKGROUND_RESERVE_SECONDS,
+    attempted, rows, failed = await _fetch_batch(
+        tokens=tokens, due=backlog.due, build_ingestion=build_ingestion
     )
-    done = backlog.done + len(batch) - walk.windows_failed
+    done = min(backlog.done + len(attempted) - failed, backlog.total)
     return LaneStep(
-        done=min(done, backlog.total),
+        done=done,
         total=backlog.total,
         cursor=format_cursor(
-            advance_ceiling(batch, ceiling), sweep, at_sweep_start or backlog.outstanding
+            advance_ceiling(attempted, ceiling), sweep, at_sweep_start or backlog.outstanding
         ),
         finished=False,
-        message=f"Собираем историю P&L: {min(done, backlog.total)} из {backlog.total} отчётов.",
-        rows=walk.rows,
+        message=f"Собираем историю P&L: {done} из {backlog.total} отчётов.",
+        rows=rows,
     )
+
+
+async def _fetch_batch(
+    *,
+    tokens: WorkspaceTokenBundle,
+    due: tuple[MissingReport, ...],
+    build_ingestion: object,
+) -> tuple[tuple[MissingReport, ...], int, int]:
+    """Fetch as many of the owed reports as this tick has time for.
+
+    One :func:`walk_settlement_reports` call per report rather than one for the
+    whole batch, and the difference is the deadline: a batch handed over whole
+    is walked whole, and a tick that runs past its soft limit dies without
+    recording or re-enqueueing anything.
+
+    Args:
+        tokens: The workspace's decrypted WB credentials.
+        due: The reports this sweep may take, newest first.
+        build_ingestion: Factory taking a session and returning an
+            ``IngestionService``.
+
+    Returns:
+        ``(attempted, rows, failed)``. ``attempted`` is what the ceiling moves
+        past — the reports left behind by the deadline stay above it and are
+        offered again on the next tick, unchanged.
+    """
+    # Newest first, all the way down. The old lane had to sort a batch the other
+    # way because `walk_settlement_reports` certifies the unbroken PREFIX of
+    # what it is handed, and a descending batch would have certified a gap in
+    # front of itself. Handing it one report at a time makes that rule trivially
+    # true and gives the direction back to the seller: a tick cut short by the
+    # deadline below leaves them this month rather than the archive.
+    batch = due[:REPORTS_PER_TICK]
+    deadline = time.monotonic() + _TICK_WORK_BUDGET_SECONDS
+    attempted: list[MissingReport] = []
+    rows = 0
+    failed = 0
+    for report in batch:
+        if attempted and time.monotonic() >= deadline:
+            logger.info(
+                "finreports: P&L backfill for %s stopping at %d of %d reports — out of tick.",
+                tokens.name,
+                len(attempted),
+                len(batch),
+            )
+            break
+        walk = await walk_settlement_reports(
+            tokens=tokens,
+            reports=(report,),
+            build_ingestion=build_ingestion,
+            reserve_seconds=BACKGROUND_RESERVE_SECONDS,
+        )
+        attempted.append(report)
+        rows += walk.rows
+        failed += walk.windows_failed
+    return tuple(attempted), rows, failed
 
 
 def _end_of_sweep(backlog: Backlog, *, sweep: int, at_sweep_start: int, today: date) -> LaneStep:

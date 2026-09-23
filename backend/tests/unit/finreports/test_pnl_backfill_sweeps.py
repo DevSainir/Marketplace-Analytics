@@ -46,6 +46,11 @@ def _report(report_id: int, weeks_back: int) -> MissingReport:
     return MissingReport(report_id=report_id, date_to=TODAY - timedelta(days=7 * weeks_back))
 
 
+def _ids(asked: list[Any]) -> list[int]:
+    """Report ids in the order WB was actually asked for them."""
+    return [report.report_id for batch in asked for report in batch]
+
+
 @pytest.fixture(autouse=True)
 def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
     """Everything outside the decision under test, held still.
@@ -166,7 +171,7 @@ async def test_a_lane_owed_nothing_finishes(monkeypatch: pytest.MonkeyPatch) -> 
 # --------------------------------------------------------------------------- #
 # What a working tick does
 # --------------------------------------------------------------------------- #
-async def test_a_tick_fetches_the_newest_reports_it_is_owed(
+async def test_a_tick_takes_the_newest_reports_when_it_cannot_take_them_all(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Signup is the case that matters, and only the direction decides whether a
@@ -174,29 +179,76 @@ async def test_a_tick_fetches_the_newest_reports_it_is_owed(
     due = (_report(900, weeks_back=7), _report(901, weeks_back=8), _report(902, weeks_back=9))
     _backlog(monkeypatch, due=due, outstanding=3, total=10)
     asked = _fetch(monkeypatch)
-
-    await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert [report.report_id for batch in asked for report in batch] == [900]
-
-
-async def test_a_batch_is_walked_oldest_first_however_it_was_chosen(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The selection is newest first; the walk's own prefix rule is ascending.
-
-    ``walk_settlement_reports`` certifies the unbroken PREFIX of the batch it is
-    given, so a batch handed over back to front would certify a gap in front of
-    itself. The two orders are different decisions and both have to hold.
-    """
-    due = (_report(900, weeks_back=7), _report(901, weeks_back=8))
-    _backlog(monkeypatch, due=due, outstanding=2, total=10)
-    asked = _fetch(monkeypatch)
     monkeypatch.setattr(walk, "REPORTS_PER_TICK", 2)
 
     await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
 
-    assert [report.report_id for report in asked[0]] == [901, 900]
+    assert _ids(asked) == [900, 901], "the oldest of the three was left for the next tick"
+
+
+async def test_a_tick_walks_several_reports_rather_than_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The whole of the throughput, and it is not a micro-optimisation.
+
+    A tick's countdown is read from a bucket the tick has just emptied, with the
+    background reserve on top, so one report per tick costs about three minutes
+    per report against a budget that allows one. Batching spends the waiting on
+    the next report instead of on nothing.
+    """
+    due = tuple(_report(900 + n, weeks_back=7 + n) for n in range(5))
+    _backlog(monkeypatch, due=due, outstanding=5, total=10)
+    asked = _fetch(monkeypatch)
+
+    step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
+
+    assert len(_ids(asked)) == 5
+    assert step.done == 10
+
+
+async def test_the_reports_are_handed_over_one_at_a_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """What lets the tick walk newest first at all.
+
+    ``walk_settlement_reports`` certifies the unbroken PREFIX of what it is
+    handed, so a descending batch passed whole would certify a gap in front of
+    itself — the old lane sorted a batch ascending for exactly that reason, and
+    paid for it by leaving a seller the archive when a tick was cut short. One
+    report per call makes the prefix rule trivially true and gives the direction
+    back.
+    """
+    due = (_report(900, weeks_back=7), _report(901, weeks_back=8))
+    _backlog(monkeypatch, due=due, outstanding=2, total=10)
+    asked = _fetch(monkeypatch)
+
+    await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
+
+    assert [len(batch) for batch in asked] == [1, 1]
+    assert _ids(asked) == [900, 901], "newest first, which is the order it was offered in"
+
+
+async def test_a_tick_out_of_time_stops_between_reports_and_leaves_the_rest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Running past the task's soft limit is not a slow tick but a silent one.
+
+    `SoftTimeLimitExceeded` is not the error the lane catches, so a tick that
+    overran would record nothing and re-enqueue nothing. The reports it did not
+    reach must stay above the ceiling, or they are lost rather than deferred.
+    """
+    due = tuple(_report(900 + n, weeks_back=7 + n) for n in range(4))
+    _backlog(monkeypatch, due=due, outstanding=4, total=10)
+    asked = _fetch(monkeypatch)
+    monkeypatch.setattr(walk, "_TICK_WORK_BUDGET_SECONDS", -1.0)
+
+    step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
+
+    assert _ids(asked) == [900], "one report is always attempted; a tick that does nothing spins"
+    assert step.cursor is not None
+    resumed = discovery.parse_cursor(step.cursor)
+    assert resumed is not None
+    assert resumed[0] >= due[1].date_to, "the reports it never reached are still offered"
 
 
 async def test_the_ceiling_drops_below_what_this_tick_attempted(
