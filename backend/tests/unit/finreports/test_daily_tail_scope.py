@@ -25,7 +25,7 @@ from datetime import date
 import pytest
 
 from src.modules.finreports.constants import DAILY_TAIL_LOCK_PREFIX, HARVEST_LOCK_KEY
-from src.modules.finreports.tasks import daily_tail
+from src.modules.finreports.tasks.daily_tail import harvest as daily_tail
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit

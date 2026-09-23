@@ -12,6 +12,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from typing import NamedTuple
 
 from sqlalchemy import Text, cast, func, literal_column, select, update
@@ -72,6 +73,28 @@ class Fingerprint(NamedTuple):
     digest: str
 
 
+class ListedTotals(NamedTuple):
+    """WB's own totals for one report, as ``sales-reports/list`` serves them.
+
+    The day-later screen compares these against the same three fields listed
+    again — WB's figure against WB's earlier figure. Deliberately not against
+    anything we compute: our reconstruction of ``forPaySum`` is knowingly 128.26
+    KGS out on report 989286628 because of how we bucket «Коррекция продаж»
+    (see
+    :func:`~src.modules.finreports.tasks.publication_spread.record_publication_spread`),
+    so a screen built on our own arithmetic would fire on a difference that is
+    ours and miss the one that is WB's.
+    """
+
+    for_pay: Decimal | None
+    retail_amount: Decimal | None
+    bank_payment: Decimal | None
+
+    def known(self) -> bool:
+        """Whether WB stated anything at all — nothing is not agreement."""
+        return self.for_pay is not None
+
+
 class PendingVerification(NamedTuple):
     """A daily report whose day-later re-read is due.
 
@@ -80,12 +103,16 @@ class PendingVerification(NamedTuple):
         day: The settlement day it covers — compared against the weekly
             frontier to decide whether re-reading it is still meaningful.
         rows / digest: What the first ingest recorded, to compare against.
+        totals: WB's own totals at ingest, or all-``None`` for a report booked
+            before they were kept. The screen cannot conclude «unchanged» from
+            absent totals, so such a report falls through to a detail re-read.
     """
 
     report_id: int
     day: date
     rows: int
     digest: str
+    totals: ListedTotals
 
 
 class DailySettlementRepository(BaseRepository):
@@ -173,6 +200,7 @@ class DailySettlementRepository(BaseRepository):
         day: date,
         create_dt: date | None,
         fingerprint: Fingerprint,
+        totals: ListedTotals,
     ) -> None:
         """Record a freshly harvested daily report and what its rows looked like.
 
@@ -188,6 +216,8 @@ class DailySettlementRepository(BaseRepository):
             day: The settlement day it covers.
             create_dt: WB's own ``createDate``.
             fingerprint: The rows as they now stand.
+            totals: WB's own totals for the report, from the same list call that
+                discovered it. What the day-later screen compares against.
         """
         stmt = (
             insert(DailySettlementReport)
@@ -199,6 +229,9 @@ class DailySettlementRepository(BaseRepository):
                 rows=fingerprint.rows,
                 digest=fingerprint.digest,
                 first_seen_at=func.now(),
+                wb_for_pay_sum=totals.for_pay,
+                wb_retail_amount_sum=totals.retail_amount,
+                wb_bank_payment_sum=totals.bank_payment,
             )
             .on_conflict_do_update(
                 index_elements=[DailySettlementReport.report_id],
@@ -213,6 +246,9 @@ class DailySettlementRepository(BaseRepository):
                     "verified_rows": None,
                     "verified_digest": None,
                     "verdict": None,
+                    "wb_for_pay_sum": totals.for_pay,
+                    "wb_retail_amount_sum": totals.retail_amount,
+                    "wb_bank_payment_sum": totals.bank_payment,
                 },
             )
         )
@@ -243,6 +279,9 @@ class DailySettlementRepository(BaseRepository):
                 DailySettlementReport.day,
                 DailySettlementReport.rows,
                 DailySettlementReport.digest,
+                DailySettlementReport.wb_for_pay_sum,
+                DailySettlementReport.wb_retail_amount_sum,
+                DailySettlementReport.wb_bank_payment_sum,
             )
             .where(
                 DailySettlementReport.workspace_id == workspace_id,
@@ -253,7 +292,13 @@ class DailySettlementRepository(BaseRepository):
             .limit(limit)
         )
         return [
-            PendingVerification(report_id=row[0], day=row[1], rows=row[2], digest=row[3])
+            PendingVerification(
+                report_id=row[0],
+                day=row[1],
+                rows=row[2],
+                digest=row[3],
+                totals=ListedTotals(for_pay=row[4], retail_amount=row[5], bank_payment=row[6]),
+            )
             for row in (await self._session.execute(stmt)).all()
         ]
 

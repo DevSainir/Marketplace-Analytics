@@ -22,7 +22,7 @@ from datetime import date, timedelta
 import pytest
 
 from src.modules.finreports.constants import DAILY_TAIL_LOOKBACK_DAYS
-from src.modules.finreports.tasks.daily_tail import _tail_span
+from src.modules.finreports.tasks.daily_tail.harvest import _tail_span
 
 pytestmark = pytest.mark.unit
 

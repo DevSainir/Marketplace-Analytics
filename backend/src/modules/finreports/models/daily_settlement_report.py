@@ -41,8 +41,19 @@ from __future__ import annotations
 import enum
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
-from sqlalchemy import BigInteger, Date, DateTime, Index, Integer, String, func, text
+from sqlalchemy import (
+    BigInteger,
+    Date,
+    DateTime,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
@@ -70,6 +81,12 @@ class DailyReportVerdict(enum.StrEnum):
     #: and the report is taken off the verification queue honestly rather than
     #: left on it for ever.
     SUPERSEDED = "superseded"
+    #: WB no longer lists the report at all. Not a content change and not our
+    #: failure to ask — the report we hold rows for has stopped existing on WB's
+    #: side, which nothing in this service was able to express before and which
+    #: would be indistinguishable from «unchanged» if the screen only compared
+    #: figures it could find.
+    WITHDRAWN = "withdrawn"
 
 
 class DailySettlementReport(Base):
@@ -99,6 +116,12 @@ class DailySettlementReport(Base):
         verified_rows / verified_digest: What the re-read found. Kept next to
             the originals rather than overwriting them, because the pair IS the
             measurement.
+        wb_for_pay_sum / wb_retail_amount_sum / wb_bank_payment_sum: WB's OWN
+            totals for this report, as ``sales-reports/list`` served them at
+            ingest. The day-later check compares these against the same fields
+            listed again — WB's figure against WB's earlier figure, so the
+            comparison costs no detail request and our own classification of
+            operations never enters it.
         verdict: :class:`DailyReportVerdict`, or ``None`` before the re-read.
     """
 
@@ -130,3 +153,6 @@ class DailySettlementReport(Base):
     verified_rows: Mapped[int | None] = mapped_column(Integer, nullable=True)
     verified_digest: Mapped[str | None] = mapped_column(String(32), nullable=True)
     verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    wb_for_pay_sum: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    wb_retail_amount_sum: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    wb_bank_payment_sum: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)

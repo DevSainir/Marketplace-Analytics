@@ -11,6 +11,7 @@ from src.modules.finreports.repos.cost_price import CostPriceRepository
 from src.modules.finreports.repos.daily_settlement import (
     DailySettlementRepository,
     Fingerprint,
+    ListedTotals,
     PendingVerification,
 )
 from src.modules.finreports.repos.financial_report import (
@@ -40,6 +41,7 @@ __all__ = [
     "FinancialReportRepository",
     "Fingerprint",
     "LatestReportHeader",
+    "ListedTotals",
     "LogisticsTransactionRepository",
     "PendingVerification",
     "PnlGrouping",
