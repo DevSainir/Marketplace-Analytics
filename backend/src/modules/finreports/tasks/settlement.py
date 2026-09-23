@@ -152,6 +152,7 @@ async def walk_settlement_reports(
     reports: Sequence[MissingReport],
     build_ingestion: object,
     ingest: SettlementIngest = ingest_with_headers,
+    reserve_seconds: float = 0.0,
 ) -> SettlementWalk:
     """Fetch every report this workspace is missing, one request per page.
 
@@ -166,6 +167,11 @@ async def walk_settlement_reports(
         ingest: How a page is written. Defaults to the settled history's
             rows-and-headers write; the provisional daily lane passes
             :func:`ingest_rows_only`. See :data:`SettlementIngest`.
+        reserve_seconds: Non-zero marks this walk as background work, which will
+            not take a token that has been free for less than that. The history
+            backfill passes it so a seller's fresh report is never queued behind
+            months nobody is waiting for; the forward harvest leaves it at zero
+            because it IS that fresh report.
 
     Returns:
         A :class:`SettlementWalk`. ``completed_through`` stops at the **first**
@@ -187,6 +193,7 @@ async def walk_settlement_reports(
             gate=gate,
             build_ingestion=build_ingestion,
             ingest=ingest,
+            reserve_seconds=reserve_seconds,
         )
         rows += report_rows
         if complete:
@@ -213,6 +220,7 @@ async def _harvest_report(
     gate: RateGate,
     build_ingestion: object,
     ingest: SettlementIngest,
+    reserve_seconds: float = 0.0,
 ) -> tuple[int, bool]:
     """Harvest one report, a page per request, and say whether it finished.
 
@@ -221,6 +229,8 @@ async def _harvest_report(
         report: The report to fetch.
         gate: The walk's rate gate. A token is taken per PAGE, and always
             before the page's session is opened.
+        reserve_seconds: Yield this much of every window to callers a person is
+            waiting on — see :func:`walk_settlement_reports`.
         build_ingestion: Factory taking a session and returning an
             :class:`IngestionService`.
         ingest: How a page is written — see :data:`SettlementIngest`.
@@ -237,7 +247,7 @@ async def _harvest_report(
             # Outside the session, and this is the whole point: the wait for
             # WB's next token is a minute long, and PostgreSQL closes a
             # transaction left idle for 300 s.
-            await gate.acquire(SALES_REPORTS_DETAILED_PATH)
+            await gate.acquire(SALES_REPORTS_DETAILED_PATH, reserve_seconds=reserve_seconds)
         except IntegrationError as exc:
             logger.warning(
                 "finreports: settlement report %d for %s stopped — no rate token: %s",
@@ -275,8 +285,7 @@ async def _harvest_report(
 async def _ingest_one_streamed_page(
     *,
     tokens: WorkspaceTokenBundle,
-    report_id: int = 0,
-    period: tuple[date, date] | None = None,
+    report_id: int,
     cursor: int,
     build_ingestion: object,
     gate: RateGate,
@@ -321,13 +330,7 @@ async def _ingest_one_streamed_page(
                 rate_gate=_SpentToken(gate),
             ) as client:
                 stream_limit = client.stream_limit
-                pages = (
-                    client.stream_rows_by_period(
-                        date_from=period[0], date_to=period[1], cursor=cursor
-                    )
-                    if period is not None
-                    else client.stream_report_rows(report_id=report_id, cursor=cursor)
-                )
+                pages = client.stream_report_rows(report_id=report_id, cursor=cursor)
                 async for batch in pages:
                     if not batch:
                         continue
@@ -350,8 +353,8 @@ async def _ingest_one_streamed_page(
                     del batch
         except IntegrationError as exc:
             logger.warning(
-                "finreports: settlement %s failed for %s: %s",
-                period or report_id,
+                "finreports: settlement report %d failed for %s: %s",
+                report_id,
                 tokens.name,
                 exc,
             )
@@ -361,9 +364,9 @@ async def _ingest_one_streamed_page(
         return _Page(total, None, ok=True)
     if last_rrd_id <= cursor:
         logger.error(
-            "finreports: settlement %s for %s stalled — a full page did not "
-            "advance rrd_id past %d.",
-            period or report_id,
+            "finreports: settlement report %d for %s stalled — a full page did "
+            "not advance rrd_id past %d.",
+            report_id,
             tokens.name,
             cursor,
         )

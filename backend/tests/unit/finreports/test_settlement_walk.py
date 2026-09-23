@@ -105,7 +105,7 @@ def journal(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     entries: list[str] = []
 
     class _Gate:
-        async def acquire(self, endpoint: str) -> None:
+        async def acquire(self, endpoint: str, *, reserve_seconds: float = 0.0) -> None:
             entries.append(f"token:{endpoint}")
 
         async def observe(self, endpoint: str, remaining: int | None) -> None:
@@ -241,7 +241,7 @@ async def test_a_window_that_never_gets_a_token_is_counted_not_skipped(
     """
 
     class _RefusingGate:
-        async def acquire(self, endpoint: str) -> None:
+        async def acquire(self, endpoint: str, *, reserve_seconds: float = 0.0) -> None:
             raise IntegrationError("WB rate budget is further away than we may wait.")
 
         async def observe(self, endpoint: str, remaining: int | None) -> None:

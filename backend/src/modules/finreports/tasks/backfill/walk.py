@@ -1,40 +1,83 @@
-"""Fetching, committing and accounting for ONE page of settlement history.
+"""Fetching, committing and accounting for the history this workspace lacks.
 
-One page per tick, because the page is the only unit WB's budget allows: it
-serves this endpoint once per fifteen minutes per token and restarts that window
-for anything asked inside it.
+The unit of work is a ``reportId``, and that is the whole of this rewrite. It
+used to be a page of a date span, because the endpoint took a period and a
+period is not a report — so the lane carried a span, a page cursor, an
+empty-answer streak and a search ceiling, and every one of those was a thing
+that could be stale in a way nobody would notice. WB now names the reports and
+serves each one whole, so the lane asks "which ids am I missing" and fetches
+them.
+
+Three consequences, all deletions:
+
+* **A short page no longer ends a span**, because there are no spans. A report
+  is either fully ingested or it is not, and :func:`walk_settlement_reports`
+  already knows which.
+* **An empty answer is no longer ambiguous.** ``PNL_EMPTY_STOP`` existed because
+  WB answered an exhausted window and a window it was briefly not serving with
+  the same ``204``, and believing the first one cost NEVA two years of P&L. The
+  list says outright which reports exist; a fetch that brings nothing back is
+  not evidence about the history's shape.
+* **Progress is counted in reports rather than days**, so the walk no longer
+  queries its own tables to find out how far it has got. ``_measure_progress``
+  and both of its bounds — each of which was a production bug once — go with it.
+
+What survives is the rate discipline, because none of it was about addressing:
+the token is taken before the session exists, the page is streamed, each batch
+commits as it lands, and the walk never blocks on a budget it could re-enqueue
+against instead.
 """
 
 from __future__ import annotations
 
-import uuid
 from datetime import date, timedelta
 
 from src.core.config import settings
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.timeutils import moscow_today
-from src.integrations.wildberries.endpoints import SALES_REPORTS_BY_PERIOD_PATH
+from src.integrations.wildberries.endpoints import (
+    SALES_REPORTS_DETAILED_PATH,
+    SALES_REPORTS_LIST_PATH,
+)
 from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
-from src.modules.finreports.tasks.backfill.span import (
-    PNL_EMPTY_STOP,
+from src.modules.finreports.tasks.backfill.discovery import (
     PNL_FLOOR_DAYS,
-    _format_cursor,
-    _parse_cursor,
-    _roll_to_next_span,
-    next_span,
+    Backlog,
+    advance_ceiling,
+    format_cursor,
+    parse_cursor,
+    survey_backlog,
 )
-from src.modules.finreports.tasks.settlement import _ingest_one_streamed_page
+from src.modules.finreports.tasks.settlement import walk_settlement_reports
 from src.modules.workspaces.contract import LaneStep, WorkspaceTokenBundle
 
 logger = get_logger(__name__)
 
-#: The endpoint the gate is keyed on.
-#: The report's home since 2026-09-22. WB switched the v5 statistics path
-#: off on 15.07.2026; this one serves the same rows at one request a
-#: minute. See ``docs/finreports/MIGRATION_TO_FINANCE_V1.md``.
-SETTLEMENT_PATH = SALES_REPORTS_BY_PERIOD_PATH
+#: Reports fetched by one tick.
+#:
+#: One, for now, which is the shape the old lane had for a reason that has
+#: expired: a page cost a quarter of an hour and ~110 MB of RSS, so a tick that
+#: looped would have held a worker slot for most of an hour to no purpose. At
+#: one request a minute the loop is affordable and the constant is where that
+#: change will land.
+REPORTS_PER_TICK = 1
+
+#: The longest standing refusal a tick will sit through rather than re-enqueue.
+#:
+#: Sized to tell WB's ordinary pacing apart from WB's punishment, which on this
+#: surface are two orders of magnitude apart: an empty 1/min bucket reports at
+#: most 60 s, while a penalty block reports hundreds or thousands. Anything past
+#: this is not a wait, it is a closed door.
+#:
+#: Checked BEFORE anything is sent, and that is the point. ``acquire`` sleeps up
+#: to ``wb_statistics_walk_queue_seconds`` (1000 s) before it raises, which
+#: outlasts this task's own soft limit — and ``SoftTimeLimitExceeded`` is not
+#: the ``IntegrationError`` the lane catches, so the tick would die recording
+#: nothing and re-enqueueing nothing. That is precisely how this lane was lost
+#: for eleven hours on 2026-09-10, on the endpoint before this one.
+_TICK_WAIT_BUDGET_SECONDS = 120.0
 
 
 async def advance_pnl(
@@ -43,249 +86,164 @@ async def advance_pnl(
     cursor: str | None,
     build_ingestion: object,
 ) -> LaneStep:
-    """Fetch, commit and account for ONE page of settlement history.
-
-    Takes its rate token before opening any transaction — the gate that WAITS
-    rather than the one that refuses, because at one request per fifteen
-    minutes the wait IS the work. The page itself is then ingested by the same
-    primitive the forward harvest uses, so a backfilled row and a harvested one
-    are written by identical code.
+    """Fetch the next reports this workspace is missing, and account for them.
 
     Args:
         tokens: The workspace's decrypted WB credentials.
-        cursor: Opaque resume point; ``None`` picks the next gap to fill.
+        cursor: Opaque resume point; ``None`` starts a fresh sweep at today.
         build_ingestion: Factory taking a session and returning an
-            ``IngestionService``, injected the same way the walk takes it.
+            ``IngestionService``, injected the same way the forward walk takes
+            it, so a backfilled row and a harvested one are written by identical
+            code.
 
     Returns:
-        The step's outcome. Progress is measured in settlement DAYS covered,
-        which is the only unit knowable before the walk starts.
-
-        A span ending — a short page, or enough empty answers to believe one —
-        finishes the SPAN, never the lane. What follows is
-        :func:`_roll_to_next_span`, because a seller's history is not one
-        stretch: NEVA's began with three years that predate the account and
-        continued past a 715-day hole, and a lane that returned ``finished``
-        from either ending declared the whole history complete over the hole.
+        The step's outcome, measured in REPORTS. ``total`` is zero whenever this
+        tick learned nothing about the denominator — a refused list — and the
+        caller reads that as "leave the bar alone" rather than as an estimate of
+        zero.
     """
     if not tokens.finance:
-        return LaneStep(0, 0, None, True, "Нет токена «Статистика» — P&L пропущен.")
+        return LaneStep(0, 0, None, True, "Нет токена «Финансы» — P&L пропущен.")
 
     today = moscow_today()
-    # The product's chosen depth, resolved once: every span decision in this
-    # tick must use the same floor, or a roll could offer a span the opening
-    # search had already ruled out of scope.
     floor = today - timedelta(days=PNL_FLOOR_DAYS)
-    if cursor:
-        span_from, span_to, rrd_id, empties, search_to = _parse_cursor(cursor)
-    else:
-        # A fresh lane has concluded nothing, so its ceiling is today: the
-        # newest gap inside the depth is the first thing it asks for.
-        search_to = today
-        chosen = next_span(
-            await read_settled_days(tokens.workspace_id),
-            search_to=search_to,
-            today=today,
-            floor=floor,
-        )
-        if chosen is None:
-            return LaneStep(0, 0, None, True, "Вся история P&L собрана.")
-        span_from, span_to = chosen
-        rrd_id, empties = 0, 0
+    resumed = parse_cursor(cursor) if cursor else None
+    ceiling, sweep, at_sweep_start = resumed or (today, 1, 0)
 
-    total = max((span_to - span_from).days + 1, 1)
-    if span_to < span_from:
-        return _roll_to_next_span(
-            await read_settled_days(tokens.workspace_id),
-            before=span_from,
-            today=today,
-            rows=0,
-            floor=floor,
-        )
-
-    # The gate that REFUSES, not the one that waits — and this is the whole
-    # difference between a lane that runs and one that dies on its first tick.
-    #
-    # `settlement_walk_rate_gate` is built to QUEUE: the fleet walk takes its
-    # token before opening a transaction, and there a quarter of an hour of
-    # waiting is the correct behaviour. Inside a tick it is fatal. Measured in
-    # production 2026-09-10: the lane's first tick asked at 18:00:04, the gate
-    # answered "waiting 956.0s for a rate token", and Celery's 300 s soft limit
-    # killed the task five minutes later with `SoftTimeLimitExceeded` — which is
-    # not an `IntegrationError`, so the branch below never ran, no progress was
-    # recorded, nothing re-enqueued, and a thirteen-hour walk ended silently on
-    # its first step.
-    #
-    # A tick must never block on a budget it can re-enqueue against instead.
-    gate = finance_reports_rate_gate(settings, token=tokens.finance)
-    try:
-        # Reserving, because this is the walk nobody is waiting on: it takes
-        # a window only once the harvest and any «Обновить» have had theirs.
-        await gate.acquire(SETTLEMENT_PATH, reserve_seconds=BACKGROUND_RESERVE_SECONDS)
-    except IntegrationError as exc:
-        # Not a failure: WB's window is simply still closed. The tick returns
-        # unchanged and the task re-enqueues — asking anyway would restart the
-        # block and cost the NEXT quarter of an hour too.
+    shut_for = await _shut_for(tokens.finance)
+    if shut_for > _TICK_WAIT_BUDGET_SECONDS:
         logger.info(
-            "finreports: P&L backfill for %s waiting on WB's window (%s).", tokens.name, exc
+            "finreports: P&L backfill for %s waiting on WB's window (%.0fs).",
+            tokens.name,
+            shut_for,
         )
         return LaneStep(
             done=None,
-            total=total,
-            cursor=cursor or _format_cursor(span_from, span_to, rrd_id, empties, search_to),
+            total=0,
+            cursor=format_cursor(ceiling, sweep, at_sweep_start),
             finished=False,
-            message="Ждём окно Wildberries (1 запрос в 15 минут)…",
+            message="Ждём окно Wildberries…",
         )
 
-    # Streamed, so one request carries up to 100 000 rows instead of 10 000.
-    # The page size is the schedule on this endpoint — four requests an hour —
-    # and decoding a whole page made it a memory question instead.
-    outcome = await _ingest_one_streamed_page(
+    try:
+        backlog = await survey_backlog(tokens=tokens, floor=floor, ceiling=ceiling, today=today)
+    except IntegrationError as exc:
+        # Not a failure of the walk: WB did not answer the cheap question. The
+        # tick returns unchanged and the task re-enqueues.
+        logger.warning(
+            "finreports: report list failed for %s — the P&L backfill waits: %s",
+            tokens.name,
+            exc,
+        )
+        return LaneStep(
+            done=None,
+            total=0,
+            cursor=format_cursor(ceiling, sweep, at_sweep_start),
+            finished=False,
+            message="Wildberries не отдал список отчётов — повторим.",
+        )
+
+    if not backlog.due:
+        return _end_of_sweep(backlog, sweep=sweep, at_sweep_start=at_sweep_start, today=today)
+
+    # Selected newest first, walked oldest first. The selection is what a seller
+    # feels — an interrupted backfill leaves them holding this month rather than
+    # the archive — while the walk's own prefix rule is written for ascending
+    # order and would certify a gap if handed a batch back to front.
+    batch = tuple(sorted(backlog.due[:REPORTS_PER_TICK], key=lambda report: report.date_to))
+    walk = await walk_settlement_reports(
         tokens=tokens,
-        period=(span_from, span_to),
-        cursor=rrd_id,
+        reports=batch,
         build_ingestion=build_ingestion,
-        gate=gate,
+        reserve_seconds=BACKGROUND_RESERVE_SECONDS,
     )
-    if not outcome.ok:
-        # Whatever the request did commit before it died counts towards the
-        # lane's total — the rows are in the database and upserted by `rrd_id`,
-        # so the retry rewrites them rather than adding them twice.
-        return LaneStep(
-            done=None,
-            total=total + outcome.rows,
-            cursor=_format_cursor(span_from, span_to, rrd_id, empties, search_to),
-            finished=False,
-            message="Wildberries не отдал страницу — повторим через 15 минут.",
-        )
-
-    rows, next_cursor = outcome.rows, outcome.next_cursor
-    if next_cursor is None and rows == 0:
-        # WB served NOTHING. That is the answer for an exhausted window and for
-        # a window it is briefly not serving, and the two are indistinguishable
-        # in one reply — so it takes PNL_EMPTY_STOP of them in a row, each a
-        # separate fifteen-minute window, before the span is believed complete.
-        empties += 1
-        if empties < PNL_EMPTY_STOP:
-            return LaneStep(
-                done=None,
-                total=total,
-                cursor=_format_cursor(span_from, span_to, rrd_id, empties, search_to),
-                finished=False,
-                message=(
-                    f"Wildberries вернул пусто ({empties} из {PNL_EMPTY_STOP}) — проверим ещё раз."
-                ),
-            )
-        return _roll_to_next_span(
-            await read_settled_days(tokens.workspace_id),
-            before=span_from,
-            today=today,
-            rows=0,
-            floor=floor,
-        )
-    if next_cursor is None:
-        # A short but non-empty page: ordinary pagination, this SPAN is done.
-        return _roll_to_next_span(
-            await read_settled_days(tokens.workspace_id),
-            before=span_from,
-            today=today,
-            rows=rows,
-            floor=floor,
-        )
-
-    # The span is its own denominator, and no longer needs re-anchoring. That
-    # existed because the walk began at a five-year floor and nothing knew the
-    # account's age, so the bar read 1078/1792 after one page; it re-anchored on
-    # the oldest row held. Both causes are gone — the depth is three months and a
-    # span is at most one chunk — and keeping it would now be a BUG: the oldest
-    # row a seller holds is years older than the chunk being walked, so the
-    # re-anchor would stretch a 31-day span back across the whole archive and
-    # take the cursor's span boundary with it.
-    covered = await _measure_progress(tokens, span_from, span_to, next_cursor)
+    done = backlog.done + len(batch) - walk.windows_failed
     return LaneStep(
-        done=min(covered, total),
-        total=total,
-        cursor=_format_cursor(span_from, span_to, next_cursor, 0, search_to),
+        done=min(done, backlog.total),
+        total=backlog.total,
+        cursor=format_cursor(
+            advance_ceiling(batch, ceiling), sweep, at_sweep_start or backlog.outstanding
+        ),
         finished=False,
-        message=f"Собираем P&L: {min(covered, total)} из {total} дней.",
-        rows=rows,
+        message=f"Собираем историю P&L: {min(done, backlog.total)} из {backlog.total} отчётов.",
+        rows=walk.rows,
     )
 
 
-async def _measure_progress(
-    tokens: WorkspaceTokenBundle, span_from: date, span_to: date, next_cursor: int
-) -> int:
-    """How many days of THIS span the walk has covered, read back from our tables.
+def _end_of_sweep(backlog: Backlog, *, sweep: int, at_sweep_start: int, today: date) -> LaneStep:
+    """Decide what a sweep that has run off the bottom of the history means.
 
-    The number comes from the rows rather than from the cursor: the page was
-    just committed, so the table is the authority on what the walk achieved, and
-    a cursor that also carried counters would be a second thing to keep in step
-    with them.
+    Three endings, and the middle one is why sweeps exist at all.
 
-    Bounded to the span at BOTH ends, and neither bound is decoration. The
-    forward harvest has been writing recent weeks all along and those rows carry
-    the highest ``rrd_id``s of all, so without ``rr_dt <= span_to`` the "newest
-    day reached" is a day this walk never visited and the lane reports 100% on
-    its second page — observed live 2026-09-11, NEVA reading 1033/1033 while
-    still waiting for a window. And with the walk now taking the NEWEST span
-    first, rows older than ``span_from`` are a different span's work entirely:
-    counting them would have a 31-day chunk reporting centuries of progress.
+    **Nothing outstanding** — every report WB has formed inside the depth is on
+    file. The lane is done, and this is the ordinary ending.
+
+    **Something outstanding, and fewer than when this sweep began** — the sweep
+    achieved something, so the reports it missed are worth asking about again.
+    The ceiling goes back to today and the lane walks down a second time. This
+    is the retry path for a report lost to a timeout or a refused page: the
+    ceiling moves past such a report within its own sweep (see
+    :func:`advance_ceiling`), so without this it would be lost silently, which
+    is the failure this subsystem has had most often and noticed latest.
+
+    **Something outstanding, and no fewer than when this sweep began** — a whole
+    pass changed nothing. What is left is what WB lists and does not serve, and
+    asking a fourth time is how a lane turns into a permanent 1/min load on an
+    endpoint that answers with penalty blocks. The lane finishes and says so.
 
     Args:
-        tokens: The workspace being walked.
-        span_from: The first day of the span being walked.
-        span_to: The last day of the span being walked.
-        next_cursor: The ``rrd_id`` the walk has reached.
+        backlog: The survey this tick took.
+        sweep: Which pass this is.
+        at_sweep_start: Reports outstanding when the pass began; 0 when unknown,
+            which only happens on a lane that never completed a first pass.
+        today: Today in Moscow time — the ceiling a new pass starts from.
 
     Returns:
-        Days of the span covered so far, from ``span_from``.
+        The step's outcome.
     """
-    from sqlalchemy import func, select
-
-    from src.core.database import AsyncSessionLocal
-    from src.modules.finreports.models import LogisticsTransaction
-
-    async with AsyncSessionLocal() as session:
-        latest = (
-            await session.execute(
-                select(func.max(LogisticsTransaction.rr_dt)).where(
-                    LogisticsTransaction.workspace_id == tokens.workspace_id,
-                    LogisticsTransaction.rrd_id <= next_cursor,
-                    LogisticsTransaction.rr_dt >= span_from,
-                    LogisticsTransaction.rr_dt <= span_to,
-                )
-            )
-        ).scalar_one_or_none()
-    if latest is None:
-        return 0
-    return (latest - span_from).days + 1
-
-
-async def read_settled_days(workspace_id: uuid.UUID) -> list[date]:
-    """Every distinct settlement day already stored for this workspace.
-
-    The coverage a span is chosen from. Read HERE rather than handed in by the
-    task, and that placement is the fix: the caller reads once per tick, before
-    the page is fetched, so a span ending that consulted the caller's copy would
-    be choosing what to do next from a picture taken before the rows it had just
-    committed existed — and would offer back the hole it had that moment filled.
-
-    One indexed DISTINCT over a few hundred rows per workspace. Cheap enough to
-    read again after a commit, which is the only way the walk notices its own
-    progress.
-    """
-    from sqlalchemy import distinct, select
-
-    from src.core.database import AsyncSessionLocal
-    from src.modules.finreports.models import LogisticsTransaction
-
-    async with AsyncSessionLocal() as session:
-        rows = await session.execute(
-            select(distinct(LogisticsTransaction.rr_dt))
-            .where(
-                LogisticsTransaction.workspace_id == workspace_id,
-                LogisticsTransaction.rr_dt.is_not(None),
-            )
-            .order_by(LogisticsTransaction.rr_dt)
+    outstanding, total, done = backlog.outstanding, backlog.total, backlog.done
+    if outstanding == 0:
+        return LaneStep(total, total, None, True, "История P&L собрана.")
+    if at_sweep_start and outstanding >= at_sweep_start:
+        logger.warning(
+            "finreports: P&L history finished with %d report(s) WB lists and does not serve.",
+            outstanding,
         )
-        return [day for (day,) in rows.all() if day is not None]
+        return LaneStep(
+            done,
+            total,
+            None,
+            True,
+            f"История P&L собрана, кроме {outstanding} отчётов — Wildberries их не отдаёт.",
+        )
+    return LaneStep(
+        done=done,
+        total=total,
+        cursor=format_cursor(today, sweep + 1, outstanding),
+        finished=False,
+        message=f"Повторяем {outstanding} отчётов, которые не удалось забрать…",
+    )
+
+
+async def _shut_for(token: str) -> float:
+    """Seconds WB has this workspace's report methods shut for, or 0.
+
+    Both buckets, because a tick needs both and the one that is open does not
+    make up for the one that is not. Read from Redis, so it costs no WB request
+    and sends nothing.
+
+    Args:
+        token: The workspace's «Финансы» token — buckets are per seller account.
+
+    Returns:
+        The longer of the two refusals, or ``0.0`` when nothing stands in the
+        way. Fails open: a bucket that cannot be read is not a block.
+    """
+    gate = finance_reports_rate_gate(settings, token=token)
+    return max(
+        await gate.retry_after(SALES_REPORTS_DETAILED_PATH),
+        await gate.retry_after(SALES_REPORTS_LIST_PATH),
+    )
+
+
+__all__ = ["REPORTS_PER_TICK", "advance_pnl"]

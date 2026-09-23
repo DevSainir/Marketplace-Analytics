@@ -31,6 +31,12 @@ exist. A seller on WB's forum documented that ``rrd_id`` is not monotonic by
 date across report boundaries on the by-period method — paging one report at a
 time removes that hazard too.
 
+That is why :meth:`stream_rows_by_period` has exactly one caller left, and it
+is not a harvest: ``scripts/backfill_pnl_columns.py``, a one-off that refetches
+date windows to fill columns a migration added zero-valued. The history
+backfill was the other one until 2026-09-23 and now addresses reports by id
+like everything else. **Nothing scheduled may use it.**
+
 See ``docs/finreports/MIGRATION_TO_FINANCE_V1.md``.
 """
 
@@ -229,11 +235,13 @@ class WBFinanceReportsClient(BaseWBClient):
     ) -> AsyncGenerator[list[WBFinanceReportRow], None]:
         """The same rows, addressed by settlement period rather than report id.
 
-        For the history backfill, which walks a span it has no report ids for
-        yet. Everything else should prefer :meth:`stream_report_rows`: paging
-        one report at a time avoids a hazard a seller documented on WB's forum
-        for the by-period form, where ``rrdId`` is not monotonic by date across
-        report boundaries and a walk can silently stop early.
+        **For ``scripts/backfill_pnl_columns.py`` and nothing else.** It walks
+        date windows because the columns it fills are chosen by date, and it is
+        run by hand with somebody watching. Every scheduled caller must use
+        :meth:`stream_report_rows`: paging one report at a time avoids a hazard
+        a seller documented on WB's forum for this form, where ``rrdId`` is not
+        monotonic by date across report boundaries and a walk can silently stop
+        early — which for a harvest is a hole nobody notices for months.
 
         Args:
             date_from: Inclusive settlement-date window start.

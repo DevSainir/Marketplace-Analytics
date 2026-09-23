@@ -96,7 +96,7 @@ class _OpenGate:
     not the wait in front of it.
     """
 
-    async def acquire(self, endpoint: str) -> None:
+    async def acquire(self, endpoint: str, *, reserve_seconds: float = 0.0) -> None:
         return None
 
     async def observe(self, endpoint: str, remaining: int | None) -> None:
