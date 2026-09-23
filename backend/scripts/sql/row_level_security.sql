@@ -78,6 +78,7 @@ DECLARE
         'finreports.pnl_sku_exclusion',
         'finreports.product_cost_price',
         'finreports.settlement_daily_rollup',
+        'finreports.settlement_watermark',
         'monitoring.product_card',
         'workspaces.workspace_tokens'
     ];
