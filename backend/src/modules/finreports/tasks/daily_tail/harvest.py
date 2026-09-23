@@ -32,7 +32,6 @@ from src.modules.finreports.tasks.daily_tail.common import (
 from src.modules.finreports.tasks.ingestion_factory import build_ingestion
 from src.modules.finreports.tasks.settlement import (
     MissingReport,
-    ingest_rows_only,
     walk_settlement_reports,
 )
 from src.modules.workspaces.contract import (
@@ -158,7 +157,6 @@ async def tail_one_workspace(*, tokens: WorkspaceTokenBundle, today: date) -> di
             tokens=tokens,
             reports=(report,),
             build_ingestion=build_ingestion,
-            ingest=ingest_rows_only,
         )
         rows += walk.rows
         if walk.completed_through is None:

@@ -19,6 +19,7 @@ from decimal import Decimal
 
 from src.integrations.wildberries.schemas import (
     WBCard,
+    WBFinanceReportHeader,
     WBReportDetailRow,
 )
 from src.modules.finreports.repos import (
@@ -100,6 +101,55 @@ class IngestionService:
                 )
                 total += await self._upsert_settlement_rows(page, workspace_id=workspace_id)
         return total
+
+    async def record_report_header(
+        self, header: WBFinanceReportHeader, *, workspace_id: uuid.UUID
+    ) -> None:
+        """Write one weekly report's header from WB's OWN list entry.
+
+        Headers used to be derived from the rows, and that was wrong in two
+        ways that only showed under scrutiny.
+
+        **It wrote the header too early.** The rows commit in batches, so the
+        header landed with the first batch — and a fetch that died after it left
+        a header for a report whose rows were mostly absent. Nothing afterwards
+        could tell: «which reports do I hold» is a set of ids taken from this
+        table, so the half-fetched report counted as held and was never asked
+        for again. Written here instead, once the walk has the whole report, the
+        table means what its readers think it means.
+
+        **It could not carry WB's own totals.** ``retailAmountSum``,
+        ``forPaySum`` and ``bankPaymentSum`` are on the list entry and on no
+        row, so a header built from rows had to leave them empty — which is
+        what every header on «Демо» still had on 2026-09-23. They are the
+        one figure the P&L can be checked against that does not come from our
+        own arithmetic, and ``docs/finreports/PNL.md`` is explicit that most
+        ways to get a settlement figure wrong produce a plausible statement
+        rather than an error.
+
+        Nothing is committed here; the caller owns the transaction.
+
+        Args:
+            header: WB's list entry for this report.
+            workspace_id: Owning workspace.
+        """
+        await self._reports.bulk_upsert(
+            [
+                {
+                    "report_id": header.report_id,
+                    "workspace_id": workspace_id,
+                    "date_from": header.date_from,
+                    "date_to": header.date_to,
+                    "currency": header.currency,
+                    "create_dt": header.create_date,
+                    "wb_for_pay_sum": header.for_pay_sum,
+                    "wb_retail_amount_sum": header.retail_amount_sum,
+                    "wb_bank_payment_sum": header.bank_payment_sum,
+                }
+            ],
+            conflict_columns=["report_id"],
+            update_columns=REPORT_UPDATE,
+        )
 
     async def ingest_settlement_rows(
         self,

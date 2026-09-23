@@ -416,6 +416,12 @@ async def _reports_to_re_walk(
         report_repo_for: Workspace whose held reports to re-walk.
         today: Today in Moscow time.
 
+    Carries no WB header, so the walk re-writes the rows and leaves the header
+    alone. That is right for a re-walk — the header is already there, and the
+    header's job is to say «this report is held», which it already does. What
+    it does NOT do is refresh WB's own totals on a week WB has restated; that
+    needs the list entry, which this function does not have.
+
     Returns:
         The reports, oldest first.
     """

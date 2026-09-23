@@ -33,7 +33,6 @@ from src.modules.finreports.tasks.daily_tail.common import (
 from src.modules.finreports.tasks.ingestion_factory import build_ingestion
 from src.modules.finreports.tasks.settlement import (
     MissingReport,
-    ingest_rows_only,
     walk_settlement_reports,
 )
 from src.modules.workspaces.contract import WorkspaceTokenBundle, load_workspace_token_bundles
@@ -214,7 +213,6 @@ async def _reread_and_compare(
         tokens=tokens,
         reports=(MissingReport(report_id=report.report_id, date_to=report.day),),
         build_ingestion=build_ingestion,
-        ingest=ingest_rows_only,
     )
     if walk.completed_through is None:
         # Not recorded as a verdict: an unanswered question is not a finding, and

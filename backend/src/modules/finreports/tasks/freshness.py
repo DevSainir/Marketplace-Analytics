@@ -147,7 +147,7 @@ async def outstanding_reports(
     async with WBFinanceReportsClient(settings, token=tokens.finance) as client:
         listed = await client.list_reports(date_from=since, date_to=today)
     missing = tuple(
-        MissingReport(report_id=header.report_id, date_to=header.date_to)
+        MissingReport(report_id=header.report_id, date_to=header.date_to, header=header)
         for header in sorted(listed, key=lambda h: h.date_to)
         if header.report_id not in held
     )

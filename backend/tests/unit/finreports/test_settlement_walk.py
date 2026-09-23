@@ -22,6 +22,7 @@ from typing import Any, ClassVar, Self
 import pytest
 
 from src.core.exceptions import IntegrationError
+from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.tasks import settlement as settlement_module
 from src.modules.finreports.tasks.settlement import MissingReport, walk_settlement_reports
 from src.modules.workspaces.contract import WorkspaceTokenBundle
@@ -36,6 +37,18 @@ _REPORTS = (
 )
 #: Just the first of them, for the cases about one report's paging.
 _ONE_REPORT = _REPORTS[:1]
+
+#: WB's own list entry for report 801, as `sales-reports/list` serves it. What
+#: the header is written FROM since 2026-09-23 — see `record_report_header`.
+_HEADER = WBFinanceReportHeader.model_validate(
+    {
+        "reportId": 801,
+        "dateFrom": "2026-08-24",
+        "dateTo": "2026-08-30",
+        "createDate": "2026-08-31",
+        "forPaySum": "123456.78",
+    }
+)
 
 #: What "a full request" means to the walk, owned by the fake client below.
 #:
@@ -89,12 +102,15 @@ class _FakeIngestion:
     def __init__(self, journal: list[str]) -> None:
         self._journal = journal
 
-    async def ingest_finance_report(self, pages: Any, *, workspace_id: uuid.UUID) -> int:
+    async def ingest_settlement_rows(self, pages: Any, *, workspace_id: uuid.UUID) -> int:
         total = 0
         async for page in pages:
             total += len(page)
         self._journal.append(f"ingest:{total}")
         return total
+
+    async def record_report_header(self, header: Any, *, workspace_id: uuid.UUID) -> None:
+        self._journal.append(f"header:{header.report_id}")
 
         return 0
 
@@ -323,3 +339,77 @@ async def test_a_page_committed_before_a_failure_is_kept(journal: list[str]) -> 
     # rather than reported as a week that small.
     assert (rows, failed) == (_STREAM_LIMIT, 1)
     assert journal.count("commit") == 1
+
+
+async def test_a_report_that_dies_half_way_is_not_booked_as_held(
+    journal: list[str],
+) -> None:
+    """The silent hole this walk had until 2026-09-23.
+
+    Headers used to be derived from the rows and upserted with every batch, so
+    a fetch that died after the first batch still left a header. `report_ids_since`
+    reads that table to answer «which reports do I hold», so the half-fetched
+    report counted as held, dropped off the missing list, and was never asked
+    for again — rows missing, no error, no gap in the ids.
+
+    The header is the marker for «all of it», so it may only be written once
+    all of it has arrived.
+    """
+    # A full first page that commits, then a second request WB withholds — the
+    # realistic shape of the failure. A report that dies on its FIRST request
+    # would have written no header even under the old behaviour.
+    settlement_module.WBFinanceReportsClient.paged = {801}  # type: ignore[attr-defined]
+    settlement_module.WBFinanceReportsClient.failing_second = {801}  # type: ignore[attr-defined]
+
+    _rows, failed, _through = await walk_settlement_reports(
+        tokens=_tokens(),
+        reports=(_REPORTS[0]._replace(header=_HEADER),),
+        build_ingestion=_ingestion_factory(journal),
+    )
+
+    assert failed == 1
+    assert not [entry for entry in journal if entry.startswith("header:")], (
+        "a report WB did not finish serving was booked as held"
+    )
+
+
+async def test_a_completed_report_is_booked_from_wb_s_own_list_entry(
+    journal: list[str],
+) -> None:
+    """And it carries WB's own totals, which no settlement row does.
+
+    `retailAmountSum` / `forPaySum` / `bankPaymentSum` live on the list entry
+    and nowhere else, so a header built from rows had to leave them empty —
+    which is what every header on «Демо» still was on 2026-09-23. They are
+    the only figure the P&L can be checked against that is not our own
+    arithmetic.
+    """
+    await walk_settlement_reports(
+        tokens=_tokens(),
+        reports=(_REPORTS[0]._replace(header=_HEADER),),
+        build_ingestion=_ingestion_factory(journal),
+    )
+
+    assert journal.index("header:801") > journal.index("ingest:2"), (
+        "the header must be written after the rows, never alongside them"
+    )
+    assert journal.count("commit") == 2, "the header commits in a transaction of its own"
+
+
+async def test_a_walk_carrying_no_header_books_nothing(journal: list[str]) -> None:
+    """The provisional daily lane, whose reports must not reach `financial_report`.
+
+    A daily header there would answer «how far is this workspace settled» with
+    yesterday, and the freshness gate would stop asking for the weekly report
+    altogether. That used to be expressed by handing the walk a different
+    ingest function; it is a property of the work item now, so a caller cannot
+    get the rows right and the header wrong.
+    """
+    await walk_settlement_reports(
+        tokens=_tokens(),
+        reports=_ONE_REPORT,
+        build_ingestion=_ingestion_factory(journal),
+    )
+
+    assert "ingest:2" in journal, "the rows still land"
+    assert not [entry for entry in journal if entry.startswith("header:")]

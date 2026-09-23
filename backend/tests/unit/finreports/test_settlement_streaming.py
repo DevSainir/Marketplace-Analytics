@@ -257,7 +257,7 @@ async def test_a_streamed_page_commits_every_batch_as_it_lands(
                 yield [WBReportDetailRow.model_validate(row) for row in raw]
 
     class _Ingestion:
-        async def ingest_finance_report(self, pages: Any, **_kw: Any) -> int:
+        async def ingest_settlement_rows(self, pages: Any, **_kw: Any) -> int:
             written = 0
             async for page in pages:
                 written += len(page)
@@ -319,7 +319,7 @@ async def test_a_full_request_that_does_not_advance_ends_the_window(
             ]
 
     class _Ingestion:
-        async def ingest_finance_report(self, pages: Any, **_kw: Any) -> int:
+        async def ingest_settlement_rows(self, pages: Any, **_kw: Any) -> int:
             written = 0
             async for page in pages:
                 written += len(page)

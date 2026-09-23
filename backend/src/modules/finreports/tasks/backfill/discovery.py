@@ -137,7 +137,7 @@ async def survey_backlog(
     held = await held_report_ids(tokens.workspace_id, since=floor)
     missing = [header for header in in_scope if header.report_id not in held]
     due = tuple(
-        MissingReport(report_id=header.report_id, date_to=header.date_to)
+        MissingReport(report_id=header.report_id, date_to=header.date_to, header=header)
         for header in sorted(missing, key=lambda header: header.date_to, reverse=True)
         if header.date_to <= ceiling
     )

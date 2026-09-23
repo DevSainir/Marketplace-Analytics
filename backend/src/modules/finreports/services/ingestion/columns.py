@@ -80,7 +80,20 @@ TXN_UPDATE = [
 ]
 
 #: ``financial_report`` — everything but ``report_id``.
-REPORT_UPDATE = ["workspace_id", "date_from", "date_to", "currency", "create_dt"]
+REPORT_UPDATE = [
+    "workspace_id",
+    "date_from",
+    "date_to",
+    "currency",
+    "create_dt",
+    # WB's OWN totals for the report, as `sales-reports/list` served them.
+    # Updated like everything else because WB restates a settled week for up to
+    # a fortnight, and a stale total is worse than none: the whole value of
+    # these three is that they come from somewhere other than our own rows.
+    "wb_for_pay_sum",
+    "wb_retail_amount_sum",
+    "wb_bank_payment_sum",
+]
 
     "box_delivery_base",
     "box_delivery_liter",
