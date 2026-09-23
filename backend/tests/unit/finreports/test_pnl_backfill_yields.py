@@ -152,7 +152,6 @@ async def test_a_slow_tick_does_not_pay_for_its_own_duration_twice(
     delay = await backfill._next_page_delay(_tokens())
 
     assert delay == 740 + backfill._WAKE_MARGIN_SECONDS
-    assert delay < backfill._NEXT_PAGE_SECONDS, "the published budget outranked the bucket"
 
 
 async def test_a_block_is_waited_out_using_wb_s_own_number(
@@ -166,29 +165,29 @@ async def test_a_block_is_waited_out_using_wb_s_own_number(
     an hour. WB states the number in ``x-ratelimit-retry``; the bucket already
     absorbs it, so the lane just reads it.
     """
-    # 2762 s is the real penalty NEVA drew on 2026-09-12, read from the bucket's
-    # own `blocked_until`. A 890 s block is NOT a useful case here: it is shorter
-    # than the published budget, so the floor wins and the test would pass
-    # whether or not the block was read at all.
-    monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(2762.0))
+    monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(300.0))
 
     delay = await backfill._next_page_delay(_tokens())
 
-    assert delay == 2762 + backfill._WAKE_MARGIN_SECONDS
+    assert delay == 300 + backfill._WAKE_MARGIN_SECONDS
 
 
-async def test_the_wait_never_outlasts_the_watchdog_s_patience(
+async def test_a_long_block_is_polled_rather_than_slept_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Otherwise a lane obeying WB exactly gets restarted for obeying WB exactly,
-    and the restart asks early — which is what WB answers with a penalty."""
-    from src.integrations.wildberries.rate_limit.surfaces import (
-        SETTLEMENT_PACE_CEILING_SECONDS,
-    )
+    """The ceiling used to be 90 minutes, and the argument for it has reversed.
 
-    monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(99_999.0))
+    Sleeping a long block off in one go was cheaper when waking into it cost a
+    request on an endpoint that punished early asks. A tick now reads the
+    refusal from Redis before sending anything, so waking is free — and a lane
+    asleep for an hour and a half is indistinguishable from a dead one, both to
+    the watchdog and to the seller reading the profile.
+    """
+    # 2762 s is the real penalty NEVA drew on 2026-09-12, read from the bucket's
+    # own `blocked_until`.
+    monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(2762.0))
 
-    assert await backfill._next_page_delay(_tokens()) == SETTLEMENT_PACE_CEILING_SECONDS
+    assert await backfill._next_page_delay(_tokens()) == backfill._PACE_CEILING_SECONDS
 
 
 async def test_the_delay_is_read_from_the_finance_token_s_bucket(
@@ -260,10 +259,9 @@ def test_a_hung_tick_is_still_restarted_rather_than_holding_a_slot() -> None:
     """Raising the limit must not outrun the thing that recovers a dead lane."""
     from datetime import timedelta
 
-    from src.modules.workspaces.models import BackfillLane
-    from src.modules.workspaces.tasks import _patience
+    from src.modules.workspaces.tasks import STALE_AFTER
 
-    assert timedelta(seconds=backfill._TICK_SOFT_LIMIT_SECONDS) < _patience(BackfillLane.PNL)
+    assert timedelta(seconds=backfill._TICK_SOFT_LIMIT_SECONDS) < STALE_AFTER
 
 
 def test_only_one_tick_may_hold_a_lane(monkeypatch: pytest.MonkeyPatch) -> None:

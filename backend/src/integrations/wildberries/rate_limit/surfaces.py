@@ -116,29 +116,12 @@ STATISTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
     "/api/v1/supplier/sales": (1, 60.0),
 }
 
-#: The slowest interval the settlement walk may pace itself to, in seconds.
-#:
-#: Lives here rather than beside the walk because two modules need it and they
-#: may not import each other: ``finreports`` widens the walk's interval up to
-#: this, and ``workspaces`` sizes the backfill watchdog's patience from it. A
-#: watchdog less patient than the pace is permitted to be restarts a lane for
-#: being exactly as slow as it was told to be — and on this endpoint the restart
-#: then asks early, which is what WB answers with a penalty block.
-#:
-#: 90 minutes because the published ``x-ratelimit-reset: 917`` is a floor rather
-#: than the enforced tolerance. Measured on NEVA 2026-09-12/14: 18 minutes after a
-#: good page still drew a 2762 s penalty, and with the cap at 40 minutes the walk
-#: sat pinned against it — four pages served against six refusals in six hours,
-#: the pace trying to widen past a ceiling it was not allowed to cross.
-SETTLEMENT_PACE_CEILING_SECONDS = 90 * 60
-
 #: How long a background walk must let a token sit before it may take it.
 #:
-#: The settlement endpoint serves about four requests an hour and several things
-#: want them: the hourly harvest, a seller pressing «Обновить», and the history
-#: backfill. Without an order they simply race, and the loser is whoever asked
-#: second — which on 2026-09-12 was the fresh report, waiting behind history
-#: nobody needed today.
+#: Several things want the report endpoint: the quarter-hourly harvest, a seller
+#: pressing «Обновить», and the history backfill. Without an order they simply
+#: race, and the loser is whoever asked second — which on 2026-09-12 was the
+#: fresh report, waiting behind history nobody needed today.
 #:
 #: A reserve makes the order structural rather than a convention each caller has
 #: to remember. It costs the backfill up to two minutes per window and cannot
@@ -182,6 +165,22 @@ def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
 #: endpoint they replace those were the same request against the same bucket,
 #: and the arithmetic in `finreports/services/publication.py` exists to avoid
 #: spending it.
+#: The longest a caller on this surface may queue for a token before giving up.
+#:
+#: Two minutes, and it used to be ``wb_statistics_walk_queue_seconds`` — 1000 s,
+#: sized for an endpoint whose refill was 960 s and whose window really was
+#: worth sitting out. Here the refill is 60 s, so any wait past this is not a
+#: bucket filling but WB refusing, and a caller that sleeps through a refusal is
+#: strictly worse off than one that re-enqueues against it.
+#:
+#: It also has to fit inside the callers. The backfill tick's soft limit is
+#: 900 s and the harvest holds a 600 s fleet lock; a 1000 s queue outlasts both,
+#: and overrunning a soft limit is not a slow tick but a silent one —
+#: ``SoftTimeLimitExceeded`` is not the ``IntegrationError`` either lane
+#: catches. That is how the P&L lane was lost for eleven hours on 2026-09-10,
+#: on the surface this one replaced.
+FINANCE_QUEUE_SECONDS = 120.0
+
 FINANCE_REPORT_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
     SALES_REPORTS_LIST_PATH: (1, 60.0),
     SALES_REPORTS_DETAILED_PATH: (1, 60.0),
@@ -221,7 +220,8 @@ def finance_reports_rate_gate(settings: Settings, *, token: str) -> RateGate:
         refill_seconds=60.0,
         # A page is worth waiting a minute for; the walk takes its token before
         # opening a transaction, so waiting costs wall clock and nothing else.
-        max_wait_seconds=settings.wb_statistics_walk_queue_seconds,
+        # Past that it is a refusal rather than a bucket — see the constant.
+        max_wait_seconds=FINANCE_QUEUE_SECONDS,
         endpoint_buckets=FINANCE_REPORT_ENDPOINT_BUCKETS,
     )
 

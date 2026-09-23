@@ -13,12 +13,14 @@ from datetime import timedelta
 
 from src.core.celery_app import celery_app
 from src.core.config import settings
+from src.integrations.wildberries.rate_limit.surfaces import FINANCE_QUEUE_SECONDS
 from src.modules.finreports.tasks.backfill import (
-    _NEXT_PAGE_SECONDS,
+    _PACE_CEILING_SECONDS,
     _TICK_SOFT_LIMIT_SECONDS,
 )
+from src.modules.finreports.tasks.backfill.walk import _TICK_WORK_BUDGET_SECONDS
 from src.modules.workspaces.models import BackfillLane
-from src.modules.workspaces.tasks import LANE_TASKS, STALE_AFTER
+from src.modules.workspaces.tasks import LANE_RESTART_DELAY, LANE_TASKS, STALE_AFTER
 
 
 def test_a_tick_cannot_block_for_longer_than_it_is_allowed_to_live() -> None:
@@ -33,17 +35,25 @@ def test_a_tick_cannot_block_for_longer_than_it_is_allowed_to_live() -> None:
     The rule that prevents it: whatever gate a tick waits on must give up well
     inside the tick's own lifetime, so a shut window comes back as a refusal the
     lane can handle rather than as a killed worker.
+
+    The gate moved with the endpoint on 2026-09-22 and the rule did not. It was
+    checked against the statistics surface's 45 s; the lane now waits on the
+    Finance one, which inherited a 1000 s queue sized for a 960 s refill and
+    outlasted this task's own soft limit for a day.
     """
+    assert FINANCE_QUEUE_SECONDS < _TICK_SOFT_LIMIT_SECONDS
     assert settings.wb_statistics_max_queue_seconds < _TICK_SOFT_LIMIT_SECONDS
 
 
-def test_the_next_page_is_scheduled_beyond_wb_s_own_window() -> None:
-    """Asking sooner than WB reopens restarts its block and costs the next one.
+def test_a_tick_leaves_itself_room_to_finish_the_report_it_is_on() -> None:
+    """The deadline stops a tick taking on new work; it cannot stop the work.
 
-    So the re-enqueue delay is not a tuning knob — anything under the endpoint's
-    ~15-minute budget makes the lane slower rather than faster.
+    So the gap between the two budgets has to hold one whole report — the
+    longest page ever measured was 217 s, at 100 000 rows, against a largest
+    real report of 16 801. A tick that overruns is not slow but silent:
+    `SoftTimeLimitExceeded` is not the error the lane catches.
     """
-    assert _NEXT_PAGE_SECONDS >= 15 * 60
+    assert _TICK_SOFT_LIMIT_SECONDS - _TICK_WORK_BUDGET_SECONDS >= 4 * 60
 
 
 def test_every_lane_has_a_restart_task_that_actually_exists() -> None:
@@ -60,50 +70,32 @@ def test_every_lane_has_a_restart_task_that_actually_exists() -> None:
         assert LANE_TASKS[lane] in celery_app.tasks
 
 
-def test_the_watchdog_is_patient_enough_for_the_slowest_lane() -> None:
-    """A healthy slow lane must never be restarted out from under itself.
+def test_a_lane_is_never_restarted_for_being_as_slow_as_it_was_told_to_be() -> None:
+    """The invariant the two families of constant exist in, stated once.
 
-    The P&L tick waits out whatever WB's own ``x-ratelimit-retry`` said, so
-    "slow" here is not a constant — the patience has to clear the longest wait
-    the lane is ALLOWED to take, not the one it usually takes.
+    A tick runs for up to its work budget and then sleeps for up to its pace
+    ceiling; the watchdog restarts a lane quiet for longer than its patience. If
+    patience ever fell below runtime plus wait, a lane obeying WB to the letter
+    would be restarted for it — and a restart asks early, which is what WB
+    answers with a penalty block. Raising either budget without this reopens it.
     """
-    from src.integrations.wildberries.rate_limit.surfaces import (
-        SETTLEMENT_PACE_CEILING_SECONDS,
-    )
-    from src.modules.workspaces.tasks import _patience
+    longest_healthy_silence = timedelta(seconds=_TICK_WORK_BUDGET_SECONDS + _PACE_CEILING_SECONDS)
 
-    assert timedelta(seconds=SETTLEMENT_PACE_CEILING_SECONDS) < _patience(BackfillLane.PNL)
-    assert timedelta(seconds=_NEXT_PAGE_SECONDS * 2) <= _patience(BackfillLane.PNL)
+    assert longest_healthy_silence < STALE_AFTER
 
 
-def test_a_tick_never_sleeps_past_the_watchdog_that_guards_it() -> None:
-    """The relationship the two constants exist in, stated once.
+def test_the_monitoring_lanes_still_fit_inside_the_same_patience() -> None:
+    """One patience for every lane is only safe while it clears the slowest.
 
-    A tick waits out WB's stated block, capped by SETTLEMENT_PACE_CEILING_SECONDS;
-    the watchdog restarts a lane that has been quiet longer than its patience.
-    If the cap ever exceeded the patience, a lane obeying WB to the letter would
-    be restarted for it — and on this endpoint a restart asks early, which WB
-    answers with a penalty block. Raising one without the other reintroduces it.
+    It was per lane until 2026-09-23, because the P&L lane needed three hours
+    and giving the monitoring lanes three hours would have turned a dead
+    catalogue into an afternoon of a new seller staring at an empty profile.
+    Their own longest legitimate silence is the 20-minute yield to the nightly
+    harvest.
     """
-    from src.integrations.wildberries.rate_limit.surfaces import (
-        SETTLEMENT_PACE_CEILING_SECONDS,
-    )
-    from src.modules.workspaces.tasks import _patience
+    from src.modules.monitoring.tasks.backfill import _YIELD_SECONDS
 
-    assert _patience(BackfillLane.PNL) >= timedelta(seconds=SETTLEMENT_PACE_CEILING_SECONDS * 2)
-
-
-def test_the_fast_lanes_keep_the_short_leash() -> None:
-    """Raising one lane's patience must not blunt the watchdog everywhere.
-
-    The three monitoring lanes tick every few seconds; giving them the
-    settlement lane's three hours would turn a dead catalogue into an afternoon
-    of a new seller staring at an empty profile.
-    """
-    from src.modules.workspaces.tasks import _patience
-
-    for lane in (BackfillLane.CATALOGUE, BackfillLane.FUNNEL, BackfillLane.ADVERTISING):
-        assert _patience(lane) == STALE_AFTER
+    assert timedelta(seconds=_YIELD_SECONDS) < STALE_AFTER
 
 
 def test_the_watchdog_is_registered_on_the_beat_schedule() -> None:
@@ -210,11 +202,11 @@ def test_the_settlement_lane_is_not_restarted_into_wb_s_closed_window() -> None:
     sweep restarted the lane the instant the worker came up.
 
     A restart cannot know how much of the window the tick it replaces had
-    already spent, so it assumes none of it.
+    already spent, so it assumes none of it. The window is the Finance
+    surface's minute now rather than the old endpoint's quarter of an hour, so
+    the delay shrank with it — but it must still clear one whole refill.
     """
-    from src.modules.workspaces.tasks import LANE_RESTART_DELAY
-
-    assert LANE_RESTART_DELAY[BackfillLane.PNL] >= _NEXT_PAGE_SECONDS
+    assert LANE_RESTART_DELAY[BackfillLane.PNL] > 60
 
 
 def test_the_fast_lanes_are_still_restarted_at_once() -> None:
@@ -225,7 +217,5 @@ def test_the_fast_lanes_are_still_restarted_at_once() -> None:
     quarter of an hour to resume a catalogue load would be paying the settlement
     endpoint's price on lanes that do not owe it.
     """
-    from src.modules.workspaces.tasks import LANE_RESTART_DELAY
-
     for lane in (BackfillLane.CATALOGUE, BackfillLane.FUNNEL, BackfillLane.ADVERTISING):
         assert LANE_RESTART_DELAY.get(lane, 0) == 0

@@ -33,7 +33,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import ColumnElement, and_, or_, select
+from sqlalchemy import ColumnElement, select
 
 from src.core.celery_app import celery_app
 from src.core.database import AsyncSessionLocal
@@ -43,7 +43,6 @@ from src.core.observability.metrics import (
     BACKFILL_LANES_STALLED,
 )
 from src.core.tasks import run_task
-from src.integrations.wildberries.rate_limit.surfaces import SETTLEMENT_PACE_CEILING_SECONDS
 from src.modules.workspaces.models import BackfillLane, BackfillState, WorkspaceBackfill
 
 logger = get_logger(__name__)
@@ -64,56 +63,49 @@ LANE_TASKS: dict[BackfillLane, str] = {
 #: How long to wait before restarting a lane, per lane. Absent means at once.
 #:
 #: Only the P&L lane has one, and it is not politeness — it is the cheapest
-#: option available. WB serves ``reportDetailByPeriod`` once per ~15 minutes per
-#: token and answers an early ask with a PENALTY block: measured on NEVA
-#: 2026-09-12, a request 13 minutes after the previous one drew
-#: ``429 ... demands a 2762s wait``, turning a quarter-hour window into
-#: three quarters of an hour of nothing.
+#: option available. A restart cannot know how much of WB's window the tick it
+#: replaces had already spent, so it assumes none of it: three deploys in half
+#: an hour each fired an immediate tick, and that is how NEVA drew
+#: ``429 ... demands a 2762s wait`` on 2026-09-12 from a request 13 minutes
+#: after the previous one.
 #:
-#: A restart is exactly where that happens. The tick it replaces was killed
-#: mid-step, so nothing knows whether it had just spent the window or was still
-#: waiting for it — and three deploys in half an hour each fired an immediate
-#: tick, which is how NEVA earned the block above. Waiting one full window costs
-#: a lane that was genuinely dead ~15 minutes on top of the 45 it had already
-#: lost; guessing wrong costs 46 and leaves the walk no further forward.
+#: Ninety seconds, down from a quarter of an hour. The window it is standing
+#: clear of is the Finance surface's minute rather than `reportDetailByPeriod`'s
+#: fifteen, and a wait longer than the window it protects is pure delay on a
+#: lane that has already been dead for :data:`STALE_AFTER`. Longer than one
+#: refill rather than exactly one, because the refill starts whenever the dead
+#: tick last spent a token and nothing records when that was.
 #:
 #: The other three lanes are paced by a bucket that refuses locally rather than
 #: by a server-side penalty, so an early tick there is answered by their own
 #: gate and costs nothing.
 LANE_RESTART_DELAY: dict[BackfillLane, int] = {
-    BackfillLane.PNL: 15 * 60 + 30,
+    BackfillLane.PNL: 90,
 }
 
 #: How long a lane may go without moving before it is presumed dead.
 #:
-#: Set from the slowest lane's own cadence, not from impatience: the P&L tick
-#: re-enqueues itself every ~15.5 minutes, and a tick that finds WB's window
-#: shut legitimately records nothing new but its message. Forty-five minutes is
-#: three of those — long enough that a healthy slow lane is never restarted,
-#: short enough that a dead one loses at most two pages.
+#: One figure for every lane, which it has not been since the P&L lane paced
+#: itself in quarter-hours. That lane needed three hours of patience and the
+#: monitoring lanes could not be given it — a dead catalogue would have meant an
+#: afternoon of a new seller staring at an empty profile — so the patience was
+#: per lane, and `SETTLEMENT_PACE_CEILING_SECONDS` was what the slow one's came
+#: from.
+#:
+#: Forty-five minutes covers both families now, with the same margin for each:
+#:
+#: * the **P&L** lane runs a tick of at most 10 minutes and then waits at most
+#:   15 (`finreports.tasks.backfill._PACE_CEILING_SECONDS`), so 45 is a lane
+#:   that has missed the best part of two whole cycles;
+#: * the **monitoring** lanes tick every few seconds, except when they stand
+#:   aside for the nightly harvest — a 20-minute yield, which 45 clears twice
+#:   over.
+#:
+#: The invariant is the one thing to keep whatever the numbers become: patience
+#: must exceed a tick's runtime plus its longest permitted wait. A lane
+#: restarted for being exactly as slow as it was told to be is a lane whose
+#: restart then asks early, which is what WB answers with a penalty block.
 STALE_AFTER = timedelta(minutes=45)
-
-#: Lanes whose own cadence is slower than :data:`STALE_AFTER`, and how long they
-#: may therefore go quiet.
-#:
-#: The P&L lane paces itself against WB rather than against a constant, widening
-#: its interval whenever a page is refused. A watchdog fixed at 45 minutes
-#: therefore capped that interval at 40 — and a lane pinned against a cap it
-#: wants to cross keeps asking too early. Measured on NEVA over six hours:
-#: four pages served against six refusals, roughly 40% of an endpoint's whole
-#: daily budget spent on requests WB was always going to reject.
-#:
-#: Twice the pace ceiling: the lane records progress on every tick, including a
-#: refused one, so two intervals of silence is a lane that has genuinely stopped
-#: rather than one waiting out its longest permitted wait.
-LANE_STALE_AFTER: dict[BackfillLane, timedelta] = {
-    BackfillLane.PNL: timedelta(seconds=SETTLEMENT_PACE_CEILING_SECONDS * 2),
-}
-
-
-def _patience(lane: BackfillLane) -> timedelta:
-    """How long this lane may go without moving before it is presumed dead."""
-    return LANE_STALE_AFTER.get(lane, STALE_AFTER)
 
 
 async def _stalled(now: datetime, *, orphaned: bool = False) -> list[tuple[uuid.UUID, str]]:
@@ -136,20 +128,7 @@ async def _stalled(now: datetime, *, orphaned: bool = False) -> list[tuple[uuid.
         WorkspaceBackfill.state.in_([BackfillState.PENDING, BackfillState.RUNNING])
     ]
     if not orphaned:
-        # Per lane, because they do not run at the same speed. One flat
-        # threshold is what forced the slowest lane's pacing to fit the fastest
-        # lane's idea of dead.
-        conditions.append(
-            or_(
-                *(
-                    and_(
-                        WorkspaceBackfill.lane == lane,
-                        WorkspaceBackfill.updated_at < now - _patience(lane),
-                    )
-                    for lane in BackfillLane
-                )
-            )
-        )
+        conditions.append(WorkspaceBackfill.updated_at < now - STALE_AFTER)
     async with AsyncSessionLocal() as session:
         rows = await session.execute(
             select(WorkspaceBackfill.workspace_id, WorkspaceBackfill.lane).where(*conditions)
@@ -213,7 +192,7 @@ def sweep_stalled_backfills(orphaned: bool = False) -> dict[str, int]:
                 workspace_id,
                 "was orphaned by a worker restart"
                 if orphaned
-                else f"had not moved in {_patience(BackfillLane(lane))}",
+                else f"had not moved in {STALE_AFTER}",
                 task_name,
                 delay,
             )

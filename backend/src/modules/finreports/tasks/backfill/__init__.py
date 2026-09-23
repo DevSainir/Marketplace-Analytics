@@ -40,10 +40,7 @@ from src.core.redis import get_redis
 from src.core.tasks import run_task
 from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
 from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
-from src.integrations.wildberries.rate_limit.surfaces import (
-    BACKGROUND_RESERVE_SECONDS,
-    SETTLEMENT_PACE_CEILING_SECONDS,
-)
+from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
 from src.modules.finreports.constants import HARVEST_LOCK_KEY
 from src.modules.finreports.tasks.backfill.discovery import (
     PNL_FLOOR_DAYS,
@@ -67,10 +64,24 @@ from src.modules.workspaces.contract import (
 
 logger = get_logger(__name__)
 
-#: WB's published budget on the endpoint this lane has LEFT. Describes nothing
-#: it now does — the Finance surface serves one request a minute — and survives
-#: only as the figure the backfill watchdog's patience is still sized against.
-_NEXT_PAGE_SECONDS = 15 * 60 + 30
+#: The longest gap this lane will leave between ticks.
+#:
+#: Ninety minutes until 2026-09-23, and that number was about a different
+#: endpoint: `reportDetailByPeriod` answered an early ask with a penalty, so
+#: waiting out a long block in ONE sleep was cheaper than waking into it.
+#:
+#: It is not any more, because a tick that wakes into a block now costs nothing
+#: — `walk._shut_for` reads the refusal from Redis before a request is sent and
+#: re-enqueues. So the argument reverses: a lane asleep for ninety minutes is
+#: indistinguishable from a dead one, both to the watchdog and to the seller
+#: reading the profile, while a lane that wakes every quarter of an hour and
+#: records «ждём окно» is visibly alive and no more expensive.
+#:
+#: The watchdog's patience is sized against this — see
+#: `workspaces.tasks.STALE_AFTER`, which must clear a tick's own runtime plus
+#: this. A lane may not be restarted for being exactly as slow as it was told
+#: to be.
+_PACE_CEILING_SECONDS = 15 * 60
 
 #: The only floor left: a guard against spinning, not a pacing decision.
 #:
@@ -128,7 +139,7 @@ async def _next_page_delay(tokens: WorkspaceTokenBundle) -> int:
     )
     return min(
         max(_MIN_PAGE_GAP_SECONDS, int(shut_for) + _WAKE_MARGIN_SECONDS),
-        SETTLEMENT_PACE_CEILING_SECONDS,
+        _PACE_CEILING_SECONDS,
     )
 
 
