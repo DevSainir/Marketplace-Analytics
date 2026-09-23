@@ -995,26 +995,6 @@ export interface paths {
     patch?: never
     trace?: never
   }
-  '/api/v1/monitoring/charts': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     * Get Aggregate Charts
-     * @description Return the «Сравнение SKU» page's day series, summed over the chosen SKUs.
-     */
-    get: operations['get_aggregate_charts_api_v1_monitoring_charts_get']
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
   '/api/v1/monitoring/pins': {
     parameters: {
       query?: never
@@ -1349,6 +1329,32 @@ export interface paths {
      *     article string and no catalogue at all.
      */
     get: operations['get_pnl_by_sku_api_v1_finreports_pnl_skus_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/finreports/pnl/skus/{nm_id}/sizes': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Pnl Sizes
+     * @description Return one article's settlement rows cut by WB's size label.
+     *
+     *     The drill-down the «По артикулам» table opens under a row. Nothing here
+     *     comes from outside the settlement detail — WB stamps ``ts_name`` on every
+     *     row it bills, so the sizes are a regrouping of the article's own rows and
+     *     sum back to it. Advertising has no size and is therefore absent, which the
+     *     profit column says in its name rather than in a footnote.
+     */
+    get: operations['get_pnl_sizes_api_v1_finreports_pnl_skus__nm_id__sizes_get']
     put?: never
     post?: never
     delete?: never
@@ -2388,25 +2394,6 @@ export interface components {
       order_conversion: number
     }
     /**
-     * AggregateChartsResponse
-     * @description Day-by-day metrics for a set of SKUs, summed.
-     */
-    AggregateChartsResponse: {
-      window: components['schemas']['MetricWindow']
-      /**
-       * Nm Ids
-       * @description The SKUs actually included. Empty request means every SKU in the workspace, and this field reports which those turned out to be — so a chart drawn from a stale picker cannot silently claim to cover cards it never saw.
-       */
-      nm_ids?: number[]
-      /**
-       * Sku Count
-       * @description How many SKUs contributed at least one day.
-       */
-      sku_count: number
-      /** @description Day x bucket matrix carrying only «Общая» and «Органика». Every value is computed server-side, exactly like the per-SKU matrix — ratios from the summed totals, never an average of per-SKU ratios. */
-      matrix: components['schemas']['MetricsMatrixRead']
-    }
-    /**
      * AssocSkuCount
      * @description One variant's share of a cell's associative conversions.
      *
@@ -2493,7 +2480,7 @@ export interface components {
     BackfillLaneStatus: {
       /**
        * Lane
-       * @description Lane key: catalogue | funnel | advertising | orders | pnl.
+       * @description Lane key: catalogue | funnel | advertising | pnl.
        */
       lane: string
       /**
@@ -3532,6 +3519,11 @@ export interface components {
       latest_settled?: string | null
       /** @description The newest report on file, or null for a never-harvested workspace. */
       latest_report?: components['schemas']['LatestReportOut'] | null
+      /**
+       * Provisional Through
+       * @description Last day covered by WB's PROVISIONAL daily reports, when they reach past the settled weekly period; null otherwise. The statement includes these days, but no weekly settlement document covers them yet and whether WB revises a daily report is still being measured — so they are reported apart from `latest_settled` rather than folded into it.
+       */
+      provisional_through?: string | null
       /** @description The last recorded freshness verdict, or null when there is none — never checked, expired, or an unreadable record. All three mean «мы не проверяли», which is the honest answer. */
       last_check?: components['schemas']['FreshnessCheckOut'] | null
     }
@@ -4131,10 +4123,12 @@ export interface components {
      * ModuleKey
      * @description The product surfaces a manager can be granted or denied.
      *
-     *     Deliberately coarser than the navigation. «Сравнение SKU» is not here because it
-     *     renders monitoring's own data: a manager who may not see the monitoring
-     *     tables must not see the same numbers drawn as lines, and two switches that
-     *     must always agree are a bug waiting for someone to set them apart.
+     *     Deliberately coarser than the navigation. «Сводка» is not here, and for the
+     *     opposite reason to the page it replaced: it draws BOTH of the surfaces below
+     *     — the settlement's money and monitoring's demand — so it asks for both
+     *     grants rather than introducing a third switch that would have to agree with
+     *     them. Two switches that must always agree are a bug waiting for somebody to
+     *     set them apart.
      * @enum {string}
      */
     ModuleKey: 'monitoring' | 'finreports' | 'ab_tests'
@@ -4403,6 +4397,73 @@ export interface components {
        * @default []
        */
       breakdown: components['schemas']['ReasonShare'][]
+    }
+    /**
+     * PnlSizeRow
+     * @description One size of one article over the window, in the settlement currency.
+     */
+    PnlSizeRow: {
+      /** Ts Name */
+      ts_name: string
+      /** Sold Units */
+      sold_units: number
+      /** Returned Units */
+      returned_units: number
+      /** Delivered Units */
+      delivered_units: number
+      /** Buyout Pct */
+      buyout_pct: string | null
+      /** Buyout Vs Article Pp */
+      buyout_vs_article_pp: string | null
+      /** Revenue Paid */
+      revenue_paid: string
+      /** Revenue Seller Price */
+      revenue_seller_price: string
+      /** Spp Pct */
+      spp_pct: string | null
+      /** Average Cheque */
+      average_cheque: string | null
+      /** Logistics Total */
+      logistics_total: string
+      /** Logistics Pct */
+      logistics_pct: string | null
+      /** Logistics Per Delivery */
+      logistics_per_delivery: string | null
+      /** Penalties Total */
+      penalties_total: string
+      /** Cogs */
+      cogs: string | null
+      /** Payout Net */
+      payout_net: string
+      /** Margin Before Ads */
+      margin_before_ads: string | null
+      /** Margin Pct */
+      margin_pct: string | null
+    }
+    /**
+     * PnlSizesResponse
+     * @description One article's sizes for a settlement-date window.
+     */
+    PnlSizesResponse: {
+      /** Nm Id */
+      nm_id: number
+      /** Sa Name */
+      sa_name: string
+      /**
+       * Date From
+       * Format: date
+       */
+      date_from: string
+      /**
+       * Date To
+       * Format: date
+       */
+      date_to: string
+      /** Currency */
+      currency: string
+      /** Rows */
+      rows: components['schemas']['PnlSizeRow'][]
+      totals: components['schemas']['PnlSizeRow']
     }
     /**
      * PnlSkuReportResponse
@@ -7446,50 +7507,6 @@ export interface operations {
       }
     }
   }
-  get_aggregate_charts_api_v1_monitoring_charts_get: {
-    parameters: {
-      query?: {
-        /** @description Inclusive start. */
-        date_from?: string | null
-        /** @description Inclusive end. */
-        date_to?: string | null
-        /** @description SKUs to include. Repeat the parameter for several; omit it entirely for every SKU in the workspace, which is what the page shows by default. */
-        nm_ids?: number[] | null
-      }
-      header?: {
-        /** @description Active workspace id (UUID) the request operates in. */
-        'X-Workspace-Id'?: string | null
-      }
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Account-wide daily series for the window. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['AggregateChartsResponse']
-        }
-      }
-      /** @description Unauthorized access token. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Invalid date window. */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
   list_pins_api_v1_monitoring_pins_get: {
     parameters: {
       query?: never
@@ -8177,6 +8194,52 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['PnlSkuReportResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_pnl_sizes_api_v1_finreports_pnl_skus__nm_id__sizes_get: {
+    parameters: {
+      query?: {
+        /** @description Inclusive settlement-date start. */
+        date_from?: string | null
+        /** @description Inclusive settlement-date end. */
+        date_to?: string | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Per-size P&L rows for one article («подтаблица размеров»). */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PnlSizesResponse']
         }
       }
       /** @description Unauthorized access token. */

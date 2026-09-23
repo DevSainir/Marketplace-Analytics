@@ -19,8 +19,10 @@ from src.modules.finreports.repos import (
     PnlRepository,
     SkuExclusionRepository,
 )
+from src.modules.finreports.schemas.size_report import PnlSizesResponse
 from src.modules.finreports.schemas.sku_report import PnlSkuReportResponse, PnlSkuRow
 from src.modules.finreports.services.cost_price_workbook import build_pnl_workbook
+from src.modules.finreports.services.pnl.size_report import build_size_rows
 from src.modules.finreports.services.pnl.sku_report import build_dashboard, build_sku_report
 
 _ZERO = Decimal(0)
@@ -51,6 +53,53 @@ class SkuReportService:
         """
         await self._exclusions.set_excluded(
             workspace_id=workspace_id, nm_id=nm_id, excluded=excluded
+        )
+
+    async def get_sizes(
+        self, *, workspace_id: uuid.UUID, nm_id: int, date_from: date, date_to: date
+    ) -> PnlSizesResponse:
+        """Return one article's per-size cut of the window.
+
+        The drill-down under a row of «По артикулам», fetched on the click that
+        opens it rather than with the table: a report of 40 articles carries
+        ~400 size rows, and a seller opens one or two of them.
+
+        Everything is measured off that article's own settlement rows — so the
+        sizes add up to the article — except the cost price, which is the
+        seller's own per-unit figure applied to each size's net units. There is
+        no advertising column at all: WB's Promotion API has no size.
+
+        Args:
+            workspace_id: Owning workspace.
+            nm_id: The article to cut.
+            date_from: Inclusive settlement-date start.
+            date_to: Inclusive settlement-date end.
+
+        Returns:
+            The size rows and the article-level row they sum to. An article
+            with no settlement row in the window comes back with no rows, not
+            an error — the window is the seller's to choose.
+        """
+        currency = await self._pnl.window_currency(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
+        costs = await self._costs.costs_by_nm_id(
+            workspace_id=workspace_id, currency=currency or "KGS"
+        )
+        sizes = await self._pnl.sizes(
+            workspace_id=workspace_id, nm_id=nm_id, date_from=date_from, date_to=date_to
+        )
+        rows, totals = build_size_rows(sizes, cost_price=costs.get(nm_id))
+        return PnlSizesResponse(
+            nm_id=nm_id,
+            sa_name=await self._pnl.sku_article(
+                workspace_id=workspace_id, nm_id=nm_id, date_from=date_from, date_to=date_to
+            ),
+            date_from=date_from,
+            date_to=date_to,
+            currency=currency or "KGS",
+            rows=rows,
+            totals=totals,
         )
 
     async def get_report(

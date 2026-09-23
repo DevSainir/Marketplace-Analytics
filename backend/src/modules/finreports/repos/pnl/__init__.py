@@ -12,11 +12,13 @@ from src.modules.finreports.repos.pnl.aggregate import (
     SkuUnits,
 )
 from src.modules.finreports.repos.pnl.repository import PnlRepository
+from src.modules.finreports.repos.pnl.sizes import SizeSettlement
 
 __all__ = [
     "PnlGrouping",
     "PnlRepository",
     "ReasonAmount",
     "SettlementAggregate",
+    "SizeSettlement",
     "SkuUnits",
 ]

@@ -34,6 +34,10 @@ from src.modules.finreports.schemas.pnl import (
     PnlStatement,
     ReasonShare,
 )
+from src.modules.finreports.schemas.size_report import (
+    PnlSizeRow,
+    PnlSizesResponse,
+)
 from src.modules.finreports.schemas.sku_report import (
     PnlDashboard,
     PnlSkuReportResponse,
@@ -62,6 +66,8 @@ __all__ = [
     "PnlDashboard",
     "PnlResponse",
     "PnlSection",
+    "PnlSizeRow",
+    "PnlSizesResponse",
     "PnlSkuReportResponse",
     "PnlSkuRow",
     "PnlStatement",

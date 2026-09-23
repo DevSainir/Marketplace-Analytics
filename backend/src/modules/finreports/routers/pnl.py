@@ -29,6 +29,7 @@ from src.modules.finreports.schemas import (
     CostPriceListResponse,
     CostPriceSaveResponse,
     PnlResponse,
+    PnlSizesResponse,
     PnlSkuReportResponse,
     SkuExclusionInput,
     WeeksResponse,
@@ -166,6 +167,36 @@ async def get_pnl_by_sku(
         ),
         ad_span=await ad_coverage(session, workspace_id=workspace_id, date_from=start, date_to=end),
         photos=await load_card_photos(session, workspace_id=workspace_id),
+    )
+
+
+@router.get(
+    "/pnl/skus/{nm_id}/sizes",
+    response_model=PnlSizesResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "Per-size P&L rows for one article («подтаблица размеров»)."},
+        401: {"description": "Unauthorized access token."},
+    },
+)
+async def get_pnl_sizes(
+    nm_id: int,
+    service: SkuReportServiceDep,
+    workspace_id: CurrentWorkspaceId,
+    date_from: date | None = Query(default=None, description="Inclusive settlement-date start."),
+    date_to: date | None = Query(default=None, description="Inclusive settlement-date end."),
+) -> PnlSizesResponse:
+    """Return one article's settlement rows cut by WB's size label.
+
+    The drill-down the «По артикулам» table opens under a row. Nothing here
+    comes from outside the settlement detail — WB stamps ``ts_name`` on every
+    row it bills, so the sizes are a regrouping of the article's own rows and
+    sum back to it. Advertising has no size and is therefore absent, which the
+    profit column says in its name rather than in a footnote.
+    """
+    start, end = resolve_window(date_from, date_to)
+    return await service.get_sizes(
+        workspace_id=workspace_id, nm_id=nm_id, date_from=start, date_to=end
     )
 
 

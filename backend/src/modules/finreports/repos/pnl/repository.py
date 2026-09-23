@@ -48,6 +48,7 @@ from src.modules.finreports.repos.pnl.aggregate import (
     _units,
 )
 from src.modules.finreports.repos.pnl.rollup import SettlementRollup
+from src.modules.finreports.repos.pnl.sizes import SizeSettlement, aggregate_by_size
 
 
 class PnlRepository:
@@ -217,6 +218,37 @@ class PnlRepository:
             )
             for r in rows
         ]
+
+    async def sizes(
+        self, *, workspace_id: uuid.UUID, nm_id: int, date_from: date, date_to: date
+    ) -> list[SizeSettlement]:
+        """Return one article's settlement rows rolled up per size.
+
+        Read from the DETAIL, not the rollup: the rollup is keyed by day x SKU
+        and carries no size at all, and widening it for a cut the seller opens
+        one article at a time would triple a table that every P&L page reads.
+        Scoped to one ``nm_id``, the detail pass is an index range scan.
+        """
+        return await aggregate_by_size(
+            self._session,
+            workspace_id=workspace_id,
+            nm_id=nm_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+    async def sku_article(
+        self, *, workspace_id: uuid.UUID, nm_id: int, date_from: date, date_to: date
+    ) -> str:
+        """Return the seller article WB stamped on this SKU's rows in the window.
+
+        ``""`` when the SKU has no row there — which is what tells the caller
+        the article is not in this window rather than merely sizeless.
+        """
+        stmt = select(func.max(_T.sa_name)).where(
+            *self._window(workspace_id, date_from, date_to), _T.nm_id == nm_id
+        )
+        return str((await self._session.scalar(stmt)) or "")
 
     async def cogs_inputs(
         self,
