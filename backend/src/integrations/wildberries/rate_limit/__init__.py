@@ -24,7 +24,6 @@ from src.integrations.wildberries.rate_limit.surfaces import (
     catalogue_rate_gate,
     finance_reports_rate_gate,
     marketplace_rate_gate,
-    settlement_walk_rate_gate,
     statistics_rate_gate,
 )
 
@@ -41,6 +40,5 @@ __all__ = [
     "catalogue_rate_gate",
     "finance_reports_rate_gate",
     "marketplace_rate_gate",
-    "settlement_walk_rate_gate",
     "statistics_rate_gate",
 ]

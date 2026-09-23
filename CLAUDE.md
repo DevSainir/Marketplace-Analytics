@@ -81,7 +81,7 @@ service runs instrumented whether or not anything is watching it.
 Read `PNL.md` before changing anything that touches a settlement figure — most of the ways to
 get it wrong produce a plausible statement rather than an error.
 `MIGRATION_TO_FINANCE_V1.md` records how the P&L moved off the settlement endpoint WB
-switched off on 15.07.2026 — done 22.09.2026, all seven phases. Read it before touching
+switched off on 15.07.2026 — six phases on 22.09.2026, the history backfill on 23.09. Read it before touching
 anything that paces, probes or walks the report: much of that machinery was built to
 survive the dead endpoint and is now either gone or demoted to a cross-check. Its phase-2
 diff (5508 rows, 61 of 63 columns identical to the value) is the evidence the cutover

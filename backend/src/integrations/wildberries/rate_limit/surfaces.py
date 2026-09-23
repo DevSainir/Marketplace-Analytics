@@ -298,36 +298,6 @@ def statistics_rate_gate(settings: Settings, *, token: str) -> RateGate:
     )
 
 
-def settlement_walk_rate_gate(settings: Settings, *, token: str) -> RateGate:
-    """Build the settlement walk's gate — the same bucket, a longer queue.
-
-    :func:`statistics_rate_gate` refuses rather than waits, because the request
-    it guards is made inside a transaction PostgreSQL closes after 300 s idle.
-    The walk takes its token BEFORE opening that transaction, so waiting is
-    exactly what it should do: one week of settlement rows is worth a quarter
-    of an hour, and the alternative is asking anyway and restarting WB's window.
-
-    Args:
-        settings: Bucket parameters and the Redis DSN.
-        token: The workspace's statistics token — the bucket is per token.
-
-    Returns:
-        A gate over the same per-endpoint bucket as
-        :func:`statistics_rate_gate`, willing to queue for a full refill.
-    """
-    if not settings.wb_rate_pacing_enabled:
-        return NullRateGate()
-    return TokenBucketRateGate(
-        get_redis(),
-        surface="statistics",
-        token=token,
-        capacity=settings.wb_statistics_bucket_capacity,
-        refill_seconds=settings.wb_statistics_bucket_refill_seconds,
-        max_wait_seconds=settings.wb_statistics_walk_queue_seconds,
-        endpoint_buckets=STATISTICS_ENDPOINT_BUCKETS,
-    )
-
-
 def advertising_rate_gate(settings: Settings, *, token: str) -> RateGate:
     """Build the pacing gate for the advertising surface.
 

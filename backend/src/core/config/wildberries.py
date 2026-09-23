@@ -174,11 +174,6 @@ class WildberriesSettings(BaseSettings):
     # block here would trade a failure the harvest reports for one it cannot.
     # Failing fast leaves the window for the next tick and costs WB nothing.
     wb_statistics_max_queue_seconds: float = Field(default=45.0, gt=0)
-    # What the settlement WALK may wait, as opposed to what a request inside a
-    # transaction may. The walk takes its token before it opens a transaction,
-    # so it can afford to sit out a whole refill — and must, because the window
-    # it is waiting for is a week of a seller's money.
-    wb_statistics_walk_queue_seconds: float = Field(default=1000.0, gt=0)
     # The «catalogue» family — content, prices and common (tariffs). All three
     # answered `x-ratelimit-limit: 5` when probed live on 2026-09-15, and a
     # burst against common-api pinned the window down: the 6th request inside

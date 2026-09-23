@@ -97,12 +97,14 @@ _TICK_WORK_BUDGET_SECONDS = 10 * 60
 #: most 60 s, while a penalty block reports hundreds or thousands. Anything past
 #: this is not a wait, it is a closed door.
 #:
-#: Checked BEFORE anything is sent, and that is the point. ``acquire`` sleeps up
-#: to ``wb_statistics_walk_queue_seconds`` (1000 s) before it raises, which
-#: outlasts this task's own soft limit — and ``SoftTimeLimitExceeded`` is not
-#: the ``IntegrationError`` the lane catches, so the tick would die recording
-#: nothing and re-enqueueing nothing. That is precisely how this lane was lost
-#: for eleven hours on 2026-09-10, on the endpoint before this one.
+#: Checked BEFORE anything is sent, and that is the point: ``acquire`` SLEEPS
+#: out whatever it is told to wait, up to ``FINANCE_QUEUE_SECONDS``, and only
+#: then raises. Both figures are inside this task's soft limit today, and this
+#: is the belt to that braces — a tick that dies to
+#: ``SoftTimeLimitExceeded`` records nothing and re-enqueues nothing, because it
+#: is not the ``IntegrationError`` the lane catches. That is precisely how this
+#: lane was lost for eleven hours on 2026-09-10, on the endpoint before this
+#: one, where the queue was 1000 s against a 300 s limit.
 _TICK_WAIT_BUDGET_SECONDS = 120.0
 
 
