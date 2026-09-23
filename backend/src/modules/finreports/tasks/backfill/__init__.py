@@ -43,7 +43,7 @@ from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
 from src.modules.finreports.constants import HARVEST_LOCK_KEY
 from src.modules.finreports.tasks.backfill.discovery import (
-    PNL_FLOOR_DAYS,
+    WB_REPORTS_EPOCH,
     format_cursor,
     parse_cursor,
     survey_backlog,
@@ -375,8 +375,8 @@ def backfill_pnl(
 
 
 __all__ = [
-    "PNL_FLOOR_DAYS",
     "REPORTS_PER_TICK",
+    "WB_REPORTS_EPOCH",
     "advance_pnl",
     "backfill_pnl",
     "format_cursor",

@@ -174,13 +174,15 @@ async def test_the_reports_the_forward_harvest_owns_are_not_offered(
     assert backlog.total == 1, "a report the harvest owns is not this lane's denominator either"
 
 
-async def test_reports_older_than_the_depth_are_not_offered(
+async def test_reports_older_than_the_floor_are_not_offered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The depth is a product decision and the walk has to honour it.
+    """The floor is a parameter so a test can narrow history; it must bite.
 
-    WB serves from the account's own beginning, so without this the lane would
-    collect however much history the seller happens to have.
+    Production passes `WB_REPORTS_EPOCH` and collects everything — see
+    `test_pnl_backfill_sweeps` for that half. This pins that the bound is real,
+    so a future depth decision has something to land on rather than a parameter
+    nothing reads.
     """
     inside = _header(300, FLOOR + timedelta(days=1))
     outside = _header(301, FLOOR - timedelta(days=1))

@@ -3,7 +3,7 @@
 The half that used to be :mod:`span`, and it is a different question now. The
 old endpoint took a PERIOD, so "what is missing" had to be inferred from the
 settlement days already stored: a hole was a run of empty days long enough not
-to be the ordinary weekly rhythm (:data:`PNL_GAP_TOLERANCE_DAYS`, fourteen), a
+to be the ordinary weekly rhythm (a fourteen-day tolerance), a
 span was the newest such hole cut to a month, and the whole thing was a
 heuristic reading tea leaves out of ``logistics_transaction``. It failed in
 production more than once, and always the same way — a hole it could not see,
@@ -16,10 +16,11 @@ seller's history is not a special case — it is one of the ids in the set.
 
 Measured on «Демо» 2026-09-23, which is what makes this affordable:
 
-* **one list request covers the whole history.** A 1095-day window returned all
-  143 reports, back to the account's first week in January 2024. Discovery is
-  one request, not a walk, and it is on its own 1/min bucket — so a tick that
-  re-lists costs the fetching budget nothing.
+* **one list request covers the whole history, at any width.** A 1095-day
+  window returned all 143 reports, back to the account's first week in January
+  2024, and an 11.7-year one returned exactly the same 143 rather than refusing
+  or truncating. Discovery is one request, not a walk, and it is on its own
+  1/min bucket — so a tick that re-lists costs the fetching budget nothing.
 * **no report needs a second page.** The largest of the 143 held 16 801 rows
   against WB's 100 000-row page. One report is one request.
 
@@ -43,19 +44,26 @@ from src.modules.finreports.repos import FinancialReportRepository
 from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
-#: How far back a new workspace's settlement history is collected.
+#: The oldest day WB is asked about — early enough to mean «everything».
 #:
-#: A product decision with a measured price. The price used to be hours: the old
-#: endpoint served roughly one page an hour, and three months of a large
-#: seller's detail was ~15 h of walking, so the depth was what we were willing
-#: to make a new seller wait for.
+#: There is no depth limit any more, and that is a measurement rather than a
+#: preference. A new seller used to get three months because the old endpoint
+#: served roughly one page an hour and three months of a large seller's detail
+#: was ~15 h of walking; six would have made their finances an overnight job.
 #:
-#: That arithmetic is gone. One report is one request at one request a minute,
-#: so the whole of «Демо»'s 143-report history is ~143 minutes — less than
-#: the three months used to cost. The number is kept for now because widening
-#: it is a product decision rather than a consequence of this rewrite, and it
-#: belongs in its own change with its own measurement.
-PNL_FLOOR_DAYS = 90
+#: The cost is now one request per report at one request a minute, and a seller
+#: forms about 52 reports a year whatever their size — so a full history is
+#: ~52 minutes per year of trading. «Демо»'s two and a half years is ~143
+#: requests; five years of trading would be ~260, or four and a half hours,
+#: against an advertising lane that takes ~7 h on the same signup. The P&L is
+#: no longer the thing a new seller waits for, at any depth, so there is
+#: nothing left for a floor to buy.
+#:
+#: A date rather than a day count because it is not a window: it is «before any
+#: report can exist». Verified live on «Демо» 2026-09-23 — `list` accepts an
+#: 11.7-year window and answers with the account's own history, 143 reports from
+#: its first week, rather than refusing or truncating.
+WB_REPORTS_EPOCH = date(2015, 1, 1)
 
 #: Cursor field separator.
 _SEP = "|"
@@ -107,7 +115,9 @@ async def survey_backlog(
 
     Args:
         tokens: The workspace's decrypted WB credentials.
-        floor: The oldest settlement day worth asking for.
+        floor: The oldest settlement day worth asking for. Production passes
+            :data:`WB_REPORTS_EPOCH`; it is a parameter so a test can narrow the
+            history without narrowing what a seller gets.
         ceiling: Ignore reports ending after this — already attempted in this
             sweep. See :func:`advance_ceiling`.
         today: Today in Moscow time.
@@ -222,7 +232,7 @@ def format_cursor(ceiling: date, sweep: int, outstanding_at_sweep_start: int) ->
 
 
 __all__ = [
-    "PNL_FLOOR_DAYS",
+    "WB_REPORTS_EPOCH",
     "Backlog",
     "advance_ceiling",
     "format_cursor",

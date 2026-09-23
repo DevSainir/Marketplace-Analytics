@@ -68,13 +68,16 @@ def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _backlog(
     monkeypatch: pytest.MonkeyPatch, *, due: tuple[MissingReport, ...], outstanding: int, total: int
-) -> None:
-    """Make the survey answer with this backlog, whatever it is asked."""
+) -> list[dict[str, Any]]:
+    """Make the survey answer with this backlog, and record what it was asked."""
+    asked: list[dict[str, Any]] = []
 
-    async def _survey(**_kwargs: Any) -> discovery.Backlog:
+    async def _survey(**kwargs: Any) -> discovery.Backlog:
+        asked.append(kwargs)
         return discovery.Backlog(due=due, outstanding=outstanding, total=total)
 
     monkeypatch.setattr(walk, "survey_backlog", _survey)
+    return asked
 
 
 def _fetch(monkeypatch: pytest.MonkeyPatch, *, rows: int = 500, failed: int = 0) -> list[Any]:
@@ -171,6 +174,26 @@ async def test_a_lane_owed_nothing_finishes(monkeypatch: pytest.MonkeyPatch) -> 
 # --------------------------------------------------------------------------- #
 # What a working tick does
 # --------------------------------------------------------------------------- #
+async def test_the_lane_asks_wb_for_the_whole_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """There is no depth limit, and that is a measurement rather than a taste.
+
+    Three months was what a new seller got when the old endpoint served roughly
+    one page an hour and three months of a large seller's detail was ~15 h of
+    walking. It is now one request per report at one request a minute, and a
+    seller forms about 52 reports a year whatever their size — so a full
+    history is ~52 minutes per year of trading, against an advertising lane
+    that takes ~7 h on the same signup. Nothing is left for a floor to buy.
+    """
+    asked = _backlog(monkeypatch, due=(), outstanding=0, total=0)
+    _fetch(monkeypatch)
+
+    await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
+
+    assert asked[0]["floor"] == discovery.WB_REPORTS_EPOCH
+
+
 async def test_a_tick_takes_the_newest_reports_when_it_cannot_take_them_all(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

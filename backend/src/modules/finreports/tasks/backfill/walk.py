@@ -31,7 +31,7 @@ against instead.
 from __future__ import annotations
 
 import time
-from datetime import date, timedelta
+from datetime import date
 
 from src.core.config import settings
 from src.core.exceptions import IntegrationError
@@ -44,7 +44,7 @@ from src.integrations.wildberries.endpoints import (
 from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
 from src.modules.finreports.tasks.backfill.discovery import (
-    PNL_FLOOR_DAYS,
+    WB_REPORTS_EPOCH,
     Backlog,
     advance_ceiling,
     format_cursor,
@@ -132,7 +132,7 @@ async def advance_pnl(
         return LaneStep(0, 0, None, True, "Нет токена «Финансы» — P&L пропущен.")
 
     today = moscow_today()
-    floor = today - timedelta(days=PNL_FLOOR_DAYS)
+    floor = WB_REPORTS_EPOCH
     resumed = parse_cursor(cursor) if cursor else None
     ceiling, sweep, at_sweep_start = resumed or (today, 1, 0)
 
