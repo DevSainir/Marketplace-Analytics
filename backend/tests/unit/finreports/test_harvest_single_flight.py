@@ -205,3 +205,55 @@ async def test_an_unreachable_redis_does_not_block_the_button() -> None:
     state = await service.get_state(workspace_id=WORKSPACE)
 
     assert state.running is False
+
+
+async def test_the_button_reads_the_bucket_the_harvest_actually_spends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """«Обновить» must answer «rate_limited» from the endpoint in use today.
+
+    It read the statistics gate on `reportDetailByPeriod` until 2026-09-23 — the
+    endpoint the harvest left on 22.09 — so it inspected a bucket nothing writes
+    to any more. It always answered «open», the route's `rate_limited` branch
+    became unreachable, and a seller clicking into a standing block was told the
+    harvest had started and then watched it not happen.
+    """
+    from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
+    from src.modules.finreports.services import harvest_control
+
+    asked: list[tuple[str, str]] = []
+
+    class _Gate:
+        def __init__(self, token: str) -> None:
+            self.token = token
+
+        async def retry_after(self, endpoint: str, *, reserve_seconds: float = 0.0) -> float:
+            asked.append((self.token, endpoint))
+            return 391.0
+
+    monkeypatch.setattr(
+        harvest_control,
+        "finance_reports_rate_gate",
+        lambda _settings, *, token: _Gate(token),
+    )
+
+    async def _tokens(_workspace_id: uuid.UUID) -> WorkspaceTokenBundle:
+        return WorkspaceTokenBundle(
+            workspace_id=WORKSPACE,
+            name="Демо",
+            statistics="a-statistics-token",
+            finance="a-finance-token",
+        )
+
+    service = HarvestControlService(
+        report_repo=_StubReportRepo(None),  # type: ignore[arg-type]
+        daily_repo=_StubDailyRepo(),  # type: ignore[arg-type]
+        redis=_HeldRedis(),  # type: ignore[arg-type]
+        freshness_records=NullFreshnessRecordStore(),
+        load_tokens=_tokens,
+    )
+
+    retry_after = await service.settlement_retry_after(workspace_id=WORKSPACE)
+
+    assert retry_after == 391.0
+    assert asked == [("a-finance-token", SALES_REPORTS_DETAILED_PATH)]

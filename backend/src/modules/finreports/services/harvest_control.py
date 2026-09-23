@@ -38,8 +38,8 @@ from redis.asyncio import Redis
 
 from src.core.config import settings
 from src.core.locks import is_held
-from src.integrations.wildberries.endpoints import SETTLEMENT_REPORT_PATH
-from src.integrations.wildberries.rate_limit import statistics_rate_gate
+from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
+from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.modules.finreports.constants import HARVEST_LOCK_KEY
 from src.modules.finreports.repos import (
     DailySettlementRepository,
@@ -106,7 +106,7 @@ class HarvestControlService:
             redis: The client holding the harvest lock.
             freshness_records: Where the harvest task records what it found.
             load_tokens: Resolves a workspace's WB credentials. Only the
-                statistics token is used, and only to name the rate bucket —
+                «Финансы» token is used, and only to name the rate bucket —
                 see :meth:`settlement_retry_after`.
         """
         self._report_repo = report_repo
@@ -118,13 +118,19 @@ class HarvestControlService:
     async def settlement_retry_after(self, *, workspace_id: uuid.UUID) -> float:
         """Seconds before WB would accept a settlement request for this workspace.
 
-        WB meters ``reportDetailByPeriod`` at one request per ~15 minutes, so a
-        click shortly after the hourly tick used to enqueue a harvest whose
-        first act was to sit still for most of a quarter of an hour — seven
-        minutes of «Обновляем…» with nothing happening (prod 2026-09-09). The
-        bucket already knows the number, and it is in shared Redis, so the
-        answer costs a Redis round trip and **no WB request**: asking WB whether
-        WB will accept a request is the one thing that cannot be done here.
+        A click shortly after a tick used to enqueue a harvest whose first act
+        was to sit still waiting for WB's next token — seven minutes of
+        «Обновляем…» with nothing happening (prod 2026-09-09). The bucket
+        already knows the number, and it is in shared Redis, so the answer costs
+        a Redis round trip and **no WB request**: asking WB whether WB will
+        accept a request is the one thing that cannot be done here.
+
+        **It has to be the bucket the harvest actually spends.** This read the
+        statistics gate on ``reportDetailByPeriod`` until 2026-09-23, which is
+        the endpoint the harvest left on 22.09 — a bucket nothing writes to any
+        more, so it always answered «open» and the button's `rate_limited`
+        branch became unreachable. A seller clicking into a standing block was
+        told the harvest had started, and then watched it not happen.
 
         Read-only in every sense — it takes no token from the bucket, so the
         page may ask as often as it likes without spending the harvest's budget.
@@ -135,14 +141,14 @@ class HarvestControlService:
 
         Returns:
             Seconds to wait, or ``0.0`` when a request may go out now —
-            including when the workspace has no statistics token or the bucket
+            including when the workspace has no «Финансы» token or the bucket
             cannot be read. Fails open: an unknown block is not a block.
         """
         tokens = await self._load_tokens(workspace_id)
-        if tokens is None or not tokens.statistics:
+        if tokens is None or not tokens.finance:
             return 0.0
-        gate = statistics_rate_gate(settings, token=tokens.statistics)
-        return await gate.retry_after(SETTLEMENT_REPORT_PATH)
+        gate = finance_reports_rate_gate(settings, token=tokens.finance)
+        return await gate.retry_after(SALES_REPORTS_DETAILED_PATH)
 
     async def get_state(self, *, workspace_id: uuid.UUID) -> HarvestState:
         """Return liveness, coverage and the last freshness verdict.
