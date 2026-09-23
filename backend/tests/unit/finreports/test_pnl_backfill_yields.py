@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import pytest
 
+from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
+from src.integrations.wildberries.rate_limit import FINANCE_REPORT_ENDPOINT_BUCKETS
 from src.modules.finreports.constants import HARVEST_LOCK_KEY, HARVEST_LOCK_TTL_SECONDS
 from src.modules.finreports.tasks import backfill
 
@@ -65,14 +67,27 @@ async def test_a_redis_outage_lets_the_backfill_continue(
     assert await backfill._harvest_is_running() is False
 
 
-def test_the_yield_outlasts_the_lock_it_is_waiting_on() -> None:
-    """A tick that wakes while the harvest still holds the lock has wasted a trip.
+def test_the_yield_waits_for_a_token_and_not_for_a_lock_ttl() -> None:
+    """What a yielding tick is actually waiting for is the next WB token.
 
-    Worse, it re-enqueues from there — so a yield shorter than the lock turns
-    into a sequence of them, and the lane can spend a whole harvest window
-    waking up to the same closed door.
+    It used to wait eleven minutes, «just over the harvest's own lock TTL» —
+    sized when a settlement request was one of about 94 a day and the harvest
+    could hold the endpoint for a quarter of an hour. The Finance surface serves
+    one request per minute per method, so a yield of a whole TTL costs the lane
+    roughly nine tenths of its throughput whenever a harvest is in flight.
+
+    The TTL is not a runtime anyway: it bounds how long a DEAD holder strands the
+    lock, while a live harvest renews it for as long as it runs. Sizing a wait
+    against it was sizing against the wrong number in both directions.
+
+    So: at least one refill of the bucket being waited on, and well inside the
+    TTL. A tick that wakes into a harvest still walking yields again, which costs
+    one Redis read.
     """
-    assert backfill._YIELD_SECONDS > HARVEST_LOCK_TTL_SECONDS
+    refill = FINANCE_REPORT_ENDPOINT_BUCKETS[SALES_REPORTS_DETAILED_PATH][1]
+
+    assert refill <= backfill._YIELD_SECONDS
+    assert backfill._YIELD_SECONDS < HARVEST_LOCK_TTL_SECONDS
 
 
 class _Gate:

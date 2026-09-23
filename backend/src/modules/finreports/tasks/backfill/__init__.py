@@ -139,9 +139,18 @@ _TICK_SOFT_LIMIT_SECONDS = 15 * 60
 
 #: How long to stand aside when the forward harvest holds the settlement token.
 #:
-#: Just over the harvest's own lock TTL, so a yielding tick wakes to a token the
-#: harvest has finished with rather than to the same closed door.
-_YIELD_SECONDS = 11 * 60
+#: Ninety seconds, and it used to be eleven minutes. That figure was «just over
+#: the harvest's own lock TTL», sized when a settlement request cost one of about
+#: 94 a day on `reportDetailByPeriod` and the harvest could hold the endpoint for
+#: a quarter of an hour at a stretch. The Finance surface serves one request per
+#: minute per method, so what a yielding tick is actually waiting for is the next
+#: token — and waiting eleven minutes for a minute-long bucket cost the backfill
+#: roughly nine tenths of its throughput whenever a harvest was in flight.
+#:
+#: Longer than the minute it strictly needs, so a tick that wakes into a harvest
+#: still walking does not spin: it yields again, and two wasted wake-ups a minute
+#: apart are worse than one that waits a little.
+_YIELD_SECONDS = 90
 
 
 #: How long this lane's tick lock outlives a holder that stops renewing it.
