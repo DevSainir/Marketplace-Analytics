@@ -112,6 +112,17 @@ def order(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         """The publication-spread measurement reads real rows; not this subject."""
         return
 
+    async def _verdict(**_kwargs: object) -> FreshnessVerdict:
+        """Re-reading the coverage after a walk opens a session of its OWN.
+
+        In `tasks.freshness`, not here — so patching this module's
+        `AsyncSessionLocal` does not cover it, and left real it reaches Postgres:
+        green on a laptop with Docker up, `Temporary failure in name resolution`
+        in CI. It is the settled lane's business, and this file is about the
+        order the two lanes run in.
+        """
+        return FreshnessVerdict(outcome=FreshnessOutcome.WB_HAS_NEW, checked_at=CHECKED_AT)
+
     async def _weekly(**_kwargs: object) -> dict[str, int]:
         ran.append("weekly")
         return {"finance": 1, "finance_windows_failed": 0}
@@ -131,6 +142,7 @@ def order(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     monkeypatch.setattr(fleet, "gap_repair_due", _no_repairs)
     monkeypatch.setattr(fleet, "moscow_today", lambda: TODAY)
     monkeypatch.setattr(fleet, "record_publication_spread", _no_spread)
+    monkeypatch.setattr(fleet, "verdict_from_walk", _verdict)
     monkeypatch.setattr(fleet, "harvest_workspace", _weekly)
     monkeypatch.setattr(fleet, "tail_one_workspace", _tail)
     return ran
