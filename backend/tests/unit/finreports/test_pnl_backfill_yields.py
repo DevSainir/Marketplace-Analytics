@@ -16,12 +16,30 @@ These pin the same rule onto the settlement lane.
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 
 from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
 from src.integrations.wildberries.rate_limit import FINANCE_REPORT_ENDPOINT_BUCKETS
 from src.modules.finreports.constants import HARVEST_LOCK_KEY, HARVEST_LOCK_TTL_SECONDS
 from src.modules.finreports.tasks import backfill
+from src.modules.workspaces.schemas import WorkspaceTokenBundle
+
+
+def _tokens() -> WorkspaceTokenBundle:
+    """A workspace whose «Финансы» and «Статистика» tokens are DIFFERENT.
+
+    Which is the shape «Демо» actually has — every other кабинет resolves
+    both to one `unified` token, and that is why the lane read the wrong bucket
+    for a day without anything showing.
+    """
+    return WorkspaceTokenBundle(
+        workspace_id=uuid.UUID("01a07a8d-6e3e-7012-ab9f-34443d93776d"),
+        name="Демо",
+        statistics="a-statistics-token",
+        finance="a-finance-token",
+    )
 
 
 class _FakeRedis:
@@ -115,7 +133,7 @@ async def test_an_open_window_is_not_padded_with_a_second_one(
     """
     monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(0.0))
 
-    assert await backfill._next_page_delay("t") == backfill._MIN_PAGE_GAP_SECONDS
+    assert await backfill._next_page_delay(_tokens()) == backfill._MIN_PAGE_GAP_SECONDS
 
 
 async def test_a_slow_tick_does_not_pay_for_its_own_duration_twice(
@@ -131,7 +149,7 @@ async def test_a_slow_tick_does_not_pay_for_its_own_duration_twice(
     """
     monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(740.0))
 
-    delay = await backfill._next_page_delay("t")
+    delay = await backfill._next_page_delay(_tokens())
 
     assert delay == 740 + backfill._WAKE_MARGIN_SECONDS
     assert delay < backfill._NEXT_PAGE_SECONDS, "the published budget outranked the bucket"
@@ -154,7 +172,7 @@ async def test_a_block_is_waited_out_using_wb_s_own_number(
     # whether or not the block was read at all.
     monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(2762.0))
 
-    delay = await backfill._next_page_delay("t")
+    delay = await backfill._next_page_delay(_tokens())
 
     assert delay == 2762 + backfill._WAKE_MARGIN_SECONDS
 
@@ -170,7 +188,31 @@ async def test_the_wait_never_outlasts_the_watchdog_s_patience(
 
     monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(99_999.0))
 
-    assert await backfill._next_page_delay("t") == SETTLEMENT_PACE_CEILING_SECONDS
+    assert await backfill._next_page_delay(_tokens()) == SETTLEMENT_PACE_CEILING_SECONDS
+
+
+async def test_the_delay_is_read_from_the_finance_token_s_bucket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bucket is keyed per token, so the wrong one is a bucket nobody writes.
+
+    This read `tokens.statistics` while building a FINANCE gate until
+    2026-09-23. On «Демо», which holds per-surface tokens, that bucket is
+    never written and always answers «open», so the lane paced itself on the
+    spin guard and could not see a penalty block at all. Every other кабинет
+    resolves both fields to one `unified` token, which is why it never showed.
+    """
+    seen: list[str] = []
+
+    def _gate(_settings: object, *, token: str) -> _Gate:
+        seen.append(token)
+        return _Gate(0.0)
+
+    monkeypatch.setattr(backfill, "finance_reports_rate_gate", _gate)
+
+    await backfill._next_page_delay(_tokens())
+
+    assert seen == ["a-finance-token"]
 
 
 async def test_the_backfill_asks_as_a_reserving_caller(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -186,7 +228,7 @@ async def test_the_backfill_asks_as_a_reserving_caller(monkeypatch: pytest.Monke
     gate = _Gate(0.0)
     monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: gate)
 
-    await backfill._next_page_delay("t")
+    await backfill._next_page_delay(_tokens())
 
     assert gate.reserve_seen == BACKGROUND_RESERVE_SECONDS
 

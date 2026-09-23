@@ -57,6 +57,7 @@ from src.modules.finreports.tasks.warmup import warm_settlement_rollup
 from src.modules.workspaces.contract import (
     BackfillLane,
     BackfillState,
+    WorkspaceTokenBundle,
     claim_chain,
     load_workspace_token_bundle,
     read_cursor,
@@ -66,10 +67,9 @@ from src.modules.workspaces.contract import (
 
 logger = get_logger(__name__)
 
-#: WB's published budget on the endpoint this lane has LEFT, kept as the name
-#: other modules and tests reason about and as the fallback for a workspace
-#: whose bucket cannot be read at all. It describes nothing the lane now does:
-#: the Finance surface serves one request a minute.
+#: WB's published budget on the endpoint this lane has LEFT. Describes nothing
+#: it now does — the Finance surface serves one request a minute — and survives
+#: only as the figure the backfill watchdog's patience is still sized against.
 _NEXT_PAGE_SECONDS = 15 * 60 + 30
 
 #: The only floor left: a guard against spinning, not a pacing decision.
@@ -87,8 +87,16 @@ _MIN_PAGE_GAP_SECONDS = 30
 _WAKE_MARGIN_SECONDS = 20
 
 
-async def _next_page_delay(token: str) -> int:
+async def _next_page_delay(tokens: WorkspaceTokenBundle) -> int:
     """When the next tick should run — WB's number rather than a guess.
+
+    Takes the whole bundle rather than a token string, and that is the fix for a
+    bug rather than a tidying. It read `tokens.statistics` while building a
+    FINANCE gate, so it asked a bucket nothing writes to: on «Демо», which
+    holds per-surface tokens, the answer was always «open» and the lane paced
+    itself on the spin guard. Every other кабинет resolves both fields to the
+    same `unified` token, which is why it never showed. A function that is
+    handed the bundle cannot be given the wrong half of it.
 
     This was briefly a LEARNED value, widening 1.5x on every refused page and
     easing 0.9x on every served one, and it was a mistake. It could not tell
@@ -114,7 +122,7 @@ async def _next_page_delay(token: str) -> int:
     Clamped only where the number stops being informative: a spin guard below,
     the watchdog's patience above.
     """
-    gate = finance_reports_rate_gate(settings, token=token)
+    gate = finance_reports_rate_gate(settings, token=tokens.finance)
     shut_for = await gate.retry_after(
         SALES_REPORTS_DETAILED_PATH, reserve_seconds=BACKGROUND_RESERVE_SECONDS
     )
@@ -283,11 +291,10 @@ def backfill_pnl(
             # rollup too — ~17 s on the largest кабинет — on their first click.
             await warm_settlement_rollup(workspace_id=ws_id, name=tokens.name)
         if not step.finished:
-            countdown = (
-                await _next_page_delay(tokens.statistics)
-                if tokens.statistics
-                else _NEXT_PAGE_SECONDS
-            )
+            # Unconditional: `advance_pnl` finishes the lane outright when there
+            # is no «Финансы» token, so a tick that has something to re-enqueue
+            # has one by construction.
+            countdown = await _next_page_delay(tokens)
             celery_app.send_task(
                 "finreports.backfill_pnl",
                 kwargs={"workspace_id": workspace_id, "chain": token},
