@@ -10,10 +10,18 @@
 -- the app a role of its own and the REVOKE becomes the control it was written
 -- to be.
 --
--- WHAT THIS GRANTS, and the two deliberate exceptions:
+-- WHAT THIS GRANTS, and the three deliberate exceptions:
 --
 --   * SELECT/INSERT/UPDATE/DELETE on every table in our six schemas, and USAGE
 --     on their sequences. That is the whole of what the application does.
+--   * NOT the `guide` schema, which is the seventh and is left out on purpose.
+--     The capture buffer is written by Celery tasks — which connect as the
+--     owner — and read by no route at all; that module has no router. A grant
+--     there would be privilege the application has no use for, and the failure
+--     direction without it is closed: a route or a probe that reaches those
+--     tables is refused rather than served another tenant's rows. Its tables
+--     already carry policies in `row_level_security.sql`, so if the buffer ever
+--     gains a reader, adding the schema to the loop below is the whole change.
 --   * NOT `organizations.audit_log`: INSERT and SELECT only. An audit trail the
 --     application can edit is one an attacker running the application can edit.
 --   * NO DDL, no ownership, no superuser. Migrations keep running as the owner,

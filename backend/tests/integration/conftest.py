@@ -49,6 +49,7 @@ from sqlalchemy.pool import NullPool
 # which is why it went unnoticed.
 import src.modules.ab_tests.models
 import src.modules.finreports.models
+import src.modules.guide.models
 import src.modules.monitoring.models
 import src.modules.organizations.models
 import src.modules.users.models
