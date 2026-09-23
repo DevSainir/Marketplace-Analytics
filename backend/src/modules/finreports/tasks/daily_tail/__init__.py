@@ -34,7 +34,10 @@ from what is and is not proven:
   кабинет walking it twice.
 """
 
-from src.modules.finreports.tasks.daily_tail.harvest import harvest_daily_tail
+from src.modules.finreports.tasks.daily_tail.harvest import (
+    harvest_daily_tail,
+    tail_one_workspace,
+)
 from src.modules.finreports.tasks.daily_tail.verify import verify_daily_tail
 
-__all__ = ["harvest_daily_tail", "verify_daily_tail"]
+__all__ = ["harvest_daily_tail", "tail_one_workspace", "verify_daily_tail"]

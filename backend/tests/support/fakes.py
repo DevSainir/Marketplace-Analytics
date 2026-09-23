@@ -396,7 +396,12 @@ class FakeRedis:
         return True
 
     async def set(
-        self, key: str, value: str, ex: int | None = None, nx: bool = False
+        self,
+        key: str,
+        value: str,
+        ex: int | None = None,
+        px: int | None = None,
+        nx: bool = False,
     ) -> bool | None:
         """Store a value, recording any TTL (which never elapses in a test).
 
@@ -406,13 +411,32 @@ class FakeRedis:
         debounce (``workspaces/bootstrap.py``), so a fake that ignored the flag
         would report every caller as the first one and let a test pass while
         production enqueued a harvest per save.
+
+        ``px`` is the millisecond form, which is what ``single_flight`` uses.
+        Accepted rather than rejected because a `TypeError` from a fake reads as
+        a bug in the code under test; recorded in the same table, since neither
+        TTL elapses here.
         """
         if nx and key in self.values:
             return None
         self.values[key] = value
         if ex is not None:
             self.expiries[key] = ex
+        if px is not None:
+            self.expiries[key] = px
         return True
+
+    async def eval(self, script: str, numkeys: int, *args: str) -> int:
+        """The compare-and-delete `single_flight` releases its lock with.
+
+        Only the one script is modelled: drop the key when it still holds the
+        caller's token, and report whether it did.
+        """
+        key, token = args[0], args[1]
+        if self.values.get(key) == token:
+            del self.values[key]
+            return 1
+        return 0
 
     async def get(self, key: str) -> str | None:
         """Return a stored value, or ``None`` when the key is absent."""
@@ -446,3 +470,17 @@ class FakeRedis:
     async def hlen(self, key: str) -> int:
         """Field count of a hash, for Celery's ``unacked`` in-progress set."""
         return len(self.hashes.get(key, {}))
+
+
+async def no_daily_tail(**_kwargs: object) -> dict[str, int]:
+    """The provisional daily tail, stubbed out of the settled harvest's tick.
+
+    Since 2026-09-23 both lanes run in one tick under one lock, so every test of
+    that tick reaches the tail. Cases about the settled half patch this in:
+    left live, it opens a real session and talks to WB.
+
+    Shaped like the tail's own counts fragment — the loop reads three keys off
+    it, and a missing one is a `KeyError` inside the harvest rather than a clear
+    failure in the test.
+    """
+    return {"reports": 0, "rows": 0, "reports_failed": 0}

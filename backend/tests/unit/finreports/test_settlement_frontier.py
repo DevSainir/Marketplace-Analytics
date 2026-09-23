@@ -48,6 +48,7 @@ from src.modules.finreports.tasks.harvest import (
 from src.modules.finreports.tasks.settlement import MissingReport, SettlementWalk
 from src.modules.finreports.tasks.spans import settlement_frontier, walk_span
 from src.modules.workspaces.contract import WorkspaceTokenBundle
+from tests.support.fakes import no_daily_tail
 
 pytestmark = pytest.mark.unit
 
@@ -248,6 +249,7 @@ async def test_the_harvest_asks_the_gate_about_the_frontier_not_the_watermark(
     monkeypatch.setattr(fleet, "load_workspace_token_bundles", _bundles)
     monkeypatch.setattr(fleet, "moscow_today", lambda: TODAY)
     monkeypatch.setattr(fleet, "check_freshness", _check)
+    monkeypatch.setattr(fleet, "tail_one_workspace", no_daily_tail)
 
     await harvest_all_workspaces(days=28)
 

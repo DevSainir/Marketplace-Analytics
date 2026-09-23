@@ -201,33 +201,21 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=3, minute=0),
         "kwargs": {"days": 28, "reconcile": True},
     },
-    # The provisional daily tail: the days between the last settled week and
-    # yesterday, from WB's per-day realization reports. Those exist on the same
-    # two methods as the weekly ones — `period: "daily"`, which defaults to
-    # `weekly`, which is why this service read only half the surface until
-    # 2026-09-23 — and WB serves a day's report the following morning instead of
-    # the one to eight days a week's report takes.
+    # The measurement the provisional daily tail owes: whether WB revises a daily
+    # report after first serving it. Unknown — re-reading one 42 minutes later
+    # found it identical, which rules out minute-by-minute top-ups and nothing
+    # else — and until it is answered no day in the tail may be presented as
+    # settled.
     #
-    # Minute 20, so a tick lands after the hourly weekly harvest at minute 0 has
-    # normally finished: both lanes spend the same one-request-a-minute WB
-    # buckets and both take `HARVEST_LOCK_KEY`, so an overlap costs a tick
-    # (`skipped_locked`) rather than a pile of 429s. Hourly rather than daily
-    # because WB's publication hour is not fixed anywhere on this surface, and a
-    # tick with nothing to fetch is one list request per workspace.
-    "hourly-finreports-daily-tail": {
-        "task": "finreports.harvest_daily_tail",
-        "schedule": crontab(hour="0-2,4,8-23", minute=20),
-    },
-    # And the measurement the tail owes: whether WB revises a daily report after
-    # first serving it. Unknown — re-reading one 42 minutes later found it
-    # identical, which rules out minute-by-minute top-ups and nothing else — and
-    # until it is answered no day in the tail may be presented as settled. Each
-    # report is re-read once, a day after it was harvested, and the row count and
-    # digest are compared against what the first ingest recorded.
+    # The tail itself has no entry here: it runs inside the harvest tick above,
+    # after each seller's weekly walk, because both lanes spend the same
+    # one-request-a-minute Finance buckets and as separate schedules the loser of
+    # an overlap simply skipped. This pass is separate because it is not part of
+    # fetching — one list request per workspace screens every queued report, and
+    # only a report whose totals moved costs a re-read.
     #
     # 12:40 MSK: outside the 05:00-07:00 block that belongs to the tariff
-    # snapshot and the monitoring harvest, and clear of both the 03:00
-    # reconciliation and the two lanes' own busy minutes.
+    # snapshot and the monitoring harvest, and clear of the 03:00 reconciliation.
     "daily-finreports-verify-daily-tail": {
         "task": "finreports.verify_daily_tail",
         "schedule": crontab(hour=12, minute=40),

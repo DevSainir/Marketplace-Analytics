@@ -4,16 +4,19 @@ Two properties, and each was a bug before it was a rule.
 
 **A click must reach the tail at all.** The days it covers — between the last
 weekly report and yesterday — are usually the days somebody is looking at when
-they press the button, and before this they arrived only on the next hourly
-tick, up to an hour later.
+they press the button, and before this they arrived only on the next scheduled
+tick.
 
-**A click must not spend anyone else's WB budget.** The same rule the settled
-harvest's route already follows: it used to enqueue the fleet walk, so one
-seller's button spent every other seller's rate budget and held the shared lock
-for the length of a platform-wide run. A scoped run also takes a lock of its own
-rather than the harvest's — under the shared one the click would answer
-«already running» and fetch nothing exactly while the hourly sweep was in
-flight, which is the case the button exists for.
+**A click must not spend anyone else's WB budget, or wait behind it.** The task
+used to sweep the fleet, so one seller's button reached every tenant's tokens.
+And it took the harvest's own lock, under which a click landing during the
+scheduled sweep would answer «already running» and fetch nothing — exactly the
+case the button exists for. It is now scoped to one workspace and keyed on it:
+the lock only has to stop two clicks on the same кабинет walking it twice.
+
+The fleet sweep is not tested here because it is no longer here — it runs inside
+the settled harvest's tick, after each seller's weekly walk. See
+`test_settlement_reconciliation.py` for that tick.
 """
 
 from __future__ import annotations
@@ -43,13 +46,10 @@ class _Run:
         walked: The workspaces actually harvested, in order.
         locks: The Redis keys the run took — a scoped run must not take the
             fleet's.
-        fleet_loaded: Non-empty when the fleet credential loader was called,
-            which decrypts every tenant's WB tokens.
     """
 
     walked: list[uuid.UUID] = field(default_factory=list)
     locks: list[str] = field(default_factory=list)
-    fleet_loaded: list[bool] = field(default_factory=list)
 
 
 class _FakeSession:
@@ -81,10 +81,6 @@ def run(monkeypatch: pytest.MonkeyPatch):
         run.walked.append(tokens.workspace_id)
         return dict(daily_tail._EMPTY, reports=1)
 
-    async def _fleet(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
-        run.fleet_loaded.append(True)
-        return [_bundle(MINE, "Демо"), _bundle(THEIRS, "NEVA")]
-
     async def _one(_session: object, workspace_id: uuid.UUID) -> WorkspaceTokenBundle | None:
         return _bundle(workspace_id, "Демо") if workspace_id == MINE else None
 
@@ -102,8 +98,7 @@ def run(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(daily_tail, "single_flight", _Flight)
     monkeypatch.setattr(daily_tail, "get_redis", lambda: None)
     monkeypatch.setattr(daily_tail, "moscow_today", lambda: TODAY)
-    monkeypatch.setattr(daily_tail, "_tail_one_workspace", _tail_one)
-    monkeypatch.setattr(daily_tail, "load_workspace_token_bundles", _fleet)
+    monkeypatch.setattr(daily_tail, "tail_one_workspace", _tail_one)
     monkeypatch.setattr(daily_tail, "load_workspace_token_bundle", _one)
 
     return run
@@ -114,17 +109,6 @@ async def test_a_scoped_run_walks_only_the_workspace_that_asked(run) -> None:
     await daily_tail.harvest_daily_tail(workspace_id=MINE)
 
     assert run.walked == [MINE]
-
-
-async def test_a_scoped_run_does_not_decrypt_every_tenants_tokens(run) -> None:
-    """The fleet loader decrypts every workspace's WB secrets.
-
-    Loading them all and filtering would reach every tenant's credentials to
-    answer one tenant's click — see `_bundles_to_tail`.
-    """
-    await daily_tail.harvest_daily_tail(workspace_id=MINE)
-
-    assert run.fleet_loaded == []
 
 
 async def test_a_scoped_run_takes_its_own_lock_not_the_harvests(run) -> None:
@@ -138,14 +122,6 @@ async def test_a_scoped_run_takes_its_own_lock_not_the_harvests(run) -> None:
 
     assert run.locks == [f"{DAILY_TAIL_LOCK_PREFIX}{MINE}"]
     assert HARVEST_LOCK_KEY not in run.locks
-
-
-async def test_the_fleet_sweep_still_takes_the_shared_lock(run) -> None:
-    """Two sweeps at once would queue on the same WB buckets for minutes."""
-    await daily_tail.harvest_daily_tail()
-
-    assert run.locks == [HARVEST_LOCK_KEY]
-    assert run.walked == [MINE, THEIRS]
 
 
 async def test_a_scoped_run_for_a_workspace_that_is_gone_walks_nothing(run) -> None:

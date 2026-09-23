@@ -32,6 +32,7 @@ from src.modules.finreports.tasks import freshness, repair
 from src.modules.finreports.tasks.harvest import fleet, harvest_all_workspaces
 from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.workspaces.contract import WorkspaceTokenBundle
+from tests.support.fakes import no_daily_tail
 
 pytestmark = pytest.mark.unit
 
@@ -188,6 +189,7 @@ def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
     monkeypatch.setattr(fleet, "settlement_blocked_for", _never_blocked)
     monkeypatch.setattr(fleet, "check_freshness", _check)
     monkeypatch.setattr(fleet, "harvest_workspace", _walk)
+    monkeypatch.setattr(fleet, "tail_one_workspace", no_daily_tail)
     monkeypatch.setattr(fleet, "moscow_today", lambda: TODAY)
 
     # The gap survey is a database read and this is the unit tier. Stubbed to

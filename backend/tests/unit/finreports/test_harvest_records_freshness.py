@@ -32,6 +32,7 @@ from src.modules.finreports.tasks import freshness
 from src.modules.finreports.tasks.harvest import fleet, harvest_all_workspaces
 from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.workspaces.contract import WorkspaceTokenBundle
+from tests.support.fakes import no_daily_tail
 
 pytestmark = pytest.mark.unit
 
@@ -228,6 +229,7 @@ def redis_and_walk(monkeypatch: pytest.MonkeyPatch) -> Any:
         monkeypatch.setattr(fleet, "settlement_blocked_for", _never_blocked)
         monkeypatch.setattr(fleet, "check_freshness", _check)
         monkeypatch.setattr(fleet, "harvest_workspace", _walk)
+        monkeypatch.setattr(fleet, "tail_one_workspace", no_daily_tail)
 
         # The gap survey runs on every tick now, and it opens its own session:
         # left real, these unit tests would reach a database. What it finds is

@@ -33,6 +33,7 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessOutcome,
     FreshnessRecordStore,
 )
+from src.modules.finreports.tasks.daily_tail import tail_one_workspace
 from src.modules.finreports.tasks.freshness import (
     check_freshness,
     freshness_record_store,
@@ -69,6 +70,9 @@ _EMPTY_TOTALS: dict[str, int] = {
     "baselines_failed": 0,
     "workspaces_skipped": 0,
     "skipped_locked": 0,
+    "daily_tail_reports": 0,
+    "daily_tail_rows": 0,
+    "daily_tail_failed": 0,
 }
 
 
@@ -180,6 +184,7 @@ async def _harvest_all_workspaces(
     else:
         repairing = await gap_repair_due(bundles, today=today, gaps=gaps)
     totals = dict(_EMPTY_TOTALS)
+    blocked: set[uuid.UUID] = set()
     records: FreshnessRecordStore = freshness_record_store()
     for bundle in bundles:
         if not bundle.finance:
@@ -223,6 +228,7 @@ async def _harvest_all_workspaces(
         # before it ever enqueues; this is the same rule for the path that has
         # no router in front of it.
         if verdict.outcome is FreshnessOutcome.RATE_BLOCKED:
+            blocked.add(bundle.workspace_id)
             totals["workspaces_skipped"] += 1
             continue
         if not verdict.should_harvest and not thorough:
@@ -286,6 +292,31 @@ async def _harvest_all_workspaces(
                     date_to=missing[-1].date_to,
                 ),
             )
+    # The provisional daily tail, after every settled walk rather than beside it.
+    #
+    # In one tick under one lock because both lanes spend the same
+    # one-request-a-minute Finance buckets: as separate schedules they took the
+    # same lock and the loser of an overlap returned `skipped_locked`, which on
+    # «Обновить» meant fetching nothing at the one moment somebody asked.
+    #
+    # Settled first, and the order is load-bearing rather than tidy. The weekly
+    # walk moves the frontier, and the tail covers only what lies past it — so
+    # on the one tick a week a weekly report lands, running the tail first would
+    # spend a request per day on days the weekly report was about to settle, and
+    # leave those rows carrying a provisional `report_id` until something
+    # overwrote them.
+    #
+    # Unconditional, unlike the walk above: «WB has nothing newer weekly» is
+    # exactly when yesterday is only reachable through the daily lane. The one
+    # verdict that stops it is a standing block — walking into that does not
+    # fetch the day, it lengthens the refusal.
+    for bundle in bundles:
+        if not bundle.finance or bundle.workspace_id in blocked:
+            continue
+        tail = await tail_one_workspace(tokens=bundle, today=today)
+        totals["daily_tail_reports"] += tail["reports"]
+        totals["daily_tail_rows"] += tail["rows"]
+        totals["daily_tail_failed"] += tail["reports_failed"]
     return totals
 
 
