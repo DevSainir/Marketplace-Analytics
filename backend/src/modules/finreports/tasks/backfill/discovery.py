@@ -210,11 +210,13 @@ def parse_cursor(cursor: str) -> tuple[date, int, int] | None:
     with an ``rrd_id`` mistaken for a backlog count. Rejecting it costs a lane
     mid-walk one restart from the top, which on this endpoint is minutes.
 
-    No live lane needs even that: `workspaces.workspace_backfill` held no rows
-    at all on 2026-09-23, fleet-wide (the table carries no tenancy policy, so a
-    diagnostic reads every кабинет's). The tolerance is here because a parser
-    that raises on an unexpected string turns a deploy into a failing tick, not
-    because there is state to carry.
+    A live lane DID need it, which this docstring got wrong first. It said no
+    lane was mid-walk, on the strength of a diagnostic that came back empty —
+    but `workspaces.workspace_backfill` carries a tenancy policy, so that probe
+    could only ever see «Демо», which has no lane row. NEVA's was there the
+    whole time: seeded 11.09, last moved 15.09, cursor
+    `2026-06-17|2026-07-08|3128642845490|0|2026-07-08`. Rejected on 23.09
+    exactly as intended, and the lane restarted from the top.
 
     Args:
         cursor: The stored cursor.

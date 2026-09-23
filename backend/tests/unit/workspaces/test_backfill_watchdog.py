@@ -13,7 +13,11 @@ from datetime import timedelta
 
 from src.core.celery_app import celery_app
 from src.core.config import settings
-from src.integrations.wildberries.rate_limit.surfaces import FINANCE_QUEUE_SECONDS
+from src.integrations.wildberries.rate_limit.surfaces import (
+    BACKGROUND_RESERVE_SECONDS,
+    FINANCE_QUEUE_SECONDS,
+    FINANCE_REPORT_ENDPOINT_BUCKETS,
+)
 from src.modules.finreports.tasks.backfill import (
     _PACE_CEILING_SECONDS,
     _TICK_SOFT_LIMIT_SECONDS,
@@ -54,6 +58,34 @@ def test_a_tick_leaves_itself_room_to_finish_the_report_it_is_on() -> None:
     `SoftTimeLimitExceeded` is not the error the lane catches.
     """
     assert _TICK_SOFT_LIMIT_SECONDS - _TICK_WORK_BUDGET_SECONDS >= 4 * 60
+
+
+def test_a_reserving_caller_can_still_get_through_the_finance_gate() -> None:
+    """The background courtesy must not become a prohibition.
+
+    A reserving caller will not take a token that has been free for less than
+    `BACKGROUND_RESERVE_SECONDS`, so its wait is the reserve PLUS whatever of
+    the refill is left. When the queue cap equalled the reserve, the gate slept
+    its 120 s, was told it needed 120 s more, and refused its own request —
+    measured on NEVA 2026-09-23 as «would need 240s of queueing (cap 120s)», on
+    every tick, with nothing ever sent to WB.
+
+    The forward harvest never saw it because it does not reserve. Only the
+    history backfill does, and it is the lane nobody is watching.
+    """
+    slowest_refill = max(refill for _capacity, refill in FINANCE_REPORT_ENDPOINT_BUCKETS.values())
+
+    assert BACKGROUND_RESERVE_SECONDS + slowest_refill < FINANCE_QUEUE_SECONDS
+
+
+def test_a_reserving_caller_cannot_outlast_the_tick_that_holds_it() -> None:
+    """And the other side of it: the wait still has to fit inside the tick.
+
+    Raising the cap to admit a reserving caller must not raise it past the soft
+    limit, or the tick dies to `SoftTimeLimitExceeded` — which the lane does not
+    catch, so nothing is recorded and nothing re-enqueued.
+    """
+    assert FINANCE_QUEUE_SECONDS < _TICK_SOFT_LIMIT_SECONDS
 
 
 def test_every_lane_has_a_restart_task_that_actually_exists() -> None:
