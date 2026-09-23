@@ -213,9 +213,11 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           :rows="rows"
           :unallocated="unallocated"
           :base-dashboard="store.report?.dashboard ?? null"
+          :sizes="store.sizes"
           :currency="currency"
           @toggle-exclusion="store.toggleExclusion($event.nmId, $event.excluded)"
           @dashboard-change="filteredDashboard = $event"
+          @load-sizes="store.loadSizes($event)"
         />
       </div>
 

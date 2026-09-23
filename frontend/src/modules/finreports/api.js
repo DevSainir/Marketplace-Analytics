@@ -39,6 +39,25 @@ export async function fetchSkuPnl(params = {}, signal) {
 }
 
 /**
+ * GET /v1/finreports/pnl/skus/{nmId}/sizes — размеры одного артикула за то же
+ * окно, что и таблица. Запрашивается по клику на раскрытие строки: в отчёте на
+ * сорок артикулов это ~400 строк размеров, а открывают один-два.
+ *
+ * @param {number} nmId Артикул WB.
+ * @param {{date_from?: string, date_to?: string}} [params]
+ * @param {AbortSignal} [signal] Отменяет запрос, если начался более свежий.
+ * @returns {Promise<object>} `{ nm_id, sa_name, currency, rows, totals }`
+ */
+export async function fetchSkuSizes(nmId, params = {}, signal) {
+  const { data } = await apiClient.get(`/v1/finreports/pnl/skus/${nmId}/sizes`, {
+    params,
+    signal,
+    timeout: WINDOW_TIMEOUT_MS,
+  })
+  return data
+}
+
+/**
  * PUT /v1/finreports/pnl/skus/{nmId}/exclusion — mark a SKU «Не включать в
  * общий счёт» (or clear it). The mark is stored per workspace and shared.
  *

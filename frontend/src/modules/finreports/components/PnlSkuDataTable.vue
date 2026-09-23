@@ -12,6 +12,16 @@
  * column is the «Не включать в общий счёт» mark; toggling it emits upward so the
  * store can persist it and reload the backend-computed dashboard.
  *
+ * Three things beyond plain columns:
+ *
+ * * **Цвет только за рамкой.** Доли и коэффициенты подкрашены, когда вышли за
+ *   границы из `pnlThresholds` — границы взяты по фактическому распределению,
+ *   чтобы в обычном отчёте горели несколько строк, а не половина таблицы.
+ * * **Раскрытие артикула.** Треугольник у артикула открывает подтаблицу
+ *   размеров, которая грузится по клику (`@load-sizes`).
+ * * **Строка «Итого».** Закреплена внизу области прокрутки, считается по всему
+ *   текущему фильтру, а не по странице пагинации.
+ *
  * PrimeVue in unstyled/Tailwind mode, matching the monitoring tables: sorting
  * and the frozen article column are the reason. Split out of `PnlSkuTable` when
  * the phone card list joined it there — eighteen column definitions and a
@@ -22,25 +32,30 @@
  */
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
-import { ref } from 'vue'
+import { ref, toRefs } from 'vue'
 
-import SkuThumb from '@/core/components/SkuThumb.vue'
-import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
+import { formatNumber } from '@/core/utils/format'
+import PnlExclusionToggle from '@/modules/finreports/components/PnlExclusionToggle.vue'
+import PnlSkuRowIdentity from '@/modules/finreports/components/PnlSkuRowIdentity.vue'
+import PnlSkuSizeTable from '@/modules/finreports/components/PnlSkuSizeTable.vue'
+import { amountClass, toneClass } from '@/modules/finreports/pnlThresholds'
+import { money, pct, useExpandedSkus, useFooterCells } from '@/modules/finreports/usePnlSkuTable'
 
 /** Page-size choices. A native select, not the paginator's built-in dropdown:
  *  PrimeVue runs unstyled here and its Select renders collapsed without a
  *  theme, while the app's own convention for pickers is a styled `<select>`. */
-defineProps({
+const props = defineProps({
   /** @type {Array<object>} Flattened rows from `usePnlSkuRows`, already filtered. */
   rows: { type: Array, default: () => [] },
+  /** @type {object|null} The «Итого» row from `sumRows` — the whole filter, not the page. */
+  totals: { type: Object, default: null },
+  /** @type {object} `nm_id -> {loading, error, data}` for the opened size tables. */
+  sizes: { type: Object, default: () => ({}) },
   currency: { type: String, default: '' },
   rowsPerPage: { type: Number, default: 50 },
 })
 
-const emit = defineEmits(['toggle-exclusion'])
-
-const money = (value) => (value === null ? '—' : formatMoney(value, ''))
-const pct = (value) => (value === null ? '—' : formatPercent(value))
+const emit = defineEmits(['toggle-exclusion', 'load-sizes'])
 
 /** Reset to the first page on a size change — keeping a stale offset can strand
  *  the view past the last page of the new layout. */
@@ -51,14 +66,14 @@ defineExpose({ first })
 /** Dim the excluded rows so the seller sees what the «общий счёт» drops. */
 const rowClass = (data) => (data.isExcluded ? 'opacity-50' : '')
 
-function onToggle(data, checked) {
-  emit('toggle-exclusion', { nmId: data.nmId, excluded: checked })
-}
+const { expanded, toggle } = useExpandedSkus((nmId) => emit('load-sizes', nmId))
+const foot = useFooterCells(toRefs(props).totals)
 </script>
 
 <template>
   <DataTable
     v-model:first="first"
+    v-model:expanded-rows="expanded"
     :value="rows"
     :paginator="rows.length > rowsPerPage"
     :rows="rowsPerPage"
@@ -72,17 +87,11 @@ function onToggle(data, checked) {
       <div class="px-md py-xl text-center text-base text-muted">Нет продаж за период</div>
     </template>
 
-    <!-- The photo lives in the frozen identity column rather than a column of
-         its own: this table scrolls sideways past twenty money columns, and a
-         picture that scrolls away from its article stops being an identity. -->
-    <Column field="saName" header="Артикул" sortable frozen>
+    <!-- Фото и треугольник размеров живут в этой же закреплённой ячейке —
+         почему именно так, написано в `PnlSkuRowIdentity`. -->
+    <Column field="saName" header="Артикул" sortable frozen :footer="foot.saName">
       <template #body="{ data }">
-        <span class="flex items-center gap-sm">
-          <SkuThumb v-if="!data.isBucket" :src="data.photoUrl" :label="data.saName" size="sm" />
-          <span :class="data.isBucket ? 'text-muted' : 'font-medium text-primary'">
-            {{ data.saName }}
-          </span>
-        </span>
+        <PnlSkuRowIdentity :row="data" :open="!!expanded[data.nmId]" @toggle="toggle(data.nmId)" />
       </template>
     </Column>
     <Column field="nmId" header="Артикул WB" sortable>
@@ -96,15 +105,15 @@ function onToggle(data, checked) {
     <Column field="brand" header="Бренд" sortable>
       <template #body="{ data }">{{ data.brand || '—' }}</template>
     </Column>
-    <Column field="orders" header="Заказы, шт" sortable>
+    <Column field="orders" header="Заказы, шт" sortable :footer="foot.orders">
       <template #body="{ data }">
         {{ data.orders === null ? '—' : formatNumber(data.orders) }}
       </template>
     </Column>
-    <Column field="sold" header="Продажи, шт" sortable>
+    <Column field="sold" header="Продажи, шт" sortable :footer="foot.sold">
       <template #body="{ data }">{{ formatNumber(data.sold) }}</template>
     </Column>
-    <Column field="returnPct" sortable>
+    <Column field="returnPct" sortable :footer="foot.returnPct">
       <template #header>
         <span
           title="Выкупленные товары, которые покупатель затем вернул (не отмены заказов): доля от выкупленных штук."
@@ -112,26 +121,32 @@ function onToggle(data, checked) {
           Возвраты, %
         </span>
       </template>
-      <template #body="{ data }">{{ pct(data.returnPct) }}</template>
+      <template #body="{ data }">
+        <span :class="toneClass('returnPct', data.returnPct)">{{ pct(data.returnPct) }}</span>
+      </template>
     </Column>
-    <Column field="sales" :header="`Продажи, ${currency}`" sortable>
+    <Column field="sales" :header="`Продажи, ${currency}`" sortable :footer="foot.sales">
       <template #body="{ data }">{{ money(data.sales) }}</template>
     </Column>
-    <Column field="averageCheque" header="Средний чек" sortable>
+    <Column field="averageCheque" header="Средний чек" sortable :footer="foot.averageCheque">
       <template #body="{ data }">{{ money(data.averageCheque) }}</template>
     </Column>
-    <Column field="sppPct" header="СПП, %" sortable>
+    <Column field="sppPct" header="СПП, %" sortable :footer="foot.sppPct">
       <template #body="{ data }">{{ pct(data.sppPct) }}</template>
     </Column>
-    <Column field="logistics" header="Логистика" sortable>
+    <Column field="logistics" header="Логистика" sortable :footer="foot.logistics">
       <template #body="{ data }">
         {{ money(data.logistics) }}
-        <span v-if="data.logisticsPct !== null" class="text-tiny text-muted">
+        <span
+          v-if="data.logisticsPct !== null"
+          class="text-tiny"
+          :class="toneClass('logisticsPct', data.logisticsPct) || 'text-muted'"
+        >
           ({{ pct(data.logisticsPct) }})
         </span>
       </template>
     </Column>
-    <Column field="penalties" header="Штрафы" sortable>
+    <Column field="penalties" header="Штрафы" sortable :footer="foot.penalties">
       <template #body="{ data }">
         <template v-if="data.penalties">
           {{ money(data.penalties) }}
@@ -146,64 +161,72 @@ function onToggle(data, checked) {
         <template v-else>—</template>
       </template>
     </Column>
-    <Column field="cogs" header="Себестоимость" sortable>
+    <Column field="cogs" header="Себестоимость" sortable :footer="foot.cogs">
       <template #body="{ data }">{{ money(data.cogs) }}</template>
     </Column>
-    <Column field="advertising" header="Реклама" sortable>
+    <Column field="advertising" header="Реклама" sortable :footer="foot.advertising">
       <template #body="{ data }">
         {{ money(data.advertising) }}
-        <span v-if="data.advertisingPct !== null" class="text-tiny text-muted">
+        <span
+          v-if="data.advertisingPct !== null"
+          class="text-tiny"
+          :class="toneClass('advertisingPct', data.advertisingPct) || 'text-muted'"
+          title="ДРР — доля рекламы в выручке"
+        >
           ({{ pct(data.advertisingPct) }})
         </span>
       </template>
     </Column>
-    <Column field="adBonus" header="Бонусы" sortable>
+    <Column field="adBonus" header="Бонусы" sortable :footer="foot.adBonus">
       <template #body="{ data }">
         <span v-if="data.adBonus" class="text-status-positive"> −{{ money(data.adBonus) }} </span>
         <template v-else>{{ money(data.adBonus) }}</template>
       </template>
     </Column>
-    <Column field="roi" header="ROI" sortable>
-      <template #body="{ data }">{{ pct(data.roi) }}</template>
+    <Column field="roi" header="ROI" sortable :footer="foot.roi">
+      <template #body="{ data }">
+        <span :class="toneClass('roi', data.roi)">{{ pct(data.roi) }}</span>
+      </template>
     </Column>
-    <Column field="romi" header="ROMI" sortable>
-      <template #body="{ data }">{{ pct(data.romi) }}</template>
+    <Column field="romi" header="ROMI" sortable :footer="foot.romi">
+      <template #body="{ data }">
+        <span :class="toneClass('romi', data.romi)">{{ pct(data.romi) }}</span>
+      </template>
     </Column>
-    <Column field="payout" header="К перечислению" sortable>
+    <Column field="payout" header="К перечислению" sortable :footer="foot.payout">
       <template #body="{ data }">{{ money(data.payout) }}</template>
     </Column>
     <Column field="profit" header="Чистая прибыль" sortable>
       <template #body="{ data }">
         <template v-if="data.profit !== null">
-          <span :class="data.profit < 0 ? 'text-status-negative' : 'text-primary'">
+          <span :class="amountClass(data.profit) || 'text-primary'">
             {{ money(data.profit) }}
           </span>
-          <span class="text-tiny text-muted"> ({{ pct(data.profitPct) }})</span>
+          <span class="text-tiny" :class="toneClass('profitPct', data.profitPct) || 'text-muted'">
+            ({{ pct(data.profitPct) }})</span
+          >
         </template>
         <template v-else>—</template>
+      </template>
+      <template #footer>
+        <span v-if="totals" :class="amountClass(totals.profit)">
+          {{ money(totals.profit) }}
+          <span class="text-tiny text-muted">({{ pct(totals.profitPct) }})</span>
+        </span>
       </template>
     </Column>
     <Column field="isExcluded" header="" :sortable="false">
       <template #body="{ data }">
-        <label
+        <PnlExclusionToggle
           v-if="!data.isBucket"
-          class="group relative flex items-center justify-center"
-          title="Не включать в общий счёт"
-        >
-          <input
-            type="checkbox"
-            :checked="data.isExcluded"
-            aria-label="Не включать в общий счёт"
-            class="h-4 w-4 cursor-pointer rounded border-border-subtle text-action focus:ring-action/20"
-            @change="onToggle(data, $event.target.checked)"
-          />
-          <span
-            class="pointer-events-none absolute right-full top-1/2 z-20 mr-sm hidden -translate-y-1/2 whitespace-nowrap rounded-input border border-border-subtle bg-surface px-sm py-xs text-tiny text-primary shadow-card group-hover:block"
-          >
-            Не включать в общий счёт
-          </span>
-        </label>
+          :checked="data.isExcluded"
+          @change="emit('toggle-exclusion', { nmId: data.nmId, excluded: $event })"
+        />
       </template>
     </Column>
+
+    <template #expansion="{ data }">
+      <PnlSkuSizeTable :state="sizes[data.nmId] ?? null" />
+    </template>
   </DataTable>
 </template>

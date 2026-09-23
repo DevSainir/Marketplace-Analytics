@@ -78,6 +78,31 @@
     @apply bg-canvas;
   }
 
+  /* Строка «Итого» — закреплена внизу области прокрутки. В отчёте на сорок
+     строк сумма столбца нужна рядом со строками, а не после них, и `sticky`
+     здесь работает только потому, что фон непрозрачный: иначе строки
+     проезжают сквозь неё. Считается по всему фильтру, не по странице.
+
+     Селектор — по `footercell` PrimeVue, а не по `tfoot td`: внутри той же
+     карточки живёт подтаблица размеров со своим `tfoot`, и общий селектор
+     приклеил бы к экрану ещё и её итог. */
+  .app-datatable td[data-pc-section='footercell'] {
+    @apply sticky bottom-0 z-10 whitespace-nowrap border-t border-border-subtle bg-surface px-md py-sm text-base font-semibold text-primary;
+  }
+
+  /* Треугольник, раскрывающий размеры артикула. Живёт в той же ячейке, что и
+     артикул: отдельная колонка уехала бы от строки, которую открывает. */
+  .app-datatable .pnl-expander {
+    @apply inline-flex h-4 w-4 shrink-0 items-center justify-center text-micro leading-none text-muted transition hover:text-action;
+  }
+
+  /* Ячейка раскрытой подтаблицы. Родительский `td` запрещает перенос и держит
+     свой вертикальный ритм — подтаблице нужны оба, иначе размеры вырастают на
+     два экрана и не переносятся. */
+  .app-datatable tbody td[data-pc-section='rowexpansioncell'] {
+    @apply whitespace-normal p-0;
+  }
+
   .app-datatable [data-pc-name='pcpaginator'],
   .app-datatable [data-pc-name='paginator'] {
     @apply flex items-center justify-end gap-1 border-t border-border-subtle bg-surface px-md py-sm text-base text-muted;

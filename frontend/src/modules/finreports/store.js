@@ -23,6 +23,7 @@ import {
   fetchCostPrices,
   fetchHarvestState,
   fetchSkuPnl,
+  fetchSkuSizes,
   fetchWeeks,
   importCostPricesXlsx,
   saveCostPrices,
@@ -56,6 +57,13 @@ export const useFinReportsStore = defineStore('finreports', () => {
   const report = ref(null)
   const reportLoading = ref(false)
   const reportError = ref('')
+
+  // --- per-size drill-down («подтаблица размеров») -------------------------
+  // nm_id -> { loading, error, data }. Keyed by article and cleared whenever
+  // the window moves: a size row is only true for the period it was fetched
+  // for, and a stale one under a freshly-loaded report is the kind of wrong
+  // that looks right.
+  const sizes = ref({})
 
   // --- stock balance («Баланс по товарным остаткам») -----------------------
   // Its own period, deliberately: stock is a point-in-time snapshot, so the
@@ -157,6 +165,8 @@ export const useFinReportsStore = defineStore('finreports', () => {
       )
       if (reportRequest !== request) return
       report.value = data
+      // The sizes belong to the window that was just replaced.
+      sizes.value = {}
     } catch (error) {
       if (request.signal.aborted) return
       reportError.value = extractErrorMessage(error)
@@ -164,6 +174,33 @@ export const useFinReportsStore = defineStore('finreports', () => {
       if (reportRequest === request) {
         reportRequest = null
         reportLoading.value = false
+      }
+    }
+  }
+
+  /**
+   * Load one article's size rows for the current window, once.
+   *
+   * Cached per article until the period changes — reopening a row that was
+   * already looked at costs nothing, which is what makes comparing two
+   * articles' sizes bearable.
+   */
+  async function loadSizes(nmId) {
+    const current = sizes.value[nmId]
+    if (current && (current.loading || current.data)) return
+    if (!dateFrom.value || !dateTo.value) return
+    sizes.value = { ...sizes.value, [nmId]: { loading: true, error: '', data: null } }
+    const period = { from: dateFrom.value, to: dateTo.value }
+    try {
+      const data = await fetchSkuSizes(nmId, { date_from: period.from, date_to: period.to })
+      // The window may have moved while this was in flight; a size row for the
+      // previous period must not land under the new one.
+      if (dateFrom.value !== period.from || dateTo.value !== period.to) return
+      sizes.value = { ...sizes.value, [nmId]: { loading: false, error: '', data } }
+    } catch (error) {
+      sizes.value = {
+        ...sizes.value,
+        [nmId]: { loading: false, error: extractErrorMessage(error), data: null },
       }
     }
   }
@@ -444,6 +481,8 @@ export const useFinReportsStore = defineStore('finreports', () => {
     loadHarvestState,
     loadWeeks,
     loadReport,
+    sizes,
+    loadSizes,
     toggleExclusion,
     loadBalance,
     setBalanceDate,

@@ -23,47 +23,19 @@
 import { computed, ref, watch } from 'vue'
 
 import SkuThumb from '@/core/components/SkuThumb.vue'
-import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
+import PnlSkuCardsTotals from '@/modules/finreports/components/PnlSkuCardsTotals.vue'
+import { DETAILS, SORT_KEYS, money, pct } from '@/modules/finreports/pnlCardColumns'
+import { toneClass } from '@/modules/finreports/pnlThresholds'
 
 const props = defineProps({
   /** @type {Array<object>} Flattened rows from `usePnlSkuRows`, already filtered. */
   rows: { type: Array, default: () => [] },
+  /** @type {object|null} The «Итого» row from `sumRows`, pinned under the list. */
+  totals: { type: Object, default: null },
   currency: { type: String, default: '' },
 })
 
 const emit = defineEmits(['toggle-exclusion'])
-
-const money = (value) => (value === null || value === undefined ? '—' : formatMoney(value, ''))
-const pct = (value) => (value === null || value === undefined ? '—' : formatPercent(value))
-const units = (value) => (value === null || value === undefined ? '—' : formatNumber(value))
-
-/** The sort keys worth having without a header row to click. */
-const SORT_KEYS = [
-  { key: 'profit', label: 'Чистая прибыль' },
-  { key: 'sales', label: 'Продажи' },
-  { key: 'sold', label: 'Продажи, шт' },
-  { key: 'logistics', label: 'Логистика' },
-  { key: 'penalties', label: 'Штрафы' },
-  { key: 'advertising', label: 'Реклама' },
-  { key: 'cogs', label: 'Себестоимость' },
-  { key: 'roi', label: 'ROI' },
-  { key: 'saName', label: 'Артикул' },
-]
-
-/** The folded-away columns, in the table's own order. */
-const DETAILS = [
-  { label: 'Заказы, шт', get: (r) => units(r.orders) },
-  { label: 'Продажи, шт', get: (r) => units(r.sold) },
-  { label: 'Возвраты, %', get: (r) => pct(r.returnPct) },
-  { label: 'Средний чек', get: (r) => money(r.averageCheque) },
-  { label: 'СПП, %', get: (r) => pct(r.sppPct) },
-  { label: 'Логистика', get: (r) => money(r.logistics), sub: (r) => pct(r.logisticsPct) },
-  { label: 'Себестоимость', get: (r) => money(r.cogs) },
-  { label: 'Реклама', get: (r) => money(r.advertising), sub: (r) => pct(r.advertisingPct) },
-  { label: 'Бонусы WB', get: (r) => (r.adBonus ? `−${money(r.adBonus)}` : money(r.adBonus)) },
-  { label: 'ROI', get: (r) => pct(r.roi) },
-  { label: 'ROMI', get: (r) => pct(r.romi) },
-]
 
 const sortKey = ref('profit')
 const descending = ref(true)
@@ -164,7 +136,10 @@ function toggle(nmId) {
             >
               {{ money(row.profit) }}
             </span>
-            <span class="record-support"> {{ pct(row.profitPct) }} · {{ money(row.sales) }} </span>
+            <span class="record-support">
+              <span :class="toneClass('profitPct', row.profitPct)">{{ pct(row.profitPct) }}</span>
+              · {{ money(row.sales) }}
+            </span>
           </span>
 
           <svg
@@ -201,9 +176,12 @@ function toggle(nmId) {
           </div>
           <div v-for="detail in DETAILS" :key="detail.label" class="record-row">
             <span class="record-label">{{ detail.label }}</span>
-            <span class="record-value">
+            <span class="record-value" :class="detail.tone?.(row)">
               {{ detail.get(row) }}
-              <span v-if="detail.sub?.(row) && detail.sub(row) !== '—'" class="text-muted">
+              <span
+                v-if="detail.sub?.(row) && detail.sub(row) !== '—'"
+                :class="detail.subTone?.(row) || 'text-muted'"
+              >
                 ({{ detail.sub(row) }})
               </span>
             </span>
@@ -231,6 +209,8 @@ function toggle(nmId) {
     >
       Показать ещё ({{ sorted.length - shown }})
     </button>
+
+    <PnlSkuCardsTotals v-if="totals" :totals="totals" />
   </div>
 </template>
 

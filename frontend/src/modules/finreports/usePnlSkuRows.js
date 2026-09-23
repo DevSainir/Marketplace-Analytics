@@ -30,6 +30,10 @@ export function toRow(r, isBucket = false) {
     returned: r.returned_units,
     returnPct: num(r.return_rate_pct),
     sales: num(r.revenue_seller_price),
+    // Выручка после СПП — база, от которой считает проценты бэкенд. В таблице
+    // своей колонки нет, но без неё строка «Итого» не сможет пересчитать доли
+    // от суммы (доля суммы — не сумма долей).
+    paid: num(r.revenue_paid),
     averageCheque: num(r.average_cheque),
     sppPct: num(r.spp_pct),
     logistics: num(r.logistics_total),
@@ -141,5 +145,87 @@ export function subsetDashboard(rows, base = null) {
     advertising: base ? n(base.advertising) : 0,
     excluded_count: rows.filter((r) => r.is_excluded).length,
     filtered: true,
+  }
+}
+
+/**
+ * Сумма по каждому столбцу того, что сейчас на экране — строка «Итого».
+ *
+ * Складываются только суммы; все доли пересчитываются от сложенных баз, потому
+ * что доля суммы это не сумма долей: средняя «Доля логистики» по сорока
+ * артикулам ничего не значит, а логистика всего периода к выручке всего периода
+ * значит. Отмеченные «Не включать в общий счёт» строки в сумму не идут — это и
+ * есть общий счёт, тот же, что в карточках наверху.
+ *
+ * Отдельная арифметика у одной цифры — «Чистая прибыль». Реклама приходит от WB
+ * дважды: счётом «Оказание услуг «WB Продвижение»», уже удержанным внутри «К
+ * перечислению», и открутом по дням из статистики кампаний. В строке артикула
+ * вычитается только открут (счёт не несёт артикула), и это верно. Но как только
+ * в сумму попадает строка «Без привязки к артикулу» — а вместе с ней и удержанный
+ * счёт, — вычесть сверху ещё и открут значит списать рекламу дважды. Поэтому
+ * счета возвращаются обратно ровно в этом случае: это та же поправка, которую
+ * бэкенд делает в `build_sku_report`, и без неё «Итого» разошлось бы с карточкой
+ * «Прибыль» на всю рекламу периода (на живом окне это были миллионы).
+ *
+ * @param {Array<object>} rows Плоские строки из {@link toRow} — то, что отрисовано.
+ * @param {number} adInvoices Удержанные WB счета за рекламу («ВБ.Продвижение»)
+ *   за период, из дашборда. Применяются, только если в `rows` есть строка счёта.
+ * @returns {object|null} Строка той же формы, что и остальные, либо `null` на пустой таблице.
+ */
+export function sumRows(rows, adInvoices = 0) {
+  const included = rows.filter((r) => !r.isExcluded)
+  if (!included.length) return null
+
+  const n = (v) => (v === null || v === undefined ? 0 : Number(v))
+  const sum = (key) => included.reduce((acc, r) => acc + n(r[key]), 0)
+  /** Сумма, но `null`, если её не знает ни одна строка («нет данных» ≠ ноль). */
+  const known = (key) =>
+    included.some((r) => r[key] !== null && r[key] !== undefined) ? sum(key) : null
+  const share = (part, whole) => (whole ? (part / whole) * 100 : null)
+
+  const sold = sum('sold')
+  const returned = sum('returned')
+  const sales = sum('sales')
+  const paid = sum('paid')
+  const net = sold - returned
+  const logistics = sum('logistics')
+  const cogs = known('cogs')
+  const advertising = known('advertising')
+  const advertisingCash = known('advertisingCash')
+  const payout = sum('payout')
+
+  const hasBucket = included.some((r) => r.isBucket)
+  const profit =
+    cogs === null ? null : payout + (hasBucket ? n(adInvoices) : 0) - cogs - n(advertisingCash)
+
+  return {
+    nmId: 0,
+    saName: 'Итого',
+    isTotals: true,
+    isBucket: false,
+    isExcluded: false,
+    excludedCount: rows.length - included.length,
+    orders: known('orders'),
+    sold,
+    returned,
+    returnPct: share(returned, sold),
+    sales,
+    paid,
+    averageCheque: net ? paid / net : null,
+    sppPct: share(sales - paid, sales),
+    logistics,
+    logisticsPct: share(logistics, paid),
+    penalties: sum('penalties'),
+    penaltyReasons: [],
+    cogs,
+    advertising,
+    advertisingPct: advertising === null ? null : share(advertising, paid),
+    adBonus: known('adBonus'),
+    advertisingCash,
+    roi: profit === null || !cogs ? null : share(profit, cogs),
+    romi: profit === null || !advertisingCash ? null : share(profit, advertisingCash),
+    payout,
+    profit,
+    profitPct: profit === null ? null : share(profit, paid),
   }
 }

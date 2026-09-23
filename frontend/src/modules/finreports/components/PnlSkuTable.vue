@@ -13,12 +13,12 @@
  * monitoring's SkuSearchSelect); they never re-fetch and never change the
  * dashboard, which reflects the persisted exclusion marks.
  */
-import { ref, toRefs, watchEffect } from 'vue'
+import { computed, ref, toRefs, watchEffect } from 'vue'
 
 import PnlSkuCards from '@/modules/finreports/components/PnlSkuCards.vue'
 import PnlSkuDataTable from '@/modules/finreports/components/PnlSkuDataTable.vue'
 import PnlSkuTableToolbar from '@/modules/finreports/components/PnlSkuTableToolbar.vue'
-import { subsetDashboard, usePnlSkuRows } from '@/modules/finreports/usePnlSkuRows'
+import { subsetDashboard, sumRows, usePnlSkuRows } from '@/modules/finreports/usePnlSkuRows'
 
 const PAGE_SIZES = [50, 100, 150, 200]
 
@@ -30,10 +30,12 @@ const props = defineProps({
   /** @type {object|null} The backend dashboard, for the account-level «Прочие
    *  удержания» the «по фильтру» subtotal carries through unchanged. */
   baseDashboard: { type: Object, default: null },
+  /** @type {object} `nm_id -> {loading, error, data}` — the opened size tables. */
+  sizes: { type: Object, default: () => ({}) },
   currency: { type: String, default: '' },
 })
 
-const emit = defineEmits(['toggle-exclusion', 'dashboard-change'])
+const emit = defineEmits(['toggle-exclusion', 'dashboard-change', 'load-sizes'])
 
 const { rows, unallocated } = toRefs(props)
 
@@ -51,6 +53,18 @@ watchEffect(() => {
     isFiltering.value ? subsetDashboard(filtered.value, props.baseDashboard) : null,
   )
 })
+
+/**
+ * Строка «Итого» — сумма того, что сейчас в таблице.
+ *
+ * Считается здесь, а не в проекции: карточки и таблица должны показывать одну
+ * и ту же выборку, а выборку знает этот компонент. Счета WB за рекламу
+ * передаются отдельно — из них складывается поправка, без которой «Итого»
+ * списало бы рекламу дважды (подробности в `sumRows`).
+ */
+const totals = computed(() =>
+  sumRows(tableRows.value, Number(props.baseDashboard?.advertising ?? 0)),
+)
 
 const table = ref(null)
 const rowsPerPage = ref(PAGE_SIZES[0])
@@ -82,6 +96,7 @@ function setPageSize(value) {
     <PnlSkuCards
       class="sm:hidden"
       :rows="tableRows"
+      :totals="totals"
       :currency="currency"
       @toggle-exclusion="emit('toggle-exclusion', $event)"
     />
@@ -90,9 +105,12 @@ function setPageSize(value) {
       ref="table"
       class="hidden sm:block"
       :rows="tableRows"
+      :totals="totals"
+      :sizes="sizes"
       :currency="currency"
       :rows-per-page="rowsPerPage"
       @toggle-exclusion="emit('toggle-exclusion', $event)"
+      @load-sizes="emit('load-sizes', $event)"
     />
   </div>
 </template>
