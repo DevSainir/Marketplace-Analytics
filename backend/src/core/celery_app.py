@@ -173,13 +173,32 @@ celery_app.conf.beat_schedule = {
     #
     # harvest and cohort refresh own those hours, and the walk competes with
     # them for the same rate-limited analytics surfaces.
-    "hourly-finreports-harvest": {
+    "finreports-harvest-in-the-publication-window": {
         "task": "finreports.harvest_finance",
-        # 03:00 belongs to the reconciliation pass below. Both take the same
-        # lock, so leaving the hour in would make the two race for it and the
-        # loser return `skipped_locked` — and the loser would sometimes be the
-        # pass that only gets one chance a day.
-        "schedule": crontab(hour="0-2,4,8-23", minute=0),
+        # Every fifteen minutes between 07:00 and 18:45 MSK. Every report this
+        # service has ever seen arrived inside that window: the daily ones from
+        # about 07:25, the weekly ones at 10:03, 10:03, 10:04 and 12:54, with the
+        # latest ever at 18:30 and none before 08:00.
+        #
+        # Four ticks an hour rather than one because discovery is two list
+        # requests per workspace and the list bucket serves 1 440 a day — the
+        # whole window costs about 96 of them per seller, under 7%. What it buys
+        # is the worst case: an hourly tick is up to sixty minutes of staleness
+        # on a report the seller can already see on WB's own site.
+        "schedule": crontab(hour="7-18", minute="0,15,30,45"),
+        "kwargs": {"days": 28},
+    },
+    "finreports-harvest-outside-it": {
+        "task": "finreports.harvest_finance",
+        # Hourly for the rest of the day. Not dropped altogether, because the
+        # window above describes when a report normally ARRIVES and not when one
+        # can: 983241109 was stamped 01.09 and first served on 09.09, and a
+        # back-dated report is exactly what nobody is watching for. An empty tick
+        # is two list requests per seller.
+        #
+        # 03:00 belongs to the reconciliation pass below, and 05:00-06:00 to the
+        # compete for the same analytics surfaces.
+        "schedule": crontab(hour="0-2,4,19-23", minute=0),
         "kwargs": {"days": 28},
     },
     # The hourly tick can only ever look FORWARD: its span starts at the

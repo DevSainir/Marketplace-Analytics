@@ -117,34 +117,72 @@ def test_the_price_top_up_finishes_before_the_day_rolls_over() -> None:
     assert max(entry.minute) < 60
 
 
-def test_the_finance_harvest_asks_more_than_once_a_day() -> None:
+def test_the_finance_harvest_asks_through_the_whole_day() -> None:
     """WB publishes at no fixed hour, so a daily check is a daily staleness bet.
 
     It lost on 2026-08-10: WB formed the week's report after that day's single
     08:00 run had already asked and been told there was nothing, and the P&L
-    showed an empty week until the next morning. The freshness gate makes a
-    quiet tick cost one request per workspace, so the answer is to ask often.
-    """
-    hours = celery_app.conf.beat_schedule["hourly-finreports-harvest"]["schedule"].hour
+    showed an empty week until the next morning.
 
-    assert len(hours) > 1
+    Two entries cover it, and between them no hour is unwatched — a report
+    stamped one day and first served eight days later (983241109) arrives at no
+    hour anybody predicted.
+    """
+    schedule = celery_app.conf.beat_schedule
+    window = schedule["finreports-harvest-in-the-publication-window"]["schedule"]
+    outside = schedule["finreports-harvest-outside-it"]["schedule"]
+    reconcile = schedule["daily-finreports-reconcile"]["schedule"]
+
+    covered = set(window.hour) | set(outside.hour) | set(reconcile.hour)
+    reserved = {
+        min(schedule["daily-finreports-snapshot-tariffs"]["schedule"].hour),
+        min(schedule["nightly-harvest-all"]["schedule"].hour),
+    }
+
+    assert covered | reserved == set(range(24))
+
+
+def test_the_publication_window_is_asked_more_often_than_hourly() -> None:
+    """Every report this service has seen arrived between 07:00 and 18:30 MSK.
+
+    The daily ones from about 07:25, the weekly ones at 10:03, 10:03, 10:04 and
+    12:54, the latest ever at 18:30, none before 08:00. Asking four times an
+    hour there is what bounds staleness at a quarter of an hour instead of a
+    whole one, and it is affordable because discovery is two list requests per
+    workspace against a bucket that serves 1 440 a day.
+    """
+    schedule = celery_app.conf.beat_schedule
+    window = schedule["finreports-harvest-in-the-publication-window"]["schedule"]
+    outside = schedule["finreports-harvest-outside-it"]["schedule"]
+
+    assert len(window.minute) >= 4
+    assert set(window.hour) >= set(range(8, 19)), "the whole observed window"
+    assert len(outside.minute) == 1, "hourly is enough where nothing has ever arrived"
 
 
 def test_the_finance_harvest_leaves_the_monitoring_hours_alone() -> None:
 
-    The finance walk competes with them for the same rate-limited analytics
-    surfaces, and unlike them it can fire at any hour — so it is the one that
-    yields.
+    The finance tick competes with them for the same rate-limited analytics
+    surfaces whenever it has a report to walk, and unlike them it can fire at
+    any hour — so it is the one that yields.
+
+    07:00 is deliberately NOT reserved any more, though the cohort refresh runs
+    there. That reservation was written for a tick that walked the analytics
+    surfaces on every run; a tick with nothing to fetch no longer touches them
+    at all, and giving up 07:00 would give up the earliest a daily report has
+    ever been served (07:25).
     """
     schedule = celery_app.conf.beat_schedule
-    hours = schedule["hourly-finreports-harvest"]["schedule"].hour
+    hours = set(schedule["finreports-harvest-in-the-publication-window"]["schedule"].hour) | set(
+        schedule["finreports-harvest-outside-it"]["schedule"].hour
+    )
     reserved = {
         min(schedule["daily-finreports-snapshot-tariffs"]["schedule"].hour),
         min(schedule["nightly-harvest-all"]["schedule"].hour),
-        min(schedule["nightly-refresh-buyout-cohorts"]["schedule"].hour),
     }
 
     assert hours & reserved == set()
+    assert min(schedule["nightly-refresh-buyout-cohorts"]["schedule"].hour) in hours
 
 
 def test_results_expire_so_redis_does_not_grow_without_bound() -> None:
