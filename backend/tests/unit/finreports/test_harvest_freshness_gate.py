@@ -93,7 +93,7 @@ async def test_a_report_we_do_not_hold_is_the_work(monkeypatch: pytest.MonkeyPat
         _FakeClient([_header(901, date(2026, 9, 13)), _header(902, date(2026, 9, 20))]),
     )
 
-    outstanding = await outstanding_reports(tokens=_tokens(), held={901}, today=TODAY)
+    outstanding, _listed = await outstanding_reports(tokens=_tokens(), held={901}, today=TODAY)
 
     assert outstanding is not None
     assert [report.report_id for report in outstanding.reports] == [902]
@@ -111,7 +111,7 @@ async def test_reports_come_back_oldest_first(monkeypatch: pytest.MonkeyPatch) -
         _FakeClient([_header(902, date(2026, 9, 20)), _header(901, date(2026, 9, 13))]),
     )
 
-    outstanding = await outstanding_reports(tokens=_tokens(), held=set(), today=TODAY)
+    outstanding, _listed = await outstanding_reports(tokens=_tokens(), held=set(), today=TODAY)
 
     assert outstanding is not None
     assert [report.date_to for report in outstanding.reports] == [
@@ -135,7 +135,7 @@ async def test_a_report_served_out_of_order_is_still_missing(
         _FakeClient([_header(901, date(2026, 9, 13)), _header(902, date(2026, 9, 20))]),
     )
 
-    outstanding = await outstanding_reports(tokens=_tokens(), held={902}, today=TODAY)
+    outstanding, _listed = await outstanding_reports(tokens=_tokens(), held={902}, today=TODAY)
 
     assert outstanding is not None
     assert [report.report_id for report in outstanding.reports] == [901]
@@ -147,7 +147,9 @@ async def test_holding_everything_wb_lists_is_nothing_to_do(
     """The common case, and it costs one cheap request rather than a walk."""
     _install(monkeypatch, _FakeClient([_header(901, date(2026, 9, 13))]))
 
-    assert await outstanding_reports(tokens=_tokens(), held={901}, today=TODAY) is None
+    outstanding, _listed = await outstanding_reports(tokens=_tokens(), held={901}, today=TODAY)
+
+    assert outstanding is None
 
 
 # --- check_freshness ------------------------------------------------------
@@ -159,7 +161,7 @@ async def test_a_new_report_is_recorded_and_handed_to_the_walk(
     """The verdict says what was found; the second half says what to fetch."""
     _install(monkeypatch, _FakeClient([_header(902, date(2026, 9, 20))]))
 
-    verdict, missing = await check_freshness(
+    verdict, missing, _listed = await check_freshness(
         tokens=_tokens(), latest_settled=SETTLED, held=set(), today=TODAY
     )
 
@@ -174,7 +176,7 @@ async def test_nothing_missing_skips_without_a_walk(monkeypatch: pytest.MonkeyPa
     WB's own answer rather than a silence we chose to read as a no."""
     _install(monkeypatch, _FakeClient([_header(901, date(2026, 9, 13))]))
 
-    verdict, missing = await check_freshness(
+    verdict, missing, _listed = await check_freshness(
         tokens=_tokens(), latest_settled=SETTLED, held={901}, today=TODAY
     )
 
@@ -192,7 +194,7 @@ async def test_an_unanswered_list_harvests_anyway(monkeypatch: pytest.MonkeyPatc
     """
     _install(monkeypatch, _FakeClient(error=IntegrationError("WB did not answer.")))
 
-    verdict, missing = await check_freshness(
+    verdict, missing, _listed = await check_freshness(
         tokens=_tokens(), latest_settled=SETTLED, held=set(), today=TODAY
     )
 
@@ -213,7 +215,7 @@ async def test_a_workspace_without_a_finance_token_is_not_silently_up_to_date(
     """
     client = _install(monkeypatch, _FakeClient([_header(902, date(2026, 9, 20))]))
 
-    verdict, missing = await check_freshness(
+    verdict, missing, _listed = await check_freshness(
         tokens=_tokens(finance=""), latest_settled=SETTLED, held=set(), today=TODAY
     )
 
@@ -229,7 +231,7 @@ async def test_the_verdict_names_the_span_it_found(monkeypatch: pytest.MonkeyPat
         _FakeClient([_header(901, date(2026, 9, 13)), _header(902, date(2026, 9, 20))]),
     )
 
-    verdict, _missing = await check_freshness(
+    verdict, _missing, _listed = await check_freshness(
         tokens=_tokens(), latest_settled=SETTLED, held=set(), today=TODAY
     )
 
@@ -273,7 +275,7 @@ async def test_a_late_report_is_handed_over_at_whatever_hour_it_is_found(
     long_overdue = _header(902, date(2026, 9, 1), created=date(2026, 9, 2))
     _install(monkeypatch, _FakeClient([long_overdue]))
 
-    verdict, missing = await check_freshness(
+    verdict, missing, _listed = await check_freshness(
         tokens=_tokens(), latest_settled=SETTLED, held=set(), today=TODAY
     )
 

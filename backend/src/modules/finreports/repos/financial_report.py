@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
+from decimal import Decimal
+from typing import Any, cast
 
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import CursorResult, func, or_, select, text, update
 
 from src.modules.finreports.models import FinancialReport
 from src.modules.finreports.repos.base import BaseRepository
@@ -231,6 +234,54 @@ class FinancialReportRepository(BaseRepository):
             stmt, {"workspace_id": workspace_id, "since": since, "through": through}
         )
         return [row[0] for row in rows.all()]
+
+    async def refresh_wb_totals(
+        self, *, workspace_id: uuid.UUID, totals: Sequence[tuple[int, Decimal, Decimal, Decimal]]
+    ) -> int:
+        """Record WB's own per-report sums on reports this workspace ALREADY holds.
+
+        An UPDATE and deliberately never an upsert, because the difference is
+        load-bearing rather than stylistic. This table's row set is the answer
+        to «which reports do I hold» (:meth:`report_ids_since`), so inserting a
+        header for a report whose rows have not been fetched would mark it held
+        and the walk would never fetch it. An UPDATE that matches nothing is the
+        correct outcome for a report WB has listed and we have not taken.
+
+        Called with whatever WB's list named this tick, held or not, which is
+        why the safety has to live here rather than in each caller's filter.
+
+        Nothing is committed; the caller owns the transaction.
+
+        Args:
+            workspace_id: Tenancy scope — part of the match, not a filter added
+                afterwards, so one tenant's list can never touch another's rows.
+            totals: ``(report_id, for_pay, retail_amount, bank_payment)`` per
+                report, as ``sales-reports/list`` served them.
+
+        Returns:
+            How many held reports were updated.
+        """
+        if not totals:
+            return 0
+        updated = 0
+        for report_id, for_pay, retail_amount, bank_payment in totals:
+            result = cast(
+                CursorResult[Any],
+                await self._session.execute(
+                    update(FinancialReport)
+                    .where(
+                        FinancialReport.report_id == report_id,
+                        FinancialReport.workspace_id == workspace_id,
+                    )
+                    .values(
+                        wb_for_pay_sum=for_pay,
+                        wb_retail_amount_sum=retail_amount,
+                        wb_bank_payment_sum=bank_payment,
+                    )
+                ),
+            )
+            updated += result.rowcount or 0
+        return updated
 
     async def list_periods(self, *, workspace_id: uuid.UUID) -> list[tuple[int, date, date]]:
         """Return each harvested report's ``(report_id, date_from, date_to)``.

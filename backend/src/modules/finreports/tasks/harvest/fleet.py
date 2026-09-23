@@ -25,7 +25,6 @@ from src.core.timeutils import moscow_today
 from src.modules.finreports.constants import (
     HARVEST_LOCK_KEY,
     HARVEST_LOCK_TTL_SECONDS,
-    RECONCILE_LOOKBACK_DAYS,
     SETTLEMENT_LIST_WINDOW_DAYS,
 )
 from src.modules.finreports.repos import (
@@ -44,10 +43,10 @@ from src.modules.finreports.tasks.freshness import (
     verdict_from_walk,
 )
 from src.modules.finreports.tasks.gaps import survey_settlement_gaps
+from src.modules.finreports.tasks.harvest.ledger import record_wb_totals, reports_to_re_walk
 from src.modules.finreports.tasks.harvest.workspace import harvest_workspace
 from src.modules.finreports.tasks.publication_spread import record_publication_spread
 from src.modules.finreports.tasks.repair import gap_repair_due
-from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.finreports.tasks.spans import (
     reconciliation_slice,
     settlement_frontier,
@@ -288,7 +287,7 @@ async def _harvest_one(
         A counts fragment shaped like :data:`_EMPTY_TOTALS`.
     """
     totals = dict(_EMPTY_TOTALS)
-    verdict, missing = await check_freshness(
+    verdict, missing, listed = await check_freshness(
         tokens=bundle,
         latest_settled=settled[bundle.workspace_id],
         held=held[bundle.workspace_id],
@@ -298,6 +297,16 @@ async def _harvest_one(
         # here, and a peek takes no token.
         blocked_for=await settlement_blocked_for(bundle),
     )
+    # WB's own totals for every report it named, onto the ones we already hold.
+    # Free — the list was already fetched for the gate above — and an UPDATE
+    # rather than an upsert, so a report WB has listed and we have NOT taken
+    # cannot be created here and counted as held (see `refresh_wb_totals`).
+    #
+    # It runs on every tick rather than only when something is missing, because
+    # WB restates a settled week for up to a fortnight and the totals are the
+    # only figure the P&L can be checked against that is not our own
+    # arithmetic. A tick that finds nothing new still finds newer numbers.
+    await record_wb_totals(workspace_id=bundle.workspace_id, listed=listed)
     # The one remaining way to learn nothing: no «Финансы» token, so no
     # request was made and none can be. Recording a verdict here would
     # claim a check that cannot happen. (The caller skips such workspaces
@@ -333,7 +342,7 @@ async def _harvest_one(
         # the held ones to re-walk, since an amendment to a week on file is
         # invisible to «which ids am I missing».
         if thorough and not missing:
-            missing = await _reports_to_re_walk(
+            missing = await reports_to_re_walk(
                 report_repo_for=bundle.workspace_id,
                 today=today,
             )
@@ -399,42 +408,6 @@ async def _harvest_one(
     totals["daily_tail_rows"] += tail["rows"]
     totals["daily_tail_failed"] += tail["reports_failed"]
     return totals
-
-
-async def _reports_to_re_walk(
-    *, report_repo_for: uuid.UUID, today: date
-) -> tuple[MissingReport, ...]:
-    """The held reports a thorough pass should ask WB for again.
-
-    «Which ids am I missing» cannot see an amendment to a report already on
-    file, and amendments are exactly what the reconciliation pass exists for —
-    WB revises a settled week for up to a fortnight. So a thorough pass with
-    nothing missing re-walks what it holds inside
-    :data:`RECONCILE_LOOKBACK_DAYS`, upserting by ``rrd_id`` over the top.
-
-    Args:
-        report_repo_for: Workspace whose held reports to re-walk.
-        today: Today in Moscow time.
-
-    Carries no WB header, so the walk re-writes the rows and leaves the header
-    alone. That is right for a re-walk — the header is already there, and the
-    header's job is to say «this report is held», which it already does. What
-    it does NOT do is refresh WB's own totals on a week WB has restated; that
-    needs the list entry, which this function does not have.
-
-    Returns:
-        The reports, oldest first.
-    """
-    since = today - timedelta(days=RECONCILE_LOOKBACK_DAYS)
-    async with AsyncSessionLocal() as session:
-        periods = await FinancialReportRepository(session).list_periods(
-            workspace_id=report_repo_for
-        )
-    return tuple(
-        MissingReport(report_id=report_id, date_to=date_to)
-        for report_id, _date_from, date_to in sorted(periods, key=lambda row: row[2])
-        if date_to >= since
-    )
 
 
 async def _bundles_to_walk(

@@ -199,7 +199,7 @@ def redis_and_walk(monkeypatch: pytest.MonkeyPatch) -> Any:
         async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
             return [_bundle()]
 
-        async def _check(**_kwargs: object) -> tuple[FreshnessVerdict, Any]:
+        async def _check(**_kwargs: object) -> tuple[FreshnessVerdict, Any, tuple[()]]:
             # A gate that found something hands the walk the reports to fetch;
             # one that found nothing hands it nothing, and the fleet then has
             # nothing to walk to. Mirrored here so the fixture can express both.
@@ -208,7 +208,7 @@ def redis_and_walk(monkeypatch: pytest.MonkeyPatch) -> Any:
                 if verdict.should_harvest and verdict.outcome is not FreshnessOutcome.PROBE_FAILED
                 else ()
             )
-            return verdict, found
+            return verdict, found, ()
 
         async def _walk(*, tokens: WorkspaceTokenBundle, **_kwargs: object) -> dict[str, int]:
             walked.append(tokens.workspace_id)

@@ -158,10 +158,14 @@ def _gate(
 ) -> None:
     """Make the freshness gate answer one way for every workspace."""
 
-    async def _check(**_kwargs: object) -> tuple[FreshnessVerdict, tuple[Any, ...]]:
-        return FreshnessVerdict(
-            outcome=outcome, checked_at=CHECKED_AT, probe_from=SETTLED, probe_to=SETTLED
-        ), reports
+    async def _check(**_kwargs: object) -> tuple[FreshnessVerdict, tuple[Any, ...], tuple[()]]:
+        return (
+            FreshnessVerdict(
+                outcome=outcome, checked_at=CHECKED_AT, probe_from=SETTLED, probe_to=SETTLED
+            ),
+            reports,
+            (),
+        )
 
     monkeypatch.setattr(fleet, "check_freshness", _check)
 

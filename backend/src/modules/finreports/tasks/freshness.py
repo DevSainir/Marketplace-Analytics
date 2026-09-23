@@ -58,6 +58,7 @@ from src.core.redis import get_redis
 from src.integrations.wildberries.clients import WBFinanceReportsClient
 from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
 from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
+from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.constants import (
     FRESHNESS_RECORD_TTL_SECONDS,
     SETTLEMENT_LIST_WINDOW_DAYS,
@@ -121,7 +122,7 @@ class Outstanding:
 
 async def outstanding_reports(
     *, tokens: WorkspaceTokenBundle, held: Collection[int], today: date
-) -> Outstanding | None:
+) -> tuple[Outstanding | None, tuple[WBFinanceReportHeader, ...]]:
     """Ask WB which reports it has formed, and return the ones we lack.
 
     One request, on a bucket of its own. That separation is the point: on the
@@ -136,8 +137,10 @@ async def outstanding_reports(
         today: Today in Moscow time.
 
     Returns:
-        The missing reports and how overdue the oldest is, or ``None`` when we
-        hold everything WB has formed.
+        ``(outstanding, listed)``. The first is ``None`` when we hold everything
+        WB has formed; the second is WB's whole answer either way, because the
+        per-report totals on it are worth recording for the reports we DO hold
+        and there is nowhere else they appear.
 
     Raises:
         IntegrationError: When WB did not answer. The caller decides what an
@@ -152,11 +155,11 @@ async def outstanding_reports(
         if header.report_id not in held
     )
     if not missing:
-        return None
+        return None, tuple(listed)
     oldest = min(
         header.create_date for header in listed if header.report_id == missing[0].report_id
     )
-    return Outstanding(reports=missing, overdue_days=(today - oldest).days)
+    return Outstanding(reports=missing, overdue_days=(today - oldest).days), tuple(listed)
 
 
 async def check_freshness(
@@ -166,7 +169,7 @@ async def check_freshness(
     held: Collection[int],
     today: date,
     blocked_for: float = 0.0,
-) -> tuple[FreshnessVerdict | None, tuple[MissingReport, ...]]:
+) -> tuple[FreshnessVerdict | None, tuple[MissingReport, ...], tuple[WBFinanceReportHeader, ...]]:
     """Ask WB whether it holds a report this workspace has not harvested.
 
     Returns a *recorded* verdict rather than a bare bool: a run that asked and
@@ -189,8 +192,11 @@ async def check_freshness(
             read from the shared rate bucket at no cost in WB requests.
 
     Returns:
-        ``(verdict, missing reports)``. The reports are empty whenever there is
-        nothing to fetch, which includes the verdicts that say we could not ask.
+        ``(verdict, missing reports, every report WB listed)``. The reports are
+        empty whenever there is nothing to fetch, which includes the verdicts
+        that say we could not ask. The third element is WB's whole answer, which
+        the caller records the totals from — those exist on the list entry and
+        on no settlement row, so this is the only place they are ever seen.
         The verdict is ``None`` for one case only — a workspace with no
         «Финансы» token, where nothing was asked and nothing can be. It used to
         also mean «the cadence paced this tick out», which no longer exists.
@@ -199,7 +205,7 @@ async def check_freshness(
         logger.warning(
             "finreports: %s has no «Финансы» token — the P&L cannot be harvested.", tokens.name
         )
-        return None, ()
+        return None, (), ()
     if latest_settled is None:
         logger.info("finreports: %s has no reports yet — harvesting.", tokens.name)
 
@@ -213,21 +219,25 @@ async def check_freshness(
             tokens.name,
             blocked_for,
         )
-        return FreshnessVerdict(
-            outcome=FreshnessOutcome.RATE_BLOCKED, checked_at=datetime.now(UTC)
-        ), ()
+        return (
+            FreshnessVerdict(outcome=FreshnessOutcome.RATE_BLOCKED, checked_at=datetime.now(UTC)),
+            (),
+            (),
+        )
 
     try:
-        outstanding = await outstanding_reports(tokens=tokens, held=held, today=today)
+        outstanding, listed = await outstanding_reports(tokens=tokens, held=held, today=today)
     except IntegrationError as exc:
         # Fail open: an unanswered question is not a "no". The recorded verdict
         # says so, rather than reporting the silence as reassurance.
         logger.warning(
             "finreports: report list failed for %s — harvesting anyway: %s", tokens.name, exc
         )
-        return FreshnessVerdict(
-            outcome=FreshnessOutcome.PROBE_FAILED, checked_at=datetime.now(UTC)
-        ), ()
+        return (
+            FreshnessVerdict(outcome=FreshnessOutcome.PROBE_FAILED, checked_at=datetime.now(UTC)),
+            (),
+            (),
+        )
 
     if outstanding is None:
         logger.info(
@@ -235,9 +245,11 @@ async def check_freshness(
             tokens.name,
             today,
         )
-        return FreshnessVerdict(
-            outcome=FreshnessOutcome.UP_TO_DATE, checked_at=datetime.now(UTC)
-        ), ()
+        return (
+            FreshnessVerdict(outcome=FreshnessOutcome.UP_TO_DATE, checked_at=datetime.now(UTC)),
+            (),
+            listed,
+        )
 
     probe_from, probe_to = outstanding.span
     logger.info(
@@ -246,12 +258,16 @@ async def check_freshness(
         tokens.name,
         ", ".join(str(report.report_id) for report in outstanding.reports),
     )
-    return FreshnessVerdict(
-        outcome=FreshnessOutcome.WB_HAS_NEW,
-        checked_at=datetime.now(UTC),
-        probe_from=probe_from,
-        probe_to=probe_to,
-    ), outstanding.reports
+    return (
+        FreshnessVerdict(
+            outcome=FreshnessOutcome.WB_HAS_NEW,
+            checked_at=datetime.now(UTC),
+            probe_from=probe_from,
+            probe_to=probe_to,
+        ),
+        outstanding.reports,
+        listed,
+    )
 
 
 def freshness_record_store() -> FreshnessRecordStore:

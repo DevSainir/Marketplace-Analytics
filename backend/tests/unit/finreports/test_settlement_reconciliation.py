@@ -15,33 +15,25 @@ reach before WB ever served it. Every workspace lost a day of settlement, and
 nothing in the product could tell: the task succeeded, the counters moved, the
 P&L was simply short.
 
-These tests pin the two halves of the answer, because either alone is useless:
-the span reaches back, and the pass runs even when the gate says there is
-nothing newer — which is true, and beside the point, exactly when a back-dated
-report is what is being looked for.
+These tests pin what the pass is AIMED at — the span that reaches back behind
+the watermark, and the rotation that decides whose turn it is. Both are pure
+functions and need no harness. The tick that acts on them is
+``test_reconciliation_pass``, and it is worth the two files: either half alone
+is useless, and they fail for completely different reasons.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import date
 
 import pytest
 
 from src.modules.finreports.constants import (
-    HARVEST_LOCK_KEY,
     RECONCILE_LOOKBACK_DAYS,
 )
-from src.modules.finreports.services.freshness_record import (
-    FreshnessOutcome,
-    FreshnessVerdict,
-)
-from src.modules.finreports.tasks import freshness, repair
-from src.modules.finreports.tasks.harvest import fleet, harvest_all_workspaces
-from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.finreports.tasks.spans import reconciliation_slice, walk_span
 from src.modules.workspaces.contract import WorkspaceTokenBundle
-from tests.support.fakes import no_daily_tail
 
 pytestmark = pytest.mark.unit
 
@@ -254,246 +246,3 @@ def test_without_gaps_the_rotation_is_unchanged() -> None:
     assert reconciliation_slice(fleet, today=TODAY, gaps={}) == reconciliation_slice(
         fleet, today=TODAY
     )
-
-
-# --- the pass -------------------------------------------------------------
-
-
-class _FakeRedis:
-    """The lock commands plus the two the freshness record uses."""
-
-    def __init__(self) -> None:
-        self.store: dict[str, str] = {}
-
-    async def exists(self, key: str) -> int:
-        return 1 if key in self.store else 0
-
-    async def get(self, key: str) -> str | None:
-        return self.store.get(key)
-
-    async def set(
-        self,
-        key: str,
-        value: str,
-        *,
-        nx: bool = False,
-        px: int | None = None,
-        ex: int | None = None,
-    ) -> bool | None:
-        if nx and key in self.store:
-            return None
-        self.store[key] = value
-        return True
-
-    async def eval(self, script: str, numkeys: int, *args: str) -> int:
-        key, token = args[0], args[1]
-        if self.store.get(key) == token:
-            del self.store[key]
-            return 1
-        return 0
-
-
-class _FakeSession:
-    """A session that is opened and closed and never queried."""
-
-    async def __aenter__(self) -> _FakeSession:
-        return self
-
-    async def __aexit__(self, *_exc: object) -> None:
-        return None
-
-
-class _FakeWatermarkRepo:
-    """Reports the watermark as it stood once the weekly report had landed."""
-
-    def __init__(self, _session: object) -> None:
-        pass
-
-    async def get(self, *, workspace_id: uuid.UUID) -> date:
-        return SETTLED
-
-
-class _FakeReportRepo:
-    """Coverage after the walk — unchanged, which is the quiet-week case."""
-
-    def __init__(self, _session: object) -> None:
-        pass
-
-    async def latest_settled_date(self, *, workspace_id: uuid.UUID) -> date | None:
-        return SETTLED
-
-    async def period_ends_since(self, *, workspace_id: uuid.UUID, since: date) -> list[date]:
-        """The periods already held — empty, so the gate sees every one as missing."""
-        return []
-
-    async def report_ids_since(self, *, workspace_id: uuid.UUID, since: date) -> set[int]:
-        """No report ids held, so WB's whole list reads as missing."""
-        return set()
-
-    async def list_periods(self, *, workspace_id: uuid.UUID) -> list[tuple[int, date, date]]:
-        """What a thorough pass re-walks: the reports on file, newest first.
-
-        «Which ids am I missing» cannot see an amendment to a report already
-        held, and amendments are what the reconciliation pass exists for.
-        """
-        return [
-            (701, SETTLED - timedelta(days=10), SETTLED - timedelta(days=10)),
-            (702, SETTLED, SETTLED),
-        ]
-
-
-@pytest.fixture
-def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
-    """Wire a fleet of one whose gate says there is nothing newer.
-
-    That verdict is the honest one all through this incident — WB really had
-    published nothing past the watermark — and it is exactly what a
-    back-dated report has to survive.
-    """
-    spans: list[tuple[date, date]] = []
-    redis = _FakeRedis()
-
-    bundle = WorkspaceTokenBundle(
-        workspace_id=WORKSPACE, name="Демо", statistics="stat-token", finance="fin-token"
-    )
-
-    async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
-        return [bundle]
-
-    async def _bundle(*_args: object, **_kwargs: object) -> WorkspaceTokenBundle:
-        return bundle
-
-    async def _check(**_kwargs: object) -> tuple[FreshnessVerdict, tuple[()]]:
-        return FreshnessVerdict(
-            outcome=FreshnessOutcome.WB_EMPTY,
-            checked_at=datetime(2026, 9, 8, 3, 0, tzinfo=UTC),
-            probe_from=date(2026, 9, 7),
-            probe_to=date(2026, 9, 7),
-        ), ()
-
-    async def _walk(
-        *, tokens: WorkspaceTokenBundle, reports: tuple[MissingReport, ...], **_kwargs: object
-    ) -> dict[str, int]:
-        spans.append((reports[0].date_to, reports[-1].date_to) if reports else (TODAY, TODAY))
-        return {"finance_windows_failed": 0}
-
-    monkeypatch.setattr(fleet, "get_redis", lambda: redis)
-    monkeypatch.setattr(freshness, "get_redis", lambda: redis)
-    monkeypatch.setattr(repair, "get_redis", lambda: redis)
-    monkeypatch.setattr(fleet, "AsyncSessionLocal", _FakeSession)
-    monkeypatch.setattr(freshness, "AsyncSessionLocal", _FakeSession)
-    monkeypatch.setattr(fleet, "SettlementWatermarkRepository", _FakeWatermarkRepo)
-    # The loop reads BOTH — the frontier is the earlier of them. See
-    # `tests/unit/finreports/test_settlement_frontier.py` for why.
-    monkeypatch.setattr(fleet, "FinancialReportRepository", _FakeReportRepo)
-    monkeypatch.setattr(freshness, "FinancialReportRepository", _FakeReportRepo)
-    monkeypatch.setattr(fleet, "load_workspace_token_bundles", _bundles)
-    monkeypatch.setattr(fleet, "load_workspace_token_bundle", _bundle)
-    monkeypatch.setattr(fleet, "settlement_blocked_for", _never_blocked)
-    monkeypatch.setattr(fleet, "check_freshness", _check)
-    monkeypatch.setattr(fleet, "harvest_workspace", _walk)
-    monkeypatch.setattr(fleet, "tail_one_workspace", no_daily_tail)
-    monkeypatch.setattr(fleet, "moscow_today", lambda: TODAY)
-
-    # The gap survey is a database read and this is the unit tier. Stubbed to
-    # "history is sound" so these tests exercise the walk rather than the
-    # detector — which has its own tests against real SQL, because
-    # `generate_series` over a date range is not Python behaviour.
-    async def _no_gaps(*_args: object, **_kwargs: object) -> dict[uuid.UUID, list[date]]:
-        return {}
-
-    monkeypatch.setattr(fleet, "survey_settlement_gaps", _no_gaps)
-    return spans
-
-
-async def test_an_ordinary_tick_still_skips_when_nothing_is_newer(
-    walked: list[tuple[date, date]],
-) -> None:
-    """The gate keeps its job — this pass must not turn every hour into a walk."""
-    totals = await harvest_all_workspaces(days=28)
-
-    assert walked == []
-    assert totals["workspaces_skipped"] == 1
-
-
-async def test_the_reconciliation_pass_walks_despite_a_gate_that_says_no(
-    walked: list[tuple[date, date]],
-) -> None:
-    """«Ничего новее нет» is true and irrelevant when the missing report is older.
-
-    The gate probes the day AFTER the watermark, so it cannot see a back-dated
-    report even in principle. Letting its verdict stop the pass would leave the
-    lookback span unreachable and the fix inert.
-    """
-    await harvest_all_workspaces(days=28, reconcile=True)
-
-    assert len(walked) == 1
-
-
-async def test_the_reconciliation_pass_asks_about_the_day_that_was_lost(
-    walked: list[tuple[date, date]],
-) -> None:
-    """The two halves together: it runs, and it runs over the right span."""
-    await harvest_all_workspaces(days=28, reconcile=True)
-
-    date_from, date_to = walked[0]
-    assert date_from <= LOST_DAY <= date_to
-
-
-async def test_the_reconciliation_pass_still_respects_the_harvest_lock(
-    walked: list[tuple[date, date]], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """It is the same walk against the same WB budget, so it queues like one.
-
-    Two of these racing would spend a seller's quarter-hourly settlement budget
-    twice over — the failure the lock exists to prevent, and one the extra span
-    would make more expensive, not less.
-    """
-    held = _FakeRedis()
-    held.store[HARVEST_LOCK_KEY] = "another-runs-token"
-    monkeypatch.setattr(fleet, "get_redis", lambda: held)
-
-    totals = await harvest_all_workspaces(days=28, reconcile=True)
-
-    assert walked == []
-    assert totals["skipped_locked"] == 1
-
-
-async def test_the_button_walks_the_lookback_for_its_own_workspace(
-    walked: list[tuple[date, date]],
-) -> None:
-    """«Обновить» asks the thorough question, scoped to the caller.
-
-    It used to ask the forward one, on the reasoning that widening a click into a
-    fortnight of re-reads spends a seller's settlement budget on data already on
-    file — and that the daily pass covers it anyway. The cost was right; the
-    «anyway» was not. The daily pass takes one workspace a night, so a seller
-    short a week waits up to five days, and this button exists for exactly the
-    case where the schedule has already failed to fetch something WB has.
-    """
-    await harvest_all_workspaces(days=28, workspace_id=WORKSPACE, reconcile=True)
-
-    date_from, date_to = walked[0]
-    assert date_from <= LOST_DAY <= date_to
-
-
-async def test_the_button_still_spends_only_the_callers_budget(
-    walked: list[tuple[date, date]], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The thorough span must not come with a fleet-wide walk attached.
-
-    A click is one tenant's, and the cost of one click may not grow with the
-    number of sellers on the platform.
-    """
-    loaded: list[uuid.UUID | None] = []
-
-    async def _fleet(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
-        loaded.append(None)
-        return []
-
-    monkeypatch.setattr(fleet, "load_workspace_token_bundles", _fleet)
-
-    await harvest_all_workspaces(days=28, workspace_id=WORKSPACE, reconcile=True)
-
-    assert loaded == []
-    assert len(walked) == 1

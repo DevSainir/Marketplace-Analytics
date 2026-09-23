@@ -229,9 +229,9 @@ async def test_the_harvest_asks_the_gate_about_the_frontier_not_the_watermark(
 
     async def _check(
         *, latest_settled: date | None, **_kwargs: object
-    ) -> tuple[FreshnessVerdict, tuple[()]]:
+    ) -> tuple[FreshnessVerdict, tuple[()], tuple[()]]:
         asked.append(latest_settled)
-        return FreshnessVerdict(outcome=FreshnessOutcome.WB_EMPTY, checked_at=CHECKED_AT), ()
+        return FreshnessVerdict(outcome=FreshnessOutcome.WB_EMPTY, checked_at=CHECKED_AT), (), ()
 
     async def _no_gaps(*_args: object, **_kwargs: object) -> dict[uuid.UUID, list[date]]:
         return {}

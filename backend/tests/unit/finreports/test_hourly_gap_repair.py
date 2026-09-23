@@ -29,7 +29,7 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessVerdict,
 )
 from src.modules.finreports.tasks import freshness, repair
-from src.modules.finreports.tasks.harvest import fleet, harvest_all_workspaces
+from src.modules.finreports.tasks.harvest import fleet, harvest_all_workspaces, ledger
 from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 from tests.support.fakes import no_daily_tail
@@ -160,13 +160,17 @@ def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
     async def _bundle(*_args: object, **_kwargs: object) -> WorkspaceTokenBundle:
         return bundle
 
-    async def _check(**_kwargs: object) -> tuple[FreshnessVerdict, tuple[()]]:
-        return FreshnessVerdict(
-            outcome=FreshnessOutcome.WB_EMPTY,
-            checked_at=datetime(2026, 9, 8, 3, 0, tzinfo=UTC),
-            probe_from=date(2026, 9, 7),
-            probe_to=date(2026, 9, 7),
-        ), ()
+    async def _check(**_kwargs: object) -> tuple[FreshnessVerdict, tuple[()], tuple[()]]:
+        return (
+            FreshnessVerdict(
+                outcome=FreshnessOutcome.WB_EMPTY,
+                checked_at=datetime(2026, 9, 8, 3, 0, tzinfo=UTC),
+                probe_from=date(2026, 9, 7),
+                probe_to=date(2026, 9, 7),
+            ),
+            (),
+            (),
+        )
 
     async def _walk(
         *, tokens: WorkspaceTokenBundle, reports: tuple[MissingReport, ...], **_kwargs: object
@@ -179,6 +183,11 @@ def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
     monkeypatch.setattr(repair, "get_redis", lambda: redis)
     monkeypatch.setattr(fleet, "AsyncSessionLocal", _FakeSession)
     monkeypatch.setattr(freshness, "AsyncSessionLocal", _FakeSession)
+    # The report ledger moved to its own module on 2026-09-23 and these fakes
+    # have to follow it, or the tick opens a REAL session — which on a laptop
+    # with Docker up passes, and in CI fails as "attached to a different loop".
+    monkeypatch.setattr(ledger, "AsyncSessionLocal", _FakeSession)
+    monkeypatch.setattr(ledger, "FinancialReportRepository", _FakeReportRepo)
     monkeypatch.setattr(fleet, "SettlementWatermarkRepository", _FakeWatermarkRepo)
     # The loop reads BOTH — the frontier is the earlier of them. See
     # `tests/unit/finreports/test_settlement_frontier.py` for why.
