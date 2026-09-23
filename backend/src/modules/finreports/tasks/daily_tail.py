@@ -22,15 +22,24 @@ from what is and is not proven:
 * **It walks only ahead of the settled frontier.** A day at or behind the
   frontier belongs to the weekly lane, which is the authority; re-fetching it
   here would do nothing but flip those rows' ``report_id`` to a daily id.
-* **It takes the weekly harvest's own lock.** Both lanes spend the same
-  one-request-a-minute WB buckets, so running them at once would only make each
-  429 the other. Losing the lock costs a tick, and on the six days a week the
-  weekly tick finds nothing, the lock is free.
+* **A fleet sweep takes the weekly harvest's own lock.** Both lanes spend the
+  same one-request-a-minute WB buckets, so two sweeps at once would only make
+  each 429 the other. Losing the lock costs a tick, and on the six days a week
+  the weekly tick finds nothing, the lock is free.
+* **A run scoped to one workspace does not.** That is what «Обновить» enqueues,
+  and under the shared lock the button would answer «already running» and fetch
+  nothing exactly when the hourly sweep is in flight — the one case it exists
+  for. A scoped run spends one seller's budget, WB's buckets are per token, and
+  pacing is the rate gate's job; its own lock only stops two clicks on the same
+  кабинет walking it twice.
 """
 
 from __future__ import annotations
 
+import uuid
 from datetime import date, timedelta
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
@@ -43,6 +52,7 @@ from src.core.timeutils import moscow_today
 from src.integrations.wildberries.clients import ReportPeriod, WBFinanceReportsClient
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.constants import (
+    DAILY_TAIL_LOCK_PREFIX,
     DAILY_TAIL_LOOKBACK_DAYS,
     DAILY_TAIL_VERIFY_AFTER_HOURS,
     DAILY_TAIL_VERIFY_LIMIT,
@@ -64,6 +74,7 @@ from src.modules.finreports.tasks.settlement import (
 from src.modules.finreports.tasks.spans import settlement_frontier
 from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
+    load_workspace_token_bundle,
     load_workspace_token_bundles,
 )
 
@@ -89,32 +100,70 @@ _EMPTY_VERIFY: dict[str, int] = {
 }
 
 
-async def harvest_daily_tail() -> dict[str, int]:
-    """Cover every workspace's days between the settled frontier and yesterday.
+async def harvest_daily_tail(*, workspace_id: uuid.UUID | None = None) -> dict[str, int]:
+    """Cover the days between the settled frontier and yesterday.
+
+    Args:
+        workspace_id: One workspace to cover, or ``None`` to sweep the fleet.
+            «Обновить» passes the caller's own, because a click by one tenant
+            must not spend every other tenant's WB budget — the same rule the
+            settled harvest's route follows.
 
     Returns:
         ``reports`` daily reports completed, ``rows`` settlement rows written,
         ``reports_failed`` reports that stopped early, ``workspaces_skipped``
-        workspaces with nothing to do, and ``skipped_locked`` 1 when the weekly
-        harvest held the lock and this run did nothing.
+        workspaces with nothing to do, and ``skipped_locked`` 1 when an
+        identical run was already in flight and this one did nothing.
     """
+    # A fleet sweep takes the harvest's own lock: it walks every seller in turn,
+    # so two of them would queue behind each other on the same WB buckets for
+    # minutes. A SCOPED run takes a lock of its own instead, and the difference
+    # is what makes «Обновить» work at all — under the shared lock a click
+    # landing while the hourly sweep ran would answer `skipped_locked` and fetch
+    # nothing, which is precisely the case the button exists for. A scoped run
+    # spends one seller's budget, buckets are per token, and WB pacing is the
+    # rate gate's job rather than the lock's; the worst a collision costs is
+    # that one of the two waits for a token.
+    key = HARVEST_LOCK_KEY if workspace_id is None else f"{DAILY_TAIL_LOCK_PREFIX}{workspace_id}"
     async with single_flight(
-        HARVEST_LOCK_KEY, ttl_seconds=HARVEST_LOCK_TTL_SECONDS, redis=get_redis()
+        key, ttl_seconds=HARVEST_LOCK_TTL_SECONDS, redis=get_redis()
     ) as acquired:
         if not acquired:
-            logger.info("finreports: the settled harvest holds the lock — daily tail skipped.")
+            logger.info("finreports: a daily tail run already holds %s — skipping.", key)
             return dict(_EMPTY, skipped_locked=1)
         today = moscow_today()
         async with AsyncSessionLocal() as session:
-            bundles = list(await load_workspace_token_bundles(session))
+            bundles = await _bundles_to_tail(session, workspace_id=workspace_id)
         totals = dict(_EMPTY)
         for bundle in bundles:
             if not bundle.finance:
                 continue
             counts = await _tail_one_workspace(tokens=bundle, today=today)
-            for key, value in counts.items():
-                totals[key] += value
+            for key_, value in counts.items():
+                totals[key_] += value
         return totals
+
+
+async def _bundles_to_tail(
+    session: AsyncSession, *, workspace_id: uuid.UUID | None
+) -> list[WorkspaceTokenBundle]:
+    """Load credentials for the workspaces this run may touch.
+
+    A scoped run loads exactly one bundle rather than loading every tenant's and
+    filtering: the fleet loader decrypts each workspace's WB tokens, and one
+    tenant pressing «Обновить» is no reason to touch the others' secrets.
+
+    Args:
+        session: An open session (the caller owns the transaction).
+        workspace_id: The single workspace, or ``None`` for the fleet.
+
+    Returns:
+        The bundles — empty when a scoped workspace no longer exists.
+    """
+    if workspace_id is None:
+        return list(await load_workspace_token_bundles(session))
+    bundle = await load_workspace_token_bundle(session, workspace_id)
+    return [bundle] if bundle is not None else []
 
 
 async def _tail_one_workspace(*, tokens: WorkspaceTokenBundle, today: date) -> dict[str, int]:

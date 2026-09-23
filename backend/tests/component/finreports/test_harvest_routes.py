@@ -108,6 +108,14 @@ def task(monkeypatch: pytest.MonkeyPatch) -> _SpyTask:
     return spy
 
 
+@pytest.fixture
+def tail_task(monkeypatch: pytest.MonkeyPatch) -> _SpyTask:
+    """The same, for the provisional daily tail the click also enqueues."""
+    spy = _SpyTask()
+    monkeypatch.setattr("src.modules.finreports.routers.harvest.harvest_daily_tail", spy)
+    return spy
+
+
 @pytest.fixture(autouse=True)
 def _wire(
     override: Callable[[Any, Any], None],
@@ -367,3 +375,49 @@ async def test_the_trigger_requires_authentication(client: httpx.AsyncClient) ->
     response = await client.post("/api/v1/finreports/harvest")
 
     assert response.status_code == 401
+
+
+async def test_pressing_refresh_also_fills_the_provisional_daily_tail(
+    client: Any, headers: dict[str, str], task: _SpyTask, tail_task: _SpyTask
+) -> None:
+    """The days between the last weekly report and yesterday are the days the
+    seller is usually looking at when they press the button.
+
+    Enqueued beside the settled walk rather than after it: that walk can sit for
+    minutes waiting for WB's next rate token, and behind it these rows would
+    arrive last.
+    """
+    response = await client.post("/api/v1/finreports/harvest", headers=headers)
+
+    assert response.status_code == 202
+    assert tail_task.enqueued == 1
+
+
+async def test_the_tail_a_click_enqueues_is_scoped_to_the_callers_workspace(
+    client: Any, headers: dict[str, str], task: _SpyTask, tail_task: _SpyTask, workspace: Any
+) -> None:
+    """One tenant's click must not spend every other tenant's WB budget.
+
+    The same rule the settled walk's enqueue already follows — it used to be
+    fleet-wide, so the cost of one click grew with the number of sellers and
+    landed on all of them.
+    """
+    await client.post("/api/v1/finreports/harvest", headers=headers)
+
+    assert tail_task.calls == [{"workspace_id": str(workspace.id)}]
+
+
+async def test_a_refresh_refused_as_already_running_enqueues_no_tail(
+    client: Any,
+    headers: dict[str, str],
+    task: _SpyTask,
+    tail_task: _SpyTask,
+    control: _StubHarvestControl,
+) -> None:
+    """A refusal must refuse both halves, or the guard only covers one lane."""
+    control.running = True
+
+    response = await client.post("/api/v1/finreports/harvest", headers=headers)
+
+    assert response.json()["status"] == "already_running"
+    assert tail_task.enqueued == 0

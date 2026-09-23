@@ -289,3 +289,13 @@ DAILY_TAIL_VERIFY_AFTER_HOURS: int = 24
 #: the settled history's own walk. Three is one report a day plus slack to drain
 #: a backlog, and bounds the run at three minutes per workspace.
 DAILY_TAIL_VERIFY_LIMIT: int = 3
+
+#: Redis key prefix for a daily tail run scoped to ONE workspace.
+#:
+#: A fleet sweep takes :data:`HARVEST_LOCK_KEY`, because it walks every seller
+#: in turn and two of them would spend minutes queued on the same WB buckets. A
+#: click cannot take that lock: it would answer «already running» and fetch
+#: nothing exactly when the hourly sweep is in flight, which is the case the
+#: button exists for. One key per workspace keeps the only guarantee a scoped
+#: run needs — that two clicks on the same кабинет do not walk it twice.
+DAILY_TAIL_LOCK_PREFIX: str = "finreports:daily_tail:"

@@ -30,7 +30,7 @@ from src.modules.finreports.schemas import (
     HarvestTriggerResponse,
     LatestReportOut,
 )
-from src.modules.finreports.tasks import harvest_finance
+from src.modules.finreports.tasks import harvest_daily_tail, harvest_finance
 from src.modules.organizations.contract import WritingAccess
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
@@ -168,4 +168,15 @@ async def trigger_harvest(
             status="rate_limited", retry_after_seconds=math.ceil(retry_after)
         )
     task = harvest_finance.delay(workspace_id=str(workspace_id), reconcile=True)
+    # And the provisional tail, as a second task rather than a step inside the
+    # first. The settled walk can sit for minutes waiting for WB's next token,
+    # and the days this fetches — the ones between the last weekly report and
+    # yesterday — are usually the ones the seller is looking at when they press
+    # the button. Behind the walk they would arrive last; beside it they arrive
+    # while it is still pacing. Both are scoped to the caller's own workspace.
+    #
+    # Its result is not reported back: the button polls `GET /harvest`, which
+    # already answers «what do we hold now», and a second task id would only
+    # invite the frontend to wait on a run whose rows it can already see.
+    harvest_daily_tail.delay(workspace_id=str(workspace_id))
     return HarvestTriggerResponse(status="started", task_id=task.id)

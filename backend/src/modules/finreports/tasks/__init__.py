@@ -72,18 +72,26 @@ def harvest_finance(
 
 
 @celery_app.task(name="finreports.harvest_daily_tail", **_TASK_RETRY_KWARGS)  # type: ignore[untyped-decorator]
-def harvest_daily_tail() -> dict[str, int]:
+def harvest_daily_tail(workspace_id: str | None = None) -> dict[str, int]:
     """Cover the days between the settled weekly frontier and yesterday.
 
-    No arguments on purpose. The span is not a caller's choice — it is whatever
-    lies between what the weekly lane has settled and yesterday, per workspace —
-    and a `days` parameter would invite someone to ask for a month of daily
-    reports at one request a minute.
+    Args:
+        workspace_id: A workspace UUID **as a string**, restricting the run to
+            that one tenant; ``None`` sweeps the fleet. A string because Celery
+            is configured for JSON-only serialization, which has no UUID.
+            «Обновить» passes the caller's own workspace so one tenant's click
+            cannot spend the WB budget of every seller on the platform.
+
+    There is deliberately no span argument. What to cover is not a caller's
+    choice — it is whatever lies between what the weekly lane has settled and
+    yesterday — and a `days` parameter would invite someone to ask for a month
+    of daily reports at one request a minute.
 
     Returns:
         Reports completed, rows written, and what was skipped.
     """
-    return run_task(_harvest_daily_tail())
+    scope = uuid.UUID(workspace_id) if workspace_id else None
+    return run_task(_harvest_daily_tail(workspace_id=scope))
 
 
 @celery_app.task(name="finreports.verify_daily_tail", **_TASK_RETRY_KWARGS)  # type: ignore[untyped-decorator]
