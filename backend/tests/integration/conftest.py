@@ -40,6 +40,14 @@ from sqlalchemy.pool import NullPool
 
 # Importing every model module registers its tables on the shared metadata;
 # without this, create_all() would build an empty schema.
+#
+# EVERY module, including the ones no test here queries directly. A module left
+# out is a table `create_all` never builds, and the row-level-security test then
+# fails on it rather than on anything it is about: `scripts/sql/row_level_security.sql`
+# names `ab_tests.ab_test`, so a database built without that module cannot have
+# the script applied at all. It surfaces only on a freshly created test database,
+# which is why it went unnoticed.
+import src.modules.ab_tests.models
 import src.modules.finreports.models
 import src.modules.monitoring.models
 import src.modules.organizations.models
