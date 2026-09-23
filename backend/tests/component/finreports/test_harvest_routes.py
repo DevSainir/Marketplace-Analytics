@@ -108,9 +108,17 @@ def task(monkeypatch: pytest.MonkeyPatch) -> _SpyTask:
     return spy
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def tail_task(monkeypatch: pytest.MonkeyPatch) -> _SpyTask:
-    """The same, for the provisional daily tail the click also enqueues."""
+    """The same, for the provisional daily tail the click also enqueues.
+
+    Autouse, unlike ``task``, because the click enqueues this one whether or not
+    the case under test is about it: every POST to the route reaches it. Left
+    opt-in, the four cases written before the tail existed went on asking for
+    ``task`` alone and drove the REAL Celery task — which passes wherever a
+    broker happens to answer and fails in CI, where nothing resolves the name
+    ``redis`` from that job. A component test must not depend on either.
+    """
     spy = _SpyTask()
     monkeypatch.setattr("src.modules.finreports.routers.harvest.harvest_daily_tail", spy)
     return spy
