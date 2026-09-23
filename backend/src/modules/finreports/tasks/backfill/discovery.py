@@ -39,6 +39,7 @@ from datetime import date, timedelta
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 from src.integrations.wildberries.clients import WBFinanceReportsClient
+from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.constants import SETTLEMENT_LIST_WINDOW_DAYS
 from src.modules.finreports.repos import FinancialReportRepository
 from src.modules.finreports.tasks.settlement import MissingReport
@@ -82,11 +83,17 @@ class Backlog:
             sweep rule compares against, and the only number that says whether
             a sweep achieved anything.
         total: Reports in scope, held or not — the progress bar's denominator.
+        listed: WB's whole answer, scope and harvest window alike. Carried so
+            the caller can record the per-report totals on the reports it holds
+            — this lane lists the ENTIRE history every tick, where the forward
+            harvest only ever sees its own 45-day window, so it is the only
+            place the deep archive's totals can be filled in at all.
     """
 
     due: tuple[MissingReport, ...]
     outstanding: int
     total: int
+    listed: tuple[WBFinanceReportHeader, ...] = ()
 
     @property
     def done(self) -> int:
@@ -141,7 +148,7 @@ async def survey_backlog(
         for header in sorted(missing, key=lambda header: header.date_to, reverse=True)
         if header.date_to <= ceiling
     )
-    return Backlog(due=due, outstanding=len(missing), total=len(in_scope))
+    return Backlog(due=due, outstanding=len(missing), total=len(in_scope), listed=tuple(listed))
 
 
 async def held_report_ids(workspace_id: uuid.UUID, *, since: date) -> Collection[int]:

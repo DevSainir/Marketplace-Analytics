@@ -67,14 +67,19 @@ def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _backlog(
-    monkeypatch: pytest.MonkeyPatch, *, due: tuple[MissingReport, ...], outstanding: int, total: int
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    due: tuple[MissingReport, ...],
+    outstanding: int,
+    total: int,
+    listed: tuple[Any, ...] = (),
 ) -> list[dict[str, Any]]:
     """Make the survey answer with this backlog, and record what it was asked."""
     asked: list[dict[str, Any]] = []
 
     async def _survey(**kwargs: Any) -> discovery.Backlog:
         asked.append(kwargs)
-        return discovery.Backlog(due=due, outstanding=outstanding, total=total)
+        return discovery.Backlog(due=due, outstanding=outstanding, total=total, listed=listed)
 
     monkeypatch.setattr(walk, "survey_backlog", _survey)
     return asked
@@ -318,6 +323,35 @@ async def test_the_opening_backlog_is_recorded_on_the_first_tick_of_a_sweep(
 
     assert step.cursor is not None
     assert (discovery.parse_cursor(step.cursor) or (None, 0, 0))[2] == 4
+
+
+async def test_the_lane_records_wb_s_totals_for_the_whole_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """This lane is the only caller that ever sees the deep archive's totals.
+
+    The forward harvest lists 45 days, so on «Демо» it can fill 8 of 143
+    headers and no more. This one lists the entire history every tick, and the
+    list is already in hand — so recording them here costs no WB request and is
+    the only way the archive's figures are ever filled in.
+
+    It runs before the walk and regardless of whether anything is missing: a
+    lane with nothing left to fetch is exactly the state «Демо» is in, and
+    it is the state where the totals are the only thing left to collect.
+    """
+    recorded: list[tuple[Any, ...]] = []
+
+    async def _record(*, workspace_id: uuid.UUID, listed: Any) -> None:
+        recorded.append((workspace_id, tuple(listed)))
+
+    monkeypatch.setattr(walk, "record_wb_totals", _record)
+    _backlog(monkeypatch, due=(), outstanding=0, total=3, listed=("h1", "h2", "h3"))
+    _fetch(monkeypatch)
+
+    step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
+
+    assert step.finished, "nothing was owed — the totals are all there was to do"
+    assert recorded == [(_tokens().workspace_id, ("h1", "h2", "h3"))]
 
 
 # --------------------------------------------------------------------------- #

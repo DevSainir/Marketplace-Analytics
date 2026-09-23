@@ -51,6 +51,7 @@ from src.modules.finreports.tasks.backfill.discovery import (
     parse_cursor,
     survey_backlog,
 )
+from src.modules.finreports.tasks.harvest.ledger import record_wb_totals
 from src.modules.finreports.tasks.settlement import MissingReport, walk_settlement_reports
 from src.modules.workspaces.contract import LaneStep, WorkspaceTokenBundle
 
@@ -170,6 +171,13 @@ async def advance_pnl(
             finished=False,
             message="Wildberries не отдал список отчётов — повторим.",
         )
+
+    # WB's own per-report totals, onto every report we already hold. Free — the
+    # list is already in hand — and this lane is the only caller that sees the
+    # WHOLE history: the forward harvest lists 45 days, so without this the
+    # archive's totals could never be filled. An UPDATE, so a report WB lists
+    # and we have not taken cannot be created here and counted as held.
+    await record_wb_totals(workspace_id=tokens.workspace_id, listed=backlog.listed)
 
     if not backlog.due:
         return _end_of_sweep(backlog, sweep=sweep, at_sweep_start=at_sweep_start, today=today)
