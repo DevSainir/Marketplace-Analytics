@@ -254,7 +254,15 @@ async def _fetch_batch(
             tokens=tokens,
             reports=bookable,
             build_ingestion=build_ingestion,
-            reserve_seconds=BACKGROUND_RESERVE_SECONDS,
+            # No reserve here, unlike the by-id walk below, and the difference
+            # is not politeness — it is whether a window of more than one page
+            # can run at all. The reserve makes a caller wait for a token free
+            # for 120 s; `acquire` accumulates that wait across pages, so a
+            # second page asked for 360 s against a 240 s cap and the whole
+            # window was discarded with 100 000 rows already committed (NEVA,
+            # 2026-09-23). It also protects nobody: the harvest and «Обновить»
+            # spend `detailed/{id}` and `list`, never this bucket.
+            reserve_seconds=0.0,
         )
         # Every report in the span was attempted, whether or not it landed — the
         # ceiling moves past all of them and a failure comes back on the next
@@ -304,9 +312,16 @@ def _end_of_sweep(backlog: Backlog, *, sweep: int, at_sweep_start: int, today: d
     is the failure this subsystem has had most often and noticed latest.
 
     **Something outstanding, and no fewer than when this sweep began** — a whole
-    pass changed nothing. What is left is what WB lists and does not serve, and
-    asking a fourth time is how a lane turns into a permanent 1/min load on an
-    endpoint that answers with penalty blocks. The lane finishes and says so.
+    pass changed nothing, and the lane stops rather than becoming a permanent
+    1/min load on an endpoint that answers with penalty blocks.
+
+    It says «забрать не удалось», not «Wildberries их не отдаёт», and the
+    distinction was paid for. On NEVA 2026-09-23 a pass fetched over a hundred
+    thousand rows and booked none of them — every window died on its second
+    page — so the backlog did not move and the lane announced that WB was
+    withholding 63 reports it had in fact served. A backlog that has not shrunk
+    means this walk finished nothing; what WB will and will not serve is a claim
+    this rule has no evidence for.
 
     Args:
         backlog: The survey this tick took.
@@ -322,8 +337,10 @@ def _end_of_sweep(backlog: Backlog, *, sweep: int, at_sweep_start: int, today: d
     if outstanding == 0:
         return LaneStep(total, total, None, True, "История P&L собрана.")
     if at_sweep_start and outstanding >= at_sweep_start:
-        logger.warning(
-            "finreports: P&L history finished with %d report(s) WB lists and does not serve.",
+        logger.error(
+            "finreports: P&L history gave up with %d report(s) unfetched after a full pass "
+            "that changed nothing. WB lists them; we did not complete them. This is a walk "
+            "that failed, not a seller with no data.",
             outstanding,
         )
         return LaneStep(
@@ -331,7 +348,7 @@ def _end_of_sweep(backlog: Backlog, *, sweep: int, at_sweep_start: int, today: d
             total,
             None,
             True,
-            f"История P&L собрана, кроме {outstanding} отчётов — Wildberries их не отдаёт.",
+            f"История P&L собрана; {outstanding} отчётов забрать не удалось.",
         )
     return LaneStep(
         done=done,

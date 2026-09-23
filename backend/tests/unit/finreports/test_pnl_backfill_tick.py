@@ -20,6 +20,7 @@ from typing import Any
 import pytest
 
 from src.core.exceptions import IntegrationError
+from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.tasks.backfill import discovery, walk
 from src.modules.finreports.tasks.settlement import MissingReport, SettlementWalk
@@ -316,6 +317,47 @@ async def test_several_owed_reports_are_taken_as_one_window(
     assert by_id == [], "four owed reports were fetched one request at a time"
     assert [report.report_id for report in windows[0]] == [900, 901, 902, 903]
     assert step.done == 10
+
+
+async def test_the_window_does_not_reserve_and_the_single_report_walk_does(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A window of more than one page cannot run against the reserve.
+
+    `acquire` accumulates its wait across pages, so a second page asked for
+    360 s against a 240 s cap and the whole window was discarded with 100 000
+    rows already committed (NEVA, 2026-09-23). The reserve buys nothing on that
+    bucket either: the harvest and «Обновить» spend `detailed/{id}` and `list`,
+    never this one.
+
+    The by-id walk keeps it, because that bucket IS the harvest's.
+    """
+    seen: dict[str, float] = {}
+
+    async def _window(*, reports: Any, reserve_seconds: float = 0.0, **_k: Any) -> SettlementWalk:
+        seen["window"] = reserve_seconds
+        return SettlementWalk(rows=1, windows_failed=0, completed_through=None)
+
+    async def _by_id(*, reports: Any, reserve_seconds: float = 0.0, **_k: Any) -> SettlementWalk:
+        seen["by_id"] = reserve_seconds
+        return SettlementWalk(rows=1, windows_failed=0, completed_through=None)
+
+    monkeypatch.setattr(walk, "walk_settlement_window", _window)
+    monkeypatch.setattr(walk, "walk_settlement_reports", _by_id)
+
+    _backlog(
+        monkeypatch,
+        due=(_report(900, weeks_back=7), _report(901, weeks_back=8)),
+        outstanding=2,
+        total=10,
+    )
+    await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
+
+    _backlog(monkeypatch, due=(_report(902, weeks_back=9),), outstanding=1, total=10)
+    await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
+
+    assert seen["window"] == 0.0
+    assert seen["by_id"] == BACKGROUND_RESERVE_SECONDS
 
 
 async def test_a_single_owed_report_is_still_taken_by_id(

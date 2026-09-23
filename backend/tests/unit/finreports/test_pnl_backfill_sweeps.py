@@ -203,6 +203,10 @@ async def test_a_sweep_that_changed_nothing_ends_the_lane(
     assert step.finished
     assert step.cursor is None
     assert "2" in step.message, "the seller is told what is missing, not just that it is over"
+    assert "Wildberries" not in step.message, (
+        "a backlog that did not shrink is a walk that finished nothing — it is no "
+        "evidence at all about what WB will serve"
+    )
 
 
 async def test_a_lane_owed_nothing_finishes(monkeypatch: pytest.MonkeyPatch) -> None:
