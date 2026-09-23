@@ -21,6 +21,7 @@ arrangement are worth pinning, because both are invisible in any counter:
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, date, datetime
 from typing import Any
@@ -196,3 +197,64 @@ async def test_a_standing_block_stops_both_lanes(
 
     assert order == []
     assert totals["daily_tail_reports"] == 0
+
+
+async def test_sellers_are_harvested_concurrently(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The waiting is what parallelises, and there is a minute of it per seller.
+
+    A tick asks WB twice per workspace — the weekly list and the daily one — and
+    `sales-reports/list` is one token per minute, so the second call waits. WB
+    meters per seller ACCOUNT, so one seller's wait says nothing about another's:
+    run sequentially, a fleet tick is a minute per seller of mostly sitting
+    still, with the harvest lock held throughout and «Обновить» answering «уже
+    выполняется» for a third of every quarter-hourly window.
+
+    Asserted by overlap rather than by wall clock: each seller reports when it
+    started and finished, and a sequential loop cannot produce an overlap.
+    """
+    live = 0
+    peak = 0
+    bundles = [
+        WorkspaceTokenBundle(
+            workspace_id=uuid.uuid5(uuid.NAMESPACE_DNS, name), name=name, finance="a-token"
+        )
+        for name in ("Демо", "NEVA", "Олег")
+    ]
+
+    async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
+        return bundles
+
+    async def _tail(**_kwargs: object) -> dict[str, int]:
+        nonlocal live, peak
+        live += 1
+        peak = max(peak, live)
+        # Yields control the way a paced WB call does, which is the only way a
+        # sequential loop and a concurrent one differ here.
+        await asyncio.sleep(0)
+        live -= 1
+        return {"reports": 0, "rows": 0, "reports_failed": 0}
+
+    async def _never_blocked(*_args: object, **_kwargs: object) -> float:
+        return 0.0
+
+    async def _no_gaps(*_args: object, **_kwargs: object) -> dict[uuid.UUID, list[date]]:
+        return {}
+
+    redis = FakeRedis()
+    monkeypatch.setattr(fleet, "get_redis", lambda: redis)
+    monkeypatch.setattr(freshness, "get_redis", lambda: redis)
+    monkeypatch.setattr(fleet, "AsyncSessionLocal", _FakeSession)
+    monkeypatch.setattr(fleet, "SettlementWatermarkRepository", _FakeWatermarkRepo)
+    monkeypatch.setattr(fleet, "FinancialReportRepository", _FakeReportRepo)
+    monkeypatch.setattr(fleet, "load_workspace_token_bundles", _bundles)
+    monkeypatch.setattr(fleet, "settlement_blocked_for", _never_blocked)
+    monkeypatch.setattr(fleet, "survey_settlement_gaps", _no_gaps)
+    monkeypatch.setattr(fleet, "gap_repair_due", _no_repairs)
+    monkeypatch.setattr(fleet, "moscow_today", lambda: TODAY)
+    monkeypatch.setattr(fleet, "tail_one_workspace", _tail)
+    _gate(monkeypatch, outcome=FreshnessOutcome.WB_EMPTY, reports=())
+
+    await harvest_all_workspaces(days=28)
+
+    assert peak > 1, "sellers were harvested one after another"
+    assert peak <= fleet._FLEET_CONCURRENCY, "and never more at once than the bound allows"

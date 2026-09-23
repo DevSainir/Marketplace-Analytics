@@ -9,8 +9,11 @@ walks everybody costs the fleet's WB budget.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
+from collections.abc import Coroutine
 from datetime import date, timedelta
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,6 +63,14 @@ logger = get_logger(__name__)
 
 #: Zeroed result shape, so a locked-out or empty run reports the same keys a
 #: full one does and callers never have to guess whether a key is missing or 0.
+#: Workspaces harvested at once by a fleet tick.
+#:
+#: Three, and the bound is memory rather than WB: each one streams settlement
+#: pages into its own session against a 768 MiB cgroup. What it hides is the
+#: pacing — a tick waits about a minute per seller for its second `list` token,
+#: and those waits are independent because WB meters per seller account.
+_FLEET_CONCURRENCY = 3
+
 _EMPTY_TOTALS: dict[str, int] = {
     "finance": 0,
     "baselines": 0,
@@ -183,57 +194,140 @@ async def _harvest_all_workspaces(
         repairing = {bundle.workspace_id for bundle in bundles}
     else:
         repairing = await gap_repair_due(bundles, today=today, gaps=gaps)
-    totals = dict(_EMPTY_TOTALS)
-    blocked: set[uuid.UUID] = set()
     records: FreshnessRecordStore = freshness_record_store()
-    for bundle in bundles:
-        if not bundle.finance:
-            continue
-        verdict, missing = await check_freshness(
-            tokens=bundle,
-            latest_settled=settled[bundle.workspace_id],
-            held=held[bundle.workspace_id],
-            today=today,
-            # Read from the shared Redis bucket, not from WB: asking WB whether
-            # WB will accept a request is the one thing that cannot be done
-            # here, and a peek takes no token.
-            blocked_for=await settlement_blocked_for(bundle),
-        )
-        # The one remaining way to learn nothing: no «Финансы» token, so no
-        # request was made and none can be. Recording a verdict here would
-        # claim a check that cannot happen. (The loop skips such workspaces
-        # above; this is the gate saying the same thing for any other caller.)
-        if verdict is None:
-            totals["workspaces_skipped"] += 1
-            continue
-        # Recorded BEFORE the branch, so "asked WB and there was nothing" leaves
-        # the same trace as "asked WB and harvested". Recording only on the
-        # harvesting path would leave a quiet week and a dead worker looking
-        # identical on the page — which is the whole bug this closes.
-        await records.put(bundle.workspace_id, verdict)
-        # The gate answers "is there anything NEWER", which is the wrong
-        # question for a back-dated report and answers "no" precisely when one
-        # is what we are looking for. A reconciliation pass therefore walks
-        # regardless — that is the point of it — and so does an hourly tick for
-        # a workspace the survey can see a hole in. Both are the same statement:
-        # a day we know is missing is not a day to ask a forward question about.
-        thorough = reconcile or bundle.workspace_id in repairing
-        # A standing block outranks «thorough», and it is the only verdict that
-        # does. Everything else `thorough` overrides is a claim about the DATA
-        # — «nothing newer exists» — and overriding it is the whole point of a
-        # reconciliation pass, which exists to ask about days the forward
-        # question cannot see. `RATE_BLOCKED` is a claim about the CHANNEL:
-        # WB has refused, and walking anyway does not fetch the missing day, it
-        # lengthens the refusal. The router refuses a click for the same reason
-        # before it ever enqueues; this is the same rule for the path that has
-        # no router in front of it.
-        if verdict.outcome is FreshnessOutcome.RATE_BLOCKED:
-            blocked.add(bundle.workspace_id)
-            totals["workspaces_skipped"] += 1
-            continue
-        if not verdict.should_harvest and not thorough:
-            totals["workspaces_skipped"] += 1
-            continue
+    # One workspace at a time WAS the shape, and it stopped being affordable the
+    # moment both lanes moved into one tick. A tick asks WB twice per seller —
+    # the weekly list and the daily one — and `sales-reports/list` is a bucket of
+    # one token per minute, so the second call waits a minute. Sequentially that
+    # is a minute per seller of a tick that usually finds nothing, and the
+    # harvest lock is held for all of it: at five sellers, a third of the
+    # quarter-hourly window, during which «Обновить» answers «уже выполняется».
+    #
+    # The buckets are per seller account, so waiting on one seller's token tells
+    # us nothing about another's — the waiting is the part that parallelises, and
+    # a fleet tick becomes about as long as its slowest single seller.
+    #
+    # Bounded rather than unleashed: each worker streams settlement pages into
+    # its own session, and the cgroup cap is 768 MiB. Three is enough to hide the
+    # pacing (the wait is a minute, the work is seconds) without putting three
+    # large reports through the heap at once.
+    results = await _gather_bounded(
+        [
+            _harvest_one(
+                bundle=bundle,
+                settled=settled,
+                held=held,
+                today=today,
+                reconcile=reconcile,
+                repairing=repairing,
+                records=records,
+            )
+            for bundle in bundles
+            if bundle.finance
+        ],
+        limit=_FLEET_CONCURRENCY,
+    )
+    totals = dict(_EMPTY_TOTALS)
+    for counts in results:
+        for key, value in counts.items():
+            totals[key] += value
+    return totals
+
+
+async def _gather_bounded(
+    coroutines: list[Coroutine[Any, Any, dict[str, int]]], *, limit: int
+) -> list[dict[str, int]]:
+    """Run the coroutines with at most ``limit`` in flight, keeping their order.
+
+    A plain ``gather`` would start every seller at once; a plain loop starts one.
+    Neither is right — see the caller for what the bound is sized against.
+
+    Args:
+        coroutines: One per workspace, each returning its counts fragment.
+        limit: Most to have running at any moment.
+
+    Returns:
+        Their results, in the order given.
+    """
+    guard = asyncio.Semaphore(limit)
+
+    async def _one(coroutine: Coroutine[Any, Any, dict[str, int]]) -> dict[str, int]:
+        async with guard:
+            return await coroutine
+
+    return list(await asyncio.gather(*(_one(coroutine) for coroutine in coroutines)))
+
+
+async def _harvest_one(
+    *,
+    bundle: WorkspaceTokenBundle,
+    settled: dict[uuid.UUID, date | None],
+    held: dict[uuid.UUID, set[int]],
+    today: date,
+    reconcile: bool,
+    repairing: set[uuid.UUID],
+    records: FreshnessRecordStore,
+) -> dict[str, int]:
+    """Harvest one workspace: the settled report, then the provisional tail.
+
+    The body of the fleet loop, extracted so several sellers can be in flight at
+    once. Everything it touches is per workspace — its own WB tokens, its own
+    sessions, its own Redis keys — so the only thing the caller has to do is add
+    up what each returns.
+
+    Args:
+        bundle: The workspace's decrypted WB credentials.
+        settled / held: The frontier and the report ids already on file, read
+            once for the whole fleet before any of this runs.
+        today: Today in Moscow time.
+        reconcile: Whether this is the pass that re-reads behind the coverage.
+        repairing: Workspaces an hourly tick should walk regardless of the gate.
+        records: Where the freshness verdict is written.
+
+    Returns:
+        A counts fragment shaped like :data:`_EMPTY_TOTALS`.
+    """
+    totals = dict(_EMPTY_TOTALS)
+    verdict, missing = await check_freshness(
+        tokens=bundle,
+        latest_settled=settled[bundle.workspace_id],
+        held=held[bundle.workspace_id],
+        today=today,
+        # Read from the shared Redis bucket, not from WB: asking WB whether
+        # WB will accept a request is the one thing that cannot be done
+        # here, and a peek takes no token.
+        blocked_for=await settlement_blocked_for(bundle),
+    )
+    # The one remaining way to learn nothing: no «Финансы» token, so no
+    # request was made and none can be. Recording a verdict here would
+    # claim a check that cannot happen. (The caller skips such workspaces
+    # already; this is the gate saying the same thing for any other caller.)
+    if verdict is None:
+        return dict(totals, workspaces_skipped=1)
+    # Recorded BEFORE the branch, so "asked WB and there was nothing" leaves
+    # the same trace as "asked WB and harvested". Recording only on the
+    # harvesting path would leave a quiet week and a dead worker looking
+    # identical on the page — which is the whole bug this closes.
+    await records.put(bundle.workspace_id, verdict)
+    # The gate answers "is there anything NEWER", which is the wrong
+    # question for a back-dated report and answers "no" precisely when one
+    # is what we are looking for. A reconciliation pass therefore walks
+    # regardless — that is the point of it — and so does an hourly tick for
+    # a workspace the survey can see a hole in. Both are the same statement:
+    # a day we know is missing is not a day to ask a forward question about.
+    thorough = reconcile or bundle.workspace_id in repairing
+    # A standing block outranks «thorough», and it is the only verdict that
+    # does. Everything else `thorough` overrides is a claim about the DATA
+    # — «nothing newer exists» — and overriding it is the whole point of a
+    # reconciliation pass, which exists to ask about days the forward
+    # question cannot see. `RATE_BLOCKED` is a claim about the CHANNEL:
+    # WB has refused, and walking anyway does not fetch the missing day, it
+    # lengthens the refusal. It stops the daily tail below for the same
+    # reason. The router refuses a click before it ever enqueues; this is the
+    # same rule for the path that has no router in front of it.
+    if verdict.outcome is FreshnessOutcome.RATE_BLOCKED:
+        return dict(totals, workspaces_skipped=1)
+    if verdict.should_harvest or thorough:
         # A thorough pass re-asks for reports it already holds — that is what
         # it is for. WB's list gives the ids; the lookback decides how many of
         # the held ones to re-walk, since an amendment to a week on file is
@@ -243,80 +337,67 @@ async def _harvest_all_workspaces(
                 report_repo_for=bundle.workspace_id,
                 today=today,
             )
-        if not missing:
+        if missing:
+            counts = await harvest_workspace(tokens=bundle, reports=missing, on_date=today)
+            for key, value in counts.items():
+                totals[key] += value
+            if counts.get("finance") and verdict.probe_from is not None:
+                # The measurement shared discovery is waiting on: did WB serve
+                # this period to everyone at once? Nothing we hold says whether
+                # WB publishes simultaneously, so this records it before
+                # anything is built on it.
+                async with AsyncSessionLocal() as session:
+                    await record_publication_spread(
+                        session,
+                        workspace_id=bundle.workspace_id,
+                        period_end=missing[-1].date_to,
+                        name=bundle.name,
+                    )
+            # And recorded AGAIN, from what the walk found. The walk asks WB
+            # about the same days the probe did, so a completed one is strictly
+            # better evidence — and throwing it away is the same discard bug one
+            # level up.
+            #
+            # It is not hypothetical. On 2026-09-09 the probe hit the settlement
+            # endpoint's 15-minute block and 429'd, the gate failed open, and
+            # seven minutes later the walk asked the same window and got 204 —
+            # proof there was nothing new. The page kept showing «не удалось
+            # спросить» over a statement that had just been confirmed complete.
+            if not counts.get("finance_windows_failed"):
+                await records.put(
+                    bundle.workspace_id,
+                    await verdict_from_walk(
+                        workspace_id=bundle.workspace_id,
+                        settled_before=settled[bundle.workspace_id],
+                        date_from=missing[0].date_to,
+                        date_to=missing[-1].date_to,
+                    ),
+                )
+        else:
             # Nothing to fetch, and on the new surface that is a complete
             # statement rather than a reason to walk blindly. A failed list
-            # (`PROBE_FAILED`) lands here too: without WB's answer there are
-            # no report ids to ask for, so the honest move is to record that
-            # we could not ask and let the next tick try. The old endpoint
-            # could walk a date span on a hunch; this one cannot, and pretending
-            # otherwise would spend a request to learn nothing.
+            # (`PROBE_FAILED`) lands here too: without WB's answer there are no
+            # report ids to ask for, so the honest move is to record that we
+            # could not ask and let the next tick try.
             totals["workspaces_skipped"] += 1
-            continue
-        counts = await harvest_workspace(tokens=bundle, reports=missing, on_date=today)
-        for key, value in counts.items():
-            totals[key] += value
-        if counts.get("finance") and verdict.probe_from is not None:
-            # The measurement shared discovery is waiting on: did WB serve this
-            # period to everyone at once? Every seller is asking that question
-            # for itself, once an hour, on the day the report lands — one
-            # answer could serve the fleet, and at fifty sellers that is the
-            # difference between a ceiling of eighteen per egress address and
-            # sixty. Nothing we hold says whether WB publishes simultaneously,
-            # so this records it before anything is built on it.
-            async with AsyncSessionLocal() as session:
-                await record_publication_spread(
-                    session,
-                    workspace_id=bundle.workspace_id,
-                    period_end=missing[-1].date_to,
-                    name=bundle.name,
-                )
-        # And recorded AGAIN, from what the walk found. The walk asks WB about
-        # the same days the probe did, so a completed one is strictly better
-        # evidence — and throwing it away is the same discard bug one level up.
-        #
-        # It is not hypothetical. On 2026-09-09 the probe hit the settlement
-        # endpoint's 15-minute block and 429'd, the gate failed open, and seven
-        # minutes later the walk asked the same window and got 204 — proof there
-        # was nothing new. The page kept showing «не удалось спросить — данные
-        # могут быть неполными» over a statement that had just been confirmed
-        # complete. The reverse goes stale too: a verdict of «опубликован новый
-        # отчёт — загружаем» outlives the load that fetched it.
-        if not counts.get("finance_windows_failed") and missing:
-            await records.put(
-                bundle.workspace_id,
-                await verdict_from_walk(
-                    workspace_id=bundle.workspace_id,
-                    settled_before=settled[bundle.workspace_id],
-                    date_from=missing[0].date_to,
-                    date_to=missing[-1].date_to,
-                ),
-            )
-    # The provisional daily tail, after every settled walk rather than beside it.
+    else:
+        totals["workspaces_skipped"] += 1
+
+    # The provisional daily tail, after this workspace's settled walk rather
+    # than beside it.
     #
-    # In one tick under one lock because both lanes spend the same
-    # one-request-a-minute Finance buckets: as separate schedules they took the
-    # same lock and the loser of an overlap returned `skipped_locked`, which on
-    # «Обновить» meant fetching nothing at the one moment somebody asked.
-    #
-    # Settled first, and the order is load-bearing rather than tidy. The weekly
-    # walk moves the frontier, and the tail covers only what lies past it — so
-    # on the one tick a week a weekly report lands, running the tail first would
-    # spend a request per day on days the weekly report was about to settle, and
-    # leave those rows carrying a provisional `report_id` until something
-    # overwrote them.
+    # Settled first is load-bearing rather than tidy: the weekly walk moves the
+    # frontier, and the tail covers only what lies past it — so the other order
+    # would spend a request per day on days the weekly report was about to
+    # settle, and leave those rows carrying a provisional `report_id` until
+    # something overwrote them.
     #
     # Unconditional, unlike the walk above: «WB has nothing newer weekly» is
-    # exactly when yesterday is only reachable through the daily lane. The one
-    # verdict that stops it is a standing block — walking into that does not
-    # fetch the day, it lengthens the refusal.
-    for bundle in bundles:
-        if not bundle.finance or bundle.workspace_id in blocked:
-            continue
-        tail = await tail_one_workspace(tokens=bundle, today=today)
-        totals["daily_tail_reports"] += tail["reports"]
-        totals["daily_tail_rows"] += tail["rows"]
-        totals["daily_tail_failed"] += tail["reports_failed"]
+    # exactly when yesterday is only reachable through the daily lane.
+    tail = await tail_one_workspace(tokens=bundle, today=today)
+    totals["daily_tail_reports"] += tail["reports"]
+    totals["daily_tail_rows"] += tail["rows"]
+    totals["daily_tail_failed"] += tail["reports_failed"]
     return totals
 
 
