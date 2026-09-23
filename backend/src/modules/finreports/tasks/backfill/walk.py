@@ -52,7 +52,11 @@ from src.modules.finreports.tasks.backfill.discovery import (
     survey_backlog,
 )
 from src.modules.finreports.tasks.harvest.ledger import record_wb_totals
-from src.modules.finreports.tasks.settlement import MissingReport, walk_settlement_reports
+from src.modules.finreports.tasks.settlement import (
+    MissingReport,
+    walk_settlement_reports,
+    walk_settlement_window,
+)
 from src.modules.workspaces.contract import LaneStep, WorkspaceTokenBundle
 
 logger = get_logger(__name__)
@@ -206,10 +210,22 @@ async def _fetch_batch(
 ) -> tuple[tuple[MissingReport, ...], int, int]:
     """Fetch as many of the owed reports as this tick has time for.
 
-    One :func:`walk_settlement_reports` call per report rather than one for the
-    whole batch, and the difference is the deadline: a batch handed over whole
-    is walked whole, and a tick that runs past its soft limit dies without
-    recording or re-enqueueing anything.
+    Two walks, chosen by how much is owed.
+
+    **More than one report: one paged walk over their span.** WB serves the same
+    rows by period, several reports to a page — ~21 on «Демо», ~8 on NEVA —
+    so a history that costs 143 requests one report at a time costs about seven
+    this way. The window is then the unit: it books nothing unless the whole
+    span landed, and a failure re-fetches all of it. Rows are upserted by
+    ``rrd_id``, so that costs requests and never correctness.
+
+    **A single report: one request for that id.** A window of one would fetch
+    the same rows and give up the per-report atomicity for nothing.
+
+    The deadline only guards the second path. A window is one paged walk whose
+    length the tick cannot predict from the report count, and cutting it short
+    would throw away every page it had paid for; the per-report loop can stop
+    between reports and keep everything it has.
 
     Args:
         tokens: The workspace's decrypted WB credentials.
@@ -229,6 +245,23 @@ async def _fetch_batch(
     # true and gives the direction back to the seller: a tick cut short by the
     # deadline below leaves them this month rather than the archive.
     batch = due[:REPORTS_PER_TICK]
+    bookable = tuple(report for report in batch if report.header is not None)
+    if len(bookable) > 1:
+        # Several reports owed and WB's list entry for each: one paged walk over
+        # their whole span, which is where the 8-21x lives. See
+        # `settlement.window` for what the window gives up in exchange.
+        walk = await walk_settlement_window(
+            tokens=tokens,
+            reports=bookable,
+            build_ingestion=build_ingestion,
+            reserve_seconds=BACKGROUND_RESERVE_SECONDS,
+        )
+        # Every report in the span was attempted, whether or not it landed — the
+        # ceiling moves past all of them and a failure comes back on the next
+        # sweep, exactly as it does for a single report.
+        failed = len(bookable) if walk.windows_failed else 0
+        return bookable, walk.rows, failed
+
     deadline = time.monotonic() + _TICK_WORK_BUDGET_SECONDS
     attempted: list[MissingReport] = []
     rows = 0

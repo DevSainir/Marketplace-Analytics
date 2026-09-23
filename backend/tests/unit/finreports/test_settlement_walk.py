@@ -23,8 +23,16 @@ import pytest
 
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
-from src.modules.finreports.tasks import settlement as settlement_module
-from src.modules.finreports.tasks.settlement import MissingReport, walk_settlement_reports
+from src.modules.finreports.tasks.settlement import (
+    MissingReport,
+    walk_settlement_reports,
+)
+from src.modules.finreports.tasks.settlement import (
+    page as page_module,
+)
+from src.modules.finreports.tasks.settlement import (
+    reports as settlement_module,
+)
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
@@ -163,7 +171,10 @@ def journal(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     _Client.failing_second = set()
     _Client.paged = set()
     monkeypatch.setattr(settlement_module, "finance_reports_rate_gate", lambda *_a, **_k: _Gate())
-    monkeypatch.setattr(settlement_module, "WBFinanceReportsClient", _Client)
+    monkeypatch.setattr(page_module, "WBFinanceReportsClient", _Client)
+    # Both modules open sessions: `page` for the rows, `reports` for the header
+    # it books once the report is whole. The journal has to see both.
+    monkeypatch.setattr(page_module, "AsyncSessionLocal", lambda: _RecordingSession(entries))
     monkeypatch.setattr(settlement_module, "AsyncSessionLocal", lambda: _RecordingSession(entries))
     return entries
 
@@ -234,7 +245,7 @@ async def test_a_week_wb_withholds_does_not_cost_the_weeks_that_worked(
     The count is what the caller turns into a failed source; without it a P&L
     missing a week looks exactly like a seller who sold nothing that week.
     """
-    settlement_module.WBFinanceReportsClient.failing = {801}  # type: ignore[attr-defined]
+    page_module.WBFinanceReportsClient.failing = {801}  # type: ignore[attr-defined]
 
     rows, failed, _through = await walk_settlement_reports(
         tokens=_tokens(),
@@ -302,7 +313,7 @@ async def test_a_second_page_costs_a_second_token_and_a_second_transaction(
     the transaction the first page committed in, not inside one held open
     across the wait.
     """
-    settlement_module.WBFinanceReportsClient.paged = {801}  # type: ignore[attr-defined]
+    page_module.WBFinanceReportsClient.paged = {801}  # type: ignore[attr-defined]
 
     rows, failed, _through = await walk_settlement_reports(
         tokens=_tokens(),
@@ -326,8 +337,8 @@ async def test_a_page_committed_before_a_failure_is_kept(journal: list[str]) -> 
     `rrd_id` and the next tick's span starts at the last settled day, so a week
     left half-loaded completes itself rather than staying wrong.
     """
-    settlement_module.WBFinanceReportsClient.paged = {801}  # type: ignore[attr-defined]
-    settlement_module.WBFinanceReportsClient.failing_second = {801}  # type: ignore[attr-defined]
+    page_module.WBFinanceReportsClient.paged = {801}  # type: ignore[attr-defined]
+    page_module.WBFinanceReportsClient.failing_second = {801}  # type: ignore[attr-defined]
 
     rows, failed, _through = await walk_settlement_reports(
         tokens=_tokens(),
@@ -358,8 +369,8 @@ async def test_a_report_that_dies_half_way_is_not_booked_as_held(
     # A full first page that commits, then a second request WB withholds — the
     # realistic shape of the failure. A report that dies on its FIRST request
     # would have written no header even under the old behaviour.
-    settlement_module.WBFinanceReportsClient.paged = {801}  # type: ignore[attr-defined]
-    settlement_module.WBFinanceReportsClient.failing_second = {801}  # type: ignore[attr-defined]
+    page_module.WBFinanceReportsClient.paged = {801}  # type: ignore[attr-defined]
+    page_module.WBFinanceReportsClient.failing_second = {801}  # type: ignore[attr-defined]
 
     _rows, failed, _through = await walk_settlement_reports(
         tokens=_tokens(),

@@ -175,7 +175,7 @@ async def test_the_walks_inner_gate_forwards_a_penalty_but_not_the_budget_header
     those 429s. Swallowing it here is how the hourly finance tick spent
     2026-09-08 re-entering a block it had already been told about.
     """
-    from src.modules.finreports.tasks.settlement import _SpentToken
+    from src.modules.finreports.tasks.settlement.page import _SpentToken
 
     shared = _RecordingGate()
     gate = _SpentToken(shared)
@@ -238,7 +238,7 @@ async def test_a_streamed_page_commits_every_batch_as_it_lands(
     load-bearing here: the cursor only advances on success and the ingest is an
     upsert, so a half-written page is re-fetched to the same result.
     """
-    from src.modules.finreports.tasks import settlement
+    from src.modules.finreports.tasks.settlement import page as settlement
 
     session = _CountingSession()
     batches = [[_row(i)] for i in range(5)]
@@ -295,7 +295,7 @@ async def test_a_full_request_that_does_not_advance_ends_the_window(
     other workspace's harvest needs. The guard used to be the client's, in the
     generator that owned the loop; it moved here with the cursor.
     """
-    from src.modules.finreports.tasks import settlement
+    from src.modules.finreports.tasks.settlement import page as settlement
 
     session = _CountingSession()
     cursor = _RRD_BASE + 10

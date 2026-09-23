@@ -34,7 +34,6 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.exceptions import IntegrationError
-from src.modules.finreports.tasks import settlement as settlement_module
 from src.modules.finreports.tasks import storage as storage_module
 from src.modules.finreports.tasks.harvest import (
     harvest_workspace,
@@ -43,6 +42,8 @@ from src.modules.finreports.tasks.harvest import (
     workspace,
 )
 from src.modules.finreports.tasks.settlement import MissingReport
+from src.modules.finreports.tasks.settlement import page as settlement_page
+from src.modules.finreports.tasks.settlement import reports as settlement_module
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -251,8 +252,11 @@ def wb(
     monkeypatch.setattr(persistence, "AsyncSessionLocal", session_factory)
     # The settlement walk keeps its own session and its own client: it commits
     # a week at a time, outside the transaction the rest of the harvest shares.
+    # Both halves of the settlement package own a session: `page` for the rows
+    # it streams, `reports` for the header it books once one is whole.
+    monkeypatch.setattr(settlement_page, "AsyncSessionLocal", session_factory)
     monkeypatch.setattr(settlement_module, "AsyncSessionLocal", session_factory)
-    monkeypatch.setattr(settlement_module, "WBFinanceReportsClient", _FakeFinanceClient)
+    monkeypatch.setattr(settlement_page, "WBFinanceReportsClient", _FakeFinanceClient)
     monkeypatch.setattr(
         settlement_module, "finance_reports_rate_gate", lambda *_a, **_kw: _OpenGate()
     )
@@ -392,5 +396,5 @@ async def test_the_walk_inside_the_transaction_retries_less_than_the_default(
     # fresh client for each request now that each request has its own
     # transaction, so a ladder set on only the first would still park the rest.
     assert built
-    assert {client.max_retries for client in built} == {settlement_module.MAX_RETRIES}
-    assert settlement_module.MAX_RETRIES < 4
+    assert {client.max_retries for client in built} == {settlement_page.MAX_RETRIES}
+    assert settlement_page.MAX_RETRIES < 4

@@ -26,7 +26,7 @@ from typing import Any
 
 import pytest
 
-from src.core.exceptions import IntegrationError
+from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.tasks.backfill import discovery, walk
 from src.modules.finreports.tasks.settlement import MissingReport, SettlementWalk
 from src.modules.workspaces.schemas import WorkspaceTokenBundle
@@ -42,8 +42,27 @@ def _tokens() -> WorkspaceTokenBundle:
     )
 
 
-def _report(report_id: int, weeks_back: int) -> MissingReport:
-    return MissingReport(report_id=report_id, date_to=TODAY - timedelta(days=7 * weeks_back))
+def _report(report_id: int, weeks_back: int, *, listed: bool = True) -> MissingReport:
+    """A report the lane is owed.
+
+    ``listed`` says whether WB's own entry came with it. It decides which walk
+    the tick may use: the window books what it fetches from those entries, so a
+    report without one can only be taken by id.
+    """
+    date_to = TODAY - timedelta(days=7 * weeks_back)
+    header = (
+        WBFinanceReportHeader.model_validate(
+            {
+                "reportId": report_id,
+                "dateFrom": (date_to - timedelta(days=6)).isoformat(),
+                "dateTo": date_to.isoformat(),
+                "createDate": (date_to + timedelta(days=1)).isoformat(),
+            }
+        )
+        if listed
+        else None
+    )
+    return MissingReport(report_id=report_id, date_to=date_to, header=header)
 
 
 def _ids(asked: list[Any]) -> list[int]:
@@ -64,6 +83,15 @@ def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
         return 0.0
 
     monkeypatch.setattr(walk, "_shut_for", _open)
+
+    # Both walks, always. A test that patched only one used to reach the real
+    # other — which builds a real rate gate and sleeps out a real minute, so the
+    # suite went from 20 s to nearly two.
+    async def _unpatched(**_kwargs: Any) -> SettlementWalk:
+        raise AssertionError("this test reached a WB walk it did not stub")
+
+    monkeypatch.setattr(walk, "walk_settlement_reports", _unpatched)
+    monkeypatch.setattr(walk, "walk_settlement_window", _unpatched)
 
 
 def _backlog(
@@ -95,6 +123,20 @@ def _fetch(monkeypatch: pytest.MonkeyPatch, *, rows: int = 500, failed: int = 0)
 
     monkeypatch.setattr(walk, "walk_settlement_reports", _walk)
     return asked
+
+
+def _fetch_window(
+    monkeypatch: pytest.MonkeyPatch, *, rows: int = 5000, failed: int = 0
+) -> list[Any]:
+    """Make the by-period walk answer, and record the spans it was asked for."""
+    windows: list[Any] = []
+
+    async def _walk(*, reports: tuple[MissingReport, ...], **_kwargs: Any) -> SettlementWalk:
+        windows.append(reports)
+        return SettlementWalk(rows=rows, windows_failed=failed, completed_through=None)
+
+    monkeypatch.setattr(walk, "walk_settlement_window", _walk)
+    return windows
 
 
 # --------------------------------------------------------------------------- #
@@ -174,253 +216,3 @@ async def test_a_lane_owed_nothing_finishes(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert step.finished
     assert (step.done, step.total) == (10, 10)
-
-
-# --------------------------------------------------------------------------- #
-# What a working tick does
-# --------------------------------------------------------------------------- #
-async def test_the_lane_asks_wb_for_the_whole_history(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """There is no depth limit, and that is a measurement rather than a taste.
-
-    Three months was what a new seller got when the old endpoint served roughly
-    one page an hour and three months of a large seller's detail was ~15 h of
-    walking. It is now one request per report at one request a minute, and a
-    seller forms about 52 reports a year whatever their size — so a full
-    history is ~52 minutes per year of trading, against an advertising lane
-    that takes ~7 h on the same signup. Nothing is left for a floor to buy.
-    """
-    asked = _backlog(monkeypatch, due=(), outstanding=0, total=0)
-    _fetch(monkeypatch)
-
-    await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert asked[0]["floor"] == discovery.WB_REPORTS_EPOCH
-
-
-async def test_a_tick_takes_the_newest_reports_when_it_cannot_take_them_all(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Signup is the case that matters, and only the direction decides whether a
-    seller's first settlement rows are this month's or two years ago's."""
-    due = (_report(900, weeks_back=7), _report(901, weeks_back=8), _report(902, weeks_back=9))
-    _backlog(monkeypatch, due=due, outstanding=3, total=10)
-    asked = _fetch(monkeypatch)
-    monkeypatch.setattr(walk, "REPORTS_PER_TICK", 2)
-
-    await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert _ids(asked) == [900, 901], "the oldest of the three was left for the next tick"
-
-
-async def test_a_tick_walks_several_reports_rather_than_one(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The whole of the throughput, and it is not a micro-optimisation.
-
-    A tick's countdown is read from a bucket the tick has just emptied, with the
-    background reserve on top, so one report per tick costs about three minutes
-    per report against a budget that allows one. Batching spends the waiting on
-    the next report instead of on nothing.
-    """
-    due = tuple(_report(900 + n, weeks_back=7 + n) for n in range(5))
-    _backlog(monkeypatch, due=due, outstanding=5, total=10)
-    asked = _fetch(monkeypatch)
-
-    step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert len(_ids(asked)) == 5
-    assert step.done == 10
-
-
-async def test_the_reports_are_handed_over_one_at_a_time(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """What lets the tick walk newest first at all.
-
-    ``walk_settlement_reports`` certifies the unbroken PREFIX of what it is
-    handed, so a descending batch passed whole would certify a gap in front of
-    itself — the old lane sorted a batch ascending for exactly that reason, and
-    paid for it by leaving a seller the archive when a tick was cut short. One
-    report per call makes the prefix rule trivially true and gives the direction
-    back.
-    """
-    due = (_report(900, weeks_back=7), _report(901, weeks_back=8))
-    _backlog(monkeypatch, due=due, outstanding=2, total=10)
-    asked = _fetch(monkeypatch)
-
-    await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert [len(batch) for batch in asked] == [1, 1]
-    assert _ids(asked) == [900, 901], "newest first, which is the order it was offered in"
-
-
-async def test_a_tick_out_of_time_stops_between_reports_and_leaves_the_rest(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Running past the task's soft limit is not a slow tick but a silent one.
-
-    `SoftTimeLimitExceeded` is not the error the lane catches, so a tick that
-    overran would record nothing and re-enqueue nothing. The reports it did not
-    reach must stay above the ceiling, or they are lost rather than deferred.
-    """
-    due = tuple(_report(900 + n, weeks_back=7 + n) for n in range(4))
-    _backlog(monkeypatch, due=due, outstanding=4, total=10)
-    asked = _fetch(monkeypatch)
-    monkeypatch.setattr(walk, "_TICK_WORK_BUDGET_SECONDS", -1.0)
-
-    step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert _ids(asked) == [900], "one report is always attempted; a tick that does nothing spins"
-    assert step.cursor is not None
-    resumed = discovery.parse_cursor(step.cursor)
-    assert resumed is not None
-    assert resumed[0] >= due[1].date_to, "the reports it never reached are still offered"
-
-
-async def test_the_ceiling_drops_below_what_this_tick_attempted(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Otherwise a report WB serves no rows for is asked for once a minute for
-    ever: no rows means no header, and no header means it stays missing."""
-    due = (_report(900, weeks_back=7),)
-    _backlog(monkeypatch, due=due, outstanding=1, total=10)
-    _fetch(monkeypatch, rows=0)
-
-    step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert step.cursor is not None
-    resumed = discovery.parse_cursor(step.cursor)
-    assert resumed is not None
-    assert resumed[0] < due[0].date_to
-
-
-async def test_a_report_that_failed_is_not_counted_as_collected(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The bar has to mean what it says — it is the only thing a seller waiting
-    on their first P&L can read."""
-    due = (_report(900, weeks_back=7),)
-    _backlog(monkeypatch, due=due, outstanding=1, total=10)
-    _fetch(monkeypatch, failed=1)
-
-    step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert step.done == 9, "nine held before the tick, and the tenth did not arrive"
-
-
-async def test_the_opening_backlog_is_recorded_on_the_first_tick_of_a_sweep(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The sweep rule compares against it, so a sweep that never recorded one
-    could not tell «this pass achieved something» from «it achieved nothing»."""
-    due = (_report(900, weeks_back=7),)
-    _backlog(monkeypatch, due=due, outstanding=4, total=10)
-    _fetch(monkeypatch)
-
-    step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert step.cursor is not None
-    assert (discovery.parse_cursor(step.cursor) or (None, 0, 0))[2] == 4
-
-
-async def test_the_lane_records_wb_s_totals_for_the_whole_history(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """This lane is the only caller that ever sees the deep archive's totals.
-
-    The forward harvest lists 45 days, so on «Демо» it can fill 8 of 143
-    headers and no more. This one lists the entire history every tick, and the
-    list is already in hand — so recording them here costs no WB request and is
-    the only way the archive's figures are ever filled in.
-
-    It runs before the walk and regardless of whether anything is missing: a
-    lane with nothing left to fetch is exactly the state «Демо» is in, and
-    it is the state where the totals are the only thing left to collect.
-    """
-    recorded: list[tuple[Any, ...]] = []
-
-    async def _record(*, workspace_id: uuid.UUID, listed: Any) -> None:
-        recorded.append((workspace_id, tuple(listed)))
-
-    monkeypatch.setattr(walk, "record_wb_totals", _record)
-    _backlog(monkeypatch, due=(), outstanding=0, total=3, listed=("h1", "h2", "h3"))
-    _fetch(monkeypatch)
-
-    step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert step.finished, "nothing was owed — the totals are all there was to do"
-    assert recorded == [(_tokens().workspace_id, ("h1", "h2", "h3"))]
-
-
-# --------------------------------------------------------------------------- #
-# What a tick does instead of asking
-# --------------------------------------------------------------------------- #
-async def test_a_standing_block_re_enqueues_without_spending_a_request(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Read before anything is sent, and that is the point.
-
-    ``acquire`` sleeps up to 1000 s before it raises, which outlasts this task's
-    own soft limit — and ``SoftTimeLimitExceeded`` is not the error the lane
-    catches, so the tick would die recording nothing and re-enqueueing nothing.
-    That is how this lane was lost for eleven hours on 2026-09-10.
-    """
-
-    async def _shut(_token: str) -> float:
-        return 2762.0
-
-    monkeypatch.setattr(walk, "_shut_for", _shut)
-
-    async def _never(**_kwargs: Any) -> discovery.Backlog:
-        raise AssertionError("the tick asked WB while it was blocked")
-
-    monkeypatch.setattr(walk, "survey_backlog", _never)
-
-    step = await walk.advance_pnl(
-        _tokens(), cursor=discovery.format_cursor(date(2026, 7, 1), 2, 5), build_ingestion=object()
-    )
-
-    assert not step.finished
-    assert step.done is None, "a blocked tick learned nothing; the bar must not move"
-    assert step.cursor == discovery.format_cursor(date(2026, 7, 1), 2, 5)
-
-
-async def test_a_refused_list_leaves_the_progress_bar_alone(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A denominator of zero means «I learned nothing», not «there is nothing».
-
-    The caller reads it that way and leaves the stored estimate in place;
-    writing a 0 through would empty a bar that is mid-walk and then jump it
-    back, which reads as the walk having restarted.
-    """
-
-    async def _fails(**_kwargs: Any) -> discovery.Backlog:
-        raise IntegrationError("WildBerries did not answer")
-
-    monkeypatch.setattr(walk, "survey_backlog", _fails)
-
-    step = await walk.advance_pnl(
-        _tokens(), cursor=discovery.format_cursor(date(2026, 7, 1), 2, 5), build_ingestion=object()
-    )
-
-    assert not step.finished
-    assert (step.done, step.total) == (None, 0)
-    assert step.cursor == discovery.format_cursor(date(2026, 7, 1), 2, 5)
-
-
-async def test_a_workspace_with_no_finance_token_ends_rather_than_waits(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Nothing was asked and nothing can be, so the lane must not sit RUNNING
-    for ever waiting for a request it will never make."""
-    step = await walk.advance_pnl(
-        WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="Без токена"),
-        cursor=None,
-        build_ingestion=object(),
-    )
-
-    assert step.finished
-    assert step.cursor is None

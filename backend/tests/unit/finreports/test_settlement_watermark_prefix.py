@@ -25,8 +25,8 @@ from datetime import date
 
 import pytest
 
-from src.modules.finreports.tasks import settlement as settlement_module
 from src.modules.finreports.tasks.settlement import MissingReport, walk_settlement_reports
+from src.modules.finreports.tasks.settlement import reports as settlement_module
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
