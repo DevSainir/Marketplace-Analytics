@@ -119,6 +119,19 @@ celery_app.conf.beat_schedule = {
         "task": "monitoring.refresh_buyout_cohorts",
         "schedule": crontab(hour=7, minute=0),
     },
+    # The other half of the price snapshot. The customer price comes from the
+    # order feed, which answers for a SKU only once it has sold *today*, so the
+    # 06:00 harvest prices a fraction of the catalogue and the rest of the day's
+    # sales land after it. This pass asks once more for the gaps only.
+    #
+    # 23:30 MSK, and the half hour is load-bearing in both directions: late
+    # enough that almost the whole day has sold, early enough to finish before
+    # the feed rolls over — a day is only fillable while it is still today.
+    # Minute 30 keeps it off the hourly finreports tick at minute 0.
+    "evening-top-up-customer-prices": {
+        "task": "monitoring.top_up_customer_prices",
+        "schedule": crontab(hour=23, minute=30),
+    },
     # The matrix notes' running title: at the day boundary, each SKU's header
     # continues onto the new day as a real row (the comment does not — it is
     # per-day). 21:00 MSK is 00:00 in Bishkek, where the team works: that is the

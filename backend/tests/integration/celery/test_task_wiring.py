@@ -22,6 +22,7 @@ EXPECTED_TASKS: list[str] = [
     "monitoring.harvest_sku_window",
     "monitoring.refresh_buyout_cohorts",
     "monitoring.carry_day_headers",
+    "monitoring.top_up_customer_prices",
     "auth.purge_expired_refresh_tokens",
     # Enqueued by the harvest, never scheduled — so beat's own check below
     # cannot see it, and a rename would silently stop the cache being warmed
@@ -99,6 +100,21 @@ def test_the_nightly_harvest_precedes_the_dependent_jobs() -> None:
     cohorts_hour = schedule["nightly-refresh-buyout-cohorts"]["schedule"].hour
 
     assert min(harvest_hour) < min(cohorts_hour)
+
+
+def test_the_price_top_up_finishes_before_the_day_rolls_over() -> None:
+    """The order feed serves today's price, not a history of it.
+
+    A top-up that fires after midnight asks about a day it can no longer
+    answer for: it walks every workspace, fills nothing, and logs success.
+    That is what happened on 2026-09-23, when the pass ran at 06:51 MSK and
+    topped up 0 of 286 — so the hour is a correctness property, not a
+    preference.
+    """
+    entry = celery_app.conf.beat_schedule["evening-top-up-customer-prices"]["schedule"]
+
+    assert max(entry.hour) == 23
+    assert max(entry.minute) < 60
 
 
 def test_the_finance_harvest_asks_more_than_once_a_day() -> None:
