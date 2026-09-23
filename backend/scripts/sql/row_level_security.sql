@@ -45,22 +45,17 @@
 --     Same mechanism, a second GUC, and worth doing next.
 --   * `monitoring.sku_day_comment`, which has no tenant column at all and is
 --     shared by every account by construction. See the register's P1.13 note.
---   * `workspaces.workspace_backfill`, which carries `workspace_id` and is
---     left out for the reason `workspace_tokens` was, before its routes were
---     changed. Its one route — `GET /workspaces/{id}/backfill` — binds
---     properly, through the same `PathWorkspaceId`. The path that does not is
---     the WRITE the token-save route performs on the way past: it awaits
---     `start_backfill`, which opens a session of its OWN
---     (`src/modules/workspaces/backfill.py`) to seed the four lanes, so the
---     tenant the route bound on the request's session is not set on it. A
---     policy would make that seed raise — and `start_backfill` swallows every
---     exception on purpose, because nothing attached to saving a token may
---     fail the seller's request. The result would be a logged line and a
---     profile showing no lanes at all until the first tick upserts its own row
---     ten minutes later: silent, wrong, and on the first screen a new seller
---     looks at. Binding the workspace inside that session — it has already
---     been validated by then, so this is the choke point's rule and not an
---     exception to it — is what would earn this table its policy.
+--
+-- `workspaces.workspace_backfill` was the last table to join the list, and it
+-- joined the same way: its read route already bound through `PathWorkspaceId`,
+-- but the token-save route seeds the four lanes on the way past through
+-- `start_backfill`, which opens a session of its own — so the tenant the route
+-- had bound was not set on it. That function now binds the workspace itself
+-- (`src/modules/workspaces/backfill.py`), which is what earns the table its
+-- policy. Left alone it would have failed in the quietest way this file can
+-- fail: `start_backfill` swallows every exception on purpose, so the write
+-- would have raised into a log line and left a new seller looking at a profile
+-- with no lanes on it until the first tick landed ten minutes later.
 --
 -- `workspaces.workspace_tokens` IS covered, but only because its routes were
 -- changed to make that safe. They address a workspace by URL path rather than
@@ -107,6 +102,7 @@ DECLARE
         'guide.guide_record',
         'guide.guide_run',
         'monitoring.product_card',
+        'workspaces.workspace_backfill',
         'workspaces.workspace_tokens'
     ];
     name text;

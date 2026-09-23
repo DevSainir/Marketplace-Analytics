@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database import AsyncSessionLocal
 from src.core.logging import get_logger
 from src.core.observability.metrics import BACKFILL_LANE_FAILURES
+from src.core.tenancy import set_workspace_context
 from src.modules.workspaces.models import BackfillLane, BackfillState, WorkspaceBackfill
 from src.modules.workspaces.repos import BackfillRepository
 from src.modules.workspaces.schemas import BackfillLaneStatus, BackfillStatusResponse
@@ -114,6 +115,20 @@ async def start_backfill(
     """
     try:
         async with AsyncSessionLocal() as session:
+            # A session of our own, inside the seller's request — so the tenant
+            # the route bound is NOT set on it. `set_config(…, true)` is
+            # transaction-local by design (see `src.core.tenancy`), and this is
+            # a different transaction on a different connection.
+            #
+            # Binding it again is the choke point's rule rather than an
+            # exception to it: `PathWorkspaceId` has already proved this
+            # workspace belongs to the caller's organisation, which is the
+            # check that makes the announcement safe to make. Without it every
+            # statement below reaches `workspace_backfill`'s policy with no
+            # tenant and raises — and this function swallows that, so the
+            # seller would get a profile with no lanes on it and nothing would
+            # look broken until the first tick landed ten minutes later.
+            await set_workspace_context(session, workspace_id)
             repo = BackfillRepository(session)
             await repo.reset(workspace_id)
             for lane in lanes:
@@ -155,6 +170,12 @@ async def record_progress(
     Never raises: a broken progress write must not fail a tick that has
     genuinely harvested rows. The lane would look stalled, which the
     ``updated_at`` on the row already reveals.
+
+    Binds no tenant, unlike :func:`start_backfill`. Every caller is a lane tick
+    in ``monitoring`` or ``finreports``, and those run in the worker, which
+    connects as the table's owner — for whom row-level security does not apply.
+    An API path that ever reports progress has to bind the way ``start_backfill``
+    does, because for it the policy is live.
 
     Args:
         workspace_id: The workspace being backfilled.
@@ -273,7 +294,12 @@ async def record_failure(
 
 
 async def read_cursor(*, workspace_id: uuid.UUID, lane: BackfillLane) -> str | None:
-    """Return one lane's resume point, or ``None`` if it has never ticked."""
+    """Return one lane's resume point, or ``None`` if it has never ticked.
+
+    Session of its own and no tenant bound, for the reason given on
+    :func:`record_progress`: the lane ticks are its only callers and they run as
+    the owner.
+    """
     async with AsyncSessionLocal() as session:
         row = await BackfillRepository(session).get(workspace_id=workspace_id, lane=lane)
         return None if row is None else row.cursor

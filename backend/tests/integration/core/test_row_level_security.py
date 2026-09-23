@@ -33,7 +33,7 @@ from typing import Any
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.exc import DBAPIError, ProgrammingError
-from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from tests.integration.core.test_least_privilege_role import (
@@ -286,6 +286,101 @@ async def test_the_token_table_is_covered_too(as_app: AsyncConnection) -> None:
 
     # Assert
     assert visible == 0
+
+
+@pytest.fixture
+async def seeded_workspace(isolated: None, engine: Any) -> Any:
+    """An organisation and a workspace of its own, COMMITTED.
+
+    The tier's own session never commits, so rows it writes are invisible to a
+    second connection — and the case below needs exactly that: a workspace the
+    restricted role can see from a connection of its own. Written and removed
+    through a separate owner engine for that reason.
+    """
+    from src.modules.organizations.models import Organization
+    from src.modules.workspaces.models import Workspace
+
+    owner = create_async_engine(engine.url, poolclass=NullPool)
+    maker = async_sessionmaker(owner, expire_on_commit=False)
+    try:
+        async with maker() as session:
+            organization = Organization(name="RLS probe org", is_primary=False)
+            session.add(organization)
+            await session.flush()
+            workspace = Workspace(
+                name="RLS probe workspace",
+                organization_id=organization.id,
+                is_primary=False,
+            )
+            session.add(workspace)
+            await session.commit()
+            workspace_id, organization_id = workspace.id, organization.id
+        yield workspace_id
+    finally:
+        async with maker() as session:
+            # The lane rows go with the workspace: `workspace_backfill` is ON
+            # DELETE CASCADE, and referential integrity is one of the few things
+            # row security does not stand in front of.
+            await session.execute(
+                sa.text("DELETE FROM workspaces.workspaces WHERE id = :id"), {"id": workspace_id}
+            )
+            await session.execute(
+                sa.text("DELETE FROM organizations.organizations WHERE id = :id"),
+                {"id": organization_id},
+            )
+            await session.commit()
+        await owner.dispose()
+
+
+async def test_the_token_save_path_can_still_seed_the_backfill_lanes(
+    seeded_workspace: uuid.UUID,
+    engine: Any,
+    db_connection: AsyncConnection,
+    monkeypatch: pytest.MonkeyPatch,
+    settings_override: Any,
+) -> None:
+    """The seeding write is not on the request's session, so it binds its own.
+
+    `workspace_backfill` is covered, and the route that writes it never touches
+    it directly: saving a token seeds the four lanes through `start_backfill`,
+    which opens a session of its own. The tenant `PathWorkspaceId` bound does
+    not reach that session — `set_config(…, true)` ends with the request's
+    transaction — so the write arrives at the policy with no tenant unless the
+    function binds one itself.
+
+    It has to be asserted from the outside, because `start_backfill` swallows
+    every exception on purpose: nothing attached to saving a token may fail the
+    seller's request. An unbound write would therefore not raise here. It would
+    leave no lanes, a log line nobody reads, and a new seller looking at an
+    empty profile until the first tick landed ten minutes later.
+    """
+    # Arrange — run the real function as the restricted role, with the policies
+    # live, which is the only combination in which any of this is observable.
+    from src.modules.workspaces import backfill
+
+    restricted = create_async_engine(
+        engine.url.set(username=APP_ROLE, password=APP_PASSWORD), poolclass=NullPool
+    )
+    monkeypatch.setattr(
+        backfill, "AsyncSessionLocal", async_sessionmaker(restricted, expire_on_commit=False)
+    )
+
+    # Act
+    try:
+        with settings_override(row_level_security_enabled=True):
+            await backfill.start_backfill(seeded_workspace)
+    finally:
+        await restricted.dispose()
+
+    # Assert — read back as the owner, which sees every tenant.
+    seeded = await db_connection.scalar(
+        sa.text("SELECT count(*) FROM workspaces.workspace_backfill WHERE workspace_id = :ws"),
+        {"ws": seeded_workspace},
+    )
+    assert seeded == len(backfill.LANE_ORDER), (
+        "the token-save path seeded no lanes under the policies; `start_backfill` "
+        "is writing on a session with no tenant bound"
+    )
 
 
 async def test_every_table_named_in_the_script_really_has_a_policy(
