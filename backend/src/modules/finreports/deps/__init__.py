@@ -20,6 +20,7 @@ from src.modules.finreports.constants import FRESHNESS_RECORD_TTL_SECONDS
 from src.modules.finreports.repos import (
     BalancePinRepository,
     CostPriceRepository,
+    DailySettlementRepository,
     FinancialReportRepository,
     LogisticsTransactionRepository,
     PnlRepository,
@@ -217,6 +218,7 @@ def get_harvest_control_service(
 
     return HarvestControlService(
         report_repo=report_repo,
+        daily_repo=DailySettlementRepository(session),
         redis=get_redis(),
         freshness_records=RedisFreshnessRecordStore(
             get_redis(), ttl_seconds=FRESHNESS_RECORD_TTL_SECONDS

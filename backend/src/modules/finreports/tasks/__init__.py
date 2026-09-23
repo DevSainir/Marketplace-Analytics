@@ -11,6 +11,15 @@
   the gate — the forward-only walk cannot reach a report WB starts serving for
   days it has already passed.
 
+* ``finreports.harvest_daily_tail`` — hourly; cover the days between the settled
+  weekly frontier and yesterday from WB's **daily** realization reports, which
+  the weekly lane cannot reach for one to eight days. Provisional by
+  construction: it writes rows and its own bookkeeping, never a weekly header
+  and never the watermark. See :mod:`.daily_tail`.
+* ``finreports.verify_daily_tail`` — daily; re-read each of those reports a day
+  after harvesting it and record whether WB served the same rows. The one thing
+  not yet known about the daily lane, measured rather than assumed.
+
 Both run the async harvest core (:mod:`.harvest`) through
 :func:`src.core.tasks.run_task`, which owns the per-task event loop and drains
 the shared connection pools afterwards. Calling ``asyncio.run`` directly here is
@@ -26,6 +35,12 @@ from src.core.celery_app import celery_app
 from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
 from src.modules.finreports.tasks.common import _TASK_RETRY_KWARGS
+from src.modules.finreports.tasks.daily_tail import (
+    harvest_daily_tail as _harvest_daily_tail,
+)
+from src.modules.finreports.tasks.daily_tail import (
+    verify_daily_tail as _verify_daily_tail,
+)
 from src.modules.finreports.tasks.harvest import harvest_all_workspaces
 
 
@@ -56,6 +71,32 @@ def harvest_finance(
     return run_task(harvest_all_workspaces(days=days, workspace_id=scope, reconcile=reconcile))
 
 
+@celery_app.task(name="finreports.harvest_daily_tail", **_TASK_RETRY_KWARGS)  # type: ignore[untyped-decorator]
+def harvest_daily_tail() -> dict[str, int]:
+    """Cover the days between the settled weekly frontier and yesterday.
+
+    No arguments on purpose. The span is not a caller's choice — it is whatever
+    lies between what the weekly lane has settled and yesterday, per workspace —
+    and a `days` parameter would invite someone to ask for a month of daily
+    reports at one request a minute.
+
+    Returns:
+        Reports completed, rows written, and what was skipped.
+    """
+    return run_task(_harvest_daily_tail())
+
+
+@celery_app.task(name="finreports.verify_daily_tail", **_TASK_RETRY_KWARGS)  # type: ignore[untyped-decorator]
+def verify_daily_tail() -> dict[str, int]:
+    """Re-read day-old daily reports and record whether WB changed them.
+
+    Returns:
+        How many were re-read, and how many came back unchanged, changed, or
+        already superseded by the weekly report covering them.
+    """
+    return run_task(_verify_daily_tail())
+
+
 
     A task of its own since 2026-09-19, and the separation is the point rather
     than tidiness. It used to be awaited inside `harvest_workspace`, which made
@@ -84,3 +125,9 @@ def harvest_finance(
 
 from src.modules.finreports.tasks.backfill import backfill_pnl  # noqa: E402
 
+__all__ = [
+    "backfill_pnl",
+    "harvest_daily_tail",
+    "harvest_finance",
+    "verify_daily_tail",
+]

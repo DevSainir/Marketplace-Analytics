@@ -118,6 +118,18 @@ async def _no_tokens(workspace_id: uuid.UUID) -> WorkspaceTokenBundle | None:
     return None
 
 
+class _StubDailyRepo:
+    """No provisional tail — these tests are about the lock, not the tail.
+
+    `None` is also the ordinary answer for a workspace whose settled history
+    already reaches yesterday, so it is the right default rather than a
+    convenience.
+    """
+
+    async def covered_through(self, *, workspace_id: uuid.UUID) -> date | None:
+        return None
+
+
 class _StubReportRepo:
     """Answers the one coverage question the control service asks."""
 
@@ -141,6 +153,7 @@ async def test_the_button_sees_a_harvest_that_is_already_running() -> None:
     """What the route turns into «уже выполняется» instead of a second run."""
     service = HarvestControlService(
         report_repo=_StubReportRepo(date(2026, 8, 9)),  # type: ignore[arg-type]
+        daily_repo=_StubDailyRepo(),  # type: ignore[arg-type]
         redis=_HeldRedis(),  # type: ignore[arg-type]
         freshness_records=NullFreshnessRecordStore(),
         load_tokens=_no_tokens,
@@ -158,6 +171,7 @@ async def test_an_idle_lock_reads_as_not_running() -> None:
     redis.store.clear()
     service = HarvestControlService(
         report_repo=_StubReportRepo(None),  # type: ignore[arg-type]
+        daily_repo=_StubDailyRepo(),  # type: ignore[arg-type]
         redis=redis,  # type: ignore[arg-type]
         freshness_records=NullFreshnessRecordStore(),
         load_tokens=_no_tokens,
@@ -182,6 +196,7 @@ async def test_an_unreachable_redis_does_not_block_the_button() -> None:
 
     service = HarvestControlService(
         report_repo=_StubReportRepo(None),  # type: ignore[arg-type]
+        daily_repo=_StubDailyRepo(),  # type: ignore[arg-type]
         redis=_BrokenRedis(),  # type: ignore[arg-type]
         freshness_records=NullFreshnessRecordStore(),
         load_tokens=_no_tokens,

@@ -72,6 +72,7 @@ DECLARE
     targets text[] := ARRAY[
         'ab_tests.ab_test',
         'finreports.balance_pin',
+        'finreports.daily_settlement_report',
         'finreports.financial_report',
         'finreports.logistics_transaction',
         'finreports.pnl_sku_exclusion',

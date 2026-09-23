@@ -98,19 +98,64 @@ class IngestionService:
                     conflict_columns=["report_id"],
                     update_columns=REPORT_UPDATE,
                 )
-                total += await self._transactions.bulk_upsert(
-                    # WB's cursor is exclusive, so a repeat inside one page is
-                    # the only way a duplicate key can reach the statement —
-                    # and ON CONFLICT DO UPDATE rejects the whole batch if one
-                    # does.
-                    dedupe(
-                        [settlement_row(row, workspace_id=workspace_id) for row in page],
-                        keys=["rrd_id"],
-                    ),
-                    conflict_columns=["rrd_id"],
-                    update_columns=TXN_UPDATE,
-                )
+                total += await self._upsert_settlement_rows(page, workspace_id=workspace_id)
         return total
+
+    async def ingest_settlement_rows(
+        self,
+        pages: AsyncGenerator[Sequence[WBReportDetailRow], None],
+        *,
+        workspace_id: uuid.UUID,
+    ) -> int:
+        """Upsert settlement rows **without** writing report headers.
+
+        What the provisional daily lane ingests with. The rows are the same rows
+        — a daily report and the weekly report covering it share their ``rrdId``
+        one for one — so they belong in ``logistics_transaction`` like any other,
+        and the P&L picks them up by ``rr_dt`` with nothing else to change.
+
+        The headers are what must not be written. ``financial_report`` is where
+        the weekly machinery reads «how far is this workspace settled» from, as
+        ``max(date_to)``; a daily header for yesterday would answer that
+        question with yesterday and the freshness gate would stop asking for the
+        weekly report altogether. The daily lane keeps its own bookkeeping
+        instead — see
+        :class:`~src.modules.finreports.models.daily_settlement_report.DailySettlementReport`.
+
+        Args:
+            pages: The paginated walk. Consumed and closed here.
+            workspace_id: Owning workspace.
+
+        Returns:
+            The number of settlement rows upserted.
+        """
+        total = 0
+        async with aclosing(pages):
+            async for page in pages:
+                total += await self._upsert_settlement_rows(page, workspace_id=workspace_id)
+        return total
+
+    async def _upsert_settlement_rows(
+        self, page: Sequence[WBReportDetailRow], *, workspace_id: uuid.UUID
+    ) -> int:
+        """Upsert one page of settlement rows by ``rrd_id``.
+
+        Shared by both ingests above so the two lanes cannot drift into writing
+        the same rows differently — which, since they ARE the same rows, would
+        show up as a P&L that changes when a day is re-harvested from the other
+        lane.
+        """
+        return await self._transactions.bulk_upsert(
+            # WB's cursor is exclusive, so a repeat inside one page is the only
+            # way a duplicate key can reach the statement — and ON CONFLICT DO
+            # UPDATE rejects the whole batch if one does.
+            dedupe(
+                [settlement_row(row, workspace_id=workspace_id) for row in page],
+                keys=["rrd_id"],
+            ),
+            conflict_columns=["rrd_id"],
+            update_columns=TXN_UPDATE,
+        )
 
     async def ingest_tariffs(
     ) -> int:

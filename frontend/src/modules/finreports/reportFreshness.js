@@ -24,6 +24,12 @@
  * * **Name the period we hold, not the probe window.** That string is what the
  *   seller matches against WB's own отчёты page, so it keeps WB's day-month
  *   shape.
+ * * **A provisional day is named as provisional.** Since the daily tail landed,
+ *   the statement includes days no weekly settlement report covers yet — WB
+ *   serves a per-day report the following morning. Saying only «Последний отчёт
+ *   WB: 14-20 сен» over figures that run to the 22nd contradicts the page;
+ *   folding those days INTO that period would claim a settlement document WB has
+ *   not issued. So they get their own clause and the word «предварительно».
  * * **Timezones.** `harvested_at` / `checked_at` are UTC *instants*: day and
  *   time are read off one local `Date` together, or a 23:14Z harvest prints its
  *   day and its time a day apart in Moscow. A report's period is a calendar
@@ -167,7 +173,8 @@ function describeCheck(check, held) {
 /**
  * Build the freshness line from a harvest-state payload.
  *
- * @param {{latest_report: object|null, last_check: object|null}|null} state
+ * @param {{latest_report: object|null, last_check: object|null,
+ *   provisional_through: string|null}|null} state
  *   `GET /v1/finreports/harvest`, or `null` when it could not be fetched.
  * @param {Date} [now] Reference time; injected so the result is testable.
  * @returns {{text: string, tone: 'muted'|'warning'}|null} The line, or `null`
@@ -190,6 +197,11 @@ export function describeFreshness(state, now = new Date()) {
   } else {
     parts.push('Отчётов WB пока нет')
   }
+
+  // The backend sends this only when the tail actually reaches past the settled
+  // period, so there is no «plus nothing» case to suppress here.
+  const provisional = dayMonth(state.provisional_through)
+  if (provisional) parts.push(`предварительно по ${provisional}`)
 
   // Missing entirely — never checked, the record expired, or it came back
   // unreadable. All three mean the same thing and none of them is reassuring:

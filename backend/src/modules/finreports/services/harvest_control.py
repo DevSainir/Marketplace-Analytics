@@ -41,7 +41,11 @@ from src.core.locks import is_held
 from src.integrations.wildberries.endpoints import SETTLEMENT_REPORT_PATH
 from src.integrations.wildberries.rate_limit import statistics_rate_gate
 from src.modules.finreports.constants import HARVEST_LOCK_KEY
-from src.modules.finreports.repos import FinancialReportRepository, LatestReportHeader
+from src.modules.finreports.repos import (
+    DailySettlementRepository,
+    FinancialReportRepository,
+    LatestReportHeader,
+)
 from src.modules.finreports.services.freshness_record import (
     FreshnessRecordStore,
     FreshnessVerdict,
@@ -70,6 +74,16 @@ class HarvestState:
     #: corrupt. All three read as "we have not checked", which is the honest
     #: answer and the one the page is built to show.
     last_check: FreshnessVerdict | None = None
+    #: Newest day the PROVISIONAL daily tail covers, when it reaches past the
+    #: settled weekly period — otherwise ``None``.
+    #:
+    #: Deliberately a second field rather than a larger :attr:`latest_settled`.
+    #: The statement now shows figures for days no weekly report covers yet, and
+    #: a page that showed them under «Последний отчёт WB: 14-20 сен» would be
+    #: contradicting itself; one that folded them INTO that date would be
+    #: claiming a settlement document WB has not issued. The two claims are
+    #: different and are reported as two.
+    provisional_through: date | None = None
 
 
 class HarvestControlService:
@@ -79,6 +93,7 @@ class HarvestControlService:
         self,
         *,
         report_repo: FinancialReportRepository,
+        daily_repo: DailySettlementRepository,
         redis: Redis,
         freshness_records: FreshnessRecordStore,
         load_tokens: Callable[[uuid.UUID], Awaitable[WorkspaceTokenBundle | None]],
@@ -87,6 +102,7 @@ class HarvestControlService:
 
         Args:
             report_repo: Source of the newest harvested report header.
+            daily_repo: Source of how far the provisional daily tail reaches.
             redis: The client holding the harvest lock.
             freshness_records: Where the harvest task records what it found.
             load_tokens: Resolves a workspace's WB credentials. Only the
@@ -94,6 +110,7 @@ class HarvestControlService:
                 see :meth:`settlement_retry_after`.
         """
         self._report_repo = report_repo
+        self._daily_repo = daily_repo
         self._redis = redis
         self._freshness_records = freshness_records
         self._load_tokens = load_tokens
@@ -140,11 +157,17 @@ class HarvestControlService:
             because a footnote may not take down the statement it annotates.
         """
         latest = await self._report_repo.latest_report(workspace_id=workspace_id)
+        settled = latest.date_to if latest else None
+        # Reported only when it actually reaches further than the settled
+        # history. Once the weekly report covering those days lands, the tail is
+        # behind it and saying so would be noise — the same day, announced twice.
+        tail = await self._daily_repo.covered_through(workspace_id=workspace_id)
         return HarvestState(
             running=await is_held(HARVEST_LOCK_KEY, redis=self._redis),
-            latest_settled=latest.date_to if latest else None,
+            latest_settled=settled,
             latest_report=latest,
             last_check=await self._freshness_records.get(workspace_id),
+            provisional_through=tail if tail and (settled is None or tail > settled) else None,
         )
 
 

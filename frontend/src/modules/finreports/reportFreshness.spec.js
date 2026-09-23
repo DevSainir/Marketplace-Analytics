@@ -116,6 +116,29 @@ describe('describeFreshness', () => {
     expect(line.text).toContain('проверено 12 мин назад')
   })
 
+  it('names a provisional day as provisional, next to the settled period', () => {
+    // The statement now runs past the last weekly report: WB serves a per-day
+    // realization report the morning after the day. Showing those figures under
+    // «Последний отчёт WB: 10–16 авг» alone contradicts the page, and folding
+    // them into that period would claim a settlement document WB never issued.
+    const line = describeFreshness(
+      { latest_report: report(), last_check: check(), provisional_through: '2026-08-17' },
+      NOW,
+    )
+
+    expect(line.text).toContain('Последний отчёт WB: 10–16 авг')
+    expect(line.text).toContain('предварительно по 17 авг')
+  })
+
+  it('says nothing about a tail that does not reach past the settled period', () => {
+    // The backend omits the field once the weekly report has caught up, and the
+    // line must not invent a clause for it — the same day announced twice reads
+    // as two facts.
+    const line = describeFreshness({ latest_report: report(), last_check: check() }, NOW)
+
+    expect(line.text).not.toContain('предварительно')
+  })
+
   it('reads a quiet week as normal, not as a problem', () => {
     // WB publishing nothing for days is the ordinary case. If it were rendered
     // as a warning the warning would be permanent, and permanent warnings are

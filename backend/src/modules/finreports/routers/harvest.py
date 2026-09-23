@@ -75,6 +75,7 @@ async def get_harvest_state(
     return HarvestStateResponse(
         running=state.running,
         latest_settled=state.latest_settled,
+        provisional_through=state.provisional_through,
         latest_report=(
             LatestReportOut(
                 report_id=report.report_id,

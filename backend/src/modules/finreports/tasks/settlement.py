@@ -32,7 +32,8 @@ addressing:
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Sequence
+import uuid
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from datetime import date
 from typing import NamedTuple
 
@@ -96,6 +97,42 @@ class SettlementWalk(NamedTuple):
     completed_through: date | None
 
 
+#: How one page of settlement rows is written.
+#:
+#: The walk's machinery — a rate token taken outside the session, a page
+#: streamed rather than decoded, a commit per batch, a cursor that only advances
+#: on success — is the same for both lanes, and all of it was expensive to get
+#: right. The only thing that differs is whether the report HEADER is written
+#: alongside the rows, so that is the one thing passed in.
+SettlementIngest = Callable[
+    [IngestionService, AsyncGenerator[list[WBFinanceReportRow], None], uuid.UUID],
+    Awaitable[int],
+]
+
+
+async def ingest_with_headers(
+    ingestion: IngestionService,
+    pages: AsyncGenerator[list[WBFinanceReportRow], None],
+    workspace_id: uuid.UUID,
+) -> int:
+    """Write rows and their weekly report headers — the settled history."""
+    return await ingestion.ingest_finance_report(pages, workspace_id=workspace_id)
+
+
+async def ingest_rows_only(
+    ingestion: IngestionService,
+    pages: AsyncGenerator[list[WBFinanceReportRow], None],
+    workspace_id: uuid.UUID,
+) -> int:
+    """Write rows alone — the provisional daily tail, which books itself.
+
+    See
+    :meth:`~src.modules.finreports.services.ingestion.service.IngestionService.ingest_settlement_rows`
+    for why a daily header must not reach ``financial_report``.
+    """
+    return await ingestion.ingest_settlement_rows(pages, workspace_id=workspace_id)
+
+
 class MissingReport(NamedTuple):
     """A report WB has formed that this workspace does not hold.
 
@@ -114,6 +151,7 @@ async def walk_settlement_reports(
     tokens: WorkspaceTokenBundle,
     reports: Sequence[MissingReport],
     build_ingestion: object,
+    ingest: SettlementIngest = ingest_with_headers,
 ) -> SettlementWalk:
     """Fetch every report this workspace is missing, one request per page.
 
@@ -125,6 +163,9 @@ async def walk_settlement_reports(
         build_ingestion: Factory taking a session and returning an
             :class:`IngestionService` — injected rather than imported so this
             module does not reach back into the harvest that calls it.
+        ingest: How a page is written. Defaults to the settled history's
+            rows-and-headers write; the provisional daily lane passes
+            :func:`ingest_rows_only`. See :data:`SettlementIngest`.
 
     Returns:
         A :class:`SettlementWalk`. ``completed_through`` stops at the **first**
@@ -141,7 +182,11 @@ async def walk_settlement_reports(
     prefix_intact = True
     for report in reports:
         report_rows, complete = await _harvest_report(
-            tokens=tokens, report=report, gate=gate, build_ingestion=build_ingestion
+            tokens=tokens,
+            report=report,
+            gate=gate,
+            build_ingestion=build_ingestion,
+            ingest=ingest,
         )
         rows += report_rows
         if complete:
@@ -167,6 +212,7 @@ async def _harvest_report(
     report: MissingReport,
     gate: RateGate,
     build_ingestion: object,
+    ingest: SettlementIngest,
 ) -> tuple[int, bool]:
     """Harvest one report, a page per request, and say whether it finished.
 
@@ -177,6 +223,7 @@ async def _harvest_report(
             before the page's session is opened.
         build_ingestion: Factory taking a session and returning an
             :class:`IngestionService`.
+        ingest: How a page is written — see :data:`SettlementIngest`.
 
     Returns:
         ``(rows, complete)``. ``complete`` is False when WB withheld a page or
@@ -205,6 +252,7 @@ async def _harvest_report(
             cursor=cursor,
             build_ingestion=build_ingestion,
             gate=gate,
+            ingest=ingest,
         )
         # Added before the check, never inside it: a request that died mid-body
         # has already committed whatever batches reached the database, and those
@@ -232,6 +280,7 @@ async def _ingest_one_streamed_page(
     cursor: int,
     build_ingestion: object,
     gate: RateGate,
+    ingest: SettlementIngest = ingest_with_headers,
 ) -> _Page:
     """Fetch one request's worth of settlement rows by streaming, and commit it.
 
@@ -283,9 +332,7 @@ async def _ingest_one_streamed_page(
                     if not batch:
                         continue
                     last_rrd_id = batch[-1].rrd_id
-                    total += await ingestion.ingest_finance_report(
-                        _one_page(batch), workspace_id=tokens.workspace_id
-                    )
+                    total += await ingest(ingestion, _one_page(batch), tokens.workspace_id)
                     # Committed per batch, not per page. A single transaction
                     # over 100 000 rows held fifty batches' worth of statement
                     # state at once and OOM-killed the worker on 2026-09-15
@@ -385,4 +432,12 @@ class _SpentToken:
         return await self._shared.retry_after(endpoint)
 
 
-__all__ = ["MAX_RETRIES", "MissingReport", "SettlementWalk", "walk_settlement_reports"]
+__all__ = [
+    "MAX_RETRIES",
+    "MissingReport",
+    "SettlementIngest",
+    "SettlementWalk",
+    "ingest_rows_only",
+    "ingest_with_headers",
+    "walk_settlement_reports",
+]

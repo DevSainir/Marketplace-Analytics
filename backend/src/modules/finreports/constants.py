@@ -258,3 +258,34 @@ TRANSIT_DEDUCTION_MARKER: str = "транзитных поставок"
 #: withheld overstates the seller's acquiring cost by 226 004 KGS across the
 #: history and understates WB's commission by the same amount.
 SEPARATELY_BILLED_ACQUIRING: str = "Комиссия за организацию платежа с НДС"
+
+
+# --------------------------------------------------------------------------- #
+# The provisional daily tail
+# --------------------------------------------------------------------------- #
+#: How far behind the settled frontier the daily lane will reach.
+#:
+#: The tail exists to cover the days between the last settled week and
+#: yesterday, which is at most eight or nine days in the ordinary case. A
+#: workspace stuck months behind — WB never served a week, the gap repair has not
+#: caught up — must not turn that into a hundred daily reports at one request a
+#: minute, starving every other seller behind the shared lock. Matching
+#: :data:`RECONCILE_LOOKBACK_DAYS` so the two horizons cannot drift: a day the
+#: reconciliation pass can still repair weekly is a day this lane can still
+#: cover daily.
+DAILY_TAIL_LOOKBACK_DAYS: int = 14
+
+#: How long a daily report must be held before its re-read means anything.
+#:
+#: The open question is whether WB revises a daily report after first serving it.
+#: Re-reading one 42 minutes later found it identical, which rules out
+#: minute-by-minute top-ups and nothing else, so the measurement that matters is
+#: across a day boundary. Anything shorter answers a question nobody asked.
+DAILY_TAIL_VERIFY_AFTER_HOURS: int = 24
+
+#: Daily reports re-read per workspace per verification run.
+#:
+#: Each costs one request on a bucket that serves one a minute and is shared with
+#: the settled history's own walk. Three is one report a day plus slack to drain
+#: a backlog, and bounds the run at three minutes per workspace.
+DAILY_TAIL_VERIFY_LIMIT: int = 3

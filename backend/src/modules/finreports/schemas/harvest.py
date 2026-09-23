@@ -87,6 +87,17 @@ class HarvestStateResponse(BaseModel):
         default=None,
         description="The newest report on file, or null for a never-harvested workspace.",
     )
+    provisional_through: date | None = Field(
+        default=None,
+        description=(
+            "Last day covered by WB's PROVISIONAL daily reports, when they reach "
+            "past the settled weekly period; null otherwise. The statement "
+            "includes these days, but no weekly settlement document covers them "
+            "yet and whether WB revises a daily report is still being measured — "
+            "so they are reported apart from `latest_settled` rather than folded "
+            "into it."
+        ),
+    )
     last_check: FreshnessCheckOut | None = Field(
         default=None,
         description=(

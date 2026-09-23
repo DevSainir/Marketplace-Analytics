@@ -36,6 +36,7 @@ See ``docs/finreports/MIGRATION_TO_FINANCE_V1.md``.
 
 from __future__ import annotations
 
+import enum
 from collections.abc import AsyncGenerator
 from datetime import date
 
@@ -53,6 +54,24 @@ from src.integrations.wildberries.schemas.finance import (
     WBFinanceReportHeader,
     WBFinanceReportRow,
 )
+
+
+class ReportPeriod(enum.StrEnum):
+    """Which periodicity of realization report to ask WB for.
+
+    WB forms both, on the same methods, and ``period`` **defaults to weekly** —
+    which is why this service read only the weekly half of the surface from the
+    migration on 2026-09-22 until 2026-09-23. Verified live on «Демо»: the
+    two lanes are the same rows with the same ``rrdId``, cut at a different
+    boundary, and a single-day window asked *without* this parameter answers 204
+    rather than an error, so the mistake looks exactly like «WB has not formed
+    the report yet».
+
+    ``detailed/{reportId}`` takes no periodicity: the report id carries it.
+    """
+
+    WEEKLY = "weekly"
+    DAILY = "daily"
 
 
 class WBFinanceReportsClient(BaseWBClient):
@@ -104,7 +123,9 @@ class WBFinanceReportsClient(BaseWBClient):
             retry_after_ceiling_seconds=70.0,
         )
 
-    async def list_reports(self, *, date_from: date, date_to: date) -> list[WBFinanceReportHeader]:
+    async def list_reports(
+        self, *, date_from: date, date_to: date, period: ReportPeriod = ReportPeriod.WEEKLY
+    ) -> list[WBFinanceReportHeader]:
         """Return every report WB has formed whose period falls in the window.
 
         The method the old surface had no equivalent of. It answers «is there a
@@ -116,6 +137,9 @@ class WBFinanceReportsClient(BaseWBClient):
         Args:
             date_from: Inclusive start of the window to list.
             date_to: Inclusive end.
+            period: Which periodicity to list. WB's default is weekly, and this
+                service read only that until 2026-09-23 — see
+                :class:`ReportPeriod`.
 
         Returns:
             The report headers, in WB's order. Empty when WB has formed none.
@@ -124,10 +148,21 @@ class WBFinanceReportsClient(BaseWBClient):
             IntegrationError: On a refused gate, an exhausted ladder, or an
                 unexpected payload shape.
         """
+        body: dict[str, object] = {
+            "dateFrom": date_from.isoformat(),
+            "dateTo": date_to.isoformat(),
+        }
+        # Sent only for the daily lane, so the weekly request stays byte-for-byte
+        # the one this service has been making all along. `weekly` is WB's
+        # documented default and we have measured the daily value; we have never
+        # measured what a *fleet* of sellers does with an explicitly weekly one,
+        # and the settlement history is not the place to find out.
+        if period is not ReportPeriod.WEEKLY:
+            body["period"] = period.value
         payload = await self._request(
             "POST",
             SALES_REPORTS_LIST_PATH,
-            json_body={"dateFrom": date_from.isoformat(), "dateTo": date_to.isoformat()},
+            json_body=body,
         )
         if payload is None:
             return []
