@@ -153,31 +153,23 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=5, minute=0),
     },
     #
-    # Still hourly, and it now costs almost nothing. WB publishes the weekly
-    # realization report on no fixed HOUR — report 978271922 was formed on
-    # 10.08 after that day's 08:00 run had already asked and been told there
-    # was nothing — so a daily check means up to 24 h of staleness every time.
-    # The tick stays frequent for that reason alone.
+    # Hourly, and a tick costs two requests per workspace: one
+    # `sales-reports/list` for the weekly reports and one for the daily ones.
+    # `list` is a bucket of its own at one request per minute — 1 440 a day —
+    # so discovery is effectively free and is never rationed.
     #
-    # What changed on 2026-09-19 is what a tick SPENDS. It used to send one
-    # `limit=1` settlement request per workspace per tick: 21 a day, 147
-    # between one weekly report and the next, against an endpoint that serves
-    # about 94 requests a day. Most of a seller's entire settlement budget was
-    # going on asking whether a report existed on days WB could not have formed
-    # one.
+    # It was not always. On `reportDetailByPeriod` a settlement request was one
+    # of about 94 a day, so this entry carried a derived publication calendar
+    # (Sunday or month end, `create_dt = date_to + 1`, measured over 142
+    # reports) and a decaying probe cadence, purely to avoid spending that
+    # budget on asking. Both were deleted on 2026-09-23 with the endpoint they
+    # protected: the calendar's one remaining question — «WB formed nothing for
+    # a day inside our history» — is answered in SQL by the gap survey, and a
+    # report the list names is now fetched by the tick that names it instead of
+    # waiting for one of four preset hours.
     #
-    # It can be derived instead. Measured over all 142 reports «Демо»
-    # holds: `create_dt` is `date_to + 1` in every one of them, and a period
-    # ends on a Sunday or a month end. So the gate first asks our own database
-    # which periods WB must have formed and which of those we hold — SQL, no WB
-    # request — and only reaches for WB when that list is non-empty. See
-    # `src/modules/finreports/services/publication.py` for the arithmetic and
-    # `tasks/freshness.py` for the gate.
-    #
-    # A tick therefore costs one indexed read per workspace on the ~six days a
-    # week when nothing can have been published, and one probe plus one walk
-    # window per week when something has. `harvest_all_workspaces` holds a
-    # Redis lock so the next tick cannot start a second copy alongside it.
+    # `harvest_all_workspaces` holds a Redis lock so the next tick cannot start a
+    # second copy alongside it.
     #
     # harvest and cohort refresh own those hours, and the walk competes with
     # them for the same rate-limited analytics surfaces.

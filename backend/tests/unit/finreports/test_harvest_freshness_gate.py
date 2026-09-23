@@ -253,3 +253,30 @@ async def test_the_list_window_reaches_past_the_latest_lateness_seen(
     asked_from, asked_to = client.calls[0]
     assert (TODAY - asked_from).days >= 30
     assert asked_to == TODAY
+
+
+async def test_a_late_report_is_handed_over_at_whatever_hour_it_is_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No hour is the wrong hour to fetch a report WB has already formed.
+
+    A decaying cadence used to hold a listed-but-unheld report back to 08:00,
+    12:00, 16:00 and 20:00 MSK, and for a report three days overdue to 08:00,
+    14:00 and 20:00. That existed to protect a budget of about 94 settlement
+    requests a day; the Finance surface serves 1 440, and the cost of asking
+    early is now one request against a report the seller can already see on WB's
+    own site.
+
+    Asserted through the gate rather than by the absence of a call, because
+    «which hour is it» is no longer an input the gate has.
+    """
+    long_overdue = _header(902, date(2026, 9, 1), created=date(2026, 9, 2))
+    _install(monkeypatch, _FakeClient([long_overdue]))
+
+    verdict, missing = await check_freshness(
+        tokens=_tokens(), latest_settled=SETTLED, held=set(), today=TODAY
+    )
+
+    assert verdict is not None
+    assert verdict.outcome is FreshnessOutcome.WB_HAS_NEW
+    assert [report.report_id for report in missing] == [902]

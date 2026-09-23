@@ -1,44 +1,46 @@
 """The freshness gate in front of the finreports harvest.
 
-**Since 2026-09-19 this gate mostly answers without asking WB anything.** It
-used to send one ``limit=1`` settlement request per workspace per hour on the
-premise that WB publishes «on no fixed day and no fixed hour». The second half
-is true; the first is not, and measuring it is what retired the hourly probe:
-over all 142 reports «Демо» holds, ``create_dt`` is ``date_to + 1`` without
-exception, and every settlement period ends on a Sunday or a month end. The
-arithmetic is in :mod:`src.modules.finreports.services.publication`.
+**One list request per workspace per tick, and it answers everything.**
+``sales-reports/list`` names every report WB has formed, so «is there a report we
+do not hold» is a set difference against the ids on file. Nothing is derived and
+nothing is guessed.
 
-So the question «is there a report we do not hold» is now asked of our own
-database first — which periods must WB have formed by today, and which of them
-have no report — and of WB only when that list is non-empty. Between one report
-and the next that is 147 requests per workspace not sent, and on the settlement
-endpoint's ~94-per-day budget those 147 were most of it.
+That is a change of kind from what came before. On the endpoint this replaced a
+settlement request cost one of about 94 a day, so the gate spent a great deal of
+care NOT asking: it derived which periods WB must have formed (Sunday or month
+end, ``create_dt = date_to + 1``, measured over 142 reports) and it throttled how
+often a listed report might be *fetched*, because 21 attempts a day at a report
+WB had stamped and was not yet serving would have eaten the budget twice over.
+The Finance surface serves one request per minute per method — 1 440 a day — and
+both of those controls were removed on 2026-09-23 along with the calendar that
+drove them. A report the list names is now fetched on the tick that named it,
+which is the whole of the freshness this gate is for.
 
-The gate is deliberately asymmetric. Skipping on the strength of WB's answer is
-only ever decided by an answer that came back *empty*; a probe that raised
-harvests anyway. A gate that fails closed would turn a transient WB error into
-a silently skipped settlement day, which is the failure mode this module exists
-to avoid, not to introduce.
+The gate is deliberately asymmetric. Skipping is only ever decided by an answer
+that came back *empty*; a list that raised harvests anyway. A gate that fails
+closed would turn a transient WB error into a silently skipped settlement day,
+which is the failure mode this module exists to avoid, not to introduce.
 
 **It does fail closed on one thing, on purpose: a standing penalty block.**
 Before 2026-09-19 the probe went out first and its refusal was read as «we
 learned nothing, harvest anyway», so a blocked endpoint got a probe AND a walk,
-each of which restarted WB's window longer. That is the loop that took the
+each of which restarted WB's window longer. That is the loop that took the old
 settlement endpoint from a 28 197 s block to a 302 940 s one in three steps on
 2026-09-17. A block is not an unanswered question — it is an answer, and the
 answer is «do not ask».
 
-What the gate still cannot do is see the hour. A report formed on 01.09 may be
-served on 01.09 or, as 983241109 was, on 09.09. That is why the missing-period
-list is the trigger rather than a calendar: a period stays on it until its
-report is actually held, so a late report is asked about every tick of every
-day until it arrives instead of leaving the reachable window behind a watermark
-that jumped over it.
+What the gate cannot see is whether WB will SERVE a report it has listed. One
+formed on 01.09 was first served on 09.09. A report stays on the missing list
+until its rows are actually held, so a late one is asked about every tick until
+it arrives rather than being left behind a watermark that jumped over it; and
+«WB has formed nothing for a day inside our history» is a different question,
+answered in SQL by :func:`~src.modules.finreports.tasks.gaps.survey_settlement_gaps`.
 
 The verdict it reaches is not thrown away: it is recorded per workspace (see
 :mod:`src.modules.finreports.services.freshness_record`) so the P&L page can say
 in words why the statement stops where it does. «Новых отчётов нет» means
-nothing without «и мы спросили 12 минут назад».
+nothing without «и мы спросили 12 минут назад» — and since every tick now asks,
+every tick records a true one.
 """
 
 from __future__ import annotations
@@ -67,20 +69,10 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessVerdict,
     RedisFreshnessRecordStore,
 )
-from src.modules.finreports.services.publication import is_probe_hour
 from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 logger = get_logger(__name__)
-
-#: The one Moscow hour every cadence in :func:`is_probe_hour` includes.
-#:
-#: The default for callers that have no clock of their own — tests, and any
-#: future caller reasoning purely about dates. Defaulting to an hour that some
-#: cadence excludes would make the gate answer «nothing to do» for a reason the
-#: caller never asked about, which is the quietest way for this module to go
-#: wrong.
-_ALWAYS_A_PROBE_HOUR_MSK = 8
 
 
 async def settlement_blocked_for(tokens: WorkspaceTokenBundle) -> float:
@@ -173,8 +165,6 @@ async def check_freshness(
     latest_settled: date | None,
     held: Collection[int],
     today: date,
-    hour_msk: int = _ALWAYS_A_PROBE_HOUR_MSK,
-    paced: bool = True,
     blocked_for: float = 0.0,
 ) -> tuple[FreshnessVerdict | None, tuple[MissingReport, ...]]:
     """Ask WB whether it holds a report this workspace has not harvested.
@@ -184,24 +174,26 @@ async def check_freshness(
     did, which is why three days of a crashed harvest in August 2026 looked
     like a quiet week on the P&L.
 
+    **Every tick asks, and every tick therefore reaches a verdict.** The cadence
+    that used to pace this away on most hours existed to protect a budget of
+    about 94 requests a day; the Finance surface serves 1 440, and a report found
+    by the list is now fetched by the tick that found it.
+
     Args:
         tokens: The workspace's decrypted WB credentials.
         latest_settled: The settlement frontier, or ``None`` if this workspace
             has never been harvested.
         held: ``reportId`` of every report already on file.
         today: Today in Moscow time.
-        hour_msk: The hour now, Moscow time — the cadence decays with how
-            overdue a report is, so not every tick asks.
-        paced: Whether that cadence applies. False for «Обновить» and the
-            nightly reconciliation pass, which must reach WB whatever the hour.
         blocked_for: Seconds WB has this workspace's report endpoint shut for,
             read from the shared rate bucket at no cost in WB requests.
 
     Returns:
-        ``(verdict, missing reports)``. The verdict is ``None`` when this tick
-        asked nothing and learned nothing — a paced-out hour — and the caller
-        must then leave the recorded verdict alone rather than overwrite a
-        true record with a claim no request supports.
+        ``(verdict, missing reports)``. The reports are empty whenever there is
+        nothing to fetch, which includes the verdicts that say we could not ask.
+        The verdict is ``None`` for one case only — a workspace with no
+        «Финансы» token, where nothing was asked and nothing can be. It used to
+        also mean «the cadence paced this tick out», which no longer exists.
     """
     if not tokens.finance:
         logger.warning(
@@ -246,17 +238,6 @@ async def check_freshness(
         return FreshnessVerdict(
             outcome=FreshnessOutcome.UP_TO_DATE, checked_at=datetime.now(UTC)
         ), ()
-
-    if paced and not is_probe_hour(overdue_days=outstanding.overdue_days, hour_msk=hour_msk):
-        logger.debug(
-            "finreports: %s is short %d report(s), oldest %d day(s) overdue, "
-            "but %02d:00 MSK is not one of its hours.",
-            tokens.name,
-            len(outstanding.reports),
-            outstanding.overdue_days,
-            hour_msk,
-        )
-        return None, ()
 
     probe_from, probe_to = outstanding.span
     logger.info(
