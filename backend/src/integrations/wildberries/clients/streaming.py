@@ -164,6 +164,16 @@ class StreamingJSONMixin:
                 yield list(buffer)
         except ijson.JSONError as exc:
             raise IntegrationError(f"Malformed JSON from {path}: {exc}") from exc
+        except httpx.HTTPError as exc:
+            # The retry ladder above covers OPENING the stream and cannot cover
+            # this: a body half-consumed cannot be asked for again, and the
+            # batches already yielded have already been committed by the caller.
+            # What matters is that it arrives as the error every caller handles.
+            # A raw `httpx.ReadError` does not: it escaped the walk's
+            # `IntegrationError` clause, killed the whole Celery task, and cost
+            # NEVA a 300 000-row window on 2026-09-24. Translated, the same event
+            # is one failed page that the next tick re-asks for.
+            raise IntegrationError(f"WildBerries stream broke on {path}: {exc!r}") from exc
         finally:
             await response.aclose()
 

@@ -199,3 +199,36 @@ async def test_the_settlement_reader_keeps_its_decimals() -> None:
     seen = [row async for batch in client.stream_report_rows(report_id=989286628) for row in batch]
 
     assert seen[0].ppvz_for_pay == Decimal("10.5")
+
+
+async def test_a_stream_that_breaks_mid_body_is_an_integration_error() -> None:
+    """A transport failure has to arrive as the error every caller handles.
+
+    The retry ladder covers OPENING a stream and cannot cover this: a body half
+    consumed cannot be asked for again, and the batches already yielded have
+    already been committed by the caller. What has to hold is the TYPE.
+
+    A raw `httpx.ReadError` does not hold it. It escaped the settlement walk's
+    `IntegrationError` clause, killed the whole Celery task rather than the one
+    page, and cost NEVA a 300 000-row window on 2026-09-24 — WB drops the
+    connection on a long body often enough that this is ordinary weather.
+    """
+
+    class _BreakingStream(httpx.AsyncByteStream):
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            yield b'[{"realizationreport_id": 900, "rrd_id": 1, "rr_dt": "2026-07-09",'
+            raise httpx.ReadError("connection reset by peer")
+
+        async def aclose(self) -> None:
+            return None
+
+    def _handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, stream=_BreakingStream())
+
+    async def _drain() -> None:
+        async with _client(_handler) as client:
+            async for _batch in client.stream_report_rows(report_id=900):
+                pass
+
+    with pytest.raises(IntegrationError, match="stream broke"):
+        await _drain()
