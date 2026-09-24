@@ -28,7 +28,7 @@ from typing import Any
 from sqlalchemy import ColumnElement, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.finreports.constants import PAYOUT_DEDUCTED_OPERS, RETURN_OPERS, SALE_OPERS
+from src.modules.finreports.constants import REFUND_DOC_TYPE, RETURN_OPERS, SALE_OPERS
 from src.modules.finreports.models import LogisticsTransaction
 
 _ZERO = Decimal(0)
@@ -121,7 +121,7 @@ _COLUMNS: tuple[Any, ...] = (
     _sum(
         case(
             (_T.supplier_oper_name.in_(list(SALE_OPERS) + list(RETURN_OPERS)), _ZERO),
-            (_T.supplier_oper_name.in_(list(PAYOUT_DEDUCTED_OPERS)), -_T.ppvz_for_pay),
+            (_T.doc_type_name == REFUND_DOC_TYPE, -_T.ppvz_for_pay),
             else_=_T.ppvz_for_pay,
         )
     ),

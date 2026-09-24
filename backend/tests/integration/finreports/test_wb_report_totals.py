@@ -143,7 +143,11 @@ async def test_recording_nothing_writes_nothing(db_session: AsyncSession) -> Non
 
 
 def _sale(
-    report_id: int, rrd_id: int, for_pay: Decimal, oper: str = "Продажа"
+    report_id: int,
+    rrd_id: int,
+    for_pay: Decimal,
+    oper: str = "Продажа",
+    doc_type: str = "Продажа",
 ) -> LogisticsTransaction:
     """One settlement row (a «Продажа» unless told otherwise) and its payout."""
     return LogisticsTransaction(
@@ -152,6 +156,7 @@ def _sale(
         report_id=report_id,
         rr_dt=date(2026, 8, 26),
         supplier_oper_name=oper,
+        doc_type_name=doc_type,
         ppvz_for_pay=for_pay,
         nm_id=123456,
     )
@@ -199,27 +204,29 @@ async def test_a_report_that_adds_up_is_left_alone(db_session: AsyncSession) -> 
 
 
 async def test_a_report_adds_up_the_way_wb_totals_it(db_session: AsyncSession) -> None:
-    """Refunds and «Коррекция продаж» come off, every compensation goes on.
+    """Rows under document type «Возврат» come off, every other row goes on.
 
-    Report 989286628, reduced: WB's `forPaySum` subtracts a sale correction it
-    serves positive, and counts a damage compensation like a sale. The check
-    used to count four named operations and nothing else, so a report carrying
-    «Компенсация ущерба» could never add up and was re-fetched every tick.
+    Whatever the operation: the same «Коррекция продаж» is added under «Продажа»
+    and subtracted under «Возврат», and a damage compensation counts like a
+    sale. The check used to count four named operations and nothing else, so a
+    report carrying «Компенсация ущерба» could never add up and was re-fetched
+    every tick.
     """
     db_session.add(_held_report(HELD))
     db_session.add_all(
         [
             _sale(HELD, 1, Decimal("1000.00")),
-            _sale(HELD, 2, Decimal("200.00"), "Возврат"),
-            _sale(HELD, 3, Decimal("64.13"), "Коррекция продаж"),
-            _sale(HELD, 4, Decimal("500.00"), "Компенсация ущерба"),
+            _sale(HELD, 2, Decimal("200.00"), "Возврат", "Возврат"),
+            _sale(HELD, 3, Decimal("874.69"), "Коррекция продаж"),
+            _sale(HELD, 4, Decimal("64.13"), "Коррекция продаж", "Возврат"),
+            _sale(HELD, 5, Decimal("500.00"), "Компенсация ущерба"),
         ]
     )
     await db_session.flush()
     repo = FinancialReportRepository(db_session)
     await repo.refresh_wb_totals(
         workspace_id=WORKSPACE,
-        totals=[(HELD, Decimal("1235.87"), Decimal("0"), Decimal("0"))],
+        totals=[(HELD, Decimal("2110.56"), Decimal("0"), Decimal("0"))],
     )
 
     assert await repo.incomplete_report_ids(workspace_id=WORKSPACE) == set()

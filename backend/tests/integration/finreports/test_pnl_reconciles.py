@@ -151,24 +151,53 @@ async def test_a_compensation_raises_the_payout_without_becoming_revenue(
     assert total.payout_for_goods == total.payout_from_sales + Decimal("70")
 
 
-async def test_a_sale_correction_comes_off_the_payout_as_wb_totals_it(
+async def test_a_correction_takes_its_sign_from_the_document_type(
     db_session: AsyncSession, seeded: None
 ) -> None:
-    """«Коррекция продаж» is served positive and subtracted, like a refund.
+    """A row under document type «Возврат» comes off the payout; any other goes on.
 
-    WB's own ``forPaySum`` takes it off; adding it instead put report 989286628
-    out by twice its 64.13. It stays out of revenue and units — it is a payout
-    correction, not a sale or a refund.
+    WB serves every value positive and the same operation — «Коррекция продаж»,
+    «Компенсация ущерба» — under both document types. Its own ``forPaySum``
+    negates the «Возврат» ones and nothing else, which matches all 143 reports
+    of «Демо» to the kopeck; a rule by operation name matched 121.
+    Neither row is revenue or a unit.
     """
     before = (await _statement(db_session)).total
-    db_session.add(
-        _row(99, "Коррекция продаж", nm_id=SKU_A, quantity=1, ppvz_for_pay=Decimal("64.13"))
+    db_session.add_all(
+        [
+            _row(
+                98,
+                "Коррекция продаж",
+                nm_id=SKU_A,
+                quantity=1,
+                doc_type_name="Продажа",
+                ppvz_for_pay=Decimal("874.69"),
+            ),
+            _row(
+                99,
+                "Коррекция продаж",
+                nm_id=SKU_A,
+                quantity=1,
+                doc_type_name="Возврат",
+                ppvz_for_pay=Decimal("64.13"),
+            ),
+            _row(
+                100,
+                "Компенсация ущерба",
+                nm_id=SKU_A,
+                quantity=1,
+                doc_type_name="Возврат",
+                ppvz_for_pay=Decimal("500"),
+            ),
+        ]
     )
     await db_session.flush()
 
     after = (await _statement(db_session)).total
 
-    assert after.payout_for_goods == before.payout_for_goods - Decimal("64.13")
+    assert after.payout_for_goods == before.payout_for_goods + Decimal("874.69") - Decimal(
+        "64.13"
+    ) - Decimal("500")
     assert after.revenue_paid == before.revenue_paid
     assert after.net_units == before.net_units
 

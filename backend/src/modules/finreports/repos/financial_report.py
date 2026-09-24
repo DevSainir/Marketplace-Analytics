@@ -11,7 +11,7 @@ from typing import Any, cast
 
 from sqlalchemy import CursorResult, func, or_, select, text, update
 
-from src.modules.finreports.constants import PAYOUT_DEDUCTED_OPERS, RETURN_OPERS
+from src.modules.finreports.constants import REFUND_DOC_TYPE
 from src.modules.finreports.models import FinancialReport
 from src.modules.finreports.repos.base import BaseRepository
 
@@ -256,12 +256,11 @@ class FinancialReportRepository(BaseRepository):
         it, and both lanes subtract what this returns from their «held» set.
 
         The decomposition is WB's and the statement's alike — every row's
-        ``ppvz_for_pay`` added, except :data:`RETURN_OPERS` and
-        :data:`PAYOUT_DEDUCTED_OPERS`, which are subtracted — and it agrees to
-        the kopeck on all eight reports «Демо» holds WB's totals for. It
-        used to count four named operations and drop the rest, which would have
-        left a report carrying a damage compensation short for ever and
-        re-fetched on every tick.
+        ``ppvz_for_pay``, negated where :data:`REFUND_DOC_TYPE` says so — and it
+        agrees to the kopeck on all 143 reports of «Демо»'s history. It used
+        to count four named operations and drop the rest, which would have left
+        a report carrying a damage compensation short for ever and re-fetched on
+        every tick.
 
         Args:
             workspace_id: Tenancy scope.
@@ -290,7 +289,7 @@ class FinancialReportRepository(BaseRepository):
              GROUP BY r.report_id, r.wb_for_pay_sum
             HAVING abs(
                        r.wb_for_pay_sum - coalesce(sum(CASE
-                           WHEN t.supplier_oper_name = ANY(:subtracted) THEN -t.ppvz_for_pay
+                           WHEN t.doc_type_name = :refund THEN -t.ppvz_for_pay
                            ELSE t.ppvz_for_pay END), 0)
                    ) > abs(r.wb_for_pay_sum) * :tolerance
         """)
@@ -299,7 +298,7 @@ class FinancialReportRepository(BaseRepository):
             {
                 "workspace_id": workspace_id,
                 "tolerance": tolerance,
-                "subtracted": list(RETURN_OPERS + PAYOUT_DEDUCTED_OPERS),
+                "refund": REFUND_DOC_TYPE,
             },
         )
         return {int(row[0]) for row in rows.all()}

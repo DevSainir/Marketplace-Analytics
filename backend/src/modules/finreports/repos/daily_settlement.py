@@ -79,8 +79,8 @@ class ListedTotals(NamedTuple):
     The day-later screen compares these against the same three fields listed
     again — WB's figure against WB's earlier figure. Deliberately not against
     anything we compute: our reconstruction of ``forPaySum`` was 128.26 KGS out
-    on report 989286628 until «Коррекция продаж» was found to be subtracted
-    (:data:`~src.modules.finreports.constants.PAYOUT_DEDUCTED_OPERS`), and the
+    on report 989286628 until the sign was found to live in the document type
+    (:data:`~src.modules.finreports.constants.REFUND_DOC_TYPE`), and the
     next such mistake would make a screen built on our own arithmetic fire on a
     difference that is ours and miss the one that is WB's.
     """

@@ -38,7 +38,7 @@ from src.core.observability.metrics import (
     SETTLEMENT_PUBLICATION_SPREAD,
 )
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
-from src.modules.finreports.constants import PAYOUT_DEDUCTED_OPERS, RETURN_OPERS
+from src.modules.finreports.constants import REFUND_DOC_TYPE
 from src.modules.finreports.models import FinancialReport, LogisticsTransaction
 
 logger = get_logger(__name__)
@@ -114,14 +114,14 @@ async def reconcile_against_wb(
     **What WB totals is not a plain sum.** Worked out against report 989286628
     on 2026-09-22: ``forPaySum`` is «Продажа» minus «Возврат» minus «Коррекция
     продаж» plus the standalone compensations — 967 379.90 - 116 946.31 -
-    64.13 + 7 618.21 = 1 024 861.64, to the kopeck. The sign lives in the
-    operation name, never in the value: WB serves refunds POSITIVE, which is
-    the mistake that doubles revenue if a reader sums the column.
+    64.13 + 7 618.21 = 1 024 861.64, to the kopeck. The sign is never in the
+    value: WB serves refunds POSITIVE, which is the mistake that doubles
+    revenue if a reader sums the column.
 
-    That reconstruction found one live disagreement on its first use: «Коррекция
-    продаж» was added where WB subtracts it — 128.26 KGS on that report, twice
-    its 64.13. It is subtracted now, see
-    :data:`~src.modules.finreports.constants.PAYOUT_DEDUCTED_OPERS`.
+    That reconstruction found one live disagreement on its first use, and the
+    rule that settled it is not the operation at all: WB negates every row whose
+    document type is «Возврат», see
+    :data:`~src.modules.finreports.constants.REFUND_DOC_TYPE`.
 
     Args:
         session: An open session. Nothing here writes.
@@ -138,12 +138,7 @@ async def reconcile_against_wb(
             select(
                 func.sum(
                     case(
-                        (
-                            LogisticsTransaction.supplier_oper_name.in_(
-                                RETURN_OPERS + PAYOUT_DEDUCTED_OPERS
-                            ),
-                            -_FOR_PAY,
-                        ),
+                        (LogisticsTransaction.doc_type_name == REFUND_DOC_TYPE, -_FOR_PAY),
                         else_=_FOR_PAY,
                     )
                 )
