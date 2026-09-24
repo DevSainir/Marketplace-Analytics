@@ -87,11 +87,12 @@ async def _harvest_workspace(
     span_from = min((r.date_from or r.date_to for r in reports), default=on_date)
     span_to = max((r.date_to for r in reports), default=on_date)
 
-    # The settlement report, a week per request and each week its own
-    # transaction. It is NOT part of the row commit below: WB serves this
-    # endpoint once per quarter of an hour, so the walk has to wait between
-    # weeks, and waiting is the one thing an open transaction may not do —
-    # PostgreSQL closes an idle one after 300 s. See
+    # The settlement report, by report id, each batch committed as it lands
+    # and each report booked in a transaction of its own. It is NOT part of the
+    # row commit below: the walk waits for WB's token between requests (one a
+    # minute on finance-api; once per quarter of an hour on the endpoint this
+    # was written for), and waiting is the one thing an open transaction may
+    # not do — PostgreSQL closes an idle one after 300 s. See
     # :mod:`src.modules.finreports.tasks.settlement` for what that cost before.
     walk = await walk_settlement_reports(
         tokens=tokens, reports=reports, build_ingestion=build_ingestion

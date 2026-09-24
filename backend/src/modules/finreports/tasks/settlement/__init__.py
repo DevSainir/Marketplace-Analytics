@@ -2,9 +2,14 @@
 
 The source moved on 2026-09-22. `GET /api/v5/supplier/reportDetailByPeriod` was
 announced for shutdown on 15.07.2026 and is gone from WB's documentation;
-`POST /api/finance/v1/sales-reports/detailed/{reportId}` replaces it at **one
-request per minute** against the old endpoint's one per ~917 s. See
-``docs/finreports/MIGRATION_TO_FINANCE_V1.md``.
+`POST /api/finance/v1/sales-reports/detailed/{reportId}` and its by-period
+sibling `…/detailed` replace it at **one request per minute** each against the
+old endpoint's one per ~917 s. See ``docs/finreports/MIGRATION_TO_FINANCE_V1.md``.
+
+Either way a report is BOOKED — its header written — only after all of its rows
+have landed, from WB's own list entry; a report WB lists money in and serves no
+rows for is not booked at all, and every booked report is checked against WB's
+``forPaySum`` (:mod:`reconcile`).
 
 WB serves the same rows two ways, and which one a caller wants is a real choice
 rather than a preference:

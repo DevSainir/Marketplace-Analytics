@@ -9,9 +9,10 @@ cannot see each other.
 
 Observed on NEVA 2026-09-12: two chains ticked the same P&L lane — trace
 ``c2c87118…`` and ``a657733d…`` — and each independently declared it finished,
-an hour and a quarter apart. On an endpoint WB serves once per fifteen minutes a
-second chain does not halve the walk; it spends half the budget re-fetching what
-the first already holds, and doubles every conclusion drawn from a page.
+an hour and a quarter apart. On an endpoint WB served once per fifteen minutes
+(and on the one-a-minute finance-api just the same) a second chain does not
+halve the walk; it spends half the budget re-fetching what the first already
+holds, and doubles every conclusion drawn from a page.
 
 So a chain carries a token, kept in Redis under the lane. A tick continues only
 while its token is still the lane's. Anything that STARTS a chain — signup, the

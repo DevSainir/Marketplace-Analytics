@@ -2,9 +2,10 @@
 
 The half :mod:`.gaps` deliberately is not. Detection is one SQL query per
 workspace and runs across the fleet every tick; repair is a fortnight-wide walk
-on a surface that serves one request per quarter of an hour, paid per workspace
-in sequence under a fleet-wide lock. Knowing is cheap, walking is not, and
-putting the two in one module is how the ration came to be written twice.
+— written when the surface served one request per quarter of an hour, now one a
+minute — paid per workspace in sequence under a fleet-wide lock. Knowing is
+cheap, walking is not, and putting the two in one module is how the ration came
+to be written twice.
 
 What this adds to the nightly rotation is *when*. The rotation takes one
 workspace a night, so a seller short a settlement week could be told about it
@@ -51,9 +52,10 @@ async def gap_repair_due(
     condition inlined above:
 
     * **One workspace a tick**, chosen by the same rationing the nightly pass
-      uses — a lookback walk is three windows of *waiting* on a surface that
-      serves one request per quarter of an hour, and the workspaces are walked
-      in sequence under a fleet-wide lock.
+      uses — a lookback walk was three windows of *waiting* on a surface that
+      served one request per quarter of an hour (a minute each on finance-api
+      since 2026-09-22), and the workspaces are walked in sequence under a
+      fleet-wide lock.
     * **A cooldown per workspace**, because a hole WB will never serve stays
       visible forever. Without it every tick would spend a fortnight-wide walk
       on the same unfixable day, for good. See

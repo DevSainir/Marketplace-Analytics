@@ -245,9 +245,10 @@ class BackfillRepository:
         # seconds earlier reported ``updated_at`` 2h51m old.
         #
         # Everything that judges whether a lane is alive reads this column. The
-        # watchdog restarts what has not moved; on the settlement endpoint that
-        # restart then waits a further window before asking, so a lane that was
-        # working perfectly pays a quarter of an hour for being quiet.
+        # watchdog restarts what has not moved, and that restart then waits a
+        # further window before asking (`LANE_RESTART_DELAY`, a quarter of an
+        # hour on the settlement endpoint, ninety seconds since), so a lane that
+        # was working perfectly pays for being quiet.
         row.updated_at = datetime.now(UTC)
         await self._session.flush()
         return row

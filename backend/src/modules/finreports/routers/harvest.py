@@ -4,10 +4,11 @@ Two routes on one path — ``POST /harvest`` asks for a harvest, ``GET /harvest`
 reports whether one is running and how far the history reaches, so the frontend
 can poll and then reload the statement.
 
-The schedule already asks WB hourly; this exists for the hours it cannot cover.
-A report published overnight waits for the 08:00 tick, and a worker that was
-down for its tick waits for the next one — in both cases the seller can already
-see the report on WB's own site, and «подождите до утра» is not an answer.
+The schedule already asks WB every fifteen minutes in the publication window and
+hourly outside it; this exists for the moments it cannot cover. A report served
+at night waits up to an hour, and a worker that was down for its tick waits for
+the next one — in both cases the seller can already see the report on WB's own
+site, and «подождите» is not an answer.
 
 Triggering is guarded, not queued: if a harvest is already in flight the answer
 is ``already_running`` and nothing is enqueued. The guard is advisory (see
@@ -126,7 +127,8 @@ async def trigger_harvest(
     well as the ones after it, whatever the gate says. That is the only shape
     that answers the question actually being asked, which is not «есть ли что-то
     новее» but «догони то, что у WB уже есть, а у нас нет». It costs more — a
-    fortnight is three windows of WB's quarter-hourly budget — and it is spent on
+    fortnight was three windows of the old endpoint's quarter-hourly budget, and
+    is a few one-a-minute requests on finance-api — and it is spent on
     the caller's own workspace, once, because a person asked.
 
     The earlier reasoning for the gated version, kept because it was not wrong
@@ -136,9 +138,9 @@ async def trigger_harvest(
     a night, so «anyway» is up to five days, and this button exists precisely for
     the case where waiting is not the answer.
 
-    **Every outcome is an answer, and none of them is a wait.** WB meters the
-    settlement report at one request per ~15 minutes, so a click shortly after
-    the hourly tick used to enqueue a harvest whose first act was to sit still
+    **Every outcome is an answer, and none of them is a wait.** WB metered the
+    old settlement report at one request per ~15 minutes, so a click shortly
+    after the hourly tick used to enqueue a harvest whose first act was to sit still
     for most of that window — seven minutes of «Обновляем…» during which nothing
     could possibly happen (prod 2026-09-09). The bucket already knows, in shared
     Redis, so that case is now refused here with the wait attached instead of
@@ -147,7 +149,7 @@ async def trigger_harvest(
     "Already running" and "rate limited" are reported as normal outcomes (202)
     rather than conflicts, because they are: in the first the data the caller
     wants is already being fetched, and in the second there is nothing anyone
-    could do differently for another quarter of an hour.
+    could do differently until the bucket reopens.
 
     Order matters — a run in flight is reported ahead of the rate limit. The
     running harvest is very often what emptied the bucket, and "уже идёт" is the

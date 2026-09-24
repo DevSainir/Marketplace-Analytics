@@ -60,12 +60,12 @@ class FreshnessOutcome(enum.StrEnum):
     there would postpone a settlement week out of the P&L on one transient WB
     error.
 
-    :attr:`UP_TO_DATE` reaches its skip without asking WB anything, and that is
-    not an exception to the rule but the strongest form of it: since 2026-09-19
-    it means «we hold a report for every period WB can have formed», derived
-    from WB's own period arithmetic (see
-    :mod:`src.modules.finreports.services.publication`) rather than from a
-    silence we chose to read as a no.
+    :attr:`UP_TO_DATE` is the strongest form of the rule: since 2026-09-23 it
+    means «we hold every report WB's own ``sales-reports/list`` names», asked
+    on that tick. From 2026-09-19 until then it was reached without asking WB,
+    derived from WB's period arithmetic (``services/publication.py``, deleted
+    with the old endpoint) — either way never a silence we chose to read as a
+    no.
 
     :attr:`RATE_BLOCKED` is the one place this gate deliberately fails closed,
     and it does so because the alternative is not «ask anyway» but «make the

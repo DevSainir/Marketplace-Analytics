@@ -142,12 +142,17 @@ class IngestionService:
     ) -> int:
         """Upsert settlement rows **without** writing report headers.
 
-        What the provisional daily lane ingests with. The rows are the same rows
-        — a daily report and the weekly report covering it share their ``rrdId``
-        one for one — so they belong in ``logistics_transaction`` like any other,
-        and the P&L picks them up by ``rr_dt`` with nothing else to change.
+        The single row path since 2026-09-24, when ``ingest_finance_report`` —
+        which wrote headers derived from the rows — was deleted with the script
+        that was its last caller. Both lanes ingest with this: the weekly walk
+        books its header separately, from WB's list entry and only after all
+        the rows (:meth:`record_report_header`), and the provisional daily lane
+        books none. The rows are the same rows — a daily report and the weekly
+        report covering it share their ``rrdId`` one for one — so they belong in
+        ``logistics_transaction`` like any other, and the P&L picks them up by
+        ``rr_dt`` with nothing else to change.
 
-        The headers are what must not be written. ``financial_report`` is where
+        For the daily lane, headers are what must not be written. ``financial_report`` is where
         the weekly machinery reads «how far is this workspace settled» from, as
         ``max(date_to)``; a daily header for yesterday would answer that
         question with yesterday and the freshness gate would stop asking for the

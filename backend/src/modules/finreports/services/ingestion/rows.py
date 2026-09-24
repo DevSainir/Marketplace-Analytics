@@ -68,7 +68,10 @@ def number_units(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def settlement_row(row: WBReportDetailRow, *, workspace_id: uuid.UUID) -> dict[str, Any]:
-    """Map one ``reportDetailByPeriod`` row onto ``logistics_transaction``.
+    """Map one settlement row onto ``logistics_transaction``.
+
+    The row arrives as :class:`WBFinanceReportRow` from finance-api; its aliases
+    give it the ``reportDetailByPeriod`` field names this function reads.
 
     Verbatim, field for field — no arithmetic, no classification, no dropping of
     "uninteresting" operations. Everything the P&L and the claim derive is

@@ -64,8 +64,8 @@ CATALOGUE_BACKFILL_TASK_NAME = "monitoring.backfill_catalogue"
 
 #: The P&L lane. Sent alongside the catalogue rather than behind it: it does
 #: not need the SKU list (settlement rows carry their own ``nm_id``), and at
-#: one WB request per fifteen minutes it is the lane that most needs its first
-#: page early.
+#: one WB request a minute per method it is still the lane whose first page
+#: matters most — it was one per fifteen minutes until 2026-09-22.
 PNL_BACKFILL_TASK_NAME = "finreports.backfill_pnl"
 
 #: How long the backfill waits before its first step. Long enough for the two

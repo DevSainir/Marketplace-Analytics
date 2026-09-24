@@ -1,18 +1,21 @@
-"""Fetching, committing and accounting for the history this workspace lacks.
+"""Committing and accounting for the history this workspace lacks.
 
-The unit of work is a ``reportId``, and that is the whole of this rewrite. It
+Which reports a tick fetches, and whether by id or by period, is
+:mod:`~src.modules.finreports.tasks.backfill.batch` since 2026-09-23; this
+module records what that achieved. The unit of accounting is a ``reportId``,
+and that is the whole of this rewrite. It
 used to be a page of a date span, because the endpoint took a period and a
 period is not a report — so the lane carried a span, a page cursor, an
 empty-answer streak and a search ceiling, and every one of those was a thing
-that could be stale in a way nobody would notice. WB now names the reports and
-serves each one whole, so the lane asks "which ids am I missing" and fetches
-them.
+that could be stale in a way nobody would notice. WB now names the reports, so
+the lane asks "which ids am I missing" and fetches them — a contiguous run in
+one paged window by period, a scattered one report by report.
 
 Three consequences, all deletions:
 
-* **A short page no longer ends a span**, because there are no spans. A report
-  is either fully ingested or it is not, and :func:`walk_settlement_reports`
-  already knows which.
+* **A short page no longer ends a span**, because a span is only ever fetched
+  for reports WB has already named. A report is either fully ingested or it is
+  not, and the settlement walk books its header only in the first case.
 * **An empty answer is no longer ambiguous.** ``PNL_EMPTY_STOP`` existed because
   WB answered an exhausted window and a window it was briefly not serving with
   the same ``204``, and believing the first one cost NEVA two years of P&L. The

@@ -139,8 +139,8 @@ async def outstanding_reports(
     One request, on a bucket of its own. That separation is the point: on the
     endpoint this replaced, discovery and fetching were the same request
     against the same one-per-quarter-hour budget, which is the whole reason
-    :mod:`src.modules.finreports.services.publication` derives a calendar
-    instead of asking. Here asking is cheap and WB's answer is authoritative.
+    ``services/publication.py`` derived a calendar instead of asking (deleted
+    2026-09-23). Here asking is cheap and WB's answer is authoritative.
 
     Args:
         tokens: The workspace's decrypted WB credentials.
@@ -222,9 +222,10 @@ async def check_freshness(
     if latest_settled is None:
         logger.info("finreports: %s has no reports yet — harvesting.", tokens.name)
 
-    # Checked before anything is sent, and before the cadence: both are free,
-    # and a block is the true and stable answer a seller should read at every
-    # tick of it rather than four times a day with silence in between.
+    # Checked before anything is sent: it is free, and a block is the true and
+    # stable answer a seller should read at every tick of it. (It was also
+    # checked before the probe cadence, deleted 2026-09-23, so a block did not
+    # read as four answers a day with silence in between.)
     if blocked_for > 0:
         logger.warning(
             "finreports: WB has the report endpoint shut for %s for another %.0fs — "

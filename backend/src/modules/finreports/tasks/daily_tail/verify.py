@@ -116,10 +116,10 @@ async def _verify_one_workspace(*, tokens: WorkspaceTokenBundle) -> dict[str, in
     bind_workspace(tokens.workspace_id)
     frontier = await settled_frontier(workspace_id=tokens.workspace_id)
     async with AsyncSessionLocal() as session:
-        # No limit here any more: screening a report is free, so the bound
-        # belongs on the DETAIL re-reads below rather than on how many reports
-        # may be looked at. A backlog now drains in one run instead of three a
-        # day at a time.
+        # No WB-cost limit here any more: screening a report is free, so the
+        # budget bound belongs on the DETAIL re-reads below. What remains is
+        # `_VERIFY_SCREEN_LIMIT`, a generous bound on SQL and log volume, so a
+        # backlog drains in one run instead of three a day at a time.
         pending = await DailySettlementRepository(session).due_for_verification(
             workspace_id=tokens.workspace_id,
             after_hours=DAILY_TAIL_VERIFY_AFTER_HOURS,

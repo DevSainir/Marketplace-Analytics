@@ -13,6 +13,12 @@ does with a run of them.
 
 **The walk certifies only its unbroken prefix.** A later report succeeding must
 never certify a gap in front of it.
+
+**Booking is the last step, and it is checked.** A completed report's header is
+written from WB's list entry in a transaction of its own, after its rows, and is
+refused when WB lists money in the report and none of its rows are held. Once
+booked, the report's signed payout is compared with WB's ``forPaySum``
+(:func:`~src.modules.finreports.tasks.settlement.reconcile.reconcile_against_wb`).
 """
 
 from __future__ import annotations

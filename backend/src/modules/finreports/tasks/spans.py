@@ -6,10 +6,12 @@ is closed through, how far back a span reaches, and — on the daily
 reconciliation pass — which single workspace gets it. All three are answers to
 "what", and the module next door is entirely about "how".
 
-They also share one subject the harvest does not: **what WB's quarter-hourly
-settlement budget costs us in wall clock.** A span is priced in windows, a
-window in a full refill of waiting, and the reconciliation slice exists only
-because that price is paid per workspace, in sequence.
+They also share one subject the harvest does not: **what WB's settlement budget
+costs us in wall clock.** A span is priced in windows, a window in a full
+refill of waiting, and the reconciliation slice exists only because that price
+is paid per workspace, in sequence. The refill was a quarter of an hour when
+this was written and is a minute on finance-api (2026-09-22); the slice stands
+because the fleet-wide lock is still held for the whole of it.
 """
 
 from __future__ import annotations

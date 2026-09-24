@@ -1,6 +1,8 @@
 """Settlement-row model — one line of the WB weekly realization report.
 
-One row per WB ``rrd_id`` from ``reportDetailByPeriod``. Stores the WB-authored
+One row per WB ``rrd_id`` — from ``reportDetailByPeriod`` until 2026-09-22, from
+finance-api ``sales-reports/detailed`` since, weekly and provisional daily
+reports alike (the weekly one re-keys a daily row's ``report_id``). Stores the WB-authored
 facts **verbatim** (money, counts, dates, operation/reason classifiers, join
 a later baseline, tariff or cost-price correction re-prices history without a
 data migration.

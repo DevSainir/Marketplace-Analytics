@@ -2,7 +2,9 @@
 
 Neutral values imported by both the data-access and service layers (so neither
 depends on the other). The Cyrillic strings are the exact WB-served labels the
-``reportDetailByPeriod``.
+``reportDetailByPeriod``, and served unchanged by finance-api since the
+2026-09-22 cutover (the phase-2 diff in
+``docs/finreports/MIGRATION_TO_FINANCE_V1.md``).
 """
 
 from __future__ import annotations
@@ -82,7 +84,9 @@ SETTLEMENT_LIST_WINDOW_DAYS: int = 45
 #: Thursday. Unrationed, though, a hole WB will never serve — and those exist —
 #: would have every tick spend a fortnight-wide walk on it forever, holding the
 #: fleet-wide harvest lock and starving every other workspace's forward probe of
-#: the quarter-hourly budget.
+#: the quarter-hourly budget. (That was the settlement endpoint's budget; on
+#: finance-api a walk is a request a minute, so the lock time is what is left to
+#: ration, and the cooldown stands for that.)
 #:
 #: Six hours is four attempts a day against the rotation's one every five
 #: nights, and it caps a permanently stuck day at four walks a day rather than

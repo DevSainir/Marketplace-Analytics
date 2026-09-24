@@ -22,7 +22,8 @@ Measured on «Демо» 2026-09-23, which is what makes this affordable:
   or truncating. Discovery is one request, not a walk, and it is on its own
   1/min bucket — so a tick that re-lists costs the fetching budget nothing.
 * **no report needs a second page.** The largest of the 143 held 16 801 rows
-  against WB's 100 000-row page. One report is one request.
+  against WB's 100 000-row page. One report is one request by id — and since
+  2026-09-23 a contiguous run of them is cheaper still by period (:mod:`batch`).
 
 So the lane re-asks every tick and keeps almost no state. What little it does
 keep is the ceiling and the sweep counter below, and both exist for one reason
@@ -116,7 +117,8 @@ async def survey_backlog(
     enough to be the only copy.
 
     **Reports the forward harvest owns are not offered.** It walks everything
-    inside :data:`SETTLEMENT_LIST_WINDOW_DAYS` on a quarter-hourly tick, so a
+    inside :data:`SETTLEMENT_LIST_WINDOW_DAYS` on a tick every fifteen minutes
+    in the publication window and hourly outside it, so a
     backfill reaching into that window would spend a minute-long token racing
     it for rows that were arriving anyway. The two lanes meet at that boundary
     and neither has a hole on its side of it.

@@ -14,7 +14,8 @@ from what is and is not proven:
   rows sharing their ``rrdId`` one for one, every money column summing to the same
   figure. So they go into ``logistics_transaction`` like any others and the P&L
   picks them up by ``rr_dt`` — there is nothing to change on the read side, and
-  the rollup rebuilds any day whose row count it disagrees with.
+  the rollup rebuilds any day the detail upsert touches or whose row count it
+  disagrees with.
 * **What is NOT proven is whether a daily report is revised after WB serves it.**
   So this lane never writes a weekly header, never moves the settlement
   watermark, and never claims a day is settled. It records what it fetched and

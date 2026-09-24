@@ -85,7 +85,8 @@ class BackfillLane(enum.StrEnum):
     its own tick task at its own cadence, because the surfaces behind them are
     metered differently by three orders of magnitude — the funnel and
     advertising aggregate refill a token every ~20 s, while the settlement
-    report serves **one request per fifteen minutes per token**. Showing them
+    report serves **one request a minute per method** (one per fifteen minutes
+    per token until the finance-api cutover on 2026-09-22). Showing them
     as one bar would park it near zero for most of a day; showing four lanes
     lets the three fast ones report «готово» while the slow one keeps its own
     honest estimate.

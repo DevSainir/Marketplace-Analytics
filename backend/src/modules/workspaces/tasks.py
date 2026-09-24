@@ -94,9 +94,10 @@ LANE_RESTART_DELAY: dict[BackfillLane, int] = {
 #:
 #: Forty-five minutes covers both families now, with the same margin for each:
 #:
-#: * the **P&L** lane runs a tick of at most 10 minutes and then waits at most
-#:   15 (`finreports.tasks.backfill._PACE_CEILING_SECONDS`), so 45 is a lane
-#:   that has missed the best part of two whole cycles;
+#: * the **P&L** lane runs a tick of at most 15 minutes (its soft time limit;
+#:   the work inside it stops taking on pages at a derived 300 s) and then waits
+#:   at most 15 (`finreports.tasks.backfill._PACE_CEILING_SECONDS`), so 45 is a
+#:   lane that has missed the best part of a whole cycle and a half;
 #: * the **monitoring** lanes tick every few seconds, except when they stand
 #:   aside for the nightly harvest — a 20-minute yield, which 45 clears twice
 #:   over.

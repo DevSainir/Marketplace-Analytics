@@ -3,11 +3,13 @@
 Not the same question as "what period does the newest report claim to cover",
 and the difference is what this table exists to keep apart.
 
-WB serves the settlement report once per ~917 s per token, so a span needing
-more than one request is walked over several ticks (see
-:mod:`src.modules.finreports.tasks.settlement`). Every page that lands writes
+WB served the settlement report once per ~917 s per token, so a span needing
+more than one request was walked over several ticks (see
+:mod:`src.modules.finreports.tasks.settlement`). Every page that landed wrote
 the report header with the period **WB states** — the full week — so after a
-single page of a six-day report the header already says it covers all six days.
+single page of a six-day report the header already said it covered all six
+days. (Since 2026-09-23 the header is written only after all of a report's rows;
+the separation this table keeps is still the rule.)
 Reading the harvest's watermark off that header therefore claimed days that had
 never been fetched: on 2026-09-07 four of five workspaces held one day of the
 01.09-06.09 week while the header said six, the freshness gate probed only the

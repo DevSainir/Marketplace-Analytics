@@ -60,8 +60,6 @@ from src.modules.workspaces.contract import (
 logger = get_logger(__name__)
 
 
-#: Zeroed result shape, so a locked-out or empty run reports the same keys a
-#: full one does and callers never have to guess whether a key is missing or 0.
 #: Workspaces harvested at once by a fleet tick.
 #:
 #: Three, and the bound is memory rather than WB: each one streams settlement
@@ -70,6 +68,10 @@ logger = get_logger(__name__)
 #: and those waits are independent because WB meters per seller account.
 _FLEET_CONCURRENCY = 3
 
+#: Zeroed result shape, so a locked-out or empty run reports the same keys a
+#: full one does and callers never have to guess whether a key is missing or 0.
+#: ``workspaces_failed`` counts sellers whose harvest raised: one seller's
+#: failure is isolated and counted rather than taking the fleet tick down.
 _EMPTY_TOTALS: dict[str, int] = {
     "finance": 0,
     "baselines": 0,
@@ -92,7 +94,8 @@ async def harvest_all_workspaces(
 ) -> dict[str, int]:
     """Harvest the last ``days`` for every workspace with a new WB report.
 
-    Runs hourly, but only walks the sources for a workspace WB has published an
+    Runs every fifteen minutes in the publication window and hourly outside
+    it, but only walks the sources for a workspace WB has published an
     unharvested report for — see :mod:`.freshness` for what that costs and what
     it deliberately does not catch. ``workspaces_skipped`` reports how many were
     gated out, so a run that harvested nothing is distinguishable from one that
@@ -105,10 +108,10 @@ async def harvest_all_workspaces(
     call was the one turned away.
 
     Args:
-        days: How far back a workspace that has never been harvested reaches.
-            One that has starts at its own last settled day — see
-            :func:`_walk_span`, and :mod:`.settlement` for why the difference
-            is now measured in quarter-hours rather than in requests.
+        days: Accepted from the beat entries and not read. It was how far back
+            a never-harvested workspace's date span reached; the span is now
+            WB's own list over :data:`SETTLEMENT_LIST_WINDOW_DAYS`, compared by
+            report id.
         workspace_id: Restrict the walk to one workspace. The hourly schedule
             omits it and sweeps the fleet; the «Обновить» button passes the
             caller's own workspace, because a request from one tenant must not
@@ -142,10 +145,11 @@ async def _harvest_all_workspaces(
 ) -> dict[str, int]:
     """Walk every eligible workspace. See :func:`harvest_all_workspaces`.
 
-    The reconciliation pass exists because the ordinary one can only ever move
-    forward. `_walk_span` starts at the watermark and the watermark jumps to the
-    newest report's stated end, so the moment a weekly report lands, every
-    earlier day leaves the reachable window for good. WB does not publish in
+    The reconciliation pass exists because the ordinary one could only ever move
+    forward. The date-span walk this was written against (`_walk_span`, gone
+    with the endpoint) started at the watermark and the watermark jumped to the
+    newest report's stated end, so the moment a weekly report landed, every
+    earlier day left the reachable window for good. WB does not publish in
     that order — it forms single-day supplementary reports and starts serving
     their rows days later — and on 2026-08-31 that cost every workspace a day of
     settlement: report 983241109 was formed 09-01, was still unserved on 09-06
@@ -207,7 +211,8 @@ async def _harvest_all_workspaces(
     # one token per minute, so the second call waits a minute. Sequentially that
     # is a minute per seller of a tick that usually finds nothing, and the
     # harvest lock is held for all of it: at five sellers, a third of the
-    # quarter-hourly window, during which «Обновить» answers «уже выполняется».
+    # fifteen minutes between ticks, during which «Обновить» answers «уже
+    # выполняется».
     #
     # The buckets are per seller account, so waiting on one seller's token tells
     # us nothing about another's — the waiting is the part that parallelises, and

@@ -8,8 +8,9 @@ does not look like an error. It looks like a quiet week
 (`docs/finreports/PNL.md` §1).
 
 **The unit that is all-or-nothing is the batch**, and has been since the walk
-started streaming its pages (2026-09-17). Not the week — WB serves this endpoint
-four times an hour and no transaction may be held across that wait — and no
+started streaming its pages (2026-09-17). Not the week — the walk waits for WB's
+token between requests (four an hour on the old endpoint, one a minute on
+finance-api) and no transaction may be held across that wait — and no
 longer the page either, because one transaction over a whole page put back the
 ceiling the streaming had just removed. What makes that safe is not atomicity
 but idempotence: the cursor advances only on a completed request, every row is
@@ -320,8 +321,8 @@ async def test_a_walk_that_dies_mid_page_leaves_no_settlement_rows(
 ) -> None:
     """The request that failed leaves nothing behind; the ones before it stand.
 
-    WB serves this endpoint once per quarter of an hour, and no transaction may
-    be held open across that wait — so the first request's two rows are
+    The walk waits for WB's token between requests, and no transaction may be
+    held open across that wait — so the first request's two rows are
     committed and kept, the failed request contributes nothing, and the week is
     reported incomplete, which is what `finance_windows_failed` is for.
     """

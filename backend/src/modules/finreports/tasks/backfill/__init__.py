@@ -1,4 +1,4 @@
-"""The P&L lane: a new workspace's settlement history, one report per tick.
+"""The P&L lane: a new workspace's settlement history, a run of reports per tick.
 
 The slow lane, and much less slow than it was. It was built against
 ``reportDetailByPeriod``, which WB served **once per fifteen minutes per token**
@@ -12,15 +12,18 @@ Three measurements shape what is left, all taken on prod:
 * **One list request covers the whole history** (2026-09-23, «Демо»). A
   1095-day window returned all 143 reports, so discovery is one cheap request
   on its own bucket rather than something to ration.
-* **One report is one request.** The largest of those 143 held 16 801 rows
-  against WB's 100 000-row page, so there is no second page to pay for.
+* **One report is one request** by id — the largest of those 143 held 16 801
+  rows against WB's 100 000-row page. Since 2026-09-23 a contiguous run of
+  owed reports is fetched by PERIOD instead, 8-21 reports to a page, and only
+  a scattered backlog goes by id (:mod:`batch`).
 * **A streamed page still has to fit.** Rows are parsed and committed in
   batches against a 768 MiB worker, which is why a tick walks a bounded number
   of reports rather than everything it is owed.
 
-Split three ways by responsibility: :mod:`discovery` asks WB what is missing,
-:mod:`walk` fetches it, and this module is the Celery entrypoint that pays for a
-death being recorded.
+Split by responsibility: :mod:`discovery` asks WB what is missing, :mod:`batch`
+chooses what one tick fetches and by which method, :mod:`walk` records what it
+achieved, and this module is the Celery entrypoint that pays for a death being
+recorded.
 """
 
 from __future__ import annotations
@@ -209,10 +212,12 @@ async def _harvest_is_running() -> bool:
     harvest happened to take 09:54 and the backfill's next tick was refused,
     which is the right outcome by accident.
 
-    Much less load-bearing than it was — a window is now a minute rather than a
-    quarter of an hour, and `BACKGROUND_RESERVE_SECONDS` already orders the two
-    inside the bucket. It is kept because the harvest walks several reports in
-    one lock and the reserve only arbitrates a single token.
+    Less load-bearing than it was — a window is now a minute rather than a
+    quarter of an hour — but it is now the ONLY ordering between the two. The
+    history walk no longer takes a reserving token (a reserving caller on a
+    one-token bucket with a 240 s cap refused its own request; see
+    :mod:`~src.modules.finreports.tasks.backfill.batch`), so standing aside
+    while the harvest holds its lock is what keeps this morning's report first.
 
     The monitoring lanes have obeyed the same rule against their own harvest
     from the start; this is the settlement lane catching up.

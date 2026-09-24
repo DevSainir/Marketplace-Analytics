@@ -3,8 +3,9 @@
 A new organisation starts empty, and what fills it arrives on four different
 clocks. The catalogue is one request. The funnel and advertising aggregates
 refill a token every ~20 s, so a year of each is a couple of hours. The
-settlement report serves **one request per fifteen minutes per token**, so a
-large seller's P&L is sixteen hours of walking. This module owns the row that
+settlement report served **one request per fifteen minutes per token** until
+2026-09-22, so a large seller's P&L was sixteen hours of walking; on
+finance-api, walking runs of reports by period, it is minutes. This module owns the row that
 says where each of those has got to.
 
 It owns the *record*, not the walking. Nothing here calls WB or schedules

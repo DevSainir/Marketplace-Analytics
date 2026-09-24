@@ -160,10 +160,11 @@ async def fetch_batch(
     **A single report: one request for that id.** A window of one would fetch
     the same rows and give up the per-report atomicity for nothing.
 
-    The deadline only guards the second path. A window is one paged walk whose
-    length the tick cannot predict from the report count, and cutting it short
-    would throw away every page it had paid for; the per-report loop can stop
-    between reports and keep everything it has.
+    The deadline guards both paths. The per-report loop stops between reports
+    and keeps everything it has. A window stops between PAGES: since 2026-09-24
+    it hands back its ``rrdId`` cursor as ``still_open`` and the next tick
+    continues the same span, so cutting it short no longer throws away the pages
+    it paid for.
 
     Args:
         tokens: The workspace's decrypted WB credentials.
@@ -171,13 +172,17 @@ async def fetch_batch(
         listed: Every report WB named, which is what «contiguous» is measured
             against — a run with a report we already HOLD in the middle of it
             is not one run but two.
+        in_flight: A window a previous tick left open, or ``None``. When set,
+            it is continued alone, from its stored span and cursor.
         build_ingestion: Factory taking a session and returning an
             ``IngestionService``.
 
     Returns:
-        ``(attempted, rows, failed)``. ``attempted`` is what the ceiling moves
-        past — the reports left behind by the deadline stay above it and are
-        offered again on the next tick, unchanged.
+        ``(attempted, rows, failed, still_open)``. ``attempted`` is what the
+        ceiling moves past — the reports left behind by the deadline stay above
+        it and are offered again on the next tick, unchanged. ``still_open`` is
+        the window to continue next tick when this one ran out of time mid-span
+        (``attempted`` is then empty and nothing was booked), else ``None``.
     """
     # Newest first, all the way down. The old lane had to sort a batch the other
     # way because `walk_settlement_reports` certifies the unbroken PREFIX of
