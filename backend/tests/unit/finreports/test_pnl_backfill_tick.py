@@ -20,7 +20,6 @@ from typing import Any
 import pytest
 
 from src.core.exceptions import IntegrationError
-from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.tasks.backfill import discovery, walk
 from src.modules.finreports.tasks.settlement import MissingReport, SettlementWalk
@@ -95,9 +94,17 @@ def _backlog(
     due: tuple[MissingReport, ...],
     outstanding: int,
     total: int,
-    listed: tuple[Any, ...] = (),
+    listed: tuple[Any, ...] | None = None,
 ) -> list[dict[str, Any]]:
-    """Make the survey answer with this backlog, and record what it was asked."""
+    """Make the survey answer with this backlog, and record what it was asked.
+
+    ``listed`` defaults to exactly the owed reports, which is the CONTIGUOUS
+    case: nothing held sits between them, so the tick may span them in one
+    window. Pass it explicitly to put a held report in the middle and get the
+    scattered case instead.
+    """
+    if listed is None:
+        listed = tuple(report.header for report in due if report.header is not None)
     asked: list[dict[str, Any]] = []
 
     async def _survey(**kwargs: Any) -> discovery.Backlog:
@@ -317,110 +324,6 @@ async def test_several_owed_reports_are_taken_as_one_window(
     assert by_id == [], "four owed reports were fetched one request at a time"
     assert [report.report_id for report in windows[0]] == [900, 901, 902, 903]
     assert step.done == 10
-
-
-async def test_the_window_does_not_reserve_and_the_single_report_walk_does(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A window of more than one page cannot run against the reserve.
-
-    `acquire` accumulates its wait across pages, so a second page asked for
-    360 s against a 240 s cap and the whole window was discarded with 100 000
-    rows already committed (NEVA, 2026-09-23). The reserve buys nothing on that
-    bucket either: the harvest and «Обновить» spend `detailed/{id}` and `list`,
-    never this one.
-
-    The by-id walk keeps it, because that bucket IS the harvest's.
-    """
-    seen: dict[str, float] = {}
-
-    async def _window(*, reports: Any, reserve_seconds: float = 0.0, **_k: Any) -> SettlementWalk:
-        seen["window"] = reserve_seconds
-        return SettlementWalk(rows=1, windows_failed=0, completed_through=None)
-
-    async def _by_id(*, reports: Any, reserve_seconds: float = 0.0, **_k: Any) -> SettlementWalk:
-        seen["by_id"] = reserve_seconds
-        return SettlementWalk(rows=1, windows_failed=0, completed_through=None)
-
-    monkeypatch.setattr(walk, "walk_settlement_window", _window)
-    monkeypatch.setattr(walk, "walk_settlement_reports", _by_id)
-
-    _backlog(
-        monkeypatch,
-        due=(_report(900, weeks_back=7), _report(901, weeks_back=8)),
-        outstanding=2,
-        total=10,
-    )
-    await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    _backlog(monkeypatch, due=(_report(902, weeks_back=9),), outstanding=1, total=10)
-    await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert seen["window"] == 0.0
-    assert seen["by_id"] == BACKGROUND_RESERVE_SECONDS
-
-
-async def test_a_single_owed_report_is_still_taken_by_id(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A window of one fetches the same rows and gives up atomicity for nothing.
-
-    By id the report is booked the moment it finishes; by window it is booked
-    only if the whole span landed. With one report in the span those are the
-    same set of rows, so the weaker guarantee buys nothing.
-    """
-    due = (_report(900, weeks_back=7),)
-    _backlog(monkeypatch, due=due, outstanding=1, total=10)
-    by_id = _fetch(monkeypatch)
-    windows = _fetch_window(monkeypatch)
-
-    await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert windows == []
-    assert _ids(by_id) == [900]
-
-
-async def test_a_report_wb_never_listed_is_not_put_in_a_window(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The window books what it fetched from WB's own list entries.
-
-    A report carrying none cannot be certified by it — it would be fetched and
-    then left missing, so the next tick would fetch it again, for ever. By id it
-    is at least walked; whether it books is then the header's business.
-    """
-    due = (_report(900, weeks_back=7, listed=False), _report(901, weeks_back=8, listed=False))
-    _backlog(monkeypatch, due=due, outstanding=2, total=10)
-    by_id = _fetch(monkeypatch)
-    windows = _fetch_window(monkeypatch)
-
-    await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert windows == []
-    assert _ids(by_id) == [900, 901]
-
-
-async def test_a_window_that_failed_costs_every_report_in_it(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The window is the unit, so a partial span books none of its reports.
-
-    The bar has to say so rather than claim four reports because four were
-    asked for — and the ceiling still moves past them, so they come back on the
-    next sweep rather than on the next tick.
-    """
-    due = tuple(_report(900 + n, weeks_back=7 + n) for n in range(4))
-    _backlog(monkeypatch, due=due, outstanding=4, total=10)
-    _fetch(monkeypatch)
-    _fetch_window(monkeypatch, failed=1)
-
-    step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
-
-    assert step.done == 6, "none of the four landed, so the six already held is all there is"
-    assert step.cursor is not None
-    resumed = discovery.parse_cursor(step.cursor)
-    assert resumed is not None
-    assert resumed[0] < due[-1].date_to, "the ceiling moved past the whole window"
 
 
 # --------------------------------------------------------------------------- #

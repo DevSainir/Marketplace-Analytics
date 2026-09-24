@@ -43,6 +43,7 @@ from src.integrations.wildberries.endpoints import (
 )
 from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
+from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.tasks.backfill.discovery import (
     WB_REPORTS_EPOCH,
     Backlog,
@@ -187,7 +188,10 @@ async def advance_pnl(
         return _end_of_sweep(backlog, sweep=sweep, at_sweep_start=at_sweep_start, today=today)
 
     attempted, rows, failed = await _fetch_batch(
-        tokens=tokens, due=backlog.due, build_ingestion=build_ingestion
+        tokens=tokens,
+        due=backlog.due,
+        listed=backlog.listed,
+        build_ingestion=build_ingestion,
     )
     done = min(backlog.done + len(attempted) - failed, backlog.total)
     return LaneStep(
@@ -202,10 +206,58 @@ async def advance_pnl(
     )
 
 
+def _contiguous_run(
+    due: tuple[MissingReport, ...], *, listed: tuple[WBFinanceReportHeader, ...]
+) -> tuple[MissingReport, ...]:
+    """The newest unbroken run of owed reports, at most a tick's worth.
+
+    A window is addressed by PERIOD, so it fetches every row in its span —
+    including reports we already hold that happen to fall inside it. Taking the
+    twelve newest owed reports and spanning them sounds equivalent and is not:
+    once the backlog is scattered, twelve reports can span most of a seller's
+    history, and the extra is not bandwidth but PAGES, which are the thing WB
+    rates.
+
+    Measured on NEVA 2026-09-24, which is how this was found. With fifteen
+    reports left, scattered, the span reached across the archive, the walk ran
+    past the task's 900 s soft limit, and the tick died to
+    `SoftTimeLimitExceeded` — which the lane does not catch, so it recorded
+    nothing and re-enqueued nothing, sixteen hours into a fill that should have
+    taken minutes.
+
+    So the window is only ever a RUN: consecutive in WB's own ordering, with
+    nothing held in between. A scattered backlog then walks report by report,
+    which is what a scattered backlog costs.
+
+    Args:
+        due: Reports owed, newest first.
+        listed: Every report WB named, held or not — the ordering «consecutive»
+            is measured in.
+
+    Returns:
+        The run, newest first, capped at :data:`REPORTS_PER_TICK`. Empty only
+        when ``due`` is.
+    """
+    if not due:
+        return ()
+    order = {
+        header.report_id: index
+        for index, header in enumerate(sorted(listed, key=lambda h: h.date_to, reverse=True))
+    }
+    run = [due[0]]
+    for report in due[1:REPORTS_PER_TICK]:
+        previous, current = order.get(run[-1].report_id), order.get(report.report_id)
+        if previous is None or current is None or current != previous + 1:
+            break
+        run.append(report)
+    return tuple(report for report in run if report.header is not None)
+
+
 async def _fetch_batch(
     *,
     tokens: WorkspaceTokenBundle,
     due: tuple[MissingReport, ...],
+    listed: tuple[WBFinanceReportHeader, ...],
     build_ingestion: object,
 ) -> tuple[tuple[MissingReport, ...], int, int]:
     """Fetch as many of the owed reports as this tick has time for.
@@ -230,6 +282,9 @@ async def _fetch_batch(
     Args:
         tokens: The workspace's decrypted WB credentials.
         due: The reports this sweep may take, newest first.
+        listed: Every report WB named, which is what «contiguous» is measured
+            against — a run with a report we already HOLD in the middle of it
+            is not one run but two.
         build_ingestion: Factory taking a session and returning an
             ``IngestionService``.
 
@@ -244,15 +299,14 @@ async def _fetch_batch(
     # front of itself. Handing it one report at a time makes that rule trivially
     # true and gives the direction back to the seller: a tick cut short by the
     # deadline below leaves them this month rather than the archive.
-    batch = due[:REPORTS_PER_TICK]
-    bookable = tuple(report for report in batch if report.header is not None)
-    if len(bookable) > 1:
-        # Several reports owed and WB's list entry for each: one paged walk over
-        # their whole span, which is where the 8-21x lives. See
+    run = _contiguous_run(due, listed=listed)
+    if len(run) > 1:
+        # A RUN of owed reports with WB's list entry for each: one paged walk
+        # over their span, which is where the 8-21x lives. See
         # `settlement.window` for what the window gives up in exchange.
         walk = await walk_settlement_window(
             tokens=tokens,
-            reports=bookable,
+            reports=run,
             build_ingestion=build_ingestion,
             # No reserve here, unlike the by-id walk below, and the difference
             # is not politeness — it is whether a window of more than one page
@@ -263,13 +317,16 @@ async def _fetch_batch(
             # 2026-09-23). It also protects nobody: the harvest and «Обновить»
             # spend `detailed/{id}` and `list`, never this bucket.
             reserve_seconds=0.0,
+            deadline=time.monotonic() + _TICK_WORK_BUDGET_SECONDS,
         )
         # Every report in the span was attempted, whether or not it landed — the
         # ceiling moves past all of them and a failure comes back on the next
         # sweep, exactly as it does for a single report.
-        failed = len(bookable) if walk.windows_failed else 0
-        return bookable, walk.rows, failed
+        failed = len(run) if walk.windows_failed else 0
+        return run, walk.rows, failed
 
+    # Not a run, so report by report — which is what a scattered backlog costs.
+    batch = due[:REPORTS_PER_TICK]
     deadline = time.monotonic() + _TICK_WORK_BUDGET_SECONDS
     attempted: list[MissingReport] = []
     rows = 0

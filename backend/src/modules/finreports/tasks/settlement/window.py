@@ -30,6 +30,7 @@ report this walk books is checked against WB's own ``forPaySum`` afterwards
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from datetime import date
 
@@ -55,6 +56,7 @@ async def walk_settlement_window(
     reports: Sequence[MissingReport],
     build_ingestion: object,
     reserve_seconds: float = 0.0,
+    deadline: float | None = None,
 ) -> SettlementWalk:
     """Fetch every report in ``reports`` as one paged walk over their span.
 
@@ -72,6 +74,12 @@ async def walk_settlement_window(
             ``IngestionService``.
         reserve_seconds: Non-zero marks this as background work that yields its
             window to anything a person is waiting on.
+        deadline: ``time.monotonic()`` value past which no further page is
+            asked for. A backstop, not a pace: the caller sizes the span so it
+            fits, and this is what keeps a mis-sized one from running past the
+            task's soft limit — where the failure is not a slow tick but a
+            silent one, since `SoftTimeLimitExceeded` is not the error the lane
+            catches. NEVA spent sixteen hours in that state on 2026-09-24.
 
     Returns:
         A :class:`SettlementWalk`. ``windows_failed`` is 0 or 1 — the window is
@@ -115,6 +123,16 @@ async def walk_settlement_window(
             return SettlementWalk(rows, 1, None)
         if page.next_cursor is None:
             break
+        if deadline is not None and time.monotonic() >= deadline:
+            logger.warning(
+                "finreports: settlement window %s..%s for %s ran out of tick after %d rows; "
+                "the span is wider than one tick can pay for.",
+                span_from,
+                span_to,
+                tokens.name,
+                rows,
+            )
+            return SettlementWalk(rows, 1, None)
         cursor = page.next_cursor
 
     # Booked only now, and only because the whole span landed. Booking a report
