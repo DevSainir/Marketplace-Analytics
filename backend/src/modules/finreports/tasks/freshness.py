@@ -76,29 +76,43 @@ from src.modules.workspaces.contract import WorkspaceTokenBundle
 logger = get_logger(__name__)
 
 
+#: Longest wait that is still the bucket refilling rather than WB refusing. The
+#: detail method is one token a minute, so an empty bucket reports at most 60 s;
+#: a penalty block reports hundreds or thousands. The gate queues a caller
+#: through the first on its own, so only the second is worth skipping a seller.
+_BLOCK_THRESHOLD_SECONDS = 120.0
+
+
 async def settlement_blocked_for(tokens: WorkspaceTokenBundle) -> float:
     """Seconds WB has this workspace's settlement endpoint shut for, or 0.
 
     Answered from the shared Redis bucket, which `penalise` writes WB's own
     ``X-Ratelimit-Retry`` into. It takes no token and sends nothing: asking WB
     whether WB will accept a request is the one thing that cannot be done
-    here, and a peek that spent a slot would cost the harvest a quarter of an
-    hour every time a tick looked.
+    here, and a peek that spent a slot would cost a request every time a tick
+    looked.
+
+    **A refill is not a block.** ``retry_after`` answers «how long until the
+    next token», which is up to a minute whenever anything — the backfill, the
+    daily tail, «Обновить» — spent one just before. Read as a block, that
+    skipped the seller with «WB закрыл» and took the daily tail with it, over a
+    pause the gate would have queued through by itself.
 
     Args:
         tokens: The workspace whose bucket to inspect. Buckets are per seller
-            token, so one tenant's block says nothing about another's — which
-            is the assumption the 23.09.2026 experiment is meant to test.
+            token, so one tenant's block says nothing about another's.
 
     Returns:
-        Seconds to wait, or ``0.0`` when nothing stands in the way — including
-        when Redis is unreachable or the workspace has no statistics token.
-        Fails open, because a bucket we cannot read is not a block.
+        Seconds to wait when WB has shut the method, or ``0.0`` otherwise —
+        including an ordinary refill, an unreachable Redis, or a workspace with
+        no «Финансы» token. Fails open, because a bucket we cannot read is not a
+        block.
     """
     if not tokens.finance:
         return 0.0
     gate = finance_reports_rate_gate(settings, token=tokens.finance)
-    return await gate.retry_after(SALES_REPORTS_DETAILED_PATH)
+    shut_for = await gate.retry_after(SALES_REPORTS_DETAILED_PATH)
+    return shut_for if shut_for > _BLOCK_THRESHOLD_SECONDS else 0.0
 
 
 @dataclass(frozen=True, slots=True)

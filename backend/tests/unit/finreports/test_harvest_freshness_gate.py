@@ -282,3 +282,29 @@ async def test_a_late_report_is_handed_over_at_whatever_hour_it_is_found(
     assert verdict is not None
     assert verdict.outcome is FreshnessOutcome.WB_HAS_NEW
     assert [report.report_id for report in missing] == [902]
+
+
+class _BucketGate:
+    """A gate whose detail bucket reports a fixed wait."""
+
+    def __init__(self, wait: float) -> None:
+        self._wait = wait
+
+    async def retry_after(self, _endpoint: str, *, reserve_seconds: float = 0.0) -> float:
+        return self._wait
+
+
+@pytest.mark.parametrize(("wait", "blocked"), [(58.0, 0.0), (890.0, 890.0)])
+async def test_a_refilling_bucket_is_not_a_block(
+    monkeypatch: pytest.MonkeyPatch, wait: float, blocked: float
+) -> None:
+    """Up to a minute is the next token coming; hundreds of seconds is WB refusing.
+
+    Read as a block, the minute after the backfill or the daily tail took a
+    token skipped the seller with «WB закрыл» — and took its daily tail with it —
+    over a pause the gate queues through by itself.
+    """
+    monkeypatch.setattr(freshness, "finance_reports_rate_gate", lambda *_a, **_k: _BucketGate(wait))
+    tokens = WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="NEVA", finance="a-token")
+
+    assert await freshness.settlement_blocked_for(tokens) == blocked
