@@ -7,6 +7,8 @@ figures have not moved costs no detail request — see :func:`verify_daily_tail`
 
 from __future__ import annotations
 
+import uuid
+
 from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
 from src.core.locks import single_flight
@@ -145,12 +147,12 @@ async def _verify_one_workspace(*, tokens: WorkspaceTokenBundle) -> dict[str, in
     rereads_left = DAILY_TAIL_VERIFY_LIMIT
     for report in pending:
         if frontier is not None and report.day <= frontier:
-            await _record(report.report_id, DailyReportVerdict.SUPERSEDED)
+            await _record(tokens.workspace_id, report.report_id, DailyReportVerdict.SUPERSEDED)
             totals["superseded"] += 1
             continue
         header = served.get(report.report_id)
         if header is None:
-            await _record(report.report_id, DailyReportVerdict.WITHDRAWN)
+            await _record(tokens.workspace_id, report.report_id, DailyReportVerdict.WITHDRAWN)
             totals["withdrawn"] += 1
             logger.warning(
                 "finreports: daily report %d (%s) for %s is no longer listed by WB. "
@@ -162,7 +164,7 @@ async def _verify_one_workspace(*, tokens: WorkspaceTokenBundle) -> dict[str, in
             continue
         now = listed_totals(header)
         if report.totals.known() and now == report.totals:
-            await _record(report.report_id, DailyReportVerdict.UNCHANGED)
+            await _record(tokens.workspace_id, report.report_id, DailyReportVerdict.UNCHANGED)
             totals["screened"] += 1
             totals["unchanged"] += 1
             logger.info(
@@ -224,6 +226,7 @@ async def _reread_and_compare(
         found = await repo.fingerprint(workspace_id=tokens.workspace_id, report_id=report.report_id)
         changed = found.rows != report.rows or found.digest != report.digest
         await repo.record_verification(
+            workspace_id=tokens.workspace_id,
             report_id=report.report_id,
             verdict=DailyReportVerdict.CHANGED if changed else DailyReportVerdict.UNCHANGED,
             found=found,
@@ -267,11 +270,11 @@ async def _reread_and_compare(
     return {"checked": 1, "unchanged": 1}
 
 
-async def _record(report_id: int, verdict: DailyReportVerdict) -> None:
+async def _record(workspace_id: uuid.UUID, report_id: int, verdict: DailyReportVerdict) -> None:
     """Record a verdict reached without fetching anything."""
     async with AsyncSessionLocal() as session:
         await DailySettlementRepository(session).record_verification(
-            report_id=report_id, verdict=verdict
+            workspace_id=workspace_id, report_id=report_id, verdict=verdict
         )
         await session.commit()
 

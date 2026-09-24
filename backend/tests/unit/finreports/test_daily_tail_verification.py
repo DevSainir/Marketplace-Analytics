@@ -161,6 +161,7 @@ def verified(monkeypatch: pytest.MonkeyPatch):
             async def record_verification(
                 self,
                 *,
+                workspace_id: uuid.UUID,
                 report_id: int,
                 verdict: DailyReportVerdict,
                 found: Fingerprint | None = None,

@@ -304,13 +304,19 @@ class DailySettlementRepository(BaseRepository):
     async def record_verification(
         self,
         *,
+        workspace_id: uuid.UUID,
         report_id: int,
         verdict: DailyReportVerdict,
         found: Fingerprint | None = None,
     ) -> None:
         """Record what the day-later re-read found.
 
+        Scoped by workspace as well as by id. The id alone is unique, but the
+        worker connects as the table owner, so row-level security does not
+        stand behind this statement — the ``WHERE`` is the only tenancy check.
+
         Args:
+            workspace_id: Owning workspace.
             report_id: WB's daily ``reportId``.
             verdict: What the comparison concluded.
             found: The fingerprint the re-read produced, or ``None`` for
@@ -326,6 +332,9 @@ class DailySettlementRepository(BaseRepository):
         }
         await self._session.execute(
             update(DailySettlementReport)
-            .where(DailySettlementReport.report_id == report_id)
+            .where(
+                DailySettlementReport.workspace_id == workspace_id,
+                DailySettlementReport.report_id == report_id,
+            )
             .values(**values)
         )
