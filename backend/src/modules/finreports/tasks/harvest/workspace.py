@@ -83,8 +83,9 @@ async def _harvest_workspace(
     # volume in the service, so it is also where an unattributable line costs
     # the most (register P2.2).
     bind_workspace(tokens.workspace_id)
-    span_from = reports[0].date_to if reports else on_date
-    span_to = reports[-1].date_to if reports else on_date
+    # The reports' whole span, not their closing days: `date_to` alone is one
+    span_from = min((r.date_from or r.date_to for r in reports), default=on_date)
+    span_to = max((r.date_to for r in reports), default=on_date)
 
     # The settlement report, a week per request and each week its own
     # transaction. It is NOT part of the row commit below: WB serves this

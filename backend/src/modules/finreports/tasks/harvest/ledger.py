@@ -86,8 +86,8 @@ async def reports_to_re_walk(
             workspace_id=report_repo_for
         )
     return tuple(
-        MissingReport(report_id=report_id, date_to=date_to)
-        for report_id, _date_from, date_to in sorted(periods, key=lambda row: row[2])
+        MissingReport(report_id=report_id, date_to=date_to, date_from=date_from)
+        for report_id, date_from, date_to in sorted(periods, key=lambda row: row[2])
         if date_to >= since
     )
 
