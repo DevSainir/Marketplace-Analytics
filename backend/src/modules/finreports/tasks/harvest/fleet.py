@@ -90,9 +90,9 @@ _EMPTY_TOTALS: dict[str, int] = {
 
 
 async def harvest_all_workspaces(
-    *, days: int, workspace_id: uuid.UUID | None = None, reconcile: bool = False
+    *, workspace_id: uuid.UUID | None = None, reconcile: bool = False
 ) -> dict[str, int]:
-    """Harvest the last ``days`` for every workspace with a new WB report.
+    """Harvest every workspace with a WB report it does not hold.
 
     Runs every fifteen minutes in the publication window and hourly outside
     it, but only walks the sources for a workspace WB has published an
@@ -108,10 +108,6 @@ async def harvest_all_workspaces(
     call was the one turned away.
 
     Args:
-        days: Accepted from the beat entries and not read. It was how far back
-            a never-harvested workspace's date span reached; the span is now
-            WB's own list over :data:`SETTLEMENT_LIST_WINDOW_DAYS`, compared by
-            report id.
         workspace_id: Restrict the walk to one workspace. The hourly schedule
             omits it and sweeps the fleet; the «Обновить» button passes the
             caller's own workspace, because a request from one tenant must not
@@ -135,13 +131,11 @@ async def harvest_all_workspaces(
         if not acquired:
             logger.info("finreports: a harvest is already in flight — skipping this tick.")
             return dict(_EMPTY_TOTALS, skipped_locked=1)
-        return await _harvest_all_workspaces(
-            days=days, workspace_id=workspace_id, reconcile=reconcile
-        )
+        return await _harvest_all_workspaces(workspace_id=workspace_id, reconcile=reconcile)
 
 
 async def _harvest_all_workspaces(
-    *, days: int, workspace_id: uuid.UUID | None, reconcile: bool = False
+    *, workspace_id: uuid.UUID | None, reconcile: bool = False
 ) -> dict[str, int]:
     """Walk every eligible workspace. See :func:`harvest_all_workspaces`.
 

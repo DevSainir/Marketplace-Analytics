@@ -243,7 +243,7 @@ async def test_the_harvest_asks_the_gate_about_the_frontier_not_the_watermark(
     monkeypatch.setattr(fleet, "check_freshness", _check)
     monkeypatch.setattr(fleet, "tail_one_workspace", no_daily_tail)
 
-    await harvest_all_workspaces(days=28)
+    await harvest_all_workspaces()
 
     assert asked == [COVERED]
 

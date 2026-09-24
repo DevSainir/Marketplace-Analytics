@@ -72,7 +72,7 @@ async def test_a_tick_that_finds_the_lock_held_does_no_work(
 
     monkeypatch.setattr(fleet, "load_workspace_token_bundles", _explode)
 
-    totals = await harvest_all_workspaces(days=28)
+    totals = await harvest_all_workspaces()
 
     assert totals["skipped_locked"] == 1
     assert totals["finance"] == 0
@@ -84,7 +84,7 @@ async def test_the_locked_out_result_has_the_same_shape_as_a_real_run(
     """Callers read these keys unconditionally; a missing one is an error."""
     monkeypatch.setattr(fleet, "get_redis", lambda: _HeldRedis())
 
-    totals = await harvest_all_workspaces(days=28)
+    totals = await harvest_all_workspaces()
 
     assert set(totals) == set(fleet._EMPTY_TOTALS)
 
@@ -102,7 +102,7 @@ async def test_the_lock_is_freed_for_the_next_tick(
 
     monkeypatch.setattr(fleet, "load_workspace_token_bundles", _no_workspaces)
 
-    await harvest_all_workspaces(days=28)
+    await harvest_all_workspaces()
 
     assert redis.store == {}
 

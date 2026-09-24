@@ -184,7 +184,7 @@ async def test_a_new_weekly_report_is_walked_before_the_tail_runs(
         reports=(MissingReport(report_id=989438999, date_to=SETTLED),),
     )
 
-    totals = await harvest_all_workspaces(days=28)
+    totals = await harvest_all_workspaces()
 
     assert order == ["weekly", "tail"]
     assert totals["daily_tail_rows"] == 5
@@ -196,7 +196,7 @@ async def test_a_tick_with_nothing_newer_weekly_still_runs_the_tail(
     """The six days a week the weekly gate finds nothing are the tail's days."""
     _gate(monkeypatch, outcome=FreshnessOutcome.WB_EMPTY, reports=())
 
-    totals = await harvest_all_workspaces(days=28)
+    totals = await harvest_all_workspaces()
 
     assert order == ["tail"], "the settled walk had nothing to do, the tail did"
     assert totals["daily_tail_reports"] == 1
@@ -213,7 +213,7 @@ async def test_a_standing_block_stops_both_lanes(
     """
     _gate(monkeypatch, outcome=FreshnessOutcome.RATE_BLOCKED, reports=())
 
-    totals = await harvest_all_workspaces(days=28)
+    totals = await harvest_all_workspaces()
 
     assert order == []
     assert totals["daily_tail_reports"] == 0
@@ -274,7 +274,7 @@ async def test_sellers_are_harvested_concurrently(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(fleet, "tail_one_workspace", _tail)
     _gate(monkeypatch, outcome=FreshnessOutcome.WB_EMPTY, reports=())
 
-    await harvest_all_workspaces(days=28)
+    await harvest_all_workspaces()
 
     assert peak > 1, "sellers were harvested one after another"
     assert peak <= fleet._FLEET_CONCURRENCY, "and never more at once than the bound allows"
@@ -325,6 +325,6 @@ async def test_one_sellers_failure_does_not_take_the_fleet_down(
     monkeypatch.setattr(fleet, "tail_one_workspace", _tail)
     _gate(monkeypatch, outcome=FreshnessOutcome.WB_EMPTY, reports=())
 
-    totals = await harvest_all_workspaces(days=28)
+    totals = await harvest_all_workspaces()
 
     assert (totals["daily_tail_reports"], totals["workspaces_failed"]) == (2, 1)

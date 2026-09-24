@@ -187,7 +187,6 @@ celery_app.conf.beat_schedule = {
         # is the worst case: an hourly tick is up to sixty minutes of staleness
         # on a report the seller can already see on WB's own site.
         "schedule": crontab(hour="7-18", minute="0,15,30,45"),
-        "kwargs": {"days": 28},
     },
     "finreports-harvest-outside-it": {
         "task": "finreports.harvest_finance",
@@ -200,7 +199,6 @@ celery_app.conf.beat_schedule = {
         # 03:00 belongs to the reconciliation pass below, and 05:00-06:00 to the
         # compete for the same analytics surfaces.
         "schedule": crontab(hour="0-2,4,19-23", minute=0),
-        "kwargs": {"days": 28},
     },
     # The harvest tick can only ever look FORWARD: its span starts at the
     # settlement watermark, and the watermark jumps to the newest report's
@@ -221,7 +219,7 @@ celery_app.conf.beat_schedule = {
     "daily-finreports-reconcile": {
         "task": "finreports.harvest_finance",
         "schedule": crontab(hour=3, minute=0),
-        "kwargs": {"days": 28, "reconcile": True},
+        "kwargs": {"reconcile": True},
     },
     # The measurement the provisional daily tail owes: whether WB revises a daily
     # report after first serving it. Unknown — re-reading one 42 minutes later

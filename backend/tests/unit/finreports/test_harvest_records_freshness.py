@@ -271,7 +271,7 @@ async def test_a_tick_that_finds_nothing_new_still_records_that_it_asked(
     )
     redis, walked = redis_and_walk(_FakeRedis(), verdict)
 
-    totals = await harvest_all_workspaces(days=28)
+    totals = await harvest_all_workspaces()
 
     assert walked == []
     assert totals["workspaces_skipped"] == 1
@@ -289,7 +289,7 @@ async def test_a_tick_that_harvests_records_the_same_way(redis_and_walk: Any) ->
     _FakeReportRepo.settled_after = date(2026, 9, 13)
     redis, walked = redis_and_walk(_FakeRedis(), verdict)
 
-    await harvest_all_workspaces(days=28)
+    await harvest_all_workspaces()
 
     stored = _stored(redis)
     assert walked == [WORKSPACE]
@@ -317,7 +317,7 @@ async def test_a_list_wb_did_not_answer_leaves_the_warning_and_walks_nothing(
     )
     redis, walked = redis_and_walk(_FakeRedis(), verdict)
 
-    await harvest_all_workspaces(days=28)
+    await harvest_all_workspaces()
 
     assert walked == [], "there are no report ids to fetch"
     assert _stored(redis) == verdict
@@ -341,7 +341,7 @@ async def test_a_walk_that_lost_a_window_leaves_the_failure_standing(
         {"finance_windows_failed": 1},
     )
 
-    await harvest_all_workspaces(days=28)
+    await harvest_all_workspaces()
 
     stored = _stored(redis)
     assert stored is not None
@@ -363,7 +363,7 @@ async def test_a_redis_outage_does_not_reach_the_harvest_it_annotates(
     )
     redis, walked = redis_and_walk(_BrokenWriteRedis(), verdict)
 
-    totals = await harvest_all_workspaces(days=28)
+    totals = await harvest_all_workspaces()
 
     assert walked == [WORKSPACE]
     assert totals["skipped_locked"] == 0

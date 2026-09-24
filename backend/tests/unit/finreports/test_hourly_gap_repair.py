@@ -236,7 +236,7 @@ async def test_an_hourly_tick_repairs_a_hole_it_can_see(
     so a seller short a settlement week could be told about it four nights before
     anything went and fetched it — while the report was fetchable the whole time.
     """
-    await harvest_all_workspaces(days=28)
+    await harvest_all_workspaces()
 
     date_from, date_to = walked[0]
     assert date_from <= LOST_DAY <= date_to
@@ -251,8 +251,8 @@ async def test_a_repaired_workspace_is_not_walked_again_within_the_cooldown(
     unfixable day for good — holding the fleet-wide lock against every other
     workspace's cheap forward probe.
     """
-    await harvest_all_workspaces(days=28)
-    await harvest_all_workspaces(days=28)
+    await harvest_all_workspaces()
+    await harvest_all_workspaces()
 
     assert len(walked) == 1
 
@@ -276,7 +276,7 @@ async def test_a_repair_that_cannot_be_rationed_is_not_started(
     redis = _NoClaimRedis()
     monkeypatch.setattr(repair, "get_redis", lambda: redis)
 
-    totals = await harvest_all_workspaces(days=28)
+    totals = await harvest_all_workspaces()
 
     assert walked == []
     assert totals["workspaces_skipped"] == 1
@@ -290,7 +290,7 @@ async def test_a_sound_history_still_leaves_the_hourly_tick_cheap(
     The `walked` fixture's survey reports a sound history, which is the ordinary
     case and the one the schedule's affordability rests on.
     """
-    totals = await harvest_all_workspaces(days=28)
+    totals = await harvest_all_workspaces()
 
     assert walked == []
     assert totals["workspaces_skipped"] == 1

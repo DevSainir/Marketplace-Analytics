@@ -47,12 +47,10 @@ from src.modules.finreports.tasks.harvest import harvest_all_workspaces
 
 
 @celery_app.task(name="finreports.harvest_finance", **_TASK_RETRY_KWARGS)  # type: ignore[untyped-decorator]
-def harvest_finance(
-    days: int = 28, workspace_id: str | None = None, reconcile: bool = False
-) -> dict[str, int]:
+def harvest_finance(workspace_id: str | None = None, reconcile: bool = False) -> dict[str, int]:
+    """Harvest every settlement report WB has formed that a workspace lacks.
 
     Args:
-        days: How far back to walk.
         workspace_id: A workspace UUID **as a string**, restricting the walk to
             that one tenant; ``None`` sweeps the fleet. A string because Celery
             is configured for JSON-only serialization, which has no UUID.
@@ -68,7 +66,7 @@ def harvest_finance(
         Row counts per source.
     """
     scope = uuid.UUID(workspace_id) if workspace_id else None
-    return run_task(harvest_all_workspaces(days=days, workspace_id=scope, reconcile=reconcile))
+    return run_task(harvest_all_workspaces(workspace_id=scope, reconcile=reconcile))
 
 
 @celery_app.task(name="finreports.harvest_daily_tail", **_TASK_RETRY_KWARGS)  # type: ignore[untyped-decorator]

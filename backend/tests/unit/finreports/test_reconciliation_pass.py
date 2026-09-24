@@ -222,7 +222,7 @@ async def test_an_ordinary_tick_still_skips_when_nothing_is_newer(
     walked: list[tuple[date, date]],
 ) -> None:
     """The gate keeps its job — this pass must not turn every hour into a walk."""
-    totals = await harvest_all_workspaces(days=28)
+    totals = await harvest_all_workspaces()
 
     assert walked == []
     assert totals["workspaces_skipped"] == 1
@@ -237,7 +237,7 @@ async def test_the_reconciliation_pass_walks_despite_a_gate_that_says_no(
     report even in principle. Letting its verdict stop the pass would leave the
     lookback span unreachable and the fix inert.
     """
-    await harvest_all_workspaces(days=28, reconcile=True)
+    await harvest_all_workspaces(reconcile=True)
 
     assert len(walked) == 1
 
@@ -246,7 +246,7 @@ async def test_the_reconciliation_pass_asks_about_the_day_that_was_lost(
     walked: list[tuple[date, date]],
 ) -> None:
     """The two halves together: it runs, and it runs over the right span."""
-    await harvest_all_workspaces(days=28, reconcile=True)
+    await harvest_all_workspaces(reconcile=True)
 
     date_from, date_to = walked[0]
     assert date_from <= LOST_DAY <= date_to
@@ -265,7 +265,7 @@ async def test_the_reconciliation_pass_still_respects_the_harvest_lock(
     held.store[HARVEST_LOCK_KEY] = "another-runs-token"
     monkeypatch.setattr(fleet, "get_redis", lambda: held)
 
-    totals = await harvest_all_workspaces(days=28, reconcile=True)
+    totals = await harvest_all_workspaces(reconcile=True)
 
     assert walked == []
     assert totals["skipped_locked"] == 1
@@ -283,7 +283,7 @@ async def test_the_button_walks_the_lookback_for_its_own_workspace(
     short a week waits up to five days, and this button exists for exactly the
     case where the schedule has already failed to fetch something WB has.
     """
-    await harvest_all_workspaces(days=28, workspace_id=WORKSPACE, reconcile=True)
+    await harvest_all_workspaces(workspace_id=WORKSPACE, reconcile=True)
 
     date_from, date_to = walked[0]
     assert date_from <= LOST_DAY <= date_to
@@ -305,7 +305,7 @@ async def test_the_button_still_spends_only_the_callers_budget(
 
     monkeypatch.setattr(fleet, "load_workspace_token_bundles", _fleet)
 
-    await harvest_all_workspaces(days=28, workspace_id=WORKSPACE, reconcile=True)
+    await harvest_all_workspaces(workspace_id=WORKSPACE, reconcile=True)
 
     assert loaded == []
     assert len(walked) == 1
