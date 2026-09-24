@@ -15,6 +15,7 @@ from collections.abc import Coroutine
 from datetime import date, timedelta
 from typing import Any
 
+from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import AsyncSessionLocal
@@ -83,6 +84,7 @@ _EMPTY_TOTALS: dict[str, int] = {
     "daily_tail_reports": 0,
     "daily_tail_rows": 0,
     "daily_tail_failed": 0,
+    "workspaces_failed": 0,
 }
 
 
@@ -218,14 +220,17 @@ async def _harvest_all_workspaces(
     # large reports through the heap at once.
     results = await _gather_bounded(
         [
-            _harvest_one(
-                bundle=bundle,
-                settled=settled,
-                held=held,
-                today=today,
-                reconcile=reconcile,
-                repairing=repairing,
-                records=records,
+            _isolated(
+                bundle.name,
+                _harvest_one(
+                    bundle=bundle,
+                    settled=settled,
+                    held=held,
+                    today=today,
+                    reconcile=reconcile,
+                    repairing=repairing,
+                    records=records,
+                ),
             )
             for bundle in bundles
             if bundle.finance
@@ -261,6 +266,34 @@ async def _gather_bounded(
             return await coroutine
 
     return list(await asyncio.gather(*(_one(coroutine) for coroutine in coroutines)))
+
+
+async def _isolated(name: str, work: Coroutine[Any, Any, dict[str, int]]) -> dict[str, int]:
+    """Run one seller's harvest so that its failure stays its own.
+
+    Concurrent sellers share one task, and a bare ``gather`` lets the first
+    exception out while the others are mid-walk: the task disposes of the engine
+    under them, and autoretry re-runs the whole fleet for one seller's fault. So
+    a seller that raises is logged — at ERROR, which reaches Sentry — and counted
+    in ``workspaces_failed``, and the next tick asks for it again.
+
+    The soft time limit is re-raised: it is the task's deadline, not this
+    seller's failure, and swallowing it would run the fleet on into the hard kill.
+
+    Args:
+        name: The seller, for the log line.
+        work: Its harvest, not yet started.
+
+    Returns:
+        The seller's counts, or an empty fragment marking it failed.
+    """
+    try:
+        return await work
+    except SoftTimeLimitExceeded:
+        raise
+    except Exception:
+        logger.exception("finreports: harvest failed for %s; the rest of the fleet goes on.", name)
+        return dict(_EMPTY_TOTALS, workspaces_failed=1)
 
 
 async def _harvest_one(

@@ -283,3 +283,53 @@ async def test_sellers_are_harvested_concurrently(monkeypatch: pytest.MonkeyPatc
 
     assert peak > 1, "sellers were harvested one after another"
     assert peak <= fleet._FLEET_CONCURRENCY, "and never more at once than the bound allows"
+
+
+async def test_one_sellers_failure_does_not_take_the_fleet_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A seller whose harvest raises is counted as failed; the others finish.
+
+    Since the fleet went concurrent a bare ``gather`` let the first exception out
+    while the other sellers were mid-walk: the task tore down their engine under
+    them, and autoretry re-ran the whole fleet for one seller's fault.
+    """
+    bundles = [
+        WorkspaceTokenBundle(
+            workspace_id=uuid.uuid5(uuid.NAMESPACE_DNS, name), name=name, finance="a-token"
+        )
+        for name in ("Демо", "NEVA", "Олег")
+    ]
+
+    async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
+        return bundles
+
+    async def _tail(*, tokens: WorkspaceTokenBundle, **_kwargs: object) -> dict[str, int]:
+        await asyncio.sleep(0)
+        if tokens.name == "NEVA":
+            raise RuntimeError("connection to server was closed")
+        return {"reports": 1, "rows": 10, "reports_failed": 0}
+
+    async def _never_blocked(*_args: object, **_kwargs: object) -> float:
+        return 0.0
+
+    async def _no_gaps(*_args: object, **_kwargs: object) -> dict[uuid.UUID, list[date]]:
+        return {}
+
+    redis = FakeRedis()
+    monkeypatch.setattr(fleet, "get_redis", lambda: redis)
+    monkeypatch.setattr(freshness, "get_redis", lambda: redis)
+    monkeypatch.setattr(fleet, "AsyncSessionLocal", _FakeSession)
+    monkeypatch.setattr(fleet, "SettlementWatermarkRepository", _FakeWatermarkRepo)
+    monkeypatch.setattr(fleet, "FinancialReportRepository", _FakeReportRepo)
+    monkeypatch.setattr(fleet, "load_workspace_token_bundles", _bundles)
+    monkeypatch.setattr(fleet, "settlement_blocked_for", _never_blocked)
+    monkeypatch.setattr(fleet, "survey_settlement_gaps", _no_gaps)
+    monkeypatch.setattr(fleet, "gap_repair_due", _no_repairs)
+    monkeypatch.setattr(fleet, "moscow_today", lambda: TODAY)
+    monkeypatch.setattr(fleet, "tail_one_workspace", _tail)
+    _gate(monkeypatch, outcome=FreshnessOutcome.WB_EMPTY, reports=())
+
+    totals = await harvest_all_workspaces(days=28)
+
+    assert (totals["daily_tail_reports"], totals["workspaces_failed"]) == (2, 1)
