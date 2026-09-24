@@ -7,15 +7,15 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, delete, func, select
 
 from src.modules.finreports.constants import (
     LOGISTICS_OPER,
     PENALTY_OPER,
 )
-from src.modules.finreports.models import LogisticsTransaction
+from src.modules.finreports.models import LogisticsTransaction, SettlementDailyRollup
 from src.modules.finreports.repos.base import BaseRepository
 
 
@@ -134,6 +134,39 @@ class SkuLogisticsAggregate:
 class LogisticsTransactionRepository(BaseRepository):
 
     model = LogisticsTransaction
+
+    async def bulk_upsert(
+        self,
+        rows: Sequence[dict[str, Any]],
+        *,
+        conflict_columns: Sequence[str],
+        update_columns: Sequence[str],
+    ) -> int:
+        """Upsert settlement rows and forget the rollup of every day they touch.
+
+        The rollup proves itself by row count, and a row rewritten in place does
+        not change the count: the weekly report rewrites every row the daily
+        lane wrote, under a new ``report_id``, and a restated daily report comes
+        back with new amounts on the same ``rrd_id``. Deleting those days here,
+        in the same transaction as the write, makes them miss on the next read,
+        which rebuilds them from the detail — see
+        :mod:`src.modules.finreports.repos.pnl.rollup`.
+        """
+        written = await super().bulk_upsert(
+            rows, conflict_columns=conflict_columns, update_columns=update_columns
+        )
+        touched: dict[uuid.UUID, set[date]] = {}
+        for row in rows:
+            if row.get("rr_dt") is not None:
+                touched.setdefault(row["workspace_id"], set()).add(row["rr_dt"])
+        for workspace_id, days in touched.items():
+            await self._session.execute(
+                delete(SettlementDailyRollup).where(
+                    SettlementDailyRollup.workspace_id == workspace_id,
+                    SettlementDailyRollup.rr_dt.in_(sorted(days)),
+                )
+            )
+        return written
 
     async def aggregate_by_sku(
         self, *, workspace_id: uuid.UUID, date_from: date, date_to: date

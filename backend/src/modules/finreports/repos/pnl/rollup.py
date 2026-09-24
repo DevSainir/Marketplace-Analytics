@@ -14,8 +14,18 @@ absent, are rebuilt from the detail and written back. So a rollup that is stale,
 partial or empty costs time and never correctness, which is the only arrangement
 under which keeping a derived copy of a seller's money is defensible.
 
-That also means there is no build step, no harvest hook and no watermark to keep
-in sync: the first read of a window pays for it and every later one is cheap.
+That also means there is no build step and no watermark to keep in sync: the
+first read of a window pays for it and every later one is cheap.
+
+**The count cannot see a row rewritten in place**, and that is the ordinary case
+rather than an edge: the weekly report rewrites every row the daily lane wrote,
+under a new ``report_id``, and a restated daily report keeps its ``rrd_id``. So
+the one write path —
+:meth:`~src.modules.finreports.repos.transaction.LogisticsTransactionRepository.bulk_upsert`
+— deletes the rollup of every day it touches, in the same transaction, and those
+days miss on the next read. The count stays the check for everything that does
+not come through there: a rollup truncated or edited by hand, a day that lost
+rows.
 """
 
 from __future__ import annotations

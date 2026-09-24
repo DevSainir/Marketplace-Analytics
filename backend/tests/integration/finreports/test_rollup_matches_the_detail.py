@@ -26,9 +26,15 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.finreports.models import LogisticsTransaction, SettlementDailyRollup
-from src.modules.finreports.repos import PnlGrouping, PnlRepository
+from src.modules.finreports.repos import (
+    LogisticsTransactionRepository,
+    PnlGrouping,
+    PnlRepository,
+)
 from src.modules.finreports.repos.pnl.rollup import SettlementRollup
+from src.modules.finreports.services.ingestion.columns import TXN_UPDATE
 from tests.integration.finreports.conftest import (
+    LAST_WEEK,
     OTHER_WORKSPACE,
     SKU_A,
     THIS_WEEK,
@@ -137,6 +143,41 @@ async def test_a_day_that_grew_after_it_was_summarised_is_rebuilt(
 
     assert after.sales_gross == before.sales_gross + Decimal("5000")
     assert after.rows == before.rows + 1
+
+
+async def test_a_row_rewritten_in_place_is_not_served_from_the_old_summary(
+    db_session: AsyncSession, seeded: None
+) -> None:
+    """A settled row re-harvested with new figures reaches the next read.
+
+    The row count cannot see this: the day holds as many rows as before. And it
+    is the ordinary case, not an edge — the weekly report rewrites every row the
+    provisional daily lane wrote under a new ``report_id``, and a daily report
+    WB restates is re-upserted with its new amounts. So the write path forgets
+    the days it touched, and the next read rebuilds them.
+    """
+    repo = PnlRepository(db_session)
+    window = {"workspace_id": WORKSPACE, "date_from": WINDOW_FROM, "date_to": WINDOW_TO}
+    before = (await repo.aggregate(**window, grouping=PnlGrouping.TOTAL))[0]
+    row = (
+        (
+            await db_session.execute(
+                select(LogisticsTransaction.__table__).where(LogisticsTransaction.rrd_id == 1)
+            )
+        )
+        .mappings()
+        .one()
+    )
+
+    await LogisticsTransactionRepository(db_session).bulk_upsert(
+        [{**row, "report_id": LAST_WEEK, "retail_amount": row["retail_amount"] + 700}],
+        conflict_columns=["rrd_id"],
+        update_columns=TXN_UPDATE,
+    )
+
+    after = (await PnlRepository(db_session).aggregate(**window, grouping=PnlGrouping.TOTAL))[0]
+    assert after.rows == before.rows
+    assert after.sales_gross == before.sales_gross + Decimal("700")
 
 
 async def test_a_row_that_left_the_detail_leaves_the_rollup_too(
