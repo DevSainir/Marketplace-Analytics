@@ -38,7 +38,10 @@ from src.core.logcontext import bind_workspace
 from src.core.logging import get_logger
 from src.core.redis import get_redis
 from src.core.tasks import run_task
-from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
+from src.integrations.wildberries.endpoints import (
+    SALES_REPORTS_BY_PERIOD_PATH,
+    SALES_REPORTS_DETAILED_PATH,
+)
 from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
 from src.modules.finreports.constants import HARVEST_LOCK_KEY
@@ -134,8 +137,13 @@ async def _next_page_delay(tokens: WorkspaceTokenBundle) -> int:
     the watchdog's patience above.
     """
     gate = finance_reports_rate_gate(settings, token=tokens.finance)
-    shut_for = await gate.retry_after(
-        SALES_REPORTS_DETAILED_PATH, reserve_seconds=BACKGROUND_RESERVE_SECONDS
+    # Both detail buckets: a tick takes a run of reports through the by-period
+    # method and a stray one by id, and either may be the one WB has shut.
+    shut_for = max(
+        [
+            await gate.retry_after(path, reserve_seconds=BACKGROUND_RESERVE_SECONDS)
+            for path in (SALES_REPORTS_DETAILED_PATH, SALES_REPORTS_BY_PERIOD_PATH)
+        ]
     )
     return min(
         max(_MIN_PAGE_GAP_SECONDS, int(shut_for) + _WAKE_MARGIN_SECONDS),

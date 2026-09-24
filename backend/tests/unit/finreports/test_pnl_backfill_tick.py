@@ -359,6 +359,34 @@ async def test_a_standing_block_re_enqueues_without_spending_a_request(
     assert step.cursor == discovery.format_cursor(date(2026, 7, 1), 2, 5)
 
 
+async def test_a_window_refused_by_a_block_leaves_the_ceiling_where_it_was(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failure WB caused by closing the door is not evidence about the reports.
+
+    The ceiling moves below what a tick attempted so a report WB never serves
+    cannot be asked for for ever. A refused window is not that: it was never
+    asked. Moving past it anyway walked the lane to the bottom through a block,
+    and a sweep that changed nothing then ended it with the reports still owed.
+    """
+    due = (_report(901, weeks_back=3), _report(902, weeks_back=4))
+    _backlog(monkeypatch, due=due, outstanding=2, total=10)
+    _fetch_window(monkeypatch, rows=0, failed=1)
+    answers = iter([0.0, 900.0])
+
+    async def _shut(_token: str) -> float:
+        return next(answers)
+
+    monkeypatch.setattr(walk, "_shut_for", _shut)
+    cursor = discovery.format_cursor(TODAY, 1, 2)
+
+    step = await walk.advance_pnl(_tokens(), cursor=cursor, build_ingestion=object())
+
+    resumed = discovery.parse_cursor(step.cursor or "")
+    assert resumed is not None
+    assert resumed[0] == TODAY
+
+
 async def test_a_refused_list_leaves_the_progress_bar_alone(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

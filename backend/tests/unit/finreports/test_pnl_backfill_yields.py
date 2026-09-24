@@ -20,10 +20,14 @@ import uuid
 
 import pytest
 
-from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
+from src.integrations.wildberries.endpoints import (
+    SALES_REPORTS_BY_PERIOD_PATH,
+    SALES_REPORTS_DETAILED_PATH,
+)
 from src.integrations.wildberries.rate_limit import FINANCE_REPORT_ENDPOINT_BUCKETS
 from src.modules.finreports.constants import HARVEST_LOCK_KEY, HARVEST_LOCK_TTL_SECONDS
 from src.modules.finreports.tasks import backfill
+from src.modules.finreports.tasks.backfill import walk
 from src.modules.workspaces.schemas import WorkspaceTokenBundle
 
 
@@ -322,3 +326,30 @@ def test_the_lock_outlives_a_missed_renewal_but_not_a_dead_holder() -> None:
     would hold the lane for the whole of it.
     """
     assert backfill._TICK_LOCK_TTL_SECONDS < backfill._TICK_SOFT_LIMIT_SECONDS
+
+
+class _PeriodShut:
+    """A gate open on every method but the by-period detail one."""
+
+    async def retry_after(self, endpoint: str, *, reserve_seconds: float = 0.0) -> float:
+        return 300.0 if endpoint == SALES_REPORTS_BY_PERIOD_PATH else 0.0
+
+
+async def test_a_block_on_the_window_method_shuts_the_lane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The window walks its own bucket, so its block has to be read too.
+
+    Only the by-id and list buckets were checked. A 429 on the by-period method
+    left the lane reading «open», so each tick asked into the block, failed the
+    window, and moved its ceiling past reports it never fetched — until a sweep
+    that changed nothing ended the lane with them still owed.
+    """
+    monkeypatch.setattr(walk, "finance_reports_rate_gate", lambda *_a, **_k: _PeriodShut())
+    monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _PeriodShut())
+
+    shut = await walk._shut_for("a-token")
+    delay = await backfill._next_page_delay(_tokens())
+
+    assert shut == 300.0
+    assert delay == 300 + backfill._WAKE_MARGIN_SECONDS

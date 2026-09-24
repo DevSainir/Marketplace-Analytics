@@ -37,6 +37,7 @@ from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries.endpoints import (
+    SALES_REPORTS_BY_PERIOD_PATH,
     SALES_REPORTS_DETAILED_PATH,
     SALES_REPORTS_LIST_PATH,
 )
@@ -193,6 +194,13 @@ async def advance_pnl(
     # there, and moving past it would leave the next sweep to start it again
     # from nothing.
     moved = advance_ceiling(attempted, ceiling) if still_open is None else ceiling
+    # Nor past a failure WB caused by shutting the door. The ceiling moves below
+    # a failed report so one WB never serves cannot be asked for for ever — but
+    # a refused request was never asked, and walking past it through a block
+    # takes the sweep to the bottom and ends the lane on a pass that «changed
+    # nothing» (see `_end_of_sweep`).
+    if failed and await _shut_for(tokens.finance) > _TICK_WAIT_BUDGET_SECONDS:
+        moved = ceiling
     return LaneStep(
         done=done,
         total=backlog.total,
@@ -274,9 +282,11 @@ def _end_of_sweep(backlog: Backlog, *, sweep: int, at_sweep_start: int, today: d
 async def _shut_for(token: str) -> float:
     """Seconds WB has this workspace's report methods shut for, or 0.
 
-    Both buckets, because a tick needs both and the one that is open does not
-    make up for the one that is not. Read from Redis, so it costs no WB request
-    and sends nothing.
+    All three buckets — the list, the by-id detail and the by-period one the
+    window walks — because a tick may need any of them and the one that is open
+    does not make up for the one that is not. The by-period bucket was missing
+    until 2026-09-24, so a block on it read as an open lane. Read from Redis, so
+    it costs no WB request and sends nothing.
 
     Args:
         token: The workspace's «Финансы» token — buckets are per seller account.
@@ -288,6 +298,7 @@ async def _shut_for(token: str) -> float:
     gate = finance_reports_rate_gate(settings, token=token)
     return max(
         await gate.retry_after(SALES_REPORTS_DETAILED_PATH),
+        await gate.retry_after(SALES_REPORTS_BY_PERIOD_PATH),
         await gate.retry_after(SALES_REPORTS_LIST_PATH),
     )
 
