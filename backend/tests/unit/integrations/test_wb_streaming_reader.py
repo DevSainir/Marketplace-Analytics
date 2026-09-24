@@ -232,3 +232,58 @@ async def test_a_stream_that_breaks_mid_body_is_an_integration_error() -> None:
 
     with pytest.raises(IntegrationError, match="stream broke"):
         await _drain()
+
+
+async def test_a_connection_that_fails_to_open_is_an_integration_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refused connection before the first byte is retried, then raised as ours.
+
+    The mid-body case above was fixed on its own; the open was left bare, so a
+    `ConnectError` or a header timeout escaped every caller's `IntegrationError`
+    clause and killed the Celery task the same way.
+    """
+    calls: list[int] = []
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        raise httpx.ConnectError("connection refused")
+
+    async def _no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("asyncio.sleep", _no_sleep)
+    client = _client(handler)
+
+    with pytest.raises(IntegrationError, match="unreachable"):
+        async for _ in client.stream_report_rows(report_id=989286628):
+            pass
+    assert len(calls) == client._max_retries + 1
+
+
+async def test_a_penalty_block_is_not_slept_off_inside_the_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 429 demanding more than the client's ceiling fails at once, without a retry.
+
+    The finance client caps waits at 70 s because it holds the fleet lock; the
+    streamed path ignored the cap and would sleep an hour on `X-Ratelimit-Retry:
+    3600`, then spend another request inside WB's block.
+    """
+    calls: list[int] = []
+    slept: list[float] = []
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(429, headers={"X-Ratelimit-Retry": "3600"})
+
+    async def _sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    monkeypatch.setattr("asyncio.sleep", _sleep)
+    client = _client(handler)
+
+    with pytest.raises(IntegrationError, match="block"):
+        async for _ in client.stream_report_rows(report_id=989286628):
+            pass
+    assert (len(calls), slept) == (1, [])

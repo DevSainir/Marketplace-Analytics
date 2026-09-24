@@ -29,6 +29,7 @@ from src.core.logging import get_logger
 from src.integrations.wildberries.clients.backoff import (
     _RETRIABLE_STATUSES,
     _server_demanded_wait,
+    scrub_credentials,
 )
 from src.integrations.wildberries.endpoints import endpoint_label
 from src.integrations.wildberries.rate_limit import RateGate
@@ -50,6 +51,7 @@ class StreamingJSONMixin:
     _client: httpx.AsyncClient
     _rate_gate: RateGate
     _max_retries: int
+    _retry_after_ceiling: float
 
     def _count(self, endpoint: str, status: str, elapsed: float | None) -> None:
         raise NotImplementedError
@@ -208,7 +210,25 @@ class StreamingJSONMixin:
                 raise
             started = time.perf_counter()
             request = self._client.build_request(method, path, params=params, json=json_body)
-            response = await self._client.send(request, stream=True)
+            try:
+                response = await self._client.send(request, stream=True)
+            except httpx.HTTPError as exc:
+                # No status line, so nothing to decide from but the attempt
+                # count. Raised as ours on the last one: a bare `ConnectError`
+                # escaped every caller's `IntegrationError` clause and killed the
+                # task, which is the mid-body failure below arriving earlier.
+                last_exc = exc
+                self._count(endpoint, "transport_error", time.perf_counter() - started)
+                if attempt == self._max_retries:
+                    logger.warning(
+                        "WB API transport error for %s %s: %s",
+                        method,
+                        path,
+                        scrub_credentials(str(exc)),
+                    )
+                    raise IntegrationError(f"WildBerries API unreachable on {path}.") from exc
+                await asyncio.sleep(2**attempt)
+                continue
             try:
                 elapsed = time.perf_counter() - started
                 await self._observe_rate_headers(path, response)
@@ -227,6 +247,21 @@ class StreamingJSONMixin:
                 demanded = _server_demanded_wait(exc.response)
                 if status == 429 and demanded is not None:
                     await self._rate_gate.penalise(rate_key, demanded)
+                if demanded is not None and demanded > self._retry_after_ceiling:
+                    # A penalty block, not a pause: the same rule as
+                    # `BaseWBClient._request`. Sleeping it off holds the caller's
+                    # lock for as long as WB says, and the retry at the end of it
+                    # is one more request inside the block.
+                    logger.warning(
+                        "WB API %s on %s %s demands a %.0fs wait (penalty block); not retrying.",
+                        status,
+                        method,
+                        path,
+                        demanded,
+                    )
+                    raise IntegrationError(
+                        f"WildBerries rate-limit block on {path} (retry in {demanded:.0f}s)."
+                    ) from exc
                 await asyncio.sleep(demanded if demanded is not None else 2**attempt)
                 continue
             except Exception:
