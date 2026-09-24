@@ -31,11 +31,12 @@ exist. A seller on WB's forum documented that ``rrd_id`` is not monotonic by
 date across report boundaries on the by-period method — paging one report at a
 time removes that hazard too.
 
-That is why :meth:`stream_rows_by_period` has exactly one caller left, and it
-is not a harvest: ``scripts/backfill_pnl_columns.py``, a one-off that refetches
-date windows to fill columns a migration added zero-valued. The history
-backfill was the other one until 2026-09-23 and now addresses reports by id
-like everything else. **Nothing scheduled may use it.**
+:meth:`stream_rows_by_period` has one caller, the history backfill's window
+walk (``tasks/settlement/window.py``), and only for a RUN of consecutive owed
+reports: one request there is worth eight to twenty-one by id. Risk 5 was
+measured on 2026-09-23 and not reproduced, and the window books nothing until
+every page has landed, so an early stop leaves its reports missing rather than
+booked.
 
 See ``docs/finreports/MIGRATION_TO_FINANCE_V1.md``.
 """
@@ -235,13 +236,13 @@ class WBFinanceReportsClient(BaseWBClient):
     ) -> AsyncGenerator[list[WBFinanceReportRow], None]:
         """The same rows, addressed by settlement period rather than report id.
 
-        **For ``scripts/backfill_pnl_columns.py`` and nothing else.** It walks
-        date windows because the columns it fills are chosen by date, and it is
-        run by hand with somebody watching. Every scheduled caller must use
-        :meth:`stream_report_rows`: paging one report at a time avoids a hazard
-        a seller documented on WB's forum for this form, where ``rrdId`` is not
-        monotonic by date across report boundaries and a walk can silently stop
-        early — which for a harvest is a hole nobody notices for months.
+        For the history backfill's window walk, over a run of consecutive owed
+        reports, where one request replaces eight to twenty-one by id. The
+        forward harvest stays on :meth:`stream_report_rows`. A seller on WB's
+        forum documented ``rrdId`` going non-monotonic across report boundaries
+        on this form; measured on 2026-09-23 it did not, and the window books
+        nothing until every page has landed, so a walk that stopped early would
+        leave its reports missing rather than booked.
 
         Args:
             date_from: Inclusive settlement-date window start.

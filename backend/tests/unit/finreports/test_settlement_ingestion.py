@@ -17,12 +17,11 @@ used to derive from ``min(rr_dt)``/``max(rr_dt)`` instead.
 from __future__ import annotations
 
 import uuid
-from datetime import date
 
 from src.integrations.wildberries.schemas import WBReportDetailRow
 from src.modules.finreports.models import LogisticsTransaction
 from src.modules.finreports.services.ingestion.columns import TXN_UPDATE
-from src.modules.finreports.services.ingestion.rows import report_headers, settlement_row
+from src.modules.finreports.services.ingestion.rows import settlement_row
 
 #: Not overwritten on conflict: the conflict key itself, and a server default.
 _NOT_UPDATED = {"rrd_id", "created_at"}
@@ -87,59 +86,6 @@ def test_counts_are_kept_apart_from_money() -> None:
     assert mapped["delivery_amount"] == 0
     assert mapped["return_amount"] == 1
     assert str(mapped["delivery_rub"]) == "59.27"
-
-
-def test_the_report_period_comes_from_wb_not_from_the_settled_days() -> None:
-    """The header uses WB's own ``date_from``/``date_to``, not min/max ``rr_dt``.
-
-    A report routinely settles nothing on its first or last day. Deriving the
-    period from the rows then publishes a six-day «week», which shifts every
-    week-scoped figure on the statement and in the claim.
-    """
-    rows = [
-        WBReportDetailRow.model_validate(
-            {
-                "rrd_id": 1,
-                "realizationreport_id": 969371534,
-                "date_from": "2026-07-13",
-                "date_to": "2026-07-19",
-                "create_dt": "2026-07-20",
-                "rr_dt": "2026-07-15",
-                "currency_name": "KGS",
-            }
-        ),
-        WBReportDetailRow.model_validate(
-            {
-                "rrd_id": 2,
-                "realizationreport_id": 969371534,
-                "date_from": "2026-07-13",
-                "date_to": "2026-07-19",
-                "rr_dt": "2026-07-17",
-                "currency_name": "KGS",
-            }
-        ),
-    ]
-
-    headers = report_headers(rows, workspace_id=_WORKSPACE)
-
-    assert len(headers) == 1
-    assert headers[0]["date_from"] == date(2026, 7, 13)
-    assert headers[0]["date_to"] == date(2026, 7, 19)
-    assert headers[0]["create_dt"] == date(2026, 7, 20)
-
-
-def test_a_report_with_no_stated_period_falls_back_to_its_settlement_dates() -> None:
-    """WB leaving the period blank must not produce a header with no period at all."""
-    rows = [
-        WBReportDetailRow.model_validate(
-            {"rrd_id": 1, "realizationreport_id": 900, "rr_dt": "2026-07-15"}
-        )
-    ]
-
-    headers = report_headers(rows, workspace_id=_WORKSPACE)
-
-    assert headers[0]["date_from"] == date(2026, 7, 15)
-    assert headers[0]["date_to"] == date(2026, 7, 15)
 
 
 def test_ppvz_vw_keeps_the_precision_wb_publishes() -> None:

@@ -36,7 +36,6 @@ from src.modules.finreports.services.ingestion.columns import (
 )
 from src.modules.finreports.services.ingestion.rows import (
     dedupe,
-    merge_report_headers,
     number_units,
     settlement_row,
 )
@@ -57,50 +56,6 @@ class IngestionService:
         self._billed = billed_repo
         self._penalties = penalty_repo
         self._measurements = measurement_repo
-
-    async def ingest_finance_report(
-        self,
-        pages: AsyncGenerator[Sequence[WBReportDetailRow], None],
-        *,
-        workspace_id: uuid.UUID,
-    ) -> int:
-        """Upsert a paginated settlement walk and its weekly-report headers.
-
-        Consumes the pages as they arrive and writes each one before asking for
-        the next, so neither this method nor its caller ever holds more than a
-        page. Taking a whole window as a list is what made the peak scale with
-        the seller's history — see
-        :meth:`~src.integrations.wildberries.clients.finance.WBFinanceClient.stream_report_rows`.
-
-        Every statement here goes to the caller's session and **nothing is
-        committed**: the harvest's all-or-nothing property is the caller's to
-        keep, and a walk that fails halfway must leave no settlement rows behind
-        (a half-written settlement window is a P&L that looks right and is not).
-
-        Args:
-            pages: The paginated walk. Consumed and closed here — a walk
-                abandoned mid-way (an error below) must not be left suspended
-                holding its page and its socket.
-            workspace_id: Owning workspace.
-
-        Returns:
-            The number of settlement rows upserted.
-        """
-        headers: dict[int, dict[str, object]] = {}
-        total = 0
-        async with aclosing(pages):
-            async for page in pages:
-                merge_report_headers(headers, page, workspace_id=workspace_id)
-                # Re-upserting every header on every page (a handful of rows)
-                # rather than only the current page's, so the last write of a
-                # report's period is always the widest one seen so far.
-                await self._reports.bulk_upsert(
-                    list(headers.values()),
-                    conflict_columns=["report_id"],
-                    update_columns=REPORT_UPDATE,
-                )
-                total += await self._upsert_settlement_rows(page, workspace_id=workspace_id)
-        return total
 
     async def record_report_header(
         self, header: WBFinanceReportHeader, *, workspace_id: uuid.UUID

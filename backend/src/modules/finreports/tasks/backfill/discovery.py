@@ -182,10 +182,10 @@ def advance_ceiling(attempted: tuple[MissingReport, ...], ceiling: date) -> date
     """Move the ceiling below every report this tick attempted.
 
     The ceiling is what makes a sweep terminate, and it guards exactly one case:
-    **a report WB lists and serves no rows for.** Headers are derived from rows
-    (``merge_report_headers``), so such a report never lands in
-    ``financial_report``, never stops being "missing", and without a ceiling the
-    lane would ask WB for it once a minute for ever. On this endpoint that is
+    **a report that never stops being missing** — one WB lists and serves no
+    rows for (a header is refused over no rows when WB lists money in it), or
+    one that never adds up to WB's own total. Without a ceiling the lane would
+    ask WB for it once a minute for ever. On this endpoint that is
     not a slow lane but a penalty block.
 
     It moves past reports that FAILED too, which is the sweep's other half: a

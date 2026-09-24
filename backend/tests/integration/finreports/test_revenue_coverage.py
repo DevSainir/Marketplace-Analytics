@@ -1,8 +1,9 @@
 """«Выручка заполнена только для N из M строк» — the caveat's own counts.
 
 The P&L columns were added to an already-populated table zero-filled, so a
-window that never went through ``scripts/backfill_pnl_columns.py`` shows a full
-period of withholdings against a partial payout — a large, plausible loss. This
+window whose rows were never refetched showed a full period of withholdings
+against a partial payout — a large, plausible loss. A report that arrives short
+has the same shape. This
 counts the shortfall so the statement can say so.
 
 Pinned here because the query was rewritten for speed: the operation moved from

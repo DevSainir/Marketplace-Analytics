@@ -341,7 +341,7 @@ class PnlService:
             notes.append(
                 f"Выручка заполнена только для {with_revenue} из {sale_rows} строк продаж "
                 "за период: остальные ещё не выгружены из WB. «Итого к оплате» и прибыль "
-                "занижены — запустите scripts/backfill_pnl_columns.py."
+                "занижены, пока отчёт не будет догружен."
             )
         unknown = await self._pnl.unclassified_opers(
             workspace_id=workspace_id, date_from=date_from, date_to=date_to

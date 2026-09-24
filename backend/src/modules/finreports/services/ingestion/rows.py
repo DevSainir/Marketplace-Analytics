@@ -10,7 +10,6 @@ a database.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -143,86 +142,9 @@ def settlement_row(row: WBReportDetailRow, *, workspace_id: uuid.UUID) -> dict[s
     }
 
 
-def report_headers(
-    rows: list[WBReportDetailRow], *, workspace_id: uuid.UUID
-) -> list[dict[str, Any]]:
-    """Group settlement rows into their weekly ``financial_report`` headers.
-
-    See :func:`merge_report_headers` for why the period is taken from WB.
-    """
-    headers: dict[int, dict[str, Any]] = {}
-    merge_report_headers(headers, rows, workspace_id=workspace_id)
-    return list(headers.values())
-
-
-def merge_report_headers(
-    headers: dict[int, dict[str, Any]],
-    rows: Sequence[WBReportDetailRow],
-    *,
-    workspace_id: uuid.UUID,
-) -> None:
-    """Fold one page of settlement rows into the headers accumulated so far.
-
-    The period comes from WB's own ``date_from``/``date_to`` on the row, not from
-    ``min(rr_dt)``/``max(rr_dt)``: a report routinely carries no settlement on
-    its first or last day, and deriving the period from the rows then reports a
-    six-day week — which shifts every week-scoped figure the P&L and the claim
-    put in front of a court. ``rr_dt`` is kept only as the fallback for the rare
-    row where WB leaves the period blank.
-
-    That fallback is exactly why the accumulator is threaded through the whole
-    paginated walk instead of each page building its own headers: a report whose
-    rows straddle a page boundary would otherwise have its period rebuilt from
-    the last page's ``rr_dt`` alone, and the upsert would overwrite the wider
-    period with the narrower one. The dict is tiny — one entry per weekly
-    report, a handful per harvest window — so carrying it costs nothing.
-
-    Args:
-        headers: Accumulator, keyed by ``realizationreport_id``. Mutated.
-        rows: One page of settlement rows.
-        workspace_id: Owning workspace.
-    """
-    for row in rows:
-        stated_from, stated_to = as_date(row.date_from), as_date(row.date_to)
-        rr = as_date(row.rr_dt)
-        header = headers.setdefault(
-            row.realizationreport_id,
-            {
-                "report_id": row.realizationreport_id,
-                "workspace_id": workspace_id,
-                "date_from": stated_from or rr,
-                "date_to": stated_to or rr,
-                "currency": row.currency_name,
-                "create_dt": as_date(row.create_dt),
-            },
-        )
-        header["date_from"] = _earliest(header["date_from"], stated_from or rr)
-        header["date_to"] = _latest(header["date_to"], stated_to or rr)
-        if header["create_dt"] is None:
-            header["create_dt"] = as_date(row.create_dt)
-        if not header["currency"]:
-            header["currency"] = row.currency_name
-
-
-def _earliest(current: date | None, candidate: date | None) -> date | None:
-    """Return the earlier of two optional dates."""
-    if candidate is None:
-        return current
-    return candidate if current is None or candidate < current else current
-
-
-def _latest(current: date | None, candidate: date | None) -> date | None:
-    """Return the later of two optional dates."""
-    if candidate is None:
-        return current
-    return candidate if current is None or candidate > current else current
-
-
 __all__ = [
     "as_date",
     "dedupe",
-    "merge_report_headers",
     "number_units",
-    "report_headers",
     "settlement_row",
 ]

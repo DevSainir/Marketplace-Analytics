@@ -303,10 +303,13 @@ class PnlRepository:
     ) -> tuple[int, int]:
         """Return ``(sale rows, sale rows carrying revenue)`` for the window.
 
-        The P&L columns were added to an existing 620k-row table zero-filled, so a
-        window that has not been through ``scripts/backfill_pnl_columns.py`` has
-        sale rows with no revenue and no payout — while its logistics, storage and
-        penalties are complete, because those columns always existed. «Итого к
+        The P&L columns were added to an existing 620k-row table zero-filled, and
+        a window whose rows had not been refetched since had sale rows with no
+        revenue and no payout — while its logistics, storage and penalties were
+        complete, because those columns always existed. None are left on
+        «Демо» (0 of 87 261, 2026-09-24) and the one-off script that filled
+        them is gone; the check stays, because a report that arrives short
+        produces the same shape. «Итого к
         оплате» then reports a full period of withholdings against a partial
         payout: a large, plausible loss. The caller turns this into a caveat.
         """

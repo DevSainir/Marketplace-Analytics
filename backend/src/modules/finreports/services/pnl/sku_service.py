@@ -305,7 +305,7 @@ class SkuReportService:
         if sale_rows and with_revenue < sale_rows:
             notes.append(
                 f"Выручка заполнена только для {with_revenue} из {sale_rows} строк продаж — "
-                "запустите scripts/backfill_pnl_columns.py."
+                "остальные строки ещё не догружены из WB."
             )
 
         notes.append(

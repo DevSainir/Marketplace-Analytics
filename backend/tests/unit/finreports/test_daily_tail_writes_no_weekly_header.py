@@ -119,15 +119,3 @@ async def test_the_daily_rows_carry_the_daily_report_id() -> None:
     )
 
     assert transactions.batches[0][0]["report_id"] == _DAILY_REPORT_ID
-
-
-async def test_the_settled_lane_still_writes_both() -> None:
-    """The guard above must not have cost the weekly lane its headers."""
-    transactions, reports = _RecordingRepo(), _RecordingRepo()
-
-    await _ingestion(transactions, reports).ingest_finance_report(
-        _pages([_row(1)]), workspace_id=_WORKSPACE
-    )
-
-    assert transactions.batches, "the weekly lane still writes rows"
-    assert reports.batches, "and still writes the report header it is the source of"

@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncGenerator, Sequence
-from datetime import date
 from types import SimpleNamespace
 from typing import Any
 
@@ -97,7 +96,7 @@ async def _pages(*pages: list[dict[str, Any]]) -> AsyncGenerator[list[WBReportDe
 async def test_each_page_is_written_before_the_next_is_asked_for() -> None:
     """Ingestion happens per page — otherwise streaming buys nothing."""
     transactions, reports = _RecordingRepo(), _RecordingRepo()
-    written = await _ingestion(transactions, reports).ingest_finance_report(
+    written = await _ingestion(transactions, reports).ingest_settlement_rows(
         _pages([_row(1), _row(2)], [_row(3)]), workspace_id=_WORKSPACE
     )
 
@@ -105,35 +104,11 @@ async def test_each_page_is_written_before_the_next_is_asked_for() -> None:
     assert [len(batch) for batch in transactions.batches] == [2, 1]
 
 
-async def test_a_report_split_across_pages_keeps_the_period_wb_stated() -> None:
-    """The last page must not narrow a period the first page established.
-
-    WB leaves `date_from`/`date_to` blank on some rows, and the header then
-    falls back to `rr_dt`. Build each page's headers in isolation and the second
-    page overwrites the week with its own settlement days — a six-day «week»
-    that shifts every week-scoped figure on the statement and in the claim.
-    """
-    transactions, reports = _RecordingRepo(), _RecordingRepo()
-
-    await _ingestion(transactions, reports).ingest_finance_report(
-        _pages(
-            [_row(1, rr_dt="2026-07-13")],
-            [_row(2, rr_dt="2026-07-19")],
-        ),
-        workspace_id=_WORKSPACE,
-    )
-
-    final = reports.batches[-1]
-    assert len(final) == 1
-    assert final[0]["date_from"] == date(2026, 7, 13)
-    assert final[0]["date_to"] == date(2026, 7, 19)
-
-
 async def test_a_duplicate_key_inside_one_page_never_reaches_the_upsert() -> None:
     """`ON CONFLICT DO UPDATE` rejects the whole batch over one repeated key."""
     transactions, reports = _RecordingRepo(), _RecordingRepo()
 
-    await _ingestion(transactions, reports).ingest_finance_report(
+    await _ingestion(transactions, reports).ingest_settlement_rows(
         _pages([_row(1), _row(1), _row(2)]), workspace_id=_WORKSPACE
     )
 
@@ -144,11 +119,10 @@ async def test_a_duplicate_key_inside_one_page_never_reaches_the_upsert() -> Non
 async def test_a_walk_that_fails_part_way_surfaces_the_failure() -> None:
     """A mid-walk failure must propagate, having written the pages before it.
 
-    Both halves matter. The pages *are* written — streaming is what makes that
-    unavoidable — so something has to undo them, and that something is the
-    caller's SAVEPOINT (`harvest_workspace`, proved against a real transaction
-    in `tests/integration/finreports/test_harvest_is_atomic.py`). Swallowing
-    the error here would commit half a settlement window instead.
+    Both halves matter. The pages before the failure *are* written — streaming
+    makes that unavoidable, and the walk commits per batch and resumes from its
+    cursor. Swallowing the error here would read as a finished report, and a
+    finished report is what gets booked.
     """
     transactions, reports = _RecordingRepo(), _RecordingRepo()
 
@@ -157,7 +131,7 @@ async def test_a_walk_that_fails_part_way_surfaces_the_failure() -> None:
         raise IntegrationError("WB gave up mid-walk.")
 
     with pytest.raises(IntegrationError, match="mid-walk"):
-        await _ingestion(transactions, reports).ingest_finance_report(
+        await _ingestion(transactions, reports).ingest_settlement_rows(
             failing(), workspace_id=_WORKSPACE
         )
 
