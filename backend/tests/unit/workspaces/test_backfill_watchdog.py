@@ -22,7 +22,7 @@ from src.modules.finreports.tasks.backfill import (
     _PACE_CEILING_SECONDS,
     _TICK_SOFT_LIMIT_SECONDS,
 )
-from src.modules.finreports.tasks.backfill.walk import _TICK_WORK_BUDGET_SECONDS
+from src.modules.finreports.tasks.backfill.batch import _TICK_WORK_BUDGET_SECONDS
 from src.modules.workspaces.models import BackfillLane
 from src.modules.workspaces.tasks import LANE_RESTART_DELAY, LANE_TASKS, STALE_AFTER
 
@@ -52,12 +52,18 @@ def test_a_tick_cannot_block_for_longer_than_it_is_allowed_to_live() -> None:
 def test_a_tick_leaves_itself_room_to_finish_the_report_it_is_on() -> None:
     """The deadline stops a tick taking on new work; it cannot stop the work.
 
-    So the gap between the two budgets has to hold one whole report — the
-    longest page ever measured was 217 s, at 100 000 rows, against a largest
-    real report of 16 801. A tick that overruns is not slow but silent:
-    `SoftTimeLimitExceeded` is not the error the lane catches.
+    So the gap between the two budgets has to hold a page started at the
+    deadline: its wait for a token, up to `FINANCE_QUEUE_SECONDS`, and the page
+    itself — the longest measured was 217 s, at 100 000 rows. The gap was 300 s
+    until 2026-09-24, which is not enough for both. A tick that overruns is not
+    slow but silent: `SoftTimeLimitExceeded` is not the error the lane catches.
     """
-    assert _TICK_SOFT_LIMIT_SECONDS - _TICK_WORK_BUDGET_SECONDS >= 4 * 60
+    longest_page_measured = 217
+
+    assert (
+        FINANCE_QUEUE_SECONDS + longest_page_measured
+        <= _TICK_SOFT_LIMIT_SECONDS - _TICK_WORK_BUDGET_SECONDS
+    )
 
 
 def test_a_reserving_caller_can_still_get_through_the_finance_gate() -> None:

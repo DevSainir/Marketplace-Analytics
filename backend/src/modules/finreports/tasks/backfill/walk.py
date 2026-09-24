@@ -56,40 +56,6 @@ from src.modules.workspaces.contract import LaneStep, WorkspaceTokenBundle
 
 logger = get_logger(__name__)
 
-#: Most reports one tick will fetch.
-#:
-#: One per tick was the old shape, for a reason that has expired: a page cost a
-#: quarter of an hour of WB's budget and ~110 MB of RSS, so a tick that looped
-#: would have held a worker slot for most of an hour to no purpose.
-#:
-#: At one request a minute the loop is where the throughput is. A tick's own
-#: overhead is a re-enqueue plus the gap the countdown leaves — and the
-#: countdown is read from a bucket the tick has just emptied, with the
-#: background reserve on top, so one report per tick costs roughly three
-#: minutes per report against a budget that allows one. Batching moves the
-#: waiting inside the tick, where it is spent on the next report instead of on
-#: nothing.
-#:
-#: Memory does not bound this: reports are walked one after another, each into
-#: its own session which closes before the next begins, so the peak is one
-#: report's batches whether a tick walks one or twelve. Time does, and that is
-#: :data:`_TICK_WORK_BUDGET_SECONDS` below; this is the belt to its braces.
-REPORTS_PER_TICK = 12
-
-#: How long a tick keeps taking on new reports.
-#:
-#: Ten minutes against the task's fifteen-minute soft limit, so the report in
-#: flight when the budget runs out has five minutes to finish — more than twice
-#: the longest page measured (217 s, at 100 000 rows; the largest report on
-#: «Демо» is 16 801). Overrunning the soft limit is not a slow tick but a
-#: silent one: `SoftTimeLimitExceeded` is not the `IntegrationError` the lane
-#: catches, so nothing would be recorded and nothing re-enqueued.
-#:
-#: Checked BETWEEN reports and never inside one. A report is the unit that can
-#: be left for the next tick; a half-fetched one is not, and abandoning it would
-#: throw away the rate token it had already paid for.
-_TICK_WORK_BUDGET_SECONDS = 10 * 60
-
 #: The longest standing refusal a tick will sit through rather than re-enqueue.
 #:
 #: Sized to tell WB's ordinary pacing apart from WB's punishment, which on this
@@ -303,4 +269,4 @@ async def _shut_for(token: str) -> float:
     )
 
 
-__all__ = ["REPORTS_PER_TICK", "advance_pnl"]
+__all__ = ["advance_pnl"]

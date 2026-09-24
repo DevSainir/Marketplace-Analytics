@@ -22,6 +22,7 @@ from __future__ import annotations
 import time
 
 from src.core.logging import get_logger
+from src.integrations.wildberries.rate_limit.surfaces import FINANCE_QUEUE_SECONDS
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.tasks.backfill.discovery import InFlight
 from src.modules.finreports.tasks.settlement import (
@@ -33,18 +34,37 @@ from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 logger = get_logger(__name__)
 
-#: Most reports one tick will fetch. See :data:`_TICK_WORK_BUDGET_SECONDS` for
-#: the bound that actually binds; this is the belt to its braces.
+#: Most reports one tick will fetch. Reports are walked one after another, each
+#: in a session that closes before the next begins, so memory does not bound
+#: this; time does, and that is :data:`_TICK_WORK_BUDGET_SECONDS`. This is the
+#: belt to its braces.
 REPORTS_PER_TICK = 12
 
-#: How long a tick keeps taking on new work.
+#: The history tick's soft time limit. Defined here, beside the budget that has
+#: to fit inside it, and used by the task in the package's ``__init__``.
+TICK_SOFT_LIMIT_SECONDS = 15 * 60
+
+#: Longest page measured: 217 s, at WB's 100 000-row limit. Rounded up.
+_PAGE_SECONDS_MAX = 240
+
+#: What a tick spends before its first page: the list request, which waits for
+#: its own one-a-minute token, and writing WB's totals onto held reports.
+_TICK_PREAMBLE_SECONDS = 120
+
+#: How long a tick keeps taking on new work — the last moment a new page or
+#: report may start.
 #:
-#: Ten minutes against the task's fifteen-minute soft limit, so whatever is in
-#: flight when the budget runs out has five minutes to stop cleanly.
-#: Overrunning the soft limit is not a slow tick but a silent one:
-#: `SoftTimeLimitExceeded` is not the `IntegrationError` the lane catches, so
-#: nothing is recorded and nothing re-enqueued.
-_TICK_WORK_BUDGET_SECONDS = 10 * 60
+#: Derived rather than chosen, because the deadline cannot stop work already
+#: begun. A page that starts at the deadline still waits for its token — up to
+#: ``FINANCE_QUEUE_SECONDS`` — and then runs up to ``_PAGE_SECONDS_MAX``, after
+#: a preamble the deadline did not see. It was ten minutes until 2026-09-24, and
+#: 600 + 240 + 217 is past the 900 s soft limit. Overrunning that limit is not a
+#: slow tick but a silent one: `SoftTimeLimitExceeded` is not the
+#: `IntegrationError` the lane catches, so nothing is recorded and nothing
+#: re-enqueued.
+_TICK_WORK_BUDGET_SECONDS = (
+    TICK_SOFT_LIMIT_SECONDS - FINANCE_QUEUE_SECONDS - _PAGE_SECONDS_MAX - _TICK_PREAMBLE_SECONDS
+)
 
 
 def _contiguous_run(

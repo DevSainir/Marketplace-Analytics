@@ -45,13 +45,14 @@ from src.integrations.wildberries.endpoints import (
 from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.integrations.wildberries.rate_limit.surfaces import BACKGROUND_RESERVE_SECONDS
 from src.modules.finreports.constants import HARVEST_LOCK_KEY
+from src.modules.finreports.tasks.backfill.batch import REPORTS_PER_TICK, TICK_SOFT_LIMIT_SECONDS
 from src.modules.finreports.tasks.backfill.discovery import (
     WB_REPORTS_EPOCH,
     format_cursor,
     parse_cursor,
     survey_backlog,
 )
-from src.modules.finreports.tasks.backfill.walk import REPORTS_PER_TICK, advance_pnl
+from src.modules.finreports.tasks.backfill.walk import advance_pnl
 from src.modules.finreports.tasks.ingestion_factory import build_ingestion
 from src.modules.finreports.tasks.warmup import warm_settlement_rollup
 from src.modules.workspaces.contract import (
@@ -165,7 +166,7 @@ async def _next_page_delay(tokens: WorkspaceTokenBundle) -> int:
 #:
 #: Still far below the watchdog's patience for the lane, so a tick that really
 #: has hung is restarted rather than left holding a worker slot.
-_TICK_SOFT_LIMIT_SECONDS = 15 * 60
+_TICK_SOFT_LIMIT_SECONDS = TICK_SOFT_LIMIT_SECONDS
 
 #: How long to stand aside when the forward harvest holds the settlement token.
 #:
