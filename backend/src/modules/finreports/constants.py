@@ -67,6 +67,13 @@ RECONCILE_LOOKBACK_DAYS: int = 14
 #: uncovered a week later is ours.
 SETTLEMENT_PUBLICATION_GRACE_DAYS: int = 7
 
+#: Longest wait on the settlement detail bucket that is still the bucket
+#: refilling rather than WB refusing. The method is one token a minute, so an
+#: empty bucket reports at most 60 s; a penalty block reports hundreds or
+#: thousands. The gate queues a caller through the first on its own, so only the
+#: second is a reason to skip a seller or to tell «Обновить» to wait.
+SETTLEMENT_BLOCK_THRESHOLD_SECONDS: float = 120.0
+
 #: How far back the freshness gate asks WB to list reports.
 #:
 #: The list is one cheap request whatever its width, so this is not a cost

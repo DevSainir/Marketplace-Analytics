@@ -40,7 +40,7 @@ from src.core.config import settings
 from src.core.locks import is_held
 from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
 from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
-from src.modules.finreports.constants import HARVEST_LOCK_KEY
+from src.modules.finreports.constants import HARVEST_LOCK_KEY, SETTLEMENT_BLOCK_THRESHOLD_SECONDS
 from src.modules.finreports.repos import (
     DailySettlementRepository,
     FinancialReportRepository,
@@ -139,16 +139,23 @@ class HarvestControlService:
             workspace_id: Whose bucket to inspect. The bucket is per seller
                 token, so one tenant's block says nothing about another's.
 
+        **A refill is not a wait worth refusing.** The same threshold as the
+        fleet tick (``SETTLEMENT_BLOCK_THRESHOLD_SECONDS``): up to a minute after
+        the backfill or the daily tail took a token, the harvest's own gate
+        queues through it, so the button starts the harvest rather than telling
+        the seller to come back.
+
         Returns:
-            Seconds to wait, or ``0.0`` when a request may go out now —
-            including when the workspace has no «Финансы» token or the bucket
+            Seconds to wait when WB has shut the method, or ``0.0`` otherwise —
+            including an ordinary refill, no «Финансы» token, or a bucket that
             cannot be read. Fails open: an unknown block is not a block.
         """
         tokens = await self._load_tokens(workspace_id)
         if tokens is None or not tokens.finance:
             return 0.0
         gate = finance_reports_rate_gate(settings, token=tokens.finance)
-        return await gate.retry_after(SALES_REPORTS_DETAILED_PATH)
+        shut_for = await gate.retry_after(SALES_REPORTS_DETAILED_PATH)
+        return shut_for if shut_for > SETTLEMENT_BLOCK_THRESHOLD_SECONDS else 0.0
 
     async def get_state(self, *, workspace_id: uuid.UUID) -> HarvestState:
         """Return liveness, coverage and the last freshness verdict.

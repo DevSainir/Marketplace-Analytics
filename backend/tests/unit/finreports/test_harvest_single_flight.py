@@ -257,3 +257,36 @@ async def test_the_button_reads_the_bucket_the_harvest_actually_spends(
 
     assert retry_after == 391.0
     assert asked == [("a-finance-token", SALES_REPORTS_DETAILED_PATH)]
+
+
+async def test_the_button_does_not_refuse_over_the_next_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A minute of refill is queued through, not answered with «rate_limited».
+
+    The fleet tick stopped reading the refill as a block on 2026-09-24; the
+    button kept the old reading and refused for up to a minute after the
+    backfill or the daily tail had taken a token.
+    """
+    from src.modules.finreports.services import harvest_control
+
+    class _Gate:
+        async def retry_after(self, _endpoint: str, *, reserve_seconds: float = 0.0) -> float:
+            return 45.0
+
+    monkeypatch.setattr(
+        harvest_control, "finance_reports_rate_gate", lambda _settings, *, token: _Gate()
+    )
+
+    async def _tokens(_workspace_id: uuid.UUID) -> WorkspaceTokenBundle:
+        return WorkspaceTokenBundle(workspace_id=WORKSPACE, name="NEVA", finance="a-finance-token")
+
+    service = HarvestControlService(
+        report_repo=_StubReportRepo(None),  # type: ignore[arg-type]
+        daily_repo=_StubDailyRepo(),  # type: ignore[arg-type]
+        redis=_HeldRedis(),  # type: ignore[arg-type]
+        freshness_records=NullFreshnessRecordStore(),
+        load_tokens=_tokens,
+    )
+
+    assert await service.settlement_retry_after(workspace_id=WORKSPACE) == 0.0

@@ -61,6 +61,7 @@ from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.constants import (
     FRESHNESS_RECORD_TTL_SECONDS,
+    SETTLEMENT_BLOCK_THRESHOLD_SECONDS,
     SETTLEMENT_LIST_WINDOW_DAYS,
 )
 from src.modules.finreports.repos import FinancialReportRepository
@@ -74,13 +75,6 @@ from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 logger = get_logger(__name__)
-
-
-#: Longest wait that is still the bucket refilling rather than WB refusing. The
-#: detail method is one token a minute, so an empty bucket reports at most 60 s;
-#: a penalty block reports hundreds or thousands. The gate queues a caller
-#: through the first on its own, so only the second is worth skipping a seller.
-_BLOCK_THRESHOLD_SECONDS = 120.0
 
 
 async def settlement_blocked_for(tokens: WorkspaceTokenBundle) -> float:
@@ -112,7 +106,7 @@ async def settlement_blocked_for(tokens: WorkspaceTokenBundle) -> float:
         return 0.0
     gate = finance_reports_rate_gate(settings, token=tokens.finance)
     shut_for = await gate.retry_after(SALES_REPORTS_DETAILED_PATH)
-    return shut_for if shut_for > _BLOCK_THRESHOLD_SECONDS else 0.0
+    return shut_for if shut_for > SETTLEMENT_BLOCK_THRESHOLD_SECONDS else 0.0
 
 
 @dataclass(frozen=True, slots=True)

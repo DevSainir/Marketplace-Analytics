@@ -83,10 +83,11 @@ get it wrong produce a plausible statement rather than an error.
 `MIGRATION_TO_FINANCE_V1.md` records how the P&L moved off the settlement endpoint WB
 switched off on 15.07.2026 — six phases on 22.09.2026, the history backfill on 23.09. Read it before touching
 anything that paces, probes or walks the report: much of that machinery was built to
-survive the dead endpoint and is now either gone or demoted to a cross-check. Its phase-2
-diff (5508 rows, 61 of 63 columns identical to the value) is the evidence the cutover
-rests on, and its phase-6 note holds a live 128 KGS disagreement with WB's own total that
-is measured rather than fixed.
+survive the dead endpoint and is now gone (phase 7, 24.09). Its phase-2 diff (5508 rows,
+61 of 63 columns identical to the value) is the evidence the cutover rests on. The payout's
+sign comes from `doc_type_name`, not the operation — that rule matches WB's own `forPaySum`
+on all 143 reports of «Демо», and every booked report is checked against it with an
+alert (`PNL.md`, «Знак выплаты задаёт тип документа»).
 
 `docs/RELEASES.md` covers versioning: the version is **derived from your commit messages**, never
 typed, so a `feat:`, a `feat-minor:` and a `fix:` are not interchangeable (which to use, and the
