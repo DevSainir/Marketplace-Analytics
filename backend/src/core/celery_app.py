@@ -153,7 +153,8 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=5, minute=0),
     },
     #
-    # Hourly, and a tick costs two requests per workspace: one
+    # Every fifteen minutes in the publication window and hourly outside it
+    # (the two entries below), and a tick costs two requests per workspace: one
     # `sales-reports/list` for the weekly reports and one for the daily ones.
     # `list` is a bucket of its own at one request per minute — 1 440 a day —
     # so discovery is effectively free and is never rationed.
@@ -201,7 +202,7 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour="0-2,4,19-23", minute=0),
         "kwargs": {"days": 28},
     },
-    # The hourly tick can only ever look FORWARD: its span starts at the
+    # The harvest tick can only ever look FORWARD: its span starts at the
     # settlement watermark, and the watermark jumps to the newest report's
     # stated end. WB does not publish in that order — it forms single-day
     # supplementary reports and starts serving their rows days later — so a
@@ -213,8 +214,10 @@ celery_app.conf.beat_schedule = {
     # 03:00 MSK, and the hourly tick gives up that hour above. Not 05:00-07:00:
     # refresh, and this pass competes for the same rate-limited surfaces. It is
     # also the most expensive pass we run — two or three extra requests per
-    # workspace, each a quarter of an hour apart — so it takes an hour when
-    # nothing is published and the hourly tick would have found nothing anyway.
+    # workspace, each a quarter of an hour apart on the endpoint this was
+    # written for (a minute apart on finance-api since 2026-09-22) — so it takes
+    # an hour when nothing is published and the hourly tick would have found
+    # nothing anyway.
     "daily-finreports-reconcile": {
         "task": "finreports.harvest_finance",
         "schedule": crontab(hour=3, minute=0),
@@ -246,9 +249,10 @@ celery_app.conf.beat_schedule = {
     # continuation; see `src.modules.workspaces.tasks`.
     #
     # Every fifteen minutes rather than hourly because the cost is one indexed
-    # read of a table with a handful of rows, and the thing it is watching moves
-    # at one page per fifteen minutes: a sweep any slower would let a dead lane
-    # lose more pages than the sweep saves.
+    # read of a table with a handful of rows. It was sized when the lane moved
+    # at one page per fifteen minutes; on finance-api a page is a minute, so a
+    # dead lane now loses more per sweep interval, not less, and a slower sweep
+    # would only make that worse.
     "backfill-watchdog": {
         "task": "workspaces.sweep_stalled_backfills",
         "schedule": crontab(minute="*/15"),

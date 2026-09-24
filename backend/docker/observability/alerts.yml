@@ -123,8 +123,10 @@ groups:
       #
       # `finreports.finance` does not work that way, and reading it as though
       # it did is what produced eight pages and seven repeats between the 13th
-      # and 14th of September 2026 with nothing wrong. It runs 21 times a day
-      # (`crontab(hour="0-2,4,8-23")` plus the 03:00 reconcile) against sources
+      # and 14th of September 2026 with nothing wrong. It ran 21 times a day
+      # then (`crontab(hour="0-2,4,8-23")` plus the 03:00 reconcile); since
+      # 2026-09-23 it is every 15 minutes 07:00-18:45 MSK, hourly outside that
+      # and the 03:00 reconcile (`src/core/celery_app.py`) — against sources
       # WB publishes on ITS schedule — the settlement report weekly, paid
       # that is correct. So nineteen of those twenty-one runs legitimately
       # write nothing, and any six-hour window between publications is red.
@@ -159,8 +161,10 @@ groups:
 
       # The settlement walk gets its own rule, ahead of the general one and at
       # a threshold of ONE. A finance window that stops early is not a degraded
-      # source that will heal on the next tick: WB serves this endpoint once per
-      # ~917 s, so the week is left part-walked, and until 2026-09-08 the
+      # source that will heal on the next tick: WB served the old endpoint once
+      # per ~917 s (finance-api since 2026-09-22 serves one a minute, and a
+      # report is booked only once all of it has landed), so the week was left
+      # part-walked, and until 2026-09-08 the
       # harvest's watermark then advanced past the missing days off the report
       # header and nothing ever asked for them again. The general rule below
       # could not see it — three partials spread over three days never reach
@@ -181,7 +185,7 @@ groups:
       # 2026-09-13/14: every real firing lasted 55 minutes and cleared on its
       # own, three pages for contention between NEVA's P&L backfill and the
       # hourly harvest over WB's one-request-per-15-minutes settlement
-      # endpoint. None of them would survive this.
+      # endpoint (retired 2026-09-22). None of them would survive this.
       - alert: SettlementWalkIncomplete
         expr: increase(harvest_partial_total{harvest="finreports.finance",source="finance"}[1h]) > 0
         for: 2h
@@ -548,8 +552,9 @@ groups:
           increase(backfill_lane_restarts_total[2h]) >= 3
           and on() backfill_lanes_stalled > 0
         # An hour, not fifteen minutes, and WB sets the number. The P&L lane
-        # walks an endpoint served once per ~15 minutes and frequently not
-        # served at all; a tick that finds the window shut records its message
+        # walked an endpoint served once per ~15 minutes and frequently not
+        # served at all (finance-api since 2026-09-22 serves one request a
+        # minute, but can still refuse); a tick that finds the window shut records its message
         # and waits. When one of those ticks dies before recording, the lane
         # looks stalled for the 45 minutes `STALE_AFTER` allows, the watchdog
         # restarts it — correctly — and the restart counter moves.
