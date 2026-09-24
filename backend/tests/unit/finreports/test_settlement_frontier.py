@@ -46,7 +46,7 @@ from src.modules.finreports.tasks.harvest import (
     workspace,
 )
 from src.modules.finreports.tasks.settlement import MissingReport, SettlementWalk
-from src.modules.finreports.tasks.spans import settlement_frontier, walk_span
+from src.modules.finreports.tasks.spans import settlement_frontier
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 from tests.support.fakes import no_daily_tail
 
@@ -108,19 +108,6 @@ def test_a_fresh_workspace_has_no_frontier_at_all() -> None:
     assert settlement_frontier(watermark=None, covered_through=None) is None
 
 
-# --- what the rule buys ---------------------------------------------------
-
-
-def test_the_walk_that_follows_covers_the_week_the_probe_found() -> None:
-    """A gate that opens onto a span starting after the missed week fixes nothing."""
-    frontier = settlement_frontier(watermark=WATERMARK, covered_through=COVERED)
-
-    date_from, date_to = walk_span(latest_settled=frontier, today=TODAY, days=28)
-
-    assert date_from <= MISSED_WEEK[0]
-    assert date_to >= MISSED_WEEK[1]
-
-
 # --- where the rule is read -----------------------------------------------
 
 
@@ -152,10 +139,6 @@ class _FakeReportRepo:
 
     async def latest_settled_date(self, *, workspace_id: uuid.UUID) -> date:
         return COVERED
-
-    async def period_ends_since(self, *, workspace_id: uuid.UUID, since: date) -> list[date]:
-        """Only the published-to-us report is held; the open week is missing."""
-        return [COVERED]
 
     async def report_ids_since(self, *, workspace_id: uuid.UUID, since: date) -> set[int]:
         """No report ids held, so WB's whole list reads as missing."""

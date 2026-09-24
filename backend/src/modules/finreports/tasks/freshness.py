@@ -121,12 +121,9 @@ class Outstanding:
 
     Attributes:
         reports: The missing reports, oldest first — the walk's unit of work.
-        overdue_days: Days since WB stamped the oldest of them. Zero on the
-            day it was formed, which is the day it nearly always arrives.
     """
 
     reports: tuple[MissingReport, ...]
-    overdue_days: int
 
     @property
     def span(self) -> tuple[date, date]:
@@ -175,10 +172,7 @@ async def outstanding_reports(
     )
     if not missing:
         return None, tuple(listed)
-    oldest = min(
-        header.create_date for header in listed if header.report_id == missing[0].report_id
-    )
-    return Outstanding(reports=missing, overdue_days=(today - oldest).days), tuple(listed)
+    return Outstanding(reports=missing), tuple(listed)
 
 
 async def check_freshness(

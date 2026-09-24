@@ -117,10 +117,6 @@ def order(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     async def _no_gaps(*_args: object, **_kwargs: object) -> dict[uuid.UUID, list[date]]:
         return {}
 
-    async def _no_spread(*_args: object, **_kwargs: object) -> None:
-        """The publication-spread measurement reads real rows; not this subject."""
-        return
-
     async def _verdict(**_kwargs: object) -> FreshnessVerdict:
         """Re-reading the coverage after a walk opens a session of its OWN.
 
@@ -150,7 +146,6 @@ def order(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     monkeypatch.setattr(fleet, "survey_settlement_gaps", _no_gaps)
     monkeypatch.setattr(fleet, "gap_repair_due", _no_repairs)
     monkeypatch.setattr(fleet, "moscow_today", lambda: TODAY)
-    monkeypatch.setattr(fleet, "record_publication_spread", _no_spread)
     monkeypatch.setattr(fleet, "verdict_from_walk", _verdict)
     monkeypatch.setattr(fleet, "harvest_workspace", _weekly)
     monkeypatch.setattr(fleet, "tail_one_workspace", _tail)

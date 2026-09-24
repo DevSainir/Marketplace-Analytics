@@ -118,10 +118,6 @@ class _FakeReportRepo:
     async def latest_settled_date(self, *, workspace_id: uuid.UUID) -> date | None:
         return SETTLED
 
-    async def period_ends_since(self, *, workspace_id: uuid.UUID, since: date) -> list[date]:
-        """The periods already held — empty, so the gate sees every one as missing."""
-        return []
-
     async def report_ids_since(self, *, workspace_id: uuid.UUID, since: date) -> set[int]:
         """No report ids held, so WB's whole list reads as missing."""
         return set()

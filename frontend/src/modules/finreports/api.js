@@ -6,22 +6,6 @@
 import apiClient, { WINDOW_TIMEOUT_MS } from '@/core/api/axios'
 
 /**
- * GET /v1/finreports/pnl — the settlement-basis profit-and-loss statement.
- *
- * @param {{date_from?: string, date_to?: string, grouping?: 'week'|'month'|'sku'}} [params]
- * @param {AbortSignal} [signal] Cancels the request when a newer fetch starts.
- * @returns {Promise<object>} `{ total, buckets, notes, ... }`
- */
-export async function fetchPnl(params = {}, signal) {
-  const { data } = await apiClient.get('/v1/finreports/pnl', {
-    params,
-    signal,
-    timeout: WINDOW_TIMEOUT_MS,
-  })
-  return data
-}
-
-/**
  * GET /v1/finreports/pnl/skus — the per-SKU P&L cut («По артикулам») for an
  * arbitrary settlement-date window.
  *
@@ -258,16 +242,5 @@ export async function fetchWeeks(signal) {
     signal,
     timeout: 120000,
   })
-  return data
-}
-
-/**
- * for one SKU (WB charge vs fair charge, baseline vs implied volume).
- *
- * @param {number} nmId WB SKU identifier.
- * @param {{date_from?: string, date_to?: string}} [params]
- * @param {AbortSignal} [signal] Cancels the request when a newer fetch starts.
- * @returns {Promise<object>}
- */
   return data
 }

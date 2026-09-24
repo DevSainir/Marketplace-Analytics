@@ -46,7 +46,6 @@ from src.modules.finreports.tasks.freshness import (
 from src.modules.finreports.tasks.gaps import survey_settlement_gaps
 from src.modules.finreports.tasks.harvest.ledger import record_wb_totals, reports_to_re_walk
 from src.modules.finreports.tasks.harvest.workspace import harvest_workspace
-from src.modules.finreports.tasks.publication_spread import record_publication_spread
 from src.modules.finreports.tasks.repair import gap_repair_due
 from src.modules.finreports.tasks.spans import (
     reconciliation_slice,
@@ -389,18 +388,6 @@ async def _harvest_one(
             counts = await harvest_workspace(tokens=bundle, reports=missing, on_date=today)
             for key, value in counts.items():
                 totals[key] += value
-            if counts.get("finance") and verdict.probe_from is not None:
-                # The measurement shared discovery is waiting on: did WB serve
-                # this period to everyone at once? Nothing we hold says whether
-                # WB publishes simultaneously, so this records it before
-                # anything is built on it.
-                async with AsyncSessionLocal() as session:
-                    await record_publication_spread(
-                        session,
-                        workspace_id=bundle.workspace_id,
-                        period_end=missing[-1].date_to,
-                        name=bundle.name,
-                    )
             # And recorded AGAIN, from what the walk found. The walk asks WB
             # about the same days the probe did, so a completed one is strictly
             # better evidence — and throwing it away is the same discard bug one

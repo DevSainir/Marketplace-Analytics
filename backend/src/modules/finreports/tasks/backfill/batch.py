@@ -200,16 +200,13 @@ async def fetch_batch(
             tokens=tokens,
             reports=run,
             build_ingestion=build_ingestion,
-            # No reserve here, unlike the by-id walk below, and the difference
-            # is not politeness — it is whether a window of more than one page
-            # can run at all. The reserve makes a caller wait for a token free
-            # for 120 s; `acquire` accumulates that wait across pages, so a
-            # second page asked for 360 s against a 240 s cap and the whole
-            # window was discarded with 100 000 rows already committed (NEVA,
-            # 2026-09-23). It also protects nobody: the harvest and «Обновить»
-            # spend `detailed/{id}` and `list`, never this bucket.
+            # Never a reserving acquire, here or below. The reserve makes a
+            # caller wait for a token free for 120 s, and `acquire` accumulates
+            # that wait across pages: a second page asked for 360 s against a
+            # 240 s cap and the window was discarded with 100 000 rows already
+            # committed (NEVA, 2026-09-23). Ordering against the harvest is the
+            # harvest lock's job, which this lane stands aside for explicitly.
             cursor=in_flight.cursor if in_flight else 0,
-            reserve_seconds=0.0,
             deadline=time.monotonic() + _TICK_WORK_BUDGET_SECONDS,
         )
         if walk.next_cursor is not None:
@@ -246,14 +243,6 @@ async def fetch_batch(
             tokens=tokens,
             reports=(report,),
             build_ingestion=build_ingestion,
-            # No reserve, for the same reason the window has none: on a bucket
-            # of one token per minute with a 240 s cap, a caller that will not
-            # touch a token until it has sat free for 120 s is not yielding, it
-            # is refusing itself. NEVA's last thirteen reports never went out —
-            # «would need 360s of queueing (cap 240s)», every sweep, 2026-09-24.
-            # The ordering this was meant to give is already held by the
-            # harvest lock, which this lane stands aside for explicitly.
-            reserve_seconds=0.0,
         )
         attempted.append(report)
         rows += by_id.rows

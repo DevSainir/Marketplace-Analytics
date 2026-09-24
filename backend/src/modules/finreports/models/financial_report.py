@@ -34,10 +34,9 @@ class FinancialReport(Base):
             totals for this report, as ``sales-reports/list`` served them.
             ``None`` for a report booked before they were kept — never derived
             from our own rows, since the whole value of these figures is that
-            they come from somewhere else. See
-            :func:`~src.modules.finreports.tasks.publication_spread.record_publication_spread`
-            for what our reconstruction of ``forPaySum`` is knowingly out by,
-            and why that makes WB-against-WB the only safe comparison.
+            they come from somewhere else. Checked against our own sum when a
+            report is booked — see
+            :func:`~src.modules.finreports.tasks.settlement.reconcile.reconcile_against_wb`.
         harvested_at: When this header was ingested.
     """
 

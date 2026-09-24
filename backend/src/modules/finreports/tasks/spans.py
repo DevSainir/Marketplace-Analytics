@@ -15,53 +15,13 @@ because that price is paid per workspace, in sequence.
 from __future__ import annotations
 
 import uuid
-from datetime import date, timedelta
+from datetime import date
 
 from src.core.logging import get_logger
 from src.modules.finreports.constants import RECONCILE_LOOKBACK_DAYS
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 logger = get_logger(__name__)
-
-
-def walk_span(
-    *, latest_settled: date | None, today: date, days: int, lookback_days: int = 0
-) -> tuple[date, date]:
-    """The settlement span one workspace's harvest should cover.
-
-    Not the rolling ``days``-long window it used to be. That window was
-    re-walked in full on every tick, which was affordable when it cost one
-    request; at one request per week of it, and one request per quarter of an
-    hour, a 28-day re-walk is an hour of somebody's harvest to re-read data
-    already held.
-
-    So the span starts at the last settled day rather than after it — the newest
-    report's own week is re-read, which is where WB's amendments land — and
-    falls back to the full ``days`` for a workspace that has never been
-    harvested, which is the one case that legitimately needs a backfill.
-
-    ``lookback_days`` is the reconciliation pass's whole mechanism: the span
-    normally starts AT the watermark and therefore only ever moves forward,
-    which is why a report WB starts serving for earlier days is invisible once
-    the watermark has jumped past them. Extending the start backwards is what
-    gives those days a second chance. See :data:`RECONCILE_LOOKBACK_DAYS`.
-
-    Args:
-        latest_settled: Last settlement day already harvested, or ``None``.
-        today: Today in Moscow time.
-        days: How far back a never-harvested workspace reaches.
-        lookback_days: How far behind the watermark to re-read. Zero on the
-            hourly path, where re-reading days already held would spend a
-            quarter-of-an-hour WB request per week for nothing.
-
-    Returns:
-        The inclusive ``(date_from, date_to)`` span to walk.
-    """
-    date_to = today - timedelta(days=1)
-    floor = date_to - timedelta(days=days)
-    if latest_settled is None:
-        return floor, date_to
-    return max(floor, latest_settled - timedelta(days=lookback_days)), date_to
 
 
 def settlement_frontier(*, watermark: date | None, covered_through: date | None) -> date | None:
@@ -193,4 +153,4 @@ def reconciliation_slice(
     return [ordered[today.toordinal() % len(ordered)]]
 
 
-__all__ = ["reconciliation_slice", "settlement_frontier", "walk_span"]
+__all__ = ["reconciliation_slice", "settlement_frontier"]

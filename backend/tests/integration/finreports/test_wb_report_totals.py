@@ -30,7 +30,7 @@ from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.models import FinancialReport, LogisticsTransaction
 from src.modules.finreports.repos import FinancialReportRepository
 from src.modules.finreports.tasks.ingestion_factory import build_ingestion
-from src.modules.finreports.tasks.publication_spread import reconcile_against_wb
+from src.modules.finreports.tasks.settlement.reconcile import reconcile_against_wb
 
 pytestmark = pytest.mark.integration
 

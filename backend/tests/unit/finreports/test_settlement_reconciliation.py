@@ -32,7 +32,7 @@ import pytest
 from src.modules.finreports.constants import (
     RECONCILE_LOOKBACK_DAYS,
 )
-from src.modules.finreports.tasks.spans import reconciliation_slice, walk_span
+from src.modules.finreports.tasks.spans import reconciliation_slice
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 pytestmark = pytest.mark.unit
@@ -54,57 +54,6 @@ TODAY = date(2026, 9, 8)
 SETTLED = date(2026, 9, 6)
 #: The day that fell out of reach behind it.
 LOST_DAY = date(2026, 8, 31)
-
-
-# --- the span -------------------------------------------------------------
-
-
-def test_the_hourly_span_still_starts_at_the_watermark() -> None:
-    """The ordinary tick must not re-read days it already holds.
-
-    Each week of span is a WB request on a surface that serves one per quarter
-    of an hour, so a lookback on the hourly path would spend most of a day's
-    budget re-reading settled data.
-    """
-    span = walk_span(latest_settled=SETTLED, today=TODAY, days=28)
-
-    assert span == (SETTLED, date(2026, 9, 7))
-
-
-def test_a_reconciliation_span_reaches_behind_the_watermark() -> None:
-    """The whole mechanism: the start moves back, so passed days are asked about again."""
-    span = walk_span(latest_settled=SETTLED, today=TODAY, days=28, lookback_days=14)
-
-    assert span == (date(2026, 8, 23), date(2026, 9, 7))
-
-
-def test_the_lookback_covers_the_day_that_was_lost() -> None:
-    """Sized against the incident, not chosen for roundness.
-
-    31.08 became fetchable only once WB began serving it, which was after the
-    07.09 jump — eight days after the day it covers. The constant has to still
-    reach that far back on the day it becomes reachable, or the pass would have
-    missed this too.
-    """
-    date_from, date_to = walk_span(
-        latest_settled=SETTLED, today=TODAY, days=28, lookback_days=RECONCILE_LOOKBACK_DAYS
-    )
-
-    assert date_from <= LOST_DAY <= date_to
-
-
-def test_a_reconciliation_span_never_outruns_the_backfill_floor() -> None:
-    """``days`` still bounds it, so the lookback cannot turn into a full re-harvest."""
-    span = walk_span(latest_settled=SETTLED, today=TODAY, days=3, lookback_days=90)
-
-    assert span == (date(2026, 9, 4), date(2026, 9, 7))
-
-
-def test_a_never_harvested_workspace_is_unaffected_by_the_lookback() -> None:
-    """It already walks the full backfill; there is nothing behind it to reach."""
-    assert walk_span(latest_settled=None, today=TODAY, days=28, lookback_days=14) == walk_span(
-        latest_settled=None, today=TODAY, days=28
-    )
 
 
 # --- the ration -----------------------------------------------------------

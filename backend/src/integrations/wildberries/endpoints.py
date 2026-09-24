@@ -31,20 +31,9 @@ _ID_SEGMENT_RE = re.compile(
 )
 
 
-#: WB's weekly realization report. Named here rather than at its two call sites
-#: because the walk now takes its rate token by path, outside the client that
-#: sends the request — and a bucket keyed on a typo would pace nothing at all,
-#: silently.
-#: WB announced its shutdown for 15.07.2026 and removed it from the
-#: documentation. Nothing calls it since 2026-09-22; the constant survives
-#: only so the shared penalty block earned on it in September expires against
-#: the same key it was written under, and so a future reader looking for the
-#: path finds the migration note rather than nothing.
-SETTLEMENT_REPORT_PATH = "/api/v5/supplier/reportDetailByPeriod"
-
-#: Its replacement, on the Finance surface. WB announced the shutdown of the
-#: path above for 15.07.2026 and removed it from the documentation; these two
-#: are what it points at, at fifteen times the rate. See
+#: The Finance surface's realization report, which replaced
+#: ``/api/v5/supplier/reportDetailByPeriod`` (announced for shutdown on
+#: 15.07.2026, left on 2026-09-22) at fifteen times the rate. See
 #: ``docs/finreports/MIGRATION_TO_FINANCE_V1.md``.
 SALES_REPORTS_LIST_PATH = "/api/finance/v1/sales-reports/list"
 
@@ -53,8 +42,10 @@ SALES_REPORTS_LIST_PATH = "/api/finance/v1/sales-reports/list"
 SALES_REPORTS_DETAILED_PATH = "/api/finance/v1/sales-reports/detailed/{id}"
 
 
-#: Detail rows by PERIOD rather than by report. Same payload, same budget;
-#: the history backfill walks a span it does not yet know the report ids for.
+#: Detail rows by PERIOD rather than by report. Same payload, paced on a bucket
+#: of its own — whether WB meters it jointly with the by-id method is not
+#: measured. The history backfill uses it for a run of consecutive owed reports,
+#: where one request is worth eight to twenty-one by id.
 SALES_REPORTS_BY_PERIOD_PATH = "/api/finance/v1/sales-reports/detailed"
 
 
@@ -79,7 +70,6 @@ __all__ = [
     "SALES_REPORTS_BY_PERIOD_PATH",
     "SALES_REPORTS_DETAILED_PATH",
     "SALES_REPORTS_LIST_PATH",
-    "SETTLEMENT_REPORT_PATH",
     "endpoint_label",
     "sales_report_detail_path",
 ]

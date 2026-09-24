@@ -29,8 +29,8 @@ from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
 from src.integrations.wildberries.rate_limit import RateGate, finance_reports_rate_gate
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.services import IngestionService
-from src.modules.finreports.tasks.publication_spread import reconcile_against_wb
 from src.modules.finreports.tasks.settlement.page import _ingest_one_streamed_page
+from src.modules.finreports.tasks.settlement.reconcile import reconcile_against_wb
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 logger = get_logger(__name__)
@@ -91,7 +91,6 @@ async def walk_settlement_reports(
     tokens: WorkspaceTokenBundle,
     reports: Sequence[MissingReport],
     build_ingestion: object,
-    reserve_seconds: float = 0.0,
 ) -> SettlementWalk:
     """Fetch every report this workspace is missing, one request per page.
 
@@ -103,11 +102,6 @@ async def walk_settlement_reports(
         build_ingestion: Factory taking a session and returning an
             :class:`IngestionService` — injected rather than imported so this
             module does not reach back into the harvest that calls it.
-        reserve_seconds: Non-zero marks this walk as background work, which will
-            not take a token that has been free for less than that. The history
-            backfill passes it so a seller's fresh report is never queued behind
-            months nobody is waiting for; the forward harvest leaves it at zero
-            because it IS that fresh report.
 
     Returns:
         A :class:`SettlementWalk`. ``completed_through`` stops at the **first**
@@ -128,7 +122,6 @@ async def walk_settlement_reports(
             report=report,
             gate=gate,
             build_ingestion=build_ingestion,
-            reserve_seconds=reserve_seconds,
         )
         rows += report_rows
         if complete:
@@ -154,7 +147,6 @@ async def _harvest_report(
     report: MissingReport,
     gate: RateGate,
     build_ingestion: object,
-    reserve_seconds: float = 0.0,
 ) -> tuple[int, bool]:
     """Harvest one report, a page per request, and say whether it finished.
 
@@ -163,8 +155,6 @@ async def _harvest_report(
         report: The report to fetch.
         gate: The walk's rate gate. A token is taken per PAGE, and always
             before the page's session is opened.
-        reserve_seconds: Yield this much of every window to callers a person is
-            waiting on — see :func:`walk_settlement_reports`.
         build_ingestion: Factory taking a session and returning an
             :class:`IngestionService`.
 
@@ -180,7 +170,7 @@ async def _harvest_report(
             # Outside the session, and this is the whole point: the wait for
             # WB's next token is a minute long, and PostgreSQL closes a
             # transaction left idle for 300 s.
-            await gate.acquire(SALES_REPORTS_DETAILED_PATH, reserve_seconds=reserve_seconds)
+            await gate.acquire(SALES_REPORTS_DETAILED_PATH)
         except IntegrationError as exc:
             logger.warning(
                 "finreports: settlement report %d for %s stopped — no rate token: %s",

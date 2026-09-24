@@ -78,7 +78,6 @@ async def walk_settlement_window(
     reports: Sequence[MissingReport],
     build_ingestion: object,
     cursor: int = 0,
-    reserve_seconds: float = 0.0,
     deadline: float | None = None,
 ) -> WindowWalk:
     """Fetch every report in ``reports`` as one paged walk over their span.
@@ -95,8 +94,6 @@ async def walk_settlement_window(
             certified by this walk. Order does not matter; the span does.
         build_ingestion: Factory taking a session and returning an
             ``IngestionService``.
-        reserve_seconds: Non-zero marks this as background work that yields its
-            window to anything a person is waiting on.
         cursor: ``rrdId`` to resume from; 0 starts the window. Non-zero is a
             window a previous tick opened and ran out of time on.
         deadline: ``time.monotonic()`` value past which no further page is
@@ -123,7 +120,7 @@ async def walk_settlement_window(
             # Outside the session, like every other settlement request: the
             # wait for WB's next token is a minute long and PostgreSQL closes a
             # transaction left idle for 300 s.
-            await gate.acquire(SALES_REPORTS_BY_PERIOD_PATH, reserve_seconds=reserve_seconds)
+            await gate.acquire(SALES_REPORTS_BY_PERIOD_PATH)
         except IntegrationError as exc:
             logger.warning(
                 "finreports: settlement window %s..%s for %s stopped — no rate token: %s",
