@@ -33,6 +33,7 @@ from __future__ import annotations
 import time
 from collections.abc import Sequence
 from datetime import date
+from typing import NamedTuple
 
 from src.core.config import settings
 from src.core.exceptions import IntegrationError
@@ -42,7 +43,6 @@ from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.modules.finreports.tasks.settlement.page import _ingest_one_streamed_page
 from src.modules.finreports.tasks.settlement.reports import (
     MissingReport,
-    SettlementWalk,
     _book_report,
 )
 from src.modules.workspaces.contract import WorkspaceTokenBundle
@@ -50,14 +50,37 @@ from src.modules.workspaces.contract import WorkspaceTokenBundle
 logger = get_logger(__name__)
 
 
+class WindowWalk(NamedTuple):
+    """What one tick achieved on a window, and where to pick it up.
+
+    Attributes:
+        rows: Rows committed by this tick. Real even when the window is not
+            finished — pages commit per batch and are upserted by ``rrd_id``.
+        ok: False when WB withheld a page or refused a token. The window is
+            not finished and nothing was booked.
+        next_cursor: ``rrdId`` to resume from when the tick ran out of time
+            with the window still open, or ``None`` when there is nothing left
+            to resume — the window either finished (and booked) or failed.
+
+    ``ok=True, next_cursor=None`` is the only state in which the reports were
+    booked, which is what keeps «a header means the whole report is here» true
+    across a window that took several ticks.
+    """
+
+    rows: int
+    ok: bool
+    next_cursor: int | None
+
+
 async def walk_settlement_window(
     *,
     tokens: WorkspaceTokenBundle,
     reports: Sequence[MissingReport],
     build_ingestion: object,
+    cursor: int = 0,
     reserve_seconds: float = 0.0,
     deadline: float | None = None,
-) -> SettlementWalk:
+) -> WindowWalk:
     """Fetch every report in ``reports`` as one paged walk over their span.
 
     The span is the whole stretch the reports cover, so reports we already hold
@@ -74,6 +97,8 @@ async def walk_settlement_window(
             ``IngestionService``.
         reserve_seconds: Non-zero marks this as background work that yields its
             window to anything a person is waiting on.
+        cursor: ``rrdId`` to resume from; 0 starts the window. Non-zero is a
+            window a previous tick opened and ran out of time on.
         deadline: ``time.monotonic()`` value past which no further page is
             asked for. A backstop, not a pace: the caller sizes the span so it
             fits, and this is what keeps a mis-sized one from running past the
@@ -82,18 +107,17 @@ async def walk_settlement_window(
             catches. NEVA spent sixteen hours in that state on 2026-09-24.
 
     Returns:
-        A :class:`SettlementWalk`. ``windows_failed`` is 0 or 1 — the window is
-        the unit here — and ``completed_through`` is the span's end once every
-        page has landed, or ``None`` when any of them did not.
+        A :class:`WindowWalk`. The reports are booked on exactly one outcome —
+        every page landed — so a window that failed or ran out of tick leaves
+        them missing and its rows in place, to be upserted over next time.
     """
     if not tokens.finance or not reports:
-        return SettlementWalk(0, 0, None)
+        return WindowWalk(0, True, None)
 
     span_from = min(_starts_at(report) for report in reports)
     span_to = max(report.date_to for report in reports)
     gate = finance_reports_rate_gate(settings, token=tokens.finance)
     rows = 0
-    cursor = 0
     while True:
         try:
             # Outside the session, like every other settlement request: the
@@ -108,7 +132,7 @@ async def walk_settlement_window(
                 tokens.name,
                 exc,
             )
-            return SettlementWalk(rows, 1, None)
+            return WindowWalk(rows, False, None)
         page = await _ingest_one_streamed_page(
             tokens=tokens,
             period=(span_from, span_to),
@@ -120,19 +144,27 @@ async def walk_settlement_window(
         # committed whatever batches reached the database.
         rows += page.rows
         if not page.ok:
-            return SettlementWalk(rows, 1, None)
+            return WindowWalk(rows, False, None)
         if page.next_cursor is None:
             break
         if deadline is not None and time.monotonic() >= deadline:
-            logger.warning(
-                "finreports: settlement window %s..%s for %s ran out of tick after %d rows; "
-                "the span is wider than one tick can pay for.",
+            # Out of tick with the window still open. The pages already
+            # committed stay committed, nothing is booked, and the cursor goes
+            # back to the caller so the NEXT tick continues this same window
+            # rather than starting it again. Before this, a run too wide for one
+            # tick threw away everything it had fetched and did so for ever:
+            # NEVA sat on `window 2025-05-05..2025-07-27 ran out of tick after
+            # 300000 rows`, every sweep, 2026-09-24.
+            logger.info(
+                "finreports: settlement window %s..%s for %s paused at %d rows; "
+                "the next tick resumes it from rrd_id %d.",
                 span_from,
                 span_to,
                 tokens.name,
                 rows,
+                page.next_cursor,
             )
-            return SettlementWalk(rows, 1, None)
+            return WindowWalk(rows, True, page.next_cursor)
         cursor = page.next_cursor
 
     # Booked only now, and only because the whole span landed. Booking a report
@@ -148,7 +180,7 @@ async def walk_settlement_window(
         len(reports),
         tokens.name,
     )
-    return SettlementWalk(rows, 0, span_to)
+    return WindowWalk(rows, True, None)
 
 
 def _starts_at(report: MissingReport) -> date:
@@ -162,4 +194,4 @@ def _starts_at(report: MissingReport) -> date:
     return report.header.date_from if report.header is not None else report.date_to
 
 
-__all__ = ["walk_settlement_window"]
+__all__ = ["WindowWalk", "walk_settlement_window"]

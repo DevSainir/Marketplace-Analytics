@@ -29,12 +29,13 @@ from src.modules.finreports.tasks.settlement.reports import (
     SettlementWalk,
     walk_settlement_reports,
 )
-from src.modules.finreports.tasks.settlement.window import walk_settlement_window
+from src.modules.finreports.tasks.settlement.window import WindowWalk, walk_settlement_window
 
 __all__ = [
     "MAX_RETRIES",
     "MissingReport",
     "SettlementWalk",
+    "WindowWalk",
     "_ingest_one_streamed_page",
     "walk_settlement_reports",
     "walk_settlement_window",

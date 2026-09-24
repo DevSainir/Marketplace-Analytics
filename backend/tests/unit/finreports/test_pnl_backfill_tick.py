@@ -21,8 +21,8 @@ import pytest
 
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
-from src.modules.finreports.tasks.backfill import discovery, walk
-from src.modules.finreports.tasks.settlement import MissingReport, SettlementWalk
+from src.modules.finreports.tasks.backfill import batch, discovery, walk
+from src.modules.finreports.tasks.settlement import MissingReport, SettlementWalk, WindowWalk
 from src.modules.workspaces.schemas import WorkspaceTokenBundle
 
 TODAY = date(2026, 9, 23)
@@ -84,8 +84,8 @@ def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _unpatched(**_kwargs: Any) -> SettlementWalk:
         raise AssertionError("this test reached a WB walk it did not stub")
 
-    monkeypatch.setattr(walk, "walk_settlement_reports", _unpatched)
-    monkeypatch.setattr(walk, "walk_settlement_window", _unpatched)
+    monkeypatch.setattr(batch, "walk_settlement_reports", _unpatched)
+    monkeypatch.setattr(batch, "walk_settlement_window", _unpatched)
 
 
 def _backlog(
@@ -123,7 +123,7 @@ def _fetch(monkeypatch: pytest.MonkeyPatch, *, rows: int = 500, failed: int = 0)
         asked.append(reports)
         return SettlementWalk(rows=rows, windows_failed=failed, completed_through=None)
 
-    monkeypatch.setattr(walk, "walk_settlement_reports", _walk)
+    monkeypatch.setattr(batch, "walk_settlement_reports", _walk)
     return asked
 
 
@@ -133,11 +133,11 @@ def _fetch_window(
     """Make the by-period walk answer, and record the spans it was asked for."""
     windows: list[Any] = []
 
-    async def _walk(*, reports: tuple[MissingReport, ...], **_kwargs: Any) -> SettlementWalk:
+    async def _walk(*, reports: tuple[MissingReport, ...], **_kwargs: Any) -> WindowWalk:
         windows.append(reports)
-        return SettlementWalk(rows=rows, windows_failed=failed, completed_through=None)
+        return WindowWalk(rows=rows, ok=not failed, next_cursor=None)
 
-    monkeypatch.setattr(walk, "walk_settlement_window", _walk)
+    monkeypatch.setattr(batch, "walk_settlement_window", _walk)
     return windows
 
 
@@ -172,7 +172,7 @@ async def test_a_tick_takes_the_newest_reports_when_it_cannot_take_them_all(
     due = tuple(_report(900 + n, weeks_back=7 + n) for n in range(3))
     _backlog(monkeypatch, due=due, outstanding=3, total=10)
     windows = _fetch_window(monkeypatch)
-    monkeypatch.setattr(walk, "REPORTS_PER_TICK", 2)
+    monkeypatch.setattr(batch, "REPORTS_PER_TICK", 2)
 
     await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
 
@@ -218,7 +218,7 @@ async def test_a_tick_out_of_time_stops_between_reports_and_leaves_the_rest(
     due = tuple(_report(900 + n, weeks_back=7 + n, listed=False) for n in range(4))
     _backlog(monkeypatch, due=due, outstanding=4, total=10)
     asked = _fetch(monkeypatch)
-    monkeypatch.setattr(walk, "_TICK_WORK_BUDGET_SECONDS", -1.0)
+    monkeypatch.setattr(batch, "_TICK_WORK_BUDGET_SECONDS", -1.0)
 
     step = await walk.advance_pnl(_tokens(), cursor=None, build_ingestion=object())
 

@@ -35,6 +35,7 @@ import uuid
 from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import date, timedelta
+from typing import NamedTuple
 
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
@@ -200,7 +201,23 @@ def advance_ceiling(attempted: tuple[MissingReport, ...], ceiling: date) -> date
     return min(report.date_to for report in attempted) - timedelta(days=1)
 
 
-def parse_cursor(cursor: str) -> tuple[date, int, int] | None:
+class InFlight(NamedTuple):
+    """A window a previous tick opened and ran out of time on.
+
+    Attributes:
+        span_from / span_to: The period being walked. Kept rather than
+            recomputed, because the run it was built from is a fact about the
+            moment it started — re-deriving it after a page landed would give a
+            different, shorter run and leave the rows already fetched orphaned.
+        cursor: ``rrdId`` the walk reached.
+    """
+
+    span_from: date
+    span_to: date
+    cursor: int
+
+
+def parse_cursor(cursor: str) -> tuple[date, int, int, InFlight | None] | None:
     """Read the cursor back: ceiling, sweep number, backlog at its start.
 
     Returns ``None`` for anything that is not this shape, which the caller
@@ -222,27 +239,46 @@ def parse_cursor(cursor: str) -> tuple[date, int, int] | None:
         cursor: The stored cursor.
 
     Returns:
-        ``(ceiling, sweep, outstanding_at_sweep_start)``, or ``None`` when the
-        cursor is not one this lane wrote.
+        ``(ceiling, sweep, outstanding_at_sweep_start, in_flight)``, or ``None``
+        when the cursor is not one this lane wrote. ``in_flight`` is the window
+        a previous tick left open, and is absent from most cursors.
     """
     parts = cursor.split(_SEP)
-    if len(parts) != 3 or not (parts[1].isdigit() and parts[2].isdigit()):
+    if len(parts) not in (3, 6) or not (parts[1].isdigit() and parts[2].isdigit()):
         return None
     try:
         ceiling = date.fromisoformat(parts[0])
+        in_flight = (
+            InFlight(date.fromisoformat(parts[3]), date.fromisoformat(parts[4]), int(parts[5]))
+            if len(parts) == 6
+            else None
+        )
     except ValueError:
         return None
-    return ceiling, int(parts[1]), int(parts[2])
+    return ceiling, int(parts[1]), int(parts[2]), in_flight
 
 
-def format_cursor(ceiling: date, sweep: int, outstanding_at_sweep_start: int) -> str:
-    """Write the ceiling, the sweep number and its opening backlog into one string."""
-    return _SEP.join((ceiling.isoformat(), str(sweep), str(outstanding_at_sweep_start)))
+def format_cursor(
+    ceiling: date,
+    sweep: int,
+    outstanding_at_sweep_start: int,
+    in_flight: InFlight | None = None,
+) -> str:
+    """Write the ceiling, the sweep, its opening backlog and any open window."""
+    fields = [ceiling.isoformat(), str(sweep), str(outstanding_at_sweep_start)]
+    if in_flight is not None:
+        fields += [
+            in_flight.span_from.isoformat(),
+            in_flight.span_to.isoformat(),
+            str(in_flight.cursor),
+        ]
+    return _SEP.join(fields)
 
 
 __all__ = [
     "WB_REPORTS_EPOCH",
     "Backlog",
+    "InFlight",
     "advance_ceiling",
     "format_cursor",
     "held_report_ids",

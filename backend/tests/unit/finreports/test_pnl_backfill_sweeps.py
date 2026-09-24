@@ -27,8 +27,8 @@ from typing import Any
 import pytest
 
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
-from src.modules.finreports.tasks.backfill import discovery, walk
-from src.modules.finreports.tasks.settlement import MissingReport, SettlementWalk
+from src.modules.finreports.tasks.backfill import batch, discovery, walk
+from src.modules.finreports.tasks.settlement import MissingReport, SettlementWalk, WindowWalk
 from src.modules.workspaces.schemas import WorkspaceTokenBundle
 
 TODAY = date(2026, 9, 23)
@@ -90,8 +90,8 @@ def _no_wb(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _unpatched(**_kwargs: Any) -> SettlementWalk:
         raise AssertionError("this test reached a WB walk it did not stub")
 
-    monkeypatch.setattr(walk, "walk_settlement_reports", _unpatched)
-    monkeypatch.setattr(walk, "walk_settlement_window", _unpatched)
+    monkeypatch.setattr(batch, "walk_settlement_reports", _unpatched)
+    monkeypatch.setattr(batch, "walk_settlement_window", _unpatched)
 
 
 def _backlog(
@@ -121,7 +121,7 @@ def _fetch(monkeypatch: pytest.MonkeyPatch, *, rows: int = 500, failed: int = 0)
         asked.append(reports)
         return SettlementWalk(rows=rows, windows_failed=failed, completed_through=None)
 
-    monkeypatch.setattr(walk, "walk_settlement_reports", _walk)
+    monkeypatch.setattr(batch, "walk_settlement_reports", _walk)
     return asked
 
 
@@ -131,11 +131,11 @@ def _fetch_window(
     """Make the by-period walk answer, and record the spans it was asked for."""
     windows: list[Any] = []
 
-    async def _walk(*, reports: tuple[MissingReport, ...], **_kwargs: Any) -> SettlementWalk:
+    async def _walk(*, reports: tuple[MissingReport, ...], **_kwargs: Any) -> WindowWalk:
         windows.append(reports)
-        return SettlementWalk(rows=rows, windows_failed=failed, completed_through=None)
+        return WindowWalk(rows=rows, ok=not failed, next_cursor=None)
 
-    monkeypatch.setattr(walk, "walk_settlement_window", _walk)
+    monkeypatch.setattr(batch, "walk_settlement_window", _walk)
     return windows
 
 
@@ -179,7 +179,7 @@ async def test_a_sweep_that_achieved_something_goes_round_again_from_the_top(
     )
 
     assert step.cursor is not None
-    ceiling, sweep, at_start = discovery.parse_cursor(step.cursor) or (None, 0, 0)
+    ceiling, sweep, at_start, _open = discovery.parse_cursor(step.cursor) or (None, 0, 0, None)
     assert ceiling == TODAY, "the new sweep starts at the newest end again"
     assert (sweep, at_start) == (2, 2)
 

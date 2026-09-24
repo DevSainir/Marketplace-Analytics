@@ -267,7 +267,7 @@ def test_the_cursor_survives_a_round_trip() -> None:
     """It crosses a database, a deploy and a worker recreate between ticks."""
     written = discovery.format_cursor(date(2026, 7, 1), 2, 17)
 
-    assert discovery.parse_cursor(written) == (date(2026, 7, 1), 2, 17)
+    assert discovery.parse_cursor(written) == (date(2026, 7, 1), 2, 17, None)
 
 
 def test_the_cursor_this_rewrite_replaced_is_rejected_rather_than_misread() -> None:
