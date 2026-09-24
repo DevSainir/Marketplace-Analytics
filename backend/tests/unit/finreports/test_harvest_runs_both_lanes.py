@@ -82,6 +82,15 @@ class _FakeReportRepo:
     async def report_ids_since(self, *, workspace_id: uuid.UUID, since: date) -> set[int]:
         return set()
 
+    async def incomplete_report_ids(self, *, workspace_id: uuid.UUID) -> set[int]:
+        """Nothing here is short of its own rows.
+
+        Production subtracts these from «held», because a header written beside
+        the first batch outlives a fetch that died half-way. This fixture's
+        headers are whole, so the honest answer is an empty set.
+        """
+        return set()
+
     async def list_periods(self, *, workspace_id: uuid.UUID) -> list[tuple[int, date, date]]:
         return []
 

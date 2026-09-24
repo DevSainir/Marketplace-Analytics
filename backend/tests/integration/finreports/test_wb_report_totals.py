@@ -26,7 +26,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.finreports.models import FinancialReport
+from src.modules.finreports.models import FinancialReport, LogisticsTransaction
 from src.modules.finreports.repos import FinancialReportRepository
 
 pytestmark = pytest.mark.integration
@@ -140,3 +140,97 @@ async def test_recording_nothing_writes_nothing(db_session: AsyncSession) -> Non
         await db_session.execute(select(func.count()).select_from(FinancialReport))
     ).scalar_one()
     assert (updated, after) == (0, before)
+
+
+def _sale(report_id: int, rrd_id: int, for_pay: Decimal) -> LogisticsTransaction:
+    """One «Продажа» row carrying the payout WB books for it."""
+    return LogisticsTransaction(
+        rrd_id=rrd_id,
+        workspace_id=WORKSPACE,
+        report_id=report_id,
+        rr_dt=date(2026, 8, 26),
+        supplier_oper_name="Продажа",
+        ppvz_for_pay=for_pay,
+        nm_id=123456,
+    )
+
+
+async def test_a_report_short_of_its_own_rows_stops_counting_as_held(
+    db_session: AsyncSession,
+) -> None:
+    """NEVA's August, as an assertion.
+
+    Report 981405464 covered 24-30.08 and we held 13.8 % of its money, with the
+    header present and the id in every «what do I hold» set. Nothing ever asked
+    for the rest: a set difference sees presence, and presence was written
+    beside the first batch of rows.
+
+    So presence stops being the test. WB's own `forPaySum` is, and a report that
+    does not add up to it goes back on the missing list.
+    """
+    db_session.add(_held_report(HELD))
+    db_session.add(_sale(HELD, 1, Decimal("1000.00")))
+    await db_session.flush()
+    repo = FinancialReportRepository(db_session)
+    await repo.refresh_wb_totals(
+        workspace_id=WORKSPACE,
+        totals=[(HELD, Decimal("7250.00"), Decimal("0"), Decimal("0"))],
+    )
+
+    incomplete = await repo.incomplete_report_ids(workspace_id=WORKSPACE)
+
+    assert incomplete == {HELD}
+
+
+async def test_a_report_that_adds_up_is_left_alone(db_session: AsyncSession) -> None:
+    """Otherwise every complete report is re-fetched on every sweep, for ever."""
+    db_session.add(_held_report(HELD))
+    db_session.add(_sale(HELD, 1, Decimal("1000.00")))
+    await db_session.flush()
+    repo = FinancialReportRepository(db_session)
+    await repo.refresh_wb_totals(
+        workspace_id=WORKSPACE,
+        totals=[(HELD, Decimal("1000.00"), Decimal("0"), Decimal("0"))],
+    )
+
+    assert await repo.incomplete_report_ids(workspace_id=WORKSPACE) == set()
+
+
+async def test_a_restatement_inside_the_tolerance_is_not_a_shortfall(
+    db_session: AsyncSession,
+) -> None:
+    """WB revises a settled week, so exact equality would never terminate.
+
+    A report that can never match is re-fetched every sweep for ever. Measured
+    on NEVA the two populations separate cleanly: 20 reports inside 0.5 %, the
+    worst genuine shortfall at 1.2 %.
+    """
+    db_session.add(_held_report(HELD))
+    db_session.add(_sale(HELD, 1, Decimal("1000.00")))
+    await db_session.flush()
+    repo = FinancialReportRepository(db_session)
+    await repo.refresh_wb_totals(
+        workspace_id=WORKSPACE,
+        totals=[(HELD, Decimal("1003.00"), Decimal("0"), Decimal("0"))],
+    )
+
+    assert await repo.incomplete_report_ids(workspace_id=WORKSPACE) == set()
+
+
+async def test_a_report_with_no_wb_total_is_not_guessed_at(
+    db_session: AsyncSession,
+) -> None:
+    """Without the oracle there is no evidence either way.
+
+    Every header booked before 2026-09-23 has no WB total on it. Treating those
+    as incomplete would re-fetch an entire history on no grounds — «Демо»
+    alone holds 143 of them.
+    """
+    db_session.add(_held_report(HELD))
+    await db_session.flush()
+
+    incomplete = await FinancialReportRepository(db_session).incomplete_report_ids(
+        workspace_id=WORKSPACE
+    )
+
+    assert incomplete == set()

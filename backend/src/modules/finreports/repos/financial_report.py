@@ -235,6 +235,69 @@ class FinancialReportRepository(BaseRepository):
         )
         return [row[0] for row in rows.all()]
 
+    async def incomplete_report_ids(
+        self, *, workspace_id: uuid.UUID, tolerance: float = 0.005
+    ) -> set[int]:
+        """Reports we hold a HEADER for and demonstrably not all the rows of.
+
+        «Which reports do I hold» was answered by :meth:`report_ids_since` — the
+        presence of a header — and that is only as true as the thing that writes
+        headers. Until 2026-09-23 one was written with the first batch of rows,
+        so a fetch that died half-way left a header over a fraction of a report
+        and nothing ever asked again. Measured on NEVA 2026-09-24: 14 of 107
+        reports short, one holding 13.8 % of its own money, and the seller's
+        August showing nine days of nothing.
+
+        The code no longer writes headers that way. Those rows do not repair
+        themselves, though, because the id is present and a set difference sees
+        only presence. So presence stops being the test: a report is held when
+        our own arithmetic over its rows matches the ``forPaySum`` WB served for
+        it, and both lanes subtract what this returns from their «held» set.
+
+        The decomposition is WB's, verified to the rouble on «Демо» across
+        all eight reports it has totals for: ``Продажа`` minus ``Возврат``
+        minus ``Коррекция продаж`` plus ``Добровольная компенсация при возврате``.
+
+        Args:
+            workspace_id: Tenancy scope.
+            tolerance: Relative difference treated as agreement. Not zero, and
+                the reason is termination rather than sloppiness: WB restates a
+                settled week, and a report that could never match exactly would
+                be re-fetched on every sweep for ever. Measured on NEVA the two
+                populations separate cleanly — 20 reports inside 0.5 %, the
+                worst genuine shortfall at 1.2 %.
+
+        Returns:
+            The ids to treat as NOT held. Empty for a workspace whose headers
+            carry no WB totals yet, which is the honest answer: without the
+            oracle there is no evidence either way, and guessing «incomplete»
+            would re-fetch a whole history on no grounds.
+        """
+        stmt = text("""
+            SELECT r.report_id
+              FROM finreports.financial_report r
+              LEFT JOIN finreports.logistics_transaction t
+                     ON t.report_id = r.report_id
+                    AND t.workspace_id = r.workspace_id
+             WHERE r.workspace_id = :workspace_id
+               AND r.wb_for_pay_sum IS NOT NULL
+               AND r.wb_for_pay_sum <> 0
+             GROUP BY r.report_id, r.wb_for_pay_sum
+            HAVING abs(
+                       r.wb_for_pay_sum - coalesce(sum(CASE
+                           WHEN t.supplier_oper_name = 'Продажа' THEN t.ppvz_for_pay
+                           WHEN t.supplier_oper_name IN ('Возврат', 'Коррекция продаж')
+                                THEN -t.ppvz_for_pay
+                           WHEN t.supplier_oper_name = 'Добровольная компенсация при возврате'
+                                THEN t.ppvz_for_pay
+                           ELSE 0 END), 0)
+                   ) > abs(r.wb_for_pay_sum) * :tolerance
+        """)
+        rows = await self._session.execute(
+            stmt, {"workspace_id": workspace_id, "tolerance": tolerance}
+        )
+        return {int(row[0]) for row in rows.all()}
+
     async def refresh_wb_totals(
         self, *, workspace_id: uuid.UUID, totals: Sequence[tuple[int, Decimal, Decimal, Decimal]]
     ) -> int:

@@ -178,9 +178,15 @@ async def _harvest_all_workspaces(
         # ambiguous the way a period can: a report served out of order, one WB
         # splits at a month end and a re-issued one are all just ids.
         held = {
-            bundle.workspace_id: await report_repo.report_ids_since(
-                workspace_id=bundle.workspace_id,
-                since=today - timedelta(days=SETTLEMENT_LIST_WINDOW_DAYS),
+            bundle.workspace_id: (
+                await report_repo.report_ids_since(
+                    workspace_id=bundle.workspace_id,
+                    since=today - timedelta(days=SETTLEMENT_LIST_WINDOW_DAYS),
+                )
+                # A header is not proof of a report — see `incomplete_report_ids`.
+                # NEVA's August was three reports held at 72 %, 64 % and 14 %,
+                # every id present, nothing ever asking again.
+                - await report_repo.incomplete_report_ids(workspace_id=bundle.workspace_id)
             )
             for bundle in bundles
         }

@@ -164,12 +164,18 @@ async def held_report_ids(workspace_id: uuid.UUID, *, since: date) -> Collection
         since: The scope floor — ids older than this are nobody's business.
 
     Returns:
-        The ids on file.
+        The ids on file **whose rows add up to what WB says they should**. See
+        :meth:`~src.modules.finreports.repos.financial_report.FinancialReportRepository.incomplete_report_ids`.
     """
     async with AsyncSessionLocal() as session:
-        return await FinancialReportRepository(session).report_ids_since(
-            workspace_id=workspace_id, since=since
-        )
+        repo = FinancialReportRepository(session)
+        held = await repo.report_ids_since(workspace_id=workspace_id, since=since)
+        # A header is not proof of a report. One written beside the first batch
+        # of rows — which is how they were written until 2026-09-23 — survives a
+        # fetch that died half-way, and the id alone then says «held» for ever.
+        # WB's own total is the proof, so what disagrees with it is subtracted
+        # and asked for again.
+        return held - await repo.incomplete_report_ids(workspace_id=workspace_id)
 
 
 def advance_ceiling(attempted: tuple[MissingReport, ...], ceiling: date) -> date:
