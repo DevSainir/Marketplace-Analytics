@@ -76,9 +76,10 @@ ANALYTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 }
 
 
-#: Statistics endpoints WB meters far more generously than
-#: ``/api/v5/supplier/reportDetailByPeriod``, whose ONE request per ~15 minutes
-#: the surface default is sized from.
+#: Statistics endpoints paced on buckets of their own rather than the surface
+#: default. The default was the settlement report's one request per 960 s
+#: until that report left the surface on 2026-09-22; it is one a minute now,
+#: and the notes below are about why each path was listed when it was not.
 #:
 #: Only the orders feed is listed, and only because the `guide` capture walks it
 #: daily. Measured live 2026-09-12: it answers ``x-ratelimit-limit: 10`` where
@@ -261,32 +262,24 @@ def marketplace_rate_gate(settings: Settings, *, token: str) -> RateGate:
 
 
 def statistics_rate_gate(settings: Settings, *, token: str) -> RateGate:
-    """Build the pacing gate for the statistics surface's settlement report.
+    """Build the pacing gate for the statistics surface.
 
-    Sized from a live 429 on 2026-09-07 (see the settings comment): the walk's
-    pages must be at least a minute apart, and WB answers a violation with a
-    fifteen-minute penalty block rather than a Retry-After the ladder could
-    honour — so the request must not be sent, not merely retried.
+    ``/supplier/sales`` and ``/supplier/orders`` carry buckets of their own
+    (:data:`STATISTICS_ENDPOINT_BUCKETS`); anything else takes the surface
+    default of one a minute. Buckets are per token and measurably not per
+    address — 2026-09-22, the documents bucket stayed empty for the same token
+    from a different egress.
 
-    **The bucket is per token; one endpoint's penalty block is not**
-    (``shared_block``). On 2026-09-17 five distinct fingerprints ended up
-    holding block expiries 0.77 s apart on ``reportDetailByPeriod``, with the
-    demanded values falling as the requests went out — one deadline counted
-    down, not five refusals. The fleet walk is sequential, so a per-token block
-    turns that into a cascade: every seller in turn earns its own escalating
-    block from the same shut door.
-
-    Scoped to that ONE path, and deliberately not to the surface. The ordinary
-    bucket is per token and measurably not per address — 2026-09-22, the
-    documents bucket stayed empty for the same token from a different egress —
-    and ``/api/v1/supplier/orders`` does not escalate at all, so sharing its
-    block would stall four sellers over a refusal that costs the fifth
-    nothing.
+    No path here shares its penalty block across tokens any more. That was the
+    settlement report alone (``shared_block``, measured 2026-09-17: five sellers
+    holding block expiries 0.77 s apart), and it left this surface on
+    2026-09-22. The mechanism stays in the gate for an endpoint that behaves
+    that way again.
 
     Args:
         settings: Bucket parameters and the Redis DSN.
         token: The workspace's statistics token — the bucket is per token, so
-            one seller's settlement walk never throttles another's.
+            one seller's calls never throttle another's.
 
     Returns:
         A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`

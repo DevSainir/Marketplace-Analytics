@@ -143,36 +143,18 @@ class WildberriesSettings(BaseSettings):
     # what an unpaced second consumer looks like.
     wb_advertising_bucket_capacity: int = Field(default=1, ge=1)
     wb_advertising_bucket_refill_seconds: float = Field(default=20.0, gt=0)
-    # The statistics surface's settlement report, measured live on 2026-09-07
-    # from WB's own headers: `x-ratelimit-limit: 1`, `x-ratelimit-reset: 917`.
-    # ONE request per ~15 minutes per seller token — not the per-minute budget
-    # the rest of this file is used to, and not something a walk can page
-    # through. Worse, a request made while the bucket is empty RESTARTS the
-    # window: two probes 15 minutes apart both answered 429, the second
-    # demanding a fresh 917 s. So the bucket's job here is not to pace, it is
-    # to make sure the request is not sent at all.
-    #
-    # Nothing paced it before because no seller had ever needed a second page:
-    # at `limit=10000` a one-page window is the normal case, and the first
-    # customer to exceed it (2026-09-07) found the 429, then the 897 s
-    # retry-sleep INSIDE the harvest's open transaction, then PostgreSQL
-    # closing the connection under it.
-    #
-    # The refill is 960 s rather than the 900 it was until 2026-09-09, and the
-    # 60 s of slack is the point: WB's measured reset is 917 s, so a 900 s
-    # bucket handed out its token 17 s before WB would honour it and bought a
-    # 429 for the trouble. Since that 429 also RESTARTS the window, an interval
-    # slightly too short is far more expensive than one slightly too long.
-    # This governs only the ordinary path now — after a 429 the gate is driven
-    # by WB's own `X-Ratelimit-Retry` through `RateGate.penalise`, so the
-    # constant no longer has to be right about a penalty it cannot see.
+    # The statistics surface's DEFAULT bucket — for any path not given its own
+    # in `STATISTICS_ENDPOINT_BUCKETS`. One request a minute, WB's published
+    # figure for the surface. It was one per 960 s until 2026-09-24, sized for
+    # the settlement report (`reportDetailByPeriod`, `x-ratelimit-reset: 917`),
+    # which left this surface on 2026-09-22; kept at that figure, an unlisted
+    # statistics path would have been paced at sixteen minutes a request.
     wb_statistics_bucket_capacity: int = Field(default=1, ge=1)
-    wb_statistics_bucket_refill_seconds: float = Field(default=960.0, gt=0)
-    # A page may queue this long for a token before the walk gives up. It is
-    # deliberately FAR below one refill: the walk pages inside an open
-    # transaction that PostgreSQL kills after 300 s idle, so waiting out a real
-    # block here would trade a failure the harvest reports for one it cannot.
-    # Failing fast leaves the window for the next tick and costs WB nothing.
+    wb_statistics_bucket_refill_seconds: float = Field(default=60.0, gt=0)
+    # A call may queue this long for a token before it gives up — below one
+    # refill, so a second call inside the minute fails fast instead of holding
+    # a task. That is what stops a person leaning on «Обновить» from queueing
+    # the account-wide sales feed.
     wb_statistics_max_queue_seconds: float = Field(default=45.0, gt=0)
     # The «catalogue» family — content, prices and common (tariffs). All three
     # answered `x-ratelimit-limit: 5` when probed live on 2026-09-15, and a

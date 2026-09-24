@@ -242,17 +242,16 @@ def test_pacing_can_be_switched_off_without_touching_call_sites() -> None:
     assert isinstance(gate, NullRateGate)
 
 
-async def test_the_settlement_walk_gives_up_rather_than_wait_out_a_block(
+async def test_an_unlisted_statistics_call_refuses_rather_than_queue_a_minute(
     slept: list[float],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """One request per ~15 minutes, and the walk must not sit in the queue.
+    """The surface default is one a minute, and a second call fails fast.
 
-    WB's own headers say it: `x-ratelimit-limit: 1`, `x-ratelimit-reset: 917`
-    (measured 2026-09-07). A second page therefore cannot be paced into the
-    same run — and waiting for it is worse than failing, because the walk pages
-    inside a transaction PostgreSQL closes after 300 s idle. So the gate
-    refuses instead of sleeping, and the window falls to the next tick.
+    The queue cap sits below one refill on purpose: a second call inside the
+    minute is refused instead of holding a task for it. The default was the
+    settlement report's 960 s until that report left the surface; this pins
+    what an unlisted path now gets.
 
     Redis is broken on purpose here. The factory reaches for the process-wide
     client, so on a developer's machine with Docker up this unit test used to
@@ -267,10 +266,10 @@ async def test_the_settlement_walk_gives_up_rather_than_wait_out_a_block(
     )
     gate = statistics_rate_gate(Settings(), token="a-statistics-token")
 
-    await gate.acquire("/api/v5/supplier/reportDetailByPeriod")
+    await gate.acquire("/api/v1/supplier/incomes")
 
     with pytest.raises(IntegrationError):
-        await gate.acquire("/api/v5/supplier/reportDetailByPeriod")
+        await gate.acquire("/api/v1/supplier/incomes")
     assert slept == []
 
 
