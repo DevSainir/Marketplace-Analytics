@@ -78,12 +78,11 @@ class ListedTotals(NamedTuple):
 
     The day-later screen compares these against the same three fields listed
     again — WB's figure against WB's earlier figure. Deliberately not against
-    anything we compute: our reconstruction of ``forPaySum`` is knowingly 128.26
-    KGS out on report 989286628 because of how we bucket «Коррекция продаж»
-    (see
-    :func:`~src.modules.finreports.tasks.publication_spread.record_publication_spread`),
-    so a screen built on our own arithmetic would fire on a difference that is
-    ours and miss the one that is WB's.
+    anything we compute: our reconstruction of ``forPaySum`` was 128.26 KGS out
+    on report 989286628 until «Коррекция продаж» was found to be subtracted
+    (:data:`~src.modules.finreports.constants.PAYOUT_DEDUCTED_OPERS`), and the
+    next such mistake would make a screen built on our own arithmetic fire on a
+    difference that is ours and miss the one that is WB's.
     """
 
     for_pay: Decimal | None

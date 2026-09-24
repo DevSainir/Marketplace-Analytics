@@ -31,6 +31,7 @@ from sqlalchemy import ColumnElement, and_, case, func, literal
 
 from src.modules.finreports.constants import (
     ADVERTISING_DEDUCTION_MARKER,
+    PAYOUT_DEDUCTED_OPERS,
     RETURN_OPERS,
     SALE_OPERS,
     SEPARATELY_BILLED_ACQUIRING,
@@ -245,6 +246,7 @@ _AGGREGATES: tuple[SqlExpr, ...] = (
     _sum(
         case(
             (_T.supplier_oper_name.in_(list(SALE_OPERS) + list(RETURN_OPERS)), _ZERO),
+            (_T.supplier_oper_name.in_(list(PAYOUT_DEDUCTED_OPERS)), -_T.ppvz_for_pay),
             else_=_T.ppvz_for_pay,
         )
     ),

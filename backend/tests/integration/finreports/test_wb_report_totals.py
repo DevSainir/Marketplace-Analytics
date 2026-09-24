@@ -142,14 +142,16 @@ async def test_recording_nothing_writes_nothing(db_session: AsyncSession) -> Non
     assert (updated, after) == (0, before)
 
 
-def _sale(report_id: int, rrd_id: int, for_pay: Decimal) -> LogisticsTransaction:
-    """One «Продажа» row carrying the payout WB books for it."""
+def _sale(
+    report_id: int, rrd_id: int, for_pay: Decimal, oper: str = "Продажа"
+) -> LogisticsTransaction:
+    """One settlement row (a «Продажа» unless told otherwise) and its payout."""
     return LogisticsTransaction(
         rrd_id=rrd_id,
         workspace_id=WORKSPACE,
         report_id=report_id,
         rr_dt=date(2026, 8, 26),
-        supplier_oper_name="Продажа",
+        supplier_oper_name=oper,
         ppvz_for_pay=for_pay,
         nm_id=123456,
     )
@@ -191,6 +193,33 @@ async def test_a_report_that_adds_up_is_left_alone(db_session: AsyncSession) -> 
     await repo.refresh_wb_totals(
         workspace_id=WORKSPACE,
         totals=[(HELD, Decimal("1000.00"), Decimal("0"), Decimal("0"))],
+    )
+
+    assert await repo.incomplete_report_ids(workspace_id=WORKSPACE) == set()
+
+
+async def test_a_report_adds_up_the_way_wb_totals_it(db_session: AsyncSession) -> None:
+    """Refunds and «Коррекция продаж» come off, every compensation goes on.
+
+    Report 989286628, reduced: WB's `forPaySum` subtracts a sale correction it
+    serves positive, and counts a damage compensation like a sale. The check
+    used to count four named operations and nothing else, so a report carrying
+    «Компенсация ущерба» could never add up and was re-fetched every tick.
+    """
+    db_session.add(_held_report(HELD))
+    db_session.add_all(
+        [
+            _sale(HELD, 1, Decimal("1000.00")),
+            _sale(HELD, 2, Decimal("200.00"), "Возврат"),
+            _sale(HELD, 3, Decimal("64.13"), "Коррекция продаж"),
+            _sale(HELD, 4, Decimal("500.00"), "Компенсация ущерба"),
+        ]
+    )
+    await db_session.flush()
+    repo = FinancialReportRepository(db_session)
+    await repo.refresh_wb_totals(
+        workspace_id=WORKSPACE,
+        totals=[(HELD, Decimal("1235.87"), Decimal("0"), Decimal("0"))],
     )
 
     assert await repo.incomplete_report_ids(workspace_id=WORKSPACE) == set()

@@ -38,7 +38,7 @@ from src.core.observability.metrics import (
     SETTLEMENT_PUBLICATION_SPREAD,
 )
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
-from src.modules.finreports.constants import RETURN_OPERS
+from src.modules.finreports.constants import PAYOUT_DEDUCTED_OPERS, RETURN_OPERS
 from src.modules.finreports.models import FinancialReport, LogisticsTransaction
 
 logger = get_logger(__name__)
@@ -118,12 +118,10 @@ async def reconcile_against_wb(
     operation name, never in the value: WB serves refunds POSITIVE, which is
     the mistake that doubles revenue if a reader sums the column.
 
-    That reconstruction found one live disagreement on its first use, and the
-    check is here rather than as an assertion because of it: our
-    :data:`~src.modules.finreports.constants.RETURN_OPERS` is «Возврат» alone,
-    so «Коррекция продаж» is added where WB subtracts it — 128.26 KGS on that
-    report. Whether that is our bug or WB's convention needs more than one
-    report, which is exactly what this will accumulate.
+    That reconstruction found one live disagreement on its first use: «Коррекция
+    продаж» was added where WB subtracts it — 128.26 KGS on that report, twice
+    its 64.13. It is subtracted now, see
+    :data:`~src.modules.finreports.constants.PAYOUT_DEDUCTED_OPERS`.
 
     Args:
         session: An open session. Nothing here writes.
@@ -140,7 +138,12 @@ async def reconcile_against_wb(
             select(
                 func.sum(
                     case(
-                        (LogisticsTransaction.supplier_oper_name.in_(RETURN_OPERS), -_FOR_PAY),
+                        (
+                            LogisticsTransaction.supplier_oper_name.in_(
+                                RETURN_OPERS + PAYOUT_DEDUCTED_OPERS
+                            ),
+                            -_FOR_PAY,
+                        ),
                         else_=_FOR_PAY,
                     )
                 )

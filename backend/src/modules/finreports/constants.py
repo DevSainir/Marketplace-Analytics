@@ -204,6 +204,15 @@ COMPENSATION_OPERS: tuple[str, ...] = (
     "Коррекция возвратов",
 )
 
+#: The compensations WB SUBTRACTS from what it pays, although it serves their
+#: ``ppvz_for_pay`` positive like every other. WB's own ``forPaySum`` from
+#: ``sales-reports/list`` is «Продажа» - «Возврат» - «Коррекция продаж» + the
+#: rest; adding this one instead put report 989286628 out by exactly twice its
+#: 64.13, and subtracting it agrees to the kopeck on every report «Демо»
+#: holds WB's totals for (8 of 8, 2026-09-24). «Коррекция возвратов» stays
+#: added: none of those eight carried one, so its sign is unmeasured.
+PAYOUT_DEDUCTED_OPERS: tuple[str, ...] = ("Коррекция продаж",)
+
 #: Every operation the statement knows how to place.
 CLASSIFIED_OPERS: frozenset[str] = frozenset(
     SALE_OPERS

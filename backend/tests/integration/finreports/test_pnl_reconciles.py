@@ -30,9 +30,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.finreports.repos import PnlGrouping, PnlRepository
 from tests.integration.finreports.conftest import (
+    SKU_A,
     WINDOW_FROM,
     WINDOW_TO,
     WORKSPACE,
+    _row,
     _statement,
 )
 
@@ -147,6 +149,28 @@ async def test_a_compensation_raises_the_payout_without_becoming_revenue(
     assert total.compensations == Decimal("70")
     assert total.revenue_paid == Decimal("1000") + Decimal("2000") - Decimal("500")
     assert total.payout_for_goods == total.payout_from_sales + Decimal("70")
+
+
+async def test_a_sale_correction_comes_off_the_payout_as_wb_totals_it(
+    db_session: AsyncSession, seeded: None
+) -> None:
+    """«Коррекция продаж» is served positive and subtracted, like a refund.
+
+    WB's own ``forPaySum`` takes it off; adding it instead put report 989286628
+    out by twice its 64.13. It stays out of revenue and units — it is a payout
+    correction, not a sale or a refund.
+    """
+    before = (await _statement(db_session)).total
+    db_session.add(
+        _row(99, "Коррекция продаж", nm_id=SKU_A, quantity=1, ppvz_for_pay=Decimal("64.13"))
+    )
+    await db_session.flush()
+
+    after = (await _statement(db_session)).total
+
+    assert after.payout_for_goods == before.payout_for_goods - Decimal("64.13")
+    assert after.revenue_paid == before.revenue_paid
+    assert after.net_units == before.net_units
 
 
 async def test_logistics_splits_into_forward_and_return_legs(
