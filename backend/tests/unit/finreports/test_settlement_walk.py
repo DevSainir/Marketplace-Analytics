@@ -117,8 +117,9 @@ class _FakeIngestion:
         self._journal.append(f"ingest:{total}")
         return total
 
-    async def record_report_header(self, header: Any, *, workspace_id: uuid.UUID) -> None:
+    async def record_report_header(self, header: Any, *, workspace_id: uuid.UUID) -> bool:
         self._journal.append(f"header:{header.report_id}")
+        return True
 
         return 0
 

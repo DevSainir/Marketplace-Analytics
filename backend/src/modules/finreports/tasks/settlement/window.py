@@ -170,6 +170,8 @@ async def walk_settlement_window(
     # Booked only now, and only because the whole span landed. Booking a report
     # the moment a LATER report's rows appeared would be reading `rrd_id` order
     # as date order — the very assumption this walk is not willing to make.
+    # A report the span carried no rows for is left missing rather than booked
+    # (see `_book_report`); the window itself still finished.
     for report in reports:
         await _book_report(report=report, tokens=tokens, build_ingestion=build_ingestion)
     logger.info(

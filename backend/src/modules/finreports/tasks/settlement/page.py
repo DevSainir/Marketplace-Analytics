@@ -163,7 +163,9 @@ async def _ingest_one_streamed_page(
             tokens.name,
             cursor,
         )
-        return _Page(total, None, ok=True)
+        # Not ok: a full page that ends where it began is a page we did not
+        # get the rest of, and «ok with no cursor» is what books the report.
+        return _Page(total, None, ok=False)
     return _Page(total, last_rrd_id, ok=True)
 
 

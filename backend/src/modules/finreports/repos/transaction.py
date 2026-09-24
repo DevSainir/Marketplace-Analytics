@@ -9,7 +9,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, NamedTuple
 
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import case, delete, exists, func, select
 
 from src.modules.finreports.constants import (
     LOGISTICS_OPER,
@@ -167,6 +167,12 @@ class LogisticsTransactionRepository(BaseRepository):
                 )
             )
         return written
+
+    async def holds_report(self, *, workspace_id: uuid.UUID, report_id: int) -> bool:
+        """Whether any settlement row of this report is on file for the workspace."""
+        txn = LogisticsTransaction
+        stmt = select(exists().where(txn.workspace_id == workspace_id, txn.report_id == report_id))
+        return bool((await self._session.execute(stmt)).scalar())
 
     async def aggregate_by_sku(
         self, *, workspace_id: uuid.UUID, date_from: date, date_to: date

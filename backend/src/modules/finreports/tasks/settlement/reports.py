@@ -208,7 +208,9 @@ async def _harvest_report(
             # still arriving is what made a fetch that died half-way
             # indistinguishable from one that finished — the id counted as held
             # and nothing ever asked for the rest.
-            await _book_report(report=report, tokens=tokens, build_ingestion=build_ingestion)
+            booked = await _book_report(
+                report=report, tokens=tokens, build_ingestion=build_ingestion
+            )
             logger.info(
                 "finreports: settlement report %d (through %s) ingested %d rows for %s.",
                 report.report_id,
@@ -216,7 +218,7 @@ async def _harvest_report(
                 rows,
                 tokens.name,
             )
-            return rows, True
+            return rows, booked
         cursor = page.next_cursor
 
 
@@ -225,7 +227,7 @@ async def _book_report(
     report: MissingReport,
     tokens: WorkspaceTokenBundle,
     build_ingestion: object,
-) -> None:
+) -> bool:
     """Record a completed report's header, in a transaction of its own.
 
     After the rows and never before, which is the whole point: the header is
@@ -245,6 +247,12 @@ async def _book_report(
     in ``settlement_payout_divergence``, which the alert reads. Best effort: a
     failed measurement must not undo a booking that succeeded.
 
+    Returns:
+        Whether the report is now held. ``False`` when WB listed money in it and
+        served no rows — see
+        :meth:`~src.modules.finreports.services.ingestion.service.IngestionService.record_report_header`
+        — and ``True`` for a headerless walk, which has nothing to book.
+
     Args:
         report: The report just completed, with WB's own list entry on it.
         tokens: The workspace whose report it is.
@@ -252,11 +260,21 @@ async def _book_report(
             :class:`IngestionService`.
     """
     if report.header is None:
-        return
+        return True
     async with AsyncSessionLocal() as session:
         ingestion: IngestionService = build_ingestion(session)  # type: ignore[operator]
-        await ingestion.record_report_header(report.header, workspace_id=tokens.workspace_id)
+        booked = await ingestion.record_report_header(
+            report.header, workspace_id=tokens.workspace_id
+        )
         await session.commit()
+        if not booked:
+            logger.warning(
+                "finreports: report %d for %s served no rows although WB lists money in "
+                "it; left missing to be asked for again.",
+                report.report_id,
+                tokens.name,
+            )
+            return False
         try:
             await reconcile_against_wb(
                 session, header=report.header, workspace_id=tokens.workspace_id, name=tokens.name
@@ -268,6 +286,7 @@ async def _book_report(
                 tokens.name,
                 exc_info=True,
             )
+    return True
 
 
 __all__ = ["MissingReport", "SettlementWalk", "walk_settlement_reports"]

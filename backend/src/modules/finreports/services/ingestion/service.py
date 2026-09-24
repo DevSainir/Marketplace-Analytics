@@ -104,7 +104,7 @@ class IngestionService:
 
     async def record_report_header(
         self, header: WBFinanceReportHeader, *, workspace_id: uuid.UUID
-    ) -> None:
+    ) -> bool:
         """Write one weekly report's header from WB's OWN list entry.
 
         Headers used to be derived from the rows, and that was wrong in two
@@ -127,12 +127,39 @@ class IngestionService:
         ways to get a settlement figure wrong produce a plausible statement
         rather than an error.
 
+        **Nor is a header written over no rows when WB says there is money in
+        the report.** WB lists a report before it serves its rows — 983241109
+        was served eight days late — and an empty answer then reads as «the
+        report ended». Booked, the id would count as held with nothing behind
+        it; refused, it stays missing and is asked for again. A report whose
+        every WB total is zero may be booked empty, since nothing is owed.
+
         Nothing is committed here; the caller owns the transaction.
 
         Args:
             header: WB's list entry for this report.
             workspace_id: Owning workspace.
+
+        Returns:
+            Whether the header was written.
         """
+        owes_something = any(
+            (
+                header.for_pay_sum,
+                header.retail_amount_sum,
+                header.delivery_service_sum,
+                header.paid_storage_sum,
+                header.paid_acceptance_sum,
+                header.deduction_sum,
+                header.penalty_sum,
+                header.additional_payment_sum,
+                header.bank_payment_sum,
+            )
+        )
+        if owes_something and not await self._transactions.holds_report(
+            workspace_id=workspace_id, report_id=header.report_id
+        ):
+            return False
         await self._reports.bulk_upsert(
             [
                 {
@@ -150,6 +177,7 @@ class IngestionService:
             conflict_columns=["report_id"],
             update_columns=REPORT_UPDATE,
         )
+        return True
 
     async def ingest_settlement_rows(
         self,

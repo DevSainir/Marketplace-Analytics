@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.models import FinancialReport, LogisticsTransaction
 from src.modules.finreports.repos import FinancialReportRepository
+from src.modules.finreports.tasks.ingestion_factory import build_ingestion
 from src.modules.finreports.tasks.publication_spread import reconcile_against_wb
 
 pytestmark = pytest.mark.integration
@@ -324,3 +325,32 @@ async def test_a_booked_report_short_of_wb_s_total_reports_the_gap(
     )
 
     assert gap == Decimal("250.00")
+
+
+async def test_a_report_wb_lists_money_in_is_not_booked_over_no_rows(
+    db_session: AsyncSession,
+) -> None:
+    """An empty answer for a report WB says holds money is «not yet», not «done».
+
+    WB lists a report before it serves the rows — 983241109 came eight days
+    late. Booking the header over nothing would count the id as held and never
+    ask again.
+    """
+    ingestion = build_ingestion(db_session)
+
+    booked = await ingestion.record_report_header(
+        _header(NOT_HELD, "1000.00"), workspace_id=WORKSPACE
+    )
+
+    assert booked is False
+    assert await db_session.get(FinancialReport, NOT_HELD) is None
+
+
+async def test_a_report_that_owes_nothing_may_be_booked_empty(db_session: AsyncSession) -> None:
+    """Every WB total zero: nothing is owed, so an empty report is a real one."""
+    ingestion = build_ingestion(db_session)
+
+    booked = await ingestion.record_report_header(_header(NOT_HELD, "0"), workspace_id=WORKSPACE)
+
+    assert booked is True
+    assert await db_session.get(FinancialReport, NOT_HELD) is not None

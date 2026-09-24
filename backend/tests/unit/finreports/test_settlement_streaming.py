@@ -286,7 +286,10 @@ async def test_a_streamed_page_commits_every_batch_as_it_lands(
 async def test_a_full_request_that_does_not_advance_ends_the_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A stalled `rrdid` must end the window, not be asked for forever.
+    """A stalled `rrdid` must end the window, not be asked for forever — and not book it.
+
+    Ending it as a success booked the report over whatever lay past the stall,
+    and a header is what tells every later walk the report is whole.
 
     The walk's exit test is "fewer rows than we asked for". WB could serve a
     full request whose last `rrd_id` is the one we paged FROM any day, and
@@ -338,5 +341,5 @@ async def test_a_full_request_that_does_not_advance_ends_the_window(
         gate=NullRateGate(),
     )
 
-    # The rows it did serve are kept and committed; the window simply ends.
-    assert (outcome.rows, outcome.next_cursor, outcome.ok) == (2, None, True)
+    # The rows it did serve are kept and committed; the window ends unbooked.
+    assert (outcome.rows, outcome.next_cursor, outcome.ok) == (2, None, False)
