@@ -26,8 +26,10 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.models import FinancialReport, LogisticsTransaction
 from src.modules.finreports.repos import FinancialReportRepository
+from src.modules.finreports.tasks.publication_spread import reconcile_against_wb
 
 pytestmark = pytest.mark.integration
 
@@ -270,3 +272,55 @@ async def test_a_report_with_no_wb_total_is_not_guessed_at(
     )
 
     assert incomplete == set()
+
+
+def _header(report_id: int, for_pay_sum: str) -> WBFinanceReportHeader:
+    """WB's list entry for a report, carrying only the total under test."""
+    return WBFinanceReportHeader.model_validate(
+        {
+            "reportId": report_id,
+            "dateFrom": "2026-08-24",
+            "dateTo": "2026-08-30",
+            "createDate": "2026-08-31",
+            "forPaySum": for_pay_sum,
+        }
+    )
+
+
+async def test_a_booked_report_that_adds_up_reconciles_to_zero(db_session: AsyncSession) -> None:
+    """The check a harvest runs on every report it books, agreeing with WB.
+
+    Same arithmetic as the completeness check — a «Возврат» document comes off,
+    everything else goes on — so a report that the lane counts as held is one
+    the alert stays quiet about.
+    """
+    db_session.add(_held_report(HELD))
+    db_session.add_all(
+        [
+            _sale(HELD, 1, Decimal("1000.00")),
+            _sale(HELD, 2, Decimal("200.00"), "Возврат", "Возврат"),
+            _sale(HELD, 3, Decimal("64.13"), "Коррекция продаж", "Возврат"),
+        ]
+    )
+    await db_session.flush()
+
+    gap = await reconcile_against_wb(
+        db_session, header=_header(HELD, "735.87"), workspace_id=WORKSPACE, name="Демо"
+    )
+
+    assert gap == Decimal("0")
+
+
+async def test_a_booked_report_short_of_wb_s_total_reports_the_gap(
+    db_session: AsyncSession,
+) -> None:
+    """WB's figure minus ours: positive means we hold less than WB paid."""
+    db_session.add(_held_report(HELD))
+    db_session.add(_sale(HELD, 1, Decimal("1000.00")))
+    await db_session.flush()
+
+    gap = await reconcile_against_wb(
+        db_session, header=_header(HELD, "1250.00"), workspace_id=WORKSPACE, name="Демо"
+    )
+
+    assert gap == Decimal("250.00")

@@ -196,6 +196,31 @@ groups:
             переспросить от водяного знака. Если знак ушёл вперёд, а строк
             за пропущенные дни нет — вернулся сбой от 2026-09-07.
 
+      # WB's own forPaySum against ours, taken the moment a report is booked —
+      # rows and total from the same fetch, so a gap is ours: a report cut
+      # short, or an operation signed the wrong way. The rule behind "ours" is
+      # REFUND_DOC_TYPE; it matched all 143 reports of «Демо» to the kopeck
+      # on 2026-09-24, so anything from a rouble up is news. A report that does
+      # not add up is re-fetched every tick (incomplete_report_ids) and is
+      # observed again each time, which is what keeps this firing until fixed.
+      - alert: SettlementPayoutDisagreesWithWb
+        expr: >-
+          increase(settlement_payout_divergence_count[6h])
+          - increase(settlement_payout_divergence_bucket{le="1.0"}[6h]) > 0
+        for: 30m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Сумма «к перечислению» по отчёту не сходится с итогом WB."
+          description: >-
+            Отчёт записан, но наша сумма `ppvz_for_pay` расходится с
+            `forPaySum` из `sales-reports/list` больше чем на рубль. В логе
+            worker ищите «totals … here against WB's» — там номер отчёта и
+            разница. Либо отчёт дочитан не весь (его перекачает следующий
+            тик), либо у WB появилась операция или тип документа, которые мы
+            считаем с другим знаком — см. docs/finreports/PNL.md, раздел про
+            знак выплаты.
+
       - alert: HarvestPartial
         expr: increase(harvest_partial_total[1h]) > 3
         for: 0m

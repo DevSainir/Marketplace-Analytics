@@ -424,3 +424,27 @@ async def test_a_walk_carrying_no_header_books_nothing(journal: list[str]) -> No
 
     assert "ingest:2" in journal, "the rows still land"
     assert not [entry for entry in journal if entry.startswith("header:")]
+
+
+async def test_a_booked_report_is_checked_against_wb_s_own_total(
+    journal: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Booking is when rows and WB's total come from one fetch, so it is when to compare.
+
+    The comparison existed from 2026-09-22 and nothing called it: the metric the
+    alert reads stayed empty, and the one disagreement ever measured was found by
+    hand.
+    """
+
+    async def _reconcile(_session: Any, *, header: Any, **_kwargs: Any) -> None:
+        journal.append(f"reconcile:{header.report_id}")
+
+    monkeypatch.setattr(settlement_module, "reconcile_against_wb", _reconcile)
+
+    await walk_settlement_reports(
+        tokens=_tokens(),
+        reports=(_REPORTS[0]._replace(header=_HEADER),),
+        build_ingestion=_ingestion_factory(journal),
+    )
+
+    assert journal.index("header:801") < journal.index("reconcile:801")

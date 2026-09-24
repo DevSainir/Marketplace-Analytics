@@ -403,6 +403,15 @@ watched it. A wide one is ambiguous, and the logs, which carry `workspace_id`, a
 gets interpreted. The usual split: the metric says whether the fleet saw it together, the
 logs say who was late.
 
+**`settlement_payout_divergence`** (added 2026-09-22, first observed 2026-09-24 — nothing
+called it for two days) is the absolute gap, per booked settlement report, between WB's own
+`forPaySum` from `sales-reports/list` and our Σ `ppvz_for_pay` with every «Возврат» document
+negated. It is observed the moment a report is booked, when rows and total come from the same
+fetch, so a gap is ours rather than a later restatement by WB. `SettlementPayoutDisagreesWithWb`
+fires on any report a rouble or more out. The rule it tests matched all 143 reports of
+«Демо» on the day it was written; the log line («totals … here against WB's») carries the
+report id and the difference.
+
 ### The backfill group, and why it alerts on an absence
 
 A new organisation's history arrives as four lanes of self-enqueueing ticks —

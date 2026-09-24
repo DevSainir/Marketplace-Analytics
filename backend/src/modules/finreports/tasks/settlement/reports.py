@@ -29,6 +29,7 @@ from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
 from src.integrations.wildberries.rate_limit import RateGate, finance_reports_rate_gate
 from src.integrations.wildberries.schemas import WBFinanceReportHeader
 from src.modules.finreports.services import IngestionService
+from src.modules.finreports.tasks.publication_spread import reconcile_against_wb
 from src.modules.finreports.tasks.settlement.page import _ingest_one_streamed_page
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
@@ -238,6 +239,12 @@ async def _book_report(
     upserted by ``rrd_id``; the report simply stays on the missing list and is
     fetched again, writing the same rows and then the header.
 
+    Then the booked report is checked against WB's own ``forPaySum``. At this
+    moment the rows and the total come from the same fetch, so any gap is ours
+    — a report cut short, or an operation signed the wrong way — and it lands
+    in ``settlement_payout_divergence``, which the alert reads. Best effort: a
+    failed measurement must not undo a booking that succeeded.
+
     Args:
         report: The report just completed, with WB's own list entry on it.
         tokens: The workspace whose report it is.
@@ -250,6 +257,17 @@ async def _book_report(
         ingestion: IngestionService = build_ingestion(session)  # type: ignore[operator]
         await ingestion.record_report_header(report.header, workspace_id=tokens.workspace_id)
         await session.commit()
+        try:
+            await reconcile_against_wb(
+                session, header=report.header, workspace_id=tokens.workspace_id, name=tokens.name
+            )
+        except Exception:
+            logger.warning(
+                "finreports: could not check report %d against WB's total for %s.",
+                report.report_id,
+                tokens.name,
+                exc_info=True,
+            )
 
 
 __all__ = ["MissingReport", "SettlementWalk", "walk_settlement_reports"]
