@@ -387,6 +387,11 @@ It records what WB **demanded**, not the longer block we then serve. The margin
 in `penalise` is our policy (`_BLOCK_MARGIN`, 1.25) and folding it in would make
 the series describe us rather than WB.
 
+*Retired 2026-09-24 — the metric and `record_publication_spread` are deleted, because the
+question was answered: the first fleet harvest on finance-api recorded 0.00-0.20 h across five
+sellers, which is our own sequential loop, and WB publishes to all sellers at once. The note
+below is kept as the reasoning that built it.*
+
 One metric added 2026-09-21 has no alert and is not meant to get one:
 **`settlement_publication_spread_hours`** exists to answer a design question and then, most
 likely, to be deleted. On the day WB forms a settlement report every seller spends its own
