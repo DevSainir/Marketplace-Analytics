@@ -164,8 +164,10 @@ export function subsetDashboard(rows, base = null) {
  * в сумму попадает строка «Без привязки к артикулу» — а вместе с ней и удержанный
  * счёт, — вычесть сверху ещё и открут значит списать рекламу дважды. Поэтому
  * счета возвращаются обратно ровно в этом случае: это та же поправка, которую
- * бэкенд делает в `build_sku_report`, и без неё «Итого» разошлось бы с карточкой
- * «Прибыль» на всю рекламу периода (на живом окне это были миллионы).
+ * бэкенд делает в `build_sku_report`, и без неё «Итого» разошлось бы с его
+ * итогом на всю рекламу периода (на живом окне это были миллионы). И так же, как
+ * там, — только когда открут известен: без него счёт единственная цифра рекламы,
+ * и вернуть его, ничего не вычтя взамен, значит завысить прибыль на все счета.
  *
  * @param {Array<object>} rows Плоские строки из {@link toRow} — то, что отрисовано.
  * @param {number} adInvoices Удержанные WB счета за рекламу («ВБ.Продвижение»)
@@ -194,9 +196,10 @@ export function sumRows(rows, adInvoices = 0) {
   const advertisingCash = known('advertisingCash')
   const payout = sum('payout')
 
-  const hasBucket = included.some((r) => r.isBucket)
+  // Без открута подменять нечем: счёт остаётся внутри «К перечислению».
+  const returnInvoices = included.some((r) => r.isBucket) && advertisingCash !== null
   const profit =
-    cogs === null ? null : payout + (hasBucket ? n(adInvoices) : 0) - cogs - n(advertisingCash)
+    cogs === null ? null : payout + (returnInvoices ? n(adInvoices) : 0) - cogs - n(advertisingCash)
 
   return {
     nmId: 0,

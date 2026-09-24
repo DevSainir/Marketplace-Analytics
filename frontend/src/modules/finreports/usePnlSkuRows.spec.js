@@ -134,6 +134,33 @@ describe('sumRows — строка «Итого»', () => {
     expect(t.profit).toBe(230)
   })
 
+  it('без данных по рекламе счёт не возвращается — вычитать нечего', () => {
+    // Счёт — тогда единственная цифра рекламы, и он остаётся внутри «К
+    // перечислению». Вернуть его, ничего не вычтя взамен, значит показать
+    // прибыль больше на все счета периода. Бэкенд делает так же.
+    const bucket = flat({
+      nmId: 0,
+      isBucket: true,
+      orders: null,
+      sold: 0,
+      returned: 0,
+      sales: 0,
+      paid: 0,
+      logistics: 0,
+      penalties: 0,
+      cogs: null,
+      advertising: null,
+      adBonus: null,
+      advertisingCash: null,
+      payout: -500,
+      profit: null,
+    })
+    const t = sumRows([flat({ advertising: null, advertisingCash: null }), bucket], 500)
+
+    // 600 - 500 (удержанный счёт) - 300, без открута и без возврата счёта
+    expect(t.profit).toBe(-200)
+  })
+
   it('без строки счёта поправки нет — удержания счёта в сумме тоже нет', () => {
     const t = sumRows([flat()], 500)
 
