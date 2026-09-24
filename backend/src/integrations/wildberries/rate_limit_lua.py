@@ -229,6 +229,10 @@ return {tostring(until_ms), tostring(block_ms)}
 #: So the block is written twice — once to the token's own bucket, once here,
 #: to a key naming only the surface and the endpoint. It is never shortened:
 #: whichever refusal reaches furthest into the future is the one that stands.
+#:
+#: The endpoint this was measured on is `reportDetailByPeriod`, which the
+#: service left on 2026-09-22. No gate passes ``shared_block`` any more
+#: (2026-09-24); the script stays for the next endpoint that refuses this way.
 SHARE_BLOCK_LUA = """
 local now = redis.call('TIME')
 local now_ms = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)

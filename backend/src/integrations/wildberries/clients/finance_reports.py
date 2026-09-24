@@ -1,35 +1,37 @@
 """The realization report, on the surface WB actually maintains.
 
-``GET /api/v5/supplier/reportDetailByPeriod`` — what
-:mod:`src.integrations.wildberries.clients.finance` calls — was announced for
-shutdown on **15 July 2026** and is absent from WB's current documentation. It
-still answers, at one request per ~917 s and with escalating multi-hour blocks
-that no official source describes; that is what a switched-off endpoint looks
-like rather than a policy.
+``GET /api/v5/supplier/reportDetailByPeriod`` — what the deleted
+``clients/finance.py`` (``WBFinanceClient``) called until 2026-09-22 — was
+announced for shutdown on **15 July 2026** and is absent from WB's current
+documentation. It answered at one request per ~917 s and with escalating
+multi-hour blocks that no official source describes; that is what a
+switched-off endpoint looks like rather than a policy.
 
-These two methods replace it, on ``finance-api.wildberries.ru`` with the
-«Финансы» token, at **one request per minute each**:
+These three methods replace it, on ``finance-api.wildberries.ru`` with the
+«Финансы» token, at **one request per minute each**, each its own bucket:
 
-* :meth:`list_reports` — every report WB has formed, with ``createDate`` served
-  rather than derived, and WB's own totals per report.
+* :meth:`list_reports` — every report WB has formed, weekly or daily, with
+  ``createDate`` served rather than derived, and WB's own totals per report.
 * :meth:`stream_report_rows` — the detail rows of ONE report, paged by
   ``rrdId``.
+* :meth:`stream_rows_by_period` — the same rows for a settlement period,
+  several reports to a page.
 
-Two consequences worth stating, because they retire machinery rather than
-speed it up.
+Two consequences worth stating, because they retired machinery rather than
+sped it up.
 
 **Discovery stops competing with fetching.** The list is a separate bucket, so
 «is there a new report» no longer spends the budget that fetching one needs —
-which is the whole problem
-:mod:`src.modules.finreports.services.publication` was built to avoid by
-arithmetic.
+which is the whole problem the publication calendar
+(``finreports/services/publication.py``, deleted 2026-09-23) was built to avoid
+by arithmetic.
 
-**The walk is by report, not by date window.** The old endpoint took a period
-and the walk cut it into weeks because a week was one report's worth; here the
-report id IS the unit, so a window that half-completes is not a state that can
-exist. A seller on WB's forum documented that ``rrd_id`` is not monotonic by
-date across report boundaries on the by-period method — paging one report at a
-time removes that hazard too.
+**The forward walk is by report, not by date window.** The old endpoint took a
+period and the walk cut it into weeks because a week was one report's worth;
+here the report id IS the unit, so a report either is complete or is not. A
+seller on WB's forum documented that ``rrd_id`` is not monotonic by date across
+report boundaries on the by-period method — paging one report at a time
+removes that hazard too.
 
 :meth:`stream_rows_by_period` has one caller, the history backfill's window
 walk (``tasks/settlement/window.py``), and only for a RUN of consecutive owed

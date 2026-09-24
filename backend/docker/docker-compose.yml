@@ -372,7 +372,10 @@ services:
     # bought time; the same growth would have reached any number written here.
     #
     # The walk is now streamed and ingested a page at a time, so the peak is
-    # fixed by `WBFinanceClient._PAGE_LIMIT` instead. Measured over the whole
+    # fixed by `WBFinanceClient._PAGE_LIMIT` instead. (That v5 client is gone
+    # since 2026-09-22; `WBFinanceReportsClient` parses its 100 000-row pages
+    # as they arrive and commits per batch, so the peak is now set by the
+    # batch, `_STREAM_BATCH`, rather than by the page.) Measured over the whole
     # window: +191 / +229 / +226 MB for 20k / 40k / 80k rows — flat, which is
     # the property that makes this ceiling a fact rather than a forecast.
     # 768m clears the ~355 MB steady state plus that peak with room for the

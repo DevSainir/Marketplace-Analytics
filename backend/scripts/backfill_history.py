@@ -38,8 +38,9 @@ personal/service/base-with-secret tokens get the first figure, a plain basic
 * normquery: 10 req/min (basic: 2 req/hour);
 * supplier/sales: 1 req/min (basic: 1 req per 2 HOURS — the limit observed on
   this account). If the slot is spent, the phase fails fast and the next run
-  picks it up. Older sales than 90 days would need the financial
-  ``reportDetailByPeriod`` feed — a separate integration, not built here.
+  picks it up. Older sales than 90 days would need the financial realization
+  report (``reportDetailByPeriod`` then, finance-api ``sales-reports`` since
+  2026-09-22) — the finreports P&L backfill, not this script.
 
 The script takes the same Redis locks as the nightly jobs so they cannot
 compete for the WB budget mid-run; a run spanning 06:00-07:00 MSK simply makes

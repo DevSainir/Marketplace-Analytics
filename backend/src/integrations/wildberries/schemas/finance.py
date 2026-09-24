@@ -1,6 +1,9 @@
 """Raw payload model for the WB Finance realization report.
 
-Finance — realization report: ``GET /api/v5/supplier/reportDetailByPeriod``.
+Finance — realization report. Until 2026-09-22 this was
+``GET /api/v5/supplier/reportDetailByPeriod``, which :class:`WBReportDetailRow`
+still spells; the service now reads ``POST /api/finance/v1/sales-reports/*``
+through :class:`WBFinanceReportRow`, which aliases the new names onto the old.
 
 Verified live shape (2026-07-29, KGS account, report 969371534 / 7 097 rows): a
 flat list of settlement rows, one per ``rrd_id``. ``RawBase`` ignores whatever WB
@@ -43,7 +46,11 @@ def _camel(name: str) -> str:
 
 
 class WBReportDetailRow(RawBase):
-    """One settlement operation from ``reportDetailByPeriod`` (raw)."""
+    """One settlement operation, under the field names ``reportDetailByPeriod`` used (raw).
+
+    Nothing fetches this shape directly since 2026-09-22; it survives as the base
+    :class:`WBFinanceReportRow` aliases onto, so every consumer keeps its names.
+    """
 
     @field_validator(
         "rr_dt",
@@ -226,8 +233,9 @@ class WBFinanceReportHeader(RawBase):
 
     The discovery method the old surface had no equivalent of: it names every
     report WB has formed for the seller, with `createDate` served rather than
-    derived from the period arithmetic in
-    `src.modules.finreports.services.publication`.
+    derived from the period arithmetic that
+    `src.modules.finreports.services.publication` did until it was deleted on
+    2026-09-23.
 
     It also carries WB's OWN totals for the report. `docs/finreports/PNL.md`
     warns that most ways to get a settlement figure wrong produce a plausible

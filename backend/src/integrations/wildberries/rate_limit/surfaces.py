@@ -119,7 +119,7 @@ STATISTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 
 #: How long a background walk must let a token sit before it may take it.
 #:
-#: Several things want the report endpoint: the quarter-hourly harvest, a seller
+#: Several things want the report endpoint: the harvest tick, a seller
 #: pressing «Обновить», and the history backfill. Without an order they simply
 #: race, and the loser is whoever asked second — which on 2026-09-12 was the
 #: fresh report, waiting behind history nobody needed today.
@@ -157,15 +157,6 @@ def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
     )
 
 
-#: The two Finance-surface report methods, both documented and measured at one
-#: request a minute, burst 1 (2026-09-22).
-#:
-#: They are SEPARATE buckets, which is the whole reason discovery stops being
-#: expensive: asking «is there a new report» through `sales-reports/list` no
-#: longer spends the budget that fetching one through `detailed` needs. On the
-#: endpoint they replace those were the same request against the same bucket,
-#: and the arithmetic in `finreports/services/publication.py` exists to avoid
-#: spending it.
 #: The longest a caller on this surface may queue for a token before giving up.
 #:
 #: It used to be ``wb_statistics_walk_queue_seconds`` — 1000 s, sized for an
@@ -189,6 +180,15 @@ def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
 #: refill, or the courtesy becomes a prohibition.
 FINANCE_QUEUE_SECONDS = 240.0
 
+#: The three Finance-surface report methods, all documented and measured at one
+#: request a minute, burst 1 (2026-09-22).
+#:
+#: They are SEPARATE buckets, which is the whole reason discovery stops being
+#: expensive: asking «is there a new report» through `sales-reports/list` no
+#: longer spends the budget that fetching one through `detailed` needs. On the
+#: endpoint they replaced those were the same request against the same bucket,
+#: and the publication calendar (`finreports/services/publication.py`, deleted
+#: 2026-09-23) existed to avoid spending it.
 FINANCE_REPORT_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
     SALES_REPORTS_LIST_PATH: (1, 60.0),
     SALES_REPORTS_DETAILED_PATH: (1, 60.0),

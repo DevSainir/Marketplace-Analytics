@@ -85,8 +85,10 @@ def _until_ms(penalise_result: Any) -> float:
 #:
 #: 1.25 rather than something larger because the margin is the *second* line of
 #: defence. The first is not probing an endpoint we have no reason to think has
-#: anything new (see `probe_schedule` in the finreports tasks); a margin big
-#: enough to survive bad scheduling would be admitting the schedule is bad.
+#: anything new (on the settlement endpoint that was `probe_schedule` in the
+#: finreports tasks, deleted with it); a margin big enough to survive bad
+#: scheduling would be admitting the schedule is bad. The margin itself was
+#: never specific to that endpoint and applies to any block WB names.
 _BLOCK_MARGIN = 1.25
 
 #: Extra milliseconds the bucket key outlives the block it records.
@@ -335,11 +337,12 @@ class TokenBucketRateGate:
     async def retry_after(self, endpoint: str, *, reserve_seconds: float = 0.0) -> float:
         """How long this endpoint stays shut for THIS caller, without spending a token.
 
-        The question «Обновить» has to answer before it enqueues anything: the
-        settlement bucket refills once every fifteen minutes, so a click soon
-        after the hourly tick would otherwise queue a harvest whose first act is
-        to sit still for most of a quarter of an hour. Knowing the number here
-        turns that into an immediate «попробуйте через N минут».
+        The question «Обновить» has to answer before it enqueues anything: while
+        a bucket is shut — on the settlement endpoint until 2026-09-22 that was
+        most of every quarter of an hour, on finance-api it is a refill minute
+        or a penalty block — a click would otherwise queue a harvest whose first
+        act is to sit still. Knowing the number here turns that into an
+        immediate «попробуйте через N минут».
 
         Read-only by construction. A peek that took a token would spend the
         harvest's budget every time somebody looked at the page, which is the
@@ -347,6 +350,10 @@ class TokenBucketRateGate:
 
         Args:
             endpoint: Request path whose bucket to inspect.
+            reserve_seconds: Answer for a background caller that will only take
+                a token once it has sat free this long
+                (:data:`~src.integrations.wildberries.rate_limit.surfaces.BACKGROUND_RESERVE_SECONDS`);
+                0 for a caller that takes one as soon as it exists.
 
         Returns:
             Seconds until a request may go out; ``0.0`` when one may go now, and
