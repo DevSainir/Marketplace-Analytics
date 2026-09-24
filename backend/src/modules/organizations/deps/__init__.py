@@ -302,31 +302,10 @@ def require_module(
 #: wants the resolved access object in its signature.
 require_monitoring = require_module(ModuleKey.MONITORING)
 require_finreports = require_module(ModuleKey.FINREPORTS)
+require_ab_tests = require_module(ModuleKey.AB_TESTS)
 
 MonitoringAccess = Annotated[OrganizationAccess, Depends(require_monitoring)]
 FinreportsAccess = Annotated[OrganizationAccess, Depends(require_finreports)]
-
-
-async def require_ab_tests(access: InternalAccess) -> OrganizationAccess:
-    """Require a caller who is one of us AND granted the A/Б-тесты module.
-
-    Written out rather than built from :func:`require_module` because that
-    factory goes through :data:`MemberAccess`, and this surface must not: a dev
-    with no organisation of their own reaches the internal features today, and
-    routing this guard through the membership check would quietly take that
-    away. :meth:`OrganizationAccess.can_reach` already answers ``True`` for a
-    dev, so the module grant only ever narrows a manager.
-
-    Raises:
-        PermissionDeniedError: Not one of us, or a manager without the grant.
-    """
-    if not access.can_reach(ModuleKey.AB_TESTS):
-        raise PermissionDeniedError(
-            "Раздел недоступен для вашей учётной записи. Доступ выдаёт владелец организации."
-        )
-    return access
-
-
 AbTestsAccess = Annotated[OrganizationAccess, Depends(require_ab_tests)]
 
 
@@ -350,7 +329,7 @@ OwnerAccess = Annotated[OrganizationAccess, Depends(require_owner)]
 async def require_internal(access: CurrentAccess) -> OrganizationAccess:
     """Require a caller who is one of us.
 
-    one seller, against our own data and our own legal case. Reachable by devs
+    seller, against our own data and our own legal case. Reachable by devs
     and by members of the primary organisation, by nobody else.
 
     Not built on :data:`MemberAccess`: a dev without an organisation still gets

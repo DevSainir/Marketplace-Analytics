@@ -39,7 +39,7 @@ const NAV = [
   // not advertise it.
   { to: '/summary', label: 'Сводка', modules: ['monitoring', 'finreports'] },
   { to: '/finreports', label: 'P&L', module: 'finreports' },
-  { to: '/ab-tests', label: 'A/Б-тесты', module: 'ab_tests', internal: true },
+  { to: '/ab-tests', label: 'A/Б-тесты', module: 'ab_tests' },
 ]
 
 // Hiding the link is cosmetic — `installInternalGuard` is what actually

@@ -4,10 +4,11 @@ The stubbed catalog service, the stubbed WB installer, and the identity and
 tenancy wiring every case in this directory needs. Split out when the route
 tests and the configuration tests became two files.
 
-The module is internal-only, so ``_internal_caller`` below logs every test in as
-one of us; the guard itself is proved by the one test that deliberately does not.
-The writing guard on top of it is proved by the read-only-manager tests at the
-bottom, which are parametrised over every state-changing route.
+The module is open to every paying tenant, so ``_customer_caller`` below logs
+every test in as an ordinary customer — not as one of us, so a guard that
+slid back to internal-only would fail the whole directory. The writing guard
+on top of it is proved by the read-only-manager tests at the bottom, which are
+parametrised over every state-changing route.
 """
 
 from __future__ import annotations
@@ -288,6 +289,6 @@ def headers(user: Any, workspace: Workspace) -> dict[str, str]:
 
 
 @pytest.fixture(autouse=True)
-def _internal_caller(login_as: Any) -> None:
-    """Call as one of us: A/Б-тесты is not a feature customers have bought."""
-    login_as(is_primary_org=True)
+def _customer_caller(login_as: Any) -> None:
+    """Call as an ordinary customer: A/Б-тесты is open to every tenant."""
+    login_as(is_primary_org=False)

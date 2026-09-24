@@ -244,24 +244,34 @@ async def test_starting_a_test_with_no_photos_is_a_409(
     assert response.status_code == 409
 
 
-async def test_a_customer_cannot_reach_ab_tests(
+async def test_a_customer_reaches_ab_tests(
     client: httpx.AsyncClient, headers: dict[str, str], login_as: Any
 ) -> None:
-    """An ordinary tenant gets 403, not a list of tests.
+    """An ordinary paying tenant gets the list, not a 403.
 
-    A/Б-тесты installs photos on a live WB card through the Content API and was
-    built against our own catalogue — it is not part of what a subscription
-    buys. The guard sits on the router, so one route standing in for the module
-    is the honest scope for this assertion.
+    A/Б-тесты was internal-only while it was being built and opened to every
+    customer on 2026-09-24. The guard sits on the router, so one route standing
+    in for the module is the honest scope for this assertion.
     """
     login_as(is_primary_org=False)
+
+    response = await client.get("/api/ab-tests", headers=headers)
+
+    assert response.status_code == 200
+
+
+async def test_a_manager_without_the_grant_cannot_reach_ab_tests(
+    client: httpx.AsyncClient, headers: dict[str, str], login_as: Any
+) -> None:
+    """Opening the module to customers must not open it past the owner's grant."""
+    login_as(role=EffectiveRole.MANAGER, modules=("monitoring", "finreports"))
 
     response = await client.get("/api/ab-tests", headers=headers)
 
     assert response.status_code == 403
 
 
-async def test_a_read_only_manager_of_ours_still_reads_the_results(
+async def test_a_read_only_manager_still_reads_the_results(
     client: httpx.AsyncClient, headers: dict[str, str], login_as: Callable[..., None]
 ) -> None:
     """Read-only means read-only, not shut out.
@@ -272,7 +282,6 @@ async def test_a_read_only_manager_of_ours_still_reads_the_results(
     """
     login_as(
         role=EffectiveRole.MANAGER,
-        is_primary_org=True,
         access_level=AccessLevel.READ_ONLY,
     )
 
@@ -313,7 +322,6 @@ async def test_every_writing_route_refuses_a_read_only_manager(
     """
     login_as(
         role=EffectiveRole.MANAGER,
-        is_primary_org=True,
         access_level=AccessLevel.READ_ONLY,
     )
 
@@ -338,7 +346,7 @@ async def test_a_lapsed_subscription_cannot_touch_the_card_either(
     and a guard that answered both with the same text would send half the
     callers to support with the wrong question.
     """
-    login_as(is_primary_org=True, subscription=SubscriptionState.EXPIRED)
+    login_as(subscription=SubscriptionState.EXPIRED)
 
     response = await client.delete(f"/api/ab-tests/{TEST_ID}", headers=headers)
 
@@ -359,7 +367,7 @@ async def test_the_grace_window_still_installs_photos(
     wearing whichever photo happened to be up, and the arms stop being
     comparable. The grace days exist so a clearing bank transfer cannot do that.
     """
-    login_as(is_primary_org=True, subscription=SubscriptionState.GRACE)
+    login_as(subscription=SubscriptionState.GRACE)
 
     response = await client.delete(f"/api/ab-tests/{TEST_ID}", headers=headers)
 
