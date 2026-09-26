@@ -160,7 +160,7 @@ watch(
                   v-for="group in TRAFFIC_GROUPS"
                   :key="`${day.iso}:${group.label}`"
                   :colspan="group.span"
-                  :rowspan="group.spansZones ? 3 : 1"
+                  :rowspan="group.spansZones ? 2 : 1"
                 >
                   {{ group.label }}
                 </th>

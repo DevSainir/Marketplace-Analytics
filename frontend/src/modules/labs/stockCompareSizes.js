@@ -1,10 +1,9 @@
 /**
- * The row set the two-day stock comparison shares.
+ * The row set the «Остатки по складам» ribbon shares across its days.
  *
- * Both side-by-side tables render the UNION of the two days' sizes so their rows
- * align 1:1 (a size absent on one day shows blank there). Each table still
- * carries its own «Размер» column, so the labels repeat by design: it keeps each
- * day readable on its own, and the pair still compares row by row.
+ * The grid renders the UNION of every day's sizes, so each row exists under
+ * every day and a size absent from one of them shows blank there rather than
+ * shifting the rows below it. One «Размер» column labels the whole period.
  *
  * Pure, and out of the view because the view composes rather than computes —
  * `MonitoringView` is at its 250-line ceiling and this was the piece with the
@@ -12,15 +11,14 @@
  */
 
 /**
- * @param {{left: {stock: ?object}, right: {stock: ?object}}} compare The store's
- *   two-day comparison state.
- * @returns {Array<{chrt_id: number, tech_size: ?string}>} Sizes of both days,
+ * @param {Array<{stock: ?object}>} days The period's per-day breakdowns.
+ * @returns {Array<{chrt_id: number, tech_size: ?string}>} Every day's sizes,
  *   de-duplicated and ordered by their human label.
  */
-export function unionStockSizes(compare) {
+export function unionStockSizes(days) {
   const byChrt = new Map()
-  for (const side of ['left', 'right']) {
-    for (const cell of compare[side].stock?.cells ?? []) {
+  for (const day of days) {
+    for (const cell of day.stock?.cells ?? []) {
       if (!byChrt.has(cell.chrt_id)) byChrt.set(cell.chrt_id, cell.tech_size ?? null)
     }
   }

@@ -1,34 +1,39 @@
 <script setup>
 /**
- * The «Остатки по складам» panel: two snapshot days side by side.
+ * The «Остатки по складам» section: the whole period as one grid.
  *
- * Two, not one, because a stock number alone says nothing — what the team reads
- * is the MOVEMENT between yesterday and today (right = today, left = yesterday
- * by default). Each side has its own day picker so any two days can be
- * compared, and both tables render the same size rows (`sizeOrder`) so a row on
- * the left lines up with the same row on the right.
+ * A stock number alone says nothing — what the team reads is the MOVEMENT from
+ * one day to the next, so the section shows days side by side: one column group
+ * per day, two of them on screen, scrolled sideways through the period. That
+ * period is the page's own, chosen once at the top — this section has no day
+ * pickers of its own, because two controls for one question is how the two
+ * disagree.
  *
- * «Складов» above the tables cuts both to the N fullest warehouses (the rest
- * fold into one «Ещё N» column). It is a view setting, not data, so it lives
- * here as local state rather than going up to the page.
+ * LAB-ONLY: «Складов» over the grid is a debug knob — N shows exactly N
+ * warehouse columns per day, to check the grid's look at any count. It is not
+ * a feature and does not go to /monitoring.
  *
- * Dumb by contract: it renders the sides it is given and reports intent.
+ * Dumb by contract: it renders the days it is given.
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
-import DayPicker from '@/core/components/DayPicker.vue'
-import StockBreakdownTable from '@/modules/labs/components/StockBreakdownTable.vue'
+import StockCompareTable from '@/modules/labs/components/StockCompareTable.vue'
 
-defineProps({
-  /** @type {{left: {date, loading, stock}, right: {date, loading, stock}}} */
-  sides: { type: Object, required: true },
-  /** The union of sizes both tables render, so their rows align. */
+const props = defineProps({
+  /** @type {Array<{stat_date: string, stock: ?object}>} oldest day first. */
+  days: { type: Array, default: () => [] },
+  /** The union of every day's sizes, so a row lines up across the period. */
   sizeOrder: { type: Array, default: () => [] },
-  /** Latest selectable day (no snapshot exists past it). */
-  maxDate: { type: String, required: true },
+  /** Dim the grid while a reload is in flight. */
+  loading: { type: Boolean, default: false },
 })
 
-defineEmits(['change-day'])
+/** "2026-07-11" → "11.07.2026" — the group label over each day's columns. */
+function dayLabel(iso) {
+  if (!iso) return '—'
+  const [y, m, d] = iso.split('-')
+  return `${d}.${m}.${y}`
+}
 
 /** Empty = every warehouse. */
 const warehouseLimit = ref(null)
@@ -38,18 +43,22 @@ function setLimit(event) {
   const n = Math.floor(Number(event.target.value))
   warehouseLimit.value = event.target.value !== '' && n >= 1 ? n : null
 }
+
+const columns = computed(() =>
+  props.days.map((day) => ({
+    key: day.stat_date,
+    label: dayLabel(day.stat_date),
+    cells: day.stock?.cells ?? [],
+  })),
+)
 </script>
 
 <template>
-  <!-- Warehouses × sizes stock: TWO snapshot days side by side for
-     visual dynamics (right = today, left = yesterday by default);
-     each side has its own day picker and its own size column, and
-     both render the same rows (see `sharedStockSizes`). -->
   <section class="mt-lg" aria-label="Остатки по складам">
     <div class="flex flex-wrap items-center justify-between gap-sm">
       <h2 class="text-h3 font-semibold text-primary">Остатки по складам</h2>
       <label class="inline-flex items-center gap-xs text-tiny font-medium text-muted">
-        Показать складов
+        Складов (отладка)
         <input
           type="number"
           min="1"
@@ -62,27 +71,14 @@ function setLimit(event) {
         />
       </label>
     </div>
-    <!-- Side by side is the whole point of the panel, but at 402pt each side
-         gets ~190px and neither table is readable — so on a phone the pair
-         stacks and the comparison becomes vertical. Each side keeps its own day
-         picker, which is what labels it once they are no longer left/right. -->
-    <div class="mt-sm flex gap-md phone:flex-col">
-      <div v-for="side in ['left', 'right']" :key="side" class="min-w-0 flex-1">
-        <DayPicker
-          class="mb-xs"
-          :model-value="sides[side].date"
-          :max="maxDate"
-          :aria-label="side === 'left' ? 'День левой таблицы' : 'День правой таблицы'"
-          @update:model-value="$emit('change-day', side, $event)"
-        />
-        <StockBreakdownTable
-          :class="sides[side].loading ? 'opacity-60' : ''"
-          :cells="sides[side].stock?.cells ?? []"
-          :size-order="sizeOrder"
-          :warehouse-limit="warehouseLimit"
-          empty-message="Нет снимка остатков за выбранный день."
-        />
-      </div>
-    </div>
+
+    <StockCompareTable
+      class="mt-sm"
+      :class="loading ? 'opacity-60' : ''"
+      :days="columns"
+      :size-order="sizeOrder"
+      :warehouse-limit="warehouseLimit"
+      empty-message="Нет складских остатков по этому SKU за выбранный период."
+    />
   </section>
 </template>

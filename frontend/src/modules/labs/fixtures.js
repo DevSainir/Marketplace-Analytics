@@ -12,6 +12,8 @@
  * identical on every reload or two screenshots cannot be compared.
  */
 import { TRAFFIC_COLUMNS, buildMetricsMatrix } from '@/modules/labs/metricsMatrix'
+import { REAL_SKUS } from '@/modules/labs/realSkus'
+import { buildStockDays } from '@/modules/labs/stockFixtures'
 
 /** Mulberry32 — small, fast, same sequence every run. */
 function seeded(seed) {
@@ -24,10 +26,12 @@ function seeded(seed) {
   }
 }
 
-const rand = seeded(20260825)
-
-const DAY_COUNT = 10
-const END = new Date(Date.UTC(2026, 7, 24))
+/**
+ * The window is the real week the campaign ids were read for (`realSkus.js`),
+ * so a campaign link opens on the same days the table shows.
+ */
+const DAY_COUNT = 8
+const END = new Date(Date.UTC(2026, 8, 25))
 
 const dayIsos = Array.from({ length: DAY_COUNT }, (_, i) => {
   const d = new Date(END)
@@ -82,67 +86,42 @@ const METRICS = {
 }
 
 /**
- * Which buckets actually carry data on a given day.
- *
- * A seller runs ONE campaign at a time, not four in parallel, so the real
- * ribbon is mostly empty: one traffic group filled, «Общая»/«Органика» rolled
- * up beside it, everything else blank. Filling every bucket — as the first
- * pass did — made the table look busy and, worse, made it lie about how the
- * account is actually run.
- *
- * Indices are into TRAFFIC_COLUMNS. «Каталог» of the unified bid (index 2) is
- * never here: it is a legacy WB zone kept for workbook parity and always empty.
+ * The zone buckets each campaign group delivers into (indices into
+ * TRAFFIC_COLUMNS). «Каталог» of the unified bid (index 2) is never here: it is
+ * a legacy WB zone kept for workbook parity and always empty.
  */
-const CAMPAIGNS = [
-  [0, 1], // Единая ставка — Поиск + Полки
-  [3, 4], // Руч. поиск — Поиск + Каталог
-  [5], // Руч. полки
-  [6, 7], // CPC — Поиск + Полки
-]
+const GROUP_BUCKETS = {
+  uni: [0, 1], // Единая ставка — Поиск + Полки
+  manual_search: [3, 4], // Руч. поиск — Поиск + Каталог
+  manual_shelves: [5], // Руч. полки
+  cpc: [6, 7], // CPC — Поиск + Полки
+}
 
 const ROLLUPS = [TOTAL, ORGANIC]
 
 /**
- * The live bucket set per day, decided ONCE so every metric row agrees — and
- * with it the day's «Доля трафика» split, which must be decided once for the
- * same reason. Drawing the head share inside the per-bucket loop gave each
+ * The live bucket set of one day, decided ONCE so every metric row agrees —
+ * and with it the day's «Доля трафика» split, which must be decided once for
+ * the same reason. Drawing the share inside the per-bucket loop gave each
  * bucket its own `rand()` and the row added up to 97,58 % instead of 100 %.
+ * The first bucket of each campaign (its «Поиск») takes the lion's share.
  */
-const LIVE_BY_DAY = Array.from({ length: DAY_COUNT }, (_, d) => {
-  const campaign = CAMPAIGNS[d % CAMPAIGNS.length]
-  const head = campaign.length === 1 ? 100 : 88 + rand() * 8
-  const shares = campaign.length === 1 ? [100] : [head, 100 - head]
+function liveDay(groupKeys, rand) {
+  const campaign = groupKeys.flatMap((key) => GROUP_BUCKETS[key])
+  const raw = campaign.map((b, i) =>
+    GROUP_BUCKETS[groupKeys.find((k) => GROUP_BUCKETS[k].includes(b))][0] === b
+      ? 6 + rand() * 4
+      : 0.4 + rand() * (i + 1) * 0.3,
+  )
+  const sum = raw.reduce((a, v) => a + v, 0)
+  const shares = raw.map((v) => (v / sum) * 100)
   return { campaign, shares, live: new Set([...campaign, ...ROLLUPS]) }
-})
-
-/**
- * The campaign behind each day's live group, for the «ID РК» header row —
- * keyed `[iso][group key]` like TRAFFIC_GROUPS. One id per campaign type, held
- * across days, because a campaign is a long-lived object that a seller pauses
- * and resumes rather than recreates. The «Единая» id is a real one, taken from
- * a link WB generated, so at least one link in the sandbox lands on a page;
- * the others are made up and open WB's «кампания не найдена».
- */
-const CAMPAIGN_GROUP_KEYS = ['uni', 'manual_search', 'manual_shelves', 'cpc']
-const ADVERT_IDS = {
-  uni: 97455934,
-  manual_search: 38720514,
-  manual_shelves: 37995102,
-  cpc: 39610277,
 }
 
-export const campaignIds = Object.fromEntries(
-  dayIsos.map((iso, d) => {
-    const key = CAMPAIGN_GROUP_KEYS[d % CAMPAIGNS.length]
-    return [iso, { [key]: ADVERT_IDS[key] }]
-  }),
-)
-
 /** Flat day-major values, exactly as the backend emits them. */
-function buildValues(key, { base, spread, ratio, totalOnly }) {
+function buildValues(key, { base, spread, ratio, totalOnly }, liveByDay, rand) {
   const values = []
-  for (let d = 0; d < DAY_COUNT; d += 1) {
-    const { campaign, shares, live } = LIVE_BY_DAY[d]
+  for (const { campaign, shares, live } of liveByDay) {
     for (let b = 0; b < BUCKETS.length; b += 1) {
       const on = totalOnly ? b === TOTAL : live.has(b)
       if (!on) {
@@ -168,179 +147,173 @@ function buildValues(key, { base, spread, ratio, totalOnly }) {
   return values
 }
 
-export const product = {
+/**
+ * One card's whole `SkuDetailResponse`, plus the sandbox-only extras the page
+ * reads beside it: `campaign_ids` («ID РК» row), `sizes` and `stock_days`.
+ *
+ * @param {object} spec
+ * @param {Array<Record<string, number>>} spec.campaignsByDay per day, group key → advert id
+ * @param {Array<{nm_id: number, vendor_code: string}>} spec.siblings the
+ *   associative tooltip's other variants
+ */
+function buildProduct({
+  nm_id,
+  vendor_code,
+  title,
+  feedback_rating,
+  sizes,
+  campaignsByDay,
+  siblings,
+  seed,
+}) {
+  const rand = seeded(seed)
+  const liveByDay = campaignsByDay.map((ids) => liveDay(Object.keys(ids), rand))
+  const product = {
+    nm_id,
+    vendor_code,
+    title,
+    // `sales-funnel/products` → `product.feedbackRating`: the storefront's stars.
+    feedback_rating,
+    window: WINDOW,
+    matrix: {
+      days: dayIsos,
+      buckets: BUCKETS,
+      rows: Object.entries(METRICS).map(([key, spec]) => ({
+        key,
+        values: buildValues(key, spec, liveByDay, rand),
+      })),
+    },
+    comments: {
+      [dayIsos[0]]: {
+        header: 'Подняли ставку',
+        body: 'Единая хорошо отработала, однако показы на Главной странице всё ещё критично выше, чем полки в карточке.',
+      },
+      [dayIsos[1]]: { header: '', body: 'ЕДИНУЮ больше не крутим — плохо работает.' },
+      [dayIsos[5]]: { header: 'Акция WB', body: 'Вошли в «Дни распродаж», СПП вырос до 29 %.' },
+    },
+    // Per-variant breakdowns, indexed by `<day>:<bucket>`. Without these the
+    // «Корзины»/«Заказы» cells have no hover tooltip at all.
+    matrix_base: {
+      days: dayIsos.map((day, i) => {
+        const skus = (lead) => [
+          { nm_id, vendor_code, add_to_cart: lead + i, orders: 6 + (i % 3) },
+          ...siblings.map((s, k) => ({ ...s, add_to_cart: 9 - k * 4 + (i % 4), orders: 3 - k })),
+        ]
+        const firstBucket = BUCKETS[liveByDay[i].campaign[0]]
+        return {
+          day,
+          buckets: {
+            [firstBucket]: { assoc_exact: i % 2 === 0, assoc_skus: skus(18) },
+            total: { assoc_exact: true, assoc_skus: skus(41) },
+          },
+        }
+      }),
+    },
+    day_actions: Object.fromEntries(
+      dayIsos.map((iso, i) => [
+        iso,
+        {
+          // Field names are the backend's, read straight off `MatrixActionsRow`:
+          // guessing them is what left every «Действия» dropdown showing «—».
+          first_rk_type: ['uni', 'manual_search', 'cpc'][i % 3],
+          first_rk_budget: 2000 + i * 250,
+          second_rk_type: i % 2 ? 'manual_shelves' : null,
+          second_rk_budget: i % 2 ? 8000 + i * 90 : null,
+          price_change: i % 3 === 0 ? 'up' : i % 3 === 1 ? 'down' : null,
+          price_change_amount: i % 3 === 2 ? null : 25 + i,
+        },
+      ]),
+    ),
+    campaign_ids: Object.fromEntries(dayIsos.map((iso, i) => [iso, campaignsByDay[i]])),
+    sizes,
+    stock_days: buildStockDays({ sizes, days: dayIsos, rand, total: 90 * sizes.length }),
+  }
+  return product
+}
+
+/**
+ * The made-up hoodie: the one card that runs ALL FOUR campaign types in turn,
+ * one a day — a seller runs one campaign at a time, not four in parallel — so
+ * every group of the table (including the one-column «Руч. полки») gets a day
+ * with an id in it. Its campaign ids are made up and open WB's «кампания не
+ * найдена»; the real cards' ids are real.
+ */
+const HOODIE_ADVERT_IDS = {
+  uni: 38102455,
+  manual_search: 38720514,
+  manual_shelves: 37995102,
+  cpc: 39610277,
+}
+const HOODIE_ROTATION = ['uni', 'manual_search', 'manual_shelves', 'cpc']
+
+const HOODIE = buildProduct({
   nm_id: 214839021,
   vendor_code: 'HD-OVER-BLK-M',
   title: 'Худи оверсайз утеплённое, чёрное',
-  // `sales-funnel/products` → `product.feedbackRating`: the storefront's stars.
-  feedback_rating: 4.7,
-  window: WINDOW,
-  matrix: {
-    days: dayIsos,
-    buckets: BUCKETS,
-    rows: Object.entries(METRICS).map(([key, spec]) => ({ key, values: buildValues(key, spec) })),
-  },
-  comments: {
-    [dayIsos[0]]: {
-      header: 'Подняли ставку',
-      body: 'Единая хорошо отработала, однако показы на Главной странице всё ещё критично выше, чем полки в карточке.',
-    },
-    [dayIsos[1]]: { header: '', body: 'ЕДИНУЮ больше не крутим — плохо работает.' },
-    [dayIsos[5]]: { header: 'Акция WB', body: 'Вошли в «Дни распродаж», СПП вырос до 29 %.' },
-  },
-  // Per-variant breakdowns, indexed by `<day>:<bucket>`. Without these the
-  // «Корзины»/«Заказы» cells have no hover tooltip at all — which is why the
-  // sandbox showed none.
-  matrix_base: {
-    days: dayIsos.map((day, i) => ({
-      day,
-      buckets: {
-        uni_search: {
-          assoc_exact: i % 2 === 0,
-          assoc_skus: [
-            {
-              nm_id: 214839021,
-              vendor_code: 'HD-OVER-BLK-M',
-              add_to_cart: 18 + i,
-              orders: 6 + (i % 3),
-            },
-            { nm_id: 214839044, vendor_code: 'HD-OVER-GRY-L', add_to_cart: 9 + (i % 4), orders: 3 },
-            { nm_id: 214839051, vendor_code: 'HD-OVER-BLK-L', add_to_cart: 5, orders: 2 },
-          ],
-        },
-        total: {
-          assoc_exact: true,
-          assoc_skus: [
-            { nm_id: 214839021, vendor_code: 'HD-OVER-BLK-M', add_to_cart: 41 + i, orders: 14 },
-            { nm_id: 214839044, vendor_code: 'HD-OVER-GRY-L', add_to_cart: 22, orders: 7 },
-            { nm_id: 214839051, vendor_code: 'HD-OVER-BLK-L', add_to_cart: 11, orders: 4 },
-          ],
-        },
-      },
-    })),
-  },
-  day_actions: Object.fromEntries(
-    dayIsos.map((iso, i) => [
-      iso,
-      {
-        // Field names are the backend's, read straight off `MatrixActionsRow`:
-        // guessing them is what left every «Действия» dropdown showing «—».
-        first_rk_type: ['uni', 'manual_search', 'cpc'][i % 3],
-        first_rk_budget: 2000 + i * 250,
-        second_rk_type: i % 2 ? 'manual_shelves' : null,
-        second_rk_budget: i % 2 ? 8000 + i * 90 : null,
-        price_change: i % 3 === 0 ? 'up' : i % 3 === 1 ? 'down' : null,
-        price_change_amount: i % 3 === 2 ? null : 25 + i,
-      },
-    ]),
-  ),
-}
+  feedback_rating: 4.6,
+  sizes: [
+    { chrt_id: 900001, tech_size: 'S' },
+    { chrt_id: 900002, tech_size: 'M' },
+    { chrt_id: 900003, tech_size: 'L' },
+    { chrt_id: 900004, tech_size: 'XL' },
+  ],
+  campaignsByDay: dayIsos.map((_, d) => {
+    const key = HOODIE_ROTATION[d % HOODIE_ROTATION.length]
+    return { [key]: HOODIE_ADVERT_IDS[key] }
+  }),
+  siblings: [
+    { nm_id: 214839044, vendor_code: 'HD-OVER-GRY-L' },
+    { nm_id: 214839051, vendor_code: 'HD-OVER-BLK-L' },
+  ],
+  seed: 20260825,
+})
+
+const REAL = REAL_SKUS.map((sku, i) =>
+  buildProduct({
+    ...sku,
+    campaignsByDay: dayIsos.map(() => sku.campaigns),
+    siblings: REAL_SKUS.filter((s) => s !== sku)
+      .slice(0, 2)
+      .map(({ nm_id, vendor_code }) => ({ nm_id, vendor_code })),
+    seed: 20260926 + i,
+  }),
+)
+
+/** Every card the sandbox can show, by nm ID. */
+export const products = Object.fromEntries([...REAL, HOODIE].map((p) => [p.nm_id, p]))
+
+/** What the page opens on: the first real card. */
+export const DEFAULT_NM_ID = REAL[0].nm_id
 
 /** The real builder, on the real payload — no sandbox-specific shortcut. */
-export const matrixView = buildMetricsMatrix(product)
+export function matrixViewFor(product) {
+  return buildMetricsMatrix(product)
+}
 
 /* ---------------------------------------------------------------- header */
 
-export const skuList = [
+const FAKE_SKUS = [
   { nm_id: 214839021, vendor_code: 'HD-OVER-BLK-M', title: 'Худи оверсайз утеплённое, чёрное' },
-  { nm_id: 214839044, vendor_code: 'HD-OVER-GRY-L', title: 'Худи оверсайз утеплённое, серое' },
   { nm_id: 551088230, vendor_code: 'JG-SPORT-NVY', title: 'Джоггеры спортивные, тёмно-синие' },
   { nm_id: 610447701, vendor_code: 'TS-BASIC-WHT', title: 'Футболка базовая, белая' },
-  { nm_id: 772900115, vendor_code: 'SH-SPORT-BLK', title: 'Шорты спортивные, чёрные' },
 ]
 
+export const skuList = [
+  ...REAL_SKUS.map(({ nm_id, vendor_code, title }) => ({ nm_id, vendor_code, title })),
+  ...FAKE_SKUS,
+]
+
+/** The real cards first, each in its own tint (the /monitoring palette); the made-up ones after, untinted. */
 export const pinnedSkus = [
-  { nm_id: 214839021, vendor_code: 'HD-OVER-BLK-M', title: 'Худи, чёрное', color: '#4F39F6' },
-  { nm_id: 214839044, vendor_code: 'HD-OVER-GRY-L', title: 'Худи, серое', color: '#0E9384' },
-  { nm_id: 551088230, vendor_code: 'JG-SPORT-NVY', title: 'Джоггеры', color: '#C2700B' },
-  { nm_id: 610447701, vendor_code: 'TS-BASIC-WHT', title: 'Футболка', color: '#D93A2B' },
-  { nm_id: 772900115, vendor_code: 'SH-SPORT-BLK', title: 'Шорты', color: '#7C3AED' },
+  ...REAL_SKUS.map(({ nm_id, vendor_code, color }) => ({
+    nm_id,
+    vendor_code,
+    title: 'Брюки бананы',
+    color,
+  })),
+  { nm_id: 214839021, vendor_code: 'HD-OVER-BLK-M', title: 'Худи, чёрное' },
+  { nm_id: 551088230, vendor_code: 'JG-SPORT-NVY', title: 'Джоггеры' },
 ]
-
-/* ----------------------------------------------------------------- stock */
-
-/**
- * Fifteen warehouses with the shape a real FBO catalogue has: two Moscow-region
- * hubs hold most of the stock, a middle band of regional ones holds tens, and a
- * tail holds a few units of the running sizes and nothing of the rest. `weight`
- * is the warehouse's share of the SKU's stock. Enough columns that «показать N
- * складов» has something to cut, and a long tail so the cut is the realistic
- * one — the tail is exactly what a reader wants gone.
- */
-const WAREHOUSES = [
-  { name: 'Коледино', weight: 0.24 },
-  { name: 'Электросталь', weight: 0.17 },
-  { name: 'Подольск', weight: 0.11 },
-  { name: 'Казань', weight: 0.09 },
-  { name: 'Краснодар', weight: 0.075 },
-  { name: 'Тула', weight: 0.06 },
-  { name: 'Санкт-Петербург Уткина Заводь', weight: 0.055 },
-  { name: 'Екатеринбург - Испытателей 14г', weight: 0.045 },
-  { name: 'Невинномысск', weight: 0.035 },
-  { name: 'Новосибирск', weight: 0.03 },
-  { name: 'Рязань (Тюшевское)', weight: 0.025 },
-  { name: 'Самара (Новосемейкино)', weight: 0.02 },
-  { name: 'Котовск', weight: 0.015 },
-  { name: 'Владимир', weight: 0.01 },
-  { name: 'Чехов 1', weight: 0.005 },
-]
-/** The size curve: M and L sell, S and XL are stocked thin. */
-const SIZES = [
-  { chrt_id: 900001, tech_size: 'S', weight: 0.16 },
-  { chrt_id: 900002, tech_size: 'M', weight: 0.34 },
-  { chrt_id: 900003, tech_size: 'L', weight: 0.32 },
-  { chrt_id: 900004, tech_size: 'XL', weight: 0.18 },
-]
-
-export const SIZE_ORDER = SIZES.map(({ chrt_id, tech_size }) => ({ chrt_id, tech_size }))
-
-/** Units of the SKU across every warehouse and size, before noise. */
-const STOCK_TOTAL = 2400
-
-/**
- * Yesterday's snapshot. A cell below 3 units is rounded to nothing: WB ships in
- * boxes, and a warehouse either holds a size or it does not.
- */
-function yesterdayStock() {
-  const r = seeded(11)
-  return SIZES.flatMap((size) =>
-    WAREHOUSES.map((wh) => {
-      const q = Math.round(STOCK_TOTAL * wh.weight * size.weight * (0.7 + r() * 0.6))
-      return {
-        chrt_id: size.chrt_id,
-        tech_size: size.tech_size,
-        warehouse_name: wh.name,
-        quantity: q < 3 ? 0 : q,
-      }
-    }),
-  )
-}
-
-/**
- * Today = yesterday minus a day of sales (a few per cent, more where there is
- * more to sell) plus one supply landing in Казань. Derived rather than drawn
- * afresh, because the panel exists to show MOVEMENT, and two independent random
- * days show only noise.
- */
-function todayStock(yesterday) {
-  const r = seeded(29)
-  return yesterday.map((cell) => {
-    const sold = Math.round(cell.quantity * r() * 0.08)
-    const supply = cell.warehouse_name === 'Казань' && cell.tech_size !== 'S' ? 40 : 0
-    return { ...cell, quantity: Math.max(0, cell.quantity - sold) + supply }
-  })
-}
-
-const STOCK_YESTERDAY = yesterdayStock()
-
-export const stockCompare = {
-  left: { date: dayIsos[DAY_COUNT - 2], loading: false, stock: { cells: STOCK_YESTERDAY } },
-  right: {
-    date: dayIsos[DAY_COUNT - 1],
-    loading: false,
-    stock: { cells: todayStock(STOCK_YESTERDAY) },
-  },
-}
 
 /* ----------------------------------------------------------- clusters */
 

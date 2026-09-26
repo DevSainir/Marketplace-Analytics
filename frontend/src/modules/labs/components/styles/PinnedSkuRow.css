@@ -11,7 +11,7 @@
  */
 
 .pin-chip {
-  background-color: transparent;
+  background-color: var(--pin-tint, transparent);
 }
 
 .pin-chip:hover {

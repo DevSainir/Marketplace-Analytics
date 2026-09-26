@@ -9,10 +9,9 @@
  * - drag a chip onto another → `reorder` with the full new nm_id order.
  *
  * SANDBOX EDIT: the real page adds a third interaction — a pencil that opens
- * a swatch palette to paint each pin its own tint. It is removed here. A
- * per-SKU tint competes with the action colour for meaning, and this design
- * system spends colour on STATE only, so a chip is neutral until you hover it
- * or it is the one being analysed.
+ * a swatch palette to paint each pin its own tint. The palette is removed
+ * here, but a pin that arrives with a `color` still wears it (`--pin-tint`),
+ * the way it does on /monitoring.
  *
  * When more chips are pinned than fit, arrows appear at both ends to page the
  * row sideways (the scrollbar is hidden, and a chip drag is a reorder here —
@@ -88,6 +87,7 @@ function pinLabel(item) {
         type="button"
         draggable="true"
         :title="item.title ?? ''"
+        :style="item.color ? { '--pin-tint': item.color } : null"
         class="pin-chip inline-flex flex-none cursor-grab items-center gap-xs rounded-full border border-border-subtle px-sm py-xs text-tiny font-medium text-primary shadow-soft transition active:cursor-grabbing"
         :class="[
           item.nm_id === selectedId ? 'pin-chip--active' : '',

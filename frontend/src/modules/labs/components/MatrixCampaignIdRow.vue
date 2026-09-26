@@ -2,8 +2,10 @@
 /**
  * The matrix header's fourth row, «ID РК»: under each campaign group, the id of
  * the campaign that ran in it that day, linked to that campaign in WB's
- * advertising cabinet. «Общая»/«Органика» have no campaign — their header
- * cells span down through this row from the type row above.
+ * advertising cabinet. «Общая»/«Органика» have no campaign, but they get
+ * their own (always empty) cells here rather than a header spanning down into
+ * this row: a row that runs the full width reads as one more line of the
+ * header, where a row with holes in it read as a stray.
  *
  * Renders a bare `<tr>` for MetricsTable's `<thead>`, so the ids share the
  * table's columns and scroll with their day.
@@ -20,9 +22,6 @@ const props = defineProps({
   nmId: { type: Number, default: null },
 })
 
-/** Every TRAFFIC_GROUPS entry that has zones of its own is a campaign group. */
-const CAMPAIGN_GROUPS = TRAFFIC_GROUPS.filter((group) => !group.spansZones)
-
 /** The campaign page, preset to the table's window and this SKU. */
 function advertLink(advertId) {
   return campaignUrl(advertId, {
@@ -37,7 +36,7 @@ function advertLink(advertId) {
   <tr>
     <th>ID РК</th>
     <template v-for="day in days" :key="day.iso">
-      <th v-for="group in CAMPAIGN_GROUPS" :key="`${day.iso}:${group.key}`" :colspan="group.span">
+      <th v-for="group in TRAFFIC_GROUPS" :key="`${day.iso}:${group.key}`" :colspan="group.span">
         <a
           v-if="campaignIds[day.iso]?.[group.key]"
           class="matrix-advert-link"
@@ -62,15 +61,17 @@ function advertLink(advertId) {
   letter-spacing: 0.02em;
 }
 
-/* Seams, on this row's own stride — four campaign cells per day. A black day
-   divider before each day's first cell (the very first one is drawn by the
-   frozen column), a light one between campaign groups. */
-.app-datatable--matrix thead tr:nth-child(4) th:nth-child(4n + 2):not(:nth-child(2)) {
+/* Seams, on the same stride as the type row (one cell per TRAFFIC_GROUPS
+   entry, six a day): a black day divider before each day's first cell (the
+   very first one is drawn by the frozen column), a light one before «Руч.
+   поиск», «Руч. полки», «CPC» and «Общая». */
+.app-datatable--matrix thead tr:nth-child(4) th:nth-child(6n + 2):not(:nth-child(2)) {
   border-left: 2px solid var(--ui-daydivider);
 }
-.app-datatable--matrix thead tr:nth-child(4) th:nth-child(4n + 3),
-.app-datatable--matrix thead tr:nth-child(4) th:nth-child(4n + 4),
-.app-datatable--matrix thead tr:nth-child(4) th:nth-child(4n + 5) {
+.app-datatable--matrix thead tr:nth-child(4) th:nth-child(6n + 3),
+.app-datatable--matrix thead tr:nth-child(4) th:nth-child(6n + 4),
+.app-datatable--matrix thead tr:nth-child(4) th:nth-child(6n + 5),
+.app-datatable--matrix thead tr:nth-child(4) th:nth-child(6n) {
   border-left: 2px solid var(--ui-rule);
 }
 

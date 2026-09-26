@@ -25,16 +25,15 @@ import SkuIdentityHeader from '@/modules/labs/components/SkuIdentityHeader.vue'
 import SkuSearchSelect from '@/modules/labs/components/SkuSearchSelect.vue'
 import StockComparePanel from '@/modules/labs/components/StockComparePanel.vue'
 import { longMatrixView } from '@/modules/labs/longWindow'
+import { unionStockSizes } from '@/modules/labs/stockCompareSizes'
 import {
-  SIZE_ORDER,
+  DEFAULT_NM_ID,
   WINDOW,
-  campaignIds,
   // clusterTableProps,  // dormant — see the «Рекламные кластеры» note below
-  matrixView,
+  matrixViewFor,
   pinnedSkus,
-  product,
+  products,
   skuList,
-  stockCompare,
 } from '@/modules/labs/fixtures'
 
 import '@/core/styles/ui-next/tokens.css'
@@ -43,13 +42,18 @@ import '@/core/styles/ui-next/skin.css'
 
 const dateFrom = ref(WINDOW.start)
 const dateTo = ref(WINDOW.end)
-const selectedId = ref(product.nm_id)
+const selectedId = ref(DEFAULT_NM_ID)
+
+/** A made-up SKU with no fixture of its own falls back to the first card. */
+const product = computed(() => products[selectedId.value] ?? products[DEFAULT_NM_ID])
+const matrixView = computed(() => matrixViewFor(product.value))
+const stockSizes = computed(() => unionStockSizes(product.value.stock_days))
 const isPinned = ref(true)
 const dirty = ref(true)
 const refreshing = ref(false)
 const allRefreshing = ref(false)
 
-const skuLabel = computed(() => product.vendor_code)
+const skuLabel = computed(() => product.value.vendor_code)
 
 /** Fake the round trip so the spinners and disabled states are visible. */
 function fakeWork(flag) {
@@ -133,7 +137,7 @@ const SECTIONS = [
           :day-actions="product.day_actions"
           :action-saving-days="NO_SAVING_DAYS"
           :editing-disabled="false"
-          :campaign-ids="campaignIds"
+          :campaign-ids="product.campaign_ids"
           :nm-id="product.nm_id"
           @edit="noop"
           @comment="noop"
@@ -153,13 +157,7 @@ const SECTIONS = [
       </section>
 
       <div id="ui-sec-stock">
-        <StockComparePanel
-          :sides="stockCompare"
-          :size-order="SIZE_ORDER"
-          :max-date="WINDOW.end"
-          @change-day="noop"
-          @toggle-mark="noop"
-        />
+        <StockComparePanel :days="product.stock_days" :size-order="stockSizes" />
       </div>
 
       <div id="ui-sec-chart"><MetricsChart :view="matrixView" /></div>
