@@ -108,6 +108,8 @@ async def tail_one_workspace(*, tokens: WorkspaceTokenBundle, today: date) -> di
     """
     bind_workspace(tokens.workspace_id)
     frontier = await settled_frontier(workspace_id=tokens.workspace_id)
+    if frontier is not None:
+        await _drop_closed_days(tokens=tokens, frontier=frontier)
     span = _tail_span(frontier=frontier, today=today)
     if span is None:
         return dict(_EMPTY, workspaces_skipped=1)
@@ -187,6 +189,37 @@ async def tail_one_workspace(*, tokens: WorkspaceTokenBundle, today: date) -> di
         rows,
     )
     return dict(_EMPTY, reports=len(done), rows=rows, reports_failed=failed)
+
+
+async def _drop_closed_days(*, tokens: WorkspaceTokenBundle, frontier: date) -> None:
+    """Remove provisional rows for days the weekly report has now closed.
+
+    The rule since 2026-09-26: a daily row lives only until its day is settled.
+    The weekly report rewrites every row it shares with the daily one, so what
+    still carries a daily id on a closed day is a row WB left out of the
+    settlement. Runs every tick, right after the weekly part, so a closed day is
+    clean within the same tick that closed it.
+    """
+    since = frontier - timedelta(days=DAILY_TAIL_LOOKBACK_DAYS + _CLOSE_SLACK_DAYS)
+    async with AsyncSessionLocal() as session:
+        dropped = await DailySettlementRepository(session).drop_closed_days(
+            workspace_id=tokens.workspace_id, through=frontier, since=since
+        )
+        await session.commit()
+    if dropped:
+        logger.info(
+            "finreports: dropped %d provisional row(s) for %s on days the weekly report "
+            "closed (through %s) without them.",
+            dropped,
+            tokens.name,
+            frontier,
+        )
+
+
+#: How far behind the tail's own lookback the closed-day sweep still looks. A
+#: weekly report can land up to eight days after its period ends, so the days it
+#: closes can be that much older than anything the tail is still fetching.
+_CLOSE_SLACK_DAYS = 14
 
 
 def _created(headers: dict[int, WBFinanceReportHeader], report_id: int) -> date | None:

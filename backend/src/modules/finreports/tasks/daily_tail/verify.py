@@ -152,14 +152,27 @@ async def _verify_one_workspace(*, tokens: WorkspaceTokenBundle) -> dict[str, in
             continue
         header = served.get(report.report_id)
         if header is None:
-            await _record(tokens.workspace_id, report.report_id, DailyReportVerdict.WITHDRAWN)
+            # Withdrawn: WB no longer vouches for these rows, so they leave the
+            # statement now rather than when the weekly report closes the day.
+            async with AsyncSessionLocal() as session:
+                repo = DailySettlementRepository(session)
+                dropped = await repo.drop_rows(
+                    workspace_id=tokens.workspace_id, report_ids=[report.report_id]
+                )
+                await repo.record_verification(
+                    workspace_id=tokens.workspace_id,
+                    report_id=report.report_id,
+                    verdict=DailyReportVerdict.WITHDRAWN,
+                )
+                await session.commit()
             totals["withdrawn"] += 1
             logger.warning(
-                "finreports: daily report %d (%s) for %s is no longer listed by WB. "
-                "Its rows are still in the statement.",
+                "finreports: daily report %d (%s) for %s is no longer listed by WB; "
+                "its %d provisional row(s) are removed from the statement.",
                 report.report_id,
                 report.day,
                 tokens.name,
+                dropped,
             )
             continue
         now = listed_totals(header)
@@ -211,15 +224,27 @@ async def _reread_and_compare(
         A counts fragment: ``failed`` when WB would not serve the rows, otherwise
         ``checked`` plus one of ``changed`` / ``unchanged``.
     """
+    # The old rows go first, so what is left afterwards is exactly what WB serves
+    # now: an upsert alone would keep a row WB has since taken out of the report.
+    async with AsyncSessionLocal() as session:
+        await DailySettlementRepository(session).drop_rows(
+            workspace_id=tokens.workspace_id, report_ids=[report.report_id]
+        )
+        await session.commit()
     walk = await walk_settlement_reports(
         tokens=tokens,
         reports=(MissingReport(report_id=report.report_id, date_to=report.day),),
         build_ingestion=build_ingestion,
     )
     if walk.completed_through is None:
-        # Not recorded as a verdict: an unanswered question is not a finding, and
-        # marking it verified would retire the only report that still needs
-        # asking about.
+        # Not a verdict — an unanswered question is not a finding. The rows are
+        # gone, though, so the record goes too: the report then reads as missing
+        # and the tail's next tick, a quarter of an hour away, fetches it anew.
+        async with AsyncSessionLocal() as session:
+            await DailySettlementRepository(session).forget(
+                workspace_id=tokens.workspace_id, report_id=report.report_id
+            )
+            await session.commit()
         return {"failed": 1}
     async with AsyncSessionLocal() as session:
         repo = DailySettlementRepository(session)

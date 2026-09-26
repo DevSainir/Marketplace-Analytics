@@ -13,9 +13,10 @@ import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import NamedTuple
+from typing import Any, NamedTuple
+from typing import cast as typed
 
-from sqlalchemy import Text, cast, func, literal_column, select, update
+from sqlalchemy import CursorResult, Text, cast, delete, func, literal_column, select, update
 from sqlalchemy.dialects.postgresql import aggregate_order_by, insert
 
 from src.modules.finreports.models import (
@@ -337,4 +338,80 @@ class DailySettlementRepository(BaseRepository):
                 DailySettlementReport.report_id == report_id,
             )
             .values(**values)
+        )
+
+    async def drop_rows(self, *, workspace_id: uuid.UUID, report_ids: Sequence[int]) -> int:
+        """Delete the settlement rows still filed under these daily reports.
+
+        Only rows that still carry the DAILY ``report_id``: a row the weekly
+        report has since rewritten carries the weekly id and is untouched. The
+        rollup needs no help — a day that lost rows fails its row count and is
+        rebuilt on the next read.
+
+        Args:
+            workspace_id: Tenancy scope.
+            report_ids: The daily ``reportId`` whose rows go.
+
+        Returns:
+            How many rows were deleted.
+        """
+        if not report_ids:
+            return 0
+        result = typed(
+            CursorResult[Any],
+            await self._session.execute(
+                delete(LogisticsTransaction).where(
+                    LogisticsTransaction.workspace_id == workspace_id,
+                    LogisticsTransaction.report_id.in_(list(report_ids)),
+                )
+            ),
+        )
+        return int(result.rowcount or 0)
+
+    async def drop_closed_days(self, *, workspace_id: uuid.UUID, through: date, since: date) -> int:
+        """Delete daily-report rows for days the weekly report has closed.
+
+        A provisional row lives only until its day is settled. The weekly report
+        rewrites every row it shares with the daily one under its own id, so
+        whatever still carries a daily id on a closed day is a row WB did not put
+        in the weekly settlement — and the weekly settlement is the document.
+
+        Args:
+            workspace_id: Tenancy scope.
+            through: The settled frontier; days on or before it are closed.
+            since: The oldest day worth sweeping. Bounds the join: rows of older
+                daily reports were swept on the tick their day closed.
+
+        Returns:
+            How many rows were deleted.
+        """
+        report = DailySettlementReport
+        closed = select(report.report_id).where(
+            report.workspace_id == workspace_id,
+            report.day <= through,
+            report.day >= since,
+        )
+        result = typed(
+            CursorResult[Any],
+            await self._session.execute(
+                delete(LogisticsTransaction).where(
+                    LogisticsTransaction.workspace_id == workspace_id,
+                    LogisticsTransaction.report_id.in_(closed),
+                )
+            ),
+        )
+        return int(result.rowcount or 0)
+
+    async def forget(self, *, workspace_id: uuid.UUID, report_id: int) -> None:
+        """Drop a daily report's record, so the tail fetches it again as new.
+
+        Used when a re-read deleted the report's rows and then could not finish:
+        without the record the report reads as missing, and the next tick —
+        a quarter of an hour, not a day — puts its rows back.
+        """
+        await self._session.execute(
+            delete(DailySettlementReport).where(
+                DailySettlementReport.workspace_id == workspace_id,
+                DailySettlementReport.report_id == report_id,
+            )
         )

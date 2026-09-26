@@ -58,6 +58,12 @@ _TOTALS = ListedTotals(
     bank_payment=Decimal("138704.12"),
 )
 _REPORT_ID = 938364620260922
+#: WB's totals after a restatement — what sends a report to a detail re-read.
+_MOVED = ListedTotals(
+    for_pay=Decimal("175000.00"),
+    retail_amount=Decimal("201113.96"),
+    bank_payment=Decimal("138704.12"),
+)
 
 
 @dataclass
@@ -69,11 +75,15 @@ class _Run:
         fetched: Report ids a DETAIL request was spent on, so «settled without
             asking» is an assertion rather than trust.
         listed: The span of every list request that went out.
+        events: Row deletions, record removals and detail fetches, in the
+            order they happened — «rows dropped BEFORE the re-read» is an
+            ordering claim.
     """
 
     recorded: list[tuple[int, DailyReportVerdict, Fingerprint | None]] = field(default_factory=list)
     fetched: list[int] = field(default_factory=list)
     listed: list[tuple[date, date]] = field(default_factory=list)
+    events: list[str] = field(default_factory=list)
 
     @property
     def verdicts(self) -> list[DailyReportVerdict]:
@@ -168,6 +178,13 @@ def verified(monkeypatch: pytest.MonkeyPatch):
             ) -> None:
                 run.recorded.append((report_id, verdict, found))
 
+            async def drop_rows(self, *, workspace_id: uuid.UUID, report_ids: list[int]) -> int:
+                run.events.extend(f"drop:{report_id}" for report_id in report_ids)
+                return 3
+
+            async def forget(self, *, workspace_id: uuid.UUID, report_id: int) -> None:
+                run.events.append(f"forget:{report_id}")
+
         async def _frontier(*, workspace_id: uuid.UUID) -> date:
             return SETTLED
 
@@ -179,6 +196,7 @@ def verified(monkeypatch: pytest.MonkeyPatch):
 
         async def _walk(*, reports: tuple[MissingReport, ...], **_kwargs: object) -> SettlementWalk:
             run.fetched.append(reports[0].report_id)
+            run.events.append(f"fetch:{reports[0].report_id}")
             return (
                 SettlementWalk(10, 0, reports[0].date_to)
                 if walk_completes
@@ -354,3 +372,39 @@ async def test_the_re_read_budget_bounds_detail_requests_not_screening(verified)
 
     assert len(run.fetched) == daily_tail.DAILY_TAIL_VERIFY_LIMIT
     assert len(run.recorded) == daily_tail.DAILY_TAIL_VERIFY_LIMIT
+
+
+async def test_a_withdrawn_report_leaves_the_statement_at_once(verified) -> None:
+    """WB no longer vouches for its rows, so they go now, not when the week closes."""
+    run = verified(pending=(_pending(),), served=())
+
+    await daily_tail._verify_one_workspace(tokens=_tokens())
+
+    assert run.events == [f"drop:{_REPORT_ID}"]
+    assert run.verdicts == [DailyReportVerdict.WITHDRAWN]
+
+
+async def test_a_re_read_starts_from_no_rows(verified) -> None:
+    """The old rows are dropped before the re-read, so a row WB removed does not survive.
+
+    An upsert alone rewrites what WB still serves and leaves the rest behind.
+    """
+    run = verified(
+        pending=(_pending(),),
+        served=(_header(_MOVED),),
+        found=Fingerprint(rows=9, digest="b" * 32),
+    )
+
+    await daily_tail._verify_one_workspace(tokens=_tokens())
+
+    assert run.events == [f"drop:{_REPORT_ID}", f"fetch:{_REPORT_ID}"]
+
+
+async def test_a_re_read_that_fails_hands_the_report_back_to_the_tail(verified) -> None:
+    """Its rows are already gone, so the record goes too and the next tick fetches it anew."""
+    run = verified(pending=(_pending(),), served=(_header(_MOVED),), walk_completes=False)
+
+    await daily_tail._verify_one_workspace(tokens=_tokens())
+
+    assert run.events == [f"drop:{_REPORT_ID}", f"fetch:{_REPORT_ID}", f"forget:{_REPORT_ID}"]
+    assert run.verdicts == []

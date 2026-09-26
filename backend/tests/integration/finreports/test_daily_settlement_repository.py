@@ -160,3 +160,55 @@ async def test_a_verdict_is_written_only_to_its_own_кабинет(db_session: A
         workspace_id=WORKSPACE, after_hours=24, limit=10, now=later
     )
     assert [pending.report_id for pending in due] == [DAILY]
+
+
+async def test_a_closed_day_keeps_only_what_the_weekly_report_rewrote(
+    db_session: AsyncSession,
+) -> None:
+    """On a closed day, rows still under a daily id go; weekly rows and open days stay.
+
+    The weekly report rewrites every row it shares with the daily one under its
+    own id, so a daily id left on a settled day is a row WB kept out of the
+    settlement — and the settlement is the document.
+    """
+    open_daily = DAILY + 1
+    left_out = _row(1, "100.00")
+    rewritten = _row(2, "200.00")
+    rewritten.report_id = 848_045_043
+    still_open = _row(3, "300.00")
+    still_open.report_id = open_daily
+    still_open.rr_dt = DAY + timedelta(days=2)
+    db_session.add_all([left_out, rewritten, still_open])
+    await db_session.flush()
+    repo = DailySettlementRepository(db_session)
+    await _ingest(repo)
+    await repo.record_ingest(
+        workspace_id=WORKSPACE,
+        report_id=open_daily,
+        day=DAY + timedelta(days=2),
+        create_dt=None,
+        fingerprint=Fingerprint(1, "x"),
+        totals=NO_TOTALS,
+    )
+
+    dropped = await repo.drop_closed_days(
+        workspace_id=WORKSPACE, through=DAY, since=DAY - timedelta(days=28)
+    )
+    db_session.expire_all()
+
+    assert dropped == 1
+    assert await db_session.get(LogisticsTransaction, 1) is None
+    assert await db_session.get(LogisticsTransaction, 2) is not None
+    assert await db_session.get(LogisticsTransaction, 3) is not None
+
+
+async def test_dropping_a_report_s_rows_is_scoped_to_its_кабинет(db_session: AsyncSession) -> None:
+    """Named with another кабинет, the delete removes nothing."""
+    db_session.add(_row(1, "100.00"))
+    await db_session.flush()
+    repo = DailySettlementRepository(db_session)
+
+    foreign = await repo.drop_rows(workspace_id=OTHER_WORKSPACE, report_ids=[DAILY])
+    own = await repo.drop_rows(workspace_id=WORKSPACE, report_ids=[DAILY])
+
+    assert (foreign, own) == (0, 1)
