@@ -17,7 +17,6 @@
  * пагинируется, а вложенный DataTable внутри строки DataTable тянет за собой
  * вторую прокрутку внутри первой.
  */
-import { formatMoney } from '@/core/utils/format'
 import { money, num as n, pct, units } from '@/modules/finreports/pnlFormat'
 import { amountClass, toneClass } from '@/modules/finreports/pnlThresholds'
 
@@ -25,17 +24,10 @@ defineProps({
   /** @type {object|null} Ответ `/pnl/skus/{nmId}/sizes`, либо `null` пока грузится. */
   state: { type: Object, default: null },
 })
-
-/** «+8,8 п.п.» — знак ставится явно: без плюса отклонение вверх читается как норма. */
-function deltaPp(value) {
-  const points = n(value)
-  if (points === null) return '—'
-  return `${points > 0 ? '+' : ''}${formatMoney(points, '', 1)} п.п.`
-}
 </script>
 
 <template>
-  <div class="bg-canvas px-md py-sm">
+  <div class="bg-inset px-md py-sm">
     <!-- `null` тоже значит «ещё не знаем»: строка раскрывается мгновенно, а
          запрос за ней только уходит, и «нет размеров» в этот момент — неправда. -->
     <p v-if="!state || state.loading" class="py-sm text-tiny text-muted">Считаем размеры…</p>
@@ -61,12 +53,6 @@ function deltaPp(value) {
                 title="Продано против плеч логистики «к клиенту» за тот же период — прямое измерение: размер есть в строках логистики, а в заказах воронки его нет"
               >
                 Выкуп
-              </th>
-              <th
-                class="pnl-size-th"
-                title="Насколько выкуп этого размера отличается от среднего по артикулу"
-              >
-                К среднему
               </th>
               <th class="pnl-size-th">Цена</th>
               <th class="pnl-size-th">Выручка</th>
@@ -97,12 +83,6 @@ function deltaPp(value) {
               </td>
               <td class="pnl-size-td" :class="toneClass('buyoutPct', size.buyout_pct)">
                 {{ pct(size.buyout_pct) }}
-              </td>
-              <td
-                class="pnl-size-td"
-                :class="toneClass('buyoutVsArticlePp', size.buyout_vs_article_pp)"
-              >
-                {{ deltaPp(size.buyout_vs_article_pp) }}
               </td>
               <td class="pnl-size-td">{{ money(size.average_cheque) }}</td>
               <td class="pnl-size-td">{{ money(size.revenue_seller_price) }}</td>
@@ -135,7 +115,6 @@ function deltaPp(value) {
                 }}
               </td>
               <td class="pnl-size-td pnl-size-foot">{{ pct(state.data.totals.buyout_pct) }}</td>
-              <td class="pnl-size-td pnl-size-foot"></td>
               <td class="pnl-size-td pnl-size-foot">
                 {{ money(state.data.totals.average_cheque) }}
               </td>
@@ -195,6 +174,6 @@ function deltaPp(value) {
    `[data-v-*]` attribute and outranked the utility, which is how every size
    label and «Итого по размерам» ended up pushed against the right edge. */
 .pnl-size-label {
-  @apply sticky left-0 bg-canvas text-left;
+  @apply sticky left-0 bg-inset text-left;
 }
 </style>

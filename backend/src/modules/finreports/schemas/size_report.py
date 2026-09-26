@@ -39,14 +39,11 @@ class PnlSizeRow(BaseModel):
     delivered_units: int
     #: sold / delivered. ``None`` when nothing was carried in the window.
     buyout_pct: Decimal | None
-    #: This size's buyout less the article's own, in percentage POINTS —
-    #: negative means it is bought out worse than its siblings. ``None`` when
-    #: either side is undefined.
-    buyout_vs_article_pp: Decimal | None
 
-    #: Продажи - Возвраты at what buyers paid; the base of the percentages.
+    #: Продажи - Возвраты at what buyers paid.
     revenue_paid: Decimal
-    #: The same net revenue at the seller's own pre-СПП price.
+    #: The same net revenue at the seller's own pre-СПП price; the base of the
+    #: percentages.
     revenue_seller_price: Decimal
     spp_pct: Decimal | None
     #: Средний чек — net revenue per bought-out unit. ``None`` when net units 0.

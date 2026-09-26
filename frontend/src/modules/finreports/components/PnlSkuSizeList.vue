@@ -6,12 +6,11 @@
  * inside a card inside a list, scrolled sideways under a finger that is trying
  * to scroll the page. So each size is two lines, like every other record on the
  * phone: the size and what it earned first (margin before ads, the column a
- * seller opens sizes for), then how it sold — units, returns, buyout against the
- * article's average. The rest of the sixteen stay on the desktop table.
+ * seller opens sizes for), then how it sold — units, returns, buyout. The
+ * rest of the sixteen stay on the desktop table.
  *
  * Fed the same `/sizes` response as the table: one answer, two projections.
  */
-import { formatMoney } from '@/core/utils/format'
 import { money, num, pct, units } from '@/modules/finreports/pnlFormat'
 import { amountClass, toneClass } from '@/modules/finreports/pnlThresholds'
 
@@ -19,13 +18,6 @@ defineProps({
   /** @type {object|null} `{ loading, error, data }` for the article, or `null` before the ask. */
   state: { type: Object, default: null },
 })
-
-/** «+8,8 п.п.» — the sign is explicit, or a gap upwards reads as the norm. */
-function deltaPp(value) {
-  const points = num(value)
-  if (points === null) return ''
-  return `${points > 0 ? '+' : ''}${formatMoney(points, '', 1)} п.п.`
-}
 </script>
 
 <template>
@@ -49,12 +41,6 @@ function deltaPp(value) {
           продано {{ units(size.sold_units) }} · возвр.
           {{ num(size.returned_units) ? units(size.returned_units) : '0' }} · выкуп
           <span :class="toneClass('buyoutPct', size.buyout_pct)">{{ pct(size.buyout_pct) }}</span>
-          <span
-            v-if="deltaPp(size.buyout_vs_article_pp)"
-            :class="toneClass('buyoutVsArticlePp', size.buyout_vs_article_pp)"
-          >
-            ({{ deltaPp(size.buyout_vs_article_pp) }})
-          </span>
         </p>
       </div>
       <div class="size-list__line size-list__total">

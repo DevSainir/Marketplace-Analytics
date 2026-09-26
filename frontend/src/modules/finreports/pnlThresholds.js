@@ -49,8 +49,6 @@ export const BOUNDS = {
   romi: { good: 400, bad: 100, higherIsBetter: true },
   /** Выкуп размера: продано к доехавшим до покупателя. */
   buyoutPct: { good: 35, bad: 20, higherIsBetter: true },
-  /** Отклонение выкупа размера от среднего по артикулу, в п.п. */
-  buyoutVsArticlePp: { good: 5, bad: -5, higherIsBetter: true },
 }
 
 /**

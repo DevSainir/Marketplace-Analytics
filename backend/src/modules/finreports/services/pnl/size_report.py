@@ -36,7 +36,6 @@ def _build_row(
     size: SizeSettlement,
     *,
     cost_price: Decimal | None,
-    article_buyout_pct: Decimal | None,
     label: str | None = None,
 ) -> PnlSizeRow:
     """Compose one size's row from its summed settlement columns."""
@@ -66,11 +65,6 @@ def _build_row(
         returned_units=size.returned_units,
         delivered_units=size.delivered_units,
         buyout_pct=buyout,
-        buyout_vs_article_pp=(
-            (buyout - article_buyout_pct)
-            if buyout is not None and article_buyout_pct is not None
-            else None
-        ),
         revenue_paid=revenue_paid,
         revenue_seller_price=revenue_seller,
         spp_pct=_pct(revenue_seller - revenue_paid, revenue_seller),
@@ -130,9 +124,7 @@ def build_size_rows(
     """Compose the size rows and the article-level row they add up to.
 
     The totals row is built from the SUMMED aggregate rather than by adding the
-    composed rows: a ratio is not the sum of ratios, and «Выкуп» over the
-    article is what every size's «К среднему» is measured against, so it has to
-    exist before the rows do.
+    composed rows: a ratio is not the sum of ratios.
 
     Args:
         sizes: One entry per ``ts_name``, as the repository returns them.
@@ -142,9 +134,6 @@ def build_size_rows(
         ``(rows, totals)``, rows in WB's size-label order.
     """
     merged = _merge(sizes)
-    totals = _build_row(merged, cost_price=cost_price, article_buyout_pct=None, label="Итого")
-    rows = [
-        _build_row(size, cost_price=cost_price, article_buyout_pct=totals.buyout_pct)
-        for size in sizes
-    ]
+    totals = _build_row(merged, cost_price=cost_price, label="Итого")
+    rows = [_build_row(size, cost_price=cost_price) for size in sizes]
     return rows, totals

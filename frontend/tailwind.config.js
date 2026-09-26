@@ -100,6 +100,8 @@ export default {
         canvas: 'rgb(var(--ui-canvas-rgb) / <alpha-value>)',
         surface: 'rgb(var(--ui-surface-rgb) / <alpha-value>)',
         zebra: 'rgb(var(--ui-zebra-rgb) / <alpha-value>)',
+        // A drill-down panel inside a card; see tokens.css.
+        inset: 'rgb(var(--ui-inset-rgb) / <alpha-value>)',
         // The one hover fill for anything sitting on canvas/surface.
         hover: 'rgb(var(--ui-action-soft-rgb) / <alpha-value>)',
       },

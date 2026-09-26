@@ -61,6 +61,11 @@
   --ui-sunk: #edeef5;
   --ui-zebra-rgb: 250 250 253;
   --ui-zebra: rgb(var(--ui-zebra-rgb));
+  /* A panel opened INSIDE a card — the P&L's size drill-down. Canvas grey
+     there read as a hole in the card; this is the action hue at a trace, one
+     step lighter than the hover fill so a hovered row above it still reads. */
+  --ui-inset-rgb: 249 248 255;
+  --ui-inset: rgb(var(--ui-inset-rgb));
 
   /* --- ink --------------------------------------------------------------- */
   --ui-ink-rgb: 18 18 26;

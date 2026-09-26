@@ -4413,8 +4413,6 @@ export interface components {
       delivered_units: number
       /** Buyout Pct */
       buyout_pct: string | null
-      /** Buyout Vs Article Pp */
-      buyout_vs_article_pp: string | null
       /** Revenue Paid */
       revenue_paid: string
       /** Revenue Seller Price */
