@@ -36,3 +36,18 @@
 
 /* A merged (multi-zone) cell — «ДРР от продаж» per campaign: the one number
    sits centered across the campaign's zone columns, Excel-merge style. */
+
+/* A traffic group that ran a campaign that day links to it: the action colour
+   marks it as a way out, the underline on hover confirms it. */
+.matrix-advert-link {
+  color: var(--ui-action);
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+.matrix-advert-link:hover {
+  color: var(--ui-action-hover);
+  text-decoration: underline;
+}
+.matrix-advert-link:active {
+  opacity: 0.7;
+}

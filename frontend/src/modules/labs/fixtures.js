@@ -149,7 +149,7 @@ function buildValues(key, { base, spread, ratio, totalOnly }, liveByDay, rand) {
 
 /**
  * One card's whole `SkuDetailResponse`, plus the sandbox-only extras the page
- * reads beside it: `campaign_ids` («ID РК» row), `sizes` and `stock_days`.
+ * reads beside it: `campaign_ids` (the traffic-group links), `sizes` and `stock_days`.
  *
  * @param {object} spec
  * @param {Array<Record<string, number>>} spec.campaignsByDay per day, group key → advert id

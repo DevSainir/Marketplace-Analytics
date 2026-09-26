@@ -31,17 +31,18 @@
  * the parent sends it to the backend, which recomputes dependents. Read-only
  * cells render as plain text.
  *
- * Header (3 rows, as in the workbook, plus one):
- *   Дата · Тип получения трафика (groups) · Зоны показов (leaf columns) ·
- *   ID РК — the day's campaign id over its group, linked to that campaign in
- *   WB's advertising cabinet (`wbLinks.js`).
+ * Header (3 rows, as in the workbook):
+ *   Дата · Тип получения трафика (groups) · Зоны показов (leaf columns).
+ * A group that ran a campaign that day is a link to that campaign in WB's
+ * advertising cabinet (`wbLinks.js`), its id in the tooltip. The id used to
+ * have a row of its own; eight digits did not fit a one-column group, and the
+ * group label already says which campaign it is.
  */
 import { nextTick, onMounted, ref, watch } from 'vue'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
 import AssocBreakdownTip from '@/modules/labs/components/AssocBreakdownTip.vue'
 import MatrixMetricsRows from '@/modules/labs/components/MatrixMetricsRows.vue'
-import MatrixCampaignIdRow from '@/modules/labs/components/MatrixCampaignIdRow.vue'
 import MatrixActionsRow from '@/modules/labs/components/MatrixActionsRow.vue'
 import MatrixCommentsRow from '@/modules/labs/components/MatrixCommentsRow.vue'
 import MatrixDayBlocksRow from '@/modules/labs/components/MatrixDayBlocksRow.vue'
@@ -49,6 +50,7 @@ import MetricsDayList from '@/modules/labs/components/MetricsDayList.vue'
 import { COLUMNS_PER_DAY, TRAFFIC_GROUPS } from '@/modules/labs/metricsMatrix'
 import { useMatrixColumns } from '@/modules/labs/matrixColumns'
 import { useAssocHover } from '@/modules/labs/useAssocHover'
+import { campaignUrl } from '@/modules/labs/wbLinks'
 
 const props = defineProps({
   /** @type {Array<{iso: string, label: string}>} oldest → newest */
@@ -71,11 +73,20 @@ const props = defineProps({
   actionSavingDays: { type: Set, default: () => new Set() },
   /** Disable editing while a save/refresh is in flight. */
   editingDisabled: { type: Boolean, default: false },
-  /** Campaign ids per ISO day, keyed by TRAFFIC_GROUPS `key` («ID РК» row). */
+  /** Campaign ids per ISO day, keyed by TRAFFIC_GROUPS `key` — the group links. */
   campaignIds: { type: Object, default: () => ({}) },
   /** The page's SKU — the campaign link opens on it. */
   nmId: { type: Number, default: null },
 })
+
+/** The campaign page, preset to the table's window and this SKU. */
+function advertLink(advertId) {
+  return campaignUrl(advertId, {
+    nmId: props.nmId,
+    from: props.days[0]?.iso,
+    to: props.days.at(-1)?.iso,
+  })
+}
 
 const emit = defineEmits(['edit', 'comment', 'action'])
 
@@ -162,7 +173,16 @@ watch(
                   :colspan="group.span"
                   :rowspan="group.spansZones ? 2 : 1"
                 >
-                  {{ group.label }}
+                  <a
+                    v-if="campaignIds[day.iso]?.[group.key]"
+                    class="matrix-advert-link"
+                    :href="advertLink(campaignIds[day.iso][group.key])"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    :title="`Кампания ${campaignIds[day.iso][group.key]} — открыть в кабинете WB`"
+                    >{{ group.label }}</a
+                  >
+                  <template v-else>{{ group.label }}</template>
                 </th>
               </template>
             </tr>
@@ -171,7 +191,6 @@ watch(
               <th>Зоны показов</th>
               <th v-for="leaf in zoneHeaderColumns" :key="leaf.id">{{ leaf.zone }}</th>
             </tr>
-            <MatrixCampaignIdRow :days="days" :campaign-ids="campaignIds" :nm-id="nmId" />
           </thead>
 
           <MatrixMetricsRows
