@@ -83,6 +83,15 @@ class FinancialReportRepository(BaseRepository):
             report_id=row[0], date_from=row[1], date_to=row[2], harvested_at=row[3]
         )
 
+    async def workspaces_with_reports(self) -> list[uuid.UUID]:
+        """Every workspace holding at least one report — across tenants.
+
+        For the worker-side rollup warm-up only, which runs as the table owner
+        and serves every seller; nothing on a request path may call it.
+        """
+        stmt = select(FinancialReport.workspace_id).distinct()
+        return list((await self._session.execute(stmt)).scalars())
+
     async def latest_settled_date(self, *, workspace_id: uuid.UUID) -> date | None:
         """Return the last settlement day any harvested report covers.
 

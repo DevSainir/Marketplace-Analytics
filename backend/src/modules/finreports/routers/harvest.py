@@ -4,10 +4,10 @@ Two routes on one path — ``POST /harvest`` asks for a harvest, ``GET /harvest`
 reports whether one is running and how far the history reaches, so the frontend
 can poll and then reload the statement.
 
-The schedule already asks WB every fifteen minutes in the publication window and
-hourly outside it; this exists for the moments it cannot cover. A report served
-at night waits up to an hour, and a worker that was down for its tick waits for
-the next one — in both cases the seller can already see the report on WB's own
+The schedule asks WB on the hours a report can arrive, and only while a seller
+is still owed one; this exists for the moments it cannot cover. A report served
+off the calendar waits for the 03:00 pass, and a worker that was down for its
+tick waits for the next one — in both cases the seller can already see the report on WB's own
 site, and «подождите» is not an answer.
 
 Triggering is guarded, not queued: if a harvest is already in flight the answer

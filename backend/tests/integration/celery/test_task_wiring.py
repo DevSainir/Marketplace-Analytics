@@ -11,6 +11,8 @@ registry and the schedule.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from celery.schedules import crontab
 
@@ -28,6 +30,8 @@ EXPECTED_TASKS: list[str] = [
     # cannot see it, and a rename would silently stop the cache being warmed
     # while everything kept reporting success. It is listed here for exactly
     # that reason: it is the one finreports task with no schedule behind it.
+    # Also unscheduled: the worker's start hook sends it by name.
+    "finreports.warm_settlement_rollups",
     # The history backfill. Its lanes are chains of self-enqueueing ticks, and
     # the watchdog restarts them BY NAME — so a rename that skipped either side
     # leaves a dead lane with nothing scheduled to notice, which is exactly the
@@ -117,72 +121,83 @@ def test_the_price_top_up_finishes_before_the_day_rolls_over() -> None:
     assert max(entry.minute) < 60
 
 
-def test_the_finance_harvest_asks_through_the_whole_day() -> None:
-    """WB publishes at no fixed hour, so a daily check is a daily staleness bet.
-
-    It lost on 2026-08-10: WB formed the week's report after that day's single
-    08:00 run had already asked and been told there was nothing, and the P&L
-    showed an empty week until the next morning.
-
-    Two entries cover it, and between them no hour is unwatched — a report
-    stamped one day and first served eight days later (983241109) arrives at no
-    hour anybody predicted.
-    """
-    schedule = celery_app.conf.beat_schedule
-    window = schedule["finreports-harvest-in-the-publication-window"]["schedule"]
-    outside = schedule["finreports-harvest-outside-it"]["schedule"]
-    reconcile = schedule["daily-finreports-reconcile"]["schedule"]
-
-    covered = set(window.hour) | set(outside.hour) | set(reconcile.hour)
-    reserved = {
-        min(schedule["daily-finreports-snapshot-tariffs"]["schedule"].hour),
-        min(schedule["nightly-harvest-all"]["schedule"].hour),
+def _finance_ticks() -> dict[str, Any]:
+    """Every scheduled finance harvest except the nightly reconciliation."""
+    return {
+        name: entry
+        for name, entry in celery_app.conf.beat_schedule.items()
+        if entry["task"] == "finreports.harvest_finance"
+        and not entry.get("kwargs", {}).get("reconcile")
     }
 
-    assert covered | reserved == set(range(24))
+
+def test_every_scheduled_finance_tick_is_gated() -> None:
+    """A scheduled tick asks WB only about sellers still owed a report today.
+
+    Ungated, each one spends two `list` requests per seller to learn nothing on
+    most runs — 58 runs a day found two or three reports. The gate is a keyword
+    the task defaults off, so an entry that forgets it silently goes back to
+    asking about everybody.
+    """
+    ticks = _finance_ticks()
+
+    assert ticks
+    assert all(entry.get("kwargs", {}).get("gated") is True for entry in ticks.values())
 
 
-def test_the_publication_window_is_asked_more_often_than_hourly() -> None:
-    """Every report this service has seen arrived between 07:00 and 18:30 MSK.
+def test_the_nightly_reconciliation_is_never_gated() -> None:
+    """The pass that catches off-calendar reports must ask WB about everyone.
 
-    The daily ones from about 07:25, the weekly ones at 10:03, 10:03, 10:04 and
-    12:54, the latest ever at 18:30, none before 08:00. Asking four times an
-    hour there is what bounds staleness at a quarter of an hour instead of a
-    whole one, and it is affordable because discovery is two list requests per
-    workspace against a bucket that serves 1 440 a day.
+    The gate trusts the calendar; a report served days late or back-dated
+    (983241109, stamped 01.09 and first served 09.09) is exactly what it cannot
+    see, and the reconciliation is the only pass left that looks.
+    """
+    entry = celery_app.conf.beat_schedule["daily-finreports-reconcile"]
+
+    assert entry["kwargs"] == {"reconcile": True}
+
+
+def test_yesterday_s_daily_report_is_asked_for_after_midnight() -> None:
+    """WB serves the daily report in the small hours: 01:01, 03:06, 04:01."""
+    hours = set(celery_app.conf.beat_schedule["finreports-harvest-at-night"]["schedule"].hour)
+
+    assert {0, 1, 2, 4} <= hours
+
+
+def test_the_days_a_weekly_report_is_formed_are_asked_every_quarter_hour() -> None:
+    """Monday and the first of the month, through the whole observed window.
+
+    A weekly report is created the day after its period closes — a Sunday or a
+    month end, 142 of 142 — and has been served between 10:03 and 18:30.
     """
     schedule = celery_app.conf.beat_schedule
-    window = schedule["finreports-harvest-in-the-publication-window"]["schedule"]
-    outside = schedule["finreports-harvest-outside-it"]["schedule"]
+    monday = schedule["finreports-harvest-after-a-sunday"]["schedule"]
+    first = schedule["finreports-harvest-after-a-month-end"]["schedule"]
+    by_day = schedule["finreports-harvest-by-day"]["schedule"]
 
-    assert len(window.minute) >= 4
-    assert set(window.hour) >= set(range(8, 19)), "the whole observed window"
-    assert len(outside.minute) == 1, "hourly is enough where nothing has ever arrived"
+    assert monday.day_of_week == {1}
+    assert first.day_of_month == {1}
+    for entry in (monday, first):
+        assert set(entry.hour) >= set(range(10, 19))
+        assert len(entry.minute | by_day.minute) == 4
 
 
 def test_the_finance_harvest_leaves_the_monitoring_hours_alone() -> None:
 
     The finance tick competes with them for the same rate-limited analytics
-    surfaces whenever it has a report to walk, and unlike them it can fire at
-    any hour — so it is the one that yields.
-
-    07:00 is deliberately NOT reserved any more, though the cohort refresh runs
-    there. That reservation was written for a tick that walked the analytics
-    surfaces on every run; a tick with nothing to fetch no longer touches them
-    at all, and giving up 07:00 would give up the earliest a daily report has
-    ever been served (07:25).
+    surfaces whenever it has a report to walk, so it is the one that yields.
     """
     schedule = celery_app.conf.beat_schedule
-    hours = set(schedule["finreports-harvest-in-the-publication-window"]["schedule"].hour) | set(
-        schedule["finreports-harvest-outside-it"]["schedule"].hour
-    )
+    hours: set[int] = set()
+    for entry in _finance_ticks().values():
+        hours |= set(entry["schedule"].hour)
     reserved = {
         min(schedule["daily-finreports-snapshot-tariffs"]["schedule"].hour),
         min(schedule["nightly-harvest-all"]["schedule"].hour),
+        min(schedule["daily-finreports-reconcile"]["schedule"].hour),
     }
 
     assert hours & reserved == set()
-    assert min(schedule["nightly-refresh-buyout-cohorts"]["schedule"].hour) in hours
 
 
 def test_results_expire_so_redis_does_not_grow_without_bound() -> None:

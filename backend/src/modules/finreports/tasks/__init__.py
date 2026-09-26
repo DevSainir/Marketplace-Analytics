@@ -2,8 +2,12 @@
 
   historical settlement rows price against the tariff that was live then.
   internal workspace, and deliberately NOT part of it. See the task.
-  The gate that decides that is :mod:`.freshness`, and it is what makes an
-  hourly tick cost one request per workspace on the quiet hours. An hourly tick
+* ``finreports.warm_settlement_rollups`` — enqueued when a worker starts, so
+  a migration that cleared the rollup is rebuilt off the request path.
+* ``finreports.harvest_finance`` — on the hours a report can arrive; pull
+  published an unharvested report for. Scheduled ticks first skip every seller
+  our own tables show is owed nothing today (:mod:`.harvest.due`); for the rest
+  the gate is :mod:`.freshness`. A tick
   also repairs one workspace the gap survey can see a hole in, so a missing week
   is walked within the hour rather than waiting for the night. The same task
   runs once a day with ``reconcile=True`` across every seller, and
@@ -42,12 +46,15 @@ from src.modules.finreports.tasks.daily_tail import (
     verify_daily_tail as _verify_daily_tail,
 )
 from src.modules.finreports.tasks.harvest import harvest_all_workspaces
+from src.modules.finreports.tasks.warmup import warm_every_settlement_rollup
 
 
 
 
 @celery_app.task(name="finreports.harvest_finance", **_TASK_RETRY_KWARGS)  # type: ignore[untyped-decorator]
-def harvest_finance(workspace_id: str | None = None, reconcile: bool = False) -> dict[str, int]:
+def harvest_finance(
+    workspace_id: str | None = None, reconcile: bool = False, gated: bool = False
+) -> dict[str, int]:
     """Harvest every settlement report WB has formed that a workspace lacks.
 
     Args:
@@ -61,12 +68,14 @@ def harvest_finance(workspace_id: str | None = None, reconcile: bool = False) ->
             are asking to catch a report WB served after our reachable window
             had already moved past the days it covers — see
             :func:`~src.modules.finreports.tasks.harvest.harvest_all_workspaces`.
+        gated: Ask WB only about sellers still owed a report today. Set by the
+            scheduled ticks and by nothing else.
 
     Returns:
         Row counts per source.
     """
     scope = uuid.UUID(workspace_id) if workspace_id else None
-    return run_task(harvest_all_workspaces(workspace_id=scope, reconcile=reconcile))
+    return run_task(harvest_all_workspaces(workspace_id=scope, reconcile=reconcile, gated=gated))
 
 
 @celery_app.task(name="finreports.harvest_daily_tail", **_TASK_RETRY_KWARGS)  # type: ignore[untyped-decorator]
@@ -132,6 +141,20 @@ def verify_daily_tail() -> dict[str, int]:
     """
 
 
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="finreports.warm_settlement_rollups", soft_time_limit=900, time_limit=960
+)
+def warm_settlement_rollups() -> int:
+    """Warm every seller's settlement rollup; enqueued when a worker starts.
+
+    so a failed warm-up costs one slow first view, never a wrong figure.
+
+    Returns:
+        How many sellers were warmed.
+    """
+    return run_task(warm_every_settlement_rollup())
+
+
 from src.modules.finreports.tasks.backfill import backfill_pnl  # noqa: E402
 
 __all__ = [
@@ -139,4 +162,5 @@ __all__ = [
     "harvest_daily_tail",
     "harvest_finance",
     "verify_daily_tail",
+    "warm_settlement_rollups",
 ]

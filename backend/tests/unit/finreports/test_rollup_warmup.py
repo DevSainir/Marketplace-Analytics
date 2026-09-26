@@ -144,3 +144,32 @@ async def test_the_warm_up_commits_what_it_built(
     session = warmed["session"]
     assert isinstance(session, _FakeSession)
     assert session.committed
+
+
+async def test_a_worker_start_warms_every_seller_holding_a_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After a deploy every seller's rollup is rebuilt, not just one.
+
+    A migration that changes a money rule clears the rollup for everybody.
+    """
+    other = uuid.UUID("019f657a-0000-7000-8000-00000000cafe")
+    warmed: list[uuid.UUID] = []
+
+    class _Everyone:
+        def __init__(self, _session: object) -> None:
+            pass
+
+        async def workspaces_with_reports(self) -> list[uuid.UUID]:
+            return [WORKSPACE, other]
+
+    async def _warm(*, workspace_id: uuid.UUID, name: str) -> None:
+        warmed.append(workspace_id)
+
+    monkeypatch.setattr(warmup_module, "AsyncSessionLocal", _FakeSession)
+    monkeypatch.setattr(warmup_module, "FinancialReportRepository", _Everyone)
+    monkeypatch.setattr(warmup_module, "warm_settlement_rollup", _warm)
+
+    count = await warmup_module.warm_every_settlement_rollup()
+
+    assert (count, warmed) == (2, [WORKSPACE, other])

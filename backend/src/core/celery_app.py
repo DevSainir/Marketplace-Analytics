@@ -153,52 +153,46 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=5, minute=0),
     },
     #
-    # Every fifteen minutes in the publication window and hourly outside it
-    # (the two entries below), and a tick costs two requests per workspace: one
-    # `sales-reports/list` for the weekly reports and one for the daily ones.
-    # `list` is a bucket of its own at one request per minute — 1 440 a day —
-    # so discovery is effectively free and is never rationed.
+    # Scheduled on the hours a report can ARRIVE, and gated: each tick first
+    # asks our own tables whether a seller is still owed anything today
+    # (`finreports.tasks.harvest.due`) and spends WB requests only on those who
+    # are. What a day brings is known in advance — the daily report for
+    # yesterday, served in the small hours (01:01, 03:06, 04:01 on «Демо»,
+    # 09.2026), and a weekly report only the day after a Sunday or a month end
+    # (142 of 142), served from about 10:00 (10:03, 10:04, 12:54, latest 18:30).
     #
-    # It was not always. On `reportDetailByPeriod` a settlement request was one
-    # of about 94 a day, so this entry carried a derived publication calendar
-    # (Sunday or month end, `create_dt = date_to + 1`, measured over 142
-    # reports) and a decaying probe cadence, purely to avoid spending that
-    # budget on asking. Both were deleted on 2026-09-23 with the endpoint they
-    # protected: the calendar's one remaining question — «WB formed nothing for
-    # a day inside our history» — is answered in SQL by the gap survey, and a
-    # report the list names is now fetched by the tick that names it instead of
-    # waiting for one of four preset hours.
+    # It was 58 ungated ticks a day, two `list` requests per seller each, to
+    # find two or three reports. A report WB serves off-calendar — back-dated,
+    # days late — is the 03:00 reconciliation's, which walks every seller
+    # ungated; «Обновить» and a new кабинет's first harvest are never gated.
     #
-    # `harvest_all_workspaces` holds a Redis lock so the next tick cannot start a
-    # second copy alongside it.
-    #
-    # harvest and cohort refresh own those hours, and the walk competes with
-    # them for the same rate-limited analytics surfaces.
-    "finreports-harvest-in-the-publication-window": {
+    # `harvest_all_workspaces` holds a Redis lock, so two entries firing in the
+    # same minute run once. 03:00 belongs to the reconciliation and
+    # refresh, which compete for the same rate-limited surfaces.
+    "finreports-harvest-at-night": {
         "task": "finreports.harvest_finance",
-        # Every fifteen minutes between 07:00 and 18:45 MSK. Every report this
-        # service has ever seen arrived inside that window: the daily ones from
-        # about 07:25, the weekly ones at 10:03, 10:03, 10:04 and 12:54, with the
-        # latest ever at 18:30 and none before 08:00.
-        #
-        # Four ticks an hour rather than one because discovery is two list
-        # requests per workspace and the list bucket serves 1 440 a day — the
-        # whole window costs about 96 of them per seller, under 7%. What it buys
-        # is the worst case: an hourly tick is up to sixty minutes of staleness
-        # on a report the seller can already see on WB's own site.
-        "schedule": crontab(hour="7-18", minute="0,15,30,45"),
+        # Yesterday's daily report.
+        "schedule": crontab(hour="0-2,4", minute=0),
+        "kwargs": {"gated": True},
     },
-    "finreports-harvest-outside-it": {
+    "finreports-harvest-by-day": {
         "task": "finreports.harvest_finance",
-        # Hourly for the rest of the day. Not dropped altogether, because the
-        # window above describes when a report normally ARRIVES and not when one
-        # can: 983241109 was stamped 01.09 and first served on 09.09, and a
-        # back-dated report is exactly what nobody is watching for. An empty tick
-        # is two list requests per seller.
-        #
-        # 03:00 belongs to the reconciliation pass below, and 05:00-06:00 to the
-        # compete for the same analytics surfaces.
-        "schedule": crontab(hour="0-2,4,19-23", minute=0),
+        # Whatever the night did not bring, and a weekly report served late.
+        "schedule": crontab(hour="7-18", minute=0),
+        "kwargs": {"gated": True},
+    },
+    # The two days a weekly report is formed, every quarter of an hour: WB shows
+    # it on its own site the moment it is served, and an hour's lag on the one
+    # document a seller waits for is what the tighter cadence buys off.
+    "finreports-harvest-after-a-sunday": {
+        "task": "finreports.harvest_finance",
+        "schedule": crontab(day_of_week="mon", hour="8-18", minute="15,30,45"),
+        "kwargs": {"gated": True},
+    },
+    "finreports-harvest-after-a-month-end": {
+        "task": "finreports.harvest_finance",
+        "schedule": crontab(day_of_month="1", hour="8-18", minute="15,30,45"),
+        "kwargs": {"gated": True},
     },
     # The harvest tick can only ever look FORWARD: its span starts at the
     # settlement watermark, and the watermark jumps to the newest report's
@@ -209,7 +203,7 @@ celery_app.conf.beat_schedule = {
     # the product could tell: the counters moved, the task succeeded, the P&L
     # was simply short a day.
     #
-    # 03:00 MSK, and the hourly tick gives up that hour above. Not 05:00-07:00:
+    # 03:00 MSK, and the night tick gives up that hour above. Not 05:00-07:00:
     # refresh, and this pass competes for the same rate-limited surfaces. Since
     # 2026-09-26 it covers every seller, not one in rotation: per seller it is
     # one list over the whole history (WB's totals for the archive) plus the
@@ -300,6 +294,27 @@ celery_app.autodiscover_tasks(
 def _startup_logger() -> logging.Logger:
     """A plain stdlib logger: structlog may not be configured this early."""
     return logging.getLogger(__name__)
+
+
+@worker_ready.connect  # type: ignore[untyped-decorator]
+def _warm_settlement_rollups(**_: object) -> None:
+    """Rebuild the P&L rollup a deploy's migration may just have cleared.
+
+    A migration clears it whenever a money rule changes, and every deploy runs
+    migrations and then starts this worker — so this is the first moment
+    anything can rebuild it. Otherwise the first seller to open «Вся история»
+    after such a deploy pays a rebuild the browser gives up on. Sent by name
+    for the same reason as the sweep below; failure is swallowed because the
+    rollup repairs itself on read anyway.
+    """
+    try:
+        celery_app.send_task("finreports.warm_settlement_rollups")
+    except Exception:
+        _startup_logger().warning(
+            "Could not enqueue the rollup warm-up at worker start; the first read "
+            "will rebuild it instead.",
+            exc_info=True,
+        )
 
 
 @worker_ready.connect  # type: ignore[untyped-decorator]

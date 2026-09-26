@@ -96,3 +96,23 @@ async def warm_settlement_rollup(*, workspace_id: uuid.UUID, name: str) -> None:
         logger.exception("finreports: failed to warm the settlement rollup for %s.", name)
 
 
+async def warm_every_settlement_rollup() -> int:
+    """Warm the rollup of every seller holding a report, one after another.
+
+    Run when a worker starts. A deploy is when a migration may have cleared the
+    rollup — it does whenever a money rule changes, because the stored sums
+    were computed under the old one — and a worker starting is the first moment
+    after that migration anything can rebuild it. Without this the rollup stays
+    cold until a report lands or the 03:00 pass, and the first seller to open
+    «Вся история» waits out the rebuild.
+
+    Returns:
+        How many sellers were warmed.
+    """
+    async with AsyncSessionLocal() as session:
+        workspace_ids = await FinancialReportRepository(session).workspaces_with_reports()
+    for workspace_id in workspace_ids:
+        await warm_settlement_rollup(workspace_id=workspace_id, name=str(workspace_id))
+    return len(workspace_ids)
+
+

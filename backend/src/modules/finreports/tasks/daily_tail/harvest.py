@@ -34,6 +34,7 @@ from src.modules.finreports.tasks.settlement import (
     MissingReport,
     walk_settlement_reports,
 )
+from src.modules.finreports.tasks.warmup import warm_settlement_rollup
 from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
     load_workspace_token_bundle,
@@ -108,8 +109,22 @@ async def tail_one_workspace(*, tokens: WorkspaceTokenBundle, today: date) -> di
     """
     bind_workspace(tokens.workspace_id)
     frontier = await settled_frontier(workspace_id=tokens.workspace_id)
+    dropped = 0
     if frontier is not None:
-        await _drop_closed_days(tokens=tokens, frontier=frontier)
+        dropped = await _drop_closed_days(tokens=tokens, frontier=frontier)
+    counts = await _fetch_tail(tokens=tokens, frontier=frontier, today=today)
+    # Either change leaves those days stale in the rollup, and the next person
+    # to open the P&L would pay the rebuild. The weekly walk warms after itself;
+    # this is the same for the daily lane, which lands most mornings on its own.
+    if dropped or counts["rows"]:
+        await warm_settlement_rollup(workspace_id=tokens.workspace_id, name=tokens.name)
+    return counts
+
+
+async def _fetch_tail(
+    *, tokens: WorkspaceTokenBundle, frontier: date | None, today: date
+) -> dict[str, int]:
+    """Fetch every daily report past ``frontier`` that we do not hold yet."""
     span = _tail_span(frontier=frontier, today=today)
     if span is None:
         return dict(_EMPTY, workspaces_skipped=1)
@@ -191,7 +206,7 @@ async def tail_one_workspace(*, tokens: WorkspaceTokenBundle, today: date) -> di
     return dict(_EMPTY, reports=len(done), rows=rows, reports_failed=failed)
 
 
-async def _drop_closed_days(*, tokens: WorkspaceTokenBundle, frontier: date) -> None:
+async def _drop_closed_days(*, tokens: WorkspaceTokenBundle, frontier: date) -> int:
     """Remove provisional rows for days the weekly report has now closed.
 
     The rule since 2026-09-26: a daily row lives only until its day is settled.
@@ -214,6 +229,7 @@ async def _drop_closed_days(*, tokens: WorkspaceTokenBundle, frontier: date) -> 
             tokens.name,
             frontier,
         )
+    return dropped
 
 
 #: How far behind the tail's own lookback the closed-day sweep still looks. A

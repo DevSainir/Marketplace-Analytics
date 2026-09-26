@@ -44,6 +44,7 @@ from src.modules.finreports.tasks.freshness import (
     verdict_from_walk,
 )
 from src.modules.finreports.tasks.gaps import survey_settlement_gaps
+from src.modules.finreports.tasks.harvest.due import sellers_owed_a_report
 from src.modules.finreports.tasks.harvest.ledger import (
     record_wb_totals,
     refresh_archive_totals,
@@ -93,12 +94,12 @@ _EMPTY_TOTALS: dict[str, int] = {
 
 
 async def harvest_all_workspaces(
-    *, workspace_id: uuid.UUID | None = None, reconcile: bool = False
+    *, workspace_id: uuid.UUID | None = None, reconcile: bool = False, gated: bool = False
 ) -> dict[str, int]:
     """Harvest every workspace with a WB report it does not hold.
 
-    Runs every fifteen minutes in the publication window and hourly outside
-    it, but only walks the sources for a workspace WB has published an
+    Scheduled ticks run ``gated``, on the hours a report can arrive, and only
+    walk the sources for a workspace WB has published an
     unharvested report for — see :mod:`.freshness` for what that costs and what
     it deliberately does not catch. ``workspaces_skipped`` reports how many were
     gated out, so a run that harvested nothing is distinguishable from one that
@@ -124,6 +125,9 @@ async def harvest_all_workspaces(
             newer exists" — which is true, and beside the point, exactly when a
             back-dated report is the thing being looked for. Once a day; see
             :func:`_harvest_all_workspaces`.
+        gated: Ask WB only about sellers still owed a report today, judged from
+            our own tables (:mod:`.due`). Scheduled ticks set it; «Обновить»,
+            a first harvest and the nightly pass do not.
 
     Returns:
         Row counts per source, summed over whichever workspaces were walked.
@@ -134,11 +138,13 @@ async def harvest_all_workspaces(
         if not acquired:
             logger.info("finreports: a harvest is already in flight — skipping this tick.")
             return dict(_EMPTY_TOTALS, skipped_locked=1)
-        return await _harvest_all_workspaces(workspace_id=workspace_id, reconcile=reconcile)
+        return await _harvest_all_workspaces(
+            workspace_id=workspace_id, reconcile=reconcile, gated=gated
+        )
 
 
 async def _harvest_all_workspaces(
-    *, workspace_id: uuid.UUID | None, reconcile: bool = False
+    *, workspace_id: uuid.UUID | None, reconcile: bool = False, gated: bool = False
 ) -> dict[str, int]:
     """Walk every eligible workspace. See :func:`harvest_all_workspaces`.
 
@@ -208,24 +214,19 @@ async def _harvest_all_workspaces(
         repairing = {bundle.workspace_id for bundle in bundles}
     else:
         repairing = await gap_repair_due(bundles, today=today, gaps=gaps)
+    skipped = 0
+    if gated:
+        # A seller holding yesterday and the last closed period has nothing left
+        # to come today, so no request is spent asking. A hole just chosen for
+        # repair is walked regardless.
+        ids = [bundle.workspace_id for bundle in bundles]
+        owed = repairing | await sellers_owed_a_report(ids, today=today)
+        skipped = sum(bundle.workspace_id not in owed for bundle in bundles)
+        bundles = [bundle for bundle in bundles if bundle.workspace_id in owed]
     records: FreshnessRecordStore = freshness_record_store()
-    # One workspace at a time WAS the shape, and it stopped being affordable the
-    # moment both lanes moved into one tick. A tick asks WB twice per seller —
-    # the weekly list and the daily one — and `sales-reports/list` is a bucket of
-    # one token per minute, so the second call waits a minute. Sequentially that
-    # is a minute per seller of a tick that usually finds nothing, and the
-    # harvest lock is held for all of it: at five sellers, a third of the
-    # fifteen minutes between ticks, during which «Обновить» answers «уже
-    # выполняется».
-    #
-    # The buckets are per seller account, so waiting on one seller's token tells
-    # us nothing about another's — the waiting is the part that parallelises, and
-    # a fleet tick becomes about as long as its slowest single seller.
-    #
-    # Bounded rather than unleashed: each worker streams settlement pages into
-    # its own session, and the cgroup cap is 768 MiB. Three is enough to hide the
-    # pacing (the wait is a minute, the work is seconds) without putting three
-    # large reports through the heap at once.
+    # Several sellers at once: a tick waits a minute per seller for its second
+    # `list` token, WB meters per seller account, so the waits overlap. Bounded
+    # by memory (see `_FLEET_CONCURRENCY`), not by WB.
     results = await _gather_bounded(
         [
             _isolated(
@@ -245,7 +246,7 @@ async def _harvest_all_workspaces(
         ],
         limit=_FLEET_CONCURRENCY,
     )
-    totals = dict(_EMPTY_TOTALS)
+    totals = dict(_EMPTY_TOTALS, workspaces_skipped=skipped)
     for counts in results:
         for key, value in counts.items():
             totals[key] += value

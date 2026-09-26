@@ -96,8 +96,8 @@ async def survey_backlog(
     enough to be the only copy.
 
     **Reports the forward harvest owns are not offered.** It walks everything
-    inside :data:`SETTLEMENT_LIST_WINDOW_DAYS` on a tick every fifteen minutes
-    in the publication window and hourly outside it, so a
+    inside :data:`SETTLEMENT_LIST_WINDOW_DAYS` — its scheduled ticks while a
+    report is due, and the 03:00 pass every night regardless — so a
     backfill reaching into that window would spend a minute-long token racing
     it for rows that were arriving anyway. The two lanes meet at that boundary
     and neither has a hole on its side of it.
