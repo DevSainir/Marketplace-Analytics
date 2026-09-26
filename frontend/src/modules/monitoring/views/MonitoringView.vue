@@ -13,12 +13,15 @@ import SkuMatchPicker from '@/modules/monitoring/components/SkuMatchPicker.vue'
 import PinnedSkuRow from '@/modules/monitoring/components/PinnedSkuRow.vue'
 import RefreshAllSkusButton from '@/modules/monitoring/components/RefreshAllSkusButton.vue'
 import SectionNav from '@/core/components/SectionNav.vue'
+import SkuClusterBlock from '@/modules/monitoring/components/SkuClusterBlock.vue'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
 import StockComparePanel from '@/modules/monitoring/components/StockComparePanel.vue'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 import { useMatrixEditing } from '@/modules/monitoring/useMatrixEditing'
 import { unionStockSizes } from '@/modules/monitoring/stockCompareSizes'
 import { useSearchQuerySync } from '@/modules/monitoring/useSearchQuerySync'
+import { useSkuClusters } from '@/modules/monitoring/useSkuClusters'
+import { useWorkspaceStore } from '@/modules/profile'
 import { formatSku } from '@/core/utils/format'
 
 const store = useMonitoringStore()
@@ -65,31 +68,29 @@ const sharedStockSizes = computed(() => unionStockSizes(store.stockDays))
 // three commits it can make and the undo/redo keys.
 const { matrix, editingLocked, onCellEdit, onCommentEdit, onActionEdit } = useMatrixEditing(store)
 
-// --- «Рекламные кластеры»: DORMANT, hidden on purpose ----------------------
-// The block is NOT rendered. Hidden 2026-09-09 as a product decision, with the
-// whole feature left intact behind the switch: `SkuClusterBlock.vue`,
-// `useSkuClusters.js`, `clusterStore.js`, `api.js#fetchSkuClusters` and the
-// backend's `GET /skus/{nm_id}/clusters` all still work, and the harvester
-// keeps filling `advertising_cluster_stat_daily` so the history is unbroken
-// whenever it comes back.
-//
-// THIS IS NOT DEAD CODE — do not delete it in a cleanup pass. Re-enabling means
-// restoring four things: the two imports below, `const clusters = useSkuClusters()`,
-// the `sec-clusters` entry in SECTIONS, and the `<div id="sec-clusters">` in the
-// template (see the matching comment there).
-// import SkuClusterBlock from '@/modules/monitoring/components/SkuClusterBlock.vue'
-// import { useSkuClusters } from '@/modules/monitoring/useSkuClusters'
+// --- «Рекламные кластеры»: per кабинет ------------------------------------
+// Hidden for everyone on 2026-09-09 as a product decision, back on 2026-09-26
+// for the workspaces whose `search_clusters_enabled` is set — today only NEVA,
+// turned on by migration `b5d2e8f41c93`. Everywhere else the block, its nav
+// entry and its fetch stay off. The harvester fills `advertising_cluster_stat_daily`
+// for every workspace regardless, so switching another кабинет on later has
+// its history ready.
+const workspaces = useWorkspaceStore()
+const clustersEnabled = computed(() =>
+  Boolean(workspaces.currentWorkspace?.search_clusters_enabled),
+)
+const clusters = useSkuClusters(() => clustersEnabled.value)
 
 /**
  * Targets for the floating section nav. The blocks own their own <section>
  * markup and take no id prop, so the anchors are wrapper divs in the template.
  */
-const SECTIONS = [
+const SECTIONS = computed(() => [
   { id: 'sec-matrix', label: 'По дням' },
   { id: 'sec-stock', label: 'Остатки' },
   { id: 'sec-chart', label: 'График' },
-  // `sec-clusters` («Кластеры») belongs here when the block comes back.
-]
+  ...(clustersEnabled.value ? [{ id: 'sec-clusters', label: 'Кластеры' }] : []),
+])
 
 onMounted(() => store.fetchPins())
 </script>
@@ -225,9 +226,11 @@ onMounted(() => store.fetchPins())
           <MetricsChart :view="matrix" />
         </div>
 
-        <!-- «Рекламные кластеры» — DORMANT, hidden on purpose. Not dead code;
-             see the block comment in <script setup>. Restore with:
-             <div id="sec-clusters"><SkuClusterBlock v-bind="clusters.clusterTableProps" /></div> -->
+        <!-- «Рекламные кластеры» — only for кабинеты with the switch on (NEVA);
+             see the block comment in <script setup>. -->
+        <div v-if="clustersEnabled" id="sec-clusters">
+          <SkuClusterBlock v-bind="clusters.clusterTableProps" />
+        </div>
       </template>
 
       <!-- Initial state: an inviting hint until the first SKU is submitted -->

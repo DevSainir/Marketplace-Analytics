@@ -218,6 +218,7 @@ class FakeWorkspaceRepository:
             organization_id=organization_id,
             name=name,
             is_primary=False,
+            search_clusters_enabled=False,
             created_at=datetime.now(UTC),
         )
         self.workspaces[workspace.id] = workspace
@@ -271,6 +272,7 @@ def make_workspace(
     organization_id: uuid.UUID,
     name: str = "ИП Тестовый",
     is_primary: bool = False,
+    search_clusters_enabled: bool = False,
     workspace_id: uuid.UUID | None = None,
 ) -> Workspace:
     """Build a transient :class:`Workspace` row.
@@ -283,6 +285,7 @@ def make_workspace(
         name: Display name (unique in production).
         is_primary: Primary workspaces store one token per WB category;
             every other workspace stores a single ``unified`` token.
+        search_clusters_enabled: Whether the SKU page shows the cluster block.
         workspace_id: Explicit primary key; a fresh UUIDv7 when omitted.
 
     Returns:
@@ -293,6 +296,7 @@ def make_workspace(
         organization_id=organization_id,
         name=name,
         is_primary=is_primary,
+        search_clusters_enabled=search_clusters_enabled,
         created_at=datetime.now(UTC),
     )
 

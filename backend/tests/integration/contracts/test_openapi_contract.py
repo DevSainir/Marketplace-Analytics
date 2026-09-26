@@ -28,7 +28,7 @@ from fastapi.openapi.utils import get_openapi
 CONSUMED_SCHEMAS: dict[str, set[str]] = {
     "TokenPairResponse": {"access_token", "token_type", "expires_at"},
     "UserRead": {"id", "email", "is_active", "role", "created_at"},
-    "WorkspaceRead": {"id", "name", "is_primary", "created_at"},
+    "WorkspaceRead": {"id", "name", "is_primary", "search_clusters_enabled", "created_at"},
     "WorkspaceListResponse": {"items"},
     "WorkspaceTokensStatus": {"workspace_id", "is_primary", "configured"},
     "SkuSummaryListResponse": {"window", "count", "total", "limit", "offset", "items"},
@@ -46,7 +46,7 @@ CONSUMED_SCHEMAS: dict[str, set[str]] = {
 REQUIRED_FIELDS: dict[str, set[str]] = {
     "TokenPairResponse": {"access_token", "expires_at"},
     "UserRead": {"id", "email", "is_active", "role"},
-    "WorkspaceRead": {"id", "name", "is_primary"},
+    "WorkspaceRead": {"id", "name", "is_primary", "search_clusters_enabled"},
     "WorkspaceTokensStatus": {"workspace_id", "is_primary", "configured"},
     "SkuSummaryListResponse": {"window", "count", "total", "limit", "offset"},
     "SkuLookupResponse": {"query", "count"},

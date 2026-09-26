@@ -5800,6 +5800,8 @@ export interface components {
       name: string
       /** Is Primary */
       is_primary: boolean
+      /** Search Clusters Enabled */
+      search_clusters_enabled: boolean
       /**
        * Created At
        * Format: date-time

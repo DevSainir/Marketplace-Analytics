@@ -20,6 +20,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -178,6 +179,12 @@ class Workspace(Base):
             control); every other workspace stores a single ``unified`` token
             reused for all categories. Exactly one workspace is primary (the
             seeded «ИП Иванов. И. И.»); new workspaces are never primary.
+        search_clusters_enabled: Shows «Рекламные кластеры» on the SKU page.
+            The block was hidden for everyone on 2026-09-09 as a product
+            decision and brought back for one кабинет (NEVA) on 2026-09-26, so
+            it is a per-workspace switch rather than a global one. Flipped by
+            migration, not by any route — no caller can turn it on for itself.
+            The harvester fills the cluster tables whatever this says.
         created_at: Server-assigned creation timestamp (UTC).
         tokens: The encrypted WB API tokens owned by this workspace.
     """
@@ -197,6 +204,9 @@ class Workspace(Base):
     # refusing rather than a limitation worth removing.
     name: Mapped[str] = mapped_column(String(256), unique=True, nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    search_clusters_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

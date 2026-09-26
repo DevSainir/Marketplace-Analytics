@@ -21,6 +21,8 @@ class WorkspaceRead(BaseModel):
     id: uuid.UUID
     name: str
     is_primary: bool
+    #: Whether the SKU page renders «Рекламные кластеры» for this кабинет.
+    search_clusters_enabled: bool
     created_at: datetime
 
 

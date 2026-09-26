@@ -2,11 +2,9 @@
 import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 
 /**
- * DORMANT — «Рекламные кластеры» is deliberately not rendered anywhere in the
- * app (hidden 2026-09-09; see the note in `MonitoringView.vue`). This is NOT
- * dead code and must survive a cleanup pass: the feature is finished and kept
- * warm behind an off switch, the backend keeps ingesting the data, and turning
- * it back on is a template change with no work here.
+ * Rendered only for кабинеты whose `search_clusters_enabled` is set — NEVA since
+ * 2026-09-26; hidden for everyone else since 2026-09-09. See the note in
+ * `MonitoringView.vue`.
  *
  * «Рекламные кластеры» — the search phrases this SKU's ADS served in.
  *

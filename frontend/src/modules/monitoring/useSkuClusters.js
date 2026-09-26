@@ -1,9 +1,8 @@
 /**
- * DORMANT — «Рекламные кластеры» is deliberately not rendered anywhere in the
- * app (hidden 2026-09-09; see the note in `MonitoringView.vue`). This is NOT
- * dead code and must survive a cleanup pass: the feature is finished and kept
- * warm behind an off switch, the backend keeps ingesting the data, and turning
- * it back on is a template change with no work here.
+ * «Рекламные кластеры» is shown per кабинет: hidden for everyone on 2026-09-09,
+ * back since 2026-09-26 for the workspaces whose `search_clusters_enabled` is
+ * set (NEVA). Where it is off this composable fetches nothing — see the note in
+ * `MonitoringView.vue`.
  *
  * Keeps the SKU page's cluster block in step with the SKU and window on screen.
  *
@@ -20,9 +19,11 @@ import { useClusterSearchStore } from '@/modules/monitoring/clusterStore'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 
 /**
+ * @param {() => boolean} enabled Whether the current кабинет shows the block;
+ *   read reactively, so a workspace list that loads late still switches it on.
  * @returns {ReturnType<typeof useClusterSearchStore>} The store the block reads.
  */
-export function useSkuClusters() {
+export function useSkuClusters(enabled) {
   const monitoring = useMonitoringStore()
   const clusters = useClusterSearchStore()
 
@@ -31,7 +32,7 @@ export function useSkuClusters() {
     // every re-render of the detail object.
     () => {
       const product = monitoring.currentProduct
-      if (!product) return ''
+      if (!product || !enabled()) return ''
       return [product.nm_id, product.window?.start ?? '', product.window?.end ?? ''].join('|')
     },
     (key) => {

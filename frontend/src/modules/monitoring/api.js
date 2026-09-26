@@ -255,9 +255,8 @@ export async function getRefreshStatus(taskId) {
  * Harvested history, so it answers instantly and covers only phrases the seller
  * PAID to appear for.
  *
- * DORMANT — nothing calls this today: «Рекламные кластеры» was hidden from the
- * UI on 2026-09-09 (see `MonitoringView.vue`). Kept, not deleted; the route it
- * calls is live and the block is one template change away from returning.
+ * Called only for кабинеты with `search_clusters_enabled` set (NEVA); see
+ * `MonitoringView.vue`.
  *
  * @param {number|string} nmId WB SKU identifier.
  * @param {{date_from?: string, date_to?: string, limit?: number}} [params]
