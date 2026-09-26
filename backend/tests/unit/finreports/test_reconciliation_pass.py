@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 import pytest
 
@@ -406,3 +407,65 @@ async def test_the_nightly_pass_asks_for_the_whole_history_s_totals(
 
     assert asked == [(WB_REPORTS_EPOCH, TODAY)]
     assert recorded == [2]
+
+
+async def test_an_ordinary_tick_does_not_re_fetch_a_report_that_does_not_add_up(
+    walked: list[tuple[date, date]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A report fetched whole that disagrees with WB is held, not missing, every 15 min.
+
+    A second fetch returns the same rows; the disagreement is arithmetic or a
+    restatement, and the nightly pass and the alert are where it goes.
+    """
+    seen: list[set[int]] = []
+
+    class _HeldButShort(_FakeReportRepo):
+        async def report_ids_since(self, *, workspace_id: uuid.UUID, since: date) -> set[int]:
+            return {702}
+
+        async def incomplete_report_ids(self, *, workspace_id: uuid.UUID) -> set[int]:
+            return {702}
+
+    async def _check(**kwargs: Any) -> tuple[FreshnessVerdict, tuple[()], tuple[()]]:
+        seen.append(set(kwargs["held"]))
+        return (
+            FreshnessVerdict(outcome=FreshnessOutcome.UP_TO_DATE, checked_at=datetime.now(UTC)),
+            (),
+            (),
+        )
+
+    monkeypatch.setattr(fleet, "FinancialReportRepository", _HeldButShort)
+    monkeypatch.setattr(fleet, "check_freshness", _check)
+
+    await harvest_all_workspaces()
+
+    assert seen == [{702}]
+    assert walked == []
+
+
+async def test_a_new_report_does_not_postpone_the_nightly_re_walk(
+    monkeypatch: pytest.MonkeyPatch, walked: list[tuple[date, date]]
+) -> None:
+    """WB having something new that night still re-walks the short and recent reports too."""
+    asked: list[list[int]] = []
+    fresh = MissingReport(report_id=900, date_to=SETTLED + timedelta(days=7))
+
+    async def _check(**_kwargs: Any) -> tuple[FreshnessVerdict, tuple[MissingReport], tuple[()]]:
+        verdict = FreshnessVerdict(
+            outcome=FreshnessOutcome.WB_HAS_NEW,
+            checked_at=datetime.now(UTC),
+            probe_from=fresh.date_to,
+            probe_to=fresh.date_to,
+        )
+        return verdict, (fresh,), ()
+
+    async def _walk(*, reports: tuple[MissingReport, ...], **_kwargs: Any) -> dict[str, int]:
+        asked.append([report.report_id for report in reports])
+        return {"finance_windows_failed": 0}
+
+    monkeypatch.setattr(fleet, "check_freshness", _check)
+    monkeypatch.setattr(fleet, "harvest_workspace", _walk)
+
+    await harvest_all_workspaces(reconcile=True)
+
+    assert asked == [[701, 702, 900]]

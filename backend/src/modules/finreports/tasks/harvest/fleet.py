@@ -175,20 +175,23 @@ async def _harvest_all_workspaces(
             )
             for bundle in bundles
         }
-        # The reports we can prove we hold. WB's own list is what they are
-        # compared against — ids, not periods, because an id cannot be
-        # ambiguous the way a period can: a report served out of order, one WB
-        # splits at a month end and a re-issued one are all just ids.
+        # The reports we hold. WB's own list is what they are compared against
+        # — ids, not periods, because an id cannot be ambiguous the way a
+        # period can: a report served out of order, one WB splits at a month
+        # end and a re-issued one are all just ids.
+        #
+        # A report that does not add up to WB's total is NOT subtracted here,
+        # and was until 2026-09-26 — which re-fetched it every fifteen minutes.
+        # That paid for itself only while a header could be written over half
+        # a report; since the header is written after the last page, a fetch
+        # that dies part-way leaves no header and is simply still missing. A
+        # report fetched whole that still disagrees will disagree on every
+        # re-fetch: it is our arithmetic or WB's restatement, not the download.
+        # So it goes to the alert and to the nightly pass, once a day.
         held = {
-            bundle.workspace_id: (
-                await report_repo.report_ids_since(
-                    workspace_id=bundle.workspace_id,
-                    since=today - timedelta(days=SETTLEMENT_LIST_WINDOW_DAYS),
-                )
-                # A header is not proof of a report — see `incomplete_report_ids`.
-                # NEVA's August was three reports held at 72 %, 64 % and 14 %,
-                # every id present, nothing ever asking again.
-                - await report_repo.incomplete_report_ids(workspace_id=bundle.workspace_id)
+            bundle.workspace_id: await report_repo.report_ids_since(
+                workspace_id=bundle.workspace_id,
+                since=today - timedelta(days=SETTLEMENT_LIST_WINDOW_DAYS),
             )
             for bundle in bundles
         }
@@ -387,11 +390,15 @@ async def _harvest_one(
         # invisible to «which ids am I missing».
         if reconcile:
             await refresh_archive_totals(tokens=bundle, today=today)
-        if thorough and not missing:
-            missing = await reports_to_re_walk(
-                report_repo_for=bundle.workspace_id,
-                today=today,
-            )
+        if thorough:
+            # The fortnight's re-walk and every short report, whether or not
+            # WB also has something new — a new report no longer postpones them.
+            owed = {report.report_id: report for report in missing}
+            for report in await reports_to_re_walk(
+                report_repo_for=bundle.workspace_id, today=today
+            ):
+                owed.setdefault(report.report_id, report)
+            missing = tuple(sorted(owed.values(), key=lambda report: report.date_to))
         if missing:
             counts = await harvest_workspace(tokens=bundle, reports=missing, on_date=today)
             for key, value in counts.items():

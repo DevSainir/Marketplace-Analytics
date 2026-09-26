@@ -223,7 +223,9 @@ class FinancialReportRepository(BaseRepository):
         themselves, though, because the id is present and a set difference sees
         only presence. So presence stops being the test: a report is held when
         our own arithmetic over its rows matches the ``forPaySum`` WB served for
-        it, and both lanes subtract what this returns from their «held» set.
+        it. The history backfill subtracts what this returns from its «held»
+        set, and the nightly pass re-walks it; the fifteen-minute tick does not,
+        because a report fetched whole that disagrees disagrees on every fetch.
 
         The decomposition is WB's and the statement's alike — every row's
         ``ppvz_for_pay``, negated where :data:`REFUND_DOC_TYPE` says so — and it
