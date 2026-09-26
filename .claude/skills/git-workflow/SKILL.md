@@ -72,12 +72,18 @@ Prose alone did not hold — this section already said "do not create feature br
 four branches appeared regardless. Two hooks in `.claude/settings.json` now back it:
 
 * `.claude/hooks/no_branching.py` (PreToolUse on `Bash`) denies the branch-*creating* git
-  commands. Deleting a branch and removing a worktree stay allowed — that is the recovery
+  commands, and any `git push` whose destination is not `main` (or the Release Please
+  branch). Deleting a branch and removing a worktree stay allowed — that is the recovery
   procedure above, not the mistake.
 * `.claude/hooks/trunk_check.py` (SessionStart) fires in a session that starts on any
-  branch other than `main` or the Release Please branch, names the worktree it is sitting
-  in, and points back here. This is the half that covers harness isolation, which no
-  command-level check can see.
+  branch other than `main` or the Release Please branch. In the primary checkout, when the
+  branch holds nothing of its own (clean tree, HEAD already on `origin/main`), it switches
+  to `main` itself; otherwise it warns and points back here. This is the half that covers
+  what no command-level check can see: harness worktree isolation, and Claude Code on the
+  web, which checks out a `claude/...` branch before the first message and instructs the
+  session to push there. That instruction does not apply in this repo — `CLAUDE.md` gives
+  the standing permission to push to `main`. (On 2026-09-26 a session followed it anyway
+  and pushed a feature to the side branch; the push half of the guard dates from then.)
 
 `worktree.bgIsolation` is set to `none` in the same file so background sessions edit this
 checkout directly instead of being handed a worktree.
