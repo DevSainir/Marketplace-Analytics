@@ -48,6 +48,7 @@ from src.modules.finreports.repos.pnl.aggregate import (
     SqlExpr,
     aggregate_from_rollup,
 )
+from src.modules.finreports.repos.pnl.rollup_lock import hold_rollup_lock
 
 #: The rollup's own columns, in the order :data:`_GROUP_EXPRESSIONS` produces
 #: them. One list, so a column added to the aggregate and forgotten here fails
@@ -334,6 +335,13 @@ class SettlementRollup:
         stale = await self.stale_days(
             workspace_id=workspace_id, date_from=date_from, date_to=date_to
         )
+        if stale:
+            # Only a rebuild needs the lock, and the count is taken again under
+            # it: an ingest that committed while we waited has changed it.
+            await hold_rollup_lock(self._session, workspace_id, shared=True)
+            stale = await self.stale_days(
+                workspace_id=workspace_id, date_from=date_from, date_to=date_to
+            )
         await self.rebuild(workspace_id=workspace_id, days=stale)
         self._verified.add(window)
         return len(stale)

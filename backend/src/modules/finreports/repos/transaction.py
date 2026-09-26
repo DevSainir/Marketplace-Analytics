@@ -17,6 +17,7 @@ from src.modules.finreports.constants import (
 )
 from src.modules.finreports.models import LogisticsTransaction, SettlementDailyRollup
 from src.modules.finreports.repos.base import BaseRepository
+from src.modules.finreports.repos.pnl.rollup_lock import hold_rollup_lock
 
 
 
@@ -152,13 +153,18 @@ class LogisticsTransactionRepository(BaseRepository):
         which rebuilds them from the detail — see
         :mod:`src.modules.finreports.repos.pnl.rollup`.
         """
-        written = await super().bulk_upsert(
-            rows, conflict_columns=conflict_columns, update_columns=update_columns
-        )
         touched: dict[uuid.UUID, set[date]] = {}
         for row in rows:
             if row.get("rr_dt") is not None:
                 touched.setdefault(row["workspace_id"], set()).add(row["rr_dt"])
+        # Exclusive, and taken BEFORE the write, so a rebuild in flight finishes
+        # first and its days are deleted below — see `rollup_lock`. Sorted so
+        # two writers of the same кабинеты take them in one order.
+        for workspace_id in sorted(touched, key=str):
+            await hold_rollup_lock(self._session, workspace_id, shared=False)
+        written = await super().bulk_upsert(
+            rows, conflict_columns=conflict_columns, update_columns=update_columns
+        )
         for workspace_id, days in touched.items():
             await self._session.execute(
                 delete(SettlementDailyRollup).where(
