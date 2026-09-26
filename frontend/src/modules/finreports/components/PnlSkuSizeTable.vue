@@ -9,16 +9,16 @@
  * существует.
  *
  * Все цифры измерены: WB ставит размер на каждой строке отчёта, которую
- * выставляет, поэтому сумма размеров сходится с артикулом до копейки. Кроме
- * рекламы — её WB не даёт в разрезе размеров вовсе, поэтому её здесь нет, а
- * колонка прибыли честно называется «Маржа без рекламы».
+ * выставляет, поэтому сумма размеров сходится с артикулом до копейки. Прибыли
+ * здесь нет: рекламу WB по размерам не даёт, а делить её оценкой ради маржи
+ * размера не стоило — разрез нужен, чтобы сравнить, как размеры продаются.
  *
  * Простая `<table>`, а не PrimeVue: подтаблица не сортируется и не
  * пагинируется, а вложенный DataTable внутри строки DataTable тянет за собой
  * вторую прокрутку внутри первой.
  */
 import { money, num as n, pct, units } from '@/modules/finreports/pnlFormat'
-import { amountClass, toneClass } from '@/modules/finreports/pnlThresholds'
+import { toneClass } from '@/modules/finreports/pnlThresholds'
 
 defineProps({
   /** @type {object|null} Ответ `/pnl/skus/{nmId}/sizes`, либо `null` пока грузится. */
@@ -39,7 +39,7 @@ defineProps({
     <template v-else>
       <p class="mb-xs text-tiny text-muted">
         Размеров в сетке: {{ state.data.rows.length }} · деньги по строкам отчёта WB с размером,
-        сумма сходится со строкой артикула. Рекламы в разрезе размеров WB не даёт.
+        сумма сходится со строкой артикула.
       </p>
       <div class="overflow-x-auto">
         <table class="w-full border-collapse text-base">
@@ -54,22 +54,18 @@ defineProps({
               >
                 Выкуп
               </th>
-              <th class="pnl-size-th">Цена</th>
+              <th class="pnl-size-th" title="Ваша цена до СПП за выкупленную штуку">Цена</th>
               <th class="pnl-size-th">Выручка</th>
-              <th class="pnl-size-th">СПП</th>
               <th class="pnl-size-th">Логистика</th>
               <th class="pnl-size-th">Доля лог.</th>
-              <th class="pnl-size-th" title="Логистика на одно плечо «к клиенту»">Лог/доставку</th>
-              <th class="pnl-size-th">Штрафы</th>
-              <th class="pnl-size-th">Себест.</th>
-              <th class="pnl-size-th">К перечислению</th>
               <th
                 class="pnl-size-th"
-                title="Выплата WB минус себестоимость. Не «чистая прибыль»: рекламы в разрезе размеров у WB нет, на строке артикула она учтена"
+                title="Вся логистика размера, делённая на доставки к покупателю: обратные пути возвратов тоже ложатся на неё"
               >
-                Маржа без рекламы
+                Логистика на 1 доставку
               </th>
-              <th class="pnl-size-th">Маржа %</th>
+              <th class="pnl-size-th">Штрафы</th>
+              <th class="pnl-size-th">К перечислению</th>
             </tr>
           </thead>
           <tbody>
@@ -84,9 +80,8 @@ defineProps({
               <td class="pnl-size-td" :class="toneClass('buyoutPct', size.buyout_pct)">
                 {{ pct(size.buyout_pct) }}
               </td>
-              <td class="pnl-size-td">{{ money(size.average_cheque) }}</td>
+              <td class="pnl-size-td">{{ money(size.average_price) }}</td>
               <td class="pnl-size-td">{{ money(size.revenue_seller_price) }}</td>
-              <td class="pnl-size-td">{{ pct(size.spp_pct) }}</td>
               <td class="pnl-size-td">{{ money(size.logistics_total) }}</td>
               <td class="pnl-size-td" :class="toneClass('logisticsPct', size.logistics_pct)">
                 {{ pct(size.logistics_pct) }}
@@ -95,14 +90,7 @@ defineProps({
               <td class="pnl-size-td">
                 {{ n(size.penalties_total) ? money(size.penalties_total) : '—' }}
               </td>
-              <td class="pnl-size-td">{{ money(size.cogs) }}</td>
               <td class="pnl-size-td">{{ money(size.payout_net) }}</td>
-              <td class="pnl-size-td" :class="amountClass(size.margin_before_ads)">
-                {{ money(size.margin_before_ads) }}
-              </td>
-              <td class="pnl-size-td" :class="toneClass('profitPct', size.margin_pct)">
-                {{ pct(size.margin_pct) }}
-              </td>
             </tr>
           </tbody>
           <tfoot>
@@ -116,12 +104,11 @@ defineProps({
               </td>
               <td class="pnl-size-td pnl-size-foot">{{ pct(state.data.totals.buyout_pct) }}</td>
               <td class="pnl-size-td pnl-size-foot">
-                {{ money(state.data.totals.average_cheque) }}
+                {{ money(state.data.totals.average_price) }}
               </td>
               <td class="pnl-size-td pnl-size-foot">
                 {{ money(state.data.totals.revenue_seller_price) }}
               </td>
-              <td class="pnl-size-td pnl-size-foot">{{ pct(state.data.totals.spp_pct) }}</td>
               <td class="pnl-size-td pnl-size-foot">
                 {{ money(state.data.totals.logistics_total) }}
               </td>
@@ -136,12 +123,7 @@ defineProps({
                     : '—'
                 }}
               </td>
-              <td class="pnl-size-td pnl-size-foot">{{ money(state.data.totals.cogs) }}</td>
               <td class="pnl-size-td pnl-size-foot">{{ money(state.data.totals.payout_net) }}</td>
-              <td class="pnl-size-td pnl-size-foot">
-                {{ money(state.data.totals.margin_before_ads) }}
-              </td>
-              <td class="pnl-size-td pnl-size-foot">{{ pct(state.data.totals.margin_pct) }}</td>
             </tr>
           </tfoot>
         </table>

@@ -8,11 +8,10 @@ price while costing twice the logistics is invisible in the article's average.
 
 Everything here is MEASURED, never allocated. WB stamps the size on every
 settlement row it bills, so each figure below is a sum over that size's own
-rows and Σ sizes reconciles to the article's row exactly. The one column the
-article has and a size cannot is advertising: WB's Promotion API attributes
-spend to an ``nm_id`` and knows nothing about sizes, so the profit line here is
-:attr:`PnlSizeRow.margin_before_ads` — named for what it leaves out, rather than
-a «чистая прибыль» quietly built on a revenue-share guess.
+rows and Σ sizes reconciles to the article's row exactly. There is no profit
+line: advertising has no size at WB, and a margin per size built on an
+allocated share of it was judged not worth the guess — the cut is for
+comparing how sizes sell, and the article's row carries the profit.
 """
 
 from __future__ import annotations
@@ -45,9 +44,9 @@ class PnlSizeRow(BaseModel):
     #: The same net revenue at the seller's own pre-СПП price; the base of the
     #: percentages.
     revenue_seller_price: Decimal
-    spp_pct: Decimal | None
-    #: Средний чек — net revenue per bought-out unit. ``None`` when net units 0.
-    average_cheque: Decimal | None
+    #: Цена — net revenue at the seller's price per bought-out unit, so price x
+    #: units is the revenue beside it. ``None`` when net units are 0.
+    average_price: Decimal | None
 
     logistics_total: Decimal
     logistics_pct: Decimal | None
@@ -55,17 +54,9 @@ class PnlSizeRow(BaseModel):
     logistics_per_delivery: Decimal | None
     penalties_total: Decimal
 
-    #: The article's per-unit cost x this size's net units; ``None`` without a
-    #: cost on file (the article's cost applies to all of its sizes — WB's
-    #: settlement has no per-size cost and neither does the seller's sheet).
-    cogs: Decimal | None
     #: К перечислению for this size, net of its own withholdings — the same
     #: formula the article's row uses, which is what makes the column sum back.
     payout_net: Decimal
-    #: payout_net - cogs. NOT «чистая прибыль»: advertising has no size, so it
-    #: is missing here and present on the article. ``None`` without a cost.
-    margin_before_ads: Decimal | None
-    margin_pct: Decimal | None
 
 
 class PnlSizesResponse(BaseModel):

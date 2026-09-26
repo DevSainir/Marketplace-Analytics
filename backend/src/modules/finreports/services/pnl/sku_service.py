@@ -64,10 +64,10 @@ class SkuReportService:
         opens it rather than with the table: a report of 40 articles carries
         ~400 size rows, and a seller opens one or two of them.
 
-        Everything is measured off that article's own settlement rows — so the
-        sizes add up to the article — except the cost price, which is the
-        seller's own per-unit figure applied to each size's net units. There is
-        no advertising column at all: WB's Promotion API has no size.
+        Everything is measured off that article's own settlement rows, so the
+        sizes add up to the article. There is no profit here: advertising has
+        no size at WB, and a margin per size was judged not worth an allocated
+        guess — the cut exists to compare how sizes SELL.
 
         Args:
             workspace_id: Owning workspace.
@@ -83,13 +83,10 @@ class SkuReportService:
         sa_name, currency = await self._pnl.sku_label(
             workspace_id=workspace_id, nm_id=nm_id, date_from=date_from, date_to=date_to
         )
-        costs = await self._costs.costs_by_nm_id(
-            workspace_id=workspace_id, currency=currency or "KGS", nm_ids=[nm_id]
-        )
         sizes = await self._pnl.sizes(
             workspace_id=workspace_id, nm_id=nm_id, date_from=date_from, date_to=date_to
         )
-        rows, totals = build_size_rows(sizes, cost_price=costs.get(nm_id))
+        rows, totals = build_size_rows(sizes)
         return PnlSizesResponse(
             nm_id=nm_id,
             sa_name=sa_name,

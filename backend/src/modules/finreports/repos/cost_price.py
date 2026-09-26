@@ -83,9 +83,7 @@ class CostPriceRepository(BaseRepository):
         )
         return int((await self._session.execute(stmt)).scalar_one())
 
-    async def costs_by_nm_id(
-        self, *, workspace_id: uuid.UUID, currency: str, nm_ids: Sequence[int] | None = None
-    ) -> dict[int, Decimal]:
+    async def costs_by_nm_id(self, *, workspace_id: uuid.UUID, currency: str) -> dict[int, Decimal]:
         """Return ``{nm_id: cost}`` for the SKUs costed in a given currency.
 
         Filtering on the currency here rather than in the service is deliberate:
@@ -97,8 +95,6 @@ class CostPriceRepository(BaseRepository):
         Args:
             workspace_id: Owning workspace.
             currency: Settlement currency the costs must match (e.g. ``KGS``).
-            nm_ids: Only these SKUs, when the caller needs one or two — the
-                size drill-down asks for a single article's cost.
 
         Returns:
             ``{nm_id: cost per unit}``; SKUs with no matching row are absent.
@@ -107,8 +103,6 @@ class CostPriceRepository(BaseRepository):
             ProductCostPrice.workspace_id == workspace_id,
             ProductCostPrice.currency == currency,
         )
-        if nm_ids is not None:
-            stmt = stmt.where(ProductCostPrice.nm_id.in_(list(nm_ids)))
         rows = (await self._session.execute(stmt)).all()
         return {row.nm_id: row.cost for row in rows}
 

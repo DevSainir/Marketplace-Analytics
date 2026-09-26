@@ -1,6 +1,6 @@
 """Composition of one article's per-size P&L rows.
 
-Pure, like :mod:`.sku_report`: size aggregates and the article's cost price in,
+Pure, like :mod:`.sku_report`: size aggregates in,
 :class:`~src.modules.finreports.schemas.size_report.PnlSizesResponse` out. The
 withholding formula is deliberately the SAME one
 :func:`~.sku_report.build_sku_row` applies, so the column that matters — «К
@@ -32,12 +32,7 @@ def _pct(part: Decimal, whole: Decimal) -> Decimal | None:
     return (part / whole * _HUNDRED).quantize(_CENTS)
 
 
-def _build_row(
-    size: SizeSettlement,
-    *,
-    cost_price: Decimal | None,
-    label: str | None = None,
-) -> PnlSizeRow:
+def _build_row(size: SizeSettlement, *, label: str | None = None) -> PnlSizeRow:
     """Compose one size's row from its summed settlement columns."""
     revenue_paid = size.sales_gross - size.returns_gross
     revenue_seller = size.sales_before_spp - size.returns_before_spp
@@ -55,8 +50,6 @@ def _build_row(
     payout_net = payout_goods - withheld
 
     net_units = size.sold_units - size.returned_units
-    cogs = cost_price * net_units if cost_price is not None else None
-    margin = payout_net - cogs if cogs is not None else None
 
     buyout = _pct(Decimal(size.sold_units), Decimal(size.delivered_units))
     return PnlSizeRow(
@@ -67,18 +60,14 @@ def _build_row(
         buyout_pct=buyout,
         revenue_paid=revenue_paid,
         revenue_seller_price=revenue_seller,
-        spp_pct=_pct(revenue_seller - revenue_paid, revenue_seller),
-        average_cheque=((revenue_paid / net_units).quantize(_CENTS) if net_units else None),
+        average_price=((revenue_seller / net_units).quantize(_CENTS) if net_units else None),
         logistics_total=logistics,
         logistics_pct=_pct(logistics, revenue_seller),
         logistics_per_delivery=(
             (logistics / size.delivered_units).quantize(_CENTS) if size.delivered_units else None
         ),
         penalties_total=size.penalties,
-        cogs=cogs,
         payout_net=payout_net,
-        margin_before_ads=margin,
-        margin_pct=_pct(margin, revenue_seller) if margin is not None else None,
     )
 
 
@@ -116,11 +105,7 @@ def _merge(sizes: list[SizeSettlement]) -> SizeSettlement:
     )
 
 
-def build_size_rows(
-    sizes: list[SizeSettlement],
-    *,
-    cost_price: Decimal | None,
-) -> tuple[list[PnlSizeRow], PnlSizeRow]:
+def build_size_rows(sizes: list[SizeSettlement]) -> tuple[list[PnlSizeRow], PnlSizeRow]:
     """Compose the size rows and the article-level row they add up to.
 
     The totals row is built from the SUMMED aggregate rather than by adding the
@@ -128,12 +113,11 @@ def build_size_rows(
 
     Args:
         sizes: One entry per ``ts_name``, as the repository returns them.
-        cost_price: The article's per-unit cost, ``None`` when not on file.
 
     Returns:
         ``(rows, totals)``, rows in WB's size-label order.
     """
     merged = _merge(sizes)
-    totals = _build_row(merged, cost_price=cost_price, label="Итого")
-    rows = [_build_row(size, cost_price=cost_price) for size in sizes]
+    totals = _build_row(merged, label="Итого")
+    rows = [_build_row(size) for size in sizes]
     return rows, totals

@@ -4417,10 +4417,8 @@ export interface components {
       revenue_paid: string
       /** Revenue Seller Price */
       revenue_seller_price: string
-      /** Spp Pct */
-      spp_pct: string | null
-      /** Average Cheque */
-      average_cheque: string | null
+      /** Average Price */
+      average_price: string | null
       /** Logistics Total */
       logistics_total: string
       /** Logistics Pct */
@@ -4429,14 +4427,8 @@ export interface components {
       logistics_per_delivery: string | null
       /** Penalties Total */
       penalties_total: string
-      /** Cogs */
-      cogs: string | null
       /** Payout Net */
       payout_net: string
-      /** Margin Before Ads */
-      margin_before_ads: string | null
-      /** Margin Pct */
-      margin_pct: string | null
     }
     /**
      * PnlSizesResponse
