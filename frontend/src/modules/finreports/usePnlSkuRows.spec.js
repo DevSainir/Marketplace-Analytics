@@ -96,8 +96,10 @@ describe('sumRows — строка «Итого»', () => {
     expect(t.sales).toBe(4000)
     expect(t.logistics).toBe(500)
     expect(t.sold).toBe(80)
-    // Доля суммы, а не среднее долей: 500 / (900 + 2700).
-    expect(t.logisticsPct).toBeCloseTo((500 / 3600) * 100)
+    // Доля суммы, а не среднее долей, и от «Продаж» (цена продавца до СПП),
+    // как карточка наверху: 500 / (1000 + 3000). До 26.09.2026 «Итого» делило
+    // на «Оплачено», и одна страница показывала две доли логистики.
+    expect(t.logisticsPct).toBeCloseTo((500 / 4000) * 100)
     expect(t.returnPct).toBeCloseTo((8 / 80) * 100)
   })
 

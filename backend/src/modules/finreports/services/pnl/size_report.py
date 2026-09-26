@@ -76,7 +76,7 @@ def _build_row(
         spp_pct=_pct(revenue_seller - revenue_paid, revenue_seller),
         average_cheque=((revenue_paid / net_units).quantize(_CENTS) if net_units else None),
         logistics_total=logistics,
-        logistics_pct=_pct(logistics, revenue_paid),
+        logistics_pct=_pct(logistics, revenue_seller),
         logistics_per_delivery=(
             (logistics / size.delivered_units).quantize(_CENTS) if size.delivered_units else None
         ),
@@ -84,7 +84,7 @@ def _build_row(
         cogs=cogs,
         payout_net=payout_net,
         margin_before_ads=margin,
-        margin_pct=_pct(margin, revenue_paid) if margin is not None else None,
+        margin_pct=_pct(margin, revenue_seller) if margin is not None else None,
     )
 
 

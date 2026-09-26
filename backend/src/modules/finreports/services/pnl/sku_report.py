@@ -135,19 +135,19 @@ def build_sku_row(
         logistics_forward=aggregate.logistics_forward,
         logistics_return=aggregate.logistics_return,
         logistics_total=logistics,
-        logistics_pct=_pct(logistics, revenue_paid),
+        logistics_pct=_pct(logistics, revenue_seller),
         penalties_total=aggregate.penalties,
         penalties=penalties,
         cost_price=cost_price,
         cogs=cogs,
         advertising=advertising,
-        advertising_pct=_pct(advertising, revenue_paid) if advertising is not None else None,
+        advertising_pct=_pct(advertising, revenue_seller) if advertising is not None else None,
         ad_bonus=bonus_applied,
         advertising_cash=advertising_cash,
         payout_for_goods=payout_goods,
         payout_net=payout_net,
         net_profit=net_profit,
-        net_profit_pct=_pct(net_profit, revenue_paid) if net_profit is not None else None,
+        net_profit_pct=_pct(net_profit, revenue_seller) if net_profit is not None else None,
         # Profit-based, per the seller's choice: ROI against cost, ROMI against
         # ad spend. Each is None the moment its denominator is missing or zero —
         # net_profit is already None without a cost, so ROI/ROMI follow.
@@ -272,7 +272,7 @@ def build_sku_report(
     totals.net_profit = (
         totals.payout_net + settled_advertising - totals.cogs - (totals.advertising_cash or _ZERO)
     )
-    totals.net_profit_pct = _pct(totals.net_profit, totals.revenue_paid)
+    totals.net_profit_pct = _pct(totals.net_profit, totals.revenue_seller_price)
     _ = total_costed_units  # coverage is reported by the service's notes
     return rows, unallocated, totals
 
