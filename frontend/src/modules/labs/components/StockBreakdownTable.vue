@@ -1,7 +1,13 @@
 <script setup>
 import { computed } from 'vue'
 
-import { pivotRows, pivotWarehouses, sizeShare } from '@/modules/labs/stockPivot'
+import {
+  hiddenQuantity,
+  limitWarehouses,
+  pivotRows,
+  pivotWarehouses,
+  sizeShare,
+} from '@/modules/labs/stockPivot'
 import { useWarehouseNameTip } from '@/modules/labs/useWarehouseNameTip'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
@@ -30,6 +36,11 @@ const props = defineProps({
    * all-blank row. `null` = derive rows from own cells (standalone mode).
    */
   sizeOrder: { type: Array, default: null },
+  /**
+   * Show only the N fullest warehouses; the rest fold into one «Ещё N» column,
+   * so every row still adds up to its «Всего». `null` shows them all.
+   */
+  warehouseLimit: { type: Number, default: null },
   /** Message when the day has no cells at all. */
   emptyMessage: { type: String, default: 'Нет складских остатков по этому SKU.' },
 })
@@ -53,11 +64,20 @@ function shortWarehouseName(name) {
   return name.length > 8 ? `${name.slice(0, 8)}…` : name
 }
 
-const warehouses = computed(() => pivotWarehouses(props.cells))
+const allWarehouses = computed(() => pivotWarehouses(props.cells))
+
+const cut = computed(() => limitWarehouses(allWarehouses.value, props.warehouseLimit))
+
+const warehouses = computed(() => cut.value.shown)
 
 const rows = computed(() => pivotRows(props.cells, props.sizeOrder, sizeLabel))
 
-const grandTotal = computed(() => warehouses.value.reduce((sum, wh) => sum + wh.total, 0))
+const grandTotal = computed(() => allWarehouses.value.reduce((sum, wh) => sum + wh.total, 0))
+
+const hiddenTotal = computed(() => cut.value.hidden.reduce((sum, wh) => sum + wh.total, 0))
+
+/** «Ещё 11 складов» on hover — the folded column's names, fullest first. */
+const hiddenTitle = computed(() => cut.value.hidden.map((wh) => wh.name).join(', '))
 </script>
 
 <template>
@@ -81,6 +101,9 @@ const grandTotal = computed(() => warehouses.value.reduce((sum, wh) => sum + wh.
             >
               {{ shortWarehouseName(wh.name) }}
             </th>
+            <th v-if="cut.hidden.length" class="col-wh col-rest" :title="hiddenTitle">
+              Ещё {{ cut.hidden.length }}
+            </th>
           </tr>
         </thead>
 
@@ -99,6 +122,11 @@ const grandTotal = computed(() => warehouses.value.reduce((sum, wh) => sum + wh.
                 formatNumber(row.quantities[wh.name])
               }}</span>
             </td>
+            <td v-if="cut.hidden.length" class="cell-rest tabular-nums">
+              <span v-if="hiddenQuantity(row, cut.hidden)">{{
+                formatNumber(hiddenQuantity(row, cut.hidden))
+              }}</span>
+            </td>
           </tr>
         </tbody>
 
@@ -110,6 +138,9 @@ const grandTotal = computed(() => warehouses.value.reduce((sum, wh) => sum + wh.
             </td>
             <td v-for="wh in warehouses" :key="wh.name" class="font-semibold tabular-nums">
               {{ wh.total ? formatNumber(wh.total) : '' }}
+            </td>
+            <td v-if="cut.hidden.length" class="cell-rest font-semibold tabular-nums">
+              {{ hiddenTotal ? formatNumber(hiddenTotal) : '' }}
             </td>
           </tr>
         </tfoot>

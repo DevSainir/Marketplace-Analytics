@@ -167,3 +167,12 @@ tfoot td {
   opacity: 0.45;
   pointer-events: none;
 }
+
+/* The folded «Ещё N» column: the warehouses a limit cut off, summed. Muted and
+   set off by a rule, so it reads as a remainder rather than one more
+   warehouse. */
+.col-rest,
+.cell-rest {
+  border-left: 1px solid var(--ui-rule);
+  color: var(--ui-muted);
+}

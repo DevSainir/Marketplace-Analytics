@@ -8,8 +8,14 @@
  * compared, and both tables render the same size rows (`sizeOrder`) so a row on
  * the left lines up with the same row on the right.
  *
+ * «Складов» above the tables cuts both to the N fullest warehouses (the rest
+ * fold into one «Ещё N» column). It is a view setting, not data, so it lives
+ * here as local state rather than going up to the page.
+ *
  * Dumb by contract: it renders the sides it is given and reports intent.
  */
+import { ref } from 'vue'
+
 import DayPicker from '@/core/components/DayPicker.vue'
 import StockBreakdownTable from '@/modules/labs/components/StockBreakdownTable.vue'
 
@@ -23,6 +29,15 @@ defineProps({
 })
 
 defineEmits(['change-day'])
+
+/** Empty = every warehouse. */
+const warehouseLimit = ref(null)
+
+/** Anything that is not a whole number ≥ 1 means «all» — an empty field, a 0. */
+function setLimit(event) {
+  const n = Math.floor(Number(event.target.value))
+  warehouseLimit.value = event.target.value !== '' && n >= 1 ? n : null
+}
 </script>
 
 <template>
@@ -31,7 +46,22 @@ defineEmits(['change-day'])
      each side has its own day picker and its own size column, and
      both render the same rows (see `sharedStockSizes`). -->
   <section class="mt-lg" aria-label="Остатки по складам">
-    <h2 class="text-h3 font-semibold text-primary">Остатки по складам</h2>
+    <div class="flex flex-wrap items-center justify-between gap-sm">
+      <h2 class="text-h3 font-semibold text-primary">Остатки по складам</h2>
+      <label class="inline-flex items-center gap-xs text-tiny font-medium text-muted">
+        Показать складов
+        <input
+          type="number"
+          min="1"
+          step="1"
+          inputmode="numeric"
+          placeholder="все"
+          class="w-16 rounded-btn border border-border-subtle bg-surface px-sm py-xs text-tiny text-primary tabular-nums"
+          :value="warehouseLimit ?? ''"
+          @input="setLimit"
+        />
+      </label>
+    </div>
     <!-- Side by side is the whole point of the panel, but at 402pt each side
          gets ~190px and neither table is readable — so on a phone the pair
          stacks and the comparison becomes vertical. Each side keeps its own day
@@ -49,6 +79,7 @@ defineEmits(['change-day'])
           :class="sides[side].loading ? 'opacity-60' : ''"
           :cells="sides[side].stock?.cells ?? []"
           :size-order="sizeOrder"
+          :warehouse-limit="warehouseLimit"
           empty-message="Нет снимка остатков за выбранный день."
         />
       </div>

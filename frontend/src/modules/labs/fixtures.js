@@ -115,6 +115,29 @@ const LIVE_BY_DAY = Array.from({ length: DAY_COUNT }, (_, d) => {
   return { campaign, shares, live: new Set([...campaign, ...ROLLUPS]) }
 })
 
+/**
+ * The campaign behind each day's live group, for the «ID РК» header row —
+ * keyed `[iso][group key]` like TRAFFIC_GROUPS. One id per campaign type, held
+ * across days, because a campaign is a long-lived object that a seller pauses
+ * and resumes rather than recreates. The «Единая» id is a real one, taken from
+ * a link WB generated, so at least one link in the sandbox lands on a page;
+ * the others are made up and open WB's «кампания не найдена».
+ */
+const CAMPAIGN_GROUP_KEYS = ['uni', 'manual_search', 'manual_shelves', 'cpc']
+const ADVERT_IDS = {
+  uni: 97455934,
+  manual_search: 38720514,
+  manual_shelves: 37995102,
+  cpc: 39610277,
+}
+
+export const campaignIds = Object.fromEntries(
+  dayIsos.map((iso, d) => {
+    const key = CAMPAIGN_GROUP_KEYS[d % CAMPAIGNS.length]
+    return [iso, { [key]: ADVERT_IDS[key] }]
+  }),
+)
+
 /** Flat day-major values, exactly as the backend emits them. */
 function buildValues(key, { base, spread, ratio, totalOnly }) {
   const values = []
@@ -149,6 +172,8 @@ export const product = {
   nm_id: 214839021,
   vendor_code: 'HD-OVER-BLK-M',
   title: 'Худи оверсайз утеплённое, чёрное',
+  // `sales-funnel/products` → `product.feedbackRating`: the storefront's stars.
+  feedback_rating: 4.7,
   window: WINDOW,
   matrix: {
     days: dayIsos,
@@ -234,38 +259,87 @@ export const pinnedSkus = [
 
 /* ----------------------------------------------------------------- stock */
 
+/**
+ * Fifteen warehouses with the shape a real FBO catalogue has: two Moscow-region
+ * hubs hold most of the stock, a middle band of regional ones holds tens, and a
+ * tail holds a few units of the running sizes and nothing of the rest. `weight`
+ * is the warehouse's share of the SKU's stock. Enough columns that «показать N
+ * складов» has something to cut, and a long tail so the cut is the realistic
+ * one — the tail is exactly what a reader wants gone.
+ */
 const WAREHOUSES = [
-  'Коледино',
-  'Электросталь',
-  'Казань',
-  'Craft Тула',
-  'Санкт-Петербург Уткина Заводь',
+  { name: 'Коледино', weight: 0.24 },
+  { name: 'Электросталь', weight: 0.17 },
+  { name: 'Подольск', weight: 0.11 },
+  { name: 'Казань', weight: 0.09 },
+  { name: 'Краснодар', weight: 0.075 },
+  { name: 'Тула', weight: 0.06 },
+  { name: 'Санкт-Петербург Уткина Заводь', weight: 0.055 },
+  { name: 'Екатеринбург - Испытателей 14г', weight: 0.045 },
+  { name: 'Невинномысск', weight: 0.035 },
+  { name: 'Новосибирск', weight: 0.03 },
+  { name: 'Рязань (Тюшевское)', weight: 0.025 },
+  { name: 'Самара (Новосемейкино)', weight: 0.02 },
+  { name: 'Котовск', weight: 0.015 },
+  { name: 'Владимир', weight: 0.01 },
+  { name: 'Чехов 1', weight: 0.005 },
 ]
+/** The size curve: M and L sell, S and XL are stocked thin. */
 const SIZES = [
-  { chrt_id: 900001, tech_size: 'S' },
-  { chrt_id: 900002, tech_size: 'M' },
-  { chrt_id: 900003, tech_size: 'L' },
-  { chrt_id: 900004, tech_size: 'XL' },
+  { chrt_id: 900001, tech_size: 'S', weight: 0.16 },
+  { chrt_id: 900002, tech_size: 'M', weight: 0.34 },
+  { chrt_id: 900003, tech_size: 'L', weight: 0.32 },
+  { chrt_id: 900004, tech_size: 'XL', weight: 0.18 },
 ]
 
-export const SIZE_ORDER = SIZES
+export const SIZE_ORDER = SIZES.map(({ chrt_id, tech_size }) => ({ chrt_id, tech_size }))
 
-/** `StockDetail.cells`: one entry per size × warehouse. */
-function stockCells(seed) {
-  const r = seeded(seed)
+/** Units of the SKU across every warehouse and size, before noise. */
+const STOCK_TOTAL = 2400
+
+/**
+ * Yesterday's snapshot. A cell below 3 units is rounded to nothing: WB ships in
+ * boxes, and a warehouse either holds a size or it does not.
+ */
+function yesterdayStock() {
+  const r = seeded(11)
   return SIZES.flatMap((size) =>
-    WAREHOUSES.map((warehouse_name) => ({
-      chrt_id: size.chrt_id,
-      tech_size: size.tech_size,
-      warehouse_name,
-      quantity: Math.round(r() * 180),
-    })),
+    WAREHOUSES.map((wh) => {
+      const q = Math.round(STOCK_TOTAL * wh.weight * size.weight * (0.7 + r() * 0.6))
+      return {
+        chrt_id: size.chrt_id,
+        tech_size: size.tech_size,
+        warehouse_name: wh.name,
+        quantity: q < 3 ? 0 : q,
+      }
+    }),
   )
 }
 
+/**
+ * Today = yesterday minus a day of sales (a few per cent, more where there is
+ * more to sell) plus one supply landing in Казань. Derived rather than drawn
+ * afresh, because the panel exists to show MOVEMENT, and two independent random
+ * days show only noise.
+ */
+function todayStock(yesterday) {
+  const r = seeded(29)
+  return yesterday.map((cell) => {
+    const sold = Math.round(cell.quantity * r() * 0.08)
+    const supply = cell.warehouse_name === 'Казань' && cell.tech_size !== 'S' ? 40 : 0
+    return { ...cell, quantity: Math.max(0, cell.quantity - sold) + supply }
+  })
+}
+
+const STOCK_YESTERDAY = yesterdayStock()
+
 export const stockCompare = {
-  left: { date: dayIsos[DAY_COUNT - 2], loading: false, stock: { cells: stockCells(11) } },
-  right: { date: dayIsos[DAY_COUNT - 1], loading: false, stock: { cells: stockCells(29) } },
+  left: { date: dayIsos[DAY_COUNT - 2], loading: false, stock: { cells: STOCK_YESTERDAY } },
+  right: {
+    date: dayIsos[DAY_COUNT - 1],
+    loading: false,
+    stock: { cells: todayStock(STOCK_YESTERDAY) },
+  },
 }
 
 /* ----------------------------------------------------------- clusters */

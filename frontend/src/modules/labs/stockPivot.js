@@ -80,3 +80,31 @@ export function sizeShare(total, grandTotal) {
   if (!total || grandTotal <= 0) return 0
   return Math.min(total / grandTotal, 1)
 }
+
+/**
+ * The first `limit` warehouses of an already-ordered list, and how many fell
+ * off the end. No limit (null, 0, or not a number) keeps them all.
+ *
+ * @param {Array<{name: string, total: number}>} warehouses fullest first
+ * @param {number|null} limit
+ * @returns {{shown: Array<{name: string, total: number}>, hidden: Array<{name: string, total: number}>}}
+ */
+export function limitWarehouses(warehouses, limit) {
+  const n = Math.floor(Number(limit))
+  if (!Number.isFinite(n) || n < 1 || n >= warehouses.length) {
+    return { shown: warehouses, hidden: [] }
+  }
+  return { shown: warehouses.slice(0, n), hidden: warehouses.slice(n) }
+}
+
+/**
+ * What a row holds in the warehouses left out — so that with a cut applied the
+ * visible cells plus this one still add up to the row's «Всего».
+ *
+ * @param {{quantities: object}} row
+ * @param {Array<{name: string}>} hidden
+ * @returns {number}
+ */
+export function hiddenQuantity(row, hidden) {
+  return hidden.reduce((sum, wh) => sum + (row.quantities[wh.name] ?? 0), 0)
+}

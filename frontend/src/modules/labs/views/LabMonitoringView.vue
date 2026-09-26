@@ -28,6 +28,7 @@ import { longMatrixView } from '@/modules/labs/longWindow'
 import {
   SIZE_ORDER,
   WINDOW,
+  campaignIds,
   // clusterTableProps,  // dormant — see the «Рекламные кластеры» note below
   matrixView,
   pinnedSkus,
@@ -132,6 +133,8 @@ const SECTIONS = [
           :day-actions="product.day_actions"
           :action-saving-days="NO_SAVING_DAYS"
           :editing-disabled="false"
+          :campaign-ids="campaignIds"
+          :nm-id="product.nm_id"
           @edit="noop"
           @comment="noop"
           @action="noop"

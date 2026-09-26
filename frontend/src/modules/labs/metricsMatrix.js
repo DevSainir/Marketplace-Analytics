@@ -78,16 +78,17 @@ export const COLUMNS_PER_DAY = TRAFFIC_COLUMNS.length
 /**
  * «Тип получения трафика» header groups (spans over TRAFFIC_COLUMNS).
  * `spansZones` groups have no zone split — their header cell spans the zones
- * row too instead of repeating the same word twice. «Руч. поиск» spans two
+ * row too instead of repeating the same word twice. `key` addresses the day's
+ * campaign ids (`product.campaign_ids[iso][key]`) for the «ID РК» row. «Руч. поиск» spans two
  * zones: WB search campaigns also deliver in каталог (backend-split).
  */
 export const TRAFFIC_GROUPS = [
-  { label: 'Единая ставка', span: 3 },
-  { label: 'Руч. поиск', span: 2 },
-  { label: 'Руч. полки', span: 1 },
-  { label: 'CPC', span: 2 },
-  { label: 'Общая', span: 1, spansZones: true },
-  { label: 'Органика', span: 1, spansZones: true },
+  { key: 'uni', label: 'Единая ставка', span: 3 },
+  { key: 'manual_search', label: 'Руч. поиск', span: 2 },
+  { key: 'manual_shelves', label: 'Руч. полки', span: 1 },
+  { key: 'cpc', label: 'CPC', span: 2 },
+  { key: 'total', label: 'Общая', span: 1, spansZones: true },
+  { key: 'organic', label: 'Органика', span: 1, spansZones: true },
 ]
 
 /**

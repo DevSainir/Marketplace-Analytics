@@ -31,14 +31,17 @@
  * the parent sends it to the backend, which recomputes dependents. Read-only
  * cells render as plain text.
  *
- * Header (3 rows, as in the workbook):
- *   Дата · Тип получения трафика (groups) · Зоны показов (leaf columns).
+ * Header (3 rows, as in the workbook, plus one):
+ *   Дата · Тип получения трафика (groups) · Зоны показов (leaf columns) ·
+ *   ID РК — the day's campaign id over its group, linked to that campaign in
+ *   WB's advertising cabinet (`wbLinks.js`).
  */
 import { nextTick, onMounted, ref, watch } from 'vue'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
 import AssocBreakdownTip from '@/modules/labs/components/AssocBreakdownTip.vue'
 import MatrixMetricsRows from '@/modules/labs/components/MatrixMetricsRows.vue'
+import MatrixCampaignIdRow from '@/modules/labs/components/MatrixCampaignIdRow.vue'
 import MatrixActionsRow from '@/modules/labs/components/MatrixActionsRow.vue'
 import MatrixCommentsRow from '@/modules/labs/components/MatrixCommentsRow.vue'
 import MatrixDayBlocksRow from '@/modules/labs/components/MatrixDayBlocksRow.vue'
@@ -68,6 +71,10 @@ const props = defineProps({
   actionSavingDays: { type: Set, default: () => new Set() },
   /** Disable editing while a save/refresh is in flight. */
   editingDisabled: { type: Boolean, default: false },
+  /** Campaign ids per ISO day, keyed by TRAFFIC_GROUPS `key` («ID РК» row). */
+  campaignIds: { type: Object, default: () => ({}) },
+  /** The page's SKU — the campaign link opens on it. */
+  nmId: { type: Number, default: null },
 })
 
 const emit = defineEmits(['edit', 'comment', 'action'])
@@ -153,7 +160,7 @@ watch(
                   v-for="group in TRAFFIC_GROUPS"
                   :key="`${day.iso}:${group.label}`"
                   :colspan="group.span"
-                  :rowspan="group.spansZones ? 2 : 1"
+                  :rowspan="group.spansZones ? 3 : 1"
                 >
                   {{ group.label }}
                 </th>
@@ -164,6 +171,7 @@ watch(
               <th>Зоны показов</th>
               <th v-for="leaf in zoneHeaderColumns" :key="leaf.id">{{ leaf.zone }}</th>
             </tr>
+            <MatrixCampaignIdRow :days="days" :campaign-ids="campaignIds" :nm-id="nmId" />
           </thead>
 
           <MatrixMetricsRows
