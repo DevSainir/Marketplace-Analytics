@@ -42,17 +42,15 @@ const rows = computed(() =>
       data-key="campaign_id"
     >
       <template #empty>
-        <div class="px-4 py-10 text-center text-sm text-slate-400">
+        <div class="px-4 py-10 text-center text-sm text-muted">
           Нет рекламной активности по этому SKU за выбранный период.
         </div>
       </template>
 
       <Column field="campaign_id" header="Кампания" sortable>
         <template #body="{ data }">
-          <span class="font-medium text-slate-900">#{{ data.campaign_id }}</span>
-          <span v-if="data.type_label" class="ml-2 text-xs text-slate-400">{{
-            data.type_label
-          }}</span>
+          <span class="font-medium text-primary">#{{ data.campaign_id }}</span>
+          <span v-if="data.type_label" class="ml-2 text-xs text-muted">{{ data.type_label }}</span>
         </template>
       </Column>
 
@@ -65,7 +63,7 @@ const rows = computed(() =>
           >
             {{ CAMPAIGN_STATUS_TEXT[data.status_label] ?? data.status_label }}
           </span>
-          <span v-else class="text-xs text-slate-400">не синхронизирована</span>
+          <span v-else class="text-xs text-muted">не синхронизирована</span>
         </template>
       </Column>
 
@@ -83,7 +81,7 @@ const rows = computed(() =>
 
       <Column field="orders" :header="`Заказы → ${skuLabel}`" sortable>
         <template #body="{ data }">
-          <span class="font-semibold text-indigo-600">{{ formatNumber(data.orders) }}</span>
+          <span class="font-semibold text-action">{{ formatNumber(data.orders) }}</span>
         </template>
       </Column>
 

@@ -42,21 +42,36 @@
  */
 /* PROMOTED. These were scoped to `.ui-next` while the system was live on one
    route; they are on `:root` now, so every page — and every overlay that
-   `<Teleport>`s out to <body> — inherits them. */
+   `<Teleport>`s out to <body> — inherits them.
+
+   THE ONLY PLACE A COLOUR IS DEFINED. `tailwind.config.js` resolves every
+   token to these variables, so a utility in markup and an `@apply` in a
+   stylesheet compile to the same value. The colours Tailwind consumes carry an
+   `-rgb` channel triple beside them, which is what lets `bg-action/10` and
+   friends take an opacity. Until 2026-09-26 the config held the previous
+   palette and only markup classes were re-pointed here, so every `@apply` —
+   the table paginator, the totals row, the record cards — still compiled to the
+   old teal and grey. */
 :root {
   /* --- ground ------------------------------------------------------------ */
-  --ui-canvas: #f4f4f8;
-  --ui-surface: #ffffff;
+  --ui-canvas-rgb: 244 244 248;
+  --ui-canvas: rgb(var(--ui-canvas-rgb));
+  --ui-surface-rgb: 255 255 255;
+  --ui-surface: rgb(var(--ui-surface-rgb));
   --ui-sunk: #edeef5;
-  --ui-zebra: #fafafd;
+  --ui-zebra-rgb: 250 250 253;
+  --ui-zebra: rgb(var(--ui-zebra-rgb));
 
   /* --- ink --------------------------------------------------------------- */
-  --ui-ink: #12121a;
-  --ui-muted: #61616f;
+  --ui-ink-rgb: 18 18 26;
+  --ui-ink: rgb(var(--ui-ink-rgb));
+  --ui-muted-rgb: 97 97 111;
+  --ui-muted: rgb(var(--ui-muted-rgb));
   --ui-faint: #9a9aa8;
 
   /* --- line -------------------------------------------------------------- */
-  --ui-hairline: #e5e5ef;
+  --ui-hairline-rgb: 229 229 239;
+  --ui-hairline: rgb(var(--ui-hairline-rgb));
   --ui-rule: #d5d5e2;
   /* Day-section boundary. The original draws it #101010 so adjacent days
      read as separate panels; on a white card the same job is done at ink
@@ -69,17 +84,23 @@
      #4F39F6 measured 6.5:1. Nothing on the page becomes unreadable, but the
      small violet items («SKU 214839021» at text-tiny, the pinned-chip labels)
      no longer pass. #6450E8 keeps the same hue at 5.45:1 if that matters. */
-  --ui-action: #715fff;
-  --ui-action-hover: #5a47ee;
-  --ui-action-soft: #f0edff;
+  --ui-action-rgb: 113 95 255;
+  --ui-action: rgb(var(--ui-action-rgb));
+  --ui-action-hover-rgb: 90 71 238;
+  --ui-action-hover: rgb(var(--ui-action-hover-rgb));
+  --ui-action-soft-rgb: 240 237 255;
+  --ui-action-soft: rgb(var(--ui-action-soft-rgb));
   --ui-action-line: #ddd6ff;
 
   /* --- status ------------------------------------------------------------ */
   /* Green no longer competes with the action colour for "good", which it did
      when action was teal (#007E76) and positive was #179E60. */
-  --ui-pos: #067a52;
-  --ui-neg: #d93a2b;
-  --ui-warn: #c2700b;
+  --ui-pos-rgb: 6 122 82;
+  --ui-pos: rgb(var(--ui-pos-rgb));
+  --ui-neg-rgb: 217 58 43;
+  --ui-neg: rgb(var(--ui-neg-rgb));
+  --ui-warn-rgb: 194 112 11;
+  --ui-warn: rgb(var(--ui-warn-rgb));
 
   /* --- depth: layered, never one big blur -------------------------------- */
   --ui-ring: 0 0 0 1px rgba(18, 18, 26, 0.06);

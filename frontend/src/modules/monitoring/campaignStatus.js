@@ -1,9 +1,9 @@
 /** Campaign status display maps (WB `status_label` -> badge style / ru text). */
 
 export const CAMPAIGN_STATUS_BADGE = {
-  active: 'bg-emerald-50 text-emerald-600 ring-emerald-500/20',
-  paused: 'bg-amber-50 text-amber-600 ring-amber-500/20',
-  completed: 'bg-slate-100 text-slate-500 ring-slate-400/20',
+  active: 'bg-status-positive/10 text-status-positive ring-status-positive/20',
+  paused: 'bg-status-warning/10 text-status-warning ring-status-warning/20',
+  completed: 'bg-canvas text-muted ring-border-subtle',
 }
 
 export const CAMPAIGN_STATUS_TEXT = {

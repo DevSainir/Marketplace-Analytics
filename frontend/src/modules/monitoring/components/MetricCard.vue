@@ -12,19 +12,19 @@ defineProps({
 })
 
 const toneClasses = {
-  neutral: 'text-slate-900',
-  success: 'text-emerald-500',
-  danger: 'text-rose-500',
-  warning: 'text-amber-500',
+  neutral: 'text-primary',
+  success: 'text-status-positive',
+  danger: 'text-status-negative',
+  warning: 'text-status-warning',
 }
 </script>
 
 <template>
-  <article class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-    <p class="text-sm font-medium text-slate-500">{{ label }}</p>
+  <article class="rounded-xl border border-border-subtle bg-white p-6 shadow-sm">
+    <p class="text-sm font-medium text-muted">{{ label }}</p>
     <p class="mt-2 text-3xl font-semibold tabular-nums tracking-tight" :class="toneClasses[tone]">
       {{ value }}
     </p>
-    <p v-if="hint" class="mt-1 text-xs text-slate-400">{{ hint }}</p>
+    <p v-if="hint" class="mt-1 text-xs text-muted">{{ hint }}</p>
   </article>
 </template>

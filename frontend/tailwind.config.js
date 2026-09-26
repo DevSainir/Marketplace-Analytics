@@ -2,6 +2,19 @@
 export default {
   content: ['./index.html', './src/**/*.{vue,js}'],
   theme: {
+    // Tailwind's stock palette is REPLACED, not extended: `slate-100`,
+    // `emerald-600`, `teal-*` and the rest do not exist in this app. Every
+    // colour is a design-system token below, resolved to `ui-next`, so there is
+    // no second palette to reach for by accident. A stock class in markup is
+    // dropped silently by the compiler, which is why
+    // tests/integration/design-tokens.spec.js scans for them.
+    colors: {
+      transparent: 'transparent',
+      current: 'currentColor',
+      inherit: 'inherit',
+      white: '#ffffff',
+      black: '#000000',
+    },
     extend: {
       // The app's ONE phone breakpoint. Everything else here is mobile-first
       // (`sm:` and up), so `phone:` is deliberately a MAX-width query: it can
@@ -28,16 +41,19 @@ export default {
         'lg': '24px',
         'xl': '32px',
       },
+      // Radii, shadows and colours are NOT values here — each resolves to the
+      // `ui-next` custom property that defines it (src/core/styles/ui-next/
+      // tokens.css). One definition, so a utility in markup and an `@apply` in
+      // a stylesheet can never render two different looks. Until 2026-09-26
+      // this file held the previous palette, and every `@apply` compiled to it.
       borderRadius: {
-        'btn': '6px',
-        'card': '12px',
-        'input': '8px',
+        'btn': 'var(--ui-r-sm)',
+        'card': 'var(--ui-r-lg)',
+        'input': 'var(--ui-r-sm)',
       },
       boxShadow: {
-        'soft': '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
-        // Card elevation: a wide soft ambient layer plus a tight contact
-        // layer, both low-alpha.
-        'card': '0 8px 32px 0 rgba(16, 16, 16, 0.1), 0 2px 8px 0 rgba(16, 16, 16, 0.05)',
+        'soft': 'var(--ui-sh-xs)',
+        'card': 'var(--ui-sh-md)',
       },
       fontSize: {
         'micro': '0.6875rem',
@@ -55,16 +71,20 @@ export default {
       // textColor scales (which merge over `colors`) — this yields the exact
       // documented classes (bg-canvas, text-primary) without the group-name/
       // utility-prefix collision that `colors.bg.canvas` would produce.
+      //
+      // `<alpha-value>` is what keeps `bg-action/10` and the like working
+      // against a variable: Tailwind substitutes the opacity into the channel
+      // triple rather than trying to parse a colour it cannot see.
       colors: {
         status: {
-          positive: '#179E60',
-          negative: '#EE522B',
-          warning: '#E8814F',
+          positive: 'rgb(var(--ui-pos-rgb) / <alpha-value>)',
+          negative: 'rgb(var(--ui-neg-rgb) / <alpha-value>)',
+          warning: 'rgb(var(--ui-warn-rgb) / <alpha-value>)',
         },
 
         action: {
-          DEFAULT: '#007E76',
-          hover: '#17B2A8',
+          DEFAULT: 'rgb(var(--ui-action-rgb) / <alpha-value>)',
+          hover: 'rgb(var(--ui-action-hover-rgb) / <alpha-value>)',
         },
 
         // Metric accents in the daily table (e.g. «Корзины» rows).
@@ -73,26 +93,20 @@ export default {
         },
 
         border: {
-          subtle: '#E0E0E0',
+          subtle: 'rgb(var(--ui-hairline-rgb) / <alpha-value>)',
         },
       },
       backgroundColor: {
-        canvas: '#E8E8E8',
-        surface: '#F1F1F1',
-        // Same surface gray under its historical name: zebra stripes + sticky
-        // cells picked it up back when `surface` was translucent (glass UI,
-        // since removed).
-        zebra: '#F1F1F1',
-        // The one hover fill for anything sitting on canvas/surface — daily
-        // table rows, secondary buttons, toggles. Action-default at ~12% over
-        // white, flattened (solid, so the frozen first column stays opaque
-        // while scrolling). There is no `surface.hover`: it is `bg-hover`.
-        hover: '#E0EFEE',
+        canvas: 'rgb(var(--ui-canvas-rgb) / <alpha-value>)',
+        surface: 'rgb(var(--ui-surface-rgb) / <alpha-value>)',
+        zebra: 'rgb(var(--ui-zebra-rgb) / <alpha-value>)',
+        // The one hover fill for anything sitting on canvas/surface.
+        hover: 'rgb(var(--ui-action-soft-rgb) / <alpha-value>)',
       },
       textColor: {
-        primary: '#101010',
-        muted: '#858585',
-      }
+        primary: 'rgb(var(--ui-ink-rgb) / <alpha-value>)',
+        muted: 'rgb(var(--ui-muted-rgb) / <alpha-value>)',
+      },
     },
   },
   plugins: [],

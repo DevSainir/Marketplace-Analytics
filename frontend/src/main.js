@@ -4,10 +4,10 @@ import { createApp } from 'vue'
 
 import App from '@/App.vue'
 import '@/assets/main.css'
-// `ui-next` — the app's design system. Loaded AFTER main.css on purpose: it
-// re-points the same Tailwind utilities and `.app-datatable` rules at its own
-// tokens, and wins on source order rather than specificity. Dropping these
-// three imports reverts the whole app to the previous look.
+// `ui-next` — the app's design system, and the only one: `tokens.css` defines
+// every colour, shadow and radius, and `tailwind.config.js` resolves to it.
+// Loaded AFTER main.css so its component rules win on source order. These are
+// not optional — without them the tokens are undefined.
 import '@/core/styles/ui-next/tokens.css'
 import '@/core/styles/ui-next/components.css'
 import '@/core/styles/ui-next/skin.css'

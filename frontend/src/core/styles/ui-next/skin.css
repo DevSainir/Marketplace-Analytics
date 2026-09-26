@@ -8,13 +8,17 @@
  *
  * It wins on SOURCE ORDER, not specificity: `main.js` imports `assets/main.css`
  * (Tailwind's utilities and the `.app-datatable` skin) first and this second,
- * so identical selectors here take precedence. That makes the override
- * reversible — drop the three imports and the app is exactly as it was.
+ * so identical selectors here take precedence.
  *
- * Two consequences worth knowing:
+ * **Not a reversible layer any more.** Since 2026-09-26 `tailwind.config.js`
+ * resolves every token to the variables in `tokens.css` and carries no palette
+ * of its own, so there is no previous look to fall back to — and no `@apply`
+ * that can compile to one. The token remaps in sections 1–5 now agree with the
+ * config and are kept for the few that deliberately differ (`hover:bg-canvas`
+ * sinks to `--ui-sunk`, `bg-white` is the surface).
  *
- * - Adding a colour/shadow/radius token to `tailwind.config.js` means adding
- *   it here too, or that one utility keeps rendering the old palette.
+ * One consequence worth knowing:
+ *
  * - Anything targeting markup INSIDE a component with `<style scoped>` needs
  *   `!important` or extra specificity: a scoped rule carries a `[data-v-*]`
  *   attribute and outranks anything this file can write. That has bitten the
@@ -345,31 +349,6 @@ input,
 select,
 textarea {
   font-family: inherit;
-}
-
-.text-slate-900 {
-  color: var(--ui-ink);
-}
-
-.text-slate-500,
-.text-slate-400 {
-  color: var(--ui-muted);
-}
-
-.border-slate-200 {
-  border-color: var(--ui-hairline);
-}
-
-.text-indigo-600 {
-  color: var(--ui-action);
-}
-
-.text-emerald-500 {
-  color: var(--ui-pos);
-}
-
-.text-amber-500 {
-  color: var(--ui-warn);
 }
 
 /* ==========================================================================

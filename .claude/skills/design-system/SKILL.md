@@ -5,9 +5,19 @@ description: The visual rules of this app's UI — the canvas/surface plane, the
 
 # Design system
 
-`frontend/tailwind.config.js` is the source of truth for every token — colours, spacing, radii,
-shadows, type scale — and it carries comments explaining the odd ones. Read it rather than a
-copy; a copy drifts. This skill records the decisions the config cannot state.
+`frontend/src/core/styles/ui-next/tokens.css` is the source of truth for every colour, shadow
+and radius. `frontend/tailwind.config.js` maps the Tailwind token names (`bg-surface`,
+`text-muted`, `bg-action/10`, `rounded-card`, `shadow-card`) onto those variables and holds
+no values of its own; spacing and the type scale still live in the config. Colours Tailwind
+consumes carry an `-rgb` channel triple in `tokens.css` so opacity modifiers work.
+
+**There is one palette.** Tailwind's stock colours (`slate-*`, `emerald-*`, `teal-*`, …) are
+replaced, not extended — they do not exist in this app, and a stock class in markup compiles to
+nothing. `frontend/tests/integration/design-tokens.spec.js` fails on a stock class anywhere in
+`src/` and on any literal colour in the config. This was learned the hard way: until 2026-09-26
+the config still held the previous palette (teal `#007E76`, grey `#E8E8E8`/`#F1F1F1`) and only
+utility classes in markup were re-pointed, so every `@apply` — the table paginator, the totals
+row, the phone record cards — shipped in the old colours next to pages in the new ones.
 
 **Never use an arbitrary value where a token exists.** `h-[123px]` or `bg-[#123123]` in a diff
 means either the token was not looked for or a token is missing — work out which.
@@ -44,13 +54,12 @@ hard constraints are not stylistic.
 `ui-`-prefixed classes that consume them), `skin.css` (re-points the app's existing Tailwind
 utilities and `.app-datatable` rules at those tokens).
 
-**How it applies without touching markup.** Every view already asks for the system by name —
-`bg-surface`, `text-primary`, `shadow-card`. `main.js` imports `assets/main.css` first and the
-three `ui-next` files second, so identical selectors in `skin.css` win on SOURCE ORDER. That also
-makes it reversible: drop the three imports and the app is exactly as it was.
-`tailwind.config.js` still holds the previous palette and is still what `@apply` resolves against —
-**a new colour/shadow/radius token added there must be added to `skin.css` too**, or that one
-utility keeps rendering the old value.
+**How it applies.** Every view asks for the system by name — `bg-surface`, `text-primary`,
+`shadow-card` — and those names resolve to the `ui-next` variables through `tailwind.config.js`,
+in markup and in `@apply` alike. `main.js` imports `assets/main.css` first and the three
+`ui-next` files second, so component rules in `skin.css` win on SOURCE ORDER. **A new token is
+added to `tokens.css` first** (with an `-rgb` triple if it is a colour) and then named in the
+config as `rgb(var(--ui-x-rgb) / <alpha-value>)` — never as a hex.
 
 `App.vue` wraps the whole app in `<UiPage>` (ambient ground + content layer) and renders
 `AppHeaderNext`. No route flags, no per-view setup: a new page inherits the system by existing.
@@ -84,9 +93,8 @@ Two hard constraints, both established by experiment rather than by reading:
   `!important` or extra specificity: a scoped rule carries a `[data-v-*]` attribute and outranks
   anything `skin.css` can write. This has bitten the toolbar glass, the zebra rows and the gap rows.
 
-**Reverting** is dropping the three `ui-next` imports from `main.js`. Everything else — the tokens
-in `tailwind.config.js`, the `.app-datatable` skin in `main.css`, every view's classes — is
-untouched and still describes the previous look.
+There is no revert path any more, on purpose: without the three `ui-next` imports the tokens
+are undefined, not old.
 
 Anything using z-index inside a card (frozen table columns) must be contained by that card —
 `isolation: isolate` on `.app-datatable` — so it can never stack above page chrome.
