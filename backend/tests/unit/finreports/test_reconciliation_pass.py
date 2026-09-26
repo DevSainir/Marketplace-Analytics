@@ -22,6 +22,7 @@ import pytest
 
 from src.modules.finreports.constants import (
     HARVEST_LOCK_KEY,
+    WB_REPORTS_EPOCH,
 )
 from src.modules.finreports.services.freshness_record import (
     FreshnessOutcome,
@@ -207,6 +208,12 @@ def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
     monkeypatch.setattr(fleet, "tail_one_workspace", no_daily_tail)
     monkeypatch.setattr(fleet, "moscow_today", lambda: TODAY)
 
+    async def _no_archive(**_kwargs: object) -> None:
+        # A real list request through a real rate gate; its own test is below.
+        return None
+
+    monkeypatch.setattr(fleet, "refresh_archive_totals", _no_archive)
+
     # The gap survey is a database read and this is the unit tier. Stubbed to
     # "history is sound" so these tests exercise the walk rather than the
     # detector — which has its own tests against real SQL, because
@@ -309,3 +316,93 @@ async def test_the_button_still_spends_only_the_callers_budget(
 
     assert loaded == []
     assert len(walked) == 1
+
+
+async def test_the_nightly_pass_reconciles_every_seller(
+    walked: list[tuple[date, date]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every кабинет is re-read each night, not one in rotation.
+
+    The ration was sized for an endpoint serving four requests an hour, where a
+    fortnight's re-walk was three quarter-hour windows per seller. On
+    finance-api it is a few requests a minute apart, so a seller waited for its
+    turn — up to the size of the fleet in nights — for no saving.
+    """
+    fleet_of_three = [
+        WorkspaceTokenBundle(
+            workspace_id=uuid.uuid5(uuid.NAMESPACE_DNS, name), name=name, finance="fin-token"
+        )
+        for name in ("Демо", "NEVA", "Олег")
+    ]
+
+    async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
+        return fleet_of_three
+
+    monkeypatch.setattr(fleet, "load_workspace_token_bundles", _bundles)
+
+    await harvest_all_workspaces(reconcile=True)
+
+    assert len(walked) == 3
+
+
+async def test_the_nightly_pass_re_walks_a_short_report_however_old(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An archive report that does not add up to WB's total is asked for again.
+
+    The forward tick looks back 45 days and the history backfill runs once, so
+    on an established кабинет nothing else would ever fetch it.
+    """
+    old = SETTLED - timedelta(days=400)
+
+    class _ShortArchive(_FakeReportRepo):
+        async def incomplete_report_ids(self, *, workspace_id: uuid.UUID) -> set[int]:
+            return {600}
+
+        async def list_periods(self, *, workspace_id: uuid.UUID) -> list[tuple[int, date, date]]:
+            return [(600, old - timedelta(days=6), old), (702, SETTLED, SETTLED)]
+
+    monkeypatch.setattr(ledger, "AsyncSessionLocal", _FakeSession)
+    monkeypatch.setattr(ledger, "FinancialReportRepository", _ShortArchive)
+
+    reports = await ledger.reports_to_re_walk(report_repo_for=WORKSPACE, today=TODAY)
+
+    assert [report.report_id for report in reports] == [600, 702]
+
+
+async def test_the_nightly_pass_asks_for_the_whole_history_s_totals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One list request from the epoch, and what it names goes to the totals.
+
+    A кабинет older than the totals held them on eight of 143 reports, and the
+    completeness check is blind wherever a total is missing.
+    """
+    asked: list[tuple[date, date]] = []
+    recorded: list[int] = []
+
+    class _Client:
+        def __init__(self, _settings: object, *, token: str) -> None:
+            pass
+
+        async def __aenter__(self) -> _Client:
+            return self
+
+        async def __aexit__(self, *_exc: object) -> None:
+            return None
+
+        async def list_reports(self, *, date_from: date, date_to: date) -> list[str]:
+            asked.append((date_from, date_to))
+            return ["report-1", "report-2"]
+
+    async def _record(*, workspace_id: uuid.UUID, listed: list[str]) -> None:
+        recorded.append(len(listed))
+
+    monkeypatch.setattr(ledger, "WBFinanceReportsClient", _Client)
+    monkeypatch.setattr(ledger, "record_wb_totals", _record)
+    tokens = WorkspaceTokenBundle(workspace_id=WORKSPACE, name="Демо", finance="fin-token")
+
+    await ledger.refresh_archive_totals(tokens=tokens, today=TODAY)
+
+    assert asked == [(WB_REPORTS_EPOCH, TODAY)]
+    assert recorded == [2]

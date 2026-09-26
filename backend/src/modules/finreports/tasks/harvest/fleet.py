@@ -44,11 +44,14 @@ from src.modules.finreports.tasks.freshness import (
     verdict_from_walk,
 )
 from src.modules.finreports.tasks.gaps import survey_settlement_gaps
-from src.modules.finreports.tasks.harvest.ledger import record_wb_totals, reports_to_re_walk
+from src.modules.finreports.tasks.harvest.ledger import (
+    record_wb_totals,
+    refresh_archive_totals,
+    reports_to_re_walk,
+)
 from src.modules.finreports.tasks.harvest.workspace import harvest_workspace
 from src.modules.finreports.tasks.repair import gap_repair_due
 from src.modules.finreports.tasks.spans import (
-    reconciliation_slice,
     settlement_frontier,
 )
 from src.modules.workspaces.contract import (
@@ -194,7 +197,11 @@ async def _harvest_all_workspaces(
     # its turn comes round. Rationing is about the walk, not about knowing.
     gaps = await survey_settlement_gaps(bundles, today=today, announce=reconcile)
     if reconcile:
-        bundles = reconciliation_slice(bundles, today=today, gaps=gaps)
+        # Every seller, every night. It was one a night, round-robin, when a
+        # fortnight's re-walk was three quarter-hour windows of the old
+        # endpoint; on finance-api it is a few one-a-minute requests per seller,
+        # three sellers at a time, so rationing only delayed each seller's turn
+        # by the size of the fleet.
         repairing = {bundle.workspace_id for bundle in bundles}
     else:
         repairing = await gap_repair_due(bundles, today=today, gaps=gaps)
@@ -378,6 +385,8 @@ async def _harvest_one(
         # it is for. WB's list gives the ids; the lookback decides how many of
         # the held ones to re-walk, since an amendment to a week on file is
         # invisible to «which ids am I missing».
+        if reconcile:
+            await refresh_archive_totals(tokens=bundle, today=today)
         if thorough and not missing:
             missing = await reports_to_re_walk(
                 report_repo_for=bundle.workspace_id,

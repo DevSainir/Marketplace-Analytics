@@ -210,12 +210,11 @@ celery_app.conf.beat_schedule = {
     # was simply short a day.
     #
     # 03:00 MSK, and the hourly tick gives up that hour above. Not 05:00-07:00:
-    # refresh, and this pass competes for the same rate-limited surfaces. It is
-    # also the most expensive pass we run — two or three extra requests per
-    # workspace, each a quarter of an hour apart on the endpoint this was
-    # written for (a minute apart on finance-api since 2026-09-22) — so it takes
-    # an hour when nothing is published and the hourly tick would have found
-    # nothing anyway.
+    # refresh, and this pass competes for the same rate-limited surfaces. Since
+    # 2026-09-26 it covers every seller, not one in rotation: per seller it is
+    # one list over the whole history (WB's totals for the archive) plus the
+    # fortnight's re-walk and any archive report short of WB's total, a minute
+    # apart, three sellers at a time.
     "daily-finreports-reconcile": {
         "task": "finreports.harvest_finance",
         "schedule": crontab(hour=3, minute=0),

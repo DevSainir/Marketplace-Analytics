@@ -5,8 +5,8 @@
   The gate that decides that is :mod:`.freshness`, and it is what makes an
   hourly tick cost one request per workspace on the quiet hours. An hourly tick
   also repairs one workspace the gap survey can see a hole in, so a missing week
-  is walked within the hour rather than waiting its turn in the nightly
-  rotation. The same task runs once a day with ``reconcile=True``, and
+  is walked within the hour rather than waiting for the night. The same task
+  runs once a day with ``reconcile=True`` across every seller, and
   «Обновить» passes it too: both re-read the days behind the coverage and ignore
   the gate — the forward-only walk cannot reach a report WB starts serving for
   days it has already passed.

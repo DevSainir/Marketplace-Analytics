@@ -9,6 +9,7 @@ depends on the other). The Cyrillic strings are the exact WB-served labels the
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 # --------------------------------------------------------------------------- #
@@ -73,6 +74,27 @@ SETTLEMENT_PUBLICATION_GRACE_DAYS: int = 7
 #: thousands. The gate queues a caller through the first on its own, so only the
 #: second is a reason to skip a seller or to tell «Обновить» to wait.
 SETTLEMENT_BLOCK_THRESHOLD_SECONDS: float = 120.0
+
+#: The oldest day WB is asked about — early enough to mean «everything».
+#:
+#: There is no depth limit any more, and that is a measurement rather than a
+#: preference. A new seller used to get three months because the old endpoint
+#: served roughly one page an hour and three months of a large seller's detail
+#: was ~15 h of walking; six would have made their finances an overnight job.
+#:
+#: The cost is now one request per report at one request a minute, and a seller
+#: forms about 52 reports a year whatever their size — so a full history is
+#: ~52 minutes per year of trading. «Демо»'s two and a half years is ~143
+#: requests; five years of trading would be ~260, or four and a half hours,
+#: against an advertising lane that takes ~7 h on the same signup. The P&L is
+#: no longer the thing a new seller waits for, at any depth, so there is
+#: nothing left for a floor to buy.
+#:
+#: A date rather than a day count because it is not a window: it is «before any
+#: report can exist». Verified live on «Демо» 2026-09-23 — `list` accepts an
+#: 11.7-year window and answers with the account's own history, 143 reports from
+#: its first week, rather than refusing or truncating.
+WB_REPORTS_EPOCH = date(2015, 1, 1)
 
 #: How far back the freshness gate asks WB to list reports.
 #:
