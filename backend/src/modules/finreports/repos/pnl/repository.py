@@ -237,18 +237,27 @@ class PnlRepository:
             date_to=date_to,
         )
 
-    async def sku_article(
+    async def sku_label(
         self, *, workspace_id: uuid.UUID, nm_id: int, date_from: date, date_to: date
-    ) -> str:
-        """Return the seller article WB stamped on this SKU's rows in the window.
+    ) -> tuple[str, str]:
+        """Return the article WB stamped on this SKU's rows, and their currency.
 
-        ``""`` when the SKU has no row there — which is what tells the caller
-        the article is not in this window rather than merely sizeless.
+        Both off the SKU's own rows in one indexed pass. The currency used to
+        come from the whole window's rollup, which verified — and after a
+        migration rebuilt — every day of the window on each size click: seconds
+        on «Вся история» for a three-letter answer that this SKU's rows give.
+
+        Returns:
+            ``(sa_name, currency)``; ``("", "")`` when the SKU has no row in the
+            window, which is what tells the caller the article is not in it
+            rather than merely sizeless.
         """
-        stmt = select(func.max(_T.sa_name)).where(
-            *self._window(workspace_id, date_from, date_to), _T.nm_id == nm_id
-        )
-        return str((await self._session.scalar(stmt)) or "")
+        stmt = select(
+            func.max(_T.sa_name),
+            func.mode().within_group(_T.currency_name).filter(_T.currency_name != ""),
+        ).where(*self._window(workspace_id, date_from, date_to), _T.nm_id == nm_id)
+        row = (await self._session.execute(stmt)).one()
+        return str(row[0] or ""), str(row[1] or "")
 
     async def cogs_inputs(
         self,

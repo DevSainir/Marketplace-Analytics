@@ -80,11 +80,11 @@ class SkuReportService:
             with no settlement row in the window comes back with no rows, not
             an error — the window is the seller's to choose.
         """
-        currency = await self._pnl.window_currency(
-            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        sa_name, currency = await self._pnl.sku_label(
+            workspace_id=workspace_id, nm_id=nm_id, date_from=date_from, date_to=date_to
         )
         costs = await self._costs.costs_by_nm_id(
-            workspace_id=workspace_id, currency=currency or "KGS"
+            workspace_id=workspace_id, currency=currency or "KGS", nm_ids=[nm_id]
         )
         sizes = await self._pnl.sizes(
             workspace_id=workspace_id, nm_id=nm_id, date_from=date_from, date_to=date_to
@@ -92,9 +92,7 @@ class SkuReportService:
         rows, totals = build_size_rows(sizes, cost_price=costs.get(nm_id))
         return PnlSizesResponse(
             nm_id=nm_id,
-            sa_name=await self._pnl.sku_article(
-                workspace_id=workspace_id, nm_id=nm_id, date_from=date_from, date_to=date_to
-            ),
+            sa_name=sa_name,
             date_from=date_from,
             date_to=date_to,
             currency=currency or "KGS",
