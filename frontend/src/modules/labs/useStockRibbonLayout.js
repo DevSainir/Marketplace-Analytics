@@ -17,13 +17,15 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
  * @param {object} options
  * @param {() => unknown} options.daysSource Reactive source of the rendered
  *   days; a change re-opens the ribbon on the newest one.
+ * @param {() => number} [options.perScreen] How many day groups one screen
+ *   holds (2 unless the grid says otherwise); a change re-measures.
  * @returns {{
  *   root: import('vue').Ref<HTMLElement|null>,
  *   scroll: import('vue').Ref<HTMLElement|null>,
  *   groupWidth: import('vue').Ref<number|null>,
  * }}
  */
-export function useStockRibbonLayout({ daysSource }) {
+export function useStockRibbonLayout({ daysSource, perScreen = () => 2 }) {
   const root = ref(null)
   const scroll = ref(null)
   /**
@@ -43,7 +45,7 @@ export function useStockRibbonLayout({ daysSource }) {
 
   function measure() {
     if (!scroll.value || !root.value) return
-    const measured = (scroll.value.clientWidth - cssPx('--col-size-w')) / 2
+    const measured = (scroll.value.clientWidth - cssPx('--col-size-w')) / perScreen()
     // A container with no width yet (a hidden tab, a pane not laid out) measures
     // zero; keeping the last known width beats collapsing the grid.
     if (measured > 0) groupWidth.value = measured
@@ -88,6 +90,8 @@ export function useStockRibbonLayout({ daysSource }) {
   // The days, and the measurement that decides how wide they are — the ribbon
   // can only land on «сегодня» once the width it scrolls across is real.
   watch([daysSource, groupWidth], () => nextTick(scrollToNewestDay))
+
+  watch(perScreen, () => nextTick(measure))
 
   return { root, scroll, groupWidth }
 }

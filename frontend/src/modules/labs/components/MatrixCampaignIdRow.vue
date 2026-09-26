@@ -22,6 +22,15 @@ const props = defineProps({
   nmId: { type: Number, default: null },
 })
 
+/**
+ * What the cell prints. A one-column group («Руч. полки», ~55px) cannot hold
+ * an 8-digit id at this size, so it shows the last four digits — «…5102» —
+ * and the full id lives in the link's tooltip. The wider groups print it whole.
+ */
+function advertLabel(group, advertId) {
+  return group.span === 1 ? `…${String(advertId).slice(-4)}` : String(advertId)
+}
+
 /** The campaign page, preset to the table's window and this SKU. */
 function advertLink(advertId) {
   return campaignUrl(advertId, {
@@ -45,7 +54,7 @@ function advertLink(advertId) {
           rel="noopener noreferrer"
           :title="`Открыть кампанию ${campaignIds[day.iso][group.key]} в кабинете WB`"
         >
-          {{ campaignIds[day.iso][group.key] }}
+          {{ advertLabel(group, campaignIds[day.iso][group.key]) }}
         </a>
       </th>
     </template>

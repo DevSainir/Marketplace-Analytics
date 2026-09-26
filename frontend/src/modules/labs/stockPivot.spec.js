@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { pivotRows, pivotWarehouses, sizeShare } from '@/modules/labs/stockPivot'
+import {
+  dayColumns,
+  isSingleWarehouse,
+  pivotRows,
+  pivotWarehouses,
+  sizeShare,
+} from '@/modules/labs/stockPivot'
 
 /**
  * The «Остатки» grid's arithmetic. Pure functions, so they are pinned here
@@ -94,5 +100,34 @@ describe('sizeShare', () => {
 
   it('is safe when nothing is in stock at all', () => {
     expect(sizeShare(0, 0)).toBe(0)
+  })
+})
+
+describe('the single-warehouse layout', () => {
+  const day = (...names) => ({ warehouses: names.map((name) => ({ name, total: 1 })) })
+
+  it('applies when no day holds more than one warehouse', () => {
+    expect(isSingleWarehouse([day('Коледино'), day(), day('Коледино')])).toBe(true)
+  })
+
+  it('does not apply once any day holds two', () => {
+    expect(isSingleWarehouse([day('Коледино'), day('Коледино', 'Казань')])).toBe(false)
+  })
+
+  it('does not apply to a period with no stock at all', () => {
+    expect(isSingleWarehouse([day(), day()])).toBe(false)
+  })
+
+  it('drops «Всего» and keeps an empty day as one blank column', () => {
+    expect(dayColumns(day('Коледино'), true).map((c) => c.kind)).toEqual(['wh'])
+    expect(dayColumns(day(), true).map((c) => c.kind)).toEqual(['blank'])
+  })
+
+  it('leads a regular day with «Всего»', () => {
+    expect(dayColumns(day('Коледино', 'Казань'), false).map((c) => c.kind)).toEqual([
+      'total',
+      'wh',
+      'wh',
+    ])
   })
 })

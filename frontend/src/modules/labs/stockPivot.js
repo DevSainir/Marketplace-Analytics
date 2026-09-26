@@ -80,3 +80,37 @@ export function sizeShare(total, grandTotal) {
   if (!total || grandTotal <= 0) return 0
   return Math.min(total / grandTotal, 1)
 }
+
+/**
+ * How many days fit one screen of the ribbon. Two, as in the daily matrix —
+ * except for a seller who stocks ONE warehouse (e.g. a single WB warehouse):
+ * there a day is one column, «Всего» would only repeat it, and two such days
+ * stretched across the screen are two numbers per row with a gulf between
+ * them, so the ribbon packs five.
+ */
+export const DAYS_PER_SCREEN = { regular: 2, single: 5 }
+
+/**
+ * Whether the whole period runs off at most one warehouse a day.
+ *
+ * @param {Array<{warehouses: Array}>} days pivoted days
+ * @returns {boolean}
+ */
+export function isSingleWarehouse(days) {
+  return days.some((day) => day.warehouses.length) && days.every((d) => d.warehouses.length <= 1)
+}
+
+/**
+ * The columns one day renders, left to right. Regular: «Всего», then each
+ * warehouse the day stocked. Single-warehouse: just that warehouse — or a blank
+ * column on a day that held nothing, so every day keeps its place.
+ *
+ * @param {{warehouses: Array<{name: string, total: number}>}} day
+ * @param {boolean} single
+ * @returns {Array<{id: string, kind: 'total'|'wh'|'blank', wh?: object}>}
+ */
+export function dayColumns(day, single) {
+  const warehouses = day.warehouses.map((wh) => ({ id: `wh:${wh.name}`, kind: 'wh', wh }))
+  if (single) return warehouses.length ? warehouses : [{ id: 'blank', kind: 'blank' }]
+  return [{ id: 'total', kind: 'total' }, ...warehouses]
+}
