@@ -7,8 +7,8 @@
  * rendered as glass floating over the ambient ground rather than as a flat
  * canvas strip with a border under it.
  */
-import { computed } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed, nextTick, ref, watch } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
 
 import WorkspaceMenu from '@/core/components/WorkspaceMenu.vue'
 
@@ -53,6 +53,24 @@ const visibleNav = computed(() =>
       (link.modules ?? []).every((key) => props.modules.includes(key)),
   ),
 )
+
+// On a phone the links outrun the pill and the nav scrolls sideways — which
+// left the section you are IN off-screen at the right: on «P&L» the header
+// showed «Главная · Мониторинг · Сво…». So the active link is scrolled into
+// view whenever the route or the set of links changes. `inline: 'nearest'`
+// moves nothing when it is already visible, which is always, on a desktop.
+const nav = ref(null)
+const route = useRoute()
+watch(
+  () => [route.path, visibleNav.value.length],
+  async () => {
+    await nextTick()
+    nav.value
+      ?.querySelector('.is-on')
+      ?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'instant' })
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -69,7 +87,7 @@ const visibleNav = computed(() =>
           </span>
         </RouterLink>
 
-        <nav class="ui-header__nav" aria-label="Разделы">
+        <nav ref="nav" class="ui-header__nav" aria-label="Разделы">
           <RouterLink
             v-for="link in visibleNav"
             :key="link.to"

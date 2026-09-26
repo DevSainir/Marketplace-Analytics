@@ -1,4 +1,6 @@
 import { mount } from '@vue/test-utils'
+import { reactive } from 'vue'
+import { routeLocationKey } from 'vue-router'
 
 import AppHeaderNext from '@/core/components/AppHeaderNext.vue'
 
@@ -6,6 +8,9 @@ function mountHeader(props = {}) {
   return mount(AppHeaderNext, {
     props,
     global: {
+      // The header follows the route to keep the active link in view; a bare
+      // location is all it reads.
+      provide: { [routeLocationKey]: reactive({ path: '/' }) },
       stubs: {
         RouterLink: { template: '<a><slot /></a>' },
         // The switcher is a component of its own with its own spec; this suite
