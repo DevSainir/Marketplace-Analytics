@@ -189,12 +189,12 @@ resolving to the design gutter is the part you *can* check.
 
 | Surface | State |
 | --- | --- |
-| App chrome (`AppHeader`, `WorkspaceMenu`, `App.vue`) | done |
+| App chrome (`AppHeader`, `WorkspaceMenu`, `App.vue`) | done — the nav scrolls sideways at phone width, and the active link is scrolled into view on every route change (it sat off-screen past «Сводка») |
 | `/` — `HomeView` | done |
 | `/monitoring` | done — metrics matrix, prices/stock, the per-day note and «Действия», search, toolbar, stock compare |
 | `/profile` | done — label/value pairs stack, the admin panel's workspace rows split into an identity line and an actions line |
 | `/login` | done — and moved onto the design-system tokens on the way, which it had never been on |
-| `/finreports` (P&L) | done — the 18-column SKU table and the SKU × warehouse balance grid both become card lists below `sm` |
+| `/finreports` (P&L) | done — the 18-column SKU table and the SKU × warehouse balance grid both become card lists below `sm`; an opened SKU card carries its sizes as a two-line list per size (`PnlSkuSizeList`), since the 16-column size table cannot fit. Checked 390 / 402 / 768 px, 2026-09-26: no horizontal overflow |
 | `/finreports/cost-prices` | done — the editable grid becomes rows with the input still on screen |
 | `/ab-tests/:id` | done — the photos × metrics grid pages its photo axis (`VariantMetricsPager`), one photo and its seven figures per screen; the turn log keeps its table and drops its two widest columns |
 
