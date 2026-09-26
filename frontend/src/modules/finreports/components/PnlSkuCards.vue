@@ -24,7 +24,9 @@ import { computed, ref, watch } from 'vue'
 
 import SkuThumb from '@/core/components/SkuThumb.vue'
 import PnlSkuCardsTotals from '@/modules/finreports/components/PnlSkuCardsTotals.vue'
-import { DETAILS, SORT_KEYS, money, pct } from '@/modules/finreports/pnlCardColumns'
+import PnlSkuSizeList from '@/modules/finreports/components/PnlSkuSizeList.vue'
+import { DETAILS, SORT_KEYS } from '@/modules/finreports/pnlCardColumns'
+import { money, pct } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'
 
 const props = defineProps({
@@ -33,9 +35,11 @@ const props = defineProps({
   /** @type {object|null} The «Итого» row from `sumRows`, pinned under the list. */
   totals: { type: Object, default: null },
   currency: { type: String, default: '' },
+  /** @type {object} nm_id -> size drill-down state, from the store. */
+  sizes: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits(['toggle-exclusion'])
+const emit = defineEmits(['toggle-exclusion', 'load-sizes'])
 
 const sortKey = ref('profit')
 const descending = ref(true)
@@ -78,6 +82,14 @@ function toggle(nmId) {
   if (!next.delete(nmId)) next.add(nmId)
   expanded.value = next
 }
+
+// An open card asks for its sizes whenever it has none — on opening, and again
+// after a report reload has dropped them (see `useExpandedSkus`).
+watch([expanded, () => props.sizes], ([open, sizes]) => {
+  for (const nmId of open) {
+    if (nmId && !sizes[nmId]) emit('load-sizes', nmId)
+  }
+})
 </script>
 
 <template>
@@ -186,6 +198,7 @@ function toggle(nmId) {
               </span>
             </span>
           </div>
+          <PnlSkuSizeList v-if="!row.isBucket" :state="sizes[row.nmId] ?? null" />
           <label v-if="!row.isBucket" class="record-row cursor-pointer">
             <span class="record-label">Не включать в общий счёт</span>
             <input

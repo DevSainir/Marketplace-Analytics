@@ -17,24 +17,14 @@
  * пагинируется, а вложенный DataTable внутри строки DataTable тянет за собой
  * вторую прокрутку внутри первой.
  */
-import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
+import { formatMoney } from '@/core/utils/format'
+import { money, num as n, pct, units } from '@/modules/finreports/pnlFormat'
 import { amountClass, toneClass } from '@/modules/finreports/pnlThresholds'
 
 defineProps({
   /** @type {object|null} Ответ `/pnl/skus/{nmId}/sizes`, либо `null` пока грузится. */
   state: { type: Object, default: null },
 })
-
-/**
- * Числа приходят от бэкенда СТРОКАМИ — так pydantic сериализует `Decimal`, и
- * так и надо: на деньгах float теряет копейки. Поэтому каждое значение здесь
- * проходит через `Number`: `formatPercent` принимает только число и на строке
- * «22.42» молча отдаёт «—», то есть колонка процентов пустеет целиком.
- */
-const n = (value) => (value === null || value === undefined || value === '' ? null : Number(value))
-const money = (value) => (n(value) === null ? '—' : formatMoney(n(value), ''))
-const pct = (value) => (n(value) === null ? '—' : formatPercent(n(value)))
-const units = (value) => (n(value) === null ? '—' : formatNumber(n(value)))
 
 /** «+8,8 п.п.» — знак ставится явно: без плюса отклонение вверх читается как норма. */
 function deltaPp(value) {
@@ -63,7 +53,7 @@ function deltaPp(value) {
         <table class="w-full border-collapse text-base">
           <thead>
             <tr>
-              <th class="pnl-size-th text-left">Размер</th>
+              <th class="pnl-size-th pnl-size-label">Размер</th>
               <th class="pnl-size-th">Продано</th>
               <th class="pnl-size-th">Возвраты</th>
               <th
@@ -98,7 +88,9 @@ function deltaPp(value) {
           </thead>
           <tbody>
             <tr v-for="size in state.data.rows" :key="size.ts_name">
-              <td class="pnl-size-td text-left font-medium text-primary">{{ size.ts_name }}</td>
+              <td class="pnl-size-td pnl-size-label font-medium">
+                {{ size.ts_name || 'Без размера' }}
+              </td>
               <td class="pnl-size-td">{{ units(size.sold_units) }}</td>
               <td class="pnl-size-td">
                 {{ size.returned_units ? units(size.returned_units) : '—' }}
@@ -135,7 +127,7 @@ function deltaPp(value) {
           </tbody>
           <tfoot>
             <tr>
-              <td class="pnl-size-td pnl-size-foot text-left">Итого по размерам</td>
+              <td class="pnl-size-td pnl-size-foot pnl-size-label">Итого по размерам</td>
               <td class="pnl-size-td pnl-size-foot">{{ units(state.data.totals.sold_units) }}</td>
               <td class="pnl-size-td pnl-size-foot">
                 {{
@@ -184,8 +176,10 @@ function deltaPp(value) {
    отступы и `white-space: nowrap` от `.app-datatable tbody td`. Поэтому здесь
    свои классы, а не наследование скина: иначе строки размеров получают
    вертикальный ритм родителя и блок вырастает на два экрана. */
+/* `static bg-transparent`: the main table's `.app-datatable thead th` reaches
+   this nested header too, and made it a white, sticky strip on a canvas panel. */
 .pnl-size-th {
-  @apply whitespace-nowrap border-b border-border-subtle px-sm py-xs text-right text-micro font-medium uppercase tracking-wider text-muted;
+  @apply static whitespace-nowrap border-b border-border-subtle bg-transparent px-sm py-xs text-right text-micro font-medium uppercase tracking-wider text-muted;
 }
 
 .pnl-size-td {
@@ -194,5 +188,13 @@ function deltaPp(value) {
 
 .pnl-size-foot {
   @apply border-b-0 border-t border-border-subtle font-medium;
+}
+
+/* The size label reads from the left. A modifier here rather than a
+   `text-left` utility in markup: this scoped sheet's `text-right` carries a
+   `[data-v-*]` attribute and outranked the utility, which is how every size
+   label and «Итого по размерам» ended up pushed against the right edge. */
+.pnl-size-label {
+  @apply sticky left-0 bg-canvas text-left;
 }
 </style>

@@ -39,6 +39,7 @@ import {
   writeSavedPeriod,
 } from '@/modules/finreports/savedPeriod'
 import { useHarvestRefresh } from '@/modules/finreports/useHarvestRefresh'
+import { useSkuSizes } from '@/modules/finreports/useSkuSizes'
 
 /** YYYY-MM-DD in the local calendar (the report dates are calendar days). */
 function isoDate(date) {
@@ -59,11 +60,17 @@ export const useFinReportsStore = defineStore('finreports', () => {
   const reportError = ref('')
 
   // --- per-size drill-down («подтаблица размеров») -------------------------
-  // nm_id -> { loading, error, data }. Keyed by article and cleared whenever
-  // the window moves: a size row is only true for the period it was fetched
-  // for, and a stale one under a freshly-loaded report is the kind of wrong
-  // that looks right.
-  const sizes = ref({})
+  // Cleared whenever the report reloads: a size row is only true for the
+  // period it was fetched for. See `useSkuSizes` for how a stale answer is kept
+  // from landing — and from leaving a row spinning.
+  const {
+    sizes,
+    load: loadSizes,
+    reset: resetSizes,
+  } = useSkuSizes({
+    period: () => ({ from: dateFrom.value, to: dateTo.value }),
+    fetch: (nmId, params) => fetchSkuSizes(nmId, params),
+  })
 
   // --- stock balance («Баланс по товарным остаткам») -----------------------
   // Its own period, deliberately: stock is a point-in-time snapshot, so the
@@ -158,6 +165,7 @@ export const useFinReportsStore = defineStore('finreports', () => {
     reportRequest = request
     reportLoading.value = true
     reportError.value = ''
+    resetSizes()
     try {
       const data = await fetchSkuPnl(
         { date_from: dateFrom.value, date_to: dateTo.value },
@@ -165,8 +173,6 @@ export const useFinReportsStore = defineStore('finreports', () => {
       )
       if (reportRequest !== request) return
       report.value = data
-      // The sizes belong to the window that was just replaced.
-      sizes.value = {}
     } catch (error) {
       if (request.signal.aborted) return
       reportError.value = extractErrorMessage(error)
@@ -174,33 +180,6 @@ export const useFinReportsStore = defineStore('finreports', () => {
       if (reportRequest === request) {
         reportRequest = null
         reportLoading.value = false
-      }
-    }
-  }
-
-  /**
-   * Load one article's size rows for the current window, once.
-   *
-   * Cached per article until the period changes — reopening a row that was
-   * already looked at costs nothing, which is what makes comparing two
-   * articles' sizes bearable.
-   */
-  async function loadSizes(nmId) {
-    const current = sizes.value[nmId]
-    if (current && (current.loading || current.data)) return
-    if (!dateFrom.value || !dateTo.value) return
-    sizes.value = { ...sizes.value, [nmId]: { loading: true, error: '', data: null } }
-    const period = { from: dateFrom.value, to: dateTo.value }
-    try {
-      const data = await fetchSkuSizes(nmId, { date_from: period.from, date_to: period.to })
-      // The window may have moved while this was in flight; a size row for the
-      // previous period must not land under the new one.
-      if (dateFrom.value !== period.from || dateTo.value !== period.to) return
-      sizes.value = { ...sizes.value, [nmId]: { loading: false, error: '', data } }
-    } catch (error) {
-      sizes.value = {
-        ...sizes.value,
-        [nmId]: { loading: false, error: extractErrorMessage(error), data: null },
       }
     }
   }

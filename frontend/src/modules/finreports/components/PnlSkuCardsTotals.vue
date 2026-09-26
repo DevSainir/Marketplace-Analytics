@@ -8,16 +8,13 @@
  * одной цифры, и с отступом под домашнюю полосу: на телефоне без него итог
  * лежит ровно под ней.
  */
-import { formatMoney, formatPercent } from '@/core/utils/format'
+import { money, pct } from '@/modules/finreports/pnlFormat'
 import { amountClass } from '@/modules/finreports/pnlThresholds'
 
 defineProps({
   /** @type {object} Строка из `sumRows`. */
   totals: { type: Object, required: true },
 })
-
-const money = (value) => (value === null || value === undefined ? '—' : formatMoney(value, ''))
-const pct = (value) => (value === null || value === undefined ? '—' : formatPercent(value))
 </script>
 
 <template>

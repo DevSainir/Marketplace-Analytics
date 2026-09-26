@@ -39,7 +39,8 @@ import PnlExclusionToggle from '@/modules/finreports/components/PnlExclusionTogg
 import PnlSkuRowIdentity from '@/modules/finreports/components/PnlSkuRowIdentity.vue'
 import PnlSkuSizeTable from '@/modules/finreports/components/PnlSkuSizeTable.vue'
 import { amountClass, toneClass } from '@/modules/finreports/pnlThresholds'
-import { money, pct, useExpandedSkus, useFooterCells } from '@/modules/finreports/usePnlSkuTable'
+import { money, pct } from '@/modules/finreports/pnlFormat'
+import { useExpandedSkus, useFooterCells } from '@/modules/finreports/usePnlSkuTable'
 
 /** Page-size choices. A native select, not the paginator's built-in dropdown:
  *  PrimeVue runs unstyled here and its Select renders collapsed without a
@@ -66,7 +67,10 @@ defineExpose({ first })
 /** Dim the excluded rows so the seller sees what the «общий счёт» drops. */
 const rowClass = (data) => (data.isExcluded ? 'opacity-50' : '')
 
-const { expanded, toggle } = useExpandedSkus((nmId) => emit('load-sizes', nmId))
+const { expanded, toggle } = useExpandedSkus(
+  (nmId) => emit('load-sizes', nmId),
+  () => props.sizes,
+)
 const foot = useFooterCells(toRefs(props).totals)
 </script>
 

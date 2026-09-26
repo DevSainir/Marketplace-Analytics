@@ -98,7 +98,9 @@ function setPageSize(value) {
       :rows="tableRows"
       :totals="totals"
       :currency="currency"
+      :sizes="sizes"
       @toggle-exclusion="emit('toggle-exclusion', $event)"
+      @load-sizes="emit('load-sizes', $event)"
     />
 
     <PnlSkuDataTable

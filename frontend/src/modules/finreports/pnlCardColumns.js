@@ -6,14 +6,8 @@
  * порядок и подписи приходится задать списком — и этот список длиннее, чем
  * вся остальная логика карточек.
  */
-import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
+import { money, pct, units } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'
-
-const money = (value) => (value === null || value === undefined ? '—' : formatMoney(value, ''))
-const pct = (value) => (value === null || value === undefined ? '—' : formatPercent(value))
-const units = (value) => (value === null || value === undefined ? '—' : formatNumber(value))
-
-export { money, pct, units }
 
 /** The sort keys worth having without a header row to click. */
 export const SORT_KEYS = [

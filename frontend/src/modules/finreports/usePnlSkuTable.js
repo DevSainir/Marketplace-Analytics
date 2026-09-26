@@ -6,23 +6,26 @@
  * целиком, и любая логика рядом с ними перестаёт читаться. Здесь — какие
  * артикулы раскрыты и как выглядит строка «Итого»; там — только колонки.
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
-import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
-
-/** «—» вместо пустоты: на отчёте пропуск и ноль читаются по-разному. */
-export const money = (value) =>
-  value === null || value === undefined ? '—' : formatMoney(value, '')
-export const pct = (value) => (value === null || value === undefined ? '—' : formatPercent(value))
+import { formatNumber } from '@/core/utils/format'
+import { money, pct } from '@/modules/finreports/pnlFormat'
 
 /**
- * Какие артикулы раскрыты, в том виде, в каком это ждёт PrimeVue (карта по
- * `dataKey`). Загрузка — не наше дело: клик только называет артикул, ответ
- * приходит снаружи, поэтому повторное раскрытие ничего не стоит.
+ * Which articles are expanded, in the shape PrimeVue expects (a map by
+ * `dataKey`), and asking for each open article's sizes whenever it has none.
  *
- * @param {(nmId: number) => void} onOpen Вызывается, когда артикул раскрывают.
+ * Asking only on the click was the other half of the endless «Считаем
+ * размеры…»: the store drops every article's sizes when the report reloads —
+ * a new period, or a «Не включать в общий счёт» toggle — while the rows stay
+ * open, so an open row was left with nothing and nothing asking for it. The
+ * watch re-asks for exactly those; the store ignores an article already
+ * loaded or loading, so it costs nothing otherwise.
+ *
+ * @param {(nmId: number) => void} onOpen Asks for one article's sizes.
+ * @param {() => object} sizesOf The store's nm_id -> state map.
  */
-export function useExpandedSkus(onOpen) {
+export function useExpandedSkus(onOpen, sizesOf = () => ({})) {
   const expanded = ref({})
 
   function toggle(nmId) {
@@ -35,6 +38,12 @@ export function useExpandedSkus(onOpen) {
     expanded.value = { ...expanded.value, [nmId]: true }
     onOpen(nmId)
   }
+
+  watch([expanded, sizesOf], ([open, sizes]) => {
+    for (const nmId of Object.keys(open)) {
+      if (!sizes[nmId]) onOpen(Number(nmId))
+    }
+  })
 
   return { expanded, toggle }
 }
