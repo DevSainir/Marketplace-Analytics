@@ -4,7 +4,7 @@ This module answers one question — :func:`resolve_access` — and every guard 
 every module is built on its answer. It is deliberately the only place that
 combines the three facts that decide a request:
 
-1. the **platform role** on ``auth.users`` (``dev`` or ``user``),
+1. the **platform role** on ``auth.users`` (``dev``, ``head`` or ``user``),
 2. the caller's **membership**, if any (``owner`` or ``manager``),
 3. their organisation's **subscription state**.
 
@@ -51,6 +51,10 @@ from src.modules.organizations.repos import (
     OrganizationRepository,
     SubscriptionRepository,
 )
+
+#: ``auth.users.role`` of a head (``users.contract.ROLE_HEAD``). Spelled out
+#: rather than imported because the users module already depends on this one.
+PLATFORM_ROLE_HEAD: str = "head"
 
 
 class EffectiveRole(enum.StrEnum):
@@ -146,6 +150,14 @@ class OrganizationAccess:
     #: because this dataclass is frozen for a reason and a mutable field would
     #: leave a hole in it.
     modules: tuple[str, ...] = ALL_MODULES
+    #: The platform ``head`` role: may open, read-only, the кабинеты of other
+    #: organisations that a dev granted them one by one. Deliberately NOT an
+    #: :class:`EffectiveRole` — it widens which кабинеты the person may look
+    #: at, not what they may do in their own company, so an owner who is also
+    #: a head stays an owner there. The grants themselves are checked where
+    #: the кабинет is resolved (``workspaces.deps``); this flag alone opens
+    #: nothing.
+    is_head: bool = False
 
     @property
     def tenant_id(self) -> uuid.UUID:
@@ -272,6 +284,7 @@ async def resolve_access(
         The caller's :class:`OrganizationAccess`.
     """
     is_dev = platform_role == EffectiveRole.DEV.value
+    is_head = platform_role == PLATFORM_ROLE_HEAD
     membership = await MembershipRepository(session).get_for_user(user_id)
 
     if membership is None:
@@ -287,6 +300,7 @@ async def resolve_access(
             role=EffectiveRole.DEV if is_dev else EffectiveRole.USER,
             subscription=SubscriptionState.EXPIRED,
             is_primary_org=False,
+            is_head=is_head,
         )
 
     organization = await OrganizationRepository(session).get_by_id(membership.organization_id)
@@ -312,6 +326,7 @@ async def resolve_access(
             else AccessLevel.READ_ONLY
         ),
         modules=tuple(membership.modules or ()),
+        is_head=is_head,
     )
 
 

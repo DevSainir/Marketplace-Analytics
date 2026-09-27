@@ -11,12 +11,15 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.ids import uuid7
 from src.modules.workspaces.models import (
     BackfillState,
     Workspace,
     WorkspaceBackfill,
+    WorkspaceGuest,
     WorkspaceToken,
 )
 
@@ -94,6 +97,68 @@ class WorkspaceRepository:
         """Delete a workspace (its tokens cascade via the FK)."""
         await self._session.delete(workspace)
         await self._session.flush()
+
+
+class WorkspaceGuestRepository:
+    """Grants that open one workspace, read-only, to a head of another company."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        """Store the injected request-scoped async session."""
+        self._session = session
+
+    async def exists(self, *, workspace_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """Whether this person holds a grant on this workspace."""
+        stmt = select(WorkspaceGuest.id).where(
+            WorkspaceGuest.workspace_id == workspace_id, WorkspaceGuest.user_id == user_id
+        )
+        return (await self._session.execute(stmt)).first() is not None
+
+    async def list_workspaces_for_user(self, user_id: uuid.UUID) -> list[Workspace]:
+        """The workspaces granted to one person, oldest first."""
+        stmt = (
+            select(Workspace)
+            .join(WorkspaceGuest, WorkspaceGuest.workspace_id == Workspace.id)
+            .where(WorkspaceGuest.user_id == user_id)
+            .order_by(Workspace.id)
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
+
+    async def list_all(self) -> list[tuple[WorkspaceGuest, str]]:
+        """Every grant on the platform with its workspace name — the dev listing."""
+        stmt = (
+            select(WorkspaceGuest, Workspace.name)
+            .join(Workspace, Workspace.id == WorkspaceGuest.workspace_id)
+            .order_by(WorkspaceGuest.id)
+        )
+        return [(guest, name) for guest, name in (await self._session.execute(stmt)).all()]
+
+    async def add(
+        self, *, workspace_id: uuid.UUID, user_id: uuid.UUID, granted_by: uuid.UUID
+    ) -> WorkspaceGuest:
+        """Grant, or return the grant that already exists (idempotent).
+
+        ``ON CONFLICT DO NOTHING`` rather than check-then-insert, so two
+        simultaneous grants of the same pair end in one row, not an error.
+        """
+        await self._session.execute(
+            pg_insert(WorkspaceGuest)
+            .values(
+                id=uuid7(),
+                workspace_id=workspace_id,
+                user_id=user_id,
+                granted_by_user_id=granted_by,
+            )
+            .on_conflict_do_nothing(constraint="uq_workspace_guests_workspace_user")
+        )
+        stmt = select(WorkspaceGuest).where(
+            WorkspaceGuest.workspace_id == workspace_id, WorkspaceGuest.user_id == user_id
+        )
+        return (await self._session.execute(stmt)).scalar_one()
+
+    async def remove(self, grant_id: uuid.UUID) -> WorkspaceGuest | None:
+        """Delete one grant by id, returning it, or ``None`` if there was none."""
+        stmt = delete(WorkspaceGuest).where(WorkspaceGuest.id == grant_id).returning(WorkspaceGuest)
+        return (await self._session.execute(stmt)).scalar_one_or_none()
 
 
 class WorkspaceTokenRepository:

@@ -6,6 +6,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.modules.users.models import ROLE_HEAD, ROLE_USER
 from src.modules.users.repos import UserRepository
 
 
@@ -29,4 +30,34 @@ async def load_emails(session: AsyncSession, user_ids: set[uuid.UUID]) -> dict[u
     return await UserRepository(session).emails_by_id(user_ids)
 
 
-__all__ = ["load_emails"]
+async def promote_to_head(session: AsyncSession, email: str) -> uuid.UUID | None:
+    """Give an account the ``head`` platform role, and return its id.
+
+    Only an ordinary ``user`` is promoted. A ``dev`` keeps its role — it is
+    the wider one, and demoting it by granting it a кабинет would be a
+    surprise nobody asked for — and so ends up with a grant that does nothing,
+    which is why the caller refuses a dev before it gets here.
+
+    Args:
+        session: An open async session (caller owns the transaction).
+        email: The account's login email, in any case.
+
+    Returns:
+        The account id, or ``None`` when no account has that email.
+    """
+    user = await UserRepository(session).get_by_email(email.strip().lower())
+    if user is None:
+        return None
+    if user.role == ROLE_USER:
+        user.role = ROLE_HEAD
+        await session.flush()
+    return user.id
+
+
+async def load_role(session: AsyncSession, email: str) -> str | None:
+    """Return an account's platform role by email, or ``None`` if absent."""
+    user = await UserRepository(session).get_by_email(email.strip().lower())
+    return user.role if user is not None else None
+
+
+__all__ = ["load_emails", "load_role", "promote_to_head"]

@@ -249,3 +249,45 @@ class WorkspaceToken(Base):
     )
 
     workspace: Mapped[Workspace] = relationship(back_populates="tokens")
+
+
+class WorkspaceGuest(Base):
+    """One head's read-only way into one кабинет of another organisation.
+
+    The only row in the platform that lets a person see a workspace their own
+    organisation does not own. Granted and revoked by a dev, never by the
+    owner of either company, and honoured only while the person also holds
+    the ``head`` platform role — two conditions, so neither a stray row nor a
+    stray role opens anything on its own.
+
+    Outside the row-level-security policy set on purpose, like
+    ``workspaces.workspaces``: it is read to DECIDE which workspace may be
+    bound, so it is read before any workspace is.
+
+    Attributes:
+        id: UUIDv7 primary key.
+        workspace_id: The кабинет opened (FK, cascade delete — a grant on a
+            deleted workspace means nothing).
+        user_id: The head it is opened to (FK to ``auth.users``, cascade).
+        granted_by_user_id: The dev who granted it. No foreign key, for the
+            reason the audit log has none: the record must outlive the account.
+        created_at: When it was granted.
+    """
+
+    __tablename__ = "workspace_guests"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "user_id", name="uq_workspace_guests_workspace_user"),
+        {"schema": _SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid7)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{_SCHEMA}.workspaces.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    granted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

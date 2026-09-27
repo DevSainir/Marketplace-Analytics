@@ -360,6 +360,7 @@ def access_factory(user: User, organization_id: uuid.UUID) -> Callable[..., Orga
         org: uuid.UUID | None = organization_id,
         access_level: AccessLevel = AccessLevel.READ_WRITE,
         modules: tuple[str, ...] = ALL_MODULES,
+        is_head: bool = False,
     ) -> OrganizationAccess:
         # ``access_level`` only means anything for a manager — see
         # ``OrganizationAccess.can_write`` — so it defaults to the value the
@@ -372,6 +373,7 @@ def access_factory(user: User, organization_id: uuid.UUID) -> Callable[..., Orga
             is_primary_org=is_primary_org,
             access_level=access_level,
             modules=modules,
+            is_head=is_head,
         )
 
     return _build

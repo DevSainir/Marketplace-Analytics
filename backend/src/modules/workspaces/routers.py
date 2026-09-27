@@ -7,7 +7,9 @@ who may do what:
   the workspaces they work in;
 * **creating, deleting and managing WB tokens** need ``owner``. These change
   what the company IS and what it costs, and a WB token is the credential to a
-  seller's live account.
+  seller's live account;
+* **guest grants** (``/guests``, in ``guest_routers``) need ``dev``: they open
+  another company's кабинет, read-only, to a head.
 
 Until 2026-08-27 the write routes were gated on the ``dev`` role and the list
 returned every workspace on the platform. Both are now tenant-scoped: a
@@ -32,7 +34,12 @@ from src.modules.organizations.contract import (
 )
 from src.modules.workspaces.backfill import read_progress
 from src.modules.workspaces.bootstrap import enqueue_catalogue_bootstrap
-from src.modules.workspaces.deps import PathWorkspaceId, WorkspaceServiceDep
+from src.modules.workspaces.deps import (
+    PathWorkspaceId,
+    WorkspaceGuestRepoDep,
+    WorkspaceServiceDep,
+)
+from src.modules.workspaces.guests import list_guest_workspaces
 from src.modules.workspaces.schemas import (
     BackfillStatusResponse,
     WorkspaceCreateRequest,
@@ -61,11 +68,19 @@ _owner_only = Depends(require_owner)
 async def list_workspaces(
     access: MemberAccess,
     service: WorkspaceServiceDep,
+    guests: WorkspaceGuestRepoDep,
 ) -> WorkspaceListResponse:
-    """List the workspaces the caller may switch between."""
-    return WorkspaceListResponse(
-        items=await service.list_workspaces(organization_id=access.tenant_id)
-    )
+    """List the workspaces the caller may switch between.
+
+    For a head, that is their own company's кабинеты followed by the ones a
+    dev opened to them in other companies, flagged ``is_guest``.
+    """
+    items = await service.list_workspaces(organization_id=access.tenant_id)
+    if access.is_head:
+        items += await list_guest_workspaces(
+            guests, user_id=access.user_id, organization_id=access.tenant_id
+        )
+    return WorkspaceListResponse(items=items)
 
 
 @router.post(

@@ -18,14 +18,18 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import Depends, Header, status
+from fastapi import Depends, Header, Request, status
 from fastapi.exceptions import HTTPException
 
 from src.core.deps import DbSession
 from src.core.logcontext import bind_workspace
 from src.core.tenancy import set_workspace_context
 from src.modules.organizations.contract import MemberAccess, OwnerAccess
-from src.modules.workspaces.repos import WorkspaceRepository, WorkspaceTokenRepository
+from src.modules.workspaces.repos import (
+    WorkspaceGuestRepository,
+    WorkspaceRepository,
+    WorkspaceTokenRepository,
+)
 from src.modules.workspaces.services import WorkspaceService
 
 #: Request header carrying the caller's active workspace id (a UUID).
@@ -42,7 +46,13 @@ def get_workspace_token_repo(session: DbSession) -> WorkspaceTokenRepository:
     return WorkspaceTokenRepository(session)
 
 
+def get_workspace_guest_repo(session: DbSession) -> WorkspaceGuestRepository:
+    """Provide a :class:`WorkspaceGuestRepository` bound to the request session."""
+    return WorkspaceGuestRepository(session)
+
+
 WorkspaceRepoDep = Annotated[WorkspaceRepository, Depends(get_workspace_repo)]
+WorkspaceGuestRepoDep = Annotated[WorkspaceGuestRepository, Depends(get_workspace_guest_repo)]
 WorkspaceTokenRepoDep = Annotated[WorkspaceTokenRepository, Depends(get_workspace_token_repo)]
 
 
@@ -58,10 +68,32 @@ def get_workspace_service(
 WorkspaceServiceDep = Annotated[WorkspaceService, Depends(get_workspace_service)]
 
 
+#: What a head may do in a кабинет granted to them: look. A verb list rather
+#: than a route list, so a new writing route is refused to guests the day it
+#: exists — the same verb rule ``WritingAccess`` is audited by.
+_GUEST_METHODS: frozenset[str] = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+async def _may_enter_as_guest(
+    access: MemberAccess, workspace_id: uuid.UUID, guests: WorkspaceGuestRepository
+) -> bool:
+    """Whether a head holds a dev's grant on another company's workspace.
+
+    Both halves required: the ``head`` platform role AND a grant row. A grant
+    left behind on an account that has since lost the role opens nothing, and
+    the role with no grants opens nothing either.
+    """
+    if not access.is_head:
+        return False
+    return await guests.exists(workspace_id=workspace_id, user_id=access.user_id)
+
+
 async def get_current_workspace_id(
     access: MemberAccess,
     workspace_repo: WorkspaceRepoDep,
+    guest_repo: WorkspaceGuestRepoDep,
     session: DbSession,
+    request: Request,
     x_workspace_id: Annotated[
         str | None,
         Header(
@@ -92,17 +124,22 @@ async def get_current_workspace_id(
         access: The caller's resolved access; guaranteed to have an
             organisation by ``MemberAccess``.
         workspace_repo: Workspace repository bound to the request session.
+        guest_repo: The heads' grants, consulted only for a workspace of
+            another organisation.
         session: The request's session, so the tenant can be bound to its
             transaction.
+        request: The request, for its verb — a guest may only read.
         x_workspace_id: The raw header value.
 
     Returns:
-        The validated workspace UUID, proven to belong to the caller's tenant.
+        The validated workspace UUID, proven to belong to the caller's tenant
+        or granted to them, read-only, as a head.
 
     Raises:
         HTTPException: ``400`` when the header is missing or not a UUID;
             ``404`` when the workspace does not exist OR belongs to another
-            organisation (deliberately the same answer).
+            organisation (deliberately the same answer); ``403`` when a head
+            tries to change something in a кабинет granted to them to read.
     """
     if not x_workspace_id:
         raise HTTPException(
@@ -117,11 +154,26 @@ async def get_current_workspace_id(
             detail="Некорректный идентификатор кабинета.",
         ) from exc
     workspace = await workspace_repo.get_by_id(workspace_id)
-    if workspace is None or workspace.organization_id != access.tenant_id:
+    if workspace is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Кабинет не найден.",
         )
+    if workspace.organization_id != access.tenant_id:
+        # Another company's кабинет. Open only to a head a dev granted it to,
+        # and only to look: a guest changes nothing, spends none of that
+        # seller's WB budget and enqueues nothing. Everyone else gets the same
+        # 404 as for a workspace that does not exist.
+        if not await _may_enter_as_guest(access, workspace_id, guest_repo):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Кабинет не найден.",
+            )
+        if request.method not in _GUEST_METHODS:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Этот кабинет открыт вам только для просмотра.",
+            )
     # Proven to belong to the caller — only now is it safe to tell the database,
     # or the logs. Both announcements sit behind the same check for the same
     # reason: recording a tenant the caller has not been shown to belong to

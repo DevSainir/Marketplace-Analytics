@@ -24,6 +24,9 @@ class WorkspaceRead(BaseModel):
     #: Whether the SKU page renders «Рекламные кластеры» for this кабинет.
     search_clusters_enabled: bool
     created_at: datetime
+    #: Another company's кабинет, opened read-only to this head by a dev. The
+    #: SPA marks it in the switcher and leaves it out of the owner's admin list.
+    is_guest: bool = False
 
 
 class WorkspaceListResponse(BaseModel):
@@ -136,3 +139,24 @@ class BackfillStatusResponse(BaseModel):
         description="True while any lane is pending or running — what the SPA polls on."
     )
     lanes: list[BackfillLaneStatus]
+
+
+class GuestGrantRequest(BaseModel):
+    """Open one кабинет, read-only, to one account (dev only).
+
+    Addressed by name because a dev knows the кабинет by its name and names
+    are unique platform-wide; the id is not something anybody has to hand.
+    """
+
+    email: str = Field(min_length=3, max_length=320, description="The head's login email.")
+    workspace_name: str = Field(min_length=1, max_length=256, description="The кабинет to open.")
+
+
+class GuestGrantRead(BaseModel):
+    """One standing grant. Carries no token and nothing of the кабинет's data."""
+
+    id: uuid.UUID
+    email: str
+    workspace_id: uuid.UUID
+    workspace_name: str
+    created_at: datetime

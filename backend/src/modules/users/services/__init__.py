@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from src.modules.users.services.auth import AuthService
 from src.modules.users.services.breach import revoke_breached_family
-from src.modules.users.services.identity import load_emails
+from src.modules.users.services.identity import load_emails, load_role, promote_to_head
 from src.modules.users.services.lockout import LoginBackoff
 from src.modules.users.services.recovery import AccountRecoveryService
 from src.modules.users.services.registration import RegistrationOutcome, RegistrationService
@@ -31,6 +31,8 @@ __all__ = [
     "VerificationService",
     "end_family",
     "load_emails",
+    "load_role",
+    "promote_to_head",
     "revoke_all_sessions",
     "revoke_breached_family",
 ]

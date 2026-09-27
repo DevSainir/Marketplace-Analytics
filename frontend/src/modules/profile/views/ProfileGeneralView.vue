@@ -40,6 +40,13 @@ const editing = reactive({ workspace: null })
 const canManage = computed(() => store.isDev || members.isOwner)
 
 /**
+ * The кабинеты this organisation owns. A head also sees other companies'
+ * кабинеты opened to them read-only (`is_guest`); those are in the switcher,
+ * never here — their tokens, backfill and deletion belong to their owner.
+ */
+const ownWorkspaces = computed(() => store.workspaces.filter((ws) => !ws.is_guest))
+
+/**
  * Token status for every кабинет at once, so the list can SAY which ones are
  * wired up. The old page asked one at a time, on expand, which is why the list
  * could not answer the question the list is for.
@@ -47,7 +54,7 @@ const canManage = computed(() => store.isDev || members.isOwner)
 async function loadTokenStatuses() {
   if (!canManage.value) return
   await Promise.all(
-    store.workspaces.map(async (ws) => {
+    ownWorkspaces.value.map(async (ws) => {
       if (tokenStatuses[ws.id]) return
       try {
         tokenStatuses[ws.id] = await store.tokenStatus(ws.id)
@@ -59,7 +66,7 @@ async function loadTokenStatuses() {
 }
 
 onMounted(loadTokenStatuses)
-watch(() => store.workspaces.length, loadTokenStatuses)
+watch(() => ownWorkspaces.value.length, loadTokenStatuses)
 
 async function onSaveTokens(tokens) {
   const status = await store.saveTokens(editing.workspace.id, tokens)
@@ -87,14 +94,17 @@ async function onRemove(id) {
   <div class="pf-section">
     <AccountFacts
       :role-label="ROLE_LABELS[members.role] ?? '—'"
-      :workspaces="store.workspaces.length"
+      :workspaces="ownWorkspaces.length"
       :managers="members.canManageTeam ? members.managers.length : null"
     />
 
-    <BackfillStrip v-if="store.currentWorkspaceId" :workspace-id="store.currentWorkspaceId" />
+    <BackfillStrip
+      v-if="store.currentWorkspaceId && !store.currentWorkspace?.is_guest"
+      :workspace-id="store.currentWorkspaceId"
+    />
 
     <ProfileWorkspaces
-      :workspaces="store.workspaces"
+      :workspaces="ownWorkspaces"
       :current-id="store.currentWorkspaceId"
       :token-statuses="tokenStatuses"
       :can-manage="canManage"

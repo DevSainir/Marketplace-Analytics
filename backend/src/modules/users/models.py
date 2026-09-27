@@ -25,6 +25,11 @@ _SCHEMA: str = "auth"
 ROLE_USER: str = "user"
 #: Developer role: may create/delete workspaces and manage their WB tokens.
 ROLE_DEV: str = "dev"
+#: Head role: may open, read-only, the кабинеты of OTHER organisations that a
+#: dev has granted to them one by one (``workspaces.workspace_guests``). The
+#: role alone reaches nothing — it is the precondition the grants are checked
+#: against, so a stray grant row on an ordinary account opens nothing either.
+ROLE_HEAD: str = "head"
 
 
 class User(Base):

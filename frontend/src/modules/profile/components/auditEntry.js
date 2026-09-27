@@ -32,6 +32,8 @@ export const EVENT_LABELS = {
   SESSIONS_REVOKED: 'Завершены сеансы',
   PASSWORD_CHANGED: 'Изменён пароль',
   ACTIVATION_CODE_ISSUED: 'Выдан ключ активации',
+  WORKSPACE_GUEST_GRANTED: 'Открыт гостевой доступ к кабинету',
+  WORKSPACE_GUEST_REVOKED: 'Закрыт гостевой доступ к кабинету',
 }
 
 /**
@@ -57,6 +59,8 @@ const ROLE_LABELS = {
   SESSIONS_REVOKED: { actor: 'Чьи сеансы' },
   PASSWORD_CHANGED: { actor: 'Чей пароль' },
   ACTIVATION_CODE_ISSUED: { actor: 'Кто выдал' },
+  WORKSPACE_GUEST_GRANTED: { actor: 'Кто открыл' },
+  WORKSPACE_GUEST_REVOKED: { actor: 'Кто закрыл' },
 }
 
 /** Events that take something away — the only ones worth colouring. */
@@ -65,6 +69,7 @@ export const REMOVING_EVENTS = new Set([
   'INVITATION_REVOKED',
   'WORKSPACE_DELETED',
   'SESSIONS_REVOKED',
+  'WORKSPACE_GUEST_REVOKED',
 ])
 
 export function eventLabel(event) {

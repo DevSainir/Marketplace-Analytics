@@ -16,12 +16,13 @@ from src.modules.users.deps import (
     require_confirmed_email,
     require_dev_role,
 )
-from src.modules.users.models import ROLE_DEV, ROLE_USER
+from src.modules.users.models import ROLE_DEV, ROLE_HEAD, ROLE_USER
 from src.modules.users.schemas import UserRead
-from src.modules.users.services import load_emails
+from src.modules.users.services import load_emails, load_role, promote_to_head
 
 __all__ = [
     "ROLE_DEV",
+    "ROLE_HEAD",
     "ROLE_USER",
     "ConfirmedUser",
     "CurrentUser",
@@ -29,6 +30,8 @@ __all__ = [
     "DevUser",
     "UserRead",
     "load_emails",
+    "load_role",
+    "promote_to_head",
     "require_confirmed_email",
     "require_dev_role",
 ]

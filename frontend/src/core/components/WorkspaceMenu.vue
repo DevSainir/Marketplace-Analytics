@@ -103,6 +103,13 @@ function onSelect(workspace) {
               <span class="min-w-0 flex-1 truncate text-base font-medium text-primary">
                 {{ workspace.name }}
               </span>
+              <span
+                v-if="workspace.is_guest"
+                class="flex-none text-tiny text-muted"
+                title="Кабинет другой организации — только просмотр"
+              >
+                просмотр
+              </span>
               <svg
                 v-if="workspace.id === currentId"
                 class="h-4 w-4 flex-none text-action"
