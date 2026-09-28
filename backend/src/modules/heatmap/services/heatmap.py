@@ -142,7 +142,8 @@ class HeatmapService:
             group_by=query.group_by,
             metric=query.metric,
             metric2=query.metric2,
-            currency=loaded.currency,
+            currency=loaded.currency
+            or await self._pnl.settlement_currency(workspace_id=workspace_id),
             settled_to=loaded.settled_to,
             columns=[HeatmapColumn(start=start, end=end) for start, end in columns],
             totals=totals,

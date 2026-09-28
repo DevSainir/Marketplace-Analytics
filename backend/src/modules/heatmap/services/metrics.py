@@ -22,7 +22,7 @@ Two things do not add up, and each has its own rule:
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, fields
 from datetime import date
 from decimal import Decimal
@@ -106,6 +106,9 @@ class Facts:
     uncosted: bool = False
     #: Advertising on the SETTLED days only — what profit subtracts.
     settled_spend: Decimal = _ZERO
+    #: The part of :attr:`settled_spend` WB paid out of its bonus pool; see
+    #: :func:`spread_bonus`. Profit charges only the difference, as the P&L does.
+    settled_bonus: Decimal = _ZERO
 
 
 #: Fields that are neither plain sums nor the stock pair.
@@ -145,6 +148,7 @@ def _add_flows(target: Facts, other: Facts) -> None:
     target.payout_net += other.payout_net
     target.cogs += other.cogs
     target.settled_spend += other.settled_spend
+    target.settled_bonus += other.settled_bonus
     target.finance_known = target.finance_known or other.finance_known
     target.uncosted = target.uncosted or other.uncosted
 
@@ -225,10 +229,15 @@ def _funnel(read: Callable[[Facts], float | None]) -> Callable[[Facts], float | 
 
 
 def _profit(f: Facts) -> float | None:
-    """Payout net of WB's charges, less the goods' cost and the settled days' ads."""
+    """Payout net of WB's charges, less the goods' cost and what the ads cost the seller.
+
+    The ads are the settled days' spend minus WB's bonus share of it — the
+    money that actually left the seller's account, which is what the P&L's
+    «Чистая прибыль» subtracts too.
+    """
     if not f.finance_known or f.uncosted:
         return None
-    return round(float(f.payout_net - f.cogs - f.settled_spend), 2)
+    return round(float(f.payout_net - f.cogs - (f.settled_spend - f.settled_bonus)), 2)
 
 
 def _margin(f: Facts) -> float | None:
@@ -269,6 +278,38 @@ _READERS: dict[str, Callable[[Facts], float | None]] = {
     "profit": _profit,
     "margin": _margin,
 }
+
+
+def spread_bonus(
+    facts: Mapping[tuple[int, date], Facts], bonus_by_nm: Mapping[int, Decimal]
+) -> None:
+    """Spread each article's WB-funded ad bonus over its days, by that day's spend.
+
+    WB pays part of the advertising out of a bonus pool, and its ledger knows
+    campaigns, not days: the bonus is only defined over a window
+    (:func:`~src.modules.monitoring.contract.load_ad_bonus_by_nm`). So the
+    article's window bonus is laid over its days in proportion to what each
+    day spent — the same move «Сводка» makes for the whole кабинет — and only
+    the settled days' share is kept, next to :attr:`Facts.settled_spend`.
+
+    Clamped at the article's own spend, as the P&L clamps it: a write-off dated
+    inside the window for impressions just outside it must not turn an
+    advertising cost negative. Over a fully settled window an article's days
+    therefore charge exactly what its «По артикулам» row charges.
+
+    Args:
+        facts: SKU-day cells, already marked settled.
+        bonus_by_nm: Each article's bonus over the same window, positive.
+    """
+    spend_by_nm: dict[int, Decimal] = {}
+    for (nm, _), cell in facts.items():
+        spend_by_nm[nm] = spend_by_nm.get(nm, _ZERO) + cell.spend
+    for (nm, _), cell in facts.items():
+        spend = spend_by_nm[nm]
+        if not cell.finance_known or spend <= 0 or cell.spend <= 0:
+            continue
+        bonus = min(bonus_by_nm.get(nm, _ZERO), spend)
+        cell.settled_bonus = bonus * cell.spend / spend
 
 
 def read_metric(key: str, facts: Facts) -> float | None:

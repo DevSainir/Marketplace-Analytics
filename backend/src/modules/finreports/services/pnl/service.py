@@ -149,6 +149,16 @@ class PnlService:
             return None
         return (min(row[1] for row in periods), max(row[2] for row in periods))
 
+    async def settlement_currency(self, *, workspace_id: uuid.UUID) -> str:
+        """Return the currency WB settles this кабинет in; ``""`` before the first report.
+
+        Every money figure a кабинет shows is in it — the funnel's valued
+        orders, the prices and the advertising come from the same seller account
+        — so a screen that is not about the settlement still needs it for its
+        labels.
+        """
+        return await self._pnl.settlement_currency(workspace_id=workspace_id)
+
     async def get_buckets(
         self,
         *,

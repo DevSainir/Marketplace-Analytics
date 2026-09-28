@@ -98,7 +98,8 @@ class HeatmapResponse(BaseModel):
     group_by: GroupBy
     metric: MetricKey
     metric2: MetricKey | None
-    #: The settlement currency the finance metrics are in; ``""`` when unknown.
+    #: The кабинет's currency — every money figure in the grid is in it, not
+    #: only the settlement's (KGS on «Демо»). ``""`` before the first report.
     currency: str
     #: Last day WB has settled for this кабинет. Finance cells after it are
     #: ``None`` — WB has not calculated them — rather than zero.

@@ -16,6 +16,7 @@ from src.modules.heatmap.services.metrics import (
     merge_days,
     merge_skus,
     read_metric,
+    spread_bonus,
 )
 
 
@@ -155,3 +156,43 @@ def test_folding_adds_every_additive_fact() -> None:
     assert {name: getattr(folded, name) for name in ADDITIVE_FIELDS} == dict.fromkeys(
         ADDITIVE_FIELDS, 2
     )
+
+
+def test_profit_charges_only_what_the_ads_cost_the_seller() -> None:
+    """WB's bonus share of the spend never left the seller's account; the P&L does not charge it."""
+    cell = Facts(finance_known=True, payout_net=Decimal("3000"), cogs=Decimal("1200"))
+    cell.settled_spend = Decimal("300")
+    cell.settled_bonus = Decimal("100")
+
+    assert read_metric("profit", cell) == 1600.0
+
+
+def test_the_bonus_is_laid_over_the_days_by_their_spend() -> None:
+    """The ledger knows only the window; each day takes the share of it its spend earned."""
+    monday = Facts(finance_known=True, spend=Decimal("100"))
+    tuesday = Facts(finance_known=True, spend=Decimal("300"))
+    facts = {(1, date(2026, 9, 21)): monday, (1, date(2026, 9, 22)): tuesday}
+
+    spread_bonus(facts, {1: Decimal("200")})
+
+    assert (monday.settled_bonus, tuesday.settled_bonus) == (Decimal("50"), Decimal("150"))
+
+
+def test_the_bonus_never_exceeds_the_spend() -> None:
+    """A write-off for impressions just outside the window must not make ads cost negative."""
+    day = Facts(finance_known=True, spend=Decimal("100"))
+
+    spread_bonus({(1, date(2026, 9, 21)): day}, {1: Decimal("900")})
+
+    assert day.settled_bonus == Decimal("100")
+
+
+def test_an_unsettled_day_carries_no_bonus() -> None:
+    """Its spend is not charged against profit yet, so neither is its bonus."""
+    settled = Facts(finance_known=True, spend=Decimal("100"))
+    pending = Facts(spend=Decimal("100"))
+    facts = {(1, date(2026, 9, 21)): settled, (1, date(2026, 9, 28)): pending}
+
+    spread_bonus(facts, {1: Decimal("100")})
+
+    assert (settled.settled_bonus, pending.settled_bonus) == (Decimal("50"), Decimal(0))

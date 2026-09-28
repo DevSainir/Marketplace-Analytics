@@ -10,7 +10,7 @@
  * Native selects, as everywhere in this app: they are the accessible picker on
  * a phone, and the list of twenty-five metrics is exactly what one is for.
  */
-import { METRIC_GROUPS } from '@/modules/heatmap/metrics'
+import { METRIC_GROUPS, metricLabel } from '@/modules/heatmap/metrics'
 
 defineProps({
   metric: { type: String, required: true },
@@ -18,6 +18,8 @@ defineProps({
   period: { type: String, required: true },
   groupBy: { type: String, required: true },
   mode: { type: String, required: true },
+  /** The кабинет's currency, for the money metrics' names. */
+  currency: { type: String, default: '' },
 })
 const emit = defineEmits([
   'update:metric',
@@ -56,7 +58,7 @@ const MODES = [
       >
         <optgroup v-for="group in METRIC_GROUPS" :key="group.label" :label="group.label">
           <option v-for="option in group.metrics" :key="option.key" :value="option.key">
-            {{ option.label }}
+            {{ metricLabel(option, currency) }}
           </option>
         </optgroup>
       </select>
@@ -86,7 +88,7 @@ const MODES = [
             :value="option.key"
             :disabled="option.key === metric"
           >
-            {{ option.label }}
+            {{ metricLabel(option, currency) }}
           </option>
         </optgroup>
       </select>

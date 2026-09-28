@@ -83,6 +83,7 @@ onMounted(() => store.init())
         v-model:period="store.period"
         v-model:group-by="store.groupBy"
         v-model:mode="store.mode"
+        :currency="store.data?.currency ?? ''"
         @swap="store.swapMetrics"
       />
 

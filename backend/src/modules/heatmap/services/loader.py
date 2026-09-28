@@ -16,8 +16,9 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.finreports.contract import PnlService, SkuReportService
-from src.modules.heatmap.services.metrics import Facts
+from src.modules.heatmap.services.metrics import Facts, spread_bonus
 from src.modules.monitoring.contract import (
+    load_ad_bonus_by_nm,
     load_ad_sku_days,
     load_funnel_sku_days,
     load_orders_by_nm,
@@ -120,6 +121,11 @@ async def load_facts(
     if "finance" in window.sources:
         currency, settled_to = await _load_finance(window, cell, pnl=pnl, skus=skus)
         _mark_settled(facts, settled_to)
+        if "ads" in window.sources and settled_to is not None:
+            bonus = await load_ad_bonus_by_nm(
+                session, workspace_id=ws, date_from=start, date_to=end
+            )
+            spread_bonus(facts, bonus)
 
     return LoadedFacts(facts=facts, rank=rank, currency=currency, settled_to=settled_to)
 
