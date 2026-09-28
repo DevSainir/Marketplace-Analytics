@@ -117,6 +117,27 @@ describe('TestSummary', () => {
     expect(text).toContain('ни одному варианту не зачтён')
   })
 
+  it('explains a stop caused by the advertising, and that it resumes by itself', () => {
+    const wrapper = mount(TestSummary, {
+      props: {
+        test: test({ status: 'paused', stopped_at: '2026-09-28T03:05:00Z', paused_by_ads: true }),
+      },
+    })
+
+    // Without the sentence a seller presses «Запустить», the next pass pauses
+    // it again, and the page reads as a test that pauses on its own.
+    const text = plain(wrapper.get('[data-testid="summary-paused-by-ads"]').text())
+    expect(text).toContain('не идёт реклама')
+    expect(text).toContain('продолжится сам')
+    expect(wrapper.get('[data-testid="summary-status"]').text()).toBe('На паузе · нет рекламы')
+  })
+
+  it('does not blame the advertising for a pause the seller made', () => {
+    const wrapper = mount(TestSummary, { props: { test: test({ status: 'paused' }) } })
+
+    expect(wrapper.find('[data-testid="summary-paused-by-ads"]').exists()).toBe(false)
+  })
+
   it('says nothing about a conflict when there was none', () => {
     const wrapper = mount(TestSummary, { props: { test: test({ status: 'paused' }) } })
 

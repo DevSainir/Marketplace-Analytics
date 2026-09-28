@@ -33,7 +33,7 @@
  */
 import { computed } from 'vue'
 
-import { STATUS_LABELS } from '@/modules/abTests'
+import { statusLabel as labelOf } from '@/modules/abTests'
 import { campaignKindLabel } from '@/modules/abTests/campaignKinds'
 import SummaryFacts from '@/modules/abTests/components/SummaryFacts.vue'
 import SummaryMetricTile from '@/modules/abTests/components/SummaryMetricTile.vue'
@@ -48,9 +48,7 @@ const props = defineProps({
 const summary = computed(() => props.test.summary ?? {})
 
 /** The status, shown only when it is not the one the ticking figures imply. */
-const statusLabel = computed(() =>
-  props.test.status === 'running' ? '' : STATUS_LABELS[props.test.status] || props.test.status,
-)
+const statusLabel = computed(() => (props.test.status === 'running' ? '' : labelOf(props.test)))
 
 /**
  * Was the test stopped because somebody edited the card?
@@ -61,6 +59,16 @@ const statusLabel = computed(() =>
  * «На паузе».
  */
 const photoConflict = computed(() => !!props.test.photo_conflict_at)
+
+/**
+ * Was the test stopped because nothing is advertising the card?
+ *
+ * The other stop a seller did not make. It undoes itself, which is exactly why
+ * it has to be said: without the sentence a seller presses «Запустить», the
+ * next pass finds the campaign still dry and pauses it again, and the page reads
+ * as a test that «сам уходит в паузу» — NEVA, 28.09.2026, twice in two hours.
+ */
+const pausedByAds = computed(() => props.test.status === 'paused' && !!props.test.paused_by_ads)
 
 /** The campaigns that actually brought this test traffic, in the page's order. */
 const campaigns = computed(() => props.test.campaigns ?? [])
@@ -172,6 +180,17 @@ function moment(value) {
       Ротация остановлена {{ moment(test.photo_conflict_at) }}: на карточке оказалось главное фото,
       которое тест не устанавливал — скорее всего, его поменяли вручную в кабинете WB. Трафик с
       чужого фото ни одному варианту не зачтён. Проверьте карточку и запустите тест заново.
+    </p>
+
+    <p
+      v-if="pausedByAds"
+      class="mt-sm rounded-btn bg-status-warning/10 px-sm py-xs text-tiny text-primary"
+      data-testid="summary-paused-by-ads"
+    >
+      Ротация остановлена {{ moment(test.stopped_at) }}: на артикуле не идёт реклама — кампании на
+      паузе или у них закончился бюджет. Без рекламы нет показов, и сравнивать фото не на чем. Тест
+      продолжится сам в течение 5 минут после того, как реклама пойдёт: пополните бюджет или
+      включите кампанию в кабинете WB.
     </p>
 
     <dl

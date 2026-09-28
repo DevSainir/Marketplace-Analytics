@@ -382,6 +382,7 @@ class AbTestCatalogService:
             finished_at=test.finished_at,
             stopped_at=test.stopped_at,
             photo_conflict_at=test.photo_conflict_at,
+            paused_by_ads=bool(test.paused_by_ads),
             created_at=test.created_at,
         )
 

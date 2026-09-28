@@ -2028,6 +2028,12 @@ export interface components {
        */
       photo_conflict_at?: string | null
       /**
+       * Paused By Ads
+       * @description Тест поставила на паузу ротация: на артикуле не идёт ни одна кампания с бюджетом. Продолжится сам, когда реклама пойдёт. false — пауза вручную или теста не на паузе.
+       * @default false
+       */
+      paused_by_ads: boolean
+      /**
        * Created At
        * Format: date-time
        */
@@ -2105,6 +2111,12 @@ export interface components {
        * @description Когда ротация обнаружила на карточке главное фото, которое она не устанавливала: значит, карточку поменяли вручную. Тест остановлен и сам не возобновится — трафик с чужого фото ни одному варианту не принадлежит. null, если такого не было.
        */
       photo_conflict_at?: string | null
+      /**
+       * Paused By Ads
+       * @description Тест поставила на паузу ротация: на артикуле не идёт ни одна кампания с бюджетом. Продолжится сам, когда реклама пойдёт. false — пауза вручную или теста не на паузе.
+       * @default false
+       */
+      paused_by_ads: boolean
       /**
        * Created At
        * Format: date-time

@@ -16,7 +16,7 @@
 import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import { STATUS_LABELS } from '@/modules/abTests/store'
+import { statusLabel } from '@/modules/abTests/store'
 import { formatSku } from '@/core/utils/format'
 
 defineProps({
@@ -100,7 +100,7 @@ function formatDate(value) {
                 class="inline-block rounded-full px-sm py-px text-micro font-semibold"
                 :class="STATUS_CLASS[test.status]"
               >
-                {{ STATUS_LABELS[test.status] || test.status }}
+                {{ statusLabel(test) }}
               </span>
             </td>
             <td class="px-md py-sm text-tiny tabular-nums">{{ formatDate(test.started_at) }}</td>
@@ -149,7 +149,7 @@ function formatDate(value) {
             class="flex-none rounded-full px-sm py-px text-micro font-semibold"
             :class="STATUS_CLASS[test.status]"
           >
-            {{ STATUS_LABELS[test.status] || test.status }}
+            {{ statusLabel(test) }}
           </span>
         </div>
         <div class="mt-px flex items-baseline gap-sm">

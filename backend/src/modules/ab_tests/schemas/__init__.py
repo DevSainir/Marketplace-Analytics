@@ -325,6 +325,14 @@ class AbTestRead(BaseModel):
             "null, если такого не было."
         ),
     )
+    paused_by_ads: bool = Field(
+        default=False,
+        description=(
+            "Тест поставила на паузу ротация: на артикуле не идёт ни одна кампания с "
+            "бюджетом. Продолжится сам, когда реклама пойдёт. false — пауза вручную "
+            "или теста не на паузе."
+        ),
+    )
     created_at: datetime
 
     leader_variant_id: uuid.UUID | None = Field(

@@ -10,9 +10,9 @@ import { describe, expect, it } from 'vitest'
 
 import TestControls from '@/modules/abTests/components/TestControls.vue'
 
-function build(status, extra = {}) {
+function build(status, extra = {}, test = {}) {
   return mount(TestControls, {
-    props: { test: { status, variants: [{ variant_id: 'v1' }] }, ...extra },
+    props: { test: { status, variants: [{ variant_id: 'v1' }], ...test }, ...extra },
   })
 }
 
@@ -34,5 +34,27 @@ describe('finishing a test', () => {
 
     expect(wrapper.emitted('finish')).toHaveLength(1)
     expect(wrapper.emitted('status')).toBeUndefined()
+  })
+})
+
+describe('starting a test the advertising paused', () => {
+  it('asks first, because the next pass would pause it again', async () => {
+    const wrapper = build('paused', {}, { paused_by_ads: true })
+    const button = wrapper.get('[data-testid="start"]')
+
+    await button.trigger('click')
+    expect(wrapper.emitted('status')).toBeUndefined()
+    expect(button.text()).toBe('Реклама не идёт — всё равно запустить?')
+
+    await button.trigger('click')
+    expect(wrapper.emitted('status')).toEqual([['running']])
+  })
+
+  it('starts at once when the seller paused it', async () => {
+    const wrapper = build('paused')
+
+    await wrapper.get('[data-testid="start"]').trigger('click')
+
+    expect(wrapper.emitted('status')).toEqual([['running']])
   })
 })

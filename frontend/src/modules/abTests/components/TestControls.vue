@@ -20,12 +20,19 @@
  * it short of starting it again first. It only asks for the finish; the view
  * opens the dialog that decides which photo the card keeps.
  *
- * Presentational: it owns no state and performs no writes, so the view stays
- * the one place that knows about the store.
+ * «Запустить» asks twice when the rotation itself paused the test for want of
+ * advertising: the campaign was dry on the last pass, and a start now is paused
+ * again within five minutes. It stays possible — the seller may have just topped
+ * the budget up — but it is no longer a click that silently undoes itself.
+ *
+ * Presentational: it performs no writes, so the view stays the one place that
+ * knows about the store. The only state it holds is that confirmation.
  */
+import { ref, watch } from 'vue'
+
 import { MAX_VARIANTS } from '@/modules/abTests'
 
-defineProps({
+const props = defineProps({
   /** The open test, as the detail endpoint returns it. */
   test: { type: Object, required: true },
   /** Whether the test still has room for another upload. */
@@ -37,7 +44,27 @@ defineProps({
   /** True while a write is in flight. */
   saving: { type: Boolean, default: false },
 })
-defineEmits(['upload', 'upload-main', 'status', 'finish'])
+const emit = defineEmits(['upload', 'upload-main', 'status', 'finish'])
+
+const armed = ref(false)
+
+// A confirmation belongs to the state it was asked in.
+watch(
+  () => [props.test.status, props.test.paused_by_ads],
+  () => {
+    armed.value = false
+  },
+)
+
+/** Start — after a second press if nothing is advertising the card. */
+function start() {
+  if (props.test.paused_by_ads && !armed.value) {
+    armed.value = true
+    return
+  }
+  armed.value = false
+  emit('status', 'running')
+}
 </script>
 
 <template>
@@ -98,9 +125,9 @@ defineEmits(['upload', 'upload-main', 'status', 'finish'])
         class="inline-flex h-10 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="saving || !test.variants.length"
         data-testid="start"
-        @click="$emit('status', 'running')"
+        @click="start"
       >
-        Запустить
+        {{ armed ? 'Реклама не идёт — всё равно запустить?' : 'Запустить' }}
       </button>
       <button
         v-if="test.status === 'running'"

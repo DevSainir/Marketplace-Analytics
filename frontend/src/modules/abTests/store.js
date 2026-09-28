@@ -39,6 +39,18 @@ export const STATUS_LABELS = {
   cancelled: 'Завершён',
 }
 
+/**
+ * A test's status in words — with the reason, for a pause the seller did not make.
+ *
+ * @param {{status: string, paused_by_ads?: boolean}} test A list row or the detail.
+ * @returns {string} «На паузе · нет рекламы» for the rotation's own pause, the
+ *   plain label otherwise.
+ */
+export function statusLabel(test) {
+  if (test.status === 'paused' && test.paused_by_ads) return 'На паузе · нет рекламы'
+  return STATUS_LABELS[test.status] || test.status
+}
+
 /** Product cap on photos in one rotation; mirrors the backend's own limit. */
 export const MAX_VARIANTS = 10
 

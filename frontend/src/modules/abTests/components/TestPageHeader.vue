@@ -16,7 +16,7 @@ import { formatSku } from '@/core/utils/format'
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import { STATUS_LABELS } from '@/modules/abTests'
+import { statusLabel } from '@/modules/abTests'
 import { triggerLabel } from '@/modules/abTests/trigger'
 
 const props = defineProps({
@@ -80,7 +80,7 @@ function remove() {
     </div>
 
     <p v-if="test" class="mt-xs flex flex-wrap items-center gap-x-sm text-tiny text-muted">
-      <span>{{ STATUS_LABELS[test.status] || test.status }}</span>
+      <span>{{ statusLabel(test) }}</span>
       <span>·</span>
       <span>{{ triggerText }}</span>
       <button
