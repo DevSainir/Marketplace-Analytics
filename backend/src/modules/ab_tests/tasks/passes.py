@@ -19,7 +19,7 @@ from src.core.database import AsyncSessionLocal
 from src.core.logging import get_logger
 from src.integrations.wildberries import WBAdvertisingClient, WBContentClient
 from src.integrations.wildberries.schemas import WBAdvCampaignStats, WBAdvertV2
-from src.modules.ab_tests.models import AbTest
+from src.modules.ab_tests.models import AbTest, AbTestStatus
 from src.modules.ab_tests.repos import (
     AbTestRepository,
     CampaignFacts,
@@ -65,6 +65,12 @@ async def poll_one(
         repo = AbTestRepository(session)
         loaded = await repo.get(workspace_id=test.workspace_id, test_id=test.id)
         if loaded is None:  # deleted between the listing and now
+            return None
+        # Paused or finished between the listing and now. The sweep lists the
+        # running tests once, then walks them for minutes; a seller who finished
+        # a test in that gap has just put the photo they chose on the card, and
+        # a pass that went on regardless would swap it for the next in line.
+        if loaded.status != AbTestStatus.RUNNING.value:
             return None
 
         async with (

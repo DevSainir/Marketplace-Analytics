@@ -56,7 +56,7 @@ from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries import WBAdvertisingClient
 from src.integrations.wildberries.schemas import WBAdvertV2
-from src.modules.ab_tests.models import AbTest
+from src.modules.ab_tests.models import AbTest, AbTestStatus
 from src.modules.ab_tests.repos import AbTestRepository
 from src.modules.ab_tests.services.budget import AdsState, read_state
 from src.modules.ab_tests.services.collection import days_to_read
@@ -121,7 +121,14 @@ async def _resume_paused(adverts_by_workspace: dict[uuid.UUID, list[WBAdvertV2]]
         async with AsyncSessionLocal() as session:
             repo = AbTestRepository(session)
             loaded = await repo.get(workspace_id=test.workspace_id, test_id=test.id)
-            if loaded is None or not loaded.paused_by_ads:
+            # The status as well as the flag: finishing a test does not clear
+            # `paused_by_ads`, so a test finished after the listing still carries
+            # it, and resuming that would restart a rotation the seller ended.
+            if (
+                loaded is None
+                or not loaded.paused_by_ads
+                or loaded.status != AbTestStatus.PAUSED.value
+            ):
                 continue
 
             bundle = await load_workspace_token_bundle(session, workspace_id=test.workspace_id)
