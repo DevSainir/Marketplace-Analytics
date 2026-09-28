@@ -216,6 +216,9 @@ class DetailAnalytics:
             nm_id=nm_id,
             vendor_code=card.vendor_code if card else None,
             title=card.title if card else None,
+            feedback_rating=(
+                float(card.feedback_rating) if card and card.feedback_rating is not None else None
+            ),
             comments={
                 day: DayNote(body=row.body, header=row.header) for day, row in comment_rows.items()
             },

@@ -1,7 +1,14 @@
 <script setup>
 import { computed } from 'vue'
 
-import { pivotRows, pivotWarehouses, sizeShare } from '@/modules/monitoring/stockPivot'
+import {
+  DAYS_PER_SCREEN,
+  dayColumns,
+  isSingleWarehouse,
+  pivotRows,
+  pivotWarehouses,
+  sizeShare,
+} from '@/modules/monitoring/stockPivot'
 import { useStockRibbonLayout } from '@/modules/monitoring/useStockRibbonLayout'
 import { useWarehouseNameTip } from '@/modules/monitoring/useWarehouseNameTip'
 
@@ -30,6 +37,9 @@ import { formatNumber } from '@/core/utils/format'
  * width and lets it divide that between its own warehouses. (The width has to
  * be in px: a `calc()` mixing a percentage into a `<col>` is dropped, which is
  * what `--group-w` and the observer below are for.)
+ *
+ * A seller with ONE warehouse gets no «Всего» (it would repeat the only
+ * column) and five days a screen instead of two — see `DAYS_PER_SCREEN`.
  *
  * Native `<table>`, same reasoning as MetricsTable.vue: fixed column order, no
  * sorting and no pagination, so PrimeVue's machinery would add only overhead.
@@ -82,12 +92,19 @@ const columns = computed(() =>
 
 const hasStock = computed(() => columns.value.some((day) => day.warehouses.length))
 
-/** One day's warehouse column width: its share of the day's own group. */
-function warehouseColumnWidth(day) {
+const single = computed(() => isSingleWarehouse(columns.value))
+
+/** One column's width: «Всего» is fixed, the warehouses share the rest. */
+function columnWidth(day, column) {
+  if (column.kind === 'total') return 'var(--col-total-w)'
+  if (single.value) return 'var(--group-w)'
   return `calc((var(--group-w) - var(--col-total-w)) / ${day.warehouses.length})`
 }
 
-const { root, scroll, groupWidth } = useStockRibbonLayout({ daysSource: () => props.days })
+const { root, scroll, groupWidth } = useStockRibbonLayout({
+  daysSource: () => props.days,
+  perScreen: () => (single.value ? DAYS_PER_SCREEN.single : DAYS_PER_SCREEN.regular),
+})
 </script>
 
 <template>
@@ -106,11 +123,10 @@ const { root, scroll, groupWidth } = useStockRibbonLayout({ daysSource: () => pr
         <colgroup>
           <col class="col-size" />
           <template v-for="day in columns" :key="day.key">
-            <col class="col-total" />
             <col
-              v-for="wh in day.warehouses"
-              :key="`${day.key}:${wh.name}`"
-              :style="{ width: warehouseColumnWidth(day) }"
+              v-for="column in dayColumns(day, single)"
+              :key="`${day.key}:${column.id}`"
+              :style="{ width: columnWidth(day, column) }"
             />
           </template>
         </colgroup>
@@ -123,24 +139,29 @@ const { root, scroll, groupWidth } = useStockRibbonLayout({ daysSource: () => pr
               v-for="day in columns"
               :key="day.key"
               class="col-day day-start"
-              :colspan="day.warehouses.length + 1"
+              :colspan="dayColumns(day, single).length"
             >
               {{ day.label }}
               <span v-if="!day.warehouses.length" class="text-muted">· нет остатков</span>
             </th>
           </tr>
-          <!-- Row 2: that day's «Всего», then the warehouses it stocked. -->
+          <!-- Row 2: that day's «Всего» (unless single), then its warehouses. -->
           <tr>
             <template v-for="day in columns" :key="day.key">
-              <th class="col-total day-start">Всего</th>
               <th
-                v-for="wh in day.warehouses"
-                :key="`${day.key}:${wh.name}`"
-                class="col-wh"
-                @mouseenter="showNameTip($event, wh.name)"
+                v-for="(column, i) in dayColumns(day, single)"
+                :key="`${day.key}:${column.id}`"
+                :class="[column.kind === 'total' ? 'col-total' : 'col-wh', i ? '' : 'day-start']"
+                @mouseenter="column.wh && showNameTip($event, column.wh.name)"
                 @mouseleave="hideNameTip"
               >
-                {{ shortWarehouseName(wh.name) }}
+                {{
+                  column.kind === 'total'
+                    ? 'Всего'
+                    : column.wh
+                      ? shortWarehouseName(column.wh.name)
+                      : ''
+                }}
               </th>
             </template>
           </tr>
@@ -151,15 +172,25 @@ const { root, scroll, groupWidth } = useStockRibbonLayout({ daysSource: () => pr
             <td class="cell-size font-medium" :title="sizeLabel(size)">{{ sizeLabel(size) }}</td>
             <template v-for="day in columns" :key="day.key">
               <td
-                class="cell-total day-start font-semibold tabular-nums"
-                :style="{ '--share': sizeShare(day.rows[index]?.total, day.grandTotal) }"
+                v-for="(column, i) in dayColumns(day, single)"
+                :key="`${day.key}:${column.id}`"
+                class="tabular-nums"
+                :class="[
+                  column.kind === 'total' ? 'cell-total font-semibold' : '',
+                  i ? '' : 'day-start',
+                ]"
+                :style="
+                  column.kind === 'total'
+                    ? { '--share': sizeShare(day.rows[index]?.total, day.grandTotal) }
+                    : null
+                "
               >
-                {{ day.rows[index]?.total ? formatNumber(day.rows[index].total) : '' }}
-              </td>
-              <td v-for="wh in day.warehouses" :key="`${day.key}:${wh.name}`" class="tabular-nums">
+                <template v-if="column.kind === 'total'">
+                  {{ day.rows[index]?.total ? formatNumber(day.rows[index].total) : '' }}
+                </template>
                 <!-- Zeros read as blanks — only real remainders carry a number. -->
-                <span v-if="day.rows[index]?.quantities[wh.name]">{{
-                  formatNumber(day.rows[index].quantities[wh.name])
+                <span v-else-if="column.wh && day.rows[index]?.quantities[column.wh.name]">{{
+                  formatNumber(day.rows[index].quantities[column.wh.name])
                 }}</span>
               </td>
             </template>
@@ -170,15 +201,21 @@ const { root, scroll, groupWidth } = useStockRibbonLayout({ daysSource: () => pr
           <tr>
             <td class="cell-size font-medium">Всего</td>
             <template v-for="day in columns" :key="day.key">
-              <td class="cell-total day-start font-bold tabular-nums">
-                {{ day.grandTotal ? formatNumber(day.grandTotal) : '' }}
-              </td>
               <td
-                v-for="wh in day.warehouses"
-                :key="`${day.key}:${wh.name}`"
-                class="font-semibold tabular-nums"
+                v-for="(column, i) in dayColumns(day, single)"
+                :key="`${day.key}:${column.id}`"
+                class="tabular-nums"
+                :class="[
+                  column.kind === 'total' ? 'cell-total font-bold' : 'font-semibold',
+                  i ? '' : 'day-start',
+                ]"
               >
-                {{ wh.total ? formatNumber(wh.total) : '' }}
+                <template v-if="column.kind === 'total'">
+                  {{ day.grandTotal ? formatNumber(day.grandTotal) : '' }}
+                </template>
+                <template v-else-if="column.wh?.total">{{
+                  formatNumber(column.wh.total)
+                }}</template>
               </td>
             </template>
           </tr>

@@ -33,15 +33,15 @@
  *
  * Header (3 rows, as in the workbook):
  *   Дата · Тип получения трафика (groups) · Зоны показов (leaf columns).
- * A group that ran a campaign that day is a link to that campaign in WB's
- * advertising cabinet (`wbLinks.js`), its id in the tooltip. The id used to
- * have a row of its own; eight digits did not fit a one-column group, and the
- * group label already says which campaign it is.
+ * A group that ran a campaign that day links to it in WB's advertising cabinet;
+ * hovering shows the id, selectable and copyable (`campaignLinks.js`).
  */
 import { nextTick, onMounted, ref, watch } from 'vue'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
 import AssocBreakdownTip from '@/modules/labs/components/AssocBreakdownTip.vue'
+import CampaignIdTip from '@/modules/labs/components/CampaignIdTip.vue'
+import { useCampaignLinks } from '@/modules/labs/campaignLinks'
 import MatrixMetricsRows from '@/modules/labs/components/MatrixMetricsRows.vue'
 import MatrixActionsRow from '@/modules/labs/components/MatrixActionsRow.vue'
 import MatrixCommentsRow from '@/modules/labs/components/MatrixCommentsRow.vue'
@@ -50,7 +50,6 @@ import MetricsDayList from '@/modules/labs/components/MetricsDayList.vue'
 import { COLUMNS_PER_DAY, TRAFFIC_GROUPS } from '@/modules/labs/metricsMatrix'
 import { useMatrixColumns } from '@/modules/labs/matrixColumns'
 import { useAssocHover } from '@/modules/labs/useAssocHover'
-import { campaignUrl } from '@/modules/labs/wbLinks'
 
 const props = defineProps({
   /** @type {Array<{iso: string, label: string}>} oldest → newest */
@@ -73,26 +72,20 @@ const props = defineProps({
   actionSavingDays: { type: Set, default: () => new Set() },
   /** Disable editing while a save/refresh is in flight. */
   editingDisabled: { type: Boolean, default: false },
-  /** Campaign ids per ISO day, keyed by TRAFFIC_GROUPS `key` — the group links. */
-  campaignIds: { type: Object, default: () => ({}) },
-  /** The page's SKU — the campaign link opens on it. */
-  nmId: { type: Number, default: null },
+  /** `{nmId, byDay}` — the campaign each traffic group ran, per ISO day. */
+  campaigns: { type: Object, default: null },
 })
-
-/** The campaign page, preset to the table's window and this SKU. */
-function advertLink(advertId) {
-  return campaignUrl(advertId, {
-    nmId: props.nmId,
-    from: props.days[0]?.iso,
-    to: props.days.at(-1)?.iso,
-  })
-}
 
 const emit = defineEmits(['edit', 'comment', 'action'])
 
 const { zoneHeaderColumns, rowColumns } = useMatrixColumns(() => props.days)
 
 const scroll = ref(null)
+
+const { advertFor, tip, showTip, hideTip, keepTip } = useCampaignLinks(
+  () => props.campaigns,
+  () => props.days,
+)
 
 /** Start at the right edge: «сегодня» first, older days appear scrolling left. */
 function scrollToNewestDay() {
@@ -174,12 +167,13 @@ watch(
                   :rowspan="group.spansZones ? 2 : 1"
                 >
                   <a
-                    v-if="campaignIds[day.iso]?.[group.key]"
+                    v-if="advertFor(day.iso, group.key)"
                     class="matrix-advert-link"
-                    :href="advertLink(campaignIds[day.iso][group.key])"
+                    :href="advertFor(day.iso, group.key).href"
                     target="_blank"
                     rel="noopener noreferrer"
-                    :title="`Кампания ${campaignIds[day.iso][group.key]} — открыть в кабинете WB`"
+                    @mouseenter="showTip($event, advertFor(day.iso, group.key).id)"
+                    @mouseleave="hideTip"
                     >{{ group.label }}</a
                   >
                   <template v-else>{{ group.label }}</template>
@@ -231,6 +225,7 @@ watch(
       </div>
 
       <AssocBreakdownTip :tip="assocTip" />
+      <CampaignIdTip :tip="tip" @keep="keepTip" @leave="hideTip" />
     </div>
   </div>
 </template>

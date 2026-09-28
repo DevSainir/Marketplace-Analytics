@@ -52,9 +52,17 @@ class WBFunnelHistoryDay(RawBase):
 
 
 class WBFunnelHistoryProduct(RawBase):
-    """The ``product`` identity block of a funnel-history node."""
+    """The ``product`` identity block of a funnel node (history and aggregate).
+
+    ``feedback_rating`` is the card's buyer rating — the storefront's stars —
+    served by the period aggregate (``sales-funnel/products``); it matched the
+    storefront's ``reviewRating`` on every card checked (2026-09-26). ``0`` is
+    WB's value for a card with no reviews. Not to be confused with
+    ``productRating``, WB's 0-10 card-quality score, which is not read.
+    """
 
     nm_id: int = Field(alias="nmId")
+    feedback_rating: float | None = Field(default=None, alias="feedbackRating")
 
 
 class WBFunnelHistoryRow(RawBase):

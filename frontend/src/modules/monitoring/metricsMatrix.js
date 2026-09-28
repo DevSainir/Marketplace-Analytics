@@ -24,6 +24,7 @@
  * «Каталог» is a legacy WB zone kept for workbook parity; it is always empty.
  */
 import { formatMoney, formatNumber, formatPercent, moneyLabel } from '@/core/utils/format'
+import { campaignIdsByDay } from '@/modules/monitoring/campaignLinks'
 
 // Missing values render as BLANK cells (was an em dash — the dashes read as
 // noise across a mostly-empty ribbon).
@@ -78,16 +79,17 @@ export const COLUMNS_PER_DAY = TRAFFIC_COLUMNS.length
 /**
  * «Тип получения трафика» header groups (spans over TRAFFIC_COLUMNS).
  * `spansZones` groups have no zone split — their header cell spans the zones
- * row too instead of repeating the same word twice. «Руч. поиск» spans two
+ * row too instead of repeating the same word twice. `key` names the group's
+ * campaign in `campaigns.byDay` (see `campaignLinks.js`). «Руч. поиск» spans two
  * zones: WB search campaigns also deliver in каталог (backend-split).
  */
 export const TRAFFIC_GROUPS = [
-  { label: 'Единая ставка', span: 3 },
-  { label: 'Руч. поиск', span: 2 },
-  { label: 'Руч. полки', span: 1 },
-  { label: 'CPC', span: 2 },
-  { label: 'Общая', span: 1, spansZones: true },
-  { label: 'Органика', span: 1, spansZones: true },
+  { key: 'uni', label: 'Единая ставка', span: 3 },
+  { key: 'manual_search', label: 'Руч. поиск', span: 2 },
+  { key: 'manual_shelves', label: 'Руч. полки', span: 1 },
+  { key: 'cpc', label: 'CPC', span: 2 },
+  { key: 'total', label: 'Общая', span: 1, spansZones: true },
+  { key: 'organic', label: 'Органика', span: 1, spansZones: true },
 ]
 
 /**
@@ -419,6 +421,9 @@ export function buildMetricsMatrix(product, currency = '') {
     stockTotalRows: buildTotalRows(STOCK_TOTAL_METRIC_DEFS, matrix, backendValues, currency),
     // The chart below the table reads the unit from here, so the two agree.
     currency,
+    // The header's campaign links (`campaignLinks.js`): the SKU, and per day
+    // which campaign each traffic group ran.
+    campaigns: { nmId: product.nm_id, byDay: campaignIdsByDay(product.matrix_base) },
   }
 }
 

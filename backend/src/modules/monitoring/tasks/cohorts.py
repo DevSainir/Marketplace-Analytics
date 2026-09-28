@@ -119,6 +119,11 @@ async def _refresh_workspace_cohorts(
             async with AsyncSessionLocal() as session:
                 service = _cohort_ingestion_service(session)
                 refreshed += await service.ingest_funnel_cohorts(day, rows)
+                # The same response carries each card's buyer rating, which is
+                # the card's state now rather than the cohort day's — so it is
+                # read once, off the freshest day the pass is served.
+                if served == 1:
+                    await service.ingest_feedback_ratings(rows, workspace_id=tokens.workspace_id)
                 await session.commit()
             if on_day is not None:
                 on_day(offset + 1, days)
@@ -140,8 +145,9 @@ async def _refresh_workspace_cohorts(
 def _cohort_ingestion_service(session: AsyncSession) -> IngestionService:
     """Build an IngestionService for the cohort pass.
 
-    Only ``funnel_repo`` is exercised, but the service wires its full
-    repository graph — the others are constructed and left unused.
+    Only ``funnel_repo`` and ``product_card_repo`` (the ratings) are exercised,
+    but the service wires its full repository graph — the others are
+    constructed and left unused.
     """
     return IngestionService(
         funnel_repo=FunnelRepository(session),

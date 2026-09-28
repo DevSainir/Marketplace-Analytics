@@ -219,10 +219,13 @@ def _assoc_sku_counts(
 
 
 def _bucket_base(
-    acc: _AdSlice | _BucketAcc, sku_labels: dict[int, str | None] | None = None
+    acc: _AdSlice | _BucketAcc,
+    sku_labels: dict[int, str | None] | None = None,
+    campaign_id: int | None = None,
 ) -> MatrixAdBucketBase:
     """Freeze an ad slice / bucket accumulator into a serializable input DTO."""
     return MatrixAdBucketBase(
+        campaign_id=campaign_id,
         views=acc.views,
         clicks=acc.clicks,
         add_to_cart=acc.add_to_cart,
@@ -360,9 +363,17 @@ def _select_day_buckets(
         kept.append(candidates[1])
 
     bucket_acc: dict[str, _BucketAcc] = {}
-    for _total, legs in kept:
+    # The campaign behind each bucket, for the header's link to it. Two kept
+    # campaigns land in one bucket only when both are of one type; the leader
+    # (added first) is the one the column is about.
+    bucket_campaign: dict[str, int | None] = {}
+    for total, legs in kept:
         for bucket_key, slice_ in legs:
             if slice_.sku.views <= 0:
                 continue  # the card had no impressions in this zone
             bucket_acc.setdefault(bucket_key, _BucketAcc()).add(slice_)
-    return {name: _bucket_base(acc, sku_labels) for name, acc in bucket_acc.items()}
+            bucket_campaign.setdefault(bucket_key, total.campaign_id)
+    return {
+        name: _bucket_base(acc, sku_labels, bucket_campaign.get(name))
+        for name, acc in bucket_acc.items()
+    }

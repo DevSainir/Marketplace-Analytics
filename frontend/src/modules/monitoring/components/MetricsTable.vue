@@ -33,11 +33,15 @@
  *
  * Header (3 rows, as in the workbook):
  *   Дата · Тип получения трафика (groups) · Зоны показов (leaf columns).
+ * A group that ran a campaign that day links to it in WB's advertising cabinet;
+ * hovering shows the id, selectable and copyable (`campaignLinks.js`).
  */
 import { nextTick, onMounted, ref, watch } from 'vue'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
 import AssocBreakdownTip from '@/modules/monitoring/components/AssocBreakdownTip.vue'
+import CampaignIdTip from '@/modules/monitoring/components/CampaignIdTip.vue'
+import { useCampaignLinks } from '@/modules/monitoring/campaignLinks'
 import MatrixMetricsRows from '@/modules/monitoring/components/MatrixMetricsRows.vue'
 import MatrixActionsRow from '@/modules/monitoring/components/MatrixActionsRow.vue'
 import MatrixCommentsRow from '@/modules/monitoring/components/MatrixCommentsRow.vue'
@@ -68,6 +72,8 @@ const props = defineProps({
   actionSavingDays: { type: Set, default: () => new Set() },
   /** Disable editing while a save/refresh is in flight. */
   editingDisabled: { type: Boolean, default: false },
+  /** `{nmId, byDay}` — the campaign each traffic group ran, per ISO day. */
+  campaigns: { type: Object, default: null },
 })
 
 const emit = defineEmits(['edit', 'comment', 'action'])
@@ -75,6 +81,11 @@ const emit = defineEmits(['edit', 'comment', 'action'])
 const { zoneHeaderColumns, rowColumns } = useMatrixColumns(() => props.days)
 
 const scroll = ref(null)
+
+const { advertFor, tip, showTip, hideTip, keepTip } = useCampaignLinks(
+  () => props.campaigns,
+  () => props.days,
+)
 
 /** Start at the right edge: «сегодня» first, older days appear scrolling left. */
 function scrollToNewestDay() {
@@ -155,7 +166,17 @@ watch(
                   :colspan="group.span"
                   :rowspan="group.spansZones ? 2 : 1"
                 >
-                  {{ group.label }}
+                  <a
+                    v-if="advertFor(day.iso, group.key)"
+                    class="matrix-advert-link"
+                    :href="advertFor(day.iso, group.key).href"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    @mouseenter="showTip($event, advertFor(day.iso, group.key).id)"
+                    @mouseleave="hideTip"
+                    >{{ group.label }}</a
+                  >
+                  <template v-else>{{ group.label }}</template>
                 </th>
               </template>
             </tr>
@@ -204,6 +225,7 @@ watch(
       </div>
 
       <AssocBreakdownTip :tip="assocTip" />
+      <CampaignIdTip :tip="tip" @keep="keepTip" @leave="hideTip" />
     </div>
   </div>
 </template>

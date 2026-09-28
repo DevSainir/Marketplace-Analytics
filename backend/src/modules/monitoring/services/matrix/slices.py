@@ -67,6 +67,9 @@ class _AdSlice:
 
     ``sku`` is the viewed card's own share (see :class:`_SkuSlice`).
 
+    ``campaign_id`` is set on a campaign-day's WHOLE slice (its zone legs do not
+    need it): it is what the matrix header links to.
+
     ``assoc_skus`` names the variants behind the conversion totals (``nm_id`` →
     ``(carts, orders)``), always summing to them. ``assoc_exact`` says whether
     those per-variant counts are harvested fact or apportionment: splitting a
@@ -87,6 +90,7 @@ class _AdSlice:
     sku: _SkuSlice = field(default_factory=_SkuSlice)
     assoc_skus: dict[int, tuple[int, int]] = field(default_factory=dict)
     assoc_exact: bool = True
+    campaign_id: int | None = None
 
 
 @dataclass

@@ -190,6 +190,7 @@ onMounted(() => store.fetchPins())
             :day-actions="product.day_actions ?? {}"
             :action-saving-days="store.actionSavingDays"
             :editing-disabled="editingLocked"
+            :campaigns="matrix.campaigns"
             @edit="onCellEdit"
             @comment="onCommentEdit"
             @action="onActionEdit"

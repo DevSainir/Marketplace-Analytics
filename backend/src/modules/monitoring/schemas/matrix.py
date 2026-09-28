@@ -200,8 +200,14 @@ class MatrixAdBucketBase(BaseModel):
     apportioned between them (WB attributes associated conversions per campaign,
     never per zone) — unless one zone took none of them, where the division is
     forced and the counts are exact again.
+
+    ``campaign_id`` is the WB campaign that delivered the cell — the leading
+    one, if two campaigns of one type share it. The frontend links the traffic
+    group's header to it. ``None`` where no single campaign is known (a cell
+    built by an edit, or a working copy from before the field existed).
     """
 
+    campaign_id: int | None = None
     views: int = 0
     clicks: int = 0
     add_to_cart: int = 0

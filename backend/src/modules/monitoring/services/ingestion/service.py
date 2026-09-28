@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
+from decimal import Decimal
 
 from src.core.config import settings
 from src.integrations.wildberries.schemas import (
@@ -70,6 +71,7 @@ class IngestionService:
     ) -> None:
         """Wire each per-family ingestion unit from the injected repositories."""
         self._funnel = FunnelIngestion(funnel_repo)
+        self._product_cards = product_card_repo
         self._advertising = AdvertisingIngestion(
             advertising_repo=advertising_repo,
             campaign_repo=campaign_repo,
@@ -97,6 +99,24 @@ class IngestionService:
     ) -> int:
         """Delegate to :meth:`FunnelIngestion.ingest_funnel_cohorts`."""
         return await self._funnel.ingest_funnel_cohorts(day, rows, nm_ids=nm_ids)
+
+    async def ingest_feedback_ratings(
+        self, rows: list[WBFunnelAggregateRow], *, workspace_id: uuid.UUID
+    ) -> int:
+        """Store each card's buyer rating off an aggregate funnel response.
+
+        WB's ``0`` (no reviews yet) is stored as unknown, not as a zero-star
+        rating. Rounded to the one decimal WB and the storefront show.
+        """
+        ratings = {
+            row.nm_id: (
+                Decimal(str(round(row.product.feedback_rating, 1)))
+                if row.product.feedback_rating
+                else None
+            )
+            for row in rows
+        }
+        return await self._product_cards.set_feedback_ratings(ratings, workspace_id=workspace_id)
 
     async def ingest_funnel_backfill(
         self, day: date, rows: list[WBFunnelAggregateRow], *, nm_ids: set[int]

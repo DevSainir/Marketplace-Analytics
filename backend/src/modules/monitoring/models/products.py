@@ -20,8 +20,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, String, func
+from sqlalchemy import BigInteger, DateTime, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
@@ -67,6 +68,10 @@ class ProductCard(Base):
         subject_name: WB's «Предмет» (e.g. «Костюмы»), ``""`` until the first
             catalogue sync that carried it. The heatmap groups and filters by it.
         brand: The card's brand, ``""`` the same way.
+        feedback_rating: The buyer rating, 1.0-5.0 — the storefront's stars,
+            from ``sales-funnel/products`` (``product.feedbackRating``), kept
+            by the nightly cohort pass. ``None`` for a card with no reviews and
+            for one the pass has not reached yet.
         synced_at: Timestamp of the last sync from WB.
     """
 
@@ -92,6 +97,7 @@ class ProductCard(Base):
     brand: Mapped[str] = mapped_column(
         String(BRAND_MAX_LENGTH), default="", server_default="", nullable=False
     )
+    feedback_rating: Mapped[Decimal | None] = mapped_column(Numeric(2, 1), nullable=True)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

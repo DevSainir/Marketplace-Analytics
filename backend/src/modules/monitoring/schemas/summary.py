@@ -120,6 +120,10 @@ class SkuDetailResponse(BaseModel):
         default=None, description="Seller article code (WB 'Артикул продавца')."
     )
     title: str | None = Field(default=None, description="Product card title.")
+    feedback_rating: float | None = Field(
+        default=None,
+        description="Buyer rating, 1.0-5.0 (the storefront's stars); null with no reviews.",
+    )
     comments: dict[date, DayNote] = Field(
         default_factory=dict,
         description="Per-day notes (comment + header), keyed by day; days "

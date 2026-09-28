@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterable
+from decimal import Decimal
+from typing import cast
 
-from sqlalchemy import select
+from sqlalchemy import Table, bindparam, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import ProductCard, ProductSize
@@ -53,6 +55,39 @@ class ProductCardRepository(BaseRepository):
         return await self.bulk_upsert(
             rows, conflict_columns=_CARD_CONFLICT, update_columns=_CARD_UPDATE
         )
+
+    async def set_feedback_ratings(
+        self, ratings: dict[int, Decimal | None], *, workspace_id: uuid.UUID
+    ) -> int:
+        """Store buyer ratings on the workspace's own cards.
+
+        Scoped to ``workspace_id`` so a rating can only land on a card that
+        workspace owns, and leaves ``synced_at`` alone: that column says when
+        the CATALOGUE was last synced, and a rating write bumping it would make
+        a stale catalogue look fresh.
+
+        Args:
+            ratings: ``nm_id -> rating`` (``None`` for a card with no reviews).
+            workspace_id: The workspace whose token the ratings came from.
+
+        Returns:
+            The number of ratings submitted.
+        """
+        if not ratings:
+            return 0
+        table = cast(Table, ProductCard.__table__)
+        stmt = (
+            update(table)
+            .where(
+                table.c.nm_id == bindparam("b_nm_id"),
+                table.c.workspace_id == workspace_id,
+            )
+            .values(feedback_rating=bindparam("b_rating"), synced_at=table.c.synced_at)
+        )
+        await self._session.execute(
+            stmt, [{"b_nm_id": nm_id, "b_rating": rating} for nm_id, rating in ratings.items()]
+        )
+        return len(ratings)
 
     async def get_by_ids(self, nm_ids: Iterable[int]) -> dict[int, ProductCard]:
         """Return cards for the given SKUs, keyed by ``nm_id``.

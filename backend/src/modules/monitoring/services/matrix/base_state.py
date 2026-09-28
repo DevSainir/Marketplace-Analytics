@@ -170,6 +170,7 @@ def derive_base_state(
         total.orders = max(total.orders, total.sku.orders)
         total.traffic_orders = max(total.traffic_orders, total.sku.orders)
         total.assoc_skus = skus_by_key.get(key, {})
+        total.campaign_id = key[0]
 
     search_by_key = {(t.campaign_id, t.stat_date): t for t in campaign_search_totals or []}
     sku_search_by_key = {(row.campaign_id, row.stat_date): row for row in search_rows}
