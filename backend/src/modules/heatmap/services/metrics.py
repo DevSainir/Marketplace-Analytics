@@ -110,13 +110,41 @@ class Facts:
 
 #: Fields that are neither plain sums nor the stock pair.
 _SPECIAL = frozenset({"stock", "stock_date", "finance_known", "uncosted"})
-_ADDITIVE = tuple(f.name for f in fields(Facts) if f.name not in _SPECIAL)
+#: Every plain sum — what :func:`_add_flows` must add. Kept as a derived list so
+#: a test can prove the hand-written additions below miss none of them.
+ADDITIVE_FIELDS = tuple(f.name for f in fields(Facts) if f.name not in _SPECIAL)
 
 
 def _add_flows(target: Facts, other: Facts) -> None:
-    """Add every additive field and OR the two flags."""
-    for name in _ADDITIVE:
-        setattr(target, name, getattr(target, name) + getattr(other, name))
+    """Add every additive field and OR the two flags.
+
+    Written out field by field rather than looped over :data:`ADDITIVE_FIELDS`
+    with ``getattr``/``setattr``: this runs once per SKU-day per fold, and on
+    production the loop was most of a grid's time — 335 000 attribute calls for
+    one кабинет's month. The unit tier pins that no field is left out.
+    """
+    target.funnel_days += other.funnel_days
+    target.opens += other.opens
+    target.carts += other.carts
+    target.orders += other.orders
+    target.priced_orders += other.priced_orders
+    target.amount_seller += other.amount_seller
+    target.paid_orders += other.paid_orders
+    target.amount_paid += other.amount_paid
+    target.ad_days += other.ad_days
+    target.spend += other.spend
+    target.ad_views += other.ad_views
+    target.ad_clicks += other.ad_clicks
+    target.ad_orders += other.ad_orders
+    target.seller_price_sum += other.seller_price_sum
+    target.seller_price_n += other.seller_price_n
+    target.customer_price_sum += other.customer_price_sum
+    target.customer_price_n += other.customer_price_n
+    target.revenue += other.revenue
+    target.sold_units += other.sold_units
+    target.payout_net += other.payout_net
+    target.cogs += other.cogs
+    target.settled_spend += other.settled_spend
     target.finance_known = target.finance_known or other.finance_known
     target.uncosted = target.uncosted or other.uncosted
 

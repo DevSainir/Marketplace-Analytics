@@ -10,7 +10,13 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from src.modules.heatmap.services.metrics import Facts, merge_days, merge_skus, read_metric
+from src.modules.heatmap.services.metrics import (
+    ADDITIVE_FIELDS,
+    Facts,
+    merge_days,
+    merge_skus,
+    read_metric,
+)
 
 
 def _funnel_day(**over: object) -> Facts:
@@ -134,3 +140,18 @@ def test_margin_is_unknown_on_a_refund_only_cell() -> None:
     cell = Facts(finance_known=True, revenue=Decimal("-800"), payout_net=Decimal("-700"))
 
     assert read_metric("margin", cell) is None
+
+
+def test_folding_adds_every_additive_fact() -> None:
+    """A fact added to the cell later and forgotten in the fold would silently read as zero."""
+    one = Facts()
+    for name in ADDITIVE_FIELDS:
+        setattr(one, name, 1)
+    folded = Facts()
+
+    merge_skus(folded, one)
+    merge_skus(folded, one)
+
+    assert {name: getattr(folded, name) for name in ADDITIVE_FIELDS} == dict.fromkeys(
+        ADDITIVE_FIELDS, 2
+    )
