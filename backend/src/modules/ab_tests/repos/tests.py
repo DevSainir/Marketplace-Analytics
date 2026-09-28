@@ -327,6 +327,12 @@ class AbTestRepository:
                 a finish. Ignored for ``RUNNING``, which clears it.
         """
         test.status = status.value
+        # Every transition made here is somebody's decision, never the
+        # rotation's own ads pause (that is `pause_for_ads`). Left set, the flag
+        # outlived a hand-made start of an ads-paused test, and the seller's
+        # next pause of it was then lifted by the sweep as soon as a campaign
+        # served — overriding a decision the flag exists to protect.
+        test.paused_by_ads = False
         if started_at is not None:
             test.started_at = started_at
         if finished_at is not None:

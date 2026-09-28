@@ -360,6 +360,37 @@ async def test_the_rotations_own_pause_records_when_it_happened(
 
 
 @pytest.mark.integration
+async def test_a_hand_made_pause_is_never_lifted_by_the_advertising(
+    db_session: AsyncSession, organization: Organization
+) -> None:
+    """Starting an ads-paused test by hand ends the rotation's claim on it.
+
+    The flag used to survive that start, so the seller's own pause afterwards
+    still carried it and the sweep lifted it the moment a campaign served.
+    """
+    workspace = await _workspace(db_session, organization.id)
+    repo = AbTestRepository(db_session)
+    test = await repo.create(
+        workspace_id=workspace.id,
+        nm_id=NM_FLOWER_DRESS,
+        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
+        name="Тест главного фото",
+        trigger_mode=TriggerMode.IMPRESSIONS.value,
+        impression_budget=10_000,
+        slot_minutes=60,
+    )
+    await repo.pause_for_ads(test=test, at=datetime(2026, 9, 28, 3, 5, tzinfo=UTC))
+
+    await repo.set_status(test=test, status=AbTestStatus.RUNNING)
+    await repo.set_status(
+        test=test, status=AbTestStatus.PAUSED, stopped_at=datetime(2026, 9, 28, 4, 0, tzinfo=UTC)
+    )
+
+    assert test.paused_by_ads is False
+    assert test.id not in {t.id for t in await repo.list_ads_paused()}
+
+
+@pytest.mark.integration
 async def test_a_variant_is_only_reachable_from_its_own_workspace(
     db_session: AsyncSession, organization: Organization
 ) -> None:
