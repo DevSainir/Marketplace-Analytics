@@ -336,4 +336,8 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     # `nm_ids` is ANDed onto it so it can only narrow.
     # `tests/integration/heatmap/test_heatmap_sources_are_scoped.py` is what
     # actually proves it.
-    assert len(scoped) == 23, f"expected 23 scoped loaders, found {sorted(scoped)}"
+    #
+    # 25 since the same day: `load_price_currency` and `load_ad_currencies`, which
+    # label the heatmap's money — prices in the currency WB states for them,
+    # advertising in the one its ledger bills in. Both through the same semijoin.
+    assert len(scoped) == 25, f"expected 25 scoped loaders, found {sorted(scoped)}"

@@ -12,8 +12,14 @@
  * left of it was sticky positioning, which here is four CSS rules — the header,
  * the «Итого» line under it, and the two left columns.
  *
+ * Columns run oldest to newest, left to right, as in the monitoring matrix,
+ * and every new grid opens scrolled to its RIGHT end: on a long window the
+ * reader lands on yesterday, not on the first day of the range.
+ *
  * Dumb by contract: rows, their tints and the sort in; header clicks out.
  */
+import { nextTick, ref, watch } from 'vue'
+
 import SkuThumb from '@/core/components/SkuThumb.vue'
 import { formatSku } from '@/core/utils/format'
 import { columnLabel, monitoringLink, storefrontUrl } from '@/modules/heatmap/grid'
@@ -36,6 +42,19 @@ const props = defineProps({
 })
 const emit = defineEmits(['sort'])
 
+const wrap = ref(null)
+
+// A new response (not a sort or a page flip, which keep the same columns
+// array) scrolls to the newest day; the article and «Итого» columns stay put.
+watch(
+  () => props.columns,
+  async () => {
+    await nextTick()
+    if (wrap.value) wrap.value.scrollLeft = wrap.value.scrollWidth
+  },
+  { immediate: true },
+)
+
 const NAME_HEADERS = { sku: 'Артикул', subject: 'Категория', brand: 'Бренд', group: 'Группа' }
 
 function arrow(by) {
@@ -53,7 +72,7 @@ const bottom = (value) => formatValue(value, props.secondary?.unit ?? 'count')
 </script>
 
 <template>
-  <div class="hm-grid-wrap">
+  <div ref="wrap" class="hm-grid-wrap">
     <table class="hm-grid">
       <thead>
         <tr>

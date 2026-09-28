@@ -6,8 +6,9 @@ the head of every «неделя». The first and last column are clipped to the
 window, so a partial week says so in its own dates rather than silently
 reporting three days as seven.
 
-Newest first: the grid reads from today backwards, the way the reference
-screen does and the way a seller scans for «что случилось вчера».
+Oldest first: the grid reads left to right in time, the way the monitoring
+matrix does, and the page opens it scrolled to the newest end — a long window
+shows yesterday first without reversing the direction time runs in.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ def _next_bucket(start: date, period: Period) -> date:
 
 
 def build_columns(date_from: date, date_to: date, period: Period) -> list[tuple[date, date]]:
-    """Cut ``[date_from, date_to]`` into ``(start, end)`` columns, newest first.
+    """Cut ``[date_from, date_to]`` into ``(start, end)`` columns, oldest first.
 
     Args:
         date_from: Inclusive window start.
@@ -49,7 +50,6 @@ def build_columns(date_from: date, date_to: date, period: Period) -> list[tuple[
         following = _next_bucket(start, period)
         columns.append((max(start, date_from), min(following - timedelta(days=1), date_to)))
         start = following
-    columns.reverse()
     return columns
 
 

@@ -28,10 +28,11 @@ const props = defineProps({
   secondary: { type: Object, default: null },
 })
 
-const index = ref(0)
+// Columns run oldest first; a phone opens on the newest one.
+const index = ref(Math.max(props.columns.length - 1, 0))
 watch(
   () => props.columns,
-  () => (index.value = 0),
+  (columns) => (index.value = Math.max(columns.length - 1, 0)),
 )
 
 const column = computed(() => props.columns[index.value] ?? null)
@@ -45,9 +46,9 @@ const bottom = (value) => formatValue(value, props.secondary?.unit ?? 'count')
       <button
         type="button"
         class="hm-trigger hm-trigger--icon"
-        :disabled="index >= columns.length - 1"
+        :disabled="index <= 0"
         aria-label="Раньше"
-        @click="index += 1"
+        @click="index -= 1"
       >
         ‹
       </button>
@@ -55,9 +56,9 @@ const bottom = (value) => formatValue(value, props.secondary?.unit ?? 'count')
       <button
         type="button"
         class="hm-trigger hm-trigger--icon"
-        :disabled="index <= 0"
+        :disabled="index >= columns.length - 1"
         aria-label="Позже"
-        @click="index -= 1"
+        @click="index += 1"
       >
         ›
       </button>

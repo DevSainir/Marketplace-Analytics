@@ -63,3 +63,7 @@ class PriceSnapshot(Base):
     customer_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     customer_spp: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     customer_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    #: ISO code WB gave the seller price in (``currencyIsoCode4217``), ``""``
+    #: where it was not recorded. Not the settlement's currency — see
+    #: :class:`~src.integrations.wildberries.schemas.prices.WBPriceGood`.
+    currency: Mapped[str] = mapped_column(String(8), default="", server_default="", nullable=False)

@@ -125,6 +125,7 @@ class PriceIngestion:
             The number of price snapshot rows persisted.
         """
         seller_by_sku = {good.nm_id: good.seller_price for good in goods}
+        currency_by_sku = {good.nm_id: good.currency[:8] for good in goods}
         customer_by_sku = {product.nm_id: product.customer_price for product in customer}
         ordered_by_sku = _modal_prices(
             order_prices or [], snapshot_date=snapshot_date, regions=regions
@@ -161,6 +162,7 @@ class PriceIngestion:
                     "customer_price": customer_price,
                     "customer_spp": spp,
                     "customer_source": source,
+                    "currency": currency_by_sku.get(nm_id, ""),
                 }
             )
 

@@ -17,14 +17,22 @@ import { formatNumber } from '@/core/utils/format'
 
 /** @typedef {'count'|'money'|'percent'} Unit */
 /** @typedef {'up'|'down'|'neutral'} Direction */
+/** @typedef {'prices'|'ads'|'settlement'} CurrencySource */
 
 /**
  * @type {Array<{key: string, label: string, unit: Unit, direction: Direction,
- *   group: string, settled?: boolean}>}
+ *   group: string, settled?: boolean, currencyOf?: CurrencySource}>}
  */
 export const METRICS = [
   { key: 'orders', label: 'Заказы, шт', unit: 'count', direction: 'up', group: 'Воронка' },
-  { key: 'order_sum', label: 'Заказы', unit: 'money', direction: 'up', group: 'Воронка' },
+  {
+    key: 'order_sum',
+    label: 'Заказы',
+    unit: 'money',
+    currencyOf: 'prices',
+    direction: 'up',
+    group: 'Воронка',
+  },
   { key: 'opens', label: 'Переходы в карточку', unit: 'count', direction: 'up', group: 'Воронка' },
   { key: 'carts', label: 'Корзины', unit: 'count', direction: 'up', group: 'Воронка' },
   {
@@ -52,17 +60,39 @@ export const METRICS = [
     key: 'spend',
     label: 'Расход на рекламу',
     unit: 'money',
+    currencyOf: 'ads',
     direction: 'down',
     group: 'Реклама',
   },
   { key: 'ad_views', label: 'Показы рекламы', unit: 'count', direction: 'up', group: 'Реклама' },
   { key: 'ad_clicks', label: 'Клики по рекламе', unit: 'count', direction: 'up', group: 'Реклама' },
   { key: 'ctr', label: 'CTR, %', unit: 'percent', direction: 'up', group: 'Реклама' },
-  { key: 'cpc', label: 'CPC', unit: 'money', direction: 'down', group: 'Реклама' },
-  { key: 'cpm', label: 'CPM', unit: 'money', direction: 'down', group: 'Реклама' },
+  {
+    key: 'cpc',
+    label: 'CPC',
+    unit: 'money',
+    currencyOf: 'ads',
+    direction: 'down',
+    group: 'Реклама',
+  },
+  {
+    key: 'cpm',
+    label: 'CPM',
+    unit: 'money',
+    currencyOf: 'ads',
+    direction: 'down',
+    group: 'Реклама',
+  },
   { key: 'ad_orders', label: 'Заказы с рекламы', unit: 'count', direction: 'up', group: 'Реклама' },
   { key: 'ad_cr', label: 'CR рекламы, %', unit: 'percent', direction: 'up', group: 'Реклама' },
-  { key: 'cpo', label: 'CPO', unit: 'money', direction: 'down', group: 'Реклама' },
+  {
+    key: 'cpo',
+    label: 'CPO',
+    unit: 'money',
+    currencyOf: 'ads',
+    direction: 'down',
+    group: 'Реклама',
+  },
   {
     key: 'drr_orders',
     label: 'ДРР по заказам, %',
@@ -74,6 +104,7 @@ export const METRICS = [
     key: 'seller_price',
     label: 'Цена до СПП',
     unit: 'money',
+    currencyOf: 'prices',
     direction: 'neutral',
     group: 'Цены и остатки',
   },
@@ -81,6 +112,7 @@ export const METRICS = [
     key: 'customer_price',
     label: 'Цена с СПП',
     unit: 'money',
+    currencyOf: 'prices',
     direction: 'neutral',
     group: 'Цены и остатки',
   },
@@ -96,6 +128,7 @@ export const METRICS = [
     key: 'revenue',
     label: 'Выручка',
     unit: 'money',
+    currencyOf: 'settlement',
     direction: 'up',
     group: 'Финансы (отчёты WB)',
     settled: true,
@@ -112,6 +145,7 @@ export const METRICS = [
     key: 'profit',
     label: 'Прибыль',
     unit: 'money',
+    currencyOf: 'settlement',
     direction: 'up',
     group: 'Финансы (отчёты WB)',
     settled: true,
@@ -143,14 +177,28 @@ export function metricOf(key) {
 }
 
 /**
- * A metric's name as the picker shows it: money gets the кабинет's currency.
+ * The currency a money metric is in, from the grid's three.
  *
  * @param {(typeof METRICS)[number]} metric
- * @param {string} currency ISO code from the grid (`KGS`), empty until it loads.
+ * @param {{prices?: string, ads?: string[], settlement?: string}} currencies
+ * @returns {string} An ISO code, `RUB/KGS` for a window across a switch, or `''`.
+ */
+export function currencyOf(metric, currencies) {
+  if (metric.unit !== 'money') return ''
+  if (metric.currencyOf === 'ads') return (currencies.ads ?? []).join('/')
+  return currencies[metric.currencyOf] ?? ''
+}
+
+/**
+ * A metric's name as the picker shows it: money gets its own currency.
+ *
+ * @param {(typeof METRICS)[number]} metric
+ * @param {{prices?: string, ads?: string[], settlement?: string}} currencies
  * @returns {string}
  */
-export function metricLabel(metric, currency) {
-  return metric.unit === 'money' && currency ? `${metric.label}, ${currency}` : metric.label
+export function metricLabel(metric, currencies) {
+  const currency = currencyOf(metric, currencies)
+  return currency ? `${metric.label}, ${currency}` : metric.label
 }
 
 /**

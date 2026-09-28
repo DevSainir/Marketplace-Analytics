@@ -27,6 +27,13 @@ const store = useHeatmapStore()
 const dialogOpen = ref(false)
 const editing = ref(null)
 
+/** The grid's three currencies — prices, advertising, settlement — in one object. */
+const currencies = computed(() => ({
+  prices: store.data?.price_currency ?? '',
+  ads: store.data?.ad_currencies ?? [],
+  settlement: store.data?.currency ?? '',
+}))
+
 const settledNote = computed(() => {
   const data = store.data
   if (!data?.settled_to || !(store.primary?.settled || store.secondary?.settled)) return ''
@@ -83,7 +90,7 @@ onMounted(() => store.init())
         v-model:period="store.period"
         v-model:group-by="store.groupBy"
         v-model:mode="store.mode"
-        :currency="store.data?.currency ?? ''"
+        :currencies="currencies"
         @swap="store.swapMetrics"
       />
 

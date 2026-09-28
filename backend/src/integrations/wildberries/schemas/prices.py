@@ -18,7 +18,7 @@ from src.integrations.wildberries.schemas.base import RawBase
 
 
 class WBPriceSize(RawBase):
-    """One size variant's pricing on a goods-filter record (rubles)."""
+    """One size variant's pricing on a goods-filter record, in the good's currency."""
 
     price: float = Field(default=0.0)
     discounted_price: float = Field(default=0.0, alias="discountedPrice")
@@ -29,6 +29,10 @@ class WBPriceGood(RawBase):
 
     nm_id: int = Field(alias="nmID")
     discount: int = Field(default=0)
+    #: The currency the prices are in, as WB names it. NOT the кабинет's
+    #: settlement currency: «Демо» settles in KGS and this said RUB on every
+    #: card when checked live on 2026-09-28.
+    currency: str = Field(default="", alias="currencyIsoCode4217")
     sizes: list[WBPriceSize] = Field(default_factory=list)
 
     @property

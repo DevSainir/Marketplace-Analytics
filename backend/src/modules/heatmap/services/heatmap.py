@@ -37,7 +37,12 @@ from src.modules.heatmap.services.table import (
     build_rows,
     fold_sku_days,
 )
-from src.modules.monitoring.contract import CatalogCard, load_workspace_catalog
+from src.modules.monitoring.contract import (
+    CatalogCard,
+    load_ad_currencies,
+    load_price_currency,
+    load_workspace_catalog,
+)
 
 #: Above this many selected articles the narrowing is applied after the load
 #: rather than as an ``IN`` list: the tenant is in the ``WHERE`` either way, and
@@ -144,6 +149,13 @@ class HeatmapService:
             metric2=query.metric2,
             currency=loaded.currency
             or await self._pnl.settlement_currency(workspace_id=workspace_id),
+            price_currency=await load_price_currency(session, workspace_id=workspace_id),
+            ad_currencies=await load_ad_currencies(
+                session,
+                workspace_id=workspace_id,
+                date_from=query.date_from,
+                date_to=query.date_to,
+            ),
             settled_to=loaded.settled_to,
             columns=[HeatmapColumn(start=start, end=end) for start, end in columns],
             totals=totals,

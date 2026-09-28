@@ -36,7 +36,9 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import (
+    BONUS_PAYMENT_TYPES,
     AdvertisingStatDaily,
+    AdvertisingWriteOffDaily,
     PriceSnapshot,
     ProductCard,
     SalesFunnelDaily,
@@ -323,3 +325,58 @@ async def load_stock_sku_days(
         StockSkuDay(nm_id=int(nm_id), stat_date=day, quantity=int(quantity or 0))
         for nm_id, day, quantity in (await session.execute(stmt)).all()
     ]
+
+
+async def load_price_currency(session: AsyncSession, *, workspace_id: uuid.UUID) -> str:
+    """Return the currency WB stated for this кабинет's newest priced snapshot.
+
+    Not the settlement's currency. «Демо» settles in KGS while its prices
+    API answers RUB; the orders valued at those prices (``amount_*`` above) are
+    in this currency too. ``""`` when no snapshot has recorded one yet.
+    """
+    stmt = (
+        select(PriceSnapshot.currency)
+        .where(
+            PriceSnapshot.nm_id.in_(workspace_sku_select(workspace_id)),
+            PriceSnapshot.currency != "",
+        )
+        .order_by(PriceSnapshot.stat_date.desc())
+        .limit(1)
+    )
+    return str((await session.execute(stmt)).scalar_one_or_none() or "")
+
+
+async def load_ad_currencies(
+    session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+) -> list[str]:
+    """Return the currencies WB billed this кабинет's own ad money in over the window.
+
+    ``fullstats`` spend carries no currency; the write-off ledger does, and its
+    label is the truth rather than decoration: matched document by document
+    against the KGS settlement on 2026-09-28, «Демо»'s write-offs labelled
+    RUB were settled at ~1.03-1.10x (converted) and those labelled KGS at exactly
+    1.00. The account switched around 2026-08-20, so a window across that day
+    answers both. Bonus rows are left out — they are WB's money, labelled KGS
+    throughout, and say nothing about the account's own currency.
+
+    Returns:
+        The distinct labels, alphabetically; empty when the ledger has no rows.
+    """
+    campaigns = (
+        select(AdvertisingStatDaily.campaign_id)
+        .where(AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id)))
+        .distinct()
+    )
+    stmt = (
+        select(AdvertisingWriteOffDaily.currency)
+        .where(
+            AdvertisingWriteOffDaily.stat_date >= date_from,
+            AdvertisingWriteOffDaily.stat_date <= date_to,
+            AdvertisingWriteOffDaily.currency != "",
+            AdvertisingWriteOffDaily.payment_type.not_in(sorted(BONUS_PAYMENT_TYPES)),
+            AdvertisingWriteOffDaily.campaign_id.in_(campaigns),
+        )
+        .group_by(AdvertisingWriteOffDaily.currency)
+        .order_by(AdvertisingWriteOffDaily.currency)
+    )
+    return [str(currency) for currency in (await session.execute(stmt)).scalars()]

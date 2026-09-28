@@ -182,17 +182,17 @@
   --hm-total: 104px;
 
   isolation: isolate;
-  /* As wide as the grid, never wider: a month cut is two columns, and a
-     full-width frame around them read as an empty table. */
-  width: fit-content;
-  max-width: 100%;
   max-height: 70vh;
   overflow: auto;
   border-radius: var(--ui-r-md);
   box-shadow: inset 0 0 0 1px var(--ui-hairline);
 }
 
+/* At least as wide as the card: a week or a month cut is a few columns, and a
+   grid that stopped short left the card half empty. The spare width goes to
+   the period columns; the article column keeps its fixed width. */
 .hm-grid {
+  min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.8125rem;

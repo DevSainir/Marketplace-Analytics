@@ -99,7 +99,9 @@ async def test_ingest_prices_joins_seller_and_customer_by_sku() -> None:
     repo = _CapturingPriceRepo()
     service = _service(repo)
     goods = [
-        WBPriceGood.model_validate({"nmID": 1, "sizes": [{"discountedPrice": 500.0}]}),
+        WBPriceGood.model_validate(
+            {"nmID": 1, "currencyIsoCode4217": "RUB", "sizes": [{"discountedPrice": 500.0}]}
+        ),
         WBPriceGood.model_validate({"nmID": 2, "sizes": [{"discountedPrice": 700.0}]}),
     ]
     customer = [
@@ -119,6 +121,9 @@ async def test_ingest_prices_joins_seller_and_customer_by_sku() -> None:
         "customer_price": 350.0,
         "customer_spp": None,
         "customer_source": "storefront",
+        # What WB states for the price — not the settlement's currency, which
+        # for a KGS кабинет is a different one (checked live 2026-09-28).
+        "currency": "RUB",
     }
     # SKU 2: seller only (no storefront row) -> customer None.
     assert by_sku[2]["seller_price"] == 700.0
@@ -126,6 +131,8 @@ async def test_ingest_prices_joins_seller_and_customer_by_sku() -> None:
     # SKU 3: customer only (no seller record) -> seller None.
     assert by_sku[3]["seller_price"] is None
     assert by_sku[3]["customer_price"] == 123.0
+    # No seller record, so WB stated no price currency for it.
+    assert by_sku[3]["currency"] == ""
 
 
 async def test_ingest_prices_scopes_to_harvested_nm_ids() -> None:

@@ -13,6 +13,7 @@
 import { computed, ref } from 'vue'
 
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
+import { isoDaysAgo } from '@/core/utils/dates'
 import { formatSku } from '@/core/utils/format'
 import HeatmapFilterMenu from '@/modules/heatmap/components/HeatmapFilterMenu.vue'
 
@@ -34,6 +35,10 @@ const emit = defineEmits([
   'add-group',
   'edit-group',
 ])
+
+// The presets end yesterday, like the default window: today's funnel is still
+// filling, and a half-day painted red beside whole ones reads as a collapse.
+const yesterday = isoDaysAgo(1)
 
 const subjectItems = computed(() => {
   const items = props.catalog.subjects.map((subject) => ({ value: subject, label: subject }))
@@ -81,7 +86,12 @@ function editGroup(id) {
 
 <template>
   <div class="mb-md flex flex-wrap items-center gap-sm">
-    <PeriodSelector :from="dateFrom" :to="dateTo" @range="emit('period', $event)" />
+    <PeriodSelector
+      :from="dateFrom"
+      :to="dateTo"
+      :preset-end="yesterday"
+      @range="emit('period', $event)"
+    />
 
     <HeatmapFilterMenu
       label="Категории"

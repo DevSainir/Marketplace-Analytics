@@ -134,10 +134,10 @@ def test_a_settled_day_without_sales_reads_zero_revenue() -> None:
     specs = build_row_specs("sku", nm_ids=grid.cells, cards={1: _card(1)})
 
     _totals, rows = build_rows(
-        specs, grid, width=2, metrics=("sales", None), rank={}, settled=[False, True]
+        specs, grid, width=2, metrics=("sales", None), rank={}, settled=[True, False]
     )
 
-    assert rows[0].values == [None, 2.0]
+    assert rows[0].values == [2.0, None]
 
 
 def test_a_settled_day_without_facts_is_zero_not_blank() -> None:
@@ -151,4 +151,4 @@ def test_a_settled_day_without_facts_is_zero_not_blank() -> None:
         specs, grid, width=2, metrics=("sales", None), rank={}, settled=[True, True]
     )
 
-    assert rows[0].values == [0.0, 2.0]
+    assert rows[0].values == [2.0, 0.0]

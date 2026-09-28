@@ -98,13 +98,22 @@ class HeatmapResponse(BaseModel):
     group_by: GroupBy
     metric: MetricKey
     metric2: MetricKey | None
-    #: The кабинет's currency — every money figure in the grid is in it, not
-    #: only the settlement's (KGS on «Демо»). ``""`` before the first report.
+    #: The settlement's currency — revenue and profit are in it. ``""`` before
+    #: the first report.
     currency: str
+    #: The currency WB states for the prices — orders in money and both prices
+    #: are in it. NOT the settlement's: «Демо» settles in KGS and is priced
+    #: in RUB. ``""`` until a price snapshot has recorded it.
+    price_currency: str = ""
+    #: The currencies the advertising account billed in over the window —
+    #: spend, CPC, CPM and CPO. Two when the window crosses a switch (on
+    #: «Демо», RUB until ~2026-08-20 and KGS after).
+    ad_currencies: list[str] = Field(default_factory=list)
     #: Last day WB has settled for this кабинет. Finance cells after it are
     #: ``None`` — WB has not calculated them — rather than zero.
     settled_to: date | None
-    #: Newest first, the way the grid reads.
+    #: Oldest first: the grid reads left to right in time, like the monitoring
+    #: matrix, and opens scrolled to its newest end.
     columns: list[HeatmapColumn]
     #: «Итого» — every article of the selection, counted once.
     totals: HeatmapRow

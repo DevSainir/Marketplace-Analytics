@@ -18,8 +18,8 @@ defineProps({
   period: { type: String, required: true },
   groupBy: { type: String, required: true },
   mode: { type: String, required: true },
-  /** The кабинет's currency, for the money metrics' names. */
-  currency: { type: String, default: '' },
+  /** `{prices, ads: [], settlement}` from the grid, for the money metrics' names. */
+  currencies: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits([
   'update:metric',
@@ -42,8 +42,8 @@ const CUTS = [
   { value: 'group', label: 'По группе' },
 ]
 const MODES = [
-  { value: 'row', label: 'Вид: сравнение по строке' },
-  { value: 'table', label: 'Вид: по всей таблице' },
+  { value: 'row', label: 'Цвет: дни одного товара' },
+  { value: 'table', label: 'Цвет: товары между собой' },
 ]
 </script>
 
@@ -58,7 +58,7 @@ const MODES = [
       >
         <optgroup v-for="group in METRIC_GROUPS" :key="group.label" :label="group.label">
           <option v-for="option in group.metrics" :key="option.key" :value="option.key">
-            {{ metricLabel(option, currency) }}
+            {{ metricLabel(option, currencies) }}
           </option>
         </optgroup>
       </select>
@@ -88,7 +88,7 @@ const MODES = [
             :value="option.key"
             :disabled="option.key === metric"
           >
-            {{ metricLabel(option, currency) }}
+            {{ metricLabel(option, currencies) }}
           </option>
         </optgroup>
       </select>
@@ -119,7 +119,7 @@ const MODES = [
         class="hm-select"
         :value="mode"
         aria-label="Как сравнивать цвета"
-        title="По строке — каждый товар сравнивается со своими днями. По всей таблице — все товары в одной шкале."
+        title="Дни одного товара — зелёный и красный у каждого товара свои: лучший и худший его день. Товары между собой — одна шкала на всю таблицу: сильные товары зелёные целиком, слабые красные."
         @change="emit('update:mode', $event.target.value)"
       >
         <option v-for="option in MODES" :key="option.value" :value="option.value">

@@ -29,14 +29,17 @@ from src.modules.heatmap.repos import SkuGroupRepository
 from src.modules.heatmap.schemas import SkuGroupWrite
 from src.modules.heatmap.services import HeatmapQuery, HeatmapService, SkuGroupService
 from src.modules.monitoring.contract import (
+    load_ad_currencies,
     load_ad_sku_days,
     load_funnel_sku_days,
+    load_price_currency,
     load_price_sku_days,
     load_stock_sku_days,
     load_workspace_catalog,
 )
 from src.modules.monitoring.models import (
     AdvertisingStatDaily,
+    AdvertisingWriteOffDaily,
     PriceSnapshot,
     ProductCard,
     SalesFunnelDaily,
@@ -249,3 +252,57 @@ async def test_a_group_cuts_the_grid_into_its_own_row(db_session: AsyncSession) 
         ("Костюмы", 7.0),
     ]
     assert grid.totals.total == 14.0
+
+
+async def test_the_price_currency_is_this_workspaces_own(db_session: AsyncSession) -> None:
+    """A foreign card priced in another currency on the same day must not label ours."""
+    mine, _ = await _two_tenants(db_session)
+    for nm_id, currency in ((MINE, "RUB"), (THEIRS, "KZT")):
+        snapshot = await db_session.get(PriceSnapshot, (DAY, nm_id))
+        assert snapshot is not None
+        snapshot.currency = currency
+    await db_session.flush()
+
+    assert await load_price_currency(db_session, workspace_id=mine.id) == "RUB"
+
+
+async def test_the_ad_currency_comes_from_this_workspaces_own_campaigns(
+    db_session: AsyncSession,
+) -> None:
+    """Only the ledger rows of campaigns that advertised our cards; WB's bonus rows say nothing."""
+    mine, _ = await _two_tenants(db_session)
+    db_session.add_all(
+        [
+            AdvertisingWriteOffDaily(
+                stat_date=DAY,
+                campaign_id=MINE,
+                payment_type="Баланс",
+                currency="KGS",
+                amount=Decimal("10"),
+                write_offs=1,
+            ),
+            AdvertisingWriteOffDaily(
+                stat_date=DAY,
+                campaign_id=MINE,
+                payment_type="Кэшбэк",
+                currency="BYN",
+                amount=Decimal("5"),
+                write_offs=1,
+            ),
+            AdvertisingWriteOffDaily(
+                stat_date=DAY,
+                campaign_id=THEIRS,
+                payment_type="Баланс",
+                currency="RUB",
+                amount=Decimal("99"),
+                write_offs=1,
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    currencies = await load_ad_currencies(
+        db_session, workspace_id=mine.id, date_from=DAY, date_to=DAY
+    )
+
+    assert currencies == ["KGS"]
