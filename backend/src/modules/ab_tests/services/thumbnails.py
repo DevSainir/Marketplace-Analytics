@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import weakref
 
 from PIL import Image, ImageOps
 from PIL.Image import Resampling
@@ -57,7 +58,23 @@ _MAX_PIXELS: int = 50_000_000
 
 #: How many images may be decoded at once. The api container serves everything
 #: else meanwhile, and one 9 MB PNG is ~50 MB of bitmap while it is open.
-_lane = asyncio.Semaphore(2)
+_LANE_WIDTH: int = 2
+
+#: One lane per running event loop. A module-level ``asyncio.Semaphore`` binds to
+#: the first loop that waits on it and raises in every other — each Celery task
+#: runs its own loop (``tests/unit/core/test_no_loop_bound_state_outlives_a_task.py``).
+_lanes: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _lane() -> asyncio.Semaphore:
+    """The decode lane for the event loop that is running now."""
+    loop = asyncio.get_running_loop()
+    lane = _lanes.get(loop)
+    if lane is None:
+        lane = _lanes[loop] = asyncio.Semaphore(_LANE_WIDTH)
+    return lane
 
 
 def thumbnail_key(image_path: str) -> str:
@@ -140,7 +157,7 @@ async def derive(content: bytes) -> bytes:
     Raises:
         ValidationError: If the image cannot be decoded or is too large.
     """
-    async with _lane:
+    async with _lane():
         return await asyncio.to_thread(_shrink, content)
 
 

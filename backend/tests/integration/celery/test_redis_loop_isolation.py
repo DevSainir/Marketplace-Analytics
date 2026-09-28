@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from redis.asyncio import Redis
@@ -139,3 +140,93 @@ def test_run_task_drains_the_redis_pool_even_when_the_task_fails(
         run_task(_boom())
 
     assert run_task(_touch_redis()) == 2
+
+
+# --------------------------------------------------------------------------- #
+# Concurrency across tasks — the 2026-09-27 price loss
+# --------------------------------------------------------------------------- #
+#
+# The tests above run one command per task, so they only ever prove the SOCKETS
+# are drained. A pool also carries an ``asyncio.Lock`` around handing out
+# connections, and that lock binds to the first loop that has to wait on it —
+# which takes two commands at the same instant. Draining does not reset it. From
+# 2026-09-23, when the finance tick started harvesting three sellers at once,
+# worker processes carried a lock bound to a finance tick's dead loop, and the
+# morning monitoring harvest, whose sources start together, died on it:
+# «Демо» has no prices at all for 2026-09-27.
+#
+# These go through the REAL accessor rather than ``app_redis_is``: which client a
+# loop is handed is exactly what is under test, so patching ``get_redis`` would
+# test the patch.
+
+#: More than the harvest's handful of sources that reach Redis together.
+_CONCURRENT_COMMANDS = 8
+
+
+@pytest.fixture
+def app_redis_on_the_test_index(settings_override: Any) -> Iterator[None]:
+    """Leave ``get_redis`` alone and point the DSN it builds from at the test index.
+
+    Skips when Redis is unreachable, like every integration fixture here.
+    """
+
+    async def _ping() -> None:
+        probe: Redis = Redis.from_url(_test_redis_url(), decode_responses=True)
+        try:
+            await probe.ping()
+        finally:
+            await probe.aclose()
+
+    try:
+        asyncio.run(_ping())
+    except Exception as exc:  # any connect failure means "skip"
+        pytest.skip(
+            f"Redis is unreachable ({type(exc).__name__}: {exc}); "
+            "start it with `docker compose up -d redis` to run this test."
+        )
+    with settings_override(redis_db=TEST_REDIS_DB):
+        yield
+
+
+async def _concurrent_commands() -> int:
+    """Several commands at the same instant, as a harvest's sources issue them.
+
+    PING only: the point is the pool handing out connections under contention,
+    and a command that writes nothing cannot disturb anything else on the index.
+    """
+    client = redis_module.get_redis()
+    replies = await asyncio.gather(*(client.ping() for _ in range(_CONCURRENT_COMMANDS)))
+    return sum(1 for reply in replies if reply)
+
+
+def test_consecutive_tasks_can_each_issue_concurrent_commands(
+    app_redis_on_the_test_index: None,
+) -> None:
+    """Every task in one worker process may contend on Redis, not only the first.
+
+    Five in a row, not two: the lock binds on the first contention and breaks
+    every later one, and a night runs dozens of tasks through each process.
+    """
+    results = [run_task(_concurrent_commands()) for _ in range(5)]
+
+    assert results == [_CONCURRENT_COMMANDS] * 5
+
+
+def test_a_task_that_failed_mid_contention_does_not_break_the_next(
+    app_redis_on_the_test_index: None,
+) -> None:
+    """A task that raised while its commands were in flight leaves nothing bound.
+
+    The harvest isolates source failures and carries on, and a finance tick can
+    die on a WB error with its Redis calls still open; neither may cost the next
+    task in the process its Redis.
+    """
+
+    async def _boom() -> None:
+        await _concurrent_commands()
+        raise ValueError("task exploded mid-harvest")
+
+    with pytest.raises(ValueError, match="exploded"):
+        run_task(_boom())
+
+    assert run_task(_concurrent_commands()) == _CONCURRENT_COMMANDS

@@ -97,11 +97,13 @@ BalancePinRepoDep = Annotated[BalancePinRepository, Depends(get_balance_pin_repo
 # --------------------------------------------------------------------------- #
 # Services
 # --------------------------------------------------------------------------- #
-@lru_cache(maxsize=1)
 
-    Cached with ``lru_cache`` because the store is stateless configuration (it
-    holds only the shared Redis client and a TTL), not per-request state. A TTL
-    of 0 turns caching off entirely, degrading to a recompute on every call.
+    Deliberately NOT ``lru_cache``d, unlike its stateless neighbours: it holds a
+    Redis client, and ``get_redis()`` hands each event loop its own — a cached
+    holder would pin whichever loop built it first
+    (``tests/unit/core/test_no_loop_bound_state_outlives_a_task.py``). Building
+    it costs one small object. A TTL of 0 turns caching off entirely, degrading
+    to a recompute on every call.
     """
     if settings.finreports_summary_cache_ttl_seconds <= 0:
         get_redis(), ttl_seconds=settings.finreports_summary_cache_ttl_seconds

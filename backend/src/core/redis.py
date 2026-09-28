@@ -1,7 +1,8 @@
 """Shared async Redis client and security-critical Redis-backed primitives.
 
-Owns the process-wide :class:`redis.asyncio.Redis` connection pool (mirroring
-how :mod:`src.core.database` owns the SQLAlchemy engine) plus the two
+Owns the :class:`redis.asyncio.Redis` connection pool — one per event loop, see
+:func:`get_redis` (mirroring how :mod:`src.core.database` owns the SQLAlchemy
+engine) — plus the two
 session-revocation watermarks that make revocation apply to already-issued
 access tokens rather than only to refresh rows.
 
@@ -25,6 +26,7 @@ same instant (register P1.2).
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 
@@ -41,15 +43,33 @@ from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Single client (and therefore one connection pool) per process, shared by every
-# Redis-backed control in the app. ``decode_responses`` keeps the API
+# One client — and therefore one connection pool — per EVENT LOOP, shared by
+# every Redis-backed control running on it. ``decode_responses`` keeps the API
 # str-in/str-out.
+#
+# Per loop, not per process, because a ``redis.asyncio`` pool belongs to a loop
+# in two ways. Each pooled socket is bound to the loop that opened it, which
+# :func:`drain_redis_pool` handles at every task boundary. And the pool guards
+# handing out connections with an ``asyncio.Lock``, which binds itself to the
+# first loop that ever has to WAIT on it — two commands at the same instant — and
+# which no drain resets. A Celery worker runs every task on a fresh
+# ``asyncio.run`` loop, so with one client per process, the first task that
+# contended bound the lock and every later task in that process that contended
+# died with ``<asyncio.locks.Lock …> is bound to a different event loop``. That
+# emptied «Демо»'s price snapshot for 2026-09-27: the finance tick harvests
+# three sellers at once and bound it, and the monitoring harvest's sources reach
+# their rate buckets together. A client per loop has nothing to carry over, so
+# the number or the concurrency of tasks no longer matters. The API runs on one
+# loop and keeps one client, as before.
+# ``tests/unit/core/test_redis_client_per_loop.py`` holds the rule and
+# ``tests/integration/celery/test_redis_loop_isolation.py`` the failure itself.
 #
 # **Read it only through :func:`get_redis`, including inside this module.** That
 # is not style: because callers invoke the function rather than capture the
-# client, the function body is the one place the process resolves "which Redis",
-# and swapping this global therefore redirects every caller at once. Reach past
-# it — ``await _redis.set(...)`` in a helper down the file — and that helper
+# client, the function body is the one place the process resolves "which Redis".
+# ``_redis`` is the seam: ``None`` in the running app, and a test that sets it
+# redirects every caller on every loop at once. Reach past it —
+# ``await _client.set(...)`` in a helper down the file — and that helper
 # silently opts out of the swap.
 #
 # It has cost real time twice. Both the replay-grace store and "log out
@@ -58,18 +78,41 @@ logger = get_logger(__name__)
 # ``attached to a different loop`` from a second event loop, minutes of
 # debugging away from the actual cause.
 # ``tests/unit/core/test_redis_single_accessor.py`` now fails the build instead.
-_redis: Redis = Redis.from_url(settings.redis_url, decode_responses=True)
+_redis: Redis | None = None
+
+#: The client built for the loop in ``_client_loop``. Replaced, never reused, the
+#: first time :func:`get_redis` is called on a different running loop.
+_client: Redis | None = None
+_client_loop: asyncio.AbstractEventLoop | None = None
 
 
 def get_redis() -> Redis:
-    """Return the process-wide shared async Redis client.
+    """Return the async Redis client for the event loop that is running now.
 
     The single accessor, and therefore the single seam: a test that replaces
     ``src.core.redis._redis`` redirects every Redis-backed control in the
-    process, because they all resolve the client through this call rather than
-    holding one from import time.
+    process, on every loop, because they all resolve the client through this
+    call rather than holding one from import time.
+
+    Otherwise each running loop gets a client of its own, built on first use and
+    kept for the rest of that loop — see the comment above ``_redis`` for why a
+    client may never serve two loops. Called with no loop running (a sync
+    dependency in the API's thread pool), it returns the current loop's client,
+    which in a one-loop process is the only one there is.
     """
-    return _redis
+    global _client, _client_loop
+    if _redis is not None:
+        return _redis
+    try:
+        loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if _client is None or (loop is not None and _client_loop not in (None, loop)):
+        _client = Redis.from_url(settings.redis_url, decode_responses=True)
+        _client_loop = loop
+    elif _client_loop is None:
+        _client_loop = loop
+    return _client
 
 
 async def close_redis() -> None:
@@ -78,9 +121,9 @@ async def close_redis() -> None:
 
 
 async def drain_redis_pool() -> None:
-    """Disconnect every pooled connection while leaving the client reusable.
+    """Disconnect every connection the ending task's client pooled.
 
-    The Redis client above is process-wide, and ``redis.asyncio`` binds each
+    ``redis.asyncio`` binds each
     pooled connection to the event loop that opened it — exactly like asyncpg
     behind the SQLAlchemy engine. A Celery task runs its own short-lived
     ``asyncio.run`` loop, so a task that returns while leaving a connection in
@@ -96,8 +139,11 @@ async def drain_redis_pool() -> None:
     ``funnel_rows: 0``. See :func:`src.core.tasks.run_task`, which drains this
     pool alongside the engine at every task boundary.
 
-    Draining rather than closing keeps the singleton reusable: the pool object
-    stays, and the next command lazily reconnects on the current loop.
+    Since 2026-09-28 the next task is handed a client of its own anyway (see
+    :func:`get_redis`), so for the app's client this is what closes the sockets
+    before their loop goes away rather than what keeps the next task alive. It
+    still matters for a client swapped in through ``_redis``, which serves every
+    loop — and it drains rather than closes so that such a client stays usable.
     """
     await get_redis().connection_pool.disconnect()
 
