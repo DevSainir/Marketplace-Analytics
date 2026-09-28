@@ -54,6 +54,16 @@ IMAGE_URL_TEMPLATE = "/api/ab-tests/{test_id}/variants/{variant_id}/image"
 #: Statuses a user may set by hand. ``completed`` is the rotation's to give.
 _USER_SETTABLE = {AbTestStatus.RUNNING, AbTestStatus.PAUSED, AbTestStatus.CANCELLED}
 
+#: Where a pause or a cancel may come from, with what a refusal says. A start
+#: keeps its own guard in :class:`.launch.Launcher`. Pausing a finished test
+#: used to succeed, and a start from that pause then passed the launcher — a
+#: cancelled test came back and began rewriting the live card again. A draft is
+#: not cancellable either: it has nothing to finish, and it can be deleted.
+_STOP_SOURCES: dict[AbTestStatus, frozenset[str]] = {
+    AbTestStatus.PAUSED: frozenset({AbTestStatus.RUNNING.value}),
+    AbTestStatus.CANCELLED: frozenset({AbTestStatus.RUNNING.value, AbTestStatus.PAUSED.value}),
+}
+
 
 class AbTestCatalogService:
     """Create, edit and read A/B tests for one workspace."""
@@ -290,7 +300,9 @@ class AbTestCatalogService:
         Raises:
             NotFoundError: If the test does not exist in this workspace.
             ValidationError: If the status is not one a user may set.
-            ConflictError: If the test cannot make that transition.
+            ConflictError: If the test cannot make that transition — a pause
+                of anything but a running test, a cancel of a draft or of a
+                finished test, a start of a running or finished one.
             IntegrationError: If WB refuses the first photo.
         """
         test = await self._require(workspace_id=workspace_id, test_id=test_id)
@@ -301,6 +313,8 @@ class AbTestCatalogService:
 
         if target not in _USER_SETTABLE:
             raise ValidationError(f"Статус {status} выставляется автоматически.")
+
+        _refuse_impossible_stop(current=test.status, target=target)
 
         now = datetime.now(UTC)
         if target is AbTestStatus.RUNNING:
@@ -372,3 +386,24 @@ class AbTestCatalogService:
         if test is None:
             raise NotFoundError("Тест не найден.")
         return test
+
+
+def _refuse_impossible_stop(*, current: str, target: AbTestStatus) -> None:
+    """Raise the 409 for a pause or cancel the test's status does not allow.
+
+    Args:
+        current: The test's status as stored.
+        target: The status the user asked for.
+
+    Raises:
+        ConflictError: If ``target`` is a pause or cancel not reachable from
+            ``current``.
+    """
+    allowed = _STOP_SOURCES.get(target)
+    if allowed is None or current in allowed:
+        return
+    if current in {AbTestStatus.COMPLETED.value, AbTestStatus.CANCELLED.value}:
+        raise ConflictError("Тест уже завершён.")
+    if target is AbTestStatus.PAUSED:
+        raise ConflictError("Приостановить можно только запущенный тест.")
+    raise ConflictError("Тест ещё не запущен — черновик можно удалить.")
