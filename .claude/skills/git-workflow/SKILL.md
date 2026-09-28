@@ -47,9 +47,25 @@ outright, while a commit could still be recovered.
    This is the step that cannot be redone later.
 2. From the primary checkout on `main`, land it: `git cherry-pick <sha>` (or
    `git merge --ff-only <branch>` when `main` has not moved), then run the pre-commit
-   gate and push.
-3. Only once it is on `main` and pushed, remove the leftovers:
-   `git worktree remove <path>` then `git branch -D <branch>`.
+   gate and push. Or push from the worktree itself, `git push origin HEAD:main`, once
+   `origin/main..HEAD` holds only your commits (rebase first if `main` moved) — that
+   leaves the primary checkout, where another session may have uncommitted work,
+   untouched.
+3. **Delete the branch the moment its work is on `main` and pushed** — in the same turn
+   as the push, not at the end of the session and not as a note for the user to act on.
+   A landed branch is not a backup (its commits are on `main`); it is a stale name the
+   next session has to investigate before it can trust the tree. On 2026-09-28 four such
+   branches and three worktrees had piled up, every one fully merged, each left behind
+   by a session that pushed its work and moved on.
+   * First prove nothing is lost: `git rev-list --count origin/main..<branch>` is `0`
+     and `git status --porcelain` is empty.
+   * The branch is usually checked out in the worktree the session runs in, so it
+     cannot be deleted as is. Detach rather than remove the folder under your own feet:
+     `git switch --detach`, then `git branch -D <branch>`.
+   * Remove the worktree folder too (`git worktree remove <path>`) when it is not your
+     session's working directory; otherwise it goes when the session closes.
+   * Another session's leftover is removable on the same evidence, plus no process
+     working inside it (`lsof -d cwd | grep .claude/worktrees/`).
 4. Say what happened to whoever asked, including how far the branch's base had drifted.
 
 ### What trunk-based development asks in return
