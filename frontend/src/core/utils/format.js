@@ -2,20 +2,9 @@
 
 const numberFormat = new Intl.NumberFormat('ru-RU')
 
-const currencyFormat = new Intl.NumberFormat('ru-RU', {
-  style: 'currency',
-  currency: 'RUB',
-  maximumFractionDigits: 0,
-})
-
 /** 12345 -> "12 345" */
 export function formatNumber(value) {
   return numberFormat.format(value)
-}
-
-/** 12345.6 -> "12 346 ₽" */
-export function formatCurrency(value) {
-  return currencyFormat.format(value)
 }
 
 const moneyFormats = new Map()
@@ -23,9 +12,10 @@ const moneyFormats = new Map()
 /**
  * Money in whatever currency the source states, e.g. 12345.6 -> "12 346 KGS".
  *
- * Separate from `formatCurrency`, which is pinned to RUB: the WB settlement
- * reports of a Kyrgyz account are denominated in KGS, and rendering those as ₽
- * would misstate every figure on a financial statement by an exchange rate.
+ * The ONE money formatter. There used to be two more pinned to RUB, and every
+ * page built on them printed a rouble sign beside figures a Kyrgyz кабинет is
+ * priced, advertised and paid in KGS — misstating each one by an exchange rate.
+ * The currency is the кабинет's, from the backend; this file never names one.
  * Intl formatters are expensive to build, so one is memoised per currency.
  *
  * @param {number|string|null|undefined} value
@@ -52,16 +42,20 @@ export function formatMoney(value, currency = '', fractionDigits = 0) {
   return currency ? `${formatted} ${currency}` : formatted
 }
 
-const currencyTenthsFormat = new Intl.NumberFormat('ru-RU', {
-  style: 'currency',
-  currency: 'RUB',
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-})
-
-/** 10.26 -> "10,3 ₽" — one decimal for small per-click money (CPC). */
-export function formatCurrencyTenths(value) {
-  return currencyTenthsFormat.format(value)
+/**
+ * A money heading with its unit: «Затраты» -> «Затраты, KGS».
+ *
+ * Where a column of figures shares one unit, the heading carries it and the
+ * cells stay bare — a dense grid has no room for a three-letter code per cell.
+ * An unknown currency (not loaded yet, or a кабинет with no settlement report)
+ * leaves the heading bare too: no unit beats a guessed one.
+ *
+ * @param {string} label The heading without a unit.
+ * @param {string} [currency] ISO code of the кабинет's settlement currency.
+ * @returns {string}
+ */
+export function moneyLabel(label, currency = '') {
+  return currency ? `${label}, ${currency}` : label
 }
 
 /**

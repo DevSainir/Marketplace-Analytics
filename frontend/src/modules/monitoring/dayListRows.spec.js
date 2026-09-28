@@ -106,7 +106,7 @@ describe('blockDayItems', () => {
     const rows = [
       {
         key: 'seller_price',
-        label: 'Цена продавца, ₽',
+        label: 'Цена продавца, KGS',
         cells: [{ raw: 2900 }, { raw: 3100 }],
       },
     ]

@@ -20,6 +20,10 @@ vi.mock('@/modules/monitoring/api', () => ({
   refreshAllSkus: vi.fn(),
   refreshSku: vi.fn(),
 }))
+// The currency is finreports' fact; this spec sees it only through that
+// module's public API, the way the store does.
+const settlement = vi.hoisted(() => ({ currency: 'KGS', ensureLoaded: vi.fn() }))
+vi.mock('@/modules/finreports', () => ({ useCurrencyStore: () => settlement }))
 
 const DETAIL = {
   nm_id: 953770957,
@@ -38,6 +42,8 @@ beforeEach(() => {
   setActivePinia(createPinia())
   store = useMonitoringStore()
   vi.clearAllMocks()
+  settlement.currency = 'KGS'
+  settlement.ensureLoaded.mockResolvedValue()
 })
 
 describe('fetchProductData with a numeric SKU', () => {
@@ -77,6 +83,34 @@ describe('fetchProductData with a numeric SKU', () => {
     expect(store.currentProduct).toBeNull()
     expect(store.error).toBe('boom')
     expect(store.loading).toBe(false)
+  })
+})
+
+describe('the unit on the matrix', () => {
+  const WITH_MATRIX = {
+    ...DETAIL,
+    matrix: { days: ['2026-07-01'], buckets: ['total'], rows: [{ key: 'spend', values: [75] }] },
+  }
+
+  it("labels the table's money in the кабинет's settlement currency", async () => {
+    // «Демо» is priced, advertised and paid in KGS; a rouble sign there
+    // misstated every money row by an exchange rate.
+    fetchSkuDetail.mockResolvedValue(WITH_MATRIX)
+
+    await store.fetchProductData('953770957')
+
+    expect(store.matrixView.rows.find((row) => row.key === 'spend').label).toBe('Затраты, KGS')
+    expect(store.matrixView.currency).toBe('KGS')
+  })
+
+  it('leaves the money rows without a unit while the currency is unknown', async () => {
+    // No settlement report yet, or the request failed: no unit, not a guess.
+    fetchSkuDetail.mockResolvedValue(WITH_MATRIX)
+    settlement.currency = ''
+
+    await store.fetchProductData('953770957')
+
+    expect(store.matrixView.rows.find((row) => row.key === 'spend').label).toBe('Затраты')
   })
 })
 

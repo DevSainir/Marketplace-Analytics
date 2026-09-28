@@ -83,7 +83,7 @@ function commitPriceChange(iso, event) {
   emit('action', { day: iso, patch })
 }
 
-/** Commit a ₽ input (budget / «На сколько») on blur or Enter; blank clears. */
+/** Commit a money input (budget / «На сколько») on blur or Enter; blank clears. */
 function commitActionAmount(iso, field, event) {
   const raw = event.target.value.trim().replace(',', '.')
   const stored = dayAction(iso)[field] ?? null

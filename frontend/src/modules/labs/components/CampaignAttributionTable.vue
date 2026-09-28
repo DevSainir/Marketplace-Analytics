@@ -3,7 +3,7 @@ import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import { computed, toRefs } from 'vue'
 
-import { formatCurrency, formatNumber, formatPercent } from '@/core/utils/format'
+import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 import { CAMPAIGN_STATUS_BADGE, CAMPAIGN_STATUS_TEXT } from '@/modules/labs/campaignStatus'
 
 /**
@@ -16,6 +16,8 @@ const props = defineProps({
   campaigns: { type: Array, required: true },
   /** Human label of the current SKU (vendor code when known, nm ID otherwise). */
   skuLabel: { type: String, required: true },
+  /** The кабинет's settlement currency; `''` prints bare numbers. */
+  currency: { type: String, default: '' },
 })
 
 const { campaigns } = toRefs(props)
@@ -86,11 +88,11 @@ const rows = computed(() =>
       </Column>
 
       <Column field="spend" header="Расходы" sortable>
-        <template #body="{ data }">{{ formatCurrency(data.spend) }}</template>
+        <template #body="{ data }">{{ formatMoney(data.spend, currency) }}</template>
       </Column>
 
       <Column field="cpm" header="CPM" sortable>
-        <template #body="{ data }">{{ formatCurrency(data.cpm) }}</template>
+        <template #body="{ data }">{{ formatMoney(data.cpm, currency) }}</template>
       </Column>
 
       <Column field="ctr" header="CTR" sortable>
@@ -98,7 +100,7 @@ const rows = computed(() =>
       </Column>
 
       <Column field="cpc" header="CPC" sortable>
-        <template #body="{ data }">{{ formatCurrency(data.cpc) }}</template>
+        <template #body="{ data }">{{ formatMoney(data.cpc, currency) }}</template>
       </Column>
 
       <Column field="cartConversion" header="Клик → корзина" sortable>

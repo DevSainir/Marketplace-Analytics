@@ -10,6 +10,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { MAX_VARIANTS, useAbTestsStore } from '@/modules/abTests'
+import { useCurrencyStore } from '@/modules/finreports'
 import { roundsIn } from '@/modules/abTests/timeline'
 import BlockFilters from '@/modules/abTests/components/BlockFilters.vue'
 import FinishTestDialog from '@/modules/abTests/components/FinishTestDialog.vue'
@@ -24,10 +25,15 @@ import VariantResultsTable from '@/modules/abTests/components/VariantResultsTabl
 const route = useRoute()
 const router = useRouter()
 const store = useAbTestsStore()
+/** The spend in «Итог по тесту» is in the кабинет's settlement currency. */
+const settlement = useCurrencyStore()
 
 const test = computed(() => store.detail)
 
-onMounted(() => store.loadTest(route.params.testId))
+onMounted(() => {
+  store.loadTest(route.params.testId)
+  settlement.ensureLoaded()
+})
 watch(
   () => route.params.testId,
   (id) => id && store.loadTest(id),
@@ -161,7 +167,12 @@ async function onMainFile(event) {
     <!-- Only once something has been installed: before that every figure in it
          is a zero, and four zeros read as a broken panel rather than as an
          empty one. -->
-    <TestSummary v-if="test && test.started_at" :test="test" :image-urls="store.imageUrls" />
+    <TestSummary
+      v-if="test && test.started_at"
+      :test="test"
+      :image-urls="store.imageUrls"
+      :currency="settlement.currency"
+    />
 
     <TestControls
       v-if="test"

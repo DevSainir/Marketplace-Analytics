@@ -13,6 +13,12 @@
  * day of the window, so one id per group covers all of it.
  */
 
+/**
+ * The currency «Демо» is settled in, so the sandbox's money labels are as
+ * wide as the real page's — label width is part of what the sandbox compares.
+ */
+export const REAL_CURRENCY = 'KGS'
+
 /** «42/170-177» × two heights — the curve every «Брюки бананы» card carries. */
 function trouserSizes(firstChrt, heights) {
   const sizes = []

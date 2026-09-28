@@ -4,11 +4,16 @@
  * Owns all data fetching for the module; views stay declarative and
  * components stay dumb. `currentProduct` mirrors the backend
  * `SkuDetailResponse` shape 1:1.
+ *
+ * Money is labelled in the кабинет's settlement currency, which finreports
+ * owns (`useCurrencyStore`): the backend cannot carry it on the detail response
+ * without monitoring depending on finreports and closing a cycle.
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
+import { useCurrencyStore } from '@/modules/finreports'
 import {
   fetchPinnedSkus,
   fetchSkuDetail,
@@ -103,6 +108,8 @@ function sourceLabel(source) {
 }
 
 export const useMonitoringStore = defineStore('monitoring', () => {
+  const settlement = useCurrencyStore()
+
   // --- state -------------------------------------------------------------
   const loading = ref(false)
   const error = ref(null)
@@ -208,7 +215,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     (currentProduct.value?.advertising ?? []).reduce((sum, c) => sum + c.clicks, 0),
   )
 
-  /** Advertising spend over the window, summed across campaigns (₽). */
+  /** Advertising spend over the window, summed across campaigns. */
   const totalAdSpend = computed(() =>
     (currentProduct.value?.advertising ?? []).reduce((sum, c) => sum + c.spend, 0),
   )
@@ -455,7 +462,12 @@ export const useMonitoringStore = defineStore('monitoring', () => {
         }
         nmId = resolution.nmId
       }
-      const detail = await fetchSkuDetail(nmId, params, controller.signal)
+      // The unit rides along rather than after: a table built before it arrives
+      // would print its money rows without one. Cached after the first page.
+      const [detail] = await Promise.all([
+        fetchSkuDetail(nmId, params, controller.signal),
+        settlement.ensureLoaded(),
+      ])
       if (seq !== requestSeq) return
       loadMatrix(detail)
     } catch (err) {
@@ -524,8 +536,9 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       days.length > 0 &&
       days.length === (detail.matrix?.days?.length ?? 0) &&
       days.every((day, index) => day.iso === detail.matrix.days[index])
-    if (!(sameWindow && patchMetricsMatrix(matrixView.value, detail))) {
-      matrixView.value = buildMetricsMatrix(detail)
+    const { currency } = settlement
+    if (!(sameWindow && patchMetricsMatrix(matrixView.value, detail, currency))) {
+      matrixView.value = buildMetricsMatrix(detail, currency)
     }
     undoStack.value = []
     redoStack.value = []
@@ -562,8 +575,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       nm_id: currentProduct.value?.nm_id,
     }
     // Patch in place; rebuild only if the shape somehow changed (window shift).
-    if (!patchMetricsMatrix(matrixView.value, next)) {
-      matrixView.value = buildMetricsMatrix(next)
+    if (!patchMetricsMatrix(matrixView.value, next, settlement.currency)) {
+      matrixView.value = buildMetricsMatrix(next, settlement.currency)
     }
   }
 

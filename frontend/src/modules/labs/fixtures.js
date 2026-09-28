@@ -12,7 +12,7 @@
  * identical on every reload or two screenshots cannot be compared.
  */
 import { TRAFFIC_COLUMNS, buildMetricsMatrix } from '@/modules/labs/metricsMatrix'
-import { REAL_SKUS } from '@/modules/labs/realSkus'
+import { REAL_CURRENCY, REAL_SKUS } from '@/modules/labs/realSkus'
 import { buildStockDays } from '@/modules/labs/stockFixtures'
 
 /** Mulberry32 — small, fast, same sequence every run. */
@@ -287,7 +287,7 @@ export const DEFAULT_NM_ID = REAL[0].nm_id
 
 /** The real builder, on the real payload — no sandbox-specific shortcut. */
 export function matrixViewFor(product) {
-  return buildMetricsMatrix(product)
+  return buildMetricsMatrix(product, REAL_CURRENCY)
 }
 
 /* ---------------------------------------------------------------- header */

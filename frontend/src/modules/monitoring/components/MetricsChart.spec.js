@@ -15,11 +15,14 @@ function row(key, valuesByBucket) {
 }
 
 /** The display matrix the store hands the chart, built the way the store does. */
-function matrixView(rows = []) {
-  return buildMetricsMatrix({
-    nm_id: 1,
-    matrix: { days: DAYS, buckets: TRAFFIC_COLUMNS.map((column) => column.key), rows },
-  })
+function matrixView(rows = [], currency = 'KGS') {
+  return buildMetricsMatrix(
+    {
+      nm_id: 1,
+      matrix: { days: DAYS, buckets: TRAFFIC_COLUMNS.map((column) => column.key), rows },
+    },
+    currency,
+  )
 }
 
 /** Some data for every metric the default selection draws. */
@@ -80,7 +83,13 @@ describe('MetricsChart', () => {
     // заказы).
     const wrapper = mountChart()
 
-    expect(legend(wrapper)).toEqual(['Затраты, ₽', 'Показы', 'CTR, %', 'Корзины, шт', 'Заказы, шт'])
+    expect(legend(wrapper)).toEqual([
+      'Затраты, KGS',
+      'Показы',
+      'CTR, %',
+      'Корзины, шт',
+      'Заказы, шт',
+    ])
   })
 
   it('lists the legend in catalogue order, not in the order chips were clicked', () => {
@@ -90,14 +99,14 @@ describe('MetricsChart', () => {
 
     return chip(wrapper, 'Заказы, шт')
       .trigger('click')
-      .then(() => chip(wrapper, 'Затраты, ₽').trigger('click'))
+      .then(() => chip(wrapper, 'Затраты, KGS').trigger('click'))
       .then(() => {
-        expect(legend(wrapper)).toEqual(['Затраты, ₽', 'Заказы, шт'])
+        expect(legend(wrapper)).toEqual(['Затраты, KGS', 'Заказы, шт'])
       })
   })
 
   it('offers no mode switch: everything is an index', async () => {
-    // «Значения» put «Заказы, ₽» at 500 000 beside «Затраты, ₽» at 7 000 on one
+    // «Значения» put «Заказы» at 500 000 beside «Затраты» at 7 000 on one
     // axis, which is a flat line and a lie about the smaller of the two.
     const wrapper = mountChart()
 
@@ -109,9 +118,9 @@ describe('MetricsChart', () => {
   it('stops drawing a metric once its chip is unticked', async () => {
     const wrapper = mountChart()
 
-    await chip(wrapper, 'Затраты, ₽').trigger('click')
+    await chip(wrapper, 'Затраты, KGS').trigger('click')
 
-    expect(legend(wrapper)).not.toContain('Затраты, ₽')
+    expect(legend(wrapper)).not.toContain('Затраты, KGS')
   })
 
   it('draws a metric once its chip is ticked', async () => {
@@ -186,9 +195,17 @@ describe('MetricsChart', () => {
     })
 
     const labels = chips(wrapper).map((button) => button.text())
-    expect(labels).toContain('Заказы, ₽')
-    expect(labels).not.toContain('Цена покупателя, ₽')
+    expect(labels).toContain('Заказы, KGS')
+    expect(labels).not.toContain('Цена покупателя, KGS')
     expect(labels).not.toContain('CTR, %')
+  })
+
+  it('names a money chip without a unit while the currency is unknown', () => {
+    // No unit beats a guessed one — and the chip must match the legend's name.
+    const wrapper = mountChart({ view: matrixView(POPULATED, '') })
+
+    expect(chip(wrapper, 'Затраты')).toBeDefined()
+    expect(legend(wrapper)).toContain('Затраты')
   })
 
   it('groups the chips under «Реклама», «Воронка» and «Общие»', () => {

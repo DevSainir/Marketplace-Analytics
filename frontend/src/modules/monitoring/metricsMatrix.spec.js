@@ -1,4 +1,4 @@
-import { formatCurrency, formatCurrencyTenths, formatNumber } from '@/core/utils/format'
+import { formatNumber } from '@/core/utils/format'
 import {
   COLUMNS_PER_DAY,
   DRR_SALES_COLUMNS,
@@ -208,14 +208,16 @@ describe('buildMetricsMatrix', () => {
     expect(c.editable).toBe(true)
   })
 
-  it('formats backend numbers per metric kind (currency/number/percent)', () => {
-    const matrix = buildMetricsMatrix(PRODUCT)
-    expect(cell(matrix, 'spend', 0, 'total')).toBe(formatCurrency(75))
+  it('formats backend numbers per metric kind (money/number/percent)', () => {
+    const matrix = buildMetricsMatrix(PRODUCT, 'KGS')
+    // Money cells are bare: the unit is on the row label, because a ~52px leaf
+    // column clips «75 KGS»-width text at its leading digit.
+    expect(cell(matrix, 'spend', 0, 'total')).toBe('75')
     expect(cell(matrix, 'views', 0, 'total')).toBe(formatNumber(150))
     expect(cell(matrix, 'clicks', 0, 'total')).toBe(formatNumber(200))
     expect(cell(matrix, 'traffic_share', 0, 'uni_shelves')).toBe('46,67%')
     expect(cell(matrix, 'buyout_percent', 0, 'total')).toBe('50,00%')
-    expect(cell(matrix, 'order_sum', 0, 'manual_search')).toBe(formatCurrency(500))
+    expect(cell(matrix, 'order_sum', 0, 'manual_search')).toBe('500')
   })
 
   it('lays out per-type/zone cells from the backend buckets', () => {
@@ -231,9 +233,9 @@ describe('buildMetricsMatrix', () => {
 
     // A pay-per-click campaign's ставка is the CPC row itself, so the two zone
     // cells must address cpc_search/cpc_shelves and nothing beside them.
-    // «CPC, ₽» prints tenths (formatCurrencyTenths) — a click costs single ₽.
-    expect(cell(matrix, 'cpc', 0, 'cpc_search')).toBe(formatCurrencyTenths(12.5))
-    expect(cell(matrix, 'cpc', 0, 'cpc_shelves')).toBe(formatCurrencyTenths(9.4))
+    // «CPC» prints tenths — a click costs single units of money.
+    expect(cell(matrix, 'cpc', 0, 'cpc_search')).toBe('12,5')
+    expect(cell(matrix, 'cpc', 0, 'cpc_shelves')).toBe('9,4')
     expect(cell(matrix, 'cpc', 0, 'uni_search')).toBe('')
     expect(cellObj(matrix, 'views', 0, 'cpc_search')).toMatchObject({
       raw: 25,
@@ -258,9 +260,42 @@ describe('buildMetricsMatrix', () => {
   })
 
   it('returns an empty matrix without a backend matrix payload', () => {
-    const empty = { days: [], rows: [], priceRows: [], stockRows: [], stockTotalRows: [] }
+    const empty = {
+      days: [],
+      rows: [],
+      priceRows: [],
+      stockRows: [],
+      stockTotalRows: [],
+      currency: '',
+    }
     expect(buildMetricsMatrix(null)).toEqual(empty)
     expect(buildMetricsMatrix({ nm_id: 1 })).toEqual(empty)
+  })
+
+  it("labels the money rows in the кабинет's currency", () => {
+    // «Демо» is priced, advertised and paid in KGS; the rows used to say roubles.
+    const matrix = buildMetricsMatrix(PRODUCT, 'KGS')
+
+    const label = (rows, key) => rows.find((r) => r.key === key).label
+
+    expect(label(matrix.rows, 'spend')).toBe('Затраты, KGS')
+    expect(label(matrix.rows, 'cpc')).toBe('CPC, KGS')
+    expect(label(matrix.rows, 'order_sum')).toBe('Заказы, KGS')
+    expect(label(matrix.priceRows, 'seller_price')).toBe('Цена продавца, KGS')
+    expect(label(matrix.rows, 'ctr')).toBe('CTR, %')
+    expect(matrix.currency).toBe('KGS')
+  })
+
+  it('leaves money rows without a unit while the currency is unknown', () => {
+    // No unit is honest; a guessed one misstates every figure by an exchange rate.
+    const matrix = buildMetricsMatrix(PRODUCT)
+
+    const label = (key) => matrix.rows.find((r) => r.key === key).label
+
+    expect(label('spend')).toBe('Затраты')
+    // The count keeps «шт», so the two «Заказы» rows still read apart.
+    expect(label('order_sum')).toBe('Заказы')
+    expect(label('orders')).toBe('Заказы, шт')
   })
 })
 
@@ -296,6 +331,14 @@ describe('patchMetricsMatrix', () => {
     const oneDay = structuredClone(PRODUCT)
     oneDay.matrix.days = ['2026-07-01']
     expect(patchMetricsMatrix(view, oneDay)).toBe(false)
+  })
+
+  it('signals a rebuild when the currency is not the one the labels carry', () => {
+    // Patching touches cells only, so a table built before the unit arrived
+    // would keep its bare labels for the rest of the visit.
+    const view = buildMetricsMatrix(PRODUCT)
+
+    expect(patchMetricsMatrix(view, PRODUCT, 'KGS')).toBe(false)
   })
 })
 
@@ -339,7 +382,7 @@ describe('associative conversions', () => {
     expect(cell(matrix, 'carts', 0, 'uni_shelves')).toBe(formatNumber(120))
   })
 
-  // The inline editor seeds itself from `raw` and the backend's ₽ rows divide
+  // The inline editor seeds itself from `raw` and the backend's money rows divide
   // the same count, so `raw` is the number the cell prints — never the card's
   // share, which would open a cell reading 120 on a draft of 82.
   it('carries the campaign’s count as the cell’s editable value', () => {

@@ -191,11 +191,11 @@ export async function setDayComment(nmId, iso, patch) {
  * @typedef {'uni'|'manual_search'|'manual_shelves'|'cpc'} RkType
  * @typedef {object} DayAction
  * @property {RkType|null} first_rk_type «Первая РК» campaign type (null = unset).
- * @property {number|null} first_rk_budget First campaign «Бюджет рекламы», ₽.
+ * @property {number|null} first_rk_budget First campaign «Бюджет рекламы», in the кабинет's currency.
  * @property {RkType|null} second_rk_type «Вторая РК» campaign type.
- * @property {number|null} second_rk_budget Second campaign «Бюджет рекламы», ₽.
+ * @property {number|null} second_rk_budget Second campaign «Бюджет рекламы», same currency.
  * @property {'up'|'down'|null} price_change «Меняли цену?».
- * @property {number|null} price_change_amount «На сколько», ₽.
+ * @property {number|null} price_change_amount «На сколько», same currency.
  */
 
 /**

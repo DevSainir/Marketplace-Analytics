@@ -22,6 +22,7 @@ import {
   SKU_DEFAULT_METRICS,
   SKU_METRIC_GROUPS,
   buildMetricChart,
+  labelledGroups,
 } from '@/modules/monitoring/metricChart'
 
 // ECharts is ~185 kB gzipped — three times the rest of this route put together.
@@ -62,6 +63,9 @@ watch(metrics, () => {
 const chart = computed(() =>
   buildMetricChart(props.view, { metrics: metrics.value, groups: props.groups, hover }),
 )
+
+/** The chips name money in the matrix's currency, as the legend and hover do. */
+const pickerGroups = computed(() => labelledGroups(props.groups, props.view.currency))
 
 /**
  * Tell the chart apart from the day it sits in.
@@ -125,7 +129,7 @@ const CHART_HEIGHT = '360px'
   <section v-if="chart" class="mt-lg" aria-label="График метрик">
     <h2 class="text-h3 font-semibold text-primary">График</h2>
 
-    <ChartMetricPicker v-model="metrics" :groups="groups" class="mt-sm" />
+    <ChartMetricPicker v-model="metrics" :groups="pickerGroups" class="mt-sm" />
 
     <!-- The plot is its own block, on the app's card surface rather than on
          glass: it is the one thing here that is DENSE, and the system's own rule

@@ -17,6 +17,10 @@ vi.mock('@/modules/abTests/api', () => ({
   updateTestSettings: vi.fn(),
   uploadVariant: vi.fn(),
 }))
+// The detail view asks for the кабинет's currency; the unit tier has no network.
+vi.mock('@/modules/finreports', () => ({
+  useCurrencyStore: () => ({ currency: 'KGS', ensureLoaded: vi.fn() }),
+}))
 
 import {
   createTest,

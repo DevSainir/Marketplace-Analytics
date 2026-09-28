@@ -33,6 +33,7 @@
  */
 import { computed } from 'vue'
 
+import { formatMoney } from '@/core/utils/format'
 import { statusLabel as labelOf } from '@/modules/abTests'
 import { campaignKindLabel } from '@/modules/abTests/campaignKinds'
 import SummaryFacts from '@/modules/abTests/components/SummaryFacts.vue'
@@ -43,6 +44,8 @@ const props = defineProps({
   test: { type: Object, required: true },
   /** variant_id -> object URL for the stored original. */
   imageUrls: { type: Object, default: () => ({}) },
+  /** The кабинет's settlement currency — what the spend is in; `''` prints it bare. */
+  currency: { type: String, default: '' },
 })
 
 const summary = computed(() => props.test.summary ?? {})
@@ -139,7 +142,7 @@ function percent(value) {
 }
 
 function money(value) {
-  return `${Math.round(Number(value ?? 0)).toLocaleString('ru-RU')} ₽`
+  return formatMoney(value ?? 0, props.currency)
 }
 
 function moment(value) {

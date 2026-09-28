@@ -18,6 +18,7 @@ from src.modules.finreports.schemas.cost_price import (
     CostPriceListResponse,
     CostPriceSaveResponse,
 )
+from src.modules.finreports.schemas.currency import SettlementCurrencyResponse
     LogisticsTxnItem,
     WeekPeriod,
     WeeksResponse,
@@ -75,6 +76,7 @@ __all__ = [
     "PnlSkuRow",
     "PnlStatement",
     "ReasonShare",
+    "SettlementCurrencyResponse",
     "SkuExclusionInput",
     "SkuPenalty",
     "WeekPeriod",

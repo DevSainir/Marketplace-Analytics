@@ -10,7 +10,7 @@ function mountTable(dayActions = {}, extraProps = {}) {
   return mount(MetricsTable, {
     props: {
       days: [{ iso: DAY, label: '20.07.2026' }],
-      rows: [{ key: 'spend', label: 'Затраты, ₽', tone: null, group: 'traffic', cells: [] }],
+      rows: [{ key: 'spend', label: 'Затраты, KGS', tone: null, group: 'traffic', cells: [] }],
       dayActions,
       ...extraProps,
     },
@@ -193,7 +193,7 @@ describe('table composition', () => {
     const wrapper = mount(MetricsTable, {
       props: {
         days,
-        rows: [{ key: 'spend', label: 'Затраты, ₽', tone: null, group: 'traffic', cells: [] }],
+        rows: [{ key: 'spend', label: 'Затраты, KGS', tone: null, group: 'traffic', cells: [] }],
         priceRows: [{ key: 'seller_price', cells: [] }],
       },
       global: { stubs: { Teleport: true } },

@@ -94,7 +94,7 @@
   color: var(--ui-faint);
 }
 
-/* «Бюджет рекламы» / «На сколько»: label left, ₽ input right. */
+/* «Бюджет рекламы» / «На сколько»: label left, money input right. */
 .day-action-amount {
   display: flex;
   align-items: center;

@@ -11,7 +11,7 @@
  *
  * Money labels carry no currency of their own: `metricLabel` appends the
  * кабинет's, because a кабинет settled in KGS is priced, advertised and paid
- * in KGS throughout, and a «₽» beside those figures was simply wrong.
+ * in KGS throughout, and a rouble sign beside those figures was simply wrong.
  */
 import { formatNumber } from '@/core/utils/format'
 

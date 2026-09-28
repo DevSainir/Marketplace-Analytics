@@ -12,12 +12,12 @@
  *
  * A MIXED pick is plotted as an index — rebased to 100 at the window's first
  * reported day. There is no «Значения» mode for one, because there never was an
- * honest one: «Заказы, ₽» at 500 000 beside «Затраты, ₽» at 7 000 share a unit,
+ * honest one: «Заказы» at 500 000 beside «Затраты» at 7 000 share a unit,
  * therefore an axis, and the smaller of the two is a flat line at the bottom of
  * the plot. What a reader compares there is SHAPE; the real values are a hover
  * away, and the table above holds every one of them.
  *
- * The FUNNEL's counts are read down the LEFT edge and рубли down the RIGHT,
+ * The FUNNEL's counts are read down the LEFT edge and деньги down the RIGHT,
  * always, whatever is ticked — see `AXES` and `COUNT_RULER_METRICS`. Those
  * series are drawn as they are, so every number on either scale is the number.
  * Everything else — показы, клики, проценты — is drawn as an INDEX instead,
@@ -30,6 +30,7 @@
  * real quantity rather than against a ruler with no relationship to anything
  * on the canvas.
  */
+import { moneyLabel } from '@/core/utils/format'
 import {
   BARS_UP_TO_DAYS,
   buildChartOption,
@@ -53,6 +54,9 @@ const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key,
  * «Реклама», «Воронка» and «Общие» are where a reader LOOKS for a metric. The
  * chart uses them too, but only to group the hover.
  *
+ * Money names carry no unit: {@link labelledGroups} appends the кабинет's
+ * currency, the same one the table above labels its rows with.
+ *
  * `type: 'bar'` on остатки, корзины and заказы, and deliberately no `stack`:
  * they stand side by side as separate columns per day. Stacked they would draw
  * a total that means nothing — a cart is not a unit of stock.
@@ -66,12 +70,12 @@ export const SKU_METRIC_GROUPS = [
   {
     title: 'Реклама',
     items: [
-      { key: 'spend', metric: 'spend', bucket: 'total', name: 'Затраты, ₽', unit: 'currency' },
+      { key: 'spend', metric: 'spend', bucket: 'total', name: 'Затраты', unit: 'currency' },
       { key: 'views', metric: 'views', bucket: 'total', name: 'Показы', unit: 'number' },
       { key: 'clicks', metric: 'clicks', bucket: 'total', name: 'Клики', unit: 'number' },
       { key: 'ctr', metric: 'ctr', bucket: 'total', name: 'CTR, %', unit: 'percent' },
-      { key: 'cpm', metric: 'cpm', bucket: 'total', name: 'CPM, ₽', unit: 'currency' },
-      { key: 'cpc', metric: 'cpc', bucket: 'total', name: 'CPC, ₽', unit: 'currency' },
+      { key: 'cpm', metric: 'cpm', bucket: 'total', name: 'CPM', unit: 'currency' },
+      { key: 'cpc', metric: 'cpc', bucket: 'total', name: 'CPC', unit: 'currency' },
       {
         key: 'drr_orders',
         metric: 'drr_orders',
@@ -137,14 +141,14 @@ export const SKU_METRIC_GROUPS = [
         key: 'seller_price',
         metric: 'seller_price',
         source: 'priceRows',
-        name: 'Цена продавца, ₽',
+        name: 'Цена продавца',
         unit: 'currency',
       },
       {
         key: 'customer_price',
         metric: 'customer_price',
         source: 'priceRows',
-        name: 'Цена покупателя, ₽',
+        name: 'Цена покупателя',
         unit: 'currency',
       },
       {
@@ -187,12 +191,12 @@ export const AGGREGATE_METRIC_GROUPS = [
   {
     title: 'Реклама',
     items: [
-      { key: 'spend', metric: 'spend', bucket: 'total', name: 'Затраты, ₽', unit: 'currency' },
+      { key: 'spend', metric: 'spend', bucket: 'total', name: 'Затраты', unit: 'currency' },
       { key: 'views', metric: 'views', bucket: 'total', name: 'Показы', unit: 'number' },
       { key: 'clicks', metric: 'clicks', bucket: 'total', name: 'Клики', unit: 'number' },
       // Where CTR sits on the per-SKU page. CTR itself cannot follow: «Клики»
       // here is the funnel's card opens, not advertising clicks.
-      { key: 'cpm', metric: 'cpm', bucket: 'total', name: 'CPM, ₽', unit: 'currency' },
+      { key: 'cpm', metric: 'cpm', bucket: 'total', name: 'CPM', unit: 'currency' },
       {
         key: 'drr_orders',
         metric: 'drr_orders',
@@ -244,7 +248,7 @@ export const AGGREGATE_METRIC_GROUPS = [
         key: 'order_sum',
         metric: 'order_sum',
         bucket: 'total',
-        name: 'Заказы, ₽',
+        name: 'Заказы',
         unit: 'currency',
       },
       {
@@ -268,6 +272,24 @@ export const AGGREGATE_METRIC_GROUPS = [
 
 /** The same opening question as the per-SKU page, minus the CTR it has no data for. */
 export const AGGREGATE_DEFAULT_METRICS = ['spend', 'views', 'carts', 'orders']
+
+/**
+ * The catalogue as the reader sees it: money names carry the кабинет's currency
+ * («Затраты» -> «Затраты, KGS»), and nothing while it is unknown. One helper
+ * for the chips, the legend and the hover, so the three never disagree.
+ *
+ * @param {Array<object>} groups A metric catalogue.
+ * @param {string} [currency] The кабинет's settlement currency.
+ * @returns {Array<object>} The same groups, money items renamed.
+ */
+export function labelledGroups(groups, currency = '') {
+  return groups.map((group) => ({
+    ...group,
+    items: group.items.map((item) =>
+      item.unit === 'currency' ? { ...item, name: moneyLabel(item.name, currency) } : item,
+    ),
+  }))
+}
 
 /** Index a group list by metric key, each entry carrying its group's title. */
 function metricsByKey(groups) {
@@ -306,7 +328,7 @@ const round2 = (value) => Math.round(value * 100) / 100
  * Rebase a series to 100 at its first reported day, keeping the real values.
  *
  * `raw` is what the hover reads: an index is a shape, and a reader who wants to
- * know what «118» meant in roubles must not leave the chart to find out. A
+ * know what «118» meant in money must not leave the chart to find out. A
  * series plotted unrebased never gets one — there is no second number to show,
  * and «374 (374)» reads as a mistake.
  */
@@ -323,7 +345,7 @@ function indexed(data) {
  * The three scales a plot has, and which one a metric is read against.
  *
  * **They are fixed.** Whatever is ticked, штуки are down the left edge and
- * рубли down the right, and both rulers are drawn even when nothing is on
+ * деньги down the right, and both rulers are drawn even when nothing is on
  * them. The alternative was tried and is worse than it sounds: rulers chosen
  * from the data meant that ticking one more metric silently re-scaled the
  * others, so «Заказы» could be a readable column one moment and a smear along
@@ -405,6 +427,9 @@ function metricSeriesSpecs(view, { metrics = [], groups = [] } = {}) {
 /**
  * Build the chart from the live display matrix.
  *
+ * The unit of its money is the matrix's own (`view.currency`), so the chart
+ * and the table it sits under cannot name different currencies.
+ *
  * @param {object} view A display matrix (`matrixView` shape).
  * @param {{metrics?: string[], groups?: Array<object>, hover?: object}} [options]
  *   The reader's picks, the catalogue to resolve them against, and the live
@@ -415,8 +440,9 @@ function metricSeriesSpecs(view, { metrics = [], groups = [] } = {}) {
 export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}) {
   if (!view?.days?.length) return null
   const days = view.days.map((day) => day.iso)
+  const currency = view.currency ?? ''
 
-  const specs = metricSeriesSpecs(view, { metrics, groups })
+  const specs = metricSeriesSpecs(view, { metrics, groups: labelledGroups(groups, currency) })
   // Columns need room. Past a month there is none, and they become lines.
   const columns = days.length <= BARS_UP_TO_DAYS
 
@@ -436,7 +462,7 @@ export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}
   return {
     legend: series.map((entry) => ({ name: entry.name, color: entry.color })),
     empty: !series.length || series.every((entry) => entry.data.every((value) => value == null)),
-    option: buildChartOption({ days, rulers: rulersFor(series), hover, series }),
+    option: buildChartOption({ days, rulers: rulersFor(series), hover, series, currency }),
   }
 }
 

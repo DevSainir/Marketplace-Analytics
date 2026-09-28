@@ -1718,6 +1718,31 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/finreports/currency': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Settlement Currency
+     * @description Return the currency WB settles the active кабинет in.
+     *
+     *     Membership, not the P&L grant: monitoring and the A/Б tests print money in
+     *     this unit for managers who cannot open the P&L. Nothing weaker either —
+     *     ``MemberAccess`` is the paywall, and a bare account has no кабинет to ask
+     *     about.
+     */
+    get: operations['get_settlement_currency_api_v1_finreports_currency_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/ab-tests': {
     parameters: {
       query?: never
@@ -5192,6 +5217,22 @@ export interface components {
        * @description Refresh rows revoked. Zero is a normal answer — an account with no live session — not a failure, and deliberately does not say whether the account exists.
        */
       revoked: number
+    }
+    /**
+     * SettlementCurrencyResponse
+     * @description The currency every money figure of the active кабинет is stated in.
+     *
+     *     One seller account is priced, advertised and paid in one currency, so the
+     *     code WB settles it in is also the unit of its funnel sums, its prices and
+     *     its advertising spend — which is why pages that never show a settlement
+     *     figure still ask for it.
+     */
+    SettlementCurrencyResponse: {
+      /**
+       * Currency
+       * @description ISO 4217 code WB settles this кабинет in (e.g. `KGS`); empty before the first settlement report, when the unit is not yet known.
+       */
+      currency: string
     }
     /**
      * SkuClusterItem
@@ -9379,6 +9420,52 @@ export interface operations {
       }
       /** @description Unauthorized access token. */
       401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_settlement_currency_api_v1_finreports_currency_get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The active кабинет's settlement currency, or empty. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettlementCurrencyResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Not a member of an organisation with a live subscription. */
+      403: {
         headers: {
           [name: string]: unknown
         }

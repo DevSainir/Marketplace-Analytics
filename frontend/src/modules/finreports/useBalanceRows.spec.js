@@ -173,10 +173,17 @@ describe('useBalanceRows', () => {
 })
 
 describe('currencySuffix', () => {
-  it('shortens the settlement currency to one character', () => {
+  it('shortens KGS to one character', () => {
     // A three-letter code per cell would cost a whole warehouse of screen width.
     expect(currencySuffix('KGS')).toBe('с')
-    expect(currencySuffix('RUB')).toBe('₽')
+  })
+
+  it('prints any other currency as its code, never as a typed-in sign', () => {
+    expect(currencySuffix('RUB')).toBe(' RUB')
+    expect(currencySuffix('USD')).toBe(' USD')
+  })
+
+  it('prints no unit when the currency is unknown', () => {
     expect(currencySuffix('')).toBe('')
   })
 })

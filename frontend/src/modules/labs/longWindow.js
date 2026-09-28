@@ -16,6 +16,7 @@
  * `bucket: 'total'` for every metric it offers.
  */
 import { TRAFFIC_COLUMNS, buildMetricsMatrix } from '@/modules/labs/metricsMatrix'
+import { REAL_CURRENCY } from '@/modules/labs/realSkus'
 
 /** Mulberry32 — the same sequence every reload, so two screenshots compare. */
 function seeded(seed) {
@@ -111,4 +112,4 @@ const longProduct = {
 }
 
 /** The real builder, on the real payload — no sandbox-specific shortcut. */
-export const longMatrixView = buildMetricsMatrix(longProduct)
+export const longMatrixView = buildMetricsMatrix(longProduct, REAL_CURRENCY)

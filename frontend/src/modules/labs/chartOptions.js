@@ -10,7 +10,7 @@
  * onto a canvas and cannot resolve a Tailwind class; when a token moves, it
  * moves here too.
  */
-import { formatCurrency, formatNumber, formatPercent } from '@/core/utils/format'
+import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 
 /** Tailwind `textColor.muted` / `textColor.primary` / `border.subtle`. */
 const INK_MUTED = '#858585'
@@ -66,7 +66,7 @@ export const METRIC_COLORS = {
   customer_price: '#5B7C99', // серо-синий
   stock_quantity: '#0B7A3B', // тёмно-зелёный — «Остатки»
   stock_total: '#0B7A3B', // тот же смысл на сводной странице
-  order_sum: '#B8471F', // тёмно-оранжевый — те же заказы, в рублях
+  order_sum: '#B8471F', // тёмно-оранжевый — те же заказы, в деньгах
   orders_organic: '#C98A4B', // «Заказы» без рекламы
 }
 
@@ -78,17 +78,17 @@ export function colorForMetric(key) {
   return METRIC_COLORS[key] ?? FALLBACK_COLOR
 }
 
-/** Value formatters by the unit a metric measures. */
+/** Value formatters by the unit a metric measures; money in the кабинет's currency. */
 const FORMATTERS = {
-  currency: formatCurrency,
+  currency: (value, currency) => formatMoney(value, currency),
   number: (value) => formatNumber(Math.round(value)),
   percent: formatPercent,
 }
 
 /** Tooltip/legend text for one value; `null` reads «нет данных», not «0». */
-function formatValue(unit, value) {
+function formatValue(unit, value, currency) {
   if (value == null || !Number.isFinite(value)) return '—'
-  return (FORMATTERS[unit] ?? FORMATTERS.number)(value)
+  return (FORMATTERS[unit] ?? FORMATTERS.number)(value, currency)
 }
 
 /** "2026-07-05" -> "05.07.2026" — what a short window's rotated dates carry. */
@@ -320,7 +320,7 @@ function valueAxis({
 }
 
 /**
- * Build the plot's rulers: штуки left, рубли right, and the index on a scale
+ * Build the plot's rulers: штуки left, деньги right, and the index on a scale
  * that is never drawn.
  *
  * The first two are drawn whether or not anything is on them — that is the
@@ -358,15 +358,17 @@ function valueAxes(rulers) {
  * with the same titles and a dotted rule between them, means the eye lands in
  * the right third before it reads a single number.
  *
- * Each row is formatted by ITS OWN unit: with «Затраты, ₽» beside «ДРР, %» a
+ * Each row is formatted by ITS OWN unit: with «Затраты» beside «ДРР, %» a
  * chart-wide formatter would print one of the two in the other's units.
  *
  * @param {Array<object>} series The built series, in chart order.
  * @param {{index: number|null}} hover Which series the cursor is actually on
  *   (see `focusedPoints`) — a live holder, read at hover time, never a value
  *   baked into the option.
+ * @param {string} currency The кабинет's currency for money rows; `''` prints
+ *   them bare.
  */
-function groupedTooltip(series, hover) {
+function groupedTooltip(series, hover, currency) {
   return (params) => {
     const points = focusedPoints(
       [...params].sort((a, b) => a.seriesIndex - b.seriesIndex),
@@ -380,7 +382,11 @@ function groupedTooltip(series, hover) {
         // shows the quantity underneath it. Only that — the index was on the
         // canvas already, and printing it again in brackets on every row was a
         // second column of numbers nobody was reading.
-        const value = formatValue(entry.unit, entry.raw ? entry.raw[point.dataIndex] : point.value)
+        const value = formatValue(
+          entry.unit,
+          entry.raw ? entry.raw[point.dataIndex] : point.value,
+          currency,
+        )
         const heading =
           entry.group && entry.group !== lastGroup
             ? `<div style="${lastGroup ? `border-top:1px dotted ${LINE_GRID};margin-top:6px;` : ''}` +
@@ -458,16 +464,17 @@ export function focusedPoints(points, hover) {
  * fortnight and wrong for a year: 365 days at 44px is nine metres to drag
  * through, and the shape a reader came for is never on screen at once.
  *
- * Штуки down the left edge and рубли down the right, fixed, whatever is
+ * Штуки down the left edge and деньги down the right, fixed, whatever is
  * ticked; anything that is neither is an index on a scale that is never drawn.
  * See `metricChart.js#AXES`.
  *
  * @param {{days: string[], rulers?: Array<{max: number|undefined, color: string}>,
  *   hover?: object, series: Array<{name: string, unit: string, group?: string,
  *   axisIndex?: number, data: Array<number|null>, raw?: Array<number|null>,
- *   color: string}>}} spec `rulers` are the value scales, left first.
+ *   color: string}>, currency?: string}} spec `rulers` are the value scales,
+ *   left first; `currency` is the кабинет's, for the money rows of the hover.
  */
-export function buildChartOption({ days, rulers = [], hover, series }) {
+export function buildChartOption({ days, rulers = [], hover, series, currency = '' }) {
   const weekly = days.length > BARS_UP_TO_DAYS
   const hasBar = series.some((entry) => entry.type === 'bar')
   const starts = weekStarts(days)
@@ -501,7 +508,7 @@ export function buildChartOption({ days, rulers = [], hover, series }) {
       borderWidth: 1,
       padding: [8, 12],
       textStyle: { color: INK_PRIMARY, fontSize: 12 },
-      formatter: groupedTooltip(series, hover),
+      formatter: groupedTooltip(series, hover, currency),
     },
     xAxis: {
       type: 'category',

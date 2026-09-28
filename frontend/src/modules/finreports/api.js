@@ -93,6 +93,19 @@ export async function triggerHarvest() {
 }
 
 /**
+ * GET /v1/finreports/currency — the currency the active кабинет is settled in.
+ *
+ * Membership is enough, not the «P&L» grant: monitoring and the A/Б tests print
+ * money in this unit for managers who cannot open the P&L.
+ *
+ * @returns {Promise<string>} ISO code (`KGS`), or `''` before the first report.
+ */
+export async function fetchSettlementCurrency() {
+  const { data } = await apiClient.get('/v1/finreports/currency')
+  return data.currency
+}
+
+/**
  * GET /v1/finreports/balance — «Баланс по товарным остаткам»: the SKU x
  * warehouse stock grid for ONE snapshot day, priced at the seller's costs.
  *

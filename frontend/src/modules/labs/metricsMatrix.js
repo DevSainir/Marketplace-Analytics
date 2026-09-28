@@ -16,14 +16,14 @@
  * built by `services/matrix.py`) — strict rule: no calculations in the
  * frontend. This module only maps backend cells onto the workbook layout and
  * applies ru-RU display formatting; `null` cells render as «—».
+ *
+ * Money is in the кабинет's settlement currency, which the backend states and
+ * the caller passes in. The unit goes on the ROW label («Затраты, KGS») and the
+ * cells stay bare numbers: a leaf column is ~52px, and «45 679 KGS» in it
+ * would clip its leading digit and print a different number (see main.css).
  * «Каталог» is a legacy WB zone kept for workbook parity; it is always empty.
  */
-import {
-  formatCurrency,
-  formatCurrencyTenths,
-  formatNumber,
-  formatPercent,
-} from '@/core/utils/format'
+import { formatMoney, formatNumber, formatPercent, moneyLabel } from '@/core/utils/format'
 
 // Missing values render as BLANK cells (was an em dash — the dashes read as
 // noise across a mostly-empty ribbon).
@@ -122,8 +122,9 @@ function dayLabel(iso) {
 }
 
 const fmtNumber = (v) => (v == null ? EMPTY : formatNumber(Math.round(v)))
-const fmtCurrency = (v) => (v == null ? EMPTY : formatCurrency(v))
-const fmtCurrencyTenths = (v) => (v == null ? EMPTY : formatCurrencyTenths(v))
+const fmtMoney = (v) => (v == null ? EMPTY : formatMoney(v))
+// Tenths for small per-click money (CPC): a click costs single units.
+const fmtMoneyTenths = (v) => (v == null ? EMPTY : formatMoney(v, '', 1))
 const fmtPercent = (v) => (v == null ? EMPTY : formatPercent(v))
 
 /**
@@ -133,18 +134,29 @@ const fmtPercent = (v) => (v == null ? EMPTY : formatPercent(v))
  * `group` assigns each row to one of the four data blocks; every block gets
  * its own subtle row tint (see the `matrix-group--*` rules in main.css):
  * traffic (Доля трафика..Клики), funnel (Корзины..Конверсия в заказ),
- * money (Заказы, ₽..Стоимость корзины), efficiency (the ДРР/выкуп trio).
+ * money (Заказы..Стоимость корзины), efficiency (the ДРР/выкуп trio).
+ *
+ * `money` rows take the кабинет's currency on their label (`moneyLabel`). The
+ * funnel's counts say «шт» so that, with the currency unknown, «Заказы» the
+ * count and «Заказы» the sum are still two different rows.
  *
  * `emphasis` renders the row bigger and bolder («ДРР от продаж» is the
  * headline efficiency number).
  */
 const METRIC_DEFS = [
   { key: 'traffic_share', label: 'Доля трафика, %', group: 'traffic', format: fmtPercent },
-  { key: 'spend', label: 'Затраты, ₽', tone: 'positive', group: 'traffic', format: fmtCurrency },
+  {
+    key: 'spend',
+    label: 'Затраты',
+    money: true,
+    tone: 'positive',
+    group: 'traffic',
+    format: fmtMoney,
+  },
   { key: 'views', label: 'Показы', group: 'traffic', format: fmtNumber },
   { key: 'ctr', label: 'CTR, %', group: 'traffic', format: fmtPercent },
-  { key: 'cpm', label: 'CPM, ₽', group: 'traffic', format: fmtCurrency },
-  { key: 'cpc', label: 'CPC, ₽', group: 'traffic', format: fmtCurrencyTenths },
+  { key: 'cpm', label: 'CPM', money: true, group: 'traffic', format: fmtMoney },
+  { key: 'cpc', label: 'CPC', money: true, group: 'traffic', format: fmtMoneyTenths },
   { key: 'clicks', label: 'Клики', group: 'traffic', format: fmtNumber },
   // The cell itself is the кампания's count. `skuKey` points at the backend's
   // row for the VIEWED card's share of it, which is emitted only when the two
@@ -153,7 +165,7 @@ const METRIC_DEFS = [
   // metric's count out of the shared per-variant rows.
   {
     key: 'carts',
-    label: 'Корзины',
+    label: 'Корзины, шт',
     tone: 'carts',
     group: 'funnel',
     format: fmtNumber,
@@ -169,7 +181,7 @@ const METRIC_DEFS = [
   },
   {
     key: 'orders',
-    label: 'Заказы',
+    label: 'Заказы, шт',
     tone: 'warning',
     group: 'funnel',
     format: fmtNumber,
@@ -183,10 +195,22 @@ const METRIC_DEFS = [
     group: 'funnel',
     format: fmtPercent,
   },
-  { key: 'order_sum', label: 'Заказы, ₽', group: 'money', format: fmtCurrency },
-  { key: 'buyout_sum', label: 'Выкупы, ₽', group: 'money', format: fmtCurrency },
-  { key: 'cost_per_order', label: 'Стоимость заказа, ₽', group: 'money', format: fmtCurrency },
-  { key: 'cost_per_cart', label: 'Стоимость корзины, ₽', group: 'money', format: fmtCurrency },
+  { key: 'order_sum', label: 'Заказы', money: true, group: 'money', format: fmtMoney },
+  { key: 'buyout_sum', label: 'Выкупы', money: true, group: 'money', format: fmtMoney },
+  {
+    key: 'cost_per_order',
+    label: 'Стоимость заказа',
+    money: true,
+    group: 'money',
+    format: fmtMoney,
+  },
+  {
+    key: 'cost_per_cart',
+    label: 'Стоимость корзины',
+    money: true,
+    group: 'money',
+    format: fmtMoney,
+  },
   { key: 'drr_orders', label: 'ДРР от заказов, %', group: 'efficiency', format: fmtPercent },
   {
     key: 'drr_sales',
@@ -203,12 +227,12 @@ const METRIC_DEFS = [
  * («Цены» / «Остатки» cards inside each day section of the same table).
  * These metrics only ever have «Общая»-bucket values, so each block row
  * carries one cell per day (bucket fixed to `total`). Prices are editable
- * inputs («Заказы/Выкупы ₽» and «СПП» derive from them); stock rows are
+ * inputs (the «Заказы»/«Выкупы» sums and «СПП» derive from them); stock rows are
  * read-only snapshot facts.
  */
 const PRICE_METRIC_DEFS = [
-  { key: 'seller_price', label: 'Цена продавца, ₽', format: fmtCurrency },
-  { key: 'customer_price', label: 'Цена покупателя, ₽', format: fmtCurrency },
+  { key: 'seller_price', label: 'Цена продавца', money: true, format: fmtMoney },
+  { key: 'customer_price', label: 'Цена покупателя', money: true, format: fmtMoney },
   { key: 'spp', label: 'СПП, %', tone: 'positive', format: fmtPercent },
 ]
 const STOCK_METRIC_DEFS = [
@@ -221,6 +245,11 @@ const STOCK_METRIC_DEFS = [
 // other metric, label/formatting only.
 const STOCK_TOTAL_METRIC_DEFS = [{ key: 'stock_total', label: 'Всего, шт', format: fmtNumber }]
 
+/** A row's label as the table prints it: money rows carry the currency. */
+function rowLabel(def, currency) {
+  return def.money ? moneyLabel(def.label, currency) : def.label
+}
+
 /**
  * Lay out the backend matrix of one `SkuDetailResponse` for the table.
  *
@@ -231,7 +260,10 @@ const STOCK_TOTAL_METRIC_DEFS = [{ key: 'stock_total', label: 'Всего, шт'
  * (`day`/`bucket`/`metric`), and whether it is `editable`. The numbers were all
  * computed server-side — the frontend only formats and marks editability.
  *
- * @returns {{days: Array<{iso: string, label: string}>, rows: Array<{
+ * @param {object} product A `SkuDetailResponse`.
+ * @param {string} [currency] The кабинет's settlement currency; `''` while
+ *   unknown, which leaves the money labels without a unit.
+ * @returns {{days: Array<{iso: string, label: string}>, currency: string, rows: Array<{
  *   key: string, label: string, tone: string|null,
  *   cells: Array<{display: string, raw: number|null, day: string,
  *     bucket: string, metric: string, editable: boolean}>}>}}
@@ -313,13 +345,13 @@ function matrixLookups(matrix) {
 }
 
 /** Build the «Общая»-only rows of one mini block (one cell per day). */
-function buildTotalRows(defs, matrix, backendValues) {
+function buildTotalRows(defs, matrix, backendValues, currency) {
   const totalIndex = matrix.buckets.indexOf('total')
   return defs.map((def) => {
     const values = backendValues.get(def.key)
     return {
       key: def.key,
-      label: def.label,
+      label: rowLabel(def, currency),
       tone: def.tone ?? null,
       cells: matrix.days.map((iso, dayIndex) => {
         const raw = resolveRaw(values, matrix.buckets.length, totalIndex, dayIndex)
@@ -336,10 +368,10 @@ function buildTotalRows(defs, matrix, backendValues) {
   })
 }
 
-export function buildMetricsMatrix(product) {
+export function buildMetricsMatrix(product, currency = '') {
   const matrix = product?.matrix
   if (!matrix?.days?.length)
-    return { days: [], rows: [], priceRows: [], stockRows: [], stockTotalRows: [] }
+    return { days: [], rows: [], priceRows: [], stockRows: [], stockTotalRows: [], currency }
 
   const { backendValues, bucketCount, bucketIndexByColumn } = matrixLookups(matrix)
   const breakdowns = breakdownIndex(product)
@@ -349,7 +381,7 @@ export function buildMetricsMatrix(product) {
     const skuValues = def.skuKey ? backendValues.get(def.skuKey) : null
     return {
       key: def.key,
-      label: def.label,
+      label: rowLabel(def, currency),
       tone: def.tone ?? null,
       group: def.group ?? null,
       emphasis: def.emphasis ?? false,
@@ -383,9 +415,11 @@ export function buildMetricsMatrix(product) {
   return {
     days: matrix.days.map((iso) => ({ iso, label: dayLabel(iso) })),
     rows,
-    priceRows: buildTotalRows(PRICE_METRIC_DEFS, matrix, backendValues),
-    stockRows: buildTotalRows(STOCK_METRIC_DEFS, matrix, backendValues),
-    stockTotalRows: buildTotalRows(STOCK_TOTAL_METRIC_DEFS, matrix, backendValues),
+    priceRows: buildTotalRows(PRICE_METRIC_DEFS, matrix, backendValues, currency),
+    stockRows: buildTotalRows(STOCK_METRIC_DEFS, matrix, backendValues, currency),
+    stockTotalRows: buildTotalRows(STOCK_TOTAL_METRIC_DEFS, matrix, backendValues, currency),
+    // The chart below the table reads the unit from here, so the two agree.
+    currency,
   }
 }
 
@@ -397,11 +431,13 @@ export function buildMetricsMatrix(product) {
  * nodes — no full re-render of the (potentially thousands of) cells.
  *
  * @returns {boolean} true when patched; false when the shape differs and the
- *   caller must rebuild from scratch (e.g. the window changed).
+ *   caller must rebuild from scratch (e.g. the window changed, or the currency
+ *   arrived after the table was built — the labels would keep the old unit).
  */
-export function patchMetricsMatrix(view, product) {
+export function patchMetricsMatrix(view, product, currency = '') {
   const matrix = product?.matrix
   if (!matrix?.days?.length || view?.days?.length !== matrix.days.length) return false
+  if ((view.currency ?? '') !== currency) return false
   if (view.rows.length !== METRIC_DEFS.length) return false
   if (view.priceRows?.length !== PRICE_METRIC_DEFS.length) return false
   if (view.stockRows?.length !== STOCK_METRIC_DEFS.length) return false

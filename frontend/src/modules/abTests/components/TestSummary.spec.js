@@ -54,12 +54,19 @@ function test(overrides = {}, summary = {}) {
 
 describe('TestSummary', () => {
   it('shows the totals as the backend summed them', () => {
-    const wrapper = mount(TestSummary, { props: { test: test() } })
+    const wrapper = mount(TestSummary, { props: { test: test(), currency: 'KGS' } })
 
     expect(plain(wrapper.get('[data-testid="summary-views"]').text())).toBe('12 345')
     expect(plain(wrapper.get('[data-testid="summary-clicks"]').text())).toBe('456')
     expect(plain(wrapper.get('[data-testid="summary-ctr"]').text())).toBe('3.69 %')
-    expect(plain(wrapper.get('[data-testid="summary-spend"]').text())).toBe('3 050 ₽')
+    expect(plain(wrapper.get('[data-testid="summary-spend"]').text())).toBe('3 050 KGS')
+  })
+
+  it('prints the spend bare while the currency is unknown', () => {
+    // «Демо» is advertised in KGS; the panel used to print a rouble sign.
+    const unknown = mount(TestSummary, { props: { test: test() } })
+
+    expect(plain(unknown.get('[data-testid="summary-spend"]').text())).toBe('3 050')
   })
 
   it('renders an unmeasured CTR as «—» rather than as 0 %', () => {

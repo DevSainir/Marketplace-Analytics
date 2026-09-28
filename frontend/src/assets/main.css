@@ -215,7 +215,7 @@
   }
 
   /* The value cells take the tighter horizontal padding for the same reason
-     the header does: a leaf column is ~52px, and «100,00%» / «45 679 ₽» spend
+     the header does: a leaf column is ~52px, and «100,00%» / «145 679» spend
      more than the 36px that px-sm leaves of it. A right-aligned overflow clips
      the LEADING glyph, so a cramped cell does not merely look tight — it
      prints a different number («100,00%» as «00,00%»). */
