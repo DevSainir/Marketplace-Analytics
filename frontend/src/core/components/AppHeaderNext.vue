@@ -40,6 +40,13 @@ const NAV = [
   { to: '/summary', label: 'Сводка', modules: ['monitoring', 'finreports'] },
   { to: '/finreports', label: 'P&L', module: 'finreports' },
   { to: '/ab-tests', label: 'A/Б-тесты', module: 'ab_tests' },
+  // Ours only while it lives under /labs; both grants, like the route.
+  {
+    to: '/labs/heatmap',
+    label: 'Тепловая карта',
+    internal: true,
+    modules: ['monitoring', 'finreports'],
+  },
 ]
 
 // Hiding the link is cosmetic — `installInternalGuard` is what actually

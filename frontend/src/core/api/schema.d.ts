@@ -746,6 +746,50 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/workspaces/guests': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Guest Grants
+     * @description Every standing grant — who may read which кабинет of another company.
+     */
+    get: operations['list_guest_grants_api_v1_workspaces_guests_get']
+    put?: never
+    /**
+     * Grant Guest Access
+     * @description Open a кабинет to an account, read-only; the account becomes ``head``.
+     */
+    post: operations['grant_guest_access_api_v1_workspaces_guests_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/workspaces/guests/{grant_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Revoke Guest Access
+     * @description Close one grant. The account keeps the ``head`` role, which alone opens nothing.
+     */
+    delete: operations['revoke_guest_access_api_v1_workspaces_guests__grant_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/workspaces': {
     parameters: {
       query?: never
@@ -756,6 +800,9 @@ export interface paths {
     /**
      * List Workspaces
      * @description List the workspaces the caller may switch between.
+     *
+     *     For a head, that is their own company's кабинеты followed by the ones a
+     *     dev opened to them in other companies, flagged ``is_guest``.
      */
     get: operations['list_workspaces_api_v1_workspaces_get']
     put?: never
@@ -1630,7 +1677,8 @@ export interface paths {
      *     well as the ones after it, whatever the gate says. That is the only shape
      *     that answers the question actually being asked, which is not «есть ли что-то
      *     новее» but «догони то, что у WB уже есть, а у нас нет». It costs more — a
-     *     fortnight is three windows of WB's quarter-hourly budget — and it is spent on
+     *     fortnight was three windows of the old endpoint's quarter-hourly budget, and
+     *     is a few one-a-minute requests on finance-api — and it is spent on
      *     the caller's own workspace, once, because a person asked.
      *
      *     The earlier reasoning for the gated version, kept because it was not wrong
@@ -1640,9 +1688,9 @@ export interface paths {
      *     a night, so «anyway» is up to five days, and this button exists precisely for
      *     the case where waiting is not the answer.
      *
-     *     **Every outcome is an answer, and none of them is a wait.** WB meters the
-     *     settlement report at one request per ~15 minutes, so a click shortly after
-     *     the hourly tick used to enqueue a harvest whose first act was to sit still
+     *     **Every outcome is an answer, and none of them is a wait.** WB metered the
+     *     old settlement report at one request per ~15 minutes, so a click shortly
+     *     after the hourly tick used to enqueue a harvest whose first act was to sit still
      *     for most of that window — seven minutes of «Обновляем…» during which nothing
      *     could possibly happen (prod 2026-09-09). The bucket already knows, in shared
      *     Redis, so that case is now refused here with the wait attached instead of
@@ -1651,7 +1699,7 @@ export interface paths {
      *     "Already running" and "rate limited" are reported as normal outcomes (202)
      *     rather than conflicts, because they are: in the first the data the caller
      *     wants is already being fetched, and in the second there is nothing anyone
-     *     could do differently for another quarter of an hour.
+     *     could do differently until the bucket reopens.
      *
      *     Order matters — a run in flight is reported ahead of the rate limit. The
      *     running harvest is very often what emptied the bucket, and "уже идёт" is the
@@ -1787,6 +1835,37 @@ export interface paths {
      *     that has not stored its credentials yet.
      */
     patch: operations['set_status_api_ab_tests__test_id__status_patch']
+    trace?: never
+  }
+  '/api/ab-tests/{test_id}/finish': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Завершить тест, оставив на карточке выбранное фото
+     * @description End a test and leave the chosen photo on the live card.
+     *
+     *     ``WritingAccess`` and not a weaker guard because this installs a picture on
+     *     the seller's storefront — the same reach as starting a test. Not owner-only
+     *     either: whoever may start and pause a rotation may end it.
+     *
+     *     A separate route from ``PATCH /status`` because a finish carries a choice
+     *     and a WB upload, where the status route carries neither for a cancel; the
+     *     bare cancel there stays for API callers that want the card left as it is.
+     *
+     *     The whole test comes back so the page re-renders «На карточке» and the
+     *     status from one answer.
+     */
+    post: operations['finish_test_api_ab_tests__test_id__finish_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
     trace?: never
   }
   '/api/ab-tests/{test_id}/variants': {
@@ -1940,6 +2019,108 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/heatmap/groups': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Groups
+     * @description Return every group of the кабинет, by name.
+     */
+    get: operations['list_groups_api_v1_heatmap_groups_get']
+    put?: never
+    /**
+     * Create Group
+     * @description Create a group of the кабинет's articles.
+     */
+    post: operations['create_group_api_v1_heatmap_groups_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/heatmap/groups/{group_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Update Group
+     * @description Replace a group's name and members.
+     *
+     *     A group of another кабинет is reported as missing, not forbidden — a guessed
+     *     id must not confirm that the group exists.
+     */
+    put: operations['update_group_api_v1_heatmap_groups__group_id__put']
+    post?: never
+    /**
+     * Delete Group
+     * @description Delete a group; its articles are untouched.
+     */
+    delete: operations['delete_group_api_v1_heatmap_groups__group_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/heatmap': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Heatmap
+     * @description Return the grid: one row per article (or category, brand, group), one column per period.
+     *
+     *     **This GET can write, and deliberately** — the same way «Сводка» does. A
+     *     finance metric reads the settlement rollup, which verifies itself against
+     *     the detail's own row counts and rebuilds the days that disagree. Nothing a
+     *     caller sends decides what is written; the tenant is bound by
+     *     :data:`CurrentWorkspaceId` exactly as for the read.
+     *
+     *     The guards live on the aggregating router (:mod:`src.modules.heatmap.routers`).
+     */
+    get: operations['get_heatmap_api_v1_heatmap_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/heatmap/catalog': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Catalog
+     * @description Return the кабинет's cards and subjects, for «Категории», «Артикулы» and the group editor.
+     *
+     *     Its own route because the filters need it before a grid exists, and because
+     *     it does not change with the window.
+     */
+    get: operations['get_catalog_api_v1_heatmap_catalog_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -2068,6 +2249,18 @@ export interface components {
        * @description Рекламные кампании, которые реально принесли тесту трафик, в порядке «Единая, Руч. поиск, Руч. полки, CPC». Одна кампания — страница выглядит как раньше; две и больше — появляются разрез и выбор РК. Кампания, выключенная посреди теста, остаётся здесь: её показы никуда не делись.
        */
       campaigns?: components['schemas']['CampaignTotals'][]
+    }
+    /**
+     * AbTestFinish
+     * @description Request body for finishing a test: which photo the card keeps.
+     */
+    AbTestFinish: {
+      /**
+       * Keep Variant Id
+       * Format: uuid
+       * @description Фото, которое останется на карточке
+       */
+      keep_variant_id: string
     }
     /**
      * AbTestRead
@@ -3509,6 +3702,50 @@ export interface components {
        */
       buyout_conversion: number
     }
+    /**
+     * GuestGrantRead
+     * @description One standing grant. Carries no token and nothing of the кабинет's data.
+     */
+    GuestGrantRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Email */
+      email: string
+      /**
+       * Workspace Id
+       * Format: uuid
+       */
+      workspace_id: string
+      /** Workspace Name */
+      workspace_name: string
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+    }
+    /**
+     * GuestGrantRequest
+     * @description Open one кабинет, read-only, to one account (dev only).
+     *
+     *     Addressed by name because a dev knows the кабинет by its name and names
+     *     are unique platform-wide; the id is not something anybody has to hand.
+     */
+    GuestGrantRequest: {
+      /**
+       * Email
+       * @description The head's login email.
+       */
+      email: string
+      /**
+       * Workspace Name
+       * @description The кабинет to open.
+       */
+      workspace_name: string
+    }
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
@@ -3560,6 +3797,181 @@ export interface components {
        * @description Only on 'rate_limited': seconds until WB's settlement endpoint would accept a request. Read from the shared rate bucket, so it costs no WB request to produce.
        */
       retry_after_seconds?: number | null
+    }
+    /**
+     * HeatmapCatalogItem
+     * @description One card of the кабинет — a filter option and a group member candidate.
+     */
+    HeatmapCatalogItem: {
+      /** Nm Id */
+      nm_id: number
+      /** Vendor Code */
+      vendor_code: string
+      /** Title */
+      title: string
+      /** Photo Url */
+      photo_url: string
+      /** Subject Name */
+      subject_name: string
+      /** Brand */
+      brand: string
+    }
+    /**
+     * HeatmapCatalogResponse
+     * @description The кабинет's catalogue, for the «Категории» and «Артикулы» filters.
+     */
+    HeatmapCatalogResponse: {
+      /** Items */
+      items: components['schemas']['HeatmapCatalogItem'][]
+      /** Subjects */
+      subjects: string[]
+    }
+    /**
+     * HeatmapColumn
+     * @description One column of the grid — a day, or the days of a week or month inside the window.
+     */
+    HeatmapColumn: {
+      /**
+       * Start
+       * Format: date
+       */
+      start: string
+      /**
+       * End
+       * Format: date
+       */
+      end: string
+    }
+    /**
+     * HeatmapResponse
+     * @description The whole grid for one window, one or two metrics, one cut.
+     */
+    HeatmapResponse: {
+      /**
+       * Date From
+       * Format: date
+       */
+      date_from: string
+      /**
+       * Date To
+       * Format: date
+       */
+      date_to: string
+      /**
+       * Period
+       * @enum {string}
+       */
+      period: 'day' | 'week' | 'month'
+      /**
+       * Group By
+       * @enum {string}
+       */
+      group_by: 'sku' | 'subject' | 'brand' | 'group'
+      /**
+       * Metric
+       * @enum {string}
+       */
+      metric:
+        | 'orders'
+        | 'order_sum'
+        | 'opens'
+        | 'carts'
+        | 'cart_conversion'
+        | 'order_conversion'
+        | 'organic_opens'
+        | 'spend'
+        | 'ad_views'
+        | 'ad_clicks'
+        | 'ctr'
+        | 'cpc'
+        | 'cpm'
+        | 'ad_orders'
+        | 'ad_cr'
+        | 'cpo'
+        | 'drr_orders'
+        | 'seller_price'
+        | 'customer_price'
+        | 'spp'
+        | 'stock'
+        | 'revenue'
+        | 'sales'
+        | 'profit'
+        | 'margin'
+      /** Metric2 */
+      metric2:
+        | (
+            | 'orders'
+            | 'order_sum'
+            | 'opens'
+            | 'carts'
+            | 'cart_conversion'
+            | 'order_conversion'
+            | 'organic_opens'
+            | 'spend'
+            | 'ad_views'
+            | 'ad_clicks'
+            | 'ctr'
+            | 'cpc'
+            | 'cpm'
+            | 'ad_orders'
+            | 'ad_cr'
+            | 'cpo'
+            | 'drr_orders'
+            | 'seller_price'
+            | 'customer_price'
+            | 'spp'
+            | 'stock'
+            | 'revenue'
+            | 'sales'
+            | 'profit'
+            | 'margin'
+          )
+        | null
+      /** Currency */
+      currency: string
+      /** Settled To */
+      settled_to: string | null
+      /** Columns */
+      columns: components['schemas']['HeatmapColumn'][]
+      totals: components['schemas']['HeatmapRow']
+      /** Rows */
+      rows: components['schemas']['HeatmapRow'][]
+    }
+    /**
+     * HeatmapRow
+     * @description One row: an article, a category, a brand, a group — or the «Итого» line.
+     *
+     *     ``values`` runs parallel to :attr:`HeatmapResponse.columns`; ``None`` is a
+     *     cell with nothing to show (not measured, not settled yet, or a ratio with
+     *     no denominator), which the page renders as «—» and leaves unpainted.
+     */
+    HeatmapRow: {
+      /** Key */
+      key: string
+      /** Label */
+      label: string
+      /** Nm Id */
+      nm_id?: number | null
+      /**
+       * Title
+       * @default
+       */
+      title: string
+      /**
+       * Photo Url
+       * @default
+       */
+      photo_url: string
+      /** Sku Count */
+      sku_count: number
+      /** Total */
+      total: number | null
+      /** Values */
+      values: (number | null)[]
+      /** Total2 */
+      total2?: number | null
+      /** Values2 */
+      values2?: (number | null)[] | null
     }
     /**
      * InvitationAcceptRequest
@@ -4914,6 +5326,39 @@ export interface components {
       excluded: boolean
     }
     /**
+     * SkuGroupList
+     * @description Every group of the кабинет, by name.
+     */
+    SkuGroupList: {
+      /** Items */
+      items: components['schemas']['SkuGroupRead'][]
+    }
+    /**
+     * SkuGroupRead
+     * @description A seller-defined set of articles, shown as one «Группы» option.
+     */
+    SkuGroupRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Name */
+      name: string
+      /** Nm Ids */
+      nm_ids: number[]
+    }
+    /**
+     * SkuGroupWrite
+     * @description Body of a group create or edit: the whole group, replaced at once.
+     */
+    SkuGroupWrite: {
+      /** Name */
+      name: string
+      /** Nm Ids */
+      nm_ids: number[]
+    }
+    /**
      * SkuLookupItem
      * @description A single SKU matched by a vendor-code search.
      */
@@ -5797,6 +6242,11 @@ export interface components {
        * Format: date-time
        */
       created_at: string
+      /**
+       * Is Guest
+       * @default false
+       */
+      is_guest: boolean
     }
     /**
      * WorkspaceTokensStatus
@@ -6948,6 +7398,151 @@ export interface operations {
       }
       /** @description Developer role required. */
       403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_guest_grants_api_v1_workspaces_guests_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['GuestGrantRead'][]
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Developer role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  grant_guest_access_api_v1_workspaces_guests_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['GuestGrantRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['GuestGrantRead']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Developer role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such account or кабинет. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The account is a dev. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  revoke_guest_access_api_v1_workspaces_guests__grant_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        grant_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Developer role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such grant. */
+      404: {
         headers: {
           [name: string]: unknown
         }
@@ -9135,6 +9730,65 @@ export interface operations {
       }
     }
   }
+  finish_test_api_ab_tests__test_id__finish_post: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        test_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AbTestFinish']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AbTestDetail']
+        }
+      }
+      /** @description Доступ только для чтения */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Тест или фото не найдено */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Тест не запущен и не на паузе */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
   upload_variant_api_ab_tests__test_id__variants_post: {
     parameters: {
       query?: {
@@ -9446,6 +10100,379 @@ export interface operations {
           [name: string]: unknown
         }
         content?: never
+      }
+    }
+  }
+  list_groups_api_v1_heatmap_groups_get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SkuGroupList']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_group_api_v1_heatmap_groups_post: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SkuGroupWrite']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SkuGroupRead']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Доступ только для чтения. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Группа с таким названием уже есть. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Название пустое, артикулов нет в каталоге или достигнут лимит. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  update_group_api_v1_heatmap_groups__group_id__put: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        group_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SkuGroupWrite']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SkuGroupRead']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Доступ только для чтения. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Группа не найдена. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Группа с таким названием уже есть. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Название пустое, артикулов нет в каталоге или достигнут лимит. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  delete_group_api_v1_heatmap_groups__group_id__delete: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        group_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Доступ только для чтения. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Группа не найдена. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_heatmap_api_v1_heatmap_get: {
+    parameters: {
+      query?: {
+        /** @description Inclusive start. */
+        date_from?: string | null
+        /** @description Inclusive end. */
+        date_to?: string | null
+        /** @description The metric painted. */
+        metric?:
+          | 'orders'
+          | 'order_sum'
+          | 'opens'
+          | 'carts'
+          | 'cart_conversion'
+          | 'order_conversion'
+          | 'organic_opens'
+          | 'spend'
+          | 'ad_views'
+          | 'ad_clicks'
+          | 'ctr'
+          | 'cpc'
+          | 'cpm'
+          | 'ad_orders'
+          | 'ad_cr'
+          | 'cpo'
+          | 'drr_orders'
+          | 'seller_price'
+          | 'customer_price'
+          | 'spp'
+          | 'stock'
+          | 'revenue'
+          | 'sales'
+          | 'profit'
+          | 'margin'
+        /** @description Optional second metric. */
+        metric2?:
+          | (
+              | 'orders'
+              | 'order_sum'
+              | 'opens'
+              | 'carts'
+              | 'cart_conversion'
+              | 'order_conversion'
+              | 'organic_opens'
+              | 'spend'
+              | 'ad_views'
+              | 'ad_clicks'
+              | 'ctr'
+              | 'cpc'
+              | 'cpm'
+              | 'ad_orders'
+              | 'ad_cr'
+              | 'cpo'
+              | 'drr_orders'
+              | 'seller_price'
+              | 'customer_price'
+              | 'spp'
+              | 'stock'
+              | 'revenue'
+              | 'sales'
+              | 'profit'
+              | 'margin'
+            )
+          | null
+        /** @description Column width. */
+        period?: 'day' | 'week' | 'month'
+        /** @description What one row stands for. */
+        group_by?: 'sku' | 'subject' | 'brand' | 'group'
+        /** @description WB «Предмет». */
+        subjects?: string[]
+        /** @description Groups. */
+        group_ids?: string[]
+        /** @description Articles. */
+        nm_ids?: number[]
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Тепловая карта за период. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HeatmapResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Раздел доступен только внутренним учётным записям. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Период инвертирован или длиннее допустимого. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  get_catalog_api_v1_heatmap_catalog_get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Каталог кабинета для фильтров. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HeatmapCatalogResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Раздел доступен только внутренним учётным записям. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
       }
     }
   }

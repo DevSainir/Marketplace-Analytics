@@ -10,6 +10,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { abTestsRoutes } from '@/modules/abTests'
 import { authRoutes } from '@/modules/auth'
 import { finreportsRoutes } from '@/modules/finreports'
+import { heatmapRoutes } from '@/modules/heatmap'
 import { labsRoutes } from '@/modules/labs'
 import { summaryRoutes } from '@/modules/summary'
 import { monitoringRoutes } from '@/modules/monitoring'
@@ -39,6 +40,7 @@ const router = createRouter({
     ...finreportsRoutes,
     ...abTestsRoutes,
     ...labsRoutes,
+    ...heatmapRoutes,
     ...summaryRoutes,
     ...profileRoutes,
   ],

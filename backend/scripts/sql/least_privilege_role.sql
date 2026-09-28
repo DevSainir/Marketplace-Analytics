@@ -12,9 +12,11 @@
 --
 -- WHAT THIS GRANTS, and the three deliberate exceptions:
 --
---   * SELECT/INSERT/UPDATE/DELETE on every table in our six schemas, and USAGE
+--   * SELECT/INSERT/UPDATE/DELETE on every table in our seven schemas, and USAGE
 --     on their sequences. That is the whole of what the application does.
---   * NOT the `guide` schema, which is the seventh and is left out on purpose.
+--     (`heatmap` is the seventh, added 2026-09-28; its migration grants the same
+--     set itself, so the heatmap works on deploy without waiting for a re-run.)
+--   * NOT the `guide` schema, which is the eighth and is left out on purpose.
 --     The capture buffer is written by Celery tasks — which connect as the
 --     owner — and read by no route at all; that module has no router. A grant
 --     there would be privilege the application has no use for, and the failure
@@ -87,7 +89,8 @@ DECLARE
     target_schema text;
 BEGIN
     FOREACH target_schema IN ARRAY ARRAY[
-        'auth', 'monitoring', 'workspaces', 'finreports', 'ab_tests', 'organizations'
+        'auth', 'monitoring', 'workspaces', 'finreports', 'ab_tests', 'organizations',
+        'heatmap'
     ]
     LOOP
         EXECUTE format('GRANT USAGE ON SCHEMA %I TO marketplace_app', target_schema);

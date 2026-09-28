@@ -19,6 +19,7 @@ from sqlalchemy import engine_from_config, pool, text
 import src.modules.ab_tests.models
 import src.modules.finreports.models
 import src.modules.guide.models
+import src.modules.heatmap.models
 import src.modules.monitoring.models
 import src.modules.organizations.models
 import src.modules.users.models
@@ -39,6 +40,8 @@ _SCHEMAS: tuple[str, ...] = (
     # schema absent from this tuple is invisible to autogenerate, so its tables
     # read as "never created" in every diff.
     "guide",
+    # Seller-defined article groups for the heatmap.
+    "heatmap",
 )
 
 

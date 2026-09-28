@@ -32,6 +32,7 @@ from src.core.redis import close_redis
 from src.modules.ab_tests.deps import close_media_store
 from src.modules.ab_tests.routers import router as ab_tests_router
 from src.modules.finreports.routers import router as finreports_router
+from src.modules.heatmap.routers import router as heatmap_router
 from src.modules.monitoring.routers import router as monitoring_router
 from src.modules.organizations.routers import router as organizations_router
 from src.modules.summary.routers import router as summary_router
@@ -386,3 +387,4 @@ app.include_router(monitoring_router, prefix="/api")
 app.include_router(finreports_router, prefix="/api")
 app.include_router(ab_tests_router, prefix="/api")
 app.include_router(summary_router, prefix="/api")
+app.include_router(heatmap_router, prefix="/api")

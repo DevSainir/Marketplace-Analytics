@@ -101,6 +101,8 @@ DECLARE
         'finreports.settlement_watermark',
         'guide.guide_record',
         'guide.guide_run',
+        'heatmap.sku_group',
+        'heatmap.sku_group_item',
         'monitoring.product_card',
         'workspaces.workspace_backfill',
         'workspaces.workspace_tokens'

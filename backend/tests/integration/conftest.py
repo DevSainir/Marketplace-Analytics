@@ -50,6 +50,7 @@ from sqlalchemy.pool import NullPool
 import src.modules.ab_tests.models
 import src.modules.finreports.models
 import src.modules.guide.models
+import src.modules.heatmap.models
 import src.modules.monitoring.models
 import src.modules.organizations.models
 import src.modules.users.models
@@ -68,6 +69,7 @@ SCHEMAS: tuple[str, ...] = (
     "ab_tests",
     "organizations",
     "guide",
+    "heatmap",
 )
 
 #: Name of the throwaway database. Overridable so CI can shard runs.
