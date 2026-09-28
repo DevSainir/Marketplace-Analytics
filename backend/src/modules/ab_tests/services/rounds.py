@@ -1,20 +1,17 @@
-"""Per-lap arithmetic: who won each round, and how far behind the rest were.
+"""Per-lap arithmetic: how many laps each photo played, and how far behind it is.
 
-A rotation that cycles produces a second kind of answer the single-lap version
-could not. Totals across the whole test say which photo earned the most; rounds
-say how *often* it did. Those come apart exactly when they matter — one lap that
-happened to run during a promotion can carry a photo's totals while it lost
-every other lap it played.
+Two columns come out of here:
 
-Three columns come out of here, and each one exists because the other two
-mislead on their own:
+* **Кругов** — laps this photo was dealt in. What keeps a photo that has run
+  once from reading the same as one that has run fifteen times.
+* **Отклонение CTR от лучшего** / **Результат** — the gap to the leader in
+  percentage points, and the same gap relative to the leader. «-51 %» means
+  half the click-through, which is the sentence a seller can act on; 1.25 pp is
+  what the numbers literally differ by.
 
-* **Побед в раундах** — laps in which this photo had the best CTR. Robust: a
-  freak lap is one vote, not a multiplier.
-* **Отклонение CTR от лучшего** — the gap in percentage points. What the numbers
-  literally differ by.
-* **Результат** — that same gap relative to the leader. «-51 %» means half the
-  click-through, which is the sentence a seller can act on; 1.25 pp is not.
+There used to be a third, «Побед в раундах» — laps in which the photo had the
+best CTR. It was removed on 2026-09-28 at the owner's request: it did not earn
+its row.
 
 A window belongs to the lap that was running when it closed, which is why the
 exposures are needed here at all: the windows table knows which photo earned the
@@ -40,19 +37,6 @@ class RoundStanding:
 
     #: Laps this photo was dealt in at all.
     rounds_played: int
-    #: Laps in which it had the best click-through of anyone measured.
-    rounds_won: int
-
-
-def _ctr(views: int, clicks: int) -> Decimal | None:
-    """Click-through as a percentage, or ``None`` with no impressions.
-
-    Zero impressions is «not measured», not «0 %». A photo that has not been
-    seen has not failed to be clicked.
-    """
-    if views <= 0:
-        return None
-    return (Decimal(clicks) * 100 / Decimal(views)).quantize(_QUANT)
 
 
 def _round_of(window: VariantStatWindow, exposures: Sequence[VariantExposure]) -> int | None:
@@ -88,12 +72,7 @@ def standings(
     exposures: Sequence[VariantExposure],
     played_from_windows: bool = False,
 ) -> dict[uuid.UUID, RoundStanding]:
-    """Count laps played and laps won, per photo.
-
-    A lap is won by the best measured CTR in it. Ties give the win to nobody
-    rather than to everybody: two photos that performed identically did not each
-    beat the other, and inflating both counts would make «побед» stop summing to
-    the number of laps.
+    """Count the laps each photo played.
 
     Args:
         variant_ids: Every photo in the test, including excluded ones — they
@@ -111,41 +90,22 @@ def standings(
     Returns:
         One standing per variant id, zeroed for photos that never ran.
     """
-    per_round: dict[int, dict[uuid.UUID, tuple[int, int]]] = {}
     played: dict[uuid.UUID, set[int]] = {vid: set() for vid in variant_ids}
 
-    if not played_from_windows:
+    if played_from_windows:
+        for window in windows:
+            if window.variant_id not in played:
+                continue
+            lap = _round_of(window, exposures)
+            if lap is not None:
+                played[window.variant_id].add(lap)
+    else:
         for exposure in exposures:
             if exposure.variant_id in played:
                 played[exposure.variant_id].add(exposure.round_number)
 
-    for window in windows:
-        lap = _round_of(window, exposures)
-        if lap is None:
-            continue
-        if played_from_windows and window.variant_id in played:
-            played[window.variant_id].add(lap)
-        views, clicks = per_round.setdefault(lap, {}).get(window.variant_id, (0, 0))
-        per_round[lap][window.variant_id] = (views + window.views, clicks + window.clicks)
-
-    won: dict[uuid.UUID, int] = dict.fromkeys(variant_ids, 0)
-    for contenders in per_round.values():
-        ranked = [
-            (variant_id, ctr)
-            for variant_id, (views, clicks) in contenders.items()
-            if (ctr := _ctr(views, clicks)) is not None
-        ]
-        if not ranked:
-            continue
-        best = max(ctr for _, ctr in ranked)
-        winners = [variant_id for variant_id, ctr in ranked if ctr == best]
-        if len(winners) == 1 and winners[0] in won:
-            won[winners[0]] += 1
-
     return {
-        variant_id: RoundStanding(
-            rounds_played=len(played.get(variant_id, set())), rounds_won=won[variant_id]
-        )
+        variant_id: RoundStanding(rounds_played=len(played[variant_id]))
         for variant_id in variant_ids
     }
 

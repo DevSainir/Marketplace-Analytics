@@ -5602,12 +5602,6 @@ export interface components {
        * @default 0
        */
       rounds_played: number
-      /**
-       * Rounds Won
-       * @description В скольких из них у фото был лучший CTR
-       * @default 0
-       */
-      rounds_won: number
     }
     /**
      * VariantExclusionUpdate
@@ -5664,12 +5658,6 @@ export interface components {
        * @default 0
        */
       rounds_played: number
-      /**
-       * Rounds Won
-       * @description В скольких кругах у него был лучший CTR
-       * @default 0
-       */
-      rounds_won: number
       /**
        * Ctr Gap
        * @description Отставание CTR от лучшего, в процентных пунктах

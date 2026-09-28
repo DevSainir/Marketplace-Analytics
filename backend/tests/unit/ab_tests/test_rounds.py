@@ -1,10 +1,7 @@
 """Unit tests for the per-lap columns (services/rounds.py).
 
-«Побед в раундах» exists because totals lie in one specific way: a photo that
-happened to be up during a good hour carries a high CTR for the whole test on
-the strength of one lap. Counting laps makes that one vote instead of a
-multiplier — so the case that matters here is the one where the two answers
-disagree, and the table has to be able to show both.
+«Кругов» and the gap to the leader. «Побед в раундах» used to be computed here
+too and was removed on 2026-09-28; its tests went with it.
 """
 
 from __future__ import annotations
@@ -43,13 +40,8 @@ def _window(variant_id: uuid.UUID, *, at: int, views: int, clicks: int) -> Varia
     )
 
 
-def test_a_photo_can_win_the_test_on_totals_and_still_lose_most_laps() -> None:
-    """The disagreement the column exists for.
-
-    A earns one enormous lap and loses the other two. Its total CTR is the best
-    in the test; its record is 1-2. Both are true, and «побед» is the one that
-    survives the good hour being a coincidence.
-    """
+def test_every_lap_a_photo_was_dealt_in_counts_as_played() -> None:
+    """Three turns each is three laps each, whatever the traffic did."""
     exposures = [
         _exposure(A, lap=1, start=0, end=20),
         _exposure(B, lap=1, start=20, end=40),
@@ -58,48 +50,23 @@ def test_a_photo_can_win_the_test_on_totals_and_still_lose_most_laps() -> None:
         _exposure(A, lap=3, start=80, end=100),
         _exposure(B, lap=3, start=100, end=None),
     ]
-    windows = [
-        _window(A, at=20, views=1000, clicks=100),  # 10 % — a great lap
-        _window(B, at=40, views=1000, clicks=30),
-        _window(A, at=60, views=1000, clicks=20),
-        _window(B, at=80, views=1000, clicks=30),
-        _window(A, at=100, views=1000, clicks=20),
-        _window(B, at=120, views=1000, clicks=30),
-    ]
+    windows = [_window(A, at=20, views=1000, clicks=100)]
 
     result = standings(variant_ids=[A, B], windows=windows, exposures=exposures)
 
-    assert result[A].rounds_won == 1
-    assert result[B].rounds_won == 2
     assert result[A].rounds_played == result[B].rounds_played == 3
 
 
-def test_a_lap_nobody_was_measured_in_is_won_by_nobody() -> None:
-    """Zero impressions is «not measured», not a 0 % anyone can beat."""
-    exposures = [_exposure(A, lap=1, start=0, end=20), _exposure(B, lap=1, start=20, end=40)]
-    windows = [_window(A, at=20, views=0, clicks=0)]
+def test_one_campaign_counts_only_the_laps_it_brought_traffic_in() -> None:
+    """Filtered to one campaign, a lap with no window of it was not played."""
+    exposures = [_exposure(A, lap=1, start=0, end=20), _exposure(A, lap=2, start=40, end=None)]
+    windows = [_window(A, at=20, views=1000, clicks=50)]
 
-    result = standings(variant_ids=[A, B], windows=windows, exposures=exposures)
+    result = standings(
+        variant_ids=[A], windows=windows, exposures=exposures, played_from_windows=True
+    )
 
-    assert result[A].rounds_won == 0
-    assert result[B].rounds_won == 0
-
-
-def test_a_tied_lap_is_won_by_nobody_rather_than_by_everybody() -> None:
-    """Two identical photos did not each beat the other.
-
-    Crediting both would make the wins stop summing to the number of laps, and
-    the column would read as «laps in which this photo was not beaten».
-    """
-    exposures = [_exposure(A, lap=1, start=0, end=20), _exposure(B, lap=1, start=20, end=40)]
-    windows = [
-        _window(A, at=20, views=1000, clicks=50),
-        _window(B, at=40, views=1000, clicks=50),
-    ]
-
-    result = standings(variant_ids=[A, B], windows=windows, exposures=exposures)
-
-    assert (result[A].rounds_won, result[B].rounds_won) == (0, 0)
+    assert result[A].rounds_played == 1
 
 
 def test_a_photo_excluded_mid_test_keeps_the_laps_it_played() -> None:
@@ -126,7 +93,7 @@ def test_a_photo_that_never_ran_stands_at_zero_rather_than_missing() -> None:
     result = standings(variant_ids=[A, B], windows=[], exposures=[])
 
     assert result[A].rounds_played == 0
-    assert result[B].rounds_won == 0
+    assert result[B].rounds_played == 0
 
 
 def test_the_leader_is_zero_behind_itself_rather_than_unmeasured() -> None:

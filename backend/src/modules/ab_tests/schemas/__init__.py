@@ -181,7 +181,6 @@ class VariantCampaignMetrics(BaseModel):
             "Не круги теста: РК, выключенная на четвёртом круге, сыграла четыре."
         ),
     )
-    rounds_won: int = Field(default=0, description="В скольких из них у фото был лучший CTR")
 
 
 class ExposureCampaignCounts(BaseModel):
@@ -221,7 +220,6 @@ class VariantMetrics(BaseModel):
     )
 
     rounds_played: int = Field(default=0, description="В скольких кругах фото участвовало")
-    rounds_won: int = Field(default=0, description="В скольких кругах у него был лучший CTR")
     ctr_gap: Decimal | None = Field(
         default=None, description="Отставание CTR от лучшего, в процентных пунктах"
     )

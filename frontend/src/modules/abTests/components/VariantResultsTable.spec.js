@@ -34,7 +34,6 @@ function variant(id, overrides = {}) {
     ctr_gap: 0,
     ctr_result: 0,
     rounds_played: 5,
-    rounds_won: 0,
     ...overrides,
   }
 }
@@ -72,6 +71,20 @@ function row(wrapper, label) {
 }
 
 describe('what the table says about a photo', () => {
+  it('shows no ⓘ hints and no «Побед» row', () => {
+    const wrapper = build([variant(MAIN)])
+
+    expect(wrapper.find('[data-testid="hint"]').exists()).toBe(false)
+    expect(wrapper.findAll('tbody th').map((th) => th.text())).toEqual([
+      'Показов',
+      'Кликов',
+      'CTR',
+      'Результат',
+      'Отклонение CTR от лучшего',
+      'Кругов',
+    ])
+  })
+
   it('names the leader on the points line and zeroes it on the relative one', () => {
     // Two lines, two jobs: «Результат» carries the number and «Отклонение»
     // carries the verdict. Putting «Лучший» on both would leave one of them
@@ -117,31 +130,6 @@ describe('what the table says about a photo', () => {
 
     const cells = wrapper.findAll('tbody tr')[3].findAll('td')
     expect(cells[1].classes()).toContain(expected)
-  })
-
-  it('declines a Russian count correctly', () => {
-    const wrapper = build([
-      variant(MAIN, { rounds_won: 1 }),
-      variant(ONE, { rounds_won: 4 }),
-      variant(TWO, { rounds_won: 0 }),
-    ])
-
-    expect(row(wrapper, 'Побед')).toEqual(['1 раз', '4 раза', '0 раз'])
-  })
-
-  it('counts a near-best record as a win rather than an also-ran', () => {
-    // 4 wins against a leader's 5 is not the same category as 1 against 5, and
-    // colouring by rank alone would paint both the same amber.
-    const wrapper = build([
-      variant(MAIN, { rounds_won: 5 }),
-      variant(ONE, { rounds_won: 4 }),
-      variant(TWO, { rounds_won: 1 }),
-    ])
-
-    const wins = wrapper.findAll('tbody tr')[5].findAll('td')
-    expect(wins[0].classes()).toContain('ab-grid__value--positive')
-    expect(wins[1].classes()).toContain('ab-grid__value--positive')
-    expect(wins[2].classes()).toContain('ab-grid__value--warning')
   })
 })
 
@@ -215,15 +203,14 @@ describe('filtering to one lap', () => {
         test: {
           id: 'test-1',
           rounds_completed: 2,
-          variants: [variant(MAIN, { rounds_played: 5, rounds_won: 3 })],
+          variants: [variant(MAIN, { rounds_played: 5 })],
           history: [{ variant_id: MAIN, round_number: 2, views: 100, clicks: 5 }],
         },
       },
     })
 
-    // «Побед» and «Кругов» are properties of the test, not of a lap: «побед в
-    // этом круге» is one or nothing, which is not a column worth having.
-    expect(row(wrapper, 'Побед')).toEqual(['3 раза'])
+    // «Кругов» is a property of the test, not of a lap: «кругов в этом круге»
+    // is always one.
     expect(row(wrapper, 'Кругов')).toEqual(['5'])
   })
 })
@@ -241,11 +228,8 @@ describe('how a figure is coloured', () => {
       click_through: 1,
       ctr_result: -50,
       ctr_gap: 1,
-      rounds_won: 0,
     }
-    const tones = METRICS.map(
-      (metric) => cellFor(variant, metric, { leaderId: null, bestWins: 5 }).tone,
-    )
+    const tones = METRICS.map((metric) => cellFor(variant, metric, { leaderId: null }).tone)
 
     expect(tones.some((tone) => tone.includes('text-'))).toBe(false)
     expect(new Set(tones)).toEqual(new Set(['', 'negative']))

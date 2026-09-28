@@ -1,7 +1,7 @@
 /**
  * The result grid's data and wording, projected once and rendered twice.
  *
- * The desktop table and the narrow-screen pager show the same seven figures for
+ * The desktop table and the narrow-screen pager show the same six figures for
  * the same photos; only the axis they run along differs. Keeping the projection
  * here — rather than in whichever component was written first — is what stops
  * the two from disagreeing about which photo is the leader or how a gap is
@@ -29,64 +29,41 @@ const CLOSE_ENOUGH = -10
 const CLEARLY_BEHIND = -30
 
 /**
- * How many laps a photo has to have led to read as a winner.
- *
- * Relative to the best record rather than equal to it: a photo on 4 wins where
- * the leader has 5 is not in the same category as one on 0, and rank alone
- * would paint it the same amber as a photo that won once in fifteen laps.
- */
-const WINNING_SHARE = 0.5
-
-/**
  * The rows of the grid, in the order they are read.
  *
- * Every derived row carries a hint, because none of them is self-explanatory
- * from its label alone: two of them are the same difference written two ways,
- * and two are about the whole test while the filter above the table says a
- * single lap. A reader who guesses wrong at either reads the table backwards.
+ * No hints: the ⓘ beside each label was removed on 2026-09-28 at the owner's
+ * request, and «Побед в раундах по CTR» with them — it did not earn its row.
  */
 export const METRICS = [
   {
     key: 'views',
     label: 'Показов',
     kind: 'count',
-    hint: 'Сколько раз карточку показали в рекламе, пока это фото стояло главным. Органические показы WB не отдаёт ни в одном API, поэтому здесь только реклама.',
   },
   {
     key: 'clicks',
     label: 'Кликов',
     kind: 'count',
-    hint: 'Сколько раз из этих показов перешли в карточку.',
   },
   {
     key: 'click_through',
     label: 'CTR',
     kind: 'percent',
-    hint: 'Клики, делённые на показы. Главная метрика теста: она про само фото, а не про то, сколько ему досталось трафика.',
   },
   {
     key: 'ctr_result',
     label: 'Результат',
     kind: 'result',
-    hint: 'На сколько процентов CTR этого фото ниже, чем у лучшего. «-50%» значит вдвое меньше переходов при том же числе показов.',
   },
   {
     key: 'ctr_gap',
     label: 'Отклонение CTR от лучшего',
     kind: 'gap',
-    hint: 'Та же разница, но в процентных пунктах — на сколько буквально отличаются числа в строке CTR.',
-  },
-  {
-    key: 'rounds_won',
-    label: 'Побед в раундах по CTR',
-    kind: 'wins',
-    hint: 'В скольких кругах у этого фото был лучший CTR. Устойчивее итогового CTR: один удачный час не вытягивает весь тест. Считается по всему тесту, а не по выбранному кругу.',
   },
   {
     key: 'rounds_played',
     label: 'Кругов',
     kind: 'count',
-    hint: 'Сколько кругов фото отработало. Нужно, чтобы «0 побед» у фото из одного круга не читалось так же, как у фото из пятнадцати. Считается по всему тесту.',
   },
 ]
 
@@ -103,9 +80,8 @@ export const METRICS = [
  * leader OF THAT CAMPAIGN. A photo can lead «Единая» and trail «CPC», which is
  * exactly what the unsplit row cannot show.
  *
- * `rounds_won` and `rounds_played` stay per-campaign-whole-test figures rather
- * than per-lap ones: «побед в этом круге» is one or nothing, which is not worth
- * a column.
+ * `rounds_played` stays a per-campaign-whole-test figure rather than a per-lap
+ * one: «кругов в этом круге» is always one.
  *
  * @param {object} test The test, as the detail endpoint returns it.
  * @param {number} round Lap to show, or 0 for the whole test.
@@ -174,7 +150,6 @@ function withCampaign(variant, campaignId) {
     ctr_gap: slice?.ctr_gap ?? null,
     ctr_result: slice?.ctr_result ?? null,
     rounds_played: slice?.rounds_played ?? 0,
-    rounds_won: slice?.rounds_won ?? 0,
   }
 }
 
@@ -248,13 +223,6 @@ function wholePercent(value) {
   return `${rounded === 0 ? 0 : rounded}%`
 }
 
-/** «раз» / «раза» — a Russian count does not take one plural form. */
-function plural(n) {
-  const tail = n % 100
-  if (tail >= 11 && tail <= 14) return 'раз'
-  return [2, 3, 4].includes(n % 10) ? 'раза' : 'раз'
-}
-
 /**
  * One figure: its text, and the tone it should be read in.
  *
@@ -268,12 +236,12 @@ function plural(n) {
  *
  * @param {object} variant A projected photo.
  * @param {object} metric One entry of {@link METRICS}.
- * @param {{leaderId: string|null, bestWins: number}} context The comparison the
- *   figure is read against.
+ * @param {{leaderId: string|null}} context The comparison the figure is read
+ *   against.
  * @returns {{text: string, tone: string}} `tone` is one of `''`, `'positive'`,
  *   `'warning'`, `'negative'`, `'muted'` or `'best'`.
  */
-export function cellFor(variant, metric, { leaderId, bestWins }) {
+export function cellFor(variant, metric, { leaderId }) {
   const value = variant[metric.key]
 
   if (metric.kind === 'count') return { text: count(value), tone: '' }
@@ -287,20 +255,12 @@ export function cellFor(variant, metric, { leaderId, bestWins }) {
     return { text: wholePercent(value), tone: band(value) }
   }
 
-  // «Отклонение» — the same gap in points, and where the leader is NAMED. One
-  // row carries the number, the other carries the verdict; putting both on the
-  // same line leaves the other with nothing to say.
-  if (metric.kind === 'gap') {
-    if (variant.variant_id === leaderId) return { text: 'Лучший', tone: 'best' }
-    if (value === null || value === undefined) return { text: '—', tone: 'muted' }
-    return { text: `${percent(value)} ↓`, tone: band(variant.ctr_result) }
-  }
-
-  const wins = Number(value ?? 0)
-  return {
-    text: `${count(wins)} ${plural(wins)}`,
-    tone: wins === 0 ? 'negative' : wins >= bestWins * WINNING_SHARE ? 'positive' : 'warning',
-  }
+  // «Отклонение» — the only kind left: the same gap in points, and where the
+  // leader is NAMED. One row carries the number, the other carries the verdict;
+  // putting both on the same line leaves the other with nothing to say.
+  if (variant.variant_id === leaderId) return { text: 'Лучший', tone: 'best' }
+  if (value === null || value === undefined) return { text: '—', tone: 'muted' }
+  return { text: `${percent(value)} ↓`, tone: band(variant.ctr_result) }
 }
 
 /**
@@ -315,9 +275,4 @@ function band(gap) {
   if (value >= CLOSE_ENOUGH) return 'positive'
   if (value >= CLEARLY_BEHIND) return 'warning'
   return 'negative'
-}
-
-/** The highest lap count any photo has won, for colouring «Побед». */
-export function bestWinsOf(columns) {
-  return Math.max(0, ...columns.map((v) => Number(v.rounds_won ?? 0)))
 }

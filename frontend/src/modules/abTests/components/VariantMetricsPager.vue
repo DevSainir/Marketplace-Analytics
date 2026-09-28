@@ -4,7 +4,7 @@
  *
  * A grid of photos × metrics has no «record» to fold into a card, so the
  * phone-layout skill's answer for a matrix applies — **page the repeating
- * axis**. The photos are that axis: pick one, read its seven figures down the
+ * axis**. The photos are that axis: pick one, read its six figures down the
  * screen, step to the next with the pager. The alternative was tried on the
  * metrics matrix and is wrong twice over: sized to fit, ten columns land around
  * 30px and the numbers print on top of one another; sized to their content, the
@@ -23,14 +23,7 @@
  */
 import { computed, ref, watch } from 'vue'
 
-import MetricHint from '@/modules/abTests/components/MetricHint.vue'
-import {
-  METRICS,
-  bestWinsOf,
-  cellFor,
-  leaderOf,
-  variantTitle,
-} from '@/modules/abTests/variantColumns'
+import { METRICS, cellFor, leaderOf, variantTitle } from '@/modules/abTests/variantColumns'
 
 const props = defineProps({
   /** Photos with their figures, already projected for the chosen lap. */
@@ -55,7 +48,6 @@ watch(
 
 const current = computed(() => props.columns[index.value] ?? null)
 const leaderId = computed(() => leaderOf(props.columns))
-const bestWins = computed(() => bestWinsOf(props.columns))
 
 function step(delta) {
   const length = props.columns.length
@@ -64,7 +56,7 @@ function step(delta) {
 }
 
 function cell(metric) {
-  return cellFor(current.value, metric, { leaderId: leaderId.value, bestWins: bestWins.value })
+  return cellFor(current.value, metric, { leaderId: leaderId.value })
 }
 
 /** This sheet's own colour modifier — see the table for why not a utility. */
@@ -131,10 +123,7 @@ function tone(metric) {
 
     <dl class="ab-pager__figures">
       <div v-for="metric in METRICS" :key="metric.key" class="ab-pager__figure">
-        <dt>
-          {{ metric.label }}
-          <MetricHint v-if="metric.hint" :text="metric.hint" />
-        </dt>
+        <dt>{{ metric.label }}</dt>
         <dd class="tabular-nums" :class="tone(metric)">{{ cell(metric).text }}</dd>
       </div>
     </dl>

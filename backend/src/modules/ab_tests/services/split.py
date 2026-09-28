@@ -206,7 +206,6 @@ def variant_campaign_metrics(
                     ctr_gap=gap,
                     ctr_result=result,
                     rounds_played=laps[variant.id].rounds_played,
-                    rounds_won=laps[variant.id].rounds_won,
                 )
             )
     return by_variant

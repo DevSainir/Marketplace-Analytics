@@ -11,18 +11,17 @@
  * other figures in between. The width is paid for with one horizontal scroll,
  * which is the cheaper of the two costs.
  *
- * Four of the rows are derived rather than counted, and each is there because
- * the others mislead alone:
+ * Three of the rows are derived rather than counted:
  *
  * * **Результат** — click-through relative to the leader. «-51 %» means «half
  *   as many clicks», which is a sentence to act on.
  * * **Отклонение от лучшего** — the same gap in percentage points, which is
  *   what the numbers literally differ by.
- * * **Побед в раундах** — laps this photo led. A photo that was up during one
- *   good hour carries the totals of the whole test on the strength of it; laps
- *   make that one vote instead of a multiplier.
- * * **Кругов** — how many laps it actually played, so «0 побед» from a photo
- *   that has run once is not read as «0 побед» from one that has run fifteen.
+ * * **Кругов** — how many laps it actually played, so a photo that has run
+ *   once is not read like one that has run fifteen.
+ *
+ * «Побед в раундах» and the ⓘ hints on every label were removed on 2026-09-28
+ * at the owner's request.
  *
  * Excluding a photo happens here because here is where the seller is looking
  * when they decide to. The cross sits on the picture, and an excluded column
@@ -31,11 +30,9 @@
  */
 import { computed, ref } from 'vue'
 
-import MetricHint from '@/modules/abTests/components/MetricHint.vue'
 import VariantMetricsPager from '@/modules/abTests/components/VariantMetricsPager.vue'
 import {
   METRICS,
-  bestWinsOf,
   buildColumns,
   cellFor,
   leaderOf,
@@ -58,13 +55,12 @@ const emit = defineEmits(['exclude'])
 
 const columns = computed(() => buildColumns(props.test, props.round, props.campaign))
 const leaderId = computed(() => leaderOf(columns.value))
-const bestWins = computed(() => bestWinsOf(columns.value))
 
 const hovered = ref(null)
 
 /** One cell, read against the whole set rather than against its neighbour. */
 function cell(variant, metric) {
-  return cellFor(variant, metric, { leaderId: leaderId.value, bestWins: bestWins.value })
+  return cellFor(variant, metric, { leaderId: leaderId.value })
 }
 
 /**
@@ -146,7 +142,6 @@ function tone(variant, metric) {
           <tr v-for="metric in METRICS" :key="metric.key">
             <th class="ab-grid__label-col" scope="row">
               <span>{{ metric.label }}</span>
-              <MetricHint v-if="metric.hint" :text="metric.hint" />
             </th>
             <td
               v-for="variant in columns"

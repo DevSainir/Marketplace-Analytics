@@ -29,7 +29,6 @@ function variant(id, position, campaigns) {
     clicks: campaigns.reduce((sum, row) => sum + row.clicks, 0),
     click_through: '3.90',
     rounds_played: 4,
-    rounds_won: 2,
     campaigns,
   }
 }
@@ -63,7 +62,6 @@ describe('buildColumns through one campaign', () => {
             ctr_gap: '0.40',
             ctr_result: '-9.90',
             rounds_played: 4,
-            rounds_won: 1,
           },
           {
             campaign_id: CPC,
@@ -73,7 +71,6 @@ describe('buildColumns through one campaign', () => {
             ctr_gap: '0.00',
             ctr_result: '0.00',
             rounds_played: 2,
-            rounds_won: 2,
           },
         ]),
       ],

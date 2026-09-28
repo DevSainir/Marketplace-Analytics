@@ -122,7 +122,6 @@ def build_rows(
                 is_original=variant.is_original,
                 is_excluded=variant.is_excluded,
                 rounds_played=standing.rounds_played,
-                rounds_won=standing.rounds_won,
                 ctr_gap=ctr_gap,
                 ctr_result=ctr_result,
                 click_through=ratios.click_through,
