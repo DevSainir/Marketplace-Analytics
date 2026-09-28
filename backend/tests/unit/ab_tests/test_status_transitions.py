@@ -54,6 +54,7 @@ class _FakeTests:
     def __init__(self, test: AbTest) -> None:
         self._test = test
         self.statuses: list[str] = []
+        self.stopped: list[datetime | None] = []
 
     async def get(self, *, workspace_id: uuid.UUID, test_id: uuid.UUID) -> AbTest | None:
         if (workspace_id, test_id) != (self._test.workspace_id, self._test.id):
@@ -71,6 +72,7 @@ class _FakeTests:
     ) -> None:
         test.status = status.value
         self.statuses.append(status.value)
+        self.stopped.append(stopped_at)
 
 
 class _FakeExposures:
@@ -78,9 +80,11 @@ class _FakeExposures:
 
     def __init__(self) -> None:
         self.closed: list[uuid.UUID] = []
+        self.closed_at: list[datetime] = []
 
     async def close_open(self, *, test_id: uuid.UUID, deactivated_at: datetime) -> None:
         self.closed.append(test_id)
+        self.closed_at.append(deactivated_at)
 
 
 class _FakeSnapshots:
@@ -227,3 +231,25 @@ async def test_a_running_or_paused_test_can_be_cancelled(current: AbTestStatus) 
     assert row.status == AbTestStatus.CANCELLED.value
     assert tests.statuses == [AbTestStatus.CANCELLED.value]
     assert exposures.closed == [test.id]
+
+
+async def test_cancelling_a_paused_test_keeps_the_moment_it_paused() -> None:
+    """The last photo stood until the pause, not until the cancel.
+
+    Closing its turn at the cancel drew a test paused on 08.09 and cancelled on
+    28.09 as one 19-day turn, and overwrote the stamp that said when it stopped.
+    """
+    paused_at = datetime(2026, 9, 8, 23, 30, tzinfo=UTC)
+    test = _test(AbTestStatus.PAUSED)
+    test.stopped_at = paused_at
+    service, tests, exposures, _ = _service(test)
+
+    await service.set_status(
+        workspace_id=test.workspace_id,
+        test_id=test.id,
+        status=AbTestStatus.CANCELLED.value,
+        installer=_NoInstaller(),  # type: ignore[arg-type]
+    )
+
+    assert exposures.closed_at == [paused_at]
+    assert tests.stopped == [paused_at]

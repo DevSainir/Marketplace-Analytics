@@ -83,6 +83,7 @@ class _FakeTests:
     ) -> None:
         test.status = status.value
         test.finished_at = finished_at
+        test.stopped_at = stopped_at
         self.statuses.append(status.value)
 
 
@@ -138,6 +139,24 @@ async def test_the_chosen_photo_goes_up_and_the_test_ends() -> None:
     assert tests.statuses == [AbTestStatus.CANCELLED.value]
     assert test.finished_at == NOW
     assert exposures.closed_at == [NOW]
+
+
+async def test_a_paused_test_ends_its_last_turn_at_the_pause() -> None:
+    """The photo stood until the rotation stopped, not until the seller came back.
+
+    Closing the turn at the finish drew a test paused on 08.09 and finished on
+    28.09 as one 19-day turn beside twenty half-hour ones.
+    """
+    paused_at = datetime(2026, 9, 8, 23, 30, tzinfo=UTC)
+    main, live = _variant(0), _variant(1)
+    test = _test(main, live, active=live)
+    test.stopped_at = paused_at
+
+    _, exposures, _ = await _finish(test, main)
+
+    assert exposures.closed_at == [paused_at]
+    assert test.stopped_at == paused_at
+    assert test.finished_at == NOW
 
 
 async def test_keeping_the_photo_already_up_does_not_upload_it_again() -> None:

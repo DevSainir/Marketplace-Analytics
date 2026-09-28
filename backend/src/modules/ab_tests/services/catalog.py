@@ -41,6 +41,7 @@ from src.modules.ab_tests.schemas import (
     AbTestSettingsUpdate,
 )
 from src.modules.ab_tests.services.detail import assemble_detail
+from src.modules.ab_tests.services.finish import rotation_stopped_at
 from src.modules.ab_tests.services.launch import Launcher
 from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.storage import MediaStore
@@ -320,8 +321,12 @@ class AbTestCatalogService:
         if target is AbTestStatus.RUNNING:
             await self._launcher.launch(test=test, installer=installer, now=now)
         elif target is AbTestStatus.CANCELLED:
-            await self._exposures.close_open(test_id=test.id, deactivated_at=now)
-            await self._tests.set_status(test=test, status=target, finished_at=now, stopped_at=now)
+            # A paused test stopped at its pause, not now — see rotation_stopped_at.
+            stopped = rotation_stopped_at(test, now=now)
+            await self._exposures.close_open(test_id=test.id, deactivated_at=stopped)
+            await self._tests.set_status(
+                test=test, status=target, finished_at=now, stopped_at=stopped
+            )
         else:
             # Dropping the counter baseline is what makes a pause a pause. WB's
             # counters are cumulative since midnight, so a baseline left behind

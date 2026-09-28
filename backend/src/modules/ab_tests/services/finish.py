@@ -29,6 +29,32 @@ FINISHABLE_STATUSES: frozenset[str] = frozenset(
 )
 
 
+def rotation_stopped_at(test: AbTest, *, now: datetime) -> datetime:
+    """When the rotation of a test that is being finished actually stopped.
+
+    ``now`` for a running test — it is moving until this moment. For a paused
+    one it is the moment of the pause, which ``stopped_at`` already holds: the
+    open exposure has to close THERE, not at the finish. Closing it at the
+    finish credited the last photo with the whole pause — on 2026-09-28 a test
+    paused on 08.09 and finished twenty days later drew one 19-day turn that
+    squeezed the twenty real ones into the left edge of its timeline — and
+    overwrote the very stamp that said when the test had stopped.
+
+    A paused test with no ``stopped_at`` predates the column; ``now`` is the
+    only answer left for it.
+
+    Args:
+        test: The test being finished.
+        now: The moment of the finish.
+
+    Returns:
+        The moment to close the open exposure at and to keep as ``stopped_at``.
+    """
+    if test.status == AbTestStatus.PAUSED.value and test.stopped_at is not None:
+        return test.stopped_at
+    return now
+
+
 class Finisher:
     """Takes a running or paused test to ``CANCELLED``, leaving a chosen photo up.
 
@@ -100,12 +126,13 @@ class Finisher:
         if not already_up:
             await installer.install(nm_id=test.nm_id, variant=keep)
 
-        await self._exposures.close_open(test_id=test.id, deactivated_at=now)
+        stopped = rotation_stopped_at(test, now=now)
+        await self._exposures.close_open(test_id=test.id, deactivated_at=stopped)
         await self._tests.set_active_variant(test=test, variant_id=keep.id)
         await self._tests.set_status(
-            test=test, status=AbTestStatus.CANCELLED, finished_at=now, stopped_at=now
+            test=test, status=AbTestStatus.CANCELLED, finished_at=now, stopped_at=stopped
         )
         return test
 
 
-__all__ = ["FINISHABLE_STATUSES", "Finisher"]
+__all__ = ["FINISHABLE_STATUSES", "Finisher", "rotation_stopped_at"]
