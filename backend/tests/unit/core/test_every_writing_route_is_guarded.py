@@ -30,9 +30,9 @@ work on the exception rather than on remembering the rule.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NamedTuple
 
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, iter_route_contexts
 
 from src.modules.organizations.deps import require_dev, require_owner, require_writer
 from src.modules.users.deps import require_dev_role
@@ -55,44 +55,57 @@ _MUTATING = {"POST", "PATCH", "PUT", "DELETE"}
 #: * **A POST that reads.** A preview computed from a body changes nothing, and
 #:   a read-only manager is entitled to it.
 _EXEMPT: dict[tuple[str, str], str] = {
-    ("POST", "/v1/auth/register"): "pre-membership: creates the account",
-    ("POST", "/v1/auth/login"): "pre-membership: establishes the session",
-    ("POST", "/v1/auth/refresh"): "own session: authorised by the refresh cookie",
-    ("POST", "/v1/auth/logout"): "own session: ends it",
-    ("POST", "/v1/auth/logout-all"): "own session: ends every one of them",
-    ("DELETE", "/v1/auth/sessions/{family_id}"): "own session: ends one named lineage",
+    ("POST", "/api/v1/auth/register"): "pre-membership: creates the account",
+    ("POST", "/api/v1/auth/login"): "pre-membership: establishes the session",
+    ("POST", "/api/v1/auth/refresh"): "own session: authorised by the refresh cookie",
+    ("POST", "/api/v1/auth/logout"): "own session: ends it",
+    ("POST", "/api/v1/auth/logout-all"): "own session: ends every one of them",
+    ("DELETE", "/api/v1/auth/sessions/{family_id}"): "own session: ends one named lineage",
     (
         "POST",
-        "/v1/auth/password",
+        "/api/v1/auth/password",
     ): "own account: authorised by the current password in the body, not by membership",
-    ("POST", "/confirm-email"): "pre-membership: proves the address",
-    ("POST", "/resend-confirmation"): "pre-membership: re-sends that proof",
-    ("POST", "/password-reset/request"): "pre-membership: unauthenticated by design",
-    ("POST", "/password-reset/confirm"): "pre-membership: redeems the reset token",
-    ("POST", "/v1/organizations/activate"): "pre-membership: redeems an activation code",
-    ("POST", "/v1/organizations/invitations/accept"): "pre-membership: joins an organisation",
+    ("POST", "/api/v1/auth/confirm-email"): "pre-membership: proves the address",
+    ("POST", "/api/v1/auth/resend-confirmation"): "pre-membership: re-sends that proof",
+    ("POST", "/api/v1/auth/password-reset/request"): "pre-membership: unauthenticated by design",
+    ("POST", "/api/v1/auth/password-reset/confirm"): "pre-membership: redeems the reset token",
+    ("POST", "/api/v1/organizations/activate"): "pre-membership: redeems an activation code",
+    ("POST", "/api/v1/organizations/invitations/accept"): "pre-membership: joins an organisation",
     (
         "POST",
-        "/v1/monitoring/skus/{nm_id}/matrix/preview",
+        "/api/v1/monitoring/skus/{nm_id}/matrix/preview",
     ): "a POST that reads: previews a matrix from a body, writes nothing",
 }
 
 
-def _api_routes(routes: Any) -> list[APIRoute]:
-    """Flatten the app's routes, following lazily-included routers.
+class _Route(NamedTuple):
+    """One API route as a request meets it."""
+
+    path: str
+    methods: set[str]
+    dependant: Any
+
+
+def _api_routes(routes: Any) -> list[_Route]:
+    """Every API route as the server resolves it: full path, full dependency tree.
 
     FastAPI defers router inclusion behind a wrapper, so a plain pass over
     ``app.routes`` finds only ``/health`` — which would make every assertion
-    below pass while checking nothing.
+    below pass while checking nothing. Following ``original_router.routes`` by
+    hand is no better: a sub-router's routes come back without the prefixes
+    they were included under (``/weeks`` for ``/api/v1/finreports/weeks``), and
+    without the ``dependencies=`` passed to ``include_router``. That walk
+    silently dropped every finreports and monitoring sub-router from the check.
+    ``iter_route_contexts`` is the iterator the OpenAPI schema is built from, so
+    it sees exactly the routes and dependencies a request does.
     """
-    found: list[APIRoute] = []
-    for route in routes:
-        if isinstance(route, APIRoute):
-            found.append(route)
-        elif hasattr(route, "original_router"):
-            found.extend(_api_routes(route.original_router.routes))
-        elif hasattr(route, "routes"):
-            found.extend(_api_routes(route.routes))
+    found: list[_Route] = []
+    for ctx in iter_route_contexts(routes):
+        if isinstance(ctx.original_route, APIRoute):
+            # Optional only because a context may also wrap a mount or a websocket.
+            assert ctx.path is not None
+            assert ctx.methods is not None
+            found.append(_Route(ctx.path, ctx.methods, ctx.dependant))
     return found
 
 
@@ -106,7 +119,7 @@ def _dependency_tree(dependant: Any, seen: set[Any] | None = None) -> set[Any]:
     return seen
 
 
-def _mutating_routes(routes: list[APIRoute]) -> list[tuple[str, str, APIRoute]]:
+def _mutating_routes(routes: list[_Route]) -> list[tuple[str, str, _Route]]:
     """Every (verb, path, route) that changes something."""
     found = []
     for route in routes:

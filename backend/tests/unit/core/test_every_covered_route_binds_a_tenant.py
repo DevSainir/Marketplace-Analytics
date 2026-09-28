@@ -20,9 +20,9 @@ needs one is a decision somebody makes rather than an omission nobody sees.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NamedTuple
 
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, iter_route_contexts
 
 from src.modules.workspaces.deps import get_current_workspace_id, get_path_workspace_id
 
@@ -30,8 +30,10 @@ from src.modules.workspaces.deps import get_current_workspace_id, get_path_works
 #: then binds it to the transaction. There is no third way to bind one.
 _BINDERS = {get_current_workspace_id, get_path_workspace_id}
 
-#: Modules owning at least one table in the policy list.
-_COVERED_MODULES = ("monitoring", "finreports", "ab-tests", "workspaces")
+#: Modules owning at least one table in the policy list, plus `summary`, which
+#: owns none but reads finreports' and monitoring's covered tables through their
+#: contracts — a path filter keyed on owners alone would never look at it.
+_COVERED_MODULES = ("monitoring", "finreports", "ab-tests", "workspaces", "summary")
 
 #: Routes in those modules that legitimately bind nothing, because they touch no
 #: covered table. Both read `workspaces.workspaces`, which carries
@@ -41,29 +43,42 @@ _COVERED_MODULES = ("monitoring", "finreports", "ab-tests", "workspaces")
 #: `workspaces.workspace_guests`, which is outside the policy set for the same
 #: reason — it decides which workspace may be bound, so it is read before one is.
 _EXEMPT = {
-    ("GET", "/v1/workspaces"),
-    ("POST", "/v1/workspaces"),
-    ("GET", "/v1/workspaces/guests"),
-    ("POST", "/v1/workspaces/guests"),
-    ("DELETE", "/v1/workspaces/guests/{grant_id}"),
+    ("GET", "/api/v1/workspaces"),
+    ("POST", "/api/v1/workspaces"),
+    ("GET", "/api/v1/workspaces/guests"),
+    ("POST", "/api/v1/workspaces/guests"),
+    ("DELETE", "/api/v1/workspaces/guests/{grant_id}"),
 }
 
 
-def _api_routes(routes: Any) -> list[APIRoute]:
-    """Flatten the app's routes, following lazily-included routers.
+class _Route(NamedTuple):
+    """One API route as a request meets it."""
+
+    path: str
+    methods: set[str]
+    dependant: Any
+
+
+def _api_routes(routes: Any) -> list[_Route]:
+    """Every API route as the server resolves it: full path, full dependency tree.
 
     FastAPI defers router inclusion behind a wrapper, so a plain pass over
     ``app.routes`` finds only ``/health`` — which would make every assertion
-    below pass while checking nothing.
+    below pass while checking nothing. Following ``original_router.routes`` by
+    hand is no better: a sub-router's routes come back without the prefixes
+    they were included under (``/weeks`` for ``/api/v1/finreports/weeks``), and
+    without the ``dependencies=`` passed to ``include_router``. That walk
+    silently dropped every finreports and monitoring sub-router from the check.
+    ``iter_route_contexts`` is the iterator the OpenAPI schema is built from, so
+    it sees exactly the routes and dependencies a request does.
     """
-    found: list[APIRoute] = []
-    for route in routes:
-        if isinstance(route, APIRoute):
-            found.append(route)
-        elif hasattr(route, "original_router"):
-            found.extend(_api_routes(route.original_router.routes))
-        elif hasattr(route, "routes"):
-            found.extend(_api_routes(route.routes))
+    found: list[_Route] = []
+    for ctx in iter_route_contexts(routes):
+        if isinstance(ctx.original_route, APIRoute):
+            # Optional only because a context may also wrap a mount or a websocket.
+            assert ctx.path is not None
+            assert ctx.methods is not None
+            found.append(_Route(ctx.path, ctx.methods, ctx.dependant))
     return found
 
 
