@@ -1,86 +1,99 @@
 /**
- * The heatmap's colour: where a value sits between the worst and the best of
- * the cells it is compared with, turned into a tint.
+ * The heatmap's colour: how far a cell sits from what is NORMAL for the cells
+ * it is compared with, turned into a tint.
  *
  * Pure presentation — every figure is the backend's, and this only decides how
- * loudly to paint it. Two things carry the meaning:
+ * loudly to paint it.
  *
- * * **Direction.** «Больше — лучше» (заказы, выручка) paints the top of the
- *   range green; «меньше — лучше» (ДРР, CPC, CPO) paints the BOTTOM green. A
- *   price or a stock level has no better end, so it is painted in the action
- *   hue by magnitude alone rather than pretending to be good or bad.
- * * **The range.** «По строке» compares a row with itself — where did this card
- *   dip; «по всей таблице» puts every row on one scale — which cards lead. The
- *   caller picks which cells form the range; this file never guesses.
+ * It used to place a cell between the worst and the best of its range. That
+ * always has a best and a worst day, however flat the week was, so a row of
+ * 14-15-16 flickered red and green and nothing ever read as «обычный день».
+ * Now:
  *
- * The middle of the range is left unpainted on purpose: a heatmap where every
- * cell is some shade of colour has no signal, and the eye should land on the
- * ends.
+ * * **The norm is the median** of the compared cells — a typical day, which one
+ *   outlier cannot drag the way it drags a min or a mean.
+ * * **Near the norm is not painted.** Within ±20 % of it the cell stays white;
+ *   for counts (заказы, корзины, переходы) the band is at least ±√norm too,
+ *   because 3 orders against a norm of 5 is ordinary noise for a small card.
+ * * **Beyond it the tint grows softly** (a tanh curve): a day +50 % over the
+ *   norm is a light tint, +100 % a medium one, and only about +200 % is full.
+ *   Measured on «Демо», 30 days (2026-09-28): 1–8 % of cells reach the
+ *   strong end depending on the metric, 42–88 % stay white.
+ *
+ * Direction still decides the hue: «больше — лучше» paints above the norm
+ * green, «меньше — лучше» (ДРР, CPC, CPM, CPO, the ad budget) paints it red.
+ * Prices, СПП and stock have no better end and are painted in the action hue by
+ * distance from the norm alone.
  */
 
-/** Strongest tint, as an alpha: dark enough to read at a glance, light enough
- *  that the number printed on it stays legible. */
+/** Share of the norm that still counts as «обычный день». */
+export const NORMAL_BAND = 0.2
+
+/** How fast the tint saturates past the band: bigger = gentler. */
+const SOFTNESS = 0.8
+
+/** Tint of the faintest painted cell and of the strongest, as alphas. */
+const MIN_ALPHA = 0.1
 const MAX_ALPHA = 0.5
 
-/** How far from the middle a cell must sit before it is painted at all. */
-const DEAD_ZONE = 0.04
-
 /**
- * Min and max of the finite values in `values`, or `null` when there are none.
+ * The norm of the compared cells: their median, plus the unit their distance
+ * is measured in. `null` when fewer than three cells carry a value — two
+ * points have no «usual».
  *
  * @param {Iterable<number|null>} values
- * @returns {{min: number, max: number}|null}
+ * @returns {{median: number, unit: number}|null}
  */
-export function rangeOf(values) {
-  let min = Infinity
-  let max = -Infinity
+export function normOf(values) {
+  const finite = []
   for (const value of values) {
-    if (value === null || value === undefined || !Number.isFinite(value)) continue
-    if (value < min) min = value
-    if (value > max) max = value
+    if (value !== null && value !== undefined && Number.isFinite(value)) finite.push(value)
   }
-  return min === Infinity ? null : { min, max }
+  if (finite.length < 3) return null
+  finite.sort((a, b) => a - b)
+  const middle = Math.floor(finite.length / 2)
+  const median = finite.length % 2 ? finite[middle] : (finite[middle - 1] + finite[middle]) / 2
+  // A norm of zero (a card that usually sells nothing) has no «percent of it»;
+  // the widest value in the set is the yardstick instead.
+  const unit = Math.abs(median) || Math.max(...finite.map(Math.abs)) || 1
+  return { median, unit }
 }
 
 /**
- * Where `value` sits in `range`, as 0 (worst) … 1 (best).
- *
- * For a neutral metric it is plain magnitude: 0 at the minimum, 1 at the
- * maximum. `null` when there is nothing to place — no value, no range, or a
- * range with no spread (every cell equal has no better or worse one).
+ * How strongly a cell departs from the norm: 0 inside the normal band, rising
+ * softly towards 1, signed — positive above the norm, negative below.
  *
  * @param {number|null} value
- * @param {{min: number, max: number}|null} range
- * @param {'up'|'down'|'neutral'} direction
- * @returns {number|null}
+ * @param {{median: number, unit: number}|null} norm
+ * @param {{count?: boolean}} [options] `count` widens the band to ±√norm.
+ * @returns {number|null} `null` when there is nothing to place.
  */
-export function heatPosition(value, range, direction) {
-  if (value === null || value === undefined || !Number.isFinite(value) || !range) return null
-  const spread = range.max - range.min
-  if (spread <= 0) return null
-  const share = Math.min(1, Math.max(0, (value - range.min) / spread))
-  return direction === 'down' ? 1 - share : share
+export function departure(value, norm, { count = false } = {}) {
+  if (value === null || value === undefined || !Number.isFinite(value) || !norm) return null
+  const distance = value - norm.median
+  const band = Math.max(
+    NORMAL_BAND * Math.abs(norm.median),
+    count ? Math.sqrt(Math.max(norm.median, 1)) : 0,
+  )
+  const beyond = Math.abs(distance) - band
+  if (beyond <= 0) return 0
+  return Math.sign(distance) * Math.tanh(beyond / norm.unit / SOFTNESS)
 }
 
 /**
- * The background for a cell at `position`, or `''` for no tint.
+ * The background for a cell, or `''` for none.
  *
  * Built from the design tokens' channel triples, so the heatmap follows the
  * palette rather than carrying colours of its own.
  *
- * @param {number|null} position From {@link heatPosition}.
+ * @param {number|null} strength From {@link departure}.
  * @param {'up'|'down'|'neutral'} direction
  * @returns {string}
  */
-export function heatColor(position, direction) {
-  if (position === null) return ''
-  if (direction === 'neutral') {
-    const alpha = position * MAX_ALPHA * 0.7
-    return alpha < 0.02 ? '' : `rgb(var(--ui-action-rgb) / ${alpha.toFixed(3)})`
-  }
-  const offset = position - 0.5
-  if (Math.abs(offset) < DEAD_ZONE) return ''
-  const alpha = Math.min(1, Math.abs(offset) * 2) * MAX_ALPHA
-  const channel = offset > 0 ? '--ui-pos-rgb' : '--ui-neg-rgb'
-  return `rgb(var(${channel}) / ${alpha.toFixed(3)})`
+export function heatColor(strength, direction) {
+  if (strength === null || strength === 0) return ''
+  const alpha = (MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * Math.abs(strength)).toFixed(3)
+  if (direction === 'neutral') return `rgb(var(--ui-action-rgb) / ${alpha})`
+  const better = direction === 'down' ? strength < 0 : strength > 0
+  return `rgb(var(${better ? '--ui-pos-rgb' : '--ui-neg-rgb'}) / ${alpha})`
 }

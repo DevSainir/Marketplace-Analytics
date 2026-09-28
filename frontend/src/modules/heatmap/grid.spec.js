@@ -55,17 +55,24 @@ describe('pageOf', () => {
 })
 
 describe('tintRows', () => {
-  it('compares a row with itself in row mode', () => {
-    const quiet = row('quiet', [1, 2])
-    const busy = row('busy', [100, 200])
-    const [tints] = tintRows([quiet], [quiet, busy], 'row', 'up')
-    expect(tints[1]).toContain('--ui-pos-rgb')
+  const orders = { direction: 'up', unit: 'count' }
+
+  it('leaves a flat row white in row mode', () => {
+    const flat = row('flat', [100, 104, 98, 101, 99])
+    const [tints] = tintRows([flat], [flat], 'row', orders)
+    expect(tints.every((tint) => tint === '')).toBe(true)
   })
 
-  it('puts every row on one scale in table mode, not just the page', () => {
-    const quiet = row('quiet', [1, 2])
-    const busy = row('busy', [100, 200])
-    const [tints] = tintRows([quiet], [quiet, busy], 'table', 'up')
-    expect(tints[1]).toContain('--ui-neg-rgb')
+  it("paints a real dip against the row's own norm", () => {
+    const dip = row('dip', [100, 104, 30, 101, 99])
+    const [tints] = tintRows([dip], [dip], 'row', orders)
+    expect(tints[2]).toContain('--ui-neg-rgb')
+  })
+
+  it('puts every row on one norm in table mode, not just the page', () => {
+    const quiet = row('quiet', [10, 11, 10])
+    const busy = [1, 2, 3].map((n) => row(`busy${n}`, [100, 104, 98]))
+    const [tints] = tintRows([quiet], [quiet, ...busy], 'table', orders)
+    expect(tints[0]).toContain('--ui-neg-rgb')
   })
 })

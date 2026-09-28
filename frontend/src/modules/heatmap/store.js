@@ -60,7 +60,12 @@ export const useHeatmapStore = defineStore('heatmap', () => {
   const sortedRows = computed(() => sortRows(data.value?.rows ?? [], sort.value))
   const view = computed(() => pageOf(sortedRows.value, page.value, pageSize.value))
   const tints = computed(() =>
-    tintRows(view.value.rows, sortedRows.value, mode.value, primary.value?.direction ?? 'up'),
+    tintRows(
+      view.value.rows,
+      sortedRows.value,
+      mode.value,
+      primary.value ?? { direction: 'up', unit: 'count' },
+    ),
   )
   const tooLong = computed(() => daysBetween(dateFrom.value, dateTo.value) + 1 > MAX_DAYS)
 
