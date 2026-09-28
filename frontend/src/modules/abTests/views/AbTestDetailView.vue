@@ -12,6 +12,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { MAX_VARIANTS, useAbTestsStore } from '@/modules/abTests'
 import { roundsIn } from '@/modules/abTests/timeline'
 import BlockFilters from '@/modules/abTests/components/BlockFilters.vue'
+import FinishTestDialog from '@/modules/abTests/components/FinishTestDialog.vue'
 import RotationHistory from '@/modules/abTests/components/RotationHistory.vue'
 import RotationTimeline from '@/modules/abTests/components/RotationTimeline.vue'
 import TestControls from '@/modules/abTests/components/TestControls.vue'
@@ -101,6 +102,13 @@ async function saveTrigger(payload) {
   if (ok) editing.value = false
 }
 
+const finishing = ref(false)
+
+/** Close the dialog only once the test has finished; a failure stays in it. */
+async function finishTest(keepVariantId) {
+  if (await store.finish(route.params.testId, keepVariantId)) finishing.value = false
+}
+
 /** The header has already confirmed it; there is nothing left on this screen. */
 async function removeTest() {
   if (await store.remove(route.params.testId)) router.push({ name: 'ab-tests' })
@@ -165,6 +173,18 @@ async function onMainFile(event) {
       @upload="onFiles"
       @upload-main="onMainFile"
       @status="store.changeStatus(test.id, $event)"
+      @finish="finishing = true"
+    />
+
+    <FinishTestDialog
+      v-if="test"
+      :open="finishing"
+      :test="test"
+      :image-urls="store.imageUrls"
+      :saving="store.saving"
+      :error="store.error"
+      @close="finishing = false"
+      @confirm="finishTest"
     />
 
     <template v-if="test && test.variants.length">

@@ -7,6 +7,7 @@ import {
   fetchTest,
   fetchTests,
   fetchVariantImage,
+  finishTest,
   setTestStatus,
   updateTestSettings,
   uploadVariant,
@@ -20,6 +21,7 @@ vi.mock('@/modules/abTests/api', () => ({
   fetchTest: vi.fn(),
   fetchTests: vi.fn(),
   fetchVariantImage: vi.fn(),
+  finishTest: vi.fn(),
   setTestStatus: vi.fn(),
   updateTestSettings: vi.fn(),
   uploadVariant: vi.fn(),
@@ -329,6 +331,36 @@ describe('A/Б-tests store', () => {
     expect(ok).toBe(false)
     expect(store.error).toBeTruthy()
     expect(store.rows[0].status).toBe('draft')
+  })
+
+  it('shows a finished test as finished, in the list and on the page', async () => {
+    fetchTests.mockResolvedValue([{ id: TEST_ID, status: 'paused' }])
+    finishTest.mockResolvedValue({ ...detail(2), status: 'cancelled', active_variant_id: 'v1' })
+    const store = useAbTestsStore()
+    await store.loadTests()
+
+    const ok = await store.finish(TEST_ID, 'v1')
+
+    expect(ok).toBe(true)
+    expect(finishTest).toHaveBeenCalledWith(TEST_ID, 'v1')
+    expect(store.detail.status).toBe('cancelled')
+    expect(store.rows[0].status).toBe('cancelled')
+  })
+
+  it('surfaces a refused finish and leaves the test as it was', async () => {
+    // The chosen photo goes up before the test is closed, so a refusal means
+    // neither happened.
+    fetchTests.mockResolvedValue([{ id: TEST_ID, status: 'paused' }])
+    finishTest.mockRejectedValue({ response: { data: { detail: 'WB отклонил фото.' } } })
+    const store = useAbTestsStore()
+    await store.loadTests()
+
+    const ok = await store.finish(TEST_ID, 'v1')
+
+    expect(ok).toBe(false)
+    expect(store.error).toBeTruthy()
+    expect(store.rows[0].status).toBe('paused')
+    expect(store.saving).toBe(false)
   })
 
   it('drops a deleted test from the list without refetching', async () => {

@@ -23,6 +23,7 @@ import pytest
 
 from src.modules.ab_tests.deps import (
     get_catalog_service,
+    get_finisher,
     get_installer,
     get_sku_catalogue,
     get_variant_service,
@@ -148,6 +149,19 @@ class _StubInstaller:
         self.installed.append(nm_id)
 
 
+class _StubFinisher:
+    """Stands in for the finish, recording what it was asked to keep."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.error: Exception | None = None
+
+    async def finish(self, **kwargs: Any) -> None:
+        self.calls.append(kwargs)
+        if self.error is not None:
+            raise self.error
+
+
 class _StubVariants:
     """Stands in for the photo-side service the variant routes now use.
 
@@ -259,6 +273,12 @@ def photos() -> _StubVariants:
 
 
 @pytest.fixture
+def finisher() -> _StubFinisher:
+    """The stub finish the finish route is wired to."""
+    return _StubFinisher()
+
+
+@pytest.fixture
 def catalog() -> _StubCatalog:
     """The stub service the routes are wired to."""
     return _StubCatalog()
@@ -272,6 +292,7 @@ def _wire(
     catalog: _StubCatalog,
     catalogue: _StubCatalogue,
     photos: _StubVariants,
+    finisher: _StubFinisher,
 ) -> None:
     """Wire identity, tenancy and the stubbed service."""
     override(get_user_repo, user_repo)
@@ -280,6 +301,7 @@ def _wire(
     override(get_installer, _StubInstaller())
     override(get_sku_catalogue, catalogue)
     override(get_variant_service, photos)
+    override(get_finisher, finisher)
 
 
 @pytest.fixture

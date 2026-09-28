@@ -19,6 +19,7 @@ the results of a rotation someone else started are still theirs to look at.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
@@ -27,6 +28,7 @@ from fastapi.responses import Response
 from src.core.uploads import read_capped
 from src.modules.ab_tests.deps import (
     AbTestCatalogServiceDep,
+    FinisherDep,
     InstallerDep,
     SkuCatalogueDep,
     VariantServiceDep,
@@ -34,6 +36,7 @@ from src.modules.ab_tests.deps import (
 from src.modules.ab_tests.schemas import (
     AbTestCreate,
     AbTestDetail,
+    AbTestFinish,
     AbTestRead,
     AbTestSettingsUpdate,
     AbTestStatusUpdate,
@@ -214,6 +217,48 @@ async def set_status(
         status=payload.status,
         installer=installer,
     )
+
+
+@router.post(
+    "/{test_id}/finish",
+    response_model=AbTestDetail,
+    summary="Завершить тест, оставив на карточке выбранное фото",
+    responses={
+        403: {"description": "Доступ только для чтения"},
+        404: {"description": "Тест или фото не найдено"},
+        409: {"description": "Тест не запущен и не на паузе"},
+    },
+)
+async def finish_test(
+    _writer: WritingAccess,
+    test_id: uuid.UUID,
+    payload: AbTestFinish,
+    finisher: FinisherDep,
+    service: AbTestCatalogServiceDep,
+    installer: InstallerDep,
+    workspace_id: CurrentWorkspaceId,
+) -> AbTestDetail:
+    """End a test and leave the chosen photo on the live card.
+
+    ``WritingAccess`` and not a weaker guard because this installs a picture on
+    the seller's storefront — the same reach as starting a test. Not owner-only
+    either: whoever may start and pause a rotation may end it.
+
+    A separate route from ``PATCH /status`` because a finish carries a choice
+    and a WB upload, where the status route carries neither for a cancel; the
+    bare cancel there stays for API callers that want the card left as it is.
+
+    The whole test comes back so the page re-renders «На карточке» and the
+    status from one answer.
+    """
+    await finisher.finish(
+        workspace_id=workspace_id,
+        test_id=test_id,
+        keep_variant_id=payload.keep_variant_id,
+        installer=installer,
+        now=datetime.now(UTC),
+    )
+    return await service.get_detail(workspace_id=workspace_id, test_id=test_id)
 
 
 @router.delete(

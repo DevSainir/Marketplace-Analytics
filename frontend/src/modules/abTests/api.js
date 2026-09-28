@@ -78,6 +78,23 @@ export async function setTestStatus(testId, status) {
 }
 
 /**
+ * POST /ab-tests/{id}/finish — end the test, leaving the chosen photo on the card.
+ *
+ * The photo is installed before the test is closed, so a rejection here means
+ * the test is still running or paused and the card was not touched.
+ *
+ * @param {string} testId Test identifier.
+ * @param {string} keepVariantId The photo the card should keep.
+ * @returns {Promise<object>} The whole finished test, as the detail endpoint returns it.
+ */
+export async function finishTest(testId, keepVariantId) {
+  const { data } = await apiClient.post(`/ab-tests/${testId}/finish`, {
+    keep_variant_id: keepVariantId,
+  })
+  return data
+}
+
+/**
  * PATCH /ab-tests/{id} — change the name or the rotation trigger.
  *
  * Send only the setting the chosen mode uses: the backend REFUSES a body

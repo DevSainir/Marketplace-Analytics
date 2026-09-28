@@ -24,6 +24,7 @@ from tests.component.ab_tests.conftest import (
     TEST_ID,
     VARIANT_ID,
     _StubCatalog,
+    _StubFinisher,
     _StubVariants,
 )
 
@@ -244,6 +245,49 @@ async def test_starting_a_test_with_no_photos_is_a_409(
     assert response.status_code == 409
 
 
+async def test_finishing_names_the_photo_the_card_keeps(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    finisher: _StubFinisher,
+    workspace: Workspace,
+) -> None:
+    """The choice in the dialog reaches the finish, scoped to the header workspace."""
+    response = await client.post(
+        f"/api/ab-tests/{TEST_ID}/finish",
+        headers=headers,
+        json={"keep_variant_id": str(VARIANT_ID)},
+    )
+
+    assert response.status_code == 200
+    assert finisher.calls[0]["keep_variant_id"] == VARIANT_ID
+    assert finisher.calls[0]["workspace_id"] == workspace.id
+
+
+async def test_finishing_without_a_choice_is_refused_before_the_card_is_touched(
+    client: httpx.AsyncClient, headers: dict[str, str], finisher: _StubFinisher
+) -> None:
+    """No default photo: leaving the card as it is has to be chosen too."""
+    response = await client.post(f"/api/ab-tests/{TEST_ID}/finish", headers=headers, json={})
+
+    assert response.status_code == 422
+    assert finisher.calls == []
+
+
+async def test_finishing_a_finished_test_is_a_409(
+    client: httpx.AsyncClient, headers: dict[str, str], finisher: _StubFinisher
+) -> None:
+    """The domain's refusal reaches the page as a conflict, not a 500."""
+    finisher.error = ConflictError("Завершить можно только запущенный тест или тест на паузе.")
+
+    response = await client.post(
+        f"/api/ab-tests/{TEST_ID}/finish",
+        headers=headers,
+        json={"keep_variant_id": str(VARIANT_ID)},
+    )
+
+    assert response.status_code == 409
+
+
 async def test_a_customer_reaches_ab_tests(
     client: httpx.AsyncClient, headers: dict[str, str], login_as: Any
 ) -> None:
@@ -311,6 +355,7 @@ async def test_every_writing_route_refuses_a_read_only_manager(
     client: httpx.AsyncClient,
     headers: dict[str, str],
     catalog: _StubCatalog,
+    finisher: _StubFinisher,
     login_as: Callable[..., None],
     method: str,
     path: str,
@@ -334,6 +379,7 @@ async def test_every_writing_route_refuses_a_read_only_manager(
 
     assert response.status_code == 403
     assert catalog.calls == []
+    assert finisher.calls == []
 
 
 async def test_a_lapsed_subscription_cannot_touch_the_card_either(

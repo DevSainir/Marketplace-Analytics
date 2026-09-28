@@ -22,6 +22,7 @@ import {
   fetchTest,
   fetchTests,
   fetchVariantImage,
+  finishTest,
   searchSkus,
   setTestStatus,
   setVariantExcluded,
@@ -213,6 +214,26 @@ export const useAbTestsStore = defineStore('abTests', () => {
   }
 
   /**
+   * Run one write with the page's shared `saving` flag and error line.
+   *
+   * @param {() => Promise<void>} run The write.
+   * @returns {Promise<boolean>} Whether it succeeded; the error is on `error`.
+   */
+  async function write(run) {
+    saving.value = true
+    error.value = ''
+    try {
+      await run()
+      return true
+    } catch (err) {
+      error.value = extractErrorMessage(err)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /**
    * Create a draft test and prepend it to the list.
    *
    * @param {{nm_id: number, name: string, vendor_code?: string,
@@ -243,17 +264,9 @@ export const useAbTestsStore = defineStore('abTests', () => {
    * @returns {Promise<boolean>} Whether it was accepted.
    */
   async function addPhoto(testId, file, { main = false } = {}) {
-    saving.value = true
-    error.value = ''
-    try {
+    return write(async () => {
       detail.value = await uploadVariant(testId, file, { main })
-      return true
-    } catch (err) {
-      error.value = extractErrorMessage(err)
-      return false
-    } finally {
-      saving.value = false
-    }
+    })
   }
 
   /**
@@ -264,18 +277,10 @@ export const useAbTestsStore = defineStore('abTests', () => {
    * @returns {Promise<boolean>} Whether it was removed.
    */
   async function removePhoto(testId, variantId) {
-    saving.value = true
-    error.value = ''
-    try {
+    return write(async () => {
       await deleteVariant(testId, variantId)
       detail.value = await fetchTest(testId)
-      return true
-    } catch (err) {
-      error.value = extractErrorMessage(err)
-      return false
-    } finally {
-      saving.value = false
-    }
+    })
   }
 
   /**
@@ -291,43 +296,46 @@ export const useAbTestsStore = defineStore('abTests', () => {
    * @returns {Promise<boolean>} True when the change stuck.
    */
   async function toggleExclusion(testId, variantId, excluded) {
-    saving.value = true
-    error.value = ''
-    try {
+    return write(async () => {
       detail.value = await setVariantExcluded(testId, variantId, excluded)
-      return true
-    } catch (err) {
-      error.value = extractErrorMessage(err)
-      return false
-    } finally {
-      saving.value = false
-    }
+    })
   }
 
   /**
-   * Start, pause or cancel a test.
+   * Start or pause a test. Finishing goes through `finish`, which carries the
+   * photo the card keeps.
    *
    * Starting installs the first photo on the seller's card, so a failure here
    * is shown rather than swallowed: the card was not touched.
    *
    * @param {string} testId Test identifier.
-   * @param {'running'|'paused'|'cancelled'} status Target status.
+   * @param {'running'|'paused'} status Target status.
    * @returns {Promise<boolean>} Whether the transition happened.
    */
   async function changeStatus(testId, status) {
-    saving.value = true
-    error.value = ''
-    try {
+    return write(async () => {
       const updated = await setTestStatus(testId, status)
       tests.value = tests.value.map((row) => (row.id === testId ? updated : row))
       if (detail.value?.id === testId) detail.value = await fetchTest(testId)
-      return true
-    } catch (err) {
-      error.value = extractErrorMessage(err)
-      return false
-    } finally {
-      saving.value = false
-    }
+    })
+  }
+
+  /**
+   * Finish a test, leaving the chosen photo on the card.
+   *
+   * The chosen photo is installed first, so a failure means the test is still
+   * paused or running and the card was left as it was.
+   *
+   * @param {string} testId Test identifier.
+   * @param {string} keepVariantId The photo the card should keep.
+   * @returns {Promise<boolean>} Whether the test finished.
+   */
+  async function finish(testId, keepVariantId) {
+    return write(async () => {
+      detail.value = await finishTest(testId, keepVariantId)
+      const status = detail.value.status
+      tests.value = tests.value.map((row) => (row.id === testId ? { ...row, status } : row))
+    })
   }
 
   /**
@@ -412,19 +420,11 @@ export const useAbTestsStore = defineStore('abTests', () => {
    * @returns {Promise<boolean>} Whether the change was accepted.
    */
   async function updateSettings(testId, payload) {
-    saving.value = true
-    error.value = ''
-    try {
+    return write(async () => {
       const updated = await updateTestSettings(testId, payload)
       tests.value = tests.value.map((row) => (row.id === testId ? updated : row))
       if (detail.value?.id === testId) detail.value = await fetchTest(testId)
-      return true
-    } catch (err) {
-      error.value = extractErrorMessage(err)
-      return false
-    } finally {
-      saving.value = false
-    }
+    })
   }
 
   /**
@@ -434,19 +434,11 @@ export const useAbTestsStore = defineStore('abTests', () => {
    * @returns {Promise<boolean>} Whether it was deleted.
    */
   async function remove(testId) {
-    saving.value = true
-    error.value = ''
-    try {
+    return write(async () => {
       await deleteTest(testId)
       tests.value = tests.value.filter((row) => row.id !== testId)
       if (detail.value?.id === testId) detail.value = null
-      return true
-    } catch (err) {
-      error.value = extractErrorMessage(err)
-      return false
-    } finally {
-      saving.value = false
-    }
+    })
   }
 
   return {
@@ -473,6 +465,7 @@ export const useAbTestsStore = defineStore('abTests', () => {
     removePhoto,
     toggleExclusion,
     changeStatus,
+    finish,
     updateSettings,
     remove,
     loadImages,

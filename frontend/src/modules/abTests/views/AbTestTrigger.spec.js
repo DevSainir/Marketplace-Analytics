@@ -11,6 +11,7 @@ vi.mock('@/modules/abTests/api', () => ({
   fetchTest: vi.fn(),
   fetchTests: vi.fn(),
   fetchVariantImage: vi.fn(),
+  finishTest: vi.fn(),
   searchSkus: vi.fn(),
   setTestStatus: vi.fn(),
   updateTestSettings: vi.fn(),

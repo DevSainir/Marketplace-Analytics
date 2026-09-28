@@ -401,3 +401,9 @@ class AbTestStatusUpdate(BaseModel):
     """Request body for starting, pausing or cancelling a test."""
 
     status: str = Field(description="running | paused | cancelled")
+
+
+class AbTestFinish(BaseModel):
+    """Request body for finishing a test: which photo the card keeps."""
+
+    keep_variant_id: uuid.UUID = Field(description="Фото, которое останется на карточке")

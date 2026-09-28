@@ -28,6 +28,7 @@ from src.modules.ab_tests.repos import (
     WindowRepository,
 )
 from src.modules.ab_tests.services.catalog import AbTestCatalogService
+from src.modules.ab_tests.services.finish import Finisher
 from src.modules.ab_tests.services.photos import VariantInstaller
 from src.modules.ab_tests.services.skus import SkuCatalogue
 from src.modules.ab_tests.services.storage import MediaStore, build_media_store
@@ -159,6 +160,17 @@ def get_catalog_service(
 AbTestCatalogServiceDep = Annotated[AbTestCatalogService, Depends(get_catalog_service)]
 
 
+def get_finisher(
+    tests: Annotated[AbTestRepository, Depends(get_test_repo)],
+    exposures: Annotated[ExposureRepository, Depends(get_exposure_repo)],
+) -> Finisher:
+    """Provide the finish, bound to the request session."""
+    return Finisher(tests=tests, exposures=exposures)
+
+
+FinisherDep = Annotated[Finisher, Depends(get_finisher)]
+
+
 def get_variant_service(
     tests: Annotated[AbTestRepository, Depends(get_test_repo)],
     variants: Annotated[VariantRepository, Depends(get_variant_repo)],
@@ -175,12 +187,14 @@ VariantServiceDep = Annotated[VariantCatalogService, Depends(get_variant_service
 
 __all__ = [
     "AbTestCatalogServiceDep",
+    "FinisherDep",
     "InstallerDep",
     "MediaStoreDep",
     "SkuCatalogueDep",
     "VariantServiceDep",
     "close_media_store",
     "get_catalog_service",
+    "get_finisher",
     "get_installer",
     "get_media_store",
     "get_sku_catalogue",
