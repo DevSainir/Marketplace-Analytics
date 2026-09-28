@@ -199,13 +199,19 @@ function countsOf(turn, campaignId) {
  * An excluded photo cannot lead a comparison it has left — its numbers stay on
  * the table as the record of why it was excluded, not as a bar for the others.
  *
+ * Compared as numbers, explicitly: the backend's ratios are `Decimal` and arrive
+ * as strings (`"11.24"`), and two strings compare by their first character. That
+ * crowned 8,92 % over 11,24 % on a live test (NEVA, «kp-40-gr», 28.09.2026) —
+ * invisible for as long as every CTR had one digit before the comma.
+ *
  * @param {Array<object>} columns Projected photos.
  * @returns {string|null} The leading variant id.
  */
 export function leaderOf(columns) {
-  const measured = columns.filter((v) => v.click_through !== null && !v.is_excluded)
+  const measured = columns.filter((v) => v.click_through != null && !v.is_excluded)
   if (!measured.length) return null
-  return measured.reduce((a, b) => (b.click_through > a.click_through ? b : a)).variant_id
+  return measured.reduce((a, b) => (Number(b.click_through) > Number(a.click_through) ? b : a))
+    .variant_id
 }
 
 /** «Главное» for the captured photo, «Вариант N» for an upload. */

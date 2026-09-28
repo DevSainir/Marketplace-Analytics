@@ -85,6 +85,19 @@ describe('what the table says about a photo', () => {
     expect(row(wrapper, 'Отклонение')).toEqual(['Лучший', '1,25% ↓'])
   })
 
+  it('crowns the highest CTR as the wire sends it, two digits against one', () => {
+    // The figures of NEVA's «kp-40-gr» on 28.09.2026, in the shape the API
+    // really sends: `Decimal` serialises to a string, and "8.92" > "11.24" as
+    // text. Every fixture above uses numbers, which is how that went unseen.
+    const wrapper = build([
+      variant(MAIN, { click_through: '11.24', ctr_result: '0.00', ctr_gap: '0.00' }),
+      variant(ONE, { click_through: '6.91', ctr_result: '-38.52', ctr_gap: '4.33' }),
+      variant(TWO, { click_through: '8.92', ctr_result: '-20.64', ctr_gap: '2.32' }),
+    ])
+
+    expect(row(wrapper, 'Отклонение')).toEqual(['Лучший', '4,33% ↓', '2,32% ↓'])
+  })
+
   it('calls the captured photo «Главное» instead of «Вариант 0»', () => {
     const wrapper = build([variant(MAIN, { is_original: true, position: 0 })])
 
