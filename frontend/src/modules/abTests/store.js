@@ -35,7 +35,7 @@ export const STATUS_LABELS = {
   running: 'Запущен',
   paused: 'На паузе',
   completed: 'Завершён',
-  cancelled: 'Отменён',
+  cancelled: 'Завершён',
 }
 
 /** Product cap on photos in one rotation; mirrors the backend's own limit. */

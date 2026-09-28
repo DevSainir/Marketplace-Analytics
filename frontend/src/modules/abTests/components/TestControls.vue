@@ -1,7 +1,7 @@
 <script setup>
 /**
- * The test's controls: how many photos it holds, adding one, starting and
- * pausing — and the paragraph that says what «Главное» is.
+ * The test's controls: how many photos it holds, adding one, starting,
+ * pausing and finishing — and the paragraph that says what «Главное» is.
  *
  * Its own component because the detail view was over the 250-line ceiling with
  * it inline.
@@ -15,12 +15,20 @@
  * of its own: nothing else in the rotation is allowed to be it, and there may
  * be only one.
  *
- * Presentational: it owns no state and performs no writes, so the view stays
- * the one place that knows about the store.
+ * «Завершить» is the `cancelled` status — the only way a test ends now — and
+ * it is offered from a pause as well as from a running test: a seller who paused
+ * to look at the table and liked what they saw had no way to close it short of
+ * starting it again first. It cannot be undone (a finished test never starts
+ * again), so it asks twice, like «Удалить тест».
+ *
+ * Presentational: it performs no writes, so the view stays the one place that
+ * knows about the store. The only state it holds is that confirmation.
  */
+import { ref, watch } from 'vue'
+
 import { MAX_VARIANTS } from '@/modules/abTests'
 
-defineProps({
+const props = defineProps({
   /** The open test, as the detail endpoint returns it. */
   test: { type: Object, required: true },
   /** Whether the test still has room for another upload. */
@@ -32,7 +40,28 @@ defineProps({
   /** True while a write is in flight. */
   saving: { type: Boolean, default: false },
 })
-defineEmits(['upload', 'upload-main', 'status'])
+const emit = defineEmits(['upload', 'upload-main', 'status'])
+
+const armed = ref(false)
+
+// A confirmation belongs to the state it was asked in: a test that paused or
+// resumed underneath it must be asked about again.
+watch(
+  () => props.test.status,
+  () => {
+    armed.value = false
+  },
+)
+
+/** Two-click confirm: the first press asks, the second one does it. */
+function finish() {
+  if (!armed.value) {
+    armed.value = true
+    return
+  }
+  armed.value = false
+  emit('status', 'cancelled')
+}
 </script>
 
 <template>
@@ -106,6 +135,21 @@ defineEmits(['upload', 'upload-main', 'status'])
         @click="$emit('status', 'paused')"
       >
         Пауза
+      </button>
+      <button
+        v-if="test.status === 'running' || test.status === 'paused'"
+        type="button"
+        class="inline-flex h-10 items-center justify-center rounded-btn px-lg text-base font-medium shadow-soft transition disabled:cursor-not-allowed disabled:opacity-50"
+        :class="
+          armed
+            ? 'bg-status-negative/10 text-status-negative'
+            : 'bg-surface text-primary hover:bg-hover hover:text-status-negative'
+        "
+        :disabled="saving"
+        data-testid="finish"
+        @click="finish"
+      >
+        {{ armed ? 'Точно завершить?' : 'Завершить' }}
       </button>
     </div>
     <p class="mt-md text-tiny text-muted">
