@@ -86,6 +86,25 @@ ROLLUP_COLUMNS: tuple[str, ...] = (
 )
 
 
+def _summed_columns() -> list[SqlExpr]:
+    """The rollup's columns summed back up, in :func:`aggregate_from_rollup` order.
+
+    One definition for every cut read off the rollup, so the per-window and the
+    per-SKU-day figures cannot come from two different sums.
+    """
+    rollup = SettlementDailyRollup
+    return [
+        func.coalesce(func.mode().within_group(rollup.currency).filter(rollup.currency != ""), ""),
+        func.max(rollup.subject_name),
+        func.max(rollup.brand_name),
+        # Coalesced, because a window the кабинет settled nothing in still
+        # has to produce a zeroed aggregate rather than a row of NULLs: the
+        # TOTAL cut has no GROUP BY, so an empty window returns one row
+        # regardless and every figure on it would be None.
+        *(func.coalesce(func.sum(getattr(rollup, name)), 0) for name in ROLLUP_COLUMNS[3:]),
+    ]
+
+
 class SettlementRollup:
     """Reads the rollup for a window, repairing whatever does not check out."""
 
@@ -264,18 +283,7 @@ class SettlementRollup:
         await self.ensure_fresh(workspace_id=workspace_id, date_from=date_from, date_to=date_to)
         rollup = SettlementDailyRollup
         key, label = self.group_key(grouping)
-        summed = [
-            func.coalesce(
-                func.mode().within_group(rollup.currency).filter(rollup.currency != ""), ""
-            ),
-            func.max(rollup.subject_name),
-            func.max(rollup.brand_name),
-            # Coalesced, because a window the кабинет settled nothing in still
-            # has to produce a zeroed aggregate rather than a row of NULLs: the
-            # TOTAL cut has no GROUP BY, so an empty window returns one row
-            # regardless and every figure on it would be None.
-            *(func.coalesce(func.sum(getattr(rollup, name)), 0) for name in ROLLUP_COLUMNS[3:]),
-        ]
+        summed = _summed_columns()
         stmt = select(key, label, func.min(rollup.rr_dt), func.max(rollup.rr_dt), *summed).where(
             rollup.workspace_id == workspace_id,
             rollup.rr_dt >= date_from,
@@ -287,6 +295,44 @@ class SettlementRollup:
         return [
             aggregate_from_rollup(
                 key=row[0], label=str(row[1] or ""), bounds=(row[2], row[3]), values=row[4:]
+            )
+            for row in rows
+        ]
+
+    async def aggregate_sku_days(
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+    ) -> list[SettlementAggregate]:
+        """Aggregate the window per ``(settlement day, SKU)`` — the heatmap's cell.
+
+        Not a :class:`PnlGrouping`: that key is one value, sorted and matched
+        against a direct pass over the detail, and a statement per cell would be
+        forty fields times every SKU-day of the window. This is the rollup's own
+        grain with the report folded away, summed through the SAME expressions
+        :meth:`aggregate` uses, so a SKU's days add up to its window row exactly.
+
+        The account-level bucket (``nm_id = 0``) is left out: storage, acceptance
+        and WB's deductions are billed to the кабинет, not to an article, and a
+        per-article cut has nowhere honest to put them.
+
+        Returns:
+            One aggregate per settled SKU-day, keyed ``(rr_dt, nm_id)``.
+        """
+        await self.ensure_fresh(workspace_id=workspace_id, date_from=date_from, date_to=date_to)
+        rollup = SettlementDailyRollup
+        stmt = (
+            select(rollup.rr_dt, rollup.nm_id, *_summed_columns())
+            .where(
+                rollup.workspace_id == workspace_id,
+                rollup.rr_dt >= date_from,
+                rollup.rr_dt <= date_to,
+                rollup.nm_id != 0,
+            )
+            .group_by(rollup.rr_dt, rollup.nm_id)
+        )
+        rows = (await self._session.execute(stmt)).all()
+        return [
+            aggregate_from_rollup(
+                key=(row[0], int(row[1])), label="", bounds=(row[0], row[0]), values=row[2:]
             )
             for row in rows
         ]

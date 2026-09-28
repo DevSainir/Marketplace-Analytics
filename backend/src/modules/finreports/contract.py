@@ -18,6 +18,8 @@ from src.modules.finreports.deps import PnlServiceDep, SkuReportServiceDep
 from src.modules.finreports.repos import PnlGrouping
 from src.modules.finreports.schemas import (
     PnlResponse,
+    PnlSkuDay,
+    PnlSkuDays,
     PnlSkuReportResponse,
     PnlSkuRow,
     PnlStatement,
@@ -31,6 +33,8 @@ __all__ = [
     "PnlResponse",
     "PnlService",
     "PnlServiceDep",
+    "PnlSkuDay",
+    "PnlSkuDays",
     "PnlSkuReportResponse",
     "PnlSkuRow",
     "PnlStatement",

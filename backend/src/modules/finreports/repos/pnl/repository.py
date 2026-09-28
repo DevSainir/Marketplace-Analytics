@@ -100,6 +100,14 @@ class PnlRepository:
             grouping=grouping,
         )
 
+    async def aggregate_sku_days(
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+    ) -> list[SettlementAggregate]:
+        """Return the statement's inputs per ``(settlement day, SKU)``, off the rollup."""
+        return await self._rollup.aggregate_sku_days(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
+
     async def aggregate_from_detail(
         self,
         *,

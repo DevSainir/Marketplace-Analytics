@@ -7,6 +7,7 @@ import uuid
 from src.core.logging import get_logger
 from src.integrations.wildberries.photos import is_wb_photo_url
 from src.integrations.wildberries.schemas import WBCard
+from src.modules.monitoring.models.products import BRAND_MAX_LENGTH, SUBJECT_MAX_LENGTH
 from src.modules.monitoring.repos import ProductCardRepository, ProductSizeRepository
 from src.modules.monitoring.schemas import CatalogIngestionResult
 
@@ -84,6 +85,8 @@ class CatalogIngestion:
                 "vendor_code": card.vendor_code,
                 "title": card.title,
                 "photo_url": _main_photo(card),
+                "subject_name": card.subject_name[:SUBJECT_MAX_LENGTH],
+                "brand": card.brand[:BRAND_MAX_LENGTH],
             }
             for card in cards
         ]

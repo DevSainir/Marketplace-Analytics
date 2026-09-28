@@ -329,4 +329,11 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     # Bumping this number is the deliberate step that says a new cross-module
     # loader was reviewed for tenancy, which the four unscoped loaders of August
     # never were.
-    assert len(scoped) == 18, f"expected 18 scoped loaders, found {sorted(scoped)}"
+    #
+    # 23 since 2026-09-28: the heatmap's four `load_*_sku_days` and
+    # `load_workspace_catalog`. Each goes through `workspace_sku_select` (the
+    # catalogue through `product_card.workspace_id` directly), and an optional
+    # `nm_ids` is ANDed onto it so it can only narrow.
+    # `tests/integration/heatmap/test_heatmap_sources_are_scoped.py` is what
+    # actually proves it.
+    assert len(scoped) == 23, f"expected 23 scoped loaders, found {sorted(scoped)}"

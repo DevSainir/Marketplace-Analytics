@@ -18,7 +18,15 @@ from src.modules.monitoring.models import ProductCard, ProductSize
 from src.modules.monitoring.repos.base import BaseRepository
 
 _CARD_CONFLICT = ("nm_id",)
-_CARD_UPDATE = ("workspace_id", "vendor_code", "title", "photo_url", "synced_at")
+_CARD_UPDATE = (
+    "workspace_id",
+    "vendor_code",
+    "title",
+    "photo_url",
+    "subject_name",
+    "brand",
+    "synced_at",
+)
 
 _SIZE_CONFLICT = ("chrt_id",)
 _SIZE_UPDATE = ("nm_id", "tech_size", "wb_size", "barcode", "synced_at")

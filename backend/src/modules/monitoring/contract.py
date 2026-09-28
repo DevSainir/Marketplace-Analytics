@@ -8,7 +8,9 @@ The read DTOs and the service type are re-exported for future consumers; the
 ``load_*``/``*_coverage``/``stock_day_span`` loaders are consumed today by the
 finreports P&L, which needs per-SKU orders and advertising spend the settlement
 report does not carry, and by its «Баланс по товарным остаткам» table, which
-prices the stock still sitting in the warehouses.
+prices the stock still sitting in the warehouses. The ``*_sku_days`` loaders and
+``load_workspace_catalog`` feed the heatmap, which paints every SKU of a кабинет
+day by day.
 """
 
 from src.modules.monitoring.schemas import (
@@ -20,9 +22,14 @@ from src.modules.monitoring.services import (
     BUYOUT_LAG_END_DAYS,
     BUYOUT_LAG_START_DAYS,
     AdDay,
+    AdSkuDay,
     AdSpendDay,
     AnalyticsService,
+    CatalogCard,
+    FunnelSkuDay,
     OrderDay,
+    PriceSkuDay,
+    StockSkuDay,
     WarehouseStock,
     WorkspaceCard,
     ad_bonus_coverage,
@@ -33,14 +40,19 @@ from src.modules.monitoring.services import (
     load_ad_bonus_by_nm,
     load_ad_days,
     load_ad_days_for_nm,
+    load_ad_sku_days,
     load_ad_spend_by_nm,
     load_campaign_ids_for_workspace,
     load_card_photos,
+    load_funnel_sku_days,
     load_order_days,
     load_orders_by_nm,
+    load_price_sku_days,
     load_stock_by_warehouse,
+    load_stock_sku_days,
     load_vendor_codes,
     load_workspace_card,
+    load_workspace_catalog,
     search_workspace_cards,
     stock_day_span,
 )
@@ -49,12 +61,17 @@ __all__ = [
     "BUYOUT_LAG_END_DAYS",
     "BUYOUT_LAG_START_DAYS",
     "AdDay",
+    "AdSkuDay",
     "AdSpendDay",
     "AnalyticsService",
+    "CatalogCard",
+    "FunnelSkuDay",
     "OrderDay",
+    "PriceSkuDay",
     "SkuDetailResponse",
     "SkuSummaryItem",
     "SkuSummaryListResponse",
+    "StockSkuDay",
     "WarehouseStock",
     "WorkspaceCard",
     "ad_bonus_coverage",
@@ -65,14 +82,19 @@ __all__ = [
     "load_ad_bonus_by_nm",
     "load_ad_days",
     "load_ad_days_for_nm",
+    "load_ad_sku_days",
     "load_ad_spend_by_nm",
     "load_campaign_ids_for_workspace",
     "load_card_photos",
+    "load_funnel_sku_days",
     "load_order_days",
     "load_orders_by_nm",
+    "load_price_sku_days",
     "load_stock_by_warehouse",
+    "load_stock_sku_days",
     "load_vendor_codes",
     "load_workspace_card",
+    "load_workspace_catalog",
     "search_workspace_cards",
     "stock_day_span",
 ]

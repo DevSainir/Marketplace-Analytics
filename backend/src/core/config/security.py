@@ -124,6 +124,9 @@ class SecuritySettings(BaseSettings):
     # A test is a deliberate, weeks-long thing a human sets up. Hundreds is
     # already generous; thousands means something is generating them.
     max_ab_tests_per_workspace: int = Field(default=500, ge=1)
+    # Heatmap groups are named hand-picked sets of articles («спандекс_двойка»).
+    # A кабинет has tens of product lines at most; a thousand means a script.
+    max_sku_groups_per_workspace: int = Field(default=200, ge=1)
     # Comments are bounded by DATE rather than by count, because they carry no
     # workspace column to count against (they are keyed on `nm_id`, which
     # belongs to one seller's catalogue) — and because the bound that matters

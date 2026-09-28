@@ -95,6 +95,10 @@ class WBCard(RawBase):
     nm_id: int = Field(alias="nmID")
     vendor_code: str = Field(default="", alias="vendorCode")
     title: str = Field(default="", alias="title")
+    #: WB's «Предмет» (e.g. «Костюмы»). What the heatmap's «Категории» filter
+    #: and «По категории» cut group by; blank when WB returns none.
+    subject_name: str = Field(default="", alias="subjectName")
+    brand: str = Field(default="", alias="brand")
     dimensions: WBCardDimensions | None = None
     photos: list[WBCardPhoto] = Field(default_factory=list)
     sizes: list[WBCardSize] = Field(default_factory=list)

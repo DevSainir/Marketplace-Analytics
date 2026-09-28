@@ -37,6 +37,39 @@ def _pct(part: Decimal, whole: Decimal) -> Decimal | None:
     return (part / whole * _HUNDRED).quantize(Decimal("0.01"))
 
 
+def _logistics(aggregate: SettlementAggregate) -> Decimal:
+    """Every logistics leg the SKU's own rows carry, forward, return and unlegged."""
+    return aggregate.logistics_forward + aggregate.logistics_return + aggregate.logistics_unlegged
+
+
+def _payout_goods(aggregate: SettlementAggregate) -> Decimal:
+    """What WB owes for the goods themselves, before anything is withheld."""
+    return aggregate.payout_sales - aggregate.payout_returns + aggregate.payout_other
+
+
+def sku_payout_net(aggregate: SettlementAggregate) -> Decimal:
+    """The payout for a SKU's own rows, net of what WB withheld on them.
+
+    The same net-of-withholdings formula the window statement uses, applied to
+    this SKU's own rows. For a real SKU the storage/acceptance/deduction terms
+    are almost always zero (WB bills them at account level); for the nm_id = 0
+    bucket they are the whole point. Keeping ONE formula — here, and called by
+    every cut that needs it — is what makes Σ payout_net over rows +
+    unallocated equal the window's «Итого к оплате», and what keeps a per-day
+    cut of the same SKU from drifting off its per-window row.
+    """
+    withheld = (
+        _logistics(aggregate)
+        + aggregate.storage
+        + aggregate.acceptance
+        + aggregate.penalties
+        + aggregate.deductions
+        + aggregate.rebill_logistic_cost
+        - aggregate.additional_payments
+    )
+    return _payout_goods(aggregate) - withheld
+
+
 def build_sku_row(
     aggregate: SettlementAggregate,
     *,
@@ -78,25 +111,9 @@ def build_sku_row(
     """
     revenue_paid = aggregate.sales_gross - aggregate.returns_gross
     revenue_seller = aggregate.sales_before_spp - aggregate.returns_before_spp
-    payout_goods = aggregate.payout_sales - aggregate.payout_returns + aggregate.payout_other
-    logistics = (
-        aggregate.logistics_forward + aggregate.logistics_return + aggregate.logistics_unlegged
-    )
-    # The same net-of-withholdings formula the window statement uses, applied to
-    # this SKU's own rows. For a real SKU the storage/acceptance/deduction terms
-    # are almost always zero (WB bills them at account level); for the nm_id = 0
-    # bucket they are the whole point. Keeping one formula is what makes
-    # Σ payout_net over rows + unallocated equal the window's «Итого к оплате».
-    withheld = (
-        logistics
-        + aggregate.storage
-        + aggregate.acceptance
-        + aggregate.penalties
-        + aggregate.deductions
-        + aggregate.rebill_logistic_cost
-        - aggregate.additional_payments
-    )
-    payout_net = payout_goods - withheld
+    payout_goods = _payout_goods(aggregate)
+    logistics = _logistics(aggregate)
+    payout_net = sku_payout_net(aggregate)
 
     net_units = aggregate.sold_units - aggregate.returned_units
     cogs = cost_price * net_units if cost_price is not None else None

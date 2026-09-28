@@ -28,6 +28,12 @@ from src.core.database import Base
 
 _SCHEMA: str = "monitoring"
 
+#: Column widths for WB's «Предмет» and «Бренд». WB's own names run to a few
+#: dozen characters; the ingest truncates to these rather than failing a whole
+#: catalogue page on one oversized value.
+SUBJECT_MAX_LENGTH: int = 128
+BRAND_MAX_LENGTH: int = 128
+
 
 class ProductCard(Base):
     """A SKU's catalogue identity: vendor code + title + owning workspace.
@@ -58,6 +64,9 @@ class ProductCard(Base):
             seller re-shoots the card, and the three screens that show it would
             otherwise cost a Content API call each — an endpoint whose page is
             100 cards and whose rate limit the harvest already spends.
+        subject_name: WB's «Предмет» (e.g. «Костюмы»), ``""`` until the first
+            catalogue sync that carried it. The heatmap groups and filters by it.
+        brand: The card's brand, ``""`` the same way.
         synced_at: Timestamp of the last sync from WB.
     """
 
@@ -74,6 +83,14 @@ class ProductCard(Base):
     # schema (production's) about what an INSERT omitting this column does.
     photo_url: Mapped[str] = mapped_column(
         String(512), default="", server_default="", nullable=False
+    )
+    # `server_default` for the same reason as `photo_url`: the migration adds
+    # both columns to a populated table, so it must give existing rows a value.
+    subject_name: Mapped[str] = mapped_column(
+        String(SUBJECT_MAX_LENGTH), default="", server_default="", nullable=False
+    )
+    brand: Mapped[str] = mapped_column(
+        String(BRAND_MAX_LENGTH), default="", server_default="", nullable=False
     )
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

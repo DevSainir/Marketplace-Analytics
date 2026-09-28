@@ -20,9 +20,11 @@ from src.modules.finreports.repos import (
     SkuExclusionRepository,
 )
 from src.modules.finreports.schemas.size_report import PnlSizesResponse
+from src.modules.finreports.schemas.sku_days import PnlSkuDays
 from src.modules.finreports.schemas.sku_report import PnlSkuReportResponse, PnlSkuRow
 from src.modules.finreports.services.cost_price_workbook import build_pnl_workbook
 from src.modules.finreports.services.pnl.size_report import build_size_rows
+from src.modules.finreports.services.pnl.sku_days import build_sku_days
 from src.modules.finreports.services.pnl.sku_report import build_dashboard, build_sku_report
 
 _ZERO = Decimal(0)
@@ -54,6 +56,35 @@ class SkuReportService:
         await self._exclusions.set_excluded(
             workspace_id=workspace_id, nm_id=nm_id, excluded=excluded
         )
+
+    async def get_sku_days(
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+    ) -> PnlSkuDays:
+        """Return every settled SKU-day of the window — revenue, units, payout, cost.
+
+        The cut the heatmap paints its money metrics from. Costs are matched in
+        the window's own settlement currency, falling back to the кабинет's when
+        the window settled nothing, exactly as the per-SKU report picks them: a
+        cost stated in another currency leaves the article uncosted rather than
+        converted at an invented rate.
+
+        Args:
+            workspace_id: Owning workspace.
+            date_from: Inclusive settlement-date start.
+            date_to: Inclusive settlement-date end.
+        """
+        aggregates = await self._pnl.aggregate_sku_days(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
+        currency = await self._pnl.window_currency(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        ) or await self._pnl.settlement_currency(workspace_id=workspace_id)
+        costs = (
+            await self._costs.costs_by_nm_id(workspace_id=workspace_id, currency=currency)
+            if currency
+            else {}
+        )
+        return build_sku_days(aggregates, costs=costs, currency=currency)
 
     async def get_sizes(
         self, *, workspace_id: uuid.UUID, nm_id: int, date_from: date, date_to: date
