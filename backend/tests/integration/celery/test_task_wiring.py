@@ -98,12 +98,16 @@ def test_the_nightly_harvest_precedes_the_dependent_jobs() -> None:
     The cohort refresh and the finance harvest read what the harvest wrote and
     compete for the same rate-limited WB surfaces; running them first would
     both starve the harvest and compute against yesterday's data.
+
+    Compared to the minute, not the hour: since 2026-09-28 both sit in 05:00 so
+    the night ends by 06:30. That the cohort pass also waits out the harvest's
+    worst runtime is ``tests/unit/core/test_nightly_work_ends_before_the_workday.py``.
     """
     schedule = celery_app.conf.beat_schedule
-    harvest_hour = schedule["nightly-harvest-all"]["schedule"].hour
-    cohorts_hour = schedule["nightly-refresh-buyout-cohorts"]["schedule"].hour
+    harvest = schedule["nightly-harvest-all"]["schedule"]
+    cohorts = schedule["nightly-refresh-buyout-cohorts"]["schedule"]
 
-    assert min(harvest_hour) < min(cohorts_hour)
+    assert (min(harvest.hour), min(harvest.minute)) < (min(cohorts.hour), min(cohorts.minute))
 
 
 def test_the_price_top_up_finishes_before_the_day_rolls_over() -> None:

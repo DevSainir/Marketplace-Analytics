@@ -305,7 +305,7 @@ and the secure-cookie settings are all in place and were never the blocker.
 
 Initialised in **both** runtimes. The worker is the half that matters more: an
 exception in a request is answered with a 500 somebody sees, an exception in the
-06:00 harvest is a night of missing data that surfaces as a customer asking why
+nightly harvest is a night of missing data that surfaces as a customer asking why
 a number is stale.
 
 `send_default_pii` is **off**, and that is a security decision rather than a

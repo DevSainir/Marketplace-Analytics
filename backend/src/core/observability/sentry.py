@@ -9,7 +9,7 @@ that nothing receives.
 **Why it is initialised twice.** The API and the Celery worker are separate
 processes with separate entrypoints, and the worker is the half that matters
 more here — an exception in a request is answered with a 500 that somebody
-notices, while an exception in the 06:00 harvest is a night of missing data
+notices, while an exception in the nightly harvest is a night of missing data
 that surfaces as a customer asking why a number is stale. Wiring only FastAPI
 would instrument the failures that already have a witness.
 

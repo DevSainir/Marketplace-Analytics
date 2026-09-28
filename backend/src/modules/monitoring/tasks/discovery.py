@@ -211,9 +211,9 @@ async def _discover_and_harvest(days: int) -> dict[str, int]:
     for bundle in bundles:
         try:
             # No cohorts here: ``monitoring.refresh_buyout_cohorts`` sweeps
-            # every workspace at 07:00 MSK, an hour after this pass. Running
+            # every workspace at 05:20 MSK, right after this pass. Running
             # them in both would spend 22 rate-limited requests per workspace
-            # to write rows the 07:00 pass immediately rewrites.
+            # to write rows the 05:20 pass immediately rewrites.
             result = await _discover_and_harvest_workspace(bundle, days, include_cohorts=False)
         except Exception as exc:  # isolate workspaces from each other
             logger.warning("Harvest failed for workspace '%s': %s", bundle.name, exc)

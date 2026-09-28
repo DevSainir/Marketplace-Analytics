@@ -3,7 +3,7 @@
 The API half of this service was already legible — every request binds a
 context and emits a line (register P2.2). The worker half was not, and it is
 the half that runs unattended: a failed request is answered with a 500 that
-somebody sees, a failed 06:00 harvest is a number that is quietly stale until a
+somebody sees, a failed nightly harvest is a number that is quietly stale until a
 customer asks. This module closes that asymmetry.
 
 Four things happen here, all through Celery's signals so that no task body has

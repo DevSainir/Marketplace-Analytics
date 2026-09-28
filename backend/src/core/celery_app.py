@@ -86,14 +86,30 @@ celery_app.conf.update(
     worker_hijack_root_logger=False,
 )
 
-# Nightly refresh: because ``timezone`` is Europe/Moscow, this crontab fires at
-# 06:00 MSK. It harvests yesterday's funnel + stock for every SKU and the last
-# week of advertising for all active/paused campaigns.
+# Every time below is Moscow time (``timezone`` above).
+#
+# The working day starts at 07:00 MSK, and nightly work must be FINISHED by
+# 06:30 — half an hour clear. Until 2026-09-28 the monitoring harvest ran
+# 06:00-06:10 and the buyout-cohort pass 07:00-07:34, i.e. into the working day.
+# The night now runs:
+#
+#   00:00 01:00 02:00  finance tick (yesterday's daily report)   ≤ 6 min
+#   02:20              reference capture                          ≤ 1 min
+#   03:00              finance reconciliation + summary warm-up   ≤ 23 min
+#   04:00              finance tick                               ≤ 6 min
+#   04:30              refresh-token purge                        instant
+#   05:05              monitoring harvest                         ≤ 10 min
+#   05:20              buyout cohorts (after the harvest's rows)  ≤ 35 min → 05:55
+#
+# which leaves 35 minutes before the deadline for the harvest and the cohort pass
+# to grow into; both walk every кабинет in turn, at roughly one and a half and
+# six minutes per кабинет, so that is about five more кабинеты. Hour 04 stays
+# the finance tick's: WB serves a daily report around 04:01 and walking it can
+# take the tick well past its usual minutes.
+#
+# ``tests/unit/core/test_nightly_work_ends_before_the_workday.py`` holds every
+# nightly entry to 06:30 at its measured worst-case runtime.
 celery_app.conf.beat_schedule = {
-    # A/B photo rotations, after the harvest that writes the advertising rows
-    # they read. 08:00 MSK leaves the 06:00 harvest and the 07:00 cohort pass
-    # room to finish; a rotation that runs on a half-written day would
-    # under-count the live photo and delay its swap by a day.
     # A/B photo rotations. Every five minutes, not nightly: WB's advertising
     # counters are cumulative and move within minutes, so the difference between
     # two reads is the traffic of the interval between them — which is what lets
@@ -105,23 +121,28 @@ celery_app.conf.beat_schedule = {
         "task": "ab_tests.poll_rotations",
         "schedule": crontab(minute="*/5"),
     },
+    # Yesterday's funnel + stock for every SKU, today's price snapshot and the
+    # last week of advertising for all active/paused campaigns. It re-reads the
+    # last seven days every night, so a late WB revision of yesterday lands the
+    # following night.
     "nightly-harvest-all": {
         "task": "monitoring.harvest_all",
-        "schedule": crontab(hour=6, minute=0),
+        "schedule": crontab(hour=5, minute=5),
         "kwargs": {"days": 7},
     },
     # «Процент выкупа» inputs: re-read the order-date cohorts that are still
-    # maturing (deliveries keep being accepted/refused for ~3 weeks). Runs an
-    # hour after the harvest so it never competes with it for the same
-    # rate-limited analytics surface, and stays out of harvest_all because it
-    # is catalogue-wide and costs ~22 sequential requests per workspace.
+    # maturing (deliveries keep being accepted/refused for ~3 weeks). After the
+    # harvest has finished, because it only UPDATEs funnel rows the harvest
+    # inserted, and so it never competes with it for the analytics surface. It
+    # stays out of harvest_all because it is catalogue-wide and costs ~22
+    # sequential requests per workspace — the longest nightly job, ~35 minutes.
     "nightly-refresh-buyout-cohorts": {
         "task": "monitoring.refresh_buyout_cohorts",
-        "schedule": crontab(hour=7, minute=0),
+        "schedule": crontab(hour=5, minute=20),
     },
     # The other half of the price snapshot. The customer price comes from the
     # order feed, which answers for a SKU only once it has sold *today*, so the
-    # 06:00 harvest prices a fraction of the catalogue and the rest of the day's
+    # 05:05 harvest prices a fraction of the catalogue and the rest of the day's
     # sales land after it. This pass asks once more for the gaps only.
     #
     # 23:30 MSK, and the half hour is load-bearing in both directions: late
@@ -147,8 +168,8 @@ celery_app.conf.beat_schedule = {
         "task": "auth.purge_expired_refresh_tokens",
         "schedule": crontab(hour=4, minute=30),
     },
-    # history, so the series is ours to accumulate). 05:00 MSK, before the
-    # finance harvest so each settlement row can price against a same-day tariff.
+    # history, so the series is ours to accumulate). 05:00 MSK, clear of the
+    # 04:00 finance tick and before the monitoring harvest.
     "daily-finreports-snapshot-tariffs": {
         "schedule": crontab(hour=5, minute=0),
     },
@@ -168,7 +189,8 @@ celery_app.conf.beat_schedule = {
     #
     # `harvest_all_workspaces` holds a Redis lock, so two entries firing in the
     # same minute run once. 03:00 belongs to the reconciliation and
-    # refresh, which compete for the same rate-limited surfaces.
+    # refresh, which compete for the same rate-limited surfaces. The by-day tick
+    # is daytime work on purpose: it exists for reports WB serves during the day.
     "finreports-harvest-at-night": {
         "task": "finreports.harvest_finance",
         # Yesterday's daily report.
@@ -203,7 +225,7 @@ celery_app.conf.beat_schedule = {
     # the product could tell: the counters moved, the task succeeded, the P&L
     # was simply short a day.
     #
-    # 03:00 MSK, and the night tick gives up that hour above. Not 05:00-07:00:
+    # 03:00 MSK, and the night tick gives up that hour above. Not 05:00-05:55:
     # refresh, and this pass competes for the same rate-limited surfaces. Since
     # 2026-09-26 it covers every seller, not one in rotation: per seller it is
     # one list over the whole history (WB's totals for the archive) plus the
@@ -227,7 +249,7 @@ celery_app.conf.beat_schedule = {
     # fetching — one list request per workspace screens every queued report, and
     # only a report whose totals moved costs a re-read.
     #
-    # 12:40 MSK: outside the 05:00-07:00 block that belongs to the tariff
+    # 12:40 MSK: outside the 05:00-05:55 block that belongs to the tariff
     # snapshot and the monitoring harvest, and clear of the 03:00 reconciliation.
     "daily-finreports-verify-daily-tail": {
         "task": "finreports.verify_daily_tail",
@@ -258,7 +280,7 @@ celery_app.conf.beat_schedule = {
     # The window 00:00-03:00 is the quietest one this schedule has: the hourly
     # finance tick fires at minute 0 and finds nothing new on most of those
     # hours, and the nightly passes (reconcile 03:00, tariffs 05:00, harvest
-    # 06:00, cohorts 07:00) are all later. Each entry sits away from minute 0
+    # 05:05, cohorts 05:20) are all later. Each entry sits away from minute 0
     # for the same reason. The service layer also holds ONE lock across both, so
     # an overrun makes the next cadence a no-op rather than a second concurrent
     # walk.
