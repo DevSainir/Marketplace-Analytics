@@ -20,6 +20,7 @@ from __future__ import annotations
 import inspect
 import pkgutil
 from importlib import import_module
+from pathlib import Path
 
 import pytest
 
@@ -36,6 +37,15 @@ from src.integrations.wildberries.rate_limit import NullRateGate
 #: test in the first place. Listed so the absence is a decision on the record.
 _NOT_SELLER_API: dict[str, str] = {
     "WBCardClient": "public storefront via curl; no token, own semaphore",
+}
+
+#: Clients that take their gate from the caller, because the right bucket depends
+#: on which host the caller points them at — and the test that checks those
+#: callers instead. Until 2026-09-29 such a client was simply skipped below, and
+#: the skip hid a real gap: the guide's tariff captures on the `common` host,
+#: which the daily tariff harvest also uses, ran with no gate at all.
+_GATE_FROM_CALLER: dict[str, str] = {
+    "WBReferenceClient": "tests/unit/guide/test_capture_pacing.py",
 }
 
 
@@ -77,7 +87,19 @@ def test_a_wb_client_takes_a_rate_gate(client_cls: type[BaseWBClient]) -> None:
     )
 
 
-@pytest.mark.parametrize("client_cls", _client_classes(), ids=lambda c: c.__name__)
+def test_every_caller_gated_client_names_a_test_that_exists() -> None:
+    """An exemption pointing at a file nobody wrote is the old skip with extra steps."""
+    root = Path(__file__).resolve().parents[3]
+
+    for name, test_file in _GATE_FROM_CALLER.items():
+        assert (root / test_file).is_file(), f"{name} is exempt on the word of {test_file}"
+
+
+@pytest.mark.parametrize(
+    "client_cls",
+    [c for c in _client_classes() if c.__name__ not in _GATE_FROM_CALLER],
+    ids=lambda c: c.__name__,
+)
 def test_a_wb_client_is_paced_once_built(client_cls: type[BaseWBClient]) -> None:
     """With pacing enabled, the built client holds a real bucket, not the null one.
 
@@ -85,14 +107,15 @@ def test_a_wb_client_is_paced_once_built(client_cls: type[BaseWBClient]) -> None
     returns :class:`NullRateGate` for this surface, which is what «it is in the
     file, so it must be paced» would miss.
     """
-    if client_cls.__name__ in _NOT_SELLER_API:
-        pytest.skip(_NOT_SELLER_API[client_cls.__name__])
-
     settings = Settings(wb_rate_pacing_enabled=True)
     try:
         client = client_cls(settings, token="probe-token")  # type: ignore[call-arg]
     except TypeError:
-        pytest.skip(f"{client_cls.__name__} needs more than (settings, token) to build")
+        pytest.fail(
+            f"{client_cls.__name__} needs more than (settings, token) to build, so "
+            "this test cannot check it. If it takes its gate from the caller, list "
+            "it in _GATE_FROM_CALLER with a test that checks every caller instead."
+        )
 
     assert not isinstance(client._rate_gate, NullRateGate), (
         f"{client_cls.__name__} builds with NullRateGate even though pacing is on."
