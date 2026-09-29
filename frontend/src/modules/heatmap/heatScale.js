@@ -31,12 +31,11 @@ export const NORMAL_BAND = 0.2
 /** How fast the tint saturates past the band, in log units: bigger = gentler. */
 const SOFTNESS = 0.5
 
-/** Tint of the faintest painted cell and of the strongest, as alphas. */
+/** Tint of the faintest painted cell and of the strongest, as alphas. The
+ *  ceiling is where the ordinary dark ink still reads on the darkest hue (the
+ *  green): the owner wants no white figures at all (2026-09-29). */
 const MIN_ALPHA = 0.12
-const MAX_ALPHA = 0.8
-
-/** From this alpha on a dark hue the figure is printed white to stay legible. */
-const INK_FLIP_ALPHA = 0.5
+const MAX_ALPHA = 0.65
 
 /**
  * The norm of the compared cells: their median. `null` when fewer than three
@@ -85,14 +84,14 @@ export function departure(value, norm, { count = false, band = NORMAL_BAND } = {
 }
 
 /**
- * The style for a cell — background and, on a strong dark tint, white ink.
+ * The style for a cell — its background; the figure keeps the ordinary ink.
  *
  * Built from the design tokens' channel triples, so the heatmap follows the
  * palette rather than carrying colours of its own.
  *
  * @param {number|null} strength From {@link departure}.
  * @param {'up'|'down'|'neutral'} direction
- * @returns {{background?: string, color?: string}}
+ * @returns {{background?: string}}
  */
 export function heatStyle(strength, direction) {
   if (strength === null || strength === 0) return {}
@@ -102,7 +101,72 @@ export function heatStyle(strength, direction) {
     const better = direction === 'down' ? strength < 0 : strength > 0
     channel = better ? '--ui-pos-rgb' : '--ui-neg-rgb'
   }
-  const style = { background: `rgb(var(${channel}) / ${alpha.toFixed(3)})` }
-  if (alpha >= INK_FLIP_ALPHA) style.color = '#fff'
-  return style
+  return { background: `rgb(var(${channel}) / ${alpha.toFixed(3)})` }
+}
+
+/*
+ * The first scale, kept side by side with the one above so the owner can
+ * compare them on real data (2026-09-29): a cell placed between the WORST and
+ * the BEST of the compared cells rather than against their norm. Every cell
+ * gets some colour; the middle of the range stays unpainted.
+ */
+
+/** Strongest tint of the range scale, as an alpha. */
+const RANGE_MAX_ALPHA = 0.5
+
+/** How far from the middle of the range a cell must sit before it is painted. */
+const DEAD_ZONE = 0.04
+
+/**
+ * Min and max of the finite values in `values`, or `null` when there are none.
+ *
+ * @param {Iterable<number|null>} values
+ * @returns {{min: number, max: number}|null}
+ */
+export function rangeOf(values) {
+  let min = Infinity
+  let max = -Infinity
+  for (const value of values) {
+    if (value === null || value === undefined || !Number.isFinite(value)) continue
+    if (value < min) min = value
+    if (value > max) max = value
+  }
+  return min === Infinity ? null : { min, max }
+}
+
+/**
+ * Where `value` sits in `range`, as 0 (worst) … 1 (best); for a neutral metric
+ * plain magnitude. `null` when there is nothing to place or no spread.
+ *
+ * @param {number|null} value
+ * @param {{min: number, max: number}|null} range
+ * @param {'up'|'down'|'neutral'} direction
+ * @returns {number|null}
+ */
+export function rangePosition(value, range, direction) {
+  if (value === null || value === undefined || !Number.isFinite(value) || !range) return null
+  const spread = range.max - range.min
+  if (spread <= 0) return null
+  const share = Math.min(1, Math.max(0, (value - range.min) / spread))
+  return direction === 'down' ? 1 - share : share
+}
+
+/**
+ * The style for a cell at `position` on the range scale.
+ *
+ * @param {number|null} position From {@link rangePosition}.
+ * @param {'up'|'down'|'neutral'} direction
+ * @returns {{background?: string}}
+ */
+export function rangeStyle(position, direction) {
+  if (position === null) return {}
+  if (direction === 'neutral') {
+    const alpha = position * RANGE_MAX_ALPHA * 0.7
+    return alpha < 0.02 ? {} : { background: `rgb(var(--ui-action-rgb) / ${alpha.toFixed(3)})` }
+  }
+  const offset = position - 0.5
+  if (Math.abs(offset) < DEAD_ZONE) return {}
+  const alpha = Math.min(1, Math.abs(offset) * 2) * RANGE_MAX_ALPHA
+  const channel = offset > 0 ? '--ui-pos-rgb' : '--ui-neg-rgb'
+  return { background: `rgb(var(${channel}) / ${alpha.toFixed(3)})` }
 }

@@ -8,7 +8,14 @@
  * page flip is instant instead of a round trip over the whole window.
  */
 import { MONTHS } from '@/core/utils/calendarModel'
-import { departure, heatStyle, normOf } from '@/modules/heatmap/heatScale'
+import {
+  departure,
+  heatStyle,
+  normOf,
+  rangeOf,
+  rangePosition,
+  rangeStyle,
+} from '@/modules/heatmap/heatScale'
 
 const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб']
 
@@ -96,6 +103,26 @@ export function tintRows(pageRows, allRows, mode, metric) {
   return pageRows.map((row) => {
     const norm = table ?? normOf(row.values)
     return row.values.map((value) => heatStyle(departure(value, norm, options), metric.direction))
+  })
+}
+
+/**
+ * The same tints on the range scale — worst to best of the compared cells —
+ * for the second, comparison table. Same modes, same «Итого» rule.
+ *
+ * @param {Array<object>} pageRows
+ * @param {Array<object>} allRows
+ * @param {'row'|'table'} mode
+ * @param {{direction: 'up'|'down'|'neutral'}} metric
+ * @returns {Array<Array<object>>}
+ */
+export function rangeTintRows(pageRows, allRows, mode, metric) {
+  const table = mode === 'table' ? rangeOf(allRows.flatMap((row) => row.values)) : null
+  return pageRows.map((row) => {
+    const range = table ?? rangeOf(row.values)
+    return row.values.map((value) =>
+      rangeStyle(rangePosition(value, range, metric.direction), metric.direction),
+    )
   })
 }
 

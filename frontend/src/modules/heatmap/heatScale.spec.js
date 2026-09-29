@@ -6,7 +6,7 @@
  * as twice it), a collapse reads as a collapse, and the direction still says
  * which side is good.
  */
-import { departure, heatStyle, normOf } from './heatScale'
+import { departure, heatStyle, normOf, rangeOf, rangePosition, rangeStyle } from './heatScale'
 
 describe('normOf', () => {
   it('takes the median, so one outlier does not move the norm', () => {
@@ -66,12 +66,29 @@ describe('heatStyle', () => {
     expect(heatStyle(0, 'up')).toEqual({})
   })
 
-  it('prints the figure white on a strong tint so it stays legible', () => {
-    expect(heatStyle(-0.9, 'up').color).toBe('#fff')
-    expect(heatStyle(-0.2, 'up').color).toBeUndefined()
+  it('never prints the figure white, even on the strongest tint', () => {
+    expect(heatStyle(-1, 'up').color).toBeUndefined()
   })
 
   it('paints a metric with no better end in the action hue', () => {
     expect(heatStyle(-0.6, 'neutral').background).toContain('--ui-action-rgb')
+  })
+})
+
+describe('range scale', () => {
+  it('places a value between the worst and the best cell', () => {
+    const range = rangeOf([10, null, 30, 20])
+    expect(rangePosition(20, range, 'up')).toBe(0.5)
+    expect(rangePosition(10, range, 'down')).toBe(1)
+  })
+
+  it('has nothing to place when every cell is equal', () => {
+    expect(rangePosition(5, rangeOf([5, 5]), 'up')).toBeNull()
+  })
+
+  it('paints the ends and leaves the middle white', () => {
+    expect(rangeStyle(1, 'up').background).toContain('--ui-pos-rgb')
+    expect(rangeStyle(0, 'up').background).toContain('--ui-neg-rgb')
+    expect(rangeStyle(0.5, 'up')).toEqual({})
   })
 })

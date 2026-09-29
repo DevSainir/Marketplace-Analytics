@@ -288,8 +288,7 @@
 
 .hm-grid__bottom {
   font-size: 0.6875rem;
-  /* Inherits the cell's ink rather than setting grey: on a strong tint the cell
-     prints white, and a grey second line would vanish into it. */
+  /* The cell's own ink, dimmed: a fixed grey turns muddy on a strong tint. */
   color: inherit;
   opacity: 0.7;
 }

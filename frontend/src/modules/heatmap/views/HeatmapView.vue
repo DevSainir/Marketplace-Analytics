@@ -96,6 +96,7 @@ onMounted(() => store.init())
       </p>
 
       <div v-if="store.data && store.primary" :class="{ 'hm-stale': store.loading }">
+        <h2 class="mb-sm text-base font-semibold text-primary">Вариант 1 — от нормы</h2>
         <HeatmapTable
           class="hidden sm:block"
           :columns="store.columns"
@@ -127,6 +128,37 @@ onMounted(() => store.init())
           :pages="store.view.pages"
           :total="store.sortedRows.length"
           @update:page="store.page = $event"
+        />
+
+        <!-- The same page on the first colour scale, so the two can be compared
+             on real data; one of them goes once the owner has picked. -->
+        <h2 class="mb-sm mt-xl text-base font-semibold text-primary">
+          Вариант 2 — от худшего к лучшему
+        </h2>
+        <HeatmapTable
+          class="hidden sm:block"
+          :columns="store.columns"
+          :period="store.data.period"
+          :rows="store.view.rows"
+          :tints="store.rangeTints"
+          :totals="store.totals"
+          :primary="store.primary"
+          :secondary="store.secondary"
+          :sort="store.sort"
+          :group-by="store.data.group_by"
+          :date-from="store.data.date_from"
+          :date-to="store.data.date_to"
+          @sort="store.toggleSort"
+        />
+        <HeatmapDayList
+          class="sm:hidden"
+          :columns="store.columns"
+          :period="store.data.period"
+          :rows="store.view.rows"
+          :tints="store.rangeTints"
+          :totals="store.totals"
+          :primary="store.primary"
+          :secondary="store.secondary"
         />
       </div>
     </section>
