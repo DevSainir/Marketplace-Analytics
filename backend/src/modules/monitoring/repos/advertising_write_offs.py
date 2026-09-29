@@ -15,7 +15,11 @@ from typing import Any, cast
 from sqlalchemy import CursorResult, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.monitoring.models import AdvertisingWriteOffDaily
+from src.modules.monitoring.models import (
+    AdvertisingStatDaily,
+    AdvertisingWriteOffDaily,
+    ProductCard,
+)
 from src.modules.monitoring.repos.base import BaseRepository
 
 _CONFLICT = ("stat_date", "campaign_id", "payment_type", "currency")
@@ -99,6 +103,46 @@ class AdvertisingWriteOffRepository(BaseRepository):
                 AdvertisingWriteOffDaily.stat_date <= date_to,
                 AdvertisingWriteOffDaily.currency != "",
                 AdvertisingWriteOffDaily.campaign_id.in_(list(campaign_ids)),
+            )
+            .group_by(AdvertisingWriteOffDaily.currency)
+            .order_by(AdvertisingWriteOffDaily.currency)
+        )
+        return [str(currency) for currency in (await self._session.execute(stmt)).scalars()]
+
+    async def currencies_for_sku_cabinet(
+        self, *, nm_id: int, date_from: date, date_to: date
+    ) -> list[str]:
+        """Return the currencies the SKU's whole кабинет was charged in over a window.
+
+        The fallback for :meth:`currencies_for_campaigns`. The ledger names only
+        some campaigns — on «Демо» 8 of the 31 that spent in a fortnight of
+        September 2026 — so a SKU advertised by the others would print its spend
+        with no unit, where the кабинет's own label is almost always the right
+        one. The кабинет is the one owning this SKU's card (``nm_id`` is the
+        card's primary key), and only campaigns that advertised its cards count.
+
+        Args:
+            nm_id: The SKU whose кабинет is being asked about.
+            date_from: Inclusive window start.
+            date_to: Inclusive window end.
+
+        Returns:
+            The distinct labels, alphabetically; empty when none were charged.
+        """
+        cabinet = select(ProductCard.workspace_id).where(ProductCard.nm_id == nm_id)
+        cards = select(ProductCard.nm_id).where(ProductCard.workspace_id.in_(cabinet))
+        campaigns = (
+            select(AdvertisingStatDaily.campaign_id)
+            .where(AdvertisingStatDaily.nm_id.in_(cards))
+            .distinct()
+        )
+        stmt = (
+            select(AdvertisingWriteOffDaily.currency)
+            .where(
+                AdvertisingWriteOffDaily.stat_date >= date_from,
+                AdvertisingWriteOffDaily.stat_date <= date_to,
+                AdvertisingWriteOffDaily.currency != "",
+                AdvertisingWriteOffDaily.campaign_id.in_(campaigns),
             )
             .group_by(AdvertisingWriteOffDaily.currency)
             .order_by(AdvertisingWriteOffDaily.currency)

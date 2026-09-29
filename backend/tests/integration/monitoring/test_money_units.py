@@ -10,12 +10,17 @@ label are SQL, not Python.
 
 from __future__ import annotations
 
+import uuid
 from datetime import date
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.monitoring.models import AdvertisingWriteOffDaily
+from src.modules.monitoring.models import (
+    AdvertisingStatDaily,
+    AdvertisingWriteOffDaily,
+    ProductCard,
+)
 from src.modules.monitoring.models.prices import PriceSnapshot
 from src.modules.monitoring.repos import AdvertisingWriteOffRepository, PriceRepository
 
@@ -30,6 +35,21 @@ def _write_off(
         currency=currency,
         amount=Decimal("100"),
         write_offs=1,
+    )
+
+
+def _ad_row(day: date, *, campaign_id: int, nm_id: int) -> AdvertisingStatDaily:
+    return AdvertisingStatDaily(
+        stat_date=day,
+        campaign_id=campaign_id,
+        app_type=1,
+        nm_id=nm_id,
+        views=100,
+        clicks=5,
+        add_to_cart=1,
+        spend=Decimal("50"),
+        orders=1,
+        order_sum=Decimal("4000"),
     )
 
 
@@ -95,6 +115,37 @@ async def test_the_ad_unit_ignores_other_campaigns_and_other_days(db_session: As
 
     currencies = await AdvertisingWriteOffRepository(db_session).currencies_for_campaigns(
         campaign_ids=[601], date_from=date(2026, 9, 1), date_to=date(2026, 9, 30)
+    )
+
+    assert currencies == ["KGS"]
+
+
+async def test_a_sku_outside_the_ledger_takes_its_cabinets_ad_unit(
+    db_session: AsyncSession,
+) -> None:
+    """The ledger names some campaigns only; the SKU's кабинет answers for the rest.
+
+    On «Демо» 8 of the 31 campaigns that spent in a fortnight of September
+    2026 had a write-off row — without the fallback most SKUs printed spend with
+    no unit. A neighbour's campaign must not leak into the answer.
+    """
+    mine, theirs = uuid.uuid4(), uuid.uuid4()
+    db_session.add_all(
+        [
+            ProductCard(nm_id=4001, workspace_id=mine, vendor_code="LEDGERED"),
+            ProductCard(nm_id=4002, workspace_id=mine, vendor_code="UNLEDGERED"),
+            ProductCard(nm_id=4003, workspace_id=theirs, vendor_code="NEIGHBOUR"),
+            _ad_row(date(2026, 9, 10), campaign_id=701, nm_id=4001),
+            _ad_row(date(2026, 9, 10), campaign_id=702, nm_id=4002),
+            _ad_row(date(2026, 9, 10), campaign_id=799, nm_id=4003),
+            _write_off(date(2026, 9, 10), 701, "KGS"),
+            _write_off(date(2026, 9, 10), 799, "RUB"),
+        ]
+    )
+    await db_session.flush()
+
+    currencies = await AdvertisingWriteOffRepository(db_session).currencies_for_sku_cabinet(
+        nm_id=4002, date_from=date(2026, 9, 1), date_to=date(2026, 9, 30)
     )
 
     assert currencies == ["KGS"]

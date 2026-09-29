@@ -235,7 +235,8 @@ class DetailAnalytics:
             # campaign is billed in — RUB and KGS respectively on a кабинет
             # that settles in KGS. See wildberries-api/references/currencies.md.
             price_currency=await self._prices.currency_for_sku(nm_id=nm_id),
-            ad_currencies=await self._write_offs.currencies_for_campaigns(
+            ad_currencies=await self._ad_currencies(
+                nm_id=nm_id,
                 campaign_ids=sorted({row.campaign_id for row in inputs.ad_rows}),
                 date_from=date_from,
                 date_to=date_to,
@@ -373,4 +374,23 @@ class DetailAnalytics:
             campaign_search_totals=campaign_search_totals,
             campaign_sku_totals=campaign_sku_totals,
             sku_labels=sku_labels,
+        )
+
+    async def _ad_currencies(
+        self, *, nm_id: int, campaign_ids: list[int], date_from: date, date_to: date
+    ) -> list[str]:
+        """The unit of this SKU's spend: its own campaigns' if the ledger names them.
+
+        Otherwise the кабинет's — the ledger covers only some campaigns, and a
+        blank label on most SKUs would read as "no currency" rather than
+        "not in the ledger". Empty only when the кабинет has no write-offs at all
+        in the window.
+        """
+        own = await self._write_offs.currencies_for_campaigns(
+            campaign_ids=campaign_ids, date_from=date_from, date_to=date_to
+        )
+        if own or not campaign_ids:
+            return own
+        return await self._write_offs.currencies_for_sku_cabinet(
+            nm_id=nm_id, date_from=date_from, date_to=date_to
         )
