@@ -137,6 +137,19 @@ class SkuDetailResponse(BaseModel):
         "budgets, price change), keyed by day; untouched days are absent.",
     )
     window: MetricWindow
+    price_currency: str = Field(
+        default="",
+        description="Currency of the prices and of every sum valued at them (orders, "
+        "buyouts) — what WB's prices API states, RUB even for a кабинет settled in KGS. "
+        "Empty before the first labelled snapshot.",
+    )
+    ad_currencies: list[str] = Field(
+        default_factory=list,
+        description="Currencies this SKU's campaigns were charged in over the window, "
+        "alphabetically — the unit of spend, CPM, CPC and the costs per order and cart. "
+        "Two when the window holds campaigns from both sides of WB's 2026-08-20 move "
+        "to KGS; empty when the write-off ledger names none.",
+    )
     funnel: list[FunnelDetailRead] = Field(default_factory=list)
     funnel_totals: FunnelTotals = Field(
         description="Window-total funnel metrics summed across the daily rows."

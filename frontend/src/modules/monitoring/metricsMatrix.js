@@ -17,10 +17,15 @@
  * frontend. This module only maps backend cells onto the workbook layout and
  * applies ru-RU display formatting; `null` cells render as «—».
  *
- * Money is in the кабинет's settlement currency, which the backend states and
- * the caller passes in. The unit goes on the ROW label («Затраты, KGS») and the
- * cells stay bare numbers: a leaf column is ~52px, and «45 679 KGS» in it
- * would clip its leading digit and print a different number (see main.css).
+ * Money is in TWO units, and each row carries its own (`money: 'prices'|'ads'`).
+ * A кабинет settled in KGS is still priced in RUB — so the prices and every sum
+ * valued at them («Заказы», «Выкупы») are RUB — while its spend is in whatever
+ * each campaign bills in: RUB before WB moved the ad account on 2026-08-20, KGS
+ * after, both across that day. The backend states both on the detail response
+ * (`price_currency`, `ad_currencies`); see {@link unitsOf}. The unit goes on
+ * the ROW label («Затраты, KGS») and the cells stay bare numbers: a leaf column
+ * is ~52px, and «45 679 KGS» in it would clip its leading digit and print a
+ * different number (see main.css).
  * «Каталог» is a legacy WB zone kept for workbook parity; it is always empty.
  */
 import { formatMoney, formatNumber, formatPercent, moneyLabel } from '@/core/utils/format'
@@ -137,9 +142,11 @@ const fmtPercent = (v) => (v == null ? EMPTY : formatPercent(v))
  * traffic (Доля трафика..Клики), funnel (Корзины..Конверсия в заказ),
  * money (Заказы..Стоимость корзины), efficiency (the ДРР/выкуп trio).
  *
- * `money` rows take the кабинет's currency on their label (`moneyLabel`). The
- * funnel's counts say «шт» so that, with the currency unknown, «Заказы» the
- * count and «Заказы» the sum are still two different rows.
+ * `money` names where a money row's unit comes from — `'prices'` for the prices
+ * and the sums valued at them, `'ads'` for spend and every cost built on it —
+ * and the label carries that unit (`moneyLabel`). The funnel's counts say «шт»
+ * so that, with the unit unknown, «Заказы» the count and «Заказы» the sum are
+ * still two different rows.
  *
  * `emphasis` renders the row bigger and bolder («ДРР от продаж» is the
  * headline efficiency number).
@@ -149,15 +156,15 @@ const METRIC_DEFS = [
   {
     key: 'spend',
     label: 'Затраты',
-    money: true,
+    money: 'ads',
     tone: 'positive',
     group: 'traffic',
     format: fmtMoney,
   },
   { key: 'views', label: 'Показы', group: 'traffic', format: fmtNumber },
   { key: 'ctr', label: 'CTR, %', group: 'traffic', format: fmtPercent },
-  { key: 'cpm', label: 'CPM', money: true, group: 'traffic', format: fmtMoney },
-  { key: 'cpc', label: 'CPC', money: true, group: 'traffic', format: fmtMoneyTenths },
+  { key: 'cpm', label: 'CPM', money: 'ads', group: 'traffic', format: fmtMoney },
+  { key: 'cpc', label: 'CPC', money: 'ads', group: 'traffic', format: fmtMoneyTenths },
   { key: 'clicks', label: 'Клики', group: 'traffic', format: fmtNumber },
   // The cell itself is the кампания's count. `skuKey` points at the backend's
   // row for the VIEWED card's share of it, which is emitted only when the two
@@ -196,19 +203,19 @@ const METRIC_DEFS = [
     group: 'funnel',
     format: fmtPercent,
   },
-  { key: 'order_sum', label: 'Заказы', money: true, group: 'money', format: fmtMoney },
-  { key: 'buyout_sum', label: 'Выкупы', money: true, group: 'money', format: fmtMoney },
+  { key: 'order_sum', label: 'Заказы', money: 'prices', group: 'money', format: fmtMoney },
+  { key: 'buyout_sum', label: 'Выкупы', money: 'prices', group: 'money', format: fmtMoney },
   {
     key: 'cost_per_order',
     label: 'Стоимость заказа',
-    money: true,
+    money: 'ads',
     group: 'money',
     format: fmtMoney,
   },
   {
     key: 'cost_per_cart',
     label: 'Стоимость корзины',
-    money: true,
+    money: 'ads',
     group: 'money',
     format: fmtMoney,
   },
@@ -232,8 +239,8 @@ const METRIC_DEFS = [
  * read-only snapshot facts.
  */
 const PRICE_METRIC_DEFS = [
-  { key: 'seller_price', label: 'Цена продавца', money: true, format: fmtMoney },
-  { key: 'customer_price', label: 'Цена покупателя', money: true, format: fmtMoney },
+  { key: 'seller_price', label: 'Цена продавца', money: 'prices', format: fmtMoney },
+  { key: 'customer_price', label: 'Цена покупателя', money: 'prices', format: fmtMoney },
   { key: 'spp', label: 'СПП, %', tone: 'positive', format: fmtPercent },
 ]
 const STOCK_METRIC_DEFS = [
@@ -246,9 +253,53 @@ const STOCK_METRIC_DEFS = [
 // other metric, label/formatting only.
 const STOCK_TOTAL_METRIC_DEFS = [{ key: 'stock_total', label: 'Всего, шт', format: fmtNumber }]
 
-/** A row's label as the table prints it: money rows carry the currency. */
-function rowLabel(def, currency) {
-  return def.money ? moneyLabel(def.label, currency) : def.label
+/** Which unit each money metric is in, by backend metric key. */
+const MONEY_SOURCE = new Map(
+  [...METRIC_DEFS, ...PRICE_METRIC_DEFS]
+    .filter((def) => def.money)
+    .map((def) => [def.key, def.money]),
+)
+
+/**
+ * The unit of one money METRIC — what the chart under the table names its
+ * series and hover rows with, from the same map the table's labels use.
+ *
+ * @param {string} metric A backend metric key (`spend`, `order_sum`, …).
+ * @param {{prices?: string, ads?: string[]}} [currencies]
+ * @returns {string}
+ */
+export function unitOfMetric(metric, currencies = {}) {
+  return moneyUnit(MONEY_SOURCE.get(metric), currencies)
+}
+
+/**
+ * The two units a SKU's money is in, as the detail response states them.
+ *
+ * @param {object} [product] A `SkuDetailResponse`.
+ * @returns {{prices: string, ads: string[]}} `''`/`[]` while WB has named none.
+ */
+export function unitsOf(product) {
+  return { prices: product?.price_currency ?? '', ads: product?.ad_currencies ?? [] }
+}
+
+/**
+ * The unit of one money source: the prices' code, or the campaigns' — «KGS/RUB»
+ * for a window holding campaigns from both sides of the switch. Nothing is
+ * converted anywhere, so two codes is the honest label for a sum of both.
+ *
+ * @param {'prices'|'ads'|undefined} source
+ * @param {{prices?: string, ads?: string[]}} [currencies]
+ * @returns {string}
+ */
+export function moneyUnit(source, currencies = {}) {
+  if (source === 'ads') return (currencies.ads ?? []).join('/')
+  if (source === 'prices') return currencies.prices ?? ''
+  return ''
+}
+
+/** A row's label as the table prints it: money rows carry their own unit. */
+function rowLabel(def, currencies) {
+  return def.money ? moneyLabel(def.label, moneyUnit(def.money, currencies)) : def.label
 }
 
 /**
@@ -262,9 +313,10 @@ function rowLabel(def, currency) {
  * computed server-side — the frontend only formats and marks editability.
  *
  * @param {object} product A `SkuDetailResponse`.
- * @param {string} [currency] The кабинет's settlement currency; `''` while
- *   unknown, which leaves the money labels without a unit.
- * @returns {{days: Array<{iso: string, label: string}>, currency: string, rows: Array<{
+ * @param {{prices?: string, ads?: string[]}} [currencies] The units of the
+ *   prices and of the spend ({@link unitsOf}); unknown ones leave the money
+ *   labels without a unit.
+ * @returns {{days: Array<{iso: string, label: string}>, currencies: object, rows: Array<{
  *   key: string, label: string, tone: string|null,
  *   cells: Array<{display: string, raw: number|null, day: string,
  *     bucket: string, metric: string, editable: boolean}>}>}}
@@ -346,13 +398,13 @@ function matrixLookups(matrix) {
 }
 
 /** Build the «Общая»-only rows of one mini block (one cell per day). */
-function buildTotalRows(defs, matrix, backendValues, currency) {
+function buildTotalRows(defs, matrix, backendValues, currencies) {
   const totalIndex = matrix.buckets.indexOf('total')
   return defs.map((def) => {
     const values = backendValues.get(def.key)
     return {
       key: def.key,
-      label: rowLabel(def, currency),
+      label: rowLabel(def, currencies),
       tone: def.tone ?? null,
       cells: matrix.days.map((iso, dayIndex) => {
         const raw = resolveRaw(values, matrix.buckets.length, totalIndex, dayIndex)
@@ -369,10 +421,10 @@ function buildTotalRows(defs, matrix, backendValues, currency) {
   })
 }
 
-export function buildMetricsMatrix(product, currency = '') {
+export function buildMetricsMatrix(product, currencies = {}) {
   const matrix = product?.matrix
   if (!matrix?.days?.length)
-    return { days: [], rows: [], priceRows: [], stockRows: [], stockTotalRows: [], currency }
+    return { days: [], rows: [], priceRows: [], stockRows: [], stockTotalRows: [], currencies }
 
   const { backendValues, bucketCount, bucketIndexByColumn } = matrixLookups(matrix)
   const breakdowns = breakdownIndex(product)
@@ -382,7 +434,7 @@ export function buildMetricsMatrix(product, currency = '') {
     const skuValues = def.skuKey ? backendValues.get(def.skuKey) : null
     return {
       key: def.key,
-      label: rowLabel(def, currency),
+      label: rowLabel(def, currencies),
       tone: def.tone ?? null,
       group: def.group ?? null,
       emphasis: def.emphasis ?? false,
@@ -416,11 +468,11 @@ export function buildMetricsMatrix(product, currency = '') {
   return {
     days: matrix.days.map((iso) => ({ iso, label: dayLabel(iso) })),
     rows,
-    priceRows: buildTotalRows(PRICE_METRIC_DEFS, matrix, backendValues, currency),
-    stockRows: buildTotalRows(STOCK_METRIC_DEFS, matrix, backendValues, currency),
-    stockTotalRows: buildTotalRows(STOCK_TOTAL_METRIC_DEFS, matrix, backendValues, currency),
-    // The chart below the table reads the unit from here, so the two agree.
-    currency,
+    priceRows: buildTotalRows(PRICE_METRIC_DEFS, matrix, backendValues, currencies),
+    stockRows: buildTotalRows(STOCK_METRIC_DEFS, matrix, backendValues, currencies),
+    stockTotalRows: buildTotalRows(STOCK_TOTAL_METRIC_DEFS, matrix, backendValues, currencies),
+    // The chart below the table reads the units from here, so the two agree.
+    currencies,
     // The header's campaign links (`campaignLinks.js`): the SKU, and per day
     // which campaign each traffic group ran.
     campaigns: { nmId: product.nm_id, byDay: campaignIdsByDay(product.matrix_base) },
@@ -435,13 +487,15 @@ export function buildMetricsMatrix(product, currency = '') {
  * nodes — no full re-render of the (potentially thousands of) cells.
  *
  * @returns {boolean} true when patched; false when the shape differs and the
- *   caller must rebuild from scratch (e.g. the window changed, or the currency
- *   arrived after the table was built — the labels would keep the old unit).
+ *   caller must rebuild from scratch (e.g. the window changed, or a unit
+ *   arrived after the table was built — the labels would keep the old one).
  */
-export function patchMetricsMatrix(view, product, currency = '') {
+export function patchMetricsMatrix(view, product, currencies = {}) {
   const matrix = product?.matrix
   if (!matrix?.days?.length || view?.days?.length !== matrix.days.length) return false
-  if ((view.currency ?? '') !== currency) return false
+  for (const source of ['prices', 'ads']) {
+    if (moneyUnit(source, view.currencies) !== moneyUnit(source, currencies)) return false
+  }
   if (view.rows.length !== METRIC_DEFS.length) return false
   if (view.priceRows?.length !== PRICE_METRIC_DEFS.length) return false
   if (view.stockRows?.length !== STOCK_METRIC_DEFS.length) return false

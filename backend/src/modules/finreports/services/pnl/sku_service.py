@@ -138,7 +138,7 @@ class SkuReportService:
         ad_spend: dict[int, Decimal],
         ad_bonus: dict[int, Decimal],
         bonus_span: tuple[date | None, date | None],
-        bonus_currencies: list[str],
+        ad_currencies: list[str],
         unknown_funding: list[str],
         funnel_span: tuple[date | None, date | None],
         ad_span: tuple[date | None, date | None],
@@ -156,8 +156,9 @@ class SkuReportService:
             ad_bonus: WB-funded share of that spend per ``nm_id``
                 (router-resolved). In the advertising account's own unit,
                 the same one ``ad_spend`` is in — never the settlement's.
-            bonus_currencies: The currency labels WB put on this window's bonus
-                write-offs; more than one is a caveat, not an error.
+            ad_currencies: The currencies this window's advertising was
+                charged in (cash and bonus write-offs alike). One that is not
+                the settlement's is a caveat: the figures built on it mix units.
             bonus_span: ``(first, last)`` write-off day on record in the
                 window. Empty means the ledger was never harvested for this
                 period, so the bonus column reports ``None``, not zero.
@@ -223,7 +224,8 @@ class SkuReportService:
                 ad_span=ad_span,
                 bonus_span=bonus_span,
                 unknown_funding=unknown_funding,
-                bonus_currencies=bonus_currencies,
+                ad_currencies=ad_currencies,
+                currency=currency,
             )
         )
         return PnlSkuReportResponse(
@@ -247,7 +249,7 @@ class SkuReportService:
         ad_spend: dict[int, Decimal],
         ad_bonus: dict[int, Decimal],
         bonus_span: tuple[date | None, date | None],
-        bonus_currencies: list[str],
+        ad_currencies: list[str],
         unknown_funding: list[str],
         funnel_span: tuple[date | None, date | None],
         ad_span: tuple[date | None, date | None],
@@ -270,7 +272,7 @@ class SkuReportService:
             ad_spend=ad_spend,
             ad_bonus=ad_bonus,
             bonus_span=bonus_span,
-            bonus_currencies=bonus_currencies,
+            ad_currencies=ad_currencies,
             unknown_funding=unknown_funding,
             funnel_span=funnel_span,
             ad_span=ad_span,
@@ -288,7 +290,8 @@ class SkuReportService:
         ad_span: tuple[date | None, date | None],
         bonus_span: tuple[date | None, date | None],
         unknown_funding: list[str],
-        bonus_currencies: list[str],
+        ad_currencies: list[str],
+        currency: str,
     ) -> list[str]:
         """Assemble the caveats that qualify the per-SKU figures."""
         notes: list[str] = []
@@ -313,16 +316,19 @@ class SkuReportService:
                 f"WB списывал рекламу способом, который мы не знаем ({labels}) — "
                 "эти суммы посчитаны как деньги продавца, а не как бонусы."
             )
-        # The bonus is netted against the spend it came off, and both are in
-        # the advertising account's unit. More than one label in one window
-        # means WB relabelled the account mid-period (RUB -> KGS on 2026-08-20)
-        # — or, indistinguishably from outside, billed in two. Saying so beats
-        # implying a certainty we do not have.
-        if len(bonus_currencies) > 1:
-            labels = ", ".join(bonus_currencies)
+        # Advertising is charged in the campaign's own unit and the payout in
+        # the settlement's, and nothing here converts one into the other. WB
+        # ran the ad account in RUB until 2026-08-20 (older campaigns still
+        # bill in RUB), so on a KGS кабинет every window touching that period
+        # subtracts roubles from soms in «Чистая прибыль». Say so rather than
+        # print a figure that looks settled.
+        foreign = [code for code in ad_currencies if code != currency]
+        if foreign:
             notes.append(
-                f"WB помечал списания рекламы разной валютой в этом периоде ({labels}); "
-                "«Бонусы» просуммированы как есть — суммы WB при смене пометки не менял."
+                f"Реклама в этом периоде списана в {', '.join(foreign)}, а выплата — в "
+                f"{currency}. «Реклама», «Бонусы», ДРР, чистая прибыль, ROI и ROMI "
+                "складывают и делят эти суммы как есть, без пересчёта по курсу: "
+                "по артикулам с такой рекламой они неточны."
             )
 
         sale_rows, with_revenue = await self._pnl.revenue_coverage(

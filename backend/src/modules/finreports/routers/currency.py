@@ -1,10 +1,14 @@
 """HTTP route for the кабинет's settlement currency.
 
-Every page that prints money needs the unit — monitoring's matrix and chart,
-the A/Б test summary — and a кабинет settled in KGS is priced, advertised and
-paid in KGS throughout. The unit lives in this module's settlement rows, so this
-module answers for it; monitoring cannot, because this module already depends on
-monitoring's contract and a dependency back would close a cycle.
+The unit of figures read from the settlement. It is NOT the unit of everything
+a кабинет shows: a KGS кабинет is priced in RUB, and its campaigns bill in the
+currency each was created in (RUB before WB moved the ad account on 2026-08-20),
+so monitoring labels its prices and spend from its own data instead. The A/Б
+summary still reads this for its spend — right for every test so far, all of
+them on campaigns created after the move. The unit lives in this module's
+settlement rows, so this module answers for it; monitoring cannot, because this
+module already depends on monitoring's contract and a dependency back would
+close a cycle.
 
 It is mounted beside the P&L routes but **not behind the P&L grant**: a manager
 granted only monitoring or A/Б tests reads money in this currency on every

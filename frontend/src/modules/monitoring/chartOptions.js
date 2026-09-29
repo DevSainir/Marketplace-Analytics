@@ -78,7 +78,7 @@ export function colorForMetric(key) {
   return METRIC_COLORS[key] ?? FALLBACK_COLOR
 }
 
-/** Value formatters by the unit a metric measures; money in the кабинет's currency. */
+/** Value formatters by the unit a metric measures; money in the series' own currency. */
 const FORMATTERS = {
   currency: (value, currency) => formatMoney(value, currency),
   number: (value) => formatNumber(Math.round(value)),
@@ -365,8 +365,8 @@ function valueAxes(rulers) {
  * @param {{index: number|null}} hover Which series the cursor is actually on
  *   (see `focusedPoints`) — a live holder, read at hover time, never a value
  *   baked into the option.
- * @param {string} currency The кабинет's currency for money rows; `''` prints
- *   them bare.
+ * @param {string} currency A fallback for money rows whose series names no
+ *   `currency` of its own; `''` prints them bare.
  */
 function groupedTooltip(series, hover, currency) {
   return (params) => {
@@ -385,7 +385,7 @@ function groupedTooltip(series, hover, currency) {
         const value = formatValue(
           entry.unit,
           entry.raw ? entry.raw[point.dataIndex] : point.value,
-          currency,
+          entry.currency ?? currency,
         )
         const heading =
           entry.group && entry.group !== lastGroup
@@ -472,7 +472,8 @@ export function focusedPoints(points, hover) {
  *   hover?: object, series: Array<{name: string, unit: string, group?: string,
  *   axisIndex?: number, data: Array<number|null>, raw?: Array<number|null>,
  *   color: string}>, currency?: string}} spec `rulers` are the value scales,
- *   left first; `currency` is the кабинет's, for the money rows of the hover.
+ *   left first; a money series states its own `currency`, and `currency` here
+ *   is only the fallback for one that does not.
  */
 export function buildChartOption({ days, rulers = [], hover, series, currency = '' }) {
   const weekly = days.length > BARS_UP_TO_DAYS

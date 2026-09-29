@@ -22,6 +22,7 @@ from src.modules.monitoring.models import (
 from src.modules.monitoring.repos import (
     AdvertisingRepository,
     AdvertisingSearchRepository,
+    AdvertisingWriteOffRepository,
     CampaignRepository,
     FunnelRepository,
     MatrixOverrideRepository,
@@ -108,6 +109,7 @@ class DetailAnalytics:
         funnel_repo: FunnelRepository,
         advertising_repo: AdvertisingRepository,
         advertising_search_repo: AdvertisingSearchRepository,
+        advertising_write_off_repo: AdvertisingWriteOffRepository,
         stock_repo: StockRepository,
         campaign_repo: CampaignRepository,
         product_card_repo: ProductCardRepository,
@@ -121,6 +123,7 @@ class DetailAnalytics:
         self._funnel = funnel_repo
         self._advertising = advertising_repo
         self._advertising_search = advertising_search_repo
+        self._write_offs = advertising_write_off_repo
         self._stocks = stock_repo
         self._campaigns = campaign_repo
         self._product_cards = product_card_repo
@@ -227,6 +230,16 @@ class DetailAnalytics:
                 for day, row in action_rows.items()
             },
             window=MetricWindow(start=date_from, end=date_to),
+            # Two units, never one: the prices (and every sum valued at them)
+            # are in what the prices API states, the spend in what each
+            # campaign is billed in — RUB and KGS respectively on a кабинет
+            # that settles in KGS. See wildberries-api/references/currencies.md.
+            price_currency=await self._prices.currency_for_sku(nm_id=nm_id),
+            ad_currencies=await self._write_offs.currencies_for_campaigns(
+                campaign_ids=sorted({row.campaign_id for row in inputs.ad_rows}),
+                date_from=date_from,
+                date_to=date_to,
+            ),
             funnel=funnel_details,
             funnel_totals=compute_funnel_totals(
                 funnel_rows, order_sum=window_order_sum, buyout_sum=window_buyout_sum

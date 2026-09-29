@@ -77,6 +77,7 @@ def _service(
         funnel_repo=unused,
         advertising_repo=unused,
         advertising_search_repo=unused,
+        advertising_write_off_repo=unused,
         stock_repo=unused,
         campaign_repo=unused,
         product_card_repo=unused,

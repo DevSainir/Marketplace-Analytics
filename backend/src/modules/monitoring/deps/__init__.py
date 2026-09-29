@@ -21,6 +21,7 @@ from src.modules.monitoring.repos import (
     AdvertisingClusterRepository,
     AdvertisingRepository,
     AdvertisingSearchRepository,
+    AdvertisingWriteOffRepository,
     CampaignRepository,
     FunnelRepository,
     MatrixOverrideRepository,
@@ -53,6 +54,11 @@ def get_advertising_repo(session: DbSession) -> AdvertisingRepository:
 def get_advertising_search_repo(session: DbSession) -> AdvertisingSearchRepository:
     """Provide an :class:`AdvertisingSearchRepository` bound to the request session."""
     return AdvertisingSearchRepository(session)
+
+
+def get_advertising_write_off_repo(session: DbSession) -> AdvertisingWriteOffRepository:
+    """Provide an :class:`AdvertisingWriteOffRepository` bound to the request session."""
+    return AdvertisingWriteOffRepository(session)
 
 
 def get_advertising_cluster_repo(session: DbSession) -> AdvertisingClusterRepository:
@@ -115,6 +121,9 @@ AdvertisingRepoDep = Annotated[AdvertisingRepository, Depends(get_advertising_re
 AdvertisingSearchRepoDep = Annotated[
     AdvertisingSearchRepository, Depends(get_advertising_search_repo)
 ]
+AdvertisingWriteOffRepoDep = Annotated[
+    AdvertisingWriteOffRepository, Depends(get_advertising_write_off_repo)
+]
 AdvertisingClusterRepoDep = Annotated[
     AdvertisingClusterRepository, Depends(get_advertising_cluster_repo)
 ]
@@ -137,6 +146,7 @@ def get_analytics_service(
     funnel_repo: FunnelRepoDep,
     advertising_repo: AdvertisingRepoDep,
     advertising_search_repo: AdvertisingSearchRepoDep,
+    advertising_write_off_repo: AdvertisingWriteOffRepoDep,
     stock_repo: StockRepoDep,
     campaign_repo: CampaignRepoDep,
     product_card_repo: ProductCardRepoDep,
@@ -153,6 +163,7 @@ def get_analytics_service(
         funnel_repo=funnel_repo,
         advertising_repo=advertising_repo,
         advertising_search_repo=advertising_search_repo,
+        advertising_write_off_repo=advertising_write_off_repo,
         stock_repo=stock_repo,
         campaign_repo=campaign_repo,
         product_card_repo=product_card_repo,

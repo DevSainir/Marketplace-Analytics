@@ -119,6 +119,7 @@ def _wire(
         "src.modules.finreports.routers.pnl.ad_bonus_unknown_types", _unknown_funding
     )
     monkeypatch.setattr("src.modules.finreports.routers.pnl.ad_bonus_currencies", _bonus_currencies)
+    monkeypatch.setattr("src.modules.finreports.routers.pnl.load_ad_currencies", _bonus_currencies)
 
 
 @pytest.fixture

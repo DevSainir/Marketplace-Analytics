@@ -14,6 +14,7 @@ from datetime import date
 from src.modules.monitoring.repos import (
     AdvertisingRepository,
     AdvertisingSearchRepository,
+    AdvertisingWriteOffRepository,
     CampaignRepository,
     FunnelRepository,
     MatrixOverrideRepository,
@@ -59,6 +60,7 @@ class AnalyticsService:
         funnel_repo: FunnelRepository,
         advertising_repo: AdvertisingRepository,
         advertising_search_repo: AdvertisingSearchRepository,
+        advertising_write_off_repo: AdvertisingWriteOffRepository,
         stock_repo: StockRepository,
         campaign_repo: CampaignRepository,
         product_card_repo: ProductCardRepository,
@@ -83,6 +85,7 @@ class AnalyticsService:
             funnel_repo=funnel_repo,
             advertising_repo=advertising_repo,
             advertising_search_repo=advertising_search_repo,
+            advertising_write_off_repo=advertising_write_off_repo,
             stock_repo=stock_repo,
             campaign_repo=campaign_repo,
             product_card_repo=product_card_repo,

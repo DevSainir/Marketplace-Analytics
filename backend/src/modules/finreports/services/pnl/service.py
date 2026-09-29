@@ -152,10 +152,11 @@ class PnlService:
     async def settlement_currency(self, *, workspace_id: uuid.UUID) -> str:
         """Return the currency WB settles this кабинет in; ``""`` before the first report.
 
-        Every money figure a кабинет shows is in it — the funnel's valued
-        orders, the prices and the advertising come from the same seller account
-        — so a screen that is not about the settlement still needs it for its
-        labels.
+        The unit of the settlement report and of nothing else by default. A KGS
+        кабинет's prices and the orders valued at them are RUB, and its
+        campaigns bill in whatever currency each was created in — so a label
+        taken from here is right only for figures read from the settlement.
+        See ``.claude/skills/wildberries-api/references/currencies.md``.
         """
         return await self._pnl.settlement_currency(workspace_id=workspace_id)
 

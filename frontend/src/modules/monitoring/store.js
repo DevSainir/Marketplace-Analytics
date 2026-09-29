@@ -5,15 +5,15 @@
  * components stay dumb. `currentProduct` mirrors the backend
  * `SkuDetailResponse` shape 1:1.
  *
- * Money is labelled in the кабинет's settlement currency, which finreports
- * owns (`useCurrencyStore`): the backend cannot carry it on the detail response
- * without monitoring depending on finreports and closing a cycle.
+ * Money is labelled in the units the detail response states — the prices'
+ * (`price_currency`) and the campaigns' (`ad_currencies`). Not the settlement
+ * currency: a KGS кабинет is priced in RUB, and its campaigns bill in the
+ * currency each was created in (see `unitsOf` in metricsMatrix.js).
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
-import { useCurrencyStore } from '@/modules/finreports'
 import {
   fetchPinnedSkus,
   fetchSkuDetail,
@@ -31,7 +31,7 @@ import {
   setSkuPin,
   setSkuPinColor,
 } from '@/modules/monitoring/api'
-import { buildMetricsMatrix, patchMetricsMatrix } from '@/modules/monitoring/metricsMatrix'
+import { buildMetricsMatrix, patchMetricsMatrix, unitsOf } from '@/modules/monitoring/metricsMatrix'
 
 /** Poll interval while waiting for a «Обновить» harvest task, in ms. */
 const REFRESH_POLL_INTERVAL_MS = 600
@@ -108,8 +108,6 @@ function sourceLabel(source) {
 }
 
 export const useMonitoringStore = defineStore('monitoring', () => {
-  const settlement = useCurrencyStore()
-
   // --- state -------------------------------------------------------------
   const loading = ref(false)
   const error = ref(null)
@@ -462,12 +460,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
         }
         nmId = resolution.nmId
       }
-      // The unit rides along rather than after: a table built before it arrives
-      // would print its money rows without one. Cached after the first page.
-      const [detail] = await Promise.all([
-        fetchSkuDetail(nmId, params, controller.signal),
-        settlement.ensureLoaded(),
-      ])
+      // The units ride on the detail itself, so the table is never built without them.
+      const detail = await fetchSkuDetail(nmId, params, controller.signal)
       if (seq !== requestSeq) return
       loadMatrix(detail)
     } catch (err) {
@@ -536,9 +530,9 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       days.length > 0 &&
       days.length === (detail.matrix?.days?.length ?? 0) &&
       days.every((day, index) => day.iso === detail.matrix.days[index])
-    const { currency } = settlement
-    if (!(sameWindow && patchMetricsMatrix(matrixView.value, detail, currency))) {
-      matrixView.value = buildMetricsMatrix(detail, currency)
+    const currencies = unitsOf(detail)
+    if (!(sameWindow && patchMetricsMatrix(matrixView.value, detail, currencies))) {
+      matrixView.value = buildMetricsMatrix(detail, currencies)
     }
     undoStack.value = []
     redoStack.value = []
@@ -575,8 +569,10 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       nm_id: currentProduct.value?.nm_id,
     }
     // Patch in place; rebuild only if the shape somehow changed (window shift).
-    if (!patchMetricsMatrix(matrixView.value, next, settlement.currency)) {
-      matrixView.value = buildMetricsMatrix(next, settlement.currency)
+    // An edit changes figures, never units: those stay the loaded product's.
+    const currencies = unitsOf(currentProduct.value)
+    if (!patchMetricsMatrix(matrixView.value, next, currencies)) {
+      matrixView.value = buildMetricsMatrix(next, currencies)
     }
   }
 

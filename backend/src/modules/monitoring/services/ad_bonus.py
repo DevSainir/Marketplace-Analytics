@@ -68,11 +68,13 @@ async def load_ad_bonus_by_nm(
     * **Clamped at the campaign's own spend.** A write-off dated just inside the
       window whose impressions fell just outside it could otherwise make the
       bonus exceed the spend and print a negative advertising cost.
-    * **Matched to the spend, not to the settlement.** Both figures come from the
-      same advertising account, so they are in the same unit whatever WB calls
-      it — verified across WB's own 2026-08-20 relabel, where `upd` says RUB
-      before and KGS after while agreeing with `fullstats` at 90-100 % per
-      campaign throughout. Filtering the ledger by the SETTLEMENT currency was
+    * **Matched to the spend, not to the settlement.** A campaign's bonus and its
+      spend are in the campaign's own unit — RUB for campaigns created before WB
+      moved the ad account to KGS on 2026-08-20, KGS after — and `upd` agrees
+      with `fullstats` at 90-100 % per campaign on both sides. (This line once
+      called 20.08 a relabel; it was a real move, see
+      wildberries-api/references/currencies.md.) Filtering the ledger by the
+      SETTLEMENT currency was
       this function's first shape and it was wrong: it dropped 402 022 of real
       bonuses for July-August windows because WB labelled the ad account
       differently from the payout. The currency is still kept in storage — it is
@@ -261,12 +263,12 @@ async def ad_bonus_currencies(
 ) -> list[str]:
     """Return the currencies WB labelled this window's bonus write-offs with.
 
-    Normally one. More than one means either WB relabelled the advertising
-    account mid-window (it did exactly that on 2026-08-20, RUB -> KGS, with no
-    change in the amounts) or it genuinely billed in two — and from the outside
-    those are indistinguishable, because ``fullstats`` carries no currency at
-    all. The allocation sums them either way, clamped at each campaign's own
-    spend; this is what lets the report say so instead of implying certainty.
+    A bonus is charged in the unit of the campaign it paid for, so this names
+    the same currencies the campaigns' spend is in. More than one is normal on a
+    window across 2026-08-20, when WB moved the ad account from RUB to KGS — a
+    real move, not a relabel: the settlement converted the RUB documents at the
+    Bank of Russia rate and stopped converting after. The allocation never
+    crosses campaigns, so each bonus meets spend in its own unit.
 
     Args:
         session: An open async session (caller owns the transaction).

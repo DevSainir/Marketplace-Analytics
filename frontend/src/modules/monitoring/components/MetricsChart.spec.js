@@ -15,13 +15,14 @@ function row(key, valuesByBucket) {
 }
 
 /** The display matrix the store hands the chart, built the way the store does. */
-function matrixView(rows = [], currency = 'KGS') {
+/** In «Демо»'s units: priced in RUB, advertised in KGS. */
+function matrixView(rows = [], currencies = { prices: 'RUB', ads: ['KGS'] }) {
   return buildMetricsMatrix(
     {
       nm_id: 1,
       matrix: { days: DAYS, buckets: TRAFFIC_COLUMNS.map((column) => column.key), rows },
     },
-    currency,
+    currencies,
   )
 }
 
@@ -195,14 +196,14 @@ describe('MetricsChart', () => {
     })
 
     const labels = chips(wrapper).map((button) => button.text())
-    expect(labels).toContain('Заказы, KGS')
-    expect(labels).not.toContain('Цена покупателя, KGS')
+    expect(labels).toContain('Заказы, RUB')
+    expect(labels).not.toContain('Цена покупателя, RUB')
     expect(labels).not.toContain('CTR, %')
   })
 
   it('names a money chip without a unit while the currency is unknown', () => {
     // No unit beats a guessed one — and the chip must match the legend's name.
-    const wrapper = mountChart({ view: matrixView(POPULATED, '') })
+    const wrapper = mountChart({ view: matrixView(POPULATED, {}) })
 
     expect(chip(wrapper, 'Затраты')).toBeDefined()
     expect(legend(wrapper)).toContain('Затраты')

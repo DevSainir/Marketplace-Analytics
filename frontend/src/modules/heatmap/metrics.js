@@ -9,9 +9,11 @@
  * CPC, CPM, CPO) and for the ad budget, «нейтрально» for prices and stock,
  * which have no better end, and «больше — лучше» for everything else.
  *
- * Money labels carry no currency of their own: `metricLabel` appends the
- * кабинет's, because a кабинет settled in KGS is priced, advertised and paid
- * in KGS throughout, and a rouble sign beside those figures was simply wrong.
+ * Money labels carry no currency of their own: `metricLabel` appends the one
+ * each metric is in (`currencyOf`) — the prices' for prices and order sums, the
+ * campaigns' for spend and its costs, the settlement's for revenue and profit.
+ * A кабинет settled in KGS is priced in RUB, so one кабинет-wide unit was wrong
+ * for some row whichever unit it was.
  */
 import { formatNumber } from '@/core/utils/format'
 

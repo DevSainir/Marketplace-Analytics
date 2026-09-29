@@ -8,6 +8,7 @@ statement is their revenue, so neither may ever be resolved without tenancy.
 
 from __future__ import annotations
 
+import uuid
 from datetime import date
 from urllib.parse import quote
 
@@ -41,6 +42,7 @@ from src.modules.monitoring.contract import (
     ad_coverage,
     funnel_coverage,
     load_ad_bonus_by_nm,
+    load_ad_currencies,
     load_ad_spend_by_nm,
     load_card_photos,
     load_orders_by_nm,
@@ -62,6 +64,24 @@ _EXPORT_UTF8_NAME = "P&L себестоимость.xlsx"
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 router = APIRouter()
+
+
+async def _ad_currencies(
+    session: DbSession, *, workspace_id: uuid.UUID, start: date, end: date
+) -> list[str]:
+    """Every currency the window's advertising was charged in, cash and bonus alike.
+
+    Both halves are the campaign's own unit, which on a KGS кабинет was RUB
+    until WB moved the ad account on 2026-08-20 — the report names that as a
+    caveat instead of converting anything.
+    """
+    cash = await load_ad_currencies(
+        session, workspace_id=workspace_id, date_from=start, date_to=end
+    )
+    bonus = await ad_bonus_currencies(
+        session, workspace_id=workspace_id, date_from=start, date_to=end
+    )
+    return sorted(set(cash) | set(bonus))
 
 
 @router.get(
@@ -156,8 +176,8 @@ async def get_pnl_by_sku(
         bonus_span=await ad_bonus_coverage(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
-        bonus_currencies=await ad_bonus_currencies(
-            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ad_currencies=await _ad_currencies(
+            session, workspace_id=workspace_id, start=start, end=end
         ),
         unknown_funding=await ad_bonus_unknown_types(
             session, workspace_id=workspace_id, date_from=start, date_to=end
@@ -329,8 +349,8 @@ async def export_cost_prices(
         bonus_span=await ad_bonus_coverage(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
-        bonus_currencies=await ad_bonus_currencies(
-            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ad_currencies=await _ad_currencies(
+            session, workspace_id=workspace_id, start=start, end=end
         ),
         unknown_funding=await ad_bonus_unknown_types(
             session, workspace_id=workspace_id, date_from=start, date_to=end

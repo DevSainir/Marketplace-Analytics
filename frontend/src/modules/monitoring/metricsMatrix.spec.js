@@ -209,7 +209,7 @@ describe('buildMetricsMatrix', () => {
   })
 
   it('formats backend numbers per metric kind (money/number/percent)', () => {
-    const matrix = buildMetricsMatrix(PRODUCT, 'KGS')
+    const matrix = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS'] })
     // Money cells are bare: the unit is on the row label, because a ~52px leaf
     // column clips «75 KGS»-width text at its leading digit.
     expect(cell(matrix, 'spend', 0, 'total')).toBe('75')
@@ -266,24 +266,34 @@ describe('buildMetricsMatrix', () => {
       priceRows: [],
       stockRows: [],
       stockTotalRows: [],
-      currency: '',
+      currencies: {},
     }
     expect(buildMetricsMatrix(null)).toEqual(empty)
     expect(buildMetricsMatrix({ nm_id: 1 })).toEqual(empty)
   })
 
-  it("labels the money rows in the кабинет's currency", () => {
-    // «Демо» is priced, advertised and paid in KGS; the rows used to say roubles.
-    const matrix = buildMetricsMatrix(PRODUCT, 'KGS')
+  it('labels prices and the sums valued at them in the prices unit, costs in the ads unit', () => {
+    // «Демо» settles in KGS, is priced in RUB, and its campaigns bill in
+    // KGS since 20.08.2026: one кабинет-wide unit misstated one side of the table.
+    const matrix = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS'] })
 
     const label = (rows, key) => rows.find((r) => r.key === key).label
 
     expect(label(matrix.rows, 'spend')).toBe('Затраты, KGS')
     expect(label(matrix.rows, 'cpc')).toBe('CPC, KGS')
-    expect(label(matrix.rows, 'order_sum')).toBe('Заказы, KGS')
-    expect(label(matrix.priceRows, 'seller_price')).toBe('Цена продавца, KGS')
+    expect(label(matrix.rows, 'cost_per_order')).toBe('Стоимость заказа, KGS')
+    expect(label(matrix.rows, 'order_sum')).toBe('Заказы, RUB')
+    expect(label(matrix.rows, 'buyout_sum')).toBe('Выкупы, RUB')
+    expect(label(matrix.priceRows, 'seller_price')).toBe('Цена продавца, RUB')
     expect(label(matrix.rows, 'ctr')).toBe('CTR, %')
-    expect(matrix.currency).toBe('KGS')
+  })
+
+  it('names both units on spend from a window across the ad account switch', () => {
+    // RUB campaigns before 20.08 and KGS ones after sum in the same cells; nothing
+    // converts, so the label says the figure holds both rather than picking one.
+    const matrix = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS', 'RUB'] })
+
+    expect(matrix.rows.find((r) => r.key === 'spend').label).toBe('Затраты, KGS/RUB')
   })
 
   it('leaves money rows without a unit while the currency is unknown', () => {
@@ -333,12 +343,18 @@ describe('patchMetricsMatrix', () => {
     expect(patchMetricsMatrix(view, oneDay)).toBe(false)
   })
 
-  it('signals a rebuild when the currency is not the one the labels carry', () => {
-    // Patching touches cells only, so a table built before the unit arrived
+  it('signals a rebuild when a unit is not the one the labels carry', () => {
+    // Patching touches cells only, so a table built before a unit arrived
     // would keep its bare labels for the rest of the visit.
-    const view = buildMetricsMatrix(PRODUCT)
+    const view = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: [] })
 
-    expect(patchMetricsMatrix(view, PRODUCT, 'KGS')).toBe(false)
+    expect(patchMetricsMatrix(view, PRODUCT, { prices: 'RUB', ads: ['KGS'] })).toBe(false)
+  })
+
+  it('patches in place when the units are unchanged', () => {
+    const view = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS'] })
+
+    expect(patchMetricsMatrix(view, PRODUCT, { prices: 'RUB', ads: ['KGS'] })).toBe(true)
   })
 })
 

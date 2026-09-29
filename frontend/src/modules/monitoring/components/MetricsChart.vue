@@ -64,8 +64,8 @@ const chart = computed(() =>
   buildMetricChart(props.view, { metrics: metrics.value, groups: props.groups, hover }),
 )
 
-/** The chips name money in the matrix's currency, as the legend and hover do. */
-const pickerGroups = computed(() => labelledGroups(props.groups, props.view.currency))
+/** The chips name money in the matrix's units, as the legend and hover do. */
+const pickerGroups = computed(() => labelledGroups(props.groups, props.view.currencies))
 
 /**
  * Tell the chart apart from the day it sits in.

@@ -72,6 +72,7 @@ def _service(*, buyouts: int, returns: int) -> AnalyticsService:
         funnel_repo=_FunnelRepo(),  # type: ignore[arg-type]
         advertising_repo=empty,  # type: ignore[arg-type]
         advertising_search_repo=None,  # type: ignore[arg-type]
+        advertising_write_off_repo=None,  # type: ignore[arg-type]
         stock_repo=empty,  # type: ignore[arg-type]
         campaign_repo=None,  # type: ignore[arg-type]
         product_card_repo=empty,  # type: ignore[arg-type]

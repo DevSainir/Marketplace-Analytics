@@ -63,6 +63,28 @@ class PriceRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def currency_for_sku(self, *, nm_id: int) -> str:
+        """Return the currency WB stated on this SKU's newest labelled snapshot.
+
+        Not windowed: the label was only recorded from 2026-09-29, and the
+        prices API has answered RUB for every card on every кабинет since long
+        before that (verified against the orders feed back to July 2026), so
+        the newest label is the right one for an older window as well.
+
+        Args:
+            nm_id: WB SKU identifier.
+
+        Returns:
+            An ISO code such as ``RUB``, or ``""`` before any labelled snapshot.
+        """
+        stmt = (
+            select(PriceSnapshot.currency)
+            .where(PriceSnapshot.nm_id == nm_id, PriceSnapshot.currency != "")
+            .order_by(PriceSnapshot.stat_date.desc())
+            .limit(1)
+        )
+        return str((await self._session.execute(stmt)).scalar_one_or_none() or "")
+
     async def latest_by_sku(
         self, *, workspace_id: uuid.UUID, date_to: date
     ) -> dict[int, tuple[float | None, float | None]]:

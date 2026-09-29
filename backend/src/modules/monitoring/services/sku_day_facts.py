@@ -351,13 +351,15 @@ async def load_ad_currencies(
 ) -> list[str]:
     """Return the currencies WB billed this кабинет's own ad money in over the window.
 
-    ``fullstats`` spend carries no currency; the write-off ledger does, and its
-    label is the truth rather than decoration: matched document by document
-    against the KGS settlement on 2026-09-28, «Демо»'s write-offs labelled
-    RUB were settled at ~1.03-1.10x (converted) and those labelled KGS at exactly
-    1.00. The account switched around 2026-08-20, so a window across that day
-    answers both. Bonus rows are left out — they are WB's money, labelled KGS
-    throughout, and say nothing about the account's own currency.
+    ``fullstats`` does state a currency per campaign, but the harvest does not
+    keep it; the write-off ledger does, and its label is the truth rather than
+    decoration: matched document by document against the KGS settlement on
+    2026-09-28, «Демо»'s write-offs labelled RUB were settled at the Bank of
+    Russia rate of the document's closing day, to the kopeck, and those labelled
+    KGS at exactly 1.00. WB moved the ad account to KGS on 2026-08-20 and older
+    campaigns kept billing in RUB, so a window can answer both. Bonus rows are
+    left out here; the P&L adds them (:func:`ad_bonus_currencies`) because they
+    are in the same campaign unit.
 
     Returns:
         The distinct labels, alphabetically; empty when the ledger has no rows.

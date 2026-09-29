@@ -35,6 +35,7 @@ from src.modules.monitoring.contract import (
     ad_coverage,
     funnel_coverage,
     load_ad_bonus_by_nm,
+    load_ad_currencies,
     load_ad_spend_by_nm,
     load_orders_by_nm,
 )
@@ -90,8 +91,18 @@ async def _report(session: AsyncSession):
         bonus_span=await ad_bonus_coverage(
             session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
         ),
-        bonus_currencies=await ad_bonus_currencies(
-            session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+        # The router's union: cash and bonus write-offs are both the campaign's unit.
+        ad_currencies=sorted(
+            set(
+                await load_ad_currencies(
+                    session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+                )
+            )
+            | set(
+                await ad_bonus_currencies(
+                    session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+                )
+            )
         ),
         unknown_funding=await ad_bonus_unknown_types(
             session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
@@ -301,23 +312,25 @@ async def test_excluding_a_sku_shrinks_the_dashboard_but_not_the_totals(
     assert after.totals.payout_net == before.totals.payout_net
 
 
-async def test_a_window_spanning_wbs_currency_relabel_says_so(
+async def test_rouble_advertising_in_a_som_window_is_named_not_converted(
     db_session: AsyncSession, seeded: None, monitoring_seeded: None
 ) -> None:
-    """WB relabelled the advertising account RUB -> KGS on 2026-08-20.
+    """Spend charged in RUB beside a KGS payout: the report says profit mixes the two.
 
-    The bonus is netted against the spend it came off — both are the advertising
-    account's own unit — so a relabel must not cost the seller the deduction.
-    It does mean the window sums two labels, and the report says which.
+    WB ran the ad account in RUB until 2026-08-20, and campaigns created before
+    that still bill in RUB. Nothing in the report converts, so a window touching
+    such spend subtracts roubles from soms — the caveat is the only honest
+    output. The bonus is still netted: it is in the campaign's unit, as the
+    spend it came off is.
     """
     db_session.add_all(
         [
             AdvertisingWriteOffDaily(
                 stat_date=WINDOW_FROM,
                 campaign_id=_SEEDED_CAMPAIGN,
-                payment_type="Кэшбэк",
-                currency="XXX",
-                amount=Decimal("300.00"),
+                payment_type="Баланс",
+                currency="RUB",
+                amount=Decimal("500.00"),
                 write_offs=1,
             ),
             AdvertisingWriteOffDaily(
@@ -335,4 +348,25 @@ async def test_a_window_spanning_wbs_currency_relabel_says_so(
     report = await _report(db_session)
 
     assert any(row.ad_bonus for row in report.rows)
-    assert any("разной валютой" in note and "XXX" in note for note in report.notes)
+    assert any("в RUB" in note and "без пересчёта" in note for note in report.notes)
+
+
+async def test_advertising_in_the_settlement_currency_needs_no_units_caveat(
+    db_session: AsyncSession, seeded: None, monitoring_seeded: None
+) -> None:
+    """Spend charged in KGS on a KGS кабинет is one unit, and the report says nothing."""
+    db_session.add(
+        AdvertisingWriteOffDaily(
+            stat_date=WINDOW_FROM,
+            campaign_id=_SEEDED_CAMPAIGN,
+            payment_type="Баланс",
+            currency="KGS",
+            amount=Decimal("500.00"),
+            write_offs=1,
+        )
+    )
+    await db_session.flush()
+
+    report = await _report(db_session)
+
+    assert not any("без пересчёта" in note for note in report.notes)

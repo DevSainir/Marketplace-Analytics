@@ -36,7 +36,7 @@ import {
   buildChartOption,
   colorForMetric,
 } from '@/modules/monitoring/chartOptions'
-import { COLUMNS_PER_DAY, TRAFFIC_COLUMNS } from '@/modules/monitoring/metricsMatrix'
+import { COLUMNS_PER_DAY, TRAFFIC_COLUMNS, unitOfMetric } from '@/modules/monitoring/metricsMatrix'
 
 /** Column index of each backend bucket within a day section of `row.cells`. */
 const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key, index]))
@@ -54,8 +54,9 @@ const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key,
  * «Реклама», «Воронка» and «Общие» are where a reader LOOKS for a metric. The
  * chart uses them too, but only to group the hover.
  *
- * Money names carry no unit: {@link labelledGroups} appends the кабинет's
- * currency, the same one the table above labels its rows with.
+ * Money names carry no unit: {@link labelledGroups} appends each metric's own
+ * — the prices' for prices and order sums, the campaigns' for spend and its
+ * costs — the same ones the table above labels its rows with.
  *
  * `type: 'bar'` on остатки, корзины and заказы, and deliberately no `stack`:
  * they stand side by side as separate columns per day. Stacked they would draw
@@ -274,20 +275,24 @@ export const AGGREGATE_METRIC_GROUPS = [
 export const AGGREGATE_DEFAULT_METRICS = ['spend', 'views', 'carts', 'orders']
 
 /**
- * The catalogue as the reader sees it: money names carry the кабинет's currency
- * («Затраты» -> «Затраты, KGS»), and nothing while it is unknown. One helper
- * for the chips, the legend and the hover, so the three never disagree.
+ * The catalogue as the reader sees it: money names carry their own unit
+ * («Затраты» -> «Затраты, KGS», «Цена продавца» -> «Цена продавца, RUB»), and
+ * nothing while it is unknown. One helper for the chips, the legend and the
+ * hover, so the three never disagree.
  *
  * @param {Array<object>} groups A metric catalogue.
- * @param {string} [currency] The кабинет's settlement currency.
- * @returns {Array<object>} The same groups, money items renamed.
+ * @param {{prices?: string, ads?: string[]}} [currencies] The matrix's units.
+ * @returns {Array<object>} The same groups, money items renamed and carrying
+ *   `currency` for the hover's figures.
  */
-export function labelledGroups(groups, currency = '') {
+export function labelledGroups(groups, currencies = {}) {
   return groups.map((group) => ({
     ...group,
-    items: group.items.map((item) =>
-      item.unit === 'currency' ? { ...item, name: moneyLabel(item.name, currency) } : item,
-    ),
+    items: group.items.map((item) => {
+      if (item.unit !== 'currency') return item
+      const currency = unitOfMetric(item.metric, currencies)
+      return { ...item, name: moneyLabel(item.name, currency), currency }
+    }),
   }))
 }
 
@@ -417,6 +422,7 @@ function metricSeriesSpecs(view, { metrics = [], groups = [] } = {}) {
         name: entry.name,
         type: entry.type ?? 'line',
         unit: entry.unit ?? 'number',
+        currency: entry.currency ?? '',
         group: entry.group,
         color: colorForMetric(key),
         values: readSeries(view, entry),
@@ -427,8 +433,8 @@ function metricSeriesSpecs(view, { metrics = [], groups = [] } = {}) {
 /**
  * Build the chart from the live display matrix.
  *
- * The unit of its money is the matrix's own (`view.currency`), so the chart
- * and the table it sits under cannot name different currencies.
+ * The units of its money are the matrix's own (`view.currencies`), so the
+ * chart and the table it sits under cannot name different currencies.
  *
  * @param {object} view A display matrix (`matrixView` shape).
  * @param {{metrics?: string[], groups?: Array<object>, hover?: object}} [options]
@@ -440,9 +446,10 @@ function metricSeriesSpecs(view, { metrics = [], groups = [] } = {}) {
 export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}) {
   if (!view?.days?.length) return null
   const days = view.days.map((day) => day.iso)
-  const currency = view.currency ?? ''
-
-  const specs = metricSeriesSpecs(view, { metrics, groups: labelledGroups(groups, currency) })
+  const specs = metricSeriesSpecs(view, {
+    metrics,
+    groups: labelledGroups(groups, view.currencies ?? {}),
+  })
   // Columns need room. Past a month there is none, and they become lines.
   const columns = days.length <= BARS_UP_TO_DAYS
 
@@ -452,6 +459,7 @@ export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}
       name: spec.name,
       type: columns ? spec.type : 'line',
       unit: spec.unit,
+      currency: spec.currency,
       group: spec.group,
       color: spec.color,
       axisIndex,
@@ -462,7 +470,7 @@ export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}
   return {
     legend: series.map((entry) => ({ name: entry.name, color: entry.color })),
     empty: !series.length || series.every((entry) => entry.data.every((value) => value == null)),
-    option: buildChartOption({ days, rulers: rulersFor(series), hover, series, currency }),
+    option: buildChartOption({ days, rulers: rulersFor(series), hover, series }),
   }
 }
 

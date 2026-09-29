@@ -183,7 +183,7 @@ class SummaryService:
             # page draws no caveats (`annotated=False` below). Asking anyway is
             # two more passes over the кабинет's whole advertising ledger for
             # text that is discarded — ~0.3 s of a «Вся история» window.
-            bonus_currencies=[],
+            ad_currencies=[],
             unknown_funding=[],
             funnel_span=funnel_span,
             ad_span=ad_span,

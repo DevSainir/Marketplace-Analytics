@@ -20,10 +20,6 @@ vi.mock('@/modules/monitoring/api', () => ({
   refreshAllSkus: vi.fn(),
   refreshSku: vi.fn(),
 }))
-// The currency is finreports' fact; this spec sees it only through that
-// module's public API, the way the store does.
-const settlement = vi.hoisted(() => ({ currency: 'KGS', ensureLoaded: vi.fn() }))
-vi.mock('@/modules/finreports', () => ({ useCurrencyStore: () => settlement }))
 
 const DETAIL = {
   nm_id: 953770957,
@@ -42,8 +38,6 @@ beforeEach(() => {
   setActivePinia(createPinia())
   store = useMonitoringStore()
   vi.clearAllMocks()
-  settlement.currency = 'KGS'
-  settlement.ensureLoaded.mockResolvedValue()
 })
 
 describe('fetchProductData with a numeric SKU', () => {
@@ -89,28 +83,32 @@ describe('fetchProductData with a numeric SKU', () => {
 describe('the unit on the matrix', () => {
   const WITH_MATRIX = {
     ...DETAIL,
+    price_currency: 'RUB',
+    ad_currencies: ['KGS'],
     matrix: { days: ['2026-07-01'], buckets: ['total'], rows: [{ key: 'spend', values: [75] }] },
   }
+  const labelOf = (rows, key) => rows.find((row) => row.key === key).label
 
-  it("labels the table's money in the кабинет's settlement currency", async () => {
-    // «Демо» is priced, advertised and paid in KGS; a rouble sign there
-    // misstated every money row by an exchange rate.
+  it('labels prices and spend each in the unit the detail states for it', async () => {
+    // «Демо» settles in KGS but is priced in RUB, and its campaigns bill in
+    // KGS since 20.08.2026 — one кабинет-wide unit misstated one of the two.
     fetchSkuDetail.mockResolvedValue(WITH_MATRIX)
 
     await store.fetchProductData('953770957')
 
-    expect(store.matrixView.rows.find((row) => row.key === 'spend').label).toBe('Затраты, KGS')
-    expect(store.matrixView.currency).toBe('KGS')
+    expect(labelOf(store.matrixView.rows, 'spend')).toBe('Затраты, KGS')
+    expect(labelOf(store.matrixView.rows, 'order_sum')).toBe('Заказы, RUB')
+    expect(labelOf(store.matrixView.priceRows, 'seller_price')).toBe('Цена продавца, RUB')
   })
 
-  it('leaves the money rows without a unit while the currency is unknown', async () => {
-    // No settlement report yet, or the request failed: no unit, not a guess.
-    fetchSkuDetail.mockResolvedValue(WITH_MATRIX)
-    settlement.currency = ''
+  it('leaves the money rows without a unit while WB has named none', async () => {
+    // A SKU with no labelled snapshot and no charged campaign: no unit, not a guess.
+    fetchSkuDetail.mockResolvedValue({ ...WITH_MATRIX, price_currency: '', ad_currencies: [] })
 
     await store.fetchProductData('953770957')
 
-    expect(store.matrixView.rows.find((row) => row.key === 'spend').label).toBe('Затраты')
+    expect(labelOf(store.matrixView.rows, 'spend')).toBe('Затраты')
+    expect(labelOf(store.matrixView.priceRows, 'seller_price')).toBe('Цена продавца')
   })
 })
 

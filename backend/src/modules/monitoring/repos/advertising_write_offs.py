@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from datetime import date
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, delete
+from sqlalchemy import CursorResult, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import AdvertisingWriteOffDaily
@@ -69,3 +69,38 @@ class AdvertisingWriteOffRepository(BaseRepository):
         )
         result = cast(CursorResult[Any], await self._session.execute(stmt))
         return result.rowcount or 0
+
+    async def currencies_for_campaigns(
+        self, *, campaign_ids: Sequence[int], date_from: date, date_to: date
+    ) -> list[str]:
+        """Return the currencies these campaigns were charged in over a window.
+
+        The ledger's label is the campaign's own unit, and it is honest: a
+        campaign keeps the currency it was created in (the ad account moved
+        RUB -> KGS on 2026-08-20, and campaigns made before that still bill in
+        RUB), so a window can carry both. Bonus rows count too — they are
+        charged in the same unit as the campaign's cash rows, and a campaign
+        funded wholly by cashback has no other row to read.
+
+        Args:
+            campaign_ids: The campaigns whose spend is being labelled.
+            date_from: Inclusive window start.
+            date_to: Inclusive window end.
+
+        Returns:
+            The distinct labels, alphabetically; empty when none were charged.
+        """
+        if not campaign_ids:
+            return []
+        stmt = (
+            select(AdvertisingWriteOffDaily.currency)
+            .where(
+                AdvertisingWriteOffDaily.stat_date >= date_from,
+                AdvertisingWriteOffDaily.stat_date <= date_to,
+                AdvertisingWriteOffDaily.currency != "",
+                AdvertisingWriteOffDaily.campaign_id.in_(list(campaign_ids)),
+            )
+            .group_by(AdvertisingWriteOffDaily.currency)
+            .order_by(AdvertisingWriteOffDaily.currency)
+        )
+        return [str(currency) for currency in (await self._session.execute(stmt)).scalars()]

@@ -20,15 +20,15 @@ function row(key, valuesByBucket) {
 /**
  * The display matrix the store hands the chart, built the way the store builds
  * it — the real mapping code rather than a hand-written shape that can drift
- * from it. In KGS, as «Демо» is settled.
+ * from it. In «Демо»'s units: priced in RUB, advertised in KGS.
  */
-function matrixView(rows = [], currency = 'KGS') {
+function matrixView(rows = [], currencies = { prices: 'RUB', ads: ['KGS'] }) {
   return buildMetricsMatrix(
     {
       nm_id: 1,
       matrix: { days: DAYS, buckets: TRAFFIC_COLUMNS.map((column) => column.key), rows },
     },
-    currency,
+    currencies,
   )
 }
 
@@ -82,7 +82,7 @@ describe('buildMetricChart', () => {
       // carries a single «Общая» cell per day, so the stride must not apply.
       const chart = chartOf(['customer_price'], [row('customer_price', { total: [990, 890, 890] })])
 
-      expect(seriesNamed(chart, 'Цена покупателя, KGS').data).toEqual([990, 890, 890])
+      expect(seriesNamed(chart, 'Цена покупателя, RUB').data).toEqual([990, 890, 890])
     })
 
     it('renders a day WB served nothing as a gap, not as a zero', () => {
@@ -443,9 +443,7 @@ describe('buildMetricChart', () => {
   describe('the currency', () => {
     const hoverOf = (chart, points) => chart.option.tooltip.formatter(points)
 
-    it("states money in the hover in the кабинет's currency", () => {
-      // «Демо» is priced, advertised and paid in KGS; the hover used to
-      // print a rouble sign beside those figures.
+    it('states spend in the hover in the unit its campaigns bill in', () => {
       const chart = chartOf(['spend'], [row('spend', { total: [10, 20, 30] })])
 
       const hover = hoverOf(chart, [point(0, 'Затраты, KGS', 20)])
@@ -453,8 +451,25 @@ describe('buildMetricChart', () => {
       expect(hover).toContain('20 KGS')
     })
 
+    it("states a price beside spend in its own unit, not the spend's", () => {
+      // A KGS-settled кабинет is priced in RUB: one chart-wide unit printed the
+      // price in soms, or the spend in roubles, whichever came first.
+      const chart = chartOf(
+        ['spend', 'seller_price'],
+        [row('spend', { total: [10, 20, 30] }), row('seller_price', { total: [100, 200, 300] })],
+      )
+
+      const hover = hoverOf(chart, [
+        point(0, 'Затраты, KGS', 20),
+        point(1, 'Цена продавца, RUB', 200),
+      ])
+
+      expect(hover).toContain('20 KGS')
+      expect(hover).toContain('200 RUB')
+    })
+
     it('prints money with no unit while the currency is unknown', () => {
-      const view = matrixView([row('spend', { total: [10, 20, 30] })], '')
+      const view = matrixView([row('spend', { total: [10, 20, 30] })], {})
       const chart = buildMetricChart(view, { metrics: ['spend'], groups: SKU_METRIC_GROUPS })
 
       const hover = hoverOf(chart, [point(0, 'Затраты', 20)])
@@ -466,12 +481,12 @@ describe('buildMetricChart', () => {
     it('names the chips in the currency the legend uses', () => {
       // The picker and the legend are read against each other; one of them
       // naming a unit the other does not reads as two different metrics.
-      const names = labelledGroups(SKU_METRIC_GROUPS, 'KGS').flatMap((group) =>
-        group.items.map((item) => item.name),
+      const names = labelledGroups(SKU_METRIC_GROUPS, { prices: 'RUB', ads: ['KGS'] }).flatMap(
+        (group) => group.items.map((item) => item.name),
       )
 
       expect(names).toContain('Затраты, KGS')
-      expect(names).toContain('Цена продавца, KGS')
+      expect(names).toContain('Цена продавца, RUB')
       expect(names).toContain('Показы')
       expect(names).toContain('CTR, %')
     })
@@ -628,7 +643,7 @@ describe('buildMetricChart', () => {
       })
       const sku = buildMetricChart(view, { metrics: ['order_sum'], groups: SKU_METRIC_GROUPS })
 
-      expect(aggregate.option.series.map((entry) => entry.name)).toEqual(['Заказы, KGS'])
+      expect(aggregate.option.series.map((entry) => entry.name)).toEqual(['Заказы, RUB'])
       expect(sku.option.series).toEqual([]) // the SKU catalogue has no such key
     })
   })

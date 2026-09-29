@@ -13,9 +13,10 @@ const moneyFormats = new Map()
  * Money in whatever currency the source states, e.g. 12345.6 -> "12 346 KGS".
  *
  * The ONE money formatter. There used to be two more pinned to RUB, and every
- * page built on them printed a rouble sign beside figures a Kyrgyz кабинет is
- * priced, advertised and paid in KGS — misstating each one by an exchange rate.
- * The currency is the кабинет's, from the backend; this file never names one.
+ * page built on them printed a rouble sign whatever the figure was in. A
+ * Kyrgyz кабинет has money in more than one unit — settled in KGS, priced in
+ * RUB, advertised in whatever each campaign bills in — so the currency is the
+ * FIGURE's, from the backend; this file never names one.
  * Intl formatters are expensive to build, so one is memoised per currency.
  *
  * @param {number|string|null|undefined} value
@@ -51,7 +52,7 @@ export function formatMoney(value, currency = '', fractionDigits = 0) {
  * leaves the heading bare too: no unit beats a guessed one.
  *
  * @param {string} label The heading without a unit.
- * @param {string} [currency] ISO code of the кабинет's settlement currency.
+ * @param {string} [currency] ISO code of the figures under the heading.
  * @returns {string}
  */
 export function moneyLabel(label, currency = '') {
