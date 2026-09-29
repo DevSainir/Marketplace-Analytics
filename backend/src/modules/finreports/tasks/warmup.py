@@ -103,7 +103,7 @@ async def warm_every_settlement_rollup() -> int:
     rollup — it does whenever a money rule changes, because the stored sums
     were computed under the old one — and a worker starting is the first moment
     after that migration anything can rebuild it. Without this the rollup stays
-    cold until a report lands or the 03:00 pass, and the first seller to open
+    cold until a report lands or the 04:00 pass, and the first seller to open
     «Вся история» waits out the rebuild.
 
     Returns:

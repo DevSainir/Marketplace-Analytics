@@ -162,8 +162,14 @@ def test_the_nightly_reconciliation_is_never_gated() -> None:
 
 
 def test_yesterday_s_daily_report_is_asked_for_after_midnight() -> None:
-    """WB serves the daily report in the small hours: 01:01, 03:06, 04:01."""
-    hours = set(celery_app.conf.beat_schedule["finreports-harvest-at-night"]["schedule"].hour)
+    """WB serves the daily report in the small hours: 01:01, 03:06, 04:01.
+
+    Hour 04 is the reconciliation's, which walks every new report as well as the
+    old ones; hour 03 is nobody's, because it is the database backup's.
+    """
+    schedule = celery_app.conf.beat_schedule
+    hours = set(schedule["finreports-harvest-at-night"]["schedule"].hour)
+    hours |= set(schedule["daily-finreports-reconcile"]["schedule"].hour)
 
     assert {0, 1, 2, 4} <= hours
 

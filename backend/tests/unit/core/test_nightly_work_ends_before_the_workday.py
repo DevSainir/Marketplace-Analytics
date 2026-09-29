@@ -23,6 +23,7 @@ whether the night still fits.
 from __future__ import annotations
 
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from celery.schedules import crontab
@@ -56,6 +57,19 @@ _WORST_CASE: dict[str, timedelta] = {
     # guide window rather than measured, since it has run twice.
     "guide.capture_monthly": timedelta(minutes=60),
 }
+
+
+#: The host cron entry that fires the database backup, in UTC.
+_BACKUP_CRON = (
+    Path(__file__).resolve().parents[3] / "scripts" / "backup" / "cron" / "marketplace-backup"
+)
+
+#: Moscow has been a fixed UTC+3 since 2014, which is what the cron file relies on too.
+_MSK_OFFSET = timedelta(hours=3)
+
+#: Worst measured backup run: 34 min on 2026-09-28, with the reconciliation
+#: writing beside it; a quiet night takes about 6, a Sunday rehearsal about 22.
+_BACKUP_WORST_CASE = timedelta(minutes=40)
 
 
 def _nightly_starts() -> list[tuple[str, str, timedelta]]:
@@ -120,3 +134,36 @@ def test_the_cohort_pass_starts_after_the_harvest_has_finished() -> None:
     cohorts_start = timedelta(hours=min(cohorts.hour), minutes=min(cohorts.minute))
 
     assert cohorts_start >= harvest_ends
+
+
+def _backup_starts_msk() -> timedelta:
+    """When the host cron fires ``backup.sh``, in Moscow time."""
+    for line in _BACKUP_CRON.read_text().splitlines():
+        if "backup.sh" in line and not line.lstrip().startswith("#"):
+            minute, hour = line.split()[:2]
+            return (timedelta(hours=int(hour), minutes=int(minute)) + _MSK_OFFSET) % timedelta(
+                days=1
+            )
+    raise AssertionError(f"no backup.sh entry in {_BACKUP_CRON}")
+
+
+def test_nothing_nightly_runs_while_the_backup_dumps() -> None:
+    """The backup has the database to itself: no nightly entry overlaps its window.
+
+    On 2026-09-29 the finance reconciliation fired at 03:00 beside pg_dump; the
+    postgres container hit its 384 MiB limit, the kernel killed a backend
+    mid-COMMIT and the dump died with it. The backup is a host cron job, not a
+    beat entry, so nothing but this test knows the two share a clock.
+    """
+    backup_start = _backup_starts_msk()
+    backup_end = backup_start + _BACKUP_WORST_CASE
+    overlapping = [
+        f"{name} ({task}) {start}-{start + _WORST_CASE[task]}"
+        for name, task, start in _nightly_starts()
+        if task in _WORST_CASE and start < backup_end and backup_start < start + _WORST_CASE[task]
+    ]
+
+    assert overlapping == [], (
+        f"these run during the backup ({backup_start}-{backup_end} MSK): {overlapping}. "
+        "Move them, or the dump competes with them for the database's memory."
+    )

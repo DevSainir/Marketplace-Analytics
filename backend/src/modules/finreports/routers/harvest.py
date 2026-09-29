@@ -6,7 +6,7 @@ can poll and then reload the statement.
 
 The schedule asks WB on the hours a report can arrive, and only while a seller
 is still owed one; this exists for the moments it cannot cover. A report served
-off the calendar waits for the 03:00 pass, and a worker that was down for its
+off the calendar waits for the 04:00 pass, and a worker that was down for its
 tick waits for the next one — in both cases the seller can already see the report on WB's own
 site, and «подождите» is not an answer.
 
