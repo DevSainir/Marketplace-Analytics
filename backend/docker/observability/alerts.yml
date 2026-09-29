@@ -548,6 +548,28 @@ groups:
         annotations:
           summary: "Больше 2% ответов — это 5xx."
 
+      # The share above is blind to one broken page on a quiet service. On
+      # 2026-09-29 every SKU card answered 500 for three hours; the first one
+      # at 08:30 UTC was a single request in a quiet hour, so the 2 % rule went
+      # pending and fell silent again, and it only fired at 10:25 — twelve
+      # minutes after users started opening cards, and after one had already
+      # written in. Counted per route instead, three 500s on one route in five
+      # minutes is a page by itself. `handler` is the route TEMPLATE (unmatched
+      # paths are grouped into "none"), so this label is bounded.
+      - alert: RouteFailing
+        expr: sum by (handler) (increase(http_requests_total{status=~"5.."}[5m])) >= 3
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.handler }} отвечает 5xx: {{ $value | humanize }} раз за 5 минут."
+          description: >-
+            Один роут падает у всех, кто его открывает. Трассировка — в логах
+            api: `docker logs --since 15m marketplace-service-api-1 | grep
+            "Exception in ASGI"`. Если это началось с последнего деплоя —
+            откат одной командой, docs/security/INCIDENT_RESPONSE.md,
+            «Откат релиза».
+
   # -------------------------------------------------------------------------
   # New-organisation history backfill.
   #
