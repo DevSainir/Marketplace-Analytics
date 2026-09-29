@@ -241,8 +241,14 @@ groups:
             считаем с другим знаком — см. docs/finreports/PNL.md, раздел про
             знак выплаты.
 
+      # `card-prices` is left out on purpose. Since 2026-09-22 the storefront
+      # answers 498 (the wbaas captcha) to every address we hold, so every
+      # кабинет loses it on every nightly pass — four partials an hour, one
+      # page a night, about something nobody can fix from here
+      # (integrations/wildberries/clients/card.py). StorefrontPriceBack below
+      # says when that changes; put the source back here then.
       - alert: HarvestPartial
-        expr: increase(harvest_partial_total[1h]) > 3
+        expr: increase(harvest_partial_total{source!="card-prices"}[1h]) > 3
         for: 0m
         labels:
           severity: warn
@@ -252,6 +258,27 @@ groups:
             Один неполный сбор — это норма: так одна мёртвая ручка WB не
             роняет весь проход. Много неполных подряд — уже не норма: цифры
             по этому источнику тихо устаревают.
+
+      # The other half of HarvestPartial's exclusion: good news, and the only
+      # way anyone learns of it. The nightly pass wrote prices within the last
+      # day (so it ran) and not one кабинет lost `card-prices` in that day. Both
+      # counters move in the same record_harvest_outcome call, so one window
+      # covers both, and a worker restart keeps the older samples in range.
+      - alert: StorefrontPriceBack
+        expr: >-
+          sum(increase(harvest_rows_processed_total{harvest="monitoring.nightly",source="price"}[26h])) > 0
+          unless
+          sum(increase(harvest_partial_total{harvest="monitoring.nightly",source="card-prices"}[26h])) > 0
+        for: 1h
+        labels:
+          severity: warn
+        annotations:
+          summary: "Витрина WB снова отдаёт цену покупателя."
+          description: >-
+            За сутки ночной сбор ни разу не потерял источник card-prices.
+            С 22.09.2026 витрина отвечала капчей (498), и цена покупателя с
+            СПП не собиралась. Проверьте, что она снова пишется, затем
+            верните card-prices в правило HarvestPartial и удалите это.
 
       - alert: CeleryQueueBackingUp
         expr: celery_queue_length{queue_name="celery"} > 50

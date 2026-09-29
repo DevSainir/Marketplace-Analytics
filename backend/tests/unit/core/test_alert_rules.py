@@ -222,3 +222,23 @@ def test_the_self_clearing_rules_outlast_what_clears_them() -> None:
         "a single partial window is recovered by the next tick — that has been true "
         "since 2026-09-08. Only partials that keep happening need a person."
     )
+
+
+def test_a_source_muted_in_harvest_partial_is_watched_for_its_return() -> None:
+    """Muting a dead source is fine; forgetting it was muted is not.
+
+    `card-prices` fired HarvestPartial every night from 2026-09-22 about a
+    captcha nobody can solve from here, so the rule leaves it out. Without a
+    rule that notices the storefront answering again, the exclusion would
+    outlive the outage and hide the next one.
+    """
+    muted = re.findall(r'source!="([^"]+)"', _BY_NAME["HarvestPartial"]["expr"])
+
+    watchers = {
+        source
+        for rule in _rules()
+        if rule["alert"] != "HarvestPartial"
+        for source in re.findall(r'harvest_partial_total\{[^}]*source="([^"]+)"', rule["expr"])
+    }
+
+    assert set(muted) <= watchers, set(muted) - watchers
