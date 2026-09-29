@@ -33,27 +33,49 @@ source_table_inventory() {
 # pg_dump | gzip, with both exit codes checked. A naive pipeline reports only
 # gzip's status, so a pg_dump that died halfway would look like a success and
 # leave a perfectly valid gzip file holding half a database.
+#
+# A failed pg_dump is retried (BACKUP_DUMP_ATTEMPTS, a pause apart): the way it
+# has actually failed is the server dropping the connection while it recovered
+# from an OOM kill, which is over in seconds. A failed gzip is not retried — it
+# is this box's disk, and asking again changes nothing. A night that needed the
+# second attempt still says so in Telegram, because the first one failing is
+# the database telling us something.
 create_dump() {
     local target=$1
+    local attempt exit_code
     local -a status
 
-    log "Dumping ${POSTGRES_DB} from ${BACKUP_PG_HOST} …"
-    set +e
-    pg_client pg_dump \
-        -h "${BACKUP_PG_HOST}" \
-        -U "${POSTGRES_USER}" \
-        -d "${POSTGRES_DB}" \
-        --format=plain \
-        --no-owner \
-        --no-privileges |
-        gzip -9 >"${target}"
-    status=("${PIPESTATUS[@]}")
-    set -e
+    for attempt in $(seq 1 "${BACKUP_DUMP_ATTEMPTS}"); do
+        log "Dumping ${POSTGRES_DB} from ${BACKUP_PG_HOST} (attempt ${attempt}) …"
+        set +e
+        pg_client pg_dump \
+            -h "${BACKUP_PG_HOST}" \
+            -U "${POSTGRES_USER}" \
+            -d "${POSTGRES_DB}" \
+            --format=plain \
+            --no-owner \
+            --no-privileges |
+            gzip -9 >"${target}"
+        status=("${PIPESTATUS[@]}")
+        set -e
 
-    [ "${status[0]}" -eq 0 ] || die "pg_dump exited ${status[0]}."
-    [ "${status[1]}" -eq 0 ] || die "gzip exited ${status[1]}."
+        [ "${status[1]}" -eq 0 ] || die "gzip exited ${status[1]}."
+        exit_code=${status[0]}
+        [ "${exit_code}" -eq 0 ] && break
+        if [ "${attempt}" -eq "${BACKUP_DUMP_ATTEMPTS}" ]; then
+            die "pg_dump exited ${exit_code} on all ${BACKUP_DUMP_ATTEMPTS} attempts."
+        fi
+        warn "pg_dump exited ${exit_code}; retrying in ${BACKUP_DUMP_RETRY_DELAY_SECONDS}s."
+        sleep "${BACKUP_DUMP_RETRY_DELAY_SECONDS}"
+    done
+
     chmod 600 "${target}"
     log "Dump written: $(human_bytes "$(file_size "${target}")")."
+    if [ "${attempt}" -gt 1 ]; then
+        alert "⚠️ Backup on $(hostname) needed attempt ${attempt}: pg_dump failed first.
+The dump that followed passed; look for an OOM kill in the postgres log.
+Log: ${BACKUP_LOG_FILE:-<none>}"
+    fi
 }
 
 file_size() {

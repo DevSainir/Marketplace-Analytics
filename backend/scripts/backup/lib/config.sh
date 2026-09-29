@@ -103,6 +103,13 @@ apply_backup_defaults() {
     : "${BACKUP_LOG_KEEP_DAYS:=60}"
     : "${BACKUP_UPLOAD_RETRIES:=3}"
 
+    # A pg_dump that loses its connection is retried once, after a pause. On
+    # 2026-09-29 the postgres container's OOM killer took a backend mid-dump;
+    # the server was accepting connections again two seconds later, and the
+    # night went without a backup because nothing asked a second time.
+    : "${BACKUP_DUMP_ATTEMPTS:=2}"
+    : "${BACKUP_DUMP_RETRY_DELAY_SECONDS:=120}"
+
     BACKUP_ARTIFACT_DIR="${BACKUP_WORK_DIR}/artifacts"
     BACKUP_STATE_DIR="${BACKUP_WORK_DIR}/state"
     BACKUP_LOG_DIR="${BACKUP_WORK_DIR}/logs"
