@@ -33,6 +33,11 @@ from src.modules.monitoring.services.normalization import (
     compute_baseline_demand,
 )
 
+# Everything the card's day DTO copies from the stored row; the ₽ volumes it derives.
+_FUNNEL_ROW_FIELDS = tuple(
+    name for name in FunnelDetailRead.model_fields if name not in {"order_sum", "buyout_sum"}
+)
+
 
 def price_funnel_details(
     funnel_rows: list[SalesFunnelDaily],
@@ -56,10 +61,14 @@ def price_funnel_details(
     total_order_sum = total_buyout_sum = 0.0
     for row in funnel_rows:
         seller, _customer = price_for_day(ordered, row.stat_date)
-        detail = FunnelDetailRead.model_validate(row)
-        if seller is not None:
-            detail.order_sum = round(row.order_count * seller, 2)
-            detail.buyout_sum = round(row.buyout_count * seller, 2)
+        # Not ``model_validate(row)``: the row's own ``order_sum``/``buyout_sum``
+        # are WB's, in the settlement currency and NULL until backfilled — the
+        # card's roubles are the derived ones below, never those.
+        detail = FunnelDetailRead(
+            **{name: getattr(row, name) for name in _FUNNEL_ROW_FIELDS},
+            order_sum=round(row.order_count * seller, 2) if seller is not None else 0.0,
+            buyout_sum=round(row.buyout_count * seller, 2) if seller is not None else 0.0,
+        )
         total_order_sum += detail.order_sum
         total_buyout_sum += detail.buyout_sum
         details.append(detail)
