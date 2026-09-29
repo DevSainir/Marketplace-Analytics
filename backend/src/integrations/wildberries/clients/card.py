@@ -32,7 +32,7 @@ What that move changed, all measured the same day (see
 **What is still unresolved.** With ``deviceid`` but without a storefront
 session, the edge answers **498** — the ``wbaas`` captcha page — from every
 address we hold. A session token is a challenge response, and acquiring one is
-not done here. So this client is correct against the endpoint and may still be
+not done still. So this client is correct against the endpoint and may still be
 unable to reach it; the harvest already tolerates that (``card-prices`` is
 recorded as a failed source and the customer price stays NULL for the day).
 
