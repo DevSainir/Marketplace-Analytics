@@ -109,13 +109,21 @@ export const useHeatmapStore = defineStore('heatmap', () => {
     groups.value = (await api.fetchGroups()).items
   }
 
+  /** The article pickers sort by orders in the period on screen, so they follow it. */
+  async function loadCatalog() {
+    catalog.value = await api.fetchCatalog({ date_from: dateFrom.value, date_to: dateTo.value })
+  }
+
   async function init() {
-    const side = Promise.all([
-      api.fetchCatalog().then((value) => (catalog.value = value)),
-      loadGroups(),
-    ]).catch((err) => (error.value = extractErrorMessage(err)))
+    const side = Promise.all([loadCatalog(), loadGroups()]).catch(
+      (err) => (error.value = extractErrorMessage(err)),
+    )
     await Promise.all([load(), side])
   }
+
+  watch([dateFrom, dateTo], () => {
+    if (!tooLong.value) loadCatalog().catch((err) => (error.value = extractErrorMessage(err)))
+  })
 
   // A new question starts on page one; the sort survives, it is still meaningful.
   watch(request, () => {

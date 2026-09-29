@@ -40,6 +40,7 @@ from src.modules.heatmap.services.table import (
 from src.modules.monitoring.contract import (
     CatalogCard,
     load_ad_currencies,
+    load_orders_by_nm,
     load_price_currency,
     load_workspace_catalog,
 )
@@ -77,12 +78,24 @@ class HeatmapService:
         self._skus = skus
 
     async def catalog(
-        self, session: AsyncSession, *, workspace_id: uuid.UUID
+        self, session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
     ) -> HeatmapCatalogResponse:
-        """Every card of the кабинет, and the distinct subjects among them."""
+        """Every card of the кабинет, most-ordered in the window first, and its subjects.
+
+        The article pickers — the «Артикулы» filter and the group editor — list a
+        few hundred cards on a large кабинет; the ones a seller is looking for
+        are the ones that sell, so they come first rather than alphabetically.
+        """
         cards = await load_workspace_catalog(session, workspace_id=workspace_id)
+        orders = await load_orders_by_nm(
+            session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
+        items = [
+            HeatmapCatalogItem(**card._asdict(), orders=orders.get(card.nm_id, 0)) for card in cards
+        ]
+        items.sort(key=lambda item: (-item.orders, item.vendor_code.lower(), item.nm_id))
         return HeatmapCatalogResponse(
-            items=[HeatmapCatalogItem(**card._asdict()) for card in cards],
+            items=items,
             subjects=sorted({card.subject_name for card in cards if card.subject_name}),
         )
 

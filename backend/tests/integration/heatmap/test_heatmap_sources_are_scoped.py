@@ -306,3 +306,14 @@ async def test_the_ad_currency_comes_from_this_workspaces_own_campaigns(
     )
 
     assert currencies == ["KGS"]
+
+
+async def test_the_catalogue_lists_the_most_ordered_cards_first(db_session: AsyncSession) -> None:
+    """The article pickers put what sells in the period on top, not the alphabet."""
+    mine, _ = await _two_tenants(db_session)
+
+    catalogue = await _heatmap(db_session).catalog(
+        db_session, workspace_id=mine.id, date_from=DAY, date_to=DAY
+    )
+
+    assert [(item.nm_id, item.orders) for item in catalogue.items] == [(MINE_TOO, 2), (MINE, 1)]

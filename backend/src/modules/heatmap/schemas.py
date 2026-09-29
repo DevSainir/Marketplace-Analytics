@@ -130,10 +130,15 @@ class HeatmapCatalogItem(BaseModel):
     photo_url: str
     subject_name: str
     brand: str
+    #: Ordered units over the requested window — what the pickers sort by.
+    orders: int = 0
 
 
 class HeatmapCatalogResponse(BaseModel):
-    """The кабинет's catalogue, for the «Категории» and «Артикулы» filters."""
+    """The кабинет's catalogue, for the «Категории» and «Артикулы» filters.
+
+    Items come most-ordered first over the requested window.
+    """
 
     items: list[HeatmapCatalogItem]
     #: Distinct non-blank subjects, alphabetical.

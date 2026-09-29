@@ -42,8 +42,8 @@ const CUTS = [
   { value: 'group', label: 'По группе' },
 ]
 const MODES = [
-  { value: 'row', label: 'Цвет: дни одного товара' },
-  { value: 'table', label: 'Цвет: товары между собой' },
+  { value: 'row', label: 'По строке' },
+  { value: 'table', label: 'По всей таблице' },
 ]
 </script>
 
@@ -119,7 +119,7 @@ const MODES = [
         class="hm-select"
         :value="mode"
         aria-label="Как сравнивать цвета"
-        title="Дни одного товара — норма у каждой строки своя: красное — провалы товара относительно себя. Товары между собой — одна норма на всю таблицу: сильные товары зелёные, слабые красные."
+        title="По строке — каждая строка сравнивается сама с собой. По всей таблице — все строки на одной шкале."
         @change="emit('update:mode', $event.target.value)"
       >
         <option v-for="option in MODES" :key="option.value" :value="option.value">

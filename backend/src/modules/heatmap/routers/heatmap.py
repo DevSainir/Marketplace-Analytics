@@ -121,11 +121,17 @@ async def get_heatmap(
     },
 )
 async def get_catalog(
-    service: HeatmapServiceDep, workspace_id: CurrentWorkspaceId, session: DbSession
+    service: HeatmapServiceDep,
+    workspace_id: CurrentWorkspaceId,
+    session: DbSession,
+    date_from: date | None = Query(default=None, description="Inclusive start."),
+    date_to: date | None = Query(default=None, description="Inclusive end."),
 ) -> HeatmapCatalogResponse:
     """Return the кабинет's cards and subjects, for «Категории», «Артикулы» and the group editor.
 
-    Its own route because the filters need it before a grid exists, and because
-    it does not change with the window.
+    Its own route because the filters need it before a grid exists. The window
+    only orders the cards — most-ordered first — so it is bounded the same way
+    as the grid's.
     """
-    return await service.catalog(session, workspace_id=workspace_id)
+    start, end = _resolve_window(date_from, date_to)
+    return await service.catalog(session, workspace_id=workspace_id, date_from=start, date_to=end)

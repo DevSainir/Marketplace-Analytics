@@ -62,7 +62,7 @@ const skuItems = computed(() =>
   props.catalog.items.map((card) => ({
     value: card.nm_id,
     label: formatSku(card.vendor_code) ?? `SKU ${card.nm_id}`,
-    sub: card.title,
+    sub: `Заказов: ${card.orders ?? 0}${card.title ? ` · ${card.title}` : ''}`,
     photo: card.photo_url,
   })),
 )

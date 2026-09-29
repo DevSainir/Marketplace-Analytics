@@ -60,13 +60,8 @@ onMounted(() => store.init())
 
 <template>
   <div class="app-container py-lg">
-    <header class="mb-lg flex flex-wrap items-start justify-between gap-md">
-      <div>
-        <h1 class="text-h2 font-bold text-primary">Тепловая карта</h1>
-        <p class="mt-xs text-base text-muted">
-          Все артикулы кабинета по дням: где растёт, где проседает
-        </p>
-      </div>
+    <header class="mb-lg flex flex-wrap items-center justify-between gap-md">
+      <h1 class="text-h2 font-bold text-primary">Тепловая карта</h1>
       <HeatmapHelp />
     </header>
 

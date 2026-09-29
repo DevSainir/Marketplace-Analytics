@@ -134,6 +134,27 @@ def headers(user: Any, workspace: Workspace) -> dict[str, str]:
     return {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
 
 
+async def test_the_catalogue_is_ordered_over_the_requested_window(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    heatmap: _StubHeatmapService,
+    workspace: Workspace,
+) -> None:
+    """The pickers sort by orders in the period on screen, for the caller's кабинет."""
+    response = await client.get(
+        "/api/v1/heatmap/catalog",
+        params={"date_from": "2026-09-01", "date_to": "2026-09-27"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert heatmap.calls[0] == {
+        "workspace_id": workspace.id,
+        "date_from": date(2026, 9, 1),
+        "date_to": date(2026, 9, 27),
+    }
+
+
 async def test_a_customer_cannot_reach_the_heatmap(
     client: httpx.AsyncClient,
     headers: dict[str, str],

@@ -28,9 +28,14 @@ export async function fetchHeatmap(params, signal) {
   return data
 }
 
-/** GET /v1/heatmap/catalog — every card of the кабинет and its subjects. */
-export async function fetchCatalog() {
-  const { data } = await apiClient.get('/v1/heatmap/catalog')
+/**
+ * GET /v1/heatmap/catalog — every card of the кабинет and its subjects,
+ * most-ordered in the window first.
+ *
+ * @param {{date_from: string, date_to: string}} params
+ */
+export async function fetchCatalog(params) {
+  const { data } = await apiClient.get('/v1/heatmap/catalog', { params })
   return data
 }
 

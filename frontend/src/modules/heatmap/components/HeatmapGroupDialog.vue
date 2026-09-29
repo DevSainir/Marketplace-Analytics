@@ -60,6 +60,12 @@ const matches = computed(() => {
 const shown = computed(() => matches.value.slice(0, RENDER_LIMIT))
 const canSave = computed(() => name.value.trim() && picked.value.size > 0 && !props.busy)
 
+/** «Заказов: 12 · Костюм летний» — the orders are what the list is sorted by. */
+function pickerNote(card) {
+  const orders = `Заказов: ${card.orders ?? 0}`
+  return card.title ? `${orders} · ${card.title}` : orders
+}
+
 function toggle(nmId) {
   const next = new Set(picked.value)
   if (next.has(nmId)) next.delete(nmId)
@@ -149,8 +155,8 @@ onBeforeUnmount(() => {
                 <span class="block truncate text-base text-primary">
                   {{ formatSku(card.vendor_code) ?? `SKU ${card.nm_id}` }}
                 </span>
-                <span v-if="card.title" class="block truncate text-tiny text-muted">
-                  {{ card.title }}
+                <span class="block truncate text-tiny text-muted">
+                  {{ pickerNote(card) }}
                 </span>
               </span>
             </button>
