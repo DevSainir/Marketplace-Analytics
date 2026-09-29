@@ -4,6 +4,17 @@ The payload column is deliberate. See the module docstring in
 :mod:`src.modules.guide` for why a capture buffer stores JSON rather than
 columns; the short version is that typing a feed nobody reads yet means
 inventing its shape twice.
+
+**The payload is stored uncompressed, and no setting changes that.** At
+1.8 GB this is 41% of the database, so compressing it was measured on
+2026-09-29 (a 3% sample, 54 886 rows, almost all ``orders``): ``lz4`` and
+``pglz`` with ``toast_tuple_target = 128`` stored exactly as much as the
+default. PostgreSQL only starts compressing a tuple past its compiled-in
+~2 KB threshold; the reloption sets how far to shrink one it has already
+started on. A row here is ~900 B. And the ceiling would be low anyway: one
+payload on its own compresses 1.52x (843 → 555 B), because what repeats is the
+keys ACROSS rows — the same sample as a stream gzips 6-9x. That saving needs
+many records per row, a different model; the backup artifact already gets it.
 """
 
 from __future__ import annotations
