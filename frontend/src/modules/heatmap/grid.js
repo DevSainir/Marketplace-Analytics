@@ -8,7 +8,7 @@
  * page flip is instant instead of a round trip over the whole window.
  */
 import { MONTHS } from '@/core/utils/calendarModel'
-import { departure, heatColor, normOf } from '@/modules/heatmap/heatScale'
+import { departure, heatStyle, normOf } from '@/modules/heatmap/heatScale'
 
 const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб']
 
@@ -86,15 +86,16 @@ export function pageOf(rows, page, size) {
  * @param {Array<object>} pageRows The rows being drawn.
  * @param {Array<object>} allRows Every row of the selection.
  * @param {'row'|'table'} mode
- * @param {{direction: 'up'|'down'|'neutral', unit: string}} metric The painted metric.
- * @returns {Array<Array<string>>} One array of CSS backgrounds per row.
+ * @param {{direction: 'up'|'down'|'neutral', unit: string, band?: number}} metric
+ *   The painted metric.
+ * @returns {Array<Array<object>>} One array of cell styles per row.
  */
 export function tintRows(pageRows, allRows, mode, metric) {
-  const count = metric.unit === 'count'
+  const options = { count: metric.unit === 'count', band: metric.band }
   const table = mode === 'table' ? normOf(allRows.flatMap((row) => row.values)) : null
   return pageRows.map((row) => {
     const norm = table ?? normOf(row.values)
-    return row.values.map((value) => heatColor(departure(value, norm, { count }), metric.direction))
+    return row.values.map((value) => heatStyle(departure(value, norm, options), metric.direction))
   })
 }
 

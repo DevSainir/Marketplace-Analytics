@@ -43,6 +43,7 @@ const PRESETS = [
   { key: 7, label: '7 дней' },
   { key: 30, label: '30 дней' },
   { key: 90, label: '90 дней' },
+  { key: 180, label: '180 дней' },
 ]
 
 // The backend dashboard (exclusion-aware, whole window). While the table has a

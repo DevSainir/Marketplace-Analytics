@@ -33,6 +33,7 @@ export const PRESETS = [
   { label: '7 дней', days: 7 },
   { label: '30 дней', days: 30 },
   { label: '90 дней', days: 90 },
+  { label: '180 дней', days: 180 },
 ]
 
 /**

@@ -28,15 +28,17 @@ from src.modules.heatmap.schemas import (
 from src.modules.heatmap.services import HeatmapQuery
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
-#: Default window when the caller names no dates: the seven days ending
+#: Default window when the caller names no dates: the thirty days ending
 #: YESTERDAY. Today's funnel is still filling, and a half-day painted red next
-#: to six whole ones reads as a collapse.
-DEFAULT_WINDOW_DAYS = 7
+#: to whole ones reads as a collapse.
+DEFAULT_WINDOW_DAYS = 30
 
-#: Longest window, inclusive. Sized like the reference tool's own limit, and it
-#: has to exist: a window is a scan of every SKU-day in it, and an unbounded one
-#: is a cheap way for one caller to make Postgres work for a minute.
-MAX_WINDOW_DAYS = 180
+#: Longest window, inclusive: a year. It has to exist — a window is a scan of
+#: every SKU-day in it, and an unbounded one is a cheap way for one caller to
+#: make Postgres work for a minute. Measured on NEVA (262 cards, 2026-09-28) at
+#: 180 days: 1.4-3.8 s and ~0.5 MB, so a year stays within seconds. It was the
+#: reference tool's 180 until the owner asked for more.
+MAX_WINDOW_DAYS = 366
 
 router = APIRouter()
 
@@ -56,7 +58,9 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
     if start > end:
         raise ValidationError("Конец периода раньше начала.")
     if (end - start).days + 1 > MAX_WINDOW_DAYS:
-        raise ValidationError(f"Период больше {MAX_WINDOW_DAYS} дней.")
+        raise ValidationError(
+            f"Можно выбрать только период не длиннее {MAX_WINDOW_DAYS} дней — выберите короче."
+        )
     return start, end
 
 

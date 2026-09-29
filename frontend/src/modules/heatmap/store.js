@@ -7,7 +7,7 @@
  * the colour mode only rearrange rows the page already holds — the payload
  * carries every row of the selection — so they never touch the network.
  *
- * The default window is the seven days ending YESTERDAY: today's funnel is
+ * The default window is the thirty days ending YESTERDAY: today's funnel is
  * still filling, and a half-day painted red beside six whole ones reads as a
  * collapse that did not happen.
  */
@@ -22,10 +22,13 @@ import { pageOf, sortRows, tintRows } from '@/modules/heatmap/grid'
 import { metricOf } from '@/modules/heatmap/metrics'
 
 /** The backend's own cap, repeated so the page can say it before asking. */
-export const MAX_DAYS = 180
+export const MAX_DAYS = 366
+
+/** Default window: a month, ending yesterday. */
+const DEFAULT_DAYS = 30
 
 export const useHeatmapStore = defineStore('heatmap', () => {
-  const initial = presetRange(7, isoDaysAgo(1))
+  const initial = presetRange(DEFAULT_DAYS, isoDaysAgo(1))
   const dateFrom = ref(initial.from)
   const dateTo = ref(initial.to)
 
@@ -84,7 +87,7 @@ export const useHeatmapStore = defineStore('heatmap', () => {
 
   async function load() {
     if (tooLong.value) {
-      error.value = `Период больше ${MAX_DAYS} дней — выберите короче.`
+      error.value = `Можно выбрать только период не длиннее ${MAX_DAYS} дней — выберите короче.`
       return
     }
     inFlight?.abort()

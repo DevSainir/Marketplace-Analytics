@@ -87,11 +87,11 @@ const bottom = (value) => formatValue(value, props.secondary?.unit ?? 'count')
           <span class="block text-tiny text-muted">Итого: {{ top(row.total) }}</span>
         </span>
         <span
-          class="min-w-20 rounded-btn px-sm py-xs text-right tabular-nums"
-          :style="{ background: tints[rowIndex]?.[index] || undefined }"
+          class="min-w-20 rounded-btn px-sm py-xs text-right tabular-nums text-primary"
+          :style="tints[rowIndex]?.[index]"
         >
-          <span class="block text-base text-primary">{{ top(row.values[index]) }}</span>
-          <span v-if="secondary" class="block text-tiny text-muted">{{
+          <span class="block text-base">{{ top(row.values[index]) }}</span>
+          <span v-if="secondary" class="block text-tiny opacity-70">{{
             bottom(row.values2[index])
           }}</span>
         </span>

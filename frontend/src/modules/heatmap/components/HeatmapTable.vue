@@ -30,7 +30,7 @@ const props = defineProps({
   period: { type: String, required: true },
   /** The rows on this page, already sorted. */
   rows: { type: Array, required: true },
-  /** One CSS background per cell of each row, from `tintRows`. */
+  /** One style (background, ink) per cell of each row, from `tintRows`. */
   tints: { type: Array, required: true },
   totals: { type: Object, default: null },
   primary: { type: Object, required: true },
@@ -135,11 +135,7 @@ const bottom = (value) => formatValue(value, props.secondary?.unit ?? 'count')
             <span class="hm-grid__top">{{ top(row.total) }}</span>
             <span v-if="secondary" class="hm-grid__bottom">{{ bottom(row.total2) }}</span>
           </td>
-          <td
-            v-for="(value, index) in row.values"
-            :key="index"
-            :style="{ background: tints[rowIndex]?.[index] || undefined }"
-          >
+          <td v-for="(value, index) in row.values" :key="index" :style="tints[rowIndex]?.[index]">
             <span class="hm-grid__top">{{ top(value) }}</span>
             <span v-if="secondary" class="hm-grid__bottom">{{ bottom(row.values2[index]) }}</span>
           </td>
