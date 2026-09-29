@@ -31,14 +31,16 @@ class FunnelIngestion:
         Returns:
             The number of daily funnel rows persisted.
         """
-        # NOTE: ``orderSum``/``buyoutSum`` from WB are intentionally dropped —
-        # the ₽ volumes are now derived from ``count x seller_price`` (see the
-        # matrix and price snapshot), not stored on the funnel row.
+        # The sums are stored in the unit WB states on the product node — the
+        # settlement's, converted by WB, NOT the RUB of the prices. The screens
+        # still value orders as ``count x seller_price`` in RUB; these are the
+        # KGS figures a same-currency ratio needs.
         #
-        # ``buyout_count`` is written here only to SEED a newly inserted day
-        # (this feed serves the last 7 days, so its buyout counts are always the
-        # immature ones); the cohort pass owns the column thereafter — see
-        # ``FunnelRepository._UPDATE`` and :meth:`ingest_funnel_cohorts`.
+        # ``buyout_count`` and ``buyout_sum`` are written here only to SEED a
+        # newly inserted day (this feed serves the last 7 days, so its buyout
+        # figures are always the immature ones); the cohort pass owns both
+        # thereafter — see ``FunnelRepository._UPDATE`` and
+        # :meth:`ingest_funnel_cohorts`.
         flattened: list[dict[str, object]] = [
             {
                 "stat_date": day.stat_date,
@@ -51,6 +53,9 @@ class FunnelIngestion:
                 "cart_conversion": day.cart_conversion,
                 "order_conversion": day.order_conversion,
                 "buyout_conversion": day.buyout_conversion,
+                "order_sum": day.order_sum,
+                "buyout_sum": day.buyout_sum,
+                "currency": row.currency,
             }
             for row in rows
             for day in row.history
@@ -80,6 +85,10 @@ class FunnelIngestion:
                 "nm_id": row.nm_id,
                 "buyout_count": row.statistic.selected.buyout_count,
                 "cancel_count": row.statistic.selected.cancel_count,
+                "order_sum": row.statistic.selected.order_sum,
+                "buyout_sum": row.statistic.selected.buyout_sum,
+                "cancel_sum": row.statistic.selected.cancel_sum,
+                "currency": row.currency,
             }
             for row in rows
             if nm_ids is None or row.nm_id in nm_ids
@@ -145,6 +154,10 @@ class FunnelIngestion:
                     "buyout_conversion": _pct(
                         sel.buyout_count, sel.buyout_count + sel.cancel_count
                     ),
+                    "order_sum": sel.order_sum,
+                    "buyout_sum": sel.buyout_sum,
+                    "cancel_sum": sel.cancel_sum,
+                    "currency": row.currency,
                 }
             )
         count = await self._funnel.upsert_many(flattened)

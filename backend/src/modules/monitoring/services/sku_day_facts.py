@@ -349,21 +349,38 @@ async def load_price_currency(session: AsyncSession, *, workspace_id: uuid.UUID)
 async def load_ad_currencies(
     session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
 ) -> list[str]:
-    """Return the currencies WB billed this кабинет's own ad money in over the window.
+    """Return the currencies this кабинет's ad spend was in over the window.
 
-    ``fullstats`` does state a currency per campaign, but the harvest does not
-    keep it; the write-off ledger does, and its label is the truth rather than
-    decoration: matched document by document against the KGS settlement on
-    2026-09-28, «Демо»'s write-offs labelled RUB were settled at the Bank of
-    Russia rate of the document's closing day, to the kopeck, and those labelled
-    KGS at exactly 1.00. WB moved the ad account to KGS on 2026-08-20 and older
-    campaigns kept billing in RUB, so a window can answer both. Bonus rows are
-    left out here; the P&L adds them (:func:`ad_bonus_currencies`) because they
-    are in the same campaign unit.
+    First from the spend rows: fullstats states each campaign's currency and
+    the harvest keeps it since 2026-09-29. WB moved the ad account to KGS on
+    2026-08-20 and older campaigns kept billing in RUB, so a window can answer
+    both. Rows from before the column carry none until the backfill labels
+    them; for such a window the write-off ledger answers instead, and its label
+    is the truth rather than decoration — matched document by document against
+    the KGS settlement on 2026-09-28, «Демо»'s write-offs labelled RUB were
+    settled at the Bank of Russia rate of the document's closing day, to the
+    kopeck, and those labelled KGS at exactly 1.00. The ledger's bonus rows are
+    left out; the P&L adds them (:func:`ad_bonus_currencies`) because they are
+    in the same campaign unit.
 
     Returns:
-        The distinct labels, alphabetically; empty when the ledger has no rows.
+        The distinct labels, alphabetically; empty when neither source names one.
     """
+    spend = (
+        select(AdvertisingStatDaily.currency)
+        .where(
+            AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id)),
+            AdvertisingStatDaily.stat_date >= date_from,
+            AdvertisingStatDaily.stat_date <= date_to,
+            AdvertisingStatDaily.spend != 0,
+        )
+        .group_by(AdvertisingStatDaily.currency)
+    )
+    labels = {str(currency) for currency in (await session.execute(spend)).scalars()}
+    stated = labels - {""}
+    if "" not in labels:
+        return sorted(stated)
+    # Some of the window's spend predates the label: the ledger speaks for it.
     campaigns = (
         select(AdvertisingStatDaily.campaign_id)
         .where(AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id)))
@@ -379,6 +396,6 @@ async def load_ad_currencies(
             AdvertisingWriteOffDaily.campaign_id.in_(campaigns),
         )
         .group_by(AdvertisingWriteOffDaily.currency)
-        .order_by(AdvertisingWriteOffDaily.currency)
     )
-    return [str(currency) for currency in (await session.execute(stmt)).scalars()]
+    ledger = {str(currency) for currency in (await session.execute(stmt)).scalars()}
+    return sorted(stated | ledger)

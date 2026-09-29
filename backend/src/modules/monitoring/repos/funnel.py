@@ -36,7 +36,9 @@ _CONFLICT = ("stat_date", "nm_id")
 #: pass (:meth:`FunnelRepository.upsert_cohorts`) owns it from then on. Letting
 #: history overwrite it would walk the matured value back to the <=7-day-old
 #: figure on every harvest — the history endpoint only serves the last 7 days,
-#: so its buyout counts are always the immature ones.
+#: so its buyout counts are always the immature ones. ``buyout_sum`` is absent
+#: for the same reason; ``order_sum`` is not, because an order's value does not
+#: mature.
 _UPDATE = (
     "open_count",
     "cart_count",
@@ -45,9 +47,21 @@ _UPDATE = (
     "cart_conversion",
     "order_conversion",
     "buyout_conversion",
+    "order_sum",
+    "currency",
 )
-#: Columns the period-aggregate cohort pass owns — the «Процент выкупа» inputs.
-_COHORT_UPDATE = ("buyout_count", "cancel_count")
+#: Columns the period-aggregate cohort pass owns — the «Процент выкупа» inputs,
+#: their money, and ``order_sum``/``currency`` too: the aggregate is the only
+#: surface serving a day older than 7, so it is what fills the money of a day
+#: harvested before the funnel's sums were stored.
+_COHORT_UPDATE = (
+    "buyout_count",
+    "cancel_count",
+    "order_sum",
+    "buyout_sum",
+    "cancel_sum",
+    "currency",
+)
 
 
 class FunnelRepository(BaseRepository):

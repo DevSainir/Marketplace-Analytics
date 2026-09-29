@@ -124,14 +124,24 @@ def _is_retention_floor(exc: IntegrationError) -> bool:
 async def _funnel_coverage(
     session: AsyncSession, *, nm_ids: list[int], since: date
 ) -> dict[date, dict[int, bool]]:
-    """Existing funnel rows per day: ``{day: {nm_id: has a matured cohort}}``."""
+    """Existing funnel rows per day: ``{day: {nm_id: complete}}``.
+
+    Complete means a matured cohort AND the funnel's own money. The sums were
+    first stored on 2026-09-29, so every older row lacks them, and this is what
+    makes re-running the lane fill them from the same aggregate call that
+    serves the cohort — no second walk, no second request per day.
+    """
     stmt = select(
-        SalesFunnelDaily.stat_date, SalesFunnelDaily.nm_id, SalesFunnelDaily.cancel_count
+        SalesFunnelDaily.stat_date,
+        SalesFunnelDaily.nm_id,
+        SalesFunnelDaily.cancel_count,
+        SalesFunnelDaily.order_sum,
     ).where(SalesFunnelDaily.nm_id.in_(nm_ids), SalesFunnelDaily.stat_date >= since)
     result = await session.execute(stmt)
     coverage: dict[date, dict[int, bool]] = {}
-    for stat_date, nm_id, cancel_count in result.all():
-        coverage.setdefault(stat_date, {})[nm_id] = cancel_count is not None
+    for stat_date, nm_id, cancel_count, order_sum in result.all():
+        complete = cancel_count is not None and order_sum is not None
+        coverage.setdefault(stat_date, {})[nm_id] = complete
     return coverage
 
 
@@ -146,8 +156,8 @@ async def advance_funnel(
 
     Per day, ONE aggregate call answers for the whole catalogue, and its rows
     are split two ways: ``(day, nm)`` already stored gets its matured
-    ``buyout_count``/``cancel_count`` refreshed, and ``(day, nm)`` absent gets
-    the full row inserted. The second is the only way to obtain a day older
+    ``buyout_count``/``cancel_count`` and its money refreshed, and ``(day, nm)``
+    absent gets the full row inserted. The second is the only way to obtain a day older
     than the 7-day daily-history window; the first is what makes «Процент
     выкупа» exist for it.
 
@@ -189,7 +199,8 @@ async def advance_funnel(
         while examined < days_per_tick and day >= floor:
             existing = coverage.get(day, {})
             # The nightly cohort pass owns the maturing window, and a day whose
-            # every row already carries a cohort was healed by an earlier step.
+            # every row already carries a cohort and its money was healed by an
+            # earlier step.
             inside_cohort_window = (end - day).days < COHORT_WINDOW_DAYS
             if existing and (inside_cohort_window or all(existing.values())):
                 day -= timedelta(days=1)

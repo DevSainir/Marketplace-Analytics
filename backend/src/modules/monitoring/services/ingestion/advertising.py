@@ -158,6 +158,8 @@ class AdvertisingIngestion:
                                 "spend": nm.sum,
                                 "orders": nm.orders,
                                 "order_sum": nm.sum_price,
+                                # The unit of spend/order_sum: the campaign's own.
+                                "currency": campaign.currency,
                             }
                         )
         count = await self._advertising.upsert_many(flattened)

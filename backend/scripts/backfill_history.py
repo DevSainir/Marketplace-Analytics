@@ -65,6 +65,7 @@ from datetime import timedelta
 
 from redis import Redis as SyncRedis
 
+from scripts.backfill.ad_currency import _backfill_ad_currency
 from scripts.backfill.advertising import _backfill_advertising
 from scripts.backfill.common import PhaseTotals, _build_service
 from scripts.backfill.funnel import _backfill_funnel
@@ -151,6 +152,10 @@ async def _backfill_workspace(tokens: WorkspaceTokenBundle, args: argparse.Names
             pause=args.write_off_pause,
             totals=totals,
         )
+    # After fullstats, so rows it just wrote with a label are not asked about
+    # and rows from before the label existed are.
+    if not args.skip_ad_currency:
+        await _backfill_ad_currency(tokens, pause=args.adv_pause, totals=totals)
 
     logger.info("=== Workspace '%s' done: %s ===", tokens.name, totals.render())
     logger.info(
@@ -239,6 +244,11 @@ def main() -> None:
     )
     parser.add_argument("--skip-advertising", action="store_true")
     parser.add_argument("--skip-write-offs", action="store_true")
+    parser.add_argument(
+        "--skip-ad-currency",
+        action="store_true",
+        help="Do not label old advertising rows with their campaign's currency.",
+    )
     args = parser.parse_args()
 
     # Hold the nightly jobs' locks for the whole run: the backfill and the

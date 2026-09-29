@@ -149,7 +149,15 @@ class WBAnalyticsClient(BaseWBClient):
             raise IntegrationError(
                 "Unexpected sales-funnel aggregate response shape (expected data.products list)."
             )
-        return [WBFunnelAggregateRow.model_validate(item) for item in rows]
+        # The unit of every sum is stated once, beside the list; each row keeps
+        # a copy so it can be persisted without the envelope.
+        currency = str(data.get("currency") or "") if isinstance(data, dict) else ""
+        return [
+            WBFunnelAggregateRow.model_validate({**item, "currency": currency})
+            if isinstance(item, dict)
+            else WBFunnelAggregateRow.model_validate(item)
+            for item in rows
+        ]
 
     async def fetch_warehouse_stocks(
         self,

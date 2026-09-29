@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, case, delete, func, or_, select
+from sqlalchemy import CursorResult, case, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import AdvertisingStatDaily
@@ -104,7 +104,7 @@ class CampaignDaySkuTotal:
 
 
 _CONFLICT = ("stat_date", "campaign_id", "app_type", "nm_id")
-_UPDATE = ("views", "clicks", "add_to_cart", "spend", "orders", "order_sum")
+_UPDATE = ("views", "clicks", "add_to_cart", "spend", "orders", "order_sum", "currency")
 
 
 class AdvertisingRepository(BaseRepository):
@@ -126,6 +126,61 @@ class AdvertisingRepository(BaseRepository):
             The number of rows submitted.
         """
         return await self.bulk_upsert(rows, conflict_columns=_CONFLICT, update_columns=_UPDATE)
+
+    async def campaigns_without_currency(self, *, workspace_id: uuid.UUID) -> dict[int, date]:
+        """Return this workspace's campaigns whose spend still has no unit.
+
+        Rows harvested before 2026-09-29 were stored without the campaign's
+        currency. Each campaign comes back with its LAST stored day, which is
+        a day fullstats provably answers for it — what a probe needs.
+
+        Args:
+            workspace_id: Restrict to campaigns that advertised this workspace.
+
+        Returns:
+            ``{campaign_id: last stored day}``.
+        """
+        stmt = (
+            select(AdvertisingStatDaily.campaign_id, func.max(AdvertisingStatDaily.stat_date))
+            .where(
+                AdvertisingStatDaily.currency == "",
+                AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id)),
+            )
+            .group_by(AdvertisingStatDaily.campaign_id)
+        )
+        return {int(cid): day for cid, day in (await self._session.execute(stmt)).all()}
+
+    async def label_campaign_currency(
+        self, *, workspace_id: uuid.UUID, campaign_id: int, currency: str
+    ) -> int:
+        """Give every unlabelled row of one campaign the currency WB states for it.
+
+        The whole history of the campaign takes one label because the label is
+        the campaign's, fixed at its creation — campaign 90838808 answered RUB
+        for every day across WB's 2026-08-20 move of the ad account to KGS, and
+        campaigns created before it still answer RUB (verified 2026-09-29).
+        Rows that already carry a label are left alone: they are what WB said
+        on the day they were harvested.
+
+        Args:
+            workspace_id: Restrict to rows of this workspace's SKUs.
+            campaign_id: The campaign WB named the currency of.
+            currency: The ISO code fullstats returned.
+
+        Returns:
+            How many rows were labelled.
+        """
+        stmt = (
+            update(AdvertisingStatDaily)
+            .where(
+                AdvertisingStatDaily.campaign_id == campaign_id,
+                AdvertisingStatDaily.currency == "",
+                AdvertisingStatDaily.nm_id.in_(workspace_sku_select(workspace_id)),
+            )
+            .values(currency=currency)
+        )
+        result = cast(CursorResult[Any], await self._session.execute(stmt))
+        return result.rowcount or 0
 
     async def list_for_sku(
         self,

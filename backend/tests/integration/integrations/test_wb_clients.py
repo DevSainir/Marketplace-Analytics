@@ -13,7 +13,7 @@ depend on a third party's uptime.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import httpx
@@ -21,6 +21,7 @@ import pytest
 
 from src.core.config import settings as _settings
 from src.core.exceptions import IntegrationError
+from src.integrations.wildberries.clients.analytics import WBAnalyticsClient
 from src.integrations.wildberries.clients.prices import WBPricesClient
 from src.integrations.wildberries.clients.statistics import WBStatisticsClient
 from tests.support.wb_payloads import goods_filter_page, price_good, sale_record
@@ -226,3 +227,47 @@ async def test_the_client_closes_its_connection_pool() -> None:
         assert client._client.is_closed is False
 
     assert client._client.is_closed is True
+
+
+# --------------------------------------------------------------------------- #
+# Analytics — the funnel aggregate's money and its unit
+# --------------------------------------------------------------------------- #
+async def test_the_funnel_aggregates_currency_reaches_every_row() -> None:
+    """WB states the unit once, on ``data``; each row must carry it to the database.
+
+    The sums are in the SETTLEMENT currency (KGS on every кабинет, verified
+    2026-09-29), not the RUB of the prices — a row that lost the envelope's
+    ``currency`` would be a number nobody could label. Shape copied from a live
+    response on «Демо».
+    """
+    payload = {
+        "data": {
+            "products": [
+                {
+                    "product": {"nmId": 995716075},
+                    "statistic": {
+                        "selected": {
+                            "orderCount": 53,
+                            "orderSum": 251956,
+                            "buyoutCount": 1,
+                            "buyoutSum": 4754,
+                            "cancelCount": 0,
+                            "cancelSum": 0,
+                        }
+                    },
+                }
+            ],
+            "currency": "KGS",
+        }
+    }
+    client = _mock(
+        WBAnalyticsClient(settings, token="t"),
+        lambda request: httpx.Response(200, json=payload),
+    )
+
+    rows = await client.fetch_funnel_cohort_day(day=date(2026, 9, 27))
+
+    assert rows[0].currency == "KGS"
+    assert rows[0].statistic.selected.order_sum == 251956
+    assert rows[0].statistic.selected.buyout_sum == 4754
+    await client.aclose()

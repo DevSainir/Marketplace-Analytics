@@ -41,6 +41,7 @@ class WBFunnelHistoryDay(RawBase):
     open_count: int = Field(default=0, alias="openCount")
     cart_count: int = Field(default=0, alias="cartCount")
     order_count: int = Field(default=0, alias="orderCount")
+    #: In the row's ``currency`` (the settlement's, converted by WB), not RUB.
     order_sum: float = Field(default=0.0, alias="orderSum")
     buyout_count: int = Field(default=0, alias="buyoutCount")
     buyout_sum: float = Field(default=0.0, alias="buyoutSum")
@@ -66,9 +67,16 @@ class WBFunnelHistoryProduct(RawBase):
 
 
 class WBFunnelHistoryRow(RawBase):
-    """One product node holding its full per-day funnel ``history``."""
+    """One product node holding its full per-day funnel ``history``.
+
+    ``currency`` sits on the node beside ``product`` and is the unit of every
+    sum in its history: the кабинет's SETTLEMENT currency (KGS on all five
+    кабинеты, 2026-09-29) — WB converts the RUB order price at the Bank of
+    Russia rate of the order day before summing.
+    """
 
     product: WBFunnelHistoryProduct
+    currency: str = Field(default="")
     history: list[WBFunnelHistoryDay] = Field(default_factory=list)
 
     @property
@@ -130,6 +138,10 @@ class WBFunnelAggregateSelected(RawBase):
     buyout_count: int = Field(default=0, alias="buyoutCount")
     cancel_count: int = Field(default=0, alias="cancelCount")
     add_to_wishlist: int = Field(default=0, alias="addToWishlist")
+    #: The three sums, in the response's ``data.currency`` (see the row).
+    order_sum: float = Field(default=0.0, alias="orderSum")
+    buyout_sum: float = Field(default=0.0, alias="buyoutSum")
+    cancel_sum: float = Field(default=0.0, alias="cancelSum")
 
     @property
     def has_activity(self) -> bool:
@@ -151,10 +163,15 @@ class WBFunnelAggregateStatistic(RawBase):
 
 
 class WBFunnelAggregateRow(RawBase):
-    """One product node of the period-aggregate response."""
+    """One product node of the period-aggregate response.
+
+    WB states the currency once, on ``data`` beside ``products``; the client
+    copies it onto every node (``currency``) so a row carries its own unit.
+    """
 
     product: WBFunnelHistoryProduct
     statistic: WBFunnelAggregateStatistic
+    currency: str = Field(default="")
 
     @property
     def nm_id(self) -> int:

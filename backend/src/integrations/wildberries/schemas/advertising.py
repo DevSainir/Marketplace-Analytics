@@ -30,7 +30,7 @@ class WBAdvNm(RawBase):
     atbs: int = Field(default=0)  # add-to-basket (add-to-cart) count
     sum: float = Field(default=0.0)
     orders: int = Field(default=0)
-    sum_price: float = Field(default=0.0)  # ad-attributed order revenue (₽)
+    sum_price: float = Field(default=0.0)  # ad-attributed order revenue, campaign currency
 
 
 class WBAdvApp(RawBase):
@@ -48,9 +48,16 @@ class WBAdvDay(RawBase):
 
 
 class WBAdvCampaignStats(RawBase):
-    """Top-level advertising fullstats record for one campaign id."""
+    """Top-level advertising fullstats record for one campaign id.
+
+    ``currency`` is the unit of every ``sum``/``sum_price``/``cpc`` under it,
+    and it is the CAMPAIGN's: fixed when the campaign was created, so campaigns
+    from before WB moved the ad account to KGS on 2026-08-20 still answer RUB
+    (verified live 2026-09-29 on all five кабинеты). ``""`` if WB omits it.
+    """
 
     campaign_id: int = Field(alias="advertId")
+    currency: str = Field(default="")
     days: list[WBAdvDay] = Field(default_factory=list)
 
 

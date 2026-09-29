@@ -36,9 +36,13 @@ class AdvertisingStatDaily(Base):
         nm_id: WB SKU identifier.
         views: Impressions served.
         clicks: Clicks received.
-        spend: Advertising expenses (WB ``sum``).
+        spend: Advertising expenses (WB ``sum``), in :attr:`currency`.
         orders: Attributed orders.
-        order_sum: Ad-attributed order revenue in rubles (WB ``sum_price``).
+        order_sum: Ad-attributed order revenue (WB ``sum_price``), in :attr:`currency`.
+        currency: The campaign's own unit, as fullstats states it on the
+            campaign. RUB for campaigns created before WB moved the ad account
+            to KGS on 2026-08-20, KGS after — so one кабинет holds both.
+            ``""`` = not yet read (rows harvested before the column existed).
     """
 
     __tablename__ = "advertising_stat_daily"
@@ -59,6 +63,7 @@ class AdvertisingStatDaily(Base):
     spend: Mapped[float] = mapped_column(Numeric(14, 2), default=0, nullable=False)
     orders: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     order_sum: Mapped[float] = mapped_column(Numeric(14, 2), default=0, nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), server_default="", nullable=False)
 
 
 class AdvertisingSearchStatDaily(Base):

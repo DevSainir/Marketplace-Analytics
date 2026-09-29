@@ -37,14 +37,24 @@ logger = get_logger(__name__)
 async def _funnel_coverage(
     session: AsyncSession, *, nm_ids: list[int], since: date
 ) -> dict[date, dict[int, bool]]:
-    """Existing funnel rows per day: ``{day: {nm_id: cancel_count is set}}``."""
+    """Existing funnel rows per day: ``{day: {nm_id: complete}}``.
+
+    Complete = a matured cohort AND the funnel's own money, which was first
+    stored on 2026-09-29 — so a re-run fills the sums of every older day from
+    the same aggregate call that serves its cohort. Same rule as the lane's
+    ``src.modules.monitoring.services.backfill._funnel_coverage``.
+    """
     stmt = select(
-        SalesFunnelDaily.stat_date, SalesFunnelDaily.nm_id, SalesFunnelDaily.cancel_count
+        SalesFunnelDaily.stat_date,
+        SalesFunnelDaily.nm_id,
+        SalesFunnelDaily.cancel_count,
+        SalesFunnelDaily.order_sum,
     ).where(SalesFunnelDaily.nm_id.in_(nm_ids), SalesFunnelDaily.stat_date >= since)
     result = await session.execute(stmt)
     coverage: dict[date, dict[int, bool]] = {}
-    for stat_date, nm_id, cancel_count in result.all():
-        coverage.setdefault(stat_date, {})[nm_id] = cancel_count is not None
+    for stat_date, nm_id, cancel_count, order_sum in result.all():
+        complete = cancel_count is not None and order_sum is not None
+        coverage.setdefault(stat_date, {})[nm_id] = complete
     return coverage
 
 
@@ -63,14 +73,15 @@ async def _backfill_funnel(
     the whole catalogue; its rows are split into
 
     * UPDATEs — ``(day, nm)`` already stored: refresh the matured
-      ``buyout_count``/``cancel_count`` (heals days that froze at ≤7-day
-      maturity before the cohort pipeline existed);
+      ``buyout_count``/``cancel_count`` and the day's money (heals days that
+      froze at ≤7-day maturity before the cohort pipeline existed, and days
+      harvested before the sums were stored);
     * INSERTs — ``(day, nm)`` absent: write the full funnel row (the only way
       to obtain days older than the 7-day daily-history window).
 
     Skip rules make re-runs cheap: a day inside the nightly cohort window is
-    the scheduled task's job; a day whose rows all carry a ``cancel_count`` was
-    already healed by a previous run. Walking stops early at the WB retention
+    the scheduled task's job; a day whose rows all carry a ``cancel_count`` and
+    an ``order_sum`` was already healed by a previous run. Walking stops early at the WB retention
     floor (HTTP 400) or after ``empty_stop`` consecutive zero-activity days
     (predating the seller's first trade).
     """
