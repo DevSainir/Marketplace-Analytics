@@ -322,7 +322,7 @@ during what" without carrying anything a caller submitted.
 
 ## Alerts
 
-`docker/observability/alerts.yml`, 26 rules in six groups. Two conventions:
+`docker/observability/alerts.yml`, 28 rules in six groups. Two conventions:
 `for:` is never zero (an alert that fires on one bad scrape fires on a deploy,
 and an alert that fires on a deploy gets muted), and every annotation says what
 to *do*, because the person reading it at 03:00 is not the person who wrote it.
@@ -366,6 +366,29 @@ task, and `acks_on_failure_or_timeout` acknowledges the message on the way past,
 so the work is not retried. Note the ratio's shape: a cgroup with no limit
 publishes no ceiling at all rather than a zero, which leaves the alert's
 expression undefined instead of confidently wrong.
+
+**`PostgresCrashRecovered`** — added 2026-09-29, after three OOM kills inside
+the postgres container in five days (09-24, 09-28, 09-29 — the last one
+mid-backup) had left no trace in Prometheus. None could: the postmaster survives
+a killed backend and reinitialises in about two seconds, well inside one 15 s
+scrape, so `dependency_up` never read 0. What outlasts the recovery is
+`pg_stat_bgwriter.stats_reset` — PostgreSQL discards its statistics after a crash
+and at no other time a running system chooses by itself — so the API publishes
+it at scrape time as `postgres_stats_reset_timestamp_seconds`, and the rule
+fires when it moves. It also explains a symptom that looked unrelated: after
+each kill, every `pg_stat_*` counter restarts from zero, which is why
+`n_live_tup` on production has been found wildly low.
+
+The kills themselves were bulk writes, not the backup. In each of the three
+kernel reports two or three backends held 40-90 MB of anonymous memory against
+~5 MB for the rest; reproduced on PostgreSQL 16, a multi-row
+`INSERT … VALUES … ON CONFLICT` at 30 000 parameters left 25 MB on its
+connection after one batch and 58 MB after four sizes, through a rollback,
+because asyncpg prepares and caches every statement and each batch size was a
+new one. `src/core/upsert.py` now sends one row-wide statement through
+`executemany` — 2 MB, and eight times faster. The large virtual size of those
+backends is JIT's LLVM mapping, not memory: measured, loading it moves `VmSize`
+by ~190 MB and `RssAnon` by a few.
 
 **`WbRateBlockEscalating`** — added 2026-09-19, and it exists because the
 quantity it watches had no metric at all. The three metrics next to it describe

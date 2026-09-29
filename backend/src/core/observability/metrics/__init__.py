@@ -73,6 +73,7 @@ from src.core.observability.metrics.infrastructure import (
     POSTGRES_POOL_FREE,
     POSTGRES_POOL_OVERFLOW,
     POSTGRES_POOL_USED,
+    POSTGRES_STATS_RESET,
     set_app_info,
 )
 from src.core.observability.metrics.security import (
@@ -108,6 +109,7 @@ __all__ = [
     "POSTGRES_POOL_FREE",
     "POSTGRES_POOL_OVERFLOW",
     "POSTGRES_POOL_USED",
+    "POSTGRES_STATS_RESET",
     "SECURITY_AUTH_FAILURES",
     "SECURITY_DEGRADED_CONTROLS",
     "SECURITY_RLS_VIOLATIONS",

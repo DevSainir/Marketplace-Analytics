@@ -22,11 +22,13 @@ turns into a monitoring outage at exactly the moment monitoring is needed.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Iterator
 from pathlib import Path
 from typing import Final, cast
 
 from prometheus_client.core import GaugeMetricFamily
+from sqlalchemy import text
 from sqlalchemy.pool import QueuePool
 
 from src.core.database import engine
@@ -42,6 +44,7 @@ from src.core.observability.metrics import (
     POSTGRES_POOL_FREE,
     POSTGRES_POOL_OVERFLOW,
     POSTGRES_POOL_USED,
+    POSTGRES_STATS_RESET,
     SECURITY_DEGRADED_CONTROLS,
 )
 from src.core.redis import get_redis
@@ -214,6 +217,33 @@ def sample_degraded_controls() -> None:
         SECURITY_DEGRADED_CONTROLS.labels(control=control).set(1 if control in degraded else 0)
 
 
+#: As long as the readiness probe allows itself, for the same reason: a
+#: database that does not answer must cost the scrape seconds, not the scrape.
+_STATS_RESET_TIMEOUT_SECONDS: Final[float] = 2.0
+
+
+async def sample_postgres_stats_reset() -> None:
+    """Publish when PostgreSQL last discarded its statistics — i.e. last crashed.
+
+    See :data:`~src.core.observability.metrics.POSTGRES_STATS_RESET` for why
+    this row, of all of them. ``pg_stat_bgwriter`` rather than
+    ``pg_stat_database``: its ``stats_reset`` is always set, while a database's
+    is NULL until something resets it.
+    """
+    try:
+        async with asyncio.timeout(_STATS_RESET_TIMEOUT_SECONDS), engine.connect() as connection:
+            reset_at = await connection.scalar(
+                text("SELECT extract(epoch FROM stats_reset) FROM pg_stat_bgwriter")
+            )
+    except Exception as exc:
+        # Same breadth, and the same reason, as the readiness probe: whatever
+        # went wrong, a failed sample costs one stale gauge and never the scrape.
+        logger.warning("Could not read pg_stat_bgwriter: %s: %s", type(exc).__name__, exc)
+        return
+    if reset_at is not None:
+        POSTGRES_STATS_RESET.set(float(reset_at))
+
+
 async def refresh_sampled_metrics() -> None:
     """Refresh every scrape-time gauge, in the order they are cheapest.
 
@@ -225,6 +255,7 @@ async def refresh_sampled_metrics() -> None:
     sample_degraded_controls()
     await sample_queue_depth()
     await probe_dependencies()
+    await sample_postgres_stats_reset()
 
 
 async def probe_dependencies() -> None:
@@ -271,5 +302,6 @@ __all__ = [
     "refresh_sampled_metrics",
     "sample_degraded_controls",
     "sample_pool",
+    "sample_postgres_stats_reset",
     "sample_queue_depth",
 ]

@@ -159,13 +159,15 @@ def _no_health_probes(monkeypatch: pytest.MonkeyPatch) -> None:
     Individual tests monkeypatch these again to drive the failure paths; a
     test's own patch is applied after this one and wins.
     """
-    from src.core.observability import health
+    from src.core.observability import collectors, health
 
     async def _ok() -> None:
         return None
 
     monkeypatch.setattr(health, "_ping_postgres", _ok)
     monkeypatch.setattr(health, "_ping_redis", _ok)
+    # The scrape also reads pg_stat_bgwriter on the real engine; same reason.
+    monkeypatch.setattr(collectors, "sample_postgres_stats_reset", _ok)
 
 
 class CapturingHandler(logging.Handler):

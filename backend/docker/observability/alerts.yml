@@ -51,6 +51,22 @@ groups:
             пропускать всё подряд (реестр P1.2). Это не просто «стало
             медленнее» — это дыра в защите.
 
+      - alert: PostgresCrashRecovered
+        expr: max(changes(postgres_stats_reset_timestamp_seconds[30m])) > 0
+        for: 1m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Postgres аварийно перезапустил свои процессы."
+          description: >-
+            Postgres обнуляет статистику только при восстановлении после сбоя,
+            поэтому это значение сдвинулось. Восстановление занимает секунды,
+            но в этот момент рвутся все соединения. Скорее всего, ядро убило
+            процесс Postgres по лимиту памяти контейнера. На сервере выполните
+            `docker logs --since 1h marketplace-service-postgres-1 | grep
+            "terminated by signal"`, затем `dmesg -T | grep oom-kill`. Отчёт
+            ядра о нехватке памяти показывает, какой процесс занял память.
+
       - alert: WorkerExporterDown
         expr: up{job="marketplace-worker"} == 0
         for: 5m

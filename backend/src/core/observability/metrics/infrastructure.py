@@ -61,6 +61,22 @@ DEPENDENCY_UP: Final[Gauge] = Gauge(
     multiprocess_mode="livemin",
 )
 
+#: When PostgreSQL last discarded its statistics, as a Unix timestamp.
+#:
+#: It does that on crash recovery and on nothing else a running system does by
+#: itself: a clean restart keeps the statistics, and the postmaster's own start
+#: time does not move when a backend is killed — the postmaster survives and
+#: reinitialises. So a change here is the one trace a crash recovery leaves that
+#: outlasts it. On 2026-09-29 the recovery took two seconds, far inside the
+#: 15 s scrape, and `dependency_up` never saw it; this value moved to 00:03:47.
+#:
+#: `livemax`: every API process reads the same row, so they agree.
+POSTGRES_STATS_RESET: Final[Gauge] = Gauge(
+    "postgres_stats_reset_timestamp_seconds",
+    "When PostgreSQL last discarded its statistics (crash recovery), Unix time.",
+    multiprocess_mode="livemax",
+)
+
 #: Probe latency, so a dependency that is technically up but slow is visible
 #: before it becomes a dependency that is down.
 DEPENDENCY_PROBE_DURATION: Final[Histogram] = Histogram(
