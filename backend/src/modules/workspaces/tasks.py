@@ -58,6 +58,8 @@ LANE_TASKS: dict[BackfillLane, str] = {
     BackfillLane.FUNNEL: "monitoring.backfill_funnel",
     BackfillLane.ADVERTISING: "monitoring.backfill_advertising",
     BackfillLane.PNL: "finreports.backfill_pnl",
+    BackfillLane.FUNNEL_SUMS: "monitoring.backfill_funnel_sums",
+    BackfillLane.AD_CURRENCY: "monitoring.backfill_ad_currency",
 }
 
 #: How long to wait before restarting a lane, per lane. Absent means at once.

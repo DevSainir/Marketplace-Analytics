@@ -97,6 +97,14 @@ class BackfillLane(enum.StrEnum):
     FUNNEL = "funnel"  # Воронка — 365 days, the WB ceiling
     ADVERTISING = "advertising"  # Реклама — to the first campaign
     PNL = "pnl"  # P&L — to the first settlement report
+    #: Not a seller's lane: a maintenance re-walk of the funnel for the sums
+    #: stored since 2026-09-29, on кабинеты whose history predates them. It is
+    #: deliberately absent from ``LANE_ORDER``, so the profile never shows it,
+    #: while the watchdog still restarts it after a deploy like any other.
+    FUNNEL_SUMS = "funnel_sums"
+    #: Maintenance too, and hidden the same way: labels advertising rows
+    #: harvested before the campaign's currency was stored (2026-09-29).
+    AD_CURRENCY = "ad_currency"
 
 
 class BackfillState(enum.StrEnum):

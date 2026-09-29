@@ -38,6 +38,7 @@ from src.core.redis import get_redis
 from src.core.tasks import run_task
 from src.integrations.wildberries import WBContentClient
 from src.modules.monitoring.repos import ProductCardRepository
+from src.modules.monitoring.services.ad_currency import advance_ad_currency
 from src.modules.monitoring.services.backfill import (
     advance_advertising,
     advance_funnel,
@@ -269,37 +270,115 @@ def backfill_funnel(
             walking alongside the tick it was meant to replace.
     """
 
+    return run_task(
+        _guard(
+            BackfillLane.FUNNEL,
+            workspace_id,
+            _funnel_tick("monitoring.backfill_funnel", BackfillLane.FUNNEL, workspace_id, chain),
+        )
+    )
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="monitoring.backfill_funnel_sums",
+    bind=True,
+    soft_time_limit=_TICK_SOFT_LIMIT_SECONDS,
+    time_limit=_TICK_SOFT_LIMIT_SECONDS + 60,
+    **_TASK_RETRY_KWARGS,
+)
+def backfill_funnel_sums(
+    self: Task[object, object], workspace_id: str, chain: str | None = None
+) -> dict[str, object]:
+    """The funnel walk again, as maintenance the seller never sees.
+
+    The same step as :func:`backfill_funnel` — ``advance_funnel`` treats a day
+    without the funnel's money as unfinished, so re-walking fills the sums of a
+    кабинет harvested before they were stored. It reports into its own lane,
+    ``funnel_sums``, which the profile does not render: a seller whose history
+    loaded long ago should not see «Загружаем историю» come back. The watchdog
+    restarts it after a deploy all the same.
+
+    Args:
+        workspace_id: The workspace being walked.
+        chain: As for :func:`backfill_funnel`.
+    """
+    return run_task(
+        _guard(
+            BackfillLane.FUNNEL_SUMS,
+            workspace_id,
+            _funnel_tick(
+                "monitoring.backfill_funnel_sums", BackfillLane.FUNNEL_SUMS, workspace_id, chain
+            ),
+        )
+    )
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="monitoring.backfill_ad_currency",
+    bind=True,
+    soft_time_limit=_TICK_SOFT_LIMIT_SECONDS,
+    time_limit=_TICK_SOFT_LIMIT_SECONDS + 60,
+    **_TASK_RETRY_KWARGS,
+)
+def backfill_ad_currency(
+    self: Task[object, object], workspace_id: str, chain: str | None = None
+) -> dict[str, object]:
+    """Label one batch of old advertising rows with their campaign's currency.
+
+    Maintenance in a hidden lane, like :func:`backfill_funnel_sums`: one
+    fullstats call per tick (``advance_ad_currency``), resumable from the set of
+    campaigns already asked, restarted by the watchdog after a deploy.
+
+    Args:
+        workspace_id: The workspace whose rows are being labelled.
+        chain: As for :func:`backfill_funnel`.
+    """
+
     async def _run() -> dict[str, object]:
-        name = "monitoring.backfill_funnel"
-        token = await claim_chain(uuid.UUID(workspace_id), BackfillLane.FUNNEL, chain)
+        name = "monitoring.backfill_ad_currency"
+        lane = BackfillLane.AD_CURRENCY
+        token = await claim_chain(uuid.UUID(workspace_id), lane, chain)
         if token is None:
-            logger.info("backfill funnel for %s superseded by a newer chain.", workspace_id)
             return {"superseded": True}
         if await _yield_to_harvest(
-            task_name=name, workspace_id=workspace_id, lane=BackfillLane.FUNNEL, chain=token
+            task_name=name, workspace_id=workspace_id, lane=lane, chain=token
         ):
             return {"yielded": True}
         tokens = await _load(workspace_id)
-        nm_ids = await _nm_ids(tokens.workspace_id)
-        if not nm_ids:
-            await record_progress(
-                workspace_id=tokens.workspace_id,
-                lane=BackfillLane.FUNNEL,
-                state=BackfillState.DONE,
-                message="Нет SKU — воронку собирать не для чего.",
-            )
-            return {"skipped": True}
-        cursor = await read_cursor(workspace_id=tokens.workspace_id, lane=BackfillLane.FUNNEL)
-        step = await advance_funnel(tokens, nm_ids=nm_ids, cursor=cursor)
+        cursor = await read_cursor(workspace_id=tokens.workspace_id, lane=lane)
+        step = await advance_ad_currency(tokens, cursor=cursor)
         return await _run_step(
-            task_name=name,
-            workspace_id=workspace_id,
-            lane=BackfillLane.FUNNEL,
-            step=step,
-            chain=token,
+            task_name=name, workspace_id=workspace_id, lane=lane, step=step, chain=token
         )
 
-    return run_task(_guard(BackfillLane.FUNNEL, workspace_id, _run()))
+    return run_task(_guard(BackfillLane.AD_CURRENCY, workspace_id, _run()))
+
+
+async def _funnel_tick(
+    name: str, lane: BackfillLane, workspace_id: str, chain: str | None
+) -> dict[str, object]:
+    """One step of a funnel walk, reported into ``lane`` and continued by ``name``."""
+    token = await claim_chain(uuid.UUID(workspace_id), lane, chain)
+    if token is None:
+        logger.info("backfill %s for %s superseded by a newer chain.", lane, workspace_id)
+        return {"superseded": True}
+    if await _yield_to_harvest(task_name=name, workspace_id=workspace_id, lane=lane, chain=token):
+        return {"yielded": True}
+    tokens = await _load(workspace_id)
+    nm_ids = await _nm_ids(tokens.workspace_id)
+    if not nm_ids:
+        await record_progress(
+            workspace_id=tokens.workspace_id,
+            lane=lane,
+            state=BackfillState.DONE,
+            message="Нет SKU — воронку собирать не для чего.",
+        )
+        return {"skipped": True}
+    cursor = await read_cursor(workspace_id=tokens.workspace_id, lane=lane)
+    step = await advance_funnel(tokens, nm_ids=nm_ids, cursor=cursor)
+    return await _run_step(
+        task_name=name, workspace_id=workspace_id, lane=lane, step=step, chain=token
+    )
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
