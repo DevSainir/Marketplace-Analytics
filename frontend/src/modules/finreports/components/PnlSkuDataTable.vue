@@ -4,7 +4,7 @@
  *
  * One row per SKU with the money columns of the reference workbook plus WB's
  * catalogue identity (the card photo / Артикул WB / Тип предмета / Бренд) and the efficiency
- * ratios (Средний чек, ROI, ROMI). «Продажи» is shown NET of returns, matching
+ * ratios (Выкуп, Средний чек, ROI). «Продажи» is shown NET of returns, matching
  * WB's finance page; percentages are shares of that net paid revenue.
  *
  * The «Штрафы» cell carries its categories inline (tiny second line) — the
@@ -117,6 +117,23 @@ const foot = useFooterCells(toRefs(props).totals)
     <Column field="sold" header="Продажи, шт" sortable :footer="foot.sold">
       <template #body="{ data }">{{ formatNumber(data.sold) }}</template>
     </Column>
+    <!-- Временная колонка: продано к доставкам из отчёта WB, как в размерах,
+         пока сюда не подведён «Процент выкупа» воронки. Пометка на виду
+         намеренно — цифра может не совпасть с кабинетом WB. -->
+    <Column field="buyoutPct" sortable :footer="foot.buyoutPct">
+      <template #header>
+        <span
+          class="inline-block align-middle"
+          title="Временно: продано к доставкам покупателю по отчёту WB за тот же период, как в разбивке по размерам. Это не «Процент выкупа» из кабинета WB (выкупы к выкупам и отказам по дате заказа) — цифры могут не совпадать."
+        >
+          Выкуп, %
+          <span class="block text-micro font-normal text-muted">временно</span>
+        </span>
+      </template>
+      <template #body="{ data }">
+        <span :class="toneClass('buyoutPct', data.buyoutPct)">{{ pct(data.buyoutPct) }}</span>
+      </template>
+    </Column>
     <Column field="returnPct" sortable :footer="foot.returnPct">
       <template #header>
         <span
@@ -190,11 +207,6 @@ const foot = useFooterCells(toRefs(props).totals)
     <Column field="roi" header="ROI" sortable :footer="foot.roi">
       <template #body="{ data }">
         <span :class="toneClass('roi', data.roi)">{{ pct(data.roi) }}</span>
-      </template>
-    </Column>
-    <Column field="romi" header="ROMI" sortable :footer="foot.romi">
-      <template #body="{ data }">
-        <span :class="toneClass('romi', data.romi)">{{ pct(data.romi) }}</span>
       </template>
     </Column>
     <Column field="payout" header="К перечислению" sortable :footer="foot.payout">

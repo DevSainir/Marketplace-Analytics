@@ -34,6 +34,8 @@ pytestmark = pytest.mark.integration
 SHARED = (
     "sold_units",
     "returned_units",
+    # The «Выкуп» denominator on both cuts: the article's buyout is its sizes'.
+    "delivered_units",
     "sales_gross",
     "returns_gross",
     "sales_before_spp",

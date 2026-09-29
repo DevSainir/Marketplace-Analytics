@@ -71,6 +71,15 @@ class PnlSkuRow(BaseModel):
     sold_units: int
     returned_units: int
     return_rate_pct: Decimal | None
+    #: Forward logistics legs — units WB carried to a buyer in the window.
+    delivered_units: int
+    #: «Выкуп» = sold / delivered, the size cut's own measure, so the row
+    #: equals the footer of its sizes. ``None`` when nothing was carried.
+    #:
+    #: TEMPORARY: this is not WB's «Процент выкупа» (buyouts / (buyouts +
+    #: refusals) by order date, from the funnel). It is dated by settlement,
+    #: like «Продано», and stands in until the funnel figure is wired here.
+    buyout_pct: Decimal | None
 
     #: Продажи / Возвраты, сом (what buyers paid on sale / refund rows).
     sales_amount: Decimal
@@ -118,7 +127,7 @@ class PnlSkuRow(BaseModel):
     #: differently on a report, and only the second one may lower a cost.
     ad_bonus: Decimal | None
     #: advertising - ad_bonus: what the advertising actually cost the seller.
-    #: This — never :attr:`advertising` — is what profit, ROI and ROMI use.
+    #: This — never :attr:`advertising` — is what profit and ROI use.
     advertising_cash: Decimal | None
 
     #: К перечислению за товар — Σ ``ppvz_for_pay``, WB's settled payout.
@@ -135,10 +144,6 @@ class PnlSkuRow(BaseModel):
     #: ROI = net profit / cost * 100. ``None`` without cost (profit is ``None``
     #: then too) or when cost is zero.
     roi_pct: Decimal | None
-    #: ROMI = net profit / advertising_cash * 100. The denominator is the money
-    #: the seller actually put in, so a campaign WB fully funded returns
-    #: ``None`` rather than an infinite ROMI.
-    romi_pct: Decimal | None
 
 
 class PnlDashboard(BaseModel):

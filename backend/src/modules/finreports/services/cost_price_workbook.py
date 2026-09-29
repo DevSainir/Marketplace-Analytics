@@ -61,6 +61,7 @@ _COLUMNS: list[tuple[str, int, str, Callable[[PnlSkuRow], object]]] = [
     ("Продажи, шт", 12, "int", lambda r: r.sold_units),
     ("Возвраты, шт", 12, "int", lambda r: r.returned_units),
     ("Возвраты, %", 12, "pct", lambda r: _money(r.return_rate_pct)),
+    ("Выкуп, % (временно)", 12, "pct", lambda r: _money(r.buyout_pct)),
     ("Продажи", 16, "money", lambda r: _money(r.revenue_paid)),
     ("Средний чек", 14, "money", lambda r: _money(r.average_cheque)),
     ("СПП, %", 10, "pct", lambda r: _money(r.spp_pct)),
@@ -76,7 +77,6 @@ _COLUMNS: list[tuple[str, int, str, Callable[[PnlSkuRow], object]]] = [
     ("Чистая прибыль", 16, "money", lambda r: _money(r.net_profit)),
     ("Прибыль, %", 12, "pct", lambda r: _money(r.net_profit_pct)),
     ("ROI, %", 10, "pct", lambda r: _money(r.roi_pct)),
-    ("ROMI, %", 10, "pct", lambda r: _money(r.romi_pct)),
 ]
 
 

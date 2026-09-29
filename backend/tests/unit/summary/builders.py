@@ -50,6 +50,8 @@ def make_row(
         sold_units=sold_units,
         returned_units=returned_units,
         return_rate_pct=None,
+        delivered_units=0,
+        buyout_pct=None,
         sales_amount=Decimal(revenue),
         returns_amount=ZERO,
         revenue_paid=Decimal(revenue),
@@ -74,7 +76,6 @@ def make_row(
         net_profit=None if net_profit is None else Decimal(net_profit),
         net_profit_pct=None,
         roi_pct=None,
-        romi_pct=None,
     )
 
 

@@ -142,6 +142,8 @@ def build_sku_row(
         sold_units=aggregate.sold_units,
         returned_units=aggregate.returned_units,
         return_rate_pct=_pct(Decimal(aggregate.returned_units), Decimal(aggregate.sold_units)),
+        delivered_units=aggregate.delivered_units,
+        buyout_pct=_pct(Decimal(aggregate.sold_units), Decimal(aggregate.delivered_units)),
         sales_amount=aggregate.sales_gross,
         returns_amount=aggregate.returns_gross,
         revenue_paid=revenue_paid,
@@ -165,15 +167,10 @@ def build_sku_row(
         payout_net=payout_net,
         net_profit=net_profit,
         net_profit_pct=_pct(net_profit, revenue_seller) if net_profit is not None else None,
-        # Profit-based, per the seller's choice: ROI against cost, ROMI against
-        # ad spend. Each is None the moment its denominator is missing or zero —
-        # net_profit is already None without a cost, so ROI/ROMI follow.
+        # Profit-based, per the seller's choice: ROI against cost. None the
+        # moment the cost is missing or zero — net_profit is already None
+        # without a cost, so ROI follows.
         roi_pct=(_pct(net_profit, cogs) if net_profit is not None and cogs else None),
-        romi_pct=(
-            _pct(net_profit, advertising_cash)
-            if net_profit is not None and advertising_cash
-            else None
-        ),
     )
 
 

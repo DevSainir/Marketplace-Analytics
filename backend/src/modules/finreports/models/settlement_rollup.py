@@ -64,6 +64,10 @@ class SettlementDailyRollup(Base):
 
     sold_units: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     returned_units: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    #: Forward logistics legs — units carried to a buyer; the «Выкуп» denominator.
+    delivered_units: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
 
     sales_gross: Mapped[Decimal] = _money()
     returns_gross: Mapped[Decimal] = _money()

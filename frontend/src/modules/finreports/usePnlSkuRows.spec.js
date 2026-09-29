@@ -76,6 +76,7 @@ describe('sumRows — строка «Итого»', () => {
       orders: 100,
       sold: 40,
       returned: 4,
+      delivered: 100,
       sales: 1000,
       paid: 900,
       logistics: 200,
@@ -101,6 +102,14 @@ describe('sumRows — строка «Итого»', () => {
     // на «Оплачено», и одна страница показывала две доли логистики.
     expect(t.logisticsPct).toBeCloseTo((500 / 4000) * 100)
     expect(t.returnPct).toBeCloseTo((8 / 80) * 100)
+  })
+
+  it('выкуп итога — продано к доставкам по сумме штук, а не среднее процентов', () => {
+    // 40/100 и 40/400: среднее процентов дало бы 25 %, а по штукам — 80/500.
+    const t = sumRows([flat(), flat({ nmId: 2, delivered: 400 })])
+
+    expect(t.delivered).toBe(500)
+    expect(t.buyoutPct).toBeCloseTo((80 / 500) * 100)
   })
 
   it('не берёт в сумму строки, отмеченные «Не включать в общий счёт»', () => {

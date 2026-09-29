@@ -29,6 +29,10 @@ export function toRow(r, isBucket = false) {
     sold: r.sold_units,
     returned: r.returned_units,
     returnPct: num(r.return_rate_pct),
+    // Доставки к покупателю — знаменатель «Выкупа». Нужны строке «Итого»:
+    // выкуп суммы считается от сложенных штук, а не как средний процент.
+    delivered: r.delivered_units ?? 0,
+    buyoutPct: num(r.buyout_pct),
     sales: num(r.revenue_seller_price),
     // Выручка после СПП — база, от которой считает проценты бэкенд. В таблице
     // своей колонки нет, но без неё строка «Итого» не сможет пересчитать доли
@@ -48,7 +52,6 @@ export function toRow(r, isBucket = false) {
     adBonus: num(r.ad_bonus),
     advertisingCash: num(r.advertising_cash),
     roi: num(r.roi_pct),
-    romi: num(r.romi_pct),
     payout: num(r.payout_net),
     profit: num(r.net_profit),
     profitPct: num(r.net_profit_pct),
@@ -187,6 +190,7 @@ export function sumRows(rows, adInvoices = 0) {
 
   const sold = sum('sold')
   const returned = sum('returned')
+  const delivered = sum('delivered')
   const sales = sum('sales')
   const paid = sum('paid')
   const net = sold - returned
@@ -212,6 +216,8 @@ export function sumRows(rows, adInvoices = 0) {
     sold,
     returned,
     returnPct: share(returned, sold),
+    delivered,
+    buyoutPct: share(sold, delivered),
     sales,
     paid,
     averageCheque: net ? paid / net : null,
@@ -226,7 +232,6 @@ export function sumRows(rows, adInvoices = 0) {
     adBonus: known('adBonus'),
     advertisingCash,
     roi: profit === null || !cogs ? null : share(profit, cogs),
-    romi: profit === null || !advertisingCash ? null : share(profit, advertisingCash),
     payout,
     profit,
     profitPct: profit === null ? null : share(profit, sales),

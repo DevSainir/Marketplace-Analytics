@@ -64,6 +64,7 @@ export function useFooterCells(totals) {
       orders: t.orders === null ? '' : formatNumber(t.orders),
       sold: formatNumber(t.sold),
       returnPct: pct(t.returnPct),
+      buyoutPct: pct(t.buyoutPct),
       sales: money(t.sales),
       averageCheque: money(t.averageCheque),
       sppPct: pct(t.sppPct),
@@ -73,7 +74,6 @@ export function useFooterCells(totals) {
       advertising: `${money(t.advertising)}${drr}`,
       adBonus: t.adBonus ? `−${money(t.adBonus)}` : money(t.adBonus),
       roi: pct(t.roi),
-      romi: pct(t.romi),
       payout: money(t.payout),
     }
   })

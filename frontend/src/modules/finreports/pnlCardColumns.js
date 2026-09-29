@@ -31,6 +31,11 @@ export const DETAILS = [
   { label: 'Заказы, шт', get: (r) => units(r.orders) },
   { label: 'Продажи, шт', get: (r) => units(r.sold) },
   {
+    label: 'Выкуп, % (временно)',
+    get: (r) => pct(r.buyoutPct),
+    tone: (r) => toneClass('buyoutPct', r.buyoutPct),
+  },
+  {
     label: 'Возвраты, %',
     get: (r) => pct(r.returnPct),
     tone: (r) => toneClass('returnPct', r.returnPct),
@@ -52,5 +57,4 @@ export const DETAILS = [
   },
   { label: 'Бонусы WB', get: (r) => (r.adBonus ? `−${money(r.adBonus)}` : money(r.adBonus)) },
   { label: 'ROI', get: (r) => pct(r.roi), tone: (r) => toneClass('roi', r.roi) },
-  { label: 'ROMI', get: (r) => pct(r.romi), tone: (r) => toneClass('romi', r.romi) },
 ]

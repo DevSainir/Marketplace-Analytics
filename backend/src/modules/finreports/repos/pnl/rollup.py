@@ -82,6 +82,7 @@ ROLLUP_COLUMNS: tuple[str, ...] = (
     "additional_payments",
     "rebill_logistic_cost",
     "advertising",
+    "delivered_units",
     "rows",
 )
 

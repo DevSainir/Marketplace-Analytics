@@ -42,6 +42,8 @@ def _row(nm_id: int, sa_name: str, *, cost: str | None) -> PnlSkuRow:
         sold_units=8,
         returned_units=1,
         return_rate_pct=Decimal("12.5"),
+        delivered_units=20,
+        buyout_pct=Decimal("40"),
         sales_amount=Decimal("1000"),
         returns_amount=Decimal("100"),
         revenue_paid=Decimal("900"),
@@ -66,7 +68,6 @@ def _row(nm_id: int, sa_name: str, *, cost: str | None) -> PnlSkuRow:
         net_profit=(Decimal("100") if cost_dec is not None else None),
         net_profit_pct=None,
         roi_pct=None,
-        romi_pct=None,
     )
 
 

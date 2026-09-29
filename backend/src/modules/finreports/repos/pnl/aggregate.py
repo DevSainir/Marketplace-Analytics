@@ -121,6 +121,10 @@ class SettlementAggregate:
             would leave every period row reporting zero advertising while the
             total reported millions.
         rows: How many settlement rows fed this aggregate.
+        delivered_units: Σ ``delivery_amount`` — forward logistics legs, i.e.
+            units carried to a buyer. The denominator of the per-SKU «Выкуп»,
+            the same one the size cut uses (:mod:`.sizes`). Defaulted only so
+            the period cuts, which never read it, need not spell it out.
     """
 
     key: object
@@ -159,6 +163,7 @@ class SettlementAggregate:
     rebill_logistic_cost: Decimal
     advertising: Decimal
     rows: int
+    delivered_units: int = 0
 
 
 @dataclass(frozen=True)
@@ -325,6 +330,10 @@ _AGGREGATES: tuple[SqlExpr, ...] = (
     func.max(_T.subject_name),
     func.max(_T.brand_name),
     func.count(),
+    # Appended rather than slotted in with the other units, so the positional
+    # readers below keep their indices. Summed over every row, like the size
+    # cut: only «Логистика» rows set it, so Σ sizes = the article, exactly.
+    func.coalesce(func.sum(_T.delivery_amount), 0),
 )
 
 
@@ -341,6 +350,7 @@ _GROUP_EXPRESSIONS: tuple[SqlExpr, ...] = (
     _AGGREGATES[28],  # subject_name
     _AGGREGATES[29],  # brand_name
     *_AGGREGATES[3:28],  # every summed figure, in order
+    _AGGREGATES[31],  # delivered_units
     _AGGREGATES[30],  # rows
 )
 
@@ -351,7 +361,7 @@ def aggregate_from_rollup(
     """Rebuild an aggregate from summed rollup columns.
 
     ``values`` arrives in :data:`_GROUP_EXPRESSIONS` order — currency, subject,
-    brand, the summed figures, the row count — because that is the order the
+    brand, the summed figures, the delivered units, the row count — because that is the order the
     rollup stores and the order a ``SELECT`` over it returns.
 
     Args:
@@ -408,6 +418,7 @@ def aggregate_from_rollup(
             )
         },
         rows=int(rows),
+        delivered_units=int(figures[25]),
     )
 
 
@@ -447,9 +458,11 @@ def _to_aggregate(row: Sequence[Any]) -> SettlementAggregate:
         rebill_logistic_cost=Decimal(row[28]),
         advertising=Decimal(row[29]),
         rows=int(row[32]),
+        delivered_units=int(row[33]),
     )
     # Row layout: key(0), label(1), then _AGGREGATES in order (2..). subject_name and
-    # brand_name are appended just before the count, taking 30 and 31; count is 32.
+    # brand_name are appended just before the count, taking 30 and 31; count is 32,
+    # delivered_units 33.
 
 
 #: Grouping key + label expression per :class:`PnlGrouping`. Only the SKU cut

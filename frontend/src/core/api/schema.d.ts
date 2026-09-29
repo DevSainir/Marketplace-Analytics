@@ -4957,6 +4957,10 @@ export interface components {
       returned_units: number
       /** Return Rate Pct */
       return_rate_pct: string | null
+      /** Delivered Units */
+      delivered_units: number
+      /** Buyout Pct */
+      buyout_pct: string | null
       /** Sales Amount */
       sales_amount: string
       /** Returns Amount */
@@ -5005,8 +5009,6 @@ export interface components {
       net_profit_pct: string | null
       /** Roi Pct */
       roi_pct: string | null
-      /** Romi Pct */
-      romi_pct: string | null
     }
     /**
      * PnlStatement
