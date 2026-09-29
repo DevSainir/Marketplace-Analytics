@@ -11,14 +11,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.upsert import upsert_rows
 from src.modules.guide.models import GuideRecord, GuideRun
-
-#: asyncpg counts Bind parameters in an int16, so 32767 is the ceiling for one
-#: statement. Six columns per row leaves this chunk size an order of magnitude
-#: clear of it. It also matches the size of the batches the orders walk hands
-#: over, so the common case is exactly one statement per batch — but the chunking
-#: stays, because this repository does not get to assume its caller batched.
-_MAX_ROWS_PER_STATEMENT = 2000
 
 
 class GuideRepository:
@@ -61,20 +55,14 @@ class GuideRepository:
             }
             for key, day, payload in rows
         ]
-        for start in range(0, len(payloads), _MAX_ROWS_PER_STATEMENT):
-            chunk = payloads[start : start + _MAX_ROWS_PER_STATEMENT]
-            stmt = pg_insert(GuideRecord).values(chunk)
-            await self._session.execute(
-                stmt.on_conflict_do_update(
-                    index_elements=["source", "workspace_id", "record_key"],
-                    set_={
-                        "recorded_for": stmt.excluded.recorded_for,
-                        "payload": stmt.excluded.payload,
-                        "captured_at": sa.func.now(),
-                    },
-                )
-            )
-        return len(payloads)
+        return await upsert_rows(
+            self._session,
+            GuideRecord,
+            payloads,
+            conflict_columns=["source", "workspace_id", "record_key"],
+            update_columns=["recorded_for", "payload"],
+            also_set={"captured_at": sa.func.now()},
+        )
 
     async def load_run(self, *, source: str, workspace_id: uuid.UUID) -> GuideRun | None:
         """Return the watermark row for one source and tenant, if it exists."""

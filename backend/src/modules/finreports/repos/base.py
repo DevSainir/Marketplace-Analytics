@@ -12,14 +12,10 @@ from collections.abc import Sequence
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import Base
-
-#: asyncpg's Bind message counts parameters in an int16 → 32767 ceiling. Chunk
-#: so N rows x C columns stays under it with headroom.
-_MAX_BIND_PARAMS = 30000
+from src.core.upsert import upsert_rows
 
 
 class BaseRepository:
@@ -49,21 +45,13 @@ class BaseRepository:
         Returns:
             The number of rows submitted for upsert.
         """
-        if not rows:
-            return 0
-        columns_per_row = max((len(row) for row in rows), default=1)
-        chunk_size = max(1, _MAX_BIND_PARAMS // columns_per_row)
-        rows_list = list(rows)
-        for start in range(0, len(rows_list), chunk_size):
-            chunk = rows_list[start : start + chunk_size]
-            stmt = pg_insert(self.model).values(chunk)
-            excluded = stmt.excluded
-            stmt = stmt.on_conflict_do_update(
-                index_elements=list(conflict_columns),
-                set_={column: excluded[column] for column in update_columns},
-            )
-            await self._session.execute(stmt)
-        return len(rows_list)
+        return await upsert_rows(
+            self._session,
+            self.model,
+            rows,
+            conflict_columns=conflict_columns,
+            update_columns=update_columns,
+        )
 
     async def checksum(
         self,
