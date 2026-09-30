@@ -11,10 +11,11 @@ So this does, and only for the one кабинет a diagnostic may read: the ses
 «Демо» by row-level security — so the cards picked below are that кабинет's
 and nobody else's. It prints counts and status, never figures.
 
-Run by the deploy inside the freshly rotated api container; exit 1 there rolls
-the release back (scripts/deploy/rollback.sh). Exit 3 means it could not check
-at all — no cards to open — which fails the deploy without a rollback, because
-the code may be fine and a guard that skips itself must not look like a pass.
+Run by the deploy inside the freshly rotated api container. Any non-zero exit
+fails the deploy before worker and beat are updated; it does NOT roll back —
+that is a human's call (scripts/deploy/rollback.sh). Exit 3 means it could not
+check at all — no cards to open — and still fails, because a guard that skips
+itself must not look like a pass.
 """
 
 from __future__ import annotations

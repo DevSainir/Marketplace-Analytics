@@ -12,7 +12,8 @@
 #   * .frontend-releases/previous — the SPA release `current` pointed at before
 #     the flip.
 #
-# It also runs this itself when the post-deploy smoke probe fails.
+# Nothing runs this automatically. It rolled back on a failed smoke probe for one
+# day (2026-09-29); that was removed — whether to roll back is a person's call.
 #
 # What it does NOT do is touch the database. The schema stays at the newer
 # migration, which is fine for the kind of migration this repo writes (added
