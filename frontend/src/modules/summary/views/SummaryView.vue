@@ -19,6 +19,7 @@ import SummaryCategoryBars from '@/modules/summary/components/SummaryCategoryBar
 import SummaryControls from '@/modules/summary/components/SummaryControls.vue'
 import SummaryKpis from '@/modules/summary/components/SummaryKpis.vue'
 import SummaryLineChart from '@/modules/summary/components/SummaryLineChart.vue'
+import { currencyNotes } from '@/modules/summary/currencyNotes'
 import { orderSeries, revenueSeries, saleSeries } from '@/modules/summary/series'
 import { useSummaryStore } from '@/modules/summary/store'
 
@@ -36,6 +37,15 @@ const revenueLines = computed(() =>
 )
 
 const hasDays = computed(() => store.days.length > 0)
+
+/** Which figures mix currencies over this window — said, not converted. */
+const notes = computed(() =>
+  currencyNotes({
+    settlement: store.currency,
+    prices: store.data?.price_currency ?? '',
+    ads: store.data?.ad_currencies ?? [],
+  }),
+)
 
 onMounted(() => store.init())
 </script>
@@ -74,6 +84,9 @@ onMounted(() => store.init())
           :currency="store.currency"
           :revenue-base="store.revenueBase"
         />
+        <p v-for="note in notes" :key="note" class="mt-sm text-tiny font-medium text-muted">
+          {{ note }}
+        </p>
 
         <section class="ui-sec">
           <h2 class="ui-sec__title">Выручка</h2>

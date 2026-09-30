@@ -28,10 +28,12 @@ from src.modules.monitoring.contract import (
     ad_coverage,
     funnel_coverage,
     load_ad_bonus_by_nm,
+    load_ad_currencies,
     load_ad_days,
     load_ad_spend_by_nm,
     load_order_days,
     load_orders_by_nm,
+    load_price_currency,
 )
 from src.modules.summary.schemas import SummaryCoverage, SummaryResponse, SummarySpan
 from src.modules.summary.services.compose import (
@@ -235,6 +237,10 @@ class SummaryService:
             date_from=date_from,
             date_to=date_to,
             currency=report.currency,
+            price_currency=await load_price_currency(session, workspace_id=workspace_id),
+            ad_currencies=await load_ad_currencies(
+                session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
+            ),
             kpi=build_kpi(
                 report=report,
                 orders=orders,
