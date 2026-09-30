@@ -12,8 +12,9 @@
  * * `impressions` — equal audience per photo. The sound default: every photo
  *   gets the same number of chances, so a CTR difference is a difference in
  *   the photo.
- * * `time` — equal wall clock per photo. The only mode that moves at all on a
- *   card with no advertising running, since nothing accumulates there.
+ * * `time` — equal wall clock per photo. Not a way round the advertising: with
+ *   nothing serving the card there is nothing to measure, and the rotation
+ *   pauses in this mode exactly as it does in the others.
  * * `either` — both bounds at once, and the turn ends at whichever is reached
  *   first. For a card whose advertising is uneven: the budget still gives a
  *   photo its audience while traffic is there, and the slot stops it standing

@@ -24,10 +24,11 @@ its slot — that is what excluding it during its own turn has to mean.
 
 * **Impressions** is the statistically sound default — every photo gets the same
   number of chances, so a difference in CTR is a difference in the photo.
-* **Time** trades that for predictability, and is the only mode that works at
-  all on a card with no advertising running: nothing accumulates there, so an
-  impression budget would never fire and the test would sit on its first photo
-  forever.
+* **Time** trades that for predictability: every photo stands for the same
+  wall-clock slot, however uneven the traffic across them. It does NOT make a
+  card without advertising testable — impressions are the only thing measured,
+  so the runner pauses a test with nothing serving whatever its mode (see
+  :mod:`.budget`).
 * **Either** holds both bounds at once and ends the turn at the first of them.
   It is the mode for a card whose advertising is uneven: the budget still gives
   a photo its audience when traffic is there, and the slot stops it sitting on

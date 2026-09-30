@@ -172,15 +172,29 @@ async def test_a_campaign_wb_will_not_answer_for_poisons_the_whole_answer() -> N
     assert await read_state(client=client, adverts=adverts, nm_id=NM_TROUSERS) is AdsState.UNKNOWN
 
 
-async def test_a_card_nobody_is_advertising_is_unknown_rather_than_paused() -> None:
-    """No campaigns is neither «switched off» nor «out of money».
+async def test_a_card_nobody_is_advertising_pauses_like_a_switched_off_one() -> None:
+    """No campaign at all is nothing to measure, the same as a stopped one.
 
-    Both would act on a rule that does not cover the case: there is no campaign
-    to come back on, and there was never any budget to spend.
+    It used to read as UNKNOWN, and a «по времени» test on such a card dealt
+    every photo through dead air — a table of zeros a seller took for a test
+    that works without advertising.
     """
     client = _FakeBudgets({})
 
     assert (
         await read_state(client=client, adverts=[_advert(1, NM_OTHER)], nm_id=NM_TROUSERS)
-        is AdsState.UNKNOWN
+        is AdsState.PAUSED
+    )
+    # Nothing to ask a budget of: the listing alone decides it.
+    assert client.asked == []
+
+
+async def test_an_account_with_no_campaigns_at_all_pauses_too() -> None:
+    """WB answers ``adverts: null`` for an account that has never advertised.
+
+    That is a real answer, not a failure — a failed listing raises before the
+    gate is reached — so it pauses rather than letting the clock deal photos.
+    """
+    assert await read_state(client=_FakeBudgets({}), adverts=[], nm_id=NM_TROUSERS) is (
+        AdsState.PAUSED
     )

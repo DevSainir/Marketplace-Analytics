@@ -10,12 +10,21 @@ Three answers, and **none of them ends a test**. Finishing one is the seller's
 decision and nothing else's:
 
 * **SERVING** — a campaign is running with money in it. Carry on.
-* **PAUSED** — nothing is serving the card: the campaigns are switched off, or
-  they have run their budget down to zero. Either way the test pauses, the photo
-  stays on the card, nothing advances, no interval is credited to anybody, and
-  the rotation picks up by itself the moment a campaign serves again.
-* **UNKNOWN** — WB could not be asked, or nobody advertises this card at all.
-  Change nothing.
+* **PAUSED** — nothing is serving the card: the campaigns are switched off,
+  they have run their budget down to zero, or there are none at all. Either way
+  the test pauses, the photo stays on the card, nothing advances, no interval is
+  credited to anybody, and the rotation picks up by itself the moment a campaign
+  serves again.
+* **UNKNOWN** — WB could not be asked. Change nothing.
+
+**A card nobody advertises pauses too, and that is a correction.** It used to
+read as UNKNOWN, on the grounds that «no campaign» is neither «switched off» nor
+«out of money». But the rule the pause enforces is not about why the ads
+stopped — it is that without them there is nothing to measure. A «по времени»
+test on such a card dealt photo after photo and recorded every turn as zero,
+which is the table of zeros this module exists to prevent. Seen on a live
+cabinet 2026-09-30, where a seller took a rotation that moved to be one that
+worked without advertising.
 
 **A spent budget is a pause, not an ending, and that is a correction.** It used
 to complete the test, which made a routine event permanent: a campaign that
@@ -64,9 +73,10 @@ class AdsState(enum.StrEnum):
 
     #: A running campaign has money. Keep rotating.
     SERVING = "serving"
-    #: Nothing is serving the card — switched off, or out of money. Wait.
+    #: Nothing is serving the card — switched off, out of money, or no
+    #: campaign at all. Wait.
     PAUSED = "paused"
-    #: WB could not be asked, or nobody advertises this card. Change nothing.
+    #: WB could not be asked. Change nothing.
     UNKNOWN = "unknown"
 
 
@@ -162,12 +172,11 @@ async def read_state(
     paused = campaigns_by_status(listing, nm_id=nm_id, status=PAUSED_STATUS)
 
     if not serving and not paused:
-        # Nobody is advertising this card. That is not «the money ran out» —
-        # there was never any to run out — and it is not a pause the seller
-        # made either. Stopping or pausing here would act on a rule that does
-        # not cover the case.
-        logger.info("ab_tests: nm %s has no spendable campaigns; ads state unknown", nm_id)
-        return AdsState.UNKNOWN
+        # Nobody is advertising this card, so nothing can be measured on it —
+        # the same reason a switched-off campaign pauses the test. The listing
+        # answered, so this is a fact about the card, not a blip.
+        logger.info("ab_tests: nm %s has no spendable campaigns; the test pauses", nm_id)
+        return AdsState.PAUSED
 
     serving_funded = await _any_funded(client, serving, nm_id)
     if serving_funded is None:

@@ -13,7 +13,7 @@ opposite things: one stops the rotation, the other is a blip.
 
 from __future__ import annotations
 
-from src.modules.ab_tests.models import AbTestStatus
+from src.modules.ab_tests.models import AbTestStatus, TriggerMode
 from src.modules.ab_tests.services.budget import AdsState
 from src.modules.ab_tests.services.collection import Counters
 from src.modules.ab_tests.services.rotation import RotationAction
@@ -64,6 +64,36 @@ async def test_a_spent_budget_pauses_at_the_swap_rather_than_ending_the_test() -
     assert tests.status_writes == [AbTestStatus.PAUSED]
     assert test.status == AbTestStatus.PAUSED.value
     # The photo that was up stays up: pausing is not taking the card down.
+    assert installer.installed == []
+
+
+async def test_a_time_slot_ending_with_no_advertising_pauses_instead_of_swapping() -> None:
+    """«По времени» is not a way round the advertising.
+
+    The clock would move the photo whatever the traffic, so this mode is the one
+    that could deal photos through dead air — every turn recorded as zero. It
+    pauses at the swap exactly as the impression mode does.
+    """
+    first, second = make_variant(1), make_variant(2)
+    test = running_test([first, second], active=first, mode=TriggerMode.TIME, slot_minutes=5)
+    installer = FakeInstaller()
+    tests = FakeTests()
+    poller = build_runner(
+        reading=one_campaign({DAY: Counters(views=0)}),
+        windows=FakeWindows(),
+        snapshots=FakeSnapshots(
+            Snapshot(captured_at=T0, by_campaign=one_campaign({DAY: Counters(views=0)}))
+        ),
+        exposures=FakeExposures(active_since=T0),
+        installer=installer,
+        tests=tests,
+        ads=AdsState.PAUSED,
+    )
+
+    outcome = await poller.poll(test, days=[DAY], now=T1)
+
+    assert outcome.paused is True
+    assert tests.status_writes == [AbTestStatus.PAUSED]
     assert installer.installed == []
 
 

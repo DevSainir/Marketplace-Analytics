@@ -135,6 +135,7 @@ describe('TestSummary', () => {
     // it again, and the page reads as a test that pauses on its own.
     const text = plain(wrapper.get('[data-testid="summary-paused-by-ads"]').text())
     expect(text).toContain('не идёт реклама')
+    expect(text).toContain('кампании нет вовсе')
     expect(text).toContain('продолжится сам')
     expect(wrapper.get('[data-testid="summary-status"]').text()).toBe('На паузе · нет рекламы')
   })
