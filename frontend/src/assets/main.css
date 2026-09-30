@@ -142,10 +142,11 @@
   /* Exactly two day sections in the viewport, never a sliver of a third:
      fixed layout spreads each date's colspan evenly, and the table width is
      sized so one day section is half of the visible area (minus the 12rem
-     frozen metric column). `--matrix-days` is set by MetricsTable.vue. */
+     frozen metric column) — or all of it, when the period is a single day.
+     `--matrix-days` and `--matrix-per-screen` are set by MetricsTable.vue. */
   .app-datatable--matrix table {
     table-layout: fixed;
-    width: calc((100% - 12rem) / 2 * var(--matrix-days, 30) + 12rem);
+    width: calc((100% - 12rem) / var(--matrix-per-screen, 2) * var(--matrix-days, 30) + 12rem);
     /* Collapsed borders detach from sticky cells while scrolling, leaving a
        see-through strip between header rows — separate borders stick. */
     border-collapse: separate;

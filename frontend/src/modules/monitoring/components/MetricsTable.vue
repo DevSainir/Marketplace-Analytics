@@ -130,10 +130,11 @@ watch(
     />
 
     <!-- --matrix-days drives the fixed-layout width so EXACTLY two day
-         sections fill the viewport (see .app-datatable--matrix in main.css). -->
+         sections fill the viewport (see .app-datatable--matrix in main.css);
+         a one-day period gets the whole width rather than half of it. -->
     <div
       class="app-datatable app-datatable--matrix hidden sm:block"
-      :style="`--matrix-days: ${days.length}`"
+      :style="`--matrix-days: ${days.length}; --matrix-per-screen: ${Math.min(2, days.length) || 1}`"
     >
       <div v-if="!rows.length" class="px-md py-xl text-center text-base text-muted">
         Нет данных за выбранный период.

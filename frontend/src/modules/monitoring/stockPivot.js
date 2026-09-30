@@ -91,6 +91,23 @@ export function sizeShare(total, grandTotal) {
 export const DAYS_PER_SCREEN = { regular: 2, single: 5 }
 
 /**
+ * How many day groups one screen of THIS period holds.
+ *
+ * Never more than the period has days: a one-day period sized for two left the
+ * grid half as wide as its card, with the other half empty. The single-warehouse
+ * layout keeps its five regardless — a short period there stays a narrow grid,
+ * which is the point of that layout (see above).
+ *
+ * @param {boolean} single whether the period runs off one warehouse a day
+ * @param {number} dayCount days in the period
+ * @returns {number}
+ */
+export function daysPerScreen(single, dayCount) {
+  if (single) return DAYS_PER_SCREEN.single
+  return Math.max(1, Math.min(DAYS_PER_SCREEN.regular, dayCount))
+}
+
+/**
  * Whether the whole period runs off at most one warehouse a day.
  *
  * @param {Array<{warehouses: Array}>} days pivoted days

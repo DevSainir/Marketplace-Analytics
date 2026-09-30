@@ -2,8 +2,8 @@
 import { computed } from 'vue'
 
 import {
-  DAYS_PER_SCREEN,
   dayColumns,
+  daysPerScreen,
   isSingleWarehouse,
   pivotRows,
   pivotWarehouses,
@@ -103,7 +103,7 @@ function columnWidth(day, column) {
 
 const { root, scroll, groupWidth } = useStockRibbonLayout({
   daysSource: () => props.days,
-  perScreen: () => (single.value ? DAYS_PER_SCREEN.single : DAYS_PER_SCREEN.regular),
+  perScreen: () => daysPerScreen(single.value, props.days.length),
 })
 </script>
 

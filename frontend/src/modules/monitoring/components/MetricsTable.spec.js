@@ -242,3 +242,22 @@ describe('table composition', () => {
     expect(wrapper.find('.comment-input').attributes('rows')).toBe('10')
   })
 })
+
+describe('the ribbon width', () => {
+  // main.css sizes the table so `--matrix-per-screen` day sections fill the
+  // card. Left at two, a one-day period filled half of it.
+  const perScreen = (wrapper) => wrapper.find('.app-datatable--matrix').attributes('style')
+
+  it('gives a one-day period the whole width', () => {
+    expect(perScreen(mountTable())).toContain('--matrix-per-screen: 1')
+  })
+
+  it('fits two days a screen once the period has them', () => {
+    const days = [
+      { iso: '2026-07-19', label: '19.07.2026' },
+      { iso: DAY, label: '20.07.2026' },
+    ]
+
+    expect(perScreen(mountTable({}, { days }))).toContain('--matrix-per-screen: 2')
+  })
+})

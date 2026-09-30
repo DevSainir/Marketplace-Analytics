@@ -143,13 +143,26 @@ describe('StockCompareTable', () => {
     expect(wrapper.attributes('style')).not.toContain('--group-w')
 
     await wrapper.setProps({
-      days: dayProps([[cell(1, 'S', 'Казань', 3), cell(1, 'S', 'Тула', 1)]]),
+      days: dayProps([
+        [cell(1, 'S', 'Казань', 3), cell(1, 'S', 'Тула', 1)],
+        [cell(1, 'S', 'Казань', 2)],
+      ]),
     })
     await wrapper.vm.$nextTick()
 
     // (1232 - the size column) / 2 — the size column measures 0 in jsdom, which
     // has no stylesheet to read it from.
     expect(wrapper.attributes('style')).toContain('--group-w: 616px')
+  })
+
+  it('gives a one-day period the whole width, not half of it', async () => {
+    // Sized for two days a screen, a single day left the right half of the card
+    // empty.
+    const wrapper = mountTable([cell(1, 'S', 'Казань', 3), cell(1, 'S', 'Тула', 1)])
+    await wrapper.vm.$nextTick()
+
+    // 1232 / 1 — the size column measures 0 in jsdom.
+    expect(wrapper.attributes('style')).toContain('--group-w: 1232px')
   })
 
   describe('a seller with one warehouse', () => {

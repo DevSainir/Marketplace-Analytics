@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   dayColumns,
+  daysPerScreen,
   isSingleWarehouse,
   pivotRows,
   pivotWarehouses,
@@ -129,5 +130,19 @@ describe('the single-warehouse layout', () => {
       'wh',
       'wh',
     ])
+  })
+})
+
+describe('daysPerScreen', () => {
+  it('fits two days a screen', () => {
+    expect(daysPerScreen(false, 30)).toBe(2)
+  })
+
+  it('gives a one-day period the whole screen, not half of it', () => {
+    expect(daysPerScreen(false, 1)).toBe(1)
+  })
+
+  it('keeps five for one warehouse, however short the period', () => {
+    expect(daysPerScreen(true, 1)).toBe(5)
   })
 })
