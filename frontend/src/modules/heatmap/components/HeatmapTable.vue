@@ -29,7 +29,7 @@ import SkuThumb from '@/core/components/SkuThumb.vue'
 import HeatmapNormInput from '@/modules/heatmap/components/HeatmapNormInput.vue'
 import { formatSku } from '@/core/utils/format'
 import { columnLabel, monitoringLink, storefrontUrl } from '@/modules/heatmap/grid'
-import { formatValue } from '@/modules/heatmap/metrics'
+import { addsUp, formatValue } from '@/modules/heatmap/metrics'
 
 const props = defineProps({
   columns: { type: Array, required: true },
@@ -75,7 +75,10 @@ function ariaSort(by) {
   return props.sort.dir === 'desc' ? 'descending' : 'ascending'
 }
 
-const normTitle = computed(() => `Норма «${props.primary.label}»`)
+// «в день» only where a week multiplies it — a CTR norm is the week's CTR too.
+const normTitle = computed(
+  () => `Норма «${props.primary.label}»${addsUp(props.primary) ? ' в день' : ''}`,
+)
 
 const top = (value) => formatValue(value, props.primary.unit)
 const bottom = (value) => formatValue(value, props.secondary?.unit ?? 'count')

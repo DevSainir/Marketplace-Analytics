@@ -79,6 +79,15 @@ onMounted(() => store.init())
 // Both routes render this one component, so a hop between them keeps the
 // instance and only flips `labs`. The store outlives the route too: whichever
 // way the hop goes, the norms start switched off.
+// A norm belongs to an article: any other cut switches it off, and the
+// picker greys «ручной ввод» out until the cut is «По товару» again.
+watch(
+  () => store.groupBy,
+  (groupBy) => {
+    if (groupBy !== 'sku') norms.mode = 'default'
+  },
+)
+
 watch(
   () => props.labs,
   (labs) => {
@@ -124,12 +133,6 @@ watch(
 
       <p v-if="store.error" class="mb-md text-base text-status-negative">{{ store.error }}</p>
       <p v-if="norms.error" class="mb-md text-base text-status-negative">{{ norms.error }}</p>
-      <p
-        v-if="norms.mode === 'manual' && store.data && store.data.group_by !== 'sku'"
-        class="mb-sm text-tiny text-muted"
-      >
-        Норма вводится для артикулов — выберите «По товару». Сейчас цвет по умолчанию.
-      </p>
       <p v-if="settledNote" class="mb-sm text-tiny text-muted">{{ settledNote }}</p>
       <p v-if="store.loading && !store.data" class="py-xl text-center text-base text-muted">
         Считаем…

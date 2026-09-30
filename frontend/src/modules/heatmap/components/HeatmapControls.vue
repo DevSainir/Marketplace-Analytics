@@ -112,7 +112,12 @@ const MODES = [
         aria-label="Откуда берётся норма"
         @change="emit('update:normMode', $event.target.value)"
       >
-        <option v-for="option in NORM_MODES" :key="option.value" :value="option.value">
+        <option
+          v-for="option in NORM_MODES"
+          :key="option.value"
+          :value="option.value"
+          :disabled="option.value === 'manual' && groupBy !== 'sku'"
+        >
           {{ option.label }}
         </option>
       </select>

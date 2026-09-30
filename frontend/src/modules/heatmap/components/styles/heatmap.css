@@ -179,7 +179,7 @@
 .hm-grid-wrap {
   --hm-head: 44px;
   --hm-name: 260px;
-  --hm-norm: 124px;
+  --hm-norm: 104px;
   --hm-total: 104px;
 
   isolation: isolate;
@@ -274,14 +274,24 @@
   width: var(--hm-norm);
   min-width: var(--hm-norm);
   max-width: var(--hm-norm);
-  padding: 0 8px;
+  padding: 0 6px;
   background: var(--ui-surface);
 }
 
 .hm-grid thead .hm-grid__norm {
-  font-size: 0.75rem;
-  line-height: 1.15;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.1;
   white-space: normal;
+  color: var(--ui-muted);
+}
+
+/* With the norm column the three sticky columns tighten, or they would eat half
+   the grid: most article codes are ~90px, and a long name truncates with its
+   title on hover as it does anyway. */
+.hm-grid--norm {
+  --hm-name: 180px;
+  --hm-total: 88px;
 }
 
 .hm-grid--norm .hm-grid__total {
@@ -290,13 +300,13 @@
 
 .hm-norm {
   width: 100%;
-  height: 30px;
-  padding: 0 8px;
+  height: 26px;
+  padding: 0 6px;
   border-radius: var(--ui-r-sm);
   background: var(--ui-surface);
   box-shadow: inset 0 0 0 1px var(--ui-hairline);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   text-align: right;
   color: var(--ui-ink);
 }
@@ -347,7 +357,7 @@
 
   /* A finger-sized field, and 16px so iOS does not zoom the page into it. */
   .hm-norm {
-    height: 40px;
+    height: 34px;
     font-size: 16px;
   }
 }

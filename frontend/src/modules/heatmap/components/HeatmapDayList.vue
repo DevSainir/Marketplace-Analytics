@@ -18,7 +18,7 @@ import SkuThumb from '@/core/components/SkuThumb.vue'
 import HeatmapNormInput from '@/modules/heatmap/components/HeatmapNormInput.vue'
 import { formatSku } from '@/core/utils/format'
 import { columnLabel } from '@/modules/heatmap/grid'
-import { formatValue } from '@/modules/heatmap/metrics'
+import { addsUp, formatValue } from '@/modules/heatmap/metrics'
 
 const props = defineProps({
   columns: { type: Array, required: true },
@@ -91,13 +91,13 @@ const bottom = (value) => formatValue(value, props.secondary?.unit ?? 'count')
           </span>
           <span class="block text-tiny text-muted">Итого: {{ top(row.total) }}</span>
           <label v-if="normOf" class="mt-xs flex items-center gap-xs text-tiny text-muted">
-            <!-- Just «Норма» on a phone: the metric is named in the select above,
-                 and the full name wrapped the line into three. -->
-            Норма
-            <span class="w-24 shrink-0">
+            <!-- No metric name on a phone: it is in the select above, and the
+                 full name wrapped the line into three. -->
+            {{ addsUp(primary) ? 'Норма в день' : 'Норма' }}
+            <span class="w-20 shrink-0">
               <HeatmapNormInput
                 :value="normOf(row.nm_id)"
-                :label="`Норма «${primary.label}» для ${formatSku(row.label) ?? row.nm_id}`"
+                :label="`Норма «${primary.label}»${addsUp(primary) ? ' в день' : ''} для ${formatSku(row.label) ?? row.nm_id}`"
                 @commit="emit('norm', row.nm_id, $event)"
               />
             </span>
