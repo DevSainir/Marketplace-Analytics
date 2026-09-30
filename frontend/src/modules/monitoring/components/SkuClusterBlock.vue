@@ -25,6 +25,8 @@ defineProps({
   clustersLoading: { type: Boolean, default: false },
   clustersError: { type: String, default: '' },
   loaded: { type: Boolean, default: false },
+  /** The SKU's ad currencies (`ad_currencies`) — what «Расход» and CPC are in. */
+  currency: { type: [String, Array], default: '' },
 })
 </script>
 
@@ -60,8 +62,8 @@ defineProps({
               <td class="text-right">{{ formatNumber(item.clicks) }}</td>
               <td class="text-right">{{ formatPercent(item.ctr) }}</td>
               <td class="text-right">{{ formatNumber(item.orders) }}</td>
-              <td class="text-right">{{ formatMoney(item.spend) }}</td>
-              <td class="text-right">{{ formatMoney(item.cpc) }}</td>
+              <td class="text-right">{{ formatMoney(item.spend, currency) }}</td>
+              <td class="text-right">{{ formatMoney(item.cpc, currency) }}</td>
               <!-- Null = WB reported no position at all, which is not «первое
                    место» — an em dash is the only honest rendering. -->
               <td class="text-right">

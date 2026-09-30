@@ -30,7 +30,6 @@
  * real quantity rather than against a ruler with no relationship to anything
  * on the canvas.
  */
-import { moneyLabel } from '@/core/utils/format'
 import {
   BARS_UP_TO_DAYS,
   buildChartOption,
@@ -54,9 +53,10 @@ const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key,
  * «Реклама», «Воронка» and «Общие» are where a reader LOOKS for a metric. The
  * chart uses them too, but only to group the hover.
  *
- * Money names carry no unit: {@link labelledGroups} appends each metric's own
- * — the prices' for prices and order sums, the campaigns' for spend and its
- * costs — the same ones the table above labels its rows with.
+ * Money names carry no unit; the hover prints each figure with its own
+ * currency sign — the prices' for prices and order sums, the campaigns' for
+ * spend and its costs — the same signs the table's cells carry
+ * ({@link labelledGroups}).
  *
  * `type: 'bar'` on остатки, корзины and заказы, and deliberately no `stack`:
  * they stand side by side as separate columns per day. Stacked they would draw
@@ -275,24 +275,23 @@ export const AGGREGATE_METRIC_GROUPS = [
 export const AGGREGATE_DEFAULT_METRICS = ['spend', 'views', 'carts', 'orders']
 
 /**
- * The catalogue as the reader sees it: money names carry their own unit
- * («Затраты» -> «Затраты, KGS», «Цена продавца» -> «Цена продавца, RUB»), and
- * nothing while it is unknown. One helper for the chips, the legend and the
- * hover, so the three never disagree.
+ * The catalogue as the reader sees it: each money item carries the currency its
+ * figures are in, for the hover to sign them («20с», «4 120₽»). Names stay as
+ * they are — the sign is on the figure, not on the name. One helper for the
+ * chips, the legend and the hover, so the three never disagree.
  *
  * @param {Array<object>} groups A metric catalogue.
- * @param {{prices?: string, ads?: string[]}} [currencies] The matrix's units.
- * @returns {Array<object>} The same groups, money items renamed and carrying
- *   `currency` for the hover's figures.
+ * @param {{prices?: string, ads?: string[]}} [currencies] The matrix's currencies.
+ * @returns {Array<object>} The same groups, money items carrying `currency`.
  */
 export function labelledGroups(groups, currencies = {}) {
   return groups.map((group) => ({
     ...group,
-    items: group.items.map((item) => {
-      if (item.unit !== 'currency') return item
-      const currency = unitOfMetric(item.metric, currencies)
-      return { ...item, name: moneyLabel(item.name, currency), currency }
-    }),
+    items: group.items.map((item) =>
+      item.unit === 'currency'
+        ? { ...item, currency: unitOfMetric(item.metric, currencies) }
+        : item,
+    ),
   }))
 }
 

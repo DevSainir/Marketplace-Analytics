@@ -209,7 +209,7 @@ describe('buildMetricsMatrix', () => {
   })
 
   it('formats backend numbers per metric kind (money/number/percent)', () => {
-    const matrix = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS'] })
+    const matrix = buildMetricsMatrix(PRODUCT)
     // Money cells are bare: the unit is on the row label, because a ~52px leaf
     // column clips «75 KGS»-width text at its leading digit.
     expect(cell(matrix, 'spend', 0, 'total')).toBe('75')
@@ -272,28 +272,44 @@ describe('buildMetricsMatrix', () => {
     expect(buildMetricsMatrix({ nm_id: 1 })).toEqual(empty)
   })
 
-  it('labels prices and the sums valued at them in the prices unit, costs in the ads unit', () => {
+  it('signs each money cell with its own currency: prices in roubles, costs in soms', () => {
     // «Демо» settles in KGS, is priced in RUB, and its campaigns bill in
     // KGS since 20.08.2026: one кабинет-wide unit misstated one side of the table.
     const matrix = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS'] })
 
-    const label = (rows, key) => rows.find((r) => r.key === key).label
+    const first = (rows, key) => rows.find((r) => r.key === key).cells.find((c) => c.raw != null)
 
-    expect(label(matrix.rows, 'spend')).toBe('Затраты, KGS')
-    expect(label(matrix.rows, 'cpc')).toBe('CPC, KGS')
-    expect(label(matrix.rows, 'cost_per_order')).toBe('Стоимость заказа, KGS')
-    expect(label(matrix.rows, 'order_sum')).toBe('Заказы, RUB')
-    expect(label(matrix.rows, 'buyout_sum')).toBe('Выкупы, RUB')
-    expect(label(matrix.priceRows, 'seller_price')).toBe('Цена продавца, RUB')
-    expect(label(matrix.rows, 'ctr')).toBe('CTR, %')
+    expect(first(matrix.rows, 'spend').display).toBe('15с')
+    expect(first(matrix.rows, 'order_sum').unit).toBe('₽')
+    expect(first(matrix.rows, 'ctr').unit).toBe('')
+    expect(matrix.rows.find((r) => r.key === 'spend').label).toBe('Затраты')
   })
 
-  it('names both units on spend from a window across the ad account switch', () => {
+  it('keeps the figure and the sign apart, so a narrow cell can drop the sign and not a digit', () => {
+    const matrix = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS'] })
+
+    const cell = matrix.rows.find((r) => r.key === 'spend').cells.find((c) => c.raw != null)
+
+    expect(cell.figure).toBe('15')
+    expect(cell.unit).toBe('с')
+  })
+
+  it('signs spend from a window across the ad account switch with both currencies', () => {
     // RUB campaigns before 20.08 and KGS ones after sum in the same cells; nothing
-    // converts, so the label says the figure holds both rather than picking one.
+    // converts, so the figure says it holds both rather than picking one.
     const matrix = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS', 'RUB'] })
 
-    expect(matrix.rows.find((r) => r.key === 'spend').label).toBe('Затраты, KGS/RUB')
+    const cell = matrix.rows.find((r) => r.key === 'spend').cells.find((c) => c.raw != null)
+
+    expect(cell.unit).toBe('с+₽')
+  })
+
+  it('leaves a blank cell without a sign', () => {
+    const matrix = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS'] })
+
+    const blank = matrix.rows.find((r) => r.key === 'spend').cells.find((c) => c.raw == null)
+
+    expect(blank.display).toBe('')
   })
 
   it('leaves money rows without a unit while the currency is unknown', () => {

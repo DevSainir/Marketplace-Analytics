@@ -18,6 +18,7 @@ import { computed } from 'vue'
 
 import { COLUMNS_PER_DAY } from '@/modules/monitoring/metricsMatrix'
 
+import MatrixFigure from '@/modules/monitoring/components/MatrixFigure.vue'
 import { useCellEditing, vFocus } from '@/modules/monitoring/useCellEditing'
 
 const props = defineProps({
@@ -86,10 +87,10 @@ const blocks = computed(() => [
                   class="matrix-cell-btn day-block-value tabular-nums"
                   @click="startEdit(row, row.cells[dayIndex])"
                 >
-                  {{ row.cells[dayIndex].display }}
+                  <MatrixFigure :cell="row.cells[dayIndex]" />
                 </button>
                 <span v-else class="day-block-value tabular-nums">
-                  {{ row.cells[dayIndex].display }}
+                  <MatrixFigure :cell="row.cells[dayIndex]" />
                 </span>
               </template>
             </div>

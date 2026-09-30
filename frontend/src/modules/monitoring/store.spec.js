@@ -87,28 +87,27 @@ describe('the unit on the matrix', () => {
     ad_currencies: ['KGS'],
     matrix: { days: ['2026-07-01'], buckets: ['total'], rows: [{ key: 'spend', values: [75] }] },
   }
-  const labelOf = (rows, key) => rows.find((row) => row.key === key).label
 
-  it('labels prices and spend each in the unit the detail states for it', async () => {
+  it('signs spend with the currency the detail states for the campaigns', async () => {
     // «Демо» settles in KGS but is priced in RUB, and its campaigns bill in
     // KGS since 20.08.2026 — one кабинет-wide unit misstated one of the two.
     fetchSkuDetail.mockResolvedValue(WITH_MATRIX)
 
     await store.fetchProductData('953770957')
 
-    expect(labelOf(store.matrixView.rows, 'spend')).toBe('Затраты, KGS')
-    expect(labelOf(store.matrixView.rows, 'order_sum')).toBe('Заказы, RUB')
-    expect(labelOf(store.matrixView.priceRows, 'seller_price')).toBe('Цена продавца, RUB')
+    const spend = store.matrixView.rows.find((row) => row.key === 'spend')
+    expect(spend.label).toBe('Затраты')
+    expect(spend.cells.find((cell) => cell.bucket === 'total').display).toBe('75с')
   })
 
-  it('leaves the money rows without a unit while WB has named none', async () => {
-    // A SKU with no labelled snapshot and no charged campaign: no unit, not a guess.
-    fetchSkuDetail.mockResolvedValue({ ...WITH_MATRIX, price_currency: '', ad_currencies: [] })
+  it('prints spend with no sign while WB has named no currency', async () => {
+    // A SKU with no charged campaign: no sign, not a guess.
+    fetchSkuDetail.mockResolvedValue({ ...WITH_MATRIX, ad_currencies: [] })
 
     await store.fetchProductData('953770957')
 
-    expect(labelOf(store.matrixView.rows, 'spend')).toBe('Затраты')
-    expect(labelOf(store.matrixView.priceRows, 'seller_price')).toBe('Цена продавца')
+    const spend = store.matrixView.rows.find((row) => row.key === 'spend')
+    expect(spend.cells.find((cell) => cell.bucket === 'total').display).toBe('75')
   })
 })
 

@@ -65,7 +65,7 @@ describe('buildMetricChart', () => {
       const chart = chartOf(['spend'], [row('spend', { total: [10, 20, 30] })])
 
       // One unit in the pick, so the numbers are the numbers.
-      expect(seriesNamed(chart, 'Затраты, KGS').data).toEqual([10, 20, 30])
+      expect(seriesNamed(chart, 'Затраты').data).toEqual([10, 20, 30])
     })
 
     it('reads CPM out of the day\u2019s «Общая» column', () => {
@@ -74,7 +74,7 @@ describe('buildMetricChart', () => {
       // ever goes back to being blank.
       const chart = chartOf(['cpm'], [row('cpm', { total: [150, 300, 225] })])
 
-      expect(seriesNamed(chart, 'CPM, KGS').data).toEqual([150, 300, 225])
+      expect(seriesNamed(chart, 'CPM').data).toEqual([150, 300, 225])
     })
 
     it('reads a mini-block metric off its one-cell-per-day row', () => {
@@ -82,7 +82,7 @@ describe('buildMetricChart', () => {
       // carries a single «Общая» cell per day, so the stride must not apply.
       const chart = chartOf(['customer_price'], [row('customer_price', { total: [990, 890, 890] })])
 
-      expect(seriesNamed(chart, 'Цена покупателя, RUB').data).toEqual([990, 890, 890])
+      expect(seriesNamed(chart, 'Цена покупателя').data).toEqual([990, 890, 890])
     })
 
     it('renders a day WB served nothing as a gap, not as a zero', () => {
@@ -90,7 +90,7 @@ describe('buildMetricChart', () => {
       // across the blank would draw a trend that never happened.
       const chart = chartOf(['spend'], [row('spend', { total: [5, null, 7] })])
 
-      expect(seriesNamed(chart, 'Затраты, KGS').data[1]).toBeNull()
+      expect(seriesNamed(chart, 'Затраты').data[1]).toBeNull()
       expect(chart.option.series[0].connectNulls).toBe(false)
     })
 
@@ -99,7 +99,7 @@ describe('buildMetricChart', () => {
       // must drop out rather than produce a phantom empty series.
       const chart = chartOf(['spend', 'нет-такого'], [row('spend', { total: [1, 2, 3] })])
 
-      expect(chart.option.series.map((entry) => entry.name)).toEqual(['Затраты, KGS'])
+      expect(chart.option.series.map((entry) => entry.name)).toEqual(['Затраты'])
     })
   })
 
@@ -115,7 +115,7 @@ describe('buildMetricChart', () => {
       expect(axes[1].position).toBe('right')
       // Both drawn as they are: neither scale is an index.
       expect(seriesNamed(chart, 'Заказы, шт').data).toEqual([10, 20, 15])
-      expect(seriesNamed(chart, 'Затраты, KGS').data).toEqual([200, 400, 100])
+      expect(seriesNamed(chart, 'Затраты').data).toEqual([200, 400, 100])
     })
 
     it('keeps BOTH scales even when only one of them has anything on it', () => {
@@ -271,7 +271,7 @@ describe('buildMetricChart', () => {
         forwards.option.series.map((entry) => entry.name),
       )
       expect(forwards.option.series.map((entry) => entry.name)).toEqual([
-        'Затраты, KGS',
+        'Затраты',
         'Корзины, шт',
         'Заказы, шт',
       ])
@@ -324,9 +324,7 @@ describe('buildMetricChart', () => {
       const second = chartOf(['spend', 'ctr', 'orders'])
 
       expect(seriesNamed(first, 'Заказы, шт').color).toBe(seriesNamed(second, 'Заказы, шт').color)
-      expect(seriesNamed(first, 'Затраты, KGS').color).toBe(
-        seriesNamed(second, 'Затраты, KGS').color,
-      )
+      expect(seriesNamed(first, 'Затраты').color).toBe(seriesNamed(second, 'Затраты').color)
     })
 
     it('gives every metric of a catalogue its own hue', () => {
@@ -342,7 +340,7 @@ describe('buildMetricChart', () => {
       const chart = chartOf(['spend', 'carts', 'orders', 'stock_quantity'])
       const hue = (name) => seriesNamed(chart, name).color
 
-      expect(hue('Затраты, KGS')).toBe('#1BAF7A')
+      expect(hue('Затраты')).toBe('#1BAF7A')
       expect(hue('Остатки на складах, шт')).toBe('#0B7A3B')
       expect(hue('Корзины, шт')).toBe('#2A78D6')
       expect(hue('Заказы, шт')).toBe('#EB6834')
@@ -400,7 +398,7 @@ describe('buildMetricChart', () => {
       // «Воронка» are where the reader already looks for a metric.
       const chart = chartOf(['spend', 'carts'])
 
-      const hover = hoverOf(chart, [point(0, 'Затраты, KGS', 100), point(1, 'Корзины, шт', 100)])
+      const hover = hoverOf(chart, [point(0, 'Затраты', 100), point(1, 'Корзины, шт', 100)])
 
       expect(hover).toContain('Реклама')
       expect(hover).toContain('Воронка')
@@ -410,9 +408,9 @@ describe('buildMetricChart', () => {
     it('answers a hover over the day with every metric on the plot', () => {
       const chart = chartOf(['spend', 'carts'], [], { index: null })
 
-      const hover = hoverOf(chart, [point(0, 'Затраты, KGS', 100), point(1, 'Корзины, шт', 140)])
+      const hover = hoverOf(chart, [point(0, 'Затраты', 100), point(1, 'Корзины, шт', 140)])
 
-      expect(hover).toContain('Затраты, KGS')
+      expect(hover).toContain('Затраты')
       expect(hover).toContain('Корзины, шт')
     })
 
@@ -422,10 +420,10 @@ describe('buildMetricChart', () => {
       const cursor = { index: 1 }
       const chart = chartOf(['spend', 'carts'], [], cursor)
 
-      const hover = hoverOf(chart, [point(0, 'Затраты, KGS', 100), point(1, 'Корзины, шт', 140)])
+      const hover = hoverOf(chart, [point(0, 'Затраты', 100), point(1, 'Корзины, шт', 140)])
 
       expect(hover).toContain('Корзины, шт')
-      expect(hover).not.toContain('Затраты, KGS')
+      expect(hover).not.toContain('Затраты')
     })
 
     it('shows both metrics where two of them cross', () => {
@@ -433,10 +431,10 @@ describe('buildMetricChart', () => {
       // to one would be a guess.
       const chart = chartOf(['spend', 'carts'], [], { index: 1 })
 
-      const hover = hoverOf(chart, [point(0, 'Затраты, KGS', 140), point(1, 'Корзины, шт', 140)])
+      const hover = hoverOf(chart, [point(0, 'Затраты', 140), point(1, 'Корзины, шт', 140)])
 
       expect(hover).toContain('Корзины, шт')
-      expect(hover).toContain('Затраты, KGS')
+      expect(hover).toContain('Затраты')
     })
   })
 
@@ -446,9 +444,9 @@ describe('buildMetricChart', () => {
     it('states spend in the hover in the unit its campaigns bill in', () => {
       const chart = chartOf(['spend'], [row('spend', { total: [10, 20, 30] })])
 
-      const hover = hoverOf(chart, [point(0, 'Затраты, KGS', 20)])
+      const hover = hoverOf(chart, [point(0, 'Затраты', 20)])
 
-      expect(hover).toContain('20 KGS')
+      expect(hover).toContain('20с')
     })
 
     it("states a price beside spend in its own unit, not the spend's", () => {
@@ -459,13 +457,10 @@ describe('buildMetricChart', () => {
         [row('spend', { total: [10, 20, 30] }), row('seller_price', { total: [100, 200, 300] })],
       )
 
-      const hover = hoverOf(chart, [
-        point(0, 'Затраты, KGS', 20),
-        point(1, 'Цена продавца, RUB', 200),
-      ])
+      const hover = hoverOf(chart, [point(0, 'Затраты', 20), point(1, 'Цена продавца', 200)])
 
-      expect(hover).toContain('20 KGS')
-      expect(hover).toContain('200 RUB')
+      expect(hover).toContain('20с')
+      expect(hover).toContain('200₽')
     })
 
     it('prints money with no unit while the currency is unknown', () => {
@@ -478,17 +473,16 @@ describe('buildMetricChart', () => {
       expect(hover).toContain('<b>20</b>')
     })
 
-    it('names the chips in the currency the legend uses', () => {
-      // The picker and the legend are read against each other; one of them
-      // naming a unit the other does not reads as two different metrics.
-      const names = labelledGroups(SKU_METRIC_GROUPS, { prices: 'RUB', ads: ['KGS'] }).flatMap(
-        (group) => group.items.map((item) => item.name),
+    it('hands each money item the currency of its own figures, and leaves names alone', () => {
+      // The sign goes on the figure («20с», «4 120₽»); a name is only a name.
+      const items = labelledGroups(SKU_METRIC_GROUPS, { prices: 'RUB', ads: ['KGS'] }).flatMap(
+        (group) => group.items,
       )
+      const item = (key) => items.find((entry) => entry.key === key)
 
-      expect(names).toContain('Затраты, KGS')
-      expect(names).toContain('Цена продавца, RUB')
-      expect(names).toContain('Показы')
-      expect(names).toContain('CTR, %')
+      expect(item('spend')).toMatchObject({ name: 'Затраты', currency: ['KGS'] })
+      expect(item('seller_price')).toMatchObject({ name: 'Цена продавца', currency: 'RUB' })
+      expect(item('ctr').currency).toBeUndefined()
     })
   })
 
@@ -643,7 +637,7 @@ describe('buildMetricChart', () => {
       })
       const sku = buildMetricChart(view, { metrics: ['order_sum'], groups: SKU_METRIC_GROUPS })
 
-      expect(aggregate.option.series.map((entry) => entry.name)).toEqual(['Заказы, RUB'])
+      expect(aggregate.option.series.map((entry) => entry.name)).toEqual(['Заказы'])
       expect(sku.option.series).toEqual([]) // the SKU catalogue has no such key
     })
   })

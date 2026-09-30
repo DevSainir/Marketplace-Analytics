@@ -9,13 +9,13 @@
  * CPC, CPM, CPO) and for the ad budget, «нейтрально» for prices and stock,
  * which have no better end, and «больше — лучше» for everything else.
  *
- * Money labels carry no currency of their own: `metricLabel` appends the one
- * each metric is in (`currencyOf`) — the prices' for prices and order sums, the
- * campaigns' for spend and its costs, the settlement's for revenue and profit.
- * A кабинет settled in KGS is priced in RUB, so one кабинет-wide unit was wrong
- * for some row whichever unit it was.
+ * Money names carry no currency; every figure carries its own sign
+ * («1 240с», «4 120₽») from `currencyOf` — the prices' for prices and order
+ * sums, the campaigns' for spend and its costs, the settlement's for revenue
+ * and profit. A кабинет settled in KGS is priced in RUB, so one кабинет-wide
+ * unit was wrong for some figure whichever unit it was.
  */
-import { formatNumber } from '@/core/utils/format'
+import { currencySign, formatNumber } from '@/core/utils/format'
 
 /** @typedef {'count'|'money'|'percent'} Unit */
 /** @typedef {'up'|'down'|'neutral'} Direction */
@@ -217,24 +217,24 @@ export function metricOf(key) {
  *
  * @param {(typeof METRICS)[number]} metric
  * @param {{prices?: string, ads?: string[], settlement?: string}} currencies
- * @returns {string} An ISO code, `RUB/KGS` for a window across a switch, or `''`.
+ * @returns {string|string[]} An ISO code, the codes of a window across the ad
+ *   account's 2026-08-20 switch, or `''`.
  */
 export function currencyOf(metric, currencies) {
-  if (metric.unit !== 'money') return ''
-  if (metric.currencyOf === 'ads') return (currencies.ads ?? []).join('/')
-  return currencies[metric.currencyOf] ?? ''
+  if (!metric || metric.unit !== 'money') return ''
+  if (metric.currencyOf === 'ads') return currencies?.ads ?? []
+  return currencies?.[metric.currencyOf] ?? ''
 }
 
 /**
- * A metric's name as the picker shows it: money gets its own currency.
+ * A metric's name as the picker shows it. No currency: the sign is on every
+ * figure instead (`formatValue`).
  *
  * @param {(typeof METRICS)[number]} metric
- * @param {{prices?: string, ads?: string[], settlement?: string}} currencies
  * @returns {string}
  */
-export function metricLabel(metric, currencies) {
-  const currency = currencyOf(metric, currencies)
-  return currency ? `${metric.label}, ${currency}` : metric.label
+export function metricLabel(metric) {
+  return metric.label
 }
 
 /**
@@ -246,12 +246,14 @@ export function metricLabel(metric, currencies) {
  *
  * @param {number|null} value
  * @param {Unit} unit
+ * @param {string|string[]} [currency] For money, what `currencyOf` says it is in.
  * @returns {string}
  */
-export function formatValue(value, unit) {
+export function formatValue(value, unit, currency = '') {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—'
   if (unit === 'percent') {
     return value.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   }
-  return formatNumber(Math.round(value))
+  const figure = formatNumber(Math.round(value))
+  return unit === 'money' ? figure + currencySign(currency) : figure
 }

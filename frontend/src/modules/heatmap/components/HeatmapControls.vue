@@ -27,8 +27,6 @@ const props = defineProps({
   finance: { type: Boolean, default: true },
   /** Whether «Норма: …» is offered — the lab build only. */
   norms: { type: Boolean, default: false },
-  /** `{prices, ads: [], settlement}` from the grid, for the money metrics' names. */
-  currencies: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits([
   'update:metric',
@@ -79,7 +77,7 @@ const MODES = [
       >
         <optgroup v-for="group in groups" :key="group.label" :label="group.label">
           <option v-for="option in group.metrics" :key="option.key" :value="option.key">
-            {{ metricLabel(option, currencies) }}
+            {{ metricLabel(option) }}
           </option>
         </optgroup>
       </select>
@@ -109,7 +107,7 @@ const MODES = [
             :value="option.key"
             :disabled="option.key === metric"
           >
-            {{ metricLabel(option, currencies) }}
+            {{ metricLabel(option) }}
           </option>
         </optgroup>
       </select>

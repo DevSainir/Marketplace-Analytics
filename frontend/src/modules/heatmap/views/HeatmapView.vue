@@ -157,7 +157,6 @@ watch(
         v-model:norm-mode="norms.mode"
         :norms="labs"
         :finance="finance"
-        :currencies="currencies"
         @swap="store.swapMetrics"
       />
 
@@ -171,6 +170,7 @@ watch(
       <div v-if="store.data && store.primary" :class="{ 'hm-stale': store.loading }">
         <HeatmapTable
           class="hidden sm:block"
+          :currencies="currencies"
           :columns="store.columns"
           :period="store.data.period"
           :rows="store.view.rows"
@@ -188,6 +188,7 @@ watch(
         />
         <HeatmapDayList
           class="sm:hidden"
+          :currencies="currencies"
           :columns="store.columns"
           :period="store.data.period"
           :rows="store.view.rows"

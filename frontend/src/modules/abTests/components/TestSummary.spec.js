@@ -59,7 +59,7 @@ describe('TestSummary', () => {
     expect(plain(wrapper.get('[data-testid="summary-views"]').text())).toBe('12 345')
     expect(plain(wrapper.get('[data-testid="summary-clicks"]').text())).toBe('456')
     expect(plain(wrapper.get('[data-testid="summary-ctr"]').text())).toBe('3.69 %')
-    expect(plain(wrapper.get('[data-testid="summary-spend"]').text())).toBe('3 050 KGS')
+    expect(plain(wrapper.get('[data-testid="summary-spend"]').text())).toBe('3 050с')
   })
 
   it('prints the spend bare while the currency is unknown', () => {

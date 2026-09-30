@@ -84,13 +84,7 @@ describe('MetricsChart', () => {
     // заказы).
     const wrapper = mountChart()
 
-    expect(legend(wrapper)).toEqual([
-      'Затраты, KGS',
-      'Показы',
-      'CTR, %',
-      'Корзины, шт',
-      'Заказы, шт',
-    ])
+    expect(legend(wrapper)).toEqual(['Затраты', 'Показы', 'CTR, %', 'Корзины, шт', 'Заказы, шт'])
   })
 
   it('lists the legend in catalogue order, not in the order chips were clicked', () => {
@@ -100,9 +94,9 @@ describe('MetricsChart', () => {
 
     return chip(wrapper, 'Заказы, шт')
       .trigger('click')
-      .then(() => chip(wrapper, 'Затраты, KGS').trigger('click'))
+      .then(() => chip(wrapper, 'Затраты').trigger('click'))
       .then(() => {
-        expect(legend(wrapper)).toEqual(['Затраты, KGS', 'Заказы, шт'])
+        expect(legend(wrapper)).toEqual(['Затраты', 'Заказы, шт'])
       })
   })
 
@@ -119,9 +113,9 @@ describe('MetricsChart', () => {
   it('stops drawing a metric once its chip is unticked', async () => {
     const wrapper = mountChart()
 
-    await chip(wrapper, 'Затраты, KGS').trigger('click')
+    await chip(wrapper, 'Затраты').trigger('click')
 
-    expect(legend(wrapper)).not.toContain('Затраты, KGS')
+    expect(legend(wrapper)).not.toContain('Затраты')
   })
 
   it('draws a metric once its chip is ticked', async () => {
@@ -196,8 +190,8 @@ describe('MetricsChart', () => {
     })
 
     const labels = chips(wrapper).map((button) => button.text())
-    expect(labels).toContain('Заказы, RUB')
-    expect(labels).not.toContain('Цена покупателя, RUB')
+    expect(labels).toContain('Заказы')
+    expect(labels).not.toContain('Цена покупателя')
     expect(labels).not.toContain('CTR, %')
   })
 

@@ -29,7 +29,7 @@ import SkuThumb from '@/core/components/SkuThumb.vue'
 import HeatmapNormInput from '@/modules/heatmap/components/HeatmapNormInput.vue'
 import { formatSku } from '@/core/utils/format'
 import { columnLabel, monitoringLink, storefrontUrl } from '@/modules/heatmap/grid'
-import { addsUp, formatValue } from '@/modules/heatmap/metrics'
+import { addsUp, currencyOf, formatValue } from '@/modules/heatmap/metrics'
 
 const props = defineProps({
   columns: { type: Array, required: true },
@@ -47,6 +47,8 @@ const props = defineProps({
   dateTo: { type: String, required: true },
   /** `(nmId) => number|null` while norms are typed by hand; `null` hides the column. */
   normOf: { type: Function, default: null },
+  /** The grid's currencies — prices, advertising, settlement — for the figures' signs. */
+  currencies: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits(['sort', 'norm'])
 
@@ -80,8 +82,14 @@ const normTitle = computed(
   () => `Норма «${props.primary.label}»${addsUp(props.primary) ? ' в день' : ''}`,
 )
 
-const top = (value) => formatValue(value, props.primary.unit)
-const bottom = (value) => formatValue(value, props.secondary?.unit ?? 'count')
+const top = (value) =>
+  formatValue(value, props.primary.unit, currencyOf(props.primary, props.currencies))
+const bottom = (value) =>
+  formatValue(
+    value,
+    props.secondary?.unit ?? 'count',
+    currencyOf(props.secondary, props.currencies),
+  )
 </script>
 
 <template>

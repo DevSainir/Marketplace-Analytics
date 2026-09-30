@@ -15,6 +15,7 @@
  * Renders a `<tbody>`: a section of the parent's single `<table>`, which is
  * what keeps its day columns aligned with every other row section.
  */
+import MatrixFigure from '@/modules/monitoring/components/MatrixFigure.vue'
 import { useCellEditing, vFocus } from '@/modules/monitoring/useCellEditing'
 
 const props = defineProps({
@@ -100,7 +101,7 @@ function rowClasses(row) {
             :data-assoc="assocData(row, row.cells[leaf.index])"
             @click="startEdit(row, row.cells[leaf.index])"
           >
-            {{ row.cells[leaf.index].display }}
+            <MatrixFigure :cell="row.cells[leaf.index]" />
           </button>
           <span
             v-else
@@ -108,7 +109,7 @@ function rowClasses(row) {
             :class="cellToneClass(row, row.cells[leaf.index])"
             :data-assoc="assocData(row, row.cells[leaf.index])"
           >
-            {{ row.cells[leaf.index].display }}
+            <MatrixFigure :cell="row.cells[leaf.index]" />
           </span>
         </template>
       </td>
