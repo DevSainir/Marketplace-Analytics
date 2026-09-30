@@ -1,4 +1,9 @@
-"""HTTP routes for the heatmap's hand-set norms.
+"""HTTP routes for the heatmap's hand-set norms — a lab feature.
+
+``require_internal`` on this router, on top of the heatmap's own module grants:
+the heatmap itself is open to every subscriber, «Норма: ручной ввод» is still
+being tried out at /labs/heatmap and only we may reach it. The SPA hides it
+from everyone else; this refuses it to them.
 
 Reads take the tenant from ``X-Workspace-Id``. Writes take ``WritingAccess`` as
 well: a norm is shared by everyone in the кабинет and changes how their grid is
@@ -11,15 +16,15 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Path, status
+from fastapi import APIRouter, Depends, Path, status
 
 from src.core.deps import DbSession
 from src.modules.heatmap.deps import SkuNormServiceDep
 from src.modules.heatmap.schemas import MetricKey, SkuNormList, SkuNormRead, SkuNormWrite
-from src.modules.organizations.contract import WritingAccess
+from src.modules.organizations.contract import WritingAccess, require_internal
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
-router = APIRouter(prefix="/heatmap/norms")
+router = APIRouter(prefix="/heatmap/norms", dependencies=[Depends(require_internal)])
 
 NmId = Annotated[int, Path(ge=1)]
 

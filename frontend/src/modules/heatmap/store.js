@@ -130,7 +130,7 @@ export const useHeatmapStore = defineStore('heatmap', () => {
   }
 
   async function init() {
-    const side = Promise.all([loadCatalog(), loadGroups(), norms.load()]).catch(
+    const side = Promise.all([loadCatalog(), loadGroups()]).catch(
       (err) => (error.value = extractErrorMessage(err)),
     )
     await Promise.all([load(), side])

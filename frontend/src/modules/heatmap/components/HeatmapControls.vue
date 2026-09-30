@@ -21,6 +21,8 @@ defineProps({
   groupBy: { type: String, required: true },
   mode: { type: String, required: true },
   normMode: { type: String, required: true },
+  /** Whether «Норма: …» is offered — the lab build only. */
+  norms: { type: Boolean, default: false },
   /** `{prices, ads: [], settlement}` from the grid, for the money metrics' names. */
   currencies: { type: Object, default: () => ({}) },
 })
@@ -104,6 +106,7 @@ const MODES = [
 
     <div class="ml-auto flex flex-wrap items-center gap-sm phone:ml-0 phone:w-full">
       <select
+        v-if="norms"
         class="hm-select"
         :value="normMode"
         aria-label="Откуда берётся норма"

@@ -1,4 +1,7 @@
 /** Route table owned by the heatmap module; exported via the Public API. */
+
+const view = () => import('@/modules/heatmap/views/HeatmapView.vue')
+
 export const heatmapRoutes = [
   {
     // Open to every subscribed organisation since 2026-09-30. Both module
@@ -6,13 +9,22 @@ export const heatmapRoutes = [
     // monitoring's orders; the API asks for the same two.
     path: '/heatmap',
     name: 'heatmap',
-    component: () => import('@/modules/heatmap/views/HeatmapView.vue'),
+    component: view,
+    meta: { title: 'Тепловая карта', requiresAuth: true, modules: ['monitoring', 'finreports'] },
+  },
+  {
+    // The same page with what is still being tried out — «Норма: ручной
+    // ввод». Our own people only, here (`requiresInternal`) and on the norms
+    // API (`require_internal`).
+    path: '/labs/heatmap',
+    name: 'labs-heatmap',
+    component: view,
+    props: { labs: true },
     meta: {
-      title: 'Тепловая карта',
+      title: 'Тепловая карта · Lab',
       requiresAuth: true,
+      requiresInternal: true,
       modules: ['monitoring', 'finreports'],
     },
   },
-  // Where it lived while it was a lab — kept so a saved link still lands.
-  { path: '/labs/heatmap', redirect: '/heatmap' },
 ]

@@ -1,6 +1,7 @@
 <script setup>
 /**
- * «Тепловая карта» — /heatmap.
+ * «Тепловая карта» — /heatmap, and /labs/heatmap with `labs`: the same page
+ * plus what is still being tried out there — «Норма: ручной ввод».
  *
  * Every article of the кабинет, day by day, painted by one metric: the view for
  * a кабинет with too many working articles to watch one at a time, where the
@@ -10,7 +11,9 @@
  * stays on screen, dimmed, while the next one loads — blanking it would turn
  * every filter click into a full rebuild of the page.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+
+import { extractErrorMessage } from '@/core/api/axios'
 
 import HeatmapControls from '@/modules/heatmap/components/HeatmapControls.vue'
 import HeatmapDayList from '@/modules/heatmap/components/HeatmapDayList.vue'
@@ -22,6 +25,11 @@ import HeatmapTable from '@/modules/heatmap/components/HeatmapTable.vue'
 import '@/modules/heatmap/components/styles/heatmap.css'
 import { useHeatmapNormsStore } from '@/modules/heatmap/normsStore'
 import { useHeatmapStore } from '@/modules/heatmap/store'
+
+const props = defineProps({
+  /** The lab build: hand-set norms on. Their API refuses anyone but us. */
+  labs: { type: Boolean, default: false },
+})
 
 const store = useHeatmapStore()
 const norms = useHeatmapNormsStore()
@@ -67,13 +75,25 @@ async function deleteGroup(id) {
 }
 
 onMounted(() => store.init())
+
+// Both routes render this one component, so a hop between them keeps the
+// instance and only flips `labs`. The store outlives the route too: whichever
+// way the hop goes, the norms start switched off.
+watch(
+  () => props.labs,
+  (labs) => {
+    norms.mode = 'default'
+    if (labs) norms.load().catch((err) => (norms.error = extractErrorMessage(err)))
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
   <div class="app-container py-lg">
     <header class="mb-lg flex flex-wrap items-center justify-between gap-md">
       <h1 class="text-h2 font-bold text-primary">Тепловая карта</h1>
-      <HeatmapHelp />
+      <HeatmapHelp :labs="labs" />
     </header>
 
     <HeatmapFilters
@@ -97,6 +117,7 @@ onMounted(() => store.init())
         v-model:group-by="store.groupBy"
         v-model:mode="store.mode"
         v-model:norm-mode="norms.mode"
+        :norms="labs"
         :currencies="currencies"
         @swap="store.swapMetrics"
       />

@@ -10,7 +10,9 @@ refused before either is asked.
 It was behind ``require_internal`` too while it lived under /labs; opened to
 every subscribed organisation on 2026-09-30.
 
-Writes add ``WritingAccess`` per route (:mod:`.groups`, :mod:`.norms`).
+Writes add ``WritingAccess`` per route (:mod:`.groups`, :mod:`.norms`). The
+hand-set norms are still a lab feature and add ``require_internal`` on their
+own router (:mod:`.norms`).
 """
 
 from fastapi import APIRouter, Depends
