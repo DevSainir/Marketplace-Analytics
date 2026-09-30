@@ -45,7 +45,7 @@ dependencies = [
     # bcrypt is used directly (src.core.security); passlib was dropped — it is
     # unmaintained and forced an upper pin on bcrypt.
     "bcrypt>=4.0.1",
-    "pyjwt>=2.8",
+    "pyjwt>=2.14",
     # Fernet symmetric encryption for per-workspace WB tokens stored in Postgres.
     "cryptography>=42",
     "python-multipart>=0.0.9",
