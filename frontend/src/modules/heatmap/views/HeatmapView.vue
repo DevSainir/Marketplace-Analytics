@@ -14,6 +14,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
+import { useHistoryKeys } from '@/core/utils/historyKeys'
 
 import HeatmapControls from '@/modules/heatmap/components/HeatmapControls.vue'
 import HeatmapDayList from '@/modules/heatmap/components/HeatmapDayList.vue'
@@ -76,6 +77,14 @@ async function deleteGroup(id) {
 
 onMounted(() => store.init())
 
+// Only while norms are typed — otherwise the page has nothing to undo, and the
+// combo stays the browser's.
+useHistoryKeys({
+  undo: () => norms.undo(),
+  redo: () => norms.redo(),
+  locked: () => !store.manualNorms,
+})
+
 // Both routes render this one component, so a hop between them keeps the
 // instance and only flips `labs`. The store outlives the route too: whichever
 // way the hop goes, the norms start switched off.
@@ -133,6 +142,17 @@ watch(
 
       <p v-if="store.error" class="mb-md text-base text-status-negative">{{ store.error }}</p>
       <p v-if="norms.error" class="mb-md text-base text-status-negative">{{ norms.error }}</p>
+      <p v-if="store.manualNorms" class="mb-sm text-tiny text-muted">
+        <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
+          class="rounded border border-border-subtle px-1"
+          >Z</kbd
+        >
+        — отменить,
+        <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
+          class="rounded border border-border-subtle px-1"
+          >Shift</kbd
+        >+<kbd class="rounded border border-border-subtle px-1">Z</kbd> — повторить.
+      </p>
       <p v-if="settledNote" class="mb-sm text-tiny text-muted">{{ settledNote }}</p>
       <p v-if="store.loading && !store.data" class="py-xl text-center text-base text-muted">
         Считаем…

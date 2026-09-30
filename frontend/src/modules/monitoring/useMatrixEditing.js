@@ -16,7 +16,7 @@
  */
 import { computed } from 'vue'
 
-import { useMatrixHistoryKeys } from '@/modules/monitoring/useMatrixHistoryKeys'
+import { useHistoryKeys } from '@/core/utils/historyKeys'
 
 /**
  * @param {object} store The monitoring store.
@@ -57,7 +57,7 @@ export function useMatrixEditing(store) {
 
   // Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) redoes. Ignored while
   // typing in an input and while a save or refresh is running.
-  useMatrixHistoryKeys({
+  useHistoryKeys({
     undo: () => store.canUndoMatrix && store.undoMatrixEdit(),
     redo: () => store.canRedoMatrix && store.redoMatrixEdit(),
     locked: () => editingLocked.value,
