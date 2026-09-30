@@ -3,9 +3,9 @@
 Reads take the tenant from ``X-Workspace-Id``. Writes take ``WritingAccess`` as
 well: a group is shared by everyone in the кабинет and changes what their
 filter lists, so a read-only manager — or a guest reading another company's
-кабинет — must not be able to make or remove one. ``InternalAccess`` on the
-router is not enough on its own for that: it says who we are, not whether this
-кабинет is ours to edit.
+кабинет — must not be able to make or remove one. The module grants on the
+router are not enough on their own for that: they say which sections the
+caller may open, not whether they may change anything in them.
 """
 
 from __future__ import annotations

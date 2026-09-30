@@ -10,10 +10,12 @@
  * «Итого» line comes first, as the phone recipe asks.
  *
  * The same rows and tints the desktop grid draws — one source, two projections.
+ * With «Норма: ручной ввод» each article line carries its norm field too.
  */
 import { computed, ref, watch } from 'vue'
 
 import SkuThumb from '@/core/components/SkuThumb.vue'
+import HeatmapNormInput from '@/modules/heatmap/components/HeatmapNormInput.vue'
 import { formatSku } from '@/core/utils/format'
 import { columnLabel } from '@/modules/heatmap/grid'
 import { formatValue } from '@/modules/heatmap/metrics'
@@ -26,7 +28,10 @@ const props = defineProps({
   totals: { type: Object, default: null },
   primary: { type: Object, required: true },
   secondary: { type: Object, default: null },
+  /** `(nmId) => number|null` while norms are typed by hand. */
+  normOf: { type: Function, default: null },
 })
+const emit = defineEmits(['norm'])
 
 // Columns run oldest first; a phone opens on the newest one.
 const index = ref(Math.max(props.columns.length - 1, 0))
@@ -85,6 +90,18 @@ const bottom = (value) => formatValue(value, props.secondary?.unit ?? 'count')
             {{ row.nm_id ? formatSku(row.label) : row.label }}
           </span>
           <span class="block text-tiny text-muted">Итого: {{ top(row.total) }}</span>
+          <label v-if="normOf" class="mt-xs flex items-center gap-xs text-tiny text-muted">
+            <!-- Just «Норма» on a phone: the metric is named in the select above,
+                 and the full name wrapped the line into three. -->
+            Норма
+            <span class="w-24 shrink-0">
+              <HeatmapNormInput
+                :value="normOf(row.nm_id)"
+                :label="`Норма «${primary.label}» для ${formatSku(row.label) ?? row.nm_id}`"
+                @commit="emit('norm', row.nm_id, $event)"
+              />
+            </span>
+          </label>
         </span>
         <span
           class="min-w-20 rounded-btn px-sm py-xs text-right tabular-nums text-primary"

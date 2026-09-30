@@ -16,11 +16,17 @@
  * and every new grid opens scrolled to its RIGHT end: on a long window the
  * reader lands on yesterday, not on the first day of the range.
  *
- * Dumb by contract: rows, their tints and the sort in; header clicks out.
+ * With «Норма: ручной ввод» a «Норма «…»» column follows the article one —
+ * sticky with it, named after the painted metric so it is plain which metric
+ * the number belongs to.
+ *
+ * Dumb by contract: rows, their tints, norms and the sort in; header clicks and
+ * norm edits out.
  */
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import SkuThumb from '@/core/components/SkuThumb.vue'
+import HeatmapNormInput from '@/modules/heatmap/components/HeatmapNormInput.vue'
 import { formatSku } from '@/core/utils/format'
 import { columnLabel, monitoringLink, storefrontUrl } from '@/modules/heatmap/grid'
 import { formatValue } from '@/modules/heatmap/metrics'
@@ -39,8 +45,10 @@ const props = defineProps({
   groupBy: { type: String, required: true },
   dateFrom: { type: String, required: true },
   dateTo: { type: String, required: true },
+  /** `(nmId) => number|null` while norms are typed by hand; `null` hides the column. */
+  normOf: { type: Function, default: null },
 })
-const emit = defineEmits(['sort'])
+const emit = defineEmits(['sort', 'norm'])
 
 const wrap = ref(null)
 
@@ -67,16 +75,19 @@ function ariaSort(by) {
   return props.sort.dir === 'desc' ? 'descending' : 'ascending'
 }
 
+const normTitle = computed(() => `Норма «${props.primary.label}»`)
+
 const top = (value) => formatValue(value, props.primary.unit)
 const bottom = (value) => formatValue(value, props.secondary?.unit ?? 'count')
 </script>
 
 <template>
   <div ref="wrap" class="hm-grid-wrap">
-    <table class="hm-grid">
+    <table class="hm-grid" :class="{ 'hm-grid--norm': normOf }">
       <thead>
         <tr>
           <th class="hm-grid__name">{{ NAME_HEADERS[groupBy] }}</th>
+          <th v-if="normOf" class="hm-grid__norm">{{ normTitle }}</th>
           <th class="hm-grid__total" :aria-sort="ariaSort('total')">
             <button type="button" class="hm-grid__sort" @click="emit('sort', 'total')">
               Итого <span aria-hidden="true">{{ arrow('total') }}</span>
@@ -94,6 +105,7 @@ const bottom = (value) => formatValue(value, props.secondary?.unit ?? 'count')
       <tbody>
         <tr v-if="totals" class="hm-grid__totals">
           <td class="hm-grid__name">Итого</td>
+          <td v-if="normOf" class="hm-grid__norm"></td>
           <td class="hm-grid__total">
             <span class="hm-grid__top">{{ top(totals.total) }}</span>
             <span v-if="secondary" class="hm-grid__bottom">{{ bottom(totals.total2) }}</span>
@@ -130,6 +142,13 @@ const bottom = (value) => formatValue(value, props.secondary?.unit ?? 'count')
               <span class="truncate">{{ row.label }}</span>
               <span class="shrink-0 text-tiny text-muted">{{ row.sku_count }} арт.</span>
             </div>
+          </td>
+          <td v-if="normOf" class="hm-grid__norm">
+            <HeatmapNormInput
+              :value="normOf(row.nm_id)"
+              :label="`${normTitle} для ${formatSku(row.label) ?? row.nm_id}`"
+              @commit="emit('norm', row.nm_id, $event)"
+            />
           </td>
           <td class="hm-grid__total">
             <span class="hm-grid__top">{{ top(row.total) }}</span>

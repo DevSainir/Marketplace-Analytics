@@ -1,4 +1,4 @@
-"""SQL for the heatmap's groups — the module's only tables.
+"""SQL for the heatmap's own tables — groups and norms.
 
 Every statement carries the tenant in its ``WHERE`` (or in the row it writes),
 so a group id from another кабинет matches nothing rather than being fetched
@@ -12,9 +12,10 @@ import uuid
 from collections.abc import Collection
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.heatmap.models import SkuGroup, SkuGroupItem
+from src.modules.heatmap.models import SkuGroup, SkuGroupItem, SkuNorm
 
 
 class SkuGroupRepository:
@@ -108,3 +109,41 @@ class SkuGroupRepository:
             delete(SkuGroup).where(SkuGroup.id == group_id, SkuGroup.workspace_id == workspace_id)
         )
         return bool(getattr(result, "rowcount", 0))
+
+
+class SkuNormRepository:
+    """Reads and writes one кабинет's norms."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        """Store the injected request-scoped async session."""
+        self._session = session
+
+    async def list_norms(self, workspace_id: uuid.UUID) -> list[tuple[int, str, float]]:
+        """Return ``(nm_id, metric, value)`` for every norm of the кабинет."""
+        rows = await self._session.execute(
+            select(SkuNorm.nm_id, SkuNorm.metric, SkuNorm.value)
+            .where(SkuNorm.workspace_id == workspace_id)
+            .order_by(SkuNorm.nm_id, SkuNorm.metric)
+        )
+        return [(int(nm_id), metric, float(value)) for nm_id, metric, value in rows.all()]
+
+    async def upsert(self, workspace_id: uuid.UUID, nm_id: int, metric: str, value: float) -> None:
+        """Set the norm, replacing the one already there."""
+        stmt = insert(SkuNorm).values(
+            workspace_id=workspace_id, nm_id=nm_id, metric=metric, value=value
+        )
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_heatmap_sku_norm_workspace_nm_metric",
+            set_={"value": stmt.excluded.value, "updated_at": func.now()},
+        )
+        await self._session.execute(stmt)
+
+    async def delete(self, workspace_id: uuid.UUID, nm_id: int, metric: str) -> None:
+        """Remove the norm; nothing when there is none."""
+        await self._session.execute(
+            delete(SkuNorm).where(
+                SkuNorm.workspace_id == workspace_id,
+                SkuNorm.nm_id == nm_id,
+                SkuNorm.metric == metric,
+            )
+        )

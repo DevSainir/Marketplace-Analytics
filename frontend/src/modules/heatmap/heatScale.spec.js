@@ -6,7 +6,7 @@
  * the norm gets a tint; a spike deepens only its own side; and the direction
  * still says which side is good.
  */
-import { departure, heatStyle, scaleOf } from './heatScale'
+import { departure, heatStyle, scaleAround, scaleOf } from './heatScale'
 
 describe('scaleOf', () => {
   it('takes the median as the norm, so one outlier does not move it', () => {
@@ -55,5 +55,24 @@ describe('heatStyle', () => {
   it('paints a metric with no better end by magnitude in the action hue', () => {
     expect(heatStyle(10, scale, 'neutral')).toEqual({})
     expect(heatStyle(30, scale, 'neutral').background).toContain('--ui-action-rgb')
+  })
+})
+
+describe('scaleAround (a hand-set norm)', () => {
+  it("puts the norm in the median's place and stretches the extremes to it", () => {
+    expect(scaleAround([40, 50, 60], 80)).toEqual({ min: 40, median: 80, max: 80, manual: true })
+  })
+
+  it('paints the day furthest under the norm full red when every day is under it', () => {
+    const scale = scaleAround([40, 50, 60], 80)
+    expect(departure(40, scale)).toBe(-1)
+    expect(heatStyle(60, scale, 'up').background).toContain('--ui-neg-rgb')
+  })
+
+  it('paints a metric with no better end by distance from the norm, either way', () => {
+    const scale = scaleAround([90, 100, 110], 100)
+    expect(heatStyle(90, scale, 'neutral').background).toContain('--ui-action-rgb')
+    expect(heatStyle(110, scale, 'neutral').background).toContain('--ui-action-rgb')
+    expect(heatStyle(100, scale, 'neutral')).toEqual({})
   })
 })

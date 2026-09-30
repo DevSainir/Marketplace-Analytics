@@ -103,6 +103,7 @@ DECLARE
         'guide.guide_run',
         'heatmap.sku_group',
         'heatmap.sku_group_item',
+        'heatmap.sku_norm',
         'monitoring.product_card',
         'workspaces.workspace_backfill',
         'workspaces.workspace_tokens'

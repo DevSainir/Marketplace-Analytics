@@ -1,4 +1,4 @@
-"""Pydantic DTOs for the heatmap: the grid, the catalogue behind its filters, the groups.
+"""Pydantic DTOs for the heatmap: the grid, the catalogue behind its filters, groups, norms.
 
 The metric keys are shared verbatim with the frontend, which maps them to
 labels, units and the direction the colour runs in — the same split the
@@ -166,3 +166,29 @@ class SkuGroupWrite(BaseModel):
     #: Bounded: a group is a hand-picked set, and the list is stored row per
     #: article. Each id must be one of the кабинет's own cards.
     nm_ids: list[Annotated[int, Field(ge=1)]] = Field(min_length=1, max_length=500)
+
+
+#: Largest norm magnitude accepted: far past any real day of any metric, and a
+#: bound on what a caller can store.
+NORM_LIMIT = 1e12
+
+
+class SkuNormRead(BaseModel):
+    """A seller's own norm for one article on one metric, per day."""
+
+    nm_id: int
+    metric: MetricKey
+    value: float
+
+
+class SkuNormList(BaseModel):
+    """Every norm the кабинет has set."""
+
+    items: list[SkuNormRead]
+
+
+class SkuNormWrite(BaseModel):
+    """Body of a norm set: the value, in the metric's own unit, per day."""
+
+    #: Finite and bounded; negative allowed — a profit norm can be a loss.
+    value: float = Field(ge=-NORM_LIMIT, le=NORM_LIMIT, allow_inf_nan=False)

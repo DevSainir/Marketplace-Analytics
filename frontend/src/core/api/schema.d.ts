@@ -2095,6 +2095,50 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/heatmap/norms': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Norms
+     * @description Return every norm the кабинет has set — bounded by its cards times the metrics.
+     */
+    get: operations['list_norms_api_v1_heatmap_norms_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/heatmap/norms/{nm_id}/{metric}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Set Norm
+     * @description Set an article's norm on one metric, per day.
+     */
+    put: operations['set_norm_api_v1_heatmap_norms__nm_id___metric__put']
+    post?: never
+    /**
+     * Clear Norm
+     * @description Clear an article's norm; the article goes back to the default one.
+     */
+    delete: operations['clear_norm_api_v1_heatmap_norms__nm_id___metric__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/heatmap': {
     parameters: {
       query?: never
@@ -2134,8 +2178,9 @@ export interface paths {
      * Get Catalog
      * @description Return the кабинет's cards and subjects, for «Категории», «Артикулы» and the group editor.
      *
-     *     Its own route because the filters need it before a grid exists, and because
-     *     it does not change with the window.
+     *     Its own route because the filters need it before a grid exists. The window
+     *     only orders the cards — most-ordered first — so it is bounded the same way
+     *     as the grid's.
      */
     get: operations['get_catalog_api_v1_heatmap_catalog_get']
     put?: never
@@ -3840,10 +3885,17 @@ export interface components {
       subject_name: string
       /** Brand */
       brand: string
+      /**
+       * Orders
+       * @default 0
+       */
+      orders: number
     }
     /**
      * HeatmapCatalogResponse
      * @description The кабинет's catalogue, for the «Категории» and «Артикулы» filters.
+     *
+     *     Items come most-ordered first over the requested window.
      */
     HeatmapCatalogResponse: {
       /** Items */
@@ -3954,6 +4006,13 @@ export interface components {
         | null
       /** Currency */
       currency: string
+      /**
+       * Price Currency
+       * @default
+       */
+      price_currency: string
+      /** Ad Currencies */
+      ad_currencies?: string[]
       /** Settled To */
       settled_to: string | null
       /** Columns */
@@ -4162,8 +4221,15 @@ export interface components {
      *     apportioned between them (WB attributes associated conversions per campaign,
      *     never per zone) — unless one zone took none of them, where the division is
      *     forced and the counts are exact again.
+     *
+     *     ``campaign_id`` is the WB campaign that delivered the cell — the leading
+     *     one, if two campaigns of one type share it. The frontend links the traffic
+     *     group's header to it. ``None`` where no single campaign is known (a cell
+     *     built by an edit, or a working copy from before the field existed).
      */
     MatrixAdBucketBase: {
+      /** Campaign Id */
+      campaign_id?: number | null
       /**
        * Views
        * @default 0
@@ -5332,6 +5398,11 @@ export interface components {
        */
       title?: string | null
       /**
+       * Feedback Rating
+       * @description Buyer rating, 1.0-5.0 (the storefront's stars); null with no reviews.
+       */
+      feedback_rating?: number | null
+      /**
        * Comments
        * @description Per-day notes (comment + header), keyed by day; days without a note are absent. Values are stored facts — the header's day-to-day carry is materialized at the day boundary, not derived here.
        */
@@ -5346,6 +5417,17 @@ export interface components {
         [key: string]: components['schemas']['DayActionState']
       }
       window: components['schemas']['MetricWindow']
+      /**
+       * Price Currency
+       * @description Currency of the prices and of every sum valued at them (orders, buyouts) — what WB's prices API states, RUB even for a кабинет settled in KGS. Empty before the first labelled snapshot.
+       * @default
+       */
+      price_currency: string
+      /**
+       * Ad Currencies
+       * @description Currencies this SKU's campaigns were charged in over the window, alphabetically — the unit of spend, CPM, CPC and the costs per order and cart. Two when the window holds campaigns from both sides of WB's 2026-08-20 move to KGS; empty when the write-off ledger names none.
+       */
+      ad_currencies?: string[]
       /** Funnel */
       funnel?: components['schemas']['FunnelDetailRead'][]
       /** @description Window-total funnel metrics summed across the daily rows. */
@@ -5439,6 +5521,62 @@ export interface components {
       count: number
       /** Items */
       items?: components['schemas']['SkuLookupItem'][]
+    }
+    /**
+     * SkuNormList
+     * @description Every norm the кабинет has set.
+     */
+    SkuNormList: {
+      /** Items */
+      items: components['schemas']['SkuNormRead'][]
+    }
+    /**
+     * SkuNormRead
+     * @description A seller's own norm for one article on one metric, per day.
+     */
+    SkuNormRead: {
+      /** Nm Id */
+      nm_id: number
+      /**
+       * Metric
+       * @enum {string}
+       */
+      metric:
+        | 'orders'
+        | 'order_sum'
+        | 'opens'
+        | 'carts'
+        | 'cart_conversion'
+        | 'order_conversion'
+        | 'organic_opens'
+        | 'spend'
+        | 'ad_views'
+        | 'ad_clicks'
+        | 'ctr'
+        | 'cpc'
+        | 'cpm'
+        | 'ad_orders'
+        | 'ad_cr'
+        | 'cpo'
+        | 'drr_orders'
+        | 'seller_price'
+        | 'customer_price'
+        | 'spp'
+        | 'stock'
+        | 'revenue'
+        | 'sales'
+        | 'profit'
+        | 'margin'
+      /** Value */
+      value: number
+    }
+    /**
+     * SkuNormWrite
+     * @description Body of a norm set: the value, in the metric's own unit, per day.
+     */
+    SkuNormWrite: {
+      /** Value */
+      value: number
     }
     /**
      * SkuOption
@@ -10403,6 +10541,193 @@ export interface operations {
       }
     }
   }
+  list_norms_api_v1_heatmap_norms_get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SkuNormList']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  set_norm_api_v1_heatmap_norms__nm_id___metric__put: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+        metric:
+          | 'orders'
+          | 'order_sum'
+          | 'opens'
+          | 'carts'
+          | 'cart_conversion'
+          | 'order_conversion'
+          | 'organic_opens'
+          | 'spend'
+          | 'ad_views'
+          | 'ad_clicks'
+          | 'ctr'
+          | 'cpc'
+          | 'cpm'
+          | 'ad_orders'
+          | 'ad_cr'
+          | 'cpo'
+          | 'drr_orders'
+          | 'seller_price'
+          | 'customer_price'
+          | 'spp'
+          | 'stock'
+          | 'revenue'
+          | 'sales'
+          | 'profit'
+          | 'margin'
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SkuNormWrite']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SkuNormRead']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Доступ только для чтения. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Артикула нет в каталоге кабинета или значение вне границ. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  clear_norm_api_v1_heatmap_norms__nm_id___metric__delete: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        nm_id: number
+        metric:
+          | 'orders'
+          | 'order_sum'
+          | 'opens'
+          | 'carts'
+          | 'cart_conversion'
+          | 'order_conversion'
+          | 'organic_opens'
+          | 'spend'
+          | 'ad_views'
+          | 'ad_clicks'
+          | 'ctr'
+          | 'cpc'
+          | 'cpm'
+          | 'ad_orders'
+          | 'ad_cr'
+          | 'cpo'
+          | 'drr_orders'
+          | 'seller_price'
+          | 'customer_price'
+          | 'spp'
+          | 'stock'
+          | 'revenue'
+          | 'sales'
+          | 'profit'
+          | 'margin'
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Доступ только для чтения. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
   get_heatmap_api_v1_heatmap_get: {
     parameters: {
       query?: {
@@ -10521,7 +10846,12 @@ export interface operations {
   }
   get_catalog_api_v1_heatmap_catalog_get: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Inclusive start. */
+        date_from?: string | null
+        /** @description Inclusive end. */
+        date_to?: string | null
+      }
       header?: {
         /** @description Active workspace id (UUID) the request operates in. */
         'X-Workspace-Id'?: string | null

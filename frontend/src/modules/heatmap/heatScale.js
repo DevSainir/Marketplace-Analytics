@@ -15,10 +15,15 @@
  *   the worst cell, above it at the best — so a spike deepens only its own
  *   side and the ordinary days next to the norm stay pale.
  *
+ * * **A hand-set norm replaces the median** («Норма: ручной ввод»), and the
+ *   extremes stretch to include it: when every day sits under a norm of 80,
+ *   the day furthest under it is the full red.
+ *
  * Direction decides the hue: «больше — лучше» paints above the norm green,
  * «меньше — лучше» (ДРР, CPC, CPM, CPO, the ad budget) paints it red. Prices,
- * СПП and stock have no better end and no «usual» worth measuring from: they
- * are painted in the action hue by magnitude, the cheapest white.
+ * СПП and stock have no better end: with the default norm they are painted in
+ * the action hue by magnitude, the cheapest white; against a hand-set norm, in
+ * the same hue by distance from it, either way.
  */
 
 /** Strongest tint, as an alpha: the figure keeps the ordinary dark ink on it. */
@@ -50,6 +55,27 @@ export function scaleOf(values) {
 }
 
 /**
+ * The scale around a hand-set `norm`: the norm in the median's place, the
+ * extremes widened to include it. `null` when no value is finite.
+ *
+ * @param {Iterable<number|null>} values
+ * @param {number} norm
+ * @returns {{min: number, median: number, max: number, manual: true}|null}
+ */
+export function scaleAround(values, norm) {
+  let min = norm
+  let max = norm
+  let any = false
+  for (const value of values) {
+    if (value === null || value === undefined || !Number.isFinite(value)) continue
+    any = true
+    if (value < min) min = value
+    if (value > max) max = value
+  }
+  return any ? { min, median: norm, max, manual: true } : null
+}
+
+/**
  * How far a cell sits from the norm towards the extreme on its side: 0 at the
  * norm, ±1 at the minimum or maximum — signed, positive above the norm.
  *
@@ -60,6 +86,8 @@ export function scaleOf(values) {
 export function departure(value, scale) {
   if (value === null || value === undefined || !Number.isFinite(value) || !scale) return null
   const { min, median, max } = scale
+  // `max > median` whenever a value is above it, and `min < median` below —
+  // true of both scales, so neither division can be by zero.
   if (value > median) return Math.min(1, (value - median) / (max - median))
   if (value < median) return -Math.min(1, (median - value) / (median - min))
   return 0
@@ -88,16 +116,19 @@ function magnitudeStyle(value, scale) {
  * palette rather than carrying colours of its own.
  *
  * @param {number|null} value
- * @param {{min: number, median: number, max: number}|null} scale From {@link scaleOf}.
+ * @param {{min: number, median: number, max: number, manual?: true}|null} scale From
+ *   {@link scaleOf} or {@link scaleAround}.
  * @param {'up'|'down'|'neutral'} direction
  * @returns {{background?: string}}
  */
 export function heatStyle(value, scale, direction) {
-  if (direction === 'neutral') return magnitudeStyle(value, scale)
+  if (direction === 'neutral' && !scale?.manual) return magnitudeStyle(value, scale)
   const strength = departure(value, scale)
   if (strength === null || strength === 0) return {}
+  const alpha = MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * Math.abs(strength)
+  if (direction === 'neutral')
+    return { background: `rgb(var(--ui-action-rgb) / ${alpha.toFixed(3)})` }
   const better = direction === 'down' ? strength < 0 : strength > 0
   const channel = better ? '--ui-pos-rgb' : '--ui-neg-rgb'
-  const alpha = MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * Math.abs(strength)
   return { background: `rgb(var(${channel}) / ${alpha.toFixed(3)})` }
 }

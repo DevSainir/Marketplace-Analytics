@@ -179,6 +179,7 @@
 .hm-grid-wrap {
   --hm-head: 44px;
   --hm-name: 260px;
+  --hm-norm: 124px;
   --hm-total: 104px;
 
   isolation: isolate;
@@ -264,13 +265,58 @@
   font-weight: 600;
 }
 
+/* «Норма «…»» — between the article and «Итого», sticky with both. Its header
+   wraps: the metric's name is part of it, and some are long. */
+.hm-grid .hm-grid__norm {
+  position: sticky;
+  left: var(--hm-name);
+  z-index: 1;
+  width: var(--hm-norm);
+  min-width: var(--hm-norm);
+  max-width: var(--hm-norm);
+  padding: 0 8px;
+  background: var(--ui-surface);
+}
+
+.hm-grid thead .hm-grid__norm {
+  font-size: 0.75rem;
+  line-height: 1.15;
+  white-space: normal;
+}
+
+.hm-grid--norm .hm-grid__total {
+  left: calc(var(--hm-name) + var(--hm-norm));
+}
+
+.hm-norm {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--ui-r-sm);
+  background: var(--ui-surface);
+  box-shadow: inset 0 0 0 1px var(--ui-hairline);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: right;
+  color: var(--ui-ink);
+}
+
+.hm-norm:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--ui-action),
+    0 0 0 4px rgb(var(--ui-action-rgb) / 0.16);
+}
+
 /* The corners — sticky both ways — have to cover everything that passes. */
 .hm-grid thead .hm-grid__name,
+.hm-grid thead .hm-grid__norm,
 .hm-grid thead .hm-grid__total {
   z-index: 5;
 }
 
 .hm-grid__totals .hm-grid__name,
+.hm-grid__totals .hm-grid__norm,
 .hm-grid__totals .hm-grid__total {
   z-index: 4;
   background: var(--ui-inset);
@@ -297,5 +343,11 @@
   .hm-grid-wrap {
     --hm-name: 150px;
     --hm-total: 80px;
+  }
+
+  /* A finger-sized field, and 16px so iOS does not zoom the page into it. */
+  .hm-norm {
+    height: 40px;
+    font-size: 16px;
   }
 }

@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Тепловая карта» — /labs/heatmap.
+ * «Тепловая карта» — /heatmap.
  *
  * Every article of the кабинет, day by day, painted by one metric: the view for
  * a кабинет with too many working articles to watch one at a time, where the
@@ -20,9 +20,20 @@ import HeatmapHelp from '@/modules/heatmap/components/HeatmapHelp.vue'
 import HeatmapPager from '@/modules/heatmap/components/HeatmapPager.vue'
 import HeatmapTable from '@/modules/heatmap/components/HeatmapTable.vue'
 import '@/modules/heatmap/components/styles/heatmap.css'
+import { useHeatmapNormsStore } from '@/modules/heatmap/normsStore'
 import { useHeatmapStore } from '@/modules/heatmap/store'
 
 const store = useHeatmapStore()
+const norms = useHeatmapNormsStore()
+
+/** The painted metric's norm per article, while norms are typed by hand. */
+const normOf = computed(() =>
+  store.manualNorms ? (nmId) => norms.normOf(nmId, store.primary.key) : null,
+)
+
+function saveNorm(nmId, value) {
+  norms.save(nmId, store.primary.key, value)
+}
 
 const dialogOpen = ref(false)
 const editing = ref(null)
@@ -85,11 +96,19 @@ onMounted(() => store.init())
         v-model:period="store.period"
         v-model:group-by="store.groupBy"
         v-model:mode="store.mode"
+        v-model:norm-mode="norms.mode"
         :currencies="currencies"
         @swap="store.swapMetrics"
       />
 
       <p v-if="store.error" class="mb-md text-base text-status-negative">{{ store.error }}</p>
+      <p v-if="norms.error" class="mb-md text-base text-status-negative">{{ norms.error }}</p>
+      <p
+        v-if="norms.mode === 'manual' && store.data && store.data.group_by !== 'sku'"
+        class="mb-sm text-tiny text-muted"
+      >
+        Норма вводится для артикулов — выберите «По товару». Сейчас цвет по умолчанию.
+      </p>
       <p v-if="settledNote" class="mb-sm text-tiny text-muted">{{ settledNote }}</p>
       <p v-if="store.loading && !store.data" class="py-xl text-center text-base text-muted">
         Считаем…
@@ -109,7 +128,9 @@ onMounted(() => store.init())
           :group-by="store.data.group_by"
           :date-from="store.data.date_from"
           :date-to="store.data.date_to"
+          :norm-of="normOf"
           @sort="store.toggleSort"
+          @norm="saveNorm"
         />
         <HeatmapDayList
           class="sm:hidden"
@@ -120,6 +141,8 @@ onMounted(() => store.init())
           :totals="store.totals"
           :primary="store.primary"
           :secondary="store.secondary"
+          :norm-of="normOf"
+          @norm="saveNorm"
         />
         <HeatmapPager
           v-model:page-size="store.pageSize"

@@ -20,6 +20,7 @@ import { daysBetween, isoDaysAgo } from '@/core/utils/dates'
 import * as api from '@/modules/heatmap/api'
 import { pageOf, sortRows, tintRows } from '@/modules/heatmap/grid'
 import { metricOf } from '@/modules/heatmap/metrics'
+import { useHeatmapNormsStore } from '@/modules/heatmap/normsStore'
 
 /** The backend's own cap, repeated so the page can say it before asking. */
 export const MAX_DAYS = 366
@@ -28,6 +29,7 @@ export const MAX_DAYS = 366
 const DEFAULT_DAYS = 30
 
 export const useHeatmapStore = defineStore('heatmap', () => {
+  const norms = useHeatmapNormsStore()
   const initial = presetRange(DEFAULT_DAYS, isoDaysAgo(1))
   const dateFrom = ref(initial.from)
   const dateTo = ref(initial.to)
@@ -62,8 +64,23 @@ export const useHeatmapStore = defineStore('heatmap', () => {
   const totals = computed(() => data.value?.totals ?? null)
   const sortedRows = computed(() => sortRows(data.value?.rows ?? [], sort.value))
   const view = computed(() => pageOf(sortedRows.value, page.value, pageSize.value))
+  /** Hand-set norms apply to articles only — a category has no norm of its own. */
+  const manualNorms = computed(
+    () => norms.mode === 'manual' && data.value?.group_by === 'sku' && primary.value !== null,
+  )
   const tints = computed(() =>
-    tintRows(view.value.rows, sortedRows.value, mode.value, primary.value ?? { direction: 'up' }),
+    tintRows(
+      view.value.rows,
+      sortedRows.value,
+      mode.value,
+      primary.value ?? { key: 'orders', direction: 'up' },
+      manualNorms.value
+        ? {
+            columns: columns.value,
+            normOf: (row) => norms.normOf(row.nm_id, primary.value.key),
+          }
+        : {},
+    ),
   )
   const tooLong = computed(() => daysBetween(dateFrom.value, dateTo.value) + 1 > MAX_DAYS)
 
@@ -113,7 +130,7 @@ export const useHeatmapStore = defineStore('heatmap', () => {
   }
 
   async function init() {
-    const side = Promise.all([loadCatalog(), loadGroups()]).catch(
+    const side = Promise.all([loadCatalog(), loadGroups(), norms.load()]).catch(
       (err) => (error.value = extractErrorMessage(err)),
     )
     await Promise.all([load(), side])
@@ -222,6 +239,7 @@ export const useHeatmapStore = defineStore('heatmap', () => {
     sortedRows,
     view,
     tints,
+    manualNorms,
     tooLong,
     init,
     load,

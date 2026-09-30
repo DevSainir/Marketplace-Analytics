@@ -3,9 +3,11 @@
  * The grid's own controls: what is painted, and how the grid is cut.
  *
  * Left: the painted metric, ⇄, and an optional second metric — when one is
- * chosen every cell carries two numbers, the painted one on top. Right: the
- * column width (день / неделя / месяц), what a row stands for, and «Вид» —
- * whether a row is compared with its own days or with every other row.
+ * chosen every cell carries two numbers, the painted one on top. Each select
+ * is as wide as its longest option, no wider. Right: where the norm comes
+ * from (the median, or a number typed per article), the column width (день /
+ * неделя / месяц), what a row stands for, and whether a row is compared with
+ * its own days or with every other row.
  *
  * Native selects, as everywhere in this app: they are the accessible picker on
  * a phone, and the list of twenty-five metrics is exactly what one is for.
@@ -18,6 +20,7 @@ defineProps({
   period: { type: String, required: true },
   groupBy: { type: String, required: true },
   mode: { type: String, required: true },
+  normMode: { type: String, required: true },
   /** `{prices, ads: [], settlement}` from the grid, for the money metrics' names. */
   currencies: { type: Object, default: () => ({}) },
 })
@@ -27,9 +30,14 @@ const emit = defineEmits([
   'update:period',
   'update:groupBy',
   'update:mode',
+  'update:normMode',
   'swap',
 ])
 
+const NORM_MODES = [
+  { value: 'default', label: 'Норма: по умолчанию' },
+  { value: 'manual', label: 'Норма: ручной ввод' },
+]
 const PERIODS = [
   { value: 'day', label: 'По дням' },
   { value: 'week', label: 'По неделям' },
@@ -51,7 +59,7 @@ const MODES = [
   <div class="mb-md flex flex-wrap items-center gap-sm">
     <div class="hm-metrics">
       <select
-        class="hm-select w-72"
+        class="hm-select"
         :value="metric"
         aria-label="Основная метрика"
         @change="emit('update:metric', $event.target.value)"
@@ -75,7 +83,7 @@ const MODES = [
       </button>
 
       <select
-        class="hm-select hm-metrics__second w-72"
+        class="hm-select hm-metrics__second"
         :value="metric2 ?? ''"
         aria-label="Вторая метрика"
         @change="emit('update:metric2', $event.target.value || null)"
@@ -95,6 +103,16 @@ const MODES = [
     </div>
 
     <div class="ml-auto flex flex-wrap items-center gap-sm phone:ml-0 phone:w-full">
+      <select
+        class="hm-select"
+        :value="normMode"
+        aria-label="Откуда берётся норма"
+        @change="emit('update:normMode', $event.target.value)"
+      >
+        <option v-for="option in NORM_MODES" :key="option.value" :value="option.value">
+          {{ option.label }}
+        </option>
+      </select>
       <select
         class="hm-select"
         :value="period"

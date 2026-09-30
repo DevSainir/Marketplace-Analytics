@@ -1,10 +1,11 @@
-"""The heatmap's own tables: seller-defined groups of articles.
+"""The heatmap's own tables: seller-defined groups of articles, and their norms.
 
 Everything else the heatmap shows belongs to other modules and is read through
-their contracts; the one thing it owns is the «Группы» a seller assembles for
-it — «спандекс_двойка» as five colour variants of one product, read as one row.
+their contracts; what it owns is what a seller types into it — the «Группы»
+(«спандекс_двойка» as five colour variants of one product, read as one row) and
+the hand-set norm an article's cells are painted against.
 
-Both tables carry ``workspace_id``, the membership table included. The group id
+Every table carries ``workspace_id``, the membership table included. The group id
 alone would scope a member row transitively, but row-level security can only
 police a column the row itself carries, and a table without one is the kind the
 diagnostic gate cannot fence either. A few bytes per row buys a policy.
@@ -15,7 +16,15 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    Double,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
@@ -76,4 +85,42 @@ class SkuGroupItem(Base):
         ForeignKey("workspaces.workspaces.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
+    )
+
+
+class SkuNorm(Base):
+    """A seller's own norm for one article on one metric.
+
+    What «Норма: ручной ввод» paints the article's cells against instead of the
+    median of its days. Per day, in the metric's own unit — the page scales it
+    to a week or a month for the metrics that add up.
+
+    Attributes:
+        id: UUIDv7.
+        workspace_id: Owning кабинет; the norm is shared by everyone in it.
+        nm_id: The article (proved to be the кабинет's own before it is written).
+        metric: A :data:`~src.modules.heatmap.schemas.MetricKey`.
+        value: The norm.
+        updated_at: When it was last set.
+    """
+
+    __tablename__ = "sku_norm"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "nm_id", "metric", name="uq_heatmap_sku_norm_workspace_nm_metric"
+        ),
+        {"schema": _SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid7)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.workspaces.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    nm_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    metric: Mapped[str] = mapped_column(String(32), nullable=False)
+    value: Mapped[float] = mapped_column(Double, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )

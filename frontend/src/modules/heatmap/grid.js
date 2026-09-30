@@ -8,7 +8,8 @@
  * page flip is instant instead of a round trip over the whole window.
  */
 import { MONTHS } from '@/core/utils/calendarModel'
-import { heatStyle, scaleOf } from '@/modules/heatmap/heatScale'
+import { heatStyle, scaleAround, scaleOf } from '@/modules/heatmap/heatScale'
+import { addsUp } from '@/modules/heatmap/metrics'
 
 const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб']
 
@@ -74,6 +75,18 @@ export function pageOf(rows, page, size) {
   return { rows: rows.slice((current - 1) * size, current * size), page: current, pages }
 }
 
+const DAY_MS = 86_400_000
+
+/**
+ * Days in each column — a week or month clipped by the window is shorter.
+ *
+ * @param {Array<{start: string, end: string}>} columns
+ * @returns {number[]}
+ */
+export function columnDays(columns) {
+  return columns.map(({ start, end }) => (Date.parse(end) - Date.parse(start)) / DAY_MS + 1)
+}
+
 /**
  * Tints for every cell of the rows on screen.
  *
@@ -83,17 +96,31 @@ export function pageOf(rows, page, size) {
  * what green means. The «Итого» column and row are not painted: they are the
  * yardstick, not a sample.
  *
+ * With `normOf`, a row that has a hand-set norm is painted against it instead.
+ * The norm is per day, so a metric that adds up is compared per day too — a
+ * week's 350 orders against a norm of 50 is on the norm — and the extremes come
+ * from the same per-day values, of the row or of the whole selection.
+ *
  * @param {Array<object>} pageRows The rows being drawn.
  * @param {Array<object>} allRows Every row of the selection.
  * @param {'row'|'table'} mode
- * @param {{direction: 'up'|'down'|'neutral'}} metric The painted metric.
+ * @param {{key: string, direction: 'up'|'down'|'neutral'}} metric The painted metric.
+ * @param {{columns?: Array<object>, normOf?: (row: object) => number|null}} [manual]
  * @returns {Array<Array<object>>} One array of cell styles per row.
  */
-export function tintRows(pageRows, allRows, mode, metric) {
+export function tintRows(pageRows, allRows, mode, metric, { columns = [], normOf = null } = {}) {
+  const paint = (values, scale) => values.map((value) => heatStyle(value, scale, metric.direction))
   const table = mode === 'table' ? scaleOf(allRows.flatMap((row) => row.values)) : null
+  const days = columnDays(columns)
+  const daily = (values) =>
+    addsUp(metric) ? values.map((value, i) => (value === null ? null : value / days[i])) : values
+  let dailyTable = null
   return pageRows.map((row) => {
-    const scale = table ?? scaleOf(row.values)
-    return row.values.map((value) => heatStyle(value, scale, metric.direction))
+    const norm = normOf?.(row) ?? null
+    if (norm === null) return paint(row.values, table ?? scaleOf(row.values))
+    if (mode === 'table') dailyTable ??= allRows.flatMap((other) => daily(other.values))
+    const values = daily(row.values)
+    return paint(values, scaleAround(mode === 'table' ? dailyTable : values, norm))
   })
 }
 

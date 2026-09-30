@@ -1,5 +1,5 @@
 /**
- * Heatmap API layer — the grid, the catalogue behind its filters, and «Группы».
+ * Heatmap API layer — the grid, the catalogue behind its filters, «Группы» and norms.
  *
  * Errors propagate to the caller (the store decides what the page says).
  */
@@ -60,4 +60,21 @@ export async function updateGroup(id, payload) {
 /** DELETE /v1/heatmap/groups/:id */
 export async function deleteGroup(id) {
   await apiClient.delete(`/v1/heatmap/groups/${id}`)
+}
+
+/** GET /v1/heatmap/norms — every hand-set norm of the кабинет. */
+export async function fetchNorms() {
+  const { data } = await apiClient.get('/v1/heatmap/norms')
+  return data
+}
+
+/** PUT /v1/heatmap/norms/:nmId/:metric — set an article's norm, per day. */
+export async function saveNorm(nmId, metric, value) {
+  const { data } = await apiClient.put(`/v1/heatmap/norms/${nmId}/${metric}`, { value })
+  return data
+}
+
+/** DELETE /v1/heatmap/norms/:nmId/:metric */
+export async function deleteNorm(nmId, metric) {
+  await apiClient.delete(`/v1/heatmap/norms/${nmId}/${metric}`)
 }

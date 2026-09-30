@@ -170,6 +170,34 @@ export const METRICS = [
 
 const BY_KEY = new Map(METRICS.map((metric) => [metric.key, metric]))
 
+/**
+ * Metrics whose week or month is the SUM of its days — counts and money flows.
+ * A hand-set norm is per day, so for these it is compared with a column's daily
+ * average; ratios, prices and the stock level are compared as they are.
+ */
+const ADDS_UP = new Set([
+  'orders',
+  'order_sum',
+  'opens',
+  'carts',
+  'organic_opens',
+  'spend',
+  'ad_views',
+  'ad_clicks',
+  'ad_orders',
+  'revenue',
+  'sales',
+  'profit',
+])
+
+/**
+ * @param {(typeof METRICS)[number]} metric
+ * @returns {boolean} Whether a column of it is the sum of its days.
+ */
+export function addsUp(metric) {
+  return ADDS_UP.has(metric.key)
+}
+
 /** The picker's option groups, in catalogue order. */
 export const METRIC_GROUPS = [...new Set(METRICS.map((metric) => metric.group))].map((group) => ({
   label: group,

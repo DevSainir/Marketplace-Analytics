@@ -18,7 +18,7 @@ import pytest
 
 from src.core.exceptions import NotFoundError
 from src.core.timeutils import moscow_today
-from src.modules.heatmap.deps import get_group_service, get_heatmap_service
+from src.modules.heatmap.deps import get_group_service, get_heatmap_service, get_norm_service
 from src.modules.heatmap.routers.heatmap import DEFAULT_WINDOW_DAYS, MAX_WINDOW_DAYS
 from src.modules.heatmap.schemas import (
     HeatmapCatalogResponse,
@@ -27,8 +27,15 @@ from src.modules.heatmap.schemas import (
     SkuGroupList,
     SkuGroupRead,
     SkuGroupWrite,
+    SkuNormList,
+    SkuNormRead,
 )
-from src.modules.organizations.contract import ALL_MODULES, AccessLevel, EffectiveRole
+from src.modules.organizations.contract import (
+    ALL_MODULES,
+    AccessLevel,
+    EffectiveRole,
+    SubscriptionState,
+)
 from src.modules.users.deps import get_user_repo
 from src.modules.workspaces.contract import WORKSPACE_HEADER
 from src.modules.workspaces.deps import get_workspace_repo
@@ -95,6 +102,28 @@ class _StubGroupService:
             raise NotFoundError("Группа не найдена.")
 
 
+class _StubNormService:
+    """Records norm reads and writes."""
+
+    def __init__(self) -> None:
+        """Start with no recorded calls."""
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def list_norms(self, **kwargs: Any) -> SkuNormList:
+        """Record the list."""
+        self.calls.append(("list", kwargs))
+        return SkuNormList(items=[])
+
+    async def set_norm(self, _session: Any, **kwargs: Any) -> SkuNormRead:
+        """Record the set and echo the norm."""
+        self.calls.append(("set", kwargs))
+        return SkuNormRead(nm_id=kwargs["nm_id"], metric=kwargs["metric"], value=kwargs["value"])
+
+    async def clear_norm(self, **kwargs: Any) -> None:
+        """Record the clear."""
+        self.calls.append(("clear", kwargs))
+
+
 @pytest.fixture
 def heatmap() -> _StubHeatmapService:
     """The stub read service the routes are wired to."""
@@ -107,6 +136,12 @@ def groups() -> _StubGroupService:
     return _StubGroupService()
 
 
+@pytest.fixture
+def norms() -> _StubNormService:
+    """The stub norm service the routes are wired to."""
+    return _StubNormService()
+
+
 @pytest.fixture(autouse=True)
 def _wire(
     override: Callable[[Any, Any], None],
@@ -114,18 +149,14 @@ def _wire(
     workspace_repo: FakeWorkspaceRepository,
     heatmap: _StubHeatmapService,
     groups: _StubGroupService,
+    norms: _StubNormService,
 ) -> None:
-    """Wire identity, tenancy and both stubbed services."""
+    """Wire identity, tenancy and the three stubbed services."""
     override(get_user_repo, user_repo)
     override(get_workspace_repo, workspace_repo)
     override(get_heatmap_service, heatmap)
     override(get_group_service, groups)
-
-
-@pytest.fixture(autouse=True)
-def _internal_caller(login_as: Callable[..., None]) -> None:
-    """One of us: the page lives under /labs while it is tried out."""
-    login_as(is_primary_org=True)
+    override(get_norm_service, norms)
 
 
 @pytest.fixture
@@ -155,14 +186,25 @@ async def test_the_catalogue_is_ordered_over_the_requested_window(
     }
 
 
-async def test_a_customer_cannot_reach_the_heatmap(
+async def test_a_paying_customer_reaches_the_heatmap(
+    client: httpx.AsyncClient, headers: dict[str, str], login_as: Callable[..., None]
+) -> None:
+    """Open to every subscribed organisation since it left /labs, not only to us."""
+    login_as(is_primary_org=False)
+
+    response = await client.get("/api/v1/heatmap", headers=headers)
+
+    assert response.status_code == 200
+
+
+async def test_a_lapsed_subscription_cannot_reach_the_heatmap(
     client: httpx.AsyncClient,
     headers: dict[str, str],
     login_as: Callable[..., None],
     heatmap: _StubHeatmapService,
 ) -> None:
-    """A paying owner outside our organisation is refused — the page is a lab."""
-    login_as(is_primary_org=False)
+    """Past grace nothing tenant-scoped answers, this page included."""
+    login_as(subscription=SubscriptionState.EXPIRED)
 
     response = await client.get("/api/v1/heatmap", headers=headers)
 
@@ -180,7 +222,6 @@ async def test_both_module_grants_are_needed(
     """The grid shows orders and profit side by side, so either grant missing is a 403."""
     login_as(
         role=EffectiveRole.MANAGER,
-        is_primary_org=True,
         modules=tuple(m for m in ALL_MODULES if m != withheld),
     )
 
@@ -290,7 +331,7 @@ async def test_a_read_only_manager_cannot_create_a_group(
     groups: _StubGroupService,
 ) -> None:
     """A group changes what everyone in the кабинет sees in the filter — it is a write."""
-    login_as(role=EffectiveRole.MANAGER, access_level=AccessLevel.READ_ONLY, is_primary_org=True)
+    login_as(role=EffectiveRole.MANAGER, access_level=AccessLevel.READ_ONLY)
 
     response = await client.post(
         "/api/v1/heatmap/groups",
@@ -341,3 +382,88 @@ async def test_deleting_an_unknown_group_is_a_404(
     response = await client.delete(f"/api/v1/heatmap/groups/{uuid.uuid4()}", headers=headers)
 
     assert response.status_code == 404
+
+
+async def test_the_norms_are_read_for_the_active_workspace(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    norms: _StubNormService,
+    workspace: Workspace,
+) -> None:
+    """The кабинет from the header scopes the list."""
+    response = await client.get("/api/v1/heatmap/norms", headers=headers)
+
+    assert response.status_code == 200
+    assert norms.calls == [("list", {"workspace_id": workspace.id})]
+
+
+async def test_a_writer_sets_a_norm_in_the_active_workspace(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    norms: _StubNormService,
+    workspace: Workspace,
+) -> None:
+    """Article and metric come from the path, the кабинет from the header."""
+    response = await client.put(
+        "/api/v1/heatmap/norms/123/orders", json={"value": 50}, headers=headers
+    )
+
+    assert response.status_code == 200
+    kind, call = norms.calls[0]
+    assert kind == "set"
+    assert call["workspace_id"] == workspace.id
+    assert (call["nm_id"], call["metric"], call["value"]) == (123, "orders", 50.0)
+
+
+async def test_a_read_only_manager_cannot_set_or_clear_a_norm(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    login_as: Callable[..., None],
+    norms: _StubNormService,
+) -> None:
+    """A norm changes how everyone in the кабинет sees the grid — it is a write."""
+    login_as(role=EffectiveRole.MANAGER, access_level=AccessLevel.READ_ONLY)
+
+    put = await client.put("/api/v1/heatmap/norms/123/orders", json={"value": 5}, headers=headers)
+    delete = await client.delete("/api/v1/heatmap/norms/123/orders", headers=headers)
+
+    assert (put.status_code, delete.status_code) == (403, 403)
+    assert norms.calls == []
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/api/v1/heatmap/norms/123/password_hash", {"value": 1}),
+        ("/api/v1/heatmap/norms/0/orders", {"value": 1}),
+        ("/api/v1/heatmap/norms/123/orders", {"value": 1e13}),
+        ("/api/v1/heatmap/norms/123/orders", {"value": "NaN"}),
+    ],
+)
+async def test_a_norm_outside_the_bounds_is_refused(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    norms: _StubNormService,
+    path: str,
+    body: dict[str, Any],
+) -> None:
+    """Metric is a closed list, the article positive, the value finite and bounded."""
+    response = await client.put(path, json=body, headers=headers)
+
+    assert response.status_code == 422
+    assert norms.calls == []
+
+
+async def test_clearing_a_norm_is_scoped_to_the_active_workspace(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    norms: _StubNormService,
+    workspace: Workspace,
+) -> None:
+    """A clear can only ever reach the caller's own кабинет."""
+    response = await client.delete("/api/v1/heatmap/norms/123/orders", headers=headers)
+
+    assert response.status_code == 204
+    assert norms.calls == [
+        ("clear", {"workspace_id": workspace.id, "nm_id": 123, "metric": "orders"})
+    ]

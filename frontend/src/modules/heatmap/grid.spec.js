@@ -5,7 +5,7 @@
  * The sort rule is the one worth pinning: a row with no value in the sorted
  * column must never surface as the best or the worst — it has nothing to say.
  */
-import { columnLabel, pageOf, sortRows, tintRows } from './grid'
+import { columnDays, columnLabel, pageOf, sortRows, tintRows } from './grid'
 
 const row = (key, values, total = null) => ({ key, values, total })
 
@@ -69,5 +69,37 @@ describe('tintRows', () => {
     const busy = [1, 2, 3].map((n) => row(`busy${n}`, [100, 104, 98]))
     const [tints] = tintRows([quiet], [quiet, ...busy], 'table', orders)
     expect(tints[0].background).toContain('--ui-neg-rgb')
+  })
+})
+
+describe('tintRows with hand-set norms', () => {
+  const orders = { key: 'orders', direction: 'up' }
+  const week = { start: '2026-09-21', end: '2026-09-27' }
+  const day = { start: '2026-09-28', end: '2026-09-28' }
+
+  it('counts the days of a clipped column', () => {
+    expect(columnDays([week, day])).toEqual([7, 1])
+  })
+
+  it('compares a week of a summed metric with the daily norm times its days', () => {
+    const r = { ...row('r', [350, 30]), nm_id: 1 }
+    const [tints] = tintRows([r], [r], 'row', orders, { columns: [week, day], normOf: () => 50 })
+    expect(tints[0]).toEqual({})
+    expect(tints[1].background).toContain('--ui-neg-rgb')
+  })
+
+  it('compares a ratio as it is, whatever the column width', () => {
+    const r = { ...row('r', [2, 3]), nm_id: 1 }
+    const ctr = { key: 'ctr', direction: 'up' }
+    const [tints] = tintRows([r], [r], 'row', ctr, { columns: [week, day], normOf: () => 2 })
+    expect(tints[0]).toEqual({})
+    expect(tints[1].background).toContain('--ui-pos-rgb')
+  })
+
+  it('keeps the median for a row with no norm of its own', () => {
+    const r = { ...row('r', [100, 104, 30]), nm_id: 1 }
+    const cols = [day, day, day]
+    const [tints] = tintRows([r], [r], 'row', orders, { columns: cols, normOf: () => null })
+    expect(tints[0]).toEqual({})
   })
 })
