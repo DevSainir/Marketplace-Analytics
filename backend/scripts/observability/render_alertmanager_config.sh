@@ -57,12 +57,42 @@ if [[ -z "$token" || -z "$chat" ]]; then
   exit 1
 fi
 
-# `awk` with the value passed as a variable, not `sed`: a bot token contains
+# The external heartbeat (Better Stack) that notices when alerts stop getting
+# out. Optional so a laptop can still render, but its absence is announced: a
+# box without it is back to learning about a dead pager from a customer.
+heartbeat="$(read_var ALERT_HEARTBEAT_URL)"
+if [[ -n "$heartbeat" && ! "$heartbeat" =~ ^https:// ]]; then
+  echo "render-alertmanager: ALERT_HEARTBEAT_URL must be an https:// URL." >&2
+  exit 1
+fi
+
+# `awk` with the values passed as variables, not `sed`: a bot token contains
 # `:` and a chat id can be negative, and both would be interpreted as sed
-# syntax or as a delimiter. The value is never echoed.
-awk -v tok="$token" -v chat="$chat" '
-  { gsub(/__TELEGRAM_BOT_TOKEN__/, tok); gsub(/__TELEGRAM_CHAT_ID__/, chat); print }
+# syntax or as a delimiter. Substituted with index/substr rather than gsub,
+# because in a gsub replacement `&` means "the matched text" — and a heartbeat
+# URL may carry one — and how to escape it differs between mawk, gawk and BSD
+# awk. The values are never echoed.
+awk -v tok="$token" -v chat="$chat" -v beat="$heartbeat" '
+  function put(line, key, value,    at) {
+    while ((at = index(line, key)) > 0) {
+      line = substr(line, 1, at - 1) value substr(line, at + length(key))
+    }
+    return line
+  }
+  /heartbeat-webhook-begin/ { skipping = (beat == ""); next }
+  /heartbeat-webhook-end/   { skipping = 0; next }
+  skipping { next }
+  {
+    line = put($0, "__TELEGRAM_BOT_TOKEN__", tok)
+    line = put(line, "__TELEGRAM_CHAT_ID__", chat)
+    print put(line, "__HEARTBEAT_URL__", beat)
+  }
 ' "$template" > "$output"
+
+if [[ -z "$heartbeat" ]]; then
+  echo "render-alertmanager: WARNING — ALERT_HEARTBEAT_URL is not set. Nothing outside" >&2
+  echo "  this box will notice if alerts stop reaching Telegram (HARDENING P2.12)." >&2
+fi
 
 # The container mounts this read-only and runs as nobody (65534) — the
 # alertmanager image's own default user. A root-owned 0600 file is therefore

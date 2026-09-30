@@ -242,3 +242,31 @@ def test_a_source_muted_in_harvest_partial_is_watched_for_its_return() -> None:
     }
 
     assert set(muted) <= watchers, set(muted) - watchers
+
+
+PROMETHEUS_FILE = ALERTS_FILE.with_name("prometheus.yml")
+
+
+def test_every_job_a_rule_names_is_one_prometheus_scrapes() -> None:
+    """A rule on a job nobody scrapes evaluates to nothing, forever.
+
+    `Watchdog` is the sharp case: it reads Alertmanager's own counters, which
+    went unscraped until 2026-09-30 — 210 failed Telegram deliveries out of 213,
+    in plain sight of nobody. A rule reading a job that is not in
+    prometheus.yml is exactly that again.
+    """
+    scraped = {
+        job["job_name"] for job in yaml.safe_load(PROMETHEUS_FILE.read_text())["scrape_configs"]
+    }
+
+    for rule in _rules():
+        named = set(re.findall(r'job="([^"]+)"', rule["expr"]))
+        assert named <= scraped, f"{rule['alert']} reads unscraped jobs: {sorted(named - scraped)}"
+
+
+def test_the_watchdog_stops_when_telegram_delivery_fails() -> None:
+    """The heartbeat is only worth having if the last hop can silence it."""
+    expr = _BY_NAME["Watchdog"]["expr"]
+
+    assert 'alertmanager_notifications_failed_total{integration="telegram"}' in expr
+    assert 'up{job="alertmanager"}' in expr

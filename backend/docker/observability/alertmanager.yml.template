@@ -47,6 +47,19 @@ route:
   receiver: telegram
 
   routes:
+    # The heartbeat, FIRST so it never reaches Telegram. `Watchdog` fires all
+    # the time while the alert path is healthy (alerts.yml, group `meta`), and
+    # every five minutes it is re-sent to an external monitor. When the
+    # heartbeat stops — this box down, Prometheus or Alertmanager down, or a
+    # Telegram delivery failing — the monitor says so from outside, over a
+    # channel that does not go through here. On 2026-09-29 we learned that
+    # Telegram had been unreachable for two weeks, from a customer.
+    - matchers: ["alertname = Watchdog"]
+      receiver: heartbeat
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 5m
+
     # `severity: page` alerts skip the grouping delay. The difference between
     # `page` and `warn` in alerts.yml is whether somebody should stop what they
     # are doing, and a 30-second wait on the RLS-violation alert would be 30
@@ -63,6 +76,19 @@ route:
       repeat_interval: 1h
 
 receivers:
+  # Better Stack heartbeat URL from ALERT_HEARTBEAT_URL in backend/.env. Without
+  # it the renderer drops the webhook between the markers and says so loudly;
+  # the receiver stays, empty, so `Watchdog` goes nowhere rather than to
+  # Telegram every few hours.
+  - name: heartbeat
+    # heartbeat-webhook-begin
+    webhook_configs:
+      - url: "__HEARTBEAT_URL__"
+        # A resolution means the heartbeat should STOP; sending one would be
+        # one more ping to a monitor that is waiting for silence.
+        send_resolved: false
+    # heartbeat-webhook-end
+
   - name: telegram
     telegram_configs:
       - bot_token: "__TELEGRAM_BOT_TOKEN__"

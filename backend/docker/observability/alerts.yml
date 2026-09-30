@@ -12,6 +12,36 @@
 
 groups:
   # -------------------------------------------------------------------------
+  # The alert path itself. `Watchdog` is the one rule meant to be firing: it
+  # holds while Alertmanager is scraped and has not failed a Telegram delivery
+  # in the last half hour, and alertmanager.yml sends it — every five minutes,
+  # and only there — to an external heartbeat monitor. So the heartbeat stops
+  # when anything on the path stops: the box, Prometheus, Alertmanager, or the
+  # last hop to Telegram. Silence is the signal, and it is read from outside.
+  #
+  # The gap left: a Telegram outage while nothing else is firing is found at
+  # the first page that fails, not before — nothing here sends a message just
+  # to test the road.
+  # -------------------------------------------------------------------------
+  - name: meta
+    rules:
+      - alert: Watchdog
+        expr: |
+          sum(increase(alertmanager_notifications_failed_total{integration="telegram"}[30m])) == 0
+          and on() max(up{job="alertmanager"}) == 1
+        for: 1m
+        labels:
+          severity: heartbeat
+        annotations:
+          summary: "Алерты доходят: пульс для внешней проверки."
+          description: >-
+            Это правило горит всегда и уходит только во внешний монитор. Если
+            монитор сообщил, что пульса нет, значит алерты не доходят. Проверьте
+            `docker exec marketplace-observability-alertmanager-1 wget -qO-
+            localhost:9093/metrics | grep notifications_failed` и
+            HARDENING P2.12.
+
+  # -------------------------------------------------------------------------
   - name: availability
     rules:
       - alert: ApiDown

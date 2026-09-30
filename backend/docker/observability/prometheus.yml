@@ -76,3 +76,11 @@ scrape_configs:
         regex: "([^:]+):.*"
         target_label: instance
         replacement: "$1"
+
+  # Alertmanager's own counters — how many notifications it tried and how many
+  # failed. Not scraped until 2026-09-30, and that is how 210 failed Telegram
+  # deliveries out of 213 went unseen for two weeks: the numbers existed, and
+  # nothing read them. `Watchdog` in alerts.yml is built on them.
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
