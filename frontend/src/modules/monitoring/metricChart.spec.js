@@ -449,6 +449,30 @@ describe('buildMetricChart', () => {
       expect(hover).toContain('20с')
     })
 
+    it("states each day's spend in that day's own currency", () => {
+      // Across 20.08 a RUB campaign ran one day and a KGS one the next.
+      const view = buildMetricsMatrix(
+        {
+          nm_id: 1,
+          matrix: {
+            days: DAYS,
+            buckets: TRAFFIC_COLUMNS.map((column) => column.key),
+            rows: [row('spend', { total: [10, 20, 30] })],
+            currencies: [
+              { orders: 'KGS', ads: { total: ['RUB'] } },
+              { orders: 'KGS', ads: { total: ['RUB'] } },
+              { orders: 'KGS', ads: { total: ['KGS'] } },
+            ],
+          },
+        },
+        { prices: 'RUB', ads: ['KGS', 'RUB'] },
+      )
+      const chart = buildMetricChart(view, { metrics: ['spend'], groups: SKU_METRIC_GROUPS })
+
+      expect(hoverOf(chart, [point(0, 'Затраты', 20, 1)])).toContain('20₽')
+      expect(hoverOf(chart, [point(0, 'Затраты', 30, 2)])).toContain('30с')
+    })
+
     it("states a price beside spend in its own unit, not the spend's", () => {
       // A KGS-settled кабинет is priced in RUB: one chart-wide unit printed the
       // price in soms, or the spend in roubles, whichever came first.

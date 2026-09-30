@@ -65,6 +65,8 @@ class CampaignDayTotal:
     order_sum: float
     traffic_add_to_cart: int
     traffic_orders: int
+    #: What the campaign is billed in; ``""`` while no row of the day states it.
+    currency: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -257,6 +259,9 @@ class AdvertisingRepository(BaseRepository):
                 func.sum(case((with_traffic, AdvertisingStatDaily.orders), else_=0)).label(
                     "traffic_orders"
                 ),
+                # One campaign has one currency; MAX takes the stated label over
+                # the blank of a row harvested before labels were recorded.
+                func.max(AdvertisingStatDaily.currency).label("currency"),
             )
             .where(
                 AdvertisingStatDaily.campaign_id.in_(ids),
@@ -279,6 +284,7 @@ class AdvertisingRepository(BaseRepository):
                 order_sum=float(row.order_sum),
                 traffic_add_to_cart=int(row.traffic_add_to_cart),
                 traffic_orders=int(row.traffic_orders),
+                currency=str(row.currency or ""),
             )
             for row in result.all()
         ]

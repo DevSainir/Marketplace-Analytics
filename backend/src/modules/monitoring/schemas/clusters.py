@@ -35,6 +35,10 @@ class SkuClusterItem(BaseModel):
     ``avg_position`` is the impression-weighted average AD position inside the
     cluster and is ``None`` when WB reported no position — which is not the same
     as ranking last, so it must never render as 0.
+
+    The money is in what the cluster's campaigns bill in. A window across
+    20.08.2026 can hold a RUB and a KGS campaign; their sum would add roubles to
+    сомы, so ``spend``/``cpc``/``cpm`` are ``None`` there (CONVERSION-TODO).
     """
 
     cluster: str = Field(description="Normalized search phrase WB grouped queries under.")
@@ -42,10 +46,16 @@ class SkuClusterItem(BaseModel):
     clicks: int
     add_to_cart: int = Field(description="Add-to-cart events (WB `atbs`).")
     orders: int
-    spend: float
+    spend: float | None = Field(
+        description="In ``currencies``; None when its campaigns bill in two currencies."
+    )
     ctr: float = Field(description="clicks / views * 100 (%).")
-    cpc: float = Field(description="spend / clicks (rubles).")
-    cpm: float = Field(description="spend / views * 1000 (rubles).")
+    cpc: float | None = Field(description="spend / clicks, in ``currencies``.")
+    cpm: float | None = Field(description="spend / views * 1000, in ``currencies``.")
+    currencies: list[str] = Field(
+        default_factory=list,
+        description="What the cluster's campaigns bill in; empty when none states it.",
+    )
     avg_position: float | None = Field(
         default=None, description="Impression-weighted average ad position; None = unreported."
     )

@@ -60,6 +60,7 @@ def derive_base_state(
     campaign_sku_totals: list[CampaignDaySkuTotal] | None = None,
     sku_labels: dict[int, str | None] | None = None,
     nm_id: int | None = None,
+    price_currency: str = "",
 ) -> MatrixBaseState:
     """Aggregate raw facts into the editable input working copy.
 
@@ -98,6 +99,8 @@ def derive_base_state(
         nm_id: The SKU being analyzed. Splitting a campaign-day across zones
             needs it to keep the viewed SKU's own counts exact; without it a
             split cell ships no breakdown.
+        price_currency: What the prices are stated in — the currency of the
+            order money on a day WB served no funnel sum for.
 
     Returns:
         The :class:`MatrixBaseState` working copy for the window.
@@ -119,6 +122,7 @@ def derive_base_state(
             order_sum=total.order_sum,
             traffic_add_to_cart=total.traffic_add_to_cart,
             traffic_orders=total.traffic_orders,
+            currency=total.currency,
         )
         for total in campaign_totals or []
     }
@@ -145,6 +149,9 @@ def derive_base_state(
             total.traffic_orders += row.orders
             if total.order_sum is not None:
                 total.order_sum += float(row.order_sum)
+        # The card's own rows name the campaign's currency when the campaign's
+        # totals did not (a stand-in, or totals harvested before the label).
+        total.currency = total.currency or row.currency or ""
         total.sku.views += row.views
         total.sku.clicks += row.clicks
         total.sku.add_to_cart += row.add_to_cart
@@ -224,6 +231,9 @@ def derive_base_state(
                 order_count=funnel_row.order_count,
                 seller_price=seller_price,
                 customer_price=customer_price,
+                order_price=_order_price(funnel_row),
+                order_currency=funnel_row.currency or "",
+                price_currency=price_currency,
             )
         elif seller_price is not None or customer_price is not None:
             # No funnel row yet (the CURRENT day — WB serves the funnel a day
@@ -234,6 +244,7 @@ def derive_base_state(
                 seller_price=seller_price,
                 customer_price=customer_price,
                 has_funnel=False,
+                price_currency=price_currency,
             )
         else:
             funnel_base = None
@@ -280,3 +291,14 @@ def derive_base_state(
         )
 
     return MatrixBaseState(days=day_bases)
+
+
+def _order_price(row: SalesFunnelDaily) -> float | None:
+    """What one order was worth by WB's funnel sum; ``None`` without one.
+
+    A day with no orders has no price per order — its order money is zero in
+    any currency, and the day falls back to the seller price with the rest.
+    """
+    if row.order_sum is None or not row.order_count or not row.currency:
+        return None
+    return float(row.order_sum) / row.order_count

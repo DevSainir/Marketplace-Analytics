@@ -64,9 +64,10 @@ function saveNorm(nmId, value) {
 const dialogOpen = ref(false)
 const editing = ref(null)
 
-/** The grid's three currencies — prices, advertising, settlement — in one object. */
+/** The grid's currencies — prices, orders, advertising, settlement — in one object. */
 const currencies = computed(() => ({
   prices: store.data?.price_currency ?? '',
+  orders: store.data?.order_currency ?? '',
   ads: store.data?.ad_currencies ?? [],
   settlement: store.data?.currency ?? '',
 }))

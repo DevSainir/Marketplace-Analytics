@@ -35,6 +35,7 @@ from src.modules.monitoring.services.matrix.cells import (
     _organic_cell,
     _total_cell,
 )
+from src.modules.monitoring.services.matrix.currency import day_currencies
 from src.modules.monitoring.services.matrix.slices import _BucketAcc, _SkuSlice
 
 
@@ -47,6 +48,7 @@ def _acc_from_base(base: MatrixAdBucketBase) -> _BucketAcc:
         spend=base.spend,
         orders=base.orders,
         order_sum=base.order_sum,
+        currencies=set(base.currencies),
         sku=_SkuSlice(
             views=base.sku.views,
             clicks=base.sku.clicks,
@@ -128,7 +130,12 @@ def build_matrix_from_base(base: MatrixBaseState) -> MetricsMatrixRead:
                 values.append(value if override is None else override)
         rows.append(MatrixMetricRow(key=key, values=values))
 
-    return MetricsMatrixRead(days=days, buckets=list(MATRIX_BUCKETS), rows=rows)
+    return MetricsMatrixRead(
+        days=days,
+        buckets=list(MATRIX_BUCKETS),
+        rows=rows,
+        currencies=[day_currencies(day) for day in base.days],
+    )
 
 
 def build_metrics_matrix(
@@ -143,6 +150,7 @@ def build_metrics_matrix(
     stock_daily: list[StockDailyTotal] | None = None,
     campaign_totals: list[CampaignDayTotal] | None = None,
     campaign_search_totals: list[CampaignSearchDayTotal] | None = None,
+    price_currency: str = "",
 ) -> MetricsMatrixRead:
     """Build the complete day x bucket metrics matrix for one SKU.
 
@@ -163,6 +171,7 @@ def build_metrics_matrix(
         campaign_totals: Per-(campaign, day) metrics across all nm_ids — the
             кампания the advertising columns measure.
         campaign_search_totals: The search-zone slice of those totals.
+        price_currency: What the prices are stated in.
 
     Returns:
         A fully computed :class:`MetricsMatrixRead`.
@@ -179,5 +188,6 @@ def build_metrics_matrix(
             stock_daily=stock_daily,
             campaign_totals=campaign_totals,
             campaign_search_totals=campaign_search_totals,
+            price_currency=price_currency,
         )
     )

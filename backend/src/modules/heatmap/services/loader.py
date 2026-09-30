@@ -82,6 +82,10 @@ async def load_facts(
             if row.amount_paid is not None:
                 f.paid_orders += row.orders
                 f.amount_paid += row.amount_paid
+            if row.order_value is not None and row.currency:
+                f.valued_orders += row.orders
+                f.order_value += row.order_value
+                f.order_currencies = f.order_currencies | {row.currency}
             rank[row.nm_id] = rank.get(row.nm_id, 0) + row.orders
     else:
         rank = await load_orders_by_nm(session, workspace_id=ws, date_from=start, date_to=end)
@@ -96,6 +100,7 @@ async def load_facts(
             f.ad_views += ad.views
             f.ad_clicks += ad.clicks
             f.ad_orders += ad.orders
+            f.ad_currencies = f.ad_currencies | frozenset(ad.currencies)
 
     if "prices" in window.sources:
         for price in await load_price_sku_days(

@@ -152,3 +152,22 @@ def test_a_settled_day_without_facts_is_zero_not_blank() -> None:
     )
 
     assert rows[0].values == [2.0, 0.0]
+
+
+def test_each_spend_cell_names_its_own_campaigns_currency() -> None:
+    """Across 20.08 one column is in roubles and the next in сомы — the sign is per cell."""
+    before, after = date(2026, 8, 19), date(2026, 8, 21)
+    columns = build_columns(before, after, "day")
+    facts = {
+        (1, before): Facts(funnel_days=1, ad_days=1, ad_currencies=frozenset({"RUB"})),
+        (1, after): Facts(funnel_days=1, ad_days=1, ad_currencies=frozenset({"KGS"})),
+    }
+    grid = fold_sku_days(facts, columns)
+    specs = build_row_specs("sku", nm_ids=grid.cells, cards={1: _card(1)})
+
+    _totals, rows = build_rows(specs, grid, width=3, metrics=("spend", "orders"), rank={})
+
+    assert rows[0].units == ["RUB", "", "KGS"]
+    assert rows[0].total_unit == ""  # the window holds both: no figure, no sign
+    assert rows[0].total is None
+    assert rows[0].units2 is None

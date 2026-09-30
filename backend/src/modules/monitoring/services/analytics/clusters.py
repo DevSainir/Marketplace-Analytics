@@ -71,6 +71,9 @@ class ClusterAnalytics:
             date_from=start,
             date_to=end,
         )
+        currencies = await self._clusters.campaign_currencies(
+            campaign_ids={cid for aggregate in aggregates for cid in aggregate.campaign_ids}
+        )
         series_by_cluster: dict[str, list[ClusterDayPoint]] = {}
         for point in series:
             series_by_cluster.setdefault(point.cluster, []).append(point)
@@ -83,6 +86,9 @@ class ClusterAnalytics:
                     aggregate,
                     series=series_by_cluster.get(aggregate.cluster, []),
                     window=(start, end),
+                    currencies=sorted(
+                        {currencies[cid] for cid in aggregate.campaign_ids if cid in currencies}
+                    ),
                 )
                 for aggregate in aggregates
             ],
@@ -94,18 +100,23 @@ class ClusterAnalytics:
         *,
         series: list[ClusterDayPoint],
         window: tuple[date, date],
+        currencies: list[str],
     ) -> SkuClusterItem:
         """Render one cluster aggregate into its response DTO."""
+        # CONVERSION-TODO: a cluster whose campaigns bill in two currencies has
+        # no spend figure until one side is converted.
+        mixed = len(currencies) > 1
         return SkuClusterItem(
             cluster=agg.cluster,
             views=agg.views,
             clicks=agg.clicks,
             add_to_cart=agg.add_to_cart,
             orders=agg.orders,
-            spend=round(agg.spend, 2),
+            spend=None if mixed else round(agg.spend, 2),
             ctr=round(agg.clicks / agg.views * 100, 2) if agg.views else 0.0,
-            cpc=round(agg.spend / agg.clicks, 2) if agg.clicks else 0.0,
-            cpm=round(agg.spend / agg.views * 1000, 2) if agg.views else 0.0,
+            cpc=None if mixed else (round(agg.spend / agg.clicks, 2) if agg.clicks else 0.0),
+            cpm=None if mixed else (round(agg.spend / agg.views * 1000, 2) if agg.views else 0.0),
+            currencies=currencies,
             avg_position=round(agg.avg_position, 1) if agg.avg_position is not None else None,
             days_count=agg.days_count,
             campaign_count=agg.campaign_count,

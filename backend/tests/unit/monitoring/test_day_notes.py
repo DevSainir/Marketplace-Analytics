@@ -202,7 +202,11 @@ def test_drr_sales_uses_the_campaigns_own_buyout_volume() -> None:
                     "uni_shelves": _ad_bucket(views=300, clicks=20, spend=150.0, orders=1),
                 },
                 funnel=MatrixFunnelBase(
-                    open_count=100, cart_count=30, order_count=10, seller_price=100.0
+                    open_count=100,
+                    cart_count=30,
+                    order_count=10,
+                    seller_price=100.0,
+                    price_currency="RUB",
                 ),
                 lagged_buyout_percent=50.0,
             )

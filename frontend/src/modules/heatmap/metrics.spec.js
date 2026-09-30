@@ -5,9 +5,9 @@
  * since 20.08.2026 and settles in KGS. A price signed with the settlement's
  * currency is the mistake this pins against.
  */
-import { currencyOf, formatValue, metricLabel, metricOf } from './metrics'
+import { cellText, currencyOf, formatValue, metricLabel, metricOf } from './metrics'
 
-const currencies = { prices: 'RUB', ads: ['KGS'], settlement: 'KGS' }
+const currencies = { prices: 'RUB', orders: 'KGS', ads: ['KGS'], settlement: 'KGS' }
 
 /** Intl groups thousands with a no-break space; the assertions read plain ones. */
 const plain = (text) => text.replace(/\s/g, ' ')
@@ -22,8 +22,8 @@ describe('a money figure carries its own currency sign', () => {
     expect(printed('seller_price', 4120)).toBe('4 120₽')
   })
 
-  it('signs the orders in money with the price currency too', () => {
-    expect(printed('order_sum', 8240)).toBe('8 240₽')
+  it("signs the orders in money with WB's funnel sums' currency, not the prices'", () => {
+    expect(printed('order_sum', 8240)).toBe('8 240с')
   })
 
   it('signs advertising with the ad account currency', () => {
@@ -46,5 +46,23 @@ describe('a money figure carries its own currency sign', () => {
 describe('metricLabel', () => {
   it('names a money metric without a currency — the sign is on the figure', () => {
     expect(metricLabel(metricOf('spend'))).toBe('Расход на рекламу')
+  })
+})
+
+describe('cellText', () => {
+  const spend = metricOf('spend')
+
+  it('signs a spend cell with its own campaigns currency, column by column', () => {
+    const row = { total: null, values: [900, 800], units: ['RUB', 'KGS'], total_unit: '' }
+
+    expect(plain(cellText(row, 0, spend, currencies))).toBe('900₽')
+    expect(plain(cellText(row, 1, spend, currencies))).toBe('800с')
+    expect(cellText(row, 'total', spend, currencies)).toBe('—')
+  })
+
+  it("falls back to the grid's currency for a metric with no per-cell units", () => {
+    const row = { total: 12, values: [12] }
+
+    expect(plain(cellText(row, 0, metricOf('order_sum'), currencies))).toBe('12с')
   })
 })

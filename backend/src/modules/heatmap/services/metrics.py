@@ -18,6 +18,15 @@ Two things do not add up, and each has its own rule:
   sales. A cell is «known» for finance as soon as one of its days is settled,
   and advertising is subtracted from profit only for those days, or a
   half-settled week would carry its whole ad spend against half its revenue.
+
+And money of two currencies never meets. The orders in money are WB's own
+funnel sum, in the settlement's currency; the spend is in what each campaign
+bills in (RUB before 20.08.2026 on «Демо», KGS after). A spend sum over both
+is «—», and so is a ДРР whose spend is not in the orders' currency.
+
+# CONVERSION-TODO: `_mixed` and `_paired` are where those «—» come from; with a
+# rate they become real figures. `_profit` still subtracts spend of whatever
+# currency from the settlement's payout — it waits on the same decision.
 """
 
 from __future__ import annotations
@@ -79,12 +88,19 @@ class Facts:
     #: The same for the price after WB's СПП.
     paid_orders: int = 0
     amount_paid: Decimal = _ZERO
+    #: Orders on days WB served its own funnel sum for, and that sum — in
+    #: :attr:`order_currencies`, the settlement's currency.
+    valued_orders: int = 0
+    order_value: Decimal = _ZERO
+    order_currencies: frozenset[str] = frozenset()
 
     ad_days: int = 0
     spend: Decimal = _ZERO
     ad_views: int = 0
     ad_clicks: int = 0
     ad_orders: int = 0
+    #: What the cell's campaigns bill in; ``""`` for one never labelled.
+    ad_currencies: frozenset[str] = frozenset()
 
     #: Price snapshots, for a cell with no orders to weight them by.
     seller_price_sum: Decimal = _ZERO
@@ -112,7 +128,9 @@ class Facts:
 
 
 #: Fields that are neither plain sums nor the stock pair.
-_SPECIAL = frozenset({"stock", "stock_date", "finance_known", "uncosted"})
+_SPECIAL = frozenset(
+    {"stock", "stock_date", "finance_known", "uncosted", "order_currencies", "ad_currencies"}
+)
 #: Every plain sum — what :func:`_add_flows` must add. Kept as a derived list so
 #: a test can prove the hand-written additions below miss none of them.
 ADDITIVE_FIELDS = tuple(f.name for f in fields(Facts) if f.name not in _SPECIAL)
@@ -134,6 +152,12 @@ def _add_flows(target: Facts, other: Facts) -> None:
     target.amount_seller += other.amount_seller
     target.paid_orders += other.paid_orders
     target.amount_paid += other.amount_paid
+    target.valued_orders += other.valued_orders
+    target.order_value += other.order_value
+    if other.order_currencies:
+        target.order_currencies = target.order_currencies | other.order_currencies
+    if other.ad_currencies:
+        target.ad_currencies = target.ad_currencies | other.ad_currencies
     target.ad_days += other.ad_days
     target.spend += other.spend
     target.ad_views += other.ad_views
@@ -182,14 +206,38 @@ def _ratio(part: float | Decimal, whole: float | Decimal, scale: int = 1) -> flo
 
 
 def _order_sum(f: Facts) -> float | None:
-    """Orders at the seller's price; ``None`` when orders exist but none was priced."""
+    """WB's own funnel sum of the orders; ``None`` unless WB valued every one of them.
+
+    A cell half valued by WB and half not has no sum in one currency — the
+    other half is only known at the seller's price, in roubles.
+    """
     if not f.funnel_days:
         return None
     if f.orders == 0:
         return 0.0
-    if f.priced_orders == 0:
+    if f.valued_orders < f.orders or len(f.order_currencies) != 1:
         return None
-    return round(float(f.amount_seller), 2)
+    return round(float(f.order_value), 2)
+
+
+def _mixed(f: Facts) -> bool:
+    """Whether the cell's spend adds two stated currencies (CONVERSION-TODO)."""
+    return len(f.ad_currencies - {""}) > 1
+
+
+def _paired(f: Facts) -> bool:
+    """Whether the spend is in the orders' currency, so ДРР divides like by like.
+
+    No spend is 0 % in any currency. A campaign never labelled (``""``) could
+    be either, so it does not pair (CONVERSION-TODO for the RUB ones).
+    """
+    return not f.spend or (len(f.order_currencies) == 1 and f.ad_currencies == f.order_currencies)
+
+
+def _spend(read: Callable[[Facts], float | None]) -> Callable[[Facts], float | None]:
+    """Guard a spend metric: an advertising read, and «—» over two currencies."""
+    guarded = _ads(read)
+    return lambda f: None if _mixed(f) else guarded(f)
 
 
 def _seller_price(f: Facts) -> float | None:
@@ -259,16 +307,16 @@ _READERS: dict[str, Callable[[Facts], float | None]] = {
     # Clamped, because the two feeds count a click slightly differently and a
     # negative organic figure would be a measurement artefact, not a finding.
     "organic_opens": _funnel(lambda f: max(f.opens - f.ad_clicks, 0)),
-    "spend": _ads(lambda f: round(float(f.spend), 2)),
+    "spend": _spend(lambda f: round(float(f.spend), 2)),
     "ad_views": _ads(lambda f: f.ad_views),
     "ad_clicks": _ads(lambda f: f.ad_clicks),
     "ctr": _ads(lambda f: _ratio(f.ad_clicks, f.ad_views, 100)),
-    "cpc": _ads(lambda f: _ratio(f.spend, f.ad_clicks)),
-    "cpm": _ads(lambda f: _ratio(f.spend, f.ad_views, 1000)),
+    "cpc": _spend(lambda f: _ratio(f.spend, f.ad_clicks)),
+    "cpm": _spend(lambda f: _ratio(f.spend, f.ad_views, 1000)),
     "ad_orders": _ads(lambda f: f.ad_orders),
     "ad_cr": _ads(lambda f: _ratio(f.ad_orders, f.ad_clicks, 100)),
-    "cpo": _ads(lambda f: _ratio(f.spend, f.ad_orders)),
-    "drr_orders": _ads(lambda f: _ratio(f.spend, _order_sum(f) or 0, 100)),
+    "cpo": _spend(lambda f: _ratio(f.spend, f.ad_orders)),
+    "drr_orders": _ads(lambda f: _ratio(f.spend, _order_sum(f) or 0, 100) if _paired(f) else None),
     "seller_price": _seller_price,
     "customer_price": _customer_price,
     "spp": _spp,
@@ -310,6 +358,20 @@ def spread_bonus(
             continue
         bonus = min(bonus_by_nm.get(nm, _ZERO), spend)
         cell.settled_bonus = bonus * cell.spend / spend
+
+
+#: The metrics whose figure is spend money — signed with the cell's own
+#: campaigns' currency, which differs from column to column across 20.08.2026.
+SPEND_MONEY: frozenset[str] = frozenset({"spend", "cpc", "cpm", "cpo"})
+
+
+def spend_unit(facts: Facts) -> str:
+    """The one stated currency of a cell's spend; ``""`` when none is stated.
+
+    A cell over two currencies shows no spend figure, so its unit never matters.
+    """
+    stated = facts.ad_currencies - {""}
+    return next(iter(stated)) if len(stated) == 1 else ""
 
 
 def read_metric(key: str, facts: Facts) -> float | None:

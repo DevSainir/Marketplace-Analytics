@@ -313,16 +313,16 @@ function catalogueOrder(groups) {
  * The per-day values of one metric, read straight out of the display matrix's
  * cells — a lookup, not a computation.
  */
-function readSeries(view, series) {
+function readSeries(view, series, field = 'raw') {
   const rows = view[series.source ?? 'rows'] ?? []
   const row = rows.find((candidate) => candidate.key === series.metric)
   if (!row) return view.days.map(() => null)
   // A mini-block row («Цены», «Остатки») already carries one cell per day.
-  if (series.source) return row.cells.map((cell) => cell.raw ?? null)
+  if (series.source) return row.cells.map((cell) => cell[field] ?? null)
 
   const column = BUCKET_INDEX.get(series.bucket)
   if (column === undefined) return view.days.map(() => null)
-  return view.days.map((_, day) => row.cells[day * COLUMNS_PER_DAY + column]?.raw ?? null)
+  return view.days.map((_, day) => row.cells[day * COLUMNS_PER_DAY + column]?.[field] ?? null)
 }
 
 /** Two decimals, the way the backend rounds every ratio it serves. */
@@ -422,6 +422,9 @@ function metricSeriesSpecs(view, { metrics = [], groups = [] } = {}) {
         type: entry.type ?? 'line',
         unit: entry.unit ?? 'number',
         currency: entry.currency ?? '',
+        // Each day's own sign, as its table cell prints it: across 20.08 the
+        // spend is roubles on one day and сомы on the next.
+        signs: entry.unit === 'currency' ? readSeries(view, entry, 'unit') : null,
         group: entry.group,
         color: colorForMetric(key),
         values: readSeries(view, entry),
@@ -459,6 +462,7 @@ export function buildMetricChart(view, { metrics = [], groups = [], hover } = {}
       type: columns ? spec.type : 'line',
       unit: spec.unit,
       currency: spec.currency,
+      signs: spec.signs,
       group: spec.group,
       color: spec.color,
       axisIndex,

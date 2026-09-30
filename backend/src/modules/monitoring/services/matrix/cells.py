@@ -6,11 +6,20 @@ the «Общая» column (:func:`_total_cell`), the «Органика» column
 (:func:`_campaign_drr_sales`). All of them resolve manually edited display
 values through :func:`_shown`, so a ratio never contradicts the cells it
 divides.
+
+No formula here adds or divides money of two currencies: a spend sum over
+campaigns billed differently, and a ДРР whose spend and order money differ,
+are «—» (see :mod:`~src.modules.monitoring.services.matrix.currency`).
 """
 
 from __future__ import annotations
 
 from src.modules.monitoring.schemas.matrix import MatrixDayBase, MatrixFunnelBase
+from src.modules.monitoring.services.matrix.currency import (
+    card_ad_currencies,
+    pairs_with_orders,
+    spend_is_mixed,
+)
 from src.modules.monitoring.services.matrix.pricing import (
     _buyout_sum,
     _funnel_order_sum,
@@ -19,6 +28,12 @@ from src.modules.monitoring.services.matrix.pricing import (
     ad_order_sum,
 )
 from src.modules.monitoring.services.matrix.slices import _BucketAcc, _percent, _ratio, _SkuSlice
+
+#: Metrics that are a spend sum or divide one — «—» when the spend they sum was
+#: billed in two currencies.
+_SPEND_METRICS: frozenset[str] = frozenset(
+    {"spend", "cpm", "cpc", "cost_per_order", "cost_per_cart"}
+)
 
 
 def _shown(day: MatrixDayBase, bucket: str, metric: str, computed: float | None) -> float | None:
@@ -59,6 +74,9 @@ def _ad_cell(
     """
     if acc is None:
         return None
+    codes = sorted(acc.currencies)
+    if key in _SPEND_METRICS and spend_is_mixed(codes):
+        return None  # CONVERSION-TODO: spend of two currencies in one cell
     match key:
         case "traffic_share":
             return _percent(acc.views, bid_type_views)
@@ -89,15 +107,17 @@ def _ad_cell(
             return float(acc.sku.orders) if acc.sku.orders < acc.orders else None
         case "order_conversion":
             return _percent(acc.orders, acc.add_to_cart)
-        case "order_sum":  # orders x seller_price (WB reports none per zone)
+        case "order_sum":  # orders x the day's order unit (WB reports none per zone)
             return ad_order_sum(acc.orders, day.funnel)
-        case "buyout_sum":  # «Заказы, ₽» x «Процент выкупа»
+        case "buyout_sum":  # «Заказы» x «Процент выкупа»
             return ad_buyout_sum(acc.orders, day.funnel, day.lagged_buyout_percent)
         case "cost_per_order":
             return _ratio(acc.spend, acc.orders)
         case "cost_per_cart":
             return _ratio(acc.spend, acc.add_to_cart)
         case "drr_orders":  # this zone's spend against the orders IT delivered
+            if not pairs_with_orders(codes, day):
+                return None  # CONVERSION-TODO: spend and order money differ
             return _percent(
                 _shown(day, bucket, "spend", acc.spend),
                 _shown(day, bucket, "order_sum", ad_order_sum(acc.orders, day.funnel)),
@@ -130,6 +150,11 @@ def _total_cell(
     lagged_buyout_percent = day.lagged_buyout_percent
     stock = day.stock
     counts = funnel if funnel is not None and funnel.has_funnel else None
+    codes = card_ad_currencies(day)
+    if key in _SPEND_METRICS and spend_is_mixed(codes):
+        return None  # CONVERSION-TODO: the card's day spent in two currencies
+    if key in ("drr_orders", "drr_sales") and not pairs_with_orders(codes, day):
+        return None  # CONVERSION-TODO: spend and order money differ
     match key:
         case "spend":
             return None if day_ad is None else round(day_ad.spend, 2)
@@ -147,9 +172,9 @@ def _total_cell(
             return None if counts is None else float(counts.order_count)
         case "order_conversion":
             return None if counts is None else _percent(counts.order_count, counts.cart_count)
-        case "order_sum":  # order_count x seller_price
+        case "order_sum":  # order_count x the day's order unit
             return _funnel_order_sum(funnel)
-        case "buyout_sum":  # order-date: «Заказы, ₽» x «Процент выкупа»
+        case "buyout_sum":  # order-date: «Заказы» x «Процент выкупа»
             return _buyout_sum(funnel, lagged_buyout_percent)
         case "seller_price":
             return None if funnel is None else funnel.seller_price
@@ -285,6 +310,9 @@ def _campaign_drr_sales(
         return None
     # Both sides are summed from what the zones SHOW, so a manually corrected
     # spend or buyout volume in any zone is the number this ratio divides.
+    codes = sorted({code for name in delivering for code in bucket_accs[name].currencies})
+    if not pairs_with_orders(codes, day):
+        return None  # CONVERSION-TODO: spend and order money differ
     spend = sum(_shown(day, name, "spend", bucket_accs[name].spend) or 0.0 for name in delivering)
     buyout = sum(
         _shown(

@@ -135,6 +135,7 @@ def _split_search(
         sku=sku_search_slice,
         assoc_skus=search_skus,
         assoc_exact=exact,
+        currency=total.currency,
     )
     shelves_slice = _AdSlice(
         views=total.views - s_views,
@@ -148,6 +149,7 @@ def _split_search(
         sku=sku_rest_slice,
         assoc_skus=rest_skus,
         assoc_exact=exact,
+        currency=total.currency,
     )
     return search_slice, shelves_slice
 
@@ -232,6 +234,7 @@ def _bucket_base(
         spend=round(acc.spend, 2),
         orders=acc.orders,
         order_sum=None if acc.order_sum is None else round(acc.order_sum, 2),
+        currencies=sorted(acc.currencies) if isinstance(acc, _BucketAcc) else [acc.currency],
         sku=MatrixAdSkuBase(
             views=acc.sku.views,
             clicks=acc.sku.clicks,

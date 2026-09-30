@@ -12,6 +12,7 @@ catalogue, so an article id from somewhere else is not in the set to begin with.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 
@@ -29,7 +30,7 @@ from src.modules.heatmap.schemas import (
     Period,
 )
 from src.modules.heatmap.services.loader import FactsWindow, load_facts
-from src.modules.heatmap.services.metrics import METRIC_SOURCES
+from src.modules.heatmap.services.metrics import METRIC_SOURCES, Facts
 from src.modules.heatmap.services.periods import build_columns
 from src.modules.heatmap.services.table import (
     GroupSpec,
@@ -159,6 +160,7 @@ class HeatmapService:
             currency=loaded.currency
             or await self._pnl.settlement_currency(workspace_id=workspace_id),
             price_currency=await load_price_currency(session, workspace_id=workspace_id),
+            order_currency=_order_currency(loaded.facts),
             ad_currencies=await load_ad_currencies(
                 session,
                 workspace_id=workspace_id,
@@ -170,6 +172,14 @@ class HeatmapService:
             totals=totals,
             rows=rows,
         )
+
+
+def _order_currency(facts: Mapping[tuple[int, date], Facts]) -> str:
+    """The currency WB's funnel sums are in — one per кабинет, the settlement's."""
+    for cell in facts.values():
+        if len(cell.order_currencies) == 1:
+            return next(iter(cell.order_currencies))
+    return ""
 
 
 def _sql_narrowing(

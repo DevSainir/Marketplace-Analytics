@@ -25,9 +25,11 @@ class _FakeClusterRepo:
         *,
         aggregates: list[ClusterAggregate] | None = None,
         series: list[ClusterDayPoint] | None = None,
+        currencies: dict[int, str] | None = None,
     ) -> None:
         self._aggregates = aggregates or []
         self._series = series or []
+        self._currencies = currencies or {}
         self.calls: list[dict[str, Any]] = []
 
     async def aggregate_for_sku(self, **kwargs: Any) -> list[ClusterAggregate]:
@@ -36,6 +38,9 @@ class _FakeClusterRepo:
 
     async def daily_series_for_sku(self, **kwargs: Any) -> list[ClusterDayPoint]:
         return self._series
+
+    async def campaign_currencies(self, *, campaign_ids: set[int]) -> dict[int, str]:
+        return {cid: code for cid, code in self._currencies.items() if cid in campaign_ids}
 
 
 def _service(*, clusters: _FakeClusterRepo | None = None) -> ClusterAnalytics:
@@ -127,3 +132,29 @@ async def test_days_wb_reported_nothing_for_are_returned_as_zeros() -> None:
         (date(2026, 8, 2), 0),
         (date(2026, 8, 3), 400),
     ]
+
+
+async def test_a_cluster_carries_its_campaigns_currency() -> None:
+    repo = _FakeClusterRepo(aggregates=[_aggregate(campaign_ids=(7,))], currencies={7: "KGS"})
+
+    response = await _service(clusters=repo).clusters_for_sku(
+        nm_id=NM_ID, date_from=None, date_to=None, limit=50
+    )
+
+    assert response.items[0].currencies == ["KGS"]
+    assert response.items[0].spend == 250.0
+
+
+async def test_a_cluster_billed_in_two_currencies_has_no_spend_figure() -> None:
+    """A RUB and a KGS campaign in one window: their sum would add roubles to сомы."""
+    repo = _FakeClusterRepo(
+        aggregates=[_aggregate(campaign_ids=(7, 8))], currencies={7: "RUB", 8: "KGS"}
+    )
+
+    response = await _service(clusters=repo).clusters_for_sku(
+        nm_id=NM_ID, date_from=None, date_to=None, limit=50
+    )
+
+    item = response.items[0]
+    assert (item.spend, item.cpc, item.cpm) == (None, None, None)
+    assert item.ctr == 5.0  # counts are one unit whatever the currency

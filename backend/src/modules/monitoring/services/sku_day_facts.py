@@ -64,9 +64,9 @@ class FunnelSkuDay(NamedTuple):
     """One SKU on one day of WB's sales funnel.
 
     ``amount_*`` are the day's orders valued at that same day's price snapshot
-    — the matrix's «Заказы, ₽» — and ``None`` where the day was never priced:
-    WB's funnel carries no money of its own, so an unpriced day has no value
-    rather than a value of zero.
+    (in the prices' currency), ``None`` where the day was never priced.
+    ``order_value`` is WB's own funnel sum of the day's orders, in
+    ``currency`` — the settlement's — and ``None`` where WB served none.
     """
 
     nm_id: int
@@ -76,10 +76,16 @@ class FunnelSkuDay(NamedTuple):
     orders: int
     amount_seller: Decimal | None
     amount_paid: Decimal | None
+    order_value: Decimal | None = None
+    currency: str = ""
 
 
 class AdSkuDay(NamedTuple):
-    """One SKU's advertising on one day, summed over its campaigns and platforms."""
+    """One SKU's advertising on one day, summed over its campaigns and platforms.
+
+    ``currencies`` is what those campaigns bill in — two codes on a day a RUB
+    and a KGS campaign both spent, ``""`` for one whose label was never recorded.
+    """
 
     nm_id: int
     stat_date: date
@@ -87,6 +93,7 @@ class AdSkuDay(NamedTuple):
     views: int
     clicks: int
     orders: int
+    currencies: tuple[str, ...] = ()
 
 
 class PriceSkuDay(NamedTuple):
@@ -189,6 +196,8 @@ async def load_funnel_sku_days(
             funnel.order_count,
             funnel.order_count * PriceSnapshot.seller_price,
             funnel.order_count * PriceSnapshot.customer_price,
+            funnel.order_sum,
+            funnel.currency,
         )
         .outerjoin(
             PriceSnapshot,
@@ -206,8 +215,12 @@ async def load_funnel_sku_days(
             orders=int(orders or 0),
             amount_seller=_money(seller),
             amount_paid=_money(paid),
+            order_value=_money(value),
+            currency=currency or "",
         )
-        for nm_id, day, opens, carts, orders, seller, paid in (await session.execute(stmt)).all()
+        for nm_id, day, opens, carts, orders, seller, paid, value, currency in (
+            await session.execute(stmt)
+        ).all()
     ]
 
 
@@ -240,6 +253,7 @@ async def load_ad_sku_days(
             func.sum(ads.views),
             func.sum(ads.clicks),
             func.sum(ads.orders),
+            func.array_agg(func.distinct(ads.currency)),
         )
         .where(ads.stat_date >= date_from, ads.stat_date <= date_to)
         .group_by(ads.nm_id, ads.stat_date)
@@ -253,8 +267,9 @@ async def load_ad_sku_days(
             views=int(views or 0),
             clicks=int(clicks or 0),
             orders=int(orders or 0),
+            currencies=tuple(sorted(codes or ())),
         )
-        for nm_id, day, spend, views, clicks, orders in (await session.execute(stmt)).all()
+        for nm_id, day, spend, views, clicks, orders, codes in (await session.execute(stmt)).all()
     ]
 
 

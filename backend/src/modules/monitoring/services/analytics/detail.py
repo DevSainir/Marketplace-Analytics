@@ -77,6 +77,7 @@ class MatrixInputs:
     campaign_search_totals: list[CampaignSearchDayTotal]
     campaign_sku_totals: list[CampaignDaySkuTotal]
     sku_labels: dict[int, str | None]
+    price_currency: str = ""
 
 
 def derive_fact_base(
@@ -97,6 +98,7 @@ def derive_fact_base(
         campaign_sku_totals=inputs.campaign_sku_totals,
         sku_labels=inputs.sku_labels,
         nm_id=nm_id,
+        price_currency=inputs.price_currency,
     )
 
 
@@ -234,7 +236,7 @@ class DetailAnalytics:
             # are in what the prices API states, the spend in what each
             # campaign is billed in — RUB and KGS respectively on a кабинет
             # that settles in KGS. See wildberries-api/references/currencies.md.
-            price_currency=await self._prices.currency_for_sku(nm_id=nm_id),
+            price_currency=inputs.price_currency,
             ad_currencies=await self._ad_currencies(
                 nm_id=nm_id, ad_rows=inputs.ad_rows, date_from=date_from, date_to=date_to
             ),
@@ -371,6 +373,7 @@ class DetailAnalytics:
             campaign_search_totals=campaign_search_totals,
             campaign_sku_totals=campaign_sku_totals,
             sku_labels=sku_labels,
+            price_currency=await self._prices.currency_for_sku(nm_id=nm_id),
         )
 
     async def _ad_currencies(

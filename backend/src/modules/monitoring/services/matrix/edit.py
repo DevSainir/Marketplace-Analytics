@@ -37,7 +37,8 @@ from src.modules.monitoring.schemas.matrix import (
 )
 from src.modules.monitoring.services.matrix.assoc import _allocate_counts
 from src.modules.monitoring.services.matrix.build import _day_ad_from_base
-from src.modules.monitoring.services.matrix.pricing import ad_order_sum
+from src.modules.monitoring.services.matrix.currency import pairs_with_orders
+from src.modules.monitoring.services.matrix.pricing import ad_order_sum, order_unit
 
 
 def _count(value: float) -> int:
@@ -214,10 +215,10 @@ def _edit_ad_bucket(
             _set_ad_metric(b, "spend", value)
         case "orders":
             _set_ad_metric(b, "orders", value, viewed_nm_id)
-        case "order_sum":  # orders x seller_price -> solve the orders count
+        case "order_sum":  # orders x the day's order unit -> solve the orders count
             # The displayed revenue is DERIVED from the campaign's orders, so
             # writing `b.order_sum` here would change nothing on screen.
-            price = day.funnel.seller_price if day.funnel else None
+            price, _currency = order_unit(day.funnel)
             if not price:
                 raise _readonly(bucket, metric)  # unpriced day → «—»
             _set_ad_metric(b, "orders", value / price, viewed_nm_id)
@@ -236,9 +237,9 @@ def _edit_ad_bucket(
             _set_ad_metric(b, "spend", value * b.orders)
         case "cost_per_cart":  # spend / add_to_cart
             _set_ad_metric(b, "spend", value * b.add_to_cart)
-        case "drr_orders":  # spend / (orders x seller_price) * 100
+        case "drr_orders":  # spend / (orders x the day's order unit) * 100
             order_sum = ad_order_sum(b.orders, day.funnel)
-            if not order_sum:
+            if not order_sum or not pairs_with_orders(b.currencies, day):
                 raise _readonly(bucket, metric)  # order revenue is «—» here
             _set_ad_metric(b, "spend", value / 100 * order_sum)
         case "traffic_share":
@@ -318,14 +319,15 @@ def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
             f.cart_count = _count(value / 100 * f.open_count)
         case "order_conversion" if counts_editable:  # order_count / cart_count * 100
             f.order_count = _count(value / 100 * f.cart_count)
-        case "order_sum" if counts_editable:  # order_count x seller_price
+        case "order_sum" if counts_editable:  # order_count x the day's order unit
             # Solve the COUNT, never the price: a price is a snapshot of what
             # the SKU cost that day, and no other cell's edit may rewrite it.
             # The advertising zones keep their own orders — this is the
             # SKU-wide funnel count, so «Органика» absorbs the difference.
-            if not f.seller_price:
+            price, _currency = order_unit(f)
+            if not price:
                 raise _readonly("total", metric)  # unpriced day → «—»
-            f.order_count = _count(value / f.seller_price)
+            f.order_count = _count(value / price)
         case _:
             # buyout_sum/spp derive from the prices and counts (read-only);
             # spend/views/cpc/cost_*/drr_* are cross-bucket ad roll-ups with no

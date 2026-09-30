@@ -20,6 +20,7 @@ from sqlalchemy import CursorResult, case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import AdvertisingClusterStatDaily as Row
+from src.modules.monitoring.models import AdvertisingStatDaily
 from src.modules.monitoring.repos.base import BaseRepository
 
 _CONFLICT = ("stat_date", "campaign_id", "nm_id", "cluster")
@@ -41,6 +42,8 @@ class ClusterAggregate:
         spend: Advertising expenses in rubles.
         avg_position: Impression-weighted average ad position; ``None`` when WB
             reported no position for any matched row.
+        campaign_ids: The campaigns that served in the cluster — what names the
+            currency its spend is in.
     """
 
     cluster: str
@@ -52,6 +55,7 @@ class ClusterAggregate:
     orders: int
     spend: float
     avg_position: float | None
+    campaign_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +156,7 @@ class AdvertisingClusterRepository(BaseRepository):
                 func.sum(Row.spend).label("spend"),
                 func.sum(Row.avg_position * positioned).label("weighted_position"),
                 func.sum(positioned).label("positioned_views"),
+                func.array_agg(func.distinct(Row.campaign_id)).label("campaign_ids"),
             )
             .where(
                 Row.nm_id == nm_id,
@@ -180,9 +185,27 @@ class AdvertisingClusterRepository(BaseRepository):
                     if row.positioned_views
                     else None
                 ),
+                campaign_ids=tuple(int(cid) for cid in row.campaign_ids or ()),
             )
             for row in result.all()
         ]
+
+    async def campaign_currencies(self, *, campaign_ids: Iterable[int]) -> dict[int, str]:
+        """What each campaign is billed in, as its fullstats rows state it.
+
+        A campaign's currency is fixed at its creation, so any labelled row
+        names it; MAX prefers a label over the blank of a row harvested before
+        labels were recorded. A campaign with no labelled row is absent.
+        """
+        ids = list(campaign_ids)
+        if not ids:
+            return {}
+        stmt = (
+            select(AdvertisingStatDaily.campaign_id, func.max(AdvertisingStatDaily.currency))
+            .where(AdvertisingStatDaily.campaign_id.in_(ids), AdvertisingStatDaily.currency != "")
+            .group_by(AdvertisingStatDaily.campaign_id)
+        )
+        return {int(cid): str(code) for cid, code in (await self._session.execute(stmt)).all()}
 
     async def daily_series_for_sku(
         self,

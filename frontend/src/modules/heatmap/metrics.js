@@ -31,7 +31,7 @@ export const METRICS = [
     key: 'order_sum',
     label: 'Заказы',
     unit: 'money',
-    currencyOf: 'prices',
+    currencyOf: 'orders',
     direction: 'up',
     group: 'Воронка',
   },
@@ -216,7 +216,7 @@ export function metricOf(key) {
  * The currency a money metric is in, from the grid's three.
  *
  * @param {(typeof METRICS)[number]} metric
- * @param {{prices?: string, ads?: string[], settlement?: string}} currencies
+ * @param {{prices?: string, ads?: string[], orders?: string, settlement?: string}} currencies
  * @returns {string|string[]} An ISO code, the codes of a window across the ad
  *   account's 2026-08-20 switch, or `''`.
  */
@@ -256,4 +256,29 @@ export function formatValue(value, unit, currency = '') {
   }
   const figure = formatNumber(Math.round(value))
   return unit === 'money' ? figure + currencySign(currency) : figure
+}
+
+/**
+ * One cell of a row as printed: its value, signed with the cell's own currency
+ * where the row names one per cell (spend, CPC, CPM, CPO — `units`), with the
+ * grid's otherwise.
+ *
+ * Across 20.08.2026 the spend is roubles in one column and сомы in the next, so
+ * a grid-wide sign would be wrong on half of them; a cell over both has no
+ * figure (the backend sends null).
+ *
+ * @param {object} row A `HeatmapRow`.
+ * @param {number|'total'} at A column index, or the row's «Итого».
+ * @param {(typeof METRICS)[number]|null} metric
+ * @param {object} currencies The grid's currencies (see {@link currencyOf}).
+ * @param {boolean} [second] Read the second metric's values.
+ * @returns {string}
+ */
+export function cellText(row, at, metric, currencies, second = false) {
+  const values = second ? row.values2 : row.values
+  const value = at === 'total' ? (second ? row.total2 : row.total) : values?.[at]
+  const units = second ? row.units2 : row.units
+  const own = at === 'total' ? (second ? row.total_unit2 : row.total_unit) : units?.[at]
+  const currency = units ? own : currencyOf(metric, currencies)
+  return formatValue(value, metric?.unit ?? 'count', currency)
 }

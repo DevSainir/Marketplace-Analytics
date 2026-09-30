@@ -87,6 +87,13 @@ class HeatmapRow(BaseModel):
     #: The second metric, when one was asked for.
     total2: float | None = None
     values2: list[float | None] | None = None
+    #: Per cell, the currency of a SPEND metric (spend, CPC, CPM, CPO) — each
+    #: cell in its own campaigns' currency, parallel to ``values``/``values2``.
+    #: ``None`` for any other metric: its currency is the grid's.
+    units: list[str] | None = None
+    total_unit: str = ""
+    units2: list[str] | None = None
+    total_unit2: str = ""
 
 
 class HeatmapResponse(BaseModel):
@@ -101,14 +108,16 @@ class HeatmapResponse(BaseModel):
     #: The settlement's currency — revenue and profit are in it. ``""`` before
     #: the first report.
     currency: str
-    #: The currency WB states for the prices — orders in money and both prices
-    #: are in it. NOT the settlement's: «Демо» settles in KGS and is priced
-    #: in RUB. ``""`` until a price snapshot has recorded it.
+    #: The currency WB states for the prices — both prices are in it. NOT the
+    #: settlement's: «Демо» settles in KGS and is priced in RUB. ``""``
+    #: until a price snapshot has recorded it.
     price_currency: str = ""
-    #: The currencies the advertising account billed in over the window —
-    #: spend, CPC, CPM and CPO. Two when the window crosses a switch (on
-    #: «Демо», RUB until ~2026-08-20 and KGS after).
+    #: The currencies the advertising account billed in over the window. Each
+    #: spend cell names its own in :attr:`HeatmapRow.units`; a cell over two
+    #: currencies has no figure (on «Демо», RUB until 20.08.2026, KGS after).
     ad_currencies: list[str] = Field(default_factory=list)
+    #: What «Заказы, деньги» is in — WB's funnel sums, the settlement currency.
+    order_currency: str = ""
     #: Last day WB has settled for this кабинет. Finance cells after it are
     #: ``None`` — WB has not calculated them — rather than zero.
     settled_to: date | None

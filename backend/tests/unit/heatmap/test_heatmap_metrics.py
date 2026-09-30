@@ -21,9 +21,12 @@ from src.modules.heatmap.services.metrics import (
 
 
 def _funnel_day(**over: object) -> Facts:
-    """A SKU-day the funnel reported, with a priced order volume."""
+    """A SKU-day the funnel reported: 10 orders at 10 000 ₽, WB's sum 10 370 с."""
     facts = Facts(funnel_days=1, opens=100, carts=20, orders=10, priced_orders=10)
     facts.amount_seller = Decimal("10000")
+    facts.valued_orders = 10
+    facts.order_value = Decimal("10370")
+    facts.order_currencies = frozenset({"KGS"})
     for name, value in over.items():
         setattr(facts, name, value)
     return facts
@@ -75,20 +78,50 @@ def test_a_day_without_ads_on_a_reported_day_is_a_real_zero() -> None:
     assert read_metric("spend", _funnel_day()) == 0.0
 
 
-def test_drr_divides_spend_by_the_orders_value() -> None:
-    """ДРР по заказам — ad spend over what the orders were worth at the seller's price."""
-    cell = _funnel_day(ad_days=1)
-    cell.spend = Decimal("1500")
-
-    assert read_metric("drr_orders", cell) == 15.0
+def test_the_orders_in_money_are_wbs_own_funnel_sum() -> None:
+    assert read_metric("order_sum", _funnel_day()) == 10370.0
 
 
-def test_drr_is_unknown_when_the_orders_were_never_priced() -> None:
-    """Orders with no price have no value; spend over nothing is not an infinite ДРР."""
-    cell = _funnel_day(ad_days=1, priced_orders=0, amount_seller=Decimal(0))
-    cell.spend = Decimal("1500")
+def test_drr_divides_kgs_spend_by_wbs_kgs_order_sum() -> None:
+    """ДРР по заказам — сомы over сомы, no rate of ours in between."""
+    cell = _funnel_day(ad_days=1, ad_currencies=frozenset({"KGS"}))
+    cell.spend = Decimal("1037")
+
+    assert read_metric("drr_orders", cell) == 10.0
+
+
+def test_drr_of_rub_spend_against_kgs_orders_is_unknown() -> None:
+    """Roubles over сомы is off by the day's rate — «—» until we convert."""
+    cell = _funnel_day(ad_days=1, ad_currencies=frozenset({"RUB"}))
+    cell.spend = Decimal("1037")
 
     assert read_metric("drr_orders", cell) is None
+    assert read_metric("spend", cell) == 1037.0
+
+
+def test_drr_is_unknown_when_wb_valued_only_part_of_the_orders() -> None:
+    """A week with a day WB served no sum for has no order sum in one currency."""
+    cell = _funnel_day(ad_days=1, ad_currencies=frozenset({"KGS"}), valued_orders=7)
+    cell.spend = Decimal("1500")
+
+    assert read_metric("order_sum", cell) is None
+    assert read_metric("drr_orders", cell) is None
+
+
+def test_spend_over_two_currencies_has_no_figure() -> None:
+    """A week across 20.08: a RUB and a KGS campaign cannot be added up."""
+    rub = Facts(ad_days=1, spend=Decimal("900"), ad_views=1000, ad_clicks=10)
+    rub.ad_currencies = frozenset({"RUB"})
+    kgs = Facts(ad_days=1, spend=Decimal("800"), ad_views=900, ad_clicks=9)
+    kgs.ad_currencies = frozenset({"KGS"})
+    week = Facts()
+
+    merge_days(week, rub)
+    merge_days(week, kgs)
+
+    for metric in ("spend", "cpc", "cpm", "cpo"):
+        assert read_metric(metric, week) is None, metric
+    assert read_metric("ctr", week) == 1.0
 
 
 def test_organic_opens_never_go_negative() -> None:

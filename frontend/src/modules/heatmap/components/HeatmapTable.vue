@@ -29,7 +29,7 @@ import SkuThumb from '@/core/components/SkuThumb.vue'
 import HeatmapNormInput from '@/modules/heatmap/components/HeatmapNormInput.vue'
 import { formatSku } from '@/core/utils/format'
 import { columnLabel, monitoringLink, storefrontUrl } from '@/modules/heatmap/grid'
-import { addsUp, currencyOf, formatValue } from '@/modules/heatmap/metrics'
+import { addsUp, cellText } from '@/modules/heatmap/metrics'
 
 const props = defineProps({
   columns: { type: Array, required: true },
@@ -82,14 +82,8 @@ const normTitle = computed(
   () => `Норма «${props.primary.label}»${addsUp(props.primary) ? ' в день' : ''}`,
 )
 
-const top = (value) =>
-  formatValue(value, props.primary.unit, currencyOf(props.primary, props.currencies))
-const bottom = (value) =>
-  formatValue(
-    value,
-    props.secondary?.unit ?? 'count',
-    currencyOf(props.secondary, props.currencies),
-  )
+const top = (row, at) => cellText(row, at, props.primary, props.currencies)
+const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies, true)
 </script>
 
 <template>
@@ -118,14 +112,12 @@ const bottom = (value) =>
           <td class="hm-grid__name">Итого</td>
           <td v-if="normOf" class="hm-grid__norm"></td>
           <td class="hm-grid__total">
-            <span class="hm-grid__top">{{ top(totals.total) }}</span>
-            <span v-if="secondary" class="hm-grid__bottom">{{ bottom(totals.total2) }}</span>
+            <span class="hm-grid__top">{{ top(totals, 'total') }}</span>
+            <span v-if="secondary" class="hm-grid__bottom">{{ bottom(totals, 'total') }}</span>
           </td>
-          <td v-for="(value, index) in totals.values" :key="index">
-            <span class="hm-grid__top">{{ top(value) }}</span>
-            <span v-if="secondary" class="hm-grid__bottom">{{
-              bottom(totals.values2[index])
-            }}</span>
+          <td v-for="(_value, index) in totals.values" :key="index">
+            <span class="hm-grid__top">{{ top(totals, index) }}</span>
+            <span v-if="secondary" class="hm-grid__bottom">{{ bottom(totals, index) }}</span>
           </td>
         </tr>
 
@@ -162,12 +154,12 @@ const bottom = (value) =>
             />
           </td>
           <td class="hm-grid__total">
-            <span class="hm-grid__top">{{ top(row.total) }}</span>
-            <span v-if="secondary" class="hm-grid__bottom">{{ bottom(row.total2) }}</span>
+            <span class="hm-grid__top">{{ top(row, 'total') }}</span>
+            <span v-if="secondary" class="hm-grid__bottom">{{ bottom(row, 'total') }}</span>
           </td>
-          <td v-for="(value, index) in row.values" :key="index" :style="tints[rowIndex]?.[index]">
-            <span class="hm-grid__top">{{ top(value) }}</span>
-            <span v-if="secondary" class="hm-grid__bottom">{{ bottom(row.values2[index]) }}</span>
+          <td v-for="(_value, index) in row.values" :key="index" :style="tints[rowIndex]?.[index]">
+            <span class="hm-grid__top">{{ top(row, index) }}</span>
+            <span v-if="secondary" class="hm-grid__bottom">{{ bottom(row, index) }}</span>
           </td>
         </tr>
       </tbody>

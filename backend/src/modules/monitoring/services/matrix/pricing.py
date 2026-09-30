@@ -1,8 +1,12 @@
-"""Per-day price/stock resolution and the ₽ values derived from them.
+"""Per-day price/stock resolution and the order money derived from them.
 
 Everything here is a pure function over already-fetched snapshots: a day is
 priced (or stocked) ONLY when a snapshot was captured on that exact date —
 values are never carried onto days that were not observed.
+
+Order money is valued at :func:`order_unit` — WB's own funnel sum per order
+where WB served one, the seller price otherwise — and is in that unit's
+currency, which is not always the prices' (see :class:`MatrixFunnelBase`).
 """
 
 from __future__ import annotations
@@ -14,34 +18,49 @@ from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas.matrix import MatrixFunnelBase, MatrixStockBase
 
 
+def order_unit(funnel: MatrixFunnelBase | None) -> tuple[float | None, str]:
+    """What one order is worth that day, and the currency it is counted in.
+
+    WB's funnel sum per order (``order_price``) where WB served one — the
+    settlement currency, converted by WB at the order day's rate — otherwise
+    the seller price in the prices' currency. Every order-money cell of the day
+    is valued at this one unit, so a day's order money is in one currency.
+    """
+    if funnel is None:
+        return None, ""
+    if funnel.order_price is not None and funnel.order_currency:
+        return funnel.order_price, funnel.order_currency
+    return funnel.seller_price, funnel.price_currency
+
+
 def ad_order_sum(orders: int, funnel: MatrixFunnelBase | None) -> float | None:
-    """«Заказы, ₽» an advertising slice brought = its orders x the day's price.
+    """«Заказы» an advertising slice brought = its orders x the day's order unit.
 
     WB exposes no zone-attributed order revenue (and none at all for a split
-    campaign), so the volume is DERIVED here — the same ``count x seller_price``
-    rule the «Общая» column uses, applied to the ad slice.
+    campaign), so the volume is DERIVED here — the same ``count x unit`` rule
+    the «Общая» column uses, applied to the ad slice (see :func:`order_unit`).
 
     ``orders`` is the CAMPAIGN's count, all associated size/colour variants
     included (an ad bucket carries no other kind — see :class:`_AdSlice`),
     because the column measures a рекламная кампания: an order the campaign
     paid for is revenue it brought whichever variant the buyer finally picked.
-    It is priced at the viewed card's ``seller_price`` — the only price a
-    SKU-scoped view has, and an approximation whenever the variants are not
-    priced alike.
+    It is valued at the viewed card's order unit — the only price a SKU-scoped
+    view has, and an approximation whenever the variants are not priced alike.
 
-    The funnel row itself is not required (ad orders are facts of the ad feed,
-    not the funnel) — only the day's seller price. ``None`` when the day is
+    The funnel counts themselves are not required (ad orders are facts of the
+    ad feed, not the funnel) — only the day's unit. ``None`` when the day is
     unpriced.
     """
-    if funnel is None or funnel.seller_price is None:
+    price, _currency = order_unit(funnel)
+    if price is None:
         return None
-    return round(orders * funnel.seller_price, 2)
+    return round(orders * price, 2)
 
 
 def ad_buyout_sum(
     orders: int, funnel: MatrixFunnelBase | None, lagged_buyout_percent: float | None
 ) -> float | None:
-    """«Выкупы, ₽» an advertising slice brought = its «Заказы, ₽» x «Процент выкупа».
+    """«Выкупы» an advertising slice brought = its «Заказы» x «Процент выкупа».
 
     Order-date attributed, exactly like the «Общая» column's buyout value: the
     orders a campaign delivered on day D are worth what that day's cohort
@@ -103,23 +122,27 @@ def _stock_for_day(ordered: list[StockDailyTotal], day: date) -> MatrixStockBase
 
 
 def _funnel_order_sum(funnel: MatrixFunnelBase | None) -> float | None:
-    """«Заказы, ₽» = order_count x seller_price (``None`` when unpriced).
+    """«Заказы» = order_count x the day's order unit (``None`` when unpriced).
 
-    ``None`` too on a price-only day (no funnel row yet): the zero count is
-    not a fact, so ``0 x price = 0 ₽`` would be fabricated.
+    With WB's funnel sum this IS that sum — ``count x sum / count`` — and it
+    still follows an edited count. ``None`` on a price-only day (no funnel row
+    yet): the zero count is not a fact, so ``0 x price = 0`` would be fabricated.
     """
-    if funnel is None or not funnel.has_funnel or funnel.seller_price is None:
+    if funnel is None or not funnel.has_funnel:
         return None
-    return round(funnel.order_count * funnel.seller_price, 2)
+    price, _currency = order_unit(funnel)
+    if price is None:
+        return None
+    return round(funnel.order_count * price, 2)
 
 
 def _buyout_sum(
     funnel: MatrixFunnelBase | None, lagged_buyout_percent: float | None
 ) -> float | None:
-    """«Выкупы, ₽» = «Заказы, ₽» x «Процент выкупа» — the order-date buyout value.
+    """«Выкупы» = «Заказы» x «Процент выкупа» — the order-date buyout value.
 
-    Attributed to the ORDER date (like «Заказы, ₽») so the row is congruent:
-    ``order_count x seller_price x buyout% = «Заказы, ₽» x «Процент выкупа»``.
+    Attributed to the ORDER date (like «Заказы») so the row is congruent:
+    ``order_count x unit x buyout% = «Заказы» x «Процент выкупа»``.
     ``None`` when the day is unpriced / has no funnel row, or the lagged buyout
     percent could not be computed.
     """

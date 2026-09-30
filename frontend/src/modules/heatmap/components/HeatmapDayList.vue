@@ -18,7 +18,7 @@ import SkuThumb from '@/core/components/SkuThumb.vue'
 import HeatmapNormInput from '@/modules/heatmap/components/HeatmapNormInput.vue'
 import { formatSku } from '@/core/utils/format'
 import { columnLabel } from '@/modules/heatmap/grid'
-import { addsUp, currencyOf, formatValue } from '@/modules/heatmap/metrics'
+import { addsUp, cellText } from '@/modules/heatmap/metrics'
 
 const props = defineProps({
   columns: { type: Array, required: true },
@@ -43,14 +43,8 @@ watch(
 )
 
 const column = computed(() => props.columns[index.value] ?? null)
-const top = (value) =>
-  formatValue(value, props.primary.unit, currencyOf(props.primary, props.currencies))
-const bottom = (value) =>
-  formatValue(
-    value,
-    props.secondary?.unit ?? 'count',
-    currencyOf(props.secondary, props.currencies),
-  )
+const top = (row, at) => cellText(row, at, props.primary, props.currencies)
+const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies, true)
 </script>
 
 <template>
@@ -81,9 +75,9 @@ const bottom = (value) =>
       <li v-if="totals" class="flex items-center gap-sm bg-canvas px-md py-sm font-semibold">
         <span class="flex-1">Итого</span>
         <span class="text-right">
-          <span class="block">{{ top(totals.values[index]) }}</span>
+          <span class="block">{{ top(totals, index) }}</span>
           <span v-if="secondary" class="block text-tiny text-muted">{{
-            bottom(totals.values2[index])
+            bottom(totals, index)
           }}</span>
         </span>
       </li>
@@ -97,7 +91,7 @@ const bottom = (value) =>
           <span class="block truncate text-base text-primary">
             {{ row.nm_id ? formatSku(row.label) : row.label }}
           </span>
-          <span class="block text-tiny text-muted">Итого: {{ top(row.total) }}</span>
+          <span class="block text-tiny text-muted">Итого: {{ top(row, 'total') }}</span>
           <label v-if="normOf" class="mt-xs flex items-center gap-xs text-tiny text-muted">
             <!-- No metric name on a phone: it is in the select above, and the
                  full name wrapped the line into three. -->
@@ -115,10 +109,8 @@ const bottom = (value) =>
           class="min-w-20 rounded-btn px-sm py-xs text-right tabular-nums text-primary"
           :style="tints[rowIndex]?.[index]"
         >
-          <span class="block text-base">{{ top(row.values[index]) }}</span>
-          <span v-if="secondary" class="block text-tiny opacity-70">{{
-            bottom(row.values2[index])
-          }}</span>
+          <span class="block text-base">{{ top(row, index) }}</span>
+          <span v-if="secondary" class="block text-tiny opacity-70">{{ bottom(row, index) }}</span>
         </span>
       </li>
     </ul>

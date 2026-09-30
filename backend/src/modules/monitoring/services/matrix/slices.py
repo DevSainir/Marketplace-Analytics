@@ -70,6 +70,9 @@ class _AdSlice:
     ``campaign_id`` is set on a campaign-day's WHOLE slice (its zone legs do not
     need it): it is what the matrix header links to.
 
+    ``currency`` is what the campaign is billed in (``""`` when never recorded);
+    its zone legs inherit it.
+
     ``assoc_skus`` names the variants behind the conversion totals (``nm_id`` →
     ``(carts, orders)``), always summing to them. ``assoc_exact`` says whether
     those per-variant counts are harvested fact or apportionment: splitting a
@@ -91,6 +94,7 @@ class _AdSlice:
     assoc_skus: dict[int, tuple[int, int]] = field(default_factory=dict)
     assoc_exact: bool = True
     campaign_id: int | None = None
+    currency: str = ""
 
 
 @dataclass
@@ -98,7 +102,8 @@ class _BucketAcc:
     """Accumulated advertising metrics of one (day, bucket) cell.
 
     The campaign's numbers (see :class:`_AdSlice`), with the viewed card's own
-    share in ``sku``.
+    share in ``sku``. ``currencies`` collects what each folded campaign is
+    billed in — two codes when campaigns of both currencies share the cell.
     """
 
     views: int = 0
@@ -110,6 +115,7 @@ class _BucketAcc:
     sku: _SkuSlice = field(default_factory=_SkuSlice)
     assoc_skus: dict[int, tuple[int, int]] = field(default_factory=dict)
     assoc_exact: bool = True
+    currencies: set[str] = field(default_factory=set)
 
     def add(self, piece: _AdSlice) -> None:
         """Fold a campaign slice into the bucket (revenue taint propagates)."""
@@ -118,6 +124,7 @@ class _BucketAcc:
         self.add_to_cart += piece.add_to_cart
         self.spend += piece.spend
         self.orders += piece.orders
+        self.currencies.add(piece.currency)
         self.sku.add(piece.sku)
         # One estimated slice taints the whole cell's breakdown: the listed
         # variants would no longer sum to the number the cell shows.

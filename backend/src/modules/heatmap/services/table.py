@@ -25,7 +25,14 @@ from dataclasses import dataclass
 from datetime import date
 
 from src.modules.heatmap.schemas import GroupBy, HeatmapRow
-from src.modules.heatmap.services.metrics import Facts, merge_days, merge_skus, read_metric
+from src.modules.heatmap.services.metrics import (
+    SPEND_MONEY,
+    Facts,
+    merge_days,
+    merge_skus,
+    read_metric,
+    spend_unit,
+)
 from src.modules.heatmap.services.periods import column_of_day
 from src.modules.monitoring.contract import CatalogCard
 
@@ -167,6 +174,8 @@ def _row(
         Facts(finance_known=True) if cell is None and known else cell
         for cell, known in zip(cells, settled, strict=True)
     ]
+    units = ["" if c is None else spend_unit(c) for c in cells]
+    spends = [metric in SPEND_MONEY, metric2 in SPEND_MONEY]
     return HeatmapRow(
         key=spec.key,
         label=spec.label,
@@ -182,6 +191,10 @@ def _row(
             if metric2 is None
             else [None if c is None else read_metric(metric2, c) for c in cells]
         ),
+        units=units if spends[0] else None,
+        total_unit=spend_unit(total) if spends[0] else "",
+        units2=units if spends[1] else None,
+        total_unit2=spend_unit(total) if spends[1] else "",
     )
 
 

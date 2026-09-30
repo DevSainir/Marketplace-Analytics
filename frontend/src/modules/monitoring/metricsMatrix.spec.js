@@ -304,6 +304,27 @@ describe('buildMetricsMatrix', () => {
     expect(cell.unit).toBe('с+₽')
   })
 
+  it("signs each day's cells with that day's own currencies when the backend states them", () => {
+    // Across 20.08 a RUB campaign spends one day and a KGS one the next; the
+    // order money is WB's funnel sum in сомы whatever the prices are in.
+    const product = structuredClone(PRODUCT)
+    product.matrix.currencies = [
+      { orders: 'KGS', ads: { uni_search: ['RUB'], total: ['RUB'] } },
+      { orders: 'KGS', ads: { uni_search: ['KGS'], total: ['KGS'] } },
+    ]
+    const matrix = buildMetricsMatrix(product, { prices: 'RUB', ads: ['KGS', 'RUB'] })
+
+    const units = (key, bucket) =>
+      matrix.rows
+        .find((r) => r.key === key)
+        .cells.filter((c) => c.bucket === bucket && c.raw != null)
+        .map((c) => c.unit)
+
+    expect(units('spend', 'uni_search')[0]).toBe('₽')
+    expect(units('order_sum', 'total').every((unit) => unit === 'с')).toBe(true)
+    expect(matrix.priceRows[0].cells.find((c) => c.raw != null).unit).toBe('₽')
+  })
+
   it('leaves a blank cell without a sign', () => {
     const matrix = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS'] })
 
@@ -359,12 +380,13 @@ describe('patchMetricsMatrix', () => {
     expect(patchMetricsMatrix(view, oneDay)).toBe(false)
   })
 
-  it('signals a rebuild when a unit is not the one the labels carry', () => {
-    // Patching touches cells only, so a table built before a unit arrived
-    // would keep its bare labels for the rest of the visit.
+  it('lands a unit that arrived after the build on the cells it belongs to', () => {
     const view = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: [] })
 
-    expect(patchMetricsMatrix(view, PRODUCT, { prices: 'RUB', ads: ['KGS'] })).toBe(false)
+    expect(patchMetricsMatrix(view, PRODUCT, { prices: 'RUB', ads: ['KGS'] })).toBe(true)
+
+    const spend = view.rows.find((r) => r.key === 'spend').cells.find((c) => c.raw != null)
+    expect(spend.display).toBe('15с')
   })
 
   it('patches in place when the units are unchanged', () => {

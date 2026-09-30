@@ -126,6 +126,24 @@ class MatrixMetricRow(BaseModel):
     )
 
 
+class MatrixDayCurrencies(BaseModel):
+    """What each money cell of one day column is counted in.
+
+    Two sources, never merged: the order money («Заказы»/«Выкупы» in money) is
+    WB's own funnel sum — in the кабинет's settlement currency — or, on a day WB
+    served none, the order count at the day's price, in the prices' currency.
+    The spend is in whatever each campaign is billed in, fixed at its creation,
+    so a bucket that folds two campaigns can hold two codes. ``""`` is a source
+    that states none (spend harvested before WB's label was recorded).
+    """
+
+    orders: str = Field(default="", description="Currency of the day's order money.")
+    ads: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Spend currencies per bucket key; «total» is the card's whole day.",
+    )
+
+
 class MetricsMatrixRead(BaseModel):
     """The complete day x bucket metrics matrix for one SKU window."""
 
@@ -136,6 +154,9 @@ class MetricsMatrixRead(BaseModel):
     )
     rows: list[MatrixMetricRow] = Field(
         default_factory=list, description="Metric rows in workbook order."
+    )
+    currencies: list[MatrixDayCurrencies] = Field(
+        default_factory=list, description="Per day, what its money cells are counted in."
     )
 
 
@@ -205,6 +226,9 @@ class MatrixAdBucketBase(BaseModel):
     one, if two campaigns of one type share it. The frontend links the traffic
     group's header to it. ``None`` where no single campaign is known (a cell
     built by an edit, or a working copy from before the field existed).
+
+    ``currencies`` is what the spend is billed in — one code per campaign
+    folded into the cell, ``""`` for one whose label was never recorded.
     """
 
     campaign_id: int | None = None
@@ -214,6 +238,7 @@ class MatrixAdBucketBase(BaseModel):
     spend: float = 0.0
     orders: int = 0
     order_sum: float | None = 0.0
+    currencies: list[str] = Field(default_factory=list)
     sku: MatrixAdSkuBase = Field(default_factory=MatrixAdSkuBase)
     assoc_skus: list[AssocSkuCount] = Field(default_factory=list)
     assoc_exact: bool = True
@@ -230,6 +255,14 @@ class MatrixFunnelBase(BaseModel):
     (the CURRENT day — prices/stock are snapshotted at harvest time, but the
     funnel always lags a day): the price cells render, while the count cells
     stay blank and read-only (zero counts are not facts there).
+
+    ``order_price`` is what one order was worth that day by WB's own funnel sum
+    (``orderSum / orderCount``), in ``order_currency`` — the settlement
+    currency, which WB converts to at the Bank of Russia rate of the order day.
+    The order money is valued at it, so it pairs with spend billed in the same
+    currency without any rate of ours. ``None`` on a day WB served no sum (or no
+    orders): the order money then falls back to ``seller_price``, in
+    ``price_currency``. See wildberries-api/references/currencies.md.
     """
 
     open_count: int = 0
@@ -238,6 +271,9 @@ class MatrixFunnelBase(BaseModel):
     seller_price: float | None = None
     customer_price: float | None = None
     has_funnel: bool = True
+    order_price: float | None = None
+    order_currency: str = ""
+    price_currency: str = ""
 
 
 class MatrixStockBase(BaseModel):

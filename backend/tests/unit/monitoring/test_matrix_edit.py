@@ -50,6 +50,7 @@ def _base() -> MatrixBaseState:
                     order_count=10,
                     seller_price=500.0,
                     customer_price=350.0,
+                    price_currency="RUB",
                 ),
                 lagged_buyout_percent=50.0,
             )

@@ -74,8 +74,13 @@ def _ad_row(
     spend: float = 0.0,
     orders: int = 0,
     order_sum: float = 0.0,
+    currency: str = "RUB",
 ) -> AdvertisingStatDaily:
-    """Construct an in-memory advertising fact row."""
+    """Construct an in-memory advertising fact row.
+
+    Billed in RUB by default, like the prices — the pre-20.08.2026 shape, where
+    a campaign's spend and the orders valued at the price are one currency.
+    """
     return AdvertisingStatDaily(
         stat_date=stat_date,
         campaign_id=campaign_id,
@@ -87,6 +92,7 @@ def _ad_row(
         spend=spend,
         orders=orders,
         order_sum=order_sum,
+        currency=currency,
     )
 
 
@@ -125,6 +131,7 @@ def _campaign_total(
     order_sum: float = 0.0,
     traffic_add_to_cart: int | None = None,
     traffic_orders: int | None = None,
+    currency: str = "RUB",
 ) -> CampaignDayTotal:
     """Construct one campaign-day's all-nm_id totals.
 
@@ -144,6 +151,7 @@ def _campaign_total(
         order_sum=order_sum,
         traffic_add_to_cart=traffic_add_to_cart or 0,
         traffic_orders=traffic_orders or 0,
+        currency=currency,
     )
 
 
@@ -159,6 +167,7 @@ def _ad_bucket(
     sku_orders: int | None = None,
     assoc_skus: list[AssocSkuCount] | None = None,
     assoc_exact: bool = True,
+    currencies: list[str] | None = None,
 ) -> MatrixAdBucketBase:
     """One ad bucket's input facts: the кампания's, with the card's share.
 
@@ -183,6 +192,7 @@ def _ad_bucket(
         ),
         assoc_skus=assoc_skus or [],
         assoc_exact=assoc_exact,
+        currencies=["RUB"] if currencies is None else currencies,
     )
 
 
@@ -195,12 +205,15 @@ def _funnel_row(
     buyout_count: int = 0,
     cancel_count: int | None = None,
     buyout_conversion: float = 0,
+    order_sum: float | None = None,
+    currency: str = "",
 ) -> SalesFunnelDaily:
-    """Construct an in-memory funnel row (₽ volumes are no longer stored).
+    """Construct an in-memory funnel row.
 
     ``cancel_count`` defaults to ``None`` — "the cohort pass has not refreshed
     this day", which is what a day outside the aggregate's refresh window looks
-    like in the database.
+    like in the database. ``order_sum`` defaults to none served: the day's
+    order money then falls back to the count at the seller price.
     """
     return SalesFunnelDaily(
         stat_date=stat_date,
@@ -214,6 +227,8 @@ def _funnel_row(
         cart_conversion=0,
         order_conversion=0,
         buyout_conversion=buyout_conversion,
+        order_sum=order_sum,
+        currency=currency,
     )
 
 
@@ -238,8 +253,9 @@ def _matrix(
     campaign_search_totals: list[CampaignSearchDayTotal] | None = None,
     date_from: date = DAY1,
     date_to: date = DAY1,
+    price_currency: str = "RUB",
 ) -> dict[str, list[float | None]]:
-    """Build a matrix and index its rows by metric key."""
+    """Build a matrix and index its rows by metric key (prices in RUB)."""
     matrix = build_metrics_matrix(
         date_from=date_from,
         date_to=date_to,
@@ -251,6 +267,7 @@ def _matrix(
         stock_daily=stock_daily or [],
         campaign_totals=campaign_totals,
         campaign_search_totals=campaign_search_totals,
+        price_currency=price_currency,
     )
     return {row.key: row.values for row in matrix.rows}
 

@@ -10,7 +10,7 @@
  * onto a canvas and cannot resolve a Tailwind class; when a token moves, it
  * moves here too.
  */
-import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
+import { formatMoney, formatMoneyFigure, formatNumber, formatPercent } from '@/core/utils/format'
 
 /** Tailwind `textColor.muted` / `textColor.primary` / `border.subtle`. */
 const INK_MUTED = '#858585'
@@ -78,17 +78,21 @@ export function colorForMetric(key) {
   return METRIC_COLORS[key] ?? FALLBACK_COLOR
 }
 
-/** Value formatters by the unit a metric measures; money in the series' own currency. */
+/**
+ * Value formatters by the unit a metric measures. Money takes the day's own sign
+ * when the series carries one, the series' currency otherwise.
+ */
 const FORMATTERS = {
-  currency: (value, currency) => formatMoney(value, currency),
+  currency: (value, currency, sign) =>
+    sign ? formatMoneyFigure(value) + sign : formatMoney(value, currency),
   number: (value) => formatNumber(Math.round(value)),
   percent: formatPercent,
 }
 
 /** Tooltip/legend text for one value; `null` reads «нет данных», not «0». */
-function formatValue(unit, value, currency) {
+function formatValue(unit, value, currency, sign) {
   if (value == null || !Number.isFinite(value)) return '—'
-  return (FORMATTERS[unit] ?? FORMATTERS.number)(value, currency)
+  return (FORMATTERS[unit] ?? FORMATTERS.number)(value, currency, sign)
 }
 
 /** "2026-07-05" -> "05.07.2026" — what a short window's rotated dates carry. */
@@ -386,6 +390,7 @@ function groupedTooltip(series, hover, currency) {
           entry.unit,
           entry.raw ? entry.raw[point.dataIndex] : point.value,
           entry.currency ?? currency,
+          entry.signs?.[point.dataIndex],
         )
         const heading =
           entry.group && entry.group !== lastGroup

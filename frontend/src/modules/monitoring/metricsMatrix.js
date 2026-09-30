@@ -17,12 +17,13 @@
  * frontend. This module only maps backend cells onto the workbook layout and
  * applies ru-RU display formatting; `null` cells render as «—».
  *
- * Money is in TWO units, and each row carries its own (`money: 'prices'|'ads'`).
- * A кабинет settled in KGS is still priced in RUB — so the prices and every sum
- * valued at them («Заказы», «Выкупы») are RUB — while its spend is in whatever
- * each campaign bills in: RUB before WB moved the ad account on 2026-08-20, KGS
- * after, both across that day. The backend states both on the detail response
- * (`price_currency`, `ad_currencies`); see {@link unitsOf}. Every money cell
+ * Money comes from three sources, and each row names its own
+ * (`money: 'prices'|'orders'|'ads'`). A кабинет settled in KGS is still priced in
+ * RUB; the order money («Заказы», «Выкупы») is WB's own funnel sum, in KGS; the
+ * spend is in whatever each campaign bills in — RUB before WB moved the ad
+ * account on 2026-08-20, KGS after. The backend states the orders' and the
+ * spend's currency per day and per column (`matrix.currencies`), the prices'
+ * once (`price_currency`); see {@link cellCurrency}. Every money cell
  * carries its own sign («45 679с», «4 120₽») as `unit` beside its `figure`, so
  * the grid can let the sign give way before a digit in a ~52px leaf column —
  * a right-aligned overflow clips the LEADING glyph and would print a different
@@ -144,8 +145,8 @@ const fmtPercent = (v) => (v == null ? EMPTY : formatPercent(v))
  * money (Заказы..Стоимость корзины), efficiency (the ДРР/выкуп trio).
  *
  * `money` names where a money row's currency comes from — `'prices'` for the
- * prices and the sums valued at them, `'ads'` for spend and every cost built on
- * it — and each of its cells carries that currency's sign. The funnel's counts
+ * prices, `'orders'` for the order money, `'ads'` for spend and every cost built
+ * on it — and each of its cells carries that currency's sign. The funnel's counts
  * say «шт» so that «Заказы» the count and «Заказы» the sum read apart.
  *
  * `emphasis` renders the row bigger and bolder («ДРР от продаж» is the
@@ -203,8 +204,8 @@ const METRIC_DEFS = [
     group: 'funnel',
     format: fmtPercent,
   },
-  { key: 'order_sum', label: 'Заказы', money: 'prices', group: 'money', format: fmtMoney },
-  { key: 'buyout_sum', label: 'Выкупы', money: 'prices', group: 'money', format: fmtMoney },
+  { key: 'order_sum', label: 'Заказы', money: 'orders', group: 'money', format: fmtMoney },
+  { key: 'buyout_sum', label: 'Выкупы', money: 'orders', group: 'money', format: fmtMoney },
   {
     key: 'cost_per_order',
     label: 'Стоимость заказа',
@@ -273,28 +274,60 @@ export function unitOfMetric(metric, currencies = {}) {
 }
 
 /**
- * The two units a SKU's money is in, as the detail response states them.
+ * The units a SKU's money is in over the window, as the detail response
+ * states them: the prices', the spend's, and the order money's.
  *
  * @param {object} [product] A `SkuDetailResponse`.
- * @returns {{prices: string, ads: string[]}} `''`/`[]` while WB has named none.
+ * @returns {{prices: string, ads: string[], orders: string[]}} Empty while WB
+ *   has named none.
  */
 export function unitsOf(product) {
-  return { prices: product?.price_currency ?? '', ads: product?.ad_currencies ?? [] }
+  const orders = new Set((product?.matrix?.currencies ?? []).map((day) => day.orders))
+  orders.delete('')
+  return {
+    prices: product?.price_currency ?? '',
+    ads: product?.ad_currencies ?? [],
+    orders: [...orders].sort(),
+  }
 }
 
 /**
- * The currency of one money source: the prices' code, or the campaigns' codes —
- * both for a window holding campaigns from both sides of the 2026-08-20 switch.
- * Nothing is converted anywhere, so a sum of both carries both signs.
+ * The currency of one money source over the whole window: the prices' code, or
+ * the campaigns' codes — both for a window holding campaigns from both sides of
+ * the 2026-08-20 switch. What a window-wide label (the chart's) can say; a cell
+ * names its own with {@link cellCurrency}.
  *
- * @param {'prices'|'ads'|undefined} source
- * @param {{prices?: string, ads?: string[]}} [currencies]
+ * @param {'prices'|'orders'|'ads'|undefined} source
+ * @param {{prices?: string, ads?: string[], orders?: string}} [currencies]
  * @returns {string|string[]} What {@link currencySign} takes.
  */
 export function moneyCurrency(source, currencies = {}) {
   if (source === 'ads') return currencies.ads ?? []
+  if (source === 'orders') {
+    return currencies.orders?.length ? currencies.orders : (currencies.prices ?? '')
+  }
   if (source === 'prices') return currencies.prices ?? ''
   return ''
+}
+
+/**
+ * The currency of ONE cell: its day's order money, or its column's spend on
+ * that day. A day never holds a figure over two currencies — the backend
+ * leaves such a cell empty — so the sign is exact where the window's is not.
+ * Falls back to the window's units against a backend that sends no per-day
+ * currencies.
+ *
+ * @param {'prices'|'orders'|'ads'|undefined} source
+ * @param {object} matrix The response's `matrix`.
+ * @param {number} dayIndex
+ * @param {string} bucket
+ * @param {{prices?: string, ads?: string[]}} [currencies]
+ */
+export function cellCurrency(source, matrix, dayIndex, bucket, currencies = {}) {
+  const day = matrix?.currencies?.[dayIndex]
+  if (source === 'orders' && day) return day.orders
+  if (source === 'ads' && day) return day.ads?.[bucket] ?? []
+  return moneyCurrency(source, currencies)
 }
 
 /** A row's label as the table prints it. The currency is on each cell, not here. */
@@ -333,9 +366,9 @@ function resolveRaw(values, bucketCount, bucketIndex, dayIndex) {
  * places with room — the phone list, the hover. The value comes precomputed
  * from the backend — this is formatting only.
  */
-function cellParts(def, raw, currencies) {
+function cellParts(def, raw, currency) {
   const figure = def.format(raw)
-  const unit = def.money && raw != null ? currencySign(moneyCurrency(def.money, currencies)) : ''
+  const unit = def.money && raw != null ? currencySign(currency) : ''
   return { figure, unit, display: figure + unit }
 }
 
@@ -412,8 +445,9 @@ function buildTotalRows(defs, matrix, backendValues, currencies) {
       tone: def.tone ?? null,
       cells: matrix.days.map((iso, dayIndex) => {
         const raw = resolveRaw(values, matrix.buckets.length, totalIndex, dayIndex)
+        const currency = cellCurrency(def.money, matrix, dayIndex, 'total', currencies)
         return {
-          ...cellParts(def, raw, currencies),
+          ...cellParts(def, raw, currency),
           raw,
           day: iso,
           bucket: 'total',
@@ -449,8 +483,9 @@ export function buildMetricsMatrix(product, currencies = {}) {
           const skuRaw = skuValues
             ? resolveRaw(skuValues, bucketCount, bucketIndex, dayIndex)
             : null
+          const currency = cellCurrency(def.money, matrix, dayIndex, column.key, currencies)
           return {
-            ...cellParts(def, raw, currencies),
+            ...cellParts(def, raw, currency),
             raw,
             assoc: cellAssoc(
               def,
@@ -490,17 +525,15 @@ export function buildMetricsMatrix(product, currencies = {}) {
  * mutating just the ~handful of affected cells lets Vue update only those DOM
  * nodes — no full re-render of the (potentially thousands of) cells.
  *
+ * Every cell's sign is re-read too, so a unit that arrived after the table was
+ * built lands on the cells it belongs to.
+ *
  * @returns {boolean} true when patched; false when the shape differs and the
- *   caller must rebuild from scratch (e.g. the window changed, or a unit
- *   arrived after the table was built — the labels would keep the old one).
+ *   caller must rebuild from scratch (e.g. the window changed).
  */
 export function patchMetricsMatrix(view, product, currencies = {}) {
   const matrix = product?.matrix
   if (!matrix?.days?.length || view?.days?.length !== matrix.days.length) return false
-  for (const source of ['prices', 'ads']) {
-    const was = currencySign(moneyCurrency(source, view.currencies))
-    if (was !== currencySign(moneyCurrency(source, currencies))) return false
-  }
   if (view.rows.length !== METRIC_DEFS.length) return false
   if (view.priceRows?.length !== PRICE_METRIC_DEFS.length) return false
   if (view.stockRows?.length !== STOCK_METRIC_DEFS.length) return false
@@ -522,8 +555,13 @@ export function patchMetricsMatrix(view, product, currencies = {}) {
         const bucketIndex = bucketIndexByColumn[columnIndex]
         const raw = resolveRaw(values, bucketCount, bucketIndex, dayIndex)
         const skuRaw = skuValues ? resolveRaw(skuValues, bucketCount, bucketIndex, dayIndex) : null
-        const parts = cellParts(def, raw, currencies)
-        const editable = isEditable(TRAFFIC_COLUMNS[columnIndex].key, def.key)
+        const bucket = TRAFFIC_COLUMNS[columnIndex].key
+        const parts = cellParts(
+          def,
+          raw,
+          cellCurrency(def.money, matrix, dayIndex, bucket, currencies),
+        )
+        const editable = isEditable(bucket, def.key)
         const assoc = cellAssoc(
           def,
           raw,
@@ -559,7 +597,8 @@ export function patchMetricsMatrix(view, product, currencies = {}) {
         const raw = resolveRaw(values, bucketCount, totalIndex, dayIndex)
         const editable = isEditable('total', def.key)
         if (cell.raw !== raw) cell.raw = raw
-        assignParts(cell, cellParts(def, raw, currencies))
+        const currency = cellCurrency(def.money, matrix, dayIndex, 'total', currencies)
+        assignParts(cell, cellParts(def, raw, currency))
         if (cell.editable !== editable) cell.editable = editable
       }
     }
