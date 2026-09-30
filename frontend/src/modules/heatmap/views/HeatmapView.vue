@@ -187,19 +187,21 @@ watch(
           :total="store.sortedRows.length"
           @update:page="store.page = $event"
         />
-        <p v-if="store.manualNorms" class="mt-sm text-tiny text-muted">
-          <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
-            class="rounded border border-border-subtle px-1"
-            >Z</kbd
-          >
-          — отменить,
-          <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
-            class="rounded border border-border-subtle px-1"
-            >Shift</kbd
-          >+<kbd class="rounded border border-border-subtle px-1">Z</kbd> — повторить.
-        </p>
       </div>
     </section>
+
+    <!-- Under the card, like the monitoring matrix's edit hint. -->
+    <p v-if="store.manualNorms" class="mt-sm text-tiny text-muted">
+      <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
+        class="rounded border border-border-subtle px-1"
+        >Z</kbd
+      >
+      — отменить,
+      <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
+        class="rounded border border-border-subtle px-1"
+        >Shift</kbd
+      >+<kbd class="rounded border border-border-subtle px-1">Z</kbd> — повторить.
+    </p>
 
     <HeatmapGroupDialog
       :open="dialogOpen"
