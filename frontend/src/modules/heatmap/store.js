@@ -18,7 +18,7 @@ import { extractErrorMessage } from '@/core/api/axios'
 import { presetRange } from '@/core/utils/calendarModel'
 import { daysBetween, isoDaysAgo } from '@/core/utils/dates'
 import * as api from '@/modules/heatmap/api'
-import { pageOf, rangeTintRows, sortRows, tintRows } from '@/modules/heatmap/grid'
+import { pageOf, sortRows, tintRows } from '@/modules/heatmap/grid'
 import { metricOf } from '@/modules/heatmap/metrics'
 
 /** The backend's own cap, repeated so the page can say it before asking. */
@@ -62,13 +62,8 @@ export const useHeatmapStore = defineStore('heatmap', () => {
   const totals = computed(() => data.value?.totals ?? null)
   const sortedRows = computed(() => sortRows(data.value?.rows ?? [], sort.value))
   const view = computed(() => pageOf(sortedRows.value, page.value, pageSize.value))
-  const painted = computed(() => primary.value ?? { direction: 'up', unit: 'count' })
   const tints = computed(() =>
-    tintRows(view.value.rows, sortedRows.value, mode.value, painted.value),
-  )
-  /** The comparison table's tints, on the first (worst-to-best) scale. */
-  const rangeTints = computed(() =>
-    rangeTintRows(view.value.rows, sortedRows.value, mode.value, painted.value),
+    tintRows(view.value.rows, sortedRows.value, mode.value, primary.value ?? { direction: 'up' }),
   )
   const tooLong = computed(() => daysBetween(dateFrom.value, dateTo.value) + 1 > MAX_DAYS)
 
@@ -227,7 +222,6 @@ export const useHeatmapStore = defineStore('heatmap', () => {
     sortedRows,
     view,
     tints,
-    rangeTints,
     tooLong,
     init,
     load,

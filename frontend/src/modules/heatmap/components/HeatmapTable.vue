@@ -30,7 +30,7 @@ const props = defineProps({
   period: { type: String, required: true },
   /** The rows on this page, already sorted. */
   rows: { type: Array, required: true },
-  /** One style (background, ink) per cell of each row, from `tintRows`. */
+  /** One style (background) per cell of each row, from `tintRows`. */
   tints: { type: Array, required: true },
   totals: { type: Object, default: null },
   primary: { type: Object, required: true },

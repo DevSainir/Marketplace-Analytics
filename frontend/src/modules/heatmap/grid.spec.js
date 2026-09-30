@@ -55,18 +55,13 @@ describe('pageOf', () => {
 })
 
 describe('tintRows', () => {
-  const orders = { direction: 'up', unit: 'count' }
+  const orders = { direction: 'up' }
 
-  it('leaves a flat row white in row mode', () => {
-    const flat = row('flat', [100, 104, 98, 101, 99])
-    const [tints] = tintRows([flat], [flat], 'row', orders)
-    expect(tints.every((tint) => !tint.background)).toBe(true)
-  })
-
-  it("paints a real dip against the row's own norm", () => {
+  it("paints a dip against the row's own median", () => {
     const dip = row('dip', [100, 104, 30, 101, 99])
     const [tints] = tintRows([dip], [dip], 'row', orders)
     expect(tints[2].background).toContain('--ui-neg-rgb')
+    expect(tints[0].background).toBeUndefined()
   })
 
   it('puts every row on one norm in table mode, not just the page', () => {

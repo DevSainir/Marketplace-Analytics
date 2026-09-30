@@ -8,14 +8,7 @@
  * page flip is instant instead of a round trip over the whole window.
  */
 import { MONTHS } from '@/core/utils/calendarModel'
-import {
-  departure,
-  heatStyle,
-  normOf,
-  rangeOf,
-  rangePosition,
-  rangeStyle,
-} from '@/modules/heatmap/heatScale'
+import { heatStyle, scaleOf } from '@/modules/heatmap/heatScale'
 
 const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб']
 
@@ -84,45 +77,23 @@ export function pageOf(rows, page, size) {
 /**
  * Tints for every cell of the rows on screen.
  *
- * «Дни одного товара» measures each row against its own norm (the median of
- * its days); «товары между собой» measures every row against the norm of the
- * whole SELECTION — not only this page — so turning the page does not quietly
- * change what green means. The «Итого» column and row are not painted: they
- * are the yardstick, not a sample.
+ * «По строке» measures each row against its own norm (the median of its days);
+ * «по всей таблице» measures every row against the norm of the whole
+ * SELECTION — not only this page — so turning the page does not quietly change
+ * what green means. The «Итого» column and row are not painted: they are the
+ * yardstick, not a sample.
  *
  * @param {Array<object>} pageRows The rows being drawn.
  * @param {Array<object>} allRows Every row of the selection.
  * @param {'row'|'table'} mode
- * @param {{direction: 'up'|'down'|'neutral', unit: string, band?: number}} metric
- *   The painted metric.
+ * @param {{direction: 'up'|'down'|'neutral'}} metric The painted metric.
  * @returns {Array<Array<object>>} One array of cell styles per row.
  */
 export function tintRows(pageRows, allRows, mode, metric) {
-  const options = { count: metric.unit === 'count', band: metric.band }
-  const table = mode === 'table' ? normOf(allRows.flatMap((row) => row.values)) : null
+  const table = mode === 'table' ? scaleOf(allRows.flatMap((row) => row.values)) : null
   return pageRows.map((row) => {
-    const norm = table ?? normOf(row.values)
-    return row.values.map((value) => heatStyle(departure(value, norm, options), metric.direction))
-  })
-}
-
-/**
- * The same tints on the range scale — worst to best of the compared cells —
- * for the second, comparison table. Same modes, same «Итого» rule.
- *
- * @param {Array<object>} pageRows
- * @param {Array<object>} allRows
- * @param {'row'|'table'} mode
- * @param {{direction: 'up'|'down'|'neutral'}} metric
- * @returns {Array<Array<object>>}
- */
-export function rangeTintRows(pageRows, allRows, mode, metric) {
-  const table = mode === 'table' ? rangeOf(allRows.flatMap((row) => row.values)) : null
-  return pageRows.map((row) => {
-    const range = table ?? rangeOf(row.values)
-    return row.values.map((value) =>
-      rangeStyle(rangePosition(value, range, metric.direction), metric.direction),
-    )
+    const scale = table ?? scaleOf(row.values)
+    return row.values.map((value) => heatStyle(value, scale, metric.direction))
   })
 }
 

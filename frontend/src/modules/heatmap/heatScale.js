@@ -1,86 +1,84 @@
 /**
- * The heatmap's colour: how far a cell sits from what is NORMAL for the cells
- * it is compared with, turned into a tint.
+ * The heatmap's colour: where a cell sits between the NORM of the cells it is
+ * compared with and their worst or best one, turned into a tint.
  *
  * Pure presentation — every figure is the backend's, and this only decides how
  * loudly to paint it.
  *
  * * **The norm is the median** of the compared cells — a typical day, which one
- *   outlier cannot drag the way it drags a min or a mean.
- * * **Near the norm is not painted.** Within the metric's band of it (±20 %
- *   by default, ±5 % for prices) the cell stays white; for counts (заказы,
- *   корзины, переходы) the band is at least ±√norm too, because 3 orders
- *   against a norm of 5 is ordinary noise for a small card.
- * * **Distance is a RATIO, not a difference.** Half the norm and twice the
- *   norm are equally far from it. Measured as a percentage, a fall can never
- *   pass −100 % while a rise has no ceiling, so 30 orders against a norm of 77
- *   (−61 %) read as a pale «slightly less» and a table whose norm is a couple
- *   of orders had no room to show anything red at all (2026-09-29).
- * * **Beyond the band the tint grows along a soft curve**: 1.5x the norm is a
- *   light-to-medium tint, 2x a strong one, 2.5x (or 0.4x) near full.
+ *   outlier cannot drag. The middle between the minimum and the maximum is not
+ *   a norm: one record day moves it for every other cell (owner, 2026-09-30).
+ * * **Every cell off the norm is painted**, however slightly: a faint tint
+ *   still says which side of usual the day fell on, where white says nothing.
+ *   Only a cell exactly at the norm stays white.
+ * * **Each side has its own scale.** Below the norm the tint grows to full at
+ *   the worst cell, above it at the best — so a spike deepens only its own
+ *   side and the ordinary days next to the norm stay pale.
  *
  * Direction decides the hue: «больше — лучше» paints above the norm green,
  * «меньше — лучше» (ДРР, CPC, CPM, CPO, the ad budget) paints it red. Prices,
- * СПП and stock have no better end and are painted in the action hue by
- * distance from the norm alone.
+ * СПП and stock have no better end and no «usual» worth measuring from: they
+ * are painted in the action hue by magnitude, the cheapest white.
  */
 
-/** Default share of the norm that still counts as «обычный день». */
-export const NORMAL_BAND = 0.2
+/** Strongest tint, as an alpha: the figure keeps the ordinary dark ink on it. */
+const MAX_ALPHA = 0.5
 
-/** How fast the tint saturates past the band, in log units: bigger = gentler. */
-const SOFTNESS = 0.5
-
-/** Tint of the faintest painted cell and of the strongest, as alphas. The
- *  ceiling is where the ordinary dark ink still reads on the darkest hue (the
- *  green): the owner wants no white figures at all (2026-09-29). */
-const MIN_ALPHA = 0.12
-const MAX_ALPHA = 0.65
+/** Faintest tint of a cell off the norm — just enough to see which side it is on. */
+const MIN_ALPHA = 0.05
 
 /**
- * The norm of the compared cells: their median. `null` when fewer than three
- * cells carry a value — two points have no «usual».
+ * Min, median and max of the finite values in `values`; `null` when there are
+ * none or they are all equal — with no spread there is no better or worse cell.
  *
  * @param {Iterable<number|null>} values
- * @returns {{median: number}|null}
+ * @returns {{min: number, median: number, max: number}|null}
  */
-export function normOf(values) {
+export function scaleOf(values) {
   const finite = []
   for (const value of values) {
     if (value !== null && value !== undefined && Number.isFinite(value)) finite.push(value)
   }
-  if (finite.length < 3) return null
+  if (!finite.length) return null
   finite.sort((a, b) => a - b)
+  const min = finite[0]
+  const max = finite[finite.length - 1]
+  if (max <= min) return null
   const middle = Math.floor(finite.length / 2)
   const median = finite.length % 2 ? finite[middle] : (finite[middle - 1] + finite[middle]) / 2
-  return { median }
+  return { min, median, max }
 }
 
 /**
- * How strongly a cell departs from the norm: 0 inside the normal band, rising
- * softly towards 1, signed — positive above the norm, negative below.
+ * How far a cell sits from the norm towards the extreme on its side: 0 at the
+ * norm, ±1 at the minimum or maximum — signed, positive above the norm.
  *
  * @param {number|null} value
- * @param {{median: number}|null} norm
- * @param {{count?: boolean, band?: number}} [options] `count` widens the band to
- *   ±√norm; `band` is the metric's own normal band as a share of the norm.
+ * @param {{min: number, median: number, max: number}|null} scale
  * @returns {number|null} `null` when there is nothing to place.
  */
-export function departure(value, norm, { count = false, band = NORMAL_BAND } = {}) {
-  if (value === null || value === undefined || !Number.isFinite(value) || !norm) return null
-  const { median } = norm
-  if (count && Math.abs(value - median) <= Math.sqrt(Math.max(median, 1))) return 0
-  if (median <= 0 || value < 0) {
-    // No ratio exists against a zero or negative norm (a card that usually
-    // sells nothing, a refund-heavy profit): anything clearly away from it is
-    // a full departure, and the sign says which way.
-    return Math.abs(value - median) < 1e-9 ? 0 : Math.sign(value - median)
-  }
-  if (value === 0) return -1
-  const distance = Math.log(value / median)
-  const beyond = Math.abs(distance) - Math.log(1 + band)
-  if (beyond <= 0) return 0
-  return Math.sign(distance) * Math.tanh(beyond / SOFTNESS)
+export function departure(value, scale) {
+  if (value === null || value === undefined || !Number.isFinite(value) || !scale) return null
+  const { min, median, max } = scale
+  if (value > median) return Math.min(1, (value - median) / (max - median))
+  if (value < median) return -Math.min(1, (median - value) / (median - min))
+  return 0
+}
+
+/**
+ * The style for a cell of a metric with no better end: action hue by
+ * magnitude, the minimum white.
+ *
+ * @param {number|null} value
+ * @param {{min: number, max: number}|null} scale
+ * @returns {{background?: string}}
+ */
+function magnitudeStyle(value, scale) {
+  if (value === null || value === undefined || !Number.isFinite(value) || !scale) return {}
+  const share = Math.min(1, Math.max(0, (value - scale.min) / (scale.max - scale.min)))
+  if (share === 0) return {}
+  const alpha = MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * share
+  return { background: `rgb(var(--ui-action-rgb) / ${alpha.toFixed(3)})` }
 }
 
 /**
@@ -89,84 +87,17 @@ export function departure(value, norm, { count = false, band = NORMAL_BAND } = {
  * Built from the design tokens' channel triples, so the heatmap follows the
  * palette rather than carrying colours of its own.
  *
- * @param {number|null} strength From {@link departure}.
- * @param {'up'|'down'|'neutral'} direction
- * @returns {{background?: string}}
- */
-export function heatStyle(strength, direction) {
-  if (strength === null || strength === 0) return {}
-  const alpha = MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * Math.abs(strength)
-  let channel = '--ui-action-rgb'
-  if (direction !== 'neutral') {
-    const better = direction === 'down' ? strength < 0 : strength > 0
-    channel = better ? '--ui-pos-rgb' : '--ui-neg-rgb'
-  }
-  return { background: `rgb(var(${channel}) / ${alpha.toFixed(3)})` }
-}
-
-/*
- * The first scale, kept side by side with the one above so the owner can
- * compare them on real data (2026-09-29): a cell placed between the WORST and
- * the BEST of the compared cells rather than against their norm. Every cell
- * gets some colour; the middle of the range stays unpainted.
- */
-
-/** Strongest tint of the range scale, as an alpha. */
-const RANGE_MAX_ALPHA = 0.5
-
-/** How far from the middle of the range a cell must sit before it is painted. */
-const DEAD_ZONE = 0.04
-
-/**
- * Min and max of the finite values in `values`, or `null` when there are none.
- *
- * @param {Iterable<number|null>} values
- * @returns {{min: number, max: number}|null}
- */
-export function rangeOf(values) {
-  let min = Infinity
-  let max = -Infinity
-  for (const value of values) {
-    if (value === null || value === undefined || !Number.isFinite(value)) continue
-    if (value < min) min = value
-    if (value > max) max = value
-  }
-  return min === Infinity ? null : { min, max }
-}
-
-/**
- * Where `value` sits in `range`, as 0 (worst) … 1 (best); for a neutral metric
- * plain magnitude. `null` when there is nothing to place or no spread.
- *
  * @param {number|null} value
- * @param {{min: number, max: number}|null} range
- * @param {'up'|'down'|'neutral'} direction
- * @returns {number|null}
- */
-export function rangePosition(value, range, direction) {
-  if (value === null || value === undefined || !Number.isFinite(value) || !range) return null
-  const spread = range.max - range.min
-  if (spread <= 0) return null
-  const share = Math.min(1, Math.max(0, (value - range.min) / spread))
-  return direction === 'down' ? 1 - share : share
-}
-
-/**
- * The style for a cell at `position` on the range scale.
- *
- * @param {number|null} position From {@link rangePosition}.
+ * @param {{min: number, median: number, max: number}|null} scale From {@link scaleOf}.
  * @param {'up'|'down'|'neutral'} direction
  * @returns {{background?: string}}
  */
-export function rangeStyle(position, direction) {
-  if (position === null) return {}
-  if (direction === 'neutral') {
-    const alpha = position * RANGE_MAX_ALPHA * 0.7
-    return alpha < 0.02 ? {} : { background: `rgb(var(--ui-action-rgb) / ${alpha.toFixed(3)})` }
-  }
-  const offset = position - 0.5
-  if (Math.abs(offset) < DEAD_ZONE) return {}
-  const alpha = Math.min(1, Math.abs(offset) * 2) * RANGE_MAX_ALPHA
-  const channel = offset > 0 ? '--ui-pos-rgb' : '--ui-neg-rgb'
+export function heatStyle(value, scale, direction) {
+  if (direction === 'neutral') return magnitudeStyle(value, scale)
+  const strength = departure(value, scale)
+  if (strength === null || strength === 0) return {}
+  const better = direction === 'down' ? strength < 0 : strength > 0
+  const channel = better ? '--ui-pos-rgb' : '--ui-neg-rgb'
+  const alpha = MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * Math.abs(strength)
   return { background: `rgb(var(${channel}) / ${alpha.toFixed(3)})` }
 }

@@ -23,7 +23,7 @@ import { formatNumber } from '@/core/utils/format'
 
 /**
  * @type {Array<{key: string, label: string, unit: Unit, direction: Direction,
- *   group: string, settled?: boolean, currencyOf?: CurrencySource, band?: number}>}
+ *   group: string, settled?: boolean, currencyOf?: CurrencySource}>}
  */
 export const METRICS = [
   { key: 'orders', label: 'Заказы, шт', unit: 'count', direction: 'up', group: 'Воронка' },
@@ -104,7 +104,6 @@ export const METRICS = [
   },
   {
     key: 'seller_price',
-    band: 0.05,
     label: 'Цена до СПП',
     unit: 'money',
     currencyOf: 'prices',
@@ -113,7 +112,6 @@ export const METRICS = [
   },
   {
     key: 'customer_price',
-    band: 0.05,
     label: 'Цена с СПП',
     unit: 'money',
     currencyOf: 'prices',
@@ -122,7 +120,6 @@ export const METRICS = [
   },
   {
     key: 'spp',
-    band: 0.05,
     label: 'СПП, %',
     unit: 'percent',
     direction: 'neutral',
