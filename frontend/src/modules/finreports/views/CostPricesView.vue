@@ -10,7 +10,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import { formatNumber, formatPercent } from '@/core/utils/format'
+import { currencyInWords, formatNumber, formatPercent } from '@/core/utils/format'
 import CostPriceExcelPanel from '@/modules/finreports/components/CostPriceExcelPanel.vue'
 import CostPriceGrid from '@/modules/finreports/components/CostPriceGrid.vue'
 import { useFinReportsStore } from '@/modules/finreports/store'
@@ -117,9 +117,9 @@ onMounted(() => {
       <h1 class="mt-sm text-h2 font-bold text-primary">Себестоимость</h1>
       <p class="mt-xs max-w-3xl text-base text-muted">
         Единственная цифра в отчёте, которой нет у WB. Указывайте себестоимость 1 ед.
-        <b>с фулфилментом</b>, в {{ currency }} — той же валюте, в которой WB рассчитывается. SKU
-        без себестоимости не занижают отчёт молча: они исключаются из расчёта прибыли, а её покрытие
-        показано и здесь, и на дашборде.
+        <b>с фулфилментом</b>, {{ currencyInWords(currency) }} — той же валюте, в которой WB
+        рассчитывается. SKU без себестоимости не занижают отчёт молча: они исключаются из расчёта
+        прибыли, а её покрытие показано и здесь, и на дашборде.
       </p>
     </header>
 

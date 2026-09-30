@@ -31,6 +31,21 @@ export function currencySign(currency = '') {
   return codes.map((code) => CURRENCY_SIGNS[code] ?? ` ${code}`).join('+')
 }
 
+/** How a sentence names a currency: «в сомах», «в рублях». */
+const CURRENCY_IN_WORDS = { KGS: 'в сомах', RUB: 'в рублях' }
+
+/**
+ * A currency as running text says it — «Себестоимость … в сомах» rather than
+ * «в KGS». An unfamiliar code is kept as the code.
+ *
+ * @param {string} [currency] ISO code.
+ * @returns {string} `''` when the currency is unknown.
+ */
+export function currencyInWords(currency = '') {
+  if (!currency) return ''
+  return CURRENCY_IN_WORDS[currency] ?? `в ${currency}`
+}
+
 /**
  * Money with the sign of the currency the source states, e.g. 12345.6 -> "12 346с".
  *

@@ -10,13 +10,15 @@
  *
  * Fed the same `/sizes` response as the table: one answer, two projections.
  */
-import { money, num, pct, units } from '@/modules/finreports/pnlFormat'
+import { num, pct, units, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'
 
 defineProps({
   /** @type {object|null} `{ loading, error, data }` for the article, or `null` before the ask. */
   state: { type: Object, default: null },
 })
+
+const { money } = usePnlMoney()
 </script>
 
 <template>

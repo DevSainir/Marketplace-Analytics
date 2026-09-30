@@ -32,7 +32,6 @@ const props = defineProps({
   baseDashboard: { type: Object, default: null },
   /** @type {object} `nm_id -> {loading, error, data}` — the opened size tables. */
   sizes: { type: Object, default: () => ({}) },
-  currency: { type: String, default: '' },
 })
 
 const emit = defineEmits(['toggle-exclusion', 'dashboard-change', 'load-sizes'])
@@ -97,7 +96,6 @@ function setPageSize(value) {
       class="sm:hidden"
       :rows="tableRows"
       :totals="totals"
-      :currency="currency"
       :sizes="sizes"
       @toggle-exclusion="emit('toggle-exclusion', $event)"
       @load-sizes="emit('load-sizes', $event)"
@@ -109,7 +107,6 @@ function setPageSize(value) {
       :rows="tableRows"
       :totals="totals"
       :sizes="sizes"
-      :currency="currency"
       :rows-per-page="rowsPerPage"
       @toggle-exclusion="emit('toggle-exclusion', $event)"
       @load-sizes="emit('load-sizes', $event)"

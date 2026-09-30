@@ -39,7 +39,7 @@ import PnlExclusionToggle from '@/modules/finreports/components/PnlExclusionTogg
 import PnlSkuRowIdentity from '@/modules/finreports/components/PnlSkuRowIdentity.vue'
 import PnlSkuSizeTable from '@/modules/finreports/components/PnlSkuSizeTable.vue'
 import { amountClass, toneClass } from '@/modules/finreports/pnlThresholds'
-import { money, pct } from '@/modules/finreports/pnlFormat'
+import { pct, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { useExpandedSkus, useFooterCells } from '@/modules/finreports/usePnlSkuTable'
 
 /** Page-size choices. A native select, not the paginator's built-in dropdown:
@@ -52,7 +52,6 @@ const props = defineProps({
   totals: { type: Object, default: null },
   /** @type {object} `nm_id -> {loading, error, data}` for the opened size tables. */
   sizes: { type: Object, default: () => ({}) },
-  currency: { type: String, default: '' },
   rowsPerPage: { type: Number, default: 50 },
 })
 
@@ -72,6 +71,7 @@ const { expanded, toggle } = useExpandedSkus(
   () => props.sizes,
 )
 const foot = useFooterCells(toRefs(props).totals)
+const { money, adMoney } = usePnlMoney()
 </script>
 
 <template>
@@ -146,7 +146,7 @@ const foot = useFooterCells(toRefs(props).totals)
         <span :class="toneClass('returnPct', data.returnPct)">{{ pct(data.returnPct) }}</span>
       </template>
     </Column>
-    <Column field="sales" :header="`Продажи, ${currency}`" sortable :footer="foot.sales">
+    <Column field="sales" header="Продажи" sortable :footer="foot.sales">
       <template #body="{ data }">{{ money(data.sales) }}</template>
     </Column>
     <Column field="averageCheque" header="Средний чек" sortable :footer="foot.averageCheque">
@@ -187,7 +187,7 @@ const foot = useFooterCells(toRefs(props).totals)
     </Column>
     <Column field="advertising" header="Реклама" sortable :footer="foot.advertising">
       <template #body="{ data }">
-        {{ money(data.advertising) }}
+        {{ adMoney(data.advertising) }}
         <span
           v-if="data.advertisingPct !== null"
           class="text-tiny"
@@ -200,8 +200,8 @@ const foot = useFooterCells(toRefs(props).totals)
     </Column>
     <Column field="adBonus" header="Бонусы" sortable :footer="foot.adBonus">
       <template #body="{ data }">
-        <span v-if="data.adBonus" class="text-status-positive"> −{{ money(data.adBonus) }} </span>
-        <template v-else>{{ money(data.adBonus) }}</template>
+        <span v-if="data.adBonus" class="text-status-positive"> −{{ adMoney(data.adBonus) }} </span>
+        <template v-else>{{ adMoney(data.adBonus) }}</template>
       </template>
     </Column>
     <Column field="roi" header="ROI" sortable :footer="foot.roi">

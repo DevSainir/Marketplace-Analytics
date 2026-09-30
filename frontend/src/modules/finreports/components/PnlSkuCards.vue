@@ -26,7 +26,7 @@ import SkuThumb from '@/core/components/SkuThumb.vue'
 import PnlSkuCardsTotals from '@/modules/finreports/components/PnlSkuCardsTotals.vue'
 import PnlSkuSizeList from '@/modules/finreports/components/PnlSkuSizeList.vue'
 import { DETAILS, SORT_KEYS } from '@/modules/finreports/pnlCardColumns'
-import { money, pct } from '@/modules/finreports/pnlFormat'
+import { pct, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'
 
 const props = defineProps({
@@ -34,7 +34,6 @@ const props = defineProps({
   rows: { type: Array, default: () => [] },
   /** @type {object|null} The «Итого» row from `sumRows`, pinned under the list. */
   totals: { type: Object, default: null },
-  currency: { type: String, default: '' },
   /** @type {object} nm_id -> size drill-down state, from the store. */
   sizes: { type: Object, default: () => ({}) },
 })
@@ -90,6 +89,9 @@ watch([expanded, () => props.sizes], ([open, sizes]) => {
     if (nmId && !sizes[nmId]) emit('load-sizes', nmId)
   }
 })
+
+const formatters = usePnlMoney()
+const { money } = formatters
 </script>
 
 <template>
@@ -189,7 +191,7 @@ watch([expanded, () => props.sizes], ([open, sizes]) => {
           <div v-for="detail in DETAILS" :key="detail.label" class="record-row">
             <span class="record-label">{{ detail.label }}</span>
             <span class="record-value" :class="detail.tone?.(row)">
-              {{ detail.get(row) }}
+              {{ detail.get(row, formatters) }}
               <span
                 v-if="detail.sub?.(row) && detail.sub(row) !== '—'"
                 :class="detail.subTone?.(row) || 'text-muted'"

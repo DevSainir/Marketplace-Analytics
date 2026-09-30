@@ -1,4 +1,5 @@
 <script setup>
+import { currencyInWords } from '@/core/utils/format'
 /**
  * Editable cost-price grid.
  *
@@ -130,7 +131,8 @@ const invalid = computed(() =>
         Себестоимость должна быть неотрицательным числом.
       </p>
       <p v-else class="text-tiny text-muted">
-        Себестоимость за 1 ед. с фулфилментом, в {{ currency }}. Применяется ко всей истории продаж.
+        Себестоимость за 1 ед. с фулфилментом, {{ currencyInWords(currency) }}. Применяется ко всей
+        истории продаж.
       </p>
     </div>
 

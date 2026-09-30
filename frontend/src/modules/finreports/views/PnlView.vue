@@ -14,6 +14,7 @@ import { RouterLink } from 'vue-router'
 
 import PnlDashboardCards from '@/modules/finreports/components/PnlDashboardCards.vue'
 import ReportFreshnessLine from '@/modules/finreports/components/ReportFreshnessLine.vue'
+import { providePnlCurrencies } from '@/modules/finreports/pnlFormat'
 import { shiftIsoDate } from '@/modules/finreports/savedPeriod'
 import { useFinReportsStore } from '@/modules/finreports/store'
 
@@ -55,6 +56,11 @@ const rows = computed(() => store.report?.rows ?? [])
 const unallocated = computed(() => store.report?.unallocated ?? null)
 const notes = computed(() => store.report?.notes ?? [])
 const currency = computed(() => store.report?.currency ?? '')
+// The report's money is the payout's currency; «Реклама» and «Бонусы» are the
+// campaigns' — RUB before WB moved the ad account to KGS on 2026-08-20.
+providePnlCurrencies(
+  computed(() => ({ settlement: currency.value, ads: store.report?.ad_currencies ?? [] })),
+)
 
 const isAllHistory = computed(
   () =>
@@ -215,7 +221,6 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           :unallocated="unallocated"
           :base-dashboard="store.report?.dashboard ?? null"
           :sizes="store.sizes"
-          :currency="currency"
           @toggle-exclusion="store.toggleExclusion($event.nmId, $event.excluded)"
           @dashboard-change="filteredDashboard = $event"
           @load-sizes="store.loadSizes($event)"

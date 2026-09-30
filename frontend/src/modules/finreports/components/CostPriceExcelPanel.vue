@@ -1,4 +1,5 @@
 <script setup>
+import { currencyInWords } from '@/core/utils/format'
 /**
  * Excel round-trip for cost prices — the bulk alternative to typing each SKU.
  *
@@ -36,9 +37,10 @@ function onFile(event) {
   >
     <div class="text-tiny font-medium uppercase tracking-wide text-muted">Excel: массовый ввод</div>
     <p class="mt-xs max-w-2xl text-base text-muted">
-      Скачайте P&amp;L по артикулам, заполните столбец «Себестоимость за 1 ед.» (в
-      {{ currency }}) и загрузите файл обратно. Читается только себестоимость и сопоставляется по
-      «Артикул WB»; пустые ячейки ничего не меняют. Форматы: .xlsx, .xls, .csv.
+      Скачайте P&amp;L по артикулам, заполните столбец «Себестоимость за 1 ед.» ({{
+        currencyInWords(currency)
+      }}) и загрузите файл обратно. Читается только себестоимость и сопоставляется по «Артикул WB»;
+      пустые ячейки ничего не меняют. Форматы: .xlsx, .xls, .csv.
     </p>
 
     <div class="mt-md flex flex-wrap items-center gap-md phone:gap-sm">

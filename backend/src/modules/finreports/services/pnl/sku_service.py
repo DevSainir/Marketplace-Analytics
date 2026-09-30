@@ -232,6 +232,7 @@ class SkuReportService:
             date_from=date_from,
             date_to=date_to,
             currency=currency,
+            ad_currencies=ad_currencies,
             rows=rows,
             unallocated=unallocated,
             totals=totals,
@@ -325,9 +326,9 @@ class SkuReportService:
         foreign = [code for code in ad_currencies if code != currency]
         if foreign:
             notes.append(
-                f"Реклама в этом периоде списана в {', '.join(foreign)}, а выплата — в "
-                f"{currency}. «Реклама», «Бонусы», ДРР, чистая прибыль и ROI "
-                "складывают и делят эти суммы как есть, без пересчёта по курсу: "
+                f"Реклама в этом периоде списана {_in_currency(foreign)}, а выплата — "
+                f"{_in_currency([currency])}. «Реклама», «Бонусы», ДРР, чистая прибыль и "
+                "ROI складывают и делят эти суммы как есть, без пересчёта по курсу: "
                 "по артикулам с такой рекламой они неточны."
             )
 
@@ -370,3 +371,15 @@ def _span_note(
         until = f" по {last.isoformat()}" if last is not None and last < date_to else ""
         return [f"«{column}» известны только с {first.isoformat()}{until} — не за весь период."]
     return []
+
+
+#: How a caveat names a currency: in words, not by its ISO code.
+_CURRENCY_IN_WORDS = {"KGS": "в сомах", "RUB": "в рублях"}
+
+
+def _in_currency(codes: list[str]) -> str:
+    """«в рублях», «в сомах и рублях» — a currency as a sentence says it."""
+    words = [_CURRENCY_IN_WORDS.get(code, f"в {code}") for code in codes]
+    if len(words) == 1:
+        return words[0]
+    return " и ".join([words[0], *(word.removeprefix("в ") for word in words[1:])])

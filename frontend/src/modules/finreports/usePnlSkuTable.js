@@ -9,7 +9,7 @@
 import { computed, ref, watch } from 'vue'
 
 import { formatNumber } from '@/core/utils/format'
-import { money, pct } from '@/modules/finreports/pnlFormat'
+import { pct, usePnlMoney } from '@/modules/finreports/pnlFormat'
 
 /**
  * Which articles are expanded, in the shape PrimeVue expects (a map by
@@ -55,6 +55,7 @@ export function useExpandedSkus(onOpen, sizesOf = () => ({})) {
  * @param {import('vue').Ref<object|null>} totals Строка из `sumRows`.
  */
 export function useFooterCells(totals) {
+  const { money, adMoney } = usePnlMoney()
   return computed(() => {
     const t = totals.value
     if (!t) return {}
@@ -71,8 +72,8 @@ export function useFooterCells(totals) {
       logistics: `${money(t.logistics)} (${pct(t.logisticsPct)})`,
       penalties: money(t.penalties),
       cogs: money(t.cogs),
-      advertising: `${money(t.advertising)}${drr}`,
-      adBonus: t.adBonus ? `−${money(t.adBonus)}` : money(t.adBonus),
+      advertising: `${adMoney(t.advertising)}${drr}`,
+      adBonus: t.adBonus ? `−${adMoney(t.adBonus)}` : adMoney(t.adBonus),
       roi: pct(t.roi),
       payout: money(t.payout),
     }

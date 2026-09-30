@@ -17,13 +17,15 @@
  * пагинируется, а вложенный DataTable внутри строки DataTable тянет за собой
  * вторую прокрутку внутри первой.
  */
-import { money, num as n, pct, units } from '@/modules/finreports/pnlFormat'
+import { num as n, pct, units, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'
 
 defineProps({
   /** @type {object|null} Ответ `/pnl/skus/{nmId}/sizes`, либо `null` пока грузится. */
   state: { type: Object, default: null },
 })
+
+const { money } = usePnlMoney()
 </script>
 
 <template>

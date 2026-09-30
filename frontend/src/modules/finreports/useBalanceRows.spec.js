@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'vitest'
 import { ref } from 'vue'
 
-import { currencySuffix, useBalanceRows } from '@/modules/finreports/useBalanceRows'
+import { moneyFormatter, useBalanceRows } from '@/modules/finreports/useBalanceRows'
 
 const BRUKI = {
   nm_id: 953770957,
@@ -172,18 +172,16 @@ describe('useBalanceRows', () => {
   })
 })
 
-describe('currencySuffix', () => {
-  it('shortens KGS to one character', () => {
+describe('moneyFormatter', () => {
+  const plain = (text) => text.replace(/\s/g, ' ')
+
+  it('signs the balance with its currency, one character for the som', () => {
     // A three-letter code per cell would cost a whole warehouse of screen width.
-    expect(currencySuffix('KGS')).toBe('с')
+    expect(plain(moneyFormatter('KGS')(57600))).toBe('57 600с')
   })
 
-  it('prints any other currency as its code, never as a typed-in sign', () => {
-    expect(currencySuffix('RUB')).toBe(' RUB')
-    expect(currencySuffix('USD')).toBe(' USD')
-  })
-
-  it('prints no unit when the currency is unknown', () => {
-    expect(currencySuffix('')).toBe('')
+  it('prints no sign when the currency is unknown, and a dash for a missing figure', () => {
+    expect(plain(moneyFormatter('')(57600))).toBe('57 600')
+    expect(moneyFormatter('KGS')(null)).toBe('—')
   })
 })

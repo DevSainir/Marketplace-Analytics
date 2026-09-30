@@ -348,7 +348,7 @@ async def test_rouble_advertising_in_a_som_window_is_named_not_converted(
     report = await _report(db_session)
 
     assert any(row.ad_bonus for row in report.rows)
-    assert any("в RUB" in note and "без пересчёта" in note for note in report.notes)
+    assert any("в рублях" in note and "без пересчёта" in note for note in report.notes)
 
 
 async def test_advertising_in_the_settlement_currency_needs_no_units_caveat(

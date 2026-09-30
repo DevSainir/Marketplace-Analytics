@@ -230,10 +230,7 @@ onMounted(() => store.fetchPins())
         <!-- «Рекламные кластеры» — only for кабинеты with the switch on (NEVA);
              see the block comment in <script setup>. -->
         <div v-if="clustersEnabled" id="sec-clusters">
-          <SkuClusterBlock
-            v-bind="clusters.clusterTableProps"
-            :currency="product?.ad_currencies ?? []"
-          />
+          <SkuClusterBlock v-bind="clusters.clusterTableProps" :currency="product?.ad_currencies" />
         </div>
       </template>
 

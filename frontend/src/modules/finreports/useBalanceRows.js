@@ -25,23 +25,7 @@ export const NAME_LIMIT = 8
  * balance mean different things on a table whose whole subject is money.
  */
 export function moneyFormatter(currency) {
-  const suffix = currencySuffix(currency)
-  return (value) => (value === null || value === undefined ? '—' : formatMoney(value) + suffix)
-}
-
-/**
- * The currency's suffix, so a cell reads «57 600с» and not «57 600 KGS» — the
- * grid is dozens of columns wide and a three-letter code per cell costs a whole
- * warehouse of screen space.
- *
- * KGS alone is shortened, to the «с» its sellers write. Every other code is
- * printed as the backend states it: a table of hand-picked signs is how the
- * rest of the app came to print a rouble sign beside KGS figures, so no sign is
- * typed here at all.
- */
-export function currencySuffix(currency) {
-  if (currency === 'KGS') return 'с'
-  return currency ? ` ${currency}` : ''
+  return (value) => (value === null || value === undefined ? '—' : formatMoney(value, currency))
 }
 
 /**
