@@ -180,22 +180,44 @@ async def test_a_lapsed_subscription_cannot_reach_the_heatmap(
     assert heatmap.calls == []
 
 
-@pytest.mark.parametrize("withheld", ["monitoring", "finreports"])
-async def test_both_module_grants_are_needed(
-    client: httpx.AsyncClient,
-    headers: dict[str, str],
-    login_as: Callable[..., None],
-    withheld: str,
+async def test_monitoring_is_needed_for_the_page(
+    client: httpx.AsyncClient, headers: dict[str, str], login_as: Callable[..., None]
 ) -> None:
-    """The grid shows orders and profit side by side, so either grant missing is a 403."""
+    """The grid is monitoring's funnel and advertising — without that grant, nothing."""
     login_as(
         role=EffectiveRole.MANAGER,
-        modules=tuple(m for m in ALL_MODULES if m != withheld),
+        modules=tuple(m for m in ALL_MODULES if m != "monitoring"),
     )
 
     response = await client.get("/api/v1/heatmap", headers=headers)
 
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("metric", "metric2", "status"),
+    [("orders", None, 200), ("revenue", None, 403), ("orders", "profit", 403)],
+)
+async def test_money_needs_the_pnl_grant_too(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    login_as: Callable[..., None],
+    heatmap: _StubHeatmapService,
+    metric: str,
+    metric2: str | None,
+    status: int,
+) -> None:
+    """A manager with monitoring alone gets the page, never the settlement's money."""
+    login_as(
+        role=EffectiveRole.MANAGER,
+        modules=tuple(m for m in ALL_MODULES if m != "finreports"),
+    )
+    params = {"metric": metric, **({"metric2": metric2} if metric2 else {})}
+
+    response = await client.get("/api/v1/heatmap", params=params, headers=headers)
+
+    assert response.status_code == status
+    assert len(heatmap.calls) == (1 if status == 200 else 0)
 
 
 async def test_the_grid_is_scoped_to_the_active_workspace(

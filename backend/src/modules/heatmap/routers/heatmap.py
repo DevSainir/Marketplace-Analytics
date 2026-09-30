@@ -15,7 +15,7 @@ from fastapi import APIRouter, Query, status
 from pydantic import Field, StringConstraints
 
 from src.core.deps import DbSession
-from src.core.exceptions import ValidationError
+from src.core.exceptions import PermissionDeniedError, ValidationError
 from src.core.timeutils import moscow_today
 from src.modules.heatmap.deps import HeatmapServiceDep
 from src.modules.heatmap.schemas import (
@@ -26,6 +26,8 @@ from src.modules.heatmap.schemas import (
     Period,
 )
 from src.modules.heatmap.services import HeatmapQuery
+from src.modules.heatmap.services.metrics import METRIC_SOURCES
+from src.modules.organizations.contract import ModuleKey, MonitoringAccess
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
 #: Default window when the caller names no dates: the thirty days ending
@@ -71,11 +73,12 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
     responses={
         200: {"description": "Тепловая карта за период."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Раздел доступен только внутренним учётным записям."},
+        403: {"description": "Нет раздела «Мониторинг», или финансовая метрика без раздела P&L."},
         422: {"description": "Период инвертирован или длиннее допустимого."},
     },
 )
 async def get_heatmap(
+    access: MonitoringAccess,
     service: HeatmapServiceDep,
     workspace_id: CurrentWorkspaceId,
     session: DbSession,
@@ -97,8 +100,18 @@ async def get_heatmap(
     caller sends decides what is written; the tenant is bound by
     :data:`CurrentWorkspaceId` exactly as for the read.
 
-    The guards live on the aggregating router (:mod:`src.modules.heatmap.routers`).
+    The monitoring grant is on the aggregating router
+    (:mod:`src.modules.heatmap.routers`); a finance metric also needs P&L,
+    checked here because only this route reads the settlement.
     """
+    reads_money = any("finance" in METRIC_SOURCES[m] for m in (metric, metric2) if m)
+    if reads_money and not access.can_reach(ModuleKey.FINREPORTS):
+        # The page is monitoring's; the settlement's money is P&L's, and a
+        # manager the owner did not grant P&L must not read it here instead.
+        raise PermissionDeniedError(
+            "Выручка, продажи и прибыль доступны с разделом P&L. "
+            "Доступ выдаёт владелец организации."
+        )
     start, end = _resolve_window(date_from, date_to)
     query = HeatmapQuery(
         date_from=start,
@@ -121,7 +134,7 @@ async def get_heatmap(
     responses={
         200: {"description": "Каталог кабинета для фильтров."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Раздел доступен только внутренним учётным записям."},
+        403: {"description": "Нет раздела «Мониторинг»."},
     },
 )
 async def get_catalog(

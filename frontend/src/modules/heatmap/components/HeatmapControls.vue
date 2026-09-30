@@ -12,15 +12,19 @@
  * Native selects, as everywhere in this app: they are the accessible picker on
  * a phone, and the list of twenty-five metrics is exactly what one is for.
  */
+import { computed } from 'vue'
+
 import { METRIC_GROUPS, metricLabel } from '@/modules/heatmap/metrics'
 
-defineProps({
+const props = defineProps({
   metric: { type: String, required: true },
   metric2: { type: String, default: null },
   period: { type: String, required: true },
   groupBy: { type: String, required: true },
   mode: { type: String, required: true },
   normMode: { type: String, required: true },
+  /** Whether the settlement's money metrics are offered — the P&L grant. */
+  finance: { type: Boolean, default: true },
   /** Whether «Норма: …» is offered — the lab build only. */
   norms: { type: Boolean, default: false },
   /** `{prices, ads: [], settlement}` from the grid, for the money metrics' names. */
@@ -35,6 +39,13 @@ const emit = defineEmits([
   'update:normMode',
   'swap',
 ])
+
+/** The picker's groups, without the money a caller has no P&L grant for. */
+const groups = computed(() =>
+  props.finance
+    ? METRIC_GROUPS
+    : METRIC_GROUPS.filter((group) => group.metrics.every((metric) => !metric.settled)),
+)
 
 const NORM_MODES = [
   { value: 'default', label: 'Норма: по умолчанию' },
@@ -66,7 +77,7 @@ const MODES = [
         aria-label="Основная метрика"
         @change="emit('update:metric', $event.target.value)"
       >
-        <optgroup v-for="group in METRIC_GROUPS" :key="group.label" :label="group.label">
+        <optgroup v-for="group in groups" :key="group.label" :label="group.label">
           <option v-for="option in group.metrics" :key="option.key" :value="option.key">
             {{ metricLabel(option, currencies) }}
           </option>
@@ -91,7 +102,7 @@ const MODES = [
         @change="emit('update:metric2', $event.target.value || null)"
       >
         <option value="">{{ metric2 ? 'Без второй метрики' : 'Выберите метрику' }}</option>
-        <optgroup v-for="group in METRIC_GROUPS" :key="group.label" :label="group.label">
+        <optgroup v-for="group in groups" :key="group.label" :label="group.label">
           <option
             v-for="option in group.metrics"
             :key="option.key"
