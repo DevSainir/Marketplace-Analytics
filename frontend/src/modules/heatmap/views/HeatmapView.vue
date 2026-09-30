@@ -99,8 +99,11 @@ watch(
 
 watch(
   () => props.labs,
-  (labs) => {
-    norms.mode = 'default'
+  (labs, before) => {
+    // The public page never paints hand-set norms; the lab keeps the mode it
+    // had (remembered for a while — see `settingsMemory.js`) unless the reader
+    // just came over from the public page.
+    if (!labs || before === false) norms.mode = 'default'
     if (labs) norms.load().catch((err) => (norms.error = extractErrorMessage(err)))
   },
   { immediate: true },
@@ -142,17 +145,6 @@ watch(
 
       <p v-if="store.error" class="mb-md text-base text-status-negative">{{ store.error }}</p>
       <p v-if="norms.error" class="mb-md text-base text-status-negative">{{ norms.error }}</p>
-      <p v-if="store.manualNorms" class="mb-sm text-tiny text-muted">
-        <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
-          class="rounded border border-border-subtle px-1"
-          >Z</kbd
-        >
-        — отменить,
-        <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
-          class="rounded border border-border-subtle px-1"
-          >Shift</kbd
-        >+<kbd class="rounded border border-border-subtle px-1">Z</kbd> — повторить.
-      </p>
       <p v-if="settledNote" class="mb-sm text-tiny text-muted">{{ settledNote }}</p>
       <p v-if="store.loading && !store.data" class="py-xl text-center text-base text-muted">
         Считаем…
@@ -195,6 +187,17 @@ watch(
           :total="store.sortedRows.length"
           @update:page="store.page = $event"
         />
+        <p v-if="store.manualNorms" class="mt-sm text-tiny text-muted">
+          <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
+            class="rounded border border-border-subtle px-1"
+            >Z</kbd
+          >
+          — отменить,
+          <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
+            class="rounded border border-border-subtle px-1"
+            >Shift</kbd
+          >+<kbd class="rounded border border-border-subtle px-1">Z</kbd> — повторить.
+        </p>
       </div>
     </section>
 

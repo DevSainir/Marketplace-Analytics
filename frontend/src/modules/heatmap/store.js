@@ -21,6 +21,7 @@ import * as api from '@/modules/heatmap/api'
 import { pageOf, sortRows, tintRows } from '@/modules/heatmap/grid'
 import { metricOf } from '@/modules/heatmap/metrics'
 import { useHeatmapNormsStore } from '@/modules/heatmap/normsStore'
+import { recallSettings, rememberSettings } from '@/modules/heatmap/settingsMemory'
 
 /** The backend's own cap, repeated so the page can say it before asking. */
 export const MAX_DAYS = 366
@@ -57,6 +58,41 @@ export const useHeatmapStore = defineStore('heatmap', () => {
   const groupError = ref('')
 
   let inFlight = null
+
+  // Settings that should survive a detour to another page or a reload — see
+  // `settingsMemory.js`. Restored before any watcher exists, so a restore is
+  // not itself a change.
+  const REMEMBERED = {
+    dateFrom,
+    dateTo,
+    metric,
+    metric2,
+    period,
+    groupBy,
+    subjects,
+    groupIds,
+    nmIds,
+    mode,
+    sort,
+    pageSize,
+  }
+  const recalled = recallSettings()
+  if (recalled) {
+    for (const [name, target] of Object.entries(REMEMBERED)) {
+      if (name in recalled) target.value = recalled[name]
+    }
+    if (recalled.normMode) norms.mode = recalled.normMode
+  }
+  watch(
+    [...Object.values(REMEMBERED), () => norms.mode],
+    () => {
+      const settings = Object.fromEntries(
+        Object.entries(REMEMBERED).map(([name, target]) => [name, target.value]),
+      )
+      rememberSettings({ ...settings, normMode: norms.mode })
+    },
+    { deep: true },
+  )
 
   const primary = computed(() => metricOf(data.value?.metric ?? metric.value))
   const secondary = computed(() => metricOf(data.value?.metric2 ?? null))
