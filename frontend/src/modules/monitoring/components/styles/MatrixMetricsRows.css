@@ -72,6 +72,19 @@
   outline: none;
 }
 
+/* A money figure hangs its currency sign into the cell's right padding: the
+   digits end where an unsigned cell's do, and «145 679с» gets the 4px it is
+   short of in a ~50px leaf column (`MatrixFigure.vue`). The padding is the
+   cell's `px-xs` from main.css; the neighbour keeps its own left padding, so
+   the sign never touches the next figure. */
+.app-datatable--matrix tbody.matrix-metrics td .matrix-figure--signed {
+  --matrix-figure-hang: theme('spacing.xs');
+  /* Proportional digits buy the last ~5px a six-digit sum needs at 1280px
+     («145 679» is 43px tabular, 38px proportional). Nothing is lost: a
+     column here stacks different metrics, not figures read digit-under-digit. */
+  font-variant-numeric: proportional-nums;
+}
+
 .matrix-cell-input {
   width: 100%;
   min-width: 3.5rem;
