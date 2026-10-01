@@ -151,7 +151,9 @@ const { money } = formatters
               {{ money(row.profit) }}
             </span>
             <span class="record-support">
-              <span :class="toneClass('profitPct', row.profitPct)">{{ pct(row.profitPct) }}</span>
+              <span :class="toneClass('profitPct', row.profitPct, row.priceBase)">{{
+                pct(row.profitPct)
+              }}</span>
               · {{ money(row.sales) }}
             </span>
           </span>

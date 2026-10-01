@@ -77,7 +77,8 @@ describe('sumRows — строка «Итого»', () => {
       orders: 100,
       sold: 40,
       returned: 4,
-      delivered: 100,
+      buyoutUnits: 30,
+      decidedUnits: 40,
       sales: 1000,
       seller: 1000,
       paid: 900,
@@ -106,12 +107,18 @@ describe('sumRows — строка «Итого»', () => {
     expect(t.returnPct).toBeCloseTo((8 / 80) * 100)
   })
 
-  it('выкуп итога — продано к доставкам по сумме штук, а не среднее процентов', () => {
-    // 40/100 и 40/400: среднее процентов дало бы 25 %, а по штукам — 80/500.
-    const t = sumRows([flat(), flat({ nmId: 2, delivered: 400 })])
+  it('выкуп итога — выкупы к решённым заказам по сумме штук, а не среднее процентов', () => {
+    // 30/40 и 10/100: среднее процентов дало бы 42,5 %, а по штукам — 40/140.
+    const t = sumRows([flat(), flat({ nmId: 2, buyoutUnits: 10, decidedUnits: 100 })])
 
-    expect(t.delivered).toBe(500)
-    expect(t.buyoutPct).toBeCloseTo((80 / 500) * 100)
+    expect(t.decidedUnits).toBe(140)
+    expect(t.buyoutPct).toBeCloseTo((40 / 140) * 100)
+  })
+
+  it('без воронки выкуп итога неизвестен, а не ноль', () => {
+    const t = sumRows([flat({ buyoutUnits: null, decidedUnits: null })])
+
+    expect(t.buyoutPct).toBeNull()
   })
 
   it('не берёт в сумму строки, отмеченные «Не включать в общий счёт»', () => {

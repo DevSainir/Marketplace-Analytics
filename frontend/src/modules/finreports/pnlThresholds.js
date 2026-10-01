@@ -7,18 +7,28 @@
  * обычного разброса, остаётся обычным текстом — если подкрасить половину
  * таблицы, не выделено ничего.
  *
- * Рамки взяты по фактическому распределению кабинета «Демо» (окна 30 / 90 /
- * 365 дней, 30–40 артикулов с продажами), а не выдуманы: красная граница стоит
- * примерно на верхнем дециле, зелёная — примерно на нижнем квартиле, так что в
- * типичном отчёте подсвечено несколько строк, а не всё подряд. Замеренные
- * квартили на 90 днях, для сверки при следующей правке:
+ * Рамки взяты по фактическому распределению кабинета «Демо», а не
+ * выдуманы: красная граница стоит примерно на верхнем дециле, зелёная —
+ * примерно на нижнем квартиле (у «чем больше, тем лучше» — наоборот), так что в
+ * типичном отчёте подсвечено несколько строк, а не всё подряд. Замер 01.10.2026,
+ * окно 03.07–30.09 (90 дней), 32 артикула с продажами; p10 / p25 / медиана /
+ * p75 / p90:
  *
- *   Возвраты %        p25 10,4   медиана 12,6   p75 16,1   max 27,8
- *   Доля логистики    p25 19,8   медиана 29,2   p75 34,1   max 70,4
- *   ДРР               p25  0,0   медиана  0,0   p75  7,9   max 26,0
- *   Маржа %           p25 12,2   медиана 31,3   p75 38,8   min −24,2
- *   ROI               p25   38   медиана  120   p75  178   min −54
- *   Выкуп %           p25 22,3   медиана 30,4   p75 35,2
+ *   Логистика, цена селлера     14,3 / 17,6 / 24,0 / 29,9 / 39,1
+ *   Логистика, цена реализации  18,0 / 21,6 / 28,8 / 37,0 / 47,6
+ *   ДРР, цена селлера            0,0 /  0,0 /  3,3 /  9,2 / 14,5
+ *   ДРР, цена реализации         0,0 /  0,0 /  3,7 / 11,2 / 16,0
+ *   Маржа %, цена селлера       −2,2 /  9,3 / 24,8 / 32,1 / 34,5
+ *   Маржа %, цена реализации    −2,5 / 10,8 / 31,7 / 38,9 / 42,4
+ *   Возвраты %                   2,9 /  9,9 / 12,6 / 15,5 / 21,2
+ *   ROI                         −6,5 /   37 /  116 /  173 /  210
+ *   Выкуп (воронка WB)          16,0 / 21,1 / 26,3 / 29,8 / 35,3
+ *
+ * Низ ДРР не настоящий: в окно попала рублёвая открутка старых кампаний,
+ * сложенная с сомами без курса, — рамки ДРР поставлены от медианы вверх. Выборка
+ * мала (p10 и p90 держатся на 2–3 артикулах): при следующей правке перемерить.
+ * ROI и маржа оставляют «плохо» на смысловой границе (партия не отбилась, убыток),
+ * а не на перцентиле.
  *
  * СПП сознательно не подсвечивается: это скидка за счёт WB, на деньги продавца
  * она не влияет, и «хорошей» или «плохой» стороны у неё нет.
@@ -31,21 +41,40 @@
  */
 export const BOUNDS = {
   /** Возвраты: доля выкупленного, что вернули. Меньше — лучше. */
-  returnPct: { good: 8, bad: 20, higherIsBetter: false },
+  returnPct: { good: 10, bad: 21, higherIsBetter: false },
   /** Доля логистики в выручке — самая тяжёлая статья при низком выкупе. */
-  logisticsPct: { good: 20, bad: 35, higherIsBetter: false },
+  logisticsPct: { good: 18, bad: 38, higherIsBetter: false },
   /**
    * ДРР — доля рекламы в выручке. `zeroIsAbsent`: ноль здесь почти всегда
    * значит «рекламу не крутили», а не «крутили идеально дёшево», и зелёный на
    * нём красит половину отчёта за то, чего не делали.
    */
-  advertisingPct: { good: 5, bad: 20, higherIsBetter: false, zeroIsAbsent: true },
+  advertisingPct: { good: 3, bad: 15, higherIsBetter: false, zeroIsAbsent: true },
   /** Маржа % — чистая прибыль к выручке. Ноль это уже плохо. */
-  profitPct: { good: 40, bad: 0, higherIsBetter: true },
+  profitPct: { good: 32, bad: 0, higherIsBetter: true },
   /** ROI товара: ниже 100 % партия не отбивается. */
   roi: { good: 200, bad: 100, higherIsBetter: true },
-  /** Выкуп артикула и размера: продано к доехавшим до покупателя. */
-  buyoutPct: { good: 35, bad: 20, higherIsBetter: true },
+  /** Выкуп артикула — «Процент выкупа» WB из воронки: выкупы к решённым заказам. */
+  buyoutPct: { good: 30, bad: 16, higherIsBetter: true },
+  /** Выкуп размера — другая мера (продано к доставкам), поэтому свои рамки. */
+  sizeBuyoutPct: { good: 35, bad: 20, higherIsBetter: true },
+}
+
+/**
+ * Рамки долей от выручки, когда выручка взята по цене реализации (после СПП).
+ * Та же логистика от меньшей выручки — больший процент, и рамки цены селлера
+ * красили бы на этой базе заметно больше строк. Только для метрик, которые
+ * делятся на выручку; остальные берутся из {@link BOUNDS}.
+ */
+export const PAID_BOUNDS = {
+  logisticsPct: { good: 22, bad: 46, higherIsBetter: false },
+  advertisingPct: { good: 4, bad: 17, higherIsBetter: false, zeroIsAbsent: true },
+  profitPct: { good: 39, bad: 0, higherIsBetter: true },
+}
+
+/** Рамки метрики при выбранной базе цены (`'seller'` или `'paid'`). */
+function boundsOf(metric, base) {
+  return (base === 'paid' && PAID_BOUNDS[metric]) || BOUNDS[metric]
 }
 
 /**
@@ -53,10 +82,11 @@ export const BOUNDS = {
  *
  * @param {string} metric Ключ из {@link BOUNDS}.
  * @param {number|string|null|undefined} value
+ * @param {string} [base] База цены доли — `'seller'` (по умолчанию) или `'paid'`.
  * @returns {'positive'|'negative'|''}
  */
-export function tone(metric, value) {
-  const bounds = BOUNDS[metric]
+export function tone(metric, value, base = 'seller') {
+  const bounds = boundsOf(metric, base)
   if (!bounds || value === null || value === undefined || value === '') return ''
   const n = Number(value)
   if (!Number.isFinite(n)) return ''
@@ -70,8 +100,8 @@ export function tone(metric, value) {
 }
 
 /** Класс текста для той же проверки — то, что вешается на ячейку. */
-export function toneClass(metric, value) {
-  const t = tone(metric, value)
+export function toneClass(metric, value, base = 'seller') {
+  const t = tone(metric, value, base)
   if (t === 'positive') return 'text-status-positive'
   if (t === 'negative') return 'text-status-negative'
   return ''

@@ -135,6 +135,7 @@ class SkuReportService:
         date_from: date,
         date_to: date,
         orders: dict[int, int],
+        buyouts: dict[int, tuple[int, int]],
         ad_spend: dict[int, Decimal],
         ad_bonus: dict[int, Decimal],
         bonus_span: tuple[date | None, date | None],
@@ -152,6 +153,8 @@ class SkuReportService:
             date_from: Inclusive settlement-date start.
             date_to: Inclusive settlement-date end.
             orders: Funnel orders per ``nm_id`` (router-resolved).
+            buyouts: ``(buyouts, decided deliveries)`` per ``nm_id`` from the
+                funnel by order date (router-resolved) — WB's «Процент выкупа».
             ad_spend: Promotion-API spend per ``nm_id`` (router-resolved).
             ad_bonus: WB-funded share of that spend per ``nm_id``
                 (router-resolved). In the advertising account's own unit,
@@ -199,6 +202,7 @@ class SkuReportService:
             total_aggregate=total_aggregate,
             costs=await self._costs.costs_by_nm_id(workspace_id=workspace_id, currency=currency),
             orders=orders if funnel_span[0] is not None else None,
+            buyouts=buyouts if funnel_span[0] is not None else None,
             ad_spend=ad_spend if ad_span[0] is not None else None,
             ad_bonus=ad_bonus if bonus_span[0] is not None else None,
             penalties=(
@@ -247,6 +251,7 @@ class SkuReportService:
         date_from: date,
         date_to: date,
         orders: dict[int, int],
+        buyouts: dict[int, tuple[int, int]],
         ad_spend: dict[int, Decimal],
         ad_bonus: dict[int, Decimal],
         bonus_span: tuple[date | None, date | None],
@@ -270,6 +275,7 @@ class SkuReportService:
             date_from=date_from,
             date_to=date_to,
             orders=orders,
+            buyouts=buyouts,
             ad_spend=ad_spend,
             ad_bonus=ad_bonus,
             bonus_span=bonus_span,

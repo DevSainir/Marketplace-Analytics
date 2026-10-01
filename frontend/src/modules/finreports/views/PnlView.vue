@@ -13,13 +13,12 @@ import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import PnlDashboardCards from '@/modules/finreports/components/PnlDashboardCards.vue'
+import PnlPeriodControls from '@/modules/finreports/components/PnlPeriodControls.vue'
 import ReportFreshnessLine from '@/modules/finreports/components/ReportFreshnessLine.vue'
 import { providePnlCurrencies } from '@/modules/finreports/pnlFormat'
-import { PRICE_BASES, providePriceBase } from '@/modules/finreports/priceBase'
-import { shiftIsoDate } from '@/modules/finreports/savedPeriod'
+import { providePriceBase } from '@/modules/finreports/priceBase'
 import { useFinReportsStore } from '@/modules/finreports/store'
 
-import PeriodSelector from '@/core/components/PeriodSelector.vue'
 import { useMembersStore } from '@/modules/profile'
 
 /**
@@ -48,13 +47,6 @@ const members = useMembersStore()
 const priceBase = ref('seller')
 providePriceBase(priceBase)
 
-const PRESETS = [
-  { key: 7, label: '7 дней' },
-  { key: 30, label: '30 дней' },
-  { key: 90, label: '90 дней' },
-  { key: 180, label: '180 дней' },
-]
-
 // The backend dashboard (exclusion-aware, whole window). While the table has a
 // filter/search active it emits a «по фильтру» subtotal, which takes over —
 // so the cards reflect only the SKUs on screen. `null` = no filter → backend.
@@ -69,23 +61,6 @@ const currency = computed(() => store.report?.currency ?? '')
 providePnlCurrencies(
   computed(() => ({ settlement: currency.value, ads: store.report?.ad_currencies ?? [] })),
 )
-
-const isAllHistory = computed(
-  () =>
-    store.fullSpan &&
-    store.dateFrom === store.fullSpan.date_from &&
-    store.dateTo === store.fullSpan.date_to,
-)
-
-function isPresetActive(days) {
-  if (!store.fullSpan || isAllHistory.value) return false
-  const end = store.fullSpan.date_to
-  if (store.dateTo !== end) return false
-  // `shiftIsoDate`, the same helper the store's own preset uses. Computing it
-  // here went through `toISOString`, which converts to UTC: east of Greenwich
-  // the start came out a day early and no preset was ever highlighted.
-  return store.dateFrom === shiftIsoDate(end, -(days - 1))
-}
 
 onMounted(async () => {
   // Deliberately not awaited, and started first: the freshness line is a
@@ -155,58 +130,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
     </p>
 
     <!-- Period: the shared calendar + presets -->
-    <div class="mb-lg flex flex-wrap items-center gap-md">
-      <PeriodSelector
-        :from="store.dateFrom"
-        :to="store.dateTo"
-        :preset-end="store.fullSpan?.date_to ?? ''"
-        @range="store.setPeriod($event.from, $event.to)"
-      />
-
-      <!-- Four abreast at 402pt gives each preset ~88px and «Вся история» wraps
-           to two lines; two rows of two give every label its own line. -->
-      <div
-        class="flex items-center gap-xs rounded-btn border border-border-subtle bg-surface p-xs phone:grid phone:w-full phone:grid-cols-2"
-      >
-        <button
-          v-for="preset in PRESETS"
-          :key="preset.key"
-          type="button"
-          class="rounded-btn px-md py-xs text-base font-medium transition phone:min-h-11 phone:flex-1"
-          :class="
-            isPresetActive(preset.key)
-              ? 'bg-action text-white'
-              : 'text-muted hover:bg-hover hover:text-primary'
-          "
-          @click="store.setPresetDays(preset.key)"
-        >
-          {{ preset.label }}
-        </button>
-        <button
-          type="button"
-          class="rounded-btn px-md py-xs text-base font-medium transition phone:min-h-11 phone:flex-1"
-          :class="
-            isAllHistory ? 'bg-action text-white' : 'text-muted hover:bg-hover hover:text-primary'
-          "
-          @click="store.setPresetAll()"
-        >
-          Вся история
-        </button>
-      </div>
-
-      <div class="flex items-center gap-xs phone:w-full">
-        <button
-          v-for="base in PRICE_BASES"
-          :key="base.key"
-          type="button"
-          class="ui-chip phone:min-h-11 phone:flex-1"
-          :class="{ 'is-on': priceBase === base.key }"
-          @click="priceBase = base.key"
-        >
-          {{ base.label }}
-        </button>
-      </div>
-    </div>
+    <PnlPeriodControls v-model:price-base="priceBase" />
 
     <div
       v-if="store.reportLoading"

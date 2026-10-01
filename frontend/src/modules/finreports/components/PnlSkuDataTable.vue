@@ -118,17 +118,14 @@ const { money, adMoney } = usePnlMoney()
     <Column field="sold" header="Продажи, шт" sortable :footer="foot.sold">
       <template #body="{ data }">{{ formatNumber(data.sold) }}</template>
     </Column>
-    <!-- Временная колонка: продано к доставкам из отчёта WB, как в размерах,
-         пока сюда не подведён «Процент выкупа» воронки. Пометка на виду
-         намеренно — цифра может не совпасть с кабинетом WB. -->
+    <!-- «Процент выкупа» WB из воронки; у размеров своя мера — см. PNL.md. -->
     <Column field="buyoutPct" sortable :footer="foot.buyoutPct">
       <template #header>
         <span
           class="inline-block align-middle"
-          title="Временно: продано к доставкам покупателю по отчёту WB за тот же период, как в разбивке по размерам. Это не «Процент выкупа» из кабинета WB (выкупы к выкупам и отказам по дате заказа) — цифры могут не совпадать."
+          title="Как «Процент выкупа» в кабинете WB: выкупы ÷ (выкупы + отказы) по заказам, сделанным за период. Последние ~3 недели ещё дозревают."
         >
           Выкуп, %
-          <span class="block text-micro font-normal text-muted">временно</span>
         </span>
       </template>
       <template #body="{ data }">
@@ -162,7 +159,7 @@ const { money, adMoney } = usePnlMoney()
         <span
           v-if="data.logisticsPct !== null"
           class="text-tiny"
-          :class="toneClass('logisticsPct', data.logisticsPct) || 'text-muted'"
+          :class="toneClass('logisticsPct', data.logisticsPct, data.priceBase) || 'text-muted'"
         >
           ({{ pct(data.logisticsPct) }})
         </span>
@@ -192,7 +189,7 @@ const { money, adMoney } = usePnlMoney()
         <span
           v-if="data.advertisingPct !== null"
           class="text-tiny"
-          :class="toneClass('advertisingPct', data.advertisingPct) || 'text-muted'"
+          :class="toneClass('advertisingPct', data.advertisingPct, data.priceBase) || 'text-muted'"
           title="ДРР — доля рекламы в выручке"
         >
           ({{ pct(data.advertisingPct) }})
@@ -219,7 +216,10 @@ const { money, adMoney } = usePnlMoney()
           <span :class="amountClass(data.profit) || 'text-primary'">
             {{ money(data.profit) }}
           </span>
-          <span class="text-tiny" :class="toneClass('profitPct', data.profitPct) || 'text-muted'">
+          <span
+            class="text-tiny"
+            :class="toneClass('profitPct', data.profitPct, data.priceBase) || 'text-muted'"
+          >
             ({{ pct(data.profitPct) }})</span
           >
         </template>

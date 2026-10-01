@@ -33,7 +33,7 @@ export const DETAILS = [
   { label: 'Заказы, шт', get: (r) => units(r.orders) },
   { label: 'Продажи, шт', get: (r) => units(r.sold) },
   {
-    label: 'Выкуп, % (временно)',
+    label: 'Выкуп, %',
     get: (r) => pct(r.buyoutPct),
     tone: (r) => toneClass('buyoutPct', r.buyoutPct),
   },
@@ -48,14 +48,14 @@ export const DETAILS = [
     label: 'Логистика',
     get: (r, f) => f.money(r.logistics),
     sub: (r) => pct(r.logisticsPct),
-    subTone: (r) => toneClass('logisticsPct', r.logisticsPct),
+    subTone: (r) => toneClass('logisticsPct', r.logisticsPct, r.priceBase),
   },
   { label: 'Себестоимость', get: (r, f) => f.money(r.cogs) },
   {
     label: 'Реклама',
     get: (r, f) => f.adMoney(r.advertising),
     sub: (r) => pct(r.advertisingPct),
-    subTone: (r) => toneClass('advertisingPct', r.advertisingPct),
+    subTone: (r) => toneClass('advertisingPct', r.advertisingPct, r.priceBase),
   },
   {
     label: 'Бонусы WB',

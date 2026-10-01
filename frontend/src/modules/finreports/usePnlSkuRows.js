@@ -35,6 +35,8 @@ export function toRow(r, isBucket = false, base = 'seller') {
   const profit = num(r.net_profit)
   return {
     nmId: r.nm_id,
+    // Which price the shares below are taken at — the colour bounds differ.
+    priceBase: base,
     saName: formatSku(r.sa_name),
     // Null on the account-level bucket and on any SKU the monitoring catalogue
     // has not harvested yet; `SkuThumb` renders its own placeholder for both.
@@ -47,9 +49,10 @@ export function toRow(r, isBucket = false, base = 'seller') {
     sold: r.sold_units,
     returned: r.returned_units,
     returnPct: num(r.return_rate_pct),
-    // Доставки к покупателю — знаменатель «Выкупа». Нужны строке «Итого»:
-    // выкуп суммы считается от сложенных штук, а не как средний процент.
-    delivered: r.delivered_units ?? 0,
+    // Выкупы и решённые заказы из воронки — «Процент выкупа» WB. Нужны строке
+    // «Итого»: её выкуп считается от сложенных штук, а не как средний процент.
+    buyoutUnits: num(r.buyout_units),
+    decidedUnits: num(r.decided_units),
     buyoutPct: num(r.buyout_pct),
     sales,
     // Обе базы — строке «Итого»: доли она пересчитывает от сложенных сумм
@@ -212,7 +215,8 @@ export function sumRows(rows, adInvoices = 0) {
 
   const sold = sum('sold')
   const returned = sum('returned')
-  const delivered = sum('delivered')
+  const buyoutUnits = known('buyoutUnits')
+  const decidedUnits = known('decidedUnits')
   const sales = sum('sales')
   const seller = sum('seller')
   const paid = sum('paid')
@@ -239,8 +243,9 @@ export function sumRows(rows, adInvoices = 0) {
     sold,
     returned,
     returnPct: share(returned, sold),
-    delivered,
-    buyoutPct: share(sold, delivered),
+    buyoutUnits,
+    decidedUnits,
+    buyoutPct: decidedUnits === null ? null : share(buyoutUnits, decidedUnits),
     sales,
     seller,
     paid,

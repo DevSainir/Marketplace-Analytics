@@ -37,6 +37,7 @@ from src.modules.monitoring.contract import (
     load_ad_bonus_by_nm,
     load_ad_currencies,
     load_ad_spend_by_nm,
+    load_buyouts_by_nm,
     load_orders_by_nm,
 )
 from src.modules.monitoring.models import (
@@ -74,6 +75,9 @@ async def _report(session: AsyncSession):
         date_from=WINDOW_FROM,
         date_to=WINDOW_TO,
         orders=await load_orders_by_nm(
+            session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
+        ),
+        buyouts=await load_buyouts_by_nm(
             session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
         ),
         ad_spend=await load_ad_spend_by_nm(
@@ -131,6 +135,7 @@ async def monitoring_seeded(db_session: AsyncSession) -> None:
                 cart_count=50,
                 order_count=7,
                 buyout_count=5,
+                cancel_count=2,
                 add_to_wishlist=0,
                 cart_conversion=Decimal("50"),
                 order_conversion=Decimal("14"),
@@ -212,6 +217,23 @@ async def test_the_monitoring_loaders_deliver_per_sku_figures(
     # Coverage exists, so a SKU that ran no ads is a true zero, not unknown.
     assert row_b.orders_units == 0
     assert row_b.advertising == Decimal(0)
+
+
+async def test_buyout_is_wbs_percentage_over_decided_orders_only(
+    db_session: AsyncSession, seeded: None, monitoring_seeded: None
+) -> None:
+    """«Выкуп» = выкупы ÷ (выкупы + отказы) по дате заказа, как в кабинете WB.
+
+    The second funnel day has not been through the cohort pass (its refusals
+    are NULL); counting it as «no refusals» would invent a 100 % day, so it is
+    left out of both sums: 5 / (5 + 2), not 8 / 7.
+    """
+    report = await _report(db_session)
+
+    row_a = next(r for r in report.rows if r.nm_id == SKU_A)
+
+    assert (row_a.buyout_units, row_a.decided_units) == (5, 7)
+    assert row_a.buyout_pct == Decimal("71.43")
 
 
 async def test_without_monitoring_history_the_columns_are_unknown_not_zero(

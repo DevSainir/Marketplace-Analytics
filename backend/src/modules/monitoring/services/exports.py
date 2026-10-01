@@ -83,6 +83,54 @@ async def load_orders_by_nm(
     return {int(nm): int(total or 0) for nm, total in (await session.execute(stmt)).all()}
 
 
+async def load_buyouts_by_nm(
+    session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+) -> dict[int, tuple[int, int]]:
+    """Return WB's «Процент выкупа» inputs per SKU: buyouts and DECIDED deliveries.
+
+    WB's own definition, the one the seller cabinet shows: the orders PLACED in
+    the window (funnel days are order dates), and of those whose fate is known,
+    how many were bought out — ``buyouts / (buyouts + refusals)``. A day whose
+    ``cancel_count`` is still NULL has not been through the cohort pass, and is
+    left out of both sums: counting it as «no refusals» would invent a 100 %
+    cohort. The same exclusion :mod:`.day_series` and the matrix make.
+
+    The window's last ~3 weeks are still maturing (deliveries take that long to
+    be accepted or refused), exactly as they are in WB's cabinet.
+
+    Args:
+        session: An open async session (caller owns the transaction).
+        workspace_id: Restrict to SKUs owned by this workspace.
+        date_from: Inclusive order-date start.
+        date_to: Inclusive order-date end.
+
+    Returns:
+        ``{nm_id: (Σ buyout_count, Σ (buyout_count + cancel_count))}`` over the
+        decided days; SKUs with no such day are absent.
+    """
+    decided_day = SalesFunnelDaily.cancel_count.is_not(None)
+    stmt = (
+        select(
+            SalesFunnelDaily.nm_id,
+            func.sum(SalesFunnelDaily.buyout_count).filter(decided_day),
+            func.sum(SalesFunnelDaily.buyout_count + SalesFunnelDaily.cancel_count).filter(
+                decided_day
+            ),
+        )
+        .where(
+            SalesFunnelDaily.nm_id.in_(workspace_sku_select(workspace_id)),
+            SalesFunnelDaily.stat_date >= date_from,
+            SalesFunnelDaily.stat_date <= date_to,
+        )
+        .group_by(SalesFunnelDaily.nm_id)
+    )
+    return {
+        int(nm): (int(buyouts or 0), int(decided or 0))
+        for nm, buyouts, decided in (await session.execute(stmt)).all()
+        if decided
+    }
+
+
 async def load_ad_spend_by_nm(
     session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
 ) -> dict[int, Decimal]:

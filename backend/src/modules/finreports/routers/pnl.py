@@ -44,6 +44,7 @@ from src.modules.monitoring.contract import (
     load_ad_bonus_by_nm,
     load_ad_currencies,
     load_ad_spend_by_nm,
+    load_buyouts_by_nm,
     load_card_photos,
     load_orders_by_nm,
 )
@@ -165,6 +166,9 @@ async def get_pnl_by_sku(
         date_from=start,
         date_to=end,
         orders=await load_orders_by_nm(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        buyouts=await load_buyouts_by_nm(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
         ad_spend=await load_ad_spend_by_nm(
@@ -338,6 +342,9 @@ async def export_cost_prices(
         date_from=start,
         date_to=end,
         orders=await load_orders_by_nm(
+            session, workspace_id=workspace_id, date_from=start, date_to=end
+        ),
+        buyouts=await load_buyouts_by_nm(
             session, workspace_id=workspace_id, date_from=start, date_to=end
         ),
         ad_spend=await load_ad_spend_by_nm(

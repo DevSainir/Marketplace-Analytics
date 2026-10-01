@@ -41,7 +41,9 @@ const revenue = (size) => sizeAtBase(size, base()).revenue
         <p class="record-note">
           продано {{ units(size.sold_units) }} · возвр.
           {{ num(size.returned_units) ? units(size.returned_units) : '0' }} · выкуп
-          <span :class="toneClass('buyoutPct', size.buyout_pct)">{{ pct(size.buyout_pct) }}</span>
+          <span :class="toneClass('sizeBuyoutPct', size.buyout_pct)">{{
+            pct(size.buyout_pct)
+          }}</span>
         </p>
       </div>
       <div class="size-list__line size-list__total">

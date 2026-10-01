@@ -71,14 +71,16 @@ class PnlSkuRow(BaseModel):
     sold_units: int
     returned_units: int
     return_rate_pct: Decimal | None
-    #: Forward logistics legs — units WB carried to a buyer in the window.
-    delivered_units: int
-    #: «Выкуп» = sold / delivered, the size cut's own measure, so the row
-    #: equals the footer of its sizes. ``None`` when nothing was carried.
-    #:
-    #: TEMPORARY: this is not WB's «Процент выкупа» (buyouts / (buyouts +
-    #: refusals) by order date, from the funnel). It is dated by settlement,
-    #: like «Продано», and stands in until the funnel figure is wired here.
+    #: WB's «Процент выкупа» inputs, from the funnel by ORDER date: buyouts and
+    #: decided deliveries (buyouts + refusals) of the orders placed in the
+    #: window. ``None`` without funnel coverage. Kept beside the percentage so a
+    #: sum of rows can be re-divided rather than averaged.
+    buyout_units: int | None
+    decided_units: int | None
+    #: «Выкуп» = buyout_units / decided_units — the figure WB's cabinet shows.
+    #: ``None`` when no order in the window has been decided yet. The size
+    #: cut measures its own buyout differently (sold / delivered, by
+    #: settlement date): the funnel carries no size. docs/finreports/PNL.md.
     buyout_pct: Decimal | None
 
     #: Продажи / Возвраты, сом (what buyers paid on sale / refund rows).

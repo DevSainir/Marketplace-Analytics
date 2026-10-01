@@ -76,6 +76,7 @@ def build_sku_row(
     nm_id: int,
     sa_name: str,
     orders: int | None,
+    buyouts: tuple[int, int] | None,
     cost_price: Decimal | None,
     advertising: Decimal | None,
     ad_bonus: Decimal | None,
@@ -92,6 +93,8 @@ def build_sku_row(
         nm_id: The SKU (0 for the unallocated bucket).
         sa_name: Display article.
         orders: Ordered units from the funnel, ``None`` without coverage.
+        buyouts: ``(buyouts, decided deliveries)`` from the funnel by order
+            date, ``None`` without coverage.
         cost_price: The seller's per-unit cost, ``None`` when not on file.
         advertising: Promotion-API spend GROSS of funding source, ``None``
             without coverage.
@@ -142,8 +145,9 @@ def build_sku_row(
         sold_units=aggregate.sold_units,
         returned_units=aggregate.returned_units,
         return_rate_pct=_pct(Decimal(aggregate.returned_units), Decimal(aggregate.sold_units)),
-        delivered_units=aggregate.delivered_units,
-        buyout_pct=_pct(Decimal(aggregate.sold_units), Decimal(aggregate.delivered_units)),
+        buyout_units=None if buyouts is None else buyouts[0],
+        decided_units=None if buyouts is None else buyouts[1],
+        buyout_pct=None if buyouts is None else _pct(Decimal(buyouts[0]), Decimal(buyouts[1])),
         sales_amount=aggregate.sales_gross,
         returns_amount=aggregate.returns_gross,
         revenue_paid=revenue_paid,
@@ -180,6 +184,7 @@ def build_sku_report(
     total_aggregate: SettlementAggregate,
     costs: dict[int, Decimal],
     orders: dict[int, int] | None,
+    buyouts: dict[int, tuple[int, int]] | None,
     ad_spend: dict[int, Decimal] | None,
     ad_bonus: dict[int, Decimal] | None,
     penalties: list[tuple[int, str, Decimal]],
@@ -193,6 +198,8 @@ def build_sku_report(
         total_aggregate: The whole-window aggregate, for the totals row.
         costs: Seller cost per ``nm_id`` (settlement currency only).
         orders: Funnel orders per ``nm_id``; ``None`` = no coverage at all.
+        buyouts: ``(buyouts, decided)`` per ``nm_id`` from the funnel;
+            ``None`` = no coverage at all.
         ad_spend: Promotion-API spend per ``nm_id``; ``None`` = no coverage.
         ad_bonus: WB-funded share of that spend per ``nm_id``; ``None`` = the
             write-off ledger does not cover this window.
@@ -223,6 +230,7 @@ def build_sku_report(
             nm_id=nm_id,
             sa_name=aggregate.label or (UNALLOCATED_NAME if nm_id == 0 else f"nm {nm_id}"),
             orders=None if orders is None else orders.get(nm_id, 0),
+            buyouts=None if buyouts is None else buyouts.get(nm_id, (0, 0)),
             cost_price=costs.get(nm_id),
             advertising=None if ad_spend is None else ad_spend.get(nm_id, _ZERO),
             ad_bonus=None if ad_bonus is None else ad_bonus.get(nm_id, _ZERO),
@@ -237,6 +245,9 @@ def build_sku_report(
             # Orders/costs/ads are per-product concepts; the account bucket
             # carries settlement money only.
             row.orders_units = None
+            row.buyout_units = None
+            row.decided_units = None
+            row.buyout_pct = None
             row.advertising = None
             row.advertising_pct = None
             row.ad_bonus = None
@@ -254,6 +265,11 @@ def build_sku_report(
         nm_id=0,
         sa_name="Итого",
         orders=None if orders is None else sum(orders.values()),
+        buyouts=(
+            None
+            if buyouts is None
+            else (sum(b for b, _ in buyouts.values()), sum(d for _, d in buyouts.values()))
+        ),
         cost_price=None,
         advertising=None if ad_spend is None else sum(ad_spend.values(), _ZERO),
         ad_bonus=None if ad_bonus is None else sum(ad_bonus.values(), _ZERO),

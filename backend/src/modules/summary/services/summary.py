@@ -172,6 +172,8 @@ class SummaryService:
             orders=await load_orders_by_nm(
                 session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
             ),
+            # The summary draws no buyout; an empty map costs no query.
+            buyouts={},
             ad_spend=await load_ad_spend_by_nm(
                 session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
             ),

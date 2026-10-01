@@ -92,13 +92,16 @@ const at = (size) => sizeAtBase(size, base())
               <td class="pnl-size-td">
                 {{ size.returned_units ? units(size.returned_units) : '—' }}
               </td>
-              <td class="pnl-size-td" :class="toneClass('buyoutPct', size.buyout_pct)">
+              <td class="pnl-size-td" :class="toneClass('sizeBuyoutPct', size.buyout_pct)">
                 {{ pct(size.buyout_pct) }}
               </td>
               <td class="pnl-size-td">{{ money(at(size).price) }}</td>
               <td class="pnl-size-td">{{ money(at(size).revenue) }}</td>
               <td class="pnl-size-td">{{ money(size.logistics_total) }}</td>
-              <td class="pnl-size-td" :class="toneClass('logisticsPct', at(size).logisticsPct)">
+              <td
+                class="pnl-size-td"
+                :class="toneClass('logisticsPct', at(size).logisticsPct, base())"
+              >
                 {{ pct(at(size).logisticsPct) }}
               </td>
               <td class="pnl-size-td">{{ money(size.logistics_per_delivery) }}</td>

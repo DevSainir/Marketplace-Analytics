@@ -94,6 +94,9 @@ def _wire(
     async def _orders(session: Any, **_kw: Any) -> dict[int, int]:
         return {}
 
+    async def _buyouts(session: Any, **_kw: Any) -> dict[int, tuple[int, int]]:
+        return {}
+
     async def _ads(session: Any, **_kw: Any) -> dict[int, Decimal]:
         return {}
 
@@ -110,6 +113,7 @@ def _wire(
         return ["KGS"]
 
     monkeypatch.setattr("src.modules.finreports.routers.pnl.load_orders_by_nm", _orders)
+    monkeypatch.setattr("src.modules.finreports.routers.pnl.load_buyouts_by_nm", _buyouts)
     monkeypatch.setattr("src.modules.finreports.routers.pnl.load_ad_spend_by_nm", _ads)
     monkeypatch.setattr("src.modules.finreports.routers.pnl.funnel_coverage", _span)
     monkeypatch.setattr("src.modules.finreports.routers.pnl.ad_coverage", _span)
