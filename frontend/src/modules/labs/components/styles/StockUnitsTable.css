@@ -1,0 +1,250 @@
+/*
+ * Styles for StockUnitsTable.vue — LAB VARIANT 2, «Поштучно».
+ *
+ * A dot run is one element: `background-size` cuts it into `--n` equal cells
+ * and a `closest-side` radial gradient draws one dot in each, so a dot's size
+ * follows the cell (the row's width ÷ `capacity`) without a node per unit.
+ */
+
+.units {
+  --head-h: 56px;
+  --row-h: 24px;
+  --foot-h: 32px;
+}
+
+/* ------------------------------------------------------------------ legend */
+
+.scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  font-size: 11.5px;
+  color: var(--ui-muted);
+}
+.scale i {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+.scale i:not(:first-child) {
+  margin-left: 8px;
+}
+.dot-key {
+  background: var(--ui-action);
+}
+.sold-key {
+  box-shadow: inset 0 0 0 1.5px rgb(var(--ui-neg-rgb) / 0.7);
+}
+.new-key {
+  background: var(--ui-action);
+  box-shadow:
+    0 0 0 1.5px var(--ui-surface),
+    0 0 0 3px var(--ui-pos);
+}
+
+/* -------------------------------------------------------------------- rail */
+
+.head {
+  height: var(--head-h);
+}
+.r-cell {
+  display: flex;
+  align-items: center;
+  height: var(--row-h);
+  padding-inline: 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ui-ink);
+  transition: background var(--ui-fast) var(--ui-ease);
+}
+.r-cell.is-row {
+  background: var(--ui-action-soft);
+  color: var(--ui-action-hover);
+}
+.foot {
+  height: var(--foot-h);
+}
+.r-foot {
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  border-top: 1px solid var(--ui-rule);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-muted);
+}
+
+/* --------------------------------------------------------------------- day */
+
+.day .head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--ui-hairline);
+}
+.date {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--ui-ink);
+}
+.wd {
+  font-size: 11.5px;
+  color: var(--ui-muted);
+}
+.wd.is-weekend {
+  color: var(--ui-action-hover);
+}
+.sum {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sum-total {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--ui-ink);
+}
+.delta-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ui-sunk);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ui-muted);
+}
+.delta-pill.is-up {
+  background: rgb(var(--ui-pos-rgb) / 0.1);
+  color: var(--ui-pos);
+}
+.delta-pill.is-down {
+  background: rgb(var(--ui-neg-rgb) / 0.1);
+  color: var(--ui-neg);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 46px 42px;
+  align-items: center;
+  height: var(--row-h);
+  border-radius: 6px;
+  cursor: default;
+  transition: background var(--ui-fast) var(--ui-ease);
+}
+.row.is-row {
+  background: rgb(var(--ui-action-rgb) / 0.05);
+}
+
+.track {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  /* Rounding can leave a sold run one dot past the fullest size. */
+  overflow: hidden;
+}
+.dots {
+  flex: none;
+  height: 100%;
+  background-image: radial-gradient(circle closest-side, var(--dot) 74%, transparent 80%);
+  background-size: calc(100% / var(--n)) 100%;
+  background-repeat: repeat-x;
+  /* The run fills in from the left, a row a beat after the one above. */
+  animation: units-fill 520ms var(--ui-ease) both;
+  animation-delay: calc(var(--r, 0) * 22ms);
+}
+/* A unit that left: its place kept, as a hollow ring. */
+.dots.is-sold {
+  background-image: radial-gradient(
+    circle closest-side,
+    transparent 46%,
+    rgb(var(--ui-neg-rgb) / 0.65) 52%,
+    rgb(var(--ui-neg-rgb) / 0.65) 70%,
+    transparent 76%
+  );
+}
+/* A unit that arrived: a green ring laid over the newest dots. */
+.dots.is-new {
+  position: absolute;
+  top: 0;
+  background-image: radial-gradient(
+    circle closest-side,
+    transparent 74%,
+    var(--ui-surface) 76%,
+    var(--ui-surface) 82%,
+    var(--ui-pos) 86%,
+    var(--ui-pos) 98%,
+    transparent 100%
+  );
+}
+.none {
+  align-self: center;
+  padding-left: 2px;
+  font-size: 11px;
+  color: var(--ui-faint);
+}
+
+.qty {
+  padding-right: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  color: var(--ui-ink);
+}
+.row.is-low .qty {
+  color: var(--ui-warn);
+}
+.row.is-out .qty,
+.row.is-sold-out .qty {
+  color: var(--ui-faint);
+}
+.delta {
+  font-size: 11px;
+  font-weight: 600;
+  text-align: right;
+}
+.is-up {
+  color: var(--ui-pos);
+}
+.is-down {
+  color: var(--ui-neg);
+}
+.is-flat {
+  color: var(--ui-faint);
+}
+
+.row.foot {
+  height: var(--foot-h);
+  border-top: 1px solid var(--ui-rule);
+  border-radius: 0;
+}
+.foot-note {
+  font-size: 11px;
+  color: var(--ui-muted);
+}
+.row.foot .qty {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+@keyframes units-fill {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dots {
+    animation: none;
+  }
+}

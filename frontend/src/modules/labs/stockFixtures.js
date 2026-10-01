@@ -5,7 +5,7 @@
  * Shaped like a real FBO catalogue rather than drawn uniformly: two Moscow hubs
  * hold most of the stock, a regional band holds tens, a tail holds a few units
  * of the running sizes. Each day is the previous one minus a day of sales plus
- * the odd supply, so the ribbon shows MOVEMENT — and the tail empties out as the
+ * one supply, so the ribbon shows MOVEMENT — and the tail empties out as the
  * week goes on, so different days carry different warehouse counts, which is
  * the case the grid's per-day columns exist for.
  */
@@ -72,7 +72,9 @@ export function buildStockDays({ sizes, days, rand, total }) {
 
   return days.map((iso, d) => {
     if (d > 0) {
-      // A supply lands on one mid-week day at one regional warehouse.
+      // A supply lands on one mid-week day at the FULLEST warehouse — the one
+      // a seller with a single warehouse (WB's «Склад WB» since 16.08) has, so
+      // the lab's one-warehouse views show an arrival too.
       const supplyDay = d === Math.floor(days.length / 2)
       cells = cells.map((cell) => {
         // The last few units of a size go all at once often enough that the
@@ -84,7 +86,7 @@ export function buildStockDays({ sizes, days, rand, total }) {
         // Topping up what the warehouse already carries — a supply follows the
         // size curve, it does not seed sizes the warehouse never held.
         const supply =
-          supplyDay && cell.warehouse_name === 'Казань' && cell.quantity > 0
+          supplyDay && cell.warehouse_name === WAREHOUSES[0].name && cell.quantity > 0
             ? Math.round(cell.quantity * (0.3 + rand() * 0.3))
             : 0
         return { ...cell, quantity: Math.max(0, cell.quantity - sold) + supply }

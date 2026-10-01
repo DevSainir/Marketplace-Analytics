@@ -1,15 +1,19 @@
 /**
- * The «Остатки» ribbon as the three design variants read it.
+ * The «Остатки» ribbon as the lab's redesigns read it.
  *
- * The original grid (`StockCompareTable.vue`) pivots each day on its own and
- * never looks at the day before. All three variants below it draw MOVEMENT —
- * a delta badge, a flashing cell, a shrinking bar — so they share one model
- * that pivots every day AND compares it with its predecessor. Pure, so it is
- * tested without mounting anything.
+ * The original grid gives every warehouse a COLUMN. That is the right shape
+ * for fifteen warehouses and the wrong one for what a seller sees since WB
+ * folded its report into one «Склад WB» on 16.08 (`wildberries-api` skill,
+ * `references/stocks.md`): one column per day, two days across a 1300px
+ * screen, and a gulf between two numbers per row. So here a warehouse is not
+ * a column but a SEGMENT inside its size's row — a slice of a bar, a run of
+ * dots, a stripe on a chip — and a size row means the same thing whether one
+ * warehouse feeds it or fifteen.
  *
- * The pivot itself is `stockPivot.js`'s, not a second copy: «which warehouses
- * a day shows» and «what a size's total is» must not mean something different
- * one table lower on the same page.
+ * Each day is also compared with the day before, because what the team reads
+ * is the movement. Pure, so it is tested without mounting anything; the pivot
+ * itself is `stockPivot.js`'s, so «a size's total» cannot mean something
+ * different one table lower on the same page.
  */
 import { pivotRows, pivotWarehouses, sizeShare } from '@/modules/labs/stockPivot'
 
@@ -43,14 +47,18 @@ const MONTHS_LONG = [
 
 /**
  * How many warehouses get a colour of their own: the validated categorical
- * palette minus its green and red, which here already mean «приход» and «расход».
- * A seventh hue is never generated — the tail folds into
- * one neutral «прочие» instead (`hue: null`).
+ * palette minus its green and red, which here already mean «приход» and
+ * «расход». A seventh hue is never generated — the tail folds into one
+ * neutral «прочие» instead (`hue: null`).
  */
 export const HUE_SLOTS = 6
 
-/** Steps of the heat scale, not counting «empty». */
-export const HEAT_STEPS = 6
+/**
+ * At or under this many units a size counts as running out. Absolute rather
+ * than relative: a size that never held more than four is still four units
+ * from gone, whatever its own history says.
+ */
+export const LOW_STOCK = 5
 
 /** Human size label (WB «Размер вещи»), or the raw id until the catalogue syncs. */
 export function sizeLabel(size) {
@@ -75,41 +83,47 @@ export function dayParts(iso) {
 }
 
 /**
- * A cell's step on the heat scale, 0 (empty) to `steps`.
+ * LAB-ONLY debug knob: the period as a seller with `limit` warehouses would
+ * see it — the `limit` fullest over the whole period, every other
+ * warehouse's cells dropped. Unlike the original grid's knob, which hides
+ * columns and keeps «Всего» whole, totals here shrink with it: a seller with
+ * one warehouse has no stock anywhere else to add up.
  *
- * Square-root, not linear: a seller's stock is two Moscow hubs and a long tail,
- * and on a linear scale every tail cell lands in step one — the scale would say
- * «big» and «nothing» and nothing in between.
+ * @param {Array<{stat_date: string, stock: ?{cells: object[]}}>} days
+ * @param {?number} limit `null` = every warehouse
  */
-export function heatLevel(quantity, max, steps = HEAT_STEPS) {
-  if (!quantity || quantity <= 0 || !max) return 0
-  return Math.min(steps, Math.max(1, Math.ceil(Math.sqrt(quantity / max) * steps)))
+export function limitWarehouses(days, limit) {
+  if (!limit) return days
+  const totals = new Map()
+  for (const day of days) {
+    for (const cell of day.stock?.cells ?? []) {
+      totals.set(cell.warehouse_name, (totals.get(cell.warehouse_name) ?? 0) + cell.quantity)
+    }
+  }
+  const kept = new Set(
+    [...totals]
+      .filter(([, total]) => total > 0)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ru'))
+      .slice(0, limit)
+      .map(([name]) => name),
+  )
+  return days.map((day) => ({
+    ...day,
+    stock: day.stock && {
+      ...day.stock,
+      cells: day.stock.cells.filter((cell) => kept.has(cell.warehouse_name)),
+    },
+  }))
 }
 
 /**
- * Ticker-style three-letter codes: «Коледино» → «КОЛ». A collision takes the
- * first letter of the name's second word, then its last letter, then a digit —
- * «Краснодар»/«Красноярск» must not both read «КРА».
+ * Where a size stands today: `out` (nothing, nor yesterday), `sold-out`
+ * (something yesterday, nothing today — the one to act on), `low` (at or under
+ * `LOW_STOCK`) or `in`.
  */
-export function warehouseCodes(names) {
-  const codes = new Map()
-  const taken = new Set()
-  for (const name of names) {
-    const words = name.toUpperCase().match(/[A-ZА-ЯЁ0-9]+/g) ?? ['?']
-    const first = words[0]
-    const candidates = [
-      first.slice(0, 3),
-      words[1] ? first.slice(0, 2) + words[1][0] : null,
-      first.slice(0, 2) + first.at(-1),
-    ].filter(Boolean)
-    let code = candidates.find((c) => !taken.has(c))
-    for (let n = 2; !code; n += 1) {
-      if (!taken.has(`${first.slice(0, 2)}${n}`)) code = `${first.slice(0, 2)}${n}`
-    }
-    taken.add(code)
-    codes.set(name, code)
-  }
-  return codes
+export function stockStatus(total, prevTotal) {
+  if (total <= 0) return prevTotal > 0 ? 'sold-out' : 'out'
+  return total <= LOW_STOCK ? 'low' : 'in'
 }
 
 /** `today - yesterday`, or `null` on the first day, which has no yesterday. */
@@ -123,8 +137,9 @@ function deltaOf(today, yesterday, hasYesterday) {
  * @returns {{
  *   days: object[],
  *   sizes: Array<{chrt_id: number, label: string}>,
- *   maxCell: number,
- *   warehouses: Array<{name: string, code: string, hue: ?number, max: number}>,
+ *   warehouses: Array<{name: string, hue: ?number}>,
+ *   maxRow: number,
+ *   sizePeaks: number[],
  * }}
  */
 export function buildStockRibbon(days, sizeOrder) {
@@ -138,77 +153,98 @@ export function buildStockRibbon(days, sizeOrder) {
   })
 
   // Identity follows the warehouse, never its rank on the day: the fullest over
-  // the WHOLE period take the colours, so a column keeps its hue as it moves.
+  // the WHOLE period take the colours AND the order, so a warehouse keeps its
+  // hue and its place in every row as the days go by.
   const periodTotals = new Map()
-  const columnMax = new Map()
-  let maxCell = 0
   for (const day of pivoted) {
     for (const wh of day.warehouses) {
       periodTotals.set(wh.name, (periodTotals.get(wh.name) ?? 0) + wh.total)
     }
-    for (const row of day.rows) {
-      for (const [name, q] of Object.entries(row.quantities)) {
-        maxCell = Math.max(maxCell, q)
-        columnMax.set(name, Math.max(columnMax.get(name) ?? 0, q))
-      }
-    }
   }
-  const ranked = [...periodTotals]
+  const warehouses = [...periodTotals]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ru'))
-    .map(([name]) => name)
-  const codes = warehouseCodes(ranked)
-  const identity = new Map(
-    ranked.map((name, i) => [
-      name,
-      { name, code: codes.get(name), hue: i < HUE_SLOTS ? i : null, max: columnMax.get(name) },
-    ]),
+    .map(([name], i) => ({ name, hue: i < HUE_SLOTS ? i : null }))
+
+  const sizePeaks = sizeOrder.map((_, r) =>
+    Math.max(0, ...pivoted.map((day) => day.rows[r]?.total ?? 0)),
   )
 
   const model = pivoted.map((day, d) => {
     const prev = d > 0 ? pivoted[d - 1] : null
-    const prevWh = prev ? new Map(prev.warehouses.map((w) => [w.name, w.total])) : null
+    const totals = new Map(day.warehouses.map((w) => [w.name, w.total]))
+    const prevTotals = prev ? new Map(prev.warehouses.map((w) => [w.name, w.total])) : null
     const grandTotal = day.warehouses.reduce((sum, w) => sum + w.total, 0)
     const prevGrand = prev?.warehouses.reduce((sum, w) => sum + w.total, 0)
-    const stocked = new Set(day.warehouses.map((w) => w.name))
+
+    const rows = day.rows.map((row, r) => {
+      const before = prev?.rows[r]
+      const prevTotal = before ? before.total : null
+      return {
+        total: row.total,
+        prevTotal,
+        delta: deltaOf(row.total, prevTotal, Boolean(before)),
+        status: stockStatus(row.total, prevTotal ?? 0),
+        segments: warehouses
+          .filter((w) => row.quantities[w.name] > 0)
+          .map((w) => ({
+            ...w,
+            q: row.quantities[w.name],
+            delta: deltaOf(row.quantities[w.name], before?.quantities[w.name], Boolean(before)),
+          })),
+      }
+    })
+
     return {
       key: day.iso,
       ...dayParts(day.iso),
       newest: d === pivoted.length - 1,
       grandTotal,
-      // The fullest size's total — what a bar scaled to the day's curve tops out at.
-      peak: Math.max(0, ...day.rows.map((row) => row.total)),
       grandDelta: deltaOf(grandTotal, prevGrand, Boolean(prev)),
-      warehouses: day.warehouses.map((w) => ({
-        ...identity.get(w.name),
-        total: w.total,
-        delta: deltaOf(w.total, prevWh?.get(w.name), Boolean(prev)),
-        share: sizeShare(w.total, grandTotal),
-      })),
-      // Stocked yesterday, empty today — the column that silently vanished.
-      gone: prev ? prev.warehouses.filter((w) => !stocked.has(w.name)).map((w) => w.name) : [],
-      rows: day.rows.map((row, r) => {
-        const before = prev?.rows[r]
-        const cells = {}
-        for (const w of day.warehouses) {
-          const q = row.quantities[w.name] ?? 0
-          cells[w.name] = { q, delta: deltaOf(q, before?.quantities[w.name], Boolean(before)) }
-        }
-        return {
-          total: row.total,
-          delta: deltaOf(row.total, before?.total, Boolean(before)),
-          share: sizeShare(row.total, grandTotal),
-          cells,
-        }
-      }),
+      warehouses: warehouses
+        .filter((w) => totals.has(w.name))
+        .map((w) => ({
+          ...w,
+          total: totals.get(w.name),
+          delta: deltaOf(totals.get(w.name), prevTotals?.get(w.name), Boolean(prev)),
+          share: sizeShare(totals.get(w.name), grandTotal),
+        })),
+      // Stocked yesterday, empty today — a warehouse that silently left the row.
+      gone: prev ? prev.warehouses.filter((w) => !totals.has(w.name)).map((w) => w.name) : [],
+      counts: {
+        in: rows.filter((row) => row.status === 'in').length,
+        low: rows.filter((row) => row.status === 'low').length,
+        soldOut: rows.filter((row) => row.status === 'sold-out').length,
+        out: rows.filter((row) => row.status === 'out').length,
+      },
+      rows,
     }
   })
 
   return {
     days: model,
     sizes: sizeOrder.map((s) => ({ chrt_id: s.chrt_id, label: sizeLabel(s) })),
-    maxCell,
-    warehouses: [...identity.values()],
+    warehouses,
+    maxRow: Math.max(0, ...sizePeaks),
+    sizePeaks,
   }
+}
+
+/** The ladder `unitsPerDot` climbs: one unit a dot for as long as that fits. */
+const DOT_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]
+
+/**
+ * How many units one dot stands for, so the fullest size of the period fits
+ * `capacity` dots. The smallest step that fits — «поштучно» stays literal for
+ * as long as the numbers allow it.
+ */
+export function unitsPerDot(maxRow, capacity) {
+  return DOT_STEPS.find((step) => Math.ceil(maxRow / step) <= capacity) ?? DOT_STEPS.at(-1)
+}
+
+/** Units → dots at `per` a dot; any real remainder is at least one dot. */
+export function dotsFor(units, per) {
+  if (units <= 0) return 0
+  return Math.max(1, Math.round(units / per))
 }
 
 /** «+56» / «−120» (a real minus, not a hyphen) / «0»; empty on the first day. */
@@ -224,9 +260,32 @@ export function deltaTone(delta) {
   return delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat'
 }
 
-/** A day-on-day change as a percentage of yesterday, or `null` without one. */
-export function deltaPercent(today, delta) {
-  const yesterday = today - (delta ?? 0)
-  if (delta === null || delta === undefined || yesterday <= 0) return null
-  return (delta / yesterday) * 100
+/**
+ * One size, spelled out for a tooltip: the figure, the day's change and —
+ * when more than one warehouse feeds it — the split.
+ */
+export function rowTip(label, row) {
+  const change = row.delta ? ` (${deltaText(row.delta)} за день)` : ''
+  const head = row.total ? `${label}: ${formatNumber(row.total)} шт${change}` : `${label}: нет`
+  if (row.segments.length < 2) return head
+  return `${head} · ${row.segments.map((s) => `${s.name} ${formatNumber(s.q)}`).join(', ')}`
+}
+
+/**
+ * The CSS colour a warehouse paints with. A period fed by ONE warehouse paints
+ * in the action violet: with nothing to tell apart, a categorical blue would
+ * only say «this is a category» about a thing that has no siblings.
+ */
+export function hueVar(hue, solo) {
+  if (solo) return 'var(--wh-solo)'
+  return hue === null ? 'var(--wh-other)' : `var(--wh-${hue})`
+}
+
+/** Russian plural: `plural(1, 'размер', 'размера', 'размеров')` → «размер». */
+export function plural(n, one, few, many) {
+  const tens = n % 100
+  const units = n % 10
+  if (tens >= 11 && tens <= 14) return many
+  if (units === 1) return one
+  return units >= 2 && units <= 4 ? few : many
 }

@@ -2,19 +2,25 @@ import { describe, expect, it } from 'vitest'
 
 import {
   HUE_SLOTS,
+  LOW_STOCK,
   buildStockRibbon,
   dayParts,
-  deltaPercent,
   deltaText,
   deltaTone,
-  heatLevel,
-  warehouseCodes,
+  dotsFor,
+  hueVar,
+  limitWarehouses,
+  plural,
+  rowTip,
+  stockStatus,
+  unitsPerDot,
 } from '@/modules/labs/stockRibbonModel'
 
 /**
- * The model the three lab redesigns of «Остатки» draw from. What is pinned
- * here is the arithmetic of MOVEMENT — every variant prints a day-on-day change,
- * and a wrong delta would look exactly as plausible as a right one.
+ * The model the lab's redesigns of «Остатки» draw from. What is pinned here is
+ * the arithmetic of MOVEMENT and of the warehouse knob — every variant prints a
+ * day-on-day change, and a wrong one would look exactly as plausible as a
+ * right one.
  */
 const cell = (chrt_id, tech_size, warehouse_name, quantity) => ({
   chrt_id,
@@ -35,8 +41,8 @@ describe('buildStockRibbon', () => {
     const [first] = buildStockRibbon(days, SIZES).days
 
     expect(first.grandDelta).toBeNull()
-    expect(first.warehouses[0].delta).toBeNull()
-    expect(first.rows[0].cells['Казань'].delta).toBeNull()
+    expect(first.rows[0].delta).toBeNull()
+    expect(first.rows[0].prevTotal).toBeNull()
   })
 
   it('compares every level with the day before', () => {
@@ -48,24 +54,12 @@ describe('buildStockRibbon', () => {
     const [, second] = buildStockRibbon(days, SIZES).days
 
     expect(second.grandDelta).toBe(2)
-    expect(second.warehouses[0].delta).toBe(2)
-    expect(second.rows[0].cells['Казань'].delta).toBe(-3)
-    expect(second.rows[1].delta).toBe(5)
-  })
-
-  it('counts a warehouse new today as a change from zero', () => {
-    const days = [
-      day('2026-09-24', [cell(1, 'S', 'Казань', 10)]),
-      day('2026-09-25', [cell(1, 'S', 'Казань', 10), cell(1, 'S', 'Тула', 6)]),
-    ]
-
-    const [, second] = buildStockRibbon(days, SIZES).days
-
-    expect(second.warehouses.find((w) => w.name === 'Тула').delta).toBe(6)
+    expect(second.rows[0]).toMatchObject({ total: 7, prevTotal: 10, delta: -3 })
+    expect(second.rows[1].segments[0].delta).toBe(5)
   })
 
   it('names the warehouses that emptied overnight', () => {
-    // They drop out of today's columns, so without this the loss is invisible.
+    // They drop out of the row, so without this the loss is invisible.
     const days = [
       day('2026-09-24', [cell(1, 'S', 'Казань', 10), cell(1, 'S', 'Тула', 3)]),
       day('2026-09-25', [cell(1, 'S', 'Казань', 9)]),
@@ -82,24 +76,23 @@ describe('buildStockRibbon', () => {
     const [first] = buildStockRibbon(days, SIZES).days
 
     expect(first.rows).toHaveLength(2)
-    expect(first.rows[0].total).toBe(0)
-    expect(first.rows[0].cells['Казань'].q).toBe(0)
+    expect(first.rows[0]).toMatchObject({ total: 0, status: 'out', segments: [] })
   })
 
-  it('colours warehouses by period total, not by their rank on one day', () => {
-    // Тула is fullest on the last day but not over the period: its hue must not
-    // jump to slot 0 there, or the eye loses it from one card to the next.
+  it('orders and colours segments by period total, not by the day', () => {
+    // Тула is fuller on the last day but not over the period: its slice must
+    // not jump ahead of Казань there, or the eye loses it between days.
     const days = [
       day('2026-09-24', [cell(1, 'S', 'Казань', 50), cell(1, 'S', 'Тула', 5)]),
       day('2026-09-25', [cell(1, 'S', 'Казань', 4), cell(1, 'S', 'Тула', 8)]),
     ]
 
-    const ribbon = buildStockRibbon(days, SIZES)
-    const last = ribbon.days[1]
+    const last = buildStockRibbon(days, SIZES).days[1]
 
-    expect(last.warehouses.map((w) => w.name)).toEqual(['Тула', 'Казань'])
-    expect(last.warehouses.find((w) => w.name === 'Казань').hue).toBe(0)
-    expect(last.warehouses.find((w) => w.name === 'Тула').hue).toBe(1)
+    expect(last.rows[0].segments.map((s) => [s.name, s.hue])).toEqual([
+      ['Казань', 0],
+      ['Тула', 1],
+    ])
   })
 
   it('folds the warehouses past the palette into one uncoloured tail', () => {
@@ -116,72 +109,129 @@ describe('buildStockRibbon', () => {
     expect(warehouses.filter((w) => w.hue === null)).toHaveLength(2)
   })
 
-  it('reports the period’s fullest cell for the heat scale', () => {
+  it('scales bars to the fullest size of the whole period', () => {
     const days = [
-      day('2026-09-24', [cell(1, 'S', 'Казань', 12), cell(2, 'M', 'Тула', 30)]),
-      day('2026-09-25', [cell(1, 'S', 'Казань', 41)]),
+      day('2026-09-24', [cell(1, 'S', 'Казань', 12), cell(1, 'S', 'Тула', 30)]),
+      day('2026-09-25', [cell(2, 'M', 'Казань', 41)]),
     ]
 
-    expect(buildStockRibbon(days, SIZES).maxCell).toBe(41)
+    const ribbon = buildStockRibbon(days, SIZES)
+
+    expect(ribbon.maxRow).toBe(42)
+    expect(ribbon.sizePeaks).toEqual([42, 41])
+  })
+
+  it('counts the sizes a buyer can and cannot get', () => {
+    const days = [
+      day('2026-09-24', [cell(1, 'S', 'Казань', 3), cell(2, 'M', 'Казань', 9)]),
+      day('2026-09-25', [cell(1, 'S', 'Казань', 3)]),
+    ]
+
+    const [, second] = buildStockRibbon(days, SIZES).days
+
+    expect(second.counts).toEqual({ in: 0, low: 1, soldOut: 1, out: 0 })
   })
 })
 
-describe('heatLevel', () => {
-  it('leaves an empty cell at step zero', () => {
-    expect(heatLevel(0, 100)).toBe(0)
+describe('limitWarehouses', () => {
+  const days = [
+    day('2026-09-24', [cell(1, 'S', 'Казань', 10), cell(1, 'S', 'Тула', 30)]),
+    day('2026-09-25', [cell(1, 'S', 'Казань', 25), cell(1, 'S', 'Тула', 1)]),
+  ]
+
+  it('keeps the fullest warehouses over the period, not over one day', () => {
+    const [first] = limitWarehouses(days, 1)
+
+    expect(first.stock.cells.map((c) => c.warehouse_name)).toEqual(['Казань'])
   })
 
-  it('puts any real remainder at step one or above', () => {
-    expect(heatLevel(1, 1000)).toBe(1)
+  it('shrinks the totals with it, as a seller with fewer warehouses would see', () => {
+    const [first] = buildStockRibbon(limitWarehouses(days, 1), SIZES).days
+
+    expect(first.grandTotal).toBe(10)
   })
 
-  it('tops out at the fullest cell', () => {
-    expect(heatLevel(100, 100)).toBe(6)
-  })
-
-  it('spreads the tail out on a square-root scale', () => {
-    // Linear, a quarter of the max would sit in step two; the root lifts it to
-    // three, which is what keeps the tail from collapsing into one shade.
-    expect(heatLevel(25, 100)).toBe(3)
-  })
-})
-
-describe('warehouseCodes', () => {
-  it('takes the first three letters', () => {
-    expect(warehouseCodes(['Коледино']).get('Коледино')).toBe('КОЛ')
-  })
-
-  it('never hands two warehouses the same code', () => {
-    const names = ['Краснодар', 'Красноярск', 'Красный Бор', 'Крас']
-
-    const codes = [...warehouseCodes(names).values()]
-
-    expect(new Set(codes).size).toBe(names.length)
+  it('leaves the period alone without a limit', () => {
+    expect(limitWarehouses(days, null)).toBe(days)
   })
 })
 
-describe('day-on-day text', () => {
+describe('stockStatus', () => {
+  it('tells «sold out since yesterday» from «never there»', () => {
+    expect(stockStatus(0, 4)).toBe('sold-out')
+    expect(stockStatus(0, 0)).toBe('out')
+  })
+
+  it('calls a size low at the threshold, not above it', () => {
+    expect(stockStatus(LOW_STOCK, 0)).toBe('low')
+    expect(stockStatus(LOW_STOCK + 1, 0)).toBe('in')
+  })
+})
+
+describe('dots', () => {
+  it('stays one unit a dot while the fullest size fits the row', () => {
+    expect(unitsPerDot(60, 60)).toBe(1)
+  })
+
+  it('climbs to the next round step once it does not', () => {
+    expect(unitsPerDot(61, 60)).toBe(2)
+    expect(unitsPerDot(184, 60)).toBe(5)
+  })
+
+  it('never rounds a real remainder away', () => {
+    expect(dotsFor(1, 5)).toBe(1)
+    expect(dotsFor(0, 5)).toBe(0)
+  })
+})
+
+describe('presentation helpers', () => {
+  it('paints a lone warehouse in the action colour', () => {
+    expect(hueVar(0, true)).toBe('var(--wh-solo)')
+    expect(hueVar(null, false)).toBe('var(--wh-other)')
+    expect(hueVar(2, false)).toBe('var(--wh-2)')
+  })
+
   it('signs a change with a real minus', () => {
     expect(deltaText(-1200)).toBe(`−${(1200).toLocaleString('ru-RU')}`)
     expect(deltaText(5)).toBe('+5')
-  })
-
-  it('prints nothing on the day with no yesterday', () => {
     expect(deltaText(null)).toBe('')
-    expect(deltaTone(null)).toBeNull()
+    expect([deltaTone(3), deltaTone(-3), deltaTone(0), deltaTone(null)]).toEqual([
+      'up',
+      'down',
+      'flat',
+      null,
+    ])
   })
 
-  it('names the direction', () => {
-    expect([deltaTone(3), deltaTone(-3), deltaTone(0)]).toEqual(['up', 'down', 'flat'])
+  it('spells out the split only when there is one', () => {
+    const one = { total: 7, delta: -2, segments: [{ name: 'Склад WB', q: 7 }] }
+    const two = {
+      total: 7,
+      delta: null,
+      segments: [
+        { name: 'А', q: 4 },
+        { name: 'Б', q: 3 },
+      ],
+    }
+
+    expect(rowTip('S', one)).toBe('S: 7 шт (−2 за день)')
+    expect(rowTip('S', two)).toBe('S: 7 шт · А 4, Б 3')
   })
 
-  it('gives the change as a share of yesterday', () => {
-    expect(deltaPercent(110, 10)).toBe(10)
-    expect(deltaPercent(5, 5)).toBeNull()
-  })
-})
+  it('declines a count the Russian way', () => {
+    const word = (n) => plural(n, 'размер', 'размера', 'размеров')
 
-describe('dayParts', () => {
+    expect([1, 2, 5, 11, 21, 22, 112].map(word)).toEqual([
+      'размер',
+      'размера',
+      'размеров',
+      'размеров',
+      'размер',
+      'размера',
+      'размеров',
+    ])
+  })
+
   it('reads the ISO day as the calendar day, whatever the time zone', () => {
     expect(dayParts('2026-09-25')).toMatchObject({
       label: '25.09.2026',

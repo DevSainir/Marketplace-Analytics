@@ -1,0 +1,305 @@
+/*
+ * Styles for StockShowcaseTable.vue — LAB VARIANT 3, «Витрина размеров».
+ *
+ * The status colours are the system's own (`--ui-pos`, `--ui-warn`,
+ * `--ui-neg`) and never travel alone: every state also has a word on the chip
+ * and a shape — hatch for «нет», a ring for «закончился», a bar for «мало».
+ */
+
+.showcase {
+  --hatch: repeating-linear-gradient(
+    -45deg,
+    rgb(var(--ui-ink-rgb) / 0.06) 0 2px,
+    transparent 2px 7px
+  );
+}
+
+/* ------------------------------------------------------------------ legend */
+
+.note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  font-size: 11.5px;
+  color: var(--ui-muted);
+}
+.note i {
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--ui-surface);
+  box-shadow: inset 0 0 0 1px var(--ui-rule);
+}
+.note i:not(:first-child) {
+  margin-left: 8px;
+}
+.note i.is-low {
+  box-shadow:
+    inset 3px 0 0 var(--ui-warn),
+    inset 0 0 0 1px rgb(var(--ui-warn-rgb) / 0.45);
+}
+.note i.is-sold-out {
+  box-shadow: inset 0 0 0 1.5px rgb(var(--ui-neg-rgb) / 0.7);
+  background: var(--hatch);
+}
+.note i.is-out {
+  background: var(--hatch);
+}
+
+/* --------------------------------------------------------------------- day */
+
+.day {
+  position: relative;
+}
+/* A quiet seam between two days, in the middle of the gap. */
+.day::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--gap) / -2);
+  width: 1px;
+  background: var(--ui-hairline);
+}
+
+.head {
+  padding-bottom: 12px;
+}
+.head-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+.date {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--ui-ink);
+}
+.wd {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--ui-muted);
+}
+.wd.is-weekend {
+  color: var(--ui-action-hover);
+}
+.sum {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.sum-total {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  color: var(--ui-ink);
+}
+.unit {
+  font-size: 12px;
+  color: var(--ui-muted);
+}
+.delta-pill {
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ui-sunk);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ui-muted);
+}
+.delta-pill.is-up {
+  background: rgb(var(--ui-pos-rgb) / 0.1);
+  color: var(--ui-pos);
+}
+.delta-pill.is-down {
+  background: rgb(var(--ui-neg-rgb) / 0.1);
+  color: var(--ui-neg);
+}
+
+/* The day in one line: how many sizes can be bought. */
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.counts span::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 999px;
+  vertical-align: 1px;
+}
+.counts .is-in {
+  color: var(--ui-ink);
+}
+.counts .is-in::before {
+  background: var(--ui-pos);
+}
+.counts .is-low {
+  color: var(--ui-warn);
+}
+.counts .is-low::before {
+  background: var(--ui-warn);
+}
+.counts .is-sold-out {
+  color: var(--ui-neg);
+}
+.counts .is-sold-out::before {
+  background: var(--ui-neg);
+}
+.counts .is-out {
+  color: var(--ui-muted);
+}
+.counts .is-out::before {
+  background: var(--ui-faint);
+}
+
+/* ------------------------------------------------------------------- chips */
+
+.chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  gap: 8px;
+}
+.chip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 9px;
+  border-radius: var(--ui-r-md);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-sh-sm);
+  cursor: default;
+  transition:
+    box-shadow var(--ui-base) var(--ui-ease),
+    transform var(--ui-base) var(--ui-spring);
+}
+.chip-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+}
+.chip-size {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ui-ink);
+}
+.chip-delta {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.is-up {
+  color: var(--ui-pos);
+}
+.is-down {
+  color: var(--ui-neg);
+}
+.is-flat {
+  color: var(--ui-faint);
+}
+.chip-qty {
+  font-size: 11px;
+  color: var(--ui-muted);
+}
+.chip-qty b {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ui-ink);
+}
+
+/* How full the size is against its own best day of the period; the tick is
+   where it stood yesterday. */
+.chip-meter {
+  position: relative;
+  display: flex;
+  gap: 1px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ui-sunk);
+}
+.chip-meter i {
+  height: 100%;
+  border-radius: 999px;
+}
+.chip-mark {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--ui-ink);
+  opacity: 0.45;
+}
+.chip-flag {
+  position: absolute;
+  top: -7px;
+  right: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ui-pos);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* --- states ---------------------------------------------------------- */
+
+.chip.is-low {
+  box-shadow:
+    inset 3px 0 0 var(--ui-warn),
+    0 0 0 1px rgb(var(--ui-warn-rgb) / 0.4),
+    var(--ui-sh-xs);
+}
+.chip.is-low .chip-qty b {
+  color: var(--ui-warn);
+}
+.chip.is-out,
+.chip.is-sold-out {
+  background: var(--hatch), var(--ui-canvas);
+  box-shadow: inset 0 0 0 1px var(--ui-hairline);
+}
+.chip.is-out .chip-size,
+.chip.is-sold-out .chip-size {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  color: var(--ui-muted);
+}
+.chip.is-sold-out {
+  box-shadow: inset 0 0 0 1.5px rgb(var(--ui-neg-rgb) / 0.6);
+}
+.chip.is-sold-out .chip-qty {
+  font-weight: 700;
+  color: var(--ui-neg);
+}
+
+/* After the states, so the hovered size lights up whatever state it is in. */
+.chip.is-row {
+  z-index: 1;
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1.5px var(--ui-action),
+    var(--ui-sh-lift);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip {
+    transition: none;
+  }
+}

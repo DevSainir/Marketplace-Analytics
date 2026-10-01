@@ -16,6 +16,19 @@
   --pager-btn-ring: var(--ui-ring);
   --pager-btn-hover: var(--ui-action-soft);
   --ribbon-pad-y: 0px;
+
+  /* Warehouse hues: the dataviz reference palette's categorical slots minus
+     green and red (those mean «приход» / «расход» here), validated as a set —
+     worst adjacent CVD ΔE 9.1, normal-vision ΔE 19.6. Three sit under 3:1 on
+     white, so a hue never travels alone: the legend names every one. */
+  --wh-0: #2a78d6;
+  --wh-1: #eb6834;
+  --wh-2: #1baf7a;
+  --wh-3: #eda100;
+  --wh-4: #e87ba4;
+  --wh-5: #4a3aa7;
+  --wh-other: #a6a6b4;
+  --wh-solo: var(--ui-action);
   /* Until the first measurement lands: a sane day rather than none. */
   --group-w: 20rem;
   min-width: 0;
@@ -138,8 +151,10 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 100%;
-  width: var(--gap);
+  /* Overlapping the rail by a pixel: at a fractional offset the two edges
+     antialias into a hairline seam the day underneath shows through. */
+  left: calc(100% - 1px);
+  width: calc(var(--gap) + 1px);
   background: var(--rail-bg);
 }
 

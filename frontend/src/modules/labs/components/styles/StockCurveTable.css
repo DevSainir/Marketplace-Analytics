@@ -1,0 +1,284 @@
+/*
+ * Styles for StockCurveTable.vue — LAB VARIANT 1, «Кривая размеров».
+ *
+ * The rail and every day share these fixed heights; that alone keeps a size on
+ * one line across blocks that are not one table.
+ */
+
+.curve {
+  --head-h: 52px;
+  --axis-h: 22px;
+  --row-h: 26px;
+  --foot-h: 32px;
+}
+
+/* ------------------------------------------------------------------ legend */
+
+.key-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  font-size: 11.5px;
+  color: var(--ui-muted);
+}
+.sold-key {
+  width: 18px;
+  height: 10px;
+  border: 1.5px dashed rgb(var(--ui-neg-rgb) / 0.55);
+  border-radius: 3px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgb(var(--ui-neg-rgb) / 0.45) 0 2px,
+    transparent 2px 5px
+  );
+}
+.new-key {
+  width: 18px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--wh-solo);
+  box-shadow: inset 0 0 0 1.5px var(--ui-pos);
+}
+
+/* -------------------------------------------------------------------- rail */
+
+.head {
+  height: var(--head-h);
+}
+.axis {
+  position: relative;
+  height: var(--axis-h);
+}
+.r-cell {
+  display: flex;
+  align-items: center;
+  height: var(--row-h);
+  padding-inline: 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ui-ink);
+  transition: background var(--ui-fast) var(--ui-ease);
+}
+.r-cell.is-row {
+  background: var(--ui-action-soft);
+  color: var(--ui-action-hover);
+}
+.foot {
+  height: var(--foot-h);
+}
+.r-foot {
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  border-top: 1px solid var(--ui-rule);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-muted);
+}
+
+/* --------------------------------------------------------------------- day */
+
+.day .head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.when {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wd {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--ui-sunk);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-muted);
+}
+.wd.is-weekend {
+  background: var(--ui-action-soft);
+  color: var(--ui-action-hover);
+}
+.date {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ui-ink);
+}
+.sum {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.sum-total {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ui-ink);
+}
+.unit {
+  font-size: 12px;
+  color: var(--ui-muted);
+}
+
+.delta {
+  font-size: 11px;
+  font-weight: 600;
+  text-align: right;
+}
+.delta.is-up {
+  color: var(--ui-pos);
+}
+.delta.is-down {
+  color: var(--ui-neg);
+}
+.delta.is-flat {
+  color: var(--ui-faint);
+}
+
+/* The scale, once per day: 0, half, the period's fullest size. */
+.day .axis {
+  margin-right: 88px;
+  border-bottom: 1px solid var(--ui-hairline);
+}
+.day .axis span {
+  position: absolute;
+  bottom: 4px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--ui-faint);
+  font-variant-numeric: tabular-nums;
+}
+.day .axis span:first-child {
+  transform: none;
+}
+.day .axis span:last-child {
+  transform: translateX(-100%);
+}
+
+/* One size: the bar, its figure, its change. */
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 46px 42px;
+  align-items: center;
+  height: var(--row-h);
+  border-radius: 6px;
+  cursor: default;
+  transition: background var(--ui-fast) var(--ui-ease);
+}
+.row.is-row {
+  background: rgb(var(--ui-action-rgb) / 0.05);
+}
+
+/* Quarter gridlines run through every row, so they read as one axis. */
+.track {
+  position: relative;
+  height: 100%;
+  background: linear-gradient(to right, var(--ui-hairline) 1px, transparent 1px) 0 0 / 25% 100%;
+}
+.track > * {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+}
+.bar {
+  display: flex;
+  gap: 2px;
+  overflow: hidden;
+  border-radius: 4px;
+  transition: width var(--ui-base) var(--ui-ease);
+}
+.bar i {
+  flex-basis: 0;
+  min-width: 2px;
+  /* A lit top edge: the bar reads as a solid object, not a flat swatch. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+/* What left since yesterday: the ghost of the bar that was, dashed and
+   hatched — the reference, never the subject. */
+.sold {
+  margin-left: 2px;
+  border: 1.5px dashed rgb(var(--ui-neg-rgb) / 0.55);
+  border-left: 0;
+  border-radius: 0 5px 5px 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgb(var(--ui-neg-rgb) / 0.4) 0 2px,
+    transparent 2px 5px
+  );
+}
+/* Where a size that grew stood yesterday. */
+.was {
+  top: 2px;
+  bottom: 2px;
+  width: 0;
+  border-left: 1.5px dashed var(--ui-ink);
+  opacity: 0.55;
+}
+.arrival {
+  border-radius: 0 4px 4px 0;
+  box-shadow:
+    inset 0 0 0 1.5px var(--ui-pos),
+    0 0 0 2px rgb(var(--ui-pos-rgb) / 0.15);
+}
+.flag {
+  top: 50%;
+  bottom: auto;
+  left: 6px;
+  transform: translateY(-50%);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ui-surface);
+  box-shadow: inset 0 0 0 1px rgb(var(--ui-neg-rgb) / 0.5);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ui-neg);
+}
+
+.qty {
+  padding-right: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  color: var(--ui-ink);
+}
+.row.is-low .qty {
+  color: var(--ui-warn);
+}
+.row.is-out .qty,
+.row.is-sold-out .qty {
+  color: var(--ui-faint);
+}
+
+.row.foot {
+  height: var(--foot-h);
+  border-top: 1px solid var(--ui-rule);
+  border-radius: 0;
+}
+.foot-note {
+  display: flex;
+  align-items: center;
+  background: none;
+  font-size: 11px;
+  color: var(--ui-muted);
+}
+.row.foot .qty {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transition: none;
+  }
+}
