@@ -15,15 +15,10 @@ describe('currencyNotes', () => {
     expect(note).toContain('маржа')
   })
 
-  it('warns that ДРР от заказов divides сомы of ads by orders valued in roubles after 20.08', () => {
-    const notes = currencyNotes({ settlement: 'KGS', prices: 'RUB', ads: ['KGS'] })
-
-    expect(notes).toHaveLength(1)
-    expect(notes[0]).toContain('ДРР от заказов')
-  })
-
-  it('says both for a window across the switch', () => {
-    expect(currencyNotes({ settlement: 'KGS', prices: 'RUB', ads: ['KGS', 'RUB'] })).toHaveLength(2)
+  it('does not warn about orders priced in roubles against ads in сомы', () => {
+    // Taken down on 01.10.2026 at the owner's request; the mix remains
+    // (CONVERSION-TODO in currencyNotes.js).
+    expect(currencyNotes({ settlement: 'KGS', prices: 'RUB', ads: ['KGS'] })).toEqual([])
   })
 
   it('says nothing when every figure is in one currency', () => {

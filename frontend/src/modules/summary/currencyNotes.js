@@ -19,11 +19,11 @@ function inWords(codes) {
 }
 
 /**
- * @param {{settlement?: string, prices?: string, ads?: string[]}} currencies
- *   The response's `currency`, `price_currency` and `ad_currencies`.
+ * @param {{settlement?: string, ads?: string[]}} currencies
+ *   The response's `currency` and `ad_currencies`.
  * @returns {string[]} The notes to print under the cards; empty when nothing mixes.
  */
-export function currencyNotes({ settlement = '', prices = '', ads = [] } = {}) {
+export function currencyNotes({ settlement = '', ads = [] } = {}) {
   const stated = ads.filter(Boolean)
   const notes = []
   const offSettlement = stated.filter((code) => code !== settlement)
@@ -34,12 +34,9 @@ export function currencyNotes({ settlement = '', prices = '', ads = [] } = {}) {
         'считаются без пересчёта курса.',
     )
   }
-  const offPrices = stated.filter((code) => code !== prices)
-  if (prices && offPrices.length) {
-    notes.push(
-      `Заказы оценены по ценам ${currencyInWords(prices)}, а реклама — ` +
-        `${inWords(offPrices)}. ДРР от заказов считается без пересчёта курса.`,
-    )
-  }
+  // The second note — orders valued at RUB prices against ads in сомы, so
+  // «ДРР от заказов» is off by the rate — was taken down on 01.10.2026 at the
+  // owner's request: it showed on every window since 20.08 and read as noise.
+  // The mix is still there. CONVERSION-TODO: it goes away with conversion.
   return notes
 }

@@ -42,7 +42,6 @@ const hasDays = computed(() => store.days.length > 0)
 const notes = computed(() =>
   currencyNotes({
     settlement: store.currency,
-    prices: store.data?.price_currency ?? '',
     ads: store.data?.ad_currencies ?? [],
   }),
 )

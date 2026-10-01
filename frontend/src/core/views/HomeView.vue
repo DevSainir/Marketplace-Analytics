@@ -28,11 +28,6 @@
         <span class="text-action">без лишнего шума.</span>
       </h1>
 
-      <p class="mx-auto mt-lg max-w-2xl text-lg leading-8 text-muted phone:mt-md phone:leading-7">
-        Сервис нормализует сырые метрики Wildberries — маскирует периоды отсутствия на складе,
-        выделяет промо-всплески и сезонность, — чтобы менеджеры видели реальный спрос на товар.
-      </p>
-
       <div class="mt-xl flex justify-center phone:mt-lg">
         <RouterLink
           to="/monitoring"
