@@ -168,6 +168,7 @@ onUnmounted(close)
       class="mb-lg"
       title="Ход теста"
       :campaigns="campaigns"
+      :vendor-code="test.vendor_code ?? ''"
       :rounds="rounds"
       all-rounds-label="Все круги"
       campaign-testid="timeline-campaign"

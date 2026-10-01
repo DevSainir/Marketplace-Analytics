@@ -21,6 +21,8 @@ defineProps({
   campaigns: { type: Array, default: () => [] },
   /** The selected campaign id; 0 is «Все». */
   campaign: { type: Number, default: 0 },
+  /** The tested article's code, for the campaign labels. */
+  vendorCode: { type: String, default: '' },
   /** The laps on offer, newest first. */
   rounds: { type: Array, default: () => [] },
   /** The selected lap; 0 is all of them. */
@@ -43,6 +45,7 @@ defineEmits(['update:campaign', 'update:round'])
       <CampaignPicker
         v-if="campaigns.length > 1"
         :campaigns="campaigns"
+        :vendor-code="vendorCode"
         :model-value="campaign"
         :testid="campaignTestid"
         @update:model-value="$emit('update:campaign', $event)"

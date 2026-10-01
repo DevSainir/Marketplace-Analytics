@@ -205,6 +205,7 @@ async function onMainFile(event) {
         title="Тестирование"
         title-class="text-h3 font-semibold text-primary"
         :campaigns="campaigns"
+        :vendor-code="test.vendor_code ?? ''"
         :rounds="roundOptions"
         campaign-testid="results-campaign"
       />

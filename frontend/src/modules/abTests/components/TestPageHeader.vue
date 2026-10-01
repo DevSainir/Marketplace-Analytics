@@ -59,13 +59,13 @@ function remove() {
 
     <div v-if="test" class="mt-sm flex flex-wrap items-center gap-x-md gap-y-xs">
       <h1 class="text-h2 font-bold text-primary">{{ test.name }}</h1>
-      <span class="text-tiny font-semibold text-action">WB {{ test.nm_id }}</span>
+      <span class="text-tiny font-semibold text-action">SKU {{ test.nm_id }}</span>
       <span v-if="test.vendor_code" class="text-tiny text-muted">{{
         formatSku(test.vendor_code)
       }}</span>
       <button
         type="button"
-        class="ml-auto rounded-btn px-sm py-xs text-micro font-semibold transition"
+        class="ml-auto rounded-btn border border-border-subtle/70 px-sm py-xs text-micro font-semibold transition"
         :class="
           armed
             ? 'bg-status-negative/10 text-status-negative'

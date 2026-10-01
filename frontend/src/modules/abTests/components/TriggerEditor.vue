@@ -47,7 +47,9 @@ function save() {
 <template>
   <div class="mt-md flex flex-wrap items-end gap-md rounded-card bg-surface p-md shadow-card">
     <label class="block">
-      <span class="text-tiny font-medium uppercase tracking-wide text-muted">Что меняет фото</span>
+      <span class="block text-tiny font-medium uppercase tracking-wide text-muted"
+        >Что меняет фото</span
+      >
       <select
         v-model="draft.trigger_mode"
         data-testid="edit-trigger-mode"
@@ -63,7 +65,7 @@ function save() {
          already carries a mode select and two buttons to fit beside them. -->
     <div class="flex items-end gap-sm">
       <label v-if="usesBudget(draft.trigger_mode)" class="block">
-        <span class="text-tiny font-medium uppercase tracking-wide text-muted">
+        <span class="block text-tiny font-medium uppercase tracking-wide text-muted">
           Показов на вариант
         </span>
         <input
@@ -75,7 +77,7 @@ function save() {
         />
       </label>
       <label v-if="usesSlot(draft.trigger_mode)" class="block">
-        <span class="text-tiny font-medium uppercase tracking-wide text-muted">
+        <span class="block text-tiny font-medium uppercase tracking-wide text-muted">
           Минут на вариант
         </span>
         <input
@@ -104,10 +106,7 @@ function save() {
       Отмена
     </button>
     <p class="w-full text-tiny text-muted">
-      Новый триггер читается ближайшим проходом. Если снизить бюджет ниже того, что текущее фото уже
-      набрало за свой ход, оно сменится в течение нескольких минут; слот считается с момента
-      установки фото, а не с момента правки. В режиме «показы и время» фото меняется по тому
-      условию, которое наступит раньше.
+      Новый триггер читается ближайшим проходом (в течение 5 минут).
     </p>
   </div>
 </template>

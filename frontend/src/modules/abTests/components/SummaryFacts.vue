@@ -36,13 +36,13 @@ const facts = computed(() => [
     key: 'stopped',
     label: 'Остановлен',
     value: moment(props.test.stopped_at),
-    hint: 'Когда ротация в последний раз перестала двигаться — пауза считается наравне с завершением. У идущего теста здесь «—».',
+    hint: 'Когда ротация прекратилась — пауза считается наравне с завершением.',
   },
   {
     key: 'measured',
     label: 'Длительность',
     value: duration(measuredMs.value),
-    hint: `Сумма длительностей ${count(props.summary.windows)} засчитанных отрезков — время, за которое собраны эти числа. Пауза и часы без работающей рекламы в неё не входят: за них счётчики не читаются и никакому фото ничего не начисляется.`,
+    hint: 'Сумма длительностей отрезков. Паузы и часы без работающей рекламы в неё не входят.',
   },
 ])
 
@@ -64,10 +64,6 @@ const activeLabel = computed(() => {
   if (!active.value) return ''
   return active.value.is_original ? 'Главное' : `Вариант ${active.value.position}`
 })
-
-function count(value) {
-  return Number(value ?? 0).toLocaleString('ru-RU')
-}
 
 function moment(value) {
   const parsed = Date.parse(value ?? '')
