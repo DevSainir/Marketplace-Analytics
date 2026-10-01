@@ -72,7 +72,7 @@ const { expanded, toggle } = useExpandedSkus(
   () => props.sizes,
 )
 const foot = useFooterCells(toRefs(props).totals)
-const { money, adMoney } = usePnlMoney()
+const { money } = usePnlMoney()
 </script>
 
 <template>
@@ -184,22 +184,20 @@ const { money, adMoney } = usePnlMoney()
       <template #body="{ data }">{{ money(data.cogs) }}</template>
     </Column>
     <Column field="advertising" header="Реклама" sortable :footer="foot.advertising">
+      <template #body="{ data }">{{ money(data.advertising) }}</template>
+    </Column>
+    <Column field="advertisingPct" sortable :footer="foot.advertisingPct">
+      <template #header><span title="Доля рекламы в выручке">ДРР</span></template>
       <template #body="{ data }">
-        {{ adMoney(data.advertising) }}
-        <span
-          v-if="data.advertisingPct !== null"
-          class="text-tiny"
-          :class="toneClass('advertisingPct', data.advertisingPct, data.priceBase) || 'text-muted'"
-          title="ДРР — доля рекламы в выручке"
-        >
-          ({{ pct(data.advertisingPct) }})
+        <span :class="toneClass('advertisingPct', data.advertisingPct, data.priceBase)">
+          {{ pct(data.advertisingPct) }}
         </span>
       </template>
     </Column>
     <Column field="adBonus" header="Бонусы" sortable :footer="foot.adBonus">
       <template #body="{ data }">
-        <span v-if="data.adBonus" class="text-status-positive"> −{{ adMoney(data.adBonus) }} </span>
-        <template v-else>{{ adMoney(data.adBonus) }}</template>
+        <span v-if="data.adBonus" class="text-status-positive"> −{{ money(data.adBonus) }} </span>
+        <template v-else>{{ money(data.adBonus) }}</template>
       </template>
     </Column>
     <Column field="roi" header="ROI" sortable :footer="foot.roi">

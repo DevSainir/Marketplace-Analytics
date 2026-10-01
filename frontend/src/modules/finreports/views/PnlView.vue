@@ -56,11 +56,8 @@ const rows = computed(() => store.report?.rows ?? [])
 const unallocated = computed(() => store.report?.unallocated ?? null)
 const notes = computed(() => store.report?.notes ?? [])
 const currency = computed(() => store.report?.currency ?? '')
-// The report's money is the payout's currency; «Реклама» and «Бонусы» are the
-// campaigns' — RUB before WB moved the ad account to KGS on 2026-08-20.
-providePnlCurrencies(
-  computed(() => ({ settlement: currency.value, ads: store.report?.ad_currencies ?? [] })),
-)
+// Every figure on the page, advertising included, in the payout's currency.
+providePnlCurrencies(computed(() => ({ settlement: currency.value })))
 
 onMounted(async () => {
   // Deliberately not awaited, and started first: the freshness line is a

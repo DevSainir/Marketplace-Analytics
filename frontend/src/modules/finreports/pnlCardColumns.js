@@ -17,6 +17,7 @@ export const SORT_KEYS = [
   { key: 'logistics', label: 'Логистика' },
   { key: 'penalties', label: 'Штрафы' },
   { key: 'advertising', label: 'Реклама' },
+  { key: 'advertisingPct', label: 'ДРР' },
   { key: 'cogs', label: 'Себестоимость' },
   { key: 'roi', label: 'ROI' },
   { key: 'saName', label: 'Артикул' },
@@ -24,8 +25,7 @@ export const SORT_KEYS = [
 
 /**
  * The folded-away columns, in the table's own order. `get(row, f)` takes the
- * page's formatters (`usePnlMoney`) — «Реклама» and «Бонусы» are in the
- * campaigns' currency, the rest in the settlement's. `tone` paints the figure
+ * page's formatter (`usePnlMoney`). `tone` paints the figure
  * when it is outside the bounds in `pnlThresholds` — the same rule the desktop
  * table uses, so the two projections flag the same rows.
  */
@@ -51,15 +51,15 @@ export const DETAILS = [
     subTone: (r) => toneClass('logisticsPct', r.logisticsPct, r.priceBase),
   },
   { label: 'Себестоимость', get: (r, f) => f.money(r.cogs) },
+  { label: 'Реклама', get: (r, f) => f.money(r.advertising) },
   {
-    label: 'Реклама',
-    get: (r, f) => f.adMoney(r.advertising),
-    sub: (r) => pct(r.advertisingPct),
-    subTone: (r) => toneClass('advertisingPct', r.advertisingPct, r.priceBase),
+    label: 'ДРР',
+    get: (r) => pct(r.advertisingPct),
+    tone: (r) => toneClass('advertisingPct', r.advertisingPct, r.priceBase),
   },
   {
     label: 'Бонусы WB',
-    get: (r, f) => (r.adBonus ? `−${f.adMoney(r.adBonus)}` : f.adMoney(r.adBonus)),
+    get: (r, f) => (r.adBonus ? `−${f.money(r.adBonus)}` : f.money(r.adBonus)),
   },
   { label: 'ROI', get: (r) => pct(r.roi), tone: (r) => toneClass('roi', r.roi) },
 ]

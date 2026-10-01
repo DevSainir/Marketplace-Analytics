@@ -6,11 +6,11 @@ import { providePnlCurrencies, usePnlMoney } from '@/modules/finreports/pnlForma
 /** Intl groups thousands with a no-break space; the assertions read plain ones. */
 const plain = (text) => text.replace(/\s/g, ' ')
 
-/** A P&L component: prints one payout figure and one advertising figure. */
+/** A P&L component: prints two figures. */
 const Figures = defineComponent({
   setup() {
-    const { money, adMoney } = usePnlMoney()
-    return () => h('p', `${money(57600)} | ${adMoney(1539)}`)
+    const { money } = usePnlMoney()
+    return () => h('p', `${money(57600)} | ${money(1539)}`)
   },
 })
 
@@ -24,12 +24,12 @@ const pageWith = (currencies) =>
   })
 
 describe('usePnlMoney', () => {
-  it('signs the payout in the settlement currency and advertising in the campaigns', () => {
-    // Before 2026-08-20 WB billed ads in roubles while paying out in soms; a
-    // single sign on both would misstate one of them.
-    const wrapper = mount(pageWith({ settlement: 'KGS', ads: ['RUB'] }))
+  it('signs every figure, advertising included, in the payout currency', () => {
+    // «с+₽» on the advertising cells read as broken; until a conversion exists
+    // the rare rouble residual is shown in soms (CONVERSION-TODO in pnlFormat).
+    const wrapper = mount(pageWith({ settlement: 'KGS' }))
 
-    expect(plain(wrapper.text())).toBe('57 600с | 1 539₽')
+    expect(plain(wrapper.text())).toBe('57 600с | 1 539с')
   })
 
   it('prints bare figures when no page declared the currencies', () => {

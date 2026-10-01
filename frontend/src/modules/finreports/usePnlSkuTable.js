@@ -55,11 +55,10 @@ export function useExpandedSkus(onOpen, sizesOf = () => ({})) {
  * @param {import('vue').Ref<object|null>} totals Строка из `sumRows`.
  */
 export function useFooterCells(totals) {
-  const { money, adMoney } = usePnlMoney()
+  const { money } = usePnlMoney()
   return computed(() => {
     const t = totals.value
     if (!t) return {}
-    const drr = t.advertisingPct === null ? '' : ` (${pct(t.advertisingPct)})`
     return {
       saName: t.excludedCount ? `Итого (без ${t.excludedCount})` : 'Итого',
       orders: t.orders === null ? '' : formatNumber(t.orders),
@@ -72,8 +71,9 @@ export function useFooterCells(totals) {
       logistics: `${money(t.logistics)} (${pct(t.logisticsPct)})`,
       penalties: money(t.penalties),
       cogs: money(t.cogs),
-      advertising: `${adMoney(t.advertising)}${drr}`,
-      adBonus: t.adBonus ? `−${adMoney(t.adBonus)}` : adMoney(t.adBonus),
+      advertising: money(t.advertising),
+      advertisingPct: pct(t.advertisingPct),
+      adBonus: t.adBonus ? `−${money(t.adBonus)}` : money(t.adBonus),
       roi: pct(t.roi),
       payout: money(t.payout),
     }

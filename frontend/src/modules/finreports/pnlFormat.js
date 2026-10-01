@@ -25,30 +25,33 @@ const PNL_CURRENCIES = Symbol('pnl-currencies')
 
 /**
  * Declare what the P&L's money is in, once, for every table, card and total
- * under the page: `{settlement, ads}` — the payout's currency, and the
- * campaigns' (RUB before WB moved the ad account on 2026-08-20). A provider
- * rather than a prop threaded through six components, one of them already at
- * the 250-line ceiling.
+ * under the page: `{settlement}` — the payout's currency. A provider rather
+ * than a prop threaded through six components, one of them already at the
+ * 250-line ceiling.
  *
- * @param {import('vue').Ref<{settlement?: string, ads?: string[]}>} currencies
+ * @param {import('vue').Ref<{settlement?: string}>} currencies
  */
 export function providePnlCurrencies(currencies) {
   provide(PNL_CURRENCIES, currencies)
 }
 
 /**
- * The two money formatters a P&L component needs: `money` for everything the
- * settlement report says, `adMoney` for «Реклама» and «Бонусы». Without a
- * provider (a component mounted alone) both print bare numbers.
+ * The money formatter a P&L component needs. Without a provider (a component
+ * mounted alone) it prints bare numbers.
  *
- * @returns {{money: (value: unknown) => string, adMoney: (value: unknown) => string}}
+ * «Реклама» and «Бонусы» are signed in the payout's currency too, although
+ * WB billed old campaigns in roubles until 21.09.2026. Printing «с+₽» on every
+ * cell read as broken, and the owner chose on 01.10.2026 to show soms and
+ * let the rare rouble residual be slightly off until there is a conversion;
+ * the report's caveat still names the mix. CONVERSION-TODO: convert those
+ * roubles here once a rate is decided.
+ *
+ * @returns {{money: (value: unknown) => string}}
  */
 export function usePnlMoney() {
   const currencies = inject(PNL_CURRENCIES, null)
-  const current = () => unref(currencies) ?? {}
   return {
-    money: (value) => money(value, current().settlement ?? ''),
-    adMoney: (value) => money(value, current().ads ?? []),
+    money: (value) => money(value, unref(currencies)?.settlement ?? ''),
   }
 }
 
