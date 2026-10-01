@@ -53,7 +53,7 @@ function save() {
       <select
         v-model="draft.trigger_mode"
         data-testid="edit-trigger-mode"
-        class="mt-xs h-10 rounded-input bg-surface px-md text-base text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
+        class="ui-select-arrow mt-xs h-10 rounded-input bg-surface pl-md pr-11 text-base text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
       >
         <option v-for="mode in TRIGGER_MODES" :key="mode.value" :value="mode.value">
           {{ mode.label }}

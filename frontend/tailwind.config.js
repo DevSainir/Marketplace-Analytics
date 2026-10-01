@@ -29,17 +29,17 @@ export default {
         sans: ['Inter Tight', 'sans-serif'],
       },
       fontWeight: {
-        'body': '400',
-        'medium': '500',
-        'semibold': '600',
-        'bold': '700',
+        body: '400',
+        medium: '500',
+        semibold: '600',
+        bold: '700',
       },
       spacing: {
-        'xs': '4px',
-        'sm': '8px',
-        'md': '16px',
-        'lg': '24px',
-        'xl': '32px',
+        xs: '4px',
+        sm: '8px',
+        md: '16px',
+        lg: '24px',
+        xl: '32px',
       },
       // Radii, shadows and colours are NOT values here — each resolves to the
       // `ui-next` custom property that defines it (src/core/styles/ui-next/
@@ -47,24 +47,24 @@ export default {
       // a stylesheet can never render two different looks. Until 2026-09-26
       // this file held the previous palette, and every `@apply` compiled to it.
       borderRadius: {
-        'btn': 'var(--ui-r-sm)',
-        'card': 'var(--ui-r-lg)',
-        'input': 'var(--ui-r-sm)',
+        btn: 'var(--ui-r-sm)',
+        card: 'var(--ui-r-lg)',
+        input: 'var(--ui-r-sm)',
       },
       boxShadow: {
-        'soft': 'var(--ui-sh-xs)',
-        'card': 'var(--ui-sh-md)',
+        soft: 'var(--ui-sh-xs)',
+        card: 'var(--ui-sh-md)',
       },
       fontSize: {
-        'micro': '0.6875rem',
-        'tiny': '0.75rem',
-        'base': '0.875rem',
-        'h3': '1rem',
-        'h2': '1.25rem',
+        micro: '0.6875rem',
+        tiny: '0.75rem',
+        base: '0.875rem',
+        h3: '1rem',
+        h2: '1.25rem',
       },
       borderWidth: {
         // Day-section separators in the daily metrics table.
-        '3': '3px',
+        3: '3px',
       },
       // Semantic colors. `canvas`/`surface` are background-only and `primary`/
       // `muted` are text-only, so they live on the dedicated backgroundColor /
@@ -94,6 +94,9 @@ export default {
 
         border: {
           subtle: 'rgb(var(--ui-hairline-rgb) / <alpha-value>)',
+          // The outline of a ghost button: the hairline vanishes against the
+          // canvas, so this is the muted ink at a low alpha (`/25`).
+          strong: 'rgb(var(--ui-muted-rgb) / <alpha-value>)',
         },
       },
       backgroundColor: {

@@ -79,7 +79,7 @@ defineExpose({ reset })
         <select
           v-model="form.trigger_mode"
           data-testid="trigger-mode"
-          class="mt-xs h-11 w-full rounded-input bg-surface px-md text-base text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
+          class="ui-select-arrow mt-xs h-11 w-full rounded-input bg-surface pl-md pr-11 text-base text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
         >
           <option v-for="mode in TRIGGER_MODES" :key="mode.value" :value="mode.value">
             {{ mode.label }}
