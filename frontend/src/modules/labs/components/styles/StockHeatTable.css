@@ -1,0 +1,298 @@
+/*
+ * Styles for StockHeatTable.vue — LAB VARIANT 1, «Теплокарта».
+ *
+ * The rail and every day share these fixed row heights; that is the whole of
+ * what keeps a size on one line across blocks that are not one table.
+ */
+
+.heat {
+  --head-h: 58px;
+  --sub-h: 86px;
+  --row-h: 26px;
+  --foot-h: 30px;
+  --total-w: 54px;
+  --tile-gap: 3px;
+
+  /* One hue, light → dark: the action violet stepped by lightness, not by
+     alpha, so a tile reads the same over white and over the row highlight.
+     Text flips to white from step 5, where ink would drop under 4.5:1. */
+  --h1: #efecff;
+  --h2: #dcd5ff;
+  --h3: #bfb3ff;
+  --h4: #9b8bff;
+  --h5: #6f5af6;
+  --h6: #4a36d6;
+}
+
+/* ------------------------------------------------------------------ legend */
+
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ui-muted);
+}
+.legend span:first-child {
+  margin-right: 4px;
+}
+.legend span:last-child {
+  margin-left: 4px;
+}
+.legend i {
+  width: 18px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+/* ------------------------------------------------------------------ shared */
+
+.head {
+  height: var(--head-h);
+}
+.grid {
+  display: grid;
+  grid-template-rows: var(--sub-h) repeat(var(--rows), var(--row-h)) var(--foot-h);
+  gap: var(--tile-gap);
+}
+.sub {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 6px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ui-muted);
+}
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-inline: 4px;
+  border-top: 2px solid var(--ui-rule);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-ink);
+}
+
+/* Focus + context: with a cell hovered, everything off its row and column
+   steps back. Opacity rather than colour, so the heat scale is not repainted. */
+.has-hot .tile,
+.has-hot .total,
+.has-hot .r-cell,
+.has-hot .sub-wh,
+.has-hot .foot:not(.foot-total) {
+  transition: opacity var(--ui-fast) var(--ui-ease);
+}
+.has-hot .tile:not(.is-row):not(.is-col),
+.has-hot .total:not(.is-row),
+.has-hot .r-cell:not(.is-row) {
+  opacity: 0.28;
+}
+.has-hot .sub-wh:not(.is-col),
+.has-hot .foot:not(.foot-total):not(.is-col) {
+  opacity: 0.45;
+}
+
+/* -------------------------------------------------------------------- rail */
+
+.rail .grid {
+  grid-template-columns: 1fr;
+}
+.r-sub {
+  padding-left: 2px;
+}
+.r-cell {
+  display: flex;
+  align-items: center;
+  padding-inline: 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ui-ink);
+  transition:
+    background var(--ui-fast) var(--ui-ease),
+    color var(--ui-fast) var(--ui-ease);
+}
+.r-cell.is-row {
+  background: var(--ui-action-soft);
+  color: var(--ui-action-hover);
+}
+.r-foot {
+  justify-content: flex-start;
+  padding-left: 8px;
+}
+
+/* --------------------------------------------------------------------- day */
+
+.day .head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 2px 0;
+}
+.when {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.wd {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--ui-sunk);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-muted);
+}
+.wd.is-weekend {
+  background: var(--ui-action-soft);
+  color: var(--ui-action-hover);
+}
+.date {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ui-ink);
+}
+.sum {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.1;
+}
+.sum-total {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ui-ink);
+}
+.delta {
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.delta.is-up {
+  color: var(--ui-pos);
+}
+.delta.is-down {
+  color: var(--ui-neg);
+}
+.delta.is-flat {
+  color: var(--ui-faint);
+}
+
+.sub-total {
+  justify-content: flex-end;
+  padding-right: 4px;
+}
+/* Upright names: bottom-to-top, the way a chart labels a narrow column. */
+.sub-wh {
+  justify-content: center;
+  transition: color var(--ui-fast) var(--ui-ease);
+}
+.sub-wh span {
+  max-height: calc(var(--sub-h) - 8px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+.sub-wh.is-col {
+  color: var(--ui-action-hover);
+  font-weight: 700;
+}
+
+/* «Всего» per size: the figure, and under it that size's share of the day. */
+.total {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ui-ink);
+}
+.total::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  bottom: 2px;
+  width: calc((100% - 8px) * var(--share, 0));
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--h3), var(--h6));
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-ink);
+  cursor: default;
+  transition:
+    transform var(--ui-base) var(--ui-spring),
+    box-shadow var(--ui-fast) var(--ui-ease),
+    opacity var(--ui-fast) var(--ui-ease);
+}
+/* An empty cell is a hole, drawn as one: a faint dot, not a blank tile. */
+.tile.h0::before {
+  content: '';
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--ui-rule);
+}
+.h1 {
+  background: var(--h1);
+}
+.h2 {
+  background: var(--h2);
+}
+.h3 {
+  background: var(--h3);
+}
+.h4 {
+  background: var(--h4);
+}
+.h5 {
+  background: var(--h5);
+  color: #fff;
+}
+.h6 {
+  background: var(--h6);
+  color: #fff;
+}
+.tile.is-row.is-col {
+  z-index: 1;
+  transform: scale(1.14);
+  box-shadow:
+    0 0 0 2px var(--ui-surface),
+    0 0 0 3.5px var(--ui-ink),
+    0 8px 18px -6px rgba(18, 18, 26, 0.35);
+}
+
+.foot-total {
+  font-weight: 800;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile {
+    transition: none;
+  }
+}

@@ -24,6 +24,7 @@ import RefreshAllSkusButton from '@/modules/labs/components/RefreshAllSkusButton
 import SkuIdentityHeader from '@/modules/labs/components/SkuIdentityHeader.vue'
 import SkuSearchSelect from '@/modules/labs/components/SkuSearchSelect.vue'
 import StockComparePanel from '@/modules/labs/components/StockComparePanel.vue'
+import StockDesignLab from '@/modules/labs/components/StockDesignLab.vue'
 import { longMatrixView } from '@/modules/labs/longWindow'
 import { unionStockSizes } from '@/modules/labs/stockCompareSizes'
 import {
@@ -77,6 +78,7 @@ const NO_SAVING_DAYS = new Set()
 const SECTIONS = [
   { id: 'ui-sec-matrix', label: 'По дням' },
   { id: 'ui-sec-stock', label: 'Остатки' },
+  { id: 'ui-sec-stock-next', label: 'Остатки · новые' },
   { id: 'ui-sec-chart', label: 'График' },
   { id: 'ui-sec-year', label: 'Год' },
   // `ui-sec-clusters` («Кластеры») belongs here when the block comes back.
@@ -157,6 +159,12 @@ const SECTIONS = [
 
       <div id="ui-sec-stock">
         <StockComparePanel :days="product.stock_days" :size-order="stockSizes" />
+      </div>
+
+      <!-- LAB-ONLY: three candidate redesigns of the grid above, on the same
+           days, so the four can be compared without switching pages. -->
+      <div id="ui-sec-stock-next">
+        <StockDesignLab :days="product.stock_days" :size-order="stockSizes" />
       </div>
 
       <div id="ui-sec-chart"><MetricsChart :view="matrixView" /></div>

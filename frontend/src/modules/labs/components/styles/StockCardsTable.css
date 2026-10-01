@@ -1,0 +1,359 @@
+/*
+ * Styles for StockCardsTable.vue — LAB VARIANT 3, «Карточки дней».
+ *
+ * Warehouse hues are the dataviz reference palette's categorical slots minus
+ * green and red (those two already mean «приход» / «расход» here), validated
+ * as a set: worst adjacent CVD ΔE 9.1, normal-vision ΔE 19.6. Three of them sit
+ * under 3:1 on white, so a hue never travels alone — every dot, segment and
+ * bar has its warehouse's name or code beside it or a hover away.
+ */
+
+.tray {
+  padding: 16px;
+  border-radius: 22px;
+  background: var(--ui-sunk);
+  box-shadow: inset 0 1px 2px rgba(18, 18, 26, 0.05);
+}
+
+.cards {
+  --head-h: 100px;
+  --sub-h: 30px;
+  --row-h: 28px;
+  --foot-h: 34px;
+  --total-w: 54px;
+  --bar-min: 24px;
+
+  --wh-0: #2a78d6;
+  --wh-1: #eb6834;
+  --wh-2: #1baf7a;
+  --wh-3: #eda100;
+  --wh-4: #e87ba4;
+  --wh-5: #4a3aa7;
+  --wh-other: #a6a6b4;
+
+  --rail-bg: var(--ui-sunk);
+  --pager-btn-bg: var(--ui-surface);
+  --ribbon-pad-y: 6px;
+}
+
+/* ------------------------------------------------------------------ legend */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-sh-xs);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ui-ink);
+}
+.legend li i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--wh);
+}
+.legend li.is-other {
+  --wh: var(--wh-other);
+  color: var(--ui-muted);
+}
+.legend li.is-key {
+  background: transparent;
+  box-shadow: none;
+  color: var(--ui-muted);
+}
+.legend .tick {
+  position: relative;
+  width: 8px;
+  height: 8px;
+}
+
+/* ------------------------------------------------------------------ shared */
+
+.head {
+  height: var(--head-h);
+}
+.grid {
+  display: grid;
+  grid-template-rows: var(--sub-h) repeat(var(--rows), var(--row-h)) var(--foot-h);
+}
+.sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-inline: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ui-muted);
+}
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-inline: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-ink);
+}
+
+/* The «moved since yesterday» mark: a corner fold, the spreadsheet's own
+   «something here» sign. */
+.tick {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-top: 7px solid var(--tick);
+  border-left: 7px solid transparent;
+}
+.tick.is-up {
+  --tick: var(--ui-pos);
+}
+.tick.is-down {
+  --tick: var(--ui-neg);
+}
+.legend .tick {
+  border-width: 8px 0 0 8px;
+}
+
+/* -------------------------------------------------------------------- rail */
+
+.r-sub {
+  padding-left: 4px;
+}
+.r-cell {
+  display: flex;
+  align-items: center;
+}
+.r-cell span {
+  max-width: 100%;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-sh-xs);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-ink);
+  transition:
+    background var(--ui-fast) var(--ui-ease),
+    color var(--ui-fast) var(--ui-ease),
+    transform var(--ui-base) var(--ui-spring);
+}
+.r-cell span.is-row {
+  background: var(--ui-action);
+  color: #fff;
+  transform: translateX(3px);
+}
+.r-foot {
+  justify-content: flex-start;
+  padding-left: 4px;
+  color: var(--ui-muted);
+}
+
+/* -------------------------------------------------------------------- card */
+
+.card {
+  overflow: hidden;
+  border-radius: var(--ui-r-lg);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-sh-md);
+  transition: box-shadow var(--ui-base) var(--ui-ease);
+}
+.card:hover {
+  box-shadow: var(--ui-sh-lift);
+}
+
+.card .head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 0;
+}
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.wd {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--ui-action-soft);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-action-hover);
+}
+.wd.is-weekend {
+  background: rgb(var(--ui-warn-rgb) / 0.12);
+  color: var(--ui-warn);
+}
+.date {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ui-muted);
+}
+.mid {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.big {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  color: var(--ui-ink);
+}
+.unit {
+  font-size: 12px;
+  color: var(--ui-muted);
+}
+.pill {
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.pill.is-up {
+  background: rgb(var(--ui-pos-rgb) / 0.1);
+  color: var(--ui-pos);
+}
+.pill.is-down {
+  background: rgb(var(--ui-neg-rgb) / 0.1);
+  color: var(--ui-neg);
+}
+.pill.is-flat {
+  background: var(--ui-sunk);
+  color: var(--ui-muted);
+}
+.gone {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--ui-faint);
+}
+
+/* The day's total, split by warehouse: flex-grow IS the quantity. */
+.mix {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+.seg {
+  flex-basis: 0;
+  min-width: 3px;
+  border-radius: 3px;
+  background: var(--wh);
+  transition:
+    transform var(--ui-base) var(--ui-spring),
+    opacity var(--ui-fast) var(--ui-ease);
+}
+.mix:hover .seg:not(:hover) {
+  opacity: 0.35;
+}
+.seg:hover,
+.seg.is-col {
+  transform: scaleY(1.6);
+}
+
+.card .grid {
+  margin-top: 4px;
+}
+.sub-total {
+  justify-content: flex-end;
+}
+.sub-wh {
+  justify-content: flex-end;
+  color: var(--ui-ink);
+  transition: background var(--ui-fast) var(--ui-ease);
+}
+.sub-wh i {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--wh);
+}
+.sub-wh.is-col {
+  background: color-mix(in srgb, var(--wh) 14%, transparent);
+}
+
+.cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-inline: 7px;
+  border-top: 1px solid var(--ui-hairline);
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ui-ink);
+  cursor: default;
+  transition: background var(--ui-fast) var(--ui-ease);
+}
+/* Data bar: the cell's share of its warehouse's fullest cell in the period.
+   Anchored RIGHT, under the right-aligned figure, so the number sits on the
+   end of its own bar; grown from the left, a short bar floated free of its
+   number and read as a mark on the cell beside it. Never narrower than a
+   two-digit figure: a sliver behind the digits reads as a rendering fault. */
+.cell:not(.total):not(.is-empty)::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  right: 2px;
+  width: calc(var(--bar-min) + (100% - var(--bar-min) - 4px) * var(--fill, 0));
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--wh) 22%, transparent);
+  transition: width var(--ui-base) var(--ui-ease);
+}
+/* The figure paints over its bar, not under it. */
+.cell .n {
+  position: relative;
+}
+.cell.total {
+  background: var(--ui-inset);
+  font-weight: 700;
+}
+.cell.is-row {
+  background: rgb(var(--ui-action-rgb) / 0.06);
+}
+.cell.is-col {
+  background: color-mix(in srgb, var(--wh) 9%, transparent);
+}
+.cell.is-row.is-col {
+  box-shadow: inset 0 0 0 1.5px var(--wh);
+}
+
+.foot {
+  border-top: 1px solid var(--ui-rule);
+}
+.foot.is-col {
+  background: color-mix(in srgb, var(--wh) 9%, transparent);
+}
+.foot-total span {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--ui-action);
+  font-weight: 700;
+  color: #fff;
+}
