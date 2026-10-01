@@ -137,6 +137,19 @@ describe('describeFreshness', () => {
     expect(line.text).not.toContain('за 18 авг')
   })
 
+  it('says a new report is loading only while it is', () => {
+    // The walk records «wb_has_new» again once it succeeds, so the verdict
+    // outlives the run; after it, the report is on the page, not «загружаем».
+    const state = { latest_report: report(), last_check: check({ outcome: 'wb_has_new' }) }
+
+    expect(describeFreshness({ ...state, running: true }, NOW).text).toContain(
+      'WB выложил новый отчёт — загружаем',
+    )
+    expect(describeFreshness({ ...state, running: false }, NOW).text).toBe(
+      'Последний еженедельный отчёт WB: 10–16 авг',
+    )
+  })
+
   it('never phrases a failed check as «нового ничего нет»', () => {
     // The rule the whole feature turns on: WB not answering is an unanswered
     // question. Reporting silence as reassurance is the failure this line was

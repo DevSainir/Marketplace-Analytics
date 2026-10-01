@@ -563,12 +563,25 @@ describe('«Обновить» — the manual WB harvest', () => {
     expect(store.harvestNotice).toBe('')
   })
 
-  it('comes back to a running harvest after a page reload', async () => {
+  /** This browser clicked «Обновить» a moment ago — the note a reload finds. */
+  function clickedJustNow() {
+    localStorage.setItem(
+      'finreports:pending-refresh',
+      JSON.stringify({
+        task_id: 'task-1',
+        settled_before: '2026-07-19',
+        asked_at: new Date().toISOString(),
+      }),
+    )
+  }
+
+  it('comes back to its own running harvest after a page reload', async () => {
     // The state that matters here is the SERVER's, not the click's. It lived
     // only in the store, so reloading mid-run put «Обновить» back on an
     // enabled button over a harvest that was still going — clicking it again
     // did nothing, and the seller had no way to tell whether their refresh was
     // still happening.
+    clickedJustNow()
     fetchHarvestState.mockResolvedValue({
       running: true,
       latest_settled: '2026-07-19',
@@ -581,7 +594,21 @@ describe('«Обновить» — the manual WB harvest', () => {
     expect(store.harvestNotice).toContain('Обновление уже идёт')
   })
 
-  it('resolves a resumed harvest the same way a clicked one resolves', async () => {
+  it('says nothing about a run this browser did not ask for', async () => {
+    // The lock is platform-wide and the schedule takes it many times a day:
+    // «Обновление уже идёт» on an ordinary page load was usually about another
+    // кабинет. A report found for this one is the freshness line's to announce.
+    fetchHarvestState
+      .mockResolvedValueOnce({ running: true, latest_settled: '2026-07-19' })
+      .mockResolvedValue({ running: false, latest_settled: '2026-07-19' })
+
+    await settle(() => store.loadHarvestState())
+
+    expect(store.harvestNotice).toBe('')
+  })
+
+  it('resolves a resumed harvest of its own the same way a clicked one resolves', async () => {
+    clickedJustNow()
     fetchHarvestState
       .mockResolvedValueOnce({ running: true, latest_settled: '2026-07-19' })
       .mockResolvedValue({ running: false, latest_settled: '2026-07-19' })

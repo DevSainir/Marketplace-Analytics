@@ -127,9 +127,10 @@ function localToday(now) {
  * @param {{outcome: string}} check
  * @param {string} heldThrough Last day the statement covers, `YYYY-MM-DD`.
  * @param {Date} now
+ * @param {boolean} running Whether a harvest holds the lock right now.
  * @returns {string}
  */
-function describeCheck(check, heldThrough, now) {
+function describeCheck(check, heldThrough, now, running) {
   switch (check.outcome) {
     case 'wb_empty': {
       const missing = nextDay(heldThrough)
@@ -138,7 +139,9 @@ function describeCheck(check, heldThrough, now) {
         : 'WB ещё не выложил новых отчётов'
     }
     case 'wb_has_new':
-      return 'WB выложил новый отчёт — загружаем'
+      // The verdict outlives the run: the walk records it again on success.
+      // Once nothing is running the report is on the page, not «загружаем».
+      return running ? 'WB выложил новый отчёт — загружаем' : ''
     case 'never_harvested':
       return 'Загружаем отчёты из WB…'
     case 'probe_failed':
@@ -195,7 +198,12 @@ export function describeFreshness(state, now = new Date()) {
     return { text: parts.join(' · '), tone: 'warning' }
   }
 
-  const said = describeCheck(check, state.provisional_through || report?.date_to || '', now)
+  const said = describeCheck(
+    check,
+    state.provisional_through || report?.date_to || '',
+    now,
+    Boolean(state.running),
+  )
   if (said) parts.push(said)
 
   const checkedAt = new Date(check.checked_at)

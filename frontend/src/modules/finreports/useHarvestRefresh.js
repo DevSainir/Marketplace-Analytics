@@ -135,19 +135,25 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
    */
   let watching = false
 
-  /** Watch a harvest to its end, in the background. Never awaited by a click. */
-  async function watchHarvest(settledBefore) {
+  /**
+   * Watch a harvest to its end, in the background. Never awaited by a click.
+   *
+   * `quiet` is a run this browser did not ask for: it still reloads the
+   * statement if a week lands, but «новых отчётов нет» would answer a question
+   * nobody asked.
+   */
+  async function watchHarvest(settledBefore, { quiet = false } = {}) {
     if (watching) return
     watching = true
     try {
-      await pollUntilIdle(settledBefore)
+      await pollUntilIdle(settledBefore, quiet)
     } finally {
       watching = false
     }
   }
 
   /** The loop itself. See `watchHarvest`, which owns the `watching` flag. */
-  async function pollUntilIdle(settledBefore) {
+  async function pollUntilIdle(settledBefore, quiet) {
     for (let attempt = 0; attempt < POLL_LIMIT; attempt += 1) {
       await delay(POLL_MS)
       let state
@@ -159,7 +165,7 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
       }
       onState?.(state)
       if (state.running) continue
-      await concludeHarvest(state, settledBefore)
+      await concludeHarvest(state, settledBefore, quiet)
       return
     }
     // The note goes too: nothing is watching this run any more, so the next
@@ -176,8 +182,9 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
    *
    * @param {{latest_settled: string|null}|null} state The state that showed it idle.
    * @param {string} settledBefore Settlement day when the refresh was asked for.
+   * @param {boolean} [quiet] Nobody here asked: announce a new report, not its absence.
    */
-  async function concludeHarvest(state, settledBefore) {
+  async function concludeHarvest(state, settledBefore, quiet = false) {
     clearPendingRefresh()
     // An EMPTY baseline is "we did not know", not "we knew it was nothing" —
     // a click that beat the weeks onto the page has no day to compare against,
@@ -186,7 +193,7 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
     if (settledBefore && state?.latest_settled && state.latest_settled !== settledBefore) {
       await onNewReports()
       harvestNotice.value = `Загружен отчёт по ${state.latest_settled}.`
-    } else {
+    } else if (!quiet) {
       harvestNotice.value = 'Новых отчётов у Wildberries пока нет.'
     }
   }
@@ -197,7 +204,12 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
    * Three endings, decided by the server's `running` flag together with this
    * browser's note (see the module docstring on why neither is enough alone):
    *
-   * * A harvest is running — watch it in the background and say so.
+   * * A harvest is running — watch it in the background. Say so only if this
+   *   browser asked for it: the lock is platform-wide and the schedule takes it
+   *   many times a day, so on an ordinary page load «Обновление уже идёт» was
+   *   usually about somebody else's кабинет and read as noise. A run that
+   *   actually found a report for THIS кабинет is the freshness line's to
+   *   announce («WB выложил новый отчёт — загружаем»).
    * * Nothing is running but this browser asked for one — it finished while the
    *   tab was away, so report how it ended rather than silently dropping it.
    * * Neither — an ordinary page load, and nothing to say.
@@ -225,8 +237,12 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
       await concludeHarvest(state, settledBefore)
       return
     }
-    harvestNotice.value = RUNNING_NOTICE
-    void watchHarvest(settledBefore)
+    if (pending) {
+      harvestNotice.value = RUNNING_NOTICE
+      void watchHarvest(settledBefore)
+      return
+    }
+    void watchHarvest(settledBefore, { quiet: true })
   }
 
   /**
