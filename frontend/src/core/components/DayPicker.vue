@@ -12,7 +12,7 @@
  * stock comparison and the finreports stock balance — and a date is not a
  * domain concept either of them owns.
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import CalendarMonthGrid from '@/core/components/CalendarMonthGrid.vue'
 import { isoLocalDate } from '@/core/utils/dates'
@@ -51,7 +51,14 @@ const MONTHS = [
 const todayIso = isoLocalDate(new Date())
 
 const root = ref(null)
+const popover = ref(null)
 const open = ref(false)
+/**
+ * Whether the month opens leftwards from the field's right edge. The stock
+ * balance puts the field at the right end of its header, and a month hung off
+ * its left edge ran past the window.
+ */
+const alignEnd = ref(false)
 const viewYear = ref(2000)
 const viewMonth = ref(0)
 
@@ -116,7 +123,12 @@ function toggle() {
   const [y, m] = (props.modelValue || todayIso).split('-').map(Number)
   viewYear.value = y
   viewMonth.value = m - 1
+  alignEnd.value = false
   open.value = true
+  nextTick(() => {
+    const box = popover.value?.getBoundingClientRect()
+    if (box && box.right > document.documentElement.clientWidth) alignEnd.value = true
+  })
 }
 
 function pickDay(cell) {
@@ -167,7 +179,9 @@ onBeforeUnmount(() => {
     <transition name="cal">
       <div
         v-if="open"
-        class="absolute left-0 top-[calc(100%+6px)] z-40 rounded-card border border-border-subtle bg-surface p-md shadow-card"
+        ref="popover"
+        class="absolute top-[calc(100%+6px)] z-40 rounded-card border border-border-subtle bg-surface p-md shadow-card"
+        :class="alignEnd ? 'right-0' : 'left-0'"
         role="dialog"
         :aria-label="ariaLabel"
       >

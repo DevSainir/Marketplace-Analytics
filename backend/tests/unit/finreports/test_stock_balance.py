@@ -189,8 +189,8 @@ def test_a_sku_whose_stock_is_all_in_transit_still_ranks_by_its_money() -> None:
     assert [row.nm_id for row in grid.rows] == [NM_BRUKI, NM_SHORTS]
 
 
-def test_the_standing_note_says_where_goods_in_transit_are_counted() -> None:
-    """The corner is unreadable without knowing which figure holds the transit."""
+def test_a_fully_costed_snapshot_carries_no_notes() -> None:
+    """Notes are for what needs the seller's action; the method lives in the docs."""
     grid = _balance()
 
-    assert any("В пути" in note and "себестоимости" in note for note in grid.notes)
+    assert grid.notes == []

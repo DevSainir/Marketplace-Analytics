@@ -8,40 +8,34 @@
  * and nobody noticed, because "the figures stop at last Sunday" is exactly what
  * a quiet week looks like.
  *
- * Two facts fix that, and neither works alone: **what we hold** (which report is
- * newest on file and when we pulled it) and **when we last asked** (what the
- * hourly gate found, and the moment it found it). «Новых отчётов нет» means
- * nothing without «и мы спросили 12 минут назад».
+ * Two facts fix that, and neither works alone: **what we hold** (the newest
+ * weekly report and how far the daily ones reach) and **what the hourly gate
+ * found** the last time it asked WB.
  *
  * The rules this file exists to keep:
  *
  * * **A check that FAILED is never phrased as "nothing new."** WB not answering
  *   is an unanswered question; dressing it as reassurance is the exact failure
  *   the line was added to prevent. It says the data may be incomplete.
- * * **Staleness is the signal.** Minutes and hours up to a day, an absolute date
- *   beyond it, and a warning tone once nobody has asked in over a day or the
- *   last question went unanswered. A quiet week is normal and reads as normal.
- * * **Name the period we hold, not the probe window.** That string is what the
- *   seller matches against WB's own отчёты page, so it keeps WB's day-month
- *   shape.
- * * **A provisional day is named as provisional.** Since the daily tail landed,
- *   the statement includes days no weekly settlement report covers yet — WB
- *   serves a per-day report the following morning. Saying only «Последний отчёт
- *   WB: 14-20 сен» over figures that run to the 22nd contradicts the page;
- *   folding those days INTO that period would claim a settlement document WB has
- *   not issued. So they get their own clause and the word «предварительно».
- * * **Timezones.** `harvested_at` / `checked_at` are UTC *instants*: day and
- *   time are read off one local `Date` together, or a 23:14Z harvest prints its
- *   day and its time a day apart in Moscow. A report's period is a calendar
- *   date and is never put through `Date` at all.
+ * * **Staleness is the signal, and only staleness is shown.** A check younger
+ *   than a day says nothing about its age — «проверено 14 мин назад» on every
+ *   load was noise. Past a day the line turns to a warning and names the date
+ *   of the last check, which is what a dead harvester looks like.
+ * * **Name both kinds of report.** Since the daily tail landed the statement
+ *   runs past the last weekly report: WB serves a per-day report the following
+ *   morning. «Последний еженедельный отчёт WB: 21–27 сен» over figures that run
+ *   to the 30th reads as a contradiction unless the line also says «ежедневные
+ *   — по 30 сен». Folding those days INTO the weekly period would claim a
+ *   settlement document WB has not issued.
+ * * **Timezones.** `checked_at` is a UTC *instant* and is read off a local
+ *   `Date`. A report's period is a calendar date and never goes through `Date`.
  */
 
 /** Genitive short month names, WB's own shape in «10–16 авг». */
 const MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
 
-const MINUTE_MS = 60000
-const HOUR_MS = 60 * MINUTE_MS
-const DAY_MS = 24 * HOUR_MS
+/** Past this age the last check is stale, and the line says when it ran. */
+const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
  * Split a `YYYY-MM-DD` calendar date without going through `Date`.
@@ -92,80 +86,74 @@ export function formatPeriod(report) {
 }
 
 /**
- * An instant as «18 авг, 06:14» in the reader's own timezone.
- *
- * Day and time come off the SAME local `Date`. Formatting them from different
- * sources is how a 23:14Z harvest ends up printed with Moscow's time and UTC's
- * day — off by one, and only for the three hours where anyone would notice.
+ * The local calendar day of an instant, «28 сен» — when the last check ran.
  *
  * @param {string} iso UTC instant.
- * @returns {string} The formatted instant, or `''` when it is not one.
+ * @returns {string} The day, or `''` when it is not an instant.
  */
-export function formatInstant(iso) {
+export function formatCheckDay(iso) {
   const at = new Date(iso)
   if (Number.isNaN(at.getTime())) return ''
-  const time = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`
-  return `${at.getDate()} ${MONTHS[at.getMonth()]}, ${time}`
-}
-
-/**
- * How long ago an instant was — the half that makes the rest mean anything.
- *
- * Plain minutes and hours inside a day, an absolute date past it: "проверено
- * 2 дня назад" and "проверено 3 сент" say the same thing, and only the second
- * one is checkable against anything.
- *
- * @param {string} iso UTC instant.
- * @param {Date} now Reference time (injected so this stays pure).
- * @returns {string} Elapsed phrase, or `''` when the instant is unreadable.
- */
-export function formatElapsed(iso, now) {
-  const at = new Date(iso)
-  if (Number.isNaN(at.getTime())) return ''
-  const elapsed = now.getTime() - at.getTime()
-  // A future instant is clock skew between the server and this browser, not a
-  // fact about the harvest. «через 3 минуты» would read as a broken page.
-  if (elapsed < MINUTE_MS) return 'только что'
-  if (elapsed < HOUR_MS) return `${Math.floor(elapsed / MINUTE_MS)} мин назад`
-  if (elapsed < DAY_MS) return `${Math.floor(elapsed / HOUR_MS)} ч назад`
   return `${at.getDate()} ${MONTHS[at.getMonth()]}`
 }
 
 /**
- * What the last freshness check found, in words.
+ * The calendar day after `iso`, as `YYYY-MM-DD` — arithmetic on the calendar,
+ * never on an instant, so no timezone can move it.
+ */
+function nextDay(iso) {
+  const parsed = calendarDay(iso)
+  if (!parsed) return ''
+  const year = Number(iso.slice(0, 4))
+  const next = new Date(Date.UTC(year, parsed.month, parsed.day + 1))
+  return next.toISOString().slice(0, 10)
+}
+
+/** Today in the reader's own calendar, as `YYYY-MM-DD`. */
+function localToday(now) {
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
+/**
+ * What the last freshness check found, in words — or `''` when the line
+ * already says it.
  *
- * `wb_empty` is the only outcome allowed to say «нового ничего нет», and it
- * names the period we hold rather than the days that were probed — the seller
- * compares that string against WB's отчёты page, which lists periods.
+ * `up_to_date` means we hold every report WB has formed, which «ежедневные —
+ * по 30 сен» already says. `wb_empty` names the first day we do not hold, and
+ * only while that day is over: a report for today cannot exist yet, and «не
+ * выложил за сегодня» would read as WB being late.
  *
  * @param {{outcome: string}} check
- * @param {string} held The period we hold, already formatted.
+ * @param {string} heldThrough Last day the statement covers, `YYYY-MM-DD`.
+ * @param {Date} now
  * @returns {string}
  */
-function describeCheck(check, held) {
+function describeCheck(check, heldThrough, now) {
   switch (check.outcome) {
-    case 'wb_empty':
-      return held
-        ? `Wildberries пока не опубликовал отчёт новее ${held}`
-        : 'Wildberries пока не опубликовал ничего новее'
-    case 'up_to_date':
-      return 'Отчёты загружены по вчерашний день'
+    case 'wb_empty': {
+      const missing = nextDay(heldThrough)
+      return missing && missing < localToday(now)
+        ? `WB ещё не выложил ежедневный отчёт за ${dayMonth(missing)}`
+        : 'WB ещё не выложил новых отчётов'
+    }
     case 'wb_has_new':
-      return 'Wildberries опубликовал новый отчёт — загружаем'
+      return 'WB выложил новый отчёт — загружаем'
     case 'never_harvested':
-      return 'Загружаем всё, что есть у Wildberries'
+      return 'Загружаем отчёты из WB…'
     case 'probe_failed':
-      // Never «новых отчётов нет». WB did not answer; saying nothing is new
+      // Never «нового ничего нет». WB did not answer; saying nothing is new
       // would report silence as reassurance.
-      return 'Не удалось спросить Wildberries — данные могут быть неполными'
+      return 'WB не ответил — возможно, есть отчёты новее'
     case 'rate_blocked':
       // Also not reassurance, and deliberately not phrased as our failure:
       // WB has shut the endpoint, and pressing «Обновить» again is the one
       // thing that makes it worse — a request inside an open block restarts
       // it longer.
-      return 'Wildberries временно ограничил доступ — ждём и загрузим сами'
+      return 'WB временно ограничил запросы — загрузим сами, когда откроет'
     default:
-      // An outcome this build does not know is not an outcome it may narrate.
+      // `up_to_date`, and any outcome this build does not know — which is not
+      // an outcome it may narrate.
       return ''
   }
 }
@@ -187,37 +175,34 @@ export function describeFreshness(state, now = new Date()) {
   const check = state.last_check ?? null
   if (!report && !check) return null
 
-  const held = report ? formatPeriod(report) : ''
   const parts = []
-
   if (report) {
-    parts.push(held ? `Последний отчёт WB: ${held}` : 'Последний отчёт WB: период не указан')
-    const loaded = formatInstant(report.harvested_at)
-    if (loaded) parts.push(`загружен ${loaded}`)
-  } else {
+    const held = formatPeriod(report)
+    parts.push(`Последний еженедельный отчёт WB: ${held || 'период не указан'}`)
+    // The backend sends this only when the tail actually reaches past the
+    // settled period, so there is no «plus nothing» case to suppress here.
+    const daily = dayMonth(state.provisional_through)
+    if (daily) parts.push(`ежедневные — по ${daily}`)
+  } else if (check?.outcome !== 'never_harvested') {
     parts.push('Отчётов WB пока нет')
   }
 
-  // The backend sends this only when the tail actually reaches past the settled
-  // period, so there is no «plus nothing» case to suppress here.
-  const provisional = dayMonth(state.provisional_through)
-  if (provisional) parts.push(`предварительно по ${provisional}`)
-
-  // Missing entirely — never checked, the record expired, or it came back
-  // unreadable. All three mean the same thing and none of them is reassuring:
-  // a stale probe is precisely the evidence that the harvester stopped.
+  // Missing entirely — Redis did not answer, the record outlived its 30 days,
+  // or it came back in a shape this build does not read. None is reassuring:
+  // the second is precisely what a harvester dead for a month looks like.
   if (!check) {
-    parts.push('неизвестно, когда мы в последний раз спрашивали Wildberries')
+    parts.push('Не знаем, когда последний раз проверяли WB — данные могут быть неполными')
     return { text: parts.join(' · '), tone: 'warning' }
   }
 
-  const said = describeCheck(check, held)
+  const said = describeCheck(check, state.provisional_through || report?.date_to || '', now)
   if (said) parts.push(said)
-  const elapsed = formatElapsed(check.checked_at, now)
-  if (elapsed) parts.push(`проверено ${elapsed}`)
 
   const checkedAt = new Date(check.checked_at)
   const stale = Number.isNaN(checkedAt.getTime()) || now.getTime() - checkedAt.getTime() >= DAY_MS
+  const lastDay = formatCheckDay(check.checked_at)
+  if (stale && lastDay) parts.push(`последняя проверка WB — ${lastDay}`)
+
   return {
     text: parts.join(' · '),
     tone:

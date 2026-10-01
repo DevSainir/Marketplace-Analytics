@@ -1,16 +1,15 @@
 <script setup>
 /**
  * One quiet line under the P&L header saying why the statement stops where it
- * does — «Последний отчёт WB: 10–16 авг · загружен 18 авг, 06:14 · Wildberries
- * пока не опубликовал отчёт новее 10–16 авг · проверено 12 мин назад».
+ * does — «Последний еженедельный отчёт WB: 10–16 авг · ежедневные — по 18 авг».
  *
- * Dumb by design: every decision about wording, elapsed time and tone lives in
+ * Dumb by design: every decision about wording, staleness and tone lives in
  * `reportFreshness.js`, which is pure and tested. This renders the result and
  * nothing else, and renders nothing at all when there is nothing honest to say.
  *
- * The clock is a `ref` rather than a bare `new Date()` so «12 мин назад» does
- * not sit frozen on a page left open all afternoon — which would recreate, in
- * the line itself, the staleness it exists to report.
+ * The clock is a `ref` rather than a bare `new Date()` so a page left open
+ * overnight still turns the line into a warning once the last check is a day
+ * old — a frozen clock would recreate the staleness it exists to report.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
@@ -21,7 +20,7 @@ const props = defineProps({
   state: { type: Object, default: null },
 })
 
-/** How often the elapsed phrase is recomputed. Minute resolution, minute tick. */
+/** How often staleness is re-judged. */
 const TICK_MS = 60000
 
 const now = ref(new Date())
