@@ -160,10 +160,13 @@ class PnlDashboard(BaseModel):
     #: скидки», i.e. before WB's СПП), net of returns, over non-excluded SKUs.
     #: This is what the seller is effectively paid on (WB funds the СПП gap).
     sales: Decimal
-    #: «Оплачено покупателями» — the same net revenue at the after-СПП price the
-    #: buyer actually paid; shown as the «Продажи» card's qualifier.
+    #: «Цена реализации» — the same net revenue at the after-СПП price the buyer
+    #: actually paid; WB's own «Продажа». The page switches between the two.
     paid: Decimal
+    #: Units on «Продажа» rows (gross) and on «Возврат» rows; the card shows the
+    #: difference, so its count is net like its money.
     sold_units: int
+    returned_units: int
     return_rate_pct: Decimal | None
     #: «Логистика» over non-excluded SKUs, and its share of :attr:`sales`.
     logistics: Decimal

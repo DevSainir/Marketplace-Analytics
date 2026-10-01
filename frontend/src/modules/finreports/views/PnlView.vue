@@ -15,10 +15,12 @@ import { RouterLink } from 'vue-router'
 import PnlDashboardCards from '@/modules/finreports/components/PnlDashboardCards.vue'
 import ReportFreshnessLine from '@/modules/finreports/components/ReportFreshnessLine.vue'
 import { providePnlCurrencies } from '@/modules/finreports/pnlFormat'
+import { PRICE_BASES, providePriceBase } from '@/modules/finreports/priceBase'
 import { shiftIsoDate } from '@/modules/finreports/savedPeriod'
 import { useFinReportsStore } from '@/modules/finreports/store'
 
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
+import { useMembersStore } from '@/modules/profile'
 
 /**
  * The SKU table pulls in PrimeVue's DataTable, which is ~400 kB — five times
@@ -39,6 +41,12 @@ const BalanceSection = defineAsyncComponent(
 )
 
 const store = useFinReportsStore()
+const members = useMembersStore()
+
+// The price every revenue figure on the page is shown at — a re-render, not a
+// request: each row already carries both. See `priceBase.js`.
+const priceBase = ref('seller')
+providePriceBase(priceBase)
 
 const PRESETS = [
   { key: 7, label: '7 дней' },
@@ -97,10 +105,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
     <header class="mb-lg flex flex-wrap items-end justify-between gap-md">
       <div>
         <h1 class="text-h2 font-bold text-primary">P&amp;L</h1>
-        <p class="mt-xs max-w-3xl text-base text-muted">
-          По еженедельной детализации финансовых отчётов WB, построчно. Отчёт по артикулам — только
-          из строк самого артикула; общие удержания счёта показаны отдельной строкой.
-        </p>
+        <p class="mt-xs max-w-3xl text-base text-muted">По финансовым отчётам WB, построчно.</p>
       </div>
       <div class="flex items-center gap-sm phone:w-full">
         <!--
@@ -112,18 +117,22 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           harvest. It used to stay disabled until the run finished, which on a
           WB rate-limit block meant seven minutes of «Обновляем…» over a walk
           that was doing nothing but waiting.
+
+          A ghost button beside a filled «Себестоимость» on purpose: the hourly
+          schedule makes a manual refresh rarely needed, and inside a WB block
+          an extra press lengthens it. Filling in costs is the seller's own job.
         -->
         <button
           type="button"
           :disabled="store.harvestBusy"
-          class="rounded-btn border border-border-subtle bg-surface px-md py-sm text-base font-medium text-primary transition hover:border-action hover:text-action disabled:cursor-not-allowed disabled:text-muted disabled:hover:border-border-subtle disabled:hover:text-muted phone:min-h-11 phone:flex-1"
+          class="rounded-btn px-md py-sm text-base font-medium text-primary transition hover:bg-hover disabled:cursor-not-allowed disabled:text-muted disabled:hover:bg-transparent phone:min-h-11 phone:flex-1"
           @click="store.refreshFromWb()"
         >
           {{ store.harvestBusy ? 'Обновляем…' : 'Обновить' }}
         </button>
         <RouterLink
           :to="{ name: 'finreports-cost-prices' }"
-          class="flex items-center justify-center rounded-btn border border-border-subtle bg-surface px-md py-sm text-base font-medium text-primary transition hover:border-action hover:text-action phone:min-h-11 phone:flex-1"
+          class="flex items-center justify-center rounded-btn bg-action px-lg py-sm text-base font-semibold text-white shadow-soft transition hover:bg-action-hover phone:min-h-11 phone:flex-1"
         >
           Себестоимость
         </RouterLink>
@@ -184,6 +193,19 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           Вся история
         </button>
       </div>
+
+      <div class="flex items-center gap-xs phone:w-full">
+        <button
+          v-for="base in PRICE_BASES"
+          :key="base.key"
+          type="button"
+          class="ui-chip phone:min-h-11 phone:flex-1"
+          :class="{ 'is-on': priceBase === base.key }"
+          @click="priceBase = base.key"
+        >
+          {{ base.label }}
+        </button>
+      </div>
     </div>
 
     <div
@@ -202,7 +224,10 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
     </div>
 
     <template v-else-if="dashboard">
-      <PnlDashboardCards :dashboard="dashboard" :currency="currency" />
+      <PnlDashboardCards
+        :dashboard="dashboard"
+        :currency="currency"
+      />
 
       <ul v-if="notes.length" class="mt-md space-y-xs">
         <li v-for="note in notes" :key="note" class="text-tiny text-muted">⚠ {{ note }}</li>
@@ -211,10 +236,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
       <div class="mt-lg">
         <h2 class="mb-xs text-h3 font-semibold text-primary">По артикулам</h2>
         <p class="mb-sm max-w-4xl text-tiny text-muted">
-          Продажи, возвраты и удержания — по датам расчёта WB: строки его же еженедельного отчёта,
-          сумма сходится с «Итого к оплате» до копейки. Сервисы, считающие «продажи» по когортам
-          заказов периода, за свежие даты покажут меньшие числа — большая часть заказов ещё не
-          выкуплена и в расчёт WB не попала.
+          Продажи, возвраты и удержания — по датам расчёта WB.
         </p>
         <PnlSkuTable
           :rows="rows"

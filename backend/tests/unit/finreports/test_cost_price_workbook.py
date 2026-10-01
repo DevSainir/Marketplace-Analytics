@@ -77,6 +77,7 @@ def _report(rows: list[PnlSkuRow], *, unallocated: PnlSkuRow | None = None) -> P
         sales=Decimal("1000"),
         paid=Decimal("900"),
         sold_units=8,
+        returned_units=1,
         return_rate_pct=Decimal("12.5"),
         logistics=Decimal("60"),
         logistics_pct=Decimal("6.6"),

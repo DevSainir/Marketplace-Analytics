@@ -103,6 +103,7 @@ def make_report(
             sales=ZERO,
             paid=ZERO,
             sold_units=0,
+            returned_units=0,
             return_rate_pct=None,
             logistics=ZERO,
             logistics_pct=None,

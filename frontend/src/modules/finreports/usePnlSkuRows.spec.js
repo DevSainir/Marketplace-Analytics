@@ -1,4 +1,5 @@
-import { subsetDashboard, sumRows } from '@/modules/finreports/usePnlSkuRows'
+import { sizeAtBase } from '@/modules/finreports/priceBase'
+import { subsetDashboard, sumRows, toRow } from '@/modules/finreports/usePnlSkuRows'
 
 /** A raw PnlSkuRow-shaped object (only the fields subsetDashboard reads). */
 function row(overrides = {}) {
@@ -78,6 +79,7 @@ describe('sumRows — строка «Итого»', () => {
       returned: 4,
       delivered: 100,
       sales: 1000,
+      seller: 1000,
       paid: 900,
       logistics: 200,
       penalties: 10,
@@ -189,5 +191,61 @@ describe('sumRows — строка «Итого»', () => {
   it('на пустой таблице итога нет', () => {
     expect(sumRows([])).toBeNull()
     expect(sumRows([flat({ isExcluded: true })])).toBeNull()
+  })
+})
+
+describe('база цены — «Цена селлера» или «Цена реализации»', () => {
+  const backendRow = row({ advertising: '90', net_profit: '180', spp_pct: '10.00' })
+
+  it('по цене селлера делит на выручку до СПП', () => {
+    const r = toRow(backendRow, false, 'seller')
+
+    expect(r.sales).toBe(1000)
+    expect(r.logisticsPct).toBeCloseTo(20) // 200 / 1000
+    expect(r.advertisingPct).toBeCloseTo(9) // 90 / 1000
+    expect(r.profitPct).toBeCloseTo(18) // 180 / 1000
+    expect(r.averageCheque).toBeCloseTo(1000 / 9) // 10 продано − 1 возврат
+  })
+
+  it('по цене реализации делит то же самое на выручку после СПП', () => {
+    const r = toRow(backendRow, false, 'paid')
+
+    expect(r.sales).toBe(900)
+    expect(r.logisticsPct).toBeCloseTo((200 / 900) * 100)
+    expect(r.advertisingPct).toBeCloseTo(10)
+    expect(r.profitPct).toBeCloseTo(20)
+    expect(r.averageCheque).toBeCloseTo(100)
+  })
+
+  it('не двигает то, что на выручку не делится', () => {
+    // Выплата, прибыль деньгами и СПП — одни и те же при любой базе.
+    const seller = toRow(backendRow, false, 'seller')
+    const paid = toRow(backendRow, false, 'paid')
+
+    expect(paid.profit).toBe(seller.profit)
+    expect(paid.payout).toBe(seller.payout)
+    expect(paid.sppPct).toBe(seller.sppPct)
+  })
+
+  it('«Итого» по цене реализации: доли от суммы оплаченного, СПП — от суммы до СПП', () => {
+    const t = sumRows([toRow(backendRow, false, 'paid'), toRow(backendRow, false, 'paid')])
+
+    expect(t.sales).toBe(1800)
+    expect(t.logisticsPct).toBeCloseTo((400 / 1800) * 100)
+    expect(t.averageCheque).toBeCloseTo(100) // 1800 / 18 чистых штук
+    expect(t.sppPct).toBeCloseTo(10) // (2000 − 1800) / 2000
+  })
+
+  it('размер: цена × штуки остаётся выручкой при любой базе', () => {
+    const size = {
+      sold_units: 12,
+      returned_units: 2,
+      revenue_seller_price: '5000',
+      revenue_paid: '4000',
+      logistics_total: '1000',
+    }
+
+    expect(sizeAtBase(size, 'seller')).toEqual({ price: 500, revenue: 5000, logisticsPct: 20 })
+    expect(sizeAtBase(size, 'paid')).toEqual({ price: 400, revenue: 4000, logisticsPct: 25 })
   })
 })

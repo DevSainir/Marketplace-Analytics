@@ -10,11 +10,29 @@
 import { computed, ref } from 'vue'
 
 import { formatSku } from '@/core/utils/format'
+import { atBase, shareOf } from '@/modules/finreports/priceBase'
 
 const num = (value) => (value === null || value === undefined ? null : Number(value))
 
-/** Flatten one backend `PnlSkuRow` to the shape the table renders and sorts on. */
-export function toRow(r, isBucket = false) {
+/**
+ * Flatten one backend `PnlSkuRow` to the shape the table renders and sorts on.
+ *
+ * `sales` is the revenue at the chosen price base, and every share and the
+ * average cheque are taken from it here rather than from the backend's
+ * seller-price percentages — the same division at either base, so the two
+ * cannot drift apart.
+ *
+ * @param {object} r The backend row.
+ * @param {boolean} [isBucket] The account-level «Без привязки к артикулу» row.
+ * @param {string} [base] `'seller'` or `'paid'` — see `priceBase.js`.
+ */
+export function toRow(r, isBucket = false, base = 'seller') {
+  const seller = num(r.revenue_seller_price)
+  const paid = num(r.revenue_paid)
+  const sales = atBase(base, seller, paid)
+  const net = r.sold_units - r.returned_units
+  const advertising = num(r.advertising)
+  const profit = num(r.net_profit)
   return {
     nmId: r.nm_id,
     saName: formatSku(r.sa_name),
@@ -33,28 +51,28 @@ export function toRow(r, isBucket = false) {
     // выкуп суммы считается от сложенных штук, а не как средний процент.
     delivered: r.delivered_units ?? 0,
     buyoutPct: num(r.buyout_pct),
-    sales: num(r.revenue_seller_price),
-    // Выручка после СПП — база, от которой считает проценты бэкенд. В таблице
-    // своей колонки нет, но без неё строка «Итого» не сможет пересчитать доли
-    // от суммы (доля суммы — не сумма долей).
-    paid: num(r.revenue_paid),
-    averageCheque: num(r.average_cheque),
+    sales,
+    // Обе базы — строке «Итого»: доли она пересчитывает от сложенных сумм
+    // (доля суммы — не сумма долей), а СПП это разница между ними.
+    seller,
+    paid,
+    averageCheque: net && sales !== null ? sales / net : null,
     sppPct: num(r.spp_pct),
     logistics: num(r.logistics_total),
-    logisticsPct: num(r.logistics_pct),
+    logisticsPct: shareOf(num(r.logistics_total), sales),
     penalties: num(r.penalties_total),
     penaltyReasons: (r.penalties ?? []).map((p) => ({ reason: p.reason, amount: num(p.amount) })),
     cogs: num(r.cogs),
-    advertising: num(r.advertising),
-    advertisingPct: num(r.advertising_pct),
+    advertising,
+    advertisingPct: shareOf(advertising, sales),
     // Positive magnitude, exactly as the API sends it. Rendering is what
     // gives it the minus sign — a doubly negated deduction adds back.
     adBonus: num(r.ad_bonus),
     advertisingCash: num(r.advertising_cash),
     roi: num(r.roi_pct),
     payout: num(r.payout_net),
-    profit: num(r.net_profit),
-    profitPct: num(r.net_profit_pct),
+    profit,
+    profitPct: shareOf(profit, sales),
   }
 }
 
@@ -63,8 +81,9 @@ export function toRow(r, isBucket = false) {
  *
  * @param {import('vue').Ref<Array>} rows Reactive `PnlSkuRow[]`.
  * @param {import('vue').Ref<object|null>} unallocated The account-level bucket.
+ * @param {() => string} [base] The chosen price base — see `priceBase.js`.
  */
-export function usePnlSkuRows(rows, unallocated) {
+export function usePnlSkuRows(rows, unallocated, base = () => 'seller') {
   const query = ref('')
   const subjectFilter = ref('')
   const brandFilter = ref('')
@@ -97,10 +116,12 @@ export function usePnlSkuRows(rows, unallocated) {
   })
 
   const tableRows = computed(() => {
-    const mapped = filtered.value.map((r) => toRow(r))
+    const mapped = filtered.value.map((r) => toRow(r, false, base()))
     // The account-level bucket has no SKU identity to filter on — show it only
     // when the list is unfiltered, so a search never strands an orphan row.
-    if (unallocated.value && !isFiltering.value) mapped.push(toRow(unallocated.value, true))
+    if (unallocated.value && !isFiltering.value) {
+      mapped.push(toRow(unallocated.value, true, base()))
+    }
     return mapped
   })
 
@@ -137,6 +158,7 @@ export function subsetDashboard(rows, base = null) {
     sales,
     paid,
     sold_units: sold,
+    returned_units: returned,
     return_rate_pct: sold ? (returned / sold) * 100 : null,
     logistics,
     logistics_pct: sales ? (logistics / sales) * 100 : null,
@@ -192,6 +214,7 @@ export function sumRows(rows, adInvoices = 0) {
   const returned = sum('returned')
   const delivered = sum('delivered')
   const sales = sum('sales')
+  const seller = sum('seller')
   const paid = sum('paid')
   const net = sold - returned
   const logistics = sum('logistics')
@@ -219,9 +242,10 @@ export function sumRows(rows, adInvoices = 0) {
     delivered,
     buyoutPct: share(sold, delivered),
     sales,
+    seller,
     paid,
-    averageCheque: net ? paid / net : null,
-    sppPct: share(sales - paid, sales),
+    averageCheque: net ? sales / net : null,
+    sppPct: share(seller - paid, seller),
     logistics,
     logisticsPct: share(logistics, sales),
     penalties: sum('penalties'),

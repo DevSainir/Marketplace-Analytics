@@ -334,6 +334,7 @@ def build_dashboard(
         sales=sales,
         paid=paid,
         sold_units=sold_units,
+        returned_units=returned_units,
         return_rate_pct=_pct(Decimal(returned_units), Decimal(sold_units)),
         logistics=logistics,
         logistics_pct=_pct(logistics, sales),

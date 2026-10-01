@@ -18,6 +18,7 @@ import { computed, ref, toRefs, watchEffect } from 'vue'
 import PnlSkuCards from '@/modules/finreports/components/PnlSkuCards.vue'
 import PnlSkuDataTable from '@/modules/finreports/components/PnlSkuDataTable.vue'
 import PnlSkuTableToolbar from '@/modules/finreports/components/PnlSkuTableToolbar.vue'
+import { usePriceBase } from '@/modules/finreports/priceBase'
 import { subsetDashboard, sumRows, usePnlSkuRows } from '@/modules/finreports/usePnlSkuRows'
 
 const PAGE_SIZES = [50, 100, 150, 200]
@@ -41,7 +42,7 @@ const { rows, unallocated } = toRefs(props)
 // Row shaping + local search/filter live in the composable (keeps this
 // component under the size limit).
 const { query, subjectFilter, brandFilter, subjects, brands, tableRows, filtered, isFiltering } =
-  usePnlSkuRows(rows, unallocated)
+  usePnlSkuRows(rows, unallocated, usePriceBase())
 
 // Tell the parent to swap the dashboard to a «по фильтру» subtotal while a
 // filter/search is active, and back to the backend one when it clears. Summing

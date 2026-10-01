@@ -19,6 +19,7 @@
  */
 import { num as n, pct, units, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'
+import { sizeAtBase, usePriceBase } from '@/modules/finreports/priceBase'
 
 defineProps({
   /** @type {object|null} Ответ `/pnl/skus/{nmId}/sizes`, либо `null` пока грузится. */
@@ -26,6 +27,9 @@ defineProps({
 })
 
 const { money } = usePnlMoney()
+const base = usePriceBase()
+/** «Цена», «Выручка» и доля логистики — при выбранной базе цены. */
+const at = (size) => sizeAtBase(size, base())
 </script>
 
 <template>
@@ -56,7 +60,16 @@ const { money } = usePnlMoney()
               >
                 Выкуп
               </th>
-              <th class="pnl-size-th" title="Ваша цена до СПП за выкупленную штуку">Цена</th>
+              <th
+                class="pnl-size-th"
+                :title="
+                  base() === 'paid'
+                    ? 'Цена покупателя после СПП за выкупленную штуку'
+                    : 'Ваша цена до СПП за выкупленную штуку'
+                "
+              >
+                Цена
+              </th>
               <th class="pnl-size-th">Выручка</th>
               <th class="pnl-size-th">Логистика</th>
               <th class="pnl-size-th">Доля лог.</th>
@@ -82,11 +95,11 @@ const { money } = usePnlMoney()
               <td class="pnl-size-td" :class="toneClass('buyoutPct', size.buyout_pct)">
                 {{ pct(size.buyout_pct) }}
               </td>
-              <td class="pnl-size-td">{{ money(size.average_price) }}</td>
-              <td class="pnl-size-td">{{ money(size.revenue_seller_price) }}</td>
+              <td class="pnl-size-td">{{ money(at(size).price) }}</td>
+              <td class="pnl-size-td">{{ money(at(size).revenue) }}</td>
               <td class="pnl-size-td">{{ money(size.logistics_total) }}</td>
-              <td class="pnl-size-td" :class="toneClass('logisticsPct', size.logistics_pct)">
-                {{ pct(size.logistics_pct) }}
+              <td class="pnl-size-td" :class="toneClass('logisticsPct', at(size).logisticsPct)">
+                {{ pct(at(size).logisticsPct) }}
               </td>
               <td class="pnl-size-td">{{ money(size.logistics_per_delivery) }}</td>
               <td class="pnl-size-td">
@@ -106,15 +119,17 @@ const { money } = usePnlMoney()
               </td>
               <td class="pnl-size-td pnl-size-foot">{{ pct(state.data.totals.buyout_pct) }}</td>
               <td class="pnl-size-td pnl-size-foot">
-                {{ money(state.data.totals.average_price) }}
+                {{ money(at(state.data.totals).price) }}
               </td>
               <td class="pnl-size-td pnl-size-foot">
-                {{ money(state.data.totals.revenue_seller_price) }}
+                {{ money(at(state.data.totals).revenue) }}
               </td>
               <td class="pnl-size-td pnl-size-foot">
                 {{ money(state.data.totals.logistics_total) }}
               </td>
-              <td class="pnl-size-td pnl-size-foot">{{ pct(state.data.totals.logistics_pct) }}</td>
+              <td class="pnl-size-td pnl-size-foot">
+                {{ pct(at(state.data.totals).logisticsPct) }}
+              </td>
               <td class="pnl-size-td pnl-size-foot">
                 {{ money(state.data.totals.logistics_per_delivery) }}
               </td>

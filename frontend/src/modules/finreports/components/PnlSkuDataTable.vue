@@ -4,8 +4,8 @@
  *
  * One row per SKU with the money columns of the reference workbook plus WB's
  * catalogue identity (the card photo / Артикул WB / Тип предмета / Бренд) and the efficiency
- * ratios (Выкуп, Средний чек, ROI). «Продажи» is shown NET of returns, matching
- * WB's finance page; percentages are shares of that net paid revenue.
+ * ratios (Выкуп, Средний чек, ROI). «Продажи» is shown NET of returns at the
+ * page's price base (`priceBase.js`); the percentages are shares of it.
  *
  * The «Штрафы» cell carries its categories inline (tiny second line) — the
  * category is what tells a seller whether a fine is disputable. The rightmost
@@ -28,7 +28,8 @@
  * projection switch are two responsibilities, and the pair broke the file-size
  * rule the moment they shared a file.
  *
- * Every figure is the backend's; this only formats.
+ * The money is the backend's; the shares are re-divided by `toRow` at the
+ * chosen price base, and this only formats.
  */
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'

@@ -8,9 +8,12 @@
  * never affected by a mark. All the arithmetic is the backend's — this only
  * formats it.
  *
- * - «Продажи» — what buyers paid, NET of returns (matches WB's finance page),
- *   with gross and the return rate as the qualifying subline.
- * - «Логистика» — the full delivery bill and its share of sales; links to the
+ * - «Продажи» — revenue NET of returns at the page's price base (`priceBase.js`),
+ *   which the card names, then the units bought out and returned. Units are
+ *   net too: «488 шт» over a net figure while 69 of them came back made the
+ *   money and the count disagree.
+ * - «Логистика» — the full delivery bill and its share of sales at the same
+ *   a customer has no such page, so the card shows them neither link nor word.
  * - «Прочие удержания» — WB's own «Прочие удержания» line (Σ deduction), with
  *   the advertising (ВБ.Продвижение) share it is mostly made of.
  * - «Себестоимость» — the seller's own cost of the sold units; flags how many
@@ -22,6 +25,7 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
+import { PRICE_BASES, atBase, shareOf, usePriceBase } from '@/modules/finreports/priceBase'
 
 const props = defineProps({
   /** @type {object} The report's exclusion-aware `dashboard` object. */
@@ -29,19 +33,25 @@ const props = defineProps({
   currency: { type: String, default: '' },
 })
 
+const base = usePriceBase()
+
 const money = (value) => formatMoney(value, props.currency)
 const pct = (value) => (value === null || value === undefined ? '—' : formatPercent(Number(value)))
 
 const cards = computed(() => {
   const d = props.dashboard
   const excluded = Number(d.excluded_count) || 0
+  const sales = atBase(base(), d.sales, d.paid)
+  const returned = Number(d.returned_units) || 0
+  const logisticsShare = `${pct(shareOf(d.logistics, sales))} от продаж`
   return [
     {
       key: 'sales',
       label: 'Продажи',
-      value: money(d.sales),
-      sub: `${formatNumber(d.sold_units)} шт · возвраты ${pct(d.return_rate_pct)} · покупатели ${money(d.paid)}`,
-      hint: 'Продажи — по вашей цене («Цена розничная с учётом согласованной скидки», до СПП), за вычетом возвратов: то, на что вы фактически зарабатываете (разницу СПП компенсирует WB). «Покупатели» — сколько заплатили после СПП. Возвраты — выкупленные и затем возвращённые товары, не отмены заказов.',
+      value: money(sales),
+      caption: PRICE_BASES.find((b) => b.key === base())?.caption ?? '',
+      sub: `${formatNumber(Number(d.sold_units) - returned)} шт · возвраты ${formatNumber(returned)} шт`,
+      hint: 'За вычетом возвратов. Цена селлера — ваша цена до СПП («Цена розничная с учётом согласованной скидки»). Цена реализации — сколько заплатил покупатель после СПП; это «Продажа» в отчёте WB. Возвраты — выкупленные и затем возвращённые товары, не отмены заказов.',
       to: null,
     },
     {
@@ -99,6 +109,7 @@ const cards = computed(() => {
       <div class="mt-xs text-h2 font-bold" :class="card.accent ? 'text-action' : 'text-primary'">
         {{ card.value }}
       </div>
+      <div v-if="card.caption" class="mt-xs text-tiny text-muted">{{ card.caption }}</div>
       <div
         class="mt-xs text-tiny"
         :class="card.warn ? 'text-status-warning' : 'text-muted'"

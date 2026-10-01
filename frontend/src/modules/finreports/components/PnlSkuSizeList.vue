@@ -12,6 +12,7 @@
  */
 import { num, pct, units, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'
+import { sizeAtBase, usePriceBase } from '@/modules/finreports/priceBase'
 
 defineProps({
   /** @type {object|null} `{ loading, error, data }` for the article, or `null` before the ask. */
@@ -19,6 +20,8 @@ defineProps({
 })
 
 const { money } = usePnlMoney()
+const base = usePriceBase()
+const revenue = (size) => sizeAtBase(size, base()).revenue
 </script>
 
 <template>
@@ -33,7 +36,7 @@ const { money } = usePnlMoney()
       <div v-for="size in state.data.rows" :key="size.ts_name" class="size-list__item">
         <div class="size-list__line">
           <span class="font-medium text-primary">{{ size.ts_name || 'Без размера' }}</span>
-          <span class="tabular-nums text-primary">{{ money(size.revenue_seller_price) }}</span>
+          <span class="tabular-nums text-primary">{{ money(revenue(size)) }}</span>
         </div>
         <p class="record-note">
           продано {{ units(size.sold_units) }} · возвр.
@@ -43,7 +46,7 @@ const { money } = usePnlMoney()
       </div>
       <div class="size-list__line size-list__total">
         <span>Итого по размерам</span>
-        <span class="tabular-nums">{{ money(state.data.totals.revenue_seller_price) }}</span>
+        <span class="tabular-nums">{{ money(revenue(state.data.totals)) }}</span>
       </div>
     </template>
   </div>
