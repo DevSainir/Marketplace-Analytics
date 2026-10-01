@@ -25,6 +25,7 @@ from src.modules.monitoring.contract import (
     ad_coverage,
     funnel_coverage,
     load_ad_spend_by_nm,
+    load_buyouts_by_nm,
     load_card_photos,
     load_orders_by_nm,
 )
@@ -76,7 +77,15 @@ async def _photo(session: AsyncSession, nm_id: int, url: str) -> None:
     await session.flush()
 
 
-async def _funnel(session: AsyncSession, nm_id: int, day: date, orders: int) -> None:
+async def _funnel(
+    session: AsyncSession,
+    nm_id: int,
+    day: date,
+    orders: int,
+    *,
+    buyouts: int = 0,
+    cancels: int | None = None,
+) -> None:
     """One day of funnel history for a SKU."""
     session.add(
         SalesFunnelDaily(
@@ -85,7 +94,8 @@ async def _funnel(session: AsyncSession, nm_id: int, day: date, orders: int) -> 
             open_count=0,
             cart_count=0,
             order_count=orders,
-            buyout_count=0,
+            buyout_count=buyouts,
+            cancel_count=cancels,
             add_to_wishlist=0,
         )
     )
@@ -134,6 +144,19 @@ async def test_orders_exclude_another_tenants_skus(db_session: AsyncSession) -> 
     )
 
     assert orders == {MINE: 7}
+
+
+async def test_buyouts_exclude_another_tenants_skus(db_session: AsyncSession) -> None:
+    """The «Выкуп» column's inputs carry one seller only."""
+    mine, _ = await _two_tenants(db_session)
+    await _funnel(db_session, MINE, date(2026, 8, 10), orders=7, buyouts=3, cancels=4)
+    await _funnel(db_session, THEIRS, date(2026, 8, 10), orders=900, buyouts=500, cancels=100)
+
+    buyouts = await load_buyouts_by_nm(
+        db_session, workspace_id=mine.id, date_from=WINDOW_FROM, date_to=WINDOW_TO
+    )
+
+    assert buyouts == {MINE: (3, 7)}
 
 
 async def test_ad_spend_excludes_another_tenants_skus(db_session: AsyncSession) -> None:
@@ -340,4 +363,8 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     # 25 since the same day: `load_price_currency` and `load_ad_currencies`, which
     # label the heatmap's money — prices in the currency WB states for them,
     # advertising in the one its ledger bills in. Both through the same semijoin.
-    assert len(scoped) == 25, f"expected 25 scoped loaders, found {sorted(scoped)}"
+    #
+    # 26 since 2026-10-01: `load_buyouts_by_nm`, WB's «Процент выкупа» inputs for
+    # the P&L article row — the same semijoin as `load_orders_by_nm`, proven by
+    # `test_buyouts_exclude_another_tenants_skus` above.
+    assert len(scoped) == 26, f"expected 26 scoped loaders, found {sorted(scoped)}"
