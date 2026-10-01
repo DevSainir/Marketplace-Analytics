@@ -17,4 +17,12 @@ describe('рамки подсветки и база цены', () => {
     expect(tone('buyoutPct', 32)).toBe('positive')
     expect(tone('sizeBuyoutPct', 32)).toBe('')
   })
+
+  it('ДРР до 20 % нейтральный при любой базе, выше — красный, зелёного нет', () => {
+    for (const base of ['seller', 'paid']) {
+      expect(tone('advertisingPct', 1, base)).toBe('')
+      expect(tone('advertisingPct', 20, base)).toBe('')
+      expect(tone('advertisingPct', 20.5, base)).toBe('negative')
+    }
+  })
 })

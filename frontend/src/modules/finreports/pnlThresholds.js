@@ -24,8 +24,9 @@
  *   ROI                         −6,5 /   37 /  116 /  173 /  210
  *   Выкуп (воронка WB)          16,0 / 21,1 / 26,3 / 29,8 / 35,3
  *
- * Низ ДРР не настоящий: в окно попала рублёвая открутка старых кампаний,
- * сложенная с сомами без курса, — рамки ДРР поставлены от медианы вверх. Выборка
+ * ДРР без зелёного вообще и красный только выше 20 % при любой базе — решение
+ * владельца от 01.10.2026: низкий ДРР не заслуга (часто рекламу просто не
+ * крутили), а до 20 % реклама в норме. `good: null` — «хорошей» стороны нет. Выборка
  * мала (p10 и p90 держатся на 2–3 артикулах): при следующей правке перемерить.
  * ROI и маржа оставляют «плохо» на смысловой границе (партия не отбилась, убыток),
  * а не на перцентиле.
@@ -49,7 +50,7 @@ export const BOUNDS = {
    * значит «рекламу не крутили», а не «крутили идеально дёшево», и зелёный на
    * нём красит половину отчёта за то, чего не делали.
    */
-  advertisingPct: { good: 3, bad: 15, higherIsBetter: false, zeroIsAbsent: true },
+  advertisingPct: { good: null, bad: 20, higherIsBetter: false, zeroIsAbsent: true },
   /** Маржа % — чистая прибыль к выручке. Ноль это уже плохо. */
   profitPct: { good: 32, bad: 0, higherIsBetter: true },
   /** ROI товара: ниже 100 % партия не отбивается. */
@@ -68,7 +69,7 @@ export const BOUNDS = {
  */
 export const PAID_BOUNDS = {
   logisticsPct: { good: 22, bad: 46, higherIsBetter: false },
-  advertisingPct: { good: 4, bad: 17, higherIsBetter: false, zeroIsAbsent: true },
+  advertisingPct: { good: null, bad: 20, higherIsBetter: false, zeroIsAbsent: true },
   profitPct: { good: 39, bad: 0, higherIsBetter: true },
 }
 
@@ -96,7 +97,7 @@ export function tone(metric, value, base = 'seller') {
     return n >= bounds.good ? 'positive' : ''
   }
   if (n > bounds.bad) return 'negative'
-  return n <= bounds.good ? 'positive' : ''
+  return bounds.good !== null && n <= bounds.good ? 'positive' : ''
 }
 
 /** Класс текста для той же проверки — то, что вешается на ячейку. */

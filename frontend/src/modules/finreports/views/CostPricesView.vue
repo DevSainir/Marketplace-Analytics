@@ -10,7 +10,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import { currencyInWords, formatNumber, formatPercent } from '@/core/utils/format'
+import { formatNumber, formatPercent } from '@/core/utils/format'
 import CostPriceExcelPanel from '@/modules/finreports/components/CostPriceExcelPanel.vue'
 import CostPriceGrid from '@/modules/finreports/components/CostPriceGrid.vue'
 import { useFinReportsStore } from '@/modules/finreports/store'
@@ -115,12 +115,6 @@ onMounted(() => {
         ← К отчёту о прибылях и убытках
       </RouterLink>
       <h1 class="mt-sm text-h2 font-bold text-primary">Себестоимость</h1>
-      <p class="mt-xs max-w-3xl text-base text-muted">
-        Единственная цифра в отчёте, которой нет у WB. Указывайте себестоимость 1 ед.
-        <b>с фулфилментом</b>, {{ currencyInWords(currency) }} — той же валюте, в которой WB
-        рассчитывается. SKU без себестоимости не занижают отчёт молча: они исключаются из расчёта
-        прибыли, а её покрытие показано и здесь, и на дашборде.
-      </p>
     </header>
 
     <section
@@ -142,12 +136,7 @@ onMounted(() => {
         <p class="max-w-2xl text-base text-muted">
           {{ formatNumber(coverage.costedUnits) }} из {{ formatNumber(coverage.totalUnits) }} шт за
           последний год. Себестоимость задана для {{ coverage.costedSkus }} из
-          {{ coverage.costedSkus + coverage.missingSkus }} продававшихся SKU, не задана для
-          {{ coverage.missingSkus }}.
-          <span v-if="coverage.storedSkus > coverage.costedSkus">
-            Ещё {{ coverage.storedSkus - coverage.costedSkus }} себестоимостей заданы для SKU,
-            которые за этот период не продавались — на отчёт они пока не влияют.
-          </span>
+          {{ coverage.costedSkus + coverage.missingSkus }} продававшихся SKU.
         </p>
       </div>
     </section>
