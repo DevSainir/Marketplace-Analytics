@@ -1,7 +1,6 @@
 <script setup>
 /**
- * «Тепловая карта» — /heatmap, and /labs/heatmap with `labs`: the same page
- * plus what is still being tried out there — «Норма: ручной ввод».
+ * «Тепловая карта» — /heatmap.
  *
  * Every article of the кабинет, day by day, painted by one metric: the view for
  * a кабинет with too many working articles to watch one at a time, where the
@@ -28,11 +27,6 @@ import '@/modules/heatmap/components/styles/heatmap.css'
 import { metricOf } from '@/modules/heatmap/metrics'
 import { useHeatmapNormsStore } from '@/modules/heatmap/normsStore'
 import { useHeatmapStore } from '@/modules/heatmap/store'
-
-const props = defineProps({
-  /** The lab build: hand-set norms on. Their API refuses anyone but us. */
-  labs: { type: Boolean, default: false },
-})
 
 const store = useHeatmapStore()
 const norms = useHeatmapNormsStore()
@@ -103,9 +97,6 @@ useHistoryKeys({
   locked: () => !store.manualNorms,
 })
 
-// Both routes render this one component, so a hop between them keeps the
-// instance and only flips `labs`. The store outlives the route too: whichever
-// way the hop goes, the norms start switched off.
 // A norm belongs to an article: any other cut switches it off, and the
 // picker greys «ручной ввод» out until the cut is «По товару» again.
 watch(
@@ -115,24 +106,14 @@ watch(
   },
 )
 
-watch(
-  () => props.labs,
-  (labs, before) => {
-    // The public page never paints hand-set norms; the lab keeps the mode it
-    // had (remembered for a while — see `settingsMemory.js`) unless the reader
-    // just came over from the public page.
-    if (!labs || before === false) norms.mode = 'default'
-    if (labs) norms.load().catch((err) => (norms.error = extractErrorMessage(err)))
-  },
-  { immediate: true },
-)
+onMounted(() => norms.load().catch((err) => (norms.error = extractErrorMessage(err))))
 </script>
 
 <template>
   <div class="app-container py-lg">
     <header class="mb-lg flex flex-wrap items-center justify-between gap-md">
       <h1 class="text-h2 font-bold text-primary">Тепловая карта</h1>
-      <HeatmapHelp :labs="labs" />
+      <HeatmapHelp />
     </header>
 
     <HeatmapFilters
@@ -156,7 +137,6 @@ watch(
         v-model:group-by="store.groupBy"
         v-model:mode="store.mode"
         v-model:norm-mode="norms.mode"
-        :norms="labs"
         :finance="finance"
         @swap="store.swapMetrics"
       />

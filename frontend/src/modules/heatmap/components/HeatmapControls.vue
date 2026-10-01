@@ -25,8 +25,6 @@ const props = defineProps({
   normMode: { type: String, required: true },
   /** Whether the settlement's money metrics are offered — the P&L grant. */
   finance: { type: Boolean, default: true },
-  /** Whether «Норма: …» is offered — the lab build only. */
-  norms: { type: Boolean, default: false },
 })
 const emit = defineEmits([
   'update:metric',
@@ -115,7 +113,6 @@ const MODES = [
 
     <div class="ml-auto flex flex-wrap items-center gap-sm phone:ml-0 phone:w-full">
       <select
-        v-if="norms"
         class="hm-select"
         :value="normMode"
         aria-label="Откуда берётся норма"

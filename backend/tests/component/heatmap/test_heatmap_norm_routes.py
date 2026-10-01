@@ -1,10 +1,9 @@
-"""Component tests for the heatmap's hand-set norms — a lab feature.
+"""Component tests for the heatmap's hand-set norms («Норма: ручной ввод»).
 
-The heatmap itself is open to every subscriber (``test_heatmap_routes.py``);
-«Норма: ручной ввод» is still ours only. What is proved here: a customer is
-refused every norm route, and for us the кабинет from the header scopes every
-read and write, a read-only manager cannot write, and the metric, the article
-and the value are bounded before anything reaches the service.
+What is proved here: the norms need the monitoring grant like the page, the
+кабинет from the header scopes every read and write, a read-only manager
+cannot write, and the metric, the article and the value are bounded before
+anything reaches the service.
 """
 
 from __future__ import annotations
@@ -17,7 +16,7 @@ import pytest
 
 from src.modules.heatmap.deps import get_norm_service
 from src.modules.heatmap.schemas import SkuNormList, SkuNormRead
-from src.modules.organizations.contract import AccessLevel, EffectiveRole
+from src.modules.organizations.contract import ALL_MODULES, AccessLevel, EffectiveRole
 from src.modules.users.deps import get_user_repo
 from src.modules.workspaces.contract import WORKSPACE_HEADER
 from src.modules.workspaces.deps import get_workspace_repo
@@ -73,12 +72,6 @@ def headers(user: Any, workspace: Workspace) -> dict[str, str]:
     return {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
 
 
-@pytest.fixture
-def _internal_caller(login_as: Callable[..., None]) -> None:
-    """One of us: hand-set norms are still a lab feature."""
-    login_as(is_primary_org=True)
-
-
 @pytest.mark.parametrize(
     ("method", "path"),
     [
@@ -87,21 +80,22 @@ def _internal_caller(login_as: Callable[..., None]) -> None:
         ("DELETE", "/api/v1/heatmap/norms/123/orders"),
     ],
 )
-async def test_a_customer_cannot_reach_the_norms(
+async def test_norms_need_the_monitoring_grant(
     client: httpx.AsyncClient,
     headers: dict[str, str],
+    login_as: Callable[..., None],
     norms: _StubNormService,
     method: str,
     path: str,
 ) -> None:
-    """The heatmap is open to every subscriber; its hand-set norms are still ours only."""
+    """The norms belong to the page, so a manager without monitoring reaches none of them."""
+    login_as(role=EffectiveRole.MANAGER, modules=tuple(m for m in ALL_MODULES if m != "monitoring"))
     response = await client.request(method, path, json={"value": 1}, headers=headers)
 
     assert response.status_code == 403
     assert norms.calls == []
 
 
-@pytest.mark.usefixtures("_internal_caller")
 async def test_the_norms_are_read_for_the_active_workspace(
     client: httpx.AsyncClient,
     headers: dict[str, str],
@@ -115,7 +109,6 @@ async def test_the_norms_are_read_for_the_active_workspace(
     assert norms.calls == [("list", {"workspace_id": workspace.id})]
 
 
-@pytest.mark.usefixtures("_internal_caller")
 async def test_a_writer_sets_a_norm_in_the_active_workspace(
     client: httpx.AsyncClient,
     headers: dict[str, str],
@@ -141,7 +134,7 @@ async def test_a_read_only_manager_cannot_set_or_clear_a_norm(
     norms: _StubNormService,
 ) -> None:
     """A norm changes how everyone in the кабинет sees the grid — it is a write."""
-    login_as(role=EffectiveRole.MANAGER, access_level=AccessLevel.READ_ONLY, is_primary_org=True)
+    login_as(role=EffectiveRole.MANAGER, access_level=AccessLevel.READ_ONLY)
 
     put = await client.put("/api/v1/heatmap/norms/123/orders", json={"value": 5}, headers=headers)
     delete = await client.delete("/api/v1/heatmap/norms/123/orders", headers=headers)
@@ -159,7 +152,6 @@ async def test_a_read_only_manager_cannot_set_or_clear_a_norm(
         ("/api/v1/heatmap/norms/123/orders", {"value": "NaN"}),
     ],
 )
-@pytest.mark.usefixtures("_internal_caller")
 async def test_a_norm_outside_the_bounds_is_refused(
     client: httpx.AsyncClient,
     headers: dict[str, str],
@@ -174,7 +166,6 @@ async def test_a_norm_outside_the_bounds_is_refused(
     assert norms.calls == []
 
 
-@pytest.mark.usefixtures("_internal_caller")
 async def test_clearing_a_norm_is_scoped_to_the_active_workspace(
     client: httpx.AsyncClient,
     headers: dict[str, str],

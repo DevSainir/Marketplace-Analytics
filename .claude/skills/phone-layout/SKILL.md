@@ -196,7 +196,7 @@ resolving to the design gutter is the part you *can* check.
 | `/login` | done — and moved onto the design-system tokens on the way, which it had never been on |
 | `/finreports` (P&L) | done — the 18-column SKU table and the SKU × warehouse balance grid both become card lists below `sm`; an opened SKU card carries its sizes as a two-line list per size (`PnlSkuSizeList`), since the 16-column size table cannot fit. Checked 390 / 402 / 768 px, 2026-09-26: no horizontal overflow |
 | `/finreports/cost-prices` | done — the editable grid becomes rows with the input still on screen |
-| `/heatmap` | done — the articles × days grid pages its column axis below `sm` (`HeatmapDayList`): one day, week or month per screen, «Итого» first, each article one line with its tinted value (and, in the `/labs/heatmap` build with «Норма: ручной ввод», a 16px norm field labelled just «Норма»); filters and selects go full width |
+| `/heatmap` | done — the articles × days grid pages its column axis below `sm` (`HeatmapDayList`): one day, week or month per screen, «Итого» first, each article one line with its tinted value (and, with «Норма: ручной ввод», a 16px norm field labelled just «Норма» or «Норма в день»); filters and selects go full width |
 | `/ab-tests/:id` | done — the photos × metrics grid pages its photo axis (`VariantMetricsPager`), one photo and its seven figures per screen; the turn log keeps its table and drops its two widest columns |
 
 Keep this table honest; it is how the next session knows where to pick up.
