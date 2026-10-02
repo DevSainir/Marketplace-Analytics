@@ -8,6 +8,7 @@ the :class:`AsyncSession` query API directly.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Collection
 from datetime import UTC, datetime
 
 from sqlalchemy import delete, func, select
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.ids import uuid7
 from src.modules.workspaces.models import (
+    BackfillLane,
     BackfillState,
     Workspace,
     WorkspaceBackfill,
@@ -318,7 +320,15 @@ class BackfillRepository:
         await self._session.flush()
         return row
 
-    async def reset(self, workspace_id: uuid.UUID) -> None:
-        """Drop every lane row of one workspace, so a backfill can start over."""
-        stmt = delete(WorkspaceBackfill).where(WorkspaceBackfill.workspace_id == workspace_id)
+    async def reset(self, workspace_id: uuid.UUID, lanes: Collection[BackfillLane]) -> None:
+        """Drop the named lane rows of one workspace, so those lanes start over.
+
+        Named rather than "every row": a token that unlocks one lane must not
+        wipe the progress of the others, nor the maintenance lanes the profile
+        never renders.
+        """
+        stmt = delete(WorkspaceBackfill).where(
+            WorkspaceBackfill.workspace_id == workspace_id,
+            WorkspaceBackfill.lane.in_([str(lane) for lane in lanes]),
+        )
         await self._session.execute(stmt)

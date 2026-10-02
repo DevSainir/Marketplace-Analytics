@@ -22,12 +22,17 @@ import pytest
 
 from src.core.celery_app import celery_app
 from src.modules.workspaces.bootstrap import (
+    ADVERTISING_BACKFILL_TASK_NAME,
     CATALOGUE_BACKFILL_TASK_NAME,
     DISCOVERY_TASK_NAME,
     FINANCE_TASK_NAME,
+    FUNNEL_BACKFILL_TASK_NAME,
+    HARVEST_SURFACES,
     PNL_BACKFILL_TASK_NAME,
     enqueue_catalogue_bootstrap,
+    newly_reachable,
 )
+from src.modules.workspaces.models import BackfillLane, TokenKind
 from tests.support.fakes import FakeRedis
 
 
@@ -45,6 +50,8 @@ def test_every_bootstrap_task_name_resolves_to_a_registered_task() -> None:
         DISCOVERY_TASK_NAME,
         FINANCE_TASK_NAME,
         CATALOGUE_BACKFILL_TASK_NAME,
+        FUNNEL_BACKFILL_TASK_NAME,
+        ADVERTISING_BACKFILL_TASK_NAME,
         PNL_BACKFILL_TASK_NAME,
     ):
         assert name in celery_app.tasks
@@ -74,17 +81,19 @@ def redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
 
 
 @pytest.fixture(autouse=True)
-def _seeded_lanes(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Stub the lane seeding — it is a database write, and this tier has no DB.
+def seeded(monkeypatch: pytest.MonkeyPatch) -> list[tuple[BackfillLane, ...]]:
+    """Record the lane seeding instead of writing it — this tier has no DB.
 
-    Seeding is deliberately not what these tests are about: it never raises by
-    contract, so a bootstrap behaves identically whether it succeeded or not.
+    What was seeded is recorded because WHICH lanes a save resets is the
+    decision under test: a lane reset is a lane walked again from scratch.
     """
+    calls: list[tuple[BackfillLane, ...]] = []
 
-    async def _noop(*_: Any, **__: Any) -> None:
-        return None
+    async def _record(_: uuid.UUID, *, lanes: tuple[BackfillLane, ...]) -> None:
+        calls.append(lanes)
 
-    monkeypatch.setattr("src.modules.workspaces.bootstrap.start_backfill", _noop)
+    monkeypatch.setattr("src.modules.workspaces.bootstrap.start_backfill", _record)
+    return calls
 
 
 @pytest.fixture
@@ -125,8 +134,8 @@ async def test_a_burst_of_saves_costs_one_harvest(redis: FakeRedis, enqueued: li
     """
     workspace_id = uuid.uuid4()
 
-    first = await enqueue_catalogue_bootstrap(workspace_id)
-    second = await enqueue_catalogue_bootstrap(workspace_id)
+    first = await enqueue_catalogue_bootstrap(workspace_id, HARVEST_SURFACES)
+    second = await enqueue_catalogue_bootstrap(workspace_id, HARVEST_SURFACES)
 
     assert first is not None
     assert second is None
@@ -146,8 +155,8 @@ async def test_the_claim_is_per_workspace(redis: FakeRedis, enqueued: list[str])
     """
     one, two = uuid.uuid4(), uuid.uuid4()
 
-    await enqueue_catalogue_bootstrap(one)
-    await enqueue_catalogue_bootstrap(two)
+    await enqueue_catalogue_bootstrap(one, HARVEST_SURFACES)
+    await enqueue_catalogue_bootstrap(two, HARVEST_SURFACES)
 
     discoveries = [c for c in enqueued if c["name"] == DISCOVERY_TASK_NAME]
     assert [c["workspace_id"] for c in discoveries] == [str(one), str(two)]
@@ -170,7 +179,7 @@ async def test_a_redis_that_is_gone_neither_raises_nor_enqueues(
 
     monkeypatch.setattr("src.modules.workspaces.bootstrap.get_redis", lambda: _DeadRedis())
 
-    assert await enqueue_catalogue_bootstrap(uuid.uuid4()) is None
+    assert await enqueue_catalogue_bootstrap(uuid.uuid4(), HARVEST_SURFACES) is None
     assert enqueued == []
 
 
@@ -189,7 +198,7 @@ async def test_the_finance_walk_waits_for_discovery_to_finish(
     """
     workspace_id = uuid.uuid4()
 
-    await enqueue_catalogue_bootstrap(workspace_id)
+    await enqueue_catalogue_bootstrap(workspace_id, HARVEST_SURFACES)
 
     (call,) = [c for c in enqueued if c["name"] == DISCOVERY_TASK_NAME]
     assert call["link"].task == FINANCE_TASK_NAME
@@ -209,7 +218,7 @@ async def test_a_failed_discovery_still_leaves_the_seller_a_p_and_l(
     on one must not cost the seller the other, so the same signature is
     attached to both outcomes — Celery fires exactly one of them.
     """
-    await enqueue_catalogue_bootstrap(uuid.uuid4())
+    await enqueue_catalogue_bootstrap(uuid.uuid4(), HARVEST_SURFACES)
 
     (call,) = [c for c in enqueued if c["name"] == DISCOVERY_TASK_NAME]
     assert call["link_error"].task == FINANCE_TASK_NAME
@@ -228,7 +237,7 @@ async def test_the_history_backfill_is_queued_behind_the_first_harvests(
     """
     workspace_id = uuid.uuid4()
 
-    await enqueue_catalogue_bootstrap(workspace_id)
+    await enqueue_catalogue_bootstrap(workspace_id, HARVEST_SURFACES)
 
     backfills = {
         c["name"]: c
@@ -256,4 +265,83 @@ async def test_a_broker_failure_costs_the_backfill_but_not_the_token(
 
     monkeypatch.setattr("src.modules.workspaces.bootstrap.celery_app.send_task", _explode)
 
-    assert await enqueue_catalogue_bootstrap(uuid.uuid4()) is None
+    assert await enqueue_catalogue_bootstrap(uuid.uuid4(), HARVEST_SURFACES) is None
+
+
+def test_a_feedback_token_reaches_nothing_the_bootstrap_reads() -> None:
+    """«Вопросы и отзывы» feeds no harvest and no lane.
+
+    Added to «Демо» on 2026-10-02, it reset all four lanes and re-walked
+    the whole history for rows the кабинет already held.
+    """
+    assert newly_reachable(["content", "finance"], ["content", "finance", "feedback"]) == set()
+
+
+def test_a_category_token_beside_unified_reaches_nothing_new() -> None:
+    """``unified`` already stands in for every surface, so nothing is unlocked."""
+    assert newly_reachable(["unified"], ["unified", "finance"]) == set()
+
+
+def test_unified_reaches_only_what_the_category_tokens_did_not() -> None:
+    reached = newly_reachable(["content", "analytics"], ["content", "analytics", "unified"])
+
+    assert TokenKind.FINANCE in reached
+    assert TokenKind.CONTENT not in reached
+
+
+async def test_a_surface_nothing_reads_enqueues_nothing_and_resets_no_lane(
+    redis: FakeRedis,
+    enqueued: list[dict[str, Any]],
+    seeded: list[tuple[BackfillLane, ...]],
+) -> None:
+    """Defence in depth behind the router's filter: the helper filters too."""
+    result = await enqueue_catalogue_bootstrap(uuid.uuid4(), {TokenKind.FEEDBACK})
+
+    assert result is None
+    assert enqueued == []
+    assert seeded == []
+
+
+async def test_a_finance_token_walks_the_p_and_l_and_nothing_else(
+    redis: FakeRedis,
+    enqueued: list[dict[str, Any]],
+    seeded: list[tuple[BackfillLane, ...]],
+) -> None:
+    """Only the lane the new surface feeds is reset; the others keep their history."""
+    await enqueue_catalogue_bootstrap(uuid.uuid4(), {TokenKind.FINANCE})
+
+    assert seeded == [(BackfillLane.PNL,)]
+    backfills = [c["name"] for c in enqueued if c["name"] != DISCOVERY_TASK_NAME]
+    assert backfills == [PNL_BACKFILL_TASK_NAME]
+
+
+async def test_a_promotion_token_starts_the_advertising_lane_without_the_catalogue(
+    redis: FakeRedis,
+    enqueued: list[dict[str, Any]],
+    seeded: list[tuple[BackfillLane, ...]],
+) -> None:
+    """The catalogue lane would start funnel and advertising both — so it is
+    not the way in when only advertising has something new to read."""
+    await enqueue_catalogue_bootstrap(uuid.uuid4(), {TokenKind.PROMOTION})
+
+    assert seeded == [(BackfillLane.ADVERTISING,)]
+    backfills = [c["name"] for c in enqueued if c["name"] != DISCOVERY_TASK_NAME]
+    assert backfills == [ADVERTISING_BACKFILL_TASK_NAME]
+
+
+async def test_a_second_surface_inside_the_debounce_still_gets_its_lane(
+    redis: FakeRedis,
+    enqueued: list[dict[str, Any]],
+    seeded: list[tuple[BackfillLane, ...]],
+) -> None:
+    """The claim is per lane: «Аналитика» saved, then «Финансы» five minutes
+    later, must not lose the P&L walk to the first save's claim."""
+    workspace_id = uuid.uuid4()
+
+    await enqueue_catalogue_bootstrap(workspace_id, {TokenKind.ANALYTICS})
+    await enqueue_catalogue_bootstrap(workspace_id, {TokenKind.FINANCE})
+
+    assert seeded == [(BackfillLane.FUNNEL,), (BackfillLane.PNL,)]
+    names = [c["name"] for c in enqueued]
+    assert names.count(DISCOVERY_TASK_NAME) == 1
+    assert names.count(PNL_BACKFILL_TASK_NAME) == 1

@@ -182,3 +182,40 @@ async def test_an_unknown_workspace_never_reaches_the_queue(
 
     assert response.status_code == 404
     assert enqueued == []
+
+
+async def test_a_token_nothing_reads_neither_harvests_nor_resets_the_history(
+    client: httpx.AsyncClient,
+    dev_user: Any,
+    primary_workspace: Workspace,
+    enqueued: list[dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """«Вопросы и отзывы» added to an established кабинет is not a new seller.
+
+    On 2026-10-02 exactly this save sent all four lanes of «Демо» back to
+    «В очереди…» and re-walked its whole history. A surface no harvest and no
+    lane reads must leave the queue and the lanes alone — while a surface a
+    lane does read, saved next, still starts that lane.
+    """
+    seeded: list[Any] = []
+
+    async def _record(_: uuid.UUID, *, lanes: Any) -> None:
+        seeded.append(lanes)
+
+    monkeypatch.setattr("src.modules.workspaces.bootstrap.start_backfill", _record)
+    url = f"/api/v1/workspaces/{primary_workspace.id}/tokens"
+    headers = auth_headers(dev_user.id)
+
+    feedback = await client.put(url, headers=headers, json={"tokens": {"feedback": TOKEN}})
+
+    assert feedback.status_code == 200
+    assert enqueued == []
+    assert seeded == []
+
+    finance = await client.put(url, headers=headers, json={"tokens": {"finance": TOKEN}})
+
+    assert finance.status_code == 200
+    assert [str(lane) for lanes in seeded for lane in lanes] == ["pnl"]
+    assert "finreports.backfill_pnl" in {c["name"] for c in enqueued}
+    assert "monitoring.backfill_catalogue" not in {c["name"] for c in enqueued}

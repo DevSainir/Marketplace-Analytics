@@ -95,7 +95,11 @@ class LaneStep:
 async def start_backfill(
     workspace_id: uuid.UUID, *, lanes: tuple[BackfillLane, ...] = LANE_ORDER
 ) -> None:
-    """Seed a workspace's lanes as PENDING, replacing any previous run.
+    """Seed a workspace's lanes as PENDING, replacing any previous run of them.
+
+    Only the named lanes are reset. A token that unlocks the P&L must not send
+    a catalogue that finished weeks ago back to «В очереди…» — the profile
+    would announce a full history load that nothing is going to run.
 
     Called once when a workspace's backfill is enqueued, so the profile has
     something to render immediately — a seller who has just finished signing up
@@ -131,7 +135,7 @@ async def start_backfill(
             # look broken until the first tick landed ten minutes later.
             await set_workspace_context(session, workspace_id)
             repo = BackfillRepository(session)
-            await repo.reset(workspace_id)
+            await repo.reset(workspace_id, lanes)
             for lane in lanes:
                 await repo.upsert(
                     workspace_id=workspace_id,
