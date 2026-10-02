@@ -88,6 +88,32 @@ class FunnelRepository(BaseRepository):
         )
         return str((await self._session.execute(stmt)).scalar_one_or_none() or "")
 
+    async def incomplete_days(self, *, nm_ids: list[int], since: date, through: date) -> list[date]:
+        """Days in ``[since, through]`` with a funnel row WB's aggregate never completed.
+
+        A day is incomplete when an article SOLD on it and the row still lacks
+        WB's own money (``order_sum``) or its matured cohort (``cancel_count``).
+        An idle row — no orders — is never one: WB's aggregate omits articles
+        with no activity, so their cohort stays NULL for good (871 such rows
+        on «Демо», 30.06 to 09.09.2026, every one of them all zeros), and
+        counting them would raise an alarm nothing can clear.
+        """
+        if not nm_ids:
+            return []
+        stmt = (
+            select(SalesFunnelDaily.stat_date)
+            .where(
+                SalesFunnelDaily.nm_id.in_(nm_ids),
+                SalesFunnelDaily.stat_date >= since,
+                SalesFunnelDaily.stat_date <= through,
+                SalesFunnelDaily.order_count > 0,
+                SalesFunnelDaily.cancel_count.is_(None) | SalesFunnelDaily.order_sum.is_(None),
+            )
+            .group_by(SalesFunnelDaily.stat_date)
+            .order_by(SalesFunnelDaily.stat_date)
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
+
     async def rate_book(self, *, currency: str) -> RateBook:
         """The Bank rates that turn roubles into ``currency`` (``repos/ad_money``)."""
         return await load_rate_book(self._session, currency=currency)

@@ -14,6 +14,7 @@ from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
 from src.core.logging import get_logger
+from src.core.observability.metrics import FUNNEL_GAP_DAYS
 from src.core.tasks import run_task
 from src.core.timeutils import moscow_today
 from src.integrations.wildberries import build_analytics_client
@@ -32,6 +33,7 @@ from src.modules.monitoring.repos import (
 )
 from src.modules.monitoring.services import IngestionService
 from src.modules.monitoring.tasks.common import _TASK_RETRY_KWARGS
+from src.modules.monitoring.tasks.funnel_gaps import announce_funnel_gaps, heal_funnel_gaps
 from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
     load_workspace_token_bundles,
@@ -210,7 +212,19 @@ def refresh_buyout_cohorts(days: int = COHORT_REFRESH_DAYS) -> dict[str, int]:
             raise IntegrationError(
                 f"Cohort refresh failed for every workspace ({', '.join(failures)}); see logs."
             )
-        return {"cohort_rows": total}
+        # Then the days this pass no longer reads: a hole there is permanent
+        # unless somebody asks WB again (`funnel_gaps.py`).
+        gap_days = 0
+        for bundle in bundles:
+            try:
+                remaining = await heal_funnel_gaps(bundle, today=moscow_today(), cohort_days=days)
+            except Exception as exc:  # a repair must not fail the pass it follows
+                logger.warning("Funnel gap repair failed for '%s': %s", bundle.name, exc)
+                continue
+            announce_funnel_gaps(bundle, remaining)
+            gap_days += len(remaining)
+        FUNNEL_GAP_DAYS.set(gap_days)
+        return {"cohort_rows": total, "funnel_gap_days": gap_days}
 
     try:
         return run_task(_run())

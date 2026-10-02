@@ -128,6 +128,21 @@ SETTLEMENT_GAP_DAYS: Final[Gauge] = Gauge(
 )
 
 
+#: Funnel days the nightly cohort pass no longer reads that are still missing
+#: WB's money or its matured cohort — summed over every workspace.
+#:
+#: The funnel's twin of :data:`SETTLEMENT_GAP_DAYS`, for the same reason: on
+#: 2026-09-29 07.09 fell between the backfill lane and the nightly pass, every
+#: run reported success, and the day's order sums were missing for three days
+#: before anyone happened to look. The cohort pass repairs a few such days a
+#: night (``monitoring/tasks/funnel_gaps.py``); this is what is left after it.
+FUNNEL_GAP_DAYS: Final[Gauge] = Gauge(
+    "monitoring_funnel_gap_days",
+    "Funnel days past the nightly cohort window still missing WB's sums or cohort.",
+    multiprocess_mode="livemostrecent",
+)
+
+
 #: Hours between the FIRST seller to receive a settlement period and this one.
 #:
 #: How far our payout for a report is from WB's own figure, per report.

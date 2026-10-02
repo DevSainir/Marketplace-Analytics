@@ -47,8 +47,10 @@ _MORNING_PREPARATION = frozenset({"monitoring.harvest_all", "monitoring.refresh_
 _WORST_CASE: dict[str, timedelta] = {
     # 582 s worst for six кабинеты, walked one after another.
     "monitoring.harvest_all": timedelta(minutes=10),
-    # 2 078 s worst; ~22 paced requests per кабинет, walked one after another.
-    "monitoring.refresh_buyout_cohorts": timedelta(minutes=35),
+    # 2 078 s worst; ~22 paced requests per кабинет, walked one after another —
+    # plus, since 2026-10-02, up to two funnel-gap re-reads per кабинет at ~21 s
+    # each (`funnel_gaps.MAX_REPAIRS_PER_NIGHT`), ~4 more minutes for six.
+    "monitoring.refresh_buyout_cohorts": timedelta(minutes=39),
     # (885 s worst) — the night is not over until that has finished too.
     "finreports.harvest_finance": timedelta(minutes=23),
     "auth.purge_expired_refresh_tokens": timedelta(minutes=1),

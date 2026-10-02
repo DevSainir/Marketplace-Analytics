@@ -440,6 +440,16 @@ fires on any report a rouble or more out. The rule it tests matched all 143 repo
 «Демо» on the day it was written; the log line («totals … here against WB's») carries the
 report id and the difference.
 
+**`monitoring_funnel_gap_days`** (added 2026-10-02) is the funnel's twin of the settlement
+gap: days older than the nightly cohort pass's window, still inside WB's 365-day reach, where
+an article sold and the row still lacks WB's own `orderSum` or its matured cohort. On
+2026-09-29 the backfill lane left 07.09 to a pass that, the next night, no longer read it, and
+the day's order sums were missing for three days with every run green. The cohort pass now
+re-reads up to two such days per кабинет per night (`monitoring/tasks/funnel_gaps.py`) and sets
+the gauge to what is left; `FunnelHistoryHasGaps` fires when it stays above zero for 26 hours.
+Idle rows (no orders) never count — WB's aggregate omits them, so their cohort stays empty for
+good. The log line («has N funnel day(s)») names the кабинет and the days.
+
 ### The backfill group, and why it alerts on an absence
 
 A new organisation's history arrives as four lanes of self-enqueueing ticks —

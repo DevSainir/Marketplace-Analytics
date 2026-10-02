@@ -89,6 +89,14 @@ CALL_PAUSE_SECONDS = 21.0
 #: would spend the same budget twice on the same rows.
 COHORT_WINDOW_DAYS = 22
 
+#: The days the lane may leave to that pass: only those its NEXT run still
+#: reads. The pass reads 22 days back from ITS yesterday, and the next one runs
+#: tomorrow, so the oldest day of today's window has already left it. Leaving
+#: all 22 lost exactly that day: the lane of 29.09.2026 left 07.09 to a pass
+#: that, on 30.09, read 08.09 .. 29.09 — the day's funnel sums were never
+#: fetched, and nothing said so (see ``tasks/funnel_gaps.py``).
+COHORT_HANDOFF_DAYS = COHORT_WINDOW_DAYS - 1
+
 #: Consecutive zero-activity days that mean "this predates the seller's first
 #: trade". Young accounts are the common case, and without this the lane would
 #: spend 300 slots proving a shop that opened in June did not trade in October.
@@ -143,6 +151,14 @@ async def _funnel_coverage(
         complete = cancel_count is not None and order_sum is not None
         coverage.setdefault(stat_date, {})[nm_id] = complete
     return coverage
+
+
+def left_to_cohort_pass(*, end: date, day: date) -> bool:
+    """Whether the next nightly cohort pass still reads ``day`` (``end`` = yesterday).
+
+    Only then may the lane skip it; see :data:`COHORT_HANDOFF_DAYS`.
+    """
+    return (end - day).days < COHORT_HANDOFF_DAYS
 
 
 async def advance_funnel(
@@ -201,7 +217,7 @@ async def advance_funnel(
             # The nightly cohort pass owns the maturing window, and a day whose
             # every row already carries a cohort and its money was healed by an
             # earlier step.
-            inside_cohort_window = (end - day).days < COHORT_WINDOW_DAYS
+            inside_cohort_window = left_to_cohort_pass(end=end, day=day)
             if existing and (inside_cohort_window or all(existing.values())):
                 day -= timedelta(days=1)
                 continue
