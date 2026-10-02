@@ -362,6 +362,23 @@ async def require_dev(access: CurrentAccess) -> OrganizationAccess:
 DevAccess = Annotated[OrganizationAccess, Depends(require_dev)]
 
 
+async def require_code_issuer(access: CurrentAccess) -> OrganizationAccess:
+    """Require a dev, or the owner of the primary organisation.
+
+    Narrower than :data:`InternalAccess`, which also admits our managers: a
+    code is a paid account handed out, and that is the owner's call.
+
+    Raises:
+        PermissionDeniedError: Anyone else.
+    """
+    if not access.can_issue_codes:
+        raise PermissionDeniedError("Действие недоступно.")
+    return access
+
+
+CodeIssuerAccess = Annotated[OrganizationAccess, Depends(require_code_issuer)]
+
+
 # --------------------------------------------------------------------------- #
 # Audit trail
 # --------------------------------------------------------------------------- #
@@ -433,6 +450,7 @@ __all__ = [
     "ActivationServiceDep",
     "AuditRepoDep",
     "AuditTrail",
+    "CodeIssuerAccess",
     "CurrentAccess",
     "DevAccess",
     "FinreportsAccess",

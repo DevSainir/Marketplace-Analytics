@@ -64,6 +64,10 @@ class ActivationCode(Base):
         expires_at: When the code stops being redeemable; ``NULL`` = never.
             Bounded codes matter because a code handed out and not used is a
             standing grant of a paid account sitting in someone's messages.
+        max_workspaces: The кабинет cap the subscription starts with;
+            ``NULL`` = unlimited. On the code for the same reason as the term:
+            what was sold is what gets delivered.
+        max_managers: The manager cap, likewise; ``NULL`` = unlimited.
         used_at: When it was redeemed; ``NULL`` while unused.
         used_by_user_id: Who redeemed it (FK, SET NULL if that account goes).
         organization_id: The organisation it created (FK, SET NULL if that
@@ -80,6 +84,8 @@ class ActivationCode(Base):
     note: Mapped[str] = mapped_column(String(256), default="", nullable=False)
     subscription_days: Mapped[int] = mapped_column(Integer, nullable=False)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    max_workspaces: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_managers: Mapped[int | None] = mapped_column(Integer, nullable=True)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     used_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True

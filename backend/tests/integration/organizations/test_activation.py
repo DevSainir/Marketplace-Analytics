@@ -76,6 +76,34 @@ async def test_redeeming_a_code_makes_the_caller_an_owner_with_a_subscription(
     assert organization.is_primary is False
 
 
+async def test_the_caps_a_code_carries_become_the_subscriptions_caps(
+    db_session: AsyncSession,
+) -> None:
+    """What was sold is what is delivered: a capped code starts a capped term.
+
+    Without this the form's two limit fields would be decoration — the code
+    would store them and every organisation would still start unlimited.
+    """
+    dev = await persist_user(db_session, "dev@example.com", role=ROLE_DEV)
+    buyer = await persist_user(db_session, "buyer@example.com")
+    service = activation_service(db_session)
+    issued = await service.generate_code(
+        note="",
+        valid_for_days=None,
+        subscription_days=14,
+        created_by_user_id=dev.id,
+        max_workspaces=2,
+        max_managers=5,
+    )
+
+    organization = await service.redeem(code=issued.code, user_id=buyer.id, email=buyer.email)
+
+    subscription = await SubscriptionRepository(db_session).get_for_organization(organization.id)
+    assert subscription is not None
+    assert (subscription.max_workspaces, subscription.max_managers) == (2, 5)
+    assert (subscription.expires_at - subscription.started_at).days == 14
+
+
 async def test_a_code_cannot_be_redeemed_twice(db_session: AsyncSession) -> None:
     """Single use, and the second attempt is indistinguishable from a wrong code.
 

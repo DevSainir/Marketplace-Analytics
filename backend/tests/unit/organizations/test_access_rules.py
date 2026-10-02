@@ -219,6 +219,35 @@ def test_a_user_with_no_organisation_sees_no_internal_features() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Who may issue activation codes
+# --------------------------------------------------------------------------- #
+def test_a_dev_may_issue_codes() -> None:
+    """A dev issues codes whatever organisation they belong to."""
+    assert _access(role=EffectiveRole.DEV, is_primary_org=False).can_issue_codes is True
+
+
+def test_the_owner_of_the_primary_organisation_may_issue_codes() -> None:
+    """The person who takes the money hands out what it buys."""
+    access = _access(role=EffectiveRole.OWNER, is_primary_org=True)
+
+    assert access.can_issue_codes is True
+
+
+def test_a_manager_of_the_primary_organisation_may_not_issue_codes() -> None:
+    """Seeing our internal features is not the same as selling paid accounts."""
+    access = _access(role=EffectiveRole.MANAGER, is_primary_org=True)
+
+    assert access.can_issue_codes is False
+
+
+def test_a_customers_owner_may_not_issue_codes() -> None:
+    """An owner of any other organisation would be minting free accounts."""
+    access = _access(role=EffectiveRole.OWNER, is_primary_org=False)
+
+    assert access.can_issue_codes is False
+
+
+# --------------------------------------------------------------------------- #
 # The harvest gate — the same paywall, asked by a task with no caller
 # --------------------------------------------------------------------------- #
 def _organization(*, is_primary: bool = False) -> Organization:

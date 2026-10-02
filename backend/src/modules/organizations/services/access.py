@@ -259,6 +259,16 @@ class OrganizationAccess:
         """
         return self.is_dev or self.is_primary_org
 
+    @property
+    def can_issue_codes(self) -> bool:
+        """Whether this caller may generate activation codes.
+
+        A dev, or the OWNER of the primary organisation — the person who takes
+        the money. Not a manager of it: a code is a paid account, and handing
+        one out is a decision about our revenue, not a task inside a кабинет.
+        """
+        return self.is_dev or (self.role is EffectiveRole.OWNER and self.is_primary_org)
+
 
 async def resolve_access(
     session: AsyncSession,

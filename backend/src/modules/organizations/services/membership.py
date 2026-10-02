@@ -91,6 +91,7 @@ class OrganizationService:
             # owner whose row happens to list none. Asking the same predicate
             # the API refuses by is what keeps the two from disagreeing.
             modules=[m for m in ModuleKey if access.can_reach(m)],
+            can_issue_codes=access.can_issue_codes,
         )
         if access.organization_id is None:
             return payload

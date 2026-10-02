@@ -303,3 +303,32 @@ export async function fetchAuditLog(limit = 25) {
   const { data } = await apiClient.get('/v1/organizations/audit-log', { params: { limit } })
   return data
 }
+
+/**
+ * POST /v1/organizations/codes — issue a single-use activation key.
+ *
+ * A dev or the owner of «Демо» only. `null` in any limit means unlimited;
+ * `validForDays: null` means the key itself never expires. The key is in this
+ * response and nowhere else — the server keeps only its hash.
+ *
+ * @param {{note: string, subscriptionDays: number, validForDays: number|null,
+ *   maxWorkspaces: number|null, maxManagers: number|null}} payload
+ * @returns {Promise<{id: string, code: string, note: string, expires_at: string|null,
+ *   subscription_days: number, max_workspaces: number|null, max_managers: number|null}>}
+ */
+export async function createActivationCode({
+  note,
+  subscriptionDays,
+  validForDays,
+  maxWorkspaces,
+  maxManagers,
+}) {
+  const { data } = await apiClient.post('/v1/organizations/codes', {
+    note,
+    subscription_days: subscriptionDays,
+    valid_for_days: validForDays,
+    max_workspaces: maxWorkspaces,
+    max_managers: maxManagers,
+  })
+  return data
+}

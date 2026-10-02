@@ -138,6 +138,9 @@ class MeResponse(BaseModel):
     #: link and could open a page that then answered 403 at every request.
     #: An owner and a dev get everything.
     modules: list[ModuleKey] = Field(default_factory=list)
+    #: Whether «Ключи активации» is shown: a dev, or the owner of the primary
+    #: organisation. The same predicate ``require_code_issuer`` refuses by.
+    can_issue_codes: bool = False
     organization: OrganizationRead | None = None
     subscription: SubscriptionRead | None = None
 
@@ -160,16 +163,22 @@ class ActivationCodeCreateRequest(BaseModel):
         description="Who this was sold to, and for how much — the only record we keep.",
     )
     valid_for_days: int | None = Field(
-        default=30,
+        default=None,
         ge=1,
         le=365,
         description="How long the code stays redeemable; null = never expires.",
     )
     subscription_days: int = Field(
-        default=30,
+        default=14,
         ge=1,
         le=3650,
-        description="Term the code buys when redeemed.",
+        description="Term the code buys when redeemed — what «ключ на N дней» means.",
+    )
+    max_workspaces: int | None = Field(
+        default=None, ge=1, le=1000, description="Кабинет cap it sells; null = unlimited."
+    )
+    max_managers: int | None = Field(
+        default=None, ge=1, le=1000, description="Manager cap it sells; null = unlimited."
     )
 
 
@@ -183,6 +192,8 @@ class ActivationCodeCreated(BaseModel):
     note: str
     expires_at: datetime | None
     subscription_days: int
+    max_workspaces: int | None = None
+    max_managers: int | None = None
 
 
 class ActivationCodeRead(BaseModel):

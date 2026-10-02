@@ -15,6 +15,7 @@
 import { computed, onMounted, reactive, watch } from 'vue'
 
 import AccountFacts from '@/modules/profile/components/AccountFacts.vue'
+import ActivationCodesPanel from '@/modules/profile/components/ActivationCodesPanel.vue'
 import BackfillStrip from '@/modules/profile/components/BackfillStrip.vue'
 import ProfileWorkspaces from '@/modules/profile/components/ProfileWorkspaces.vue'
 import TokensDrawer from '@/modules/profile/components/TokensDrawer.vue'
@@ -102,6 +103,8 @@ async function onRemove(id) {
       v-if="store.currentWorkspaceId && !store.currentWorkspace?.is_guest"
       :workspace-id="store.currentWorkspaceId"
     />
+
+    <ActivationCodesPanel v-if="members.canIssueCodes" />
 
     <ProfileWorkspaces
       :workspaces="ownWorkspaces"

@@ -45,6 +45,8 @@ class ActivationCodeRepository:
         subscription_days: int,
         expires_at: datetime | None,
         created_by_user_id: uuid.UUID | None,
+        max_workspaces: int | None = None,
+        max_managers: int | None = None,
     ) -> ActivationCode:
         """Insert and flush a newly generated code."""
         code = ActivationCode(
@@ -52,6 +54,8 @@ class ActivationCodeRepository:
             note=note,
             subscription_days=subscription_days,
             expires_at=expires_at,
+            max_workspaces=max_workspaces,
+            max_managers=max_managers,
             created_by_user_id=created_by_user_id,
         )
         self._session.add(code)

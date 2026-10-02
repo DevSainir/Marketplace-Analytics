@@ -9,7 +9,8 @@ who the route is for:
   SPA which door to show.
 * ``/members``, ``/invitations`` — behind ``OwnerAccess``: widening or narrowing
   access to a company is the owner's alone.
-* ``/codes`` — behind ``DevAccess``: activation codes are how we get paid.
+* ``/codes`` — behind ``CodeIssuerAccess`` (a dev, or the primary owner):
+  activation codes are how we get paid.
 
 Routers are pure pass-through; domain errors propagate to the global
 ``AppError`` handler in ``main.py``.
@@ -27,12 +28,12 @@ from src.modules.organizations.deps import (
     ActivationServiceDep,
     AuditRepoDep,
     AuditTrail,
+    CodeIssuerAccess,
     CurrentAccess,
-    DevAccess,
     InvitationServiceDep,
     OrganizationServiceDep,
     OwnerAccess,
-    require_dev,
+    require_code_issuer,
     require_owner,
 )
 from src.modules.organizations.models import AuditEvent
@@ -64,7 +65,7 @@ router.include_router(members_router)
 #: Route-level guards, declared once so a route cannot pick the wrong one by
 #: retyping it.
 _owner_only = Depends(require_owner)
-_dev_only = Depends(require_dev)
+_code_issuer = Depends(require_code_issuer)
 
 
 # --------------------------------------------------------------------------- #
@@ -372,15 +373,15 @@ async def revoke_invitation(
     "/codes",
     response_model=ActivationCodeCreated,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[_dev_only],
+    dependencies=[_code_issuer],
     responses={
         201: {"description": "Generated; the response carries the code exactly once."},
-        403: {"description": "Developer role required."},
+        403: {"description": "Dev or primary-organisation owner required."},
     },
 )
 async def create_activation_code(
     payload: ActivationCodeCreateRequest,
-    access: DevAccess,
+    access: CodeIssuerAccess,
     service: ActivationServiceDep,
     audit: AuditTrail,
 ) -> ActivationCodeCreated:
@@ -390,6 +391,8 @@ async def create_activation_code(
         valid_for_days=payload.valid_for_days,
         subscription_days=payload.subscription_days,
         created_by_user_id=access.user_id,
+        max_workspaces=payload.max_workspaces,
+        max_managers=payload.max_managers,
     )
     # The note and the term, never the code itself — the code is a credential
     # that buys a paid account, and this row is readable long after it is spent.
@@ -397,7 +400,12 @@ async def create_activation_code(
         AuditEvent.ACTIVATION_CODE_ISSUED,
         target_type="activation_code",
         target_id=created.id,
-        metadata={"note": payload.note, "subscription_days": payload.subscription_days},
+        metadata={
+            "note": payload.note,
+            "subscription_days": payload.subscription_days,
+            "max_workspaces": payload.max_workspaces,
+            "max_managers": payload.max_managers,
+        },
     )
     return created
 
@@ -406,10 +414,10 @@ async def create_activation_code(
     "/codes",
     response_model=list[ActivationCodeRead],
     status_code=status.HTTP_200_OK,
-    dependencies=[_dev_only],
+    dependencies=[_code_issuer],
     responses={
         200: {"description": "Every generated code — values are never included."},
-        403: {"description": "Developer role required."},
+        403: {"description": "Dev or primary-organisation owner required."},
     },
 )
 async def list_activation_codes(service: ActivationServiceDep) -> list[ActivationCodeRead]:

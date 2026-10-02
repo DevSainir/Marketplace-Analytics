@@ -34,12 +34,17 @@ from typing import Any, NamedTuple
 
 from fastapi.routing import APIRoute, iter_route_contexts
 
-from src.modules.organizations.deps import require_dev, require_owner, require_writer
+from src.modules.organizations.deps import (
+    require_code_issuer,
+    require_dev,
+    require_owner,
+    require_writer,
+)
 from src.modules.users.deps import require_dev_role
 
 #: Any of these is at least as strong as "may write". A dev-only or owner-only
 #: route is not missing a writer check — it demands more than one.
-_WRITE_GUARDS = {require_writer, require_owner, require_dev, require_dev_role}
+_WRITE_GUARDS = {require_writer, require_owner, require_dev, require_code_issuer, require_dev_role}
 
 #: Verbs treated as changing something.
 _MUTATING = {"POST", "PATCH", "PUT", "DELETE"}
