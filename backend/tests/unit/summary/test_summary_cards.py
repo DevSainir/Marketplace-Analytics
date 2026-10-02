@@ -20,7 +20,6 @@ from src.modules.monitoring.contract import AdSpendDay, OrderDay
 from src.modules.summary.services.compose import (
     build_days,
     build_kpi,
-    window_ad_cash,
 )
 from tests.unit.summary.builders import ZERO, make_day, make_report, make_row
 
@@ -43,7 +42,6 @@ def test_one_uncosted_sku_withholds_the_whole_margin() -> None:
         buyouts=None,
         buyout_decided=None,
         buyout_lagged=False,
-        ad_cash=None,
         settled_advertising=ZERO,
     )
 
@@ -62,22 +60,19 @@ def test_a_fully_costed_window_reports_its_margin() -> None:
         buyouts=None,
         buyout_decided=None,
         buyout_lagged=False,
-        ad_cash=Decimal("100"),
         settled_advertising=ZERO,
     )
 
-    # payout_net 800 − cogs 300 (30 × 10 units) − ad cash 100
-    assert kpi.margin == Decimal("400")
+    # payout_net 800 − cogs 300 (30 × 10 units); the invoice is already inside.
+    assert kpi.margin == Decimal("500")
 
 
-def test_advertising_is_subtracted_once_and_the_invoice_is_not_the_copy() -> None:
-    """«К перечислению» is already net of WB's weekly invoice.
+def test_advertising_is_charged_once_as_wbs_invoice() -> None:
+    """«К перечислению» is already net of WB's weekly invoice, and the invoice is the total.
 
-    Adding it back before taking off the real burn is what keeps the charge from
-    landing twice. Found on live data, not in review: the card read 2 657 954.54
-    against a true 4 313 444.72 over one 54-day window, and the gap was exactly
-    that window's 1 993 394.61 of «WB Продвижение» invoices. Revenue reconciled
-    throughout, because revenue is the one figure the restatement does not touch.
+    Taking the burn off as well charged it twice — found on live data: the card
+    read 2 657 954.54 against a true 4 313 444.72 over one 54-day window. Since
+    2026-10-02 the card charges the invoice, as the P&L's «Итого» does.
     """
     row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
     # payout_net 800 is already net of a 200 invoice.
@@ -89,21 +84,16 @@ def test_advertising_is_subtracted_once_and_the_invoice_is_not_the_copy() -> Non
         buyouts=None,
         buyout_decided=None,
         buyout_lagged=False,
-        ad_cash=Decimal("150"),
         settled_advertising=Decimal("200"),
     )
 
-    # 800 + 200 invoice back − 300 cogs − 150 actually burned.
-    assert kpi.margin == Decimal("550")
+    # 800 (already net of the 200 invoice) − 300 cogs.
+    assert kpi.margin == Decimal("500")
+    assert kpi.ad_spend == Decimal("200")
 
 
-def test_without_ad_coverage_the_invoice_stays_inside_the_payout() -> None:
-    """No burn to swap in means nothing to swap WB's invoice for.
-
-    Adding the invoice back against an advertising cost we do not have would
-    report a window as having spent nothing on ads — the one direction that
-    flatters the figure.
-    """
+def test_the_invoice_stays_inside_the_payout() -> None:
+    """WB's invoice is withheld inside «к перечислению»; nothing is added back."""
     row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
     totals = make_row(nm_id=0, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
 
@@ -113,7 +103,6 @@ def test_without_ad_coverage_the_invoice_stays_inside_the_payout() -> None:
         buyouts=None,
         buyout_decided=None,
         buyout_lagged=False,
-        ad_cash=None,
         settled_advertising=Decimal("200"),
     )
 
@@ -145,7 +134,6 @@ def test_a_refund_only_sku_without_a_cost_still_withholds_the_margin() -> None:
         buyouts=None,
         buyout_decided=None,
         buyout_lagged=False,
-        ad_cash=None,
         settled_advertising=ZERO,
     )
 
@@ -180,7 +168,6 @@ def test_the_buyout_counter_travels_with_its_own_denominator() -> None:
         buyouts=27,
         buyout_decided=100,
         buyout_lagged=False,
-        ad_cash=None,
         settled_advertising=ZERO,
     )
 
@@ -203,7 +190,6 @@ def test_no_funnel_coverage_is_not_zero_orders() -> None:
         buyouts=None,
         buyout_decided=None,
         buyout_lagged=False,
-        ad_cash=None,
         settled_advertising=ZERO,
     )
 
@@ -227,7 +213,6 @@ def test_both_price_bases_travel_on_every_figure() -> None:
         buyouts=None,
         buyout_decided=None,
         buyout_lagged=False,
-        ad_cash=None,
         settled_advertising=ZERO,
     )
     days = build_days(
@@ -242,8 +227,8 @@ def test_both_price_bases_travel_on_every_figure() -> None:
     assert (days[0].revenue_paid, days[0].revenue_seller) == (Decimal("1000"), Decimal("2000"))
 
 
-def test_the_weekly_invoice_is_swapped_for_the_days_own_burn() -> None:
-    """A day's margin drops the settlement's invoice and takes the real burn.
+def test_the_weekly_invoice_is_spread_over_the_days_by_their_burn() -> None:
+    """A day's margin drops the invoice from its closing day and takes its share instead.
 
     WB withholds advertising once a week, so the settlement charges a whole
     week's ads to whichever day the invoice closed on. Left alone, that day's
@@ -265,9 +250,11 @@ def test_the_weekly_invoice_is_swapped_for_the_days_own_burn() -> None:
         costed=True,
     )
 
-    # 100 + 700 invoice added back − 100 actually burned that day.
-    assert days[0].margin == Decimal("700")
-    assert days[1].margin == Decimal("700")
+    # The 700 invoice goes back and comes off again in proportion to each day's
+    # burn (100 and 100): 100 + 700 − 350, and 800 − 350.
+    assert days[0].margin == Decimal("450")
+    assert days[1].margin == Decimal("450")
+    assert sum(day.margin or ZERO for day in days) == Decimal("900")
 
 
 def test_the_bonus_is_spread_over_the_window_and_never_exceeds_a_day() -> None:
@@ -294,7 +281,7 @@ def test_the_bonus_is_spread_over_the_window_and_never_exceeds_a_day() -> None:
     )
 
     assert [day.ad_spend for day in days] == [Decimal("25.00"), Decimal("75.00")]
-    assert sum(day.ad_spend or ZERO for day in days) == window_ad_cash(days, covered=True)
+    assert sum(day.ad_spend or ZERO for day in days) == Decimal("100")
 
 
 def test_an_uncosted_window_draws_revenue_without_margin() -> None:
@@ -397,43 +384,23 @@ def test_the_advertising_invoice_is_not_counted_as_a_withholding() -> None:
         buyouts=None,
         buyout_decided=None,
         buyout_lagged=False,
-        ad_cash=Decimal("22000"),
         settled_advertising=Decimal("25000"),
     )
 
     assert kpi.penalties == Decimal("9000")
-    assert kpi.ad_spend == Decimal("22000")
+    assert kpi.ad_spend == Decimal("25000")
 
 
-def test_the_card_counts_the_advertising_of_the_days_it_has_revenue_for() -> None:
-    """Advertising a window cannot yet have earned on is not charged to it.
-
-    A window routinely runs past the last settlement: WB calculates weekly and
-    serves late while the promotion statistics land daily. Counting that tail's
-    spend against revenue that does not exist yet inflated «Средний ДРР» to
-    16.22 % on a live кабинет whose worst DRAWN day was 10.49 % — and
-    understated the margin by the same money.
-    """
+def test_an_invoice_with_no_burn_on_its_days_stays_on_the_day_it_was_charged() -> None:
+    """Nothing to spread by: the settlement's own day keeps it, and the sum still holds."""
     days = build_days(
-        buckets=[make_day(day=date(2026, 9, 13), revenue="1000", margin_profit="500")],
-        order_days=[],
-        ad_days=[
-            AdSpendDay(stat_date=date(2026, 9, 13), spend=Decimal("100"), bonus=ZERO),
-            AdSpendDay(stat_date=date(2026, 9, 14), spend=Decimal("400"), bonus=ZERO),
+        buckets=[
+            make_day(day=date(2026, 9, 13), revenue="1000", margin_profit="300", advertising="200"),
+            make_day(day=date(2026, 9, 14), revenue="1000", margin_profit="500"),
         ],
-        costed=True,
-    )
-
-    assert window_ad_cash(days, covered=True) == Decimal("100")
-
-
-def test_without_advertising_coverage_the_answer_is_unknown_rather_than_zero() -> None:
-    """A кабинет we have no promotion statistics for has not advertised for free."""
-    days = build_days(
-        buckets=[make_day(day=date(2026, 9, 13), revenue="1000", margin_profit="500")],
         order_days=[],
         ad_days=[],
         costed=True,
     )
 
-    assert window_ad_cash(days, covered=False) is None
+    assert [day.margin for day in days] == [Decimal("300"), Decimal("500")]

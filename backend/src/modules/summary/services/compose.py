@@ -11,11 +11,14 @@ Three rules run through all of it:
   per-SKU report is softer — it sums the costed rows and counts the rest — which
   is right for a table a seller reads row by row and wrong for one headline
   number, where the omission is invisible.
-* **Advertising is charged once, and the invoice is not the copy that survives.**
-  WB withholds it as one invoice per week, already inside «к перечислению», and
-  the Promotion API reports the same spend dated to the days the ads ran. The
-  invoice goes back and the burn comes off, so a day-grained margin neither
-  craters on invoice days nor counts the charge twice.
+* **Advertising is charged once, and the total is WB's invoice.** WB withholds
+  it as one invoice per week, already inside «к перечислению», and the Promotion
+  API reports the same spend dated to the days the ads ran. The cards charge
+  the invoices — what WB billed is the total, the owner's decision of
+  2026-10-02, the same as the P&L's «Итого». The daily margin lays those
+  invoices over the days in proportion to each day's own burn, so a day neither
+  craters on invoice day nor counts the charge twice, and the chart still sums
+  to the card.
 * **Presentation is not computed here.** Which price base is shown, how the rows
   are grouped, sorted or folded — none of that reaches this module. Both bases
   travel on every figure and the rows go out per article, so the page answers
@@ -57,7 +60,6 @@ def build_kpi(
     buyouts: int | None,
     buyout_decided: int | None,
     buyout_lagged: bool,
-    ad_cash: Decimal | None,
     settled_advertising: Decimal,
 ) -> SummaryKpi:
     """Assemble the headline cards from the reconciled window totals.
@@ -71,10 +73,8 @@ def build_kpi(
             denominator the buyouts may be divided by.
         buyout_lagged: Whether those two came from the standing window rather
             than from the chosen period.
-        ad_cash: Advertising the seller actually paid for, bonuses removed;
-            ``None`` without advertising coverage.
         settled_advertising: The «WB Продвижение» invoices the window's
-            settlement withheld.
+            settlement withheld — what the cards charge for advertising.
 
     Returns:
         The cards, with every unknown left as ``None``.
@@ -82,15 +82,11 @@ def build_kpi(
     totals = report.totals
     missing = uncosted_skus(report)
 
-    # Advertising is subtracted exactly ONCE. «К перечислению» is already net of
-    # WB's weekly invoice, so taking `ad_cash` off it as well charges the same
-    # advertising twice — 2 657 954.54 against a true 4 313 444.72 on one live
-    # 54-day window. With no advertising coverage there is no burn to swap in,
-    # and the invoice stays where the settlement put it.
-    swap = settled_advertising if ad_cash is not None else _ZERO
-    margin = (
-        None if missing else totals.payout_net + swap - (totals.cogs or _ZERO) - (ad_cash or _ZERO)
-    )
+    # Advertising is subtracted exactly ONCE, as WB's invoice: «к перечислению»
+    # is already net of it, so the margin is the payout less the goods. Taking
+    # the burn off as well charged it twice — 2 657 954.54 against a true
+    # 4 313 444.72 on one live 54-day window.
+    margin = None if missing else totals.payout_net - (totals.cogs or _ZERO)
 
     # Fines and withholdings, minus the advertising invoices inside them: the
     # ДРР card already reports advertising, and the same money under two labels
@@ -111,7 +107,7 @@ def build_kpi(
         buyout_lagged=buyout_lagged,
         uncosted_skus=missing,
         penalties=withheld,
-        ad_spend=ad_cash,
+        ad_spend=settled_advertising,
     )
 
 
@@ -171,6 +167,7 @@ def build_days(
 
     settled = {bucket.date_from: bucket for bucket in buckets if bucket.date_from is not None}
     ad_by_day = {day.stat_date: day for day in ad_days}
+    invoiced = _invoices_by_day(settled, cash_by_day)
 
     days: list[SummaryDay] = []
     # Every day ANY feed covers, not only the settled ones. The window can
@@ -186,8 +183,9 @@ def build_days(
         if costed and bucket is not None:
             # bucket.advertising is the «WB Продвижение» invoice the settlement
             # charged on this date; bucket.margin_profit has already subtracted
-            # it inside «Удержания».
-            margin = bucket.margin_profit + bucket.advertising - (ad_cash or _ZERO)
+            # it inside «Удержания». It goes back, and the day's share of the
+            # window's invoices comes off instead.
+            margin = bucket.margin_profit + bucket.advertising - invoiced.get(day, _ZERO)
         days.append(
             SummaryDay(
                 day=day,
@@ -205,6 +203,32 @@ def build_days(
         )
     days.sort(key=lambda entry: entry.day)
     return days
+
+
+def _invoices_by_day(
+    settled: dict[date, PnlStatement], cash_by_day: dict[date, Decimal]
+) -> dict[date, Decimal]:
+    """Lay the window's invoices over its settled days in proportion to each day's burn.
+
+    Σ is the invoices exactly — the last day takes the rounding — so the daily
+    margins sum to the card. A window with invoices and no burn on its settled
+    days leaves each invoice on the day WB charged it.
+    """
+    invoices = sum((bucket.advertising for bucket in settled.values()), _ZERO)
+    burn = {day: cash_by_day.get(day, _ZERO) for day in sorted(settled)}
+    total_burn = sum(burn.values(), _ZERO)
+    if not total_burn:
+        return {day: bucket.advertising for day, bucket in settled.items()}
+    shares: dict[date, Decimal] = {}
+    assigned = _ZERO
+    days = list(burn)
+    for position, day in enumerate(days):
+        if position == len(days) - 1:
+            shares[day] = invoices - assigned
+        else:
+            shares[day] = (invoices * burn[day] / total_burn).quantize(Decimal("0.01"))
+            assigned += shares[day]
+    return shares
 
 
 def build_rows(report: PnlSkuReportResponse) -> list[SummarySkuRow]:
@@ -235,40 +259,6 @@ def build_rows(report: PnlSkuReportResponse) -> list[SummarySkuRow]:
         )
         for row in report.rows
     ]
-
-
-def window_ad_cash(days: list[SummaryDay], *, covered: bool) -> Decimal | None:
-    """Return what advertising cost on the days the window's figures cover.
-
-    The days WB has CALCULATED, not every day of the window. A window may run
-    past the last settlement — orders and advertising land daily, settlements
-    weekly and late — and counting the tail's advertising against revenue that
-    does not exist yet inflates every figure built on it. Measured on the live
-    кабинет for 10.09-16.09: the card read 16.22 % against a chart whose worst
-    day was 10.49 %, because 887 113 of the 1 360 926 spent had no revenue to be
-    a share of.
-
-    The same restriction is what keeps the margin honest, and for the same
-    reason: subtracting seven days of advertising from four days of payout is a
-    loss the кабинет did not make. It also makes Σ of the chart's daily margins
-    equal the margin card exactly, which is a tested invariant.
-
-    Args:
-        days: The window's days, already composed — a day WB has not calculated
-            carries no revenue and is therefore not counted.
-        covered: Whether the advertising statistics cover the window at all.
-            Without coverage the answer is ``None``: "we do not know" must never
-            lower a cost, and zero would.
-
-    Returns:
-        The seller's own advertising spend over the settled days, or ``None``.
-    """
-    if not covered:
-        return None
-    return sum(
-        (day.ad_spend or _ZERO for day in days if day.revenue_paid is not None),
-        _ZERO,
-    )
 
 
 def buyout_cohort(days: list[OrderDay], *, until: date) -> tuple[int | None, int | None]:

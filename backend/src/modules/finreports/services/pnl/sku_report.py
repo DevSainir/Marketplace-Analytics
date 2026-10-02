@@ -282,27 +282,25 @@ def build_sku_report(
     # a weekly «Оказание услуг «WB Продвижение»» invoice, withheld inside «к
     # перечислению», and the burn the Promotion API dates to the days the ads
     # ran. A SKU row only ever sees the second — the invoice carries no nm_id —
-    # so subtracting its spend is that row's only advertising charge and needs
-    # no correction. This row is the one place both meet, and subtracting the
-    # burn from a payout that is already net of the invoice charges it twice:
-    # 2 657 954.54 against a true 4 313 444.72 on one live 54-day window, the
-    # gap being that window's 1 993 394.61 of invoices to the сом.
+    # so its spend, net of WB's bonuses, is that row's advertising charge.
     #
-    # The invoice goes back and the burn comes off, so the charge lands once and
-    # lands on the figure that knows about WB's bonuses. Note what is NOT done:
-    # «к перечислению» is untouched, so the settlement partition — Σ rows +
-    # unallocated — still reconciles against what WB actually paid out.
-    #
-    # With no advertising coverage there is no burn to swap in, and the invoice
-    # is then the only advertising figure there is: it stays where it is, inside
-    # the payout, rather than being added back against nothing.
-    settled_advertising = (
-        total_aggregate.advertising if totals.advertising_cash is not None else _ZERO
-    )
-    totals.net_profit = (
-        totals.payout_net + settled_advertising - totals.cogs - (totals.advertising_cash or _ZERO)
-    )
+    # «Итого» is the invoice: what WB billed the кабинет is the total, by the
+    # owner's decision of 2026-10-02 (the burn differs from it by when it is
+    # dated — a week's invoice was 0.77..1.13 of that week's burn on «Демо»
+    # in September, 0.96 over five weeks — and, before 20.08.2026, by the rate:
+    # WB converted the rouble invoices at the document day's rate, the burn is
+    # converted at each impression day's). The invoice is already inside «к
+    # перечислению», so the profit is the payout less the goods, and nothing is
+    # added back or taken off. «Реклама» on this row is the invoice plus WB's
+    # bonuses — the gross the rows sum towards — so «Реклама» minus «Бонусы» is
+    # still the cash on screen.
+    invoice = total_aggregate.advertising
+    totals.advertising_cash = invoice
+    totals.advertising = invoice + (totals.ad_bonus or _ZERO)
+    totals.advertising_pct = _pct(totals.advertising, totals.revenue_seller_price)
+    totals.net_profit = totals.payout_net - totals.cogs
     totals.net_profit_pct = _pct(totals.net_profit, totals.revenue_seller_price)
+    totals.roi_pct = _pct(totals.net_profit, totals.cogs) if totals.cogs else None
     _ = total_costed_units  # coverage is reported by the service's notes
     return rows, unallocated, totals
 

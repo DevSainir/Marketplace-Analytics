@@ -254,8 +254,11 @@ async def test_a_window_reaching_past_the_settlement_charges_only_what_it_earned
 
     The margin invariant is the sharper half: Σ of the chart's days must equal
     the card, and it cannot while the card subtracts advertising no day of the
-    chart does.
+    chart does. Since 2026-10-02 the cards charge WB's invoices, which only a
+    settled day can carry, so the tail's burn moves neither.
     """
+    window = {"date_from": WINDOW_FROM, "date_to": WINDOW_TO + timedelta(days=4)}
+    before = await _service(db_session).build(db_session, workspace_id=WORKSPACE, **window)
     db_session.add(
         AdvertisingStatDaily(
             stat_date=WINDOW_TO + timedelta(days=2),
@@ -267,12 +270,8 @@ async def test_a_window_reaching_past_the_settlement_charges_only_what_it_earned
     )
     await db_session.flush()
 
-    summary = await _service(db_session).build(
-        db_session,
-        workspace_id=WORKSPACE,
-        date_from=WINDOW_FROM,
-        date_to=WINDOW_TO + timedelta(days=4),
-    )
+    summary = await _service(db_session).build(db_session, workspace_id=WORKSPACE, **window)
 
-    assert summary.kpi.ad_spend == Decimal("150")
+    assert summary.kpi.ad_spend == before.kpi.ad_spend
+    assert summary.kpi.margin == before.kpi.margin
     assert sum(day.margin for day in summary.days if day.margin is not None) == summary.kpi.margin

@@ -42,7 +42,6 @@ from src.modules.summary.services.compose import (
     build_rows,
     buyout_cohort,
     uncosted_skus,
-    window_ad_cash,
 )
 
 #: How much of a period's ordering must have been ANSWERED before the period's
@@ -233,7 +232,6 @@ class SummaryService:
             ad_days=ad_days,
             costed=uncosted_skus(report) == 0,
         )
-        ad_cash = window_ad_cash(days, covered=bool(ad_days))
 
         return SummaryResponse(
             date_from=date_from,
@@ -249,7 +247,6 @@ class SummaryService:
                 buyouts=buyouts,
                 buyout_decided=decided,
                 buyout_lagged=lagged,
-                ad_cash=ad_cash,
                 # The invoices the window settled, summed off the day buckets:
                 # the statement's own total would be a second pass for a figure
                 # the buckets already partition.
