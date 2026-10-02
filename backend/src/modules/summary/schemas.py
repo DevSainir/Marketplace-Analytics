@@ -25,7 +25,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class SummaryKpi(BaseModel):
@@ -166,15 +166,10 @@ class SummaryResponse(BaseModel):
 
     date_from: date
     date_to: date
-    #: The settlement's currency — revenue, margin and fines are in it.
+    #: The settlement's currency — revenue, margin and fines are in it, and so
+    #: are advertising and the orders' money volume: rouble ads are converted
+    #: where they are stored (2026-10-02), the orders are WB's own funnel sums.
     currency: str
-    #: What the prices are stated in — the orders' money volume is valued at
-    #: them. NOT the settlement's: «Демо» settles in KGS, is priced in RUB.
-    price_currency: str = ""
-    #: What the window's advertising billed in — RUB before 20.08.2026 on
-    #: «Демо», KGS after. Nothing here converts, so wherever it differs
-    #: from the figure it is divided by or subtracted from, the page says so.
-    ad_currencies: list[str] = Field(default_factory=list)
     kpi: SummaryKpi
     days: list[SummaryDay]
     rows: list[SummarySkuRow]
