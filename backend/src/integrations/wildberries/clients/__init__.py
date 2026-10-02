@@ -5,6 +5,11 @@ from src.integrations.wildberries.clients.analytics import WBAnalyticsClient
 from src.integrations.wildberries.clients.base import BaseWBClient
 from src.integrations.wildberries.clients.card import WBCardClient
 from src.integrations.wildberries.clients.content import WBContentClient
+from src.integrations.wildberries.clients.feedbacks import (
+    FeedbackPage,
+    WBFeedbacksClient,
+    WBStorefrontFeedbacksClient,
+)
 from src.integrations.wildberries.clients.finance_reports import (
     ReportPeriod,
     WBFinanceReportsClient,
@@ -16,13 +21,16 @@ from src.integrations.wildberries.clients.statistics import WBStatisticsClient
 
 __all__ = [
     "BaseWBClient",
+    "FeedbackPage",
     "ReportPeriod",
     "WBAdvertisingClient",
     "WBAnalyticsClient",
     "WBCardClient",
     "WBContentClient",
+    "WBFeedbacksClient",
     "WBFinanceReportsClient",
     "WBMarketplaceClient",
     "WBPricesClient",
     "WBStatisticsClient",
+    "WBStorefrontFeedbacksClient",
 ]

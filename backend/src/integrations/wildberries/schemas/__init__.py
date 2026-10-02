@@ -44,6 +44,13 @@ from src.integrations.wildberries.schemas.content import (
     WBCardPhoto,
     WBCardSize,
 )
+from src.integrations.wildberries.schemas.feedbacks import (
+    WBFeedback,
+    WBFeedbackProduct,
+    WBStorefrontExclusion,
+    WBStorefrontFeedback,
+    WBStorefrontRating,
+)
 from src.integrations.wildberries.schemas.finance import (
     WBFinanceReportHeader,
     WBFinanceReportRow,
@@ -76,6 +83,8 @@ __all__ = [
     "WBCardSizePrice",
     "WBFbsStockRow",
     "WBFbsWarehouse",
+    "WBFeedback",
+    "WBFeedbackProduct",
     "WBFinanceReportHeader",
     "WBFinanceReportRow",
     "WBFunnelAggregateRow",
@@ -93,4 +102,7 @@ __all__ = [
     "WBReportDetailRow",
     "WBSaleRecord",
     "WBStockRow",
+    "WBStorefrontExclusion",
+    "WBStorefrontFeedback",
+    "WBStorefrontRating",
 ]

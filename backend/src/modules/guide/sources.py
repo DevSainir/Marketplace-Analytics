@@ -202,6 +202,9 @@ GUIDE_SOURCES: tuple[GuideSource, ...] = (
             "(создать → опросить → скачать), пустое окно отвечает 204."
         ),
     ),
+    # Answered reviews verbatim, text included. The daily rating and review-state
+    # history (which reviews vanished, were rescored or excluded) is a separate,
+    # structured record in `monitoring` — see monitoring/models/reviews.py.
     GuideSource(
         key="feedbacks",
         title="Отзывы",

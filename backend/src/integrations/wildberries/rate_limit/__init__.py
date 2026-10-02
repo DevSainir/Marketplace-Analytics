@@ -19,12 +19,15 @@ from src.integrations.wildberries.rate_limit.surfaces import (
     ANALYTICS_ENDPOINT_BUCKETS,
     FINANCE_REPORT_ENDPOINT_BUCKETS,
     STATISTICS_ENDPOINT_BUCKETS,
+    STOREFRONT_BUCKET_TOKEN,
     advertising_rate_gate,
     analytics_rate_gate,
     catalogue_rate_gate,
+    feedbacks_rate_gate,
     finance_reports_rate_gate,
     marketplace_rate_gate,
     statistics_rate_gate,
+    storefront_feedbacks_rate_gate,
 )
 
 __all__ = [
@@ -32,13 +35,16 @@ __all__ = [
     "ANALYTICS_ENDPOINT_BUCKETS",
     "FINANCE_REPORT_ENDPOINT_BUCKETS",
     "STATISTICS_ENDPOINT_BUCKETS",
+    "STOREFRONT_BUCKET_TOKEN",
     "NullRateGate",
     "RateGate",
     "TokenBucketRateGate",
     "advertising_rate_gate",
     "analytics_rate_gate",
     "catalogue_rate_gate",
+    "feedbacks_rate_gate",
     "finance_reports_rate_gate",
     "marketplace_rate_gate",
     "statistics_rate_gate",
+    "storefront_feedbacks_rate_gate",
 ]

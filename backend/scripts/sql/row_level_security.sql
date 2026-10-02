@@ -105,6 +105,9 @@ DECLARE
         'heatmap.sku_group_item',
         'heatmap.sku_norm',
         'monitoring.product_card',
+        'monitoring.rating_snapshot',
+        'monitoring.review_event',
+        'monitoring.review_state',
         'workspaces.workspace_backfill',
         'workspaces.workspace_tokens'
     ];

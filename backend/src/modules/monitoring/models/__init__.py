@@ -29,6 +29,13 @@ from src.modules.monitoring.models.matrix_override import MatrixOverride
 from src.modules.monitoring.models.pinned_skus import PinnedSku
 from src.modules.monitoring.models.prices import PriceSnapshot
 from src.modules.monitoring.models.products import ProductCard, ProductSize
+from src.modules.monitoring.models.reviews import (
+    REVIEW_ID_MAX_LENGTH,
+    RatingSnapshot,
+    ReviewEvent,
+    ReviewEventKind,
+    ReviewState,
+)
 from src.modules.monitoring.models.sales import SaleRecord
 from src.modules.monitoring.models.sales_funnel import SalesFunnelDaily
 from src.modules.monitoring.models.sku_day_comment import SkuDayComment
@@ -40,6 +47,7 @@ __all__ = [
     "CLUSTER_MAX_LENGTH",
     "LABEL_MAX_LENGTH",
     "PAYMENT_TYPE_MAX_LENGTH",
+    "REVIEW_ID_MAX_LENGTH",
     "WB_STATUS_LABELS",
     "WB_TYPE_LABELS",
     "AdvertisingClusterStatDaily",
@@ -55,6 +63,10 @@ __all__ = [
     "PriceSnapshot",
     "ProductCard",
     "ProductSize",
+    "RatingSnapshot",
+    "ReviewEvent",
+    "ReviewEventKind",
+    "ReviewState",
     "SaleRecord",
     "SalesFunnelDaily",
     "SkuDayAction",

@@ -20,6 +20,7 @@ from src.modules.monitoring.repos.products import (
     ProductCardRepository,
     ProductSizeRepository,
 )
+from src.modules.monitoring.repos.reviews import EventDraft, KnownReview, ReviewRepository
 from src.modules.monitoring.repos.sales import SaleRepository
 from src.modules.monitoring.repos.sku_day_comment import SkuDayCommentRepository
 from src.modules.monitoring.repos.stocks import StockRepository
@@ -30,13 +31,16 @@ __all__ = [
     "AdvertisingSearchRepository",
     "AdvertisingWriteOffRepository",
     "CampaignRepository",
+    "EventDraft",
     "FbsWarehouseRepository",
     "FunnelRepository",
+    "KnownReview",
     "MatrixOverrideRepository",
     "PinnedSkuRepository",
     "PriceRepository",
     "ProductCardRepository",
     "ProductSizeRepository",
+    "ReviewRepository",
     "SaleRepository",
     "SkuDayActionRepository",
     "SkuDayCommentRepository",

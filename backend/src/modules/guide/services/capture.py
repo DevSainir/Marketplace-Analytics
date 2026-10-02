@@ -43,6 +43,7 @@ from src.integrations.wildberries.rate_limit import (
     RateGate,
     analytics_rate_gate,
     catalogue_rate_gate,
+    feedbacks_rate_gate,
     statistics_rate_gate,
 )
 from src.modules.guide.repos import GuideRepository
@@ -68,6 +69,8 @@ _SHARED_GATES: dict[str, Callable[[Settings, str], RateGate]] = {
     "wb_analytics_base_url": lambda s, token: analytics_rate_gate(s, token=token),
     "wb_statistics_base_url": lambda s, token: statistics_rate_gate(s, token=token),
     "wb_common_base_url": lambda s, token: catalogue_rate_gate(s, token=token, surface="common"),
+    # Since 2026-10-02 the daily review history (monitoring) walks this host too.
+    "wb_feedbacks_base_url": lambda s, token: feedbacks_rate_gate(s, token=token),
 }
 
 

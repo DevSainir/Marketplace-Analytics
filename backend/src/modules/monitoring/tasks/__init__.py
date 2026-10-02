@@ -23,6 +23,8 @@ One responsibility per module:
   ``monitoring.refresh_buyout_cohorts`` pass over maturing order-date cohorts.
 * :mod:`~src.modules.monitoring.tasks.day_headers` — the
   ``monitoring.carry_day_headers`` day-boundary carry.
+* :mod:`~src.modules.monitoring.tasks.reviews` — the
+  ``monitoring.snapshot_reviews`` daily rating and review history.
 
 This ``__init__`` is the package facade Celery's ``autodiscover_tasks`` imports
 (it looks for ``src.modules.monitoring.tasks``): importing it imports every
@@ -41,6 +43,7 @@ from src.modules.monitoring.tasks.day_headers import carry_day_headers
 from src.modules.monitoring.tasks.discovery import discover_workspace, harvest_all
 from src.modules.monitoring.tasks.price_topup import top_up_customer_prices
 from src.modules.monitoring.tasks.refresh import harvest_sku_window
+from src.modules.monitoring.tasks.reviews import snapshot_reviews
 
 __all__ = [
     "COHORT_REFRESH_DAYS",
@@ -52,5 +55,6 @@ __all__ = [
     "harvest_all",
     "harvest_sku_window",
     "refresh_buyout_cohorts",
+    "snapshot_reviews",
     "top_up_customer_prices",
 ]

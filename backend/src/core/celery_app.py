@@ -278,6 +278,19 @@ celery_app.conf.beat_schedule = {
         "task": "workspaces.sweep_stalled_backfills",
         "schedule": crontab(minute="*/15"),
     },
+    # The review history: each склейка's rating and every review's state, so a
+    # rating change can be explained after the fact (monitoring/models/reviews.py).
+    # Earns nothing on the day, so it takes an hour nothing else wants: 19:40 MSK
+    # is after the last daytime finance tick (18:00, 18:45 on a weekly-report
+    # day), well clear of the 05:00-05:55 block and the 23:30 price top-up, and
+    # the 21:00 header carry is a single UPDATE. Minute 40 keeps it off any
+    # minute-0 tick. A large кабинет's walk is ~150 paced pages, a few minutes;
+    # the storefront reads are one склейка every three seconds across the fleet.
+    # It steps aside for a first-run harvest (see the task).
+    "evening-snapshot-reviews": {
+        "task": "monitoring.snapshot_reviews",
+        "schedule": crontab(hour=19, minute=40),
+    },
     # ---- the reference capture (`guide`) --------------------------------
     #
     # These two earn nothing. They exist because WB deletes several feeds on

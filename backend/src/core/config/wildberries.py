@@ -44,6 +44,10 @@ class WildberriesSettings(BaseSettings):
     # Feedbacks surface: reviews and buyer questions. Needs the «Вопросы и
     # отзывы» scope; every other category answers it 403.
     wb_feedbacks_base_url: str = Field(default="https://feedbacks-api.wildberries.ru")
+    # The public storefront's review summary for one склейка — `valuation`,
+    # `valuationSum` and the score distribution WB rates the card from. No
+    # token. `feedbacks1` answered for all 31 cards of «Демо» on 2026-10-02.
+    wb_storefront_feedbacks_base_url: str = Field(default="https://feedbacks1.wb.ru")
     # Every FBS warehouse WB lists for the seller is discovered and read, so a
     # warehouse opened in the portal needs no deploy. ``False`` switches FBS off.
     wb_fbs_harvest_enabled: bool = True
@@ -174,6 +178,18 @@ class WildberriesSettings(BaseSettings):
     # the next client from repeating it.
     wb_catalogue_bucket_capacity: int = Field(default=5, ge=1)
     wb_catalogue_bucket_refill_seconds: float = Field(default=1.0, gt=0)
+    # The «Вопросы и отзывы» surface. NOT measured by us: WB's documentation
+    # gives the category three requests a second with a burst of six, and this
+    # paces at a third of that — three deep, one token a second. The header
+    # clamp corrects it downward on the first answer if WB disagrees. Re-measure
+    # before loosening it.
+    wb_feedbacks_bucket_capacity: int = Field(default=3, ge=1)
+    wb_feedbacks_bucket_refill_seconds: float = Field(default=1.0, gt=0)
+    # The public storefront review summary: one склейка every few seconds. It
+    # is unauthenticated, so nothing tells us its limit, and the storefront's
+    # edges have blocked whole hosts before (card.wb.ru, 2026-09-22). A slow,
+    # steady reader is the one least likely to be noticed.
+    wb_storefront_feedbacks_refill_seconds: float = Field(default=3.0, gt=0)
     # Escape hatch: disables Redis-backed pacing for EVERY bucket, the
     # storefront's included (tests and any environment with no Redis). The
     # clients then fall back to per-process spacing.

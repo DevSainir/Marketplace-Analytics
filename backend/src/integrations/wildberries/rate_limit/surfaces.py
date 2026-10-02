@@ -376,3 +376,63 @@ def catalogue_rate_gate(settings: Settings, *, token: str, surface: str) -> Rate
         refill_seconds=settings.wb_catalogue_bucket_refill_seconds,
         max_wait_seconds=settings.wb_analytics_max_queue_seconds,
     )
+
+
+def feedbacks_rate_gate(settings: Settings, *, token: str) -> RateGate:
+    """Build the pacing gate for the «Вопросы и отзывы» surface.
+
+    Two callers share it: the daily review history walks ``/api/v1/feedbacks``
+    page by page, and the `guide` capture reads reviews and questions monthly.
+    The bucket is per token and per endpoint like every other one here.
+
+    Args:
+        settings: Bucket parameters and the Redis DSN.
+        token: The workspace's «Вопросы и отзывы» (or unified) token.
+
+    Returns:
+        A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`
+        when pacing is switched off (unit tests, or no Redis available).
+    """
+    if not settings.wb_rate_pacing_enabled:
+        return NullRateGate()
+    return TokenBucketRateGate(
+        get_redis(),
+        surface="feedbacks",
+        token=token,
+        capacity=settings.wb_feedbacks_bucket_capacity,
+        refill_seconds=settings.wb_feedbacks_bucket_refill_seconds,
+        max_wait_seconds=settings.wb_analytics_max_queue_seconds,
+    )
+
+
+#: The bucket "token" of the public storefront. There is no seller credential
+#: there, so every кабинет's reads share ONE bucket — which is the point: the
+#: storefront sees one reader at our address, however many sellers it serves.
+STOREFRONT_BUCKET_TOKEN = "storefront-public"  # noqa: S105 - a bucket name, not a secret
+
+
+def storefront_feedbacks_rate_gate(settings: Settings) -> RateGate:
+    """Build the pacing gate for the public storefront's review summary.
+
+    One token, refilled every few seconds, shared across the whole fleet (see
+    :data:`STOREFRONT_BUCKET_TOKEN`). The caller keys every request on one
+    ``rate_key`` rather than on the per-склейка path, or each ``imtId`` would get
+    a fresh bucket and nothing would be paced.
+
+    Args:
+        settings: Refill interval and the Redis DSN.
+
+    Returns:
+        A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`
+        when pacing is switched off (unit tests, or no Redis available).
+    """
+    if not settings.wb_rate_pacing_enabled:
+        return NullRateGate()
+    return TokenBucketRateGate(
+        get_redis(),
+        surface="storefront-feedbacks",
+        token=STOREFRONT_BUCKET_TOKEN,
+        capacity=1,
+        refill_seconds=settings.wb_storefront_feedbacks_refill_seconds,
+        max_wait_seconds=settings.wb_analytics_max_queue_seconds,
+    )

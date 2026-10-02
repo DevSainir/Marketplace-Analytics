@@ -18,6 +18,7 @@ from src.modules.workspaces.backfill import (
     record_progress,
     start_backfill,
 )
+from src.modules.workspaces.bootstrap import bootstrap_in_flight
 from src.modules.workspaces.chain import claim_chain
 from src.modules.workspaces.deps import WORKSPACE_HEADER, CurrentWorkspaceId
 from src.modules.workspaces.schemas import WorkspaceTokenBundle
@@ -34,6 +35,7 @@ __all__ = [
     "CurrentWorkspaceId",
     "LaneStep",
     "WorkspaceTokenBundle",
+    "bootstrap_in_flight",
     "claim_chain",
     "load_workspace_name",
     "load_workspace_token_bundle",

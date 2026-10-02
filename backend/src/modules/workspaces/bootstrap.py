@@ -158,9 +158,33 @@ def newly_reachable(before: Iterable[str], after: Iterable[str]) -> frozenset[To
     return _reach(after) - _reach(before)
 
 
+#: Every bootstrap claim — the workspace's own and each lane's — starts with this.
+_CLAIM_PREFIX = "workspaces:token-bootstrap:"
+
+
+async def bootstrap_in_flight() -> bool:
+    """Whether any workspace's first-run harvests may be running right now.
+
+    For optional walks to step aside: a claim stands for the whole window in
+    which discovery and the first finance harvest can hold the worker's memory
+    (see :data:`FINANCE_TASK_NAME` on what overlapping them cost). Advisory, and
+    open on failure — a Redis that cannot answer reports nothing in flight,
+    because the scheduled work is still owed and the broker is that same Redis.
+
+    Returns:
+        ``True`` when at least one bootstrap claim is held.
+    """
+    try:
+        async for _ in get_redis().scan_iter(match=f"{_CLAIM_PREFIX}*", count=500):
+            return True
+    except RedisError:
+        logger.warning("Could not read bootstrap claims; assuming none is in flight.")
+    return False
+
+
 def _claim_key(workspace_id: uuid.UUID, lane: BackfillLane | None = None) -> str:
     """Build the debounce key for one workspace's harvests, or for one lane."""
-    key = f"workspaces:token-bootstrap:{workspace_id}"
+    key = f"{_CLAIM_PREFIX}{workspace_id}"
     return key if lane is None else f"{key}:{lane}"
 
 
