@@ -1,6 +1,6 @@
 ---
 name: testing
-description: The binding rules for every test in this repo — which tier a test belongs in (unit, component, integration, end-to-end, performance), Arrange-Act-Assert, testing behaviour instead of implementation, fakes over MagicMock, and the definition of done for a change. Use this whenever you write, move, rename, delete or debug a test, whenever you finish a code change and need to know what must be covered and where, and whenever a test fails and you are tempted to skip it. Also use it before answering "is this already tested?" — references/coverage-map.md records what each tier owns and which gaps are deliberate.
+description: The binding rules for every test in this repo — which tier a test belongs in (unit, component, integration, end-to-end, performance), Arrange-Act-Assert, testing behaviour instead of implementation, fakes over MagicMock, and the definition of done for a change. Use this whenever you write, move, rename, delete or debug a test, whenever you finish a code change and need to know what must be covered and where, and whenever a test fails — before re-running it, and especially for a failure that passes alone but not in its file, `got Future attached to a different loop` or `Event loop is closed`, which have a known cause here. Also use it before answering "is this already tested?" — references/coverage-map.md records what each tier owns and which gaps are deliberate.
 ---
 
 # Testing rules
