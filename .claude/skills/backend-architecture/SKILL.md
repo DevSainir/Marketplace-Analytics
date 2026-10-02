@@ -1,6 +1,6 @@
 ---
 name: backend-architecture
-description: How the FastAPI backend of this repo is put together — module layers, the contract.py boundary between modules, one Postgres schema per module, UUIDv7 keys, DI wiring in deps/, and the refresh-token rotation model. Use this whenever you touch anything under backend/src — adding or moving a route, service, repository, model or migration, wiring a dependency, splitting a file that grew too big, or working on auth, sessions and tenancy — and also when you are only reading the backend and need to know why it is shaped this way. Cheap to consult and expensive to skip, because most of these rules are enforced by tests that fail late.
+description: How the FastAPI backend of this repo is put together — module layers, the contract.py boundary between modules, one Postgres schema per module, UUIDv7 keys, DI wiring in deps/, and the refresh-token rotation model. Use this whenever you touch anything under backend/src — adding or moving a route, service, repository, model or migration, wiring a dependency, splitting a file that grew too big, or working on auth and sessions (tenancy and access guards are the security skill) — and also when you are only reading the backend and need to know why it is shaped this way. Cheap to consult and expensive to skip, because most of these rules are enforced by tests that fail late.
 ---
 
 # Backend architecture

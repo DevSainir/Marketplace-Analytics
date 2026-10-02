@@ -206,6 +206,7 @@ Read these when the work actually calls for them, not by default:
 * `references/attack-classes.md` — per class (BOLA, BFLA, resource exhaustion, injection,
   SSRF, supply chain…): the question to ask, how it has shown up *here*, and how to verify.
 
-Standing context: the live weakness register is `docs/security/HARDENING.md`; the tenancy
-model is in the `backend-architecture` skill; anything WB-facing also needs
+Standing context: the live weakness register is `docs/security/HARDENING.md`; tenancy at
+the database level is `backend/scripts/sql/row_level_security.sql` (register P2.5), and the
+layering it sits in is the `backend-architecture` skill; anything WB-facing also needs
 `wildberries-api`.

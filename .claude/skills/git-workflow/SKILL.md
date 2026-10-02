@@ -153,8 +153,6 @@ Subject in the imperative, scope = the module (`monitoring`, `finreports`, `user
 changelog and, translated, the release note the team actually reads. What the diff already shows
 does not need restating.
 
-End every commit with:
-
-```
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-```
+End every commit with the `Co-Authored-By:` trailer naming the model that wrote it — the
+harness supplies the exact line (`Co-Authored-By: Claude <model> <noreply@anthropic.com>`).
+Copy that rather than a model name from an older commit.

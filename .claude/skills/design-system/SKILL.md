@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: The visual rules of this app's UI — the canvas/surface plane, the card recipe, the shared container width, the typography scale, which component library to reach for, and the design decisions that already failed once (glassmorphism, translucent surfaces, z-index escaping a card). Use this whenever you write or change anything a user will look at — a new page or view, a card, table, dropdown, button, form, header or empty state, any Tailwind classes, or any request phrased as "make it look right", "style this" or "match the rest of the app". Structural questions about where a component file belongs go to the frontend-architecture skill.
+description: The visual rules of this app's UI — the canvas/surface plane, the card recipe, the shared container width, the typography scale, which component library to reach for, the `ui-next` glass look and the two places glass must not go (a data grid, anything z-indexed inside a card), and the words the UI uses («кабинет», never «рабочее пространство»). Use this whenever you write or change anything a user will look at — a new page or view, a card, table, dropdown, button, form, header or empty state, any Tailwind classes, any colour or contrast question, any change to Russian UI copy or terminology, or any request phrased as "make it look right", "style this" or "match the rest of the app". Structural questions about where a component file belongs go to the frontend-architecture skill.
 ---
 
 # Design system
@@ -66,7 +66,7 @@ config as `rgb(var(--ui-x-rgb) / <alpha-value>)` — never as a hex.
 
 What it changes and why — each was measured off shipping products, not guessed:
 
-* **Ground** `#F4F4F8` canvas with **white** cards, inverting the current `#E8E8E8`/`#F1F1F1`.
+* **Ground** `#F4F4F8` canvas with **white** cards, inverting the previous `#E8E8E8`/`#F1F1F1`.
   Apple Store measures `#F5F5F7`/`#FFFFFF`, Notion `#FFFFFF`/`#F6F5F4`, Ramp `#FFFFFF`/`#F4F2F0`.
   White cards give figures their maximum contrast, which is what this app is for.
 * **Depth** layered shadow ramps (Vercel's Geist stacks three at 2/4/6 %) plus a 1px ring instead
