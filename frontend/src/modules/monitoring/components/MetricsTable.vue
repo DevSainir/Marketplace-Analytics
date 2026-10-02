@@ -40,6 +40,7 @@ import { nextTick, onMounted, ref, watch } from 'vue'
 
 import { vDragScroll } from '@/core/utils/dragScroll'
 import AssocBreakdownTip from '@/modules/monitoring/components/AssocBreakdownTip.vue'
+import CtrBasisTip from '@/modules/monitoring/components/CtrBasisTip.vue'
 import CampaignIdTip from '@/modules/monitoring/components/CampaignIdTip.vue'
 import { useCampaignLinks } from '@/modules/monitoring/campaignLinks'
 import MatrixMetricsRows from '@/modules/monitoring/components/MatrixMetricsRows.vue'
@@ -92,7 +93,7 @@ function scrollToNewestDay() {
   if (scroll.value) scroll.value.scrollLeft = scroll.value.scrollWidth
 }
 
-const { assocTip, assocData, onMatrixOver, hideAssocTip } = useAssocHover(() => props.rows)
+const { assocTip, ctrTip, assocData, onMatrixOver, hideAssocTip } = useAssocHover(() => props.rows)
 
 // The tip's own scroll dismissal lives in useAssocHover; this only has to put
 // the ribbon at «сегодня» on first paint and after every window change.
@@ -226,6 +227,7 @@ watch(
       </div>
 
       <AssocBreakdownTip :tip="assocTip" />
+      <CtrBasisTip :tip="ctrTip" />
       <CampaignIdTip :tip="tip" @keep="keepTip" @leave="hideTip" />
     </div>
   </div>

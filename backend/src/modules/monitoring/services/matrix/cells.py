@@ -220,6 +220,8 @@ def _total_cell(
             # two do not reconcile: read it as «CTR рекламы за день», which is
             # what every ad bucket beside it already means.
             return None if day_ad is None else _percent(day_ad.clicks, day_ad.views)
+        case "ad_clicks":  # the CTR's numerator, for its hover
+            return None if day_ad is None else float(day_ad.clicks)
         case "cpm":
             # The day's whole advertising bill over the показы it bought —
             # built the same way as «CTR» above, as a ratio of SUMS.

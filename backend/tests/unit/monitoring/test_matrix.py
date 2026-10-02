@@ -109,6 +109,19 @@ def test_total_cpm_is_the_days_bill_over_the_days_showings() -> None:
     assert _cell(rows, "ctr", 0, "total") == 10.0  # 14 clicks / 140 views
 
 
+def test_total_ctr_carries_its_advertising_clicks_for_the_hover() -> None:
+    """«Общая»'s «Клики» are the funnel's, so the CTR's own numerator rides beside it.
+
+    The hover divides these 14 advertising clicks by the column's 140 показы —
+    the funnel's clicks would give a CTR that never happened.
+    """
+    rows = _two_campaign_rows()
+
+    assert _cell(rows, "ad_clicks", 0, "total") == 14.0
+    assert _cell(rows, "ad_clicks", 0, "organic") is None
+    assert _cell(rows, "ad_clicks", 0, "manual_search") is None
+
+
 def test_total_cpm_is_blank_on_an_unadvertised_day() -> None:
     """No показы, no price per thousand of them — «—» rather than a zero."""
     funnel_rows = [_funnel_row(DAY1, open_count=200, cart_count=20, order_count=10)]

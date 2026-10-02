@@ -77,6 +77,10 @@ MATRIX_METRIC_KEYS: tuple[str, ...] = (
     "spend",
     "views",
     "ctr",
+    # The «Общая» column's ADVERTISING clicks — the numerator of its CTR, whose
+    # «Клики» row shows the funnel's clicks instead. Emitted for that column
+    # only; the frontend reads it into the CTR hover, never as a row.
+    "ad_clicks",
     "cpm",
     "cpc",
     "clicks",

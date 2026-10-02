@@ -525,3 +525,37 @@ describe('associative conversions', () => {
     expect(cellObj(view, 'carts', 0, 'uni_shelves').assoc.skus).toEqual([])
   })
 })
+
+// «Общая»'s «Клики» are the funnel's (organic included) while its CTR is the
+// advertising one — the hover names what the CTR really divides.
+describe('the «Общая» CTR basis', () => {
+  function ctrProduct() {
+    const clone = structuredClone(PRODUCT)
+    clone.matrix.rows.find((r) => r.key === 'ctr').values[col('total')] = 6
+    clone.matrix.rows.push(backendRow('ad_clicks', [{ total: 9 }, {}]))
+    return clone
+  }
+
+  it('carries the advertising clicks and the column’s показы', () => {
+    const view = buildMetricsMatrix(ctrProduct())
+
+    expect(cellObj(view, 'ctr', 0, 'total').ctrBasis).toEqual({ clicks: 9, views: 150 })
+  })
+
+  it('leaves the ad buckets and an unadvertised day without one', () => {
+    const view = buildMetricsMatrix(ctrProduct())
+
+    expect(cellObj(view, 'ctr', 0, 'uni_search').ctrBasis).toBeNull()
+    expect(cellObj(view, 'ctr', 1, 'total').ctrBasis).toBeNull()
+  })
+
+  it('follows a patch', () => {
+    const view = buildMetricsMatrix(ctrProduct())
+    const edited = ctrProduct()
+    edited.matrix.rows.find((r) => r.key === 'ad_clicks').values[col('total')] = 12
+
+    patchMetricsMatrix(view, edited)
+
+    expect(cellObj(view, 'ctr', 0, 'total').ctrBasis).toEqual({ clicks: 12, views: 150 })
+  })
+})

@@ -6,18 +6,32 @@
  * size/colour variants — and names them. An always-visible breakdown would
  * clutter thousands of cells, so it is a hover.
  *
+ * The «Общая» CTR cell rides the same listener: its «Клики» row is the
+ * funnel's, so the hover names the advertising clicks and показы the CTR
+ * actually divides (`ctrTip`).
+ *
  * Delegated: ONE mouseover listener on the scroll container, with cells
  * carrying their index key in `data-assoc`. Attaching a listener per cell would
  * mean thousands of them on a grid this size.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { formatNumber, formatSku } from '@/core/utils/format'
+import { formatNumber, formatPercent, formatSku } from '@/core/utils/format'
 
 const ASSOC_METRICS = new Set(['carts', 'orders'])
 
+/** The cell's hover payload, or null: a carts/orders breakdown or a CTR basis. */
+function hoverPayload(row, cell) {
+  if (ASSOC_METRICS.has(row.key)) return cell?.assoc ? cell : null
+  return row.key === 'ctr' && cell?.ctrBasis ? cell : null
+}
+
 /** Room for the tallest breakdown; nearer the viewport floor the tip flips above. */
 const ASSOC_TIP_MAX_HEIGHT_PX = 260
+
+/** Both tips are `w-72`; a cell nearer the right edge pulls its tip left. */
+const TIP_WIDTH_PX = 288
+const TIP_EDGE_GAP_PX = 8
 
 /**
  * @param {() => Array<{key: string, cells: object[]}>} rows Reactive accessor
@@ -25,6 +39,7 @@ const ASSOC_TIP_MAX_HEIGHT_PX = 260
  */
 export function useAssocHover(rows) {
   const assocTip = ref(null) // { x, y, above, associated, exact, skus } | null
+  const ctrTip = ref(null) // { x, y, above, clicks, views, ctr } | null
 
   // Cell -> hover payload, keyed by the `data-assoc` attribute. Follows the
   // rows, so an edit to the SKU's own slice keeps the associated remainder in
@@ -32,9 +47,8 @@ export function useAssocHover(rows) {
   const assocIndex = computed(() => {
     const index = new Map()
     for (const row of rows()) {
-      if (!ASSOC_METRICS.has(row.key)) continue
       for (const cell of row.cells) {
-        if (cell?.assoc) index.set(`${row.key}|${cell.day}|${cell.bucket}`, cell)
+        if (hoverPayload(row, cell)) index.set(`${row.key}|${cell.day}|${cell.bucket}`, cell)
       }
     }
     return index
@@ -42,7 +56,7 @@ export function useAssocHover(rows) {
 
   /** `data-assoc` key for a cell, or null (attribute omitted -> no hover). */
   function assocData(row, cell) {
-    if (!ASSOC_METRICS.has(row.key) || !cell.assoc) return null
+    if (!hoverPayload(row, cell)) return null
     return `${row.key}|${cell.day}|${cell.bucket}`
   }
 
@@ -50,15 +64,30 @@ export function useAssocHover(rows) {
     const el = event.target.closest('[data-assoc]')
     const cell = el ? assocIndex.value.get(el.dataset.assoc) : null
     if (!cell) {
-      assocTip.value = null
+      hideAssocTip()
       return
     }
     const rect = el.getBoundingClientRect()
     const above = rect.bottom + ASSOC_TIP_MAX_HEIGHT_PX > window.innerHeight
+    // «Общая» sits at the ribbon's right edge on the newest day — keep the tip on screen.
+    const x = Math.max(
+      TIP_EDGE_GAP_PX,
+      Math.min(rect.left, window.innerWidth - TIP_WIDTH_PX - TIP_EDGE_GAP_PX),
+    )
+    const place = { x, y: above ? rect.top - 6 : rect.bottom + 6, above }
+    if (cell.ctrBasis) {
+      assocTip.value = null
+      ctrTip.value = {
+        ...place,
+        clicks: formatNumber(cell.ctrBasis.clicks),
+        views: formatNumber(cell.ctrBasis.views),
+        ctr: formatPercent(cell.raw),
+      }
+      return
+    }
+    ctrTip.value = null
     assocTip.value = {
-      x: rect.left,
-      y: above ? rect.top - 6 : rect.bottom + 6,
-      above,
+      ...place,
       associated: formatNumber(cell.assoc.associated),
       exact: cell.assoc.exact,
       skus: cell.assoc.skus.map((sku) => ({
@@ -72,6 +101,7 @@ export function useAssocHover(rows) {
 
   function hideAssocTip() {
     assocTip.value = null
+    ctrTip.value = null
   }
 
   onMounted(() => {
@@ -81,5 +111,5 @@ export function useAssocHover(rows) {
   })
   onBeforeUnmount(() => document.removeEventListener('scroll', hideAssocTip, true))
 
-  return { assocTip, assocData, onMatrixOver, hideAssocTip }
+  return { assocTip, ctrTip, assocData, onMatrixOver, hideAssocTip }
 }

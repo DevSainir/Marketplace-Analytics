@@ -163,7 +163,16 @@ const METRIC_DEFS = [
     format: fmtMoney,
   },
   { key: 'views', label: 'Показы', group: 'traffic', format: fmtNumber },
-  { key: 'ctr', label: 'CTR, %', group: 'traffic', format: fmtPercent },
+  // «Общая»'s CTR is the ADVERTISING one while its «Клики» row is the funnel's,
+  // so the two do not divide into it. `adClicksKey` is the backend row of its
+  // real numerator; hovering the cell shows the clicks over показы it divides.
+  {
+    key: 'ctr',
+    label: 'CTR, %',
+    group: 'traffic',
+    format: fmtPercent,
+    adClicksKey: 'ad_clicks',
+  },
   { key: 'cpm', label: 'CPM', money: 'ads', group: 'traffic', format: fmtMoney },
   { key: 'cpc', label: 'CPC', money: 'ads', group: 'traffic', format: fmtMoneyTenths },
   { key: 'clicks', label: 'Клики', group: 'traffic', format: fmtNumber },
@@ -406,6 +415,17 @@ function cellAssoc(def, raw, skuRaw, breakdown, viewedNmId) {
 }
 
 /**
+ * The hover payload of the «Общая» CTR cell: the advertising clicks and показы
+ * it divides, or null for every other cell (an ad bucket's CTR divides the
+ * clicks and показы printed in its own column, so it needs no explaining).
+ */
+function cellCtrBasis(def, bucket, raw, adClicks, views) {
+  if (!def.adClicksKey || bucket !== 'total' || raw == null) return null
+  if (adClicks == null || views == null) return null
+  return { clicks: adClicks, views }
+}
+
+/**
  * Index the base state's per-variant breakdowns by `"<day>:<bucket>"`.
  *
  * The display matrix carries numbers only, so the breakdown rides the editable
@@ -470,6 +490,7 @@ export function buildMetricsMatrix(product, currencies = {}) {
   const rows = METRIC_DEFS.map((def) => {
     const values = backendValues.get(def.key)
     const skuValues = def.skuKey ? backendValues.get(def.skuKey) : null
+    const adClicks = def.adClicksKey ? backendValues.get(def.adClicksKey) : null
     return {
       key: def.key,
       label: rowLabel(def),
@@ -493,6 +514,13 @@ export function buildMetricsMatrix(product, currencies = {}) {
               skuRaw,
               breakdowns.get(`${iso}:${column.key}`),
               product.nm_id,
+            ),
+            ctrBasis: cellCtrBasis(
+              def,
+              column.key,
+              raw,
+              resolveRaw(adClicks, bucketCount, bucketIndex, dayIndex),
+              resolveRaw(backendValues.get('views'), bucketCount, bucketIndex, dayIndex),
             ),
             day: iso,
             bucket: column.key,
@@ -549,6 +577,7 @@ export function patchMetricsMatrix(view, product, currencies = {}) {
     if (!def) continue
     const values = backendValues.get(row.key)
     const skuValues = def.skuKey ? backendValues.get(def.skuKey) : null
+    const adClicks = def.adClicksKey ? backendValues.get(def.adClicksKey) : null
     for (let dayIndex = 0; dayIndex < matrix.days.length; dayIndex += 1) {
       for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
         const cell = row.cells[dayIndex * columnCount + columnIndex]
@@ -569,6 +598,13 @@ export function patchMetricsMatrix(view, product, currencies = {}) {
           breakdowns.get(`${cell.day}:${TRAFFIC_COLUMNS[columnIndex].key}`),
           product.nm_id,
         )
+        const ctrBasis = cellCtrBasis(
+          def,
+          bucket,
+          raw,
+          resolveRaw(adClicks, bucketCount, bucketIndex, dayIndex),
+          resolveRaw(backendValues.get('views'), bucketCount, bucketIndex, dayIndex),
+        )
         // Assign only on change so untouched cells trigger no reactivity.
         if (cell.raw !== raw) cell.raw = raw
         assignParts(cell, parts)
@@ -576,6 +612,7 @@ export function patchMetricsMatrix(view, product, currencies = {}) {
         // An edit to the SKU's own slice moves the associated remainder with
         // it; compare by value, the object is rebuilt each patch.
         if (JSON.stringify(cell.assoc) !== JSON.stringify(assoc)) cell.assoc = assoc
+        if (JSON.stringify(cell.ctrBasis) !== JSON.stringify(ctrBasis)) cell.ctrBasis = ctrBasis
       }
     }
   }
