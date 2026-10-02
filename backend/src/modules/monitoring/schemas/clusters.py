@@ -36,9 +36,10 @@ class SkuClusterItem(BaseModel):
     cluster and is ``None`` when WB reported no position — which is not the same
     as ranking last, so it must never render as 0.
 
-    The money is in what the cluster's campaigns bill in. A window across
-    20.08.2026 can hold a RUB and a KGS campaign; their sum would add roubles to
-    сомы, so ``spend``/``cpc``/``cpm`` are ``None`` there (CONVERSION-TODO).
+    The money is in what the cluster's campaigns' spend is stored in — the
+    кабинет's currency, rouble campaigns converted at the Bank rate of their day.
+    A campaign the conversion could not reach (a day past the loaded rates)
+    would add roubles to сомы, so ``spend``/``cpc``/``cpm`` are ``None`` there.
     """
 
     cluster: str = Field(description="Normalized search phrase WB grouped queries under.")

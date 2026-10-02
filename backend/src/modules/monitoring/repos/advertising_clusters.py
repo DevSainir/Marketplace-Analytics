@@ -21,10 +21,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import AdvertisingClusterStatDaily as Row
 from src.modules.monitoring.models import AdvertisingStatDaily
+from src.modules.monitoring.repos.ad_money import FX_COLUMNS, as_served
 from src.modules.monitoring.repos.base import BaseRepository
 
 _CONFLICT = ("stat_date", "campaign_id", "nm_id", "cluster")
-_UPDATE = ("views", "clicks", "add_to_cart", "spend", "orders", "avg_position")
+_UPDATE = ("views", "clicks", "add_to_cart", "spend", "orders", "avg_position", *FX_COLUMNS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,7 +89,9 @@ class AdvertisingClusterRepository(BaseRepository):
         Returns:
             The number of rows submitted.
         """
-        return await self.bulk_upsert(rows, conflict_columns=_CONFLICT, update_columns=_UPDATE)
+        return await self.bulk_upsert(
+            as_served(rows), conflict_columns=_CONFLICT, update_columns=_UPDATE
+        )
 
     async def delete_window_for_campaigns(
         self, *, date_from: date, date_to: date, campaign_ids: Iterable[int]

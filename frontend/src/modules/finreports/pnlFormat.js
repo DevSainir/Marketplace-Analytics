@@ -39,12 +39,11 @@ export function providePnlCurrencies(currencies) {
  * The money formatter a P&L component needs. Without a provider (a component
  * mounted alone) it prints bare numbers.
  *
- * «Реклама» and «Бонусы» are signed in the payout's currency too, although
- * WB billed old campaigns in roubles until 21.09.2026. Printing «с+₽» on every
- * cell read as broken, and the owner chose on 01.10.2026 to show soms and
- * let the rare rouble residual be slightly off until there is a conversion;
- * the report's caveat still names the mix. CONVERSION-TODO: convert those
- * roubles here once a rate is decided.
+ * «Реклама» and «Бонусы» are signed in the payout's currency too: WB billed
+ * old campaigns in roubles until 22.09.2026, and since 02.10.2026 those roubles
+ * are converted to the кабинет's currency where they are stored, at the Bank
+ * of Russia rate of their day. The report's caveat names any rouble row the
+ * conversion could not reach.
  *
  * @returns {{money: (value: unknown) => string}}
  */

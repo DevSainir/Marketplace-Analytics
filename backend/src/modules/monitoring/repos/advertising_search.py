@@ -10,11 +10,12 @@ from sqlalchemy import CursorResult, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import AdvertisingSearchStatDaily
+from src.modules.monitoring.repos.ad_money import FX_COLUMNS, as_served
 from src.modules.monitoring.repos.advertising import CampaignSearchDayTotal
 from src.modules.monitoring.repos.base import BaseRepository
 
 _CONFLICT = ("stat_date", "campaign_id", "nm_id")
-_UPDATE = ("views", "clicks", "add_to_cart", "spend", "orders")
+_UPDATE = ("views", "clicks", "add_to_cart", "spend", "orders", *FX_COLUMNS)
 
 
 class AdvertisingSearchRepository(BaseRepository):
@@ -35,7 +36,9 @@ class AdvertisingSearchRepository(BaseRepository):
         Returns:
             The number of rows submitted.
         """
-        return await self.bulk_upsert(rows, conflict_columns=_CONFLICT, update_columns=_UPDATE)
+        return await self.bulk_upsert(
+            as_served(rows), conflict_columns=_CONFLICT, update_columns=_UPDATE
+        )
 
     async def campaign_day_totals(
         self, *, campaign_ids: Iterable[int], date_from: date, date_to: date

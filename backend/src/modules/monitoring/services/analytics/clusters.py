@@ -103,7 +103,7 @@ class ClusterAnalytics:
         currencies: list[str],
     ) -> SkuClusterItem:
         """Render one cluster aggregate into its response DTO."""
-        # CONVERSION-TODO: a cluster whose campaigns bill in two currencies has
+        # A cluster whose campaigns' spend is stored in two currencies has
         # no spend figure until one side is converted.
         mixed = len(currencies) > 1
         return SkuClusterItem(

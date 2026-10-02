@@ -16,6 +16,7 @@ from src.modules.monitoring.models import (
     PriceSnapshot,
     SalesFunnelDaily,
 )
+from src.modules.monitoring.repos.ad_money import RateBook
 from src.modules.monitoring.repos.advertising import CampaignDayTotal, CampaignSearchDayTotal
 from src.modules.monitoring.repos.stocks import StockDailyTotal
 from src.modules.monitoring.schemas.matrix import (
@@ -151,6 +152,7 @@ def build_metrics_matrix(
     campaign_totals: list[CampaignDayTotal] | None = None,
     campaign_search_totals: list[CampaignSearchDayTotal] | None = None,
     price_currency: str = "",
+    rates: RateBook | None = None,
 ) -> MetricsMatrixRead:
     """Build the complete day x bucket metrics matrix for one SKU.
 
@@ -172,6 +174,7 @@ def build_metrics_matrix(
             кампания the advertising columns measure.
         campaign_search_totals: The search-zone slice of those totals.
         price_currency: What the prices are stated in.
+        rates: The Bank rates into the кабинет's currency.
 
     Returns:
         A fully computed :class:`MetricsMatrixRead`.
@@ -189,5 +192,6 @@ def build_metrics_matrix(
             campaign_totals=campaign_totals,
             campaign_search_totals=campaign_search_totals,
             price_currency=price_currency,
+            rates=rates,
         )
     )

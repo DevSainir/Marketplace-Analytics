@@ -33,6 +33,7 @@ from src.modules.monitoring.repos import (
     SkuDayCommentRepository,
     StockRepository,
 )
+from src.modules.monitoring.repos.ad_money import RateBook
 from src.modules.monitoring.repos.advertising import (
     CampaignDaySkuTotal,
     CampaignDayTotal,
@@ -78,6 +79,7 @@ class MatrixInputs:
     campaign_sku_totals: list[CampaignDaySkuTotal]
     sku_labels: dict[int, str | None]
     price_currency: str = ""
+    rates: RateBook | None = None
 
 
 def derive_fact_base(
@@ -99,6 +101,7 @@ def derive_fact_base(
         sku_labels=inputs.sku_labels,
         nm_id=nm_id,
         price_currency=inputs.price_currency,
+        rates=inputs.rates,
     )
 
 
@@ -374,6 +377,9 @@ class DetailAnalytics:
             campaign_sku_totals=campaign_sku_totals,
             sku_labels=sku_labels,
             price_currency=await self._prices.currency_for_sku(nm_id=nm_id),
+            rates=await self._funnel.rate_book(
+                currency=await self._funnel.currency_for_sku(nm_id=nm_id)
+            ),
         )
 
     async def _ad_currencies(

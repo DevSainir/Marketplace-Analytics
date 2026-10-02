@@ -20,10 +20,11 @@ from src.modules.monitoring.models import (
     AdvertisingWriteOffDaily,
     ProductCard,
 )
+from src.modules.monitoring.repos.ad_money import FX_COLUMNS, as_served
 from src.modules.monitoring.repos.base import BaseRepository
 
 _CONFLICT = ("stat_date", "campaign_id", "payment_type", "currency")
-_UPDATE = ("amount", "write_offs")
+_UPDATE = ("amount", "write_offs", *FX_COLUMNS)
 
 
 class AdvertisingWriteOffRepository(BaseRepository):
@@ -44,7 +45,9 @@ class AdvertisingWriteOffRepository(BaseRepository):
         Returns:
             The number of rows submitted.
         """
-        return await self.bulk_upsert(rows, conflict_columns=_CONFLICT, update_columns=_UPDATE)
+        return await self.bulk_upsert(
+            as_served(rows), conflict_columns=_CONFLICT, update_columns=_UPDATE
+        )
 
     async def delete_window_for_campaigns(
         self, *, date_from: date, date_to: date, campaign_ids: Sequence[int]

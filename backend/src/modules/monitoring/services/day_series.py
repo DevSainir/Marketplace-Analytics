@@ -27,6 +27,7 @@ from src.modules.monitoring.models import (
     PriceSnapshot,
     SalesFunnelDaily,
 )
+from src.modules.monitoring.repos.ad_money import RateBook, cabinet_currency, load_rate_book
 from src.modules.monitoring.repos.base import workspace_sku_select
 
 #: Neutral element for the money sums below.
@@ -45,11 +46,16 @@ class OrderDay(NamedTuple):
     told yet».
 
     The two money figures are what «ДРР от заказов» divides by, at whichever
-    price base the reader picked: ``Σ(заказы x цена)`` with the day's own price
-    snapshot, joined BEFORE the sum because each card is worth its own price.
-    ``None`` when not one SKU of that day carried a snapshot — WB's funnel
-    publishes no money volume at all, so a day we never priced has no volume,
-    and zero there would read as infinite ДРР.
+    price base the reader picked, and both are in the кабинет's own currency —
+    the advertising they are divided into is. At the seller's price it is WB's
+    own funnel sum (``orderSum``, converted by WB at the order day's Bank of
+    Russia rate). At the customer's price WB publishes no sum, so each card's
+    WB sum is scaled by that day's customer/seller price ratio — no rate of
+    ours, and as exact as the customer price snapshot itself, which is one
+    reading of a price WB varies by region. A card-day WB served no sum for
+    (before 2025-09-30, and 07.09.2026) is the count at the snapshot price,
+    converted at the Bank rate of the day. ``None`` when not one card of the
+    day could be valued — zero there would read as infinite ДРР.
     """
 
     stat_date: date
@@ -102,14 +108,18 @@ async def load_order_days(
     decided = func.sum(SalesFunnelDaily.buyout_count + SalesFunnelDaily.cancel_count).filter(
         SalesFunnelDaily.cancel_count.is_not(None)
     )
+    funnel, price = SalesFunnelDaily, PriceSnapshot
+    valued = funnel.order_sum.is_not(None)
     stmt = (
         select(
-            SalesFunnelDaily.stat_date,
-            func.sum(SalesFunnelDaily.order_count),
-            func.sum(SalesFunnelDaily.buyout_count),
+            funnel.stat_date,
+            func.sum(funnel.order_count),
+            func.sum(funnel.buyout_count),
             decided,
-            func.sum(SalesFunnelDaily.order_count * PriceSnapshot.seller_price),
-            func.sum(SalesFunnelDaily.order_count * PriceSnapshot.customer_price),
+            func.sum(funnel.order_sum),
+            func.sum(funnel.order_sum * price.customer_price / func.nullif(price.seller_price, 0)),
+            func.sum(funnel.order_count * price.seller_price).filter(~valued),
+            func.sum(funnel.order_count * price.customer_price).filter(~valued),
         )
         .outerjoin(
             PriceSnapshot,
@@ -124,17 +134,40 @@ async def load_order_days(
         .group_by(SalesFunnelDaily.stat_date)
         .order_by(SalesFunnelDaily.stat_date)
     )
+    rows = (await session.execute(stmt)).all()
+    book = await load_rate_book(
+        session, currency=await cabinet_currency(session, workspace_id=workspace_id)
+    )
     return [
         OrderDay(
             stat_date=day,
             orders=int(orders or 0),
             buyouts=int(buyouts or 0),
             decided=None if decided_units is None else int(decided_units),
-            amount_seller=None if seller is None else Decimal(seller),
-            amount_paid=None if paid is None else Decimal(paid),
+            amount_seller=_in_cabinet_currency(day, wb_seller, rub_seller, book),
+            amount_paid=_in_cabinet_currency(day, wb_paid, rub_paid, book),
         )
-        for day, orders, buyouts, decided_units, seller, paid in (await session.execute(stmt)).all()
+        for day, orders, buyouts, decided_units, wb_seller, wb_paid, rub_seller, rub_paid in rows
     ]
+
+
+def _in_cabinet_currency(
+    day: date, from_wb: Decimal | None, in_roubles: Decimal | None, book: RateBook
+) -> Decimal | None:
+    """WB's own sum plus the roubles it did not cover, converted; ``None`` if neither.
+
+    Roubles with no rate for the day make the whole day unknown rather than
+    adding roubles to the кабинет's currency.
+    """
+    if from_wb is None and in_roubles is None:
+        return None
+    total = Decimal(0) if from_wb is None else Decimal(str(from_wb))
+    if in_roubles:
+        factor = book.factor(day)
+        if factor is None:
+            return None
+        total += Decimal(str(in_roubles)) * factor
+    return total.quantize(Decimal("0.01"))
 
 
 async def load_ad_days(

@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import SalesFunnelDaily
+from src.modules.monitoring.repos.ad_money import RateBook, load_rate_book
 from src.modules.monitoring.repos.base import BaseRepository, workspace_sku_select
 
 
@@ -72,6 +73,24 @@ class FunnelRepository(BaseRepository):
     def __init__(self, session: AsyncSession) -> None:
         """Bind the repository to the request-scoped session."""
         super().__init__(session)
+
+    async def currency_for_sku(self, *, nm_id: int) -> str:
+        """The currency WB values this article's funnel in — its кабинет's; ``""`` unknown.
+
+        Not windowed: a window from before WB served sums (2025-09-30) states
+        none, and the кабинет's currency does not change with it.
+        """
+        stmt = (
+            select(SalesFunnelDaily.currency)
+            .where(SalesFunnelDaily.nm_id == nm_id, SalesFunnelDaily.currency != "")
+            .order_by(SalesFunnelDaily.stat_date.desc())
+            .limit(1)
+        )
+        return str((await self._session.execute(stmt)).scalar_one_or_none() or "")
+
+    async def rate_book(self, *, currency: str) -> RateBook:
+        """The Bank rates that turn roubles into ``currency`` (``repos/ad_money``)."""
+        return await load_rate_book(self._session, currency=currency)
 
     async def upsert_many(self, rows: list[dict[str, object]]) -> int:
         """Idempotently upsert a batch of flattened funnel rows.

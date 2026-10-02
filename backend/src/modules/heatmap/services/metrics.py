@@ -20,13 +20,12 @@ Two things do not add up, and each has its own rule:
   half-settled week would carry its whole ad spend against half its revenue.
 
 And money of two currencies never meets. The orders in money are WB's own
-funnel sum, in the settlement's currency; the spend is in what each campaign
-bills in (RUB before 20.08.2026 on «Демо», KGS after). A spend sum over both
-is «—», and so is a ДРР whose spend is not in the orders' currency.
-
-# CONVERSION-TODO: `_mixed` and `_paired` are where those «—» come from; with a
-# rate they become real figures. `_profit` still subtracts spend of whatever
-# currency from the settlement's payout — it waits on the same decision.
+funnel sum, in the settlement's currency, and the spend is stored in it too:
+rouble campaigns (before 20.08.2026 on «Демо») are converted where they
+are stored, at the Bank of Russia rate of their day (``monitoring/repos/
+ad_money.py``). Should a rouble row ever escape that — a day past the loaded
+rates — `_mixed` and `_paired` keep it out: a spend sum over two currencies is
+«—», and so is a ДРР whose spend is not in the orders' currency.
 """
 
 from __future__ import annotations
@@ -221,7 +220,7 @@ def _order_sum(f: Facts) -> float | None:
 
 
 def _mixed(f: Facts) -> bool:
-    """Whether the cell's spend adds two stated currencies (CONVERSION-TODO)."""
+    """Whether the cell's spend adds two stated currencies — a rouble row with no rate."""
     return len(f.ad_currencies - {""}) > 1
 
 
@@ -229,7 +228,7 @@ def _paired(f: Facts) -> bool:
     """Whether the spend is in the orders' currency, so ДРР divides like by like.
 
     No spend is 0 % in any currency. A campaign never labelled (``""``) could
-    be either, so it does not pair (CONVERSION-TODO for the RUB ones).
+    be either, so it does not pair.
     """
     return not f.spend or (len(f.order_currencies) == 1 and f.ad_currencies == f.order_currencies)
 

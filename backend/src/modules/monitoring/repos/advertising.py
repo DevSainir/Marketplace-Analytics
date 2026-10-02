@@ -12,6 +12,11 @@ from sqlalchemy import CursorResult, case, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.models import AdvertisingStatDaily
+from src.modules.monitoring.repos.ad_money import (
+    FX_COLUMNS,
+    as_served,
+    convert_rouble_ad_money,
+)
 from src.modules.monitoring.repos.base import BaseRepository, workspace_sku_select
 
 
@@ -106,7 +111,16 @@ class CampaignDaySkuTotal:
 
 
 _CONFLICT = ("stat_date", "campaign_id", "app_type", "nm_id")
-_UPDATE = ("views", "clicks", "add_to_cart", "spend", "orders", "order_sum", "currency")
+_UPDATE = (
+    "views",
+    "clicks",
+    "add_to_cart",
+    "spend",
+    "orders",
+    "order_sum",
+    "currency",
+    *FX_COLUMNS,
+)
 
 
 class AdvertisingRepository(BaseRepository):
@@ -127,7 +141,16 @@ class AdvertisingRepository(BaseRepository):
         Returns:
             The number of rows submitted.
         """
-        return await self.bulk_upsert(rows, conflict_columns=_CONFLICT, update_columns=_UPDATE)
+        return await self.bulk_upsert(
+            as_served(rows), conflict_columns=_CONFLICT, update_columns=_UPDATE
+        )
+
+    async def convert_rouble_money(self, *, campaign_ids: Iterable[int]) -> int:
+        """Convert these campaigns' rouble ad money to the кабинет's currency.
+
+        Run after every write of ad money; see :mod:`.ad_money`.
+        """
+        return await convert_rouble_ad_money(self._session, campaign_ids=campaign_ids)
 
     async def campaigns_without_currency(self, *, workspace_id: uuid.UUID) -> dict[int, date]:
         """Return this workspace's campaigns whose spend still has no unit.

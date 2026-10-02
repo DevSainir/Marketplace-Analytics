@@ -322,12 +322,10 @@ class SkuReportService:
                 f"WB списывал рекламу способом, который мы не знаем ({labels}) — "
                 "эти суммы посчитаны как деньги продавца, а не как бонусы."
             )
-        # Advertising is charged in the campaign's own unit and the payout in
-        # the settlement's, and nothing here converts one into the other. WB
-        # ran the ad account in RUB until 2026-08-20 (older campaigns still
-        # bill in RUB), so on a KGS кабинет every window touching that period
-        # subtracts roubles from soms in «Чистая прибыль». Say so rather than
-        # print a figure that looks settled.
+        # Rouble advertising is converted to the кабинет's currency where it is
+        # stored (monitoring's repos/ad_money.py), so this fires only for a
+        # rouble row the conversion could not reach — a day past the loaded
+        # Bank rates. Say so rather than print a figure that looks settled.
         foreign = [code for code in ad_currencies if code != currency]
         if foreign:
             notes.append(

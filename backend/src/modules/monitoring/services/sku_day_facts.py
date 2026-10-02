@@ -44,6 +44,7 @@ from src.modules.monitoring.models import (
     SalesFunnelDaily,
     StockSnapshot,
 )
+from src.modules.monitoring.repos.ad_money import RateBook, cabinet_currency, load_rate_book
 from src.modules.monitoring.repos.base import workspace_sku_select
 
 
@@ -66,7 +67,9 @@ class FunnelSkuDay(NamedTuple):
     ``amount_*`` are the day's orders valued at that same day's price snapshot
     (in the prices' currency), ``None`` where the day was never priced.
     ``order_value`` is WB's own funnel sum of the day's orders, in
-    ``currency`` — the settlement's — and ``None`` where WB served none.
+    ``currency`` — the settlement's. On a day WB served none (before
+    2025-09-30, and 07.09.2026) it is ``amount_seller`` converted at the Bank
+    of Russia rate of the day — WB's own rule — and ``None`` without a rate.
     """
 
     nm_id: int
@@ -206,22 +209,37 @@ async def load_funnel_sku_days(
         .where(funnel.stat_date >= date_from, funnel.stat_date <= date_to)
     )
     stmt = _scoped(stmt, funnel.nm_id, workspace_id, nm_ids)
+    rows = (await session.execute(stmt)).all()
+    cabinet = await cabinet_currency(session, workspace_id=workspace_id)
+    book = await load_rate_book(session, currency=cabinet)
     return [
-        FunnelSkuDay(
-            nm_id=int(nm_id),
-            stat_date=day,
-            opens=int(opens or 0),
-            carts=int(carts or 0),
-            orders=int(orders or 0),
-            amount_seller=_money(seller),
-            amount_paid=_money(paid),
-            order_value=_money(value),
-            currency=currency or "",
+        _valued(
+            FunnelSkuDay(
+                nm_id=int(nm_id),
+                stat_date=day,
+                opens=int(opens or 0),
+                carts=int(carts or 0),
+                orders=int(orders or 0),
+                amount_seller=_money(seller),
+                amount_paid=_money(paid),
+                order_value=_money(value),
+                currency=currency or "",
+            ),
+            book,
         )
-        for nm_id, day, opens, carts, orders, seller, paid, value, currency in (
-            await session.execute(stmt)
-        ).all()
+        for nm_id, day, opens, carts, orders, seller, paid, value, currency in rows
     ]
+
+
+def _valued(row: FunnelSkuDay, book: RateBook) -> FunnelSkuDay:
+    """Fill a day WB valued no orders for: the seller-price volume at the Bank rate."""
+    if row.order_value is not None or row.amount_seller is None or not book.currency:
+        return row
+    factor = book.factor(row.stat_date)
+    if factor is None:
+        return row
+    value = (row.amount_seller * factor).quantize(Decimal("0.01"))
+    return row._replace(order_value=value, currency=book.currency)
 
 
 async def load_ad_sku_days(

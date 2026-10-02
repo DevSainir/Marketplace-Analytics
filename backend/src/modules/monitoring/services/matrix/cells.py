@@ -76,7 +76,7 @@ def _ad_cell(
         return None
     codes = sorted(acc.currencies)
     if key in _SPEND_METRICS and spend_is_mixed(codes):
-        return None  # CONVERSION-TODO: spend of two currencies in one cell
+        return None  # spend of two currencies in one cell
     match key:
         case "traffic_share":
             return _percent(acc.views, bid_type_views)
@@ -117,7 +117,7 @@ def _ad_cell(
             return _ratio(acc.spend, acc.add_to_cart)
         case "drr_orders":  # this zone's spend against the orders IT delivered
             if not pairs_with_orders(codes, day):
-                return None  # CONVERSION-TODO: spend and order money differ
+                return None  # spend and order money differ
             return _percent(
                 _shown(day, bucket, "spend", acc.spend),
                 _shown(day, bucket, "order_sum", ad_order_sum(acc.orders, day.funnel)),
@@ -152,9 +152,9 @@ def _total_cell(
     counts = funnel if funnel is not None and funnel.has_funnel else None
     codes = card_ad_currencies(day)
     if key in _SPEND_METRICS and spend_is_mixed(codes):
-        return None  # CONVERSION-TODO: the card's day spent in two currencies
+        return None  # the card's day spent in two currencies
     if key in ("drr_orders", "drr_sales") and not pairs_with_orders(codes, day):
-        return None  # CONVERSION-TODO: spend and order money differ
+        return None  # spend and order money differ
     match key:
         case "spend":
             return None if day_ad is None else round(day_ad.spend, 2)
@@ -314,7 +314,7 @@ def _campaign_drr_sales(
     # spend or buyout volume in any zone is the number this ratio divides.
     codes = sorted({code for name in delivering for code in bucket_accs[name].currencies})
     if not pairs_with_orders(codes, day):
-        return None  # CONVERSION-TODO: spend and order money differ
+        return None  # spend and order money differ
     spend = sum(_shown(day, name, "spend", bucket_accs[name].spend) or 0.0 for name in delivering)
     buyout = sum(
         _shown(

@@ -24,6 +24,7 @@ from src.modules.monitoring.models.campaigns import (
 )
 from src.modules.monitoring.models.day_actions import SkuDayAction
 from src.modules.monitoring.models.fbs_warehouses import LABEL_MAX_LENGTH, FbsWarehouse
+from src.modules.monitoring.models.fx import CbrRate, FxConverted
 from src.modules.monitoring.models.matrix_override import MatrixOverride
 from src.modules.monitoring.models.pinned_skus import PinnedSku
 from src.modules.monitoring.models.prices import PriceSnapshot
@@ -46,7 +47,9 @@ __all__ = [
     "AdvertisingStatDaily",
     "AdvertisingWriteOffDaily",
     "Campaign",
+    "CbrRate",
     "FbsWarehouse",
+    "FxConverted",
     "MatrixOverride",
     "PinnedSku",
     "PriceSnapshot",

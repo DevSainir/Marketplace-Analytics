@@ -24,6 +24,13 @@ NM_ID = 953770957
 DAY = date(2026, 8, 10)
 
 
+class _NoRoubles:
+    """Stands in for AdvertisingRepository: nothing written here is in roubles."""
+
+    async def convert_rouble_money(self, **_: Any) -> int:
+        return 0
+
+
 class _CapturingClusterRepo:
     """Stands in for AdvertisingClusterRepository, recording what it is given."""
 
@@ -47,7 +54,7 @@ class _CapturingClusterRepo:
 def _ingestion(cluster_repo: Any) -> AdvertisingIngestion:
     """Build the unit with only the cluster repo wired (others unused here)."""
     return AdvertisingIngestion(
-        advertising_repo=None,  # type: ignore[arg-type]
+        advertising_repo=_NoRoubles(),  # type: ignore[arg-type]
         campaign_repo=None,  # type: ignore[arg-type]
         advertising_search_repo=None,  # type: ignore[arg-type]
         advertising_cluster_repo=cluster_repo,
@@ -224,6 +231,9 @@ class _QuietRepo:
         return 0
 
     async def delete_snapshot_day(self, **_: Any) -> int:
+        return 0
+
+    async def convert_rouble_money(self, **_: Any) -> int:
         return 0
 
 

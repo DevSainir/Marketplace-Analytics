@@ -25,6 +25,13 @@ from src.modules.monitoring.services import IngestionService
 WINDOW = (date(2026, 9, 1), date(2026, 9, 15))
 
 
+class _NoRoubles:
+    """Stands in for AdvertisingRepository: nothing written here is in roubles."""
+
+    async def convert_rouble_money(self, **_: Any) -> int:
+        return 0
+
+
 class _CapturingWriteOffRepo:
     """Stands in for AdvertisingWriteOffRepository."""
 
@@ -49,7 +56,7 @@ def _service(write_off_repo: Any) -> IngestionService:
     """Build an IngestionService with only the write-off repo wired."""
     return IngestionService(
         funnel_repo=None,  # type: ignore[arg-type]
-        advertising_repo=None,  # type: ignore[arg-type]
+        advertising_repo=_NoRoubles(),  # type: ignore[arg-type]
         stock_repo=None,  # type: ignore[arg-type]
         campaign_repo=None,  # type: ignore[arg-type]
         product_card_repo=None,  # type: ignore[arg-type]

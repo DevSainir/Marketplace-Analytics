@@ -19,6 +19,7 @@ from src.modules.monitoring.models import (
     PriceSnapshot,
     SalesFunnelDaily,
 )
+from src.modules.monitoring.repos.ad_money import RateBook
 from src.modules.monitoring.repos.advertising import (
     CampaignDaySkuTotal,
     CampaignDayTotal,
@@ -61,6 +62,7 @@ def derive_base_state(
     sku_labels: dict[int, str | None] | None = None,
     nm_id: int | None = None,
     price_currency: str = "",
+    rates: RateBook | None = None,
 ) -> MatrixBaseState:
     """Aggregate raw facts into the editable input working copy.
 
@@ -100,7 +102,11 @@ def derive_base_state(
             needs it to keep the viewed SKU's own counts exact; without it a
             split cell ships no breakdown.
         price_currency: What the prices are stated in — the currency of the
-            order money on a day WB served no funnel sum for.
+            order money on a day WB served no funnel sum for and ``rates``
+            cannot convert.
+        rates: The Bank rates into the кабинет's currency (``rates.currency``):
+            a day WB served no funnel sum for values its orders at the seller
+            price converted at the day's rate, as WB itself would have.
 
     Returns:
         The :class:`MatrixBaseState` working copy for the window.
@@ -224,6 +230,9 @@ def derive_base_state(
 
         funnel_row = funnel_by_date.get(day)
         seller_price, customer_price = price_for_day(ordered_prices, day)
+        factor = rates.factor(day) if rates is not None and rates.currency else None
+        price_rate = None if factor is None else float(factor)
+        cabinet = rates.currency if rates is not None else ""
         if funnel_row is not None:
             funnel_base = MatrixFunnelBase(
                 open_count=funnel_row.open_count,
@@ -232,8 +241,9 @@ def derive_base_state(
                 seller_price=seller_price,
                 customer_price=customer_price,
                 order_price=_order_price(funnel_row),
-                order_currency=funnel_row.currency or "",
+                order_currency=funnel_row.currency or cabinet,
                 price_currency=price_currency,
+                price_rate=price_rate,
             )
         elif seller_price is not None or customer_price is not None:
             # No funnel row yet (the CURRENT day — WB serves the funnel a day
@@ -244,7 +254,9 @@ def derive_base_state(
                 seller_price=seller_price,
                 customer_price=customer_price,
                 has_funnel=False,
+                order_currency=cabinet,
                 price_currency=price_currency,
+                price_rate=price_rate,
             )
         else:
             funnel_base = None

@@ -25,8 +25,8 @@ const pageWith = (currencies) =>
 
 describe('usePnlMoney', () => {
   it('signs every figure, advertising included, in the payout currency', () => {
-    // «с+₽» on the advertising cells read as broken; until a conversion exists
-    // the rare rouble residual is shown in soms (CONVERSION-TODO in pnlFormat).
+    // Rouble advertising is converted to soms where it is stored (02.10.2026),
+    // so the advertising cells are in the payout currency like the rest.
     const wrapper = mount(pageWith({ settlement: 'KGS' }))
 
     expect(plain(wrapper.text())).toBe('57 600с | 1 539с')

@@ -16,8 +16,8 @@ describe('currencyNotes', () => {
   })
 
   it('does not warn about orders priced in roubles against ads in сомы', () => {
-    // Taken down on 01.10.2026 at the owner's request; the mix remains
-    // (CONVERSION-TODO in currencyNotes.js).
+    // Taken down on 01.10.2026 at the owner's request; since 02.10.2026 the
+    // order money is WB's som sum, so there is no mix left to warn about.
     expect(currencyNotes({ settlement: 'KGS', prices: 'RUB', ads: ['KGS'] })).toEqual([])
   })
 

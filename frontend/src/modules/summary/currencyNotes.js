@@ -8,8 +8,10 @@
  * over two of them is off by the exchange rate. Each note names the figures
  * that are, and only when the window actually holds the mix.
  *
- * CONVERSION-TODO: once the service converts at the Bank of Russia rate these
- * notes go, and the figures they warn about become exact.
+ * Since 02.10.2026 rouble advertising is converted where it is stored, at the
+ * Bank of Russia rate of its day, so on «Демо» no window prints a note. One
+ * shows only for a rouble row the conversion could not reach (a day past the
+ * loaded rates).
  */
 import { currencyInWords } from '@/core/utils/format'
 
@@ -37,6 +39,6 @@ export function currencyNotes({ settlement = '', ads = [] } = {}) {
   // The second note — orders valued at RUB prices against ads in сомы, so
   // «ДРР от заказов» is off by the rate — was taken down on 01.10.2026 at the
   // owner's request: it showed on every window since 20.08 and read as noise.
-  // The mix is still there. CONVERSION-TODO: it goes away with conversion.
+  // Since 02.10.2026 the advertising is converted, so that mix is gone too.
   return notes
 }

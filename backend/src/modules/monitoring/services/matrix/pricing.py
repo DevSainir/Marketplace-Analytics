@@ -23,13 +23,16 @@ def order_unit(funnel: MatrixFunnelBase | None) -> tuple[float | None, str]:
 
     WB's funnel sum per order (``order_price``) where WB served one — the
     settlement currency, converted by WB at the order day's rate — otherwise
-    the seller price in the prices' currency. Every order-money cell of the day
+    the seller price converted at that same Bank rate (``price_rate``), or
+    without one the seller price in the prices' currency. Every order-money cell of the day
     is valued at this one unit, so a day's order money is in one currency.
     """
     if funnel is None:
         return None, ""
     if funnel.order_price is not None and funnel.order_currency:
         return funnel.order_price, funnel.order_currency
+    if funnel.seller_price is not None and funnel.price_rate is not None and funnel.order_currency:
+        return round(funnel.seller_price * funnel.price_rate, 2), funnel.order_currency
     return funnel.seller_price, funnel.price_currency
 
 

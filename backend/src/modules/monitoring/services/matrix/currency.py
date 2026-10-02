@@ -1,18 +1,14 @@
 """Which currency each money cell is in, and which cells may be computed at all.
 
-A кабинет that settles in KGS holds money in two currencies at once: spend is
-billed in what each campaign was created in (RUB before 20.08.2026, KGS after),
-and the order money is WB's funnel sum in KGS. We never convert between them
-(see wildberries-api/references/currencies.md), so a figure that would add or
-divide the two is not shown — «—» instead of a number that looks right and is
-off by the day's exchange rate.
+A кабинет that settles in KGS was billed for ads in RUB until 20.08.2026 and
+in KGS after; its order money is WB's funnel sum in KGS. Rouble spend is
+converted where it is stored, at the Bank of Russia rate of its day — WB's own
+rule — so normally every cell is in one currency (``repos/ad_money.py``,
+wildberries-api/references/currencies.md).
 
-# CONVERSION-TODO: every «—» decided here stands in for a number that needs a
-# rate. When the service starts converting at the Bank of Russia rate, these are
-# the places to turn into real figures: `spend_is_mixed` (a sum over campaigns
-# billed in different currencies) and `pairs_with_orders` (ДРР whose spend and
-# order money are in different currencies — every day before 20.08.2026).
-# `grep -rn CONVERSION-TODO` lists every other site.
+What is left here is the guard for a row the conversion could not reach — a
+rouble day past the loaded rates: a figure that would add or divide two
+currencies is «—» rather than a number off by the day's exchange rate.
 """
 
 from __future__ import annotations
@@ -39,20 +35,15 @@ def spend_is_mixed(codes: list[str]) -> bool:
     Only STATED codes count: a campaign harvested before WB's label was
     recorded (``""``) is one campaign, not a second currency.
     """
-    # CONVERSION-TODO: a mixed sum becomes a real figure once one side is
-    # converted into the other.
     return len({code for code in codes if code}) > 1
 
 
 def pairs_with_orders(codes: list[str], day: MatrixDayBase) -> bool:
     """Whether spend in ``codes`` may be divided by the day's order money (ДРР).
 
-    Only when both are one stated currency. On «Демо» that is every KGS
-    campaign after 20.08.2026 against WB's KGS funnel sums; a RUB campaign
-    before it would divide roubles by сомы.
+    Only when both are one stated currency — a rouble row the conversion could
+    not reach would divide roubles by сомы.
     """
-    # CONVERSION-TODO: ДРР of a RUB campaign (every day before 20.08.2026) is
-    # «—» until the spend or the order money is converted.
     _price, orders = order_unit(day.funnel)
     return bool(orders) and codes == [orders]
 

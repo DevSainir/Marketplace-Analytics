@@ -128,6 +128,8 @@ async def advance_ad_currency(tokens: WorkspaceTokenBundle, *, cursor: str | Non
                     campaign_id=campaign.campaign_id,
                     currency=campaign.currency,
                 )
+        # A row now labelled RUB is rouble money like any other: convert it.
+        await repo.convert_rouble_money(campaign_ids=[c.campaign_id for c in stats])
         await session.commit()
 
     asked |= set(probe.campaign_ids)

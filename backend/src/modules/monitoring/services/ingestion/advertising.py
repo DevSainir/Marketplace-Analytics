@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -96,6 +97,12 @@ class AdvertisingIngestion:
         self._advertising_clusters = advertising_cluster_repo
         self._advertising_write_offs = advertising_write_off_repo
 
+    async def _convert(self, campaign_ids: Iterable[int]) -> None:
+        """Convert the rouble money just written to the кабинет's currency (``repos/ad_money``)."""
+        converted = await self._advertising.convert_rouble_money(campaign_ids=campaign_ids)
+        if converted:
+            logger.info("Converted %d rouble ad rows at the Bank of Russia rate.", converted)
+
     async def ingest_advertising(
         self,
         stats: list[WBAdvCampaignStats],
@@ -163,6 +170,7 @@ class AdvertisingIngestion:
                             }
                         )
         count = await self._advertising.upsert_many(flattened)
+        await self._convert(campaign.campaign_id for campaign in stats)
         logger.info("Ingested %d advertising rows across %d campaigns.", count, len(stats))
         return count
 
@@ -232,6 +240,7 @@ class AdvertisingIngestion:
             for (day, campaign_id, payment_type, currency), acc in buckets.items()
         ]
         count = await self._advertising_write_offs.upsert_many(rows)
+        await self._convert(campaign_ids)
         logger.info(
             "Ingested %d advertising write-off buckets from %d WB rows.", count, len(write_offs)
         )
@@ -351,6 +360,7 @@ class AdvertisingIngestion:
             if acc.views or acc.clicks or acc.add_to_cart or acc.spend or acc.orders
         ]
         count = await self._advertising_search.upsert_many(flattened)
+        await self._convert(key[1] for key in accumulated)
         logger.info("Ingested %d search-zone rows from %d normquery items.", count, len(items))
         return count
 
@@ -438,6 +448,7 @@ class AdvertisingIngestion:
             if acc.views or acc.clicks or acc.add_to_cart or acc.spend or acc.orders
         ]
         count = await self._advertising_clusters.upsert_many(flattened)
+        await self._convert(key[1] for key in accumulated)
         logger.info(
             "Ingested %d search-cluster rows from %d normquery items (%d unlabelled skipped).",
             count,

@@ -19,11 +19,12 @@ from sqlalchemy import BigInteger, Date, Index, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
+from src.modules.monitoring.models.fx import FxConverted
 
 _SCHEMA: str = "monitoring"
 
 
-class AdvertisingStatDaily(Base):
+class AdvertisingStatDaily(FxConverted, Base):
     """Flattened daily advertising metrics for one platform/SKU/campaign.
 
     Sourced from ``GET /adv/v3/fullstats``. ``app_type`` encodes the platform:
@@ -66,7 +67,7 @@ class AdvertisingStatDaily(Base):
     currency: Mapped[str] = mapped_column(String(8), server_default="", nullable=False)
 
 
-class AdvertisingSearchStatDaily(Base):
+class AdvertisingSearchStatDaily(FxConverted, Base):
     """Daily SEARCH-zone slice of a campaign's advertising for one SKU.
 
     Sourced from ``POST /adv/v1/normquery/stats`` (search clusters summed per
@@ -111,7 +112,7 @@ class AdvertisingSearchStatDaily(Base):
 CLUSTER_MAX_LENGTH: int = 255
 
 
-class AdvertisingClusterStatDaily(Base):
+class AdvertisingClusterStatDaily(FxConverted, Base):
     """Daily metrics of ONE search cluster («кластер») for one SKU/campaign.
 
     Sourced from ``POST /adv/v1/normquery/stats`` — the same payload
@@ -185,7 +186,7 @@ BONUS_PAYMENT_TYPES: frozenset[str] = frozenset({"Кэшбэк", "Бонусы"}
 CASH_PAYMENT_TYPES: frozenset[str] = frozenset({"Баланс", "Счет", "Счёт"})
 
 
-class AdvertisingWriteOffDaily(Base):
+class AdvertisingWriteOffDaily(FxConverted, Base):
     """One day's advertising charges for one campaign, one funding source.
 
     Sourced from ``GET /adv/v1/upd`` — the only WB feed that says who paid for

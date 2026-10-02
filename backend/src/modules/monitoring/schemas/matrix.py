@@ -265,8 +265,10 @@ class MatrixFunnelBase(BaseModel):
     currency, which WB converts to at the Bank of Russia rate of the order day.
     The order money is valued at it, so it pairs with spend billed in the same
     currency without any rate of ours. ``None`` on a day WB served no sum (or no
-    orders): the order money then falls back to ``seller_price``, in
-    ``price_currency``. See wildberries-api/references/currencies.md.
+    orders): the order money then falls back to ``seller_price`` converted by
+    ``price_rate`` — the Bank rate of the day, WB's own — into
+    ``order_currency``, or, without a rate, stays in ``price_currency``.
+    See wildberries-api/references/currencies.md.
     """
 
     open_count: int = 0
@@ -278,6 +280,7 @@ class MatrixFunnelBase(BaseModel):
     order_price: float | None = None
     order_currency: str = ""
     price_currency: str = ""
+    price_rate: float | None = None
 
 
 class MatrixStockBase(BaseModel):
