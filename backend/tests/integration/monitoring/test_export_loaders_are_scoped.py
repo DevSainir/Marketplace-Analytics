@@ -367,4 +367,7 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     # 26 since 2026-10-01: `load_buyouts_by_nm`, WB's «Процент выкупа» inputs for
     # the P&L article row — the same semijoin as `load_orders_by_nm`, proven by
     # `test_buyouts_exclude_another_tenants_skus` above.
-    assert len(scoped) == 26, f"expected 26 scoped loaders, found {sorted(scoped)}"
+    #
+    # 25 since 2026-10-02: `ad_bonus_currencies` is gone with the P&L's
+    # currency caveat — rouble advertising is converted where it is stored.
+    assert len(scoped) == 25, f"expected 25 scoped loaders, found {sorted(scoped)}"

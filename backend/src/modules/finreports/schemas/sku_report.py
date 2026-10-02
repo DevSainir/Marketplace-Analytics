@@ -26,7 +26,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class SkuPenalty(BaseModel):
@@ -193,10 +193,6 @@ class PnlSkuReportResponse(BaseModel):
     date_from: date
     date_to: date
     currency: str
-    #: What «Реклама» and «Бонусы» are in: the currencies the window's campaigns
-    #: were charged in. Not the settlement's — WB ran the ad account in RUB until
-    #: 2026-08-20, and older campaigns still bill in RUB.
-    ad_currencies: list[str] = Field(default_factory=list)
     #: Real SKUs, largest net revenue first.
     rows: list[PnlSkuRow]
     #: Account-level money WB attributes to no SKU. ``None`` when the window has

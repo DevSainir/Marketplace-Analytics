@@ -26,7 +26,6 @@ insulated from the internal package layout.
 
 from src.modules.monitoring.services.ad_bonus import (
     ad_bonus_coverage,
-    ad_bonus_currencies,
     ad_bonus_unknown_types,
     load_ad_bonus_by_nm,
 )
@@ -105,7 +104,6 @@ __all__ = [
     "WarehouseStock",
     "WorkspaceCard",
     "ad_bonus_coverage",
-    "ad_bonus_currencies",
     "ad_bonus_unknown_types",
     "ad_coverage",
     "bind_task_to_workspace",

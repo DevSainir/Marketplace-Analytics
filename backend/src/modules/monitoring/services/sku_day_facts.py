@@ -393,8 +393,8 @@ async def load_ad_currencies(
     the KGS settlement on 2026-09-28, «Демо»'s write-offs labelled RUB were
     settled at the Bank of Russia rate of the document's closing day, to the
     kopeck, and those labelled KGS at exactly 1.00. The ledger's bonus rows are
-    left out; the P&L adds them (:func:`ad_bonus_currencies`) because they are
-    in the same campaign unit.
+    left out. Since 2026-10-02 rouble rows are converted where they are stored
+    (``repos/ad_money.py``), so a KGS кабинет answers KGS alone.
 
     Returns:
         The distinct labels, alphabetically; empty when neither source names one.

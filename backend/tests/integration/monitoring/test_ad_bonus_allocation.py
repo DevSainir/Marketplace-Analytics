@@ -19,7 +19,6 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.monitoring.contract import (
-    ad_bonus_currencies,
     ad_bonus_unknown_types,
     load_ad_bonus_by_nm,
 )
@@ -180,9 +179,6 @@ async def test_a_relabelled_currency_still_reaches_the_spend_it_came_off(
     await _write_off(db_session, "50", currency="RUB")
 
     assert await _load(db_session, mine) == {MINE: Decimal("350")}
-    assert await ad_bonus_currencies(
-        db_session, workspace_id=mine.id, date_from=WINDOW_FROM, date_to=WINDOW_TO
-    ) == ["KGS", "RUB"]
 
 
 async def test_a_bonus_never_exceeds_the_spend_it_belongs_to(db_session: AsyncSession) -> None:

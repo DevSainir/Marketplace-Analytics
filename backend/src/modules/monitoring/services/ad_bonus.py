@@ -256,38 +256,3 @@ async def ad_bonus_unknown_types(
         .order_by(AdvertisingWriteOffDaily.payment_type)
     )
     return [str(row[0]) for row in (await session.execute(stmt)).all()]
-
-
-async def ad_bonus_currencies(
-    session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
-) -> list[str]:
-    """Return the currencies WB labelled this window's bonus write-offs with.
-
-    A bonus is charged in the unit of the campaign it paid for, so this names
-    the same currencies the campaigns' spend is in. More than one is normal on a
-    window across 2026-08-20, when WB moved the ad account from RUB to KGS — a
-    real move, not a relabel: the settlement converted the RUB documents at the
-    Bank of Russia rate and stopped converting after. The allocation never
-    crosses campaigns, so each bonus meets spend in its own unit.
-
-    Args:
-        session: An open async session (caller owns the transaction).
-        workspace_id: Restrict to campaigns that advertised this workspace.
-        date_from: Inclusive window start.
-        date_to: Inclusive window end.
-
-    Returns:
-        The distinct currency labels, alphabetically.
-    """
-    stmt = (
-        select(AdvertisingWriteOffDaily.currency)
-        .where(
-            AdvertisingWriteOffDaily.stat_date >= date_from,
-            AdvertisingWriteOffDaily.stat_date <= date_to,
-            AdvertisingWriteOffDaily.payment_type.in_(sorted(BONUS_PAYMENT_TYPES)),
-            AdvertisingWriteOffDaily.campaign_id.in_(_workspace_campaigns(workspace_id)),
-        )
-        .group_by(AdvertisingWriteOffDaily.currency)
-        .order_by(AdvertisingWriteOffDaily.currency)
-    )
-    return [str(row[0]) for row in (await session.execute(stmt)).all()]

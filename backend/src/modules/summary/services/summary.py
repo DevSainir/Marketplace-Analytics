@@ -182,11 +182,10 @@ class SummaryService:
             bonus_span=await ad_bonus_coverage(
                 session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
             ),
-            # Both feed the report's caveat lines and nothing else, and this
-            # page draws no caveats (`annotated=False` below). Asking anyway is
-            # two more passes over the кабинет's whole advertising ledger for
-            # text that is discarded — ~0.3 s of a «Вся история» window.
-            ad_currencies=[],
+            # Feeds the report's caveat lines and nothing else, and this page
+            # draws no caveats (`annotated=False` below). Asking anyway is one
+            # more pass over the кабинет's advertising ledger for text that is
+            # discarded.
             unknown_funding=[],
             funnel_span=funnel_span,
             ad_span=ad_span,

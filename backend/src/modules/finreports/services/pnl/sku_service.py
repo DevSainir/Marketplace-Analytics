@@ -139,7 +139,6 @@ class SkuReportService:
         ad_spend: dict[int, Decimal],
         ad_bonus: dict[int, Decimal],
         bonus_span: tuple[date | None, date | None],
-        ad_currencies: list[str],
         unknown_funding: list[str],
         funnel_span: tuple[date | None, date | None],
         ad_span: tuple[date | None, date | None],
@@ -159,9 +158,6 @@ class SkuReportService:
             ad_bonus: WB-funded share of that spend per ``nm_id``
                 (router-resolved). In the advertising account's own unit,
                 the same one ``ad_spend`` is in — never the settlement's.
-            ad_currencies: The currencies this window's advertising was
-                charged in (cash and bonus write-offs alike). One that is not
-                the settlement's is a caveat: the figures built on it mix units.
             bonus_span: ``(first, last)`` write-off day on record in the
                 window. Empty means the ledger was never harvested for this
                 period, so the bonus column reports ``None``, not zero.
@@ -228,15 +224,12 @@ class SkuReportService:
                 ad_span=ad_span,
                 bonus_span=bonus_span,
                 unknown_funding=unknown_funding,
-                ad_currencies=ad_currencies,
-                currency=currency,
             )
         )
         return PnlSkuReportResponse(
             date_from=date_from,
             date_to=date_to,
             currency=currency,
-            ad_currencies=ad_currencies,
             rows=rows,
             unallocated=unallocated,
             totals=totals,
@@ -255,7 +248,6 @@ class SkuReportService:
         ad_spend: dict[int, Decimal],
         ad_bonus: dict[int, Decimal],
         bonus_span: tuple[date | None, date | None],
-        ad_currencies: list[str],
         unknown_funding: list[str],
         funnel_span: tuple[date | None, date | None],
         ad_span: tuple[date | None, date | None],
@@ -279,7 +271,6 @@ class SkuReportService:
             ad_spend=ad_spend,
             ad_bonus=ad_bonus,
             bonus_span=bonus_span,
-            ad_currencies=ad_currencies,
             unknown_funding=unknown_funding,
             funnel_span=funnel_span,
             ad_span=ad_span,
@@ -297,8 +288,6 @@ class SkuReportService:
         ad_span: tuple[date | None, date | None],
         bonus_span: tuple[date | None, date | None],
         unknown_funding: list[str],
-        ad_currencies: list[str],
-        currency: str,
     ) -> list[str]:
         """Assemble the caveats that qualify the per-SKU figures."""
         notes: list[str] = []
@@ -322,19 +311,6 @@ class SkuReportService:
                 f"WB списывал рекламу способом, который мы не знаем ({labels}) — "
                 "эти суммы посчитаны как деньги продавца, а не как бонусы."
             )
-        # Rouble advertising is converted to the кабинет's currency where it is
-        # stored (monitoring's repos/ad_money.py), so this fires only for a
-        # rouble row the conversion could not reach — a day past the loaded
-        # Bank rates. Say so rather than print a figure that looks settled.
-        foreign = [code for code in ad_currencies if code != currency]
-        if foreign:
-            notes.append(
-                f"Реклама в этом периоде списана {_in_currency(foreign)}, а выплата — "
-                f"{_in_currency([currency])}. «Реклама», «Бонусы», ДРР, чистая прибыль и "
-                "ROI складывают и делят эти суммы как есть, без пересчёта по курсу: "
-                "по артикулам с такой рекламой они неточны."
-            )
-
         sale_rows, with_revenue = await self._pnl.revenue_coverage(
             workspace_id=workspace_id, date_from=date_from, date_to=date_to
         )
@@ -362,15 +338,3 @@ def _span_note(
         until = f" по {last.isoformat()}" if last is not None and last < date_to else ""
         return [f"«{column}» известны только с {first.isoformat()}{until} — не за весь период."]
     return []
-
-
-#: How a caveat names a currency: in words, not by its ISO code.
-_CURRENCY_IN_WORDS = {"KGS": "в сомах", "RUB": "в рублях"}
-
-
-def _in_currency(codes: list[str]) -> str:
-    """«в рублях», «в сомах и рублях» — a currency as a sentence says it."""
-    words = [_CURRENCY_IN_WORDS.get(code, f"в {code}") for code in codes]
-    if len(words) == 1:
-        return words[0]
-    return " и ".join([words[0], *(word.removeprefix("в ") for word in words[1:])])
