@@ -65,7 +65,7 @@ function remove() {
       }}</span>
       <button
         type="button"
-        class="ml-auto rounded-btn border-2 border-border-strong/25 px-sm py-xs text-micro font-semibold transition"
+        class="ml-auto rounded-btn border border-border-strong/35 px-sm py-xs text-micro font-semibold transition"
         :class="
           armed
             ? 'bg-status-negative/10 text-status-negative'

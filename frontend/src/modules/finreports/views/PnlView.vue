@@ -97,7 +97,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
         <button
           type="button"
           :disabled="store.harvestBusy"
-          class="rounded-btn border-2 border-border-strong/25 px-md py-sm text-base font-medium text-primary transition hover:border-border-strong/45 hover:bg-hover disabled:cursor-not-allowed disabled:text-muted disabled:hover:bg-transparent phone:min-h-11 phone:flex-1"
+          class="rounded-btn border border-border-strong/35 px-md py-sm text-base font-medium text-primary transition hover:border-border-strong/55 hover:bg-hover disabled:cursor-not-allowed disabled:text-muted disabled:hover:bg-transparent phone:min-h-11 phone:flex-1"
           @click="store.refreshFromWb()"
         >
           {{ store.harvestBusy ? 'Обновляем…' : 'Обновить' }}
