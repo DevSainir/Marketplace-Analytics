@@ -18,4 +18,13 @@ export const labsRoutes = [
     component: () => import('@/modules/labs/views/LabFinmodelView.vue'),
     meta: { title: 'Финмодель · Lab', requiresAuth: true, requiresInternal: true },
   },
+  {
+    // Блок «Реклама» финмодели, переверстанный в нашей дизайн-системе, — шаг
+    // между одностраничником и продуктом. Датапак тот же, цифры настоящие,
+    // поэтому и условия те же: свой сеанс и свой человек.
+    path: '/labs/advertisement-source',
+    name: 'labs-advertisement-source',
+    component: () => import('@/modules/labs/advertisement-source/AdsSourceView.vue'),
+    meta: { title: 'Реклама · Lab', requiresAuth: true, requiresInternal: true },
+  },
 ]
