@@ -83,8 +83,13 @@ function money(node, byZone) {
 }
 
 /**
- * The tree flattened into table rows, depth-first; branches that spent nothing
- * are left out so the table shows the campaigns the кабинет actually runs.
+ * The tree flattened into table rows, depth-first.
+ *
+ * Every branch is shown whether it spent or not: the table is the map of how
+ * WB bills advertising, and a «Ручные полки» row at zero says «эта ставка не
+ * крутилась», which a missing row cannot. The one exception is «Без типа» —
+ * not a branch of the map but a gap in our data, so it appears only when a
+ * campaign's settings are actually missing.
  *
  * `id` is the row's path from the root and `ancestors` the ids above it, which
  * is what lets the table fold a branch without the model knowing about it.
@@ -100,11 +105,9 @@ export function zoneRows(zones) {
   )
   const total = zones.reduce((sum, z) => sum + Number(z.spend), 0)
   const rows = []
-  const walk = (node, ancestors, parentSpent) => {
+  const walk = (node, ancestors) => {
     const { spend, bonus } = money(node, byZone)
-    // The unified catalogue row rides on its parent: shown whenever единая
-    // ставка spent anything, since that is exactly when its absence matters.
-    if (node.unknown ? !parentSpent : !spend) return
+    if (node.zone === 'unclassified' && !spend) return
     const id = [...ancestors, node.zone ?? node.key].join('/')
     rows.push({
       id,
@@ -119,9 +122,9 @@ export function zoneRows(zones) {
       bonus,
       share: total && !node.unknown ? spend / total : null,
     })
-    for (const child of node.children ?? []) walk(child, [...ancestors, id], spend > 0)
+    for (const child of node.children ?? []) walk(child, [...ancestors, id])
   }
-  for (const node of TREE) walk(node, [], true)
+  for (const node of TREE) walk(node, [])
   return rows
 }
 
@@ -154,7 +157,8 @@ const PIES = [
  * Four pies — all advertising, ручная, единая, CPC — each split by zone.
  *
  * Unclassified money is in no pie: it has no zone. A pie that spent nothing is
- * dropped rather than drawn as an empty ring.
+ * still one of the four — drawn as an empty ring, like its zero rows in the
+ * table, so the row of pies always reads the same way.
  *
  * @returns {Array<{key: string, label: string, note: string, total: number,
  *   parts: Array<{key: string, label: string, value: number}>}>}
@@ -181,5 +185,5 @@ export function zonePies(zones) {
       total: parts.reduce((sum, part) => sum + part.value, 0),
       parts,
     }
-  }).filter((pie) => pie.total > 0)
+  })
 }

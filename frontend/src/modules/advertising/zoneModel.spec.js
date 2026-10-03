@@ -18,29 +18,39 @@ describe('zoneRows', () => {
       [2, 'Ручной поиск', 700],
       [3, 'Поиск', 600],
       [3, 'Каталог', 100],
+      [2, 'Ручные полки', 0],
+      [3, 'Полки', 0],
       [1, 'Единая ставка', 300],
       [2, 'Поиск', 50],
       [2, 'Полки', 250],
       [2, 'Каталог', 0],
+      [0, 'CPC', 0],
+      [1, 'Поиск', 0],
+      [1, 'Полки', 0],
     ])
   })
 
   it('shows the unified catalogue as unknown, not as a zero', () => {
     // WB never splits it out of «Полки»; a 0 would claim it was measured.
-    const catalog = zoneRows(ZONES).at(-1)
+    const catalog = zoneRows(ZONES).find((r) => r.id.endsWith('unified_catalog'))
 
     expect(catalog).toMatchObject({ unknown: true, share: null })
   })
 
-  it('leaves out the branches that spent nothing', () => {
-    const rows = zoneRows([{ zone: 'cpc_search', spend: '10', bonus: '0' }])
+  it('keeps every branch at zero, but shows «Без типа» only when something is untyped', () => {
+    // A zero row says «эта ставка не крутилась»; «Без типа» is a gap in our
+    // data, not a branch of WB's billing, so it has no business at zero.
+    const quiet = zoneRows([{ zone: 'cpc_search', spend: '10', bonus: '0' }])
+    const untyped = zoneRows([{ zone: 'unclassified', spend: '5', bonus: '0' }])
 
-    expect(rows.map((r) => r.label)).toEqual(['CPC', 'Поиск'])
+    expect(quiet.map((r) => r.label)).toContain('Ручные полки')
+    expect(quiet.map((r) => r.label)).not.toContain('Без типа')
+    expect(untyped.at(-1)).toMatchObject({ label: 'Без типа', spend: 5 })
   })
 })
 
 describe('zonePies', () => {
-  it('splits every pie by search, shelves and catalogue, the whole pie summing them all', () => {
+  it('splits every pie by zone, the whole pie summing them all, and keeps an idle one', () => {
     const pies = zonePies(ZONES)
 
     const all = pies.find((p) => p.key === 'all')
@@ -49,6 +59,11 @@ describe('zonePies', () => {
       ['shelves', 250],
       ['catalog', 100],
     ])
-    expect(pies.map((p) => p.key)).toEqual(['all', 'manual', 'unified'])
+    expect(pies.map((p) => [p.key, p.total])).toEqual([
+      ['all', 1000],
+      ['manual', 700],
+      ['unified', 300],
+      ['cpc', 0],
+    ])
   })
 })

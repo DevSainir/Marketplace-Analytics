@@ -7,7 +7,8 @@
  * («куда ушла эта ставка») and the four sit side by side as small multiples.
  * Identity is never colour alone: every slice is labelled with its money and
  * share in the legend under its ring, and the hues are the validated three.
- * Hand-drawn SVG: four arcs each do not need the charting library.
+ * Hand-drawn SVG: four arcs each do not need the charting library. A pie with
+ * no spend stays in the row as an empty ring, like its zero rows in the table.
  */
 import { formatMoney } from '@/core/utils/format'
 import { ZONE_COLORS, ratioPct } from '@/modules/advertising/adsFormat'
@@ -57,8 +58,11 @@ function arcs(pie) {
       <figure v-for="pie in pies" :key="pie.key" class="flex flex-col items-center">
         <figcaption class="text-base font-semibold text-primary">{{ pie.label }}</figcaption>
         <div class="text-tiny text-muted">
-          {{ formatMoney(pie.total, currency)
-          }}<template v-if="pie.note"> · {{ pie.note }}</template>
+          <template v-if="pie.total">
+            {{ formatMoney(pie.total, currency)
+            }}<template v-if="pie.note"> · {{ pie.note }}</template>
+          </template>
+          <template v-else>нет расхода</template>
         </div>
         <svg
           viewBox="0 0 100 100"
@@ -67,7 +71,16 @@ function arcs(pie) {
           :aria-label="pie.label"
         >
           <circle
-            v-for="arc in arcs(pie)"
+            v-if="!pie.total"
+            cx="50"
+            cy="50"
+            :r="R"
+            fill="none"
+            class="stroke-border-subtle"
+            :stroke-width="STROKE"
+          />
+          <circle
+            v-for="arc in pie.total ? arcs(pie) : []"
             :key="arc.key"
             cx="50"
             cy="50"
