@@ -9,8 +9,10 @@
  * the last settled day — past it there are no sales to divide by, and a gap is
  * honest where a zero would read as «реклама окупилась бесплатно».
  *
- * «Расход» is the whole spend; «Промо-бонусы» the part WB paid, drawn only when
- * the page shows bonuses.
+ * With bonuses hidden the blue line is «Расход» — everything the campaigns
+ * spent. With them shown it becomes «Расход с баланса», the spend minus what
+ * WB's bonus paid, and the bonus gets its own line: the two then add up to the
+ * day's whole spend instead of one being a part of the other.
  *
  * Ink mirrors `tokens.css` as hex because ECharts paints on a canvas.
  */
@@ -35,8 +37,10 @@ const INK_MUTED = '#61616F'
 const LINE_HAIRLINE = '#E5E5EF'
 const INK = '#12121A'
 
+const spendName = computed(() => (props.showBonus ? 'Расход с баланса' : 'Расход'))
+
 const legend = computed(() => [
-  { key: 'spend', name: 'Расход', dashed: false },
+  { key: 'spend', name: spendName.value, dashed: false },
   ...(props.showBonus ? [{ key: 'bonus', name: 'Промо-бонусы', dashed: false }] : []),
   ...(props.showDrr ? [{ key: 'drr', name: 'ДРР от продаж', dashed: true }] : []),
 ])
@@ -100,9 +104,9 @@ const option = computed(() => ({
   ],
   series: [
     moneyLine(
-      'Расход',
+      spendName.value,
       SERIES.spend,
-      props.days.map((d) => Number(d.spend)),
+      props.days.map((d) => Number(d.spend) - (props.showBonus ? Number(d.bonus) : 0)),
     ),
     ...(props.showBonus
       ? [

@@ -3,9 +3,9 @@
  * «Реклама» — /advertising.
  *
  * Top to bottom: the toolbar (period and the bonus switch, which governs the
- * whole page); the overview — headline cards on the left, «На что ушли» on the
- * right, the two halves stretched to one height; the zone pies; the daily
- * chart with ДРР; the per-article table.
+ * whole page); «Куда ушли деньги» — one block of three full-width rows: the
+ * headline cards, the zone tree, the zone pies; the daily chart with ДРР; the
+ * per-article table.
  *
  * Internal-only while it is being built (route meta and the API both say so).
  */
@@ -76,7 +76,7 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
           Расход по статистике кампаний, разложенный по типу оплаты, ставке и зоне показа. Поиск
           измерен по поисковым кластерам, остаток кампании — полки или каталог.
         </p>
-        <div class="grid items-stretch gap-md lg:grid-cols-2">
+        <div class="flex flex-col gap-md">
           <AdsKpis
             :totals="store.totals"
             :currency="store.currency"
@@ -90,15 +90,8 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
             :currency="store.currency"
             :show-bonus="store.bonusVisible"
           />
+          <AdsZonePies v-if="store.pies.length" :pies="store.pies" :currency="store.currency" />
         </div>
-      </section>
-
-      <section v-if="store.pies.length">
-        <h2 class="text-h3 font-semibold text-primary">Зоны показов</h2>
-        <p class="mb-md mt-xs max-w-prose text-tiny text-muted">
-          Доля расхода каждой ставки, ушедшая в поиск, на полки и в каталог.
-        </p>
-        <AdsZonePies :pies="store.pies" :currency="store.currency" />
       </section>
 
       <section v-if="store.data.days.length > 1">

@@ -13,6 +13,7 @@ import DataTable from 'primevue/datatable'
 import { computed } from 'vue'
 
 import { formatMoney, formatNumber, formatSku } from '@/core/utils/format'
+import AdsInfoHint from '@/modules/advertising/components/AdsInfoHint.vue'
 import { DRR_ALARM, ratioPct } from '@/modules/advertising/adsFormat'
 
 const props = defineProps({
@@ -92,7 +93,8 @@ const foot = computed(() => ({
       </Column>
       <Column field="share" sortable :footer="foot.share">
         <template #header>
-          <span title="Доля общих рекламных расходов на этот артикул">Доля</span>
+          <span>Доля</span>
+          <AdsInfoHint text="Доля общих рекламных расходов на этот артикул" />
         </template>
         <template #body="{ data }">{{ ratioPct(data.share) }}</template>
       </Column>

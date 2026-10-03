@@ -12,20 +12,20 @@
  * Единая ставка's «Каталог» is a row with no money on purpose. WB reports only
  * the search slice of a unified campaign, so its catalogue is inside «Полки»
  * and cannot be taken out; printing a zero would say «в каталоге не крутились»,
- * which nobody measured.
+ * which nobody measured. The row says where the money is instead.
+ *
+ * Each leaf names its `kind` — search, shelves or catalogue — so the table can
+ * mark it in the same colour the pies give that zone.
  */
 
-/** Why the unified catalogue row has no figure. */
-export const UNIFIED_CATALOG_HINT =
-  'WB не отделяет каталог от полок у единой ставки — он входит в «Полки»'
-
-/** @typedef {{zone?: string, key?: string, label: string, hint?: string, children?: Node[]}} Node */
+/** @typedef {{zone?: string, key?: string, label: string, caption?: string, kind?: string, children?: Node[]}} Node */
 
 /** @type {Node[]} */
 const TREE = [
   {
     key: 'cpm',
     label: 'CPM',
+    caption: 'оплата за показы',
     children: [
       {
         key: 'manual',
@@ -35,14 +35,14 @@ const TREE = [
             key: 'manual_search',
             label: 'Ручной поиск',
             children: [
-              { zone: 'cpm_manual_search', label: 'Поиск' },
-              { zone: 'cpm_manual_catalog', label: 'Каталог' },
+              { zone: 'cpm_manual_search', label: 'Поиск', kind: 'search' },
+              { zone: 'cpm_manual_catalog', label: 'Каталог', kind: 'catalog' },
             ],
           },
           {
             key: 'manual_shelves',
             label: 'Ручные полки',
-            children: [{ zone: 'cpm_manual_shelves', label: 'Полки' }],
+            children: [{ zone: 'cpm_manual_shelves', label: 'Полки', kind: 'shelves' }],
           },
         ],
       },
@@ -50,9 +50,9 @@ const TREE = [
         key: 'unified',
         label: 'Единая ставка',
         children: [
-          { zone: 'cpm_unified_search', label: 'Поиск' },
-          { zone: 'cpm_unified_shelves', label: 'Полки', hint: 'включая каталог' },
-          { key: 'unified_catalog', label: 'Каталог', hint: UNIFIED_CATALOG_HINT, unknown: true },
+          { zone: 'cpm_unified_search', label: 'Поиск', kind: 'search' },
+          { zone: 'cpm_unified_shelves', label: 'Полки', kind: 'shelves' },
+          { key: 'unified_catalog', label: 'Каталог', kind: 'catalog', unknown: true },
         ],
       },
     ],
@@ -60,12 +60,13 @@ const TREE = [
   {
     key: 'cpc',
     label: 'CPC',
+    caption: 'оплата за клики',
     children: [
-      { zone: 'cpc_search', label: 'Поиск' },
-      { zone: 'cpc_shelves', label: 'Полки' },
+      { zone: 'cpc_search', label: 'Поиск', kind: 'search' },
+      { zone: 'cpc_shelves', label: 'Полки', kind: 'shelves' },
     ],
   },
-  { zone: 'unclassified', label: 'Без типа', hint: 'настройки кампании ещё не загружены' },
+  { zone: 'unclassified', label: 'Без типа' },
 ]
 
 /** Money of a node: a leaf's own, a group's the sum of its children. */
@@ -85,9 +86,13 @@ function money(node, byZone) {
  * The tree flattened into table rows, depth-first; branches that spent nothing
  * are left out so the table shows the campaigns the кабинет actually runs.
  *
+ * `id` is the row's path from the root and `ancestors` the ids above it, which
+ * is what lets the table fold a branch without the model knowing about it.
+ *
  * @param {Array<{zone: string, spend: string|number, bonus: string|number}>} zones
- * @returns {Array<{key: string, label: string, depth: number, group: boolean,
- *   unknown: boolean, hint: string, spend: number, bonus: number, share: number|null}>}
+ * @returns {Array<{id: string, ancestors: string[], label: string, depth: number,
+ *   group: boolean, kind: string, unknown: boolean, spend: number, bonus: number,
+ *   share: number|null}>}
  */
 export function zoneRows(zones) {
   const byZone = Object.fromEntries(
@@ -95,25 +100,28 @@ export function zoneRows(zones) {
   )
   const total = zones.reduce((sum, z) => sum + Number(z.spend), 0)
   const rows = []
-  const walk = (node, depth, parentSpent) => {
+  const walk = (node, ancestors, parentSpent) => {
     const { spend, bonus } = money(node, byZone)
     // The unified catalogue row rides on its parent: shown whenever единая
     // ставка spent anything, since that is exactly when its absence matters.
     if (node.unknown ? !parentSpent : !spend) return
+    const id = [...ancestors, node.zone ?? node.key].join('/')
     rows.push({
-      key: node.zone ?? node.key,
+      id,
+      ancestors,
       label: node.label,
-      depth,
+      caption: node.caption ?? '',
+      depth: ancestors.length,
       group: Boolean(node.children),
+      kind: node.kind ?? '',
       unknown: Boolean(node.unknown),
-      hint: node.hint ?? '',
       spend,
       bonus,
       share: total && !node.unknown ? spend / total : null,
     })
-    for (const child of node.children ?? []) walk(child, depth + 1, spend > 0)
+    for (const child of node.children ?? []) walk(child, [...ancestors, id], spend > 0)
   }
-  for (const node of TREE) walk(node, 0, true)
+  for (const node of TREE) walk(node, [], true)
   return rows
 }
 

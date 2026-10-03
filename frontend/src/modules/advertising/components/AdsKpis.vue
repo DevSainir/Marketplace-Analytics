@@ -1,11 +1,10 @@
 <script setup>
 /**
- * The headline cards, laid out to fill the left half of the overview.
+ * The headline cards — one slim row across the full width of the block.
  *
- * Four as a 2×2 block when bonuses are shown, two stacked when they are not —
- * in both cases the grid stretches to the height of the zone table beside it,
- * so the two halves end on one line. Each card pins its figure to the top and
- * its note to the bottom, so a tall card reads as a card, not as empty space.
+ * Four with bonuses shown, two without; each is a label over its figure with
+ * the qualifier on the same line, so the row stays one line of numbers high
+ * and the zone table under it starts within reach.
  *
  * «С баланса» is spend minus the bonus — the seller's own money, whether the
  * balance or the settlement payout paid it. ДРР от продаж is spend on settled
@@ -38,7 +37,7 @@ const drr = computed(() => {
   if (props.totals.sales === null) return { value: '—', note: 'продажи ещё не рассчитаны' }
   return {
     value: ratioPct(drrOf(Number(props.totals.spend_settled), Number(props.totals.sales))),
-    note: `продажи по ${dateRu(props.settledTo)}`,
+    note: `по ${dateRu(props.settledTo)}`,
   }
 })
 
@@ -50,13 +49,13 @@ const cards = computed(() => [
           key: 'own',
           label: 'С баланса',
           value: money(spend.value - bonus.value),
-          note: `${share(spend.value - bonus.value)} — ваши деньги`,
+          note: `${share(spend.value - bonus.value)} — ваши`,
         },
         {
           key: 'bonus',
           label: 'Промо-бонусы',
           value: money(bonus.value),
-          note: `${share(bonus.value)} — деньги WB`,
+          note: `${share(bonus.value)} — от WB`,
         },
       ]
     : []),
@@ -65,22 +64,17 @@ const cards = computed(() => [
 </script>
 
 <template>
-  <div
-    class="grid h-full gap-sm"
-    :class="showBonus ? 'grid-cols-2 grid-rows-2' : 'grid-cols-2 lg:grid-cols-1 lg:grid-rows-2'"
-  >
+  <div class="grid grid-cols-2 gap-sm" :class="showBonus ? 'lg:grid-cols-4' : ''">
     <div
       v-for="card in cards"
       :key="card.key"
-      class="flex flex-col justify-between gap-sm rounded-card border border-border-subtle bg-surface p-md shadow-card"
+      class="rounded-card border border-border-subtle bg-surface px-md py-sm shadow-card"
     >
-      <div>
-        <div class="text-tiny font-medium uppercase tracking-wider text-muted">
-          {{ card.label }}
-        </div>
-        <div class="mt-xs text-h2 font-bold tabular-nums text-primary">{{ card.value }}</div>
+      <div class="text-micro font-medium uppercase tracking-wider text-muted">{{ card.label }}</div>
+      <div class="flex flex-wrap items-baseline gap-x-sm">
+        <span class="text-h3 font-bold tabular-nums text-primary">{{ card.value }}</span>
+        <span class="text-tiny text-muted">{{ card.note }}</span>
       </div>
-      <div class="text-tiny text-muted">{{ card.note }}</div>
     </div>
   </div>
 </template>
