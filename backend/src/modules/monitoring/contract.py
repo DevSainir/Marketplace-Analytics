@@ -10,7 +10,9 @@ finreports P&L, which needs per-SKU orders and advertising spend the settlement
 report does not carry, and by its «Баланс по товарным остаткам» table, which
 prices the stock still sitting in the warehouses. The ``*_sku_days`` loaders and
 ``load_workspace_catalog`` feed the heatmap, which paints every SKU of a кабинет
-day by day.
+day by day. ``load_ad_campaign_facts`` and its ``AdCampaign*`` rows feed the
+advertising page, which cuts one кабинет's spend by zone, day and article and
+needs all of those cuts taken from the same rows.
 """
 
 from src.modules.monitoring.schemas import (
@@ -21,6 +23,11 @@ from src.modules.monitoring.schemas import (
 from src.modules.monitoring.services import (
     BUYOUT_LAG_END_DAYS,
     BUYOUT_LAG_START_DAYS,
+    AdCampaignBonus,
+    AdCampaignFacts,
+    AdCampaignMeta,
+    AdCampaignSearch,
+    AdCampaignSpend,
     AdDay,
     AdSkuDay,
     AdSpendDay,
@@ -37,6 +44,7 @@ from src.modules.monitoring.services import (
     ad_coverage,
     funnel_coverage,
     load_ad_bonus_by_nm,
+    load_ad_campaign_facts,
     load_ad_currencies,
     load_ad_days,
     load_ad_days_for_nm,
@@ -62,6 +70,11 @@ from src.modules.monitoring.services import (
 __all__ = [
     "BUYOUT_LAG_END_DAYS",
     "BUYOUT_LAG_START_DAYS",
+    "AdCampaignBonus",
+    "AdCampaignFacts",
+    "AdCampaignMeta",
+    "AdCampaignSearch",
+    "AdCampaignSpend",
     "AdDay",
     "AdSkuDay",
     "AdSpendDay",
@@ -81,6 +94,7 @@ __all__ = [
     "ad_coverage",
     "funnel_coverage",
     "load_ad_bonus_by_nm",
+    "load_ad_campaign_facts",
     "load_ad_currencies",
     "load_ad_days",
     "load_ad_days_for_nm",

@@ -29,6 +29,14 @@ from src.modules.monitoring.services.ad_bonus import (
     ad_bonus_unknown_types,
     load_ad_bonus_by_nm,
 )
+from src.modules.monitoring.services.ad_campaign_facts import (
+    AdCampaignBonus,
+    AdCampaignFacts,
+    AdCampaignMeta,
+    AdCampaignSearch,
+    AdCampaignSpend,
+    load_ad_campaign_facts,
+)
 from src.modules.monitoring.services.analytics import (
     AnalyticsService,
     ClusterAnalytics,
@@ -90,6 +98,11 @@ from src.modules.monitoring.services.sku_day_facts import (
 __all__ = [
     "BUYOUT_LAG_END_DAYS",
     "BUYOUT_LAG_START_DAYS",
+    "AdCampaignBonus",
+    "AdCampaignFacts",
+    "AdCampaignMeta",
+    "AdCampaignSearch",
+    "AdCampaignSpend",
     "AdDay",
     "AdSkuDay",
     "AdSpendDay",
@@ -110,6 +123,7 @@ __all__ = [
     "claim_cohort_pass",
     "funnel_coverage",
     "load_ad_bonus_by_nm",
+    "load_ad_campaign_facts",
     "load_ad_currencies",
     "load_ad_days",
     "load_ad_days_for_nm",

@@ -35,7 +35,15 @@ _BINDERS = {get_current_workspace_id, get_path_workspace_id}
 #: contracts — a path filter keyed on owners alone would never look at it.
 #: `heatmap` qualifies twice over: it owns two covered tables and reads both
 #: other modules' through their contracts.
-_COVERED_MODULES = ("monitoring", "finreports", "ab-tests", "workspaces", "summary", "heatmap")
+_COVERED_MODULES = (
+    "monitoring",
+    "finreports",
+    "ab-tests",
+    "workspaces",
+    "summary",
+    "heatmap",
+    "advertising",
+)
 
 #: Routes in those modules that legitimately bind nothing, because they touch no
 #: covered table. Both read `workspaces.workspaces`, which carries

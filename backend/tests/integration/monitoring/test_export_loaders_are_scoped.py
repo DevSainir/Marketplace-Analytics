@@ -370,4 +370,10 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     #
     # 25 since 2026-10-02: `ad_bonus_currencies` is gone with the P&L's
     # currency caveat — rouble advertising is converted where it is stored.
-    assert len(scoped) == 25, f"expected 25 scoped loaders, found {sorted(scoped)}"
+    #
+    # 26 since 2026-10-03: `load_ad_campaign_facts`, the advertising page's
+    # campaign-grain rows. Spend and the search slice go through the same
+    # semijoin; the campaign dimension and the bonus ledger, which carry no
+    # tenant, are restricted to the campaigns that spent on the кабинет's cards.
+    # `test_ad_campaign_facts_are_scoped.py` beside this file is what proves it.
+    assert len(scoped) == 26, f"expected 26 scoped loaders, found {sorted(scoped)}"
