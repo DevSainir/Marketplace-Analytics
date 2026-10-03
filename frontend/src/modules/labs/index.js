@@ -9,10 +9,9 @@
  * because those figures are checked against that folder's control values and
  * a rewrite onto reactivity would have moved them.
  *
- * `/labs/advertisement-source` is that page's «Реклама» tab re-laid in the
- * app's own design system, off the same datapack — the step between the
- * one-pager and the product. Everything it needs lives in its folder, so it
- * can move into a product module piece by piece.
+ * Its «Реклама» tab was re-laid in the app's own design system at
+ * `/labs/advertisement-source` and has since become the `advertising` module on
+ * live data; the old path redirects there.
  *
  * `/labs/monitoring` is a design sandbox: one route that reproduces the monitoring page's structure
  * under a SECOND, self-contained design system. It exists to be compared

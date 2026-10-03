@@ -8,6 +8,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import { abTestsRoutes } from '@/modules/abTests'
+import { advertisingRoutes } from '@/modules/advertising'
 import { authRoutes } from '@/modules/auth'
 import { finreportsRoutes } from '@/modules/finreports'
 import { heatmapRoutes } from '@/modules/heatmap'
@@ -42,6 +43,7 @@ const router = createRouter({
     ...labsRoutes,
     ...heatmapRoutes,
     ...summaryRoutes,
+    ...advertisingRoutes,
     ...profileRoutes,
   ],
 })

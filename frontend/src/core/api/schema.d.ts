@@ -858,11 +858,13 @@ export interface paths {
      *     Partial update: omitted surfaces are untouched; an empty string deletes
      *     the stored token for that surface. Values are Fernet-encrypted at rest.
      *
-     *     Storing a token a workspace did not have also enqueues a catalogue
-     *     discovery for it, so a seller who has just connected WB sees their SKUs
-     *     within minutes instead of after the next nightly harvest. The enqueue is
-     *     best-effort and debounced per workspace; it can neither fail this request
-     *     nor be provoked into a second run by re-saving the same token.
+     *     Storing a token that makes a harvest surface reachable also enqueues a
+     *     catalogue discovery for it, so a seller who has just connected WB sees their
+     *     SKUs within minutes instead of after the next nightly harvest — and walks
+     *     only the history lanes that surface feeds. A surface nothing reads, such as
+     *     «Вопросы и отзывы», enqueues nothing. The enqueue is best-effort and
+     *     debounced per workspace; it can neither fail this request nor be provoked
+     *     into a second run by re-saving the same token.
      */
     put: operations['set_tokens_api_v1_workspaces__workspace_id__tokens_put']
     post?: never
@@ -2156,7 +2158,9 @@ export interface paths {
      *     caller sends decides what is written; the tenant is bound by
      *     :data:`CurrentWorkspaceId` exactly as for the read.
      *
-     *     The guards live on the aggregating router (:mod:`src.modules.heatmap.routers`).
+     *     The monitoring grant is on the aggregating router
+     *     (:mod:`src.modules.heatmap.routers`); a finance metric also needs P&L,
+     *     checked here because only this route reads the settlement.
      */
     get: operations['get_heatmap_api_v1_heatmap_get']
     put?: never
@@ -2183,6 +2187,51 @@ export interface paths {
      *     as the grid's.
      */
     get: operations['get_catalog_api_v1_heatmap_catalog_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/advertising/span': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Advertising Span
+     * @description Return the days this кабинет has advertising for, before a window is chosen.
+     */
+    get: operations['get_advertising_span_api_v1_advertising_span_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/advertising': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Advertising
+     * @description Return every figure the «Реклама» page draws for one window.
+     *
+     *     **This GET may write, as «Сводка»'s does**: reading settled sales fills the
+     *     settlement rollup for days it did not already cover. Nothing the caller
+     *     sends decides what is written — it is derived from the кабинет's own
+     *     settlement rows, under the tenant :data:`CurrentWorkspaceId` binds.
+     */
+    get: operations['get_advertising_api_v1_advertising_get']
     put?: never
     post?: never
     delete?: never
@@ -2570,15 +2619,24 @@ export interface components {
       /**
        * Valid For Days
        * @description How long the code stays redeemable; null = never expires.
-       * @default 30
        */
-      valid_for_days: number | null
+      valid_for_days?: number | null
       /**
        * Subscription Days
-       * @description Term the code buys when redeemed.
-       * @default 30
+       * @description Term the code buys when redeemed — what «ключ на N дней» means.
+       * @default 14
        */
       subscription_days: number
+      /**
+       * Max Workspaces
+       * @description Кабинет cap it sells; null = unlimited.
+       */
+      max_workspaces?: number | null
+      /**
+       * Max Managers
+       * @description Manager cap it sells; null = unlimited.
+       */
+      max_managers?: number | null
     }
     /**
      * ActivationCodeCreated
@@ -2601,6 +2659,10 @@ export interface components {
       expires_at: string | null
       /** Subscription Days */
       subscription_days: number
+      /** Max Workspaces */
+      max_workspaces?: number | null
+      /** Max Managers */
+      max_managers?: number | null
     }
     /**
      * ActivationCodeRead
@@ -2667,6 +2729,127 @@ export interface components {
        * @description Cart -> order — orders / add_to_cart * 100 (%).
        */
       order_conversion: number
+    }
+    /**
+     * AdvertisingDay
+     * @description One day of the window.
+     */
+    AdvertisingDay: {
+      /**
+       * Day
+       * Format: date
+       */
+      day: string
+      /** Spend */
+      spend: string
+      /** Bonus */
+      bonus: string
+      /** Sales */
+      sales: string | null
+    }
+    /**
+     * AdvertisingResponse
+     * @description Every figure the page draws for one window.
+     */
+    AdvertisingResponse: {
+      /**
+       * Date From
+       * Format: date
+       */
+      date_from: string
+      /**
+       * Date To
+       * Format: date
+       */
+      date_to: string
+      /** Settled To */
+      settled_to: string | null
+      /** Currency */
+      currency: string
+      /** Ad Currencies */
+      ad_currencies: string[]
+      /** Bonus Known */
+      bonus_known: boolean
+      totals: components['schemas']['AdvertisingTotals']
+      /** Zones */
+      zones: components['schemas']['AdvertisingZone'][]
+      /** Days */
+      days: components['schemas']['AdvertisingDay'][]
+      /** Skus */
+      skus: components['schemas']['AdvertisingSku'][]
+    }
+    /**
+     * AdvertisingSku
+     * @description One article that advertised or sold in the window.
+     */
+    AdvertisingSku: {
+      /** Nm Id */
+      nm_id: number
+      /** Vendor Code */
+      vendor_code: string
+      /** Subject */
+      subject: string
+      /** Brand */
+      brand: string
+      /** Spend */
+      spend: string
+      /** Bonus */
+      bonus: string
+      /** Spend Settled */
+      spend_settled: string
+      /** Sales */
+      sales: string | null
+      /** Orders */
+      orders: number | null
+    }
+    /**
+     * AdvertisingSpan
+     * @description The days the кабинет has advertising for, for the period picker.
+     */
+    AdvertisingSpan: {
+      /** Date From */
+      date_from: string | null
+      /** Date To */
+      date_to: string | null
+      /** Settled To */
+      settled_to: string | null
+    }
+    /**
+     * AdvertisingTotals
+     * @description The window's headline figures.
+     */
+    AdvertisingTotals: {
+      /** Spend */
+      spend: string
+      /** Bonus */
+      bonus: string
+      /** Spend Settled */
+      spend_settled: string
+      /** Sales */
+      sales: string | null
+    }
+    /**
+     * AdvertisingZone
+     * @description One display zone's money; zones with no spend are omitted.
+     */
+    AdvertisingZone: {
+      /**
+       * Zone
+       * @enum {string}
+       */
+      zone:
+        | 'cpm_manual_search'
+        | 'cpm_manual_catalog'
+        | 'cpm_manual_shelves'
+        | 'cpm_unified_search'
+        | 'cpm_unified_shelves'
+        | 'cpc_search'
+        | 'cpc_shelves'
+        | 'unclassified'
+      /** Spend */
+      spend: string
+      /** Bonus */
+      bonus: string
     }
     /**
      * AssocSkuCount
@@ -4013,6 +4196,11 @@ export interface components {
       price_currency: string
       /** Ad Currencies */
       ad_currencies?: string[]
+      /**
+       * Order Currency
+       * @default
+       */
+      order_currency: string
       /** Settled To */
       settled_to: string | null
       /** Columns */
@@ -4056,6 +4244,20 @@ export interface components {
       total2?: number | null
       /** Values2 */
       values2?: (number | null)[] | null
+      /** Units */
+      units?: string[] | null
+      /**
+       * Total Unit
+       * @default
+       */
+      total_unit: string
+      /** Units2 */
+      units2?: string[] | null
+      /**
+       * Total Unit2
+       * @default
+       */
+      total_unit2: string
     }
     /**
      * InvitationAcceptRequest
@@ -4226,6 +4428,9 @@ export interface components {
      *     one, if two campaigns of one type share it. The frontend links the traffic
      *     group's header to it. ``None`` where no single campaign is known (a cell
      *     built by an edit, or a working copy from before the field existed).
+     *
+     *     ``currencies`` is what the spend is billed in — one code per campaign
+     *     folded into the cell, ``""`` for one whose label was never recorded.
      */
     MatrixAdBucketBase: {
       /** Campaign Id */
@@ -4260,6 +4465,8 @@ export interface components {
        * @default 0
        */
       order_sum: number | null
+      /** Currencies */
+      currencies?: string[]
       sku?: components['schemas']['MatrixAdSkuBase']
       /** Assoc Skus */
       assoc_skus?: components['schemas']['AssocSkuCount'][]
@@ -4387,6 +4594,32 @@ export interface components {
       }
     }
     /**
+     * MatrixDayCurrencies
+     * @description What each money cell of one day column is counted in.
+     *
+     *     Two sources, never merged: the order money («Заказы»/«Выкупы» in money) is
+     *     WB's own funnel sum — in the кабинет's settlement currency — or, on a day WB
+     *     served none, the order count at the day's price, in the prices' currency.
+     *     The spend is in whatever each campaign is billed in, fixed at its creation,
+     *     so a bucket that folds two campaigns can hold two codes. ``""`` is a source
+     *     that states none (spend harvested before WB's label was recorded).
+     */
+    MatrixDayCurrencies: {
+      /**
+       * Orders
+       * @description Currency of the day's order money.
+       * @default
+       */
+      orders: string
+      /**
+       * Ads
+       * @description Spend currencies per bucket key; «total» is the card's whole day.
+       */
+      ads?: {
+        [key: string]: string[]
+      }
+    }
+    /**
      * MatrixFunnelBase
      * @description The editable organic-funnel inputs for one day (the «Общая» column).
      *
@@ -4398,6 +4631,16 @@ export interface components {
      *     (the CURRENT day — prices/stock are snapshotted at harvest time, but the
      *     funnel always lags a day): the price cells render, while the count cells
      *     stay blank and read-only (zero counts are not facts there).
+     *
+     *     ``order_price`` is what one order was worth that day by WB's own funnel sum
+     *     (``orderSum / orderCount``), in ``order_currency`` — the settlement
+     *     currency, which WB converts to at the Bank of Russia rate of the order day.
+     *     The order money is valued at it, so it pairs with spend billed in the same
+     *     currency without any rate of ours. ``None`` on a day WB served no sum (or no
+     *     orders): the order money then falls back to ``seller_price`` converted by
+     *     ``price_rate`` — the Bank rate of the day, WB's own — into
+     *     ``order_currency``, or, without a rate, stays in ``price_currency``.
+     *     See wildberries-api/references/currencies.md.
      */
     MatrixFunnelBase: {
       /**
@@ -4424,6 +4667,20 @@ export interface components {
        * @default true
        */
       has_funnel: boolean
+      /** Order Price */
+      order_price?: number | null
+      /**
+       * Order Currency
+       * @default
+       */
+      order_currency: string
+      /**
+       * Price Currency
+       * @default
+       */
+      price_currency: string
+      /** Price Rate */
+      price_rate?: number | null
     }
     /**
      * MatrixMetricRow
@@ -4531,6 +4788,11 @@ export interface components {
       can_write: boolean
       /** Modules */
       modules?: components['schemas']['ModuleKey'][]
+      /**
+       * Can Issue Codes
+       * @default false
+       */
+      can_issue_codes: boolean
       organization?: components['schemas']['OrganizationRead'] | null
       subscription?: components['schemas']['SubscriptionRead'] | null
     }
@@ -4633,6 +4895,11 @@ export interface components {
        * @description Metric rows in workbook order.
        */
       rows?: components['schemas']['MatrixMetricRow'][]
+      /**
+       * Currencies
+       * @description Per day, what its money cells are counted in.
+       */
+      currencies?: components['schemas']['MatrixDayCurrencies'][]
     }
     /**
      * ModuleKey
@@ -4848,6 +5115,8 @@ export interface components {
       paid: string
       /** Sold Units */
       sold_units: number
+      /** Returned Units */
+      returned_units: number
       /** Return Rate Pct */
       return_rate_pct: string | null
       /** Logistics */
@@ -5023,8 +5292,10 @@ export interface components {
       returned_units: number
       /** Return Rate Pct */
       return_rate_pct: string | null
-      /** Delivered Units */
-      delivered_units: number
+      /** Buyout Units */
+      buyout_units: number | null
+      /** Decided Units */
+      decided_units: number | null
       /** Buyout Pct */
       buyout_pct: string | null
       /** Sales Amount */
@@ -5309,6 +5580,11 @@ export interface components {
      *     ``avg_position`` is the impression-weighted average AD position inside the
      *     cluster and is ``None`` when WB reported no position — which is not the same
      *     as ranking last, so it must never render as 0.
+     *
+     *     The money is in what the cluster's campaigns' spend is stored in — the
+     *     кабинет's currency, rouble campaigns converted at the Bank rate of their day.
+     *     A campaign the conversion could not reach (a day past the loaded rates)
+     *     would add roubles to сомы, so ``spend``/``cpc``/``cpm`` are ``None`` there.
      */
     SkuClusterItem: {
       /**
@@ -5327,8 +5603,11 @@ export interface components {
       add_to_cart: number
       /** Orders */
       orders: number
-      /** Spend */
-      spend: number
+      /**
+       * Spend
+       * @description In ``currencies``; None when its campaigns bill in two currencies.
+       */
+      spend: number | null
       /**
        * Ctr
        * @description clicks / views * 100 (%).
@@ -5336,14 +5615,19 @@ export interface components {
       ctr: number
       /**
        * Cpc
-       * @description spend / clicks (rubles).
+       * @description spend / clicks, in ``currencies``.
        */
-      cpc: number
+      cpc: number | null
       /**
        * Cpm
-       * @description spend / views * 1000 (rubles).
+       * @description spend / views * 1000, in ``currencies``.
        */
-      cpm: number
+      cpm: number | null
+      /**
+       * Currencies
+       * @description What the cluster's campaigns bill in; empty when none states it.
+       */
+      currencies?: string[]
       /**
        * Avg Position
        * @description Impression-weighted average ad position; None = unreported.
@@ -7546,7 +7830,7 @@ export interface operations {
           'application/json': components['schemas']['ActivationCodeRead'][]
         }
       }
-      /** @description Developer role required. */
+      /** @description Dev or primary-organisation owner required. */
       403: {
         headers: {
           [name: string]: unknown
@@ -7577,7 +7861,7 @@ export interface operations {
           'application/json': components['schemas']['ActivationCodeCreated']
         }
       }
-      /** @description Developer role required. */
+      /** @description Dev or primary-organisation owner required. */
       403: {
         headers: {
           [name: string]: unknown
@@ -10828,7 +11112,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Раздел доступен только внутренним учётным записям. */
+      /** @description Нет раздела «Мониторинг», или финансовая метрика без раздела P&L. */
       403: {
         headers: {
           [name: string]: unknown
@@ -10877,6 +11161,52 @@ export interface operations {
         }
         content?: never
       }
+      /** @description Нет раздела «Мониторинг». */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_advertising_span_api_v1_advertising_span_get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Дни, за которые у кабинета есть реклама. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AdvertisingSpan']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
       /** @description Раздел доступен только внутренним учётным записям. */
       403: {
         headers: {
@@ -10892,6 +11222,55 @@ export interface operations {
         content: {
           'application/json': components['schemas']['HTTPValidationError']
         }
+      }
+    }
+  }
+  get_advertising_api_v1_advertising_get: {
+    parameters: {
+      query?: {
+        /** @description Inclusive day start. */
+        date_from?: string | null
+        /** @description Inclusive day end. */
+        date_to?: string | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Реклама кабинета за период. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AdvertisingResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Раздел доступен только внутренним учётным записям. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Период инвертирован или длиннее допустимого. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
       }
     }
   }

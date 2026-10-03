@@ -1,35 +1,35 @@
 <script setup>
 /**
- * The per-article advertising list below `sm` — the same rows `AdsSkuTable`
- * renders, one two-line record each.
+ * The per-article list below `sm` — the same rows `AdsSkuTable` renders, one
+ * two-line record each.
  *
- * «Реклама» leads (the table's question is «где деньги»), with ДРР beside it;
- * orders and revenue are the second line. A list has no headers to click, so
- * it carries its own sort select, grows ten records at a time instead of
- * paging, and puts the «Итого» FIRST — at the bottom of thirty records nobody
- * would reach it.
+ * «Реклама» leads with ДРР beside it; share, orders and bonus are the second
+ * line. A list has no headers to click, so it carries its own sort, grows ten
+ * records at a time, and puts the «Итого» first.
  */
 import { computed, ref, watch } from 'vue'
 
 import { formatMoney, formatNumber, formatSku } from '@/core/utils/format'
-import { DRR_ALARM, ratioPct } from '@/modules/labs/advertisement-source/adsFormat'
+import { DRR_ALARM, ratioPct } from '@/modules/advertising/adsFormat'
 
 const props = defineProps({
   rows: { type: Array, required: true },
-  totals: { type: Object, required: true },
+  total: { type: Object, required: true },
   currency: { type: String, default: '' },
+  showBonus: { type: Boolean, default: false },
+  showDrr: { type: Boolean, default: true },
 })
 
 const PAGE = 10
 
 const SORTS = [
-  { key: 'ads', label: 'По рекламе' },
+  { key: 'spend', label: 'По рекламе' },
   { key: 'drr', label: 'По ДРР' },
-  { key: 'revenue', label: 'По выручке' },
+  { key: 'share', label: 'По доле' },
   { key: 'orders', label: 'По заказам' },
 ]
 
-const sortKey = ref('ads')
+const sortKey = ref('spend')
 const shown = ref(PAGE)
 
 // A new filter or grain is a new list — start it from the top again.
@@ -40,13 +40,14 @@ watch(
   },
 )
 
-/** Descending; a missing ДРР sinks to the bottom rather than reading as zero. */
+/** Descending; a missing figure sinks to the bottom rather than reading as zero. */
 const sorted = computed(() =>
   [...props.rows].sort((a, b) => (b[sortKey.value] ?? -Infinity) - (a[sortKey.value] ?? -Infinity)),
 )
 const visible = computed(() => sorted.value.slice(0, shown.value))
 
 const money = (value) => formatMoney(value, props.currency)
+const drr = (row) => (props.showDrr ? ratioPct(row.drr) : '—')
 </script>
 
 <template>
@@ -61,8 +62,8 @@ const money = (value) => formatMoney(value, props.currency)
 
     <div class="flex items-baseline justify-between gap-sm border-b border-border-subtle pb-sm">
       <span class="text-base font-semibold text-primary">Итого {{ rows.length }}</span>
-      <span class="tabular-nums font-semibold text-primary">
-        {{ money(totals.ads) }} · {{ ratioPct(totals.drr) }}
+      <span class="font-semibold tabular-nums text-primary">
+        {{ money(total.spend) }} · {{ drr(total) }}
       </span>
     </div>
 
@@ -72,16 +73,19 @@ const money = (value) => formatMoney(value, props.currency)
           <span class="min-w-0 truncate text-base font-medium text-primary">
             {{ formatSku(row.label) }}<span v-if="row.n" class="text-muted"> · {{ row.n }}</span>
           </span>
-          <span class="flex-none tabular-nums font-semibold text-primary">
-            {{ money(row.ads) }}
-            <span :class="row.drr > DRR_ALARM ? 'text-status-negative' : 'text-muted'">
-              · {{ ratioPct(row.drr) }}
+          <span class="flex-none font-semibold tabular-nums text-primary">
+            {{ money(row.spend) }}
+            <span :class="showDrr && row.drr > DRR_ALARM ? 'text-status-negative' : 'text-muted'">
+              · {{ drr(row) }}
             </span>
           </span>
         </div>
         <div class="flex justify-between gap-sm text-tiny tabular-nums text-muted">
-          <span>{{ formatNumber(row.orders) }} заказов</span>
-          <span>выручка {{ money(row.revenue) }}</span>
+          <span>
+            доля {{ ratioPct(row.share) }} ·
+            {{ row.orders === null ? '—' : formatNumber(row.orders) }} заказов
+          </span>
+          <span v-if="showBonus && row.bonus">бонусы {{ money(row.bonus) }}</span>
         </div>
       </li>
     </ul>

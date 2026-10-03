@@ -7,7 +7,7 @@
  * what filters the rows. Wraps rather than shrinks, so on a phone each control
  * takes its own full-width line instead of being squeezed to a stub.
  */
-import { AD_GROUPS } from '@/modules/labs/advertisement-source/adsSkuRows'
+import { AD_GROUPS } from '@/modules/advertising/skuModel'
 
 defineProps({
   query: { type: String, default: '' },

@@ -19,12 +19,9 @@ export const labsRoutes = [
     meta: { title: 'Финмодель · Lab', requiresAuth: true, requiresInternal: true },
   },
   {
-    // Блок «Реклама» финмодели, переверстанный в нашей дизайн-системе, — шаг
-    // между одностраничником и продуктом. Датапак тот же, цифры настоящие,
-    // поэтому и условия те же: свой сеанс и свой человек.
+    // Блок «Реклама» вырос из этой лабы в модуль `advertising` на живых данных;
+    // старая ссылка ведёт туда же.
     path: '/labs/advertisement-source',
-    name: 'labs-advertisement-source',
-    component: () => import('@/modules/labs/advertisement-source/AdsSourceView.vue'),
-    meta: { title: 'Реклама · Lab', requiresAuth: true, requiresInternal: true },
+    redirect: '/advertising',
   },
 ]
