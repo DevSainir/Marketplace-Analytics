@@ -52,6 +52,10 @@ description says when it applies, so they load themselves when the work calls fo
 sitting in every conversation. Read them directly (they are plain markdown) when working without
 that mechanism, and put new project guidance in the relevant skill rather than here.
 
+`docs/BACKLOG.md` is the one list of deferred work, each task with its details and a
+priority. A task the user asks to be recorded goes there, not into a session chip or the
+chat; a finished one is deleted from it.
+
 `docs/security/BACKUP_KEYS.md` explains the backup key scheme — why the archives are
 encrypted to two `age` recipients, which of the three keys lives where, and the one
 property the move away from a symmetric passphrase gave up. Read it before touching
