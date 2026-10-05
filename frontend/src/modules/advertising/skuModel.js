@@ -3,10 +3,11 @@
  *
  * Both ratios are re-derived from summed money, never averaged:
  *
- * * **ДРР от продаж** — spend on SETTLED days over settled sales. The page's
- *   own window may run past the settlement; those days' spend has no sales to
- *   be divided by and stays out of the numerator (the backend sends it apart as
- *   `spend_settled`).
+ * * **ДРР от продаж** — the seller's own spend (WB's bonus taken off) on
+ *   SETTLED days over settled sales. The page's own window may run past the
+ *   settlement; those days' spend has no sales to be divided by and stays out
+ *   of the numerator (the backend sends it apart as `spend_settled` and
+ *   `bonus_settled`).
  * * **Доля** — the row's spend over the кабинет's whole spend for the window,
  *   whatever the filter: «доля общих рекламных расходов».
  */
@@ -38,6 +39,7 @@ export function toRows(skus) {
     spend: Number(sku.spend),
     bonus: Number(sku.bonus),
     spendSettled: Number(sku.spend_settled),
+    bonusSettled: Number(sku.bonus_settled),
     sales: num(sku.sales),
     orders: sku.orders,
   }))
@@ -76,10 +78,20 @@ function sum(rows, label) {
       spend: acc.spend + row.spend,
       bonus: acc.bonus + row.bonus,
       spendSettled: acc.spendSettled + row.spendSettled,
+      bonusSettled: acc.bonusSettled + row.bonusSettled,
       sales: addNullable(acc.sales, row.sales),
       orders: addNullable(acc.orders, row.orders),
     }),
-    { label, spend: 0, bonus: 0, spendSettled: 0, sales: null, orders: null, n: rows.length },
+    {
+      label,
+      spend: 0,
+      bonus: 0,
+      spendSettled: 0,
+      bonusSettled: 0,
+      sales: null,
+      orders: null,
+      n: rows.length,
+    },
   )
 }
 
@@ -87,7 +99,7 @@ function sum(rows, label) {
 function withRatios(row, cabinetSpend) {
   return {
     ...row,
-    drr: drrOf(row.spendSettled, row.sales),
+    drr: drrOf(row.spendSettled - row.bonusSettled, row.sales),
     share: cabinetSpend ? row.spend / cabinetSpend : null,
   }
 }

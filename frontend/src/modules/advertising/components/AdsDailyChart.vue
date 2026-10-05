@@ -45,9 +45,15 @@ const legend = computed(() => [
   ...(props.showDrr ? [{ key: 'drr', name: 'ДРР от продаж', dashed: true }] : []),
 ])
 
-/** Per-day ДРР, `null` past the settlement or on a day without sales. */
+/**
+ * Per-day ДРР from the seller's own money — the day's spend minus WB's bonus,
+ * whatever the bonus switch shows — over the day's sales. `null` past the
+ * settlement or on a day without sales.
+ */
 const drr = computed(() =>
-  props.days.map((d) => (d.sales === null ? null : drrOf(Number(d.spend), Number(d.sales)))),
+  props.days.map((d) =>
+    d.sales === null ? null : drrOf(Number(d.spend) - Number(d.bonus), Number(d.sales)),
+  ),
 )
 
 function moneyLine(name, color, values) {

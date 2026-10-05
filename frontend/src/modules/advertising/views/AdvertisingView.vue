@@ -13,7 +13,6 @@ import { computed, onMounted } from 'vue'
 
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
 import { formatMoney } from '@/core/utils/format'
-import { dateRu } from '@/modules/advertising/adsFormat'
 import AdsBidCards from '@/modules/advertising/components/AdsBidCards.vue'
 import AdsBonusSwitch from '@/modules/advertising/components/AdsBonusSwitch.vue'
 import AdsDailyChart from '@/modules/advertising/components/AdsDailyChart.vue'
@@ -25,7 +24,6 @@ const store = useAdvertisingStore()
 
 onMounted(() => store.init())
 
-const period = computed(() => `${dateRu(store.dateFrom)} — ${dateRu(store.dateTo)}`)
 const settledTo = computed(() => store.data?.settled_to ?? null)
 </script>
 
@@ -33,9 +31,6 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
   <div class="app-container py-lg">
     <header class="mb-lg">
       <h1 class="text-h2 font-bold text-primary">Реклама</h1>
-      <p class="mt-xs text-tiny text-muted">
-        Куда ушли деньги на рекламу, что они принесли и сколько из них оплатил WB
-      </p>
     </header>
 
     <div class="mb-lg flex flex-wrap items-center gap-md">
@@ -43,6 +38,7 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
         :from="store.dateFrom"
         :to="store.dateTo"
         :preset-end="store.span?.date_to ?? ''"
+        :history-from="store.span?.date_from ?? ''"
         @range="store.setPeriod($event.from, $event.to)"
       />
       <AdsBonusSwitch
@@ -71,18 +67,12 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
       :class="{ 'opacity-60 transition-opacity': store.loading }"
     >
       <section>
-        <h2 class="text-h3 font-semibold text-primary">Куда ушли деньги</h2>
-        <p class="mb-md mt-xs max-w-prose text-tiny text-muted">
-          Расход по статистике кампаний — по виду кампании и зоне показа. Поиск измерен по поисковым
-          кластерам, всё сверх него — каталог у поисковых кампаний и полки у прочих.
-        </p>
+        <h2 class="mb-md text-h3 font-semibold text-primary">Куда ушли деньги</h2>
         <div class="flex flex-col gap-md">
           <AdsKpis
             :totals="store.totals"
             :currency="store.currency"
             :show-bonus="store.bonusVisible"
-            :period="period"
-            :settled-to="settledTo"
             :drr-comparable="store.drrComparable"
           />
           <AdsBidCards
@@ -98,12 +88,7 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
       </section>
 
       <section v-if="store.data.days.length > 1">
-        <h2 class="text-h3 font-semibold text-primary">Открутка по дням</h2>
-        <p class="mb-md mt-xs max-w-prose text-tiny text-muted">
-          День показа рекламы. ДРР от продаж — реклама дня к продажам дня по отчёту
-          реализации<template v-if="settledTo">, рассчитан по {{ dateRu(settledTo) }}</template
-          >.
-        </p>
+        <h2 class="mb-md text-h3 font-semibold text-primary">Открутка по дням</h2>
         <AdsDailyChart
           :days="store.data.days"
           :currency="store.currency"

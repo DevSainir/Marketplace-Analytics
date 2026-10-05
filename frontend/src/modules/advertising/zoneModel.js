@@ -8,8 +8,8 @@
  * so it is now exactly that: a card per kind, its total, and its zones.
  *
  * The payment model (CPM / CPC) is a tag on the card rather than a level of
- * nesting. The order is fixed — by how WB bills, not by size — so a card is
- * always in the same place from one period to the next; a kind that did not
+ * nesting. The order is fixed — единая ставка, the two manual ones, CPC — not
+ * by size, so a card is always in the same place from one period to the next; a kind that did not
  * run stays on the row at zero rather than vanishing.
  *
  * Единая ставка has no «Каталог»: WB reports only a unified campaign's search
@@ -28,6 +28,15 @@ const LABEL = Object.fromEntries(ZONE_KINDS.map((z) => [z.kind, z.label]))
 /** One card per campaign kind: the API zones it sums and the kind of each. */
 const CARDS = [
   {
+    key: 'unified',
+    label: 'Единая ставка',
+    tag: 'CPM',
+    zones: [
+      { zone: 'cpm_unified_search', kind: 'search' },
+      { zone: 'cpm_unified_shelves', kind: 'shelves' },
+    ],
+  },
+  {
     key: 'manual_search',
     label: 'Ручной поиск',
     tag: 'CPM',
@@ -41,15 +50,6 @@ const CARDS = [
     label: 'Ручные полки',
     tag: 'CPM',
     zones: [{ zone: 'cpm_manual_shelves', kind: 'shelves' }],
-  },
-  {
-    key: 'unified',
-    label: 'Единая ставка',
-    tag: 'CPM',
-    zones: [
-      { zone: 'cpm_unified_search', kind: 'search' },
-      { zone: 'cpm_unified_shelves', kind: 'shelves' },
-    ],
   },
   {
     key: 'cpc',

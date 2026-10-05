@@ -9,6 +9,7 @@ const SKUS = [
     spend: '50',
     bonus: '5',
     spend_settled: '50',
+    bonus_settled: '0',
     sales: '100',
     orders: 1,
   },
@@ -20,6 +21,7 @@ const SKUS = [
     spend: '30',
     bonus: '0',
     spend_settled: '10',
+    bonus_settled: '0',
     sales: '200',
     orders: 2,
   },
@@ -46,5 +48,18 @@ describe('totalRow', () => {
     const rows = toRows(SKUS.map((s) => ({ ...s, sales: null })))
 
     expect(totalRow(rows, 80).drr).toBeNull()
+  })
+})
+
+describe('ДРР от продаж', () => {
+  it("is the seller's own money over sales — WB's bonus comes off the spend", () => {
+    // 50 spent, 20 of it paid by WB, against 100 of sales: the seller paid 30%.
+    const [row] = groupRows(
+      toRows([{ ...SKUS[0], spend_settled: '50', bonus_settled: '20', sales: '100' }]),
+      'sku',
+      50,
+    )
+
+    expect(row.drr).toBeCloseTo(0.3)
   })
 })

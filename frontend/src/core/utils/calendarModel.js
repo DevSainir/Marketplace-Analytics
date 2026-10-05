@@ -37,6 +37,30 @@ export const PRESETS = [
 ]
 
 /**
+ * The footer's presets for a picker: the stock four, or — when the page knows
+ * the first day it has data for — three and «Вся история» from that day.
+ * «Вся история» carries `days: 0`; {@link presetWindow} resolves it.
+ *
+ * @param {string} [historyFrom] The page's first day, ISO; empty = stock presets.
+ */
+export function presetsFor(historyFrom = '') {
+  return historyFrom ? [...PRESETS.slice(0, -1), { label: 'Вся история', days: 0 }] : PRESETS
+}
+
+/**
+ * The window a preset of {@link presetsFor} applies: a rolling one, or for
+ * «Вся история» everything from `historyFrom` to `end`.
+ *
+ * @param {number} days The preset's length; 0 = «Вся история».
+ * @param {string} [end] Last day, ISO. Empty = today.
+ * @param {string} [historyFrom] First day for «Вся история», ISO.
+ * @returns {{from: string, to: string}}
+ */
+export function presetWindow(days, end = '', historyFrom = '') {
+  return days ? presetRange(days, end) : { from: historyFrom, to: end || isoDaysAgo(0) }
+}
+
+/**
  * The rolling window one preset stands for.
  *
  * `end` is the day it finishes on — today for live traffic data, or the

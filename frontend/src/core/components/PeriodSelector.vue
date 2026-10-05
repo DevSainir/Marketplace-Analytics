@@ -18,14 +18,17 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import CalendarMonthGrid from '@/core/components/CalendarMonthGrid.vue'
+import PeriodPresets from '@/core/components/PeriodPresets.vue'
 import { btnClass, effectiveRange, wrapClass } from '@/core/utils/calendarHighlight'
-import { PRESETS, TODAY, TODAY_ISO, presetRange, useCalendarView } from '@/core/utils/calendarModel'
+import { TODAY, TODAY_ISO, useCalendarView } from '@/core/utils/calendarModel'
 
 const props = defineProps({
   from: { type: String, required: true },
   to: { type: String, required: true },
   /** Day the quick presets end on (ISO); empty = today. See `presetRange`. */
   presetEnd: { type: String, default: '' },
+  /** The page's first day (ISO): «Вся история» replaces «180 дней». Empty = stock presets. */
+  historyFrom: { type: String, default: '' },
 })
 /**
  * `update:from` / `update:to` keep `v-model:from` / `v-model:to` working for
@@ -119,8 +122,7 @@ function onHover(cell) {
   if (phase.value === 'end' && !cell.disabled) hover.value = cell.iso
 }
 
-function applyPreset(days) {
-  const { from, to } = presetRange(days, props.presetEnd)
+function applyPreset({ from, to }) {
   emit('update:from', from)
   emit('update:to', to)
   emit('range', { from, to })
@@ -221,21 +223,12 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <!-- Footer: quick presets -->
-        <div class="mt-md flex items-center gap-xs border-t border-border-subtle pt-sm">
-          <span class="mr-auto text-tiny text-muted">
-            {{ phase === 'end' ? 'Выберите конец периода' : 'Быстрый выбор:' }}
-          </span>
-          <button
-            v-for="preset in PRESETS"
-            :key="preset.days"
-            type="button"
-            class="preset-btn"
-            @click="applyPreset(preset.days)"
-          >
-            {{ preset.label }}
-          </button>
-        </div>
+        <PeriodPresets
+          :awaiting-end="phase === 'end'"
+          :preset-end="presetEnd"
+          :history-from="historyFrom"
+          @pick="applyPreset"
+        />
       </div>
     </transition>
   </div>

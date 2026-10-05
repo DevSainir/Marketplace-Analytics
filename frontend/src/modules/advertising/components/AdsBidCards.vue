@@ -90,16 +90,19 @@ const segmentStyle = (zone) => ({
         </li>
       </ul>
 
+      <!-- The same three columns as the zone rows above — label, money, share —
+           so the bonus reads as one more line of the card's own arithmetic:
+           part of the spend over it, not an extra figure beside it. -->
       <footer
         v-if="showBonus"
-        class="mt-auto flex items-baseline justify-between gap-sm border-t border-border-subtle pt-sm text-tiny tabular-nums"
+        class="mt-auto flex items-center gap-sm border-t border-border-subtle pt-sm text-tiny tabular-nums"
       >
-        <span class="text-muted">Бонусы WB</span>
+        <span class="flex-1 text-muted">Бонусы WB</span>
         <span :class="card.bonus ? 'text-primary' : 'text-muted'">
           {{ card.bonus ? money(card.bonus) : '—' }}
-          <span v-if="card.bonus && card.spend" class="text-muted">
-            · {{ ratioPct(card.bonus / card.spend) }}
-          </span>
+        </span>
+        <span class="w-12 text-right text-muted">
+          {{ card.bonus && card.spend ? ratioPct(card.bonus / card.spend) : '' }}
         </span>
       </footer>
     </article>

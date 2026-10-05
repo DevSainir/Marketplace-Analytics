@@ -14,15 +14,15 @@ describe('bidCards', () => {
     const { cards } = bidCards(ZONES)
 
     expect(cards.map((c) => [c.label, c.spend])).toEqual([
+      ['Единая ставка', 300],
       ['Ручной поиск', 700],
       ['Ручные полки', 0],
-      ['Единая ставка', 300],
       ['CPC', 0],
     ])
   })
 
   it('splits a card by zone as a share of the card, and the card as a share of everything', () => {
-    const manual = bidCards(ZONES).cards[0]
+    const manual = bidCards(ZONES).cards.find((c) => c.key === 'manual_search')
 
     expect(manual.share).toBeCloseTo(0.7)
     expect(manual.bonus).toBe(60)

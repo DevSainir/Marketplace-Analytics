@@ -2797,6 +2797,8 @@ export interface components {
       bonus: string
       /** Spend Settled */
       spend_settled: string
+      /** Bonus Settled */
+      bonus_settled: string
       /** Sales */
       sales: string | null
       /** Orders */
@@ -2825,6 +2827,8 @@ export interface components {
       bonus: string
       /** Spend Settled */
       spend_settled: string
+      /** Bonus Settled */
+      bonus_settled: string
       /** Sales */
       sales: string | null
     }

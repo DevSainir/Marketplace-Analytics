@@ -92,21 +92,24 @@ export const useAdvertisingStore = defineStore('advertising', () => {
   }
 
   /**
-   * Learn the advertising span, then open on its last thirty days. A failed
-   * span read is swallowed: the picker still works against today.
+   * Open on the last thirty days, and learn the advertising span ALONGSIDE.
+   *
+   * The two used to run one after the other — the span first, so the window
+   * could end on its last day — which put a whole round trip in front of the
+   * first figure. Advertising statistics are a stream that reaches today, so
+   * the window can end today without waiting to be told; the span arrives in
+   * parallel and only feeds the picker («Вся история» starts at its first
+   * day). A failed span read is swallowed: the page does not need it to load.
    */
   async function init() {
-    try {
-      span.value = await fetchAdvertisingSpan()
-      if (span.value?.date_to) {
-        const period = presetRange(DEFAULT_DAYS, span.value.date_to)
-        dateFrom.value = period.from
-        dateTo.value = period.to
-      }
-    } catch {
-      span.value = null
-    }
-    return load()
+    const spanRead = fetchAdvertisingSpan()
+      .then((value) => {
+        span.value = value
+      })
+      .catch(() => {
+        span.value = null
+      })
+    await Promise.all([spanRead, load()])
   }
 
   function setPeriod(from, to) {

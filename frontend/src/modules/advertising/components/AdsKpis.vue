@@ -1,28 +1,27 @@
 <script setup>
 /**
- * The headline cards — one slim row across the full width of the block.
+ * The headline cards — one row across the full width of the block.
  *
- * Four with bonuses shown, two without; each is a label over its figure with
- * the qualifier on the same line, so the row stays one line of numbers high
- * and the zone table under it starts within reach.
+ * Four with bonuses shown, two without; a label over its figure and nothing
+ * else. The qualifiers that used to sit beside the figures (the period, the
+ * share, the settled-to day) repeated what the page already says above them.
  *
- * «С баланса» is spend minus the bonus — the seller's own money, whether the
- * balance or the settlement payout paid it. ДРР от продаж is spend on settled
- * days over settled sales, and says up to which day.
+ * «С баланса» is spend minus WB's bonus — the seller's own money, whether the
+ * balance or the settlement payout paid it. «ДРР от продаж» is that own money
+ * on the settled days over the settled sales of the same days, across every
+ * article: Σ (реклама − бонусы) ÷ Σ продажи, never a mean of per-article ratios.
+ * When it cannot be computed the card shows a dash, and says why on hover.
  */
 import { computed } from 'vue'
 
 import { formatMoney } from '@/core/utils/format'
-import { dateRu, ratioPct } from '@/modules/advertising/adsFormat'
+import { ratioPct } from '@/modules/advertising/adsFormat'
 import { drrOf } from '@/modules/advertising/skuModel'
 
 const props = defineProps({
   totals: { type: Object, required: true },
   currency: { type: String, default: '' },
   showBonus: { type: Boolean, default: false },
-  /** The window, for the spend card's note. */
-  period: { type: String, default: '' },
-  settledTo: { type: String, default: null },
   /** False when spend and sales are in different currencies. */
   drrComparable: { type: Boolean, default: true },
 })
@@ -30,36 +29,23 @@ const props = defineProps({
 const money = (value) => formatMoney(value, props.currency)
 const spend = computed(() => Number(props.totals.spend))
 const bonus = computed(() => Number(props.totals.bonus))
-const share = (part) => ratioPct(spend.value ? part / spend.value : null)
 
 const drr = computed(() => {
-  if (!props.drrComparable) return { value: '—', note: 'реклама и продажи в разных валютах' }
-  if (props.totals.sales === null) return { value: '—', note: 'продажи ещё не рассчитаны' }
-  return {
-    value: ratioPct(drrOf(Number(props.totals.spend_settled), Number(props.totals.sales))),
-    note: `по ${dateRu(props.settledTo)}`,
-  }
+  if (!props.drrComparable) return { value: '—', why: 'Реклама и продажи в разных валютах' }
+  if (props.totals.sales === null) return { value: '—', why: 'Продажи ещё не рассчитаны' }
+  const own = Number(props.totals.spend_settled) - Number(props.totals.bonus_settled)
+  return { value: ratioPct(drrOf(own, Number(props.totals.sales))), why: '' }
 })
 
 const cards = computed(() => [
-  { key: 'spend', label: 'Потрачено на рекламу', value: money(spend.value), note: props.period },
+  { key: 'spend', label: 'Потрачено на рекламу', value: money(spend.value) },
   ...(props.showBonus
     ? [
-        {
-          key: 'own',
-          label: 'С баланса',
-          value: money(spend.value - bonus.value),
-          note: `${share(spend.value - bonus.value)} — ваши`,
-        },
-        {
-          key: 'bonus',
-          label: 'Промо-бонусы',
-          value: money(bonus.value),
-          note: `${share(bonus.value)} — от WB`,
-        },
+        { key: 'own', label: 'С баланса', value: money(spend.value - bonus.value) },
+        { key: 'bonus', label: 'Промо-бонусы', value: money(bonus.value) },
       ]
     : []),
-  { key: 'drr', label: 'ДРР от продаж', value: drr.value.value, note: drr.value.note },
+  { key: 'drr', label: 'ДРР от продаж', value: drr.value.value, why: drr.value.why },
 ])
 </script>
 
@@ -68,13 +54,11 @@ const cards = computed(() => [
     <div
       v-for="card in cards"
       :key="card.key"
-      class="rounded-card border border-border-subtle bg-surface px-md py-sm shadow-card"
+      class="rounded-card border border-border-subtle bg-surface px-md py-md shadow-card"
+      :title="card.why || null"
     >
       <div class="text-micro font-medium uppercase tracking-wider text-muted">{{ card.label }}</div>
-      <div class="flex flex-wrap items-baseline gap-x-sm">
-        <span class="text-h3 font-bold tabular-nums text-primary">{{ card.value }}</span>
-        <span class="text-tiny text-muted">{{ card.note }}</span>
-      </div>
+      <div class="mt-xs text-h2 font-bold tabular-nums text-primary">{{ card.value }}</div>
     </div>
   </div>
 </template>

@@ -55,6 +55,27 @@ describe('PeriodSelector', () => {
     expect(wrapper.emitted('update:to')[0]).toEqual(['2026-03-10'])
   })
 
+  it('offers «Вся история» in place of «180 дней» when the page knows its first day', async () => {
+    // A page whose data has no window limit (advertising: WB keeps a campaign's
+    // whole life) opts in by passing its first day; every other page keeps the
+    // stock presets.
+    const wrapper = await openCalendar(
+      mountPicker({ presetEnd: '2026-10-04', historyFrom: '2023-10-24' }),
+    )
+
+    await preset(wrapper, 'Вся история').trigger('click')
+
+    expect(preset(wrapper, '180 дней')).toBeUndefined()
+    expect(wrapper.emitted('range')[0]).toEqual([{ from: '2023-10-24', to: '2026-10-04' }])
+  })
+
+  it('keeps the stock presets for a page that names no first day', async () => {
+    const wrapper = await openCalendar(mountPicker())
+
+    expect(preset(wrapper, '180 дней')).toBeDefined()
+    expect(preset(wrapper, 'Вся история')).toBeUndefined()
+  })
+
   it('applies a hand-picked range on its second click', async () => {
     // The second click is the whole decision, the same way a preset is. The
     // popover closing with nothing happening read as a control that had not
