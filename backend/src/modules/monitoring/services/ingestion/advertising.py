@@ -31,6 +31,19 @@ from src.modules.monitoring.repos import (
 
 logger = get_logger(__name__)
 
+#: Settings implied by a retired campaign type, for campaigns ``adverts-v2``
+#: no longer describes. WB dropped the single-zone types in 2024 and never
+#: gave them a bid type, so without this their spend stays unclassified on
+#: both the matrix and «Реклама» — on «Демо» five type-6 campaigns of
+#: 2023, 5 493 сом. Each was a manual CPM campaign in one zone: 6 «в поиске»,
+#: 5 «в карточке товара» and 7 «на главной» (both shelves). Type 4 «в
+#: каталоге» is left out: the matrix has no placement flag for the catalogue.
+_LEGACY_SETTINGS: dict[int, dict[str, object]] = {
+    6: {"placement_search": True, "placement_recommendations": False},
+    5: {"placement_search": False, "placement_recommendations": True},
+    7: {"placement_search": False, "placement_recommendations": True},
+}
+
 
 @dataclass
 class _SearchZoneAcc:
@@ -285,6 +298,9 @@ class AdvertisingIngestion:
                 )
                 row["name"] = advert.settings.name if advert else None
                 row["payment_type"] = advert.settings.payment_type if advert else None
+                legacy = _LEGACY_SETTINGS.get(c.type)
+                if advert is None and legacy is not None:
+                    row.update(legacy, bid_type="manual", payment_type="cpm")
             rows.append(row)
         count = await self._campaigns.upsert_many(rows, with_settings=adverts is not None)
         logger.info("Ingested %d campaign rows (%d with v2 settings).", count, len(adverts_by_id))
