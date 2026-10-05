@@ -104,6 +104,9 @@ const option = computed(() => ({
     {
       type: 'value',
       show: props.showDrr,
+      // ДРР is withheld rather than negative, so the axis starts at zero and
+      // the line never floats over an empty band below it.
+      min: 0,
       splitLine: { show: false },
       axisLabel: { color: SERIES.drr, fontSize: 10, formatter: (v) => `${v}%` },
     },

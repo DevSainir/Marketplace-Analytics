@@ -10,7 +10,7 @@
 import { computed, ref } from 'vue'
 
 import { formatSku } from '@/core/utils/format'
-import { atBase, shareOf } from '@/modules/finreports/priceBase'
+import { atBase, drrShare, shareOf } from '@/modules/finreports/priceBase'
 
 const num = (value) => (value === null || value === undefined ? null : Number(value))
 
@@ -67,7 +67,7 @@ export function toRow(r, isBucket = false, base = 'seller') {
     penaltyReasons: (r.penalties ?? []).map((p) => ({ reason: p.reason, amount: num(p.amount) })),
     cogs: num(r.cogs),
     advertising,
-    advertisingPct: shareOf(advertising, sales),
+    advertisingPct: drrShare(advertising, sales),
     // Positive magnitude, exactly as the API sends it. Rendering is what
     // gives it the minus sign — a doubly negated deduction adds back.
     adBonus: num(r.ad_bonus),
@@ -257,7 +257,7 @@ export function sumRows(rows, adInvoices = 0) {
     penaltyReasons: [],
     cogs,
     advertising,
-    advertisingPct: advertising === null ? null : share(advertising, sales),
+    advertisingPct: advertising === null ? null : drrShare(advertising, sales),
     adBonus: known('adBonus'),
     advertisingCash,
     roi: profit === null || !cogs ? null : share(profit, cogs),

@@ -40,6 +40,16 @@ export function shareOf(part, whole) {
 }
 
 /**
+ * ДРР — advertising as a percentage of sales, `null` unless sales are positive.
+ *
+ * Sales are net of returns, so an article can return more than it sold over a
+ * window; advertising over that is a negative ДРР, which means nothing.
+ */
+export function drrShare(part, whole) {
+  return Number(whole) > 0 ? shareOf(part, whole) : null
+}
+
+/**
  * The revenue-dependent figures of one size row (or the sizes' totals).
  *
  * The backend sends them at the seller's price; at the buyer's they are

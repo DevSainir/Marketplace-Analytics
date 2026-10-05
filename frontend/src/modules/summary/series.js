@@ -21,7 +21,10 @@ export function dayRevenue(day, base) {
  */
 export function drr(spend, base) {
   if (spend === null || spend === undefined) return null
-  if (base === null || base === undefined || Number(base) === 0) return null
+  // Not positive: the day returned more than it sold, and advertising over a
+  // negative sum is a negative ДРР, which means nothing (19.06.2024 on
+  // «Демо», −10 %) — withheld like a day without sales.
+  if (base === null || base === undefined || Number(base) <= 0) return null
   return (Number(spend) / Number(base)) * 100
 }
 

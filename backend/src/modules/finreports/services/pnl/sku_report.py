@@ -37,6 +37,16 @@ def _pct(part: Decimal, whole: Decimal) -> Decimal | None:
     return (part / whole * _HUNDRED).quantize(Decimal("0.01"))
 
 
+def _drr_pct(advertising: Decimal, revenue: Decimal) -> Decimal | None:
+    """ДРР as a percentage, or ``None`` unless revenue is positive.
+
+    Revenue is net of returns, so an article — or a whole window — can return
+    more than it sold; advertising over that is a negative ДРР, which means
+    nothing and is withheld like a window without sales.
+    """
+    return _pct(advertising, revenue) if revenue > _ZERO else None
+
+
 def _logistics(aggregate: SettlementAggregate) -> Decimal:
     """Every logistics leg the SKU's own rows carry, forward, return and unlegged."""
     return aggregate.logistics_forward + aggregate.logistics_return + aggregate.logistics_unlegged
@@ -164,7 +174,7 @@ def build_sku_row(
         cost_price=cost_price,
         cogs=cogs,
         advertising=advertising,
-        advertising_pct=_pct(advertising, revenue_seller) if advertising is not None else None,
+        advertising_pct=_drr_pct(advertising, revenue_seller) if advertising is not None else None,
         ad_bonus=bonus_applied,
         advertising_cash=advertising_cash,
         payout_for_goods=payout_goods,
@@ -297,7 +307,7 @@ def build_sku_report(
     invoice = total_aggregate.advertising
     totals.advertising_cash = invoice
     totals.advertising = invoice + (totals.ad_bonus or _ZERO)
-    totals.advertising_pct = _pct(totals.advertising, totals.revenue_seller_price)
+    totals.advertising_pct = _drr_pct(totals.advertising, totals.revenue_seller_price)
     totals.net_profit = totals.payout_net - totals.cogs
     totals.net_profit_pct = _pct(totals.net_profit, totals.revenue_seller_price)
     totals.roi_pct = _pct(totals.net_profit, totals.cogs) if totals.cogs else None

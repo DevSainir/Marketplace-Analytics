@@ -40,6 +40,11 @@ describe('drr', () => {
   it('is unknown rather than infinite on a day that sold nothing', () => {
     expect(drr('100', '0')).toBeNull()
   })
+
+  it('is withheld on a day that returned more than it sold, rather than negative', () => {
+    // «Демо», 19.06.2024: 1 520 of advertising against −14 870 of sales.
+    expect(drr('1520', '-14870')).toBeNull()
+  })
 })
 
 describe('the day charts', () => {

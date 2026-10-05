@@ -256,3 +256,11 @@ describe('база цены — «Цена селлера» или «Цена р
     expect(sizeAtBase(size, 'paid')).toEqual({ price: 400, revenue: 4000, logisticsPct: 25 })
   })
 })
+
+describe('ДРР артикула, который вернули больше, чем продали', () => {
+  it('не показывается вовсе, а не уходит в минус', () => {
+    const r = toRow(row({ revenue_seller_price: '-200', revenue_paid: '-180' }), false, 'seller')
+
+    expect(r.advertisingPct).toBeNull()
+  })
+})
