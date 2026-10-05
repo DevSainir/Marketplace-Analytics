@@ -53,6 +53,13 @@ this, including the line limit.
 * **Migrations own the shape.** An integration test replays them onto an empty database and
   diffs the result against the models; drift fails the run. Change a model, write the migration
   in the same commit.
+* **Production has views over the monitoring and finreports tables** that no test database
+  has: the analyst's read-only window (`scripts/sql/analyst_access.sql`, `docs/analyst/`).
+  A migration that renames, retypes or drops a column one of them reads **fails on deploy**
+  with "cannot alter/drop … because other objects depend on it", after passing every tier.
+  Before such a migration, grep the column in that script; if it is there, the migration drops
+  the affected view first (`DROP VIEW IF EXISTS analyst.<name>`) and the operator re-applies the
+  script afterwards (ACCESS.md, step 3). Adding a column never breaks a view.
 
 ## Dependency injection
 
