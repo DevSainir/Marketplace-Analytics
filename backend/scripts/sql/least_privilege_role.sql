@@ -73,7 +73,14 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'marketplace_app')
 
 -- Idempotent, and the one statement that needs the variable: setting the
 -- password on every run keeps the role and `.env` from drifting apart.
+--
+-- With `log_statement` off around it: production logs every DDL statement
+-- (added 2026-09-10, after this file's first run), ALTER ROLE is DDL, and a
+-- re-run would otherwise write the app's password in clear to the container
+-- log and on to Loki.
+SET log_statement = 'none';
 ALTER ROLE marketplace_app LOGIN PASSWORD :'app_password';
+RESET log_statement;
 
 -- Explicitly not a superuser and unable to create anything, in case the role
 -- already existed with more than it should.
