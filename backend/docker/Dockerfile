@@ -103,7 +103,12 @@ RUN useradd --create-home --uid 10001 appuser \
     # created root-owned and the unprivileged process cannot write to it. The
     # service degrades to rebuilding on every request when that happens — the
     # download still works, so the only symptom is silently losing the cache.
-    && chown -R appuser:appuser /app
+    #
+    # Only that directory changes owner, never `/app` — the worker stage below
+    # explains why. Here it also cost time: overlayfs copies every venv file up
+    # on chown, and on the 3.9 GB box that layer took 634 s on 2026-10-05,
+    # pushing the deploy past its 20-minute timeout mid-rotation.
+    && chown -R appuser:appuser /app/.cache
 USER appuser
 
 EXPOSE 8000
