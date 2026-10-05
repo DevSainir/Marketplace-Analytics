@@ -163,8 +163,9 @@
     @apply static text-center;
   }
 
-  /* Traffic-type group labels («Руч. полки» over a single zone column) can
-     run wider than their cell in the fixed layout — wrap onto a second line
+  /* Traffic-type group labels can run wider than their cell in the fixed
+     layout («Руч. полки» used to, over one zone column; since the unified
+     «Каталог» column went it is two grid columns wide and fits) — wrap onto a second line
      (with clipping as the safety net) so they never overlap the neighbouring
      group's border. «Общая»/«Органика» are single words with no wrap point,
      and «Органика» does not fit one zone column at any size we would read, so
@@ -259,17 +260,17 @@
   }
 
   /* Day-section boundaries — BLACK, so adjacent days read as separate panels.
-     Type row (2): 6 group cells per day; zones row (3): 8 zoned cells per day
-     («Общая»/«Органика» span from the type row); body rows: 10 leaf cells per
-     day. The very first section (nth-child(2)) is excluded — the frozen
+     Type row (2): 6 group cells per day; zones row (3): 7 zoned cells per day
+     («Общая»/«Органика» span from the type row); body rows: 9 leaf cells per
+     day (one per bucket — «Руч. полки» is one cell two grid columns wide). The very first section (nth-child(2)) is excluded — the frozen
      column's right border draws that line (borders no longer collapse).
      The three strides are TRAFFIC_GROUPS, the zoned leaves and
      COLUMNS_PER_DAY in metricsMatrix.js — a column added there moves all
      of the formulas below. */
   .app-datatable--matrix thead tr:first-child th:not(:first-child):not(:nth-child(2)),
   .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 2):not(:nth-child(2)),
-  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 2):not(:nth-child(2)),
-  .app-datatable--matrix tbody td:nth-child(10n + 2):not(:nth-child(2)) {
+  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(7n + 2):not(:nth-child(2)),
+  .app-datatable--matrix tbody td:nth-child(9n + 2):not(:nth-child(2)) {
     @apply border-l-2;
     border-left-color: var(--ui-daydivider);
   }
@@ -278,21 +279,21 @@
      day dividers: Единая ставка | Руч. поиск (+ Каталог) | Руч. полки | CPC |
      Общая + Органика read as five parts. Type row: before «Руч. поиск» (6n+3),
      «Руч. полки» (6n+4), «CPC» (6n+5), «Общая» (6n). Zones row: before the
-     manual search zone (8n+5), the manual shelves zone (8n+7) and the CPC
-     search zone (8n); Общая/Органика span from row 2, their border extends
-     down with the rowspan. Body rows: before manual_search (10n+5),
-     manual_shelves (10n+7), cpc_search (10n+8) and total (10n). */
+     manual search zone (7n+4), the manual shelves zone (7n+6) and the CPC
+     search zone (7n); Общая/Органика span from row 2, their border extends
+     down with the rowspan. Body rows: before manual_search (9n+4),
+     manual_shelves (9n+6), cpc_search (9n+7) and total (9n). */
   .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 3),
   .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 4),
   .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 5),
   .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n),
-  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 5),
-  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 7),
-  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n),
-  .app-datatable--matrix tbody td:nth-child(10n + 5),
-  .app-datatable--matrix tbody td:nth-child(10n + 7),
-  .app-datatable--matrix tbody td:nth-child(10n + 8),
-  .app-datatable--matrix tbody td:nth-child(10n) {
+  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(7n + 4),
+  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(7n + 6),
+  .app-datatable--matrix thead tr:nth-child(3) th:nth-child(7n),
+  .app-datatable--matrix tbody td:nth-child(9n + 4),
+  .app-datatable--matrix tbody td:nth-child(9n + 6),
+  .app-datatable--matrix tbody td:nth-child(9n + 7),
+  .app-datatable--matrix tbody td:nth-child(9n) {
     @apply border-l-2;
     border-left-color: var(--ui-rule);
   }

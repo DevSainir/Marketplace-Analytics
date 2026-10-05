@@ -27,11 +27,11 @@ function metricRow(key, values, extra = {}) {
   }
 }
 
-// Column order: uni_search, uni_shelves, uni_catalog, manual_search,
-// manual_catalog, manual_shelves, cpc_search, cpc_shelves, total, organic.
-const ONLY_TOTAL = [null, null, null, null, null, null, null, null, 42, null]
-const TOTAL_AND_ORGANIC = [null, null, null, null, null, null, null, null, 9, 9]
-const WITH_CAMPAIGNS = [5, null, null, 3, null, null, 2, null, 9, 1]
+// Column order: uni_search, uni_shelves, manual_search, manual_catalog,
+// manual_shelves, cpc_search, cpc_shelves, total, organic.
+const ONLY_TOTAL = [null, null, null, null, null, null, null, 42, null]
+const TOTAL_AND_ORGANIC = [null, null, null, null, null, null, null, 9, 9]
+const WITH_CAMPAIGNS = [5, null, 3, null, null, 2, null, 9, 1]
 
 describe('metricDayItems', () => {
   it('takes «Общая» as the headline value of the requested day', () => {
@@ -60,7 +60,6 @@ describe('metricDayItems', () => {
     expect(item.breakdown.map((entry) => entry.label)).toEqual([
       'Единая ставка · Поиск',
       'Единая ставка · Полки',
-      'Единая ставка · Каталог',
       'Руч. поиск · Поиск',
       'Руч. поиск · Каталог',
       'Руч. полки · Полки',

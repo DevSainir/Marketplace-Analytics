@@ -93,8 +93,8 @@ def apply_edit(
     try:
         _apply_input_edit(day, edit, viewed_nm_id)
     except ValidationError:
-        # Non-invertible cell (read-only formula, tainted zone, empty «Каталог»,
-        # a count with no funnel row) → store a direct display override so the
+        # Non-invertible cell (read-only formula, tainted zone, a count with no
+        # funnel row) → store a direct display override so the
         # cell is still editable. Shown verbatim in build_matrix_from_base.
         day.cell_overrides[key] = round(float(edit.value), 2)
     else:
@@ -114,7 +114,7 @@ def _apply_input_edit(
         _edit_total(day, edit.metric, edit.value)
     elif edit.bucket == "organic":
         _edit_organic(day, edit.metric, edit.value)
-    else:  # uni_catalog or an unknown bucket — no unique inverse
+    else:  # an unknown bucket — no unique inverse
         raise _readonly(edit.bucket, edit.metric)
 
 

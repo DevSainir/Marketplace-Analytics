@@ -26,7 +26,6 @@ const MERGED_ROW_COLUMNS = {
 const ZONED_GROUP_KEYS = new Set([
   'uni_search',
   'uni_shelves',
-  'uni_catalog',
   'manual_search',
   'manual_catalog',
   'manual_shelves',
@@ -44,6 +43,7 @@ export function useMatrixColumns(days) {
         id: `${day.iso}:${column.key}`,
         key: column.key,
         zone: column.zone,
+        colspan: column.units ?? 1,
         index: dayIndex * TRAFFIC_COLUMNS.length + columnIndex,
       })),
     ),
@@ -58,6 +58,7 @@ export function useMatrixColumns(days) {
             id: `${day.iso}:${column.key}`,
             key: column.key,
             span: column.span,
+            colspan: column.colspan ?? column.span,
             index: dayIndex * TRAFFIC_COLUMNS.length + column.offset,
           })),
         ),

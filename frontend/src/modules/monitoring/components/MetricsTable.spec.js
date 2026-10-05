@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 
 import MetricsTable from '@/modules/monitoring/components/MetricsTable.vue'
-import { COLUMNS_PER_DAY } from '@/modules/monitoring/metricsMatrix'
+import { DAY_COLSPAN } from '@/modules/monitoring/metricsMatrix'
 
 const DAY = '2026-07-20'
 
@@ -199,12 +199,29 @@ describe('table composition', () => {
       global: { stubs: { Teleport: true } },
     })
 
-    // Each section spans the label column plus one leaf column per traffic
-    // column; a mismatch here is exactly how a section drifts out of alignment.
+    // Each section spans the label column plus every grid column of its days;
+    // a mismatch here is exactly how a section drifts out of alignment.
     const spans = wrapper.findAll('tr.matrix-gap td').map((td) => td.attributes('colspan'))
 
     expect(spans.length).toBeGreaterThan(0)
-    expect(new Set(spans)).toEqual(new Set([String(1 + days.length * COLUMNS_PER_DAY)]))
+    expect(new Set(spans)).toEqual(new Set([String(1 + days.length * DAY_COLSPAN)]))
+  })
+
+  it('gives «Руч. полки» two grid columns, so its label fits on one line', () => {
+    // The room came from the unified «Каталог» column, removed because WB never
+    // reported a catalogue slice for единая ставка.
+    const wrapper = mount(MetricsTable, {
+      props: {
+        days: [{ iso: DAY, label: '20.07.2026' }],
+        rows: [{ key: 'spend', label: 'Затраты', tone: null, group: 'traffic', cells: [] }],
+        priceRows: [{ key: 'seller_price', cells: [] }],
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const header = wrapper.findAll('thead th').find((th) => th.text().includes('Руч. полки'))
+
+    expect(header.attributes('colspan')).toBe('2')
   })
 
   it('forwards a day-note edit from the comments section to its own listener', async () => {

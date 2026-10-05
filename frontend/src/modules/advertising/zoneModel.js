@@ -6,13 +6,11 @@
  *
  *   CPM ─ Ручная ставка ─ Ручной поиск ─ Поиск / Каталог
  *       │               └ Ручные полки ─ Полки
- *       └ Единая ставка ─ Поиск / Полки / Каталог
+ *       └ Единая ставка ─ Поиск / Полки
  *   CPC ─ Поиск / Полки
  *
- * Единая ставка's «Каталог» is a row with no money on purpose. WB reports only
- * the search slice of a unified campaign, so its catalogue is inside «Полки»
- * and cannot be taken out; printing a zero would say «в каталоге не крутились»,
- * which nobody measured. The row says where the money is instead.
+ * Единая ставка has no «Каталог»: WB reports only a unified campaign's search
+ * slice, so the rest of it is «Полки» and nothing finer can be told apart.
  *
  * Each leaf names its `kind` — search, shelves or catalogue — so the table can
  * mark it in the same colour the pies give that zone.
@@ -52,7 +50,6 @@ const TREE = [
         children: [
           { zone: 'cpm_unified_search', label: 'Поиск', kind: 'search' },
           { zone: 'cpm_unified_shelves', label: 'Полки', kind: 'shelves' },
-          { key: 'unified_catalog', label: 'Каталог', kind: 'catalog', unknown: true },
         ],
       },
     ],
@@ -71,7 +68,6 @@ const TREE = [
 
 /** Money of a node: a leaf's own, a group's the sum of its children. */
 function money(node, byZone) {
-  if (node.unknown) return { spend: 0, bonus: 0 }
   if (node.zone) return byZone[node.zone] ?? { spend: 0, bonus: 0 }
   return node.children.reduce(
     (acc, child) => {
@@ -96,7 +92,7 @@ function money(node, byZone) {
  *
  * @param {Array<{zone: string, spend: string|number, bonus: string|number}>} zones
  * @returns {Array<{id: string, ancestors: string[], label: string, depth: number,
- *   group: boolean, kind: string, unknown: boolean, spend: number, bonus: number,
+ *   group: boolean, kind: string, spend: number, bonus: number,
  *   share: number|null}>}
  */
 export function zoneRows(zones) {
@@ -117,10 +113,9 @@ export function zoneRows(zones) {
       depth: ancestors.length,
       group: Boolean(node.children),
       kind: node.kind ?? '',
-      unknown: Boolean(node.unknown),
       spend,
       bonus,
-      share: total && !node.unknown ? spend / total : null,
+      share: total ? spend / total : null,
     })
     for (const child of node.children ?? []) walk(child, [...ancestors, id])
   }
@@ -149,7 +144,7 @@ const PIE_OF = {
 const PIES = [
   { key: 'all', label: 'Вся реклама' },
   { key: 'manual', label: 'Ручная ставка' },
-  { key: 'unified', label: 'Единая ставка', note: 'каталог внутри полок' },
+  { key: 'unified', label: 'Единая ставка' },
   { key: 'cpc', label: 'CPC' },
 ]
 

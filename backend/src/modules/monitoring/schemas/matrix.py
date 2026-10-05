@@ -18,17 +18,17 @@ from src.modules.monitoring.constants import MAX_MATRIX_DAYS
 #: («Единая ставка») zones — split from search-cluster stats; ``manual_*`` are
 #: manual-bid campaigns by their enabled zone (``manual_catalog`` is the
 #: CATALOG slice of a search-only campaign: WB «поисковые» campaigns also
-#: deliver in каталог, derived as fullstats - normquery); ``uni_catalog`` is a
-#: legacy WB zone that no longer exists in the v2 API and stays empty;
-#: ``cpc_*`` are the pay-per-click campaigns («CPC»), which WB bills per click
-#: rather than per 1000 показов and whose ставки therefore cannot be read
+#: deliver in каталог, derived as fullstats - normquery). Единая ставка has no
+#: catalogue bucket: WB reports only its search slice, so a unified «Каталог»
+#: column could only ever be empty and was removed on 2026-10-05. ``cpc_*``
+#: are the pay-per-click campaigns («CPC»), which WB bills per click rather
+#: than per 1000 показов and whose ставки therefore cannot be read
 #: alongside a CPM campaign's — they get their own «тип получения трафика»
 #: group, split into the same two zones; ``total`` is the funnel-wide «Общая»
 #: column and ``organic`` is «Органика» (общая - реклама).
 MATRIX_BUCKETS: tuple[str, ...] = (
     "uni_search",
     "uni_shelves",
-    "uni_catalog",
     "manual_search",
     "manual_catalog",
     "manual_shelves",
@@ -39,7 +39,7 @@ MATRIX_BUCKETS: tuple[str, ...] = (
 )
 
 #: The advertising buckets that carry editable input facts (``total`` is a
-#: funnel/ad roll-up, ``organic`` a difference, ``uni_catalog`` always empty).
+#: funnel/ad roll-up, ``organic`` a difference).
 MATRIX_AD_BUCKETS: tuple[str, ...] = (
     "uni_search",
     "uni_shelves",

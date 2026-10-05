@@ -74,9 +74,6 @@ def test_drr_sales_divides_campaign_spend_by_campaign_buyouts() -> None:
     assert _cell(rows, "drr_sales", 0, "uni_search") == 12.5
     assert _cell(rows, "drr_sales", 0, "uni_shelves") == 12.5
     assert _cell(rows, "drr_sales", 0, "manual_search") == 10.0
-    # The legacy «Каталог» zone stays empty, and «Общая» keeps its own
-    # SKU-wide reading (all ad spend against the day's whole buyout value).
-    assert _cell(rows, "drr_sales", 0, "uni_catalog") is None
 
 
 def test_total_and_organic_use_survivors_only() -> None:
@@ -129,13 +126,6 @@ def test_total_cpm_is_blank_on_an_unadvertised_day() -> None:
     rows = _matrix(campaigns={}, ad_rows=[], funnel_rows=funnel_rows)
 
     assert _cell(rows, "cpm", 0, "total") is None
-
-
-def test_catalog_column_stays_empty() -> None:
-    """The legacy «Каталог» zone no longer exists in the v2 API."""
-    rows = _two_campaign_rows()
-    for key in rows:
-        assert _cell(rows, key, 0, "uni_catalog") is None
 
 
 def test_buyout_percent_uses_lagged_window() -> None:

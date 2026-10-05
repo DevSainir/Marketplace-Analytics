@@ -137,17 +137,17 @@ def test_display_override_overlay_and_diff_roundtrip() -> None:
                 nm_id=1, stat_date=DAY, bucket="cell", field="total:order_sum", value=42000
             ),
             MatrixOverride(
-                nm_id=1, stat_date=DAY, bucket="cell", field="uni_catalog:views", value=7
+                nm_id=1, stat_date=DAY, bucket="cell", field="cpc_shelves:views", value=7
             ),
         ],
     )
 
-    assert working.days[0].cell_overrides == {"total:order_sum": 42000.0, "uni_catalog:views": 7.0}
+    assert working.days[0].cell_overrides == {"total:order_sum": 42000.0, "cpc_shelves:views": 7.0}
 
     # The fact base has no cell overrides, so every entry diffs back out.
     rows = diff_to_overrides(nm_id=1, working=working, fact=fact)
     keyed = {(r["bucket"], r["field"]): r["value"] for r in rows}
-    assert keyed == {("cell", "total:order_sum"): 42000.0, ("cell", "uni_catalog:views"): 7.0}
+    assert keyed == {("cell", "total:order_sum"): 42000.0, ("cell", "cpc_shelves:views"): 7.0}
 
 
 def test_buyout_percent_roundtrips_as_a_day_level_input() -> None:

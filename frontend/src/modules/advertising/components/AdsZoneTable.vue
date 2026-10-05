@@ -116,10 +116,7 @@ const wide = 'hidden sm:table-cell'
                   aria-hidden="true"
                 />
               </span>
-              <span
-                class="whitespace-nowrap"
-                :class="row.spend || row.unknown ? 'text-primary' : 'text-muted'"
-              >
+              <span class="whitespace-nowrap" :class="row.spend ? 'text-primary' : 'text-muted'">
                 {{ row.label }}
               </span>
               <span v-if="row.caption" class="ml-sm hidden font-body text-muted sm:inline">
@@ -128,43 +125,33 @@ const wide = 'hidden sm:table-cell'
             </div>
           </td>
 
-          <template v-if="row.unknown">
-            <td :class="cell" class="text-muted">входит в «Полки»</td>
-            <td :class="cell" class="text-muted">—</td>
-            <template v-if="showBonus">
-              <td :class="[cell, wide]" class="text-muted">—</td>
-              <td :class="[cell, wide]" class="text-muted">—</td>
-            </template>
-          </template>
-          <template v-else>
-            <td :class="[cell, weight(row), row.spend ? '' : 'text-muted']">
-              {{ money(row.spend) }}
-              <div
-                v-if="showBonus && row.bonus"
-                class="mt-0.5 text-micro font-body text-muted sm:hidden"
-              >
-                бонусы {{ money(row.bonus) }}
-              </div>
+          <td :class="[cell, weight(row), row.spend ? '' : 'text-muted']">
+            {{ money(row.spend) }}
+            <div
+              v-if="showBonus && row.bonus"
+              class="mt-0.5 text-micro font-body text-muted sm:hidden"
+            >
+              бонусы {{ money(row.bonus) }}
+            </div>
+          </td>
+          <td :class="cell">
+            <div class="flex items-center justify-end gap-sm">
+              <span class="hidden h-1 w-16 overflow-hidden rounded-full bg-canvas sm:block">
+                <span
+                  class="block h-full rounded-full"
+                  :style="{ width: `${(row.share ?? 0) * 100}%`, background: barColor(row) }"
+                />
+              </span>
+              <span class="text-muted sm:w-14">{{ ratioPct(row.share) }}</span>
+            </div>
+          </td>
+          <template v-if="showBonus">
+            <td :class="[cell, wide, row.spend ? '' : 'text-muted']">
+              {{ money(row.spend - row.bonus) }}
             </td>
-            <td :class="cell">
-              <div class="flex items-center justify-end gap-sm">
-                <span class="hidden h-1 w-16 overflow-hidden rounded-full bg-canvas sm:block">
-                  <span
-                    class="block h-full rounded-full"
-                    :style="{ width: `${(row.share ?? 0) * 100}%`, background: barColor(row) }"
-                  />
-                </span>
-                <span class="text-muted sm:w-14">{{ ratioPct(row.share) }}</span>
-              </div>
+            <td :class="[cell, wide]" class="text-muted">
+              {{ row.bonus ? money(row.bonus) : '—' }}
             </td>
-            <template v-if="showBonus">
-              <td :class="[cell, wide, row.spend ? '' : 'text-muted']">
-                {{ money(row.spend - row.bonus) }}
-              </td>
-              <td :class="[cell, wide]" class="text-muted">
-                {{ row.bonus ? money(row.bonus) : '—' }}
-              </td>
-            </template>
           </template>
         </tr>
       </tbody>

@@ -47,7 +47,7 @@ import MatrixActionsRow from '@/modules/labs/components/MatrixActionsRow.vue'
 import MatrixCommentsRow from '@/modules/labs/components/MatrixCommentsRow.vue'
 import MatrixDayBlocksRow from '@/modules/labs/components/MatrixDayBlocksRow.vue'
 import MetricsDayList from '@/modules/labs/components/MetricsDayList.vue'
-import { COLUMNS_PER_DAY, TRAFFIC_GROUPS } from '@/modules/labs/metricsMatrix'
+import { DAY_COLSPAN, TRAFFIC_GROUPS } from '@/modules/labs/metricsMatrix'
 import { useMatrixColumns } from '@/modules/labs/matrixColumns'
 import { useAssocHover } from '@/modules/labs/useAssocHover'
 
@@ -152,7 +152,7 @@ watch(
             <!-- Row 1: date, one label spanning each day's whole section. -->
             <tr>
               <th>Дата</th>
-              <th v-for="day in days" :key="day.iso" :colspan="COLUMNS_PER_DAY">
+              <th v-for="day in days" :key="day.iso" :colspan="DAY_COLSPAN">
                 {{ day.label }}
               </th>
             </tr>
@@ -163,7 +163,7 @@ watch(
                 <th
                   v-for="group in TRAFFIC_GROUPS"
                   :key="`${day.iso}:${group.label}`"
-                  :colspan="group.span"
+                  :colspan="group.colspan ?? group.span"
                   :rowspan="group.spansZones ? 2 : 1"
                 >
                   <a
@@ -183,7 +183,9 @@ watch(
             <!-- Row 3: «Зоны показов» — only the zoned leaf columns. -->
             <tr>
               <th>Зоны показов</th>
-              <th v-for="leaf in zoneHeaderColumns" :key="leaf.id">{{ leaf.zone }}</th>
+              <th v-for="leaf in zoneHeaderColumns" :key="leaf.id" :colspan="leaf.colspan">
+                {{ leaf.zone }}
+              </th>
             </tr>
           </thead>
 

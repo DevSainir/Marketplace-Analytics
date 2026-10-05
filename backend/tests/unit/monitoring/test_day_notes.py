@@ -216,8 +216,7 @@ def test_drr_sales_uses_the_campaigns_own_buyout_volume() -> None:
     # (100 + 150) / ((3 + 1) x 100 ₽ x 50%) = 250 / 200 = 125%, on both zones.
     assert _cell(matrix, "drr_sales", "uni_search") == 125.0
     assert _cell(matrix, "drr_sales", "uni_shelves") == 125.0
-    # The legacy «Каталог» zone stays empty; a group that never delivered too.
-    assert _cell(matrix, "drr_sales", "uni_catalog") is None
+    # A group that never delivered stays empty.
     assert _cell(matrix, "drr_sales", "manual_search") is None
     # «Общая» keeps its SKU-wide reading: all ad spend / the day's buyouts.
     assert _cell(matrix, "drr_sales", "total") == 50.0  # 250 / 500

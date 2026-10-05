@@ -23,18 +23,10 @@ describe('zoneRows', () => {
       [1, 'Единая ставка', 300],
       [2, 'Поиск', 50],
       [2, 'Полки', 250],
-      [2, 'Каталог', 0],
       [0, 'CPC', 0],
       [1, 'Поиск', 0],
       [1, 'Полки', 0],
     ])
-  })
-
-  it('shows the unified catalogue as unknown, not as a zero', () => {
-    // WB never splits it out of «Полки»; a 0 would claim it was measured.
-    const catalog = zoneRows(ZONES).find((r) => r.id.endsWith('unified_catalog'))
-
-    expect(catalog).toMatchObject({ unknown: true, share: null })
   })
 
   it('keeps every branch at zero, but shows «Без типа» only when something is untyped', () => {

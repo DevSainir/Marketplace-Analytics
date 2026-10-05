@@ -1,6 +1,7 @@
 import { formatNumber } from '@/core/utils/format'
 import {
   COLUMNS_PER_DAY,
+  DAY_COLSPAN,
   DRR_SALES_COLUMNS,
   TRAFFIC_COLUMNS,
   TRAFFIC_GROUPS,
@@ -13,7 +14,6 @@ describe('traffic column structure', () => {
     expect(TRAFFIC_COLUMNS.map((c) => c.zone)).toEqual([
       'Поиск',
       'Полки',
-      'Каталог',
       'Поиск',
       'Каталог',
       'Полки',
@@ -61,6 +61,8 @@ describe('traffic column structure', () => {
       running += column.span
     }
     expect(running).toBe(COLUMNS_PER_DAY)
+    // ...and their widths fill the day's grid, «Руч. полки» two columns wide.
+    expect(DRR_SALES_COLUMNS.reduce((sum, c) => sum + c.colspan, 0)).toBe(DAY_COLSPAN)
   })
 })
 
@@ -135,10 +137,9 @@ describe('buildMetricsMatrix', () => {
     expect(cellObj(matrix, 'views', 0, 'uni_search').editable).toBe(true)
     expect(cellObj(matrix, 'traffic_share', 0, 'uni_search').editable).toBe(true)
     expect(cellObj(matrix, 'clicks', 0, 'total').editable).toBe(true)
-    // …including the former read-only cells: a rollup, the empty «Каталог», organic.
+    // …including the former read-only cells: a rollup and organic.
     expect(cellObj(matrix, 'spend', 0, 'total').editable).toBe(true)
     expect(cellObj(matrix, 'clicks', 0, 'organic').editable).toBe(true)
-    expect(cellObj(matrix, 'views', 0, 'uni_catalog').editable).toBe(true)
     // …and blank cells too (fill-in).
     expect(cellObj(matrix, 'views', 0, 'manual_shelves').editable).toBe(true)
   })
@@ -243,9 +244,8 @@ describe('buildMetricsMatrix', () => {
     })
   })
 
-  it('renders blank for null cells, absent rows, and the legacy «Каталог» zone', () => {
+  it('renders blank for null cells and absent rows', () => {
     const matrix = buildMetricsMatrix(PRODUCT)
-    expect(cell(matrix, 'views', 0, 'uni_catalog')).toBe('')
     expect(cell(matrix, 'views', 0, 'manual_shelves')).toBe('')
     expect(cell(matrix, 'traffic_share', 0, 'total')).toBe('')
     // Metric row missing from the payload entirely -> a full row of dashes.

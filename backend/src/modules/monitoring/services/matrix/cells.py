@@ -272,7 +272,7 @@ def _organic_cell(
 #: group's total Затраты over the day's total «Выкупы, ₽» — and the frontend
 #: renders the group as ONE merged cell.
 _CAMPAIGN_ZONE_GROUPS: tuple[tuple[str, ...], ...] = (
-    ("uni_search", "uni_shelves", "uni_catalog"),
+    ("uni_search", "uni_shelves"),
     ("manual_search", "manual_catalog"),
     ("manual_shelves",),
     ("cpc_search", "cpc_shelves"),
@@ -298,12 +298,8 @@ def _campaign_drr_sales(
     day.
 
     ``None`` when the group did not deliver that day, or the day is unpriced /
-    has no buyout percent. The legacy «Каталог» uni zone stays empty as
-    everywhere else — the merged cell reads the group's FIRST bucket, so it
-    never needs the repeat there.
+    has no buyout percent.
     """
-    if bucket == "uni_catalog":
-        return None
     group = _CAMPAIGN_GROUP_BY_BUCKET.get(bucket)
     if group is None:
         return None

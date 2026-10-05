@@ -18,7 +18,7 @@ import { campaignUrl } from '@/modules/monitoring/wbLinks'
 
 /** The backend buckets each campaign group of TRAFFIC_GROUPS delivers into. */
 export const GROUP_BUCKETS = {
-  uni: ['uni_search', 'uni_shelves', 'uni_catalog'],
+  uni: ['uni_search', 'uni_shelves'],
   manual_search: ['manual_search', 'manual_catalog'],
   manual_shelves: ['manual_shelves'],
   cpc: ['cpc_search', 'cpc_shelves'],

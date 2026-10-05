@@ -255,7 +255,6 @@ def test_organic_clicks_solves_open_count_holding_ads() -> None:
     [
         ("manual_search", "drr_sales"),  # one merged cell over a campaign
         ("manual_search", "buyout_percent"),  # funnel-only
-        ("uni_catalog", "views"),  # legacy empty zone
         ("total", "spend"),  # cross-bucket roll-up
         ("total", "drr_orders"),  # cross-bucket roll-up
         ("total", "buyout_sum"),  # derived from count x price x buyout%

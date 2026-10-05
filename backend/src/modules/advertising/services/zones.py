@@ -14,9 +14,9 @@ a campaign must land in the same zone on both pages.
   ~10-13 % above the normquery sum), so its remainder is «Каталог». Without a
   harvested slice the whole day stays in «Поиск» — sending ~90 % of a search
   campaign to the catalogue on a missing row would be worse.
-* A unified campaign's remainder is «Полки» — and the catalogue is inside it:
-  WB reports no zone split beyond the search slice for единая ставка, so its
-  catalogue share cannot be separated. The page says so rather than guessing.
+* A unified campaign's remainder is «Полки». WB reports no zone finer than the
+  search slice for единая ставка, so it has no «Каталог» on this page or on
+  the monitoring matrix; in practice it runs almost entirely on the shelves.
 """
 
 from __future__ import annotations

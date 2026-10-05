@@ -85,16 +85,12 @@ const METRICS = {
   orders_sku: { base: 8, spread: 5 },
 }
 
-/**
- * The zone buckets each campaign group delivers into (indices into
- * TRAFFIC_COLUMNS). «Каталог» of the unified bid (index 2) is never here: it is
- * a legacy WB zone kept for workbook parity and always empty.
- */
+/** The zone buckets each campaign group delivers into (indices into TRAFFIC_COLUMNS). */
 const GROUP_BUCKETS = {
   uni: [0, 1], // Единая ставка — Поиск + Полки
-  manual_search: [3, 4], // Руч. поиск — Поиск + Каталог
-  manual_shelves: [5], // Руч. полки
-  cpc: [6, 7], // CPC — Поиск + Полки
+  manual_search: [2, 3], // Руч. поиск — Поиск + Каталог
+  manual_shelves: [4], // Руч. полки
+  cpc: [5, 6], // CPC — Поиск + Полки
 }
 
 const ROLLUPS = [TOTAL, ORGANIC]

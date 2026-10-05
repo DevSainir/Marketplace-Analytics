@@ -3,7 +3,7 @@
  * the manager's Excel workbook.
  *
  * Every day is a section of columns (traffic type × display zone):
- *   Единая ставка (Поиск | Полки | Каталог) · Руч. поиск (Поиск | Каталог) ·
+ *   Единая ставка (Поиск | Полки) · Руч. поиск (Поиск | Каталог) ·
  *   Руч. полки (Полки) · CPC (Поиск | Полки) · Общая · Органика
  * with the date spanning the section; sections flow horizontally, the newest
  * day on the right. Metric rows mirror the workbook's order.
@@ -52,7 +52,7 @@ const EMPTY = ''
 /**
  * Whether a (bucket, metric) cell is editable — EVERY cell is. Invertible
  * input cells back-solve their fact server-side (dynamic recompute); every
- * other cell (a derived rollup, the empty «Каталог» zone, a tainted split)
+ * other cell (a derived rollup, a tainted split)
  * takes a display override there. The backend owns the routing; the frontend
  * just lets the manager click any cell. `bucket`/`metric` are kept for a
  * future per-cell lock and to mirror the call sites.
@@ -61,14 +61,22 @@ function isEditable(bucket, metric) {
   return Boolean(bucket && metric)
 }
 
-/** Leaf columns of one day section, left to right. `key` = backend bucket. */
+/**
+ * Leaf columns of one day section, left to right. `key` = backend bucket.
+ *
+ * `units` is how many grid columns the leaf occupies. The table is laid out
+ * fixed, so every grid column of a day is the same width; «Руч. полки» takes
+ * two of them, which is what lets its group label sit on one line over a
+ * single zone. That room came from the unified «Каталог» column, removed
+ * 2026-10-05: WB never reported a catalogue slice for единая ставка, so the
+ * column could only ever be empty.
+ */
 export const TRAFFIC_COLUMNS = [
   { key: 'uni_search', zone: 'Поиск' },
   { key: 'uni_shelves', zone: 'Полки' },
-  { key: 'uni_catalog', zone: 'Каталог' },
   { key: 'manual_search', zone: 'Поиск' },
   { key: 'manual_catalog', zone: 'Каталог' },
-  { key: 'manual_shelves', zone: 'Полки' },
+  { key: 'manual_shelves', zone: 'Полки', units: 2 },
   { key: 'cpc_search', zone: 'Поиск' },
   { key: 'cpc_shelves', zone: 'Полки' },
   { key: 'total', zone: 'Общая' },
@@ -76,24 +84,33 @@ export const TRAFFIC_COLUMNS = [
 ]
 
 /**
- * Leaf columns per day section — the stride of every `row.cells` index, and
- * the colspan a whole day's cell needs. Exported so the table's own rows
- * («Цены», the day note, «Действия») span the section without restating the
- * number: they got out of step with TRAFFIC_COLUMNS once already.
+ * Leaf columns per day section — the stride of every `row.cells` index. The
+ * backend sends one cell per bucket, so this is a count of buckets, NOT of
+ * grid columns; see {@link DAY_COLSPAN} for the width of a day.
  */
 export const COLUMNS_PER_DAY = TRAFFIC_COLUMNS.length
 
 /**
- * «Тип получения трафика» header groups (spans over TRAFFIC_COLUMNS).
- * `spansZones` groups have no zone split — their header cell spans the zones
- * row too instead of repeating the same word twice. `key` names the group's
- * campaign in `campaigns.byDay` (see `campaignLinks.js`). «Руч. поиск» spans two
- * zones: WB search campaigns also deliver in каталог (backend-split).
+ * Grid columns per day section — the colspan a whole day's cell needs.
+ * Exported so the table's own rows («Цены», the day note, «Действия») span the
+ * section without restating the number: they got out of step with
+ * TRAFFIC_COLUMNS once already.
+ */
+export const DAY_COLSPAN = TRAFFIC_COLUMNS.reduce((sum, column) => sum + (column.units ?? 1), 0)
+
+/**
+ * «Тип получения трафика» header groups. `span` is how many LEAVES of
+ * TRAFFIC_COLUMNS the group covers (the phone list slices by it); `colspan` is
+ * how many grid columns its header takes, where that differs. `spansZones`
+ * groups have no zone split — their header cell spans the zones row too
+ * instead of repeating the same word twice. `key` names the group's campaign
+ * in `campaigns.byDay` (see `campaignLinks.js`). «Руч. поиск» spans two zones:
+ * WB search campaigns also deliver in каталог (backend-split).
  */
 export const TRAFFIC_GROUPS = [
-  { key: 'uni', label: 'Единая ставка', span: 3 },
+  { key: 'uni', label: 'Единая ставка', span: 2 },
   { key: 'manual_search', label: 'Руч. поиск', span: 2 },
-  { key: 'manual_shelves', label: 'Руч. полки', span: 1 },
+  { key: 'manual_shelves', label: 'Руч. полки', span: 1, colspan: 2 },
   { key: 'cpc', label: 'CPC', span: 2 },
   { key: 'total', label: 'Общая', span: 1, spansZones: true },
   { key: 'organic', label: 'Органика', span: 1, spansZones: true },
@@ -103,25 +120,28 @@ export const TRAFFIC_GROUPS = [
  * «ДРР от продаж» renders each campaign's zones as ONE merged cell (the value
  * is campaign-level — the backend repeats it on every zone bucket of the
  * group, so the first bucket carries the number). `offset` addresses the
- * group's first leaf cell within a day section; spans sum to COLUMNS_PER_DAY,
- * and the entries stay parallel to TRAFFIC_GROUPS (the phone list labels them
- * by position).
+ * group's first leaf cell within a day section; `span` counts the leaves it
+ * merges and `colspan` the grid columns it covers (they sum to DAY_COLSPAN).
+ * The entries stay parallel to TRAFFIC_GROUPS (the phone list labels them by
+ * position).
  */
 export const DRR_SALES_COLUMNS = [
-  { key: 'uni_search', span: 3, offset: 0 },
-  { key: 'manual_search', span: 2, offset: 3 },
-  { key: 'manual_shelves', span: 1, offset: 5 },
-  { key: 'cpc_search', span: 2, offset: 6 },
-  { key: 'total', span: 1, offset: 8 },
-  { key: 'organic', span: 1, offset: 9 },
+  { key: 'uni_search', span: 2, colspan: 2, offset: 0 },
+  { key: 'manual_search', span: 2, colspan: 2, offset: 2 },
+  { key: 'manual_shelves', span: 1, colspan: 2, offset: 4 },
+  { key: 'cpc_search', span: 2, colspan: 2, offset: 5 },
+  { key: 'total', span: 1, colspan: 1, offset: 7 },
+  { key: 'organic', span: 1, colspan: 1, offset: 8 },
 ]
 
 /**
  * «Процент выкупа» is ONE number for the whole day — a SKU-level lagged cohort
  * window, not a per-zone fact — so its row renders as a single cell spanning
- * the day's whole section. The value lives in the «Общая» bucket (offset 8).
+ * the day's whole section. The value lives in the «Общая» bucket (offset 7).
  */
-export const DAY_SPAN_COLUMNS = [{ key: 'total', span: COLUMNS_PER_DAY, offset: 8 }]
+export const DAY_SPAN_COLUMNS = [
+  { key: 'total', span: COLUMNS_PER_DAY, colspan: DAY_COLSPAN, offset: 7 },
+]
 
 /** "2026-07-05" -> "05.07.2026" for the day-section header. */
 function dayLabel(iso) {

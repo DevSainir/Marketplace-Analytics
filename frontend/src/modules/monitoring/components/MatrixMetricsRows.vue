@@ -78,7 +78,7 @@ function rowClasses(row) {
       <td
         v-for="leaf in rowColumns(row)"
         :key="leaf.id"
-        :colspan="leaf.span ?? 1"
+        :colspan="leaf.colspan ?? 1"
         :class="(leaf.span ?? 1) > 1 && 'matrix-cell--merged'"
       >
         <template v-if="row.cells[leaf.index]">
