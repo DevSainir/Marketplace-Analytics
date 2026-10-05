@@ -76,6 +76,36 @@ describe('PeriodSelector', () => {
     expect(preset(wrapper, 'Вся история')).toBeUndefined()
   })
 
+  it('marks the preset whose window is on screen, and only that one', async () => {
+    // A page that opened on, or was set to, «30 дней» must read as «30 дней»
+    // when the picker is opened again.
+    const wrapper = await openCalendar(
+      mountPicker({ from: '2026-02-09', to: '2026-03-10', presetEnd: '2026-03-10' }),
+    )
+
+    const active = wrapper.findAll('.preset-btn--active').map((button) => button.text())
+    expect(active).toEqual(['30 дней'])
+  })
+
+  it('marks «Вся история» when the window runs from the first day', async () => {
+    const wrapper = await openCalendar(
+      mountPicker({
+        from: '2023-10-24',
+        to: '2026-10-04',
+        presetEnd: '2026-10-04',
+        historyFrom: '2023-10-24',
+      }),
+    )
+
+    expect(preset(wrapper, 'Вся история').classes()).toContain('preset-btn--active')
+  })
+
+  it('marks nothing for a hand-picked range', async () => {
+    const wrapper = await openCalendar(mountPicker())
+
+    expect(wrapper.findAll('.preset-btn--active')).toHaveLength(0)
+  })
+
   it('applies a hand-picked range on its second click', async () => {
     // The second click is the whole decision, the same way a preset is. The
     // popover closing with nothing happening read as a control that had not

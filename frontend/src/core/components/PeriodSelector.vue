@@ -224,6 +224,8 @@ onBeforeUnmount(() => {
         </div>
 
         <PeriodPresets
+          :from="from"
+          :to="to"
           :awaiting-end="phase === 'end'"
           :preset-end="presetEnd"
           :history-from="historyFrom"

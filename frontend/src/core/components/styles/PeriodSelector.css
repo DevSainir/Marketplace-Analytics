@@ -48,6 +48,14 @@
   background: color-mix(in srgb, var(--ui-action) 10%, transparent);
   color: var(--ui-action);
 }
+/* The preset whose window is on screen: filled, so it reads as chosen rather
+   than hovered. */
+.preset-btn--active,
+.preset-btn--active:hover {
+  border-color: var(--ui-action);
+  background: var(--ui-action);
+  color: #fff;
+}
 
 .cal-enter-active,
 .cal-leave-active {

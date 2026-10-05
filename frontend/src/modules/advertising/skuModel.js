@@ -24,9 +24,16 @@ const NONE = '—'
 
 const num = (value) => (value === null || value === undefined ? null : Number(value))
 
-/** ДРР as a 0–1 ratio, `null` when there is nothing to divide by. */
+/**
+ * ДРР as a 0–1 ratio, `null` when there is nothing to divide by.
+ *
+ * Sales here are net of returns, so a day or an article can come out at zero
+ * or below — on «Демо» 19.06.2024 took 101 000 сом of returns against
+ * 85 000 of sales. Advertising over a negative sum is a negative ДРР, which
+ * means nothing; it is withheld like a day without sales.
+ */
 export function drrOf(spendSettled, sales) {
-  return sales ? spendSettled / sales : null
+  return sales > 0 ? spendSettled / sales : null
 }
 
 /** API article rows into table rows. */

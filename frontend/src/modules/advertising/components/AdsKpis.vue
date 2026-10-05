@@ -33,6 +33,7 @@ const bonus = computed(() => Number(props.totals.bonus))
 const drr = computed(() => {
   if (!props.drrComparable) return { value: '—', why: 'Реклама и продажи в разных валютах' }
   if (props.totals.sales === null) return { value: '—', why: 'Продажи ещё не рассчитаны' }
+  if (Number(props.totals.sales) <= 0) return { value: '—', why: 'Возвратов больше, чем продаж' }
   const own = Number(props.totals.spend_settled) - Number(props.totals.bonus_settled)
   return { value: ratioPct(drrOf(own, Number(props.totals.sales))), why: '' }
 })

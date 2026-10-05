@@ -41,11 +41,7 @@ const filtering = computed(() =>
 
 <template>
   <section>
-    <h2 class="text-h3 font-semibold text-primary">Реклама по {{ groupDef.by }}</h2>
-    <p class="mb-md mt-xs max-w-prose text-tiny text-muted">
-      Расход — по статистике кампаний за выбранный период. ДРР — реклама за рассчитанные дни к
-      продажам за те же дни; доля — от всей рекламы кабинета.
-    </p>
+    <h2 class="mb-md text-h3 font-semibold text-primary">Реклама по {{ groupDef.by }}</h2>
     <AdsSkuToolbar
       v-model:query="store.filters.query"
       v-model:subject="store.filters.subject"

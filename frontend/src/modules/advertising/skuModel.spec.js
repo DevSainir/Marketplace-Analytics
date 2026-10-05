@@ -62,4 +62,15 @@ describe('ДРР от продаж', () => {
 
     expect(row.drr).toBeCloseTo(0.3)
   })
+
+  it('is withheld when returns outweighed sales, rather than negative', () => {
+    // «Демо», 19.06.2024: 1 520 of advertising, sales net of returns −14 870.
+    const [row] = groupRows(
+      toRows([{ ...SKUS[0], spend_settled: '1520', sales: '-14870' }]),
+      'sku',
+      1520,
+    )
+
+    expect(row.drr).toBeNull()
+  })
 })

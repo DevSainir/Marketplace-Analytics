@@ -37,7 +37,6 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
       <PeriodSelector
         :from="store.dateFrom"
         :to="store.dateTo"
-        :preset-end="store.span?.date_to ?? ''"
         :history-from="store.span?.date_from ?? ''"
         @range="store.setPeriod($event.from, $event.to)"
       />
@@ -81,8 +80,8 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
             :show-bonus="store.bonusVisible"
           />
           <p v-if="store.bids.untyped" class="text-tiny text-muted">
-            Ещё {{ formatMoney(store.bids.untyped, store.currency) }} — кампании, чьи настройки ещё
-            не загружены: вид и зону для них не определить.
+            Ещё {{ formatMoney(store.bids.untyped, store.currency) }} не разнесено по видам: WB не
+            отдал настройки этих кампаний.
           </p>
         </div>
       </section>

@@ -48,7 +48,7 @@ const legend = computed(() => [
 /**
  * Per-day ДРР from the seller's own money — the day's spend minus WB's bonus,
  * whatever the bonus switch shows — over the day's sales. `null` past the
- * settlement or on a day without sales.
+ * settlement, and on a day whose returns outweighed its sales.
  */
 const drr = computed(() =>
   props.days.map((d) =>
