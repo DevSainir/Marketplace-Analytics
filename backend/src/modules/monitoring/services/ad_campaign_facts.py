@@ -94,6 +94,13 @@ class AdCampaignFacts(NamedTuple):
     spend: list[AdCampaignSpend]
     search: list[AdCampaignSearch]
     bonus: list[AdCampaignBonus]
+    #: The currencies the window's spend was billed in — the same answer as
+    #: :func:`~.sku_day_facts.load_ad_currencies`, read off these rows rather
+    #: than by a second pass over the window.
+    currencies: tuple[str, ...] = ()
+    #: Whether WB's funding ledger has ANY row for these campaigns in the
+    #: window — what separates «бонусов не было» from «журнал не собран».
+    ledger_known: bool = False
 
 
 async def load_ad_campaign_facts(
@@ -123,6 +130,7 @@ async def load_ad_campaign_facts(
                 AdvertisingStatDaily.campaign_id,
                 AdvertisingStatDaily.stat_date,
                 AdvertisingStatDaily.nm_id,
+                AdvertisingStatDaily.currency,
                 func.sum(AdvertisingStatDaily.spend),
             )
             .where(
@@ -134,16 +142,18 @@ async def load_ad_campaign_facts(
                 AdvertisingStatDaily.campaign_id,
                 AdvertisingStatDaily.stat_date,
                 AdvertisingStatDaily.nm_id,
+                AdvertisingStatDaily.currency,
             )
         )
     ).all()
     spend = [
         AdCampaignSpend(int(cid), day, int(nm), Decimal(total))
-        for cid, day, nm, total in spend_rows
+        for cid, day, nm, _currency, total in spend_rows
         if total
     ]
     if not spend:
         return AdCampaignFacts(campaigns=[], spend=[], search=[], bonus=[])
+    spend_labels = {str(currency or "") for *_key, currency, total in spend_rows if total}
     campaign_ids = sorted({row.campaign_id for row in spend})
 
     search_rows = (
@@ -181,17 +191,80 @@ async def load_ad_campaign_facts(
         for cid, payment, bid, in_search, in_shelves in meta_rows
     ]
 
+    ledger = await _ledger(session, campaign_ids=campaign_ids, date_from=date_from, date_to=date_to)
     bonus = await _scaled_bonus(
-        session, spend=spend, campaign_ids=campaign_ids, date_from=date_from, date_to=date_to
+        session, spend=spend, ledger=ledger, date_from=date_from, date_to=date_to
     )
-    return AdCampaignFacts(campaigns=campaigns, spend=spend, search=search, bonus=bonus)
+    # Rows from before the campaign label existed carry none; for those the
+    # ledger's own label speaks — its bonus rows excepted, as in
+    # `load_ad_currencies`, whose answer this must stay equal to.
+    currencies = spend_labels - {""}
+    if "" in spend_labels:
+        currencies |= {
+            row.currency
+            for row in ledger
+            if row.currency and row.payment_type not in BONUS_PAYMENT_TYPES
+        }
+    return AdCampaignFacts(
+        campaigns=campaigns,
+        spend=spend,
+        search=search,
+        bonus=bonus,
+        currencies=tuple(sorted(currencies)),
+        ledger_known=bool(ledger),
+    )
+
+
+class _LedgerRow(NamedTuple):
+    campaign_id: int
+    stat_date: date
+    payment_type: str
+    currency: str
+    amount: Decimal
+
+
+async def _ledger(
+    session: AsyncSession, *, campaign_ids: list[int], date_from: date, date_to: date
+) -> list[_LedgerRow]:
+    """Every write-off of these campaigns in the window, whoever funded it.
+
+    One read serves three answers — the bonus, whether the ledger covers the
+    window at all, and the currencies it bills in — which used to be three
+    passes over the same table.
+    """
+    rows = (
+        await session.execute(
+            select(
+                AdvertisingWriteOffDaily.campaign_id,
+                AdvertisingWriteOffDaily.stat_date,
+                AdvertisingWriteOffDaily.payment_type,
+                AdvertisingWriteOffDaily.currency,
+                func.sum(AdvertisingWriteOffDaily.amount),
+            )
+            .where(
+                AdvertisingWriteOffDaily.campaign_id.in_(campaign_ids),
+                AdvertisingWriteOffDaily.stat_date >= date_from,
+                AdvertisingWriteOffDaily.stat_date <= date_to,
+            )
+            .group_by(
+                AdvertisingWriteOffDaily.campaign_id,
+                AdvertisingWriteOffDaily.stat_date,
+                AdvertisingWriteOffDaily.payment_type,
+                AdvertisingWriteOffDaily.currency,
+            )
+        )
+    ).all()
+    return [
+        _LedgerRow(int(cid), day, str(payment), str(currency or ""), Decimal(amount or 0))
+        for cid, day, payment, currency, amount in rows
+    ]
 
 
 async def _scaled_bonus(
     session: AsyncSession,
     *,
     spend: list[AdCampaignSpend],
-    campaign_ids: list[int],
+    ledger: list[_LedgerRow],
     date_from: date,
     date_to: date,
 ) -> list[AdCampaignBonus]:
@@ -201,26 +274,15 @@ async def _scaled_bonus(
     cards over its spend on every card. For a campaign that only ever advertised
     this кабинет — every campaign seen on prod — it is exactly one.
     """
-    ledger = (
-        await session.execute(
-            select(
-                AdvertisingWriteOffDaily.campaign_id,
-                AdvertisingWriteOffDaily.stat_date,
-                func.sum(AdvertisingWriteOffDaily.amount),
-            )
-            .where(
-                AdvertisingWriteOffDaily.campaign_id.in_(campaign_ids),
-                AdvertisingWriteOffDaily.stat_date >= date_from,
-                AdvertisingWriteOffDaily.stat_date <= date_to,
-                AdvertisingWriteOffDaily.payment_type.in_(sorted(BONUS_PAYMENT_TYPES)),
-            )
-            .group_by(AdvertisingWriteOffDaily.campaign_id, AdvertisingWriteOffDaily.stat_date)
-        )
-    ).all()
-    if not ledger:
+    charges: dict[tuple[int, date], Decimal] = {}
+    for entry in ledger:
+        if entry.payment_type in BONUS_PAYMENT_TYPES and entry.amount:
+            key = (entry.campaign_id, entry.stat_date)
+            charges[key] = charges.get(key, Decimal(0)) + entry.amount
+    if not charges:
         return []
 
-    charged = sorted({int(cid) for cid, _day, _amount in ledger})
+    charged = sorted({campaign_id for campaign_id, _day in charges})
     whole = {
         int(cid): Decimal(total)
         for cid, total in (
@@ -241,13 +303,12 @@ async def _scaled_bonus(
         mine[row.campaign_id] = mine.get(row.campaign_id, Decimal(0)) + row.spend
 
     out: list[AdCampaignBonus] = []
-    for cid, day, amount in ledger:
-        campaign_id = int(cid)
+    for (campaign_id, day), amount in charges.items():
         total = whole.get(campaign_id)
-        if not total or not amount:
+        if not total:
             continue
         share = min(mine.get(campaign_id, Decimal(0)) / total, Decimal(1))
-        scaled = (Decimal(amount) * share).quantize(_CENT)
+        scaled = (amount * share).quantize(_CENT)
         if scaled:
             out.append(AdCampaignBonus(campaign_id, day, scaled))
     return out

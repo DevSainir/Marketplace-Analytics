@@ -4,9 +4,10 @@ Money is a ``Decimal`` in the response's ``currency``. ``None`` and ``0`` stay
 apart everywhere: ``sales`` is ``None`` for a day or article the settlement has
 not reached yet, which is «ещё не рассчитано», not «продаж не было».
 
-ДРР is deliberately NOT a field. Every row carries the two figures it is
-divided from — ``spend_settled`` and ``sales`` — so the page can re-derive it
-for a group or a filter from summed money, never as a mean of ratios.
+ДРР is deliberately NOT a field. Every row carries the figures it is divided
+from — ``spend_settled - bonus_settled`` over ``sales`` — so the page can
+re-derive it for a group or a filter from summed money, never as a mean of
+ratios.
 """
 
 from __future__ import annotations
@@ -46,8 +47,11 @@ class AdvertisingTotals(BaseModel):
     spend: Decimal
     #: The part WB's bonus pool paid («Кэшбэк» in the ledger).
     bonus: Decimal
-    #: Spend on the days the settlement covers — ДРР's numerator.
+    #: Spend on the days the settlement covers.
     spend_settled: Decimal
+    #: WB's bonus on those same days. ДРР's numerator is
+    #: ``spend_settled - bonus_settled``: the seller's own money.
+    bonus_settled: Decimal
     #: Sales minus returns at the seller's price, over the settled days.
     sales: Decimal | None
 
@@ -80,6 +84,7 @@ class AdvertisingSku(BaseModel):
     spend: Decimal
     bonus: Decimal
     spend_settled: Decimal
+    bonus_settled: Decimal
     sales: Decimal | None
     #: Ordered units from WB's funnel; ``None`` when the funnel does not cover the window.
     orders: int | None

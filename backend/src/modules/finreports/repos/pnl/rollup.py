@@ -33,6 +33,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from datetime import date
+from decimal import Decimal
 from typing import Any, cast
 
 from sqlalchemy import CursorResult, delete, func, literal, select
@@ -337,6 +338,34 @@ class SettlementRollup:
             )
             for row in rows
         ]
+
+    async def sku_day_sales(
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+    ) -> list[tuple[date, int, Decimal]]:
+        """Return ``(settlement day, nm_id, sales)`` — sales minus returns at the seller's price.
+
+        The one figure a reader of advertising divides by, read on its own. The
+        full SKU-day cut (:meth:`aggregate_sku_days`) sums forty columns per
+        cell and then builds each into an aggregate; over «Демо»'s whole
+        history that was ~1 s of a 2 s page, against ~0.2 s for this column
+        alone (measured 2026-10-05). Same rows, same freshness check, so the
+        two cannot disagree.
+        """
+        await self.ensure_fresh(workspace_id=workspace_id, date_from=date_from, date_to=date_to)
+        rollup = SettlementDailyRollup
+        sales = func.sum(rollup.sales_before_spp) - func.sum(rollup.returns_before_spp)
+        stmt = (
+            select(rollup.rr_dt, rollup.nm_id, sales)
+            .where(
+                rollup.workspace_id == workspace_id,
+                rollup.rr_dt >= date_from,
+                rollup.rr_dt <= date_to,
+                rollup.nm_id != 0,
+            )
+            .group_by(rollup.rr_dt, rollup.nm_id)
+        )
+        rows = (await self._session.execute(stmt)).all()
+        return [(row[0], int(row[1]), Decimal(row[2] or 0)) for row in rows]
 
     async def net_units(
         self,

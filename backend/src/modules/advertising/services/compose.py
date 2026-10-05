@@ -86,6 +86,7 @@ def compose(
     nm_spend: dict[int, Decimal] = defaultdict(lambda: _ZERO)
     nm_bonus: dict[int, Decimal] = defaultdict(lambda: _ZERO)
     nm_settled: dict[int, Decimal] = defaultdict(lambda: _ZERO)
+    nm_bonus_settled: dict[int, Decimal] = defaultdict(lambda: _ZERO)
 
     for key, spend in spend_cd.items():
         bonus = bonus_cd.get(key, _ZERO)
@@ -106,6 +107,8 @@ def compose(
                 nm_settled[nm_id] += amount
         for nm_id, part in split_by_weight(bonus, by_nm[key]).items():
             nm_bonus[nm_id] += part
+            if settled:
+                nm_bonus_settled[nm_id] += part
 
     sales_by_nm: dict[int, Decimal] = defaultdict(lambda: _ZERO)
     sales_by_day: dict[date, Decimal] = defaultdict(lambda: _ZERO)
@@ -118,6 +121,7 @@ def compose(
         spend=sum(day_spend.values(), _ZERO),
         bonus=sum(day_bonus.values(), _ZERO),
         spend_settled=sum(nm_settled.values(), _ZERO),
+        bonus_settled=sum(nm_bonus_settled.values(), _ZERO),
         sales=sum(sales_by_nm.values(), _ZERO) if has_sales else None,
     )
     zones = [
@@ -146,6 +150,7 @@ def compose(
             spend=nm_spend.get(nm_id, _ZERO),
             bonus=nm_bonus.get(nm_id, _ZERO),
             settled=nm_settled.get(nm_id, _ZERO),
+            bonus_settled=nm_bonus_settled.get(nm_id, _ZERO),
             sales=sales_by_nm.get(nm_id, _ZERO) if has_sales else None,
             orders=None if orders is None else orders.get(nm_id, 0),
         )
@@ -182,6 +187,7 @@ def _sku_row(
     spend: Decimal,
     bonus: Decimal,
     settled: Decimal,
+    bonus_settled: Decimal,
     sales: Decimal | None,
     orders: int | None,
 ) -> AdvertisingSku:
@@ -194,6 +200,7 @@ def _sku_row(
         spend=spend,
         bonus=bonus,
         spend_settled=settled,
+        bonus_settled=bonus_settled,
         sales=sales,
         orders=orders,
     )

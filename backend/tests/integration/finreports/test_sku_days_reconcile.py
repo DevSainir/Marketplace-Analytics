@@ -98,3 +98,22 @@ async def test_cost_of_goods_is_the_cost_price_times_net_units(
     by_day = {cell.day: cell for cell in days.cells if cell.nm_id == SKU_A}
     assert by_day[WINDOW_FROM].cogs == COST_A
     assert by_day[WINDOW_TO].cogs == -COST_A
+
+
+async def test_the_lean_sales_cut_matches_the_full_cut_cell_for_cell(
+    db_session: AsyncSession, seeded: None
+) -> None:
+    """«ДРР от продаж» divides by the lean cut; it must be the full cut's revenue exactly.
+
+    The lean cut exists because building the full one over a long window was
+    most of the advertising page's load time. Two reads of one figure are only
+    safe while they agree, so they are compared cell for cell, no tolerance.
+    """
+    window = {"workspace_id": WORKSPACE, "date_from": WINDOW_FROM, "date_to": WINDOW_TO}
+    full = await _service(db_session).get_sku_days(**window)
+
+    lean = await _service(db_session).get_sku_day_sales(**window)
+
+    assert {(c.nm_id, c.day): c.revenue_seller for c in lean} == {
+        (c.nm_id, c.day): c.revenue_seller for c in full.cells
+    }

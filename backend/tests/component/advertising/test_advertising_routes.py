@@ -58,7 +58,11 @@ class _StubAdvertisingService:
             ad_currencies=["KGS"],
             bonus_known=True,
             totals=AdvertisingTotals(
-                spend=Decimal("100"), bonus=Decimal("0"), spend_settled=Decimal("0"), sales=None
+                spend=Decimal("100"),
+                bonus=Decimal("0"),
+                spend_settled=Decimal("0"),
+                bonus_settled=Decimal("0"),
+                sales=None,
             ),
             zones=[],
             days=[],

@@ -16,7 +16,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.monitoring.contract import load_ad_campaign_facts
+from src.modules.monitoring.contract import load_ad_campaign_facts, load_ad_currencies
 from src.modules.monitoring.models import (
     AdvertisingSearchStatDaily,
     AdvertisingStatDaily,
@@ -155,3 +155,34 @@ async def test_a_shared_campaigns_bonus_is_cut_to_our_share_of_its_spend(
     )
 
     assert [row.amount for row in facts.bonus] == [Decimal("20.00")]
+
+
+async def test_currencies_and_ledger_coverage_match_the_standalone_loaders(
+    db_session: AsyncSession,
+) -> None:
+    """The facts answer «which currencies» and «is the ledger there» as the old loaders did.
+
+    The page used to ask `load_ad_currencies` and `ad_bonus_coverage` in two
+    more passes over the same tables; the facts now carry both. A row from
+    before the campaign label existed («») falls back to the ledger's cash
+    label, never to its bonus one.
+    """
+    mine = await _workspace(db_session, "Мой", MINE)
+    unlabelled = _spend(MY_CAMPAIGN, MINE, "100")
+    unlabelled.currency = ""
+    labelled = _spend(THEIR_CAMPAIGN, MINE, "40")
+    labelled.currency = "KGS"
+    cash = _bonus(MY_CAMPAIGN, "60")
+    cash.payment_type = "Баланс"
+    cash.currency = "RUB"
+    bonus = _bonus(MY_CAMPAIGN, "10")
+    bonus.currency = "BYN"
+    db_session.add_all([unlabelled, labelled, cash, bonus])
+    await db_session.flush()
+    window = {"workspace_id": mine.id, "date_from": DAY, "date_to": DAY}
+
+    facts = await load_ad_campaign_facts(db_session, **window)
+
+    assert list(facts.currencies) == await load_ad_currencies(db_session, **window)
+    assert list(facts.currencies) == ["KGS", "RUB"]
+    assert facts.ledger_known is True

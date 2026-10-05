@@ -108,6 +108,14 @@ class PnlRepository:
             workspace_id=workspace_id, date_from=date_from, date_to=date_to
         )
 
+    async def sku_day_sales(
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+    ) -> list[tuple[date, int, Decimal]]:
+        """Return ``(settlement day, nm_id, sales)`` off the rollup — see the rollup's method."""
+        return await self._rollup.sku_day_sales(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
+
     async def aggregate_from_detail(
         self,
         *,

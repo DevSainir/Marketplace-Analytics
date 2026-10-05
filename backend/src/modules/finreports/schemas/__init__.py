@@ -39,7 +39,7 @@ from src.modules.finreports.schemas.size_report import (
     PnlSizeRow,
     PnlSizesResponse,
 )
-from src.modules.finreports.schemas.sku_days import PnlSkuDay, PnlSkuDays
+from src.modules.finreports.schemas.sku_days import PnlSkuDay, PnlSkuDays, PnlSkuDaySales
 from src.modules.finreports.schemas.sku_report import (
     PnlDashboard,
     PnlSkuReportResponse,
@@ -71,6 +71,7 @@ __all__ = [
     "PnlSizeRow",
     "PnlSizesResponse",
     "PnlSkuDay",
+    "PnlSkuDaySales",
     "PnlSkuDays",
     "PnlSkuReportResponse",
     "PnlSkuRow",

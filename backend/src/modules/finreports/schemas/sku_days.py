@@ -46,3 +46,15 @@ class PnlSkuDays(BaseModel):
     #: The window's settlement currency; ``""`` when nothing settled in it.
     currency: str
     cells: list[PnlSkuDay]
+
+
+class PnlSkuDaySales(BaseModel):
+    """One article's settled sales on one day — the lean cut, for a ratio's denominator.
+
+    The same ``revenue_seller`` as :class:`PnlSkuDay`, without the payout and
+    the cost that make that cut expensive to build over a long window.
+    """
+
+    nm_id: int
+    day: date
+    revenue_seller: Decimal

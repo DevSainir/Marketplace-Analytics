@@ -20,7 +20,7 @@ from src.modules.finreports.repos import (
     SkuExclusionRepository,
 )
 from src.modules.finreports.schemas.size_report import PnlSizesResponse
-from src.modules.finreports.schemas.sku_days import PnlSkuDays
+from src.modules.finreports.schemas.sku_days import PnlSkuDays, PnlSkuDaySales
 from src.modules.finreports.schemas.sku_report import PnlSkuReportResponse, PnlSkuRow
 from src.modules.finreports.services.cost_price_workbook import build_pnl_workbook
 from src.modules.finreports.services.pnl.size_report import build_size_rows
@@ -85,6 +85,26 @@ class SkuReportService:
             else {}
         )
         return build_sku_days(aggregates, costs=costs, currency=currency)
+
+    async def get_sku_day_sales(
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+    ) -> list[PnlSkuDaySales]:
+        """Return every settled SKU-day's sales — the lean cut of :meth:`get_sku_days`.
+
+        For a reader that only divides by sales («ДРР от продаж»): no payout, no
+        cost, so it costs a fifth of the full cut over a long window.
+
+        Args:
+            workspace_id: Owning workspace.
+            date_from: Inclusive settlement-date start.
+            date_to: Inclusive settlement-date end.
+        """
+        rows = await self._pnl.sku_day_sales(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
+        return [
+            PnlSkuDaySales(nm_id=nm_id, day=day, revenue_seller=sales) for day, nm_id, sales in rows
+        ]
 
     async def get_sizes(
         self, *, workspace_id: uuid.UUID, nm_id: int, date_from: date, date_to: date

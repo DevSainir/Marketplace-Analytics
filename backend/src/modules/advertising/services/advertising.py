@@ -18,11 +18,9 @@ from src.modules.advertising.schemas import AdvertisingResponse, AdvertisingSpan
 from src.modules.advertising.services.compose import SaleDay, compose
 from src.modules.finreports.contract import PnlService, SkuReportService
 from src.modules.monitoring.contract import (
-    ad_bonus_coverage,
     ad_coverage,
     funnel_coverage,
     load_ad_campaign_facts,
-    load_ad_currencies,
     load_orders_by_nm,
     load_workspace_catalog,
 )
@@ -56,38 +54,33 @@ class AdvertisingService:
     ) -> AdvertisingResponse:
         """Return every figure the page draws for one window.
 
-        ДРР is «от продаж» in the strict sense: settled sales (minus returns, at
-        the seller's price — the base the P&L takes every share of), against the
-        spend of the SAME settled days. Days past the settlement have spend and
-        no sales, and are left out of the ratio rather than divided by nothing.
+        ДРР is «от продаж» in the strict sense: the seller's own spend — WB's
+        bonus taken off — on the settled days, over the settled sales of the
+        SAME days (minus returns, at the seller's price, the base the P&L takes
+        every share of). Days past the settlement have spend and no sales, and
+        are left out of the ratio rather than divided by nothing.
         """
         facts = await load_ad_campaign_facts(
             session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
         )
-        ad_currencies = await load_ad_currencies(
-            session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
-        )
-        bonus_first, _ = await ad_bonus_coverage(
-            session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
-        )
+        ad_currencies = list(facts.currencies)
 
         settled = await self._pnl.get_settled_span(workspace_id=workspace_id)
         settled_to = min(settled[1], date_to) if settled and settled[1] >= date_from else None
-        sku_days = (
-            await self._skus.get_sku_days(
-                workspace_id=workspace_id, date_from=date_from, date_to=settled_to
-            )
-            if settled_to is not None
-            else None
-        )
+        # The lean cut: sales alone. The full SKU-day cut builds forty columns
+        # and a cost per cell and was most of this page's load time over a
+        # long window (1.2 s of 2.1 s on «Демо»'s whole history).
         sales = (
-            [SaleDay(cell.nm_id, cell.day, cell.revenue_seller) for cell in sku_days.cells]
-            if sku_days
+            [
+                SaleDay(cell.nm_id, cell.day, cell.revenue_seller)
+                for cell in await self._skus.get_sku_day_sales(
+                    workspace_id=workspace_id, date_from=date_from, date_to=settled_to
+                )
+            ]
+            if settled_to is not None
             else []
         )
-        currency = (sku_days.currency if sku_days else "") or (
-            await self._pnl.settlement_currency(workspace_id=workspace_id)
-        )
+        currency = await self._pnl.settlement_currency(workspace_id=workspace_id)
 
         funnel_first, _ = await funnel_coverage(
             session, workspace_id=workspace_id, date_from=date_from, date_to=date_to
@@ -110,7 +103,7 @@ class AdvertisingService:
             settled_to=settled_to,
             currency=currency or (ad_currencies[0] if len(ad_currencies) == 1 else ""),
             ad_currencies=ad_currencies,
-            bonus_known=bonus_first is not None,
+            bonus_known=facts.ledger_known,
             totals=composed.totals,
             zones=composed.zones,
             days=composed.days,
