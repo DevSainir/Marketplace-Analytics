@@ -3,8 +3,8 @@
  * «Реклама» — /advertising.
  *
  * Top to bottom: the toolbar (period and the bonus switch, which governs the
- * whole page); «Куда ушли деньги» — one block of three full-width rows: the
- * headline cards, the zone tree, the zone pies; the daily chart with ДРР; the
+ * whole page); «Куда ушли деньги» — the headline strip over one card per kind
+ * of campaign; the daily chart with ДРР; the
  * per-article table.
  *
  * Internal-only while it is being built (route meta and the API both say so).
@@ -12,12 +12,12 @@
 import { computed, onMounted } from 'vue'
 
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
+import { formatMoney } from '@/core/utils/format'
 import { dateRu } from '@/modules/advertising/adsFormat'
+import AdsBidCards from '@/modules/advertising/components/AdsBidCards.vue'
 import AdsBonusSwitch from '@/modules/advertising/components/AdsBonusSwitch.vue'
 import AdsDailyChart from '@/modules/advertising/components/AdsDailyChart.vue'
 import AdsKpis from '@/modules/advertising/components/AdsKpis.vue'
-import AdsZonePies from '@/modules/advertising/components/AdsZonePies.vue'
-import AdsZoneTable from '@/modules/advertising/components/AdsZoneTable.vue'
 import { useAdvertisingStore } from '@/modules/advertising/store'
 import AdvertisingSkuSection from '@/modules/advertising/views/AdvertisingSkuSection.vue'
 
@@ -73,8 +73,8 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
       <section>
         <h2 class="text-h3 font-semibold text-primary">Куда ушли деньги</h2>
         <p class="mb-md mt-xs max-w-prose text-tiny text-muted">
-          Расход по статистике кампаний, разложенный по типу оплаты, ставке и зоне показа. Поиск
-          измерен по поисковым кластерам, остаток кампании — полки или каталог.
+          Расход по статистике кампаний — по виду кампании и зоне показа. Поиск измерен по поисковым
+          кластерам, всё сверх него — каталог у поисковых кампаний и полки у прочих.
         </p>
         <div class="flex flex-col gap-md">
           <AdsKpis
@@ -85,12 +85,15 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
             :settled-to="settledTo"
             :drr-comparable="store.drrComparable"
           />
-          <AdsZoneTable
-            :rows="store.zones"
+          <AdsBidCards
+            :cards="store.bids.cards"
             :currency="store.currency"
             :show-bonus="store.bonusVisible"
           />
-          <AdsZonePies v-if="store.pies.length" :pies="store.pies" :currency="store.currency" />
+          <p v-if="store.bids.untyped" class="text-tiny text-muted">
+            Ещё {{ formatMoney(store.bids.untyped, store.currency) }} — кампании, чьи настройки ещё
+            не загружены: вид и зону для них не определить.
+          </p>
         </div>
       </section>
 

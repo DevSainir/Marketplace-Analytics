@@ -15,7 +15,7 @@ import { computed, reactive, ref } from 'vue'
 import { extractErrorMessage } from '@/core/api/axios'
 import { presetRange } from '@/core/utils/calendarModel'
 import { fetchAdvertising, fetchAdvertisingSpan } from '@/modules/advertising/api'
-import { zonePies, zoneRows } from '@/modules/advertising/zoneModel'
+import { bidCards } from '@/modules/advertising/zoneModel'
 
 /** Default window: thirty days, the span an advertising budget is reviewed over. */
 const DEFAULT_DAYS = 30
@@ -65,8 +65,8 @@ export const useAdvertisingStore = defineStore('advertising', () => {
   const drrComparable = computed(() =>
     (data.value?.ad_currencies ?? []).every((code) => code === currency.value),
   )
-  const zones = computed(() => zoneRows(data.value?.zones ?? []))
-  const pies = computed(() => zonePies(data.value?.zones ?? []))
+  /** The «Куда ушли деньги» cards, and the spend no card can hold. */
+  const bids = computed(() => bidCards(data.value?.zones ?? []))
 
   async function load() {
     inFlight?.abort()
@@ -146,8 +146,7 @@ export const useAdvertisingStore = defineStore('advertising', () => {
     hasBonus,
     bonusVisible,
     drrComparable,
-    zones,
-    pies,
+    bids,
     init,
     load,
     setPeriod,
