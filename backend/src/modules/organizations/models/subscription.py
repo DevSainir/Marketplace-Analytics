@@ -44,7 +44,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, func
+from sqlalchemy import DDL, DateTime, ForeignKey, Integer, event, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
@@ -103,4 +103,100 @@ class Subscription(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+
+# ---------------------------------------------------------------------------
+# The change trail, enforced by the database.
+#
+# There is no renewal screen: a renewal is done by hand, and until 2026-10-06
+# "by hand" meant an `UPDATE` in psql. That moved `expires_at` and nothing else
+# — the ORM's `onupdate` never ran, so `updated_at` still said the activation
+# day, and no audit row was written — so when NEVA's term ran out a week early by
+# the customer's count, the database could not say it had ever been extended.
+#
+# So the record is a trigger rather than a call in a service: it fires for the
+# renewal script, for the ORM, and for the next person at a psql prompt alike.
+# A caller that knows who it is says so first with
+# `SET LOCAL app.audit_actor = '<email>'`; without it the row is still written,
+# with no actor and `source = 'sql'`, which is itself the finding.
+#
+# INSERT is not recorded: activation already writes ORG_ACTIVATED with the
+# redeemer. An UPDATE that changes none of the term's fields writes nothing.
+#
+# Kept in step with `alembic/versions/b7e4c2a90d15_subscription_change_trail.py`,
+# which issues the same DDL for the migrated path; see the audit model for why
+# the guard has to live in both places.
+# ---------------------------------------------------------------------------
+_TRAIL_FUNCTION = DDL(  # type: ignore[no-untyped-call]
+    """
+    CREATE OR REPLACE FUNCTION organizations.record_subscription_change()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    DECLARE
+        actor text := nullif(current_setting('app.audit_actor', true), '');
+        after_term jsonb := '{}'::jsonb;
+    BEGIN
+        IF TG_OP = 'UPDATE' THEN
+            IF NEW.expires_at IS NOT DISTINCT FROM OLD.expires_at
+               AND NEW.started_at IS NOT DISTINCT FROM OLD.started_at
+               AND NEW.grace_days IS NOT DISTINCT FROM OLD.grace_days
+               AND NEW.max_workspaces IS NOT DISTINCT FROM OLD.max_workspaces
+               AND NEW.max_managers IS NOT DISTINCT FROM OLD.max_managers THEN
+                RETURN NEW;
+            END IF;
+            NEW.updated_at := now();
+            after_term := jsonb_build_object(
+                'expires_at', NEW.expires_at,
+                'grace_days', NEW.grace_days,
+                'max_workspaces', NEW.max_workspaces,
+                'max_managers', NEW.max_managers
+            );
+        END IF;
+
+        INSERT INTO organizations.audit_log (
+            id, occurred_at, event, actor_email, organization_id,
+            target_type, target_id, metadata
+        )
+        VALUES (
+            gen_random_uuid(),
+            now(),
+            'SUBSCRIPTION_CHANGED',
+            actor,
+            OLD.organization_id,
+            'subscription',
+            OLD.id::text,
+            after_term || jsonb_build_object(
+                'operation', lower(TG_OP),
+                'previous_expires_at', OLD.expires_at,
+                'previous_grace_days', OLD.grace_days,
+                'previous_max_workspaces', OLD.max_workspaces,
+                'previous_max_managers', OLD.max_managers,
+                'source', CASE WHEN actor IS NULL THEN 'sql' ELSE 'tool' END,
+                'db_user', session_user,
+                'application_name', current_setting('application_name', true)
+            )
+        );
+
+        IF TG_OP = 'DELETE' THEN
+            RETURN OLD;
+        END IF;
+        RETURN NEW;
+    END;
+    $$;
+    """
+)
+
+_TRAIL_TRIGGER = DDL(  # type: ignore[no-untyped-call]
+    "CREATE TRIGGER subscription_change_trail "
+    "BEFORE UPDATE OR DELETE ON organizations.subscriptions "
+    "FOR EACH ROW EXECUTE FUNCTION organizations.record_subscription_change()"
+)
+
+for _ddl in (_TRAIL_FUNCTION, _TRAIL_TRIGGER):
+    event.listen(
+        Subscription.__table__,
+        "after_create",
+        _ddl.execute_if(dialect="postgresql"),
     )

@@ -72,12 +72,20 @@ def _isolated_redis(redis_client: Any) -> None:
 
 
 async def _entries(session: AsyncSession) -> list[Any]:
-    """Return every audit row written so far, oldest first."""
+    """Return every route-written audit row so far, oldest first.
+
+    ``SUBSCRIPTION_CHANGED`` is left out: a database trigger writes it, and the
+    race tests in this directory commit for real and clean up by deleting their
+    organisations, so the cascade leaves one such row behind in the test
+    database for good — the table refuses to forget, which is its point. That
+    trail is pinned in ``test_subscription_change_trail.py``.
+    """
     result = await session.execute(
         sa.text(
             "SELECT event, actor_user_id, actor_email, organization_id, "
             "target_type, target_id, ip_address, metadata "
-            "FROM organizations.audit_log ORDER BY id"
+            "FROM organizations.audit_log "
+            "WHERE event <> 'SUBSCRIPTION_CHANGED' ORDER BY id"
         )
     )
     return list(result.all())

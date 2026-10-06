@@ -34,6 +34,7 @@ export const EVENT_LABELS = {
   ACTIVATION_CODE_ISSUED: 'Выдан ключ активации',
   WORKSPACE_GUEST_GRANTED: 'Открыт гостевой доступ к кабинету',
   WORKSPACE_GUEST_REVOKED: 'Закрыт гостевой доступ к кабинету',
+  SUBSCRIPTION_CHANGED: 'Изменена подписка',
 }
 
 /**
@@ -61,6 +62,7 @@ const ROLE_LABELS = {
   ACTIVATION_CODE_ISSUED: { actor: 'Кто выдал' },
   WORKSPACE_GUEST_GRANTED: { actor: 'Кто открыл' },
   WORKSPACE_GUEST_REVOKED: { actor: 'Кто закрыл' },
+  SUBSCRIPTION_CHANGED: { actor: 'Кто изменил' },
 }
 
 /** Events that take something away — the only ones worth colouring. */
@@ -85,6 +87,27 @@ export function fullMoment(iso) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+/** «14 сентября 2026» — a day, for a subscription's end. */
+function dayLabel(iso) {
+  return new Date(iso).toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+/**
+ * Who changed a subscription. The database writes these entries itself, so a
+ * change made straight in SQL arrives with no actor and `source: 'sql'` — a
+ * person did it, just not through the tool that would have named them, and
+ * «система» would say the opposite.
+ */
+function actorLabel(entry, meta) {
+  if (entry.actor_email) return entry.actor_email
+  if (entry.event === 'SUBSCRIPTION_CHANGED' && meta.source === 'sql') return 'вручную в базе'
+  return 'система'
 }
 
 /** «14.09, 17:42» — the compact stamp the list column carries. */
@@ -122,7 +145,7 @@ export function detailRows(entry) {
   const names = ROLE_LABELS[entry.event] ?? {}
 
   rows.push({ label: 'Когда', value: fullMoment(entry.occurred_at) })
-  rows.push({ label: names.actor ?? 'Кто', value: entry.actor_email || 'система' })
+  rows.push({ label: names.actor ?? 'Кто', value: actorLabel(entry, meta) })
 
   // Who it was ABOUT. Written into the metadata at the moment it happened, so
   // it still names a person after that account is deleted — which is the point
@@ -171,6 +194,13 @@ export function detailRows(entry) {
   if (meta.note) rows.push({ label: 'Заметка', value: meta.note })
   if (meta.subscription_days) {
     rows.push({ label: 'Подписка на', value: `${meta.subscription_days} дн` })
+  }
+  if (entry.event === 'SUBSCRIPTION_CHANGED') {
+    if (meta.expires_at) rows.push({ label: 'Действует до', value: dayLabel(meta.expires_at) })
+    if (meta.previous_expires_at && meta.previous_expires_at !== meta.expires_at) {
+      rows.push({ label: 'Было: до', value: dayLabel(meta.previous_expires_at) })
+    }
+    if (meta.operation === 'delete') rows.push({ label: 'Подписка', value: 'удалена' })
   }
   if (meta.revoked !== undefined)
     rows.push({ label: 'Сеансов завершено', value: `${meta.revoked}` })

@@ -90,6 +90,10 @@ class AuditEvent(enum.StrEnum):
     #: A dev opened, or closed, another company's кабинет to a head, read-only.
     WORKSPACE_GUEST_GRANTED = "WORKSPACE_GUEST_GRANTED"
     WORKSPACE_GUEST_REVOKED = "WORKSPACE_GUEST_REVOKED"
+    #: A subscription term was moved or removed. Written by a database trigger
+    #: on ``organizations.subscriptions``, never by application code, so that a
+    #: renewal done at a psql prompt is recorded too (see the subscription model).
+    SUBSCRIPTION_CHANGED = "SUBSCRIPTION_CHANGED"
 
 
 class AuditLogEntry(Base):

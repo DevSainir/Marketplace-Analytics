@@ -134,3 +134,41 @@ describe('detailRows — what actually changed', () => {
     expect(labelled(long, 'Ссылка действовала')).toBe('3 дн')
   })
 })
+
+describe('detailRows — a subscription change', () => {
+  it('shows the new end of the term and the old one', () => {
+    const rows = detailRows(
+      entry({
+        event: 'SUBSCRIPTION_CHANGED',
+        actor_email: 'dev@example.com',
+        metadata: {
+          operation: 'update',
+          source: 'tool',
+          previous_expires_at: '2026-10-05T06:27:28+00:00',
+          expires_at: '2026-10-19T06:27:28+00:00',
+        },
+      }),
+    )
+
+    expect(labelled(rows, 'Кто изменил')).toBe('dev@example.com')
+    expect(labelled(rows, 'Действует до')).toBe('19 октября 2026 г.')
+    expect(labelled(rows, 'Было: до')).toBe('5 октября 2026 г.')
+  })
+
+  it('says a change made straight in SQL was made by hand, not by the system', () => {
+    // The trigger writes these with no actor; a person was still behind it.
+    const rows = detailRows(
+      entry({
+        event: 'SUBSCRIPTION_CHANGED',
+        actor_email: null,
+        metadata: {
+          source: 'sql',
+          previous_expires_at: '2026-09-21T06:27:28+00:00',
+          expires_at: '2026-10-05T06:27:28+00:00',
+        },
+      }),
+    )
+
+    expect(labelled(rows, 'Кто изменил')).toBe('вручную в базе')
+  })
+})
