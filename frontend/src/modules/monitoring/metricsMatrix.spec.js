@@ -61,8 +61,15 @@ describe('traffic column structure', () => {
       running += column.span
     }
     expect(running).toBe(COLUMNS_PER_DAY)
-    // ...and their widths fill the day's grid.
-    expect(DRR_SALES_COLUMNS.reduce((sum, c) => sum + c.colspan, 0)).toBe(DAY_COLSPAN)
+    expect(DAY_COLSPAN).toBe(COLUMNS_PER_DAY)
+  })
+
+  it('names a column width for every leaf', () => {
+    // MetricsTable.css sizes the `<colgroup>` by these three classes; any
+    // other name would leave its column unsized.
+    expect(TRAFFIC_COLUMNS.every((c) => ['roomy', 'shelves', 'compact'].includes(c.width))).toBe(
+      true,
+    )
   })
 })
 

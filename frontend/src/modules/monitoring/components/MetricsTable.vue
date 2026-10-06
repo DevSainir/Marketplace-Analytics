@@ -45,6 +45,7 @@ import CampaignIdTip from '@/modules/monitoring/components/CampaignIdTip.vue'
 import { useCampaignLinks } from '@/modules/monitoring/campaignLinks'
 import MatrixMetricsRows from '@/modules/monitoring/components/MatrixMetricsRows.vue'
 import MatrixActionsRow from '@/modules/monitoring/components/MatrixActionsRow.vue'
+import MatrixColgroup from '@/modules/monitoring/components/MatrixColgroup.vue'
 import MatrixCommentsRow from '@/modules/monitoring/components/MatrixCommentsRow.vue'
 import MatrixDayBlocksRow from '@/modules/monitoring/components/MatrixDayBlocksRow.vue'
 import MetricsDayList from '@/modules/monitoring/components/MetricsDayList.vue'
@@ -150,6 +151,7 @@ watch(
         @mouseleave="hideAssocTip"
       >
         <table>
+          <MatrixColgroup :days="days" />
           <thead>
             <!-- Row 1: date, one label spanning each day's whole section. -->
             <tr>
@@ -165,7 +167,7 @@ watch(
                 <th
                   v-for="group in TRAFFIC_GROUPS"
                   :key="`${day.iso}:${group.label}`"
-                  :colspan="group.colspan ?? group.span"
+                  :colspan="group.span"
                   :rowspan="group.spansZones ? 2 : 1"
                 >
                   <a

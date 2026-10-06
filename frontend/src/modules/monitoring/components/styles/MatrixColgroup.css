@@ -1,0 +1,38 @@
+/*
+ * Styles for MatrixColgroup.vue.
+ */
+
+/* How a day's width is shared out between its leaves (`width` in
+   TRAFFIC_COLUMNS). `--day` is one day section: the scroll box minus the
+   frozen 12rem label column, over the days per screen — the same sum main.css
+   sizes the table by, so the columns add up to the table exactly.
+
+   - shelves: what «Руч. полки» needs on one line (66px of label, the cell's
+     padding and its divider), or its 12/84 share of a wide day;
+   - compact (CPC, «Общая», «Органика»): an 8/84 share of a wide day; on a
+     narrower one they hold 56px — «100,00%» with its padding and a divider —
+     for as long as the day can afford it, and below that an equal share;
+   - roomy («Единая ставка», «Руч. поиск»): everything left, 10/84 of a wide
+     day and more than compact wherever there is anything to spare.
+
+   On a wide screen that is the 10·10·10·10·12·8·8·8·8 split; at 1280px it
+   comes out all but even, which is the only split that fits there (the
+   figures go tighter too — see MatrixMetricsRows.css). */
+.matrix-col {
+  --day: calc((100cqw - 12rem) / var(--matrix-per-screen, 2));
+  --shelves: max(78px, var(--day) * 12 / 84);
+  --compact: max(var(--day) * 8 / 84, min(56px, (var(--day) - var(--shelves)) / 8));
+  --roomy: calc((var(--day) - var(--shelves) - 4 * var(--compact)) / 4);
+}
+.matrix-col-label {
+  width: 12rem;
+}
+.matrix-col--roomy {
+  width: var(--roomy);
+}
+.matrix-col--shelves {
+  width: var(--shelves);
+}
+.matrix-col--compact {
+  width: var(--compact);
+}

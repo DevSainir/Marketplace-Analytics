@@ -17,7 +17,10 @@
   max-height: none;
   overflow: auto;
   scrollbar-width: none;
+  /* MatrixColgroup sizes its columns off this box's width (cqw). */
+  container-type: inline-size;
 }
+
 .matrix-scroll::-webkit-scrollbar {
   display: none;
 }

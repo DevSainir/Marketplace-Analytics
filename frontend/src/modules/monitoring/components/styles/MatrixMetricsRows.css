@@ -145,3 +145,20 @@
   font-size: 14px;
   font-weight: 700;
 }
+
+/* A day too narrow for 56px compact columns (MatrixColgroup.css) shares its
+   width out evenly, ~53px a leaf at 1280px — less than «100,00%» needs with
+   the cell's 4px padding and a 2px divider. There the figures take 3px of
+   padding and proportional digits, which together buy ~5px: a leaf is a
+   stack of different metrics, never figures read digit-under-digit. The
+   bound is where an even share drops under 56px: 2 × (78 + 8 × 56) + 192. */
+@container (max-width: 1244px) {
+  .app-datatable--matrix tbody.matrix-metrics td:not(:first-child) {
+    padding-left: 3px;
+    padding-right: 3px;
+    font-variant-numeric: proportional-nums;
+  }
+  .app-datatable--matrix tbody.matrix-metrics td .matrix-figure--signed {
+    --matrix-figure-hang: 3px;
+  }
+}

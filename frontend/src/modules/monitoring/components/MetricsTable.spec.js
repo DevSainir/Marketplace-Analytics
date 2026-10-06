@@ -207,22 +207,24 @@ describe('table composition', () => {
     expect(new Set(spans)).toEqual(new Set([String(1 + days.length * DAY_COLSPAN)]))
   })
 
-  it('gives «Руч. полки» more grid columns than one zone, so its label fits on one line', () => {
-    // The room came from the unified «Каталог» column, removed because WB never
-    // reported a catalogue slice for единая ставка.
+  it('sizes every leaf of every day through the colgroup', () => {
+    // The table is laid out fixed, so the columns decide the widths: one for
+    // the labels, then one per leaf, «Руч. полки» on its own class.
     const wrapper = mount(MetricsTable, {
       props: {
-        days: [{ iso: DAY, label: '20.07.2026' }],
+        days: [
+          { iso: DAY, label: '20.07.2026' },
+          { iso: '2026-07-21', label: '21.07.2026' },
+        ],
         rows: [{ key: 'spend', label: 'Затраты', tone: null, group: 'traffic', cells: [] }],
-        priceRows: [{ key: 'seller_price', cells: [] }],
       },
       global: { stubs: { Teleport: true } },
     })
 
-    const header = wrapper.findAll('thead th').find((th) => th.text().includes('Руч. полки'))
+    const cols = wrapper.findAll('colgroup col')
 
-    const zone = wrapper.findAll('thead th').find((th) => th.text() === 'Каталог')
-    expect(Number(header.attributes('colspan'))).toBeGreaterThan(Number(zone.attributes('colspan')))
+    expect(cols).toHaveLength(1 + 2 * DAY_COLSPAN)
+    expect(cols.filter((col) => col.classes('matrix-col--shelves'))).toHaveLength(2)
   })
 
   it('forwards a day-note edit from the comments section to its own listener', async () => {
