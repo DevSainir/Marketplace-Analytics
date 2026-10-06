@@ -47,7 +47,7 @@ export function useMatrixColumns(days) {
         id: `${day.iso}:${column.key}`,
         key: column.key,
         zone: column.zone,
-        colspan: column.units ?? 1,
+        colspan: column.units,
         index: dayIndex * TRAFFIC_COLUMNS.length + columnIndex,
       })),
     ),

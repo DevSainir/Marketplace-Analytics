@@ -65,23 +65,30 @@ function isEditable(bucket, metric) {
  * Leaf columns of one day section, left to right. `key` = backend bucket.
  *
  * `units` is how many grid columns the leaf occupies. The table is laid out
- * fixed, so every grid column of a day is the same width; «Руч. полки» takes
- * two of them, which is what lets its group label sit on one line over a
- * single zone. That room came from the unified «Каталог» column, removed
- * 2026-10-05: WB never reported a catalogue slice for единая ставка, so the
- * column could only ever be empty.
+ * fixed, so every grid column of a day is the same width, and a plain leaf is
+ * four of them — fine enough to size a column by a quarter. «Руч. полки» takes
+ * six: just enough for its group label to sit on one line over a single zone.
+ * «Единая ставка» and «Руч. поиск» take five per zone — their figures
+ * («100,00%», «88,58%») were the tightest fit in the row. The room came from the unified
+ * «Каталог» column, removed 2026-10-05: WB never reported a catalogue slice
+ * for единая ставка, so the column could only ever be empty.
  */
 export const TRAFFIC_COLUMNS = [
-  { key: 'uni_search', zone: 'Поиск' },
-  { key: 'uni_shelves', zone: 'Полки' },
-  { key: 'manual_search', zone: 'Поиск' },
-  { key: 'manual_catalog', zone: 'Каталог' },
-  { key: 'manual_shelves', zone: 'Полки', units: 2 },
-  { key: 'cpc_search', zone: 'Поиск' },
-  { key: 'cpc_shelves', zone: 'Полки' },
-  { key: 'total', zone: 'Общая' },
-  { key: 'organic', zone: 'Органика' },
+  { key: 'uni_search', zone: 'Поиск', units: 5 },
+  { key: 'uni_shelves', zone: 'Полки', units: 5 },
+  { key: 'manual_search', zone: 'Поиск', units: 5 },
+  { key: 'manual_catalog', zone: 'Каталог', units: 5 },
+  { key: 'manual_shelves', zone: 'Полки', units: 6 },
+  { key: 'cpc_search', zone: 'Поиск', units: 4 },
+  { key: 'cpc_shelves', zone: 'Полки', units: 4 },
+  { key: 'total', zone: 'Общая', units: 4 },
+  { key: 'organic', zone: 'Органика', units: 4 },
 ]
+
+/** Grid columns covered by `span` leaves starting at leaf `offset`. */
+function gridColumns(offset, span) {
+  return TRAFFIC_COLUMNS.slice(offset, offset + span).reduce((sum, column) => sum + column.units, 0)
+}
 
 /**
  * Leaf columns per day section — the stride of every `row.cells` index. The
@@ -96,12 +103,12 @@ export const COLUMNS_PER_DAY = TRAFFIC_COLUMNS.length
  * section without restating the number: they got out of step with
  * TRAFFIC_COLUMNS once already.
  */
-export const DAY_COLSPAN = TRAFFIC_COLUMNS.reduce((sum, column) => sum + (column.units ?? 1), 0)
+export const DAY_COLSPAN = gridColumns(0, TRAFFIC_COLUMNS.length)
 
 /**
  * «Тип получения трафика» header groups. `span` is how many LEAVES of
  * TRAFFIC_COLUMNS the group covers (the phone list slices by it); `colspan` is
- * how many grid columns its header takes, where that differs. `spansZones`
+ * how many grid columns its header takes (derived from the leaves' `units`). `spansZones`
  * groups have no zone split — their header cell spans the zones row too
  * instead of repeating the same word twice. `key` names the group's campaign
  * in `campaigns.byDay` (see `campaignLinks.js`). «Руч. поиск» spans two zones:
@@ -110,11 +117,14 @@ export const DAY_COLSPAN = TRAFFIC_COLUMNS.reduce((sum, column) => sum + (column
 export const TRAFFIC_GROUPS = [
   { key: 'uni', label: 'Единая ставка', span: 2 },
   { key: 'manual_search', label: 'Руч. поиск', span: 2 },
-  { key: 'manual_shelves', label: 'Руч. полки', span: 1, colspan: 2 },
+  { key: 'manual_shelves', label: 'Руч. полки', span: 1 },
   { key: 'cpc', label: 'CPC', span: 2 },
   { key: 'total', label: 'Общая', span: 1, spansZones: true },
   { key: 'organic', label: 'Органика', span: 1, spansZones: true },
-]
+].map((group, index, groups) => {
+  const offset = groups.slice(0, index).reduce((sum, previous) => sum + previous.span, 0)
+  return { ...group, colspan: gridColumns(offset, group.span) }
+})
 
 /**
  * «ДРР от продаж» renders each campaign's zones as ONE merged cell (the value
@@ -126,13 +136,13 @@ export const TRAFFIC_GROUPS = [
  * position).
  */
 export const DRR_SALES_COLUMNS = [
-  { key: 'uni_search', span: 2, colspan: 2, offset: 0 },
-  { key: 'manual_search', span: 2, colspan: 2, offset: 2 },
-  { key: 'manual_shelves', span: 1, colspan: 2, offset: 4 },
-  { key: 'cpc_search', span: 2, colspan: 2, offset: 5 },
-  { key: 'total', span: 1, colspan: 1, offset: 7 },
-  { key: 'organic', span: 1, colspan: 1, offset: 8 },
-]
+  { key: 'uni_search', span: 2, offset: 0 },
+  { key: 'manual_search', span: 2, offset: 2 },
+  { key: 'manual_shelves', span: 1, offset: 4 },
+  { key: 'cpc_search', span: 2, offset: 5 },
+  { key: 'total', span: 1, offset: 7 },
+  { key: 'organic', span: 1, offset: 8 },
+].map((column) => ({ ...column, colspan: gridColumns(column.offset, column.span) }))
 
 /**
  * «Процент выкупа» is ONE number for the whole day — a SKU-level lagged cohort

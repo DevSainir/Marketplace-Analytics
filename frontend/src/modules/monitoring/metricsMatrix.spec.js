@@ -61,7 +61,7 @@ describe('traffic column structure', () => {
       running += column.span
     }
     expect(running).toBe(COLUMNS_PER_DAY)
-    // ...and their widths fill the day's grid, «Руч. полки» two columns wide.
+    // ...and their widths fill the day's grid.
     expect(DRR_SALES_COLUMNS.reduce((sum, c) => sum + c.colspan, 0)).toBe(DAY_COLSPAN)
   })
 })

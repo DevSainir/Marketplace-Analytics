@@ -259,8 +259,8 @@
 
 .app-datatable--matrix thead tr:first-child th:not(:first-child):not(:nth-child(2)),
 .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 2):not(:nth-child(2)),
-.app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 2):not(:nth-child(2)),
-.app-datatable--matrix tbody td:nth-child(10n + 2):not(:nth-child(2)) {
+.app-datatable--matrix thead tr:nth-child(3) th:nth-child(7n + 2):not(:nth-child(2)),
+.app-datatable--matrix tbody td:nth-child(9n + 2):not(:nth-child(2)) {
   border-left-color: var(--ui-daydivider);
 }
 
@@ -268,13 +268,13 @@
 .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 4),
 .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 5),
 .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n),
-.app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 5),
-.app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n + 7),
-.app-datatable--matrix thead tr:nth-child(3) th:nth-child(8n),
-.app-datatable--matrix tbody td:nth-child(10n + 5),
-.app-datatable--matrix tbody td:nth-child(10n + 7),
-.app-datatable--matrix tbody td:nth-child(10n + 8),
-.app-datatable--matrix tbody td:nth-child(10n) {
+.app-datatable--matrix thead tr:nth-child(3) th:nth-child(7n + 4),
+.app-datatable--matrix thead tr:nth-child(3) th:nth-child(7n + 6),
+.app-datatable--matrix thead tr:nth-child(3) th:nth-child(7n),
+.app-datatable--matrix tbody td:nth-child(9n + 4),
+.app-datatable--matrix tbody td:nth-child(9n + 6),
+.app-datatable--matrix tbody td:nth-child(9n + 7),
+.app-datatable--matrix tbody td:nth-child(9n) {
   border-left-color: var(--ui-rule);
 }
 

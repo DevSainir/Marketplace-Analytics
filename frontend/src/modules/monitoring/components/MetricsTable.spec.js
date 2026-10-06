@@ -207,7 +207,7 @@ describe('table composition', () => {
     expect(new Set(spans)).toEqual(new Set([String(1 + days.length * DAY_COLSPAN)]))
   })
 
-  it('gives «Руч. полки» two grid columns, so its label fits on one line', () => {
+  it('gives «Руч. полки» more grid columns than one zone, so its label fits on one line', () => {
     // The room came from the unified «Каталог» column, removed because WB never
     // reported a catalogue slice for единая ставка.
     const wrapper = mount(MetricsTable, {
@@ -221,7 +221,8 @@ describe('table composition', () => {
 
     const header = wrapper.findAll('thead th').find((th) => th.text().includes('Руч. полки'))
 
-    expect(header.attributes('colspan')).toBe('2')
+    const zone = wrapper.findAll('thead th').find((th) => th.text() === 'Каталог')
+    expect(Number(header.attributes('colspan'))).toBeGreaterThan(Number(zone.attributes('colspan')))
   })
 
   it('forwards a day-note edit from the comments section to its own listener', async () => {
