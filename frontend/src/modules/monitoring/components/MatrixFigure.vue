@@ -5,9 +5,12 @@
  * A leaf column is ~50px on a 1280px laptop, and «145 679с» wants ~49px of it.
  * A parent can lend the sign its cell's right padding by setting
  * `--matrix-figure-hang` on this element (the metric rows do, see
- * `MatrixMetricsRows.css`): the SIGN alone hangs into it, so a figure whose
- * sign gave way still ends at the content edge and keeps its gap to the
- * neighbouring cell.
+ * `MatrixMetricsRows.css`) — and it is only a loan: the box reaches into the
+ * padding, and a trailing spacer as wide as the loan gives it straight back.
+ * Where the figure fits, the spacer stays on the line and the sign ends at the
+ * content edge, a gap to the border like any unsigned cell's. Where it does
+ * not, the spacer is the first thing to wrap onto the clipped second line, so
+ * the sign moves into the padding only when that is what keeps it.
  *
  * Where the sign still does not fit, it goes WHOLE: the figure is a one-line
  * wrapping flex box, and a sign that cannot sit beside the digits wraps onto a
@@ -50,7 +53,13 @@ defineProps({
   flex: none;
   white-space: nowrap;
 }
-.matrix-figure__unit {
+.matrix-figure--signed {
+  max-width: calc(100% + var(--matrix-figure-hang, 0px));
   margin-right: calc(-1 * var(--matrix-figure-hang, 0px));
+}
+.matrix-figure--signed::after {
+  content: '';
+  flex: none;
+  width: var(--matrix-figure-hang, 0px);
 }
 </style>

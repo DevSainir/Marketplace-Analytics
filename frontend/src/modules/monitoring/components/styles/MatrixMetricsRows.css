@@ -72,9 +72,10 @@
   outline: none;
 }
 
-/* A money figure hangs its currency sign into the cell's right padding: the
-   digits end where an unsigned cell's do, and «145 679с» gets the 4px it is
-   short of in a ~50px leaf column (`MatrixFigure.vue`). The padding is the
+/* A money figure may hang its currency sign into the cell's right padding,
+   but only when it would not fit otherwise: «145 679с» gets the 4px it is
+   short of in a ~50px leaf column, and a figure with room ends at the content
+   edge like an unsigned one (`MatrixFigure.vue`). The padding is the
    cell's `px-xs` from main.css; the neighbour keeps its own left padding, so
    the sign never touches the next figure. */
 .app-datatable--matrix tbody.matrix-metrics td .matrix-figure--signed {
