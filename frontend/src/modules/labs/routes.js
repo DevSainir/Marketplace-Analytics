@@ -10,6 +10,20 @@ export const labsRoutes = [
     meta: { title: 'Мониторинг · Lab', requiresAuth: true, requiresInternal: true },
   },
   {
+    // A one-for-one copy of /advertising on the same live API, to try a new
+    // design against the page it would replace. Internal and the monitoring
+    // grant, like the page and the API behind it.
+    path: '/labs/advertising',
+    name: 'labs-advertising',
+    component: () => import('@/modules/labs/advertising/views/LabAdvertisingView.vue'),
+    meta: {
+      title: 'Реклама · Lab',
+      requiresAuth: true,
+      requiresInternal: true,
+      modules: ['monitoring'],
+    },
+  },
+  {
     // Блок «Реклама» вырос из лабы в модуль `advertising` на живых данных;
     // старая ссылка ведёт туда же.
     path: '/labs/advertisement-source',

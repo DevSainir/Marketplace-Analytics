@@ -1,7 +1,13 @@
 /**
  * PUBLIC API CONTRACT — labs module.
  *
- * `/labs/monitoring` is the one route left here. The finance one-pager that
+ * `/labs/advertising` is a one-for-one copy of the `advertising` module's page
+ * (its own components and store, on the same live API) for trying a new design
+ * against the page it would replace. Labs may not import the module's
+ * internals, so it is a copy rather than a reuse, and it drifts from the live
+ * page the moment either is changed — that is the point of it.
+ *
+ * `/labs/monitoring` is a fixture sandbox. The finance one-pager that
  * used to live at `/labs/finmodel` was removed on 2026-10-07: it was a static
  * reference with its own design system, not a page anyone works in. Its
  * «Реклама» tab had already become the `advertising` module, and
