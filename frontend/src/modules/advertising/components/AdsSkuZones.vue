@@ -8,9 +8,11 @@
  * purpose — a short list of zones under a wide row, not a second table across
  * it — so it reads as a footnote to the row rather than as a new section.
  *
- * Only the zones the row ran in. A plain `<table>`, as the P&L's size
- * breakdown: it neither sorts nor pages, and a DataTable inside a DataTable row
- * brings a second scroll inside the first.
+ * A CSS grid, not a `<table>`: inside `.app-datatable` every `table`, `th` and
+ * `td` takes the page table's skin — full width, upper-case padded headers, no
+ * wrapping — which stretched this list across the row and set its headings
+ * apart from its figures. Fixed column widths keep each heading over its own
+ * figures, and two open rows' breakdowns in line with each other.
  */
 import { computed } from 'vue'
 
@@ -34,34 +36,33 @@ const money = (value) => formatMoney(value, props.currency)
 <template>
   <div class="bg-inset px-md py-sm">
     <p v-if="!lines.length" class="text-tiny text-muted">У этой строки нет рекламы за период.</p>
-    <table v-else class="text-tiny tabular-nums">
-      <thead>
-        <tr class="text-muted">
-          <th class="py-0.5 pr-lg text-left font-medium">Зона показа</th>
-          <th class="py-0.5 pl-md text-right font-medium">Реклама</th>
-          <th v-if="showBonus" class="py-0.5 pl-md text-right font-medium">Промо-бонусы</th>
-          <th class="py-0.5 pl-md text-right font-medium">Доля</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="line in lines" :key="line.zone">
-          <td class="py-0.5 pr-lg text-primary">
-            <span class="inline-flex items-center gap-xs">
-              <span
-                class="inline-block h-2 w-2 flex-none rounded-full"
-                :class="line.kind ? '' : 'bg-border-strong/40'"
-                :style="line.kind ? { background: ZONE_COLORS[line.kind] } : {}"
-              />
-              {{ line.label }}
-            </span>
-          </td>
-          <td class="py-0.5 pl-md text-right text-primary">{{ money(line.spend) }}</td>
-          <td v-if="showBonus" class="py-0.5 pl-md text-right text-muted">
-            {{ money(line.bonus) }}
-          </td>
-          <td class="py-0.5 pl-md text-right text-muted">{{ ratioPct(line.share) }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div
+      v-else
+      class="grid w-max gap-x-lg gap-y-0.5 text-tiny tabular-nums"
+      :class="
+        showBonus
+          ? 'grid-cols-[minmax(12rem,auto)_6.5rem_6.5rem_4rem]'
+          : 'grid-cols-[minmax(12rem,auto)_6.5rem_4rem]'
+      "
+    >
+      <span class="text-muted">Зона показа</span>
+      <span class="text-right text-muted">Реклама</span>
+      <span v-if="showBonus" class="text-right text-muted">Промо-бонусы</span>
+      <span class="text-right text-muted">Доля</span>
+
+      <template v-for="line in lines" :key="line.zone">
+        <span class="inline-flex items-center gap-xs text-primary">
+          <span
+            class="inline-block h-2 w-2 flex-none rounded-full"
+            :class="line.kind ? '' : 'bg-border-strong/40'"
+            :style="line.kind ? { background: ZONE_COLORS[line.kind] } : {}"
+          />
+          {{ line.label }}
+        </span>
+        <span class="text-right text-primary">{{ money(line.spend) }}</span>
+        <span v-if="showBonus" class="text-right text-muted">{{ money(line.bonus) }}</span>
+        <span class="text-right text-muted">{{ ratioPct(line.share) }}</span>
+      </template>
+    </div>
   </div>
 </template>

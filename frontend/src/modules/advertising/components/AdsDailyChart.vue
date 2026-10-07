@@ -14,8 +14,10 @@
  * WB's bonus paid, and the bonus gets its own line: the two then add up to the
  * day's whole spend instead of one being a part of the other.
  *
- * The legend is the set of switches: a click hides or shows that line, so one
- * metric can be read without the others. Hidden lines are this chart's own
+ * The legend is a row of small checkboxes, one per line, in the action
+ * colour: a ticked box is a drawn line, so one metric can be read without the
+ * others. A box rather than a clickable caption — a struck-through caption did
+ * not read as something to click. Hidden lines are this chart's own
  * state and reset with the page; the ДРР axis goes with its line.
  *
  * Ink mirrors `tokens.css` as hex because ECharts paints on a canvas.
@@ -168,23 +170,25 @@ const option = computed(() => ({
 <template>
   <div class="rounded-card border border-border-subtle bg-surface p-md shadow-card">
     <div class="flex flex-wrap gap-md text-tiny text-muted">
-      <button
+      <label
         v-for="item in legend"
         :key="item.key"
-        type="button"
-        :aria-pressed="shown(item.key)"
-        :title="shown(item.key) ? 'Скрыть линию' : 'Показать линию'"
-        class="-mx-xs inline-flex items-center gap-xs rounded-btn px-xs py-0.5 transition hover:bg-hover hover:text-primary phone:min-h-11"
-        :class="shown(item.key) ? '' : 'opacity-50 line-through'"
-        @click="toggle(item.key)"
+        class="inline-flex cursor-pointer select-none items-center gap-xs transition hover:text-primary phone:min-h-11"
+        :class="shown(item.key) ? 'text-primary' : ''"
       >
+        <input
+          type="checkbox"
+          class="h-3.5 w-3.5 cursor-pointer accent-action"
+          :checked="shown(item.key)"
+          @change="toggle(item.key)"
+        />
         <span
           class="inline-block w-4 border-t-2"
           :class="item.dashed ? 'border-dashed' : ''"
           :style="{ borderColor: SERIES[item.key] }"
         />
         {{ item.name }}
-      </button>
+      </label>
     </div>
     <BaseChart :option="option" height="300px" />
   </div>

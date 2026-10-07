@@ -26,16 +26,19 @@ const seriesNames = (wrapper) =>
     .findComponent(BaseChartStub)
     .props('option')
     .series.map((s) => s.name)
-const legendButton = (wrapper, name) =>
-  wrapper.findAll('button').find((button) => button.text() === name)
+const legendBox = (wrapper, name) =>
+  wrapper
+    .findAll('label')
+    .find((label) => label.text() === name)
+    .find('input[type="checkbox"]')
 
-describe('AdsDailyChart — the legend switches lines', () => {
-  it('hides a line on a click and brings it back on the next', async () => {
+describe('AdsDailyChart — the legend checkboxes switch lines', () => {
+  it('hides a line when its box is unticked and brings it back when ticked', async () => {
     const wrapper = mountChart()
 
-    await legendButton(wrapper, 'Промо-бонусы').trigger('click')
+    await legendBox(wrapper, 'Промо-бонусы').setValue(false)
     const hidden = seriesNames(wrapper)
-    await legendButton(wrapper, 'Промо-бонусы').trigger('click')
+    await legendBox(wrapper, 'Промо-бонусы').setValue(true)
 
     expect(hidden).toEqual(['Расход с баланса', 'ДРР от продаж'])
     expect(seriesNames(wrapper)).toEqual(['Расход с баланса', 'Промо-бонусы', 'ДРР от продаж'])
@@ -44,9 +47,9 @@ describe('AdsDailyChart — the legend switches lines', () => {
   it('takes the percent axis away with the ДРР line', async () => {
     const wrapper = mountChart()
 
-    await legendButton(wrapper, 'ДРР от продаж').trigger('click')
+    await legendBox(wrapper, 'ДРР от продаж').setValue(false)
 
     expect(wrapper.findComponent(BaseChartStub).props('option').yAxis[1].show).toBe(false)
-    expect(legendButton(wrapper, 'ДРР от продаж').attributes('aria-pressed')).toBe('false')
+    expect(legendBox(wrapper, 'ДРР от продаж').element.checked).toBe(false)
   })
 })

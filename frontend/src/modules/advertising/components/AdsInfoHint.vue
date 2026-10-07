@@ -9,6 +9,12 @@
  */
 defineProps({
   text: { type: String, required: true },
+  /**
+   * Where the tip opens: centred under the icon, or — for a column at the
+   * table's right edge — growing leftwards from it, so the scroll box does not
+   * cut it off.
+   */
+  align: { type: String, default: 'center', validator: (v) => ['center', 'end'].includes(v) },
 })
 </script>
 
@@ -26,7 +32,8 @@ defineProps({
       <path d="M8 7.2v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
     </svg>
     <span
-      class="hint__tip ui-glass ui-glass--pop pointer-events-none absolute left-1/2 top-full z-30 mt-xs w-56 -translate-x-1/2 rounded-input px-sm py-xs text-left text-tiny font-body text-primary opacity-0 transition-opacity"
+      class="hint__tip ui-glass ui-glass--pop pointer-events-none absolute top-full z-30 mt-xs w-56 whitespace-normal rounded-input px-sm py-xs text-left text-tiny font-body font-normal text-primary opacity-0 transition-opacity"
+      :class="align === 'end' ? 'right-0' : 'left-1/2 -translate-x-1/2'"
     >
       {{ text }}
     </span>

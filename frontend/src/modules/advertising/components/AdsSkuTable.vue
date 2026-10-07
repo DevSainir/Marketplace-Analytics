@@ -135,6 +135,7 @@ const foot = computed(() => ({
         <template #header>
           <span>Продажи</span>
           <AdsInfoHint
+            align="end"
             text="Продажи (выкупы) минус возвраты по цене продавца, за рассчитанные дни"
           />
         </template>
