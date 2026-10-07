@@ -73,6 +73,18 @@ export async function updateTokens(workspaceId, tokens) {
 }
 
 /**
+ * PATCH /v1/workspaces/current/settings — change the active кабинет's display
+ * settings for everyone in it (a writing role required).
+ *
+ * @param {{ads_show_bonus: boolean}} settings
+ * @returns {Promise<object>} The workspace, as `fetchWorkspaces` lists it.
+ */
+export async function updateWorkspaceSettings(settings) {
+  const { data } = await apiClient.patch('/v1/workspaces/current/settings', settings)
+  return data
+}
+
+/**
  * GET /v1/organizations/me — the caller's effective role and tenant.
  *
  * Separate from `fetchMe`: that one answers "who is this account" (the

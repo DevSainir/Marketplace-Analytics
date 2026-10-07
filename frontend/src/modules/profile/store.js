@@ -21,6 +21,7 @@ import {
   fetchTokenStatus,
   fetchWorkspaces,
   updateTokens,
+  updateWorkspaceSettings,
 } from '@/modules/profile/api'
 
 export const useWorkspaceStore = defineStore('workspace', () => {
@@ -152,6 +153,24 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
+  /**
+   * Change the active кабинет's settings — shown at once, saved on the server,
+   * and put back if the server refuses.
+   */
+  async function saveSettings(settings) {
+    const current = currentWorkspace.value
+    if (!current) return
+    const before = { ...current }
+    Object.assign(current, settings)
+    error.value = null
+    try {
+      Object.assign(current, await updateWorkspaceSettings(settings))
+    } catch (err) {
+      Object.assign(current, before)
+      error.value = extractErrorMessage(err)
+    }
+  }
+
   function clearError() {
     error.value = null
   }
@@ -171,6 +190,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     remove,
     tokenStatus,
     saveTokens,
+    saveSettings,
     clearError,
   }
 })

@@ -48,6 +48,8 @@ export const useMembersStore = defineStore('members', () => {
   //: «Ключи активации»: a dev, or the owner of «Демо». The API refuses
   //: everyone else (`require_code_issuer`); this only decides what is drawn.
   const canIssueCodes = ref(false)
+  /** Whether the caller's role writes — false for a read-only manager. */
+  const canWrite = ref(false)
   // `organization` is null for an account that registered and never redeemed a
   // code. The API has always said so; the SPA showed such a person the whole
   // app with every panel empty and no explanation of what was missing.
@@ -135,6 +137,7 @@ export const useMembersStore = defineStore('members', () => {
       role.value = me.role
       internalFeatures.value = Boolean(me.internal_features)
       canIssueCodes.value = Boolean(me.can_issue_codes)
+      canWrite.value = Boolean(me.can_write)
       organization.value = me.organization ?? null
       modules.value = me.modules ?? []
       subscription.value = me.subscription ?? null
@@ -334,6 +337,7 @@ export const useMembersStore = defineStore('members', () => {
     activate,
     internalFeatures,
     canIssueCodes,
+    canWrite,
     members,
     managers,
     isOwner,

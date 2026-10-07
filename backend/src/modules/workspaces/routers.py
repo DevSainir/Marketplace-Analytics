@@ -29,12 +29,14 @@ from src.modules.organizations.contract import (
     AuditTrail,
     MemberAccess,
     OwnerAccess,
+    WritingAccess,
     load_workspace_quota,
     require_owner,
 )
 from src.modules.workspaces.backfill import read_progress
 from src.modules.workspaces.bootstrap import enqueue_catalogue_bootstrap, newly_reachable
 from src.modules.workspaces.deps import (
+    CurrentWorkspaceId,
     PathWorkspaceId,
     WorkspaceGuestRepoDep,
     WorkspaceServiceDep,
@@ -45,6 +47,7 @@ from src.modules.workspaces.schemas import (
     WorkspaceCreateRequest,
     WorkspaceListResponse,
     WorkspaceRead,
+    WorkspaceSettingsUpdate,
     WorkspaceTokensStatus,
     WorkspaceTokensUpdateRequest,
 )
@@ -116,6 +119,42 @@ async def create_workspace(
         metadata={"name": payload.name},
     )
     return workspace
+
+
+@router.patch(
+    "/current/settings",
+    response_model=WorkspaceRead,
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {"description": "The workspace with its settings changed."},
+        401: {"description": "Missing or invalid access token."},
+        403: {"description": "A read-only role, or a guest in another company's кабинет."},
+        404: {"description": "No such workspace in this organisation."},
+    },
+)
+async def update_workspace_settings(
+    workspace_id: CurrentWorkspaceId,
+    access: WritingAccess,
+    body: WorkspaceSettingsUpdate,
+    service: WorkspaceServiceDep,
+) -> WorkspaceRead:
+    """Change what the кабинет shows to everyone in it.
+
+    ``WritingAccess``, not ``MemberAccess``: the setting changes the page for
+    every member, so a read-only manager must not flip it for the owner. Not
+    ``OwnerAccess`` either — it is a display choice, not the company's
+    credentials or bill, and the managers who read advertising are the ones
+    who know whether the seller has bonuses.
+
+    The кабинет is the active one, from ``X-Workspace-Id``
+    (``CurrentWorkspaceId``), not a path id, whose binder is owner-only. That
+    binder answers 404 for another company's кабинет and lets a guest only
+    read. Not audited: the setting hides or shows a figure and moves no money
+    and no access.
+    """
+    return await service.update_settings(
+        workspace_id, organization_id=access.tenant_id, ads_show_bonus=body.ads_show_bonus
+    )
 
 
 @router.delete(

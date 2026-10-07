@@ -95,6 +95,11 @@ class WorkspaceRepository:
         await self._session.flush()
         return workspace
 
+    async def set_ads_show_bonus(self, workspace: Workspace, value: bool) -> None:
+        """Store the «Промо-бонусы» switch of one workspace."""
+        workspace.ads_show_bonus = value
+        await self._session.flush()
+
     async def delete(self, workspace: Workspace) -> None:
         """Delete a workspace (its tokens cascade via the FK)."""
         await self._session.delete(workspace)

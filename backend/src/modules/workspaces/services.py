@@ -185,6 +185,25 @@ class WorkspaceService:
             raise NotFoundError("Кабинет не найден.")
         await self._workspaces.delete(workspace)
 
+    async def update_settings(
+        self,
+        workspace_id: uuid.UUID,
+        *,
+        organization_id: uuid.UUID,
+        ads_show_bonus: bool,
+    ) -> WorkspaceRead:
+        """Change one of the caller's own workspaces' display settings.
+
+        Raises:
+            NotFoundError: No such workspace in this organisation — reported as
+                missing rather than forbidden, as everywhere on this surface.
+        """
+        workspace = await self._workspaces.get_by_id(workspace_id)
+        if workspace is None or workspace.organization_id != organization_id:
+            raise NotFoundError("Кабинет не найден.")
+        await self._workspaces.set_ads_show_bonus(workspace, ads_show_bonus)
+        return WorkspaceRead.model_validate(workspace)
+
     def _allowed_kinds(self, workspace: Workspace) -> frozenset[str]:
         """Token kinds a workspace may store, per its mode.
 

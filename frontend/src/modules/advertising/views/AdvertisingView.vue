@@ -44,6 +44,7 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
       <AdsBonusSwitch
         :on="store.showBonus"
         :available="store.hasBonus"
+        :locked="store.bonusLocked"
         @update:on="store.setShowBonus"
       />
     </div>

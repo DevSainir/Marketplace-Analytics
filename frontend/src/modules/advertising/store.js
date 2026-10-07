@@ -4,10 +4,10 @@
  * The window is the only thing that costs a round trip. The bonus switch, the
  * table's grain, its filters and its search are all answered from the payload.
  *
- * The bonus switch is remembered per browser. WB's bonus pool funds advertising
- * in waves — on «Демо» 33 % of September's spend, up to 85 % of a day, and
- * nothing at all since 26.09.2026 — so a reader who does not track it wants it
- * gone for good, and one who does wants it to stay on.
+ * The bonus switch is the кабинет's setting, stored on the server and shared by
+ * everyone in it. A seller either has WB's promo bonuses or does not, so the
+ * choice is made once — not per browser, where it had to be made again on every
+ * device and by every manager.
  */
 import { defineStore } from 'pinia'
 import { computed, reactive, ref } from 'vue'
@@ -18,6 +18,7 @@ import { isoDaysAgo } from '@/core/utils/dates'
 import { recallPeriod, rememberPeriod } from '@/core/utils/periodMemory'
 import { fetchAdvertising, fetchAdvertisingSpan } from '@/modules/advertising/api'
 import { bidCards } from '@/modules/advertising/zoneModel'
+import { useMembersStore, useWorkspaceStore } from '@/modules/profile'
 
 /** Default window: thirty days, the span an advertising budget is reviewed over. */
 const DEFAULT_DAYS = 30
@@ -31,17 +32,6 @@ export const MAX_PERIOD_DAYS = 1201
 
 /** This page's key in `periodMemory`. */
 const PERIOD_PAGE = 'advertising'
-
-const BONUS_KEY = 'advertising.showBonus'
-
-/** The remembered switch; private windows and blocked storage fall back to «on». */
-function readBonusSwitch() {
-  try {
-    return localStorage.getItem(BONUS_KEY) !== 'off'
-  } catch {
-    return true
-  }
-}
 
 export const useAdvertisingStore = defineStore('advertising', () => {
   // Statistics are a stream that reaches today, so «the latest window» ends
@@ -59,7 +49,17 @@ export const useAdvertisingStore = defineStore('advertising', () => {
   const error = ref('')
   let inFlight = null
 
-  const showBonus = ref(readBonusSwitch())
+  const workspaces = useWorkspaceStore()
+  const members = useMembersStore()
+  /** The кабинет's switch; on until someone in the кабинет turns it off. */
+  const showBonus = computed(() => workspaces.currentWorkspace?.ads_show_bonus ?? true)
+  /**
+   * Who may not change it: a read-only manager, and a head looking into another
+   * company's кабинет — the server refuses both, so the switch says so first.
+   */
+  const bonusLocked = computed(
+    () => !members.canWrite || Boolean(workspaces.currentWorkspace?.is_guest),
+  )
   const group = ref('sku')
   const filters = reactive({ query: '', subject: '', brand: '' })
 
@@ -132,13 +132,10 @@ export const useAdvertisingStore = defineStore('advertising', () => {
     return load()
   }
 
+  /** Flip the кабинет's switch — for everyone in it, from now on. */
   function setShowBonus(on) {
-    showBonus.value = on
-    try {
-      localStorage.setItem(BONUS_KEY, on ? 'on' : 'off')
-    } catch {
-      // A private window: the switch still works, it just is not remembered.
-    }
+    if (bonusLocked.value) return
+    return workspaces.saveSettings({ ads_show_bonus: on })
   }
 
   function clearFilters() {
@@ -155,6 +152,7 @@ export const useAdvertisingStore = defineStore('advertising', () => {
     loading,
     error,
     showBonus,
+    bonusLocked,
     group,
     filters,
     currency,

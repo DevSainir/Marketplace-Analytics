@@ -817,6 +817,38 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/workspaces/current/settings': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Update Workspace Settings
+     * @description Change what the кабинет shows to everyone in it.
+     *
+     *     ``WritingAccess``, not ``MemberAccess``: the setting changes the page for
+     *     every member, so a read-only manager must not flip it for the owner. Not
+     *     ``OwnerAccess`` either — it is a display choice, not the company's
+     *     credentials or bill, and the managers who read advertising are the ones
+     *     who know whether the seller has bonuses.
+     *
+     *     The кабинет is the active one, from ``X-Workspace-Id``
+     *     (``CurrentWorkspaceId``), not a path id, whose binder is owner-only. That
+     *     binder answers 404 for another company's кабинет and lets a guest only
+     *     read. Not audited: the setting hides or shows a figure and moves no money
+     *     and no access.
+     */
+    patch: operations['update_workspace_settings_api_v1_workspaces_current_settings_patch']
+    trace?: never
+  }
   '/api/v1/workspaces/{workspace_id}': {
     parameters: {
       query?: never
@@ -6706,6 +6738,8 @@ export interface components {
       is_primary: boolean
       /** Search Clusters Enabled */
       search_clusters_enabled: boolean
+      /** Ads Show Bonus */
+      ads_show_bonus: boolean
       /**
        * Created At
        * Format: date-time
@@ -6716,6 +6750,17 @@ export interface components {
        * @default false
        */
       is_guest: boolean
+    }
+    /**
+     * WorkspaceSettingsUpdate
+     * @description The кабинет's display settings a writer may change.
+     *
+     *     One setting today, so it is required rather than optional: a PATCH that
+     *     names nothing would be a successful request that did nothing.
+     */
+    WorkspaceSettingsUpdate: {
+      /** Ads Show Bonus */
+      ads_show_bonus: boolean
     }
     /**
      * WorkspaceTokensStatus
@@ -8111,6 +8156,63 @@ export interface operations {
           [name: string]: unknown
         }
         content?: never
+      }
+    }
+  }
+  update_workspace_settings_api_v1_workspaces_current_settings_patch: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WorkspaceSettingsUpdate']
+      }
+    }
+    responses: {
+      /** @description The workspace with its settings changed. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['WorkspaceRead']
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description A read-only role, or a guest in another company's кабинет. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such workspace in this organisation. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
       }
     }
   }

@@ -219,10 +219,15 @@ class FakeWorkspaceRepository:
             name=name,
             is_primary=False,
             search_clusters_enabled=False,
+            ads_show_bonus=True,
             created_at=datetime.now(UTC),
         )
         self.workspaces[workspace.id] = workspace
         return workspace
+
+    async def set_ads_show_bonus(self, workspace: Workspace, value: bool) -> None:
+        """Store the «Промо-бонусы» switch of one workspace."""
+        workspace.ads_show_bonus = value
 
     async def delete(self, workspace: Workspace) -> None:
         """Remove a workspace from the store."""
@@ -297,6 +302,7 @@ def make_workspace(
         name=name,
         is_primary=is_primary,
         search_clusters_enabled=search_clusters_enabled,
+        ads_show_bonus=True,
         created_at=datetime.now(UTC),
     )
 

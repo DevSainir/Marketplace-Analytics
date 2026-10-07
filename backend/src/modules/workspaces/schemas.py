@@ -23,6 +23,8 @@ class WorkspaceRead(BaseModel):
     is_primary: bool
     #: Whether the SKU page renders «Рекламные кластеры» for this кабинет.
     search_clusters_enabled: bool
+    #: Whether «Реклама» shows WB's promo bonus — the кабинет's own setting.
+    ads_show_bonus: bool
     created_at: datetime
     #: Another company's кабинет, opened read-only to this head by a dev. The
     #: SPA marks it in the switcher and leaves it out of the owner's admin list.
@@ -33,6 +35,18 @@ class WorkspaceListResponse(BaseModel):
     """Every workspace visible to the caller (all of them, for now)."""
 
     items: list[WorkspaceRead]
+
+
+class WorkspaceSettingsUpdate(BaseModel):
+    """The кабинет's display settings a writer may change.
+
+    One setting today, so it is required rather than optional: a PATCH that
+    names nothing would be a successful request that did nothing.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    ads_show_bonus: bool
 
 
 class WorkspaceCreateRequest(BaseModel):

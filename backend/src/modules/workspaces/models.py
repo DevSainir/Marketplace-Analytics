@@ -22,6 +22,7 @@ from sqlalchemy import (
     UniqueConstraint,
     false,
     func,
+    true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -193,6 +194,11 @@ class Workspace(Base):
             it is a per-workspace switch rather than a global one. Flipped by
             migration, not by any route — no caller can turn it on for itself.
             The harvester fills the cluster tables whatever this says.
+        ads_show_bonus: Whether «Реклама» shows WB's promo bonus — the
+            «Промо-бонусы» switch. A seller either has bonuses or does not,
+            so the choice is the кабинет's and made once, for everyone in it,
+            rather than a per-browser toggle. On by default; any writer in the
+            кабинет flips it (``PATCH /v1/workspaces/current/settings``).
         created_at: Server-assigned creation timestamp (UTC).
         tokens: The encrypted WB API tokens owned by this workspace.
     """
@@ -214,6 +220,9 @@ class Workspace(Base):
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     search_clusters_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
+    )
+    ads_show_bonus: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
