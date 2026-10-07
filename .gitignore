@@ -92,9 +92,3 @@ backend/docker/observability/alertmanager.yml
 # Server-side state: the built bundle plus the nginx config that serves it,
 # kept beside the running one so a deploy is a symlink flip and a reload.
 .frontend-releases/
-
-# Финмодель: фронт одностраничника переехал в приложение (frontend/src/modules/labs/
-# finmodel + public/labs/finmodel). Копия в docs/ осталась на диске как исходник
-# переноса, но в репозитории ей делать нечего — две копии одного скрипта разъедутся.
-docs/finmodelka/model/app/
-docs/finmodelka/.claude/
