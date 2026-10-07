@@ -1,7 +1,7 @@
 <script setup>
 /**
  * The per-article (or subject, or brand) advertising table — the desktop
- * projection; `AdsSkuCards` is the phone one, fed the same rows.
+ * level below the ranked list (`AdsSkuRanked`), fed the same rows.
  *
  * PrimeVue for the sorting and the frozen first column, sorted by «Реклама»
  * to start with: the question the table answers first is «где деньги». The

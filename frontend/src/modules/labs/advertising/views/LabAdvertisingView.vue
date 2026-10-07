@@ -1,30 +1,35 @@
 <script setup>
 /**
- * «Реклама» — /labs/advertising, the design sandbox copy of /advertising.
+ * «Реклама» — /labs/advertising, the live page re-laid in the Bold Clarity kit.
  *
- * Copied one for one from `modules/advertising` on 2026-10-07, components,
- * store and all, so a new design can change everything here while the live
- * page stays as it is — and the two can be opened side by side on the same
- * кабинет and period. Same API, same figures; nothing here is shared with the
- * advertising module, which labs may not reach into.
+ * Copied one for one from `modules/advertising` on 2026-10-07, then re-laid the
+ * same day to try the kit in `docs/new-design-kit/` against the page it would
+ * replace — same API, same figures, so the two can be opened side by side on
+ * one кабинет and period.
  *
- * Top to bottom: the toolbar (period and the bonus switch, which governs the
- * whole page); «Куда ушли деньги» — the headline strip over one card per kind
- * of campaign; the daily chart with ДРР; the
- * per-article table.
+ * What is the kit's and what is ours: colours, type and charts come from
+ * `bold/visual.css` and `bold/charts.js` as the kit ships them; the layout is
+ * this page's own, built by the kit's rules — the answer first and large, one
+ * band per question, a sentence before any figure list, the table last.
+ *
+ * Top to bottom: the settings line (period and the bonus switch, which governs
+ * the whole page); the answer (spend, what ДРР means, three facts); «Куда ушли
+ * деньги»; «Открутка по дням»; the per-article list and the table behind it.
  *
  * Internal-only while it is being built (route meta and the API both say so).
  */
+import '@/modules/labs/advertising/bold/visual.css'
+import '@/modules/labs/advertising/bold/layout.css'
+
 import { computed, onMounted } from 'vue'
 
 import BusyRegion from '@/core/components/BusyRegion.vue'
 import DataState from '@/core/components/DataState.vue'
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
-import { formatMoney } from '@/core/utils/format'
-import AdsBidCards from '@/modules/labs/advertising/components/AdsBidCards.vue'
 import AdsBonusSwitch from '@/modules/labs/advertising/components/AdsBonusSwitch.vue'
 import AdsDailyChart from '@/modules/labs/advertising/components/AdsDailyChart.vue'
-import AdsKpis from '@/modules/labs/advertising/components/AdsKpis.vue'
+import AdsHero from '@/modules/labs/advertising/components/AdsHero.vue'
+import AdsMoneySplit from '@/modules/labs/advertising/components/AdsMoneySplit.vue'
 import { MAX_PERIOD_DAYS, useLabAdvertisingStore } from '@/modules/labs/advertising/store'
 import LabAdvertisingSkuSection from '@/modules/labs/advertising/views/LabAdvertisingSkuSection.vue'
 
@@ -36,72 +41,65 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
 </script>
 
 <template>
-  <div class="app-container py-lg">
-    <header class="mb-lg">
-      <h1 class="text-h2 font-bold text-primary">Реклама</h1>
-    </header>
-
-    <div class="mb-lg flex flex-wrap items-center gap-md">
-      <PeriodSelector
-        :from="store.dateFrom"
-        :to="store.dateTo"
-        :history-from="store.span?.date_from ?? ''"
-        :max-days="MAX_PERIOD_DAYS"
-        @range="store.setPeriod($event.from, $event.to)"
-      />
-      <AdsBonusSwitch
-        :on="store.showBonus"
-        :available="store.hasBonus"
-        :locked="store.bonusLocked"
-        @update:on="store.setShowBonus"
-      />
+  <div class="bc">
+    <div class="band band--top">
+      <div class="app-container settings">
+        <h1 class="t-display">Реклама</h1>
+        <div class="controls">
+          <PeriodSelector
+            :from="store.dateFrom"
+            :to="store.dateTo"
+            :history-from="store.span?.date_from ?? ''"
+            :max-days="MAX_PERIOD_DAYS"
+            @range="store.setPeriod($event.from, $event.to)"
+          />
+          <AdsBonusSwitch
+            :on="store.showBonus"
+            :available="store.hasBonus"
+            :locked="store.bonusLocked"
+            @update:on="store.setShowBonus"
+          />
+        </div>
+      </div>
     </div>
 
-    <DataState v-if="!store.data && store.loading" kind="loading" />
-    <DataState v-else-if="!store.data && store.error" kind="error" :text="store.error" />
+    <div v-if="!store.data" class="app-container">
+      <DataState v-if="store.loading" kind="loading" />
+      <DataState v-else-if="store.error" kind="error" :text="store.error" />
+    </div>
 
-    <template v-else-if="store.data">
-      <DataState v-if="store.error" kind="error" layout="line" :text="store.error" class="mb-md" />
+    <template v-else>
+      <div v-if="store.error" class="app-container">
+        <DataState kind="error" layout="line" :text="store.error" />
+      </div>
       <BusyRegion :busy="store.loading">
-        <DataState
-          v-if="!store.data.days.length"
-          kind="empty"
-          text="За этот период рекламы не было"
-        />
-        <div v-else class="flex flex-col gap-xl">
-          <section>
-            <h2 class="mb-md text-h3 font-semibold text-primary">Куда ушли деньги</h2>
-            <div class="flex flex-col gap-md">
-              <AdsKpis
-                :totals="store.totals"
-                :currency="store.currency"
-                :show-bonus="store.bonusVisible"
-                :drr-comparable="store.drrComparable"
-              />
-              <AdsBidCards
-                :cards="store.bids.cards"
-                :currency="store.currency"
-                :show-bonus="store.bonusVisible"
-              />
-              <p v-if="store.bids.untyped" class="text-tiny text-muted">
-                Ещё {{ formatMoney(store.bids.untyped, store.currency) }} не разнесено по видам: WB
-                не отдал настройки этих кампаний.
-              </p>
-            </div>
-          </section>
-
-          <section v-if="store.data.days.length > 1">
-            <h2 class="mb-md text-h3 font-semibold text-primary">Открутка по дням</h2>
-            <AdsDailyChart
-              :days="store.data.days"
-              :currency="store.currency"
-              :show-bonus="store.bonusVisible"
-              :show-drr="store.drrComparable && Boolean(settledTo)"
-            />
-          </section>
-
-          <LabAdvertisingSkuSection />
+        <div v-if="!store.data.days.length" class="app-container">
+          <DataState kind="empty" text="За этот период рекламы не было" />
         </div>
+        <template v-else>
+          <AdsHero
+            :totals="store.totals"
+            :currency="store.currency"
+            :show-bonus="store.bonusVisible"
+            :drr-comparable="store.drrComparable"
+            :date-from="store.dateFrom"
+            :date-to="store.dateTo"
+          />
+          <AdsMoneySplit
+            :cards="store.bids.cards"
+            :untyped="store.bids.untyped"
+            :currency="store.currency"
+            :show-bonus="store.bonusVisible"
+          />
+          <AdsDailyChart
+            v-if="store.data.days.length > 1"
+            :days="store.data.days"
+            :currency="store.currency"
+            :show-bonus="store.bonusVisible"
+            :show-drr="store.drrComparable && Boolean(settledTo)"
+          />
+          <LabAdvertisingSkuSection />
+        </template>
       </BusyRegion>
     </template>
   </div>

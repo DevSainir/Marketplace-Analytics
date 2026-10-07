@@ -1,10 +1,13 @@
 /**
- * The page's shared formatting: ratios as percentages, and the series hues.
+ * The page's shared formatting: ratios, money in the kit's short form, dates.
  *
- * Money goes straight through `formatMoney` with the response's currency, so
- * every figure carries its own sign like the rest of the app.
+ * The lab page wears the Bold Clarity kit, so its figures are the kit's —
+ * «2,4 млн», «450 тыс» — not the app's full «2 412 345». The sign is still the
+ * app's (`currencySign`: «с», «₽»), so a figure here and the same figure on
+ * /advertising name their currency the same way.
  */
-import { formatPercent } from '@/core/utils/format'
+import { currencySign, formatPercent } from '@/core/utils/format'
+import { BC } from '@/modules/labs/advertising/bold/charts'
 
 /** A 0–1 ratio as the app prints percentages; `null` is an em dash, not «0%». */
 export function ratioPct(ratio) {
@@ -12,29 +15,31 @@ export function ratioPct(ratio) {
 }
 
 /**
- * Fixed hues, by meaning — the dataviz palette's first three slots, validated
- * together for colour-blind separation (worst adjacent ΔE 9.2). «Расход» and
- * «Поиск» share slot 1, «Промо-бонусы» and «Полки» slot 2, «Каталог» slot 3;
- * ДРР takes the pink the monitoring charts give «ДРР от продаж».
- *
- * Hex rather than a token because ECharts and the SVG pies need a literal.
+ * `BC.money` in the response's currency. The kit keeps its currency in one
+ * module-level variable, so it is set on every call rather than once — two
+ * кабинеты in two currencies can be on screen one after the other.
  */
-export const SERIES = {
-  spend: '#2A78D6',
-  bonus: '#EB6834',
-  drr: '#E87BA4',
+export function shortMoney(value, currency) {
+  BC.setCurrency(currencySign(currency).trim())
+  return BC.money(value).trim()
 }
 
-export const ZONE_COLORS = {
-  search: '#2A78D6',
-  shelves: '#EB6834',
-  catalog: '#1BAF7A',
+/** {@link shortMoney} split for `.num-xl`/`.num-l`: the figure, then `<small>` units. */
+export function bigMoney(value, currency) {
+  return BC.bigNum(shortMoney(value, currency))
 }
 
-/** ДРР above this is printed in the negative tone. */
+/** ДРР above this is printed in the negative tone, and turns the headline dark. */
 export const DRR_ALARM = 0.2
 
 /** "2026-07-05" -> "05.07.2026". */
 export function dateRu(iso) {
   return iso ? iso.split('-').reverse().join('.') : '—'
+}
+
+const dayMonth = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' })
+
+/** "2026-07-05" -> "5 июл." — for a period said in one line. */
+export function dateShort(iso) {
+  return iso ? dayMonth.format(new Date(`${iso}T00:00:00`)) : '—'
 }
