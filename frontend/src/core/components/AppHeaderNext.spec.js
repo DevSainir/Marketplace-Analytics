@@ -76,3 +76,18 @@ describe('a page built from two module grants', () => {
     expect(labels(wrapper)).not.toContain('Сводка')
   })
 })
+
+describe('«Реклама»', () => {
+  it('is offered to every member of our organisation who holds monitoring', () => {
+    // A manager of ours without «Отчёты» reads the whole page — the owner's
+    // decision of 2026-10-07.
+    const wrapper = mountHeader({
+      isAuthenticated: true,
+      authResolved: true,
+      internalFeatures: true,
+      modules: ['monitoring'],
+    })
+
+    expect(labels(wrapper)).toContain('Реклама')
+  })
+})

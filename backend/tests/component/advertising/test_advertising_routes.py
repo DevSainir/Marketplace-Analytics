@@ -118,26 +118,46 @@ async def test_a_paying_customer_cannot_reach_the_page_yet(
     assert advertising.calls == []
 
 
-@pytest.mark.parametrize("withheld", ["monitoring", "finreports"])
-async def test_a_manager_needs_both_grants(
+async def test_a_manager_without_monitoring_cannot_reach_it(
     client: httpx.AsyncClient,
     headers: dict[str, str],
     login_as: Callable[..., None],
-    withheld: str,
+    advertising: _StubAdvertisingService,
 ) -> None:
-    """Either grant missing is a 403.
-
-    Spend is «Мониторинг»; the sales ДРР divides it by are «Отчёты».
-    """
+    """Advertising is «Мониторинг»'s data: without that grant the page is a 403."""
     login_as(
         role=EffectiveRole.MANAGER,
         is_primary_org=True,
-        modules=tuple(m for m in ALL_MODULES if m != withheld),
+        modules=tuple(m for m in ALL_MODULES if m != "monitoring"),
     )
 
     response = await client.get("/api/v1/advertising", headers=headers)
 
     assert response.status_code == 403
+    assert advertising.calls == []
+
+
+@pytest.mark.parametrize("path", ["/api/v1/advertising", "/api/v1/advertising/span"])
+async def test_a_manager_of_ours_without_finreports_reads_the_whole_page(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    login_as: Callable[..., None],
+    path: str,
+) -> None:
+    """Every member of our organisation reads it — the owner's decision of 2026-10-07.
+
+    Three of the primary organisation's managers hold monitoring alone; the
+    page, sales and ДРР included, is open to them all the same.
+    """
+    login_as(
+        role=EffectiveRole.MANAGER,
+        is_primary_org=True,
+        modules=tuple(m for m in ALL_MODULES if m != "finreports"),
+    )
+
+    response = await client.get(path, headers=headers)
+
+    assert response.status_code == 200
 
 
 async def test_the_page_is_scoped_to_the_active_workspace(
