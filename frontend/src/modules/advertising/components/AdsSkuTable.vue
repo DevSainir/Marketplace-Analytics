@@ -12,6 +12,7 @@ import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import { computed } from 'vue'
 
+import DataState from '@/core/components/DataState.vue'
 import { formatMoney, formatNumber, formatSku } from '@/core/utils/format'
 import AdsInfoHint from '@/modules/advertising/components/AdsInfoHint.vue'
 import { DRR_ALARM, ratioPct } from '@/modules/advertising/adsFormat'
@@ -59,7 +60,7 @@ const foot = computed(() => ({
       scroll-height="560px"
     >
       <template #empty>
-        <div class="px-md py-xl text-center text-base text-muted">Ничего не нашлось</div>
+        <DataState kind="empty" layout="bare" text="Ничего не найдено" />
       </template>
 
       <Column field="label" :header="labelHeader" sortable frozen :footer="foot.label">

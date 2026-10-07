@@ -75,7 +75,7 @@ describe('SkuSearchSelect', () => {
     const wrapper = mount(SkuSearchSelect, { props: { items: [], loading: true } })
     await wrapper.find('input').trigger('focus')
 
-    expect(wrapper.find('[role="listbox"]').text()).toContain('Загружаем список SKU')
+    expect(wrapper.find('[role="listbox"]').text()).toContain('Загружаем…')
     expect(wrapper.findAll('[role="option"]')).toHaveLength(0)
   })
 })

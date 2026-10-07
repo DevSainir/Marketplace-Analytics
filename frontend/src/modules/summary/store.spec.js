@@ -52,3 +52,18 @@ describe('the period on load', () => {
     })
   })
 })
+
+describe('a failed reload', () => {
+  it('keeps the figures already on screen under the error', async () => {
+    // A failed reload is a line above the window, not a blank page.
+    const shown = { kpi: { revenue_seller: '10' }, days: [], rows: [], currency: 'KGS' }
+    fetchSummary.mockResolvedValueOnce(shown)
+    await store.setPeriod('2026-09-01', '2026-09-07')
+    fetchSummary.mockRejectedValueOnce({ response: { data: { detail: 'Сбой' } } })
+
+    await store.setPeriod('2026-09-08', '2026-09-14')
+
+    expect(store.error).toBe('Сбой')
+    expect(store.kpi).toEqual(shown.kpi)
+  })
+})

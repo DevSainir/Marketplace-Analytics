@@ -11,6 +11,9 @@
 import { onMounted, ref, useTemplateRef } from 'vue'
 import { useRouter } from 'vue-router'
 
+import BusyRegion from '@/core/components/BusyRegion.vue'
+import DataState from '@/core/components/DataState.vue'
+
 import { useAbTestsStore } from '@/modules/abTests'
 import AbTestsTable from '@/modules/abTests/components/AbTestsTable.vue'
 import NewTestForm from '@/modules/abTests/components/NewTestForm.vue'
@@ -26,7 +29,15 @@ function openForm() {
   if (creating.value) store.loadSkuOptions('')
 }
 
-onMounted(() => store.loadTests())
+/** The list has been asked for once — before that, «no tests» would be a guess. */
+const listed = ref(false)
+/** That first ask failed: an empty table under it would read as «no tests». */
+const listFailed = ref(false)
+
+onMounted(async () => {
+  listFailed.value = !(await store.loadTests())
+  listed.value = true
+})
 
 async function submit(payload) {
   const created = await store.create(payload)
@@ -83,13 +94,18 @@ async function submit(payload) {
       </span>
     </div>
 
-    <p v-if="store.error" class="mb-md text-base text-status-negative">{{ store.error }}</p>
-
-    <AbTestsTable
-      :rows="store.rows"
-      :loading="store.loading"
-      :saving="store.saving"
-      @delete="store.remove"
-    />
+    <DataState v-if="!listed" kind="loading" />
+    <DataState v-else-if="listFailed && !store.rows.length" kind="error" :text="store.error" />
+    <template v-else>
+      <DataState v-if="store.error" kind="error" layout="line" :text="store.error" class="mb-md" />
+      <BusyRegion :busy="store.loading">
+        <AbTestsTable
+          :rows="store.rows"
+          :loading="store.loading"
+          :saving="store.saving"
+          @delete="store.remove"
+        />
+      </BusyRegion>
+    </template>
   </main>
 </template>

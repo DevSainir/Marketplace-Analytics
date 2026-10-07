@@ -16,10 +16,14 @@
  */
 import { computed } from 'vue'
 
+import DataState from '@/core/components/DataState.vue'
+
 const props = defineProps({
   /** @type {Array<object>} rows from GET /v1/auth/sessions */
   sessions: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
+  /** Why the list could not be read; empty when it was. */
+  error: { type: String, default: '' },
   /** family_id currently being ended, or 'all'. */
   busy: { type: [String, null], default: null },
 })
@@ -81,7 +85,8 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
 
 <template>
   <div class="pf-sessions">
-    <p v-if="loading" class="pf-sessions__note">Загружаем…</p>
+    <DataState v-if="loading" kind="loading" />
+    <DataState v-else-if="error" kind="error" :text="error" />
 
     <template v-else>
       <!-- The one you are reading this on, first and labelled — Telegram's one

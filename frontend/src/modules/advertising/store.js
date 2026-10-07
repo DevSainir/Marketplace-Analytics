@@ -92,8 +92,9 @@ export const useAdvertisingStore = defineStore('advertising', () => {
       )
     } catch (cause) {
       if (controller.signal.aborted) return
+      // The window already on screen stays: a failed reload is a line above
+      // it, not a blank page.
       error.value = extractErrorMessage(cause)
-      data.value = null
     } finally {
       if (inFlight === controller) {
         inFlight = null

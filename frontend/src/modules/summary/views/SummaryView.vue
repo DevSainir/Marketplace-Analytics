@@ -13,8 +13,9 @@
  */
 import { computed, onMounted } from 'vue'
 
+import BusyRegion from '@/core/components/BusyRegion.vue'
+import DataState from '@/core/components/DataState.vue'
 import { CUTS, SORTS } from '@/modules/summary/categories'
-import SummaryBusyBar from '@/modules/summary/components/SummaryBusyBar.vue'
 import SummaryCategoryBars from '@/modules/summary/components/SummaryCategoryBars.vue'
 import SummaryControls from '@/modules/summary/components/SummaryControls.vue'
 import SummaryKpis from '@/modules/summary/components/SummaryKpis.vue'
@@ -56,16 +57,12 @@ onMounted(() => store.init())
       @base="store.revenueBase = $event"
     />
 
-    <SummaryBusyBar v-if="store.loading" class="mb-md" />
-
-    <p v-if="store.error" class="text-base text-status-negative">{{ store.error }}</p>
+    <DataState v-if="!store.kpi && store.loading" kind="loading" />
+    <DataState v-else-if="!store.kpi && store.error" kind="error" :text="store.error" />
 
     <template v-else-if="store.kpi">
-      <!-- The previous window stays on screen while the next one loads, dimmed
-           and inert: blanking it would make every preset click a full page
-           rebuild, and the figures below are still the ones the header names
-           until the response lands. -->
-      <div :class="{ 'sum-stale': store.loading }">
+      <DataState v-if="store.error" kind="error" layout="line" :text="store.error" class="mb-md" />
+      <BusyRegion :busy="store.loading">
         <SummaryKpis
           :kpi="store.kpi"
           :currency="store.currency"
@@ -87,7 +84,7 @@ onMounted(() => store.init())
               :labels="labels"
               :currency="store.currency"
             />
-            <p v-else class="text-base text-muted">За период нет расчётов WB.</p>
+            <DataState v-else kind="empty" layout="bare" />
           </div>
         </section>
 
@@ -108,6 +105,7 @@ onMounted(() => store.init())
                 :height="196"
                 plain
               />
+              <DataState v-else kind="empty" layout="bare" />
             </div>
           </div>
         </section>
@@ -150,19 +148,12 @@ onMounted(() => store.init())
             />
           </div>
         </section>
-      </div>
+      </BusyRegion>
     </template>
   </div>
 </template>
 
 <style scoped>
-/* Dimmed and inert, never hidden — see the comment at the wrapper. */
-.sum-stale {
-  opacity: 0.45;
-  pointer-events: none;
-  transition: opacity 120ms ease-out;
-}
-
 /* The design system's card recipe, in tokens: elevated surface, 1px ring,
    layered shadow — never a border plus a big soft blur. */
 .sum-card {

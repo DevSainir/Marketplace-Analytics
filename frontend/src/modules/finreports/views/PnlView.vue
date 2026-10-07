@@ -12,6 +12,9 @@
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
+import BusyRegion from '@/core/components/BusyRegion.vue'
+import DataState from '@/core/components/DataState.vue'
+
 import PnlDashboardCards from '@/modules/finreports/components/PnlDashboardCards.vue'
 import PnlPeriodControls from '@/modules/finreports/components/PnlPeriodControls.vue'
 import ReportFreshnessLine from '@/modules/finreports/components/ReportFreshnessLine.vue'
@@ -59,12 +62,16 @@ const currency = computed(() => store.report?.currency ?? '')
 // Every figure on the page, advertising included, in the payout's currency.
 providePnlCurrencies(computed(() => ({ settlement: currency.value })))
 
+/** The harvested weeks have been asked for — until then «no reports» would be a guess. */
+const weeksAsked = ref(Boolean(store.weeks.length))
+
 onMounted(async () => {
   // Deliberately not awaited, and started first: the freshness line is a
   // footnote on the statement, so fetching it must not delay a single figure —
   // and if it fails, the line is simply absent.
   store.loadHarvestState()
   if (!store.weeks.length) await store.loadWeeks()
+  weeksAsked.value = true
   if (!store.report) await store.loadReport()
 })
 
@@ -129,46 +136,49 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
     <!-- Period: the shared calendar + presets -->
     <PnlPeriodControls v-model:price-base="priceBase" />
 
-    <div
-      v-if="store.reportLoading"
-      class="rounded-card border border-border-subtle bg-surface px-lg py-xl text-center text-base text-muted shadow-card"
-    >
-      Считаем отчёт…
-    </div>
-
-    <div
-      v-else-if="store.reportError"
-      class="rounded-card border border-border-subtle bg-surface px-lg py-xl text-center shadow-card"
-    >
-      <p class="font-semibold text-primary">Отчёт недоступен</p>
-      <p class="mt-xs text-base text-muted">{{ store.reportError }}</p>
-    </div>
+    <DataState v-if="!dashboard && (store.reportLoading || !weeksAsked)" kind="loading" />
+    <DataState v-else-if="!dashboard && store.reportError" kind="error" :text="store.reportError" />
+    <DataState
+      v-else-if="!dashboard && !store.fullSpan"
+      kind="empty"
+      text="Отчётов WB пока нет"
+      hint="Они появятся здесь сами, как только WB опубликует первый еженедельный отчёт."
+    />
 
     <template v-else-if="dashboard">
-      <PnlDashboardCards
-        :dashboard="dashboard"
-        :currency="currency"
+      <DataState
+        v-if="store.reportError"
+        kind="error"
+        layout="line"
+        :text="store.reportError"
+        class="mb-md"
       />
-
-      <ul v-if="notes.length" class="mt-md space-y-xs">
-        <li v-for="note in notes" :key="note" class="text-tiny text-muted">⚠ {{ note }}</li>
-      </ul>
-
-      <div class="mt-lg">
-        <h2 class="mb-xs text-h3 font-semibold text-primary">По артикулам</h2>
-        <p class="mb-sm max-w-4xl text-tiny text-muted">
-          Продажи, возвраты и удержания — по датам расчёта WB.
-        </p>
-        <PnlSkuTable
-          :rows="rows"
-          :unallocated="unallocated"
-          :base-dashboard="store.report?.dashboard ?? null"
-          :sizes="store.sizes"
-          @toggle-exclusion="store.toggleExclusion($event.nmId, $event.excluded)"
-          @dashboard-change="filteredDashboard = $event"
-          @load-sizes="store.loadSizes($event)"
+      <BusyRegion :busy="store.reportLoading">
+        <PnlDashboardCards
+          :dashboard="dashboard"
+          :currency="currency"
         />
-      </div>
+
+        <ul v-if="notes.length" class="mt-md space-y-xs">
+          <li v-for="note in notes" :key="note" class="text-tiny text-muted">⚠ {{ note }}</li>
+        </ul>
+
+        <div class="mt-lg">
+          <h2 class="mb-xs text-h3 font-semibold text-primary">По артикулам</h2>
+          <p class="mb-sm max-w-4xl text-tiny text-muted">
+            Продажи, возвраты и удержания — по датам расчёта WB.
+          </p>
+          <PnlSkuTable
+            :rows="rows"
+            :unallocated="unallocated"
+            :base-dashboard="store.report?.dashboard ?? null"
+            :sizes="store.sizes"
+            @toggle-exclusion="store.toggleExclusion($event.nmId, $event.excluded)"
+            @dashboard-change="filteredDashboard = $event"
+            @load-sizes="store.loadSizes($event)"
+          />
+        </div>
+      </BusyRegion>
 
       <BalanceSection />
     </template>

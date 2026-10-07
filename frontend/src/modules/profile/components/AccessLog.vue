@@ -23,6 +23,7 @@
  */
 import { computed, ref } from 'vue'
 
+import DataState from '@/core/components/DataState.vue'
 import SidePanel from '@/modules/profile/components/SidePanel.vue'
 import {
   REMOVING_EVENTS,
@@ -62,8 +63,8 @@ function step(delta) {
       </div>
     </header>
 
-    <p v-if="loading" class="pf-empty">Загружаем…</p>
-    <p v-else-if="!entries.length" class="pf-empty">Пока ничего не происходило.</p>
+    <DataState v-if="loading && !entries.length" kind="loading" />
+    <DataState v-else-if="!entries.length" kind="empty" text="Пока ничего не происходило" />
 
     <template v-else>
       <ol class="pf-log">

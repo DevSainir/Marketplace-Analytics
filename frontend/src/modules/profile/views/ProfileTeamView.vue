@@ -19,6 +19,7 @@
  */
 import { onMounted, ref } from 'vue'
 
+import DataState from '@/core/components/DataState.vue'
 import AccessLog from '@/modules/profile/components/AccessLog.vue'
 import InvitationList from '@/modules/profile/components/InvitationList.vue'
 import ProfileTeam from '@/modules/profile/components/ProfileTeam.vue'
@@ -30,9 +31,13 @@ const members = useMembersStore()
 /** `{ kind: 'invite' | 'access', manager? }` or null. */
 const drawer = ref(null)
 
+/** The history has been asked for once; before that an empty list is a guess. */
+const historyAsked = ref(false)
+
 onMounted(async () => {
   await members.ensureLoaded()
   await members.loadTeamHistory()
+  historyAsked.value = true
 })
 
 async function onInvite({ onIssued, ...payload }) {
@@ -58,10 +63,11 @@ async function onRemoveMember(userId) {
 
 <template>
   <div class="pf-section">
-    <p v-if="members.error" class="pf-alert">{{ members.error }}</p>
+    <DataState v-if="members.error" kind="error" layout="line" :text="members.error" />
 
     <ProfileTeam
       :managers="members.managers"
+      :loading="members.loading"
       :saving="members.saving"
       can-invite
       @invite="drawer = { kind: 'invite' }"
@@ -71,11 +77,12 @@ async function onRemoveMember(userId) {
 
     <InvitationList
       :invitations="members.issuedInvitations"
+      :loading="members.historyLoading || !historyAsked"
       :busy="members.saving"
       @revoke="members.revokeIssuedInvitation"
     />
 
-    <AccessLog :entries="members.auditTrail" :loading="members.historyLoading" />
+    <AccessLog :entries="members.auditTrail" :loading="members.historyLoading || !historyAsked" />
 
     <TeamDrawers
       :drawer="drawer"

@@ -10,6 +10,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
+import BusyRegion from '@/core/components/BusyRegion.vue'
+import DataState from '@/core/components/DataState.vue'
 import { formatNumber, formatPercent } from '@/core/utils/format'
 import CostPriceExcelPanel from '@/modules/finreports/components/CostPriceExcelPanel.vue'
 import CostPriceGrid from '@/modules/finreports/components/CostPriceGrid.vue'
@@ -73,8 +75,13 @@ async function onRemove(nmId) {
   }
 }
 
+/** Which Excel action is running, so its own button says so. */
+const exporting = ref(false)
+const importing = ref(false)
+
 /** Download the grid as an XLSX for offline editing. */
 async function onExport() {
+  exporting.value = true
   try {
     const { blob, filename } = await store.exportCostPrices()
     const url = URL.createObjectURL(blob)
@@ -87,15 +94,20 @@ async function onExport() {
     URL.revokeObjectURL(url)
   } catch {
     // The store surfaces the message via costsError.
+  } finally {
+    exporting.value = false
   }
 }
 
 /** Apply a filled-in workbook and keep its summary on screen. */
 async function onImport(file) {
+  importing.value = true
   try {
     importResult.value = await store.importCostPrices(file)
   } catch {
     importResult.value = null
+  } finally {
+    importing.value = false
   }
 }
 
@@ -143,31 +155,39 @@ onMounted(() => {
 
     <CostPriceExcelPanel
       :busy="store.costsSaving"
+      :exporting="exporting"
+      :importing="importing"
       :result="importResult"
       :currency="currency"
       @export="onExport"
       @import="onImport"
     />
 
-    <div
-      v-if="store.costsLoading"
-      class="rounded-card border border-border-subtle bg-surface px-lg py-xl text-center text-base text-muted shadow-card"
-    >
-      Загрузка…
-    </div>
+    <DataState v-if="!store.costPrices && store.costsLoading" kind="loading" />
+    <DataState
+      v-else-if="!store.costPrices && store.costsError"
+      kind="error"
+      :text="store.costsError"
+    />
 
-    <template v-else>
-      <p v-if="store.costsError" class="mb-md text-base text-status-negative">
-        {{ store.costsError }}
-      </p>
-      <CostPriceGrid
-        :items="items"
-        :missing="missing"
-        :currency="currency"
-        :saving="store.costsSaving"
-        @save="onSave"
-        @remove="onRemove"
+    <template v-else-if="store.costPrices">
+      <DataState
+        v-if="store.costsError"
+        kind="error"
+        layout="line"
+        :text="store.costsError"
+        class="mb-md"
       />
+      <BusyRegion :busy="store.costsLoading">
+        <CostPriceGrid
+          :items="items"
+          :missing="missing"
+          :currency="currency"
+          :saving="store.costsSaving"
+          @save="onSave"
+          @remove="onRemove"
+        />
+      </BusyRegion>
     </template>
   </main>
 </template>

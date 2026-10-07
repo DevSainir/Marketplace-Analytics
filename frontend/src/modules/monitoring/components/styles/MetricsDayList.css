@@ -11,7 +11,7 @@
 }
 
 .day-step:disabled {
-  @apply cursor-not-allowed text-muted opacity-40 shadow-none;
+  @apply cursor-not-allowed text-muted opacity-50 shadow-none;
 }
 
 .day-list {

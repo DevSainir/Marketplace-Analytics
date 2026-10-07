@@ -75,7 +75,7 @@ async function submit() {
 }
 
 .key-button {
-  @apply inline-flex h-10 w-full items-center justify-center rounded-btn text-base font-semibold text-white shadow-soft transition disabled:cursor-not-allowed disabled:opacity-60 phone:h-11;
+  @apply inline-flex h-10 w-full items-center justify-center rounded-btn text-base font-semibold text-white shadow-soft transition disabled:cursor-not-allowed disabled:opacity-50 phone:h-11;
   background-color: var(--ui-action);
 }
 

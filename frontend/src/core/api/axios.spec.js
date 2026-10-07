@@ -133,6 +133,16 @@ describe('extractErrorMessage', () => {
     )
   })
 
+  it('says a proxy timeout in words that point at the way out', () => {
+    // nginx answers 504 with no body of ours; «Request failed with status code
+    // 504» reached the logistics page verbatim before this.
+    const err = { isAxiosError: true, response: { status: 504, data: '<html>' } }
+
+    expect(extractErrorMessage(err)).toBe(
+      'Сервер не успел посчитать ответ. Попробуйте период покороче.',
+    )
+  })
+
   it('distinguishes a server answer it cannot read from no answer at all', () => {
     const err = { isAxiosError: true, response: { status: 500, data: {} } }
     expect(extractErrorMessage(err)).toBe('Непредвиденная ошибка. Повторите попытку позже.')

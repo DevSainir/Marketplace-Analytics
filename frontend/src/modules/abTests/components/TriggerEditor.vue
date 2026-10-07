@@ -96,7 +96,7 @@ function save() {
       data-testid="save-trigger"
       @click="save"
     >
-      Сохранить
+      {{ saving ? 'Сохраняем…' : 'Сохранить' }}
     </button>
     <button
       type="button"

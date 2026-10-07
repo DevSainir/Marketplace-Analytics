@@ -87,7 +87,7 @@ function goToLogin() {
           <button
             type="submit"
             :disabled="auth.loading"
-            class="inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn bg-action text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60 phone:h-11"
+            class="inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn bg-action text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50 phone:h-11"
           >
             {{ auth.loading ? 'Подождите…' : 'Отправить код' }}
           </button>
@@ -126,7 +126,7 @@ function goToLogin() {
           <button
             type="submit"
             :disabled="auth.loading"
-            class="inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn bg-action text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60 phone:h-11"
+            class="inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn bg-action text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50 phone:h-11"
           >
             {{ auth.loading ? 'Подождите…' : 'Сохранить пароль' }}
           </button>
@@ -141,7 +141,7 @@ function goToLogin() {
         <div v-else class="flex flex-col gap-md">
           <button
             type="button"
-            class="inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn bg-action text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60 phone:h-11"
+            class="inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn bg-action text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50 phone:h-11"
             @click="goToLogin"
           >
             Войти

@@ -9,6 +9,7 @@
  */
 import { computed, ref, watch } from 'vue'
 
+import DataState from '@/core/components/DataState.vue'
 import { formatMoney, formatNumber, formatSku } from '@/core/utils/format'
 import { DRR_ALARM, ratioPct } from '@/modules/advertising/adsFormat'
 
@@ -67,6 +68,7 @@ const drr = (row) => (props.showDrr ? ratioPct(row.drr) : '—')
       </span>
     </div>
 
+    <DataState v-if="!rows.length" kind="empty" layout="bare" text="Ничего не найдено" />
     <ul class="divide-y divide-border-subtle">
       <li v-for="row in visible" :key="row.label" class="min-h-11 py-sm">
         <div class="flex items-baseline justify-between gap-sm">

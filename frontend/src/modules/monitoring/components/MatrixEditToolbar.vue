@@ -66,7 +66,7 @@ defineEmits(['save', 'refresh'])
       <button
         type="button"
         :disabled="!dirty || saving || refreshing"
-        class="inline-flex h-9 items-center justify-center rounded-btn phone:h-11 phone:flex-1 bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover disabled:cursor-not-allowed disabled:text-muted disabled:opacity-60"
+        class="inline-flex h-9 items-center justify-center rounded-btn phone:h-11 phone:flex-1 bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover disabled:cursor-not-allowed disabled:text-muted disabled:opacity-50"
         @click="$emit('save')"
       >
         {{ saving ? 'Сохраняем…' : 'Сохранить' }}
@@ -74,7 +74,7 @@ defineEmits(['save', 'refresh'])
       <button
         type="button"
         :disabled="loading || refreshing || saving"
-        class="inline-flex h-9 items-center justify-center rounded-btn phone:h-11 phone:flex-1 bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+        class="inline-flex h-9 items-center justify-center rounded-btn phone:h-11 phone:flex-1 bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
         @click="$emit('refresh')"
       >
         {{ refreshing ? 'Обновляем из Wildberries…' : 'Обновить' }}

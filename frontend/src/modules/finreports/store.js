@@ -369,9 +369,19 @@ export const useFinReportsStore = defineStore('finreports', () => {
    * `fullSpan` (derived from them) that bounds «вся история».
    */
   async function exportCostPrices() {
-    if (!weeks.value.length) await loadWeeks()
-    const span = fullSpan.value
-    return downloadCostPricesXlsx(span ? { date_from: span.date_from, date_to: span.date_to } : {})
+    costsError.value = ''
+    try {
+      if (!weeks.value.length) await loadWeeks()
+      const span = fullSpan.value
+      return await downloadCostPricesXlsx(
+        span ? { date_from: span.date_from, date_to: span.date_to } : {},
+      )
+    } catch (error) {
+      // The view only triggers the download; the reason has to land where the
+      // page shows its errors, or a failed export is a click that did nothing.
+      costsError.value = extractErrorMessage(error)
+      throw error
+    }
   }
 
   /**

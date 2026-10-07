@@ -82,7 +82,7 @@ function pinLabel(item) {
       type="button"
       :disabled="!canScrollLeft"
       aria-label="Прокрутить закреплённые влево"
-      class="inline-flex h-7 w-7 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-muted shadow-soft transition hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border-subtle disabled:hover:text-muted"
+      class="inline-flex h-7 w-7 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-muted shadow-soft transition hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border-subtle disabled:hover:text-muted"
       @click="page(-1)"
     >
       <svg
@@ -140,7 +140,7 @@ function pinLabel(item) {
       type="button"
       :disabled="!canScrollRight"
       aria-label="Прокрутить закреплённые вправо"
-      class="inline-flex h-7 w-7 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-muted shadow-soft transition hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border-subtle disabled:hover:text-muted"
+      class="inline-flex h-7 w-7 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-muted shadow-soft transition hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border-subtle disabled:hover:text-muted"
       @click="page(1)"
     >
       <svg

@@ -13,6 +13,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
+import BusyRegion from '@/core/components/BusyRegion.vue'
+import DataState from '@/core/components/DataState.vue'
 import { useHistoryKeys } from '@/core/utils/historyKeys'
 import { useMembersStore } from '@/modules/profile'
 
@@ -141,53 +143,65 @@ onMounted(() => norms.load().catch((err) => (norms.error = extractErrorMessage(e
         @swap="store.swapMetrics"
       />
 
-      <p v-if="store.error" class="mb-md text-base text-status-negative">{{ store.error }}</p>
-      <p v-if="norms.error" class="mb-md text-base text-status-negative">{{ norms.error }}</p>
+      <DataState v-if="norms.error" kind="error" layout="line" :text="norms.error" class="mb-md" />
       <p v-if="settledNote" class="mb-sm text-tiny text-muted">{{ settledNote }}</p>
-      <p v-if="store.loading && !store.data" class="py-xl text-center text-base text-muted">
-        Считаем…
-      </p>
+      <DataState v-if="!store.data && store.loading" kind="loading" layout="bare" />
+      <DataState
+        v-else-if="!store.data && store.error"
+        kind="error"
+        layout="bare"
+        :text="store.error"
+      />
 
-      <div v-if="store.data && store.primary" :class="{ 'hm-stale': store.loading }">
-        <HeatmapTable
-          class="hidden sm:block"
-          :currencies="currencies"
-          :columns="store.columns"
-          :period="store.data.period"
-          :rows="store.view.rows"
-          :tints="store.tints"
-          :totals="store.totals"
-          :primary="store.primary"
-          :secondary="store.secondary"
-          :sort="store.sort"
-          :group-by="store.data.group_by"
-          :date-from="store.data.date_from"
-          :date-to="store.data.date_to"
-          :norm-of="normOf"
-          @sort="store.toggleSort"
-          @norm="saveNorm"
+      <template v-if="store.data && store.primary">
+        <DataState
+          v-if="store.error"
+          kind="error"
+          layout="line"
+          :text="store.error"
+          class="mb-md"
         />
-        <HeatmapDayList
-          class="sm:hidden"
-          :currencies="currencies"
-          :columns="store.columns"
-          :period="store.data.period"
-          :rows="store.view.rows"
-          :tints="store.tints"
-          :totals="store.totals"
-          :primary="store.primary"
-          :secondary="store.secondary"
-          :norm-of="normOf"
-          @norm="saveNorm"
-        />
-        <HeatmapPager
-          v-model:page-size="store.pageSize"
-          :page="store.view.page"
-          :pages="store.view.pages"
-          :total="store.sortedRows.length"
-          @update:page="store.page = $event"
-        />
-      </div>
+        <BusyRegion :busy="store.loading">
+          <HeatmapTable
+            class="hidden sm:block"
+            :currencies="currencies"
+            :columns="store.columns"
+            :period="store.data.period"
+            :rows="store.view.rows"
+            :tints="store.tints"
+            :totals="store.totals"
+            :primary="store.primary"
+            :secondary="store.secondary"
+            :sort="store.sort"
+            :group-by="store.data.group_by"
+            :date-from="store.data.date_from"
+            :date-to="store.data.date_to"
+            :norm-of="normOf"
+            @sort="store.toggleSort"
+            @norm="saveNorm"
+          />
+          <HeatmapDayList
+            class="sm:hidden"
+            :currencies="currencies"
+            :columns="store.columns"
+            :period="store.data.period"
+            :rows="store.view.rows"
+            :tints="store.tints"
+            :totals="store.totals"
+            :primary="store.primary"
+            :secondary="store.secondary"
+            :norm-of="normOf"
+            @norm="saveNorm"
+          />
+          <HeatmapPager
+            v-model:page-size="store.pageSize"
+            :page="store.view.page"
+            :pages="store.view.pages"
+            :total="store.sortedRows.length"
+            @update:page="store.page = $event"
+          />
+        </BusyRegion>
+      </template>
     </section>
 
     <!-- Under the card, like the monitoring matrix's edit hint. -->
@@ -215,12 +229,3 @@ onMounted(() => norms.load().catch((err) => (norms.error = extractErrorMessage(e
     />
   </div>
 </template>
-
-<style scoped>
-/* Dimmed and inert, never hidden — see the view's comment. */
-.hm-stale {
-  opacity: 0.45;
-  pointer-events: none;
-  transition: opacity 120ms ease-out;
-}
-</style>

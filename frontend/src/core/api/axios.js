@@ -185,6 +185,13 @@ export function extractErrorMessage(error) {
   if (error.isAxiosError) {
     // Worth telling apart: one of these is worth retrying, the other is not.
     if (!error.response) return 'Нет связи с сервером. Проверьте подключение и повторите попытку.'
+    // The proxy's own answers: no body of ours, so nothing else to go on. A
+    // timeout is the one a seller meets on a heavy report, and «unexpected»
+    // would hide that waiting less — a shorter period — is the way out.
+    const status = error.response.status
+    if (status === 504) return 'Сервер не успел посчитать ответ. Попробуйте период покороче.'
+    if (status === 502 || status === 503)
+      return 'Сервер временно недоступен. Повторите через минуту.'
     return 'Непредвиденная ошибка. Повторите попытку позже.'
   }
   return error.message ?? 'Непредвиденная ошибка'

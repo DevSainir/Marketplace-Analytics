@@ -443,8 +443,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     error.value = null
     notFound.value = null
     lookupMatches.value = []
+    let nmId = /^\d+$/.test(query) ? Number(query) : null
     try {
-      let nmId = /^\d+$/.test(query) ? Number(query) : null
       if (nmId === null) {
         const resolution = await resolveVendorCode(query, controller.signal)
         if (seq !== requestSeq) return // a newer search superseded this one
@@ -466,7 +466,10 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       loadMatrix(detail)
     } catch (err) {
       if (seq !== requestSeq || isAbortError(err)) return
-      currentProduct.value = null
+      // A failed reload of the SKU on screen keeps its figures under the error
+      // line; a failed search for ANOTHER one must not leave the old card
+      // standing as if it were the answer.
+      if (currentProduct.value?.nm_id !== nmId) currentProduct.value = null
       error.value = extractErrorMessage(err)
     } finally {
       if (seq === requestSeq) loading.value = false

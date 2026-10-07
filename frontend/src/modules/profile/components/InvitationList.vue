@@ -15,9 +15,13 @@
  */
 import { computed } from 'vue'
 
+import DataState from '@/core/components/DataState.vue'
+
 const props = defineProps({
   /** @type {Array<object>} rows from GET /v1/organizations/invitations */
   invitations: { type: Array, default: () => [] },
+  /** The list is still being read — until then «none» would be a guess. */
+  loading: { type: Boolean, default: false },
   /** invitation id being revoked, or null. */
   busy: { type: [String, null], default: null },
 })
@@ -64,7 +68,8 @@ function expiry(invitation) {
       </div>
     </header>
 
-    <p v-if="!visible.length" class="pf-empty">Действующих приглашений нет.</p>
+    <DataState v-if="loading && !visible.length" kind="loading" />
+    <DataState v-else-if="!visible.length" kind="empty" text="Действующих приглашений нет" />
 
     <div v-else class="pf-grid" role="table">
       <div class="pf-grid__head" role="row">

@@ -170,7 +170,8 @@ function formatDate(value) {
         </div>
       </li>
       <li v-if="!loading && !rows.length" class="px-md py-lg text-center text-base text-muted">
-        Тестов пока нет. Создайте первый — загрузите до 10 вариантов главного фото.
+        Тестов пока нет. Создайте первый — загрузите до 10 вариантов главного фото, и они будут
+        сменять друг друга по мере набора показов.
       </li>
     </ul>
   </section>

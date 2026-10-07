@@ -337,6 +337,16 @@ describe('excluding a SKU from the общий счёт', () => {
 })
 
 describe('failures', () => {
+  it('says why an Excel export failed instead of doing nothing', async () => {
+    // The view only triggers the download; without this the button was a
+    // click that silently came to nothing.
+    downloadCostPricesXlsx.mockRejectedValue({ response: { data: { detail: 'Нет данных' } } })
+
+    await expect(store.exportCostPrices()).rejects.toBeTruthy()
+
+    expect(store.costsError).toBe('Нет данных')
+  })
+
   it('records a report error instead of throwing at the view', async () => {
     await store.loadWeeks()
     fetchSkuPnl.mockRejectedValue({ response: { data: { detail: 'Отчёт недоступен' } } })

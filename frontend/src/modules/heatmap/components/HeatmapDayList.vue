@@ -14,6 +14,7 @@
  */
 import { computed, ref, watch } from 'vue'
 
+import DataState from '@/core/components/DataState.vue'
 import SkuThumb from '@/core/components/SkuThumb.vue'
 import HeatmapNormInput from '@/modules/heatmap/components/HeatmapNormInput.vue'
 import { formatSku } from '@/core/utils/format'
@@ -81,6 +82,7 @@ const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies,
           }}</span>
         </span>
       </li>
+      <li v-if="!rows.length"><DataState kind="empty" layout="bare" /></li>
       <li
         v-for="(row, rowIndex) in rows"
         :key="row.key"
@@ -115,4 +117,5 @@ const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies,
       </li>
     </ul>
   </div>
+  <DataState v-else kind="empty" layout="bare" />
 </template>

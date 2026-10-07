@@ -25,6 +25,7 @@
  */
 import { computed, nextTick, ref, watch } from 'vue'
 
+import DataState from '@/core/components/DataState.vue'
 import SkuThumb from '@/core/components/SkuThumb.vue'
 import HeatmapNormInput from '@/modules/heatmap/components/HeatmapNormInput.vue'
 import { formatSku } from '@/core/utils/format'
@@ -165,8 +166,6 @@ const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies,
       </tbody>
     </table>
 
-    <p v-if="!rows.length" class="px-md py-xl text-center text-base text-muted">
-      За период нет данных по выбранным артикулам.
-    </p>
+    <DataState v-if="!rows.length" kind="empty" layout="bare" />
   </div>
 </template>

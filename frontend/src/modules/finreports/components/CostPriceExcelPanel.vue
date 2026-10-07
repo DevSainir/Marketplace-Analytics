@@ -14,8 +14,12 @@ import { currencyInWords } from '@/core/utils/format'
  * with silence.
  */
 defineProps({
-  /** @type {boolean} A download or upload is in flight. */
+  /** @type {boolean} Anything that writes the costs is in flight; both buttons wait. */
   busy: { type: Boolean, default: false },
+  /** @type {boolean} The download is being built. */
+  exporting: { type: Boolean, default: false },
+  /** @type {boolean} The upload is being applied. */
+  importing: { type: Boolean, default: false },
   /** @type {object|null} The last import summary: {applied, skipped, issues}. */
   result: { type: Object, default: null },
   currency: { type: String, default: 'KGS' },
@@ -47,17 +51,17 @@ function onFile(event) {
       <button
         type="button"
         class="rounded-btn border border-border-subtle px-lg py-sm text-base font-semibold text-primary transition hover:border-action disabled:cursor-not-allowed disabled:opacity-50 phone:min-h-11 phone:w-full"
-        :disabled="busy"
+        :disabled="busy || exporting"
         @click="emit('export')"
       >
-        Скачать Excel
+        {{ exporting ? 'Скачиваем…' : 'Скачать Excel' }}
       </button>
 
       <label
         class="cursor-pointer rounded-btn bg-action px-lg py-sm text-center text-base font-semibold text-white transition hover:bg-action-hover phone:flex phone:min-h-11 phone:w-full phone:items-center phone:justify-center"
         :class="busy ? 'cursor-not-allowed opacity-50' : ''"
       >
-        {{ busy ? 'Загрузка…' : 'Загрузить Excel' }}
+        {{ importing ? 'Загружаем…' : 'Загрузить Excel' }}
         <input
           type="file"
           accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"

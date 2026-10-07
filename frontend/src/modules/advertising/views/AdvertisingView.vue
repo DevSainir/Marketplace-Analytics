@@ -11,6 +11,8 @@
  */
 import { computed, onMounted } from 'vue'
 
+import BusyRegion from '@/core/components/BusyRegion.vue'
+import DataState from '@/core/components/DataState.vue'
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
 import { formatMoney } from '@/core/utils/format'
 import AdsBidCards from '@/modules/advertising/components/AdsBidCards.vue'
@@ -49,56 +51,52 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
       />
     </div>
 
-    <div v-if="store.loading && !store.data" class="py-xl text-center text-base text-muted">
-      Загружаю данные…
-    </div>
-    <div v-else-if="store.error" class="py-xl text-center text-base text-status-negative">
-      {{ store.error }}
-    </div>
-    <div
-      v-else-if="store.data && !store.data.days.length"
-      class="py-xl text-center text-base text-muted"
-    >
-      За этот период рекламы не было
-    </div>
+    <DataState v-if="!store.data && store.loading" kind="loading" />
+    <DataState v-else-if="!store.data && store.error" kind="error" :text="store.error" />
 
-    <div
-      v-else-if="store.data"
-      class="flex flex-col gap-xl"
-      :class="{ 'opacity-60 transition-opacity': store.loading }"
-    >
-      <section>
-        <h2 class="mb-md text-h3 font-semibold text-primary">Куда ушли деньги</h2>
-        <div class="flex flex-col gap-md">
-          <AdsKpis
-            :totals="store.totals"
-            :currency="store.currency"
-            :show-bonus="store.bonusVisible"
-            :drr-comparable="store.drrComparable"
-          />
-          <AdsBidCards
-            :cards="store.bids.cards"
-            :currency="store.currency"
-            :show-bonus="store.bonusVisible"
-          />
-          <p v-if="store.bids.untyped" class="text-tiny text-muted">
-            Ещё {{ formatMoney(store.bids.untyped, store.currency) }} не разнесено по видам: WB не
-            отдал настройки этих кампаний.
-          </p>
-        </div>
-      </section>
-
-      <section v-if="store.data.days.length > 1">
-        <h2 class="mb-md text-h3 font-semibold text-primary">Открутка по дням</h2>
-        <AdsDailyChart
-          :days="store.data.days"
-          :currency="store.currency"
-          :show-bonus="store.bonusVisible"
-          :show-drr="store.drrComparable && Boolean(settledTo)"
+    <template v-else-if="store.data">
+      <DataState v-if="store.error" kind="error" layout="line" :text="store.error" class="mb-md" />
+      <BusyRegion :busy="store.loading">
+        <DataState
+          v-if="!store.data.days.length"
+          kind="empty"
+          text="За этот период рекламы не было"
         />
-      </section>
+        <div v-else class="flex flex-col gap-xl">
+          <section>
+            <h2 class="mb-md text-h3 font-semibold text-primary">Куда ушли деньги</h2>
+            <div class="flex flex-col gap-md">
+              <AdsKpis
+                :totals="store.totals"
+                :currency="store.currency"
+                :show-bonus="store.bonusVisible"
+                :drr-comparable="store.drrComparable"
+              />
+              <AdsBidCards
+                :cards="store.bids.cards"
+                :currency="store.currency"
+                :show-bonus="store.bonusVisible"
+              />
+              <p v-if="store.bids.untyped" class="text-tiny text-muted">
+                Ещё {{ formatMoney(store.bids.untyped, store.currency) }} не разнесено по видам: WB
+                не отдал настройки этих кампаний.
+              </p>
+            </div>
+          </section>
 
-      <AdvertisingSkuSection />
-    </div>
+          <section v-if="store.data.days.length > 1">
+            <h2 class="mb-md text-h3 font-semibold text-primary">Открутка по дням</h2>
+            <AdsDailyChart
+              :days="store.data.days"
+              :currency="store.currency"
+              :show-bonus="store.bonusVisible"
+              :show-drr="store.drrComparable && Boolean(settledTo)"
+            />
+          </section>
+
+          <AdvertisingSkuSection />
+        </div>
+      </BusyRegion>
+    </template>
   </div>
 </template>

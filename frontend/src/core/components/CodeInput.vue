@@ -209,7 +209,7 @@ defineExpose({ focus: () => focusCell(0) })
    `tabular-nums` matters: proportional digits make a `1` sit narrower than a
    `8` and the row stops looking like a row. */
 .code-cell {
-  @apply h-14 w-12 rounded-input border bg-canvas text-center text-h2 font-semibold tabular-nums text-primary transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 phone:h-12 phone:w-10;
+  @apply h-14 w-12 rounded-input border bg-canvas text-center text-h2 font-semibold tabular-nums text-primary transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 phone:h-12 phone:w-10;
 }
 
 .code-cell-idle {

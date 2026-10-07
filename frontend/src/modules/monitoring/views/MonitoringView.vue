@@ -2,11 +2,11 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { MAX_WINDOW_DAYS } from '@/core/utils/dates'
-
 import MatrixEditToolbar from '@/modules/monitoring/components/MatrixEditToolbar.vue'
 import MetricsTable from '@/modules/monitoring/components/MetricsTable.vue'
 import MetricsChart from '@/modules/monitoring/components/MetricsChart.vue'
+import BusyRegion from '@/core/components/BusyRegion.vue'
+import DataState from '@/core/components/DataState.vue'
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
 import SkuIdentityHeader from '@/modules/monitoring/components/SkuIdentityHeader.vue'
 import SkuMatchPicker from '@/modules/monitoring/components/SkuMatchPicker.vue'
@@ -19,6 +19,7 @@ import StockComparePanel from '@/modules/monitoring/components/StockComparePanel
 import { useMonitoringStore } from '@/modules/monitoring/store'
 import { useMatrixEditing } from '@/modules/monitoring/useMatrixEditing'
 import { unionStockSizes } from '@/modules/monitoring/stockCompareSizes'
+import { describeDetail } from '@/modules/monitoring/detailState'
 import { MAX_PERIOD_DAYS, useSearchQuerySync } from '@/modules/monitoring/useSearchQuerySync'
 import { useSkuClusters } from '@/modules/monitoring/useSkuClusters'
 import { useWorkspaceStore } from '@/modules/profile'
@@ -34,6 +35,10 @@ const { dateFrom, dateTo, windowTooWide, handleSelect, handleApply, applyPeriod 
 
 /** Pick the search-relevant params out of a route query (arrays/absent → defaults). */
 const product = computed(() => store.currentProduct)
+
+const detailState = computed(() =>
+  describeDetail({ windowTooWide: windowTooWide.value, product: product.value, store }),
+)
 
 // Vendor code (артикул продавца) once the backend serves it; nm ID meanwhile.
 const skuLabel = computed(
@@ -138,30 +143,17 @@ onMounted(() => store.fetchPins())
         @select="handleSelect"
       />
 
-      <!-- Detail states. The window bound leads, said as a bound and not a fault. -->
-      <p v-if="windowTooWide" class="mt-lg text-base text-muted">
-        Период больше {{ MAX_WINDOW_DAYS }} дней не показываем — выберите отрезок покороче, и данные
-        появятся снова.
-      </p>
-
-      <p v-else-if="store.loading" class="mt-lg text-center text-base text-muted">
-        Загружаем статистику {{ skuLabel }}…
-      </p>
-
-      <div
-        v-else-if="store.error"
-        class="mt-lg rounded-card bg-status-negative/10 p-md text-base text-status-negative"
-      >
-        <p class="font-semibold">Не удалось загрузить данные</p>
-        <p class="mt-xs">{{ store.error }}</p>
-      </div>
-
-      <p v-else-if="store.notFound" class="mt-lg text-center text-base text-muted">
-        По артикулу «{{ store.notFound }}» ничего не найдено.
-      </p>
+      <DataState v-if="detailState" v-bind="detailState" class="mt-lg" />
 
       <!-- Product identity + daily metrics table after a SKU is submitted -->
-      <template v-else-if="product">
+      <BusyRegion v-else-if="product" :busy="store.loading">
+        <DataState
+          v-if="store.error"
+          kind="error"
+          layout="line"
+          :text="store.error"
+          class="mb-md"
+        />
         <SkuIdentityHeader
           :product="product"
           :sku-label="skuLabel"
@@ -231,7 +223,7 @@ onMounted(() => store.fetchPins())
         <div v-if="clustersEnabled" id="sec-clusters">
           <SkuClusterBlock v-bind="clusters.clusterTableProps" :currency="product?.ad_currencies" />
         </div>
-      </template>
+      </BusyRegion>
 
       <!-- Initial state: an inviting hint until the first SKU is submitted -->
       <div v-else-if="!store.lookupMatches.length" class="mt-20 text-center phone:mt-xl">

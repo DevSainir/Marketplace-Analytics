@@ -13,9 +13,12 @@
  */
 import { ref } from 'vue'
 
+import DataState from '@/core/components/DataState.vue'
 import { levelLabel, moduleLabel } from '@/modules/profile/components/grantModules'
 
 defineProps({
+  /** The team is still being read — until then «no managers» would be a guess. */
+  loading: { type: Boolean, default: false },
   managers: { type: Array, default: () => [] },
   /** user_id currently being written, or 'invite'. */
   saving: { type: [String, null], default: null },
@@ -55,10 +58,13 @@ function joined(iso) {
       </button>
     </header>
 
-    <p v-if="!managers.length" class="pf-empty">
-      В организации пока нет менеджеров. Приглашение выдаёт доступ сразу — менеджер входит уже с
-      теми правами, которые вы выбрали.
-    </p>
+    <DataState v-if="loading && !managers.length" kind="loading" />
+    <DataState
+      v-else-if="!managers.length"
+      kind="empty"
+      text="В организации пока нет менеджеров"
+      hint="Приглашение выдаёт доступ сразу — менеджер входит уже с теми правами, которые вы выбрали."
+    />
 
     <div v-else class="pf-grid" role="table">
       <div class="pf-grid__head" role="row">

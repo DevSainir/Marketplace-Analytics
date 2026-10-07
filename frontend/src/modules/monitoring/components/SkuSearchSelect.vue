@@ -9,6 +9,7 @@
  */
 import { computed, ref } from 'vue'
 
+import BusyBar from '@/core/components/BusyBar.vue'
 import SkuThumb from '@/core/components/SkuThumb.vue'
 import { formatSku } from '@/core/utils/format'
 
@@ -134,7 +135,7 @@ function onApply() {
         class="absolute inset-x-0 top-full z-20 mt-sm max-h-96 overflow-y-auto rounded-card bg-surface shadow-card"
         role="listbox"
       >
-        <p v-if="loading" class="px-md py-md text-base text-muted">Загружаем список SKU…</p>
+        <BusyBar v-if="loading" label="Загружаем…" class="px-md py-md" />
         <p v-else-if="!filtered.length" class="px-md py-md text-base text-muted">
           Ничего не совпало — проверьте артикул или очистите поиск.
         </p>

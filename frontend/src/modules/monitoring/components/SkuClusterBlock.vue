@@ -1,4 +1,6 @@
 <script setup>
+import BusyRegion from '@/core/components/BusyRegion.vue'
+import DataState from '@/core/components/DataState.vue'
 import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 
 /**
@@ -42,7 +44,14 @@ defineProps({
       приходят из статистики кампаний и копятся вперёд — за прошлые месяцы их нет.
     </p>
 
-    <div v-if="clusters.length" class="app-datatable mt-md">
+    <DataState
+      v-if="clustersError"
+      kind="error"
+      :layout="clusters.length ? 'line' : 'card'"
+      :text="clustersError"
+      class="mt-md"
+    />
+    <BusyRegion v-if="clusters.length" :busy="clustersLoading" class="app-datatable mt-md">
       <!-- Wide table on a narrow screen: the card scrolls, the page never does. -->
       <div class="overflow-x-auto">
         <table class="min-w-[44rem]">
@@ -78,16 +87,16 @@ defineProps({
           </tbody>
         </table>
       </div>
-    </div>
+    </BusyRegion>
 
-    <p v-else-if="clustersError" class="mt-md text-base text-status-negative">
-      {{ clustersError }}
-    </p>
-    <p v-else-if="clustersLoading" class="mt-md text-base text-muted">Загружаем кластеры…</p>
+    <DataState v-else-if="clustersLoading" kind="loading" class="mt-md" />
     <!-- The section's own description already explains why history is missing,
          so the empty state says only what is true of THIS window. -->
-    <p v-else-if="loaded" class="mt-md text-base text-muted">
-      За выбранный период реклама этого артикула не показывалась в поиске.
-    </p>
+    <DataState
+      v-else-if="loaded && !clustersError"
+      kind="empty"
+      text="За выбранный период реклама этого артикула не показывалась в поиске."
+      class="mt-md"
+    />
   </section>
 </template>

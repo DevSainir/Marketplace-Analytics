@@ -17,6 +17,7 @@
  * пагинируется, а вложенный DataTable внутри строки DataTable тянет за собой
  * вторую прокрутку внутри первой.
  */
+import BusyBar from '@/core/components/BusyBar.vue'
 import { num as n, pct, units, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'
 import { sizeAtBase, usePriceBase } from '@/modules/finreports/priceBase'
@@ -36,7 +37,7 @@ const at = (size) => sizeAtBase(size, base())
   <div class="bg-inset px-md py-sm">
     <!-- `null` тоже значит «ещё не знаем»: строка раскрывается мгновенно, а
          запрос за ней только уходит, и «нет размеров» в этот момент — неправда. -->
-    <p v-if="!state || state.loading" class="py-sm text-tiny text-muted">Считаем размеры…</p>
+    <BusyBar v-if="!state || state.loading" label="Загружаем…" class="justify-start py-sm" />
     <p v-else-if="state.error" class="py-sm text-tiny text-status-negative">{{ state.error }}</p>
     <p v-else-if="!state.data?.rows?.length" class="py-sm text-tiny text-muted">
       За этот период у артикула нет строк с размером.

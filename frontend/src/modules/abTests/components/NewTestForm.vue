@@ -125,7 +125,7 @@ defineExpose({ reset })
         data-testid="create-test"
         @click="submit"
       >
-        Создать
+        {{ saving ? 'Создаём…' : 'Создать' }}
       </button>
       <button
         type="button"

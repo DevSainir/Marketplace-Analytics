@@ -38,7 +38,7 @@ const emit = defineEmits(['close', 'save'])
     />
     <template #footer>
       <button type="submit" form="pf-tokens-form" class="pf-btn pf-btn--primary" :disabled="busy">
-        {{ busy ? 'Сохранение…' : 'Сохранить токены' }}
+        {{ busy ? 'Сохраняем…' : 'Сохранить токены' }}
       </button>
     </template>
   </SidePanel>

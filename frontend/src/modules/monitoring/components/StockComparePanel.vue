@@ -13,6 +13,7 @@
  */
 import { computed } from 'vue'
 
+import BusyRegion from '@/core/components/BusyRegion.vue'
 import StockCompareTable from '@/modules/monitoring/components/StockCompareTable.vue'
 import { formatDay } from '@/core/utils/calendarModel'
 
@@ -21,7 +22,7 @@ const props = defineProps({
   days: { type: Array, default: () => [] },
   /** The union of every day's sizes, so a row lines up across the period. */
   sizeOrder: { type: Array, default: () => [] },
-  /** Dim the grid while a reload is in flight. */
+  /** A reload is in flight: the grid stays, dimmed (`BusyRegion`). */
   loading: { type: Boolean, default: false },
 })
 
@@ -38,12 +39,12 @@ const columns = computed(() =>
   <section class="mt-lg" aria-label="Остатки по складам">
     <h2 class="text-h3 font-semibold text-primary">Остатки по складам</h2>
 
-    <StockCompareTable
-      class="mt-sm"
-      :class="loading ? 'opacity-60' : ''"
-      :days="columns"
-      :size-order="sizeOrder"
-      empty-message="Нет складских остатков по этому SKU за выбранный период."
-    />
+    <BusyRegion :busy="loading" class="mt-sm">
+      <StockCompareTable
+        :days="columns"
+        :size-order="sizeOrder"
+        empty-message="Нет складских остатков по этому SKU за выбранный период."
+      />
+    </BusyRegion>
   </section>
 </template>

@@ -18,6 +18,8 @@ import { onMounted } from 'vue'
 import BalanceTable from '@/modules/finreports/components/BalanceTable.vue'
 import { useFinReportsStore } from '@/modules/finreports/store'
 
+import BusyRegion from '@/core/components/BusyRegion.vue'
+import DataState from '@/core/components/DataState.vue'
 import DayPicker from '@/core/components/DayPicker.vue'
 
 const store = useFinReportsStore()
@@ -39,44 +41,34 @@ onMounted(() => {
         </p>
       </div>
 
-      <div class="flex items-center gap-sm">
-        <span class="text-tiny font-medium uppercase tracking-wider text-muted">День</span>
-        <DayPicker
-          v-if="store.balanceDate"
-          :model-value="store.balanceDate"
-          :min="store.balance?.available_from ?? ''"
-          :max="store.balance?.available_to ?? store.balanceDate"
-          aria-label="День остатков"
-          @update:model-value="store.setBalanceDate($event)"
-        />
-      </div>
+      <DayPicker
+        v-if="store.balanceDate"
+        :model-value="store.balanceDate"
+        :min="store.balance?.available_from ?? ''"
+        :max="store.balance?.available_to ?? store.balanceDate"
+        aria-label="День остатков"
+        @update:model-value="store.setBalanceDate($event)"
+      />
     </header>
 
-    <div
-      v-if="store.balanceLoading"
-      class="rounded-card border border-border-subtle bg-surface px-lg py-xl text-center text-base text-muted shadow-card"
-    >
-      Считаем баланс…
-    </div>
+    <DataState v-if="!store.balance && store.balanceLoading" kind="loading" />
+    <DataState
+      v-else-if="!store.balance && store.balanceError"
+      kind="error"
+      :text="store.balanceError"
+    />
 
-    <div
-      v-else-if="store.balanceError && !store.balance"
-      class="rounded-card border border-border-subtle bg-surface px-lg py-xl text-center shadow-card"
-    >
-      <p class="font-semibold text-primary">Баланс недоступен</p>
-      <p class="mt-xs text-base text-muted">{{ store.balanceError }}</p>
-    </div>
-
-    <template v-else-if="store.balance">
+    <BusyRegion v-else-if="store.balance" :busy="store.balanceLoading">
       <!-- A failed MARK must not take the grid away: it is written in the
            background while the table already shows the new order, so the
-           rollback needs a line of text, not an empty state. -->
-      <p
+           rollback is a line above the grid, not an empty state. -->
+      <DataState
         v-if="store.balanceError"
-        class="mb-sm rounded-input border border-border-subtle bg-surface px-md py-xs text-tiny text-status-negative"
-      >
-        {{ store.balanceError }}
-      </p>
+        kind="error"
+        layout="line"
+        :text="store.balanceError"
+        class="mb-sm"
+      />
       <BalanceTable
         :balance="store.balance"
         @mark="store.toggleBalancePin($event.kind, $event.value, $event.pinned)"
@@ -86,6 +78,6 @@ onMounted(() => {
           ⚠ {{ note }}
         </li>
       </ul>
-    </template>
+    </BusyRegion>
   </section>
 </template>

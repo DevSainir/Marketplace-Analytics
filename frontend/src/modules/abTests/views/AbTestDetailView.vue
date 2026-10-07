@@ -9,6 +9,8 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import DataState from '@/core/components/DataState.vue'
+
 import { MAX_VARIANTS, useAbTestsStore } from '@/modules/abTests'
 import { useCurrencyStore } from '@/modules/finreports'
 import { roundsIn } from '@/modules/abTests/timeline'
@@ -160,7 +162,15 @@ async function onMainFile(event) {
       />
     </TestPageHeader>
 
-    <p v-if="store.error" class="mb-md text-base text-status-negative">{{ store.error }}</p>
+    <DataState v-if="!test && store.loading" kind="loading" />
+    <DataState v-else-if="!test && store.error" kind="error" :text="store.error" />
+    <DataState
+      v-else-if="store.error"
+      kind="error"
+      layout="line"
+      :text="store.error"
+      class="mb-md"
+    />
 
     <RotationTimeline v-if="test && test.started_at" :test="test" :image-urls="store.imageUrls" />
 
@@ -227,10 +237,11 @@ async function onMainFile(event) {
       </div>
     </template>
 
-    <p v-else-if="test" class="rounded-card bg-surface p-lg text-base text-muted shadow-card">
-      Загрузите до {{ MAX_VARIANTS }} вариантов главного фото — они будут сменять друг друга по мере
-      набора показов, и здесь появится их сравнение. Начните с «Главного»: это то фото, которое
-      сейчас стоит на карточке, и именно с ним сравниваются остальные.
-    </p>
+    <DataState
+      v-else-if="test"
+      kind="empty"
+      :text="`Загрузите до ${MAX_VARIANTS} вариантов главного фото — они будут сменять друг друга по мере набора показов, и здесь появится их сравнение.`"
+      hint="Начните с «Главного»: это то фото, которое сейчас стоит на карточке, и именно с ним сравниваются остальные."
+    />
   </main>
 </template>

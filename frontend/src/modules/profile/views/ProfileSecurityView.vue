@@ -20,6 +20,7 @@ import { changePassword, endSession, fetchSessions } from '@/modules/profile/api
 
 const sessions = ref([])
 const sessionsLoading = ref(true)
+const sessionsError = ref('')
 /** A family_id being ended, or 'all'. */
 const ending = ref(null)
 
@@ -29,10 +30,14 @@ const passwordError = ref('')
 
 async function loadSessions() {
   sessionsLoading.value = true
+  sessionsError.value = ''
   try {
     sessions.value = await fetchSessions()
-  } catch {
+  } catch (err) {
+    // Said, not swallowed: an empty list here would read as «signed in nowhere
+    // else», the one answer this screen must never give by accident.
     sessions.value = []
+    sessionsError.value = extractErrorMessage(err)
   } finally {
     sessionsLoading.value = false
   }
@@ -111,6 +116,7 @@ async function onEndOthers() {
       <SessionList
         :sessions="sessions"
         :loading="sessionsLoading"
+        :error="sessionsError"
         :busy="ending"
         @end="onEndSession"
         @end-others="onEndOthers"

@@ -134,23 +134,28 @@ export const useAbTestsStore = defineStore('abTests', () => {
   /**
    * Load the list, cancelling any request the user has already typed past.
    *
-   * @returns {Promise<void>}
+   * @returns {Promise<boolean>} Whether it loaded (an aborted one counts as not).
    */
   async function loadTests() {
     listController?.abort()
-    listController = new AbortController()
+    const controller = new AbortController()
+    listController = controller
     loading.value = true
     error.value = ''
     try {
       tests.value = await fetchTests(
         query.value.trim() ? { q: query.value.trim() } : {},
-        listController.signal,
+        controller.signal,
       )
+      return true
     } catch (err) {
       // An aborted request is the user typing, not a failure.
       if (err.code !== 'ERR_CANCELED') error.value = extractErrorMessage(err)
+      return false
     } finally {
-      loading.value = false
+      // Only the newest request may end the busy state: a superseded one
+      // finishing first would un-dim the list while its successor still runs.
+      if (listController === controller) loading.value = false
     }
   }
 
