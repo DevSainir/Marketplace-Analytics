@@ -9,7 +9,11 @@
  * данные…», «Считаем отчёт…»). Pages now pick a `kind` and, at most, their own
  * wording for an empty block.
  *
- * `layout`:
+ * A first load is the small bar with «Загружаем…» at the top left of where
+ * the block will be — the summary's original, and deliberately not a card: a
+ * big empty box announces a block before there is anything to put in it.
+ *
+ * `layout` (for an error or an empty block):
  * - `card` — the block's own card, standing where the block will be;
  * - `bare` — the same content without the card, for a place already inside one
  *   (a table body, a section card);
@@ -46,8 +50,10 @@ const frame = computed(() => {
 </script>
 
 <template>
+  <BusyBar v-if="kind === 'loading'" label="Загружаем…" />
+
   <p
-    v-if="layout === 'line'"
+    v-else-if="layout === 'line'"
     class="rounded-input border border-status-negative/30 bg-status-negative/10 px-md py-sm text-base text-status-negative"
     role="alert"
   >
@@ -55,9 +61,7 @@ const frame = computed(() => {
   </p>
 
   <div v-else :class="frame">
-    <BusyBar v-if="kind === 'loading'" label="Загружаем…" />
-
-    <div v-else-if="kind === 'error'" role="alert">
+    <div v-if="kind === 'error'" role="alert">
       <p class="font-semibold text-status-negative">{{ FAILED }}</p>
       <p v-if="text" class="mt-xs text-base text-primary">{{ text }}</p>
     </div>

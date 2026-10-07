@@ -12,7 +12,7 @@
  * collapse that did not happen.
  */
 import { defineStore } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
 import { presetWindow } from '@/core/utils/calendarModel'
@@ -59,7 +59,10 @@ export const useHeatmapStore = defineStore('heatmap', () => {
   const page = ref(1)
   const pageSize = ref(30)
 
-  const data = ref(null)
+  // Shallow: the payload is only ever replaced whole, never edited in place,
+  // and a deep proxy over every row is work done on the page's own thread
+  // exactly while it is busy taking the response in.
+  const data = shallowRef(null)
   const loading = ref(false)
   const error = ref('')
   const catalog = ref({ items: [], subjects: [] })

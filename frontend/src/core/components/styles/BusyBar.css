@@ -5,7 +5,6 @@
 .busy {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 10px;
 }
 
@@ -22,28 +21,39 @@
   width: 100%;
 }
 
+/*
+ * Moved by `transform`, never by `left`: a transform animation runs on the
+ * compositor, so the glide keeps moving while the page's own thread is busy
+ * parsing and rendering the very response it is waiting for. Animated by
+ * `left` it froze mid-track at exactly those moments, and a frozen bar reads
+ * as a hung page.
+ */
 .busy__glide {
   position: absolute;
   top: 0;
   bottom: 0;
+  left: 0;
   width: 40%;
   border-radius: 2px;
   background: var(--ui-action);
+  will-change: transform;
   animation: busy-glide 1.1s ease-in-out infinite;
 }
 
 .busy__label {
-  font-size: 0.875rem; /* base */
+  font-size: 0.75rem; /* tiny */
   color: var(--ui-muted);
 }
 
+/* Percentages of the glide's own width: it is 40 % of the track, so −100 %
+   starts it just off the left end and 250 % ends it just off the right. */
 @keyframes busy-glide {
   0% {
-    left: -40%;
+    transform: translateX(-100%);
   }
 
   100% {
-    left: 100%;
+    transform: translateX(250%);
   }
 }
 
@@ -51,8 +61,8 @@
    state still has to be visible, so it rests as a pulse instead. */
 @media (prefers-reduced-motion: reduce) {
   .busy__glide {
-    left: 0;
     width: 100%;
+    transform: none;
     animation: busy-pulse 1.6s ease-in-out infinite;
   }
 

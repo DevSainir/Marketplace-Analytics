@@ -13,7 +13,7 @@
  * sales.
  */
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
 import { presetWindow } from '@/core/utils/calendarModel'
@@ -48,7 +48,10 @@ export const useSummaryStore = defineStore('summary', () => {
   const cut = ref('sku')
   const sort = ref('revenue')
 
-  const data = ref(null)
+  // Shallow: the payload is only ever replaced whole, never edited in place,
+  // and a deep proxy over every row is work done on the page's own thread
+  // exactly while it is busy taking the response in.
+  const data = shallowRef(null)
   const span = ref(null)
   const loading = ref(false)
   const error = ref('')

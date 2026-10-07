@@ -37,7 +37,7 @@ const at = (size) => sizeAtBase(size, base())
   <div class="bg-inset px-md py-sm">
     <!-- `null` тоже значит «ещё не знаем»: строка раскрывается мгновенно, а
          запрос за ней только уходит, и «нет размеров» в этот момент — неправда. -->
-    <BusyBar v-if="!state || state.loading" label="Загружаем…" class="justify-start py-sm" />
+    <BusyBar v-if="!state || state.loading" label="Загружаем…" class="py-sm" />
     <p v-else-if="state.error" class="py-sm text-tiny text-status-negative">{{ state.error }}</p>
     <p v-else-if="!state.data?.rows?.length" class="py-sm text-tiny text-muted">
       За этот период у артикула нет строк с размером.

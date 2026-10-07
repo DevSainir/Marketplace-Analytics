@@ -10,7 +10,7 @@
  * device and by every manager.
  */
 import { defineStore } from 'pinia'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, shallowRef } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
 import { presetWindow } from '@/core/utils/calendarModel'
@@ -44,7 +44,10 @@ export const useAdvertisingStore = defineStore('advertising', () => {
   const dateTo = ref(initial.to)
 
   const span = ref(null)
-  const data = ref(null)
+  // Shallow: the payload is only ever replaced whole, never edited in place,
+  // and a deep proxy over every row is work done on the page's own thread
+  // exactly while it is busy taking the response in.
+  const data = shallowRef(null)
   const loading = ref(false)
   const error = ref('')
   let inFlight = null

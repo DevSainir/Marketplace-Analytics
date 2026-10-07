@@ -8,8 +8,10 @@
  * a «loading» line — and blanking was the worst of them: a flag toggled or a
  * period changed made the whole table vanish and the page jump.
  *
- * Inert, not just faded: a click on a stale row would act on figures that are
- * about to change under it.
+ * Unclickable, not just faded: a click on a stale row would act on figures
+ * that are about to change under it. By `pointer-events` alone — `inert` made
+ * the browser rebuild the accessibility tree of a whole table on every toggle,
+ * which is work on the very thread the page needs for the response.
  */
 import BusyBar from '@/core/components/BusyBar.vue'
 
@@ -23,8 +25,7 @@ defineProps({
     <BusyBar v-if="busy" full class="absolute inset-x-0 -top-sm z-10" />
     <div
       class="transition-opacity duration-150"
-      :class="{ 'pointer-events-none select-none opacity-50': busy }"
-      :inert="busy || undefined"
+      :class="{ 'pointer-events-none opacity-50': busy }"
     >
       <slot />
     </div>

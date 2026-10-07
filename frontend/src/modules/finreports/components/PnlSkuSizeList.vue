@@ -28,7 +28,7 @@ const revenue = (size) => sizeAtBase(size, base()).revenue
 <template>
   <div class="size-list">
     <p class="size-list__title">Размеры</p>
-    <BusyBar v-if="!state || state.loading" label="Загружаем…" class="justify-start py-sm" />
+    <BusyBar v-if="!state || state.loading" label="Загружаем…" class="py-sm" />
     <p v-else-if="state.error" class="record-note text-status-negative">{{ state.error }}</p>
     <p v-else-if="!state.data?.rows?.length" class="record-note">
       За этот период у артикула нет строк с размером.
