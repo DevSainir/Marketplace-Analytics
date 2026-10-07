@@ -15,8 +15,8 @@
  * last one because "did a new week arrive?" is a comparison against the moment
  * of the click, and a reload has otherwise forgotten what that was.
  *
- * Split out of the store for the reason `savedPeriod.js` was: the store keeps
- * the refs, this keeps the memory, and how long a note stays true is its own
+ * Split out of the store for the reason the period memory is (`core/utils/
+ * periodMemory.js`): the store keeps the refs, this keeps the memory, and how long a note stays true is its own
  * decision rather than a line buried in a poll loop.
  */
 

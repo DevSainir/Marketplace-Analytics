@@ -1,6 +1,9 @@
 <script setup>
 /**
- * Custom date-range picker: ONE control that opens a single calendar popover.
+ * The app's one date-range picker: a trigger that opens a calendar, with the
+ * quick presets in its footer. Every page that picks a period uses this, and
+ * none draws presets of its own — two rows of presets for one window is how a
+ * page came to light two of them at once.
  *
  * Flow: click the field → the calendar opens → click the start day → click the
  * end day → the popover closes, the range is set AND applied; between the two,
@@ -8,27 +11,41 @@
  * preset is, so it does not wait for a button: the popover closing with nothing
  * happening read as a control that had not worked.
  *
- * Lives in `core/`: two modules pick periods with it — monitoring's matrix and
- * the finreports P&L.
+ * A page states its bounds and the calendar enforces them by greying days out,
+ * rather than the page refusing a window after it was picked:
+ * `historyFrom` — the first day it holds data for (also turns «180 дней» into
+ * «Вся история»); `max` — the last pickable day; `maxDays` — the longest window
+ * it answers for, enforced once the first end is clicked.
  *
- * Fully custom (no native `<input type=date>` — its calendar is off-brand):
- * design-system styling, action-color endpoints, a soft action range band.
  * Dates compare as ISO strings, so no timezone math is needed.
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import CalendarMonthGrid from '@/core/components/CalendarMonthGrid.vue'
+import CalendarShell from '@/core/components/CalendarShell.vue'
 import PeriodPresets from '@/core/components/PeriodPresets.vue'
 import { btnClass, effectiveRange, wrapClass } from '@/core/utils/calendarHighlight'
-import { TODAY, TODAY_ISO, useCalendarView } from '@/core/utils/calendarModel'
+import {
+  TODAY,
+  TODAY_ISO,
+  formatDay,
+  pickableSpan,
+  useCalendarView,
+} from '@/core/utils/calendarModel'
+import { useMediaQuery } from '@/core/utils/mediaQuery'
 
 const props = defineProps({
   from: { type: String, required: true },
   to: { type: String, required: true },
   /** Day the quick presets end on (ISO); empty = today. See `presetRange`. */
   presetEnd: { type: String, default: '' },
-  /** The page's first day (ISO): «Вся история» replaces «180 дней». Empty = stock presets. */
+  /** The page's first day with data (ISO): the floor, and «Вся история». Empty = neither. */
   historyFrom: { type: String, default: '' },
+  /** Last pickable day (ISO); empty = today. */
+  max: { type: String, default: '' },
+  /** Longest window the page answers for, both ends counted; 0 = no limit. */
+  maxDays: { type: Number, default: 0 },
+  label: { type: String, default: 'Период' },
 })
 /**
  * `update:from` / `update:to` keep `v-model:from` / `v-model:to` working for
@@ -40,29 +57,33 @@ const props = defineProps({
  */
 const emit = defineEmits(['update:from', 'update:to', 'apply', 'range'])
 
-// --- popover + view state ----------------------------------------------
-const root = ref(null)
 const open = ref(false)
 const viewYear = ref(TODAY.getFullYear())
-const viewMonth = ref(TODAY.getMonth()) // 0-based, the LEFT month of the pair
+const viewMonth = ref(TODAY.getMonth())
 
-const { monthsToShow, canGoNext, shiftView } = useCalendarView(viewYear, viewMonth)
-
-// --- selection state ---------------------------------------------------
 // `phase` is 'start' until the first click of a new range, then 'end'.
 const pendingStart = ref(props.from)
 const pendingEnd = ref(props.to)
 const phase = ref('start')
 const hover = ref(null)
 
-/** "2026-07-11" → "11.07.2026" for the trigger + header display. */
-function fmt(iso) {
-  if (!iso) return '—'
-  const [y, m, d] = iso.split('-')
-  return `${d}.${m}.${y}`
-}
+/** Two months need ~560px side by side; below that, one. */
+const narrow = useMediaQuery('(max-width: 639px)')
 
-// --- range highlighting ------------------------------------------------
+const span = () =>
+  pickableSpan({
+    min: props.historyFrom,
+    max: props.max,
+    anchor: phase.value === 'end' ? pendingStart.value : null,
+    maxDays: props.maxDays,
+  })
+
+const { monthsToShow, canGoNext, canGoPrev, shiftView, showEndingAt } = useCalendarView(
+  viewYear,
+  viewMonth,
+  { count: () => (narrow.value ? 1 : 2), span },
+)
+
 // Thin adapters over calendarHighlight: the component supplies the live state,
 // the module decides the paint.
 const range = computed(() =>
@@ -73,27 +94,25 @@ const range = computed(() =>
     phase: phase.value,
   }),
 )
-
 const dayWrapClass = (cell) => wrapClass(cell, range.value)
 const dayBtnClass = (cell) => btnClass(cell, range.value, TODAY_ISO)
 
-// --- interactions ------------------------------------------------------
-function openCalendar() {
-  // Show the two most recent relevant months (the `to` month + the one before).
-  const [y, m] = (props.to || TODAY_ISO).split('-').map(Number)
-  const d = new Date(y, m - 2, 1) // m is 1-based → left month = to-month − 1
-  viewYear.value = d.getFullYear()
-  viewMonth.value = d.getMonth()
+function onOpening() {
+  showEndingAt(props.to)
   pendingStart.value = props.from
   pendingEnd.value = props.to
   phase.value = 'start'
   hover.value = null
-  open.value = true
 }
 
-function toggle() {
-  if (open.value) open.value = false
-  else openCalendar()
+function commit(from, to) {
+  emit('update:from', from)
+  emit('update:to', to)
+  emit('range', { from, to })
+  // Last: a listener that reads the parent's refs rather than the event has to
+  // see the new window by the time it runs.
+  emit('apply')
+  open.value = false
 }
 
 function pickDay(cell) {
@@ -109,131 +128,53 @@ function pickDay(cell) {
   pendingStart.value = s
   pendingEnd.value = e
   phase.value = 'start'
-  emit('update:from', s)
-  emit('update:to', e)
-  emit('range', { from: s, to: e })
-  // Last, exactly as in `applyPreset`: a listener that reads the parent's refs
-  // rather than the event has to see the new window by the time it runs.
-  emit('apply')
-  open.value = false
+  commit(s, e)
 }
 
 function onHover(cell) {
   if (phase.value === 'end' && !cell.disabled) hover.value = cell.iso
 }
-
-function applyPreset({ from, to }) {
-  emit('update:from', from)
-  emit('update:to', to)
-  emit('range', { from, to })
-  emit('apply') // last, so a listener reading the parent's refs sees the new window
-  open.value = false
-}
-
-// --- dismissal ---------------------------------------------------------
-function onDocPointer(event) {
-  if (open.value && root.value && !root.value.contains(event.target)) open.value = false
-}
-function onKey(event) {
-  if (event.key === 'Escape') open.value = false
-}
-onMounted(() => {
-  document.addEventListener('mousedown', onDocPointer)
-  document.addEventListener('keydown', onKey)
-})
-onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', onDocPointer)
-  document.removeEventListener('keydown', onKey)
-})
 </script>
 
 <template>
-  <div ref="root" class="relative flex items-center gap-sm">
-    <span class="text-tiny font-medium uppercase tracking-wider text-muted">Период</span>
-
-    <!-- Single trigger: the whole range reads as one control. -->
-    <button
-      type="button"
-      class="flex h-9 items-center gap-sm rounded-input border bg-surface px-sm text-base tabular-nums text-primary shadow-soft transition-colors hover:border-action/60"
-      :class="open ? 'border-action ring-2 ring-action/20' : 'border-border-subtle'"
-      @click="toggle"
-    >
-      <svg
-        class="h-4 w-4 shrink-0 text-muted"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        aria-hidden="true"
-      >
-        <rect x="1.75" y="2.75" width="12.5" height="11.5" rx="2" />
-        <path d="M1.75 6.25h12.5M5 1.25v3M11 1.25v3" />
-      </svg>
-      <span>{{ fmt(from) }}</span>
+  <CalendarShell
+    v-model:open="open"
+    :label="label"
+    aria-label="Выбор периода"
+    :titles="monthsToShow.map((m) => m.label)"
+    :can-go-prev="canGoPrev"
+    :can-go-next="canGoNext"
+    @opening="onOpening"
+    @shift="shiftView"
+  >
+    <template #trigger>
+      <span>{{ formatDay(from) }}</span>
       <span class="text-muted" aria-hidden="true">→</span>
-      <span>{{ fmt(to) }}</span>
-    </button>
+      <span>{{ formatDay(to) }}</span>
+    </template>
 
-    <!-- Calendar popover -->
-    <transition name="cal">
-      <div
-        v-if="open"
-        class="calendar-pop absolute left-0 top-[calc(100%+6px)] z-40 rounded-card border border-border-subtle bg-surface p-md shadow-card"
-        role="dialog"
-        aria-label="Выбор периода"
-      >
-        <!-- Header: navigation + the two month labels -->
-        <div class="mb-sm flex items-center">
-          <button
-            type="button"
-            class="nav-btn"
-            aria-label="Предыдущий месяц"
-            @click="shiftView(-1)"
-          >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75">
-              <path d="M10 3.5 5.5 8l4.5 4.5" />
-            </svg>
-          </button>
-          <div class="flex flex-1 justify-around px-sm text-base font-semibold text-primary">
-            <span v-for="m in monthsToShow" :key="m.label">{{ m.label }}</span>
-          </div>
-          <button
-            type="button"
-            class="nav-btn"
-            :disabled="!canGoNext"
-            aria-label="Следующий месяц"
-            @click="shiftView(1)"
-          >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75">
-              <path d="M6 3.5 10.5 8 6 12.5" />
-            </svg>
-          </button>
-        </div>
+    <div class="flex gap-lg" @mouseleave="hover = null">
+      <CalendarMonthGrid
+        v-for="(m, mi) in monthsToShow"
+        :key="mi"
+        :cells="m.cells"
+        :wrap-class="dayWrapClass"
+        :day-class="dayBtnClass"
+        @day-click="pickDay"
+        @day-hover="onHover"
+      />
+    </div>
 
-        <!-- Two months side by side -->
-        <div class="flex flex-col gap-lg sm:flex-row" @mouseleave="hover = null">
-          <CalendarMonthGrid
-            v-for="(m, mi) in monthsToShow"
-            :key="mi"
-            :cells="m.cells"
-            :wrap-class="dayWrapClass"
-            :day-class="dayBtnClass"
-            @day-click="pickDay"
-            @day-hover="onHover"
-          />
-        </div>
-
-        <PeriodPresets
-          :from="from"
-          :to="to"
-          :awaiting-end="phase === 'end'"
-          :preset-end="presetEnd"
-          :history-from="historyFrom"
-          @pick="applyPreset"
-        />
-      </div>
-    </transition>
-  </div>
+    <template #footer>
+      <PeriodPresets
+        :from="from"
+        :to="to"
+        :awaiting-end="phase === 'end'"
+        :preset-end="presetEnd"
+        :history-from="historyFrom"
+        :max-days="maxDays"
+        @pick="commit($event.from, $event.to)"
+      />
+    </template>
+  </CalendarShell>
 </template>
-
-<style scoped src="./styles/PeriodSelector.css"></style>

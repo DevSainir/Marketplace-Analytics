@@ -1,6 +1,6 @@
 /**
- * The heatmap remembers its settings for twenty minutes after the last change,
- * per кабинет, and starts on its defaults when storage has nothing fresh.
+ * The heatmap remembers its settings for an hour after the last change — the
+ * same hour every page's period is kept for — per кабинет, and starts on its defaults when storage has nothing fresh.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,16 +16,16 @@ describe('settings memory', () => {
 
   afterEach(() => vi.useRealTimers())
 
-  it('gives back what was remembered within twenty minutes', () => {
+  it('gives back what was remembered within the hour', () => {
     rememberSettings({ metric: 'profit' })
-    vi.advanceTimersByTime(19 * 60 * 1000)
+    vi.advanceTimersByTime(59 * 60 * 1000)
 
     expect(recallSettings()).toEqual({ metric: 'profit' })
   })
 
-  it('forgets the settings twenty minutes after the last change', () => {
+  it('forgets the settings an hour after the last change', () => {
     rememberSettings({ metric: 'profit' })
-    vi.advanceTimersByTime(20 * 60 * 1000)
+    vi.advanceTimersByTime(60 * 60 * 1000)
 
     expect(recallSettings()).toBeNull()
   })

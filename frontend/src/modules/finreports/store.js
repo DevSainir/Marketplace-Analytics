@@ -16,6 +16,9 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
+import { presetWindow } from '@/core/utils/calendarModel'
+import { daysBetween } from '@/core/utils/dates'
+import { recallPeriod, rememberPeriod } from '@/core/utils/periodMemory'
 import {
   deleteCostPrice,
   downloadCostPricesXlsx,
@@ -30,22 +33,14 @@ import {
   setBalancePin,
   setSkuExclusion,
 } from '@/modules/finreports/api'
-import {
-  DEFAULT_DAYS,
-  readSavedPeriod,
-  restoreSavedPeriod,
-  shiftIsoDate,
-  spanDays,
-  writeSavedPeriod,
-} from '@/modules/finreports/savedPeriod'
 import { useHarvestRefresh } from '@/modules/finreports/useHarvestRefresh'
 import { useSkuSizes } from '@/modules/finreports/useSkuSizes'
 
-/** YYYY-MM-DD in the local calendar (the report dates are calendar days). */
-function isoDate(date) {
-  const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-  return shifted.toISOString().slice(0, 10)
-}
+/** Default span on first open: the last week (7 settled days). */
+const DEFAULT_DAYS = 7
+
+/** This page's key in `periodMemory`. */
+const PERIOD_PAGE = 'finreports'
 
 export const useFinReportsStore = defineStore('finreports', () => {
   // --- period selection ---------------------------------------------------
@@ -103,6 +98,19 @@ export const useFinReportsStore = defineStore('finreports', () => {
     }
   })
 
+  /** The harvested span as `periodMemory` takes it. */
+  const periodEdge = () => ({ from: fullSpan.value?.date_from, to: fullSpan.value?.date_to })
+
+  /**
+   * The span as the period picker takes it: presets end on the newest settled
+   * day and «Вся история» starts on the oldest — the same bounds the page's
+   * calendar greys out beyond, so a preset here and one there agree.
+   */
+  const periodBounds = () => ({
+    end: fullSpan.value?.date_to ?? '',
+    historyFrom: fullSpan.value?.date_from ?? '',
+  })
+
   /**
    * Read the harvest state for the freshness line.
    *
@@ -129,18 +137,13 @@ export const useFinReportsStore = defineStore('finreports', () => {
       weeks.value = (await fetchWeeks()).weeks ?? []
       // On a fresh load (page reload resets the store): restore the period the
       // seller last chose, so a reload keeps their view instead of snapping back
-      // to a default — for a day, and moved forward if it meant «the latest
-      // window» and weeks have landed since (see `restoreSavedPeriod`). With
-      // nothing saved we default to the last week: the window a seller checks
-      // daily, and far faster to render than 2.5 years of rows.
+      // to a default — for an hour, and moved forward if it meant «the latest
+      // window» and weeks have landed since (see `periodMemory`). With nothing
+      // saved we default to the last week: the window a seller checks daily,
+      // and far faster to render than 2.5 years of rows.
       if (!dateFrom.value && fullSpan.value) {
-        const saved = readSavedPeriod()
-        const period = saved
-          ? restoreSavedPeriod(saved, fullSpan.value)
-          : {
-              from: shiftIsoDate(fullSpan.value.date_to, -(DEFAULT_DAYS - 1)),
-              to: fullSpan.value.date_to,
-            }
+        const period =
+          recallPeriod(PERIOD_PAGE, periodEdge()) ?? presetWindow(DEFAULT_DAYS, periodBounds())
         dateFrom.value = period.from
         dateTo.value = period.to
       }
@@ -284,22 +287,22 @@ export const useFinReportsStore = defineStore('finreports', () => {
   }
 
   /** Set an explicit period. Swapped ends are corrected, not rejected. The
-   *  choice is persisted — with the harvested span it was made against, which
-   *  is what lets a later reload tell «последняя неделя» from a fixed window —
-   *  so a page reload restores it. */
+   *  choice is remembered for an hour — with the harvested span it was made
+   *  against, which is what lets a later reload tell «последняя неделя» from a
+   *  fixed window. */
   function setPeriod(from, to) {
     if (from && to && from > to) {
       ;[from, to] = [to, from]
     }
     dateFrom.value = from
     dateTo.value = to
-    if (from && to) writeSavedPeriod(from, to, fullSpan.value)
+    if (from && to) rememberPeriod(PERIOD_PAGE, from, to, periodEdge())
   }
 
   /** Last N settled days (against the newest harvested day, not today). */
   function setPresetDays(days) {
-    const end = fullSpan.value?.date_to ?? isoDate(new Date())
-    setPeriod(shiftIsoDate(end, -(days - 1)), end)
+    const { from, to } = presetWindow(days, periodBounds())
+    setPeriod(from, to)
   }
 
   /** The whole harvested history. */
@@ -410,7 +413,7 @@ export const useFinReportsStore = defineStore('finreports', () => {
     // is anchored at both ends, so preserving its LENGTH over a new week would
     // walk its start forward and quietly drop the oldest days from the total.
     const wasWholeHistory = wasOnLatest && dateFrom.value === previous?.date_from
-    const days = spanDays(dateFrom.value, dateTo.value)
+    const days = daysBetween(dateFrom.value, dateTo.value) + 1
     await loadWeeks()
     if (wasOnLatest && fullSpan.value && fullSpan.value.date_to !== previous?.date_to) {
       if (wasWholeHistory) setPresetAll()

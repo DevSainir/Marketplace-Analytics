@@ -52,10 +52,7 @@ onMounted(() => store.init())
       :date-to="store.dateTo"
       :span="store.span"
       :revenue-base="store.revenueBase"
-      :is-all-history="store.isAllHistory"
       @period="store.setPeriod"
-      @preset-days="store.setPresetDays"
-      @preset-all="store.setPresetAll"
       @base="store.revenueBase = $event"
     />
 

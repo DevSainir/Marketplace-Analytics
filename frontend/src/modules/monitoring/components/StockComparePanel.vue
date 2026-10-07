@@ -14,6 +14,7 @@
 import { computed } from 'vue'
 
 import StockCompareTable from '@/modules/monitoring/components/StockCompareTable.vue'
+import { formatDay } from '@/core/utils/calendarModel'
 
 const props = defineProps({
   /** @type {Array<{stat_date: string, stock: ?object}>} oldest day first. */
@@ -24,17 +25,10 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
 })
 
-/** "2026-07-11" → "11.07.2026" — the group label over each day's columns. */
-function dayLabel(iso) {
-  if (!iso) return '—'
-  const [y, m, d] = iso.split('-')
-  return `${d}.${m}.${y}`
-}
-
 const columns = computed(() =>
   props.days.map((day) => ({
     key: day.stat_date,
-    label: dayLabel(day.stat_date),
+    label: formatDay(day.stat_date),
     cells: day.stock?.cells ?? [],
   })),
 )

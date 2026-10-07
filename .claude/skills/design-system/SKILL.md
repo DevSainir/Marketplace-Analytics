@@ -140,5 +140,22 @@ Placement: `core/components/` for reusable atoms, `modules/<name>/components/` f
 domain-specific molecules, `views/` for page composition. Check `core/components/` before writing
 a new atom, and remember the 250-line ceiling per `.vue` file — it is a test, not a guideline.
 
+### Dates and periods
+
+A period is picked with `core/components/PeriodSelector.vue`, one day with `DayPicker.vue` —
+both drawn in `CalendarShell.vue`, so they share the trigger, the popover and its phone layout
+(one month below 640px, 44px days). A page never draws a date control or quick presets of its
+own: the presets (7/30/90 and «Вся история» or «180 дней») live only in the calendar's footer.
+Two rows of presets for one window is how the summary once lit two of them at once.
+
+A page states its bounds and the calendar enforces them as greyed days: `history-from` (first
+day with data — also what turns «180 дней» into «Вся история»), `max` (last pickable day),
+`max-days` (longest window, both ends counted — mirror the backend's cap, whose
+`MAX_WINDOW_DAYS` counts days *between* the ends, hence the `+ 1`), and `preset-end`. Every
+preset window, the one lit preset and a page's default window come from `presetWindow` /
+`activePreset` in `core/utils/calendarModel.js`; a default built any other way opens the page
+with nothing lit. The chosen period is kept by `core/utils/periodMemory.js` — an hour, per page
+and per кабинет — never by a page's own storage.
+
 Nothing here is machine-checked (there is no visual-regression tier), so a UI change is verified
 by looking at it: run the app and screenshot the surface you changed.

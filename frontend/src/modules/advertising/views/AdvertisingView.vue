@@ -17,7 +17,7 @@ import AdsBidCards from '@/modules/advertising/components/AdsBidCards.vue'
 import AdsBonusSwitch from '@/modules/advertising/components/AdsBonusSwitch.vue'
 import AdsDailyChart from '@/modules/advertising/components/AdsDailyChart.vue'
 import AdsKpis from '@/modules/advertising/components/AdsKpis.vue'
-import { useAdvertisingStore } from '@/modules/advertising/store'
+import { MAX_PERIOD_DAYS, useAdvertisingStore } from '@/modules/advertising/store'
 import AdvertisingSkuSection from '@/modules/advertising/views/AdvertisingSkuSection.vue'
 
 const store = useAdvertisingStore()
@@ -38,6 +38,7 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
         :from="store.dateFrom"
         :to="store.dateTo"
         :history-from="store.span?.date_from ?? ''"
+        :max-days="MAX_PERIOD_DAYS"
         @range="store.setPeriod($event.from, $event.to)"
       />
       <AdsBonusSwitch

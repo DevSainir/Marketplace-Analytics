@@ -141,6 +141,43 @@ describe('period selection', () => {
   })
 })
 
+describe('what the P&L page shows on load', () => {
+  const NEWER_WEEKS = [{ report_id: 786, date_from: '2026-07-20', date_to: '2026-07-26' }, ...WEEKS]
+
+  /** A page reload: the store is gone, only localStorage survives. */
+  async function reload(weeks = WEEKS) {
+    const reopened = freshStore()
+    fetchWeeks.mockResolvedValue({ weeks })
+    await reopened.loadWeeks()
+    return reopened
+  }
+
+  afterEach(() => vi.useRealTimers())
+
+  it('follows the harvest instead of reopening on the week it was left on', async () => {
+    const first = await reload()
+    first.setPresetDays(7) // «последняя неделя» — ends on the newest settled day
+
+    const reopened = await reload(NEWER_WEEKS)
+
+    expect(reopened.dateFrom).toBe('2026-07-20')
+    expect(reopened.dateTo).toBe('2026-07-26')
+  })
+
+  it('falls back to the last settled week once the hour is up', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-19T08:00:00Z'))
+    const first = await reload()
+    first.setPeriod('2024-02-01', '2024-02-04')
+
+    vi.setSystemTime(new Date('2026-07-19T09:01:00Z'))
+    const reopened = await reload()
+
+    expect(reopened.dateFrom).toBe('2026-07-13')
+    expect(reopened.dateTo).toBe('2026-07-19')
+  })
+})
+
 describe('overlapping requests', () => {
   it('lets the newest request win when the period changes twice quickly', async () => {
     // A whole-history request takes seconds over 620k rows, so two period

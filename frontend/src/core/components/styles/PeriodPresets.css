@@ -1,0 +1,30 @@
+/*
+ * Styles for PeriodPresets.vue — the quick presets in the period picker's
+ * footer. Kept beside the component; still `scoped`.
+ */
+
+.preset-btn {
+  border-radius: 6px;
+  border: 1px solid var(--ui-rule);
+  padding: 3px 10px;
+  font-size: 0.75rem; /* tiny */
+  font-weight: 500;
+  color: var(--ui-ink);
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+.preset-btn:hover {
+  border-color: var(--ui-action);
+  background: color-mix(in srgb, var(--ui-action) 10%, transparent);
+  color: var(--ui-action);
+}
+/* The preset whose window is on screen: filled, so it reads as chosen rather
+   than hovered. */
+.preset-btn--active,
+.preset-btn--active:hover {
+  border-color: var(--ui-action);
+  background: var(--ui-action);
+  color: #fff;
+}

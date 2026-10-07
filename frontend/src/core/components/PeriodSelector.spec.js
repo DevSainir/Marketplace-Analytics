@@ -128,4 +128,30 @@ describe('PeriodSelector', () => {
 
     expect(wrapper.emitted('apply')).toBeUndefined()
   })
+
+  it("greys out the days before the page's first day", async () => {
+    // A day with no data behind it is refused by the calendar itself, not by
+    // the page after the window was picked.
+    const wrapper = await openCalendar(mountPicker({ historyFrom: '2026-01-10' }))
+    const january = wrapper.findAll('.calendar-grid')[1]
+
+    const firstEnabled = january.findAll('.day:not([disabled])')[0]
+
+    expect(firstEnabled.text()).toBe('10')
+  })
+
+  it('holds the second click within the longest window the page answers for', async () => {
+    const wrapper = await openCalendar(mountPicker({ max: '2026-01-31', maxDays: 3 }))
+    const january = () => wrapper.findAll('.calendar-grid')[1]
+    // January 2026 starts on a Thursday: three leading December days, then the 1st.
+    await january().findAll('.day')[3 + 4].trigger('click') // the 5th
+
+    const enabled = january()
+      .findAll('.day')
+      .slice(3, 3 + 31)
+      .filter((day) => day.attributes('disabled') === undefined)
+      .map((day) => day.text())
+
+    expect(enabled).toEqual(['3', '4', '5', '6', '7'])
+  })
 })

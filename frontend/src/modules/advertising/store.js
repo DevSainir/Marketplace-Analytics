@@ -13,12 +13,24 @@ import { defineStore } from 'pinia'
 import { computed, reactive, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
-import { presetRange } from '@/core/utils/calendarModel'
+import { presetWindow } from '@/core/utils/calendarModel'
+import { isoDaysAgo } from '@/core/utils/dates'
+import { recallPeriod, rememberPeriod } from '@/core/utils/periodMemory'
 import { fetchAdvertising, fetchAdvertisingSpan } from '@/modules/advertising/api'
 import { bidCards } from '@/modules/advertising/zoneModel'
 
 /** Default window: thirty days, the span an advertising budget is reviewed over. */
 const DEFAULT_DAYS = 30
+
+/**
+ * Longest window the page answers for, both ends counted — the backend's
+ * `MAX_WINDOW_DAYS` (1200 days between the ends), so the calendar can grey out
+ * what the API would refuse.
+ */
+export const MAX_PERIOD_DAYS = 1201
+
+/** This page's key in `periodMemory`. */
+const PERIOD_PAGE = 'advertising'
 
 const BONUS_KEY = 'advertising.showBonus'
 
@@ -31,14 +43,13 @@ function readBonusSwitch() {
   }
 }
 
-/** YYYY-MM-DD in the local calendar. */
-function isoDate(date) {
-  const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-  return shifted.toISOString().slice(0, 10)
-}
-
 export const useAdvertisingStore = defineStore('advertising', () => {
-  const initial = presetRange(DEFAULT_DAYS, isoDate(new Date()))
+  // Statistics are a stream that reaches today, so «the latest window» ends
+  // today and the page need not wait for the span to know where that is.
+  const periodEdge = () => ({ from: span.value?.date_from, to: isoDaysAgo(0) })
+  const initial =
+    recallPeriod(PERIOD_PAGE, { to: isoDaysAgo(0) }) ??
+    presetWindow(DEFAULT_DAYS, { end: isoDaysAgo(0) })
   const dateFrom = ref(initial.from)
   const dateTo = ref(initial.to)
 
@@ -112,10 +123,12 @@ export const useAdvertisingStore = defineStore('advertising', () => {
     await Promise.all([spanRead, load()])
   }
 
+  /** Move the window, remember it for an hour, and reload. */
   function setPeriod(from, to) {
     if (from === dateFrom.value && to === dateTo.value) return
     dateFrom.value = from
     dateTo.value = to
+    rememberPeriod(PERIOD_PAGE, from, to, periodEdge())
     return load()
   }
 

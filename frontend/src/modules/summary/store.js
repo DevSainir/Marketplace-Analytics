@@ -16,33 +16,27 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
-import { presetRange } from '@/core/utils/calendarModel'
+import { presetWindow } from '@/core/utils/calendarModel'
+import { isoDaysAgo } from '@/core/utils/dates'
+import { recallPeriod, rememberPeriod } from '@/core/utils/periodMemory'
 import { fetchSummary, fetchSummarySpan } from '@/modules/summary/api'
 import { buildCategories } from '@/modules/summary/categories'
 
 /** Default window, matching the backend's own: the last week. */
 const DEFAULT_DAYS = 7
 
-/** YYYY-MM-DD in the local calendar (settlement dates are calendar days). */
-function isoDate(date) {
-  const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-  return shifted.toISOString().slice(0, 10)
-}
-
 /**
- * `days` back from `end` (inclusive), as an ISO pair.
- *
- * Delegated to `calendarModel` so the window a preset SETS and the window the
- * controls test for equality are produced by one function: two copies of this
- * arithmetic is what left every preset unhighlighted.
+ * Longest window the summary answers for, both ends counted — the backend's
+ * `MAX_WINDOW_DAYS` (1200 days between the ends), so the calendar can grey out
+ * what the API would refuse.
  */
-function windowEnding(end, days) {
-  return presetRange(days, end)
-}
+export const MAX_PERIOD_DAYS = 1201
+
+/** This page's key in `periodMemory`. */
+const PERIOD_PAGE = 'summary'
 
 export const useSummaryStore = defineStore('summary', () => {
-  const today = isoDate(new Date())
-  const initial = windowEnding(today, DEFAULT_DAYS)
+  const initial = presetWindow(DEFAULT_DAYS, { end: isoDaysAgo(0) })
 
   const dateFrom = ref(initial.from)
   const dateTo = ref(initial.to)
@@ -114,18 +108,27 @@ export const useSummaryStore = defineStore('summary', () => {
     }
   }
 
+  /** The settled span as `periodMemory` takes it. */
+  const periodEdge = () => ({ from: span.value?.date_from, to: span.value?.date_to })
+
   /**
-   * Learn which days are settled, then open on the last four weeks of them.
+   * Learn which days are settled, then open on the period left an hour ago or,
+   * failing that, on the last week of them.
    *
-   * Fired before the first load so the presets and «Вся история» know what they
-   * mean; its failure is swallowed, because a picker without a span still works
-   * against today and a summary must not be gated on it.
+   * Fired before the first load so the calendar knows its bounds; its failure
+   * is swallowed, because a picker without a span still works against today
+   * and a summary must not be gated on it.
    */
   async function init() {
     try {
       span.value = await fetchSummarySpan()
       if (span.value?.date_to) {
-        const period = windowEnding(span.value.date_to, DEFAULT_DAYS)
+        const period =
+          recallPeriod(PERIOD_PAGE, periodEdge()) ??
+          presetWindow(DEFAULT_DAYS, {
+            end: span.value.date_to,
+            historyFrom: span.value.date_from,
+          })
         dateFrom.value = period.from
         dateTo.value = period.to
       }
@@ -135,34 +138,14 @@ export const useSummaryStore = defineStore('summary', () => {
     return load()
   }
 
-  /** Move the window and reload. */
+  /** Move the window, remember it for an hour, and reload. */
   function setPeriod(from, to) {
     if (from === dateFrom.value && to === dateTo.value) return
     dateFrom.value = from
     dateTo.value = to
+    rememberPeriod(PERIOD_PAGE, from, to, periodEdge())
     return load()
   }
-
-  /** Last N settled days, ending on the newest day WB has calculated. */
-  function setPresetDays(days_) {
-    const end = span.value?.date_to ?? isoDate(new Date())
-    const period = windowEnding(end, days_)
-    return setPeriod(period.from, period.to)
-  }
-
-  /** Everything WB has ever settled for this кабинет. */
-  function setPresetAll() {
-    if (!span.value?.date_from || !span.value?.date_to) return
-    return setPeriod(span.value.date_from, span.value.date_to)
-  }
-
-  /** True when the window is exactly the full settled span. */
-  const isAllHistory = computed(
-    () =>
-      Boolean(span.value?.date_from) &&
-      dateFrom.value === span.value.date_from &&
-      dateTo.value === span.value.date_to,
-  )
 
   return {
     dateFrom,
@@ -180,11 +163,8 @@ export const useSummaryStore = defineStore('summary', () => {
     currency,
     marginBlocked,
     revenue,
-    isAllHistory,
     init,
     load,
     setPeriod,
-    setPresetDays,
-    setPresetAll,
   }
 })

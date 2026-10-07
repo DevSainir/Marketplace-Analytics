@@ -50,3 +50,17 @@
   outline: 2px solid color-mix(in srgb, var(--ui-action) 45%, transparent);
   outline-offset: -2px;
 }
+
+/* A day is a tap target on a phone: 44px, the size every other control there
+   gets. Seven of them still fit a 390pt screen with the popover's padding. */
+@media (max-width: 430px) {
+  .calendar-grid {
+    grid-template-columns: repeat(7, 2.75rem);
+    grid-auto-rows: 2.75rem;
+  }
+  .day-wrap,
+  .day {
+    height: 2.75rem;
+    width: 2.75rem;
+  }
+}

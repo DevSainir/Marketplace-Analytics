@@ -14,6 +14,7 @@ import { computed, ref } from 'vue'
 
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
 import { isoDaysAgo } from '@/core/utils/dates'
+import { MAX_DAYS } from '@/modules/heatmap/store'
 import { formatSku } from '@/core/utils/format'
 import HeatmapFilterMenu from '@/modules/heatmap/components/HeatmapFilterMenu.vue'
 
@@ -90,6 +91,7 @@ function editGroup(id) {
       :from="dateFrom"
       :to="dateTo"
       :preset-end="yesterday"
+      :max-days="MAX_DAYS"
       @range="emit('period', $event)"
     />
 

@@ -15,8 +15,9 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
-import { presetRange } from '@/core/utils/calendarModel'
+import { presetWindow } from '@/core/utils/calendarModel'
 import { daysBetween, isoDaysAgo } from '@/core/utils/dates'
+import { recallPeriod, rememberPeriod } from '@/core/utils/periodMemory'
 import * as api from '@/modules/heatmap/api'
 import { pageOf, sortRows, tintRows } from '@/modules/heatmap/grid'
 import { metricOf } from '@/modules/heatmap/metrics'
@@ -29,9 +30,18 @@ export const MAX_DAYS = 366
 /** Default window: a month, ending yesterday. */
 const DEFAULT_DAYS = 30
 
+/** This page's key in `periodMemory`. */
+const PERIOD_PAGE = 'heatmap'
+
 export const useHeatmapStore = defineStore('heatmap', () => {
   const norms = useHeatmapNormsStore()
-  const initial = presetRange(DEFAULT_DAYS, isoDaysAgo(1))
+  // The period is remembered the way every page's is (`periodMemory`); the rest
+  // of the page's choices through `settingsMemory`. «The latest window» here
+  // ends yesterday — see the module comment.
+  const periodEdge = () => ({ to: isoDaysAgo(1) })
+  const initial =
+    recallPeriod(PERIOD_PAGE, periodEdge()) ??
+    presetWindow(DEFAULT_DAYS, { end: isoDaysAgo(1), maxDays: MAX_DAYS })
   const dateFrom = ref(initial.from)
   const dateTo = ref(initial.to)
 
@@ -63,8 +73,6 @@ export const useHeatmapStore = defineStore('heatmap', () => {
   // `settingsMemory.js`. Restored before any watcher exists, so a restore is
   // not itself a change.
   const REMEMBERED = {
-    dateFrom,
-    dateTo,
     metric,
     metric2,
     period,
@@ -188,6 +196,7 @@ export const useHeatmapStore = defineStore('heatmap', () => {
   function setPeriod({ from, to }) {
     dateFrom.value = from
     dateTo.value = to
+    rememberPeriod(PERIOD_PAGE, from, to, periodEdge())
   }
 
   /** ⇄ — the second metric becomes the painted one, and the first goes below it. */

@@ -1,11 +1,10 @@
 /**
- * The window the store sets, against the window the controls test for.
+ * The window the summary opens on.
  *
- * These are two places that have to agree on one arithmetic — «7 дней ending on
- * the newest day» — and they disagreed for a while: one used the local
- * calendar, the other went through `toISOString`, which converts to UTC. East
- * of Greenwich that is a day earlier, so every preset set a window and then
- * failed to recognise it, and no quick period was ever highlighted.
+ * It has to be exactly the window the calendar's «7 дней» stands for: the
+ * presets live in the calendar now, and a default built by other arithmetic
+ * opens the page with no preset lit — the summary computed its own through
+ * `toISOString` once, a day early east of Greenwich.
  */
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,6 +23,7 @@ const SPAN = { date_from: '2024-07-11', date_to: '2026-09-16', settled_to: '2026
 let store
 
 beforeEach(async () => {
+  localStorage.clear()
   setActivePinia(createPinia())
   vi.clearAllMocks()
   fetchSummarySpan.mockResolvedValue(SPAN)
@@ -32,24 +32,23 @@ beforeEach(async () => {
   await store.init()
 })
 
-describe('the period presets', () => {
-  it('opens on a week ending on the newest day any feed has', async () => {
+describe('the period on load', () => {
+  it("opens on the calendar's «7 дней» ending on the newest settled day", async () => {
     expect(store.dateTo).toBe(SPAN.date_to)
     expect({ from: store.dateFrom, to: store.dateTo }).toEqual(presetRange(7, SPAN.date_to))
   })
 
-  it('sets exactly the window the controls recognise', async () => {
-    for (const days of [7, 30, 90]) {
-      await store.setPresetDays(days)
+  it('reopens on the window chosen within the hour', async () => {
+    // A detour to another page or a reload must not throw the choice away.
+    await store.setPeriod('2026-08-01', '2026-08-31')
 
-      expect({ from: store.dateFrom, to: store.dateTo }).toEqual(presetRange(days, SPAN.date_to))
-    }
-  })
+    setActivePinia(createPinia())
+    const reopened = useSummaryStore()
+    await reopened.init()
 
-  it('covers the whole span on «Вся история»', async () => {
-    await store.setPresetAll()
-
-    expect(store.dateFrom).toBe(SPAN.date_from)
-    expect(store.isAllHistory).toBe(true)
+    expect({ from: reopened.dateFrom, to: reopened.dateTo }).toEqual({
+      from: '2026-08-01',
+      to: '2026-08-31',
+    })
   })
 })

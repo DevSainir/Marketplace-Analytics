@@ -2,7 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { MAX_WINDOW_DAYS, isoDaysAgo } from '@/core/utils/dates'
+import { MAX_WINDOW_DAYS } from '@/core/utils/dates'
 
 import MatrixEditToolbar from '@/modules/monitoring/components/MatrixEditToolbar.vue'
 import MetricsTable from '@/modules/monitoring/components/MetricsTable.vue'
@@ -19,7 +19,7 @@ import StockComparePanel from '@/modules/monitoring/components/StockComparePanel
 import { useMonitoringStore } from '@/modules/monitoring/store'
 import { useMatrixEditing } from '@/modules/monitoring/useMatrixEditing'
 import { unionStockSizes } from '@/modules/monitoring/stockCompareSizes'
-import { useSearchQuerySync } from '@/modules/monitoring/useSearchQuerySync'
+import { MAX_PERIOD_DAYS, useSearchQuerySync } from '@/modules/monitoring/useSearchQuerySync'
 import { useSkuClusters } from '@/modules/monitoring/useSkuClusters'
 import { useWorkspaceStore } from '@/modules/profile'
 import { formatSku } from '@/core/utils/format'
@@ -28,20 +28,9 @@ const store = useMonitoringStore()
 const route = useRoute()
 const router = useRouter()
 
-// Default inclusive window: the last 30 days INCLUDING today — the funnel has
-// no current-day data yet (blank cells), but today's price/stock snapshots
-// must already show.
-const DEFAULT_FROM = isoDaysAgo(30)
-const DEFAULT_TO = isoDaysAgo(0)
-
 // Handlers push a query; the watcher inside does all the fetching.
 const { dateFrom, dateTo, windowTooWide, handleSelect, handleApply, applyPeriod } =
-  useSearchQuerySync({
-    route,
-    router,
-    store,
-    defaults: { from: DEFAULT_FROM, to: DEFAULT_TO },
-  })
+  useSearchQuerySync({ route, router, store })
 
 /** Pick the search-relevant params out of a route query (arrays/absent → defaults). */
 const product = computed(() => store.currentProduct)
@@ -104,7 +93,12 @@ onMounted(() => store.fetchPins())
       <!-- Period selector, slightly above the search bar; the bulk WB refresh
            sits beside it and stays visible with or without a SKU open. -->
       <div class="mb-sm flex flex-wrap items-start justify-between gap-sm">
-        <PeriodSelector v-model:from="dateFrom" v-model:to="dateTo" @apply="applyPeriod" />
+        <PeriodSelector
+          :from="dateFrom"
+          :to="dateTo"
+          :max-days="MAX_PERIOD_DAYS"
+          @range="applyPeriod"
+        />
         <RefreshAllSkusButton
           :refreshing="store.allRefreshing"
           :progress="store.allRefreshProgress"
@@ -221,7 +215,12 @@ onMounted(() => store.fetchPins())
         <div id="sec-chart">
           <!-- The page's own control again: by here the top one is offscreen. -->
           <div class="mt-lg flex justify-end">
-            <PeriodSelector v-model:from="dateFrom" v-model:to="dateTo" @apply="applyPeriod" />
+            <PeriodSelector
+              :from="dateFrom"
+              :to="dateTo"
+              :max-days="MAX_PERIOD_DAYS"
+              @range="applyPeriod"
+            />
           </div>
 
           <MetricsChart :view="matrix" />

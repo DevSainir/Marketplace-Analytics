@@ -1,19 +1,21 @@
 <script setup>
 /**
- * The quick presets in the period picker's footer — «7 дней» … «180 дней», or
- * «Вся история» in place of the longest when the page knows its first day.
+ * The quick presets in the period picker's footer — «7 дней», «30 дней»,
+ * «90 дней», and «Вся история» when the page knows its first day or
+ * «180 дней» when it does not. The only presets in the app: no page draws its
+ * own beside the calendar.
  *
  * Split out of `PeriodSelector` (a component is capped at 250 lines): the
  * calendar decides a range by two clicks, this decides one by one, and the
  * window each preset stands for is `calendarModel`'s, not this file's.
  *
- * The preset whose window is the one on screen is marked. Both sides ask
- * `presetWindow`, so the button that set a window always recognises it — two
- * copies of that arithmetic is how the highlight was lost before.
+ * At most one preset is marked — the one `activePreset` names. Both the window
+ * a preset sets and the mark come from `presetWindow`, so the button that set
+ * a window always recognises it.
  */
 import { computed } from 'vue'
 
-import { presetWindow, presetsFor } from '@/core/utils/calendarModel'
+import { activePreset, presetWindow, presetsFor } from '@/core/utils/calendarModel'
 
 const props = defineProps({
   /** The window on screen (ISO), to mark the preset that stands for it. */
@@ -25,41 +27,46 @@ const props = defineProps({
   presetEnd: { type: String, default: '' },
   /** The page's first day (ISO); set, «180 дней» gives way to «Вся история». */
   historyFrom: { type: String, default: '' },
+  /** Longest window the page answers for; 0 = no limit. */
+  maxDays: { type: Number, default: 0 },
 })
 
 /** `pick` carries the whole window, `{from, to}`. */
 const emit = defineEmits(['pick'])
 
+const bounds = computed(() => ({
+  end: props.presetEnd,
+  historyFrom: props.historyFrom,
+  maxDays: props.maxDays,
+}))
 const presets = computed(() => presetsFor(props.historyFrom))
-
-/** Whether a preset's window is exactly the one on screen. */
-function isActive(days) {
-  const window = presetWindow(days, props.presetEnd, props.historyFrom)
-  return Boolean(window.from) && window.from === props.from && window.to === props.to
-}
+const active = computed(() => activePreset(props.from, props.to, bounds.value))
 
 function pick(days) {
-  emit('pick', presetWindow(days, props.presetEnd, props.historyFrom))
+  emit('pick', presetWindow(days, bounds.value))
 }
 </script>
 
 <template>
-  <div class="mt-md flex items-center gap-xs border-t border-border-subtle pt-sm">
-    <span class="mr-auto text-tiny text-muted">
+  <div class="mt-md border-t border-border-subtle pt-sm sm:flex sm:items-center sm:gap-xs">
+    <span class="mb-xs block text-tiny text-muted sm:mb-0 sm:mr-auto">
       {{ awaitingEnd ? 'Выберите конец периода' : 'Быстрый выбор:' }}
     </span>
-    <button
-      v-for="preset in presets"
-      :key="preset.days"
-      type="button"
-      class="preset-btn"
-      :class="{ 'preset-btn--active': isActive(preset.days) }"
-      :aria-pressed="isActive(preset.days)"
-      @click="pick(preset.days)"
-    >
-      {{ preset.label }}
-    </button>
+    <!-- Four abreast need ~290px; a one-month popover has 252, so two by two. -->
+    <div class="grid grid-cols-2 gap-xs sm:flex">
+      <button
+        v-for="preset in presets"
+        :key="preset.days"
+        type="button"
+        class="preset-btn phone:min-h-11"
+        :class="{ 'preset-btn--active': active === preset.days }"
+        :aria-pressed="active === preset.days"
+        @click="pick(preset.days)"
+      >
+        {{ preset.label }}
+      </button>
+    </div>
   </div>
 </template>
 
-<style scoped src="./styles/PeriodSelector.css"></style>
+<style scoped src="./styles/PeriodPresets.css"></style>
