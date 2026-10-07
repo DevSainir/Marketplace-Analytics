@@ -10,16 +10,7 @@ export const labsRoutes = [
     meta: { title: 'Мониторинг · Lab', requiresAuth: true, requiresInternal: true },
   },
   {
-    // Статический датапак, ни одного вызова нашего API — но цифры в нём
-    // настоящие, поэтому страница закрыта теми же двумя условиями, что и
-    // соседняя: свой сеанс и свой человек.
-    path: '/labs/finmodel',
-    name: 'labs-finmodel',
-    component: () => import('@/modules/labs/views/LabFinmodelView.vue'),
-    meta: { title: 'Финмодель · Lab', requiresAuth: true, requiresInternal: true },
-  },
-  {
-    // Блок «Реклама» вырос из этой лабы в модуль `advertising` на живых данных;
+    // Блок «Реклама» вырос из лабы в модуль `advertising` на живых данных;
     // старая ссылка ведёт туда же.
     path: '/labs/advertisement-source',
     redirect: '/advertising',

@@ -1,19 +1,13 @@
 /**
  * PUBLIC API CONTRACT — labs module.
  *
- * Two routes that have one thing in common: neither is part of the product yet,
- * and both are allowed a design system of their own.
+ * `/labs/monitoring` is the one route left here. The finance one-pager that
+ * used to live at `/labs/finmodel` was removed on 2026-10-07: it was a static
+ * reference with its own design system, not a page anyone works in. Its
+ * «Реклама» tab had already become the `advertising` module, and
+ * `/labs/advertisement-source` still redirects there.
  *
- * `/labs/finmodel` is the finance one-pager from `docs/finmodelka/` — real
- * numbers off a static datapack, its own tokens, its logic left on bare DOM
- * because those figures are checked against that folder's control values and
- * a rewrite onto reactivity would have moved them.
- *
- * Its «Реклама» tab was re-laid in the app's own design system at
- * `/labs/advertisement-source` and has since become the `advertising` module on
- * live data; the old path redirects there.
- *
- * `/labs/monitoring` is a design sandbox: one route that reproduces the monitoring page's structure
+ * It is a design sandbox: one route that reproduces the monitoring page's structure
  * under a SECOND, self-contained design system. It exists to be compared
  * against /monitoring, so it deliberately shares nothing with the monitoring
  * module — not its store, not its components, not its tokens. Everything it
