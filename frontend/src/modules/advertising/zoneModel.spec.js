@@ -1,4 +1,4 @@
-import { bidCards } from '@/modules/advertising/zoneModel'
+import { bidCards, skuZoneLines } from '@/modules/advertising/zoneModel'
 
 const ZONES = [
   { zone: 'cpm_manual_search', spend: '600', bonus: '60' },
@@ -48,5 +48,30 @@ describe('bidCards', () => {
 
     expect(untyped).toBe(25)
     expect(cards.find((c) => c.key === 'cpc').share).toBeCloseTo(0.75)
+  })
+})
+
+describe('skuZoneLines', () => {
+  it("lists a row's zones in the cards' order, each as its share of the row", () => {
+    const lines = skuZoneLines(
+      [
+        { zone: 'cpm_manual_shelves', spend: 25, bonus: 0 },
+        { zone: 'cpm_manual_search', spend: 50, bonus: 5 },
+        { zone: 'cpm_unified_shelves', spend: 25, bonus: 0 },
+      ],
+      100,
+    )
+
+    expect(lines.map((l) => [l.label, l.share])).toEqual([
+      ['Единая ставка · Полки', 0.25],
+      ['Ручной поиск · Поиск', 0.5],
+      ['Ручные полки', 0.25],
+    ])
+  })
+
+  it('names spend whose campaign has no settings rather than dropping it', () => {
+    const [line] = skuZoneLines([{ zone: 'unclassified', spend: 10, bonus: 0 }], 10)
+
+    expect(line.label).toBe('Без настроек кампании')
   })
 })

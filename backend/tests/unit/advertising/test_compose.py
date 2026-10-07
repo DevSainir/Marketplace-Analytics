@@ -100,3 +100,34 @@ def test_without_a_settlement_sales_are_unknown_rather_than_zero() -> None:
     assert page.totals.sales is None
     assert all(row.sales is None for row in page.skus)
     assert all(row.orders is None for row in page.skus)
+
+
+def test_an_articles_zones_add_up_to_its_row_to_the_kopeck() -> None:
+    """The row's breakdown is the row: its zones sum to its spend and its bonus."""
+    page = compose(_facts(), sales=[], settled_to=None, catalog=_cards(), orders=None)
+
+    for row in page.skus:
+        assert sum(zone.spend for zone in row.zones) == row.spend
+        assert sum(zone.bonus for zone in row.zones) == row.bonus
+
+
+def test_an_article_takes_its_share_of_each_zone_of_the_campaign_day() -> None:
+    """M-B took a third of the search campaign's 15.09, so a third of each of its zones.
+
+    That day the campaign spent 150 — 120 of it in search, 30 in the catalogue —
+    of which M-B's 50: 40 in search and 10 in the catalogue. Its 16.09 is the
+    unified campaign alone.
+    """
+    page = compose(_facts(), sales=[], settled_to=None, catalog=_cards(), orders=None)
+
+    rows = {row.vendor_code: {zone.zone: zone.spend for zone in row.zones} for row in page.skus}
+    assert rows["M-B"] == {
+        "cpm_manual_search": Decimal("40"),
+        "cpm_manual_catalog": Decimal("10"),
+        "cpm_unified_search": Decimal("11.11"),
+        "cpm_unified_shelves": Decimal("22.22"),
+    }
+    assert rows["M-A"] == {
+        "cpm_manual_search": Decimal("170"),
+        "cpm_manual_catalog": Decimal("30"),
+    }

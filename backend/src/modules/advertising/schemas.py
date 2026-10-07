@@ -74,6 +74,21 @@ class AdvertisingDay(BaseModel):
     sales: Decimal | None
 
 
+class AdvertisingSkuZone(BaseModel):
+    """One article's money in one display zone — the row's breakdown.
+
+    The campaign-day's zone split (``services/zones.py``) applied to the
+    article's part of that campaign-day: an article that took 40 % of a
+    campaign's day takes 40 % of each of its zones. normquery does carry an
+    article, but a campaign-day split per article from it would send all of
+    an article's spend to «Поиск» whenever it had no search row of its own.
+    """
+
+    zone: Zone
+    spend: Decimal
+    bonus: Decimal
+
+
 class AdvertisingSku(BaseModel):
     """One article that advertised or sold in the window."""
 
@@ -88,6 +103,9 @@ class AdvertisingSku(BaseModel):
     sales: Decimal | None
     #: Ordered units from WB's funnel; ``None`` when the funnel does not cover the window.
     orders: int | None
+    #: The row's spend and bonus by display zone; sums to ``spend`` and ``bonus``
+    #: exactly. Zones the article did not run in are omitted.
+    zones: list[AdvertisingSkuZone] = []
 
 
 class AdvertisingResponse(BaseModel):

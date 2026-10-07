@@ -5,11 +5,13 @@
  *
  * «Реклама» leads with ДРР beside it; share, orders and bonus are the second
  * line. A list has no headers to click, so it carries its own sort, grows ten
- * records at a time, and puts the «Итого» first.
+ * records at a time, and puts the «Итого» first. «Зоны» under a record opens
+ * its money by display zone, as the ▶ does in the desktop table.
  */
 import { computed, ref, watch } from 'vue'
 
 import DataState from '@/core/components/DataState.vue'
+import AdsSkuZones from '@/modules/advertising/components/AdsSkuZones.vue'
 import { formatMoney, formatNumber, formatSku } from '@/core/utils/format'
 import { DRR_ALARM, ratioPct } from '@/modules/advertising/adsFormat'
 
@@ -29,6 +31,16 @@ const SORTS = [
   { key: 'share', label: 'По доле' },
   { key: 'orders', label: 'По заказам' },
 ]
+
+/** Labels of the records whose zones are open. */
+const open = ref(new Set())
+
+function toggle(label) {
+  const next = new Set(open.value)
+  if (next.has(label)) next.delete(label)
+  else next.add(label)
+  open.value = next
+}
 
 const sortKey = ref('spend')
 const shown = ref(PAGE)
@@ -87,8 +99,25 @@ const drr = (row) => (props.showDrr ? ratioPct(row.drr) : '—')
             доля {{ ratioPct(row.share) }} ·
             {{ row.orders === null ? '—' : formatNumber(row.orders) }} заказов
           </span>
-          <span v-if="showBonus && row.bonus">бонусы {{ money(row.bonus) }}</span>
+          <span v-if="showBonus">бонусы {{ money(row.bonus) }}</span>
         </div>
+        <button
+          type="button"
+          class="mt-xs inline-flex min-h-11 items-center gap-xs text-tiny text-action"
+          :aria-expanded="open.has(row.label)"
+          @click="toggle(row.label)"
+        >
+          <span class="inline-block transition" :class="open.has(row.label) && 'rotate-90'">▶</span>
+          Зоны показа
+        </button>
+        <AdsSkuZones
+          v-if="open.has(row.label)"
+          :zones="row.zones ?? []"
+          :spend="row.spend"
+          :currency="currency"
+          :show-bonus="showBonus"
+          class="-mx-md"
+        />
       </li>
     </ul>
 

@@ -49,7 +49,27 @@ export function toRows(skus) {
     bonusSettled: Number(sku.bonus_settled),
     sales: num(sku.sales),
     orders: sku.orders,
+    zones: (sku.zones ?? []).map((z) => ({
+      zone: z.zone,
+      spend: Number(z.spend),
+      bonus: Number(z.bonus),
+    })),
   }))
+}
+
+/** Add one row's zones into a running per-zone sum. */
+function mergeZones(acc, zones) {
+  const byZone = new Map(acc.map((z) => [z.zone, { ...z }]))
+  for (const z of zones) {
+    const into = byZone.get(z.zone)
+    if (into) {
+      into.spend += z.spend
+      into.bonus += z.bonus
+    } else {
+      byZone.set(z.zone, { ...z })
+    }
+  }
+  return [...byZone.values()]
 }
 
 /** Distinct subjects and brands, alphabetical, for the filter selects. */
@@ -88,6 +108,7 @@ function sum(rows, label) {
       bonusSettled: acc.bonusSettled + row.bonusSettled,
       sales: addNullable(acc.sales, row.sales),
       orders: addNullable(acc.orders, row.orders),
+      zones: mergeZones(acc.zones, row.zones ?? []),
     }),
     {
       label,
@@ -97,6 +118,7 @@ function sum(rows, label) {
       bonusSettled: 0,
       sales: null,
       orders: null,
+      zones: [],
       n: rows.length,
     },
   )

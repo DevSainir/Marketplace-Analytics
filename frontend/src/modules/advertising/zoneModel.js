@@ -105,3 +105,41 @@ export function bidCards(zones) {
   })
   return { cards, untyped: byZone.unclassified?.spend ?? 0 }
 }
+
+/**
+ * One line per API zone, in the cards' order, for an article's breakdown: the
+ * card's name, and the zone after it when the card has more than one.
+ */
+const ZONE_LINES = CARDS.flatMap((card, cardIndex) =>
+  card.zones.map(({ zone, kind }, zoneIndex) => ({
+    zone,
+    kind,
+    label: card.zones.length > 1 ? `${card.label} · ${LABEL[kind]}` : card.label,
+    order: cardIndex * 10 + zoneIndex,
+  })),
+)
+const LINE = Object.fromEntries(ZONE_LINES.map((line) => [line.zone, line]))
+const UNTYPED_LINE = { kind: null, label: 'Без настроек кампании', order: 999 }
+
+/**
+ * An article's (or a group's) money by zone, for the row's breakdown.
+ *
+ * `share` is the zone's part of the ROW's spend — the question the breakdown
+ * answers is where this article's money went, not its weight in the кабинет.
+ *
+ * @param {Array<{zone: string, spend: number, bonus: number}>} zones
+ * @param {number} rowSpend
+ * @returns {Array<{zone: string, kind: string|null, label: string, spend: number,
+ *   bonus: number, share: number|null}>}
+ */
+export function skuZoneLines(zones, rowSpend) {
+  return zones
+    .map((z) => ({
+      ...(LINE[z.zone] ?? UNTYPED_LINE),
+      zone: z.zone,
+      spend: z.spend,
+      bonus: z.bonus,
+      share: rowSpend ? z.spend / rowSpend : null,
+    }))
+    .sort((a, b) => a.order - b.order)
+}

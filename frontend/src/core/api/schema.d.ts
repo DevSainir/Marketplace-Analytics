@@ -2835,6 +2835,40 @@ export interface components {
       sales: string | null
       /** Orders */
       orders: number | null
+      /**
+       * Zones
+       * @default []
+       */
+      zones: components['schemas']['AdvertisingSkuZone'][]
+    }
+    /**
+     * AdvertisingSkuZone
+     * @description One article's money in one display zone — the row's breakdown.
+     *
+     *     The campaign-day's zone split (``services/zones.py``) applied to the
+     *     article's part of that campaign-day: an article that took 40 % of a
+     *     campaign's day takes 40 % of each of its zones. normquery does carry an
+     *     article, but a campaign-day split per article from it would send all of
+     *     an article's spend to «Поиск» whenever it had no search row of its own.
+     */
+    AdvertisingSkuZone: {
+      /**
+       * Zone
+       * @enum {string}
+       */
+      zone:
+        | 'cpm_manual_search'
+        | 'cpm_manual_catalog'
+        | 'cpm_manual_shelves'
+        | 'cpm_unified_search'
+        | 'cpm_unified_shelves'
+        | 'cpc_search'
+        | 'cpc_shelves'
+        | 'unclassified'
+      /** Spend */
+      spend: string
+      /** Bonus */
+      bonus: string
     }
     /**
      * AdvertisingSpan

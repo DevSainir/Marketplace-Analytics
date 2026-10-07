@@ -12,11 +12,12 @@ from collections import defaultdict
 from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal
-from typing import NamedTuple
+from typing import NamedTuple, get_args
 
 from src.modules.advertising.schemas import (
     AdvertisingDay,
     AdvertisingSku,
+    AdvertisingSkuZone,
     AdvertisingTotals,
     AdvertisingZone,
     Zone,
@@ -26,6 +27,8 @@ from src.modules.advertising.services.zones import zone_legs
 from src.modules.monitoring.contract import AdCampaignFacts, CatalogCard
 
 _ZERO = Decimal(0)
+#: The order an article's zones are listed in — the ``Zone`` literal's own.
+_ZONE_ORDER: dict[str, int] = {zone: index for index, zone in enumerate(get_args(Zone))}
 
 
 class SaleDay(NamedTuple):
@@ -87,6 +90,10 @@ def compose(
     nm_bonus: dict[int, Decimal] = defaultdict(lambda: _ZERO)
     nm_settled: dict[int, Decimal] = defaultdict(lambda: _ZERO)
     nm_bonus_settled: dict[int, Decimal] = defaultdict(lambda: _ZERO)
+    # Each article's part of a campaign-day, split by that campaign-day's
+    # zones: the article rows' breakdown, summing to the row to the kopeck.
+    nm_zone_spend: dict[int, dict[Zone, Decimal]] = defaultdict(lambda: defaultdict(lambda: _ZERO))
+    nm_zone_bonus: dict[int, dict[Zone, Decimal]] = defaultdict(lambda: defaultdict(lambda: _ZERO))
 
     for key, spend in spend_cd.items():
         bonus = bonus_cd.get(key, _ZERO)
@@ -105,10 +112,14 @@ def compose(
             nm_spend[nm_id] += amount
             if settled:
                 nm_settled[nm_id] += amount
+            for zone, zone_part in split_by_weight(amount, weights).items():
+                nm_zone_spend[nm_id][zone] += zone_part
         for nm_id, part in split_by_weight(bonus, by_nm[key]).items():
             nm_bonus[nm_id] += part
             if settled:
                 nm_bonus_settled[nm_id] += part
+            for zone, zone_part in split_by_weight(part, weights).items():
+                nm_zone_bonus[nm_id][zone] += zone_part
 
     sales_by_nm: dict[int, Decimal] = defaultdict(lambda: _ZERO)
     sales_by_day: dict[date, Decimal] = defaultdict(lambda: _ZERO)
@@ -153,6 +164,7 @@ def compose(
             bonus_settled=nm_bonus_settled.get(nm_id, _ZERO),
             sales=sales_by_nm.get(nm_id, _ZERO) if has_sales else None,
             orders=None if orders is None else orders.get(nm_id, 0),
+            zones=_sku_zones(nm_zone_spend.get(nm_id, {}), nm_zone_bonus.get(nm_id, {})),
         )
         for nm_id in sorted(set(nm_spend) | set(sales_by_nm))
         if nm_spend.get(nm_id) or sales_by_nm.get(nm_id)
@@ -180,6 +192,15 @@ def _place_campaign_bonus(
     return out
 
 
+def _sku_zones(spend: dict[Zone, Decimal], bonus: dict[Zone, Decimal]) -> list[AdvertisingSkuZone]:
+    """An article's zones in the fixed order, the empty ones left out."""
+    return [
+        AdvertisingSkuZone(zone=zone, spend=spend.get(zone, _ZERO), bonus=bonus.get(zone, _ZERO))
+        for zone in sorted(set(spend) | set(bonus), key=_ZONE_ORDER.__getitem__)
+        if spend.get(zone) or bonus.get(zone)
+    ]
+
+
 def _sku_row(
     nm_id: int,
     card: CatalogCard | None,
@@ -190,6 +211,7 @@ def _sku_row(
     bonus_settled: Decimal,
     sales: Decimal | None,
     orders: int | None,
+    zones: list[AdvertisingSkuZone],
 ) -> AdvertisingSku:
     """One article row; a card missing from the catalogue is labelled by its nm."""
     return AdvertisingSku(
@@ -203,4 +225,5 @@ def _sku_row(
         bonus_settled=bonus_settled,
         sales=sales,
         orders=orders,
+        zones=zones,
     )

@@ -7,14 +7,19 @@
  * to start with: the question the table answers first is «где деньги». The
  * «Итого» is the whole current filter. «Промо-бонусы» sits next to the money
  * it is part of and only exists while the page shows bonuses.
+ *
+ * The ▶ beside a row opens its money by display zone (`AdsSkuZones`), the way
+ * the P&L opens an article's sizes. The breakdown is already in the payload,
+ * so it opens at once.
  */
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import DataState from '@/core/components/DataState.vue'
 import { formatMoney, formatNumber, formatSku } from '@/core/utils/format'
 import AdsInfoHint from '@/modules/advertising/components/AdsInfoHint.vue'
+import AdsSkuZones from '@/modules/advertising/components/AdsSkuZones.vue'
 import { DRR_ALARM, ratioPct } from '@/modules/advertising/adsFormat'
 
 const props = defineProps({
@@ -30,6 +35,14 @@ const props = defineProps({
   showBonus: { type: Boolean, default: false },
   showDrr: { type: Boolean, default: true },
 })
+
+/** Open rows, keyed by label — PrimeVue's `expandedRows` shape. */
+const expanded = ref({})
+
+function toggle(label) {
+  const { [label]: open, ...rest } = expanded.value
+  expanded.value = open ? rest : { ...rest, [label]: true }
+}
 
 const money = (value) => formatMoney(value, props.currency)
 const count = (value) => (value === null ? '—' : formatNumber(value))
@@ -51,6 +64,7 @@ const foot = computed(() => ({
 <template>
   <div class="app-datatable">
     <DataTable
+      v-model:expanded-rows="expanded"
       :value="rows"
       data-key="label"
       sort-field="spend"
@@ -65,8 +79,23 @@ const foot = computed(() => ({
 
       <Column field="label" :header="labelHeader" sortable frozen :footer="foot.label">
         <template #body="{ data }">
-          <span class="font-medium">{{ formatSku(data.label) }}</span>
-          <span v-if="data.n" class="text-muted"> · {{ data.n }}</span>
+          <span class="inline-flex items-center gap-xs">
+            <button
+              type="button"
+              class="inline-flex h-5 w-5 flex-none items-center justify-center rounded-btn text-micro text-muted transition hover:bg-hover hover:text-primary"
+              :aria-expanded="Boolean(expanded[data.label])"
+              :title="expanded[data.label] ? 'Свернуть зоны показа' : 'По зонам показа'"
+              @click="toggle(data.label)"
+            >
+              <span class="inline-block transition" :class="expanded[data.label] && 'rotate-90'">
+                ▶
+              </span>
+            </button>
+            <span>
+              <span class="font-medium">{{ formatSku(data.label) }}</span>
+              <span v-if="data.n" class="text-muted"> · {{ data.n }}</span>
+            </span>
+          </span>
         </template>
       </Column>
       <Column field="spend" header="Реклама" sortable :footer="foot.spend">
@@ -78,7 +107,7 @@ const foot = computed(() => ({
         </template>
         <template #body="{ data }">
           <span :class="{ 'text-muted': !data.bonus }">
-            {{ data.bonus ? money(data.bonus) : '—' }}
+            {{ money(data.bonus) }}
           </span>
         </template>
       </Column>
@@ -104,10 +133,22 @@ const foot = computed(() => ({
       </Column>
       <Column field="sales" sortable :footer="foot.sales">
         <template #header>
-          <span title="Продажи минус возвраты по цене продавца, за рассчитанные дни">Продажи</span>
+          <span>Продажи</span>
+          <AdsInfoHint
+            text="Продажи (выкупы) минус возвраты по цене продавца, за рассчитанные дни"
+          />
         </template>
         <template #body="{ data }">{{ data.sales === null ? '—' : money(data.sales) }}</template>
       </Column>
+
+      <template #expansion="{ data }">
+        <AdsSkuZones
+          :zones="data.zones ?? []"
+          :spend="data.spend"
+          :currency="currency"
+          :show-bonus="showBonus"
+        />
+      </template>
     </DataTable>
   </div>
 </template>

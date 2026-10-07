@@ -14,9 +14,13 @@
  * WB's bonus paid, and the bonus gets its own line: the two then add up to the
  * day's whole spend instead of one being a part of the other.
  *
+ * The legend is the set of switches: a click hides or shows that line, so one
+ * metric can be read without the others. Hidden lines are this chart's own
+ * state and reset with the page; the ДРР axis goes with its line.
+ *
  * Ink mirrors `tokens.css` as hex because ECharts paints on a canvas.
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import BaseChart from '@/core/components/BaseChart.vue'
 import { formatMoney } from '@/core/utils/format'
@@ -38,6 +42,17 @@ const LINE_HAIRLINE = '#E5E5EF'
 const INK = '#12121A'
 
 const spendName = computed(() => (props.showBonus ? 'Расход с баланса' : 'Расход'))
+
+/** Keys of the lines the reader switched off. */
+const hidden = ref(new Set())
+const shown = (key) => !hidden.value.has(key)
+
+function toggle(key) {
+  const next = new Set(hidden.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  hidden.value = next
+}
 
 const legend = computed(() => [
   { key: 'spend', name: spendName.value, dashed: false },
@@ -103,7 +118,7 @@ const option = computed(() => ({
     },
     {
       type: 'value',
-      show: props.showDrr,
+      show: props.showDrr && shown('drr'),
       // ДРР is withheld rather than negative, so the axis starts at zero and
       // the line never floats over an empty band below it.
       min: 0,
@@ -112,12 +127,16 @@ const option = computed(() => ({
     },
   ],
   series: [
-    moneyLine(
-      spendName.value,
-      SERIES.spend,
-      props.days.map((d) => Number(d.spend) - (props.showBonus ? Number(d.bonus) : 0)),
-    ),
-    ...(props.showBonus
+    ...(shown('spend')
+      ? [
+          moneyLine(
+            spendName.value,
+            SERIES.spend,
+            props.days.map((d) => Number(d.spend) - (props.showBonus ? Number(d.bonus) : 0)),
+          ),
+        ]
+      : []),
+    ...(props.showBonus && shown('bonus')
       ? [
           moneyLine(
             'Промо-бонусы',
@@ -126,7 +145,7 @@ const option = computed(() => ({
           ),
         ]
       : []),
-    ...(props.showDrr
+    ...(props.showDrr && shown('drr')
       ? [
           {
             name: 'ДРР от продаж',
@@ -149,14 +168,23 @@ const option = computed(() => ({
 <template>
   <div class="rounded-card border border-border-subtle bg-surface p-md shadow-card">
     <div class="flex flex-wrap gap-md text-tiny text-muted">
-      <span v-for="item in legend" :key="item.key" class="inline-flex items-center gap-xs">
+      <button
+        v-for="item in legend"
+        :key="item.key"
+        type="button"
+        :aria-pressed="shown(item.key)"
+        :title="shown(item.key) ? 'Скрыть линию' : 'Показать линию'"
+        class="-mx-xs inline-flex items-center gap-xs rounded-btn px-xs py-0.5 transition hover:bg-hover hover:text-primary phone:min-h-11"
+        :class="shown(item.key) ? '' : 'opacity-50 line-through'"
+        @click="toggle(item.key)"
+      >
         <span
           class="inline-block w-4 border-t-2"
           :class="item.dashed ? 'border-dashed' : ''"
           :style="{ borderColor: SERIES[item.key] }"
         />
         {{ item.name }}
-      </span>
+      </button>
     </div>
     <BaseChart :option="option" height="300px" />
   </div>

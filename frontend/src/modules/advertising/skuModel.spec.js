@@ -74,3 +74,25 @@ describe('ДРР от продаж', () => {
     expect(row.drr).toBeNull()
   })
 })
+
+describe('the zone breakdown of a group', () => {
+  it("sums its articles' zones, zone by zone", () => {
+    const rows = toRows([
+      { ...SKUS[0], zones: [{ zone: 'cpm_manual_search', spend: '50', bonus: '5' }] },
+      {
+        ...SKUS[1],
+        zones: [
+          { zone: 'cpm_manual_search', spend: '20', bonus: '0' },
+          { zone: 'cpm_unified_shelves', spend: '10', bonus: '0' },
+        ],
+      },
+    ])
+
+    const [brand] = groupRows(rows, 'brand', 80)
+
+    expect(brand.zones).toEqual([
+      { zone: 'cpm_manual_search', spend: 70, bonus: 5 },
+      { zone: 'cpm_unified_shelves', spend: 10, bonus: 0 },
+    ])
+  })
+})

@@ -99,7 +99,7 @@ const segmentStyle = (zone) => ({
       >
         <span class="flex-1 text-muted">Бонусы WB</span>
         <span :class="card.bonus ? 'text-primary' : 'text-muted'">
-          {{ card.bonus ? money(card.bonus) : '—' }}
+          {{ money(card.bonus) }}
         </span>
         <span class="w-12 text-right text-muted">
           {{ card.bonus && card.spend ? ratioPct(card.bonus / card.spend) : '' }}

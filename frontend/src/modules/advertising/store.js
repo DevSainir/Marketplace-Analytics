@@ -68,10 +68,12 @@ export const useAdvertisingStore = defineStore('advertising', () => {
 
   const currency = computed(() => data.value?.currency ?? '')
   const totals = computed(() => data.value?.totals ?? null)
-  /** Whether the window carries any WB-funded spend at all. */
-  const hasBonus = computed(() => Number(totals.value?.bonus ?? 0) > 0)
-  /** What every bonus element on the page obeys: the switch, and the data. */
-  const bonusVisible = computed(() => showBonus.value && hasBonus.value)
+  /**
+   * What every bonus element on the page obeys: the switch alone. A window
+   * without bonuses shows zeros rather than a switch that will not turn on —
+   * a seller whose bonuses stopped should see that they stopped.
+   */
+  const bonusVisible = computed(() => showBonus.value)
   /**
    * ДРР divides ad spend by settled sales. When the spend was billed in a
    * currency other than the settlement's, that is two units — withheld.
@@ -161,7 +163,6 @@ export const useAdvertisingStore = defineStore('advertising', () => {
     filters,
     currency,
     totals,
-    hasBonus,
     bonusVisible,
     drrComparable,
     bids,
