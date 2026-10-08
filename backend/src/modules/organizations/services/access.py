@@ -185,6 +185,20 @@ class OrganizationAccess:
         return self.role is EffectiveRole.DEV
 
     @property
+    def is_guest_only(self) -> bool:
+        """Whether the caller is a head with no company of their own.
+
+        A dev may open a кабинет to anybody, not only to people who already
+        belong somewhere — showing a кабинет to someone outside every customer
+        is the point of the grant. Such a caller is let past ``require_member``
+        with nothing of their own: every route that needs the caller's
+        organisation still refuses them (``tenant_id`` raises), and every
+        workspace-scoped route admits only what ``workspaces.deps`` finds a
+        grant for, read-only.
+        """
+        return self.is_head and self.organization_id is None and self.role is EffectiveRole.USER
+
+    @property
     def has_access(self) -> bool:
         """Whether this tenant may reach the service AT ALL.
 
@@ -199,6 +213,10 @@ class OrganizationAccess:
         rows, or a bad backfill locks out the people who would fix it.
         """
         if self.role is EffectiveRole.DEV:
+            return True
+        if self.is_guest_only:
+            # No tenant of their own to bill. What they may read was chosen by a
+            # dev, one кабинет at a time; `can_write` stays False for them.
             return True
         return self.subscription is not SubscriptionState.EXPIRED
 
@@ -234,8 +252,9 @@ class OrganizationAccess:
         it does not reach it however much they may write elsewhere.
 
         Only a manager can be denied. A dev sees everything by definition, an
-        owner bought the thing, and a caller with no membership never gets far
-        enough to ask.
+        owner bought the thing, a guest with no company of their own sees every
+        section of the кабинеты granted to them (read-only, enforced by verb),
+        and any other caller with no membership never gets far enough to ask.
 
         Args:
             module: The surface being entered.
@@ -246,7 +265,7 @@ class OrganizationAccess:
         if self.role is EffectiveRole.DEV or self.role is EffectiveRole.OWNER:
             return True
         if self.role is EffectiveRole.USER:
-            return False
+            return self.is_guest_only
         return module.value in self.modules
 
     @property

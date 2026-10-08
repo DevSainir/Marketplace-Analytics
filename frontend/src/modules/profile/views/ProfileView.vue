@@ -42,11 +42,22 @@ const SECTIONS = [
   { name: 'profile', label: 'Общие' },
   { name: 'profile-team', label: 'Команда' },
   { name: 'profile-security', label: 'Безопасность' },
+  { name: 'profile-guests', label: 'Доступы' },
 ]
 
 /** Only the sections this account can actually be shown. */
 const sections = computed(() =>
-  SECTIONS.filter((section) => section.name !== 'profile-team' || members.canManageTeam),
+  SECTIONS.filter((section) => {
+    if (section.name === 'profile-team') return members.canManageTeam
+    // Opening another company's кабинет is a platform decision; the API
+    // refuses everyone but a dev (`DevAccess`).
+    if (section.name === 'profile-guests') return members.role === 'dev'
+    return true
+  }),
+)
+
+const roleLabel = computed(() =>
+  members.guestOnly ? 'Гостевой доступ' : (ROLE_LABELS[members.role] ?? ''),
 )
 
 onMounted(async () => {
@@ -61,7 +72,7 @@ onMounted(async () => {
       <aside class="pf-aside">
         <ProfileNav
           :email="store.me?.email ?? ''"
-          :role-label="ROLE_LABELS[members.role] ?? ''"
+          :role-label="roleLabel"
           :sections="sections"
           :subscription="members.subscription"
         />
@@ -74,7 +85,7 @@ onMounted(async () => {
 
         <!-- The only screen an account without a company can reach anything
              from, so it carries the way out rather than describing it. -->
-        <section v-if="!members.hasOrganization" class="pf-activation">
+        <section v-if="!members.hasOrganization && !members.guestOnly" class="pf-activation">
           <h2 class="pf-panel__title">Ключ активации</h2>
           <p class="pf-panel__note">
             Аккаунт ещё не привязан к компании. Введите ключ активации — или

@@ -49,13 +49,15 @@ _COVERED_MODULES = (
 #: covered table. Both read `workspaces.workspaces`, which carries
 #: `organization_id` rather than `workspace_id` and is deliberately outside the
 #: policy set — a workspace *list* cannot be scoped to one workspace.
-#: The three `/guests` routes are the dev's grant screen: they read and write
-#: `workspaces.workspace_guests`, which is outside the policy set for the same
-#: reason — it decides which workspace may be bound, so it is read before one is.
+#: The four `/guests` routes are the dev's grant screen: they read and write
+#: `workspaces.workspace_guests` (and list `workspaces.workspaces` by name), both
+#: outside the policy set for the same reason — they decide which workspace may
+#: be bound, so they are read before one is.
 _EXEMPT = {
     ("GET", "/api/v1/workspaces"),
     ("POST", "/api/v1/workspaces"),
     ("GET", "/api/v1/workspaces/guests"),
+    ("GET", "/api/v1/workspaces/guests/workspaces"),
     ("POST", "/api/v1/workspaces/guests"),
     ("DELETE", "/api/v1/workspaces/guests/{grant_id}"),
 }

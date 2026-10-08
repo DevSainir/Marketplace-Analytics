@@ -24,7 +24,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from src.modules.organizations.models import Organization, Subscription
+from src.core.exceptions import PermissionDeniedError
+from src.modules.organizations.models import ModuleKey, Organization, Subscription
 from src.modules.organizations.services.access import (
     EffectiveRole,
     OrganizationAccess,
@@ -245,6 +246,54 @@ def test_a_customers_owner_may_not_issue_codes() -> None:
     access = _access(role=EffectiveRole.OWNER, is_primary_org=False)
 
     assert access.can_issue_codes is False
+
+
+# --------------------------------------------------------------------------- #
+# A guest with no company of their own
+# --------------------------------------------------------------------------- #
+def _guest(*, organization_id: uuid.UUID | None = None) -> OrganizationAccess:
+    """A head; with no organisation unless one is given."""
+    return OrganizationAccess(
+        user_id=uuid.uuid4(),
+        organization_id=organization_id,
+        role=EffectiveRole.USER if organization_id is None else EffectiveRole.MANAGER,
+        subscription=SubscriptionState.EXPIRED,
+        is_primary_org=False,
+        is_head=True,
+    )
+
+
+def test_a_head_with_no_organisation_is_let_in_to_read() -> None:
+    """The grant is the whole point: nothing of their own to pay for, nothing to write."""
+    guest = _guest()
+
+    assert (guest.is_guest_only, guest.has_access, guest.can_write) == (True, True, False)
+
+
+@pytest.mark.parametrize("module", list(ModuleKey))
+def test_a_head_with_no_organisation_reaches_every_section(module: ModuleKey) -> None:
+    """Which кабинет is decided by the grant; inside it, everything is readable."""
+    assert _guest().can_reach(module) is True
+
+
+def test_a_head_with_no_organisation_has_no_tenant_of_their_own() -> None:
+    """A route that needs the caller's organisation refuses instead of scoping to None."""
+    with pytest.raises(PermissionDeniedError):
+        _ = _guest().tenant_id
+
+
+def test_a_plain_account_with_no_organisation_is_still_shut_out() -> None:
+    """Without the head role nothing changes for a bare registration."""
+    access = _access(role=EffectiveRole.USER, subscription=SubscriptionState.EXPIRED)
+
+    assert (access.is_guest_only, access.has_access) == (False, False)
+
+
+def test_a_head_inside_a_lapsed_company_is_not_a_guest_only() -> None:
+    """Their own company's paywall still applies to them."""
+    guest = _guest(organization_id=uuid.uuid4())
+
+    assert (guest.is_guest_only, guest.has_access) == (False, False)
 
 
 # --------------------------------------------------------------------------- #

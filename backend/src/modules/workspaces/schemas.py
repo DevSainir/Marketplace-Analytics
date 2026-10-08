@@ -166,6 +166,13 @@ class GuestGrantRequest(BaseModel):
     workspace_name: str = Field(min_length=1, max_length=256, description="The кабинет to open.")
 
 
+class GuestWorkspaceOption(BaseModel):
+    """One кабинет a dev may open to someone: its name, and nothing of its data."""
+
+    id: uuid.UUID
+    name: str
+
+
 class GuestGrantRead(BaseModel):
     """One standing grant. Carries no token and nothing of the кабинет's data."""
 

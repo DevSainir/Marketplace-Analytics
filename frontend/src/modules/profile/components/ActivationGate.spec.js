@@ -75,6 +75,31 @@ describe('ActivationGate', () => {
     expect(wrapper.find('.gate-card').exists()).toBe(false)
   })
 
+  it('lets a guest with no company of their own through', async () => {
+    // A dev opened a кабинет to them; covering it with «введите ключ» would
+    // hide the one thing they were let in to see.
+    const wrapper = await mountGate({
+      payload: me({
+        role: 'user',
+        organization: null,
+        subscription: null,
+        can_write: false,
+        is_guest_only: true,
+      }),
+    })
+
+    expect(wrapper.text()).toContain('секретные цифры')
+    expect(wrapper.find('.gate-card').exists()).toBe(false)
+  })
+
+  it('still asks a bare registration for a key', async () => {
+    const wrapper = await mountGate({
+      payload: me({ role: 'user', organization: null, subscription: null, can_write: false }),
+    })
+
+    expect(wrapper.find('.gate-card').exists()).toBe(true)
+  })
+
   it('paywalls a tenant past its grace window', async () => {
     // The whole point of the 2026-09-09 change: past grace the service is shut,
     // not read-only. The blur is cosmetic — the API refuses every request

@@ -78,10 +78,15 @@ async def list_workspaces(
     For a head, that is their own company's кабинеты followed by the ones a
     dev opened to them in other companies, flagged ``is_guest``.
     """
-    items = await service.list_workspaces(organization_id=access.tenant_id)
+    # A guest with no company of their own has no кабинеты of their own.
+    items = (
+        []
+        if access.organization_id is None
+        else await service.list_workspaces(organization_id=access.organization_id)
+    )
     if access.is_head:
         items += await list_guest_workspaces(
-            guests, user_id=access.user_id, organization_id=access.tenant_id
+            guests, user_id=access.user_id, organization_id=access.organization_id
         )
     return WorkspaceListResponse(items=items)
 

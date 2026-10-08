@@ -159,7 +159,9 @@ async def get_current_workspace_id(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Кабинет не найден.",
         )
-    if workspace.organization_id != access.tenant_id:
+    # `organization_id`, not `tenant_id`: a guest with no company of their own
+    # has none, and every workspace is "another company's" to them.
+    if workspace.organization_id != access.organization_id:
         # Another company's кабинет. Open only to a head a dev granted it to,
         # and only to look: a guest changes nothing, spends none of that
         # seller's WB budget and enqueues nothing. Everyone else gets the same

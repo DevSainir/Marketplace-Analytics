@@ -18,8 +18,17 @@ from fastapi import APIRouter, status
 
 from src.core.deps import DbSession
 from src.modules.organizations.contract import AuditEvent, AuditTrail, DevAccess
-from src.modules.workspaces.guests import grant_guest, list_guests, revoke_guest
-from src.modules.workspaces.schemas import GuestGrantRead, GuestGrantRequest
+from src.modules.workspaces.guests import (
+    grant_guest,
+    list_grantable_workspaces,
+    list_guests,
+    revoke_guest,
+)
+from src.modules.workspaces.schemas import (
+    GuestGrantRead,
+    GuestGrantRequest,
+    GuestWorkspaceOption,
+)
 
 #: Mounted by ``main.py`` next to the workspaces router rather than inside it,
 #: so the path is whole wherever the app's routes are walked.
@@ -40,6 +49,21 @@ _DEV_ONLY_RESPONSES: dict[int | str, dict[str, str]] = {
 async def list_guest_grants(_dev: DevAccess, session: DbSession) -> list[GuestGrantRead]:
     """Every standing grant — who may read which кабинет of another company."""
     return await list_guests(session)
+
+
+@router.get(
+    "/workspaces",
+    response_model=list[GuestWorkspaceOption],
+    status_code=status.HTTP_200_OK,
+    responses=_DEV_ONLY_RESPONSES,
+)
+async def list_grantable(_dev: DevAccess, session: DbSession) -> list[GuestWorkspaceOption]:
+    """Every кабинет on the platform, id and name only, for the grant form.
+
+    ``DevAccess``: the list names every customer, which is a platform fact no
+    tenant may see — and the dev who may grant any of them already can.
+    """
+    return await list_grantable_workspaces(session)
 
 
 @router.post(

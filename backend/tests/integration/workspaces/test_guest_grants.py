@@ -16,7 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.exceptions import ConflictError, NotFoundError
 from src.modules.organizations.models import Organization
 from src.modules.users.models import User
-from src.modules.workspaces.guests import grant_guest, list_guests, revoke_guest
+from src.modules.workspaces.guests import (
+    grant_guest,
+    list_grantable_workspaces,
+    list_guests,
+    revoke_guest,
+)
 from src.modules.workspaces.models import Workspace
 from src.modules.workspaces.repos import WorkspaceGuestRepository
 
@@ -123,3 +128,21 @@ async def test_revoking_removes_the_grant(db_session: AsyncSession, via: Workspa
     assert await list_guests(db_session) == []
     with pytest.raises(NotFoundError):
         await revoke_guest(db_session, grant.id)
+
+
+async def test_the_grant_form_offers_every_workspace_by_name(
+    db_session: AsyncSession, organization: Organization, via: Workspace
+) -> None:
+    """Across companies, sorted by name regardless of case."""
+    # Arrange
+    other = Workspace(organization_id=organization.id, name="aлфавит")
+    db_session.add(other)
+    await db_session.flush()
+
+    # Act
+    options = await list_grantable_workspaces(db_session)
+
+    # Assert
+    names = [option.name for option in options]
+    assert {"NEVA", "aлфавит"} <= set(names)
+    assert names == sorted(names, key=str.lower)

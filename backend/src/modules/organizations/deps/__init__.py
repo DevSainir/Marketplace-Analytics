@@ -203,6 +203,11 @@ async def require_member(access: CurrentAccess) -> OrganizationAccess:
     tenant still gets through, so our own billing rows cannot lock out the
     people who would fix them.
 
+    The one caller let through with no organisation is a head with nothing of
+    their own (:attr:`OrganizationAccess.is_guest_only`): they reach only the
+    кабинеты a dev granted them, read-only, and every route that needs their
+    own organisation still refuses them through ``tenant_id``.
+
     ``/me``, ``/activate`` and ``/invitations/mine`` sit in front of this guard
     on ``CurrentAccess``, which is what leaves a blocked caller something to
     load: the SPA reads the state from ``/me`` and draws the paywall instead of
@@ -211,7 +216,7 @@ async def require_member(access: CurrentAccess) -> OrganizationAccess:
     Raises:
         PermissionDeniedError: No membership, or a subscription past grace.
     """
-    if access.organization_id is None:
+    if access.organization_id is None and not access.is_guest_only:
         raise PermissionDeniedError(
             "Аккаунт не привязан к организации. Введите ключ активации или примите приглашение."
         )

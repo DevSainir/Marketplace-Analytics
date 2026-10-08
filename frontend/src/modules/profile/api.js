@@ -344,3 +344,42 @@ export async function createActivationCode({
   })
   return data
 }
+
+/**
+ * Every standing guest grant on the platform — dev only.
+ *
+ * @returns {Promise<Array<{id: string, email: string, workspace_id: string,
+ *   workspace_name: string, created_at: string}>>}
+ */
+export async function fetchGuestGrants() {
+  const { data } = await apiClient.get('/v1/workspaces/guests')
+  return data
+}
+
+/**
+ * Every кабинет on the platform by name, for the grant form — dev only.
+ *
+ * @returns {Promise<Array<{id: string, name: string}>>}
+ */
+export async function fetchGrantableWorkspaces() {
+  const { data } = await apiClient.get('/v1/workspaces/guests/workspaces')
+  return data
+}
+
+/**
+ * Open a кабинет, read-only, to an account by its email — dev only.
+ *
+ * @param {{email: string, workspaceName: string}} payload
+ */
+export async function grantGuest({ email, workspaceName }) {
+  const { data } = await apiClient.post('/v1/workspaces/guests', {
+    email,
+    workspace_name: workspaceName,
+  })
+  return data
+}
+
+/** Close one guest grant — dev only. */
+export async function revokeGuest(grantId) {
+  await apiClient.delete(`/v1/workspaces/guests/${grantId}`)
+}

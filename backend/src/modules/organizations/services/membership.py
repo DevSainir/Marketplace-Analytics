@@ -92,6 +92,7 @@ class OrganizationService:
             # the API refuses by is what keeps the two from disagreeing.
             modules=[m for m in ModuleKey if access.can_reach(m)],
             can_issue_codes=access.can_issue_codes,
+            is_guest_only=access.is_guest_only,
         )
         if access.organization_id is None:
             return payload

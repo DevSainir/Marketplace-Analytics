@@ -23,11 +23,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.exceptions import ConflictError, NotFoundError
 from src.modules.users.contract import ROLE_DEV, load_emails, load_role, promote_to_head
 from src.modules.workspaces.repos import WorkspaceGuestRepository, WorkspaceRepository
-from src.modules.workspaces.schemas import GuestGrantRead, WorkspaceRead
+from src.modules.workspaces.schemas import GuestGrantRead, GuestWorkspaceOption, WorkspaceRead
 
 
 async def list_guest_workspaces(
-    guests: WorkspaceGuestRepository, *, user_id: uuid.UUID, organization_id: uuid.UUID
+    guests: WorkspaceGuestRepository, *, user_id: uuid.UUID, organization_id: uuid.UUID | None
 ) -> list[WorkspaceRead]:
     """The кабинеты granted to one head, minus any their own company owns.
 
@@ -56,6 +56,15 @@ async def list_guests(session: AsyncSession) -> list[GuestGrantRead]:
         )
         for guest, name in rows
     ]
+
+
+async def list_grantable_workspaces(session: AsyncSession) -> list[GuestWorkspaceOption]:
+    """Every кабинет on the platform, by name — what the dev's grant form offers."""
+    workspaces = await WorkspaceRepository(session).list_all()
+    return sorted(
+        (GuestWorkspaceOption(id=ws.id, name=ws.name) for ws in workspaces),
+        key=lambda option: option.name.lower(),
+    )
 
 
 async def grant_guest(
@@ -104,4 +113,10 @@ async def revoke_guest(session: AsyncSession, grant_id: uuid.UUID) -> uuid.UUID:
     return guest.user_id
 
 
-__all__ = ["grant_guest", "list_guest_workspaces", "list_guests", "revoke_guest"]
+__all__ = [
+    "grant_guest",
+    "list_grantable_workspaces",
+    "list_guest_workspaces",
+    "list_guests",
+    "revoke_guest",
+]

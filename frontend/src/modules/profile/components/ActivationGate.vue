@@ -53,7 +53,10 @@ const paywalled = computed(() => members.subscriptionExpired)
 
 // Not belonging to a company. `hasOrganization` answers true until the API has
 // spoken, so no cold load flashes this at a member.
-const needsActivation = computed(() => !isEscapeHatch.value && !members.hasOrganization)
+// A guest with no company is let in on a dev's grant instead.
+const needsActivation = computed(
+  () => !isEscapeHatch.value && !members.hasOrganization && !members.guestOnly,
+)
 
 // Belonging, but not granted this section. Used to be no blur at all — a
 // narrowed manager saw the page and watched every request on it answer 403.

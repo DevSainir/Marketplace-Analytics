@@ -54,6 +54,10 @@ export const useMembersStore = defineStore('members', () => {
   // code. The API has always said so; the SPA showed such a person the whole
   // app with every panel empty and no explanation of what was missing.
   const organization = ref(null)
+  //: A head with no company of their own: `organization` is null and yet the
+  //: app opens, on the кабинеты a dev granted them, read-only. Without this
+  //: the activation overlay would cover the very thing they were let in to see.
+  const guestOnly = ref(false)
   //: The surfaces this account may reach, as the API resolves them — owners and
   //: devs come back with all of them. The SPA showed every nav link regardless
   //: and let a narrowed manager open a page whose every request then 403'd.
@@ -139,6 +143,7 @@ export const useMembersStore = defineStore('members', () => {
       canIssueCodes.value = Boolean(me.can_issue_codes)
       canWrite.value = Boolean(me.can_write)
       organization.value = me.organization ?? null
+      guestOnly.value = Boolean(me.is_guest_only)
       modules.value = me.modules ?? []
       subscription.value = me.subscription ?? null
       // `?? true` rather than `Boolean(...)`: an API that has not yet learned
@@ -334,6 +339,7 @@ export const useMembersStore = defineStore('members', () => {
     invitations,
     acceptInvite,
     hasOrganization,
+    guestOnly,
     activate,
     internalFeatures,
     canIssueCodes,

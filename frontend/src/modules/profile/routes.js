@@ -44,6 +44,14 @@ export const profileRoutes = [
         component: () => import('@/modules/profile/views/ProfileSecurityView.vue'),
         meta: { title: 'Безопасность', requiresAuth: true, allowWithoutOrganization: true },
       },
+      {
+        // Dev only: the rail hides it from everyone else and the API refuses
+        // them, so a non-dev who types the address gets an empty refusal.
+        path: 'guests',
+        name: 'profile-guests',
+        component: () => import('@/modules/profile/views/ProfileGuestsView.vue'),
+        meta: { title: 'Доступы', requiresAuth: true, allowWithoutOrganization: true },
+      },
     ],
   },
 ]

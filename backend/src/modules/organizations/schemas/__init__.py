@@ -141,6 +141,10 @@ class MeResponse(BaseModel):
     #: Whether «Ключи активации» is shown: a dev, or the owner of the primary
     #: organisation. The same predicate ``require_code_issuer`` refuses by.
     can_issue_codes: bool = False
+    #: A head with no company of their own: ``organization`` is ``None`` and
+    #: yet the app opens, on the кабинеты a dev granted them, read-only. The
+    #: SPA skips the activation screen on this flag.
+    is_guest_only: bool = False
     organization: OrganizationRead | None = None
     subscription: SubscriptionRead | None = None
 

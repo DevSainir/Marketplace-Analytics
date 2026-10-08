@@ -15,6 +15,7 @@ from typing import Any
 import httpx
 import pytest
 
+from src.modules.organizations.contract import EffectiveRole, SubscriptionState
 from src.modules.workspaces.contract import WORKSPACE_HEADER
 from src.modules.workspaces.deps import get_workspace_guest_repo
 from src.modules.workspaces.models import Workspace
@@ -166,3 +167,115 @@ async def test_the_switcher_lists_the_granted_workspace_as_a_guest(
     items = {item["id"]: item["is_guest"] for item in response.json()["items"]}
     assert items[str(foreign_workspace.id)] is True
     assert items[str(workspace.id)] is False
+
+
+def _login_as_guest_only(login_as: Callable[..., None]) -> None:
+    """A head with no company of their own, exactly as ``resolve_access`` builds one."""
+    login_as(
+        role=EffectiveRole.USER,
+        org=None,
+        subscription=SubscriptionState.EXPIRED,
+        is_head=True,
+    )
+
+
+async def test_a_guest_with_no_company_reads_the_granted_workspace(
+    client: httpx.AsyncClient,
+    login_as: Callable[..., None],
+    guest_repo: FakeWorkspaceGuestRepository,
+    foreign_headers: dict[str, str],
+    foreign_workspace: Workspace,
+    analytics: _StubAnalyticsService,
+) -> None:
+    """No membership, no subscription of their own — the grant alone lets them look."""
+    # Arrange
+    _login_as_guest_only(login_as)
+
+    # Act
+    response = await client.get("/api/v1/monitoring/summary", headers=foreign_headers)
+
+    # Assert
+    assert response.status_code == 200
+    assert analytics.calls[0][1]["workspace_id"] == foreign_workspace.id
+
+
+async def test_a_guest_with_no_company_cannot_change_anything(
+    client: httpx.AsyncClient,
+    login_as: Callable[..., None],
+    guest_repo: FakeWorkspaceGuestRepository,
+    foreign_headers: dict[str, str],
+    analytics: _StubAnalyticsService,
+) -> None:
+    """Let in past the membership check is not let in to write."""
+    # Arrange
+    _login_as_guest_only(login_as)
+
+    # Act
+    response = await client.put(
+        "/api/v1/monitoring/pins/order", headers=foreign_headers, json={"nm_ids": []}
+    )
+
+    # Assert
+    assert response.status_code == 403
+    assert analytics.calls == []
+
+
+async def test_a_guest_with_no_company_sees_nothing_ungranted(
+    client: httpx.AsyncClient,
+    login_as: Callable[..., None],
+    guest_repo: FakeWorkspaceGuestRepository,
+    user: Any,
+    workspace: Workspace,
+    analytics: _StubAnalyticsService,
+) -> None:
+    """Every кабинет without a grant is the same 404 as one that does not exist."""
+    # Arrange
+    _login_as_guest_only(login_as)
+    headers = {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
+
+    # Act
+    response = await client.get("/api/v1/monitoring/summary", headers=headers)
+
+    # Assert
+    assert response.status_code == 404
+    assert analytics.calls == []
+
+
+async def test_the_switcher_of_a_guest_with_no_company_lists_only_the_grant(
+    client: httpx.AsyncClient,
+    login_as: Callable[..., None],
+    guest_repo: FakeWorkspaceGuestRepository,
+    user: Any,
+    foreign_workspace: Workspace,
+) -> None:
+    """Nothing of their own, and the granted кабинет flagged as a guest's."""
+    # Arrange
+    _login_as_guest_only(login_as)
+
+    # Act
+    response = await client.get("/api/v1/workspaces", headers=auth_headers(user.id))
+
+    # Assert
+    assert response.status_code == 200
+    assert [(item["id"], item["is_guest"]) for item in response.json()["items"]] == [
+        (str(foreign_workspace.id), True)
+    ]
+
+
+async def test_a_plain_account_with_no_company_is_still_refused(
+    client: httpx.AsyncClient,
+    login_as: Callable[..., None],
+    guest_repo: FakeWorkspaceGuestRepository,
+    foreign_headers: dict[str, str],
+    analytics: _StubAnalyticsService,
+) -> None:
+    """A stray grant on an account without the head role opens nothing."""
+    # Arrange
+    login_as(role=EffectiveRole.USER, org=None, subscription=SubscriptionState.EXPIRED)
+
+    # Act
+    response = await client.get("/api/v1/monitoring/summary", headers=foreign_headers)
+
+    # Assert
+    assert response.status_code == 403
+    assert analytics.calls == []

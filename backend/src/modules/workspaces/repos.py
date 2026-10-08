@@ -73,8 +73,9 @@ class WorkspaceRepository:
 
         Cross-tenant on purpose, and the only method here that is: the Celery
         harvest fans out over all workspaces because WB data has to be fetched
-        for every customer on one schedule. No request-scoped caller may use
-        this — :meth:`list_for_organization` is the one for those.
+        for every customer on one schedule. The one request-scoped caller is
+        the dev's guest-grant form (``DevAccess``, names only); no tenant route
+        may use this — :meth:`list_for_organization` is the one for those.
         """
         stmt = select(Workspace).order_by(Workspace.id)
         result = await self._session.execute(stmt)
