@@ -119,3 +119,15 @@ def test_the_worker_grace_cannot_outlast_the_deploy_that_waits_for_it() -> None:
     grace = _grace_seconds(worker)
 
     assert grace < _DEPLOY_JOB_BUDGET_SECONDS / 2
+
+
+def test_the_single_nginx_is_stopped_quickly() -> None:
+    """The site is down for as long as nginx takes to stop, so it must not linger.
+
+    nginx alone holds :80/:443. Under Docker's default it waited on idle
+    keep-alive connections for 12 s during the 2026-10-08 recreate, with the
+    whole site unreachable for every one of them.
+    """
+    frontend = _services()["frontend"]
+
+    assert _grace_seconds(frontend) <= 3

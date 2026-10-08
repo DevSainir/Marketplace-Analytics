@@ -304,6 +304,15 @@ services:
     logging: *logging
     mem_limit: 64m
     cpus: 0.5
+    # SHORT on purpose, the opposite of the api's. This nginx is the only thing
+    # holding :80/:443, so every second it spends stopping is a second the whole
+    # site is down — a recreate on 2026-10-08 took 12 s to stop it under
+    # Docker's 10 s default, waiting on idle keep-alive connections. Nothing
+    # worth waiting for is in flight: a proxied request that is cut fails over
+    # nowhere either way, since the site is down until the new nginx is up. An
+    # ordinary deploy never stops it (it reloads); see BACKLOG for removing
+    # the gap altogether.
+    stop_grace_period: 2s
     # Parameterised ONLY so a throwaway stack can coexist with this one on the
     # same host — the defaults are the production values, so nothing changes
     # here unless something deliberately sets them. Compose MERGES `ports` from
