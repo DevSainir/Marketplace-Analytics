@@ -53,19 +53,35 @@ Log: ${BACKUP_LOG_FILE:-<none>}"
 # disable_notification is a project-wide invariant: every message this project
 # sends arrives silently, so a 03:00 backup never wakes anyone. The alert is
 # still there at 09:00, which is when it gets acted on anyway.
+#
+# A network failure is retried, an HTTP one is not. The route from this host to
+# api.telegram.org drops a share of connects outright (IPv4 to 149.154.166.110
+# times out, IPv6 times out about one try in five — measured 2026-10-08), and
+# on 2026-10-07 a single timeout swallowed the alert for a failed backup while
+# the log called it "rejected". curl's exit 22 is the server answering 4xx/5xx,
+# which a second try will not change; every other exit is the path.
 alert() {
-    local text=$1 response
+    local text=$1 response rc attempt
+    local attempts=${BACKUP_ALERT_ATTEMPTS:-3}
     [ -n "${BACKUP_ALERT_TELEGRAM_BOT_TOKEN:-}" ] || return 0
     [ -n "${BACKUP_ALERT_TELEGRAM_CHAT_ID:-}" ] || return 0
 
-    if ! response=$(curl -sS -m 20 --fail-with-body \
-        -X POST "https://api.telegram.org/bot${BACKUP_ALERT_TELEGRAM_BOT_TOKEN}/sendMessage" \
-        -d chat_id="${BACKUP_ALERT_TELEGRAM_CHAT_ID}" \
-        -d disable_notification=true \
-        --data-urlencode text="${text}" 2>&1); then
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        rc=0
+        response=$(_telegram_send "${text}") || rc=$?
+        [ "${rc}" -eq 0 ] && break
         # Never echo the response verbatim — the URL it came from carries the
         # bot token, and this line lands in a log file.
-        warn "Telegram alert was rejected (HTTP error); check BACKUP_ALERT_TELEGRAM_*."
+        if [ "${rc}" -eq 22 ]; then
+            warn "Telegram alert was rejected (HTTP error); check BACKUP_ALERT_TELEGRAM_*."
+            return 0
+        fi
+        if [ "${attempt}" -lt "${attempts}" ]; then
+            sleep "${BACKUP_ALERT_RETRY_DELAY_SECONDS:-10}"
+        fi
+    done
+    if [ "${rc}" -ne 0 ]; then
+        warn "Telegram unreachable after ${attempts} attempts (curl exit ${rc}); the alert was not delivered."
         return 0
     fi
     case ${response} in
@@ -73,6 +89,16 @@ alert() {
     *) warn "Telegram accepted the request but did not confirm delivery." ;;
     esac
     return 0
+}
+
+# One POST to the Bot API; prints the body, returns curl's exit code. Separate
+# from `alert` so the retry policy can be exercised without the network.
+_telegram_send() {
+    curl -sS -m 20 --fail-with-body \
+        -X POST "https://api.telegram.org/bot${BACKUP_ALERT_TELEGRAM_BOT_TOKEN}/sendMessage" \
+        -d chat_id="${BACKUP_ALERT_TELEGRAM_CHAT_ID}" \
+        -d disable_notification=true \
+        --data-urlencode text="$1" 2>&1
 }
 
 # Human-readable byte count, for log lines that a person reads at 09:00 after
