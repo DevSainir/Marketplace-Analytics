@@ -202,9 +202,14 @@
     letter-spacing: 0.02em;
   }
 
+  /* The frozen column's edge is a 2px shadow OUTSIDE the cell, not a border
+     inside it: a day scrolled up against the column (the newest-day snap puts
+     one there) brings its own 2px day divider, and a border would stand beside
+     it as a 4px double line. The shadow lands on top of that divider instead,
+     so the seam stays one line wherever the ribbon stops. */
   .app-datatable--matrix thead th:first-child {
-    @apply sticky left-0 z-30 border-r-2 text-left;
-    border-right-color: var(--ui-rule);
+    @apply sticky left-0 z-30 text-left;
+    box-shadow: 2px 0 0 var(--ui-rule);
   }
 
   /* Compact cells (the ribbon is wide): everything drops to the micro size so
@@ -240,8 +245,8 @@
   }
 
   .app-datatable--matrix tbody td:first-child {
-    @apply sticky left-0 z-20 border-r-2;
-    border-right-color: var(--ui-rule);
+    @apply sticky left-0 z-20;
+    box-shadow: 2px 0 0 var(--ui-rule);
   }
 
   /* Hovering any cell highlights the whole row (solid action-over-white
@@ -263,7 +268,7 @@
      Type row (2): 6 group cells per day; zones row (3): 7 zoned cells per day
      («Общая»/«Органика» span from the type row); body rows: 9 leaf cells per
      day (one per bucket — «Руч. полки» is one cell two grid columns wide). The very first section (nth-child(2)) is excluded — the frozen
-     column's right border draws that line (borders no longer collapse).
+     column's edge shadow draws that line (borders no longer collapse).
      The three strides are TRAFFIC_GROUPS, the zoned leaves and
      COLUMNS_PER_DAY in metricsMatrix.js — a column added there moves all
      of the formulas below. */

@@ -253,7 +253,7 @@
    of boxes. */
 .app-datatable--matrix thead th:first-child,
 .app-datatable--matrix tbody td:first-child {
-  border-right-color: var(--ui-daydivider);
+  box-shadow: 2px 0 0 var(--ui-daydivider);
   background: var(--ui-surface);
 }
 
