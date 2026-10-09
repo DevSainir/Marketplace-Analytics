@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse
 from src.core.client_ip import resolve_client_ip
 from src.core.config import settings
 from src.core.database import dispose_engine
+from src.core.disconnect import CancelOnDisconnect
 from src.core.exceptions import AppError
 from src.core.logcontext import bind_request, new_request_id, reset_context
 from src.core.logging import adopt_uvicorn_loggers, configure_logging, get_logger
@@ -118,6 +119,12 @@ app = FastAPI(
     redoc_url=_documentation.redoc_url,
     openapi_url=_documentation.openapi_url,
 )
+
+# Added FIRST, so it sits innermost — beneath the request logger's anyio cancel
+# scope, where cancelling an abandoned read lets SQLAlchemy hand its connection
+# back. Outermost, the same cancellation leaks the connection instead; the
+# module docstring has the measurement.
+app.add_middleware(CancelOnDisconnect)
 
 # HTTP metrics middleware, added before the app starts serving. Its own
 # exposition route and the readiness probe are mounted further down, next to

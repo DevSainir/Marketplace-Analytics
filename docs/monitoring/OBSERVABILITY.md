@@ -101,6 +101,15 @@ unauthenticated, from the internet, in a process sharing a box with Postgres.
 That is a memory-exhaustion primitive. `should_group_untemplated=True` puts all
 of them on `handler="none"`, and a component test asserts it.
 
+**`status="499"` is an abandoned read, not an error.** When the browser aborts
+a GET mid-computation (a period switched, a page left), `src/core/disconnect.py`
+cancels the handler — and with it the statement in PostgreSQL — and answers
+nginx's 499 to nobody. The request log writes `request served` with that status
+and the time it ran before the client left. It is a fixed code, so it adds one
+series per route at most; it is outside every `5..` alert on purpose. A rising
+499 rate on one route says the route is slower than the people opening it are
+patient.
+
 ---
 
 ## Logs
