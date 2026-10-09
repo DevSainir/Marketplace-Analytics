@@ -191,6 +191,14 @@
     @apply text-left;
   }
 
+  /* A figure column reads from the right, head, cells and «Итого» alike:
+     digits of one place stand under each other, so a column compares at a
+     glance. `class="col-num"` on a PrimeVue <Column> reaches all three cells;
+     an identifier (Артикул WB) is not a figure and stays left. */
+  .app-datatable .col-num {
+    @apply text-right tabular-nums;
+  }
+
   .app-datatable thead th svg {
     @apply ml-1 inline-block h-3 w-3 text-muted;
   }

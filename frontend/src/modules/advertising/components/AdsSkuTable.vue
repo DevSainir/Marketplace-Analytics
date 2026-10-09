@@ -98,10 +98,10 @@ const foot = computed(() => ({
           </span>
         </template>
       </Column>
-      <Column field="spend" header="Реклама" sortable :footer="foot.spend">
+      <Column field="spend" class="col-num" header="Реклама" sortable :footer="foot.spend">
         <template #body="{ data }">{{ money(data.spend) }}</template>
       </Column>
-      <Column v-if="showBonus" field="bonus" sortable :footer="foot.bonus">
+      <Column v-if="showBonus" field="bonus" class="col-num" sortable :footer="foot.bonus">
         <template #header>
           Промо-бонусы<InfoHint text="Часть рекламы, которую оплатил WB из бонусного пула" />
         </template>
@@ -111,7 +111,7 @@ const foot = computed(() => ({
           </span>
         </template>
       </Column>
-      <Column field="drr" sortable :footer="foot.drr">
+      <Column field="drr" class="col-num" sortable :footer="foot.drr">
         <template #header>
           ДРР от продаж<InfoHint text="Реклама за рассчитанные дни ÷ продажи за те же дни" />
         </template>
@@ -121,17 +121,17 @@ const foot = computed(() => ({
           </span>
         </template>
       </Column>
-      <Column field="share" sortable :footer="foot.share">
+      <Column field="share" class="col-num" sortable :footer="foot.share">
         <template #header>
           <span>Доля</span>
           <InfoHint text="Доля общих рекламных расходов на этот артикул" />
         </template>
         <template #body="{ data }">{{ ratioPct(data.share) }}</template>
       </Column>
-      <Column field="orders" header="Заказы" sortable :footer="foot.orders">
+      <Column field="orders" class="col-num" header="Заказы" sortable :footer="foot.orders">
         <template #body="{ data }">{{ count(data.orders) }}</template>
       </Column>
-      <Column field="sales" sortable :footer="foot.sales">
+      <Column field="sales" class="col-num" sortable :footer="foot.sales">
         <template #header>
           <span>Продажи</span>
           <InfoHint text="Продажи (выкупы) минус возвраты по цене продавца, за рассчитанные дни" />

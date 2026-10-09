@@ -22,11 +22,9 @@
  * * **Строка «Итого».** Закреплена внизу области прокрутки, считается по всему
  *   текущему фильтру, а не по странице пагинации.
  *
- * PrimeVue in unstyled/Tailwind mode, matching the monitoring tables: sorting
- * and the frozen article column are the reason. Split out of `PnlSkuTable` when
- * the phone card list joined it there — eighteen column definitions and a
- * projection switch are two responsibilities, and the pair broke the file-size
- * rule the moment they shared a file.
+ * PrimeVue for the sorting and the frozen article column; split out of
+ * `PnlSkuTable` when the phone cards joined it there. Figure columns carry
+ * `col-num` and read from the right.
  *
  * The money is the backend's; the shares are re-divided by `toRow` at the
  * chosen price base, and this only formats.
@@ -44,9 +42,6 @@ import { amountClass, toneClass } from '@/modules/finreports/pnlThresholds'
 import { pct, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { useExpandedSkus, useFooterCells } from '@/modules/finreports/usePnlSkuTable'
 
-/** Page-size choices. A native select, not the paginator's built-in dropdown:
- *  PrimeVue runs unstyled here and its Select renders collapsed without a
- *  theme, while the app's own convention for pickers is a styled `<select>`. */
 const props = defineProps({
   /** @type {Array<object>} Flattened rows from `usePnlSkuRows`, already filtered. */
   rows: { type: Array, default: () => [] },
@@ -111,16 +106,16 @@ const { money } = usePnlMoney()
     <Column field="brand" header="Бренд" sortable>
       <template #body="{ data }">{{ data.brand || '—' }}</template>
     </Column>
-    <Column field="orders" header="Заказы, шт" sortable :footer="foot.orders">
+    <Column field="orders" class="col-num" header="Заказы, шт" sortable :footer="foot.orders">
       <template #body="{ data }">
         {{ data.orders === null ? '—' : formatNumber(data.orders) }}
       </template>
     </Column>
-    <Column field="sold" header="Продажи, шт" sortable :footer="foot.sold">
+    <Column field="sold" class="col-num" header="Продажи, шт" sortable :footer="foot.sold">
       <template #body="{ data }">{{ formatNumber(data.sold) }}</template>
     </Column>
     <!-- «Процент выкупа» WB из воронки; у размеров своя мера — см. PNL.md. -->
-    <Column field="buyoutPct" sortable :footer="foot.buyoutPct">
+    <Column field="buyoutPct" class="col-num" sortable :footer="foot.buyoutPct">
       <template #header>
         Выкуп, %<InfoHint
           text="Как «Процент выкупа» в кабинете WB: выкупы ÷ (выкупы + отказы) по заказам, сделанным за период. Последние ~3 недели ещё дозревают."
@@ -130,7 +125,7 @@ const { money } = usePnlMoney()
         <span :class="toneClass('buyoutPct', data.buyoutPct)">{{ pct(data.buyoutPct) }}</span>
       </template>
     </Column>
-    <Column field="returnPct" sortable :footer="foot.returnPct">
+    <Column field="returnPct" class="col-num" sortable :footer="foot.returnPct">
       <template #header>
         Возвраты, %<InfoHint
           text="Выкупленные товары, которые покупатель затем вернул (не отмены заказов): доля от выкупленных штук."
@@ -140,16 +135,22 @@ const { money } = usePnlMoney()
         <span :class="toneClass('returnPct', data.returnPct)">{{ pct(data.returnPct) }}</span>
       </template>
     </Column>
-    <Column field="sales" header="Продажи" sortable :footer="foot.sales">
+    <Column field="sales" class="col-num" header="Продажи" sortable :footer="foot.sales">
       <template #body="{ data }">{{ money(data.sales) }}</template>
     </Column>
-    <Column field="averageCheque" header="Средний чек" sortable :footer="foot.averageCheque">
+    <Column
+      field="averageCheque"
+      class="col-num"
+      header="Средний чек"
+      sortable
+      :footer="foot.averageCheque"
+    >
       <template #body="{ data }">{{ money(data.averageCheque) }}</template>
     </Column>
-    <Column field="sppPct" header="СПП, %" sortable :footer="foot.sppPct">
+    <Column field="sppPct" class="col-num" header="СПП, %" sortable :footer="foot.sppPct">
       <template #body="{ data }">{{ pct(data.sppPct) }}</template>
     </Column>
-    <Column field="logistics" header="Логистика" sortable :footer="foot.logistics">
+    <Column field="logistics" class="col-num" header="Логистика" sortable :footer="foot.logistics">
       <template #body="{ data }">
         {{ money(data.logistics) }}
         <span
@@ -161,7 +162,7 @@ const { money } = usePnlMoney()
         </span>
       </template>
     </Column>
-    <Column field="penalties" header="Штрафы" sortable :footer="foot.penalties">
+    <Column field="penalties" class="col-num" header="Штрафы" sortable :footer="foot.penalties">
       <template #body="{ data }">
         {{ money(data.penalties) }}
         <template v-if="data.penalties">
@@ -175,13 +176,19 @@ const { money } = usePnlMoney()
         </template>
       </template>
     </Column>
-    <Column field="cogs" header="Себестоимость" sortable :footer="foot.cogs">
+    <Column field="cogs" class="col-num" header="Себестоимость" sortable :footer="foot.cogs">
       <template #body="{ data }">{{ money(data.cogs) }}</template>
     </Column>
-    <Column field="advertising" header="Реклама" sortable :footer="foot.advertising">
+    <Column
+      field="advertising"
+      class="col-num"
+      header="Реклама"
+      sortable
+      :footer="foot.advertising"
+    >
       <template #body="{ data }">{{ money(data.advertising) }}</template>
     </Column>
-    <Column field="advertisingPct" sortable :footer="foot.advertisingPct">
+    <Column field="advertisingPct" class="col-num" sortable :footer="foot.advertisingPct">
       <template #header>ДРР от продаж<InfoHint text="Реклама ÷ продажи" /></template>
       <template #body="{ data }">
         <span :class="toneClass('advertisingPct', data.advertisingPct, data.priceBase)">
@@ -189,21 +196,21 @@ const { money } = usePnlMoney()
         </span>
       </template>
     </Column>
-    <Column field="adBonus" header="Промо-бонусы" sortable :footer="foot.adBonus">
+    <Column field="adBonus" class="col-num" header="Промо-бонусы" sortable :footer="foot.adBonus">
       <template #body="{ data }">
         <span v-if="data.adBonus" class="text-status-positive"> -{{ money(data.adBonus) }} </span>
         <template v-else>{{ money(data.adBonus) }}</template>
       </template>
     </Column>
-    <Column field="roi" header="ROI" sortable :footer="foot.roi">
+    <Column field="roi" class="col-num" header="ROI" sortable :footer="foot.roi">
       <template #body="{ data }">
         <span :class="toneClass('roi', data.roi)">{{ pct(data.roi) }}</span>
       </template>
     </Column>
-    <Column field="payout" header="К перечислению" sortable :footer="foot.payout">
+    <Column field="payout" class="col-num" header="К перечислению" sortable :footer="foot.payout">
       <template #body="{ data }">{{ money(data.payout) }}</template>
     </Column>
-    <Column field="profit" header="Чистая прибыль" sortable>
+    <Column field="profit" class="col-num" header="Чистая прибыль" sortable>
       <template #body="{ data }">
         <template v-if="data.profit !== null">
           <span :class="amountClass(data.profit) || 'text-primary'">
