@@ -12,6 +12,7 @@
  */
 import { computed, ref, watch } from 'vue'
 
+import SearchField from '@/core/components/SearchField.vue'
 import SkuThumb from '@/core/components/SkuThumb.vue'
 import UiDialog from '@/core/components/UiDialog.vue'
 import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
@@ -90,9 +91,9 @@ function close() {
 
 <template>
   <UiDialog :open="open" :title="group ? 'Группа' : 'Новая группа'" :busy="busy" @close="close">
-    <label class="block text-tiny font-medium text-muted" for="hm-group-name"> Название </label>
+    <label class="block text-tiny font-medium text-muted" for="group-name"> Название </label>
     <input
-      id="hm-group-name"
+      id="group-name"
       v-model="name"
       type="text"
       maxlength="80"
@@ -104,10 +105,9 @@ function close() {
       <span class="text-tiny font-medium text-muted">Артикулы</span>
       <span class="text-tiny text-muted">Выбрано: {{ picked.size }}</span>
     </div>
-    <input
+    <SearchField
       v-model="query"
-      type="search"
-      class="ui-input mt-xs w-full"
+      class="mt-xs"
       placeholder="Артикул продавца или WB, название"
       aria-label="Поиск артикула"
     />
@@ -116,11 +116,11 @@ function close() {
       <li v-for="card in shown" :key="card.nm_id">
         <button
           type="button"
-          class="hm-option"
+          class="ui-option"
           :aria-pressed="picked.has(card.nm_id)"
           @click="toggle(card.nm_id)"
         >
-          <span class="hm-check" :class="{ 'is-on': picked.has(card.nm_id) }" aria-hidden="true"
+          <span class="ui-check" :class="{ 'is-on': picked.has(card.nm_id) }" aria-hidden="true"
             >✓</span
           >
           <SkuThumb :src="card.photo_url" :label="card.vendor_code" />

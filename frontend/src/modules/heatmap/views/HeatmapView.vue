@@ -10,7 +10,7 @@
  * stays on screen, dimmed, while the next one loads — blanking it would turn
  * every filter click into a full rebuild of the page.
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
 import PageHeader from '@/core/components/PageHeader.vue'
@@ -22,11 +22,11 @@ import { BackfillNotice, useMembersStore } from '@/modules/profile'
 import HeatmapControls from '@/modules/heatmap/components/HeatmapControls.vue'
 import HeatmapDayList from '@/modules/heatmap/components/HeatmapDayList.vue'
 import HeatmapFilters from '@/modules/heatmap/components/HeatmapFilters.vue'
-import HeatmapGroupDialog from '@/modules/heatmap/components/HeatmapGroupDialog.vue'
 import HeatmapHelp from '@/modules/heatmap/components/HeatmapHelp.vue'
 import HeatmapPager from '@/modules/heatmap/components/HeatmapPager.vue'
 import HeatmapTable from '@/modules/heatmap/components/HeatmapTable.vue'
 import '@/modules/heatmap/components/styles/heatmap.css'
+import { useGroupsStore } from '@/modules/heatmap/groupsStore'
 import { metricOf } from '@/modules/heatmap/metrics'
 import { useHeatmapNormsStore } from '@/modules/heatmap/normsStore'
 import { useHeatmapStore } from '@/modules/heatmap/store'
@@ -58,9 +58,6 @@ function saveNorm(nmId, value) {
   norms.save(nmId, store.primary.key, value)
 }
 
-const dialogOpen = ref(false)
-const editing = ref(null)
-
 /** The grid's currencies — prices, orders, advertising, settlement — in one object. */
 const currencies = computed(() => ({
   prices: store.data?.price_currency ?? '',
@@ -76,19 +73,17 @@ const settledNote = computed(() => {
   return `Финансы из отчётов WB — по ${day}.${month}.${year}; позже дни ещё не рассчитаны.`
 })
 
-function openGroup(group = null) {
-  editing.value = group
-  store.groupError = ''
-  dialogOpen.value = true
-}
-
-async function saveGroup(group) {
-  if (await store.saveGroup(group)) dialogOpen.value = false
-}
-
-async function deleteGroup(id) {
-  if (await store.removeGroup(id)) dialogOpen.value = false
-}
+// A group edited here changes the grid when the grid is cut or filtered by
+// groups. A deleted chosen group leaves `groupIds` through `GroupsFilter`,
+// which reloads by itself. Edits on other pages need nothing: `init` asks again
+// on every visit.
+const groups = useGroupsStore()
+watch(
+  () => groups.revision,
+  () => {
+    if (store.groupBy === 'group' || store.groupIds.length) store.load()
+  },
+)
 
 onMounted(() => store.init())
 
@@ -129,10 +124,7 @@ onMounted(() => norms.load().catch((err) => (norms.error = extractErrorMessage(e
       :date-from="store.dateFrom"
       :date-to="store.dateTo"
       :catalog="store.catalog"
-      :groups="store.groups"
       @period="store.setPeriod"
-      @add-group="openGroup()"
-      @edit-group="openGroup"
     />
 
     <section
@@ -217,16 +209,5 @@ onMounted(() => norms.load().catch((err) => (norms.error = extractErrorMessage(e
       <kbd class="ui-kbd">Ctrl</kbd>+<kbd class="ui-kbd">Shift</kbd>+<kbd class="ui-kbd">Z</kbd> —
       повторить.
     </p>
-
-    <HeatmapGroupDialog
-      :open="dialogOpen"
-      :group="editing"
-      :cards="store.catalog.items"
-      :busy="store.groupBusy"
-      :error="store.groupError"
-      @close="dialogOpen = false"
-      @save="saveGroup"
-      @delete="deleteGroup"
-    />
   </div>
 </template>

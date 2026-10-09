@@ -1,4 +1,4 @@
-import { groupRows, toRows, totalRow } from '@/modules/advertising/skuModel'
+import { UNGROUPED, groupRows, pickRows, toRows, totalRow } from '@/modules/advertising/skuModel'
 
 const SKUS = [
   {
@@ -94,5 +94,46 @@ describe('the zone breakdown of a group', () => {
       { zone: 'cpm_manual_search', spend: 70, bonus: 5 },
       { zone: 'cpm_unified_shelves', spend: 10, bonus: 0 },
     ])
+  })
+})
+
+describe('by «Группы»', () => {
+  const third = { ...SKUS[0], vendor_code: 'M-C', nm_id: 3, brand: 'Y', spend: '20' }
+  const rows = toRows([...SKUS, third])
+  const groups = [
+    { id: 'a', name: 'Лето', nm_ids: [1, 2] },
+    { id: 'b', name: 'Хиты', nm_ids: [2] },
+    { id: 'c', name: 'Пустая', nm_ids: [99] },
+  ]
+
+  it('puts an article in every group it is in, and the rest under «Без группы»', () => {
+    const out = groupRows(rows, 'group', 100, groups)
+
+    expect(out.map((r) => [r.label, r.n, r.spend])).toEqual([
+      ['Лето', 2, 80],
+      ['Хиты', 1, 30],
+      [UNGROUPED, 1, 20],
+    ])
+  })
+
+  it('totals the articles, not the overlapping group rows', () => {
+    // The group rows add up to 130; the кабинет spent 100.
+    expect(totalRow(rows, 100).spend).toBe(100)
+  })
+})
+
+describe('pickRows', () => {
+  const rows = toRows([...SKUS, { ...SKUS[0], vendor_code: 'M-C', nm_id: 3, brand: 'Y' }])
+  const labels = (filters) => pickRows(rows, filters).map((r) => r.label)
+
+  it('widens within a filter and narrows across them', () => {
+    expect(labels({ brands: ['X', 'Y'] })).toEqual(['M-A', 'M-B', 'M-C'])
+    expect(labels({ brands: ['X', 'Y'], articles: new Set([2, 3]) })).toEqual(['M-B', 'M-C'])
+    expect(labels({ subjects: ['Шорты'] })).toEqual([])
+  })
+
+  it('treats no articles as no group filter, and an empty set as one that matches nothing', () => {
+    expect(labels({ articles: null })).toHaveLength(3)
+    expect(labels({ articles: new Set() })).toEqual([])
   })
 })

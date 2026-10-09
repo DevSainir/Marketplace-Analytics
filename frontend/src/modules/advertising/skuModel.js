@@ -17,7 +17,11 @@ export const AD_GROUPS = [
   { id: 'sku', name: 'Артикулы', col: 'Артикул', by: 'артикулам' },
   { id: 'subject', name: 'Предметы', col: 'Предмет', by: 'предметам' },
   { id: 'brand', name: 'Бренды', col: 'Бренд', by: 'брендам' },
+  { id: 'group', name: 'Группы', col: 'Группа', by: 'группам' },
 ]
+
+/** The row of articles in none of the groups, as the heatmap names it. */
+export const UNGROUPED = 'Без группы'
 
 /** What a missing subject or brand reads as — and groups under. */
 const NONE = '—'
@@ -81,12 +85,19 @@ export function filterOptions(rows) {
   }
 }
 
-/** Rows matching the filters and the search text (article, subject, brand). */
-export function pickRows(rows, { query = '', subject = '', brand = '' }) {
+/**
+ * Rows matching the filters and the search text (article, subject, brand).
+ * Several subjects or brands widen a filter; the filters together narrow.
+ *
+ * @param {object} filters `query`, the chosen `subjects` and `brands`, and
+ *   `articles` — the nm_ids of the chosen groups, `null` for no group filter.
+ */
+export function pickRows(rows, { query = '', subjects = [], brands = [], articles = null }) {
   const needle = query.trim().toLowerCase()
   return rows.filter((row) => {
-    if (subject && row.subject !== subject) return false
-    if (brand && row.brand !== brand) return false
+    if (subjects.length && !subjects.includes(row.subject)) return false
+    if (brands.length && !brands.includes(row.brand)) return false
+    if (articles && !articles.has(row.nmId)) return false
     if (!needle) return true
     return [row.label, row.subject, row.brand, String(row.nmId ?? '')].some((text) =>
       text.toLowerCase().includes(needle),
@@ -136,9 +147,17 @@ function withRatios(row, cabinetSpend) {
 /**
  * The same money at the chosen grain, with ratios. A group row carries `n`,
  * the number of articles in it.
+ *
+ * By «Группы» an article sits in every group it belongs to — the heatmap's
+ * rule — and the ones in none share a «Без группы» row. The rows can then add
+ * up to more than the кабинет spent, which is why the «Итого» is summed over
+ * the articles, never over these rows ({@link totalRow}).
+ *
+ * @param {Array<{name: string, nm_ids: number[]}>} [groups] For `group` only.
  */
-export function groupRows(rows, group, cabinetSpend) {
+export function groupRows(rows, group, cabinetSpend, groups = []) {
   if (group === 'sku') return rows.map((row) => withRatios(row, cabinetSpend))
+  if (group === 'group') return byGroup(rows, groups, cabinetSpend)
   const byKey = new Map()
   for (const row of rows) {
     const key = row[group]
@@ -148,7 +167,22 @@ export function groupRows(rows, group, cabinetSpend) {
   return [...byKey].map(([key, members]) => withRatios(sum(members, key), cabinetSpend))
 }
 
-/** The «Итого» of whatever the table holds. */
+function byGroup(rows, groups, cabinetSpend) {
+  const grouped = new Set()
+  const out = []
+  for (const group of groups) {
+    const members = new Set(group.nm_ids)
+    const inside = rows.filter((row) => members.has(row.nmId))
+    if (!inside.length) continue
+    for (const row of inside) grouped.add(row)
+    out.push(withRatios(sum(inside, group.name), cabinetSpend))
+  }
+  const rest = rows.filter((row) => !grouped.has(row))
+  if (rest.length) out.push(withRatios(sum(rest, UNGROUPED), cabinetSpend))
+  return out
+}
+
+/** The «Итого» of the given article rows — the picked ones, not the grouped. */
 export function totalRow(rows, cabinetSpend) {
   return withRatios(sum(rows, 'Итого'), cabinetSpend)
 }

@@ -66,9 +66,6 @@ export const useHeatmapStore = defineStore('heatmap', () => {
   const loading = ref(false)
   const error = ref('')
   const catalog = ref({ items: [], subjects: [] })
-  const groups = ref([])
-  const groupBusy = ref(false)
-  const groupError = ref('')
 
   let inFlight = null
 
@@ -167,19 +164,13 @@ export const useHeatmapStore = defineStore('heatmap', () => {
     }
   }
 
-  async function loadGroups() {
-    groups.value = (await api.fetchGroups()).items
-  }
-
   /** The article pickers sort by orders in the period on screen, so they follow it. */
   async function loadCatalog() {
     catalog.value = await api.fetchCatalog({ date_from: dateFrom.value, date_to: dateTo.value })
   }
 
   async function init() {
-    const side = Promise.all([loadCatalog(), loadGroups()]).catch(
-      (err) => (error.value = extractErrorMessage(err)),
-    )
+    const side = loadCatalog().catch((err) => (error.value = extractErrorMessage(err)))
     await Promise.all([load(), side])
   }
 
@@ -216,49 +207,6 @@ export const useHeatmapStore = defineStore('heatmap', () => {
     else sort.value = { by: null, dir: 'desc' }
   }
 
-  /**
-   * Create or edit a group, then refresh the list. A group the grid is filtered
-   * or cut by changes the grid too, so that reloads as well.
-   *
-   * @param {{id?: string, name: string, nm_ids: number[]}} group
-   * @returns {Promise<boolean>} Whether it saved.
-   */
-  async function saveGroup(group) {
-    groupBusy.value = true
-    groupError.value = ''
-    try {
-      const payload = { name: group.name, nm_ids: group.nm_ids }
-      if (group.id) await api.updateGroup(group.id, payload)
-      else await api.createGroup(payload)
-      await loadGroups()
-      if (groupBy.value === 'group' || groupIds.value.includes(group.id)) load()
-      return true
-    } catch (err) {
-      groupError.value = extractErrorMessage(err)
-      return false
-    } finally {
-      groupBusy.value = false
-    }
-  }
-
-  /** @returns {Promise<boolean>} Whether it was deleted. */
-  async function removeGroup(id) {
-    groupBusy.value = true
-    groupError.value = ''
-    try {
-      await api.deleteGroup(id)
-      await loadGroups()
-      if (groupIds.value.includes(id)) groupIds.value = groupIds.value.filter((g) => g !== id)
-      else if (groupBy.value === 'group') load()
-      return true
-    } catch (err) {
-      groupError.value = extractErrorMessage(err)
-      return false
-    } finally {
-      groupBusy.value = false
-    }
-  }
-
   return {
     dateFrom,
     dateTo,
@@ -277,9 +225,6 @@ export const useHeatmapStore = defineStore('heatmap', () => {
     loading,
     error,
     catalog,
-    groups,
-    groupBusy,
-    groupError,
     primary,
     secondary,
     columns,
@@ -294,7 +239,5 @@ export const useHeatmapStore = defineStore('heatmap', () => {
     setPeriod,
     swapMetrics,
     toggleSort,
-    saveGroup,
-    removeGroup,
   }
 })

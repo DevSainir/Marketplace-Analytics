@@ -64,7 +64,7 @@ export const useAdvertisingStore = defineStore('advertising', () => {
     () => !members.canWrite || Boolean(workspaces.currentWorkspace?.is_guest),
   )
   const group = ref('sku')
-  const filters = reactive({ query: '', subject: '', brand: '' })
+  const filters = reactive({ query: '', subjects: [], brands: [], groupIds: [] })
 
   const currency = computed(() => data.value?.currency ?? '')
   const totals = computed(() => data.value?.totals ?? null)
@@ -146,8 +146,9 @@ export const useAdvertisingStore = defineStore('advertising', () => {
 
   function clearFilters() {
     filters.query = ''
-    filters.subject = ''
-    filters.brand = ''
+    filters.subjects = []
+    filters.brands = []
+    filters.groupIds = []
   }
 
   return {

@@ -83,7 +83,7 @@ const MODES = [
 
       <button
         type="button"
-        class="hm-trigger hm-trigger--icon"
+        class="ui-trigger ui-trigger--icon"
         :disabled="!metric2"
         title="Поменять метрики местами"
         aria-label="Поменять метрики местами"

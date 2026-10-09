@@ -32,7 +32,7 @@ const SIZES = [30, 50, 100]
     <div v-if="pages > 1" class="ml-auto flex items-center gap-xs">
       <button
         type="button"
-        class="hm-trigger hm-trigger--icon"
+        class="ui-trigger ui-trigger--icon"
         :disabled="page <= 1"
         aria-label="Предыдущая страница"
         @click="emit('update:page', page - 1)"
@@ -42,7 +42,7 @@ const SIZES = [30, 50, 100]
       <span class="px-sm text-base tabular-nums text-primary">{{ page }} из {{ pages }}</span>
       <button
         type="button"
-        class="hm-trigger hm-trigger--icon"
+        class="ui-trigger ui-trigger--icon"
         :disabled="page >= pages"
         aria-label="Следующая страница"
         @click="emit('update:page', page + 1)"

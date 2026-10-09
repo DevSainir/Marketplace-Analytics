@@ -10,10 +10,13 @@
  * them: goods in transit are money the seller has already spent, so they belong
  * in «По себестоимости» — but never in «По остаткам», which is what can ship.
  */
-import { describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { ref } from 'vue'
 
 import { moneyFormatter, useBalanceRows } from '@/modules/finreports/useBalanceRows'
+
+beforeEach(() => setActivePinia(createPinia()))
 
 const BRUKI = {
   nm_id: 953770957,
@@ -105,7 +108,7 @@ describe('useBalanceRows', () => {
   it('re-totals the panels over the visible rows once a filter is on', () => {
     const { brandFilter, tableRows, totals } = useBalanceRows(payload())
 
-    brandFilter.value = 'NORTH LINE'
+    brandFilter.value = ['NORTH LINE']
 
     expect(tableRows.value).toHaveLength(1)
     expect(totals.value.quantity).toBe(85)

@@ -13,6 +13,7 @@
 import { computed, ref } from 'vue'
 
 import { formatMoney, formatSku } from '@/core/utils/format'
+import { useSkuFilters } from '@/modules/finreports/skuFilters'
 
 const num = (value) => (value === null || value === undefined ? null : Number(value))
 
@@ -131,8 +132,7 @@ export function subtotals(rows, columns) {
  */
 export function useBalanceRows(balance) {
   const query = ref('')
-  const subjectFilter = ref('')
-  const brandFilter = ref('')
+  const { subjectFilter, brandFilter, groupFilter, active, apply } = useSkuFilters()
 
   const rawRows = computed(() => balance.value?.rows ?? [])
   const uncounted = computed(() => new Set(balance.value?.uncounted_warehouses ?? []))
@@ -176,15 +176,12 @@ export function useBalanceRows(balance) {
   const subjects = computed(() => distinct('subject_name'))
   const brands = computed(() => distinct('brand_name'))
 
-  const isFiltering = computed(
-    () => !!(query.value.trim() || subjectFilter.value || brandFilter.value),
-  )
+  const isFiltering = computed(() => !!query.value.trim() || active.value)
 
   const tableRows = computed(() => {
     const needle = query.value.trim().toLowerCase()
     let list = rawRows.value
-    if (subjectFilter.value) list = list.filter((r) => r.subject_name === subjectFilter.value)
-    if (brandFilter.value) list = list.filter((r) => r.brand_name === brandFilter.value)
+    list = apply(list)
     if (needle) {
       list = list.filter((r) =>
         [r.sa_name, String(r.nm_id), r.subject_name, r.brand_name].some((field) =>
@@ -218,6 +215,7 @@ export function useBalanceRows(balance) {
     query,
     subjectFilter,
     brandFilter,
+    groupFilter,
     subjects,
     brands,
     columns,

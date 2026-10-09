@@ -41,8 +41,17 @@ const { rows, unallocated } = toRefs(props)
 
 // Row shaping + local search/filter live in the composable (keeps this
 // component under the size limit).
-const { query, subjectFilter, brandFilter, subjects, brands, tableRows, filtered, isFiltering } =
-  usePnlSkuRows(rows, unallocated, usePriceBase())
+const {
+  query,
+  subjectFilter,
+  brandFilter,
+  groupFilter,
+  subjects,
+  brands,
+  tableRows,
+  filtered,
+  isFiltering,
+} = usePnlSkuRows(rows, unallocated, usePriceBase())
 
 // Tell the parent to swap the dashboard to a «по фильтру» subtotal while a
 // filter/search is active, and back to the backend one when it clears. Summing
@@ -83,6 +92,7 @@ function setPageSize(value) {
       v-model:query="query"
       v-model:subject="subjectFilter"
       v-model:brand="brandFilter"
+      v-model:group-ids="groupFilter"
       :page-size="rowsPerPage"
       :page-sizes="PAGE_SIZES"
       :subjects="subjects"

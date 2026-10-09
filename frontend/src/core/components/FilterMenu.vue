@@ -1,9 +1,13 @@
 <script setup>
 /**
- * One filter of the heatmap — «Категории», «Группы» or «Артикулы»: a button that
- * opens a searchable checklist.
+ * The app's one filter: a button that opens a glass, searchable checklist —
+ * «Предметы», «Бренды», «Группы», «Артикулы».
  *
- * Nothing ticked means no filter at all, which is what a seller opening the page
+ * Born on the heatmap; the P&L, the balance and advertising had a native
+ * single-choice `<select>` for the same question, so a seller could narrow to
+ * one subject but never to two.
+ *
+ * Nothing ticked means no filter at all, which is what a seller opening a page
  * expects: every article, not none. «Выбрать все» ticks (or clears) what the
  * search currently shows, so «найти все костюмы и отметить» is two actions.
  *
@@ -12,11 +16,12 @@
  * the rest, and a thousand checkboxes in a popover are unusable anyway.
  *
  * Dumb by contract: it renders what it is given, emits the selection, and
- * leaves room (the `action` and `footer` slots) for what only one of the three
- * filters needs — the groups' «Добавить группу» and their edit buttons.
+ * leaves room (the `action` and `footer` slots) for what only one filter
+ * needs — the groups' «Добавить группу» and their edit buttons.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import SearchField from '@/core/components/SearchField.vue'
 import SkuThumb from '@/core/components/SkuThumb.vue'
 
 const RENDER_LIMIT = 200
@@ -80,14 +85,14 @@ defineExpose({ close: () => (open.value = false) })
   <div class="relative phone:w-full">
     <button
       type="button"
-      class="hm-trigger"
+      class="ui-trigger"
       :class="{ 'is-on': modelValue.length }"
       :aria-expanded="open"
       aria-haspopup="listbox"
       @click="open = !open"
     >
       <span class="truncate">{{ label }}</span>
-      <span v-if="modelValue.length" class="hm-trigger__count">{{ modelValue.length }}</span>
+      <span v-if="modelValue.length" class="ui-trigger__count">{{ modelValue.length }}</span>
       <span class="text-tiny text-muted" aria-hidden="true">{{ open ? '▴' : '▾' }}</span>
     </button>
 
@@ -99,10 +104,9 @@ defineExpose({ close: () => (open.value = false) })
       role="listbox"
       aria-multiselectable="true"
     >
-      <input
+      <SearchField
         v-model="query"
-        type="search"
-        class="ui-input w-full"
+        size="sm"
         :placeholder="placeholder"
         :aria-label="`Поиск: ${label}`"
       />
@@ -110,11 +114,11 @@ defineExpose({ close: () => (open.value = false) })
       <button
         v-if="shown.length"
         type="button"
-        class="hm-option mt-sm"
+        class="ui-option mt-sm"
         :aria-pressed="allShownOn"
         @click="toggleShown"
       >
-        <span class="hm-check" :class="{ 'is-on': allShownOn }" aria-hidden="true">✓</span>
+        <span class="ui-check" :class="{ 'is-on': allShownOn }" aria-hidden="true">✓</span>
         <span class="text-base text-primary">Выбрать все</span>
       </button>
 
@@ -125,15 +129,15 @@ defineExpose({ close: () => (open.value = false) })
           <button
             type="button"
             role="option"
-            class="hm-option min-w-0 flex-1"
+            class="ui-option min-w-0 flex-1"
             :aria-selected="selected.has(item.value)"
             @click="toggle(item.value)"
           >
-            <span class="hm-check" :class="{ 'is-on': selected.has(item.value) }" aria-hidden="true"
+            <span class="ui-check" :class="{ 'is-on': selected.has(item.value) }" aria-hidden="true"
               >✓</span
             >
             <SkuThumb v-if="item.photo !== undefined" :src="item.photo" :label="item.label" />
-            <span v-if="badge" class="hm-wb" aria-hidden="true">wb</span>
+            <span v-if="badge" class="ui-wb" aria-hidden="true">wb</span>
             <span class="min-w-0 flex-1 text-left">
               <span class="block truncate text-base text-primary">{{ item.label }}</span>
               <span v-if="item.sub" class="block truncate text-tiny text-muted">{{

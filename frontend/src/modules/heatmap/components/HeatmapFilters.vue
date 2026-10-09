@@ -1,41 +1,32 @@
 <script setup>
 /**
  * The row above the grid: the period and the three filters that decide WHICH
- * articles the heatmap covers — «Категории», «Группы», «Артикулы».
+ * articles the heatmap covers — «Предметы», «Группы», «Артикулы».
  *
  * They combine by intersection, and an empty filter means «все». «Группы» is
- * the one with more to it: its menu ends in «Добавить группу», and every group
- * carries a pencil that opens it for editing — the list of groups is where a
- * seller looks for them, so that is where they are managed.
+ * the app's shared `GroupsFilter`, where groups are also made and edited.
  *
  * Dumb by contract: options in, selections and intents out.
  */
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 
+import FilterMenu from '@/core/components/FilterMenu.vue'
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
 import { isoDaysAgo } from '@/core/utils/dates'
-import { MAX_DAYS } from '@/modules/heatmap/store'
 import { formatSku } from '@/core/utils/format'
-import HeatmapFilterMenu from '@/modules/heatmap/components/HeatmapFilterMenu.vue'
+import GroupsFilter from '@/modules/heatmap/components/GroupsFilter.vue'
+import { MAX_DAYS } from '@/modules/heatmap/store'
 
 const props = defineProps({
   dateFrom: { type: String, required: true },
   dateTo: { type: String, required: true },
   /** `{items: [...cards], subjects: [...]}` from the catalogue route. */
   catalog: { type: Object, required: true },
-  groups: { type: Array, default: () => [] },
   subjects: { type: Array, default: () => [] },
   groupIds: { type: Array, default: () => [] },
   nmIds: { type: Array, default: () => [] },
 })
-const emit = defineEmits([
-  'period',
-  'update:subjects',
-  'update:groupIds',
-  'update:nmIds',
-  'add-group',
-  'edit-group',
-])
+const emit = defineEmits(['period', 'update:subjects', 'update:groupIds', 'update:nmIds'])
 
 // The presets end yesterday, like the default window: today's funnel is still
 // filling, and a half-day painted red beside whole ones reads as a collapse.
@@ -51,14 +42,6 @@ const subjectItems = computed(() => {
   return items
 })
 
-const groupItems = computed(() =>
-  props.groups.map((group) => ({
-    value: group.id,
-    label: group.name,
-    sub: `Артикулов: ${group.nm_ids.length}`,
-  })),
-)
-
 const skuItems = computed(() =>
   props.catalog.items.map((card) => ({
     value: card.nm_id,
@@ -67,22 +50,6 @@ const skuItems = computed(() =>
     photo: card.photo_url,
   })),
 )
-
-const groupsMenu = ref(null)
-
-/** The dialog takes over from the menu, so the menu gets out of its way. */
-function addGroup() {
-  groupsMenu.value?.close()
-  emit('add-group')
-}
-
-function editGroup(id) {
-  groupsMenu.value?.close()
-  emit(
-    'edit-group',
-    props.groups.find((group) => group.id === id),
-  )
-}
 </script>
 
 <template>
@@ -95,7 +62,7 @@ function editGroup(id) {
       @range="emit('period', $event)"
     />
 
-    <HeatmapFilterMenu
+    <FilterMenu
       label="Предметы"
       :items="subjectItems"
       :model-value="subjects"
@@ -104,33 +71,13 @@ function editGroup(id) {
       @update:model-value="emit('update:subjects', $event)"
     />
 
-    <HeatmapFilterMenu
-      ref="groupsMenu"
-      label="Группы"
-      :items="groupItems"
+    <GroupsFilter
       :model-value="groupIds"
-      badge
-      empty-text="Групп пока нет"
+      :cards="catalog.items"
       @update:model-value="emit('update:groupIds', $event)"
-    >
-      <template #action="{ item }">
-        <button
-          type="button"
-          class="shrink-0 rounded-btn px-sm py-xs text-tiny text-muted transition hover:text-action"
-          :aria-label="`Изменить группу ${item.label}`"
-          @click="editGroup(item.value)"
-        >
-          ✎
-        </button>
-      </template>
-      <template #footer>
-        <button type="button" class="text-tiny font-semibold text-action" @click="addGroup">
-          + Добавить группу
-        </button>
-      </template>
-    </HeatmapFilterMenu>
+    />
 
-    <HeatmapFilterMenu
+    <FilterMenu
       label="Артикулы"
       :items="skuItems"
       :model-value="nmIds"

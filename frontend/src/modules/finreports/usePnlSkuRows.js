@@ -11,6 +11,7 @@ import { computed, ref } from 'vue'
 
 import { formatSku } from '@/core/utils/format'
 import { atBase, drrShare, shareOf } from '@/modules/finreports/priceBase'
+import { useSkuFilters } from '@/modules/finreports/skuFilters'
 
 const num = (value) => (value === null || value === undefined ? null : Number(value))
 
@@ -88,8 +89,7 @@ export function toRow(r, isBucket = false, base = 'seller') {
  */
 export function usePnlSkuRows(rows, unallocated, base = () => 'seller') {
   const query = ref('')
-  const subjectFilter = ref('')
-  const brandFilter = ref('')
+  const { subjectFilter, brandFilter, groupFilter, active, apply } = useSkuFilters()
 
   const distinct = (key) =>
     [...new Set(rows.value.map((r) => r[key]).filter(Boolean))].sort((a, b) =>
@@ -98,16 +98,13 @@ export function usePnlSkuRows(rows, unallocated, base = () => 'seller') {
   const subjects = computed(() => distinct('subject_name'))
   const brands = computed(() => distinct('brand_name'))
 
-  const isFiltering = computed(
-    () => !!(query.value.trim() || subjectFilter.value || brandFilter.value),
-  )
+  const isFiltering = computed(() => !!query.value.trim() || active.value)
 
   /** The raw `PnlSkuRow`s (no bucket) matching the search + Тип/Бренд filters. */
   const filtered = computed(() => {
     const needle = query.value.trim().toLowerCase()
     let list = rows.value
-    if (subjectFilter.value) list = list.filter((r) => r.subject_name === subjectFilter.value)
-    if (brandFilter.value) list = list.filter((r) => r.brand_name === brandFilter.value)
+    list = apply(list)
     if (needle) {
       list = list.filter((r) =>
         [r.sa_name, String(r.nm_id), r.subject_name, r.brand_name].some((field) =>
@@ -128,7 +125,17 @@ export function usePnlSkuRows(rows, unallocated, base = () => 'seller') {
     return mapped
   })
 
-  return { query, subjectFilter, brandFilter, subjects, brands, tableRows, filtered, isFiltering }
+  return {
+    query,
+    subjectFilter,
+    brandFilter,
+    groupFilter,
+    subjects,
+    brands,
+    tableRows,
+    filtered,
+    isFiltering,
+  }
 }
 
 /**

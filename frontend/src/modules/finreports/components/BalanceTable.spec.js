@@ -1,7 +1,13 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import BalanceTable from '@/modules/finreports/components/BalanceTable.vue'
+
+// «Группы» ask the server for their list on mount; these tables need none.
+vi.mock('@/modules/heatmap/api', () => ({ fetchGroups: vi.fn(async () => ({ items: [] })) }))
+
+beforeEach(() => setActivePinia(createPinia()))
 
 /**
  * The balance grid is FOUR separate blocks, and only one of them scrolls. That

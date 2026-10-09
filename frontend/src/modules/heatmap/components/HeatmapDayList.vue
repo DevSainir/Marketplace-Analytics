@@ -53,7 +53,7 @@ const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies,
     <div class="mb-sm flex items-center justify-between gap-sm">
       <button
         type="button"
-        class="hm-trigger hm-trigger--icon"
+        class="ui-trigger ui-trigger--icon"
         :disabled="index <= 0"
         aria-label="Раньше"
         @click="index -= 1"
@@ -63,7 +63,7 @@ const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies,
       <span class="text-base font-semibold text-primary">{{ columnLabel(column, period) }}</span>
       <button
         type="button"
-        class="hm-trigger hm-trigger--icon"
+        class="ui-trigger ui-trigger--icon"
         :disabled="index >= columns.length - 1"
         aria-label="Позже"
         @click="index += 1"

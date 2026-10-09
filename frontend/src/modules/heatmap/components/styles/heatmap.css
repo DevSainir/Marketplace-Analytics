@@ -1,92 +1,12 @@
 /*
  * The heatmap's shared pieces, prefixed `hm-` because this sheet is global:
- * the filter triggers, the checklist rows, the marketplace badge, and the grid.
+ * the metric pickers and the grid.
  * Tokens only — every colour is a `--ui-*` variable, so the page follows the
  * palette rather than carrying one of its own.
  */
 
-/* --- toolbar controls ----------------------------------------------------- */
-
-.hm-trigger {
-  /* The look of every field in the app (`.ui-select` in assets/main.css): a
-     hairline border on white, the action border on hover and when on. */
-  @apply inline-flex h-9 max-w-full items-center gap-sm whitespace-nowrap rounded-input border border-border-subtle bg-surface px-sm text-base text-primary shadow-soft transition-colors hover:border-action/60;
-}
-
-.hm-trigger.is-on {
-  @apply border-action;
-}
-
-.hm-trigger__count {
-  min-width: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: var(--ui-action);
-  color: #fff;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  line-height: 18px;
-  text-align: center;
-}
-
-.hm-trigger:focus-visible {
-  @apply border-action outline-none ring-2 ring-action/20;
-}
-
-/* --- checklist rows ------------------------------------------------------- */
-
-.hm-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
-  border-radius: var(--ui-r-sm);
-  text-align: left;
-  transition: background var(--ui-fast) var(--ui-ease);
-}
-
-.hm-option:hover {
-  background: var(--ui-inset);
-}
-
-.hm-check {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  box-shadow: inset 0 0 0 1px var(--ui-hairline);
-  background: var(--ui-canvas);
-  color: transparent;
-  font-size: 0.625rem;
-  line-height: 1;
-}
-
-.hm-check.is-on {
-  background: var(--ui-action);
-  box-shadow: none;
-  color: #fff;
-}
-
-/* WB's own violet mark, as the reference shows beside every article: which
-   marketplace the row is from. */
-.hm-wb {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: var(--ui-action);
-  color: #fff;
-  font-size: 0.5625rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
+/* The filter triggers, checklist rows, their boxes and the WB mark are shared
+   now — `.ui-trigger`, `.ui-option`, `.ui-check`, `.ui-wb` in assets/main.css. */
 
 /* The painted metric, ⇄ and the second metric travel together: inline on a
    desktop, and on a phone the swap sits beside the first metric instead of
@@ -98,27 +18,11 @@
   gap: 8px;
 }
 
-.hm-trigger--icon {
-  justify-content: center;
-  width: 36px;
-  padding: 0;
-}
-
 @media (max-width: 430px) {
-  .hm-trigger {
-    width: 100%;
-    height: 44px;
-  }
-
   .hm-metrics {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 44px;
     width: 100%;
-  }
-
-  .hm-trigger--icon,
-  .hm-metrics .hm-trigger--icon {
-    width: 44px;
   }
 
   .hm-metrics__second {

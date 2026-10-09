@@ -129,7 +129,7 @@ const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies,
             <div v-if="row.nm_id" class="flex min-w-0 items-center gap-sm">
               <SkuThumb :src="row.photo_url" :label="row.label" />
               <a
-                class="hm-wb"
+                class="ui-wb"
                 :href="storefrontUrl(row.nm_id)"
                 target="_blank"
                 rel="noopener noreferrer"

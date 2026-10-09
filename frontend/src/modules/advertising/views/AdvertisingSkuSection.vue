@@ -23,20 +23,28 @@ import {
   totalRow,
 } from '@/modules/advertising/skuModel'
 import { useAdvertisingStore } from '@/modules/advertising/store'
+import { articlesOfGroups, useGroupsStore } from '@/modules/heatmap'
 
 const store = useAdvertisingStore()
+const groups = useGroupsStore()
 
 const all = computed(() => toRows(store.data?.skus ?? []))
 const options = computed(() => filterOptions(all.value))
 const cabinetSpend = computed(() => Number(store.totals?.spend ?? 0))
-const rows = computed(() =>
-  groupRows(pickRows(all.value, store.filters), store.group, cabinetSpend.value),
+const picked = computed(() =>
+  pickRows(all.value, {
+    ...store.filters,
+    articles: articlesOfGroups(groups.groups, store.filters.groupIds),
+  }),
 )
-const total = computed(() => totalRow(rows.value, cabinetSpend.value))
+const rows = computed(() => groupRows(picked.value, store.group, cabinetSpend.value, groups.groups))
+// Over the articles, not the rows: by «Группы» one article can sit in two.
+const total = computed(() => totalRow(picked.value, cabinetSpend.value))
 const groupDef = computed(() => AD_GROUPS.find((g) => g.id === store.group))
-const filtering = computed(() =>
-  Boolean(store.filters.query || store.filters.subject || store.filters.brand),
-)
+const filtering = computed(() => {
+  const { query, subjects, brands, groupIds } = store.filters
+  return Boolean(query || subjects.length || brands.length || groupIds.length)
+})
 </script>
 
 <template>
@@ -44,11 +52,12 @@ const filtering = computed(() =>
     <h2 class="mb-md text-h3 font-semibold text-primary">Реклама по {{ groupDef.by }}</h2>
     <AdsSkuToolbar
       v-model:query="store.filters.query"
-      v-model:subject="store.filters.subject"
-      v-model:brand="store.filters.brand"
+      v-model:subjects="store.filters.subjects"
+      v-model:brands="store.filters.brands"
+      v-model:group-ids="store.filters.groupIds"
       v-model:group="store.group"
-      :subjects="options.subjects"
-      :brands="options.brands"
+      :subject-options="options.subjects"
+      :brand-options="options.brands"
       :filtering="filtering"
       @clear="store.clearFilters"
     />

@@ -53,6 +53,7 @@ const {
   query,
   subjectFilter,
   brandFilter,
+  groupFilter,
   subjects,
   brands,
   columns,
@@ -105,6 +106,7 @@ function forwardWheel(event) {
         v-model:query="query"
         v-model:subject="subjectFilter"
         v-model:brand="brandFilter"
+        v-model:group-ids="groupFilter"
         :subjects="subjects"
         :brands="brands"
         :page-sizes="[]"

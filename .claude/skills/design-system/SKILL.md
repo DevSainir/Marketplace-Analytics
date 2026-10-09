@@ -151,7 +151,9 @@ extends the shared one rather than growing a local copy.
 | Any button | `.ui-btn` + `--primary` / `--ghost` / `--danger` (+ `.is-armed`) / `--good` / `--sm`; `.ui-icon-btn` for an icon. In `assets/main.css`'s components layer, so utilities still win |
 | An irreversible action | `core/utils/confirmClick.js` — two presses, «Точно …?», withdraws after 4 s |
 | A text field / a select | `.ui-input` / `.ui-select` (+ `--sm`); width is the caller's |
-| A search box | `core/components/SearchField.vue` |
+| A search box | `core/components/SearchField.vue` — it draws the one ✕; the browser's own is hidden for every `.ui-input[type=search]` |
+| A filter over articles («Предметы», «Бренды», «Артикулы») | `core/components/FilterMenu.vue` — a glass, searchable checklist, several choices; never a native `<select>` |
+| «Группы» | `GroupsFilter` from `@/modules/heatmap` — beside «Предметы» and «Бренды» on every page that has them; the list is one store (`useGroupsStore`), so a group made on one page is on all of them, and `articlesOfGroups` turns the choice into nm_ids |
 | A chosen option among a few | `.ui-chip` / `.is-on` (filled with the action colour, never a raised white card) |
 | An on/off mode | `core/components/UiSwitch.vue` |
 | A status | `.ui-badge` + `.is-ok` / `.is-warn` / `.is-bad` / `.is-soft` / `.is-on` / `.is-quiet` |

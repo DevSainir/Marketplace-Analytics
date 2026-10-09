@@ -1,7 +1,8 @@
 <script setup>
 /**
- * The per-SKU table's toolbar: the search, the Предмет / Бренд filters, a
- * «Сбросить фильтр» while any is set, and the page-size picker.
+ * The per-SKU table's toolbar: the search, the «Предметы» / «Бренды» /
+ * «Группы» filters (the app's `FilterMenu`, several choices each, as on the
+ * heatmap), a «Сбросить фильтр» while any is set, and the page-size picker.
  *
  * Presentational — the query and filter values are `v-model`s the table owns, because the table is what
  * actually filters its rows against them. Split out of PnlSkuTable to keep that
@@ -13,28 +14,43 @@
  */
 import { computed } from 'vue'
 
+import FilterMenu from '@/core/components/FilterMenu.vue'
 import SearchField from '@/core/components/SearchField.vue'
+import { GroupsFilter } from '@/modules/heatmap'
 
 const props = defineProps({
-  /** Distinct Предмет values for the dropdown. */
+  /** Distinct Предмет values to choose from. */
   subjects: { type: Array, default: () => [] },
-  /** Distinct Бренд values for the dropdown. */
+  /** Distinct Бренд values to choose from. */
   brands: { type: Array, default: () => [] },
   query: { type: String, default: '' },
-  subject: { type: String, default: '' },
-  brand: { type: String, default: '' },
+  /** The chosen ones — empty is «все». */
+  subject: { type: Array, default: () => [] },
+  brand: { type: Array, default: () => [] },
+  groupIds: { type: Array, default: () => [] },
   pageSize: { type: Number, default: 50 },
   pageSizes: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['update:query', 'update:subject', 'update:brand', 'update:pageSize'])
+const emit = defineEmits([
+  'update:query',
+  'update:subject',
+  'update:brand',
+  'update:groupIds',
+  'update:pageSize',
+])
 
-const filtering = computed(() => Boolean(props.query || props.subject || props.brand))
+const options = (values) => values.map((value) => ({ value, label: value }))
+
+const filtering = computed(() =>
+  Boolean(props.query || props.subject.length || props.brand.length || props.groupIds.length),
+)
 
 function clear() {
   emit('update:query', '')
-  emit('update:subject', '')
-  emit('update:brand', '')
+  emit('update:subject', [])
+  emit('update:brand', [])
+  emit('update:groupIds', [])
 }
 </script>
 
@@ -48,24 +64,21 @@ function clear() {
       class="w-72 phone:w-full"
       @update:model-value="emit('update:query', $event)"
     />
-    <select
-      :value="subject"
-      aria-label="Предмет"
-      class="ui-select ui-select--sm min-w-0 phone:w-full"
-      @change="emit('update:subject', $event.target.value)"
-    >
-      <option value="">Все предметы</option>
-      <option v-for="s in subjects" :key="s" :value="s">{{ s }}</option>
-    </select>
-    <select
-      :value="brand"
-      aria-label="Бренд"
-      class="ui-select ui-select--sm min-w-0 phone:w-full"
-      @change="emit('update:brand', $event.target.value)"
-    >
-      <option value="">Все бренды</option>
-      <option v-for="b in brands" :key="b" :value="b">{{ b }}</option>
-    </select>
+    <FilterMenu
+      label="Предметы"
+      :items="options(subjects)"
+      :model-value="subject"
+      placeholder="Поиск предмета"
+      @update:model-value="emit('update:subject', $event)"
+    />
+    <FilterMenu
+      label="Бренды"
+      :items="options(brands)"
+      :model-value="brand"
+      placeholder="Поиск бренда"
+      @update:model-value="emit('update:brand', $event)"
+    />
+    <GroupsFilter :model-value="groupIds" @update:model-value="emit('update:groupIds', $event)" />
     <button v-if="filtering" type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="clear">
       Сбросить фильтр
     </button>
