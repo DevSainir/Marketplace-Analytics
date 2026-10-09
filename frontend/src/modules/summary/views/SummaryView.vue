@@ -22,6 +22,7 @@ import SummaryKpis from '@/modules/summary/components/SummaryKpis.vue'
 import SummaryLineChart from '@/modules/summary/components/SummaryLineChart.vue'
 import { orderSeries, revenueSeries, saleSeries } from '@/modules/summary/series'
 import { useSummaryStore } from '@/modules/summary/store'
+import { BackfillNotice } from '@/modules/profile'
 
 const store = useSummaryStore()
 
@@ -47,6 +48,7 @@ onMounted(() => store.init())
       <h1 class="text-h2 font-bold text-primary">Сводка</h1>
       <p class="mt-xs text-base text-muted">Сводные показатели по кабинету за выбранный период</p>
     </header>
+    <BackfillNotice :lanes="['pnl']" />
 
     <SummaryControls
       :date-from="store.dateFrom"

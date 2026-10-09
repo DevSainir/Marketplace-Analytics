@@ -12,7 +12,7 @@
  * knows what an «организация» is here. The role says the same thing usefully.
  * The term moved to the rail, where all three pages can see it.
  */
-import { computed, onMounted, reactive, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 import AccountFacts from '@/modules/profile/components/AccountFacts.vue'
 import ActivationCodesPanel from '@/modules/profile/components/ActivationCodesPanel.vue'
@@ -81,8 +81,16 @@ function onSelect(id) {
   window.location.reload()
 }
 
+/** A кабинет is being created — its own flag, so «Создаём…» never shows on a delete. */
+const creating = ref(false)
+
 async function onCreate(name) {
-  await store.create(name)
+  creating.value = true
+  try {
+    await store.create(name)
+  } finally {
+    creating.value = false
+  }
 }
 
 async function onRemove(id) {
@@ -112,6 +120,7 @@ async function onRemove(id) {
       :token-statuses="tokenStatuses"
       :can-manage="canManage"
       :busy="store.loading"
+      :creating="creating"
       @create="onCreate"
       @select="onSelect"
       @tokens="(ws) => (editing.workspace = ws)"

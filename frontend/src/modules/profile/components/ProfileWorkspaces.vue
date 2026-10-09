@@ -19,6 +19,8 @@ defineProps({
   tokenStatuses: { type: Object, default: () => ({}) },
   canManage: { type: Boolean, default: false },
   busy: { type: Boolean, default: false },
+  /** A create is in flight — the button says so; `busy` covers every action. */
+  creating: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['create', 'select', 'tokens', 'remove'])
@@ -59,7 +61,7 @@ const removal = useConfirmClick()
           aria-label="Название нового кабинета"
         />
         <button type="submit" class="pf-btn pf-btn--primary" :disabled="busy || !newName.trim()">
-          Создать
+          {{ creating ? 'Создаём…' : 'Создать' }}
         </button>
       </form>
     </header>

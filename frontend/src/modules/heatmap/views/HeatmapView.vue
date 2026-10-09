@@ -16,7 +16,7 @@ import { extractErrorMessage } from '@/core/api/axios'
 import BusyRegion from '@/core/components/BusyRegion.vue'
 import DataState from '@/core/components/DataState.vue'
 import { useHistoryKeys } from '@/core/utils/historyKeys'
-import { useMembersStore } from '@/modules/profile'
+import { BackfillNotice, useMembersStore } from '@/modules/profile'
 
 import HeatmapControls from '@/modules/heatmap/components/HeatmapControls.vue'
 import HeatmapDayList from '@/modules/heatmap/components/HeatmapDayList.vue'
@@ -117,6 +117,7 @@ onMounted(() => norms.load().catch((err) => (norms.error = extractErrorMessage(e
       <h1 class="text-h2 font-bold text-primary">Тепловая карта</h1>
       <HeatmapHelp />
     </header>
+    <BackfillNotice :lanes="['funnel', 'advertising', 'pnl']" />
 
     <HeatmapFilters
       v-model:subjects="store.subjects"

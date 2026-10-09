@@ -21,6 +21,7 @@ import AdsDailyChart from '@/modules/advertising/components/AdsDailyChart.vue'
 import AdsKpis from '@/modules/advertising/components/AdsKpis.vue'
 import { MAX_PERIOD_DAYS, useAdvertisingStore } from '@/modules/advertising/store'
 import AdvertisingSkuSection from '@/modules/advertising/views/AdvertisingSkuSection.vue'
+import { BackfillNotice } from '@/modules/profile'
 
 const store = useAdvertisingStore()
 
@@ -34,6 +35,7 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
     <header class="mb-lg">
       <h1 class="text-h2 font-bold text-primary">Реклама</h1>
     </header>
+    <BackfillNotice :lanes="['advertising', 'pnl']" />
 
     <div class="mb-lg flex flex-wrap items-center gap-md">
       <PeriodSelector

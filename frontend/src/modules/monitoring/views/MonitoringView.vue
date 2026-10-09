@@ -22,7 +22,7 @@ import { unionStockSizes } from '@/modules/monitoring/stockCompareSizes'
 import { describeDetail } from '@/modules/monitoring/detailState'
 import { MAX_PERIOD_DAYS, useSearchQuerySync } from '@/modules/monitoring/useSearchQuerySync'
 import { useSkuClusters } from '@/modules/monitoring/useSkuClusters'
-import { useWorkspaceStore } from '@/modules/profile'
+import { BackfillNotice, useWorkspaceStore } from '@/modules/profile'
 import { formatSku } from '@/core/utils/format'
 
 const store = useMonitoringStore()
@@ -94,6 +94,7 @@ onMounted(() => store.fetchPins())
   <div class="app-container py-lg">
     <div class="w-full">
       <h1 class="sr-only">Мониторинг SKU</h1>
+      <BackfillNotice :lanes="['catalogue', 'funnel', 'advertising']" />
 
       <!-- Period selector, slightly above the search bar; the bulk WB refresh
            sits beside it and stays visible with or without a SKU open. -->
