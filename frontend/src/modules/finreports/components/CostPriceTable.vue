@@ -59,7 +59,7 @@ const clearing = useConfirmClick()
               min="0"
               step="1"
               inputmode="decimal"
-              class="w-28 rounded-input border border-border-subtle bg-canvas px-sm py-xs text-right tabular-nums text-primary focus:border-action focus:outline-none"
+              class="ui-input ui-input--sm w-28 text-right tabular-nums"
               :value="value(row)"
               :placeholder="row.stored === null ? 'не задана' : ''"
               @input="emit('input', row, $event.target.value)"

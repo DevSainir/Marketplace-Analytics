@@ -91,7 +91,7 @@ function onApply() {
           role="combobox"
           :aria-expanded="open"
           placeholder="Выберите SKU из списка или начните вводить артикул…"
-          class="h-12 w-full rounded-input border border-border-subtle bg-surface pl-9 pr-10 text-base text-primary shadow-soft placeholder:text-muted focus:border-action focus:outline-none focus:ring-2 focus:ring-action/20"
+          class="ui-input w-full pl-9 pr-10"
           @focus="open = true"
           @input="open = true"
         />

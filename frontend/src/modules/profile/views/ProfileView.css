@@ -238,36 +238,9 @@
   color: var(--ui-muted);
 }
 
-.pf-input {
-  width: 100%;
-  border-radius: 8px;
-  border: 1px solid var(--ui-hairline);
-  background: var(--ui-surface);
-  padding: 8px 12px;
-  font-size: 0.875rem;
-  color: var(--ui-ink);
-}
-
-.pf-input::placeholder {
-  color: var(--ui-faint);
-}
-
-.pf-input:focus {
-  outline: none;
-  border-color: var(--ui-action);
-}
-
-.pf-input:disabled {
-  opacity: 0.5;
-}
-
-/* Touch targets: the phone-layout contract is 44px, and these controls are the
-   only thing on the page a thumb has to hit. */
+/* A panel's inline form stacks on a phone; its fields and buttons are 44px
+   tall there by themselves (`.ui-input`, `.ui-btn`). */
 @media (max-width: 430px) {
-  .pf-input {
-    min-height: 44px;
-  }
-
   .pf-panel__form {
     flex-direction: column;
   }

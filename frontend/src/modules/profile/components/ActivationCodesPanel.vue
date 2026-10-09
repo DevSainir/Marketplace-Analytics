@@ -107,7 +107,7 @@ async function copyKey() {
             min="1"
             max="3650"
             required
-            class="pf-input"
+            class="ui-input w-full"
           />
         </label>
         <label class="flex flex-col gap-xs">
@@ -118,7 +118,7 @@ async function copyKey() {
             min="1"
             max="365"
             placeholder="Бессрочно"
-            class="pf-input"
+            class="ui-input w-full"
           />
         </label>
         <label class="flex flex-col gap-xs">
@@ -129,7 +129,7 @@ async function copyKey() {
             min="1"
             max="1000"
             placeholder="Без лимита"
-            class="pf-input"
+            class="ui-input w-full"
           />
         </label>
         <label class="flex flex-col gap-xs">
@@ -140,7 +140,7 @@ async function copyKey() {
             min="1"
             max="1000"
             placeholder="Без лимита"
-            class="pf-input"
+            class="ui-input w-full"
           />
         </label>
       </div>
@@ -153,7 +153,7 @@ async function copyKey() {
             type="text"
             maxlength="256"
             placeholder="Кому и за сколько"
-            class="pf-input"
+            class="ui-input w-full"
           />
         </label>
         <button type="submit" class="ui-btn ui-btn--primary" :disabled="!canSubmit">

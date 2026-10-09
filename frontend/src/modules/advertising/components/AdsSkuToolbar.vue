@@ -7,6 +7,7 @@
  * what filters the rows. Wraps rather than shrinks, so on a phone each control
  * takes its own full-width line instead of being squeezed to a stub.
  */
+import SearchField from '@/core/components/SearchField.vue'
 import { AD_GROUPS } from '@/modules/advertising/skuModel'
 
 defineProps({
@@ -29,19 +30,16 @@ const emit = defineEmits([
   'clear',
 ])
 
-const field =
-  'h-9 min-w-0 rounded-input border border-border-subtle bg-surface px-sm text-base text-primary phone:w-full'
+const field = 'ui-select ui-select--sm min-w-0 phone:w-full'
 </script>
 
 <template>
   <div class="mb-sm flex flex-wrap items-center gap-sm">
-    <input
-      :value="query"
-      type="search"
-      placeholder="Поиск по артикулу, предмету, бренду"
-      aria-label="Поиск по артикулу, предмету, бренду"
-      :class="[field, 'w-72 placeholder:text-muted focus:border-action focus:outline-none']"
-      @input="emit('update:query', $event.target.value)"
+    <SearchField
+      :model-value="query"
+      size="sm"
+      class="w-72 phone:w-full"
+      @update:model-value="emit('update:query', $event)"
     />
 
     <div class="flex items-center gap-xs" role="group" aria-label="Группировка">
@@ -49,7 +47,7 @@ const field =
         v-for="g in AD_GROUPS"
         :key="g.id"
         type="button"
-        class="ui-chip phone:min-h-11"
+        class="ui-chip"
         :class="{ 'is-on': group === g.id }"
         :aria-pressed="group === g.id"
         @click="emit('update:group', g.id)"
@@ -60,7 +58,7 @@ const field =
 
     <select
       :value="subject"
-      aria-label="Фильтр по предмету"
+      aria-label="Предмет"
       :class="field"
       @change="emit('update:subject', $event.target.value)"
     >
@@ -70,7 +68,7 @@ const field =
 
     <select
       :value="brand"
-      aria-label="Фильтр по бренду"
+      aria-label="Бренд"
       :class="field"
       @change="emit('update:brand', $event.target.value)"
     >
@@ -81,7 +79,7 @@ const field =
     <button
       v-if="filtering"
       type="button"
-      class="ui-btn ui-btn--ghost phone:min-h-11"
+      class="ui-btn ui-btn--ghost ui-btn--sm"
       @click="emit('clear')"
     >
       Сбросить фильтр

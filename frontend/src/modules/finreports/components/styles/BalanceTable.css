@@ -69,10 +69,6 @@
     0 6px 16px -6px rgb(0 0 0 / 18%);
 }
 
-.toolbar-block {
-  overflow: hidden;
-}
-
 /* Grid + row totals on one line, column totals + corner beneath, each pair
    sharing the gap. `minmax(0, 1fr)` (not `1fr`) lets the grid block SHRINK
    below its content — without it the table would push the block wider than the

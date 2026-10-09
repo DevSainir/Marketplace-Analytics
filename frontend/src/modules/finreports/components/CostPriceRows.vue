@@ -79,7 +79,7 @@ const visible = computed(() => props.rows.slice(0, shown.value))
               step="1"
               inputmode="decimal"
               :aria-label="`Себестоимость ${formatSku(row.vendorCode) || row.nmId}`"
-              class="h-11 w-24 rounded-input border border-border-subtle bg-canvas px-sm text-right tabular-nums text-primary focus:border-action focus:outline-none"
+              class="ui-input w-24 text-right tabular-nums"
               :value="value(row)"
               :placeholder="row.stored === null ? 'не задана' : ''"
               @input="emit('input', row, $event.target.value)"

@@ -20,7 +20,7 @@ const SIZES = [30, 50, 100]
 <template>
   <div class="mt-md flex flex-wrap items-center gap-sm">
     <select
-      class="hm-select"
+      class="ui-select ui-select--sm phone:w-full"
       :value="pageSize"
       aria-label="Строк на странице"
       @change="emit('update:pageSize', Number($event.target.value))"

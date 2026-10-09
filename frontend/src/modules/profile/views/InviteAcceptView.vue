@@ -85,7 +85,7 @@ onMounted(async () => {
               required
               autocomplete="off"
               spellcheck="false"
-              class="invite-input"
+              class="ui-input w-full"
             />
           </label>
 
@@ -105,15 +105,6 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.invite-input {
-  @apply h-10 w-full rounded-input border border-border-subtle bg-canvas px-md text-base text-primary focus:outline-none focus:ring-2 phone:h-11;
-}
-
-.invite-input:focus {
-  border-color: var(--ui-action);
-  --tw-ring-color: color-mix(in srgb, var(--ui-action) 20%, transparent);
-}
-
 .invite-error {
   @apply rounded-input border px-md py-sm text-tiny font-medium;
   border-color: color-mix(in srgb, var(--ui-neg) 30%, transparent);

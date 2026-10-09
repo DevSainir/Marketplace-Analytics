@@ -66,11 +66,7 @@ const drr = (row) => (props.showDrr ? ratioPct(row.drr) : '—')
 
 <template>
   <div class="rounded-card border border-border-subtle bg-surface px-md py-sm shadow-card">
-    <select
-      v-model="sortKey"
-      aria-label="Сортировка"
-      class="mb-sm h-11 w-full rounded-input border border-border-subtle bg-surface px-sm text-base text-primary"
-    >
+    <select v-model="sortKey" aria-label="Сортировка" class="ui-select mb-sm w-full">
       <option v-for="s in SORTS" :key="s.key" :value="s.key">{{ s.label }}</option>
     </select>
 

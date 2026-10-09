@@ -98,11 +98,7 @@ const { money } = formatters
 <template>
   <div class="p-md">
     <div class="flex items-center gap-sm">
-      <select
-        v-model="sortKey"
-        aria-label="Сортировка"
-        class="min-h-11 min-w-0 flex-1 rounded-input border border-border-subtle bg-surface px-sm text-base text-primary"
-      >
+      <select v-model="sortKey" aria-label="Сортировка" class="ui-select min-w-0 flex-1">
         <option v-for="option in SORT_KEYS" :key="option.key" :value="option.key">
           {{ option.label }}
         </option>

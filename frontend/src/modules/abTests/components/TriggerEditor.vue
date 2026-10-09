@@ -52,11 +52,7 @@ function save() {
       <span class="block text-tiny font-medium uppercase tracking-wide text-muted"
         >Что меняет фото</span
       >
-      <select
-        v-model="draft.trigger_mode"
-        data-testid="edit-trigger-mode"
-        class="ui-select-arrow mt-xs h-10 rounded-input bg-surface pl-md pr-11 text-base text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
-      >
+      <select v-model="draft.trigger_mode" data-testid="edit-trigger-mode" class="ui-select mt-xs">
         <option v-for="mode in TRIGGER_MODES" :key="mode.value" :value="mode.value">
           {{ mode.label }}
         </option>
@@ -74,7 +70,7 @@ function save() {
           v-model="draft.impression_budget"
           data-testid="edit-impression-budget"
           inputmode="numeric"
-          class="mt-xs h-10 rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
+          class="ui-input mt-xs tabular-nums"
           :class="bothBounds ? 'w-24' : 'w-44'"
         />
       </label>
@@ -86,7 +82,7 @@ function save() {
           v-model="draft.slot_minutes"
           data-testid="edit-slot-minutes"
           inputmode="numeric"
-          class="mt-xs h-10 rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
+          class="ui-input mt-xs tabular-nums"
           :class="bothBounds ? 'w-24' : 'w-44'"
         />
       </label>

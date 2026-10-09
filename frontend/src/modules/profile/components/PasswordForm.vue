@@ -93,7 +93,7 @@ defineExpose({ reset })
             v-model="current"
             :type="reveal ? 'text' : 'password'"
             autocomplete="current-password"
-            class="pf-input"
+            class="ui-input w-full"
             @input="emit('clear-error')"
           />
           <button type="button" class="pf-pw__eye" :aria-label="eyeLabel" @click="reveal = !reveal">
@@ -113,7 +113,7 @@ defineExpose({ reset })
             v-model="next"
             :type="reveal ? 'text' : 'password'"
             autocomplete="new-password"
-            class="pf-input"
+            class="ui-input w-full"
             @input="emit('clear-error')"
           />
           <button type="button" class="pf-pw__eye" :aria-label="eyeLabel" @click="reveal = !reveal">
@@ -133,7 +133,7 @@ defineExpose({ reset })
             v-model="repeat"
             :type="reveal ? 'text' : 'password'"
             autocomplete="new-password"
-            class="pf-input"
+            class="ui-input w-full"
             :class="mismatch ? 'is-wrong' : ''"
           />
           <button type="button" class="pf-pw__eye" :aria-label="eyeLabel" @click="reveal = !reveal">
@@ -184,7 +184,7 @@ defineExpose({ reset })
   color: var(--ui-faint);
 }
 
-.pf-input.is-wrong {
+.ui-input.is-wrong {
   border-color: var(--ui-neg);
 }
 
@@ -192,12 +192,14 @@ defineExpose({ reset })
   @apply relative block;
 }
 
-.pf-pw__wrap .pf-input {
-  padding-right: 40px;
+.pf-pw__wrap .ui-input {
+  padding-right: 44px;
 }
 
+/* The eye of `core/components/PasswordField` in size and colour; this form
+   keeps its own because one press reveals all three fields at once. */
 .pf-pw__eye {
-  @apply absolute right-0 top-0 grid h-full w-10 place-items-center transition;
+  @apply absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-input transition;
   color: var(--ui-faint);
 }
 
@@ -206,7 +208,7 @@ defineExpose({ reset })
 }
 
 .pf-pw__eye svg {
-  @apply h-4 w-4;
+  @apply h-5 w-5;
 }
 
 .pf-pw__rules {

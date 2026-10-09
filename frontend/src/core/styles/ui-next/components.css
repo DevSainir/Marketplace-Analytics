@@ -86,56 +86,6 @@
    FORM CONTROLS
    ========================================================================== */
 
-.ui-input {
-  height: 40px;
-  padding: 0 12px;
-  border-radius: var(--ui-r-sm);
-  background: var(--ui-surface);
-  box-shadow: var(--ui-sh-xs);
-  font-size: 0.8125rem;
-  color: var(--ui-ink);
-  outline: none;
-  transition: box-shadow var(--ui-fast) var(--ui-ease);
-}
-
-.ui-input::placeholder {
-  color: var(--ui-faint);
-}
-
-.ui-input:focus {
-  box-shadow:
-    0 0 0 1px var(--ui-action),
-    0 0 0 4px rgba(113, 95, 255, 0.16);
-}
-
-.ui-select-arrow {
-  /* A full-size form select with the app's own chevron. The native arrow sits
-     flush against the right edge and cannot be moved; this one sits 16px in.
-     Pair it with `pr-11` so the text stops short of the chevron. */
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 8l3-3.5' fill='none' stroke='%239a9aa8' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 16px center;
-  background-size: 14px;
-}
-
-.ui-select {
-  height: 26px;
-  padding: 0 22px 0 8px;
-  border-radius: 5px;
-  background: var(--ui-surface);
-  box-shadow: var(--ui-sh-xs);
-  font-size: 0.6875rem;
-  font-weight: 500;
-  color: var(--ui-ink);
-  outline: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 8l3-3.5' fill='none' stroke='%239a9aa8' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 6px center;
-  background-size: 12px;
-}
-
 /* Toggle chip — the chart's metric picker and anything else multi-select. */
 .ui-chip {
   display: inline-flex;

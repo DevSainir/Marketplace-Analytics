@@ -62,11 +62,22 @@ defineExpose({ submit })
     <div class="grid grid-cols-2 gap-md phone:grid-cols-1">
       <label class="flex flex-col gap-xs">
         <span class="pf-field__label">Email (необязательно)</span>
-        <input v-model="email" type="email" class="pf-input" placeholder="Пусто — просто ссылка" />
+        <input
+          v-model="email"
+          type="email"
+          class="ui-input w-full"
+          placeholder="Пусто — просто ссылка"
+        />
       </label>
       <label class="flex flex-col gap-xs">
         <span class="pf-field__label">Ссылка действует, часов</span>
-        <input v-model.number="validForHours" type="number" min="1" max="720" class="pf-input" />
+        <input
+          v-model.number="validForHours"
+          type="number"
+          min="1"
+          max="720"
+          class="ui-input w-full"
+        />
       </label>
     </div>
 

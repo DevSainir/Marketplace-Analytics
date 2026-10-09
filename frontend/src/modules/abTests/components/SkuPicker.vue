@@ -89,7 +89,7 @@ function clear() {
       <input
         :value="needle"
         data-testid="sku-search"
-        class="h-11 w-full rounded-input bg-surface px-md pr-10 text-base text-primary shadow-soft placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-action/20"
+        class="ui-input w-full pr-10"
         placeholder="Артикул WB, артикул продавца или название"
         role="combobox"
         :aria-expanded="open"

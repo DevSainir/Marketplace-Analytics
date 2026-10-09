@@ -88,7 +88,7 @@ function onSubmit() {
         autocomplete="off"
         :disabled="clearFlags[field.key]"
         placeholder="Вставьте новый токен"
-        class="pf-input"
+        class="ui-input w-full"
       />
       <label v-if="isConfigured(field.key)" class="pf-token__clear">
         <input v-model="clearFlags[field.key]" type="checkbox" class="accent-[var(--ui-neg)]" />

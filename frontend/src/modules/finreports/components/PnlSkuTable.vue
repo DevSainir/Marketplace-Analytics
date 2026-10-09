@@ -78,7 +78,7 @@ function setPageSize(value) {
 </script>
 
 <template>
-  <div class="app-datatable rounded-card border border-border-subtle bg-surface shadow-card">
+  <div>
     <PnlSkuTableToolbar
       v-model:query="query"
       v-model:subject="subjectFilter"
@@ -89,28 +89,30 @@ function setPageSize(value) {
       :brands="brands"
       @update:page-size="setPageSize"
     />
-    <!-- Below `sm` the eighteen columns become one card per SKU. The switch is a
+    <div class="app-datatable">
+      <!-- Below `sm` the eighteen columns become one card per SKU. The switch is a
          capability threshold, not a phone tweak, so it sits at `sm` rather than
          at `phone:` — see the phone-layout skill. Both read `tableRows`, so the
          toolbar above filters them together. -->
-    <PnlSkuCards
-      class="sm:hidden"
-      :rows="tableRows"
-      :totals="totals"
-      :sizes="sizes"
-      @toggle-exclusion="emit('toggle-exclusion', $event)"
-      @load-sizes="emit('load-sizes', $event)"
-    />
+      <PnlSkuCards
+        class="sm:hidden"
+        :rows="tableRows"
+        :totals="totals"
+        :sizes="sizes"
+        @toggle-exclusion="emit('toggle-exclusion', $event)"
+        @load-sizes="emit('load-sizes', $event)"
+      />
 
-    <PnlSkuDataTable
-      ref="table"
-      class="hidden sm:block"
-      :rows="tableRows"
-      :totals="totals"
-      :sizes="sizes"
-      :rows-per-page="rowsPerPage"
-      @toggle-exclusion="emit('toggle-exclusion', $event)"
-      @load-sizes="emit('load-sizes', $event)"
-    />
+      <PnlSkuDataTable
+        ref="table"
+        class="hidden sm:block"
+        :rows="tableRows"
+        :totals="totals"
+        :sizes="sizes"
+        :rows-per-page="rowsPerPage"
+        @toggle-exclusion="emit('toggle-exclusion', $event)"
+        @load-sizes="emit('load-sizes', $event)"
+      />
+    </div>
   </div>
 </template>

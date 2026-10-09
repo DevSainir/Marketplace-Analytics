@@ -65,7 +65,7 @@ defineExpose({ reset })
         <input
           v-model="form.name"
           data-testid="test-name"
-          class="mt-xs h-11 w-full rounded-input bg-surface px-md text-base text-primary shadow-soft placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-action/20"
+          class="ui-input mt-xs w-full"
           placeholder="Тест главного фото"
         />
       </label>
@@ -79,7 +79,7 @@ defineExpose({ reset })
         <select
           v-model="form.trigger_mode"
           data-testid="trigger-mode"
-          class="ui-select-arrow mt-xs h-11 w-full rounded-input bg-surface pl-md pr-11 text-base text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
+          class="ui-select mt-xs w-full"
         >
           <option v-for="mode in TRIGGER_MODES" :key="mode.value" :value="mode.value">
             {{ mode.label }}
@@ -100,7 +100,7 @@ defineExpose({ reset })
             v-model="form.impression_budget"
             data-testid="impression-budget"
             inputmode="numeric"
-            class="mt-xs h-11 w-full rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
+            class="ui-input mt-xs w-full tabular-nums"
           />
         </label>
         <label v-if="usesSlot(form.trigger_mode)" class="block">
@@ -111,7 +111,7 @@ defineExpose({ reset })
             v-model="form.slot_minutes"
             data-testid="slot-minutes"
             inputmode="numeric"
-            class="mt-xs h-11 w-full rounded-input bg-surface px-md text-base tabular-nums text-primary shadow-soft focus:outline-none focus:ring-2 focus:ring-action/20"
+            class="ui-input mt-xs w-full tabular-nums"
           />
         </label>
       </div>

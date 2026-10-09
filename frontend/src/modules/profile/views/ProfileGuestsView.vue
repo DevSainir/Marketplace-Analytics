@@ -127,12 +127,12 @@ function grantedOn(iso) {
               required
               placeholder="name@example.com"
               autocomplete="off"
-              class="pf-input"
+              class="ui-input w-full"
             />
           </label>
           <label class="guests-form__field">
             <span class="guests-label">Кабинет</span>
-            <select v-model="workspaceName" required class="pf-input">
+            <select v-model="workspaceName" required class="ui-select w-full">
               <option value="" disabled>Выберите кабинет</option>
               <option v-for="ws in workspaces" :key="ws.id" :value="ws.name">{{ ws.name }}</option>
             </select>

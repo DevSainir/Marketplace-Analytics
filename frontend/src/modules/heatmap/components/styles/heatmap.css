@@ -8,30 +8,13 @@
 /* --- toolbar controls ----------------------------------------------------- */
 
 .hm-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 36px;
-  max-width: 100%;
-  padding: 0 12px;
-  border-radius: var(--ui-r-sm);
-  background: var(--ui-surface);
-  box-shadow: var(--ui-sh-xs);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--ui-ink);
-  white-space: nowrap;
-  transition: box-shadow var(--ui-fast) var(--ui-ease);
-}
-
-.hm-trigger:hover {
-  box-shadow: var(--ui-sh-sm);
+  /* The look of every field in the app (`.ui-select` in assets/main.css): a
+     hairline border on white, the action border on hover and when on. */
+  @apply inline-flex h-9 max-w-full items-center gap-sm whitespace-nowrap rounded-input border border-border-subtle bg-surface px-sm text-base text-primary shadow-soft transition-colors hover:border-action/60;
 }
 
 .hm-trigger.is-on {
-  box-shadow:
-    0 0 0 1px var(--ui-action),
-    var(--ui-sh-xs);
+  @apply border-action;
 }
 
 .hm-trigger__count {
@@ -46,28 +29,8 @@
   text-align: center;
 }
 
-.hm-select {
-  height: 36px;
-  min-width: 0;
-  padding: 0 28px 0 12px;
-  border-radius: var(--ui-r-sm);
-  background-color: var(--ui-surface);
-  box-shadow: var(--ui-sh-xs);
-  font-size: 0.8125rem;
-  color: var(--ui-ink);
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 8l3-3.5' fill='none' stroke='%239a9aa8' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  background-size: 12px;
-}
-
-.hm-select:focus-visible,
 .hm-trigger:focus-visible {
-  outline: none;
-  box-shadow:
-    0 0 0 1px var(--ui-action),
-    0 0 0 4px rgb(var(--ui-action-rgb) / 0.16);
+  @apply border-action outline-none ring-2 ring-action/20;
 }
 
 /* --- checklist rows ------------------------------------------------------- */
@@ -149,8 +112,7 @@
 }
 
 @media (max-width: 430px) {
-  .hm-trigger,
-  .hm-select {
+  .hm-trigger {
     width: 100%;
     height: 44px;
   }

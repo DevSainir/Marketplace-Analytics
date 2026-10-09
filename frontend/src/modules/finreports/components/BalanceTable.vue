@@ -100,7 +100,7 @@ function forwardWheel(event) {
 
 <template>
   <div class="balance-layout">
-    <div class="balance-block toolbar-block">
+    <div>
       <PnlSkuTableToolbar
         v-model:query="query"
         v-model:subject="subjectFilter"

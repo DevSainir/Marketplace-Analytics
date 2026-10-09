@@ -73,7 +73,7 @@ function goToLogin() {
               required
               autocomplete="email"
               placeholder="manager@company.ru"
-              class="auth-input"
+              class="ui-input w-full"
             />
           </label>
 
@@ -156,7 +156,4 @@ function goToLogin() {
    in here resolves the pre-skin teal from tailwind.config while the identical
    utility in the markup resolves the skinned violet. Measured, not assumed —
    the link this replaced rendered #007E76 beside a #715FFF button. */
-.auth-input {
-  @apply h-10 w-full rounded-input border border-border-subtle bg-canvas px-md text-base text-primary placeholder:text-muted focus:border-action focus:outline-none focus:ring-2 focus:ring-action/20 phone:h-11;
-}
 </style>

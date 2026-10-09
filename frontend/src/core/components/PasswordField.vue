@@ -35,7 +35,7 @@ const revealed = ref(false)
       :placeholder="placeholder"
       :required="required"
       :minlength="minlength"
-      class="password-input"
+      class="ui-input w-full pr-11"
       @input="$emit('update:modelValue', $event.target.value)"
     />
     <button
@@ -83,14 +83,6 @@ const revealed = ref(false)
 <style scoped>
 /* `pr-11` reserves the toggle's column so a long password scrolls under the
    label rather than behind the icon. */
-.password-input {
-  @apply h-10 w-full rounded-input border border-border-subtle bg-canvas px-md pr-11 text-base text-primary placeholder:text-muted focus:outline-none focus:ring-2 phone:h-11;
-}
-
-.password-input:focus {
-  border-color: var(--ui-action);
-  --tw-ring-color: color-mix(in srgb, var(--ui-action) 20%, transparent);
-}
 
 .password-toggle {
   @apply absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-input transition;

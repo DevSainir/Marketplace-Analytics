@@ -14,6 +14,7 @@ import { useRouter } from 'vue-router'
 import PageHeader from '@/core/components/PageHeader.vue'
 import BusyRegion from '@/core/components/BusyRegion.vue'
 import DataState from '@/core/components/DataState.vue'
+import SearchField from '@/core/components/SearchField.vue'
 
 import { useAbTestsStore } from '@/modules/abTests'
 import AbTestsTable from '@/modules/abTests/components/AbTestsTable.vue'
@@ -78,18 +79,16 @@ async function submit(payload) {
       @cancel="creating = false"
     />
 
-    <div class="ui-bar ui-glass flex flex-wrap items-center gap-sm">
-      <label class="relative min-w-0 flex-1">
-        <span class="sr-only">Поиск по тестам</span>
-        <input
-          :value="store.query"
-          data-testid="search"
-          class="h-10 w-full rounded-input bg-surface px-md text-base text-primary shadow-soft placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-action/20"
-          placeholder="Название теста, артикул продавца или WB"
-          @input="store.search($event.target.value)"
-        />
-      </label>
-      <span class="flex-none pr-xs text-micro tabular-nums text-muted">
+    <div class="mb-sm flex flex-wrap items-center gap-sm">
+      <SearchField
+        :model-value="store.query"
+        data-testid="search"
+        placeholder="Название теста, артикул продавца или WB"
+        aria-label="Поиск по тестам"
+        class="w-72 phone:w-full"
+        @update:model-value="store.search"
+      />
+      <span class="ml-auto text-tiny tabular-nums text-muted">
         Тестов: {{ store.rows.length }}
       </span>
     </div>

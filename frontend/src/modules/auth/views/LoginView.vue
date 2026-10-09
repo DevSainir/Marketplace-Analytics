@@ -129,7 +129,7 @@ async function submit() {
               required
               autocomplete="email"
               placeholder="manager@company.ru"
-              class="login-input"
+              class="ui-input w-full"
             />
           </label>
 
@@ -200,9 +200,5 @@ async function submit() {
 
 .login-tab--active {
   @apply bg-action text-white shadow-soft hover:text-white;
-}
-
-.login-input {
-  @apply h-10 w-full rounded-input border border-border-subtle bg-canvas px-md text-base text-primary placeholder:text-muted focus:border-action focus:outline-none focus:ring-2 focus:ring-action/20 phone:h-11;
 }
 </style>

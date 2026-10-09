@@ -67,6 +67,35 @@
   }
 
   /*
+   * Fields — text inputs and selects, in the look of the calendar's trigger:
+   * a hairline border on white, the action ring on focus. Before it there were
+   * six field styles: borderless glass, canvas-grey auth fields in five copies,
+   * the profile's own `pf-input`, 26px A/B selects, the heatmap's `hm-select`.
+   *
+   *   .ui-input / .ui-select   40px; `--sm` 36px beside a 36px button or
+   *                            the calendar; 44px on a phone, both.
+   * Width is the caller's (`w-full`, `w-72`): a field never decides it.
+   */
+  .ui-input,
+  .ui-select {
+    @apply h-10 rounded-input border border-border-subtle bg-surface px-md text-base text-primary shadow-soft transition-colors placeholder:text-muted hover:border-action/60 focus:border-action focus:outline-none focus:ring-2 focus:ring-action/20 disabled:cursor-not-allowed disabled:opacity-50 phone:min-h-11;
+  }
+
+  .ui-input--sm,
+  .ui-select--sm {
+    @apply h-9 px-sm;
+  }
+
+  /* The app's own chevron: the native one sits flush against the edge. */
+  .ui-select {
+    @apply appearance-none pr-xl;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 8l3-3.5' fill='none' stroke='%239a9aa8' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
+  }
+
+  /*
    * The one shared page/chrome container (design_system.md «Page Chrome &
    * Canvas»): 80rem plus two thirds of the spare viewport, so the header nav
    * and the page content line up their side margins on every route.

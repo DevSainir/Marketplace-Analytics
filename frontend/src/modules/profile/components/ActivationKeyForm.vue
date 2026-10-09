@@ -40,7 +40,7 @@ async function submit() {
         autocomplete="off"
         spellcheck="false"
         placeholder="XXXX-XXXX-XXXX"
-        class="key-input"
+        class="ui-input w-full"
         :class="align === 'center' ? 'text-center' : ''"
       />
     </label>
@@ -58,15 +58,6 @@ async function submit() {
 </template>
 
 <style scoped>
-.key-input {
-  @apply h-10 w-full rounded-input border border-border-subtle bg-canvas px-md text-base text-primary placeholder:text-muted focus:outline-none focus:ring-2 phone:h-11;
-}
-
-.key-input:focus {
-  border-color: var(--ui-action);
-  --tw-ring-color: color-mix(in srgb, var(--ui-action) 20%, transparent);
-}
-
 .key-error {
   @apply rounded-input border px-md py-sm text-tiny font-medium;
   border-color: color-mix(in srgb, var(--ui-neg) 30%, transparent);

@@ -69,7 +69,7 @@ const MODES = [
   <div class="mb-md flex flex-wrap items-center gap-sm">
     <div class="hm-metrics">
       <select
-        class="hm-select"
+        class="ui-select ui-select--sm phone:w-full"
         :value="metric"
         aria-label="Основная метрика"
         @change="emit('update:metric', $event.target.value)"
@@ -93,7 +93,7 @@ const MODES = [
       </button>
 
       <select
-        class="hm-select hm-metrics__second"
+        class="ui-select ui-select--sm hm-metrics__second phone:w-full"
         :value="metric2 ?? ''"
         aria-label="Вторая метрика"
         @change="emit('update:metric2', $event.target.value || null)"
@@ -126,7 +126,7 @@ const MODES = [
         </button>
       </div>
       <select
-        class="hm-select"
+        class="ui-select ui-select--sm phone:w-full"
         :value="normMode"
         aria-label="Откуда берётся норма"
         @change="emit('update:normMode', $event.target.value)"
@@ -141,7 +141,7 @@ const MODES = [
         </option>
       </select>
       <select
-        class="hm-select"
+        class="ui-select ui-select--sm phone:w-full"
         :value="period"
         aria-label="Период колонок"
         @change="emit('update:period', $event.target.value)"
@@ -151,7 +151,7 @@ const MODES = [
         </option>
       </select>
       <select
-        class="hm-select"
+        class="ui-select ui-select--sm phone:w-full"
         :value="mode"
         aria-label="Как сравнивать цвета"
         title="По строке — каждая строка сравнивается сама с собой. По всей таблице — все строки на одной шкале."

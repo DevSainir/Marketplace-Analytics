@@ -57,7 +57,7 @@ const removal = useConfirmClick()
           v-model="newName"
           type="text"
           placeholder="Название нового"
-          class="pf-input"
+          class="ui-input w-full"
           aria-label="Название нового кабинета"
         />
         <button type="submit" class="ui-btn ui-btn--primary" :disabled="busy || !newName.trim()">
