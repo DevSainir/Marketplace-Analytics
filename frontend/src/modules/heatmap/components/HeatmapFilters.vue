@@ -62,7 +62,7 @@ const groupItems = computed(() =>
 const skuItems = computed(() =>
   props.catalog.items.map((card) => ({
     value: card.nm_id,
-    label: formatSku(card.vendor_code) ?? `SKU ${card.nm_id}`,
+    label: formatSku(card.vendor_code) ?? `Артикул WB ${card.nm_id}`,
     sub: `Заказов: ${card.orders ?? 0}${card.title ? ` · ${card.title}` : ''}`,
     photo: card.photo_url,
   })),
@@ -96,11 +96,11 @@ function editGroup(id) {
     />
 
     <HeatmapFilterMenu
-      label="Категории"
+      label="Предметы"
       :items="subjectItems"
       :model-value="subjects"
       placeholder="Поиск категории…"
-      empty-text="Категорий нет — они появятся после синхронизации каталога"
+      empty-text="Предметов нет — они появятся после синхронизации каталога"
       @update:model-value="emit('update:subjects', $event)"
     />
 
@@ -134,7 +134,7 @@ function editGroup(id) {
       label="Артикулы"
       :items="skuItems"
       :model-value="nmIds"
-      placeholder="Артикул, название или nm ID"
+      placeholder="Артикул продавца или WB, название"
       @update:model-value="emit('update:nmIds', $event)"
     />
   </div>

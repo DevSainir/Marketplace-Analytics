@@ -263,7 +263,7 @@ export const AGGREGATE_METRIC_GROUPS = [
         key: 'stock_total',
         metric: 'stock_total',
         source: 'stockTotalRows',
-        name: 'Остатки, шт',
+        name: 'Остатки всего, шт',
         unit: 'number',
         type: 'bar',
       },

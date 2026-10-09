@@ -87,7 +87,7 @@ function formatDate(value) {
                 {{ test.name }}
               </RouterLink>
               <div class="mt-px flex flex-wrap items-center gap-x-sm text-micro text-muted">
-                <span class="tabular-nums">SKU {{ test.nm_id }}</span>
+                <span class="tabular-nums">Артикул WB {{ test.nm_id }}</span>
                 <span v-if="test.vendor_code">{{ formatSku(test.vendor_code) }}</span>
                 <span class="tabular-nums">создан {{ formatDate(test.created_at) }}</span>
               </div>
@@ -154,7 +154,7 @@ function formatDate(value) {
         </div>
         <div class="mt-px flex items-baseline gap-sm">
           <span class="min-w-0 flex-1 truncate text-micro text-muted">
-            SKU {{ test.nm_id }} · {{ test.variant_count }} фото · создан
+            Артикул WB {{ test.nm_id }} · {{ test.variant_count }} фото · создан
             {{ formatDate(test.created_at) }}
           </span>
           <button

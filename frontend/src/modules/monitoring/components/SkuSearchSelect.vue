@@ -164,7 +164,7 @@ function onApply() {
               >
                 нет на складе
               </span>
-              <span class="flex-none text-tiny tabular-nums text-muted">nm {{ item.nm_id }}</span>
+              <span class="flex-none text-tiny tabular-nums text-muted">WB {{ item.nm_id }}</span>
             </button>
           </li>
         </ul>

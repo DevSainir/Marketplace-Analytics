@@ -64,7 +64,7 @@ const cards = computed(() => [
   },
   {
     key: 'margin',
-    label: 'Маржа',
+    label: 'Чистая прибыль',
     value: props.kpi.margin === null ? '—' : formatMoney(props.kpi.margin, props.currency),
     note:
       props.kpi.margin === null
@@ -76,13 +76,13 @@ const cards = computed(() => [
   },
   {
     key: 'sold',
-    label: 'Продано',
+    label: 'Продажи, шт',
     value: count(props.kpi.sold_units),
     note: 'чистых единиц',
   },
   {
     key: 'orders',
-    label: 'Заказов',
+    label: 'Заказы, шт',
     value: count(props.kpi.orders),
     note: props.kpi.orders === null ? 'нет данных воронки' : 'штук',
     muted: props.kpi.orders === null,
@@ -122,7 +122,7 @@ const cards = computed(() => [
   // price and of the after-СПП one.
   {
     key: 'drr',
-    label: 'Средний ДРР',
+    label: 'ДРР от продаж',
     // A window that returned more than it sold has no meaningful ДРР.
     value: pct(revenue.value > 0 ? ratio(props.kpi.ad_spend, revenue.value) : null),
     note: props.kpi.ad_spend === null ? 'нет данных рекламы' : 'реклама к выручке',

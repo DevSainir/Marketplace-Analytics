@@ -113,7 +113,7 @@ const foot = computed(() => ({
       </Column>
       <Column field="drr" sortable :footer="foot.drr">
         <template #header>
-          <span title="Реклама за рассчитанные дни ÷ продажи за те же дни">ДРР</span>
+          <span title="Реклама за рассчитанные дни ÷ продажи за те же дни">ДРР от продаж</span>
         </template>
         <template #body="{ data }">
           <span :class="{ 'text-status-negative': showDrr && data.drr > DRR_ALARM }">

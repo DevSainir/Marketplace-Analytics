@@ -97,7 +97,7 @@ export const METRICS = [
   },
   {
     key: 'drr_orders',
-    label: 'ДРР по заказам, %',
+    label: 'ДРР от заказов, %',
     unit: 'percent',
     direction: 'down',
     group: 'Реклама',
@@ -127,7 +127,7 @@ export const METRICS = [
   },
   {
     key: 'stock',
-    label: 'Остатки на складах WB, шт',
+    label: 'Остатки на складах, шт',
     unit: 'count',
     direction: 'neutral',
     group: 'Цены и остатки',
@@ -151,7 +151,7 @@ export const METRICS = [
   },
   {
     key: 'profit',
-    label: 'Прибыль',
+    label: 'Чистая прибыль',
     unit: 'money',
     currencyOf: 'settlement',
     direction: 'up',

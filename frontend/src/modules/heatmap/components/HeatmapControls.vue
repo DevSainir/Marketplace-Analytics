@@ -53,8 +53,8 @@ const PERIODS = [
   { value: 'month', label: 'По месяцам' },
 ]
 const CUTS = [
-  { value: 'sku', label: 'По товару' },
-  { value: 'subject', label: 'По категории' },
+  { value: 'sku', label: 'По артикулу' },
+  { value: 'subject', label: 'По предмету' },
   { value: 'brand', label: 'По бренду' },
   { value: 'group', label: 'По группе' },
 ]

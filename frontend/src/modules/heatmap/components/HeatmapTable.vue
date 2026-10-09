@@ -66,7 +66,7 @@ watch(
   { immediate: true },
 )
 
-const NAME_HEADERS = { sku: 'Артикул', subject: 'Категория', brand: 'Бренд', group: 'Группа' }
+const NAME_HEADERS = { sku: 'Артикул', subject: 'Предмет', brand: 'Бренд', group: 'Группа' }
 
 function arrow(by) {
   if (props.sort.by !== by) return '↕'
@@ -139,7 +139,7 @@ const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies,
                 :to="monitoringLink(row.nm_id, dateFrom, dateTo)"
                 :title="row.title"
               >
-                {{ formatSku(row.label) ?? `SKU ${row.nm_id}` }}
+                {{ formatSku(row.label) ?? `Артикул WB ${row.nm_id}` }}
               </RouterLink>
             </div>
             <div v-else class="flex min-w-0 items-baseline gap-sm">

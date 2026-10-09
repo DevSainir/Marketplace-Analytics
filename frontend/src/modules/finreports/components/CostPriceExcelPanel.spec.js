@@ -41,7 +41,7 @@ describe('CostPriceExcelPanel', () => {
     const text = wrapper.text()
     expect(text).toContain('3')
     expect(text).toContain('строка 5')
-    expect(text).toContain('nm_id 999')
+    expect(text).toContain('артикул WB 999')
     expect(text).toContain('SKU не продавался.')
   })
 

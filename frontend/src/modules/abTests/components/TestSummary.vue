@@ -126,7 +126,7 @@ const tiles = computed(() => [
   },
   {
     key: 'spend',
-    label: 'Расход рекламы',
+    label: 'Расход на рекламу',
     value: money(summary.value.spend),
     branches: branches('spend', money),
     hint: 'Сколько реклама потратила на этот артикул за период проведения теста.',

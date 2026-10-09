@@ -17,7 +17,7 @@ export const SORT_KEYS = [
   { key: 'logistics', label: 'Логистика' },
   { key: 'penalties', label: 'Штрафы' },
   { key: 'advertising', label: 'Реклама' },
-  { key: 'advertisingPct', label: 'ДРР' },
+  { key: 'advertisingPct', label: 'ДРР от продаж' },
   { key: 'cogs', label: 'Себестоимость' },
   { key: 'roi', label: 'ROI' },
   { key: 'saName', label: 'Артикул' },
@@ -53,12 +53,12 @@ export const DETAILS = [
   { label: 'Себестоимость', get: (r, f) => f.money(r.cogs) },
   { label: 'Реклама', get: (r, f) => f.money(r.advertising) },
   {
-    label: 'ДРР',
+    label: 'ДРР от продаж',
     get: (r) => pct(r.advertisingPct),
     tone: (r) => toneClass('advertisingPct', r.advertisingPct, r.priceBase),
   },
   {
-    label: 'Бонусы WB',
+    label: 'Промо-бонусы',
     get: (r, f) => (r.adBonus ? `-${f.money(r.adBonus)}` : f.money(r.adBonus)),
   },
   { label: 'ROI', get: (r) => pct(r.roi), tone: (r) => toneClass('roi', r.roi) },

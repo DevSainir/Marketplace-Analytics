@@ -87,7 +87,7 @@ function closeSearch() {
           ref="searchInput"
           :value="query"
           type="text"
-          placeholder="Артикул, nm, предмет, бренд…"
+          placeholder="Артикул продавца или WB, предмет, бренд…"
           class="h-9 w-full rounded-input border border-border-subtle bg-surface pl-9 pr-9 text-base text-primary placeholder:text-muted focus:border-action focus:outline-none focus:ring-2 focus:ring-action/20"
           @input="emit('update:query', $event.target.value)"
           @keydown.esc="closeSearch"
@@ -115,7 +115,7 @@ function closeSearch() {
     <!-- Filters: Тип предмета / Бренд -->
     <select
       :value="subject"
-      aria-label="Тип предмета"
+      aria-label="Предмет"
       class="h-9 rounded-input border border-border-subtle bg-surface px-sm text-base text-primary"
       @change="emit('update:subject', $event.target.value)"
     >

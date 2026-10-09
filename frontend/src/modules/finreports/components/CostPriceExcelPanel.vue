@@ -86,7 +86,7 @@ function onFile(event) {
         </p>
         <ul class="mt-xs max-h-40 overflow-y-auto text-tiny text-muted">
           <li v-for="(issue, i) in result.issues" :key="i" class="tabular-nums">
-            строка {{ issue.row }}<span v-if="issue.nm_id"> · nm_id {{ issue.nm_id }}</span> —
+            строка {{ issue.row }}<span v-if="issue.nm_id"> · артикул WB {{ issue.nm_id }}</span> —
             {{ issue.reason }}
           </li>
         </ul>

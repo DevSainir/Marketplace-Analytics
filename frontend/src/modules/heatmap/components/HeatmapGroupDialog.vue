@@ -135,7 +135,7 @@ onBeforeUnmount(() => {
           v-model="query"
           type="search"
           class="ui-input mt-xs w-full"
-          placeholder="Артикул, название или nm ID"
+          placeholder="Артикул продавца или WB, название"
           aria-label="Поиск артикула"
         />
 
@@ -153,7 +153,7 @@ onBeforeUnmount(() => {
               <SkuThumb :src="card.photo_url" :label="card.vendor_code" />
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-base text-primary">
-                  {{ formatSku(card.vendor_code) ?? `SKU ${card.nm_id}` }}
+                  {{ formatSku(card.vendor_code) ?? `Артикул WB ${card.nm_id}` }}
                 </span>
                 <span class="block truncate text-tiny text-muted">
                   {{ pickerNote(card) }}

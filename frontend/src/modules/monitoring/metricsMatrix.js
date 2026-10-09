@@ -271,7 +271,7 @@ const PRICE_METRIC_DEFS = [
   { key: 'spp', label: 'СПП, %', tone: 'positive', format: fmtPercent },
 ]
 const STOCK_METRIC_DEFS = [
-  { key: 'stock_quantity', label: 'Остаток, шт', format: fmtNumber },
+  { key: 'stock_quantity', label: 'Остатки на складах, шт', format: fmtNumber },
   { key: 'stock_to_client', label: 'В пути к клиенту, шт', format: fmtNumber },
   { key: 'stock_from_client', label: 'В пути от клиента, шт', format: fmtNumber },
 ]

@@ -57,7 +57,7 @@ function formatRating(value) {
         />
       </svg>
     </span>
-    <span class="text-tiny font-semibold text-action">SKU {{ product.nm_id }}</span>
+    <span class="text-tiny font-semibold text-action">Артикул WB {{ product.nm_id }}</span>
     <span v-if="product.title" class="text-tiny text-muted">{{ product.title }}</span>
     <button
       type="button"

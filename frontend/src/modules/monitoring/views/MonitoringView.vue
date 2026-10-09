@@ -42,7 +42,7 @@ const detailState = computed(() =>
 
 // Vendor code (артикул продавца) once the backend serves it; nm ID meanwhile.
 const skuLabel = computed(
-  () => formatSku(product.value?.vendor_code) ?? `SKU ${product.value?.nm_id ?? ''}`,
+  () => formatSku(product.value?.vendor_code) ?? `Артикул WB ${product.value?.nm_id ?? ''}`,
 )
 
 // --- global pinned SKUs («Закрепить») -------------------------------------
@@ -229,7 +229,7 @@ onMounted(() => store.fetchPins())
       <div v-else-if="!store.lookupMatches.length" class="mt-20 text-center phone:mt-xl">
         <p class="text-h2 font-semibold text-primary">Введите артикул товара</p>
         <p class="mx-auto mt-sm max-w-xl text-base text-muted">
-          Начните вводить артикул продавца, nm ID или название — либо просто кликните по строке
+          Начните вводить артикул продавца, артикул WB или название — либо просто кликните по строке
           поиска и выберите SKU из списка. После этого здесь появится короткая сводка по заказам,
           рекламе и остаткам.
         </p>

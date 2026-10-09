@@ -43,7 +43,7 @@ export function revenueSeries(days, { base, costed }) {
   ]
   if (costed) {
     lines.push({
-      name: 'Маржа',
+      name: 'Чистая прибыль',
       color: 'var(--ui-pos)',
       values: days.map((day) => number(day.margin)),
     })

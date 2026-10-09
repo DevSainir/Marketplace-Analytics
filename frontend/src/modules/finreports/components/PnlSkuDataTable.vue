@@ -104,7 +104,7 @@ const { money } = usePnlMoney()
         <span class="tabular-nums text-muted">{{ data.isBucket ? '—' : data.nmId }}</span>
       </template>
     </Column>
-    <Column field="subject" header="Тип предмета" sortable>
+    <Column field="subject" header="Предмет" sortable>
       <template #body="{ data }">{{ data.subject || '—' }}</template>
     </Column>
     <Column field="brand" header="Бренд" sortable>
@@ -186,14 +186,14 @@ const { money } = usePnlMoney()
       <template #body="{ data }">{{ money(data.advertising) }}</template>
     </Column>
     <Column field="advertisingPct" sortable :footer="foot.advertisingPct">
-      <template #header><span title="Доля рекламы в выручке">ДРР</span></template>
+      <template #header><span title="Реклама ÷ продажи">ДРР от продаж</span></template>
       <template #body="{ data }">
         <span :class="toneClass('advertisingPct', data.advertisingPct, data.priceBase)">
           {{ pct(data.advertisingPct) }}
         </span>
       </template>
     </Column>
-    <Column field="adBonus" header="Бонусы" sortable :footer="foot.adBonus">
+    <Column field="adBonus" header="Промо-бонусы" sortable :footer="foot.adBonus">
       <template #body="{ data }">
         <span v-if="data.adBonus" class="text-status-positive"> -{{ money(data.adBonus) }} </span>
         <template v-else>{{ money(data.adBonus) }}</template>

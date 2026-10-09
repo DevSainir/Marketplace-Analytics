@@ -28,7 +28,7 @@ const emit = defineEmits(['input', 'remove'])
       <thead class="border-b border-border-subtle text-left text-tiny uppercase text-muted">
         <tr>
           <th class="px-md py-sm">Артикул</th>
-          <th class="px-md py-sm">nm_id</th>
+          <th class="px-md py-sm">Артикул WB</th>
           <th class="px-md py-sm text-right">Продано, шт</th>
           <th class="px-md py-sm text-right">Себестоимость</th>
           <th class="px-md py-sm">Источник</th>

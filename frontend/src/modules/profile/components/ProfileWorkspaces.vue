@@ -81,7 +81,7 @@ function onRemove(id) {
         <!-- A manager cannot set a token, so a column of «—» for them is a
              column that says nothing. -->
         <span v-if="canManage" role="columnheader">Токены WB</span>
-        <span role="columnheader">Создано</span>
+        <span role="columnheader">Создан</span>
         <span role="columnheader" class="sr-only">Действия</span>
       </div>
 
@@ -94,7 +94,7 @@ function onRemove(id) {
                  currently showing — so it says that, and pairs with the
                  «Выбрать» on every other row. -->
             <span v-if="ws.id === currentId" class="pf-pill is-on">Выбран</span>
-            <span v-if="ws.is_primary" class="pf-pill is-soft">основное</span>
+            <span v-if="ws.is_primary" class="pf-pill is-soft">основной</span>
           </span>
         </span>
 

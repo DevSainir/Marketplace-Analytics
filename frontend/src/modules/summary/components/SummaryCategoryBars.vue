@@ -124,7 +124,7 @@ function track(event) {
           <span class="sum-cat__tipval">{{ formatNumber(row.soldUnits) }} шт</span>
         </div>
         <div class="sum-cat__tiprow">
-          <span>Маржа от выручки</span>
+          <span>Чистая прибыль от выручки</span>
           <span class="sum-cat__tipval">{{ pct(row.marginPct) }}</span>
         </div>
       </div>

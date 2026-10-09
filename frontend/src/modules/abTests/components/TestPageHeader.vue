@@ -59,7 +59,7 @@ function remove() {
 
     <div v-if="test" class="mt-sm flex flex-wrap items-center gap-x-md gap-y-xs">
       <h1 class="text-h2 font-bold text-primary">{{ test.name }}</h1>
-      <span class="text-tiny font-semibold text-action">SKU {{ test.nm_id }}</span>
+      <span class="text-tiny font-semibold text-action">Артикул WB {{ test.nm_id }}</span>
       <span v-if="test.vendor_code" class="text-tiny text-muted">{{
         formatSku(test.vendor_code)
       }}</span>

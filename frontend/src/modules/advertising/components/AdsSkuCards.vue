@@ -27,7 +27,7 @@ const PAGE = 10
 
 const SORTS = [
   { key: 'spend', label: 'По рекламе' },
-  { key: 'drr', label: 'По ДРР' },
+  { key: 'drr', label: 'По ДРР от продаж' },
   { key: 'share', label: 'По доле' },
   { key: 'orders', label: 'По заказам' },
 ]
