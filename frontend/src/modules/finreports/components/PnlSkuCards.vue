@@ -116,6 +116,8 @@ const { money } = formatters
       </button>
     </div>
 
+    <PnlSkuCardsTotals v-if="totals && rows.length" :totals="totals" />
+
     <p v-if="!rows.length" class="py-xl text-center text-base text-muted">Нет продаж за период</p>
 
     <ul v-else class="record-list mt-md">
@@ -226,8 +228,6 @@ const { money } = formatters
     >
       Показать ещё ({{ sorted.length - shown }})
     </button>
-
-    <PnlSkuCardsTotals v-if="totals" :totals="totals" />
   </div>
 </template>
 

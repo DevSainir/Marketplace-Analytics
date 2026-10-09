@@ -1,12 +1,14 @@
 <script setup>
 /**
- * «Итого» под списком карточек — приклеено к низу экрана.
+ * «Итого» over the list of cards — first, as on every phone list in the app
+ * (the phone-layout skill: «the totals first»).
  *
- * Считается по всей выборке, а не по показанным карточкам: список растёт
- * кнопкой «Показать ещё», и сумма, которая меняется от нажатия на неё, — это
- * не итог, а счётчик. Липкое, чтобы не листать сорок карточек до конца ради
- * одной цифры, и с отступом под домашнюю полосу: на телефоне без него итог
- * лежит ровно под ней.
+ * Counted over the whole selection, not the cards shown: the list grows by
+ * «Показать ещё», and a sum that changes when that is pressed is a counter,
+ * not a total. It used to stick to the bottom of the screen so nobody had to
+ * scroll forty cards for one figure; first in the list answers the same need
+ * without taking a strip of a phone's screen for good, and reads the same as
+ * the advertising and heatmap lists.
  */
 import { pct, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { amountClass } from '@/modules/finreports/pnlThresholds'
@@ -37,7 +39,6 @@ const { money } = usePnlMoney()
 
 <style scoped>
 .pnl-cards-totals {
-  @apply sticky bottom-0 -mx-md mt-sm flex items-center justify-between gap-sm border-t border-border-subtle bg-surface px-md py-sm;
-  padding-bottom: max(theme('spacing.sm'), env(safe-area-inset-bottom));
+  @apply mt-md flex items-center justify-between gap-sm border-b border-border-subtle pb-sm;
 }
 </style>

@@ -93,7 +93,9 @@ its headers:
   loss-maker is a scroll and not a page hunt. **10 rows a page**: the desktop table's 50 is sized
   for a screen five times as tall;
 * **the totals first.** A corner total in a grid becomes a card at the TOP of the list, or the
-  reader reaches it only after every record.
+  reader reaches it only after every record. Not a bar stuck to the bottom of the screen: the
+  P&L tried that and it cost a permanent strip of a 874pt screen to say what the top of the
+  list already says; it moved to the top on 2026-10-09, like advertising and the heatmap.
 
 Colour the values through the sheet's own **modifier** classes (`.record-value--negative`,
 `--warning`, `--muted`), never a bare `text-status-*` utility beside `.record-value`: the scoped
