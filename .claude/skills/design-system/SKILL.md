@@ -161,8 +161,19 @@ extends the shared one rather than growing a local copy.
 | A modal question | `core/components/UiDialog.vue` («Отмена» before the main action) |
 | Loading, empty, failed | `core/components/DataState.vue`; a reload keeps the figures in `BusyRegion.vue` |
 | More records | `core/components/ShowMoreButton.vue` — «Показать ещё (N)» |
-| A table | PrimeVue or a hand-drawn `<table>` inside `.app-datatable`; `SortIcon.vue` for a hand-drawn sort |
+| A table | PrimeVue or a hand-drawn `<table>` inside `.app-datatable`; `SortIcon.vue` for a hand-drawn sort. A figure column reads from the right — head, cells and «Итого»: `class="col-num"` on a PrimeVue `<Column>`, `text-right tabular-nums` on a hand-drawn one. Identifiers (Артикул WB) and text stay left |
 | A number | `core/utils/format.js` — «—» is no figure, «0» is zero; never `toLocaleString` in a page |
+
+Left different on purpose — do not "fix" these:
+
+* The monitoring matrix, the balance and the stock comparison keep their dense small head and
+  leave empty cells blank: every pixel saved is one more warehouse column, and a «—» in every
+  empty cell is noise.
+* The heatmap prints percentages without «%» — the unit is in the metric's name.
+* Logistics keeps kopecks: those sums go into a claim.
+* The change-password form has its own «показать пароль»: one press shows all three fields.
+* The logistics page picks a week, not a period — the owner's call.
+* `labs/` are sandboxes with their own look.
 
 ### Dates and periods
 
