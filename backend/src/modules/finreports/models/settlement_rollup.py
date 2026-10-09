@@ -101,11 +101,22 @@ class SettlementDailyRollup(Base):
     rebill_logistic_cost: Mapped[Decimal] = _money()
     advertising: Mapped[Decimal] = _money()
 
+    #: P&L aggregate on purpose; written by the same rebuild.
+        Numeric(18, 2), default=Decimal(0), server_default="0", nullable=False
+    )
+        Integer, default=0, server_default="0", nullable=False
+    )
+        Integer, default=0, server_default="0", nullable=False
+    )
+        Numeric(18, 2), default=Decimal(0), server_default="0", nullable=False
+    )
     #: How many detail rows this group sums. THE verification column: a read
     #: compares it against the detail's own count for the same day and rebuilds
     #: the day when the two disagree.
     rows: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
+    #: every write to the detail deletes the days it touches, so a restated row
+    #: comes back here with a new ``built_at`` even when the count is the same.
     built_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

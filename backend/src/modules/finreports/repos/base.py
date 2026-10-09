@@ -57,6 +57,7 @@ class BaseRepository:
         self,
         *columns: Any,
         where: Sequence[Any] = (),
+        source: type[Base] | None = None,
     ) -> tuple[int, int]:
         """Return ``(row count, order-independent checksum)`` for a row set.
 
@@ -78,6 +79,7 @@ class BaseRepository:
             *columns: The value columns whose change must invalidate. Cast and
                 concatenated in the given order.
             where: Predicate applied to the row set.
+            source: The table to read, when it is not this repository's own.
 
         Returns:
             ``(count, checksum)``. ``(0, 0)`` for an empty set.
@@ -88,7 +90,7 @@ class BaseRepository:
         digest = sa.func.coalesce(
             sa.func.sum(sa.cast(sa.func.hashtext(sa.func.concat(*parts)), sa.BigInteger)), 0
         )
-        stmt = sa.select(sa.func.count(), digest).select_from(self.model)
+        stmt = sa.select(sa.func.count(), digest).select_from(source or self.model)
         if where:
             stmt = stmt.where(*where)
         count, checksum = (await self._session.execute(stmt)).one()

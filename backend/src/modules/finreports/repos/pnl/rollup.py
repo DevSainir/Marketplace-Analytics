@@ -46,6 +46,7 @@ from src.modules.finreports.repos.pnl.aggregate import (
     _T,
     PnlGrouping,
     SettlementAggregate,
+    SkuUnits,
     SqlExpr,
     aggregate_from_rollup,
 )
@@ -231,17 +232,14 @@ class SettlementRollup:
         # repair the same window at the same moment, and the loser of that race
         # must write the same figures rather than raise.
         statement = insert(rollup).from_select(
-            ["workspace_id", "report_id", "rr_dt", "nm_id", "sa_name", *ROLLUP_COLUMNS], source
+            ["workspace_id", "report_id", "rr_dt", "nm_id", "sa_name", *stored], source
         )
         written = cast(
             CursorResult[Any],
             await self._session.execute(
                 statement.on_conflict_do_update(
                     index_elements=["workspace_id", "report_id", "rr_dt", "nm_id"],
-                    set_={
-                        name: getattr(statement.excluded, name)
-                        for name in (*ROLLUP_COLUMNS, "sa_name")
-                    },
+                    set_={name: getattr(statement.excluded, name) for name in (*stored, "sa_name")},
                 )
             ),
         )
@@ -398,6 +396,42 @@ class SettlementRollup:
         )
         rows = (await self._session.execute(stmt)).all()
         return [(row[0], int(row[1]), int(row[2])) for row in rows]
+
+    async def sku_units(
+        self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
+    ) -> list[SkuUnits]:
+        """Return settled units per SKU, most-sold first, off the rollup.
+
+        Read from the detail, this was the cost-price page's whole cost: a year
+        of «Демо» is a parallel seq scan of the 1.6 GB table, 8.4 s alone
+        and 30-35 s when anything else wanted the disk (measured 2026-10-05).
+        The units and the article are rollup columns already.
+        """
+        await self.ensure_fresh(workspace_id=workspace_id, date_from=date_from, date_to=date_to)
+        rollup = SettlementDailyRollup
+        sold = func.sum(rollup.sold_units)
+        stmt = (
+            select(rollup.nm_id, func.max(rollup.sa_name), sold, func.sum(rollup.returned_units))
+            .where(
+                rollup.workspace_id == workspace_id,
+                rollup.rr_dt >= date_from,
+                rollup.rr_dt <= date_to,
+                rollup.nm_id != 0,
+            )
+            .group_by(rollup.nm_id)
+            .having(sold > 0)
+            .order_by(sold.desc())
+        )
+        rows = (await self._session.execute(stmt)).all()
+        return [
+            SkuUnits(
+                nm_id=int(r[0]),
+                vendor_code=str(r[1] or ""),
+                sold_units=int(r[2]),
+                returned_units=int(r[3]),
+            )
+            for r in rows
+        ]
 
     async def ensure_fresh(self, *, workspace_id: uuid.UUID, date_from: date, date_to: date) -> int:
         """Make the rollup trustworthy for the window, and say what it cost.

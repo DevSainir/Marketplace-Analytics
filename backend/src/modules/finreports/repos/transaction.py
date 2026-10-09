@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 
 from sqlalchemy import case, delete, exists, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.finreports.constants import (
     LOGISTICS_OPER,
@@ -17,6 +18,7 @@ from src.modules.finreports.constants import (
 )
 from src.modules.finreports.models import LogisticsTransaction, SettlementDailyRollup
 from src.modules.finreports.repos.base import BaseRepository
+from src.modules.finreports.repos.pnl.rollup import SettlementRollup
 from src.modules.finreports.repos.pnl.rollup_lock import hold_rollup_lock
 
 
@@ -136,6 +138,11 @@ class LogisticsTransactionRepository(BaseRepository):
 
     model = LogisticsTransaction
 
+    def __init__(self, session: AsyncSession) -> None:
+        """Store the session, and the rollup the summary's aggregates are read from."""
+        super().__init__(session)
+        self._rollup = SettlementRollup(session)
+
     async def bulk_upsert(
         self,
         rows: Sequence[dict[str, Any]],
@@ -184,6 +191,12 @@ class LogisticsTransactionRepository(BaseRepository):
         self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
     ) -> list[SkuLogisticsAggregate]:
 
+        Off the settlement rollup, which stores these four figures per
+        (отчёт, день, артикул) — see
+        detail is no longer read here. The currency is the modal one of the
+        SKU's groups, as everywhere else the rollup is read: ``max()`` is
+        lexical and would call a KGS article "RUB" over one stray row.
+
         Args:
             workspace_id: Tenancy scope.
             date_from: Inclusive settlement-date start.
@@ -193,32 +206,24 @@ class LogisticsTransactionRepository(BaseRepository):
             One :class:`SkuLogisticsAggregate` per SKU that has any settlement row
             in the window, ordered by logistics billed (descending).
         """
-        txn = LogisticsTransaction
-        is_logistics = txn.supplier_oper_name == LOGISTICS_OPER
+        await self._rollup.ensure_fresh(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
         )
-        logistics_billed = func.coalesce(
-            func.sum(case((is_logistics, txn.delivery_rub), else_=0)), 0
-        )
-        logistics_rows = func.coalesce(func.sum(case((is_logistics, 1), else_=0)), 0)
-        delivery_units = func.coalesce(
-            func.sum(case((is_logistics, txn.delivery_amount), else_=0)), 0
-        )
+        rollup = SettlementDailyRollup
         stmt = (
             select(
-                txn.nm_id,
-                func.max(txn.sa_name),
-                logistics_billed,
-                logistics_rows,
-                delivery_units,
-                func.max(txn.currency_name),
+                rollup.nm_id,
+                func.max(rollup.sa_name),
+                billed,
+                func.mode().within_group(rollup.currency).filter(rollup.currency != ""),
             )
             .where(
-                txn.workspace_id == workspace_id,
-                txn.rr_dt >= date_from,
-                txn.rr_dt <= date_to,
+                rollup.workspace_id == workspace_id,
+                rollup.rr_dt >= date_from,
+                rollup.rr_dt <= date_to,
             )
-            .group_by(txn.nm_id)
-            .order_by(logistics_billed.desc())
+            .group_by(rollup.nm_id)
+            .order_by(billed.desc())
         )
         result = await self._session.execute(stmt)
         return [
@@ -359,28 +364,37 @@ class LogisticsTransactionRepository(BaseRepository):
         self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
     ) -> tuple[int, int]:
 
-        the summary displays *every* SKU with a row in the window, so its cache
-        fingerprint must move if ANY of those rows is restated. Covers exactly
-        computed in PostgreSQL, so a whole-history probe returns two numbers
-        rather than hydrating 620k rows (see
-        :meth:`~src.modules.finreports.repos.base.BaseRepository.checksum`).
+        Taken over the rollup, not the detail: hashing the detail was a 1.6 GB
+        seq scan on every cache HIT of «Вся история» — 11.5 s to learn that
+        nothing had changed (measured 2026-10-09). The rollup answers the same
+        question. Rows added or removed fail the day's row count and the day is
+        rebuilt; a row restated in place comes through
+        :meth:`bulk_upsert`, which deletes its day, so it is rebuilt too. Either
+        way the day's groups come back with a new ``built_at``, and that is
+        what moves this checksum — alongside the figures themselves, which
+        :meth:`aggregate_by_sku` reads.
+
+        What it cannot see is a detail row edited by hand with ``UPDATE``,
+        which the P&L could not see either.
         """
-        txn = LogisticsTransaction
+        await self._rollup.ensure_fresh(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
+        )
+        rollup = SettlementDailyRollup
         return await self.checksum(
-            txn.nm_id,
-            txn.sa_name,
-            txn.currency_name,
-            txn.rr_dt,
-            txn.supplier_oper_name,
-            txn.bonus_type_name,
-            txn.delivery_rub,
-            txn.delivery_amount,
-            txn.penalty,
+            rollup.report_id,
+            rollup.rr_dt,
+            rollup.nm_id,
+            rollup.built_at,
+            rollup.rows,
+            rollup.sa_name,
+            rollup.currency,
             where=(
-                txn.workspace_id == workspace_id,
-                txn.rr_dt >= date_from,
-                txn.rr_dt <= date_to,
+                rollup.workspace_id == workspace_id,
+                rollup.rr_dt >= date_from,
+                rollup.rr_dt <= date_to,
             ),
+            source=rollup,
         )
 
         self,

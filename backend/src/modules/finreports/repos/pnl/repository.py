@@ -27,7 +27,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.modules.finreports.constants import (
     ADVERTISING_DEDUCTION_MARKER,
     CLASSIFIED_OPERS,
-    RETURN_OPERS,
     SALE_OPERS,
     SUBSCRIPTION_DEDUCTION_MARKER,
     TRANSIT_DEDUCTION_MARKER,
@@ -45,7 +44,6 @@ from src.modules.finreports.repos.pnl.aggregate import (
     SqlExpr,
     _sum,
     _to_aggregate,
-    _units,
 )
 from src.modules.finreports.repos.pnl.rollup import SettlementRollup
 from src.modules.finreports.repos.pnl.sizes import SizeSettlement, aggregate_by_size
@@ -212,28 +210,9 @@ class PnlRepository:
         the seller costs the SKUs that actually move rather than working down an
         alphabetical catalogue.
         """
-        stmt = (
-            select(
-                _T.nm_id,
-                func.max(_T.sa_name),
-                _units(SALE_OPERS),
-                _units(RETURN_OPERS),
-            )
-            .where(*self._window(workspace_id, date_from, date_to), _T.nm_id != 0)
-            .group_by(_T.nm_id)
-            .having(_units(SALE_OPERS) > 0)
-            .order_by(_units(SALE_OPERS).desc())
+        return await self._rollup.sku_units(
+            workspace_id=workspace_id, date_from=date_from, date_to=date_to
         )
-        rows = (await self._session.execute(stmt)).all()
-        return [
-            SkuUnits(
-                nm_id=int(r[0]),
-                vendor_code=str(r[1] or ""),
-                sold_units=int(r[2]),
-                returned_units=int(r[3]),
-            )
-            for r in rows
-        ]
 
     async def sizes(
         self, *, workspace_id: uuid.UUID, nm_id: int, date_from: date, date_to: date

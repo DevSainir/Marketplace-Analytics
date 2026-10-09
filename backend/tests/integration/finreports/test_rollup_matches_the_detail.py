@@ -30,6 +30,7 @@ from src.modules.finreports.repos import (
     LogisticsTransactionRepository,
     PnlGrouping,
     PnlRepository,
+    SkuUnits,
 )
 from src.modules.finreports.repos.pnl.rollup import SettlementRollup
 from src.modules.finreports.services.ingestion.columns import TXN_UPDATE
@@ -37,6 +38,7 @@ from tests.integration.finreports.conftest import (
     LAST_WEEK,
     OTHER_WORKSPACE,
     SKU_A,
+    SKU_B,
     THIS_WEEK,
     WINDOW_FROM,
     WINDOW_TO,
@@ -374,3 +376,24 @@ async def test_a_history_of_months_is_built_in_one_pass(
     assert through_rollup == await repo.aggregate_from_detail(**window, grouping=PnlGrouping.TOTAL)
     # The 90 seeded days plus the three sales the fixture's own two weeks hold.
     assert through_rollup[0].sold_units == span + 3
+
+
+async def test_the_cost_price_coverage_list_counts_what_the_detail_counts(
+    db_session: AsyncSession, seeded: None
+) -> None:
+    """Sold and returned units per SKU, by operation, in the window only.
+
+    The cost-price page's list of SKUs that still need a cost. Read off the
+    detail it was the page's entire 8.4 s (30-35 s under load); the rollup's
+    units are the same expressions. The compensation row on SKU_B carries a
+    quantity and is neither a sale nor a refund, and last week's sale of SKU_A
+    lies outside the window — either leaking in would inflate the counts.
+    """
+    repo = PnlRepository(db_session)
+
+    units = await repo.sku_units(workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO)
+
+    assert sorted(units, key=lambda u: u.nm_id) == [
+        SkuUnits(nm_id=SKU_A, vendor_code=f"sku-{SKU_A}", sold_units=1, returned_units=1),
+        SkuUnits(nm_id=SKU_B, vendor_code=f"sku-{SKU_B}", sold_units=1, returned_units=0),
+    ]
