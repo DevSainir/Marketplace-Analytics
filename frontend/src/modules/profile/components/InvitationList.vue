@@ -16,6 +16,7 @@
 import { computed } from 'vue'
 
 import DataState from '@/core/components/DataState.vue'
+import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 
 const props = defineProps({
   /** @type {Array<object>} rows from GET /v1/organizations/invitations */
@@ -27,6 +28,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['revoke'])
+
+/** A revoked link cannot be re-issued as the same link: asked first (`confirmClick`). */
+const revocation = useConfirmClick()
 
 const STATUS = {
   pending: { label: 'действует', tone: 'is-ok' },
@@ -103,10 +107,17 @@ function expiry(invitation) {
             v-if="invite.status === 'pending'"
             type="button"
             class="pf-btn pf-btn--danger"
+            :class="revocation.isArmed(invite.id) ? 'is-armed' : ''"
             :disabled="busy === invite.id"
-            @click="emit('revoke', invite.id)"
+            @click="revocation.press(invite.id, () => emit('revoke', invite.id))"
           >
-            {{ busy === invite.id ? 'Отзываем…' : 'Отозвать' }}
+            {{
+              busy === invite.id
+                ? 'Отзываем…'
+                : revocation.isArmed(invite.id)
+                  ? confirmLabel('Отозвать')
+                  : 'Отозвать'
+            }}
           </button>
         </span>
       </div>

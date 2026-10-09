@@ -13,6 +13,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import SkuThumb from '@/core/components/SkuThumb.vue'
+import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 import { formatSku } from '@/core/utils/format'
 
 const RENDER_LIMIT = 200
@@ -31,7 +32,7 @@ const emit = defineEmits(['close', 'save', 'delete'])
 const name = ref('')
 const picked = ref(new Set())
 const query = ref('')
-const confirmDelete = ref(false)
+const removal = useConfirmClick()
 
 watch(
   () => props.open,
@@ -41,7 +42,7 @@ watch(
     name.value = props.group?.name ?? ''
     picked.value = new Set(props.group?.nm_ids ?? [])
     query.value = ''
-    confirmDelete.value = false
+    removal.disarm()
   },
   { immediate: true },
 )
@@ -79,11 +80,7 @@ function save() {
 }
 
 function remove() {
-  if (!confirmDelete.value) {
-    confirmDelete.value = true
-    return
-  }
-  emit('delete', props.group.id)
+  removal.press('group', () => emit('delete', props.group.id))
 }
 
 function close() {
@@ -169,8 +166,15 @@ onBeforeUnmount(() => {
         <p v-if="error" class="mt-sm text-base text-status-negative">{{ error }}</p>
 
         <footer class="mt-lg flex flex-wrap items-center gap-sm">
-          <button v-if="group" type="button" class="ui-chip" :disabled="busy" @click="remove">
-            {{ confirmDelete ? 'Точно удалить?' : 'Удалить' }}
+          <button
+            v-if="group"
+            type="button"
+            class="ui-chip"
+            :class="removal.isArmed('group') ? 'bg-status-negative/10 !text-status-negative' : ''"
+            :disabled="busy"
+            @click="remove"
+          >
+            {{ removal.isArmed('group') ? confirmLabel('Удалить') : 'Удалить' }}
           </button>
           <button type="button" class="ui-chip ml-auto" :disabled="busy" @click="close">
             Отмена

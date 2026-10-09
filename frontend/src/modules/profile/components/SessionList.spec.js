@@ -85,12 +85,26 @@ describe('SessionList — deciding about the others', () => {
       session({ family_id: 'phone' }),
     ])
 
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text() === 'Завершить')
-      .trigger('click')
+    const button = () =>
+      wrapper.findAll('button').find((b) => ['Завершить', 'Точно завершить?'].includes(b.text()))
+    await button().trigger('click')
+    await button().trigger('click')
 
     expect(wrapper.emitted('end')).toEqual([['phone']])
+  })
+
+  it('asks before signing a device out', async () => {
+    // Ending a session is not undoable from here: the first press only asks.
+    const wrapper = mountList([
+      session({ family_id: 'mine', is_current: true }),
+      session({ family_id: 'phone' }),
+    ])
+
+    const end = wrapper.findAll('button').find((b) => b.text() === 'Завершить')
+    await end.trigger('click')
+
+    expect(wrapper.emitted('end')).toBeUndefined()
+    expect(end.text()).toBe('Точно завершить?')
   })
 
   it('offers nothing to end when there is nothing else', () => {

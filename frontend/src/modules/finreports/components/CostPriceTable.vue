@@ -10,6 +10,7 @@
  * Dumb by contract: the parent owns the draft buffer and the save.
  */
 import { formatNumber, formatSku } from '@/core/utils/format'
+import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 
 defineProps({
   /** @type {Array<object>} Rows from `CostPriceGrid`, uncosted first by volume. */
@@ -20,6 +21,9 @@ defineProps({
 })
 
 const emit = defineEmits(['input', 'remove'])
+
+/** Clearing a cost restates every margin on file: asked first (`confirmClick`). */
+const clearing = useConfirmClick()
 </script>
 
 <template>
@@ -70,11 +74,16 @@ const emit = defineEmits(['input', 'remove'])
             <button
               v-if="row.stored !== null"
               type="button"
-              class="rounded-btn px-sm py-xs text-tiny font-medium text-muted transition hover:bg-status-negative/10 hover:text-status-negative"
+              class="rounded-btn px-sm py-xs text-tiny font-medium transition hover:bg-status-negative/10 hover:text-status-negative"
+              :class="
+                clearing.isArmed(row.nmId)
+                  ? 'bg-status-negative/10 text-status-negative'
+                  : 'text-muted'
+              "
               :disabled="saving"
-              @click="emit('remove', row.nmId)"
+              @click="clearing.press(row.nmId, () => emit('remove', row.nmId))"
             >
-              Очистить
+              {{ clearing.isArmed(row.nmId) ? confirmLabel('Очистить') : 'Очистить' }}
             </button>
           </td>
         </tr>

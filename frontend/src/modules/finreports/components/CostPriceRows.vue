@@ -17,6 +17,7 @@
 import { computed, ref, watch } from 'vue'
 
 import { formatNumber, formatSku } from '@/core/utils/format'
+import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 
 const props = defineProps({
   /** @type {Array<object>} Rows from `CostPriceGrid`, uncosted first by volume. */
@@ -27,6 +28,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['input', 'remove'])
+
+/** Clearing a cost restates every margin on file: asked first (`confirmClick`). */
+const clearing = useConfirmClick()
 
 const SOURCE_LABELS = { seed: 'со слов продавца', manual: 'вручную' }
 
@@ -82,11 +86,12 @@ const visible = computed(() => props.rows.slice(0, shown.value))
             <button
               v-if="row.stored !== null"
               type="button"
-              class="rounded-btn px-xs text-tiny font-medium text-muted transition hover:text-status-negative"
+              class="rounded-btn px-xs text-tiny font-medium transition hover:text-status-negative"
+              :class="clearing.isArmed(row.nmId) ? 'text-status-negative' : 'text-muted'"
               :disabled="saving"
-              @click="emit('remove', row.nmId)"
+              @click="clearing.press(row.nmId, () => emit('remove', row.nmId))"
             >
-              Очистить
+              {{ clearing.isArmed(row.nmId) ? confirmLabel('Очистить') : 'Очистить' }}
             </button>
           </div>
         </div>

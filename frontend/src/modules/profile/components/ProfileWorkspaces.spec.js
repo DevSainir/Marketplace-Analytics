@@ -77,7 +77,7 @@ describe('ProfileWorkspaces', () => {
     await remove.trigger('click')
 
     expect(wrapper.emitted('remove')).toBeUndefined()
-    expect(remove.text()).toBe('Точно?')
+    expect(remove.text()).toBe('Точно удалить?')
   })
 
   it('deletes on the second press', async () => {

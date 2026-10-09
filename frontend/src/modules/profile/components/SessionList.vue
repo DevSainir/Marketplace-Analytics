@@ -17,6 +17,7 @@
 import { computed } from 'vue'
 
 import DataState from '@/core/components/DataState.vue'
+import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 
 const props = defineProps({
   /** @type {Array<object>} rows from GET /v1/auth/sessions */
@@ -29,6 +30,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['end', 'end-others'])
+
+/** Ending a session signs that device out: asked first (`confirmClick`). */
+const ending = useConfirmClick()
 
 const OS = [
   [/Windows NT 10/i, 'Windows'],
@@ -113,10 +117,17 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
             v-if="others.length"
             type="button"
             class="pf-btn pf-btn--danger"
+            :class="ending.isArmed('all') ? 'is-armed' : ''"
             :disabled="busy === 'all'"
-            @click="emit('end-others')"
+            @click="ending.press('all', () => emit('end-others'))"
           >
-            {{ busy === 'all' ? 'Завершаем…' : 'Завершить все' }}
+            {{
+              busy === 'all'
+                ? 'Завершаем…'
+                : ending.isArmed('all')
+                  ? confirmLabel('Завершить все')
+                  : 'Завершить все'
+            }}
           </button>
         </header>
 
@@ -133,10 +144,17 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
           <button
             type="button"
             class="pf-btn pf-btn--danger"
+            :class="ending.isArmed(session.family_id) ? 'is-armed' : ''"
             :disabled="busy === session.family_id"
-            @click="emit('end', session.family_id)"
+            @click="ending.press(session.family_id, () => emit('end', session.family_id))"
           >
-            {{ busy === session.family_id ? 'Завершаем…' : 'Завершить' }}
+            {{
+              busy === session.family_id
+                ? 'Завершаем…'
+                : ending.isArmed(session.family_id)
+                  ? confirmLabel('Завершить')
+                  : 'Завершить'
+            }}
           </button>
         </article>
       </section>

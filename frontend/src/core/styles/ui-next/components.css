@@ -175,52 +175,6 @@
 }
 
 /* ==========================================================================
-   GENERIC TABLE SKIN — shared by the cluster table and the stock breakdown
-   ========================================================================== */
-
-.ui-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 0.75rem;
-}
-
-.ui-table th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  padding: 9px 12px;
-  text-align: left;
-  white-space: nowrap;
-  font-size: 0.5625rem;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--ui-muted);
-  background: var(--ui-surface);
-  border-bottom: 1px solid var(--ui-hairline);
-}
-
-.ui-table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--ui-hairline);
-  color: var(--ui-ink);
-  white-space: nowrap;
-}
-
-.ui-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-.ui-table tbody tr:hover td {
-  background: var(--ui-action-soft);
-}
-
-.ui-table .ta-r {
-  text-align: right;
-}
-
-/* ==========================================================================
    STICKY PAGE BAR — the period row, made sticky so its glass has a backdrop
    ========================================================================== */
 

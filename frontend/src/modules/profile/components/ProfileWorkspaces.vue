@@ -10,6 +10,8 @@
  */
 import { ref } from 'vue'
 
+import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
+
 defineProps({
   workspaces: { type: Array, default: () => [] },
   currentId: { type: String, default: null },
@@ -22,7 +24,6 @@ defineProps({
 const emit = defineEmits(['create', 'select', 'tokens', 'remove'])
 
 const newName = ref('')
-const confirming = ref(null)
 
 /** The primary workspace takes a token per WB category; the rest take one. */
 function tokenSummary(ws, statuses) {
@@ -39,17 +40,7 @@ function onCreate() {
   newName.value = ''
 }
 
-function onRemove(id) {
-  if (confirming.value !== id) {
-    confirming.value = id
-    setTimeout(() => {
-      if (confirming.value === id) confirming.value = null
-    }, 4000)
-    return
-  }
-  confirming.value = null
-  emit('remove', id)
-}
+const removal = useConfirmClick()
 </script>
 
 <template>
@@ -135,11 +126,11 @@ function onRemove(id) {
             <button
               type="button"
               class="pf-btn pf-btn--danger"
-              :class="confirming === ws.id ? 'is-armed' : ''"
+              :class="removal.isArmed(ws.id) ? 'is-armed' : ''"
               :disabled="busy"
-              @click="onRemove(ws.id)"
+              @click="removal.press(ws.id, () => emit('remove', ws.id))"
             >
-              {{ confirming === ws.id ? 'Точно?' : 'Удалить' }}
+              {{ removal.isArmed(ws.id) ? confirmLabel('Удалить') : 'Удалить' }}
             </button>
           </template>
         </span>

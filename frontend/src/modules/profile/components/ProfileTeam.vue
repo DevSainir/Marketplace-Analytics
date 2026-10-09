@@ -11,9 +11,8 @@
  * from this screen, and it is the thing that actually withdraws access from
  * somebody who has already joined.
  */
-import { ref } from 'vue'
-
 import DataState from '@/core/components/DataState.vue'
+import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 import { levelLabel, moduleLabel } from '@/modules/profile/components/grantModules'
 
 defineProps({
@@ -27,19 +26,7 @@ defineProps({
 
 const emit = defineEmits(['edit', 'remove', 'invite'])
 
-const confirming = ref(null)
-
-function onRemove(manager) {
-  if (confirming.value !== manager.user_id) {
-    confirming.value = manager.user_id
-    setTimeout(() => {
-      if (confirming.value === manager.user_id) confirming.value = null
-    }, 4000)
-    return
-  }
-  confirming.value = null
-  emit('remove', manager.user_id)
-}
+const removal = useConfirmClick()
 
 function joined(iso) {
   return new Date(iso).toLocaleDateString('ru-RU')
@@ -108,11 +95,11 @@ function joined(iso) {
           <button
             type="button"
             class="pf-btn pf-btn--danger"
-            :class="confirming === manager.user_id ? 'is-armed' : ''"
+            :class="removal.isArmed(manager.user_id) ? 'is-armed' : ''"
             :disabled="saving === manager.user_id"
-            @click="onRemove(manager)"
+            @click="removal.press(manager.user_id, () => emit('remove', manager.user_id))"
           >
-            {{ confirming === manager.user_id ? 'Точно?' : 'Удалить' }}
+            {{ removal.isArmed(manager.user_id) ? confirmLabel('Удалить') : 'Удалить' }}
           </button>
         </span>
       </div>

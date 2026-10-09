@@ -13,11 +13,11 @@
  * wrong test. It is destructive — the photos go with the test — and it was
  * simply missing before, which is why a test could be created and never removed.
  */
-import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { statusLabel } from '@/modules/abTests/store'
 import { formatSku } from '@/core/utils/format'
+import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 
 defineProps({
   /** Tests as the store holds them. */
@@ -44,18 +44,10 @@ const STATUS_CLASS = {
   cancelled: 'bg-surface text-muted shadow-soft',
 }
 
-// Which row is currently asking «Точно удалить?». One at a time: arming a
-// second row disarms the first, so a stray click cannot land on the wrong one.
-const armed = ref(null)
-
-function onDelete(id) {
-  if (armed.value !== id) {
-    armed.value = id
-    return
-  }
-  armed.value = null
-  emit('delete', id)
-}
+// Which row is asking «Точно удалить?» (`confirmClick`): one at a time, so a
+// stray click cannot land on the wrong one.
+const removal = useConfirmClick()
+const onDelete = (id) => removal.press(id, () => emit('delete', id))
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleDateString('ru-RU') : '—'
@@ -110,7 +102,7 @@ function formatDate(value) {
                 type="button"
                 class="rounded-btn px-sm py-xs text-micro font-semibold transition"
                 :class="
-                  armed === test.id
+                  removal.isArmed(test.id)
                     ? 'bg-status-negative/10 text-status-negative'
                     : 'text-muted hover:bg-hover hover:text-status-negative'
                 "
@@ -118,7 +110,7 @@ function formatDate(value) {
                 data-testid="delete-test"
                 @click="onDelete(test.id)"
               >
-                {{ armed === test.id ? 'Точно удалить?' : 'Удалить' }}
+                {{ removal.isArmed(test.id) ? confirmLabel('Удалить') : 'Удалить' }}
               </button>
             </td>
           </tr>
@@ -160,12 +152,12 @@ function formatDate(value) {
           <button
             type="button"
             class="flex-none rounded-btn px-sm py-xs text-micro font-semibold"
-            :class="armed === test.id ? 'text-status-negative' : 'text-muted'"
+            :class="removal.isArmed(test.id) ? 'text-status-negative' : 'text-muted'"
             :disabled="saving"
             data-testid="delete-test-phone"
             @click="onDelete(test.id)"
           >
-            {{ armed === test.id ? 'Точно?' : 'Удалить' }}
+            {{ removal.isArmed(test.id) ? confirmLabel('Удалить') : 'Удалить' }}
           </button>
         </div>
       </li>

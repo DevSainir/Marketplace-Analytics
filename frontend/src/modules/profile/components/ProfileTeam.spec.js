@@ -8,7 +8,7 @@ import ProfileTeam from '@/modules/profile/components/ProfileTeam.vue'
  * Removing is what actually withdraws access from somebody who has already
  * joined — revoking their invitation does not — so it cannot be undone from
  * this screen and asks twice. The arming is PER ROW: a confirm that armed the
- * whole list would put «Точно?» under a name nobody meant to touch.
+ * whole list would put «Точно удалить?» under a name nobody meant to touch.
  *
  * The grant editor is a drawer now, so this component states a grant and asks
  * the parent to open it. That is what makes the list stay a list: the old panel
@@ -71,7 +71,7 @@ describe('ProfileTeam', () => {
     await remove.trigger('click')
 
     expect(wrapper.emitted('remove')).toBeUndefined()
-    expect(remove.text()).toBe('Точно?')
+    expect(remove.text()).toBe('Точно удалить?')
   })
 
   it('emits the manager on the second press', async () => {
@@ -85,7 +85,7 @@ describe('ProfileTeam', () => {
   })
 
   it('asks again per manager rather than arming the whole list', async () => {
-    // Otherwise «Точно?» appears under a name nobody meant to touch.
+    // Otherwise «Точно удалить?» appears under a name nobody meant to touch.
     const wrapper = mountPanel()
 
     await button(rows(wrapper)[0], 'Удалить').trigger('click')

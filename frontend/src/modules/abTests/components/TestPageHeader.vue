@@ -13,7 +13,8 @@
  * gone so it can navigate away from a screen with nothing behind it.
  */
 import { formatSku } from '@/core/utils/format'
-import { computed, ref } from 'vue'
+import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { statusLabel } from '@/modules/abTests'
@@ -35,17 +36,8 @@ const canEditTrigger = computed(
   () => !!props.test && !['completed', 'cancelled'].includes(props.test.status),
 )
 
-const armed = ref(false)
-
-/** Two-click confirm: the first press asks, the second one does it. */
-function remove() {
-  if (!armed.value) {
-    armed.value = true
-    return
-  }
-  armed.value = false
-  emit('delete')
-}
+/** Two-press confirm (`confirmClick`): the first press asks, the second one does it. */
+const removal = useConfirmClick()
 </script>
 
 <template>
@@ -67,15 +59,15 @@ function remove() {
         type="button"
         class="ml-auto rounded-btn border border-border-strong/35 px-sm py-xs text-micro font-semibold transition"
         :class="
-          armed
+          removal.isArmed('test')
             ? 'bg-status-negative/10 text-status-negative'
             : 'text-muted hover:bg-hover hover:text-status-negative'
         "
         :disabled="saving"
         data-testid="delete-test"
-        @click="remove"
+        @click="removal.press('test', () => emit('delete'))"
       >
-        {{ armed ? 'Точно удалить тест?' : 'Удалить тест' }}
+        {{ removal.isArmed('test') ? confirmLabel('Удалить тест') : 'Удалить тест' }}
       </button>
     </div>
 
