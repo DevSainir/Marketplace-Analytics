@@ -1,10 +1,27 @@
-/** Shared ru-RU display formatters (single Intl instances, reused app-wide). */
+/**
+ * Shared ru-RU display formatters (single Intl instances, reused app-wide).
+ *
+ * One rule runs through all of them: an em dash means «no figure» and a zero
+ * means «the figure is zero». They are different answers — «WB has not told
+ * us» against «there were none» — so a missing value is never printed as 0 and
+ * a real zero is never hidden behind a dash. Pages used to write their own
+ * copies (`Number(v ?? 0).toLocaleString()` five times over), and each copy
+ * turned «unknown» into «0».
+ */
 
 const numberFormat = new Intl.NumberFormat('ru-RU')
 
-/** 12345 -> "12 345" */
+/** A figure as a number, or `null` when there is none (null, '', NaN, ±Infinity). */
+function figureOf(value) {
+  if (value === null || value === undefined || value === '') return null
+  const amount = Number(value)
+  return Number.isFinite(amount) ? amount : null
+}
+
+/** 12345 -> "12 345"; a missing value -> "—". */
 export function formatNumber(value) {
-  return numberFormat.format(value)
+  const amount = figureOf(value)
+  return amount === null ? '—' : numberFormat.format(amount)
 }
 
 const moneyFormats = new Map()
@@ -74,9 +91,8 @@ export function formatMoney(value, currency = '', fractionDigits = 0) {
  * @returns {string}
  */
 export function formatMoneyFigure(value, fractionDigits = 0) {
-  if (value === null || value === undefined || value === '') return '—'
-  const amount = Number(value)
-  if (!Number.isFinite(amount)) return '—'
+  const amount = figureOf(value)
+  if (amount === null) return '—'
   if (!moneyFormats.has(fractionDigits)) {
     moneyFormats.set(
       fractionDigits,
@@ -122,18 +138,27 @@ export function formatSku(value) {
   return text.toUpperCase()
 }
 
-const percentFormat = new Intl.NumberFormat('ru-RU', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
+const percentFormats = new Map()
 
 /**
- * 12.3456 -> "12,35%" (the value is already 0–100, not a 0–1 ratio).
+ * 12.3456 -> "12,35%" (the value is already 0–100, not a 0–1 ratio): a comma
+ * for the decimal mark and no space before the sign, as the WB cabinet writes
+ * it. A missing value renders as an em dash.
  *
- * Non-finite input (null, undefined, NaN, ±Infinity) renders as an em dash
- * so a missing metric never crashes the view.
+ * @param {number|string|null|undefined} value
+ * @param {number} [fractionDigits] 2 by default; a chart's tooltip uses 1.
  */
-export function formatPercent(value) {
-  if (!Number.isFinite(value)) return '—'
-  return `${percentFormat.format(value)}%`
+export function formatPercent(value, fractionDigits = 2) {
+  const amount = figureOf(value)
+  if (amount === null) return '—'
+  if (!percentFormats.has(fractionDigits)) {
+    percentFormats.set(
+      fractionDigits,
+      new Intl.NumberFormat('ru-RU', {
+        minimumFractionDigits: fractionDigits,
+        maximumFractionDigits: fractionDigits,
+      }),
+    )
+  }
+  return `${percentFormats.get(fractionDigits).format(amount)}%`
 }

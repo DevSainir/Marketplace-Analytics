@@ -33,7 +33,7 @@
  */
 import { computed } from 'vue'
 
-import { formatMoney } from '@/core/utils/format'
+import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 import { statusLabel as labelOf } from '@/modules/abTests'
 import { campaignKindLabel } from '@/modules/abTests/campaignKinds'
 import SummaryFacts from '@/modules/abTests/components/SummaryFacts.vue'
@@ -106,22 +106,22 @@ const tiles = computed(() => [
   {
     key: 'views',
     label: 'Показов',
-    value: count(summary.value.views),
-    branches: branches('views', count),
+    value: formatNumber(summary.value.views),
+    branches: branches('views', formatNumber),
     hint: 'Сумма показов всех фото за весь тест.',
   },
   {
     key: 'clicks',
     label: 'Кликов',
-    value: count(summary.value.clicks),
-    branches: branches('clicks', count),
+    value: formatNumber(summary.value.clicks),
+    branches: branches('clicks', formatNumber),
     hint: 'Сумма переходов по всем фото за весь тест.',
   },
   {
     key: 'ctr',
     label: 'CTR теста',
-    value: percent(summary.value.click_through),
-    branches: branches('click_through', percent),
+    value: formatPercent(summary.value.click_through),
+    branches: branches('click_through', formatPercent),
     hint: 'Все клики теста, делённые на все его показы.',
   },
   {
@@ -133,16 +133,8 @@ const tiles = computed(() => [
   },
 ])
 
-function count(value) {
-  return Number(value ?? 0).toLocaleString('ru-RU')
-}
-
-function percent(value) {
-  return value === null || value === undefined ? '—' : `${Number(value).toFixed(2)} %`
-}
-
 function money(value) {
-  return formatMoney(value ?? 0, props.currency)
+  return formatMoney(value, props.currency)
 }
 
 function moment(value) {

@@ -59,7 +59,7 @@ export const DETAILS = [
   },
   {
     label: 'Бонусы WB',
-    get: (r, f) => (r.adBonus ? `−${f.money(r.adBonus)}` : f.money(r.adBonus)),
+    get: (r, f) => (r.adBonus ? `-${f.money(r.adBonus)}` : f.money(r.adBonus)),
   },
   { label: 'ROI', get: (r) => pct(r.roi), tone: (r) => toneClass('roi', r.roi) },
 ]

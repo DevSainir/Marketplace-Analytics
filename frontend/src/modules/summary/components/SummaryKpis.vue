@@ -13,7 +13,7 @@
  */
 import { computed } from 'vue'
 
-import { formatMoney, formatPercent } from '@/core/utils/format'
+import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 
 const props = defineProps({
   kpi: { type: Object, required: true },
@@ -34,9 +34,8 @@ function ratio(part, whole) {
 }
 
 const count = (value) =>
-  Number.isFinite(Number(value)) ? Math.round(Number(value)).toLocaleString('ru-RU') : '—'
-
-const pct = (value) => (value === null || value === undefined ? '—' : formatPercent(value))
+  formatNumber(value === null || value === undefined ? value : Math.round(value))
+const pct = formatPercent
 
 const baseNote = computed(() =>
   props.revenueBase === 'seller' ? 'по цене селлера' : 'по цене реализации',

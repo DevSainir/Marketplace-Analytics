@@ -36,7 +36,7 @@ const props = defineProps({
 const base = usePriceBase()
 
 const money = (value) => formatMoney(value, props.currency)
-const pct = (value) => (value === null || value === undefined ? '—' : formatPercent(Number(value)))
+const pct = formatPercent
 
 const cards = computed(() => {
   const d = props.dashboard

@@ -21,6 +21,8 @@
  *   on the card all day once traffic dries up.
  */
 
+import { formatNumber } from '@/core/utils/format'
+
 /** The modes as the picker offers them, in the order it lists them. */
 export const TRIGGER_MODES = [
   { value: 'impressions', label: 'По показам' },
@@ -57,11 +59,6 @@ export function triggerPayload(draft) {
   }
 }
 
-/** Russian thousands separator, the way every figure on the page is printed. */
-function count(value) {
-  return Number(value ?? 0).toLocaleString('ru-RU')
-}
-
 /**
  * How a test rotates, in words — naming only the bounds its mode uses.
  *
@@ -71,8 +68,8 @@ function count(value) {
 export function triggerLabel(test) {
   if (!test) return ''
   const parts = []
-  if (usesBudget(test.trigger_mode)) parts.push(`${count(test.impression_budget)} показов`)
-  if (usesSlot(test.trigger_mode)) parts.push(`${count(test.slot_minutes)} мин`)
+  if (usesBudget(test.trigger_mode)) parts.push(`${formatNumber(test.impression_budget)} показов`)
+  if (usesSlot(test.trigger_mode)) parts.push(`${formatNumber(test.slot_minutes)} мин`)
   // «или» rather than «и»: both are set, and the FIRST one reached ends the
   // turn. «каждые 1 000 показов и 20 минут» would read as a test waiting for
   // both, which is the opposite of what the mode does.

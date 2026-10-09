@@ -2,6 +2,7 @@ import {
   currencySign,
   formatMoney,
   formatMoneyFigure,
+  formatNumber,
   formatPercent,
   formatSku,
 } from '@/core/utils/format'
@@ -99,5 +100,18 @@ describe('formatSku', () => {
   it('passes missing values straight through, so callers can still fall back', () => {
     expect(formatSku(null)).toBe(null)
     expect(formatSku('')).toBe('')
+  })
+})
+
+describe('formatNumber', () => {
+  it('prints a real zero as a zero', () => {
+    expect(formatNumber(0)).toBe('0')
+  })
+
+  it('prints a missing figure as a dash, never as a zero', () => {
+    // «WB has not told us» and «there were none» are different answers; the
+    // copies this replaced turned every null into «0».
+    expect(formatNumber(null)).toBe('—')
+    expect(formatNumber(undefined)).toBe('—')
   })
 })

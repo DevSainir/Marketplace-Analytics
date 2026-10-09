@@ -13,6 +13,8 @@
  */
 import { computed } from 'vue'
 
+import { formatNumber, formatPercent } from '@/core/utils/format'
+
 import { formatDuration, formatStamp } from '@/modules/abTests/timeline'
 
 const props = defineProps({
@@ -33,27 +35,14 @@ const rows = computed(() => [
     value: props.turn.open ? 'на карточке' : moment(props.turn.endMs),
   },
   { key: 'for', label: 'Длительность', value: formatDuration(props.turn.durationMs) },
-  { key: 'views', label: 'Показы', value: count(props.turn.views) },
-  { key: 'clicks', label: 'Клики', value: count(props.turn.clicks) },
-  { key: 'ctr', label: 'CTR', value: percent(props.turn.clickThrough) },
+  { key: 'views', label: 'Показы', value: formatNumber(props.turn.views) },
+  { key: 'clicks', label: 'Клики', value: formatNumber(props.turn.clicks) },
+  { key: 'ctr', label: 'CTR', value: formatPercent(props.turn.clickThrough) },
 ])
 
 function moment(ms) {
   const { date, time } = formatStamp(ms)
   return time ? `${date}, ${time}` : date
-}
-
-function count(value) {
-  return Number(value ?? 0).toLocaleString('ru-RU')
-}
-
-/** Comma for the decimal mark, as the WB cabinet writes it. */
-function percent(value) {
-  if (value === null || value === undefined) return '—'
-  return `${Number(value).toLocaleString('ru-RU', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}%`
 }
 </script>
 

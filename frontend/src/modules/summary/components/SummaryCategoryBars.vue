@@ -14,7 +14,7 @@
  */
 import { computed, ref } from 'vue'
 
-import { formatMoney, formatPercent, formatSku } from '@/core/utils/format'
+import { formatMoney, formatNumber, formatPercent, formatSku } from '@/core/utils/format'
 
 const props = defineProps({
   categories: { type: Array, required: true },
@@ -64,7 +64,7 @@ function label(row) {
   return props.cut === 'sku' ? formatSku(row.label) : row.label
 }
 
-const pct = (value) => (value === null || value === undefined ? '—' : formatPercent(value))
+const pct = formatPercent
 
 /** Follow the pointer inside the hovered row, in the row's own coordinates. */
 function track(event) {
@@ -121,7 +121,7 @@ function track(event) {
       >
         <div class="sum-cat__tiprow">
           <span>Продано</span>
-          <span class="sum-cat__tipval">{{ row.soldUnits.toLocaleString('ru-RU') }} шт</span>
+          <span class="sum-cat__tipval">{{ formatNumber(row.soldUnits) }} шт</span>
         </div>
         <div class="sum-cat__tiprow">
           <span>Маржа от выручки</span>

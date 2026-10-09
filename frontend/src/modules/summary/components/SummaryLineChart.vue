@@ -12,7 +12,7 @@
  */
 import { computed, ref } from 'vue'
 
-import { formatMoney } from '@/core/utils/format'
+import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 import { MARGIN, buildScales, labelStep, linePath } from '@/modules/summary/chartGeometry'
 import { useChartWidth } from '@/modules/summary/useChartWidth'
 
@@ -104,9 +104,9 @@ function show(event) {
 
 function render(point) {
   if (!Number.isFinite(point.value)) return '—'
-  if (point.percent) return `${point.value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} %`
+  if (point.percent) return formatPercent(point.value, 1)
   return props.plain
-    ? Math.round(point.value).toLocaleString('ru-RU')
+    ? formatNumber(Math.round(point.value))
     : formatMoney(point.value, props.currency)
 }
 </script>

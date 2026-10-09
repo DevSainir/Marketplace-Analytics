@@ -73,7 +73,7 @@ export function useFooterCells(totals) {
       cogs: money(t.cogs),
       advertising: money(t.advertising),
       advertisingPct: pct(t.advertisingPct),
-      adBonus: t.adBonus ? `−${money(t.adBonus)}` : money(t.adBonus),
+      adBonus: t.adBonus ? `-${money(t.adBonus)}` : money(t.adBonus),
       roi: pct(t.roi),
       payout: money(t.payout),
     }

@@ -18,7 +18,7 @@
  * вторую прокрутку внутри первой.
  */
 import BusyBar from '@/core/components/BusyBar.vue'
-import { num as n, pct, units, usePnlMoney } from '@/modules/finreports/pnlFormat'
+import { pct, units, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'
 import { sizeAtBase, usePriceBase } from '@/modules/finreports/priceBase'
 
@@ -91,7 +91,7 @@ const at = (size) => sizeAtBase(size, base())
               </td>
               <td class="pnl-size-td">{{ units(size.sold_units) }}</td>
               <td class="pnl-size-td">
-                {{ size.returned_units ? units(size.returned_units) : '—' }}
+                {{ units(size.returned_units) }}
               </td>
               <td class="pnl-size-td" :class="toneClass('sizeBuyoutPct', size.buyout_pct)">
                 {{ pct(size.buyout_pct) }}
@@ -107,7 +107,7 @@ const at = (size) => sizeAtBase(size, base())
               </td>
               <td class="pnl-size-td">{{ money(size.logistics_per_delivery) }}</td>
               <td class="pnl-size-td">
-                {{ n(size.penalties_total) ? money(size.penalties_total) : '—' }}
+                {{ money(size.penalties_total) }}
               </td>
               <td class="pnl-size-td">{{ money(size.payout_net) }}</td>
             </tr>
@@ -117,9 +117,7 @@ const at = (size) => sizeAtBase(size, base())
               <td class="pnl-size-td pnl-size-foot pnl-size-label">Итого по размерам</td>
               <td class="pnl-size-td pnl-size-foot">{{ units(state.data.totals.sold_units) }}</td>
               <td class="pnl-size-td pnl-size-foot">
-                {{
-                  state.data.totals.returned_units ? units(state.data.totals.returned_units) : '—'
-                }}
+                {{ units(state.data.totals.returned_units) }}
               </td>
               <td class="pnl-size-td pnl-size-foot">{{ pct(state.data.totals.buyout_pct) }}</td>
               <td class="pnl-size-td pnl-size-foot">
@@ -138,11 +136,7 @@ const at = (size) => sizeAtBase(size, base())
                 {{ money(state.data.totals.logistics_per_delivery) }}
               </td>
               <td class="pnl-size-td pnl-size-foot">
-                {{
-                  n(state.data.totals.penalties_total)
-                    ? money(state.data.totals.penalties_total)
-                    : '—'
-                }}
+                {{ money(state.data.totals.penalties_total) }}
               </td>
               <td class="pnl-size-td pnl-size-foot">{{ money(state.data.totals.payout_net) }}</td>
             </tr>

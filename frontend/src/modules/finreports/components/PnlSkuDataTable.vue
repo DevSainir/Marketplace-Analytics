@@ -167,8 +167,8 @@ const { money } = usePnlMoney()
     </Column>
     <Column field="penalties" header="Штрафы" sortable :footer="foot.penalties">
       <template #body="{ data }">
+        {{ money(data.penalties) }}
         <template v-if="data.penalties">
-          {{ money(data.penalties) }}
           <div
             v-for="p in data.penaltyReasons"
             :key="p.reason"
@@ -177,7 +177,6 @@ const { money } = usePnlMoney()
             {{ p.reason }}: {{ money(p.amount) }}
           </div>
         </template>
-        <template v-else>—</template>
       </template>
     </Column>
     <Column field="cogs" header="Себестоимость" sortable :footer="foot.cogs">
@@ -196,7 +195,7 @@ const { money } = usePnlMoney()
     </Column>
     <Column field="adBonus" header="Бонусы" sortable :footer="foot.adBonus">
       <template #body="{ data }">
-        <span v-if="data.adBonus" class="text-status-positive"> −{{ money(data.adBonus) }} </span>
+        <span v-if="data.adBonus" class="text-status-positive"> -{{ money(data.adBonus) }} </span>
         <template v-else>{{ money(data.adBonus) }}</template>
       </template>
     </Column>

@@ -20,6 +20,8 @@
  */
 import { computed } from 'vue'
 
+import { formatNumber, formatPercent } from '@/core/utils/format'
+
 const props = defineProps({
   /** The open test, as the detail endpoint returns it. */
   test: { type: Object, required: true },
@@ -36,19 +38,6 @@ const rows = computed(() => {
 
 function title(row) {
   return row.is_original ? 'Главное' : `Вариант ${row.position}`
-}
-
-function count(value) {
-  return Number(value ?? 0).toLocaleString('ru-RU')
-}
-
-/** Comma for the decimal mark, as the WB cabinet writes it. */
-function percent(value) {
-  if (value === null || value === undefined) return '—'
-  return `${Number(value).toLocaleString('ru-RU', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}%`
 }
 
 /**
@@ -73,7 +62,7 @@ function moment(iso) {
 
 /** A live turn has no length yet, and inventing one would age on the screen. */
 function minutes(row) {
-  return row.minutes === null || row.minutes === undefined ? '—' : count(row.minutes)
+  return row.minutes === null || row.minutes === undefined ? '—' : formatNumber(row.minutes)
 }
 </script>
 
@@ -82,7 +71,7 @@ function minutes(row) {
     <header class="flex items-baseline justify-between gap-md px-lg pb-sm pt-lg phone:px-md">
       <h2 class="text-base font-semibold text-primary">История действий</h2>
       <span class="text-tiny text-muted">
-        {{ count(rows.length) }} {{ rows.length === 1 ? 'установка' : 'установок' }}
+        {{ formatNumber(rows.length) }} {{ rows.length === 1 ? 'установка' : 'установок' }}
       </span>
     </header>
 
@@ -113,9 +102,9 @@ function minutes(row) {
               <div v-else class="ab-history__thumb ab-history__thumb--empty"></div>
             </td>
             <td class="whitespace-nowrap">{{ title(row) }}</td>
-            <td class="ta-r tabular-nums">{{ count(row.clicks) }}</td>
-            <td class="ta-r tabular-nums">{{ count(row.views) }}</td>
-            <td class="ta-r tabular-nums">{{ percent(row.click_through) }}</td>
+            <td class="ta-r tabular-nums">{{ formatNumber(row.clicks) }}</td>
+            <td class="ta-r tabular-nums">{{ formatNumber(row.views) }}</td>
+            <td class="ta-r tabular-nums">{{ formatPercent(row.click_through) }}</td>
             <td class="ta-r tabular-nums">{{ row.round_number }}</td>
             <td class="ta-r tabular-nums">{{ minutes(row) }}</td>
           </tr>

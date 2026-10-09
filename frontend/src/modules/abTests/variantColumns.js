@@ -10,6 +10,8 @@
  * See `VariantResultsTable.vue` for why each derived row exists.
  */
 
+import { formatNumber, formatPercent } from '@/core/utils/format'
+
 /**
  * How far behind the leader still counts as close.
  *
@@ -194,21 +196,11 @@ export function variantTitle(variant) {
   return variant.is_original ? 'Главное' : `Вариант ${variant.position}`
 }
 
-export function count(value) {
-  return Number(value ?? 0).toLocaleString('ru-RU')
-}
+/** A count; «—» when there is none — an unknown is not a zero (see `core/utils/format`). */
+export const count = formatNumber
 
-/**
- * A percentage in Russian: comma for the decimal mark, as the WB cabinet writes
- * it. `toFixed` gives a dot, which reads as a thousands separator here.
- */
-export function percent(value, digits = 2) {
-  if (value === null || value === undefined) return '—'
-  return `${Number(value).toLocaleString('ru-RU', {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  })}%`
-}
+/** A percentage as the WB cabinet writes it, «12,35%» (see `core/utils/format`). */
+export const percent = formatPercent
 
 /**
  * A whole percent, with no signed zero.

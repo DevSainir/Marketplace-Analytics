@@ -11,7 +11,7 @@
  * Fed the same `/sizes` response as the table: one answer, two projections.
  */
 import BusyBar from '@/core/components/BusyBar.vue'
-import { num, pct, units, usePnlMoney } from '@/modules/finreports/pnlFormat'
+import { pct, units, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'
 import { sizeAtBase, usePriceBase } from '@/modules/finreports/priceBase'
 
@@ -40,8 +40,7 @@ const revenue = (size) => sizeAtBase(size, base()).revenue
           <span class="tabular-nums text-primary">{{ money(revenue(size)) }}</span>
         </div>
         <p class="record-note">
-          продано {{ units(size.sold_units) }} · возвр.
-          {{ num(size.returned_units) ? units(size.returned_units) : '0' }} · выкуп
+          продано {{ units(size.sold_units) }} · возвр. {{ units(size.returned_units) }} · выкуп
           <span :class="toneClass('sizeBuyoutPct', size.buyout_pct)">{{
             pct(size.buyout_pct)
           }}</span>
