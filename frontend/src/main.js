@@ -12,6 +12,7 @@ import '@/core/styles/ui-next/tokens.css'
 import '@/core/styles/ui-next/components.css'
 import '@/core/styles/ui-next/skin.css'
 import router from '@/core/router'
+import { installStaleAssetReload } from '@/core/router/staleAssets'
 import { installAuthGuard } from '@/modules/auth'
 import { installInternalGuard, installWorkspaceGuard } from '@/modules/profile'
 
@@ -32,35 +33,9 @@ installWorkspaceGuard(router)
 // Last: it needs the session (auth guard) and asks /organizations/me itself.
 installInternalGuard(router)
 
-// A deploy replaces every asset with a freshly hashed name, so a tab that has
-// been open across one asks for chunks that no longer exist and dies on the next
-// lazy route — which reads as "the site logged me out and broke". One reload
-// fixes it, and the guard makes sure a genuinely broken build cannot turn that
-// into an infinite reload loop.
-const RELOADED_FOR_STALE_ASSETS = 'reloaded-for-stale-assets'
-
-function reloadOnceForStaleAssets() {
-  if (sessionStorage.getItem(RELOADED_FOR_STALE_ASSETS)) return
-  sessionStorage.setItem(RELOADED_FOR_STALE_ASSETS, '1')
-  window.location.reload()
-}
-
-window.addEventListener('vite:preloadError', (event) => {
-  event.preventDefault()
-  reloadOnceForStaleAssets()
-})
-
-router.onError((error) => {
-  if (
-    /dynamically imported module|Importing a module script failed|Failed to fetch/i.test(
-      String(error?.message),
-    )
-  ) {
-    reloadOnceForStaleAssets()
-  }
-})
-
-// Cleared on a successful navigation: the next deploy gets its own single reload.
-router.afterEach(() => sessionStorage.removeItem(RELOADED_FOR_STALE_ASSETS))
+// Last: it records the target of each navigation, after the guards above
+// have had their say, so a reload for stale assets lands where the person
+// was going.
+installStaleAssetReload(router)
 
 app.mount('#app')
