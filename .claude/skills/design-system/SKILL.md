@@ -140,6 +140,30 @@ Placement: `core/components/` for reusable atoms, `modules/<name>/components/` f
 domain-specific molecules, `views/` for page composition. Check `core/components/` before writing
 a new atom, and remember the 250-line ceiling per `.vue` file — it is a test, not a guideline.
 
+### The shared building blocks — use them, never redraw them
+
+Every element below was drawn three to six different ways before October 2026; each now has
+one home. A page that needs one of these uses it; a page that needs something they cannot do
+extends the shared one rather than growing a local copy.
+
+| Need | Use |
+| --- | --- |
+| Any button | `.ui-btn` + `--primary` / `--ghost` / `--danger` (+ `.is-armed`) / `--good` / `--sm`; `.ui-icon-btn` for an icon. In `assets/main.css`'s components layer, so utilities still win |
+| An irreversible action | `core/utils/confirmClick.js` — two presses, «Точно …?», withdraws after 4 s |
+| A text field / a select | `.ui-input` / `.ui-select` (+ `--sm`); width is the caller's |
+| A search box | `core/components/SearchField.vue` |
+| A chosen option among a few | `.ui-chip` / `.is-on` (filled with the action colour, never a raised white card) |
+| An on/off mode | `core/components/UiSwitch.vue` |
+| A status | `.ui-badge` + `.is-ok` / `.is-warn` / `.is-bad` / `.is-soft` / `.is-on` / `.is-quiet` |
+| The top of a page | `core/components/PageHeader.vue`; the page root is `div.app-container py-lg` |
+| A headline figure | `core/components/KpiTile.vue` |
+| An explanation on a label | `core/components/InfoHint.vue` — never a `title` attribute |
+| A modal question | `core/components/UiDialog.vue` («Отмена» before the main action) |
+| Loading, empty, failed | `core/components/DataState.vue`; a reload keeps the figures in `BusyRegion.vue` |
+| More records | `core/components/ShowMoreButton.vue` — «Показать ещё (N)» |
+| A table | PrimeVue or a hand-drawn `<table>` inside `.app-datatable`; `SortIcon.vue` for a hand-drawn sort |
+| A number | `core/utils/format.js` — «—» is no figure, «0» is zero; never `toLocaleString` in a page |
+
 ### Dates and periods
 
 A period is picked with `core/components/PeriodSelector.vue`, one day with `DayPicker.vue` —
