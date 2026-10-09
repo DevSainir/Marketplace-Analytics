@@ -100,12 +100,8 @@ function formatDate(value) {
             <td class="px-md py-sm text-right">
               <button
                 type="button"
-                class="rounded-btn px-sm py-xs text-micro font-semibold transition"
-                :class="
-                  removal.isArmed(test.id)
-                    ? 'bg-status-negative/10 text-status-negative'
-                    : 'text-muted hover:bg-hover hover:text-status-negative'
-                "
+                class="ui-btn ui-btn--danger ui-btn--sm"
+                :class="{ 'is-armed': removal.isArmed(test.id) }"
                 :disabled="saving"
                 data-testid="delete-test"
                 @click="onDelete(test.id)"
@@ -151,8 +147,8 @@ function formatDate(value) {
           </span>
           <button
             type="button"
-            class="flex-none rounded-btn px-sm py-xs text-micro font-semibold"
-            :class="removal.isArmed(test.id) ? 'text-status-negative' : 'text-muted'"
+            class="ui-btn ui-btn--danger ui-btn--sm flex-none"
+            :class="{ 'is-armed': removal.isArmed(test.id) }"
             :disabled="saving"
             data-testid="delete-test-phone"
             @click="onDelete(test.id)"

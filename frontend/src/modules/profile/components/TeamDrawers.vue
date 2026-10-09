@@ -52,7 +52,7 @@ watch(
       <template #footer>
         <button
           type="button"
-          class="pf-btn pf-btn--primary"
+          class="ui-btn ui-btn--primary"
           :disabled="memberSaving === 'invite'"
           @click="invitePanel?.submit()"
         >
@@ -77,7 +77,7 @@ watch(
       <template #footer>
         <button
           type="button"
-          class="pf-btn pf-btn--primary"
+          class="ui-btn ui-btn--primary"
           :disabled="memberSaving === drawer?.manager?.user_id"
           @click="emit('save-access', draftGrant)"
         >

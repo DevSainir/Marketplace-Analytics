@@ -101,7 +101,7 @@ function clear() {
         v-if="needle"
         type="button"
         aria-label="Очистить"
-        class="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-primary"
+        class="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-primary"
         data-testid="clear-sku"
         @click="clear"
       >

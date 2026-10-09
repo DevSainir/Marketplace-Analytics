@@ -58,7 +58,7 @@ function onFile(event) {
       </button>
 
       <label
-        class="cursor-pointer rounded-btn bg-action px-lg py-sm text-center text-base font-semibold text-white transition hover:bg-action-hover phone:flex phone:min-h-11 phone:w-full phone:items-center phone:justify-center"
+        class="ui-btn ui-btn--primary cursor-pointer phone:w-full"
         :class="busy ? 'cursor-not-allowed opacity-50' : ''"
       >
         {{ importing ? 'Загружаем…' : 'Загрузить Excel' }}

@@ -77,7 +77,7 @@ function start() {
            read against: a rotation of candidates with no baseline answers
            «какое из них лучше» and not «стоит ли вообще менять». -->
       <label
-        class="inline-flex h-10 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition"
+        class="ui-btn ui-btn--primary cursor-pointer"
         :class="
           !canUpload || hasMainPhoto || saving
             ? 'cursor-not-allowed opacity-50'
@@ -122,7 +122,7 @@ function start() {
       <button
         v-if="test.status === 'draft' || test.status === 'paused'"
         type="button"
-        class="inline-flex h-10 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
+        class="ui-btn ui-btn--primary"
         :disabled="saving || !test.variants.length"
         data-testid="start"
         @click="start"
@@ -132,7 +132,7 @@ function start() {
       <button
         v-if="test.status === 'running'"
         type="button"
-        class="inline-flex h-10 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover disabled:opacity-50"
+        class="ui-btn"
         :disabled="saving"
         data-testid="pause"
         @click="$emit('status', 'paused')"
@@ -142,7 +142,7 @@ function start() {
       <button
         v-if="test.status === 'running' || test.status === 'paused'"
         type="button"
-        class="inline-flex h-10 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+        class="ui-btn"
         :disabled="saving"
         data-testid="finish"
         @click="$emit('finish')"

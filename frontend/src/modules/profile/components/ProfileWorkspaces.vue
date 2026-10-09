@@ -60,7 +60,7 @@ const removal = useConfirmClick()
           class="pf-input"
           aria-label="Название нового кабинета"
         />
-        <button type="submit" class="pf-btn pf-btn--primary" :disabled="busy || !newName.trim()">
+        <button type="submit" class="ui-btn ui-btn--primary" :disabled="busy || !newName.trim()">
           {{ creating ? 'Создаём…' : 'Создать' }}
         </button>
       </form>
@@ -118,16 +118,22 @@ const removal = useConfirmClick()
           <button
             v-if="ws.id !== currentId"
             type="button"
-            class="pf-btn"
+            class="ui-btn ui-btn--ghost ui-btn--sm"
             @click="emit('select', ws.id)"
           >
             Выбрать
           </button>
           <template v-if="canManage">
-            <button type="button" class="pf-btn" @click="emit('tokens', ws)">Токены</button>
             <button
               type="button"
-              class="pf-btn pf-btn--danger"
+              class="ui-btn ui-btn--ghost ui-btn--sm"
+              @click="emit('tokens', ws)"
+            >
+              Токены
+            </button>
+            <button
+              type="button"
+              class="ui-btn ui-btn--danger ui-btn--sm"
               :class="removal.isArmed(ws.id) ? 'is-armed' : ''"
               :disabled="busy"
               @click="removal.press(ws.id, () => emit('remove', ws.id))"

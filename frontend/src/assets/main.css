@@ -14,6 +14,59 @@
 
 @layer components {
   /*
+   * Buttons — the app's one recipe, built from the de-facto primary the pages
+   * had already converged on (40px, `rounded-btn`, `text-base`). Before it
+   * there were h-9/h-10/h-11/h-12 and «no height» copies, a separate `pf-btn`
+   * set in the profile and four identical auth recipes.
+   *
+   * In this layer, not in ui-next: ui-next loads after main.css, so a class
+   * there beat every utility of equal weight — `hidden` or `h-9` on a button
+   * silently did nothing. Here utilities still win, as they should.
+   *
+   *   .ui-btn            secondary: white, shadowed
+   *   .ui-btn--primary   the page's main action
+   *   .ui-btn--ghost     a quiet action in a row or a toolbar
+   *   .ui-btn--danger    an irreversible one; `.is-armed` while it asks
+   *                      «Точно …?» (core/utils/confirmClick.js)
+   *   .ui-btn--good      «done» feedback (a copied link)
+   *   .ui-btn--sm        36px, beside a 36px control (the calendar, a select)
+   *   .ui-icon-btn       a square icon-only button
+   *
+   * Every one of them is 44px tall on a phone.
+   */
+  .ui-btn {
+    @apply inline-flex h-10 items-center justify-center gap-xs whitespace-nowrap rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition enabled:hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50 phone:min-h-11;
+  }
+
+  .ui-btn--primary {
+    @apply bg-action font-semibold text-white enabled:hover:bg-action-hover;
+  }
+
+  .ui-btn--ghost {
+    @apply bg-transparent text-muted shadow-none enabled:hover:bg-hover enabled:hover:text-primary;
+  }
+
+  .ui-btn--danger {
+    @apply bg-transparent text-status-negative shadow-none enabled:hover:bg-status-negative/10;
+  }
+
+  .ui-btn--danger.is-armed {
+    @apply bg-status-negative text-white enabled:hover:bg-status-negative;
+  }
+
+  .ui-btn--good {
+    @apply bg-status-positive font-semibold text-white enabled:hover:bg-status-positive;
+  }
+
+  .ui-btn--sm {
+    @apply h-9 px-md;
+  }
+
+  .ui-icon-btn {
+    @apply inline-flex h-8 w-8 flex-none items-center justify-center rounded-btn text-muted transition enabled:hover:bg-hover enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-50 phone:h-11 phone:w-11;
+  }
+
+  /*
    * The one shared page/chrome container (design_system.md «Page Chrome &
    * Canvas»): 80rem plus two thirds of the spare viewport, so the header nav
    * and the page content line up their side margins on every route.

@@ -81,9 +81,21 @@ function step(delta) {
       </ol>
 
       <nav v-if="pageCount > 1" class="pf-pager" aria-label="Страницы журнала">
-        <button type="button" class="pf-btn" :disabled="page === 0" @click="step(-1)">Назад</button>
+        <button
+          type="button"
+          class="ui-btn ui-btn--ghost ui-btn--sm"
+          :disabled="page === 0"
+          @click="step(-1)"
+        >
+          Назад
+        </button>
         <span class="pf-pager__count">{{ page + 1 }} из {{ pageCount }}</span>
-        <button type="button" class="pf-btn" :disabled="page >= pageCount - 1" @click="step(1)">
+        <button
+          type="button"
+          class="ui-btn ui-btn--ghost ui-btn--sm"
+          :disabled="page >= pageCount - 1"
+          @click="step(1)"
+        >
           Дальше
         </button>
       </nav>

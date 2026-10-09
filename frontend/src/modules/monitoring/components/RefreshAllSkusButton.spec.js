@@ -17,7 +17,7 @@ describe('RefreshAllSkusButton', () => {
     const wrapper = mount(RefreshAllSkusButton, { props: { refreshing: true } })
 
     expect(wrapper.find('button').attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('Обновляем все SKU')
+    expect(wrapper.text()).toContain('Обновляем…')
   })
 
   it('shows the error message and hides the warning when both are set', () => {

@@ -132,17 +132,10 @@ onBeforeUnmount(() => {
 
         <footer class="ab-finish__foot">
           <p v-if="tried && error" class="mr-auto text-tiny text-status-negative">{{ error }}</p>
+          <button type="button" class="ui-btn" :disabled="saving" @click="close">Отмена</button>
           <button
             type="button"
-            class="inline-flex h-10 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover disabled:opacity-50"
-            :disabled="saving"
-            @click="close"
-          >
-            Отмена
-          </button>
-          <button
-            type="button"
-            class="inline-flex h-10 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
+            class="ui-btn ui-btn--primary"
             :disabled="saving || !chosen"
             data-testid="finish-confirm"
             @click="confirm"

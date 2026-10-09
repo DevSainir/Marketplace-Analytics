@@ -95,7 +95,7 @@ function closeSearch() {
         <button
           type="button"
           aria-label="Закрыть поиск"
-          class="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-primary"
+          class="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-primary"
           @click="closeSearch"
         >
           <svg

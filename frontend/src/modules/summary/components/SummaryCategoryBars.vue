@@ -14,6 +14,7 @@
  */
 import { computed, ref } from 'vue'
 
+import ShowMoreButton from '@/core/components/ShowMoreButton.vue'
 import { formatMoney, formatNumber, formatPercent, formatSku } from '@/core/utils/format'
 
 const props = defineProps({
@@ -130,14 +131,12 @@ function track(event) {
       </div>
     </div>
 
-    <button
+    <ShowMoreButton
       v-if="hiddenCount"
-      type="button"
-      class="ui-chip sum-cat__more"
+      :remaining="hiddenCount"
+      :expanded="expanded"
       @click="expanded = !expanded"
-    >
-      {{ expanded ? 'Свернуть' : `Показать ещё ${hiddenCount}` }}
-    </button>
+    />
   </div>
 </template>
 

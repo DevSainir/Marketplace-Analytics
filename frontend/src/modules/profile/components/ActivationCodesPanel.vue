@@ -156,7 +156,7 @@ async function copyKey() {
             class="pf-input"
           />
         </label>
-        <button type="submit" class="pf-btn pf-btn--primary" :disabled="!canSubmit">
+        <button type="submit" class="ui-btn ui-btn--primary" :disabled="!canSubmit">
           {{ saving ? 'Создаём…' : 'Создать ключ' }}
         </button>
       </div>
@@ -173,7 +173,7 @@ async function copyKey() {
           <dd>{{ value }}</dd>
         </div>
       </dl>
-      <button type="button" class="pf-btn pf-btn--good" @click="copyKey">
+      <button type="button" class="ui-btn ui-btn--good" @click="copyKey">
         {{ copied ? 'Скопировано' : 'Скопировать ключ' }}
       </button>
     </div>

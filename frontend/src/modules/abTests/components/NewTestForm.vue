@@ -120,20 +120,14 @@ defineExpose({ reset })
     <div class="mt-lg flex flex-wrap items-center gap-sm">
       <button
         type="button"
-        class="inline-flex h-11 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
+        class="ui-btn ui-btn--primary"
         :disabled="saving || !ready"
         data-testid="create-test"
         @click="submit"
       >
         {{ saving ? 'Создаём…' : 'Создать' }}
       </button>
-      <button
-        type="button"
-        class="inline-flex h-11 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover"
-        @click="emit('cancel')"
-      >
-        Отмена
-      </button>
+      <button type="button" class="ui-btn" @click="emit('cancel')">Отмена</button>
     </div>
   </section>
 </template>

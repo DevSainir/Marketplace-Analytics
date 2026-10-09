@@ -61,7 +61,12 @@ onMounted(async () => {
       </header>
 
       <section class="mt-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card">
-        <button v-if="joined" type="button" class="invite-button" @click="router.push('/')">
+        <button
+          v-if="joined"
+          type="button"
+          class="ui-btn ui-btn--primary w-full"
+          @click="router.push('/')"
+        >
           На главную
         </button>
 
@@ -89,7 +94,7 @@ onMounted(async () => {
           <button
             type="submit"
             :disabled="members.saving === 'invitation' || !token.trim()"
-            class="invite-button"
+            class="ui-btn ui-btn--primary w-full"
           >
             {{ members.saving === 'invitation' ? 'Проверяем…' : 'Принять приглашение' }}
           </button>
@@ -114,14 +119,5 @@ onMounted(async () => {
   border-color: color-mix(in srgb, var(--ui-neg) 30%, transparent);
   background-color: color-mix(in srgb, var(--ui-neg) 10%, transparent);
   color: var(--ui-neg);
-}
-
-.invite-button {
-  @apply inline-flex h-10 w-full items-center justify-center rounded-btn text-base font-semibold text-white shadow-soft transition disabled:cursor-not-allowed disabled:opacity-50 phone:h-11;
-  background-color: var(--ui-action);
-}
-
-.invite-button:hover:not(:disabled) {
-  background-color: var(--ui-action-hover);
 }
 </style>

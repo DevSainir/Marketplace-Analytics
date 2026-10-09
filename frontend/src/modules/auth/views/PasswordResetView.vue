@@ -84,11 +84,7 @@ function goToLogin() {
             {{ auth.error }}
           </p>
 
-          <button
-            type="submit"
-            :disabled="auth.loading"
-            class="inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn bg-action text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50 phone:h-11"
-          >
+          <button type="submit" :disabled="auth.loading" class="ui-btn ui-btn--primary w-full">
             {{ auth.loading ? 'Подождите…' : 'Отправить код' }}
           </button>
         </form>
@@ -123,11 +119,7 @@ function goToLogin() {
             {{ auth.error }}
           </p>
 
-          <button
-            type="submit"
-            :disabled="auth.loading"
-            class="inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn bg-action text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50 phone:h-11"
-          >
+          <button type="submit" :disabled="auth.loading" class="ui-btn ui-btn--primary w-full">
             {{ auth.loading ? 'Подождите…' : 'Сохранить пароль' }}
           </button>
 
@@ -139,11 +131,7 @@ function goToLogin() {
         </form>
 
         <div v-else class="flex flex-col gap-md">
-          <button
-            type="button"
-            class="inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn bg-action text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50 phone:h-11"
-            @click="goToLogin"
-          >
+          <button type="button" class="ui-btn ui-btn--primary w-full" @click="goToLogin">
             Войти
           </button>
         </div>

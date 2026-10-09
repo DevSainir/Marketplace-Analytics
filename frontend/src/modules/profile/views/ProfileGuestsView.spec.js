@@ -119,7 +119,7 @@ describe('ProfileGuestsView', () => {
     const wrapper = await mountView()
     revokeGuest.mockResolvedValue()
 
-    await wrapper.find('.pf-btn--danger').trigger('click')
+    await wrapper.find('.ui-btn--danger').trigger('click')
     await flushPromises()
 
     expect(revokeGuest).toHaveBeenCalledWith('g-1')

@@ -16,6 +16,7 @@
  */
 import { computed, ref, watch } from 'vue'
 
+import ShowMoreButton from '@/core/components/ShowMoreButton.vue'
 import { formatNumber, formatSku } from '@/core/utils/format'
 import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 
@@ -86,8 +87,8 @@ const visible = computed(() => props.rows.slice(0, shown.value))
             <button
               v-if="row.stored !== null"
               type="button"
-              class="rounded-btn px-xs text-tiny font-medium transition hover:text-status-negative"
-              :class="clearing.isArmed(row.nmId) ? 'text-status-negative' : 'text-muted'"
+              class="ui-btn ui-btn--danger ui-btn--sm"
+              :class="{ 'is-armed': clearing.isArmed(row.nmId) }"
               :disabled="saving"
               @click="clearing.press(row.nmId, () => emit('remove', row.nmId))"
             >
@@ -102,14 +103,11 @@ const visible = computed(() => props.rows.slice(0, shown.value))
       </li>
     </ul>
 
-    <button
+    <ShowMoreButton
       v-if="shown < rows.length"
-      type="button"
-      class="mt-sm min-h-11 w-full rounded-btn border border-border-subtle bg-surface text-base font-medium text-primary transition hover:border-action hover:text-action"
+      :remaining="rows.length - shown"
       @click="shown += PAGE"
-    >
-      Показать ещё ({{ rows.length - shown }})
-    </button>
+    />
   </div>
 </template>
 

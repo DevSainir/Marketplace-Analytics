@@ -82,7 +82,9 @@ function goOn() {
           <p class="text-base text-muted">
             Не удалось определить, какую почту подтверждать. Начните вход или регистрацию заново.
           </p>
-          <RouterLink class="auth-primary" :to="{ name: 'login' }">Войти</RouterLink>
+          <RouterLink class="ui-btn ui-btn--primary w-full" :to="{ name: 'login' }"
+            >Войти</RouterLink
+          >
         </div>
 
         <form v-else-if="!confirmed" class="flex flex-col gap-md" @submit.prevent="submit">
@@ -124,7 +126,11 @@ function goOn() {
             Если аккаунт с такой почтой существует, новый код отправлен.
           </p>
 
-          <button type="submit" :disabled="auth.loading || code.length < 6" class="auth-primary">
+          <button
+            type="submit"
+            :disabled="auth.loading || code.length < 6"
+            class="ui-btn ui-btn--primary w-full"
+          >
             {{ auth.loading ? 'Подождите…' : 'Подтвердить' }}
           </button>
 
@@ -136,29 +142,17 @@ function goOn() {
           </button>
         </form>
 
-        <button v-else type="button" class="auth-primary" @click="goOn">Продолжить</button>
+        <button v-else type="button" class="ui-btn ui-btn--primary w-full" @click="goOn">
+          Продолжить
+        </button>
       </section>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Shared with LoginView and PasswordResetView — three auth pages that differ by
-   a shade read as a bug.
-   These stay HERE rather than becoming global utilities DELIBERATELY: a scoped
-   rule carries a `[data-v-*]` attribute and outranks `ui-next/skin.css`, so
-   `@apply bg-action` in here resolves the pre-skin teal from tailwind.config
-   while the identical utility in the markup resolves the skinned violet.
-   Measured, not assumed. `--ui-*` variables are read directly for that reason. */
-.auth-primary {
-  @apply inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn text-base font-semibold text-white shadow-soft transition disabled:cursor-not-allowed disabled:opacity-50 phone:h-11;
-  background-color: var(--ui-action);
-}
-
-.auth-primary:hover:not(:disabled) {
-  background-color: var(--ui-action-hover);
-}
-
+/* The auth pages' own link style. Their buttons are the shared `.ui-btn`
+   (assets/main.css); `--ui-*` is read directly here as it was before. */
 .auth-link {
   @apply rounded-btn text-tiny font-medium transition;
   color: var(--ui-action);

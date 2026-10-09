@@ -121,7 +121,7 @@ const invalid = computed(() =>
     <div class="mb-md flex flex-wrap items-center gap-md phone:gap-sm">
       <button
         type="button"
-        class="rounded-btn bg-action px-lg py-sm text-base font-semibold text-white transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50 phone:min-h-11 phone:w-full"
+        class="ui-btn ui-btn--primary phone:w-full"
         :disabled="saving || !pendingCount || invalid"
         @click="emit('save', edits)"
       >

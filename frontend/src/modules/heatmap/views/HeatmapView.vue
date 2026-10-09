@@ -207,15 +207,10 @@ onMounted(() => norms.load().catch((err) => (norms.error = extractErrorMessage(e
 
     <!-- Under the card, like the monitoring matrix's edit hint. -->
     <p v-if="store.manualNorms" class="mt-sm text-tiny text-muted">
-      <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
-        class="rounded border border-border-subtle px-1"
-        >Z</kbd
-      >
+      <kbd class="ui-kbd">Ctrl</kbd>+<kbd class="ui-kbd">Z</kbd>
       — отменить,
-      <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
-        class="rounded border border-border-subtle px-1"
-        >Shift</kbd
-      >+<kbd class="rounded border border-border-subtle px-1">Z</kbd> — повторить.
+      <kbd class="ui-kbd">Ctrl</kbd>+<kbd class="ui-kbd">Shift</kbd>+<kbd class="ui-kbd">Z</kbd> —
+      повторить.
     </p>
 
     <HeatmapGroupDialog

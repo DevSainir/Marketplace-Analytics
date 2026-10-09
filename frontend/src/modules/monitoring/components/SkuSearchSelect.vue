@@ -99,7 +99,7 @@ function onApply() {
           v-if="query"
           type="button"
           aria-label="Очистить поиск"
-          class="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:bg-canvas hover:text-primary"
+          class="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-primary"
           @click="clearQuery"
         >
           <svg
@@ -115,12 +115,7 @@ function onApply() {
         </button>
       </div>
 
-      <button
-        type="submit"
-        class="inline-flex h-12 flex-none items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action phone:h-11"
-      >
-        Применить
-      </button>
+      <button type="submit" class="ui-btn ui-btn--primary flex-none">Применить</button>
     </form>
 
     <!-- Dropdown: full width of the bar, all SKUs, filtered live -->

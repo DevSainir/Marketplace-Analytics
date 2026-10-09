@@ -163,11 +163,7 @@ async function submit() {
             </button>
           </p>
 
-          <button
-            type="submit"
-            :disabled="auth.loading"
-            class="inline-flex h-10 w-full items-center justify-center gap-sm rounded-btn bg-action text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50 phone:h-11"
-          >
+          <button type="submit" :disabled="auth.loading" class="ui-btn ui-btn--primary w-full">
             <svg
               v-if="auth.loading"
               class="h-4 w-4 animate-spin"

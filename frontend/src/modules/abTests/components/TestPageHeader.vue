@@ -57,12 +57,8 @@ const removal = useConfirmClick()
       }}</span>
       <button
         type="button"
-        class="ml-auto rounded-btn border border-border-strong/35 px-sm py-xs text-micro font-semibold transition"
-        :class="
-          removal.isArmed('test')
-            ? 'bg-status-negative/10 text-status-negative'
-            : 'text-muted hover:bg-hover hover:text-status-negative'
-        "
+        class="ui-btn ui-btn--danger ui-btn--sm ml-auto"
+        :class="{ 'is-armed': removal.isArmed('test') }"
         :disabled="saving"
         data-testid="delete-test"
         @click="removal.press('test', () => emit('delete'))"

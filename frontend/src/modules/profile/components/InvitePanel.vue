@@ -87,7 +87,7 @@ defineExpose({ submit })
            the footer, and two action-coloured buttons in a row make neither of
            them the thing to press. This one reports a success rather than
            asking for a decision, which is what the positive tone is for. -->
-      <button type="button" class="pf-btn pf-btn--good" @click="copyLink">
+      <button type="button" class="ui-btn ui-btn--good" @click="copyLink">
         {{ copied ? 'Скопировано' : 'Скопировать ссылку' }}
       </button>
     </div>

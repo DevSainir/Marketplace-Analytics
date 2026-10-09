@@ -116,7 +116,7 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
           <button
             v-if="others.length"
             type="button"
-            class="pf-btn pf-btn--danger"
+            class="ui-btn ui-btn--danger ui-btn--sm"
             :class="ending.isArmed('all') ? 'is-armed' : ''"
             :disabled="busy === 'all'"
             @click="ending.press('all', () => emit('end-others'))"
@@ -143,7 +143,7 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
           </span>
           <button
             type="button"
-            class="pf-btn pf-btn--danger"
+            class="ui-btn ui-btn--danger ui-btn--sm"
             :class="ending.isArmed(session.family_id) ? 'is-armed' : ''"
             :disabled="busy === session.family_id"
             @click="ending.press(session.family_id, () => emit('end', session.family_id))"

@@ -29,10 +29,7 @@
       </h1>
 
       <div class="mt-xl flex justify-center phone:mt-lg">
-        <RouterLink
-          to="/monitoring"
-          class="inline-flex w-full items-center justify-center rounded-btn bg-action px-lg py-sm text-base font-semibold text-white shadow-soft transition hover:bg-action-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action phone:min-h-11 sm:w-auto"
-        >
+        <RouterLink to="/monitoring" class="ui-btn ui-btn--primary w-full sm:w-auto">
           Открыть мониторинг →
         </RouterLink>
       </div>

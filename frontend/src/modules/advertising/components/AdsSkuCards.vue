@@ -10,6 +10,7 @@
  */
 import { computed, ref, watch } from 'vue'
 
+import ShowMoreButton from '@/core/components/ShowMoreButton.vue'
 import DataState from '@/core/components/DataState.vue'
 import AdsSkuZones from '@/modules/advertising/components/AdsSkuZones.vue'
 import { formatMoney, formatNumber, formatSku } from '@/core/utils/format'
@@ -121,13 +122,10 @@ const drr = (row) => (props.showDrr ? ratioPct(row.drr) : '—')
       </li>
     </ul>
 
-    <button
+    <ShowMoreButton
       v-if="shown < rows.length"
-      type="button"
-      class="ui-btn ui-btn--ghost mt-sm min-h-11 w-full"
+      :remaining="rows.length - shown"
       @click="shown += PAGE"
-    >
-      Показать ещё
-    </button>
+    />
   </div>
 </template>

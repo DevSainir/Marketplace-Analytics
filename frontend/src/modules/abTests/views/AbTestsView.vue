@@ -52,12 +52,7 @@ async function submit(payload) {
   <main class="app-container py-xl phone:py-lg">
     <header class="mb-md flex flex-wrap items-center justify-between gap-md">
       <h1 class="text-h2 font-bold text-primary">A/Б-тесты</h1>
-      <button
-        type="button"
-        class="inline-flex h-11 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover"
-        data-testid="new-test"
-        @click="openForm"
-      >
+      <button type="button" class="ui-btn ui-btn--primary" data-testid="new-test" @click="openForm">
         {{ creating ? 'Свернуть' : '+ Новый тест' }}
       </button>
     </header>

@@ -91,20 +91,14 @@ function save() {
     </div>
     <button
       type="button"
-      class="inline-flex h-10 items-center justify-center rounded-btn bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:opacity-50"
+      class="ui-btn ui-btn--primary"
       :disabled="saving"
       data-testid="save-trigger"
       @click="save"
     >
       {{ saving ? 'Сохраняем…' : 'Сохранить' }}
     </button>
-    <button
-      type="button"
-      class="inline-flex h-10 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover"
-      @click="emit('cancel')"
-    >
-      Отмена
-    </button>
+    <button type="button" class="ui-btn" @click="emit('cancel')">Отмена</button>
     <p class="w-full text-tiny text-muted">
       Новый триггер читается ближайшим проходом (в течение 5 минут).
     </p>

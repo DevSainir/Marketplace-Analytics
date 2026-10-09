@@ -154,11 +154,6 @@
   color: var(--ui-ink);
 }
 
-.sum-cat__more {
-  align-self: center;
-  margin-top: 10px;
-}
-
 @media (max-width: 1000px) {
   .sum-cat__head,
   .sum-cat__row {

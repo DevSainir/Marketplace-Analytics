@@ -22,6 +22,7 @@
  */
 import { computed, ref, watch } from 'vue'
 
+import ShowMoreButton from '@/core/components/ShowMoreButton.vue'
 import SkuThumb from '@/core/components/SkuThumb.vue'
 import PnlSkuCardsTotals from '@/modules/finreports/components/PnlSkuCardsTotals.vue'
 import PnlSkuSizeList from '@/modules/finreports/components/PnlSkuSizeList.vue'
@@ -220,14 +221,11 @@ const { money } = formatters
       </li>
     </ul>
 
-    <button
+    <ShowMoreButton
       v-if="shown < sorted.length"
-      type="button"
-      class="mt-sm min-h-11 w-full rounded-btn border border-border-subtle bg-surface text-base font-medium text-primary transition hover:border-action hover:text-action"
+      :remaining="sorted.length - shown"
       @click="shown += PAGE"
-    >
-      Показать ещё ({{ sorted.length - shown }})
-    </button>
+    />
   </div>
 </template>
 

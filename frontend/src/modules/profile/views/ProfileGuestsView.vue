@@ -137,7 +137,7 @@ function grantedOn(iso) {
               <option v-for="ws in workspaces" :key="ws.id" :value="ws.name">{{ ws.name }}</option>
             </select>
           </label>
-          <button type="submit" class="pf-btn pf-btn--primary" :disabled="!canSubmit">
+          <button type="submit" class="ui-btn ui-btn--primary" :disabled="!canSubmit">
             {{ saving ? 'Открываем…' : 'Открыть доступ' }}
           </button>
         </form>
@@ -173,7 +173,7 @@ function grantedOn(iso) {
             <span class="pf-cell pf-cell--act">
               <button
                 type="button"
-                class="pf-btn pf-btn--danger"
+                class="ui-btn ui-btn--danger ui-btn--sm"
                 :disabled="revoking === grant.id"
                 @click="revoke(grant.id)"
               >

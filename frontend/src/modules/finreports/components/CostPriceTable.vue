@@ -74,12 +74,8 @@ const clearing = useConfirmClick()
             <button
               v-if="row.stored !== null"
               type="button"
-              class="rounded-btn px-sm py-xs text-tiny font-medium transition hover:bg-status-negative/10 hover:text-status-negative"
-              :class="
-                clearing.isArmed(row.nmId)
-                  ? 'bg-status-negative/10 text-status-negative'
-                  : 'text-muted'
-              "
+              class="ui-btn ui-btn--danger ui-btn--sm"
+              :class="{ 'is-armed': clearing.isArmed(row.nmId) }"
               :disabled="saving"
               @click="clearing.press(row.nmId, () => emit('remove', row.nmId))"
             >

@@ -158,7 +158,7 @@ defineExpose({ reset })
     <p v-else-if="error" class="pf-pw__warn">{{ error }}</p>
 
     <div>
-      <button type="submit" class="pf-btn pf-btn--primary" :disabled="!canSubmit">
+      <button type="submit" class="ui-btn ui-btn--primary" :disabled="!canSubmit">
         {{ saving ? 'Меняем…' : 'Сменить пароль' }}
       </button>
     </div>

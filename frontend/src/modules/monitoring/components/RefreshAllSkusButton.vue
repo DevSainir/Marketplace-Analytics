@@ -35,10 +35,10 @@ defineEmits(['refresh'])
     <button
       type="button"
       :disabled="refreshing"
-      class="inline-flex h-9 items-center justify-center rounded-btn bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+      class="ui-btn ui-btn--sm"
       @click="$emit('refresh')"
     >
-      {{ refreshing ? 'Обновляем все SKU из Wildberries…' : 'Обновить все SKU' }}
+      {{ refreshing ? 'Обновляем…' : 'Обновить все SKU' }}
     </button>
 
     <RefreshProgress

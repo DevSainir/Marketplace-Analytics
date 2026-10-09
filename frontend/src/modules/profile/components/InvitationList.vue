@@ -106,7 +106,7 @@ function expiry(invitation) {
           <button
             v-if="invite.status === 'pending'"
             type="button"
-            class="pf-btn pf-btn--danger"
+            class="ui-btn ui-btn--danger ui-btn--sm"
             :class="revocation.isArmed(invite.id) ? 'is-armed' : ''"
             :disabled="busy === invite.id"
             @click="revocation.press(invite.id, () => emit('revoke', invite.id))"

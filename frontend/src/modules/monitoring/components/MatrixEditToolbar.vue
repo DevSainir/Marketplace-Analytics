@@ -45,15 +45,10 @@ defineEmits(['save', 'refresh'])
   <div class="mt-sm flex flex-wrap items-start gap-md">
     <p class="min-w-0 text-tiny text-muted">
       Кликните по значению, чтобы изменить его — зависимые ячейки пересчитаются.
-      <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
-        class="rounded border border-border-subtle px-1"
-        >Z</kbd
-      >
+      <kbd class="ui-kbd">Ctrl</kbd>+<kbd class="ui-kbd">Z</kbd>
       — отменить,
-      <kbd class="rounded border border-border-subtle px-1">Ctrl</kbd>+<kbd
-        class="rounded border border-border-subtle px-1"
-        >Shift</kbd
-      >+<kbd class="rounded border border-border-subtle px-1">Z</kbd> — повторить.
+      <kbd class="ui-kbd">Ctrl</kbd>+<kbd class="ui-kbd">Shift</kbd>+<kbd class="ui-kbd">Z</kbd> —
+      повторить.
     </p>
 
     <!-- The keyboard hint above is desktop advice (there is no Ctrl+Z on a
@@ -66,7 +61,7 @@ defineEmits(['save', 'refresh'])
       <button
         type="button"
         :disabled="!dirty || saving || refreshing"
-        class="inline-flex h-9 items-center justify-center rounded-btn phone:h-11 phone:flex-1 bg-surface px-lg text-base font-medium text-primary shadow-soft transition hover:bg-hover disabled:cursor-not-allowed disabled:text-muted disabled:opacity-50"
+        class="ui-btn ui-btn--primary phone:flex-1"
         @click="$emit('save')"
       >
         {{ saving ? 'Сохраняем…' : 'Сохранить' }}
@@ -74,10 +69,10 @@ defineEmits(['save', 'refresh'])
       <button
         type="button"
         :disabled="loading || refreshing || saving"
-        class="inline-flex h-9 items-center justify-center rounded-btn phone:h-11 phone:flex-1 bg-action px-lg text-base font-semibold text-white shadow-soft transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
+        class="ui-btn phone:flex-1"
         @click="$emit('refresh')"
       >
-        {{ refreshing ? 'Обновляем из Wildberries…' : 'Обновить' }}
+        {{ refreshing ? 'Обновляем…' : 'Обновить' }}
       </button>
     </div>
   </div>

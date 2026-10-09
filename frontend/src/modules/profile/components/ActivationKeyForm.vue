@@ -50,7 +50,7 @@ async function submit() {
     <button
       type="submit"
       :disabled="members.saving === 'activation' || !code.trim()"
-      class="key-button"
+      class="ui-btn ui-btn--primary w-full"
     >
       {{ members.saving === 'activation' ? 'Проверяем…' : 'Активировать' }}
     </button>
@@ -72,14 +72,5 @@ async function submit() {
   border-color: color-mix(in srgb, var(--ui-neg) 30%, transparent);
   background-color: color-mix(in srgb, var(--ui-neg) 10%, transparent);
   color: var(--ui-neg);
-}
-
-.key-button {
-  @apply inline-flex h-10 w-full items-center justify-center rounded-btn text-base font-semibold text-white shadow-soft transition disabled:cursor-not-allowed disabled:opacity-50 phone:h-11;
-  background-color: var(--ui-action);
-}
-
-.key-button:hover:not(:disabled) {
-  background-color: var(--ui-action-hover);
 }
 </style>

@@ -40,7 +40,7 @@ function joined(iso) {
         <h2 class="pf-panel__title">Команда</h2>
         <p class="pf-panel__note">Доступы</p>
       </div>
-      <button v-if="canInvite" type="button" class="pf-btn pf-btn--primary" @click="emit('invite')">
+      <button v-if="canInvite" type="button" class="ui-btn ui-btn--primary" @click="emit('invite')">
         Пригласить менеджера
       </button>
     </header>
@@ -86,7 +86,7 @@ function joined(iso) {
         <span class="pf-cell pf-cell--act" role="cell">
           <button
             type="button"
-            class="pf-btn"
+            class="ui-btn ui-btn--ghost ui-btn--sm"
             :disabled="saving === manager.user_id"
             @click="emit('edit', manager)"
           >
@@ -94,7 +94,7 @@ function joined(iso) {
           </button>
           <button
             type="button"
-            class="pf-btn pf-btn--danger"
+            class="ui-btn ui-btn--danger ui-btn--sm"
             :class="removal.isArmed(manager.user_id) ? 'is-armed' : ''"
             :disabled="saving === manager.user_id"
             @click="removal.press(manager.user_id, () => emit('remove', manager.user_id))"

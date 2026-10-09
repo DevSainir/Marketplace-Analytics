@@ -97,21 +97,22 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           WB rate-limit block meant seven minutes of «Обновляем…» over a walk
           that was doing nothing but waiting.
 
-          A ghost button beside a filled «Себестоимость» on purpose: the hourly
+          A secondary button beside a filled «Себестоимость» on purpose — the
+          same «Обновить» monitoring has: the hourly
           schedule makes a manual refresh rarely needed, and inside a WB block
           an extra press lengthens it. Filling in costs is the seller's own job.
         -->
         <button
           type="button"
           :disabled="store.harvestBusy"
-          class="rounded-btn border border-border-strong/35 px-md py-sm text-base font-medium text-primary transition hover:border-border-strong/55 hover:bg-hover disabled:cursor-not-allowed disabled:text-muted disabled:hover:bg-transparent phone:min-h-11 phone:flex-1"
+          class="ui-btn phone:flex-1"
           @click="store.refreshFromWb()"
         >
           {{ store.harvestBusy ? 'Обновляем…' : 'Обновить' }}
         </button>
         <RouterLink
           :to="{ name: 'finreports-cost-prices' }"
-          class="flex items-center justify-center rounded-btn bg-action px-lg py-sm text-base font-semibold text-white shadow-soft transition hover:bg-action-hover phone:min-h-11 phone:flex-1"
+          class="ui-btn ui-btn--primary phone:flex-1"
         >
           Себестоимость
         </RouterLink>

@@ -169,17 +169,22 @@ onBeforeUnmount(() => {
           <button
             v-if="group"
             type="button"
-            class="ui-chip"
-            :class="removal.isArmed('group') ? 'bg-status-negative/10 !text-status-negative' : ''"
+            class="ui-btn ui-btn--danger"
+            :class="{ 'is-armed': removal.isArmed('group') }"
             :disabled="busy"
             @click="remove"
           >
             {{ removal.isArmed('group') ? confirmLabel('Удалить') : 'Удалить' }}
           </button>
-          <button type="button" class="ui-chip ml-auto" :disabled="busy" @click="close">
+          <button
+            type="button"
+            class="ui-btn ui-btn--ghost ml-auto"
+            :disabled="busy"
+            @click="close"
+          >
             Отмена
           </button>
-          <button type="button" class="ui-chip is-on" :disabled="!canSave" @click="save">
+          <button type="button" class="ui-btn ui-btn--primary" :disabled="!canSave" @click="save">
             {{ busy ? 'Сохраняем…' : 'Сохранить' }}
           </button>
         </footer>
