@@ -31,7 +31,7 @@
  * squinting at it. A line that fits keeps fitting; nothing scrolls until it has
  * to.
  *
- * The popup is teleported to `<body>`, for the reason `MetricHint` records: an
+ * The popup is teleported to `<body>`, for the reason `core/components/InfoHint` records: an
  * element that must escape a card has to leave the card, not out-rank it.
  */
 import { computed, onUnmounted, ref, watch } from 'vue'

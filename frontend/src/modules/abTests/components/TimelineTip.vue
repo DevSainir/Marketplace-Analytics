@@ -7,7 +7,7 @@
  * popup is the only place «это фото стояло девять минут и собрало 150 показов»
  * is readable at all.
  *
- * Teleported to `<body>`, for the reason `MetricHint` records: an element that
+ * Teleported to `<body>`, for the reason `core/components/InfoHint` records: an element that
  * must escape a card has to leave the card, not out-rank it. The parent
  * measures the segment and passes viewport coordinates.
  */

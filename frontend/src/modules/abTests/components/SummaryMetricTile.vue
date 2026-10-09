@@ -15,7 +15,7 @@
  */
 import { computed } from 'vue'
 
-import MetricHint from '@/modules/abTests/components/MetricHint.vue'
+import InfoHint from '@/core/components/InfoHint.vue'
 
 const props = defineProps({
   /** The metric's label, e.g. «Показов». */
@@ -49,11 +49,11 @@ const span = computed(() => `${50 / props.branches.length}%`)
 <template>
   <div :class="split ? 'text-center' : ''">
     <dt
-      class="flex items-center gap-xs text-tiny font-medium text-muted"
+      class="flex items-center text-tiny font-medium uppercase tracking-wide text-muted"
       :class="split ? 'justify-center' : ''"
     >
       <span>{{ label }}</span>
-      <MetricHint v-if="hint" :text="hint" />
+      <InfoHint v-if="hint" :text="hint" />
     </dt>
     <dd class="mt-xs text-h2 font-bold tabular-nums text-primary" :data-testid="testid || null">
       {{ value }}

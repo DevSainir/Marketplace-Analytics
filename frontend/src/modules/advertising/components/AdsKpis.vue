@@ -14,6 +14,7 @@
  */
 import { computed } from 'vue'
 
+import KpiTile from '@/core/components/KpiTile.vue'
 import { formatMoney } from '@/core/utils/format'
 import { ratioPct } from '@/modules/advertising/adsFormat'
 import { drrOf } from '@/modules/advertising/skuModel'
@@ -51,15 +52,13 @@ const cards = computed(() => [
 </script>
 
 <template>
-  <div class="grid grid-cols-2 gap-sm" :class="showBonus ? 'lg:grid-cols-4' : ''">
-    <div
+  <div class="grid grid-cols-2 gap-md phone:gap-sm" :class="showBonus ? 'lg:grid-cols-4' : ''">
+    <KpiTile
       v-for="card in cards"
       :key="card.key"
-      class="rounded-card border border-border-subtle bg-surface px-md py-md shadow-card"
-      :title="card.why || null"
-    >
-      <div class="text-micro font-medium uppercase tracking-wider text-muted">{{ card.label }}</div>
-      <div class="mt-xs text-h2 font-bold tabular-nums text-primary">{{ card.value }}</div>
-    </div>
+      :label="card.label"
+      :value="card.value"
+      :hint="card.why ?? ''"
+    />
   </div>
 </template>

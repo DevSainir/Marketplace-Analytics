@@ -16,7 +16,7 @@
  */
 import { computed } from 'vue'
 
-import MetricHint from '@/modules/abTests/components/MetricHint.vue'
+import InfoHint from '@/core/components/InfoHint.vue'
 
 const props = defineProps({
   /** The open test, as the detail endpoint returns it. */
@@ -115,7 +115,7 @@ function duration(ms) {
         >
           {{ fact.value }}
         </dd>
-        <MetricHint v-if="fact.hint" :text="fact.hint" />
+        <InfoHint v-if="fact.hint" :text="fact.hint" />
       </div>
     </dl>
 

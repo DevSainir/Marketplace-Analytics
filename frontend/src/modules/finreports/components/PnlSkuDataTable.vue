@@ -35,6 +35,7 @@ import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import { ref, toRefs } from 'vue'
 
+import InfoHint from '@/core/components/InfoHint.vue'
 import { formatNumber } from '@/core/utils/format'
 import PnlExclusionToggle from '@/modules/finreports/components/PnlExclusionToggle.vue'
 import PnlSkuRowIdentity from '@/modules/finreports/components/PnlSkuRowIdentity.vue'
@@ -121,12 +122,9 @@ const { money } = usePnlMoney()
     <!-- «Процент выкупа» WB из воронки; у размеров своя мера — см. PNL.md. -->
     <Column field="buyoutPct" sortable :footer="foot.buyoutPct">
       <template #header>
-        <span
-          class="inline-block align-middle"
-          title="Как «Процент выкупа» в кабинете WB: выкупы ÷ (выкупы + отказы) по заказам, сделанным за период. Последние ~3 недели ещё дозревают."
-        >
-          Выкуп, %
-        </span>
+        Выкуп, %<InfoHint
+          text="Как «Процент выкупа» в кабинете WB: выкупы ÷ (выкупы + отказы) по заказам, сделанным за период. Последние ~3 недели ещё дозревают."
+        />
       </template>
       <template #body="{ data }">
         <span :class="toneClass('buyoutPct', data.buyoutPct)">{{ pct(data.buyoutPct) }}</span>
@@ -134,11 +132,9 @@ const { money } = usePnlMoney()
     </Column>
     <Column field="returnPct" sortable :footer="foot.returnPct">
       <template #header>
-        <span
-          title="Выкупленные товары, которые покупатель затем вернул (не отмены заказов): доля от выкупленных штук."
-        >
-          Возвраты, %
-        </span>
+        Возвраты, %<InfoHint
+          text="Выкупленные товары, которые покупатель затем вернул (не отмены заказов): доля от выкупленных штук."
+        />
       </template>
       <template #body="{ data }">
         <span :class="toneClass('returnPct', data.returnPct)">{{ pct(data.returnPct) }}</span>
@@ -186,7 +182,7 @@ const { money } = usePnlMoney()
       <template #body="{ data }">{{ money(data.advertising) }}</template>
     </Column>
     <Column field="advertisingPct" sortable :footer="foot.advertisingPct">
-      <template #header><span title="Реклама ÷ продажи">ДРР от продаж</span></template>
+      <template #header>ДРР от продаж<InfoHint text="Реклама ÷ продажи" /></template>
       <template #body="{ data }">
         <span :class="toneClass('advertisingPct', data.advertisingPct, data.priceBase)">
           {{ pct(data.advertisingPct) }}

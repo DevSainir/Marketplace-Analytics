@@ -36,7 +36,7 @@ describe('the buyout card', () => {
     const buyout = card(wrapper, 'Выкуп')
     expect(buyout.text()).toContain('27')
     expect(buyout.text()).toContain('из доставленных')
-    expect(buyout.find('.sum-kpi__hint').exists()).toBe(false)
+    expect(buyout.find('[data-testid="hint"]').exists()).toBe(false)
   })
 
   it('says so, and explains, when the figure is the standing average', () => {
@@ -46,6 +46,8 @@ describe('the buyout card', () => {
 
     const buyout = card(wrapper, 'Выкуп')
     expect(buyout.text()).toContain('Усреднённый показатель за предыдущие дни')
-    expect(buyout.find('.sum-kpi__tip').text()).toContain('ещё не успели выкупиться')
+    expect(buyout.find('[data-testid="hint"]').attributes('aria-label')).toContain(
+      'ещё не успели выкупиться',
+    )
   })
 })

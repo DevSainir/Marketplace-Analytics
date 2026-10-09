@@ -17,6 +17,7 @@
  * пагинируется, а вложенный DataTable внутри строки DataTable тянет за собой
  * вторую прокрутку внутри первой.
  */
+import InfoHint from '@/core/components/InfoHint.vue'
 import BusyBar from '@/core/components/BusyBar.vue'
 import { pct, units, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'
@@ -55,30 +56,27 @@ const at = (size) => sizeAtBase(size, base())
               <th class="pnl-size-th pnl-size-label">Размер</th>
               <th class="pnl-size-th">Продано</th>
               <th class="pnl-size-th">Возвраты</th>
-              <th
-                class="pnl-size-th"
-                title="Продано против плеч логистики «к клиенту» за тот же период — прямое измерение: размер есть в строках логистики, а в заказах воронки его нет"
-              >
-                Выкуп
+              <th class="pnl-size-th">
+                Выкуп<InfoHint
+                  text="Продано против плеч логистики «к клиенту» за тот же период — прямое измерение: размер есть в строках логистики, а в заказах воронки его нет"
+                />
               </th>
-              <th
-                class="pnl-size-th"
-                :title="
-                  base() === 'paid'
-                    ? 'Цена покупателя после СПП за выкупленную штуку'
-                    : 'Ваша цена до СПП за выкупленную штуку'
-                "
-              >
-                Цена
+              <th class="pnl-size-th">
+                Цена<InfoHint
+                  :text="
+                    base() === 'paid'
+                      ? 'Цена покупателя после СПП за выкупленную штуку'
+                      : 'Ваша цена до СПП за выкупленную штуку'
+                  "
+                />
               </th>
               <th class="pnl-size-th">Выручка</th>
               <th class="pnl-size-th">Логистика</th>
               <th class="pnl-size-th">Доля лог.</th>
-              <th
-                class="pnl-size-th"
-                title="Вся логистика размера, делённая на доставки к покупателю: обратные пути возвратов тоже ложатся на неё"
-              >
-                Логистика на 1 доставку
+              <th class="pnl-size-th">
+                Логистика на 1 доставку<InfoHint
+                  text="Вся логистика размера, делённая на доставки к покупателю: обратные пути возвратов тоже ложатся на неё"
+                />
               </th>
               <th class="pnl-size-th">Штрафы</th>
               <th class="pnl-size-th">К перечислению</th>

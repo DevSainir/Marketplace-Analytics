@@ -13,6 +13,7 @@
  */
 import { computed } from 'vue'
 
+import KpiTile from '@/core/components/KpiTile.vue'
 import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 
 const props = defineProps({
@@ -133,33 +134,18 @@ const cards = computed(() => [
 
 <template>
   <div class="sum-kpis">
-    <div v-for="card in cards" :key="card.key" class="sum-kpi">
-      <div class="sum-kpi__label">{{ card.label }}</div>
-      <div
-        class="sum-kpi__value"
-        :class="{
-          'sum-kpi__value--muted': card.muted,
-          'sum-kpi__value--neg': card.negative,
-          'sum-kpi__value--pos': card.positive,
-        }"
-      >
-        {{ card.value }}
-      </div>
-      <div class="sum-kpi__note">
-        {{ card.note }}
-        <!-- The explanation rides the note rather than the value: a card whose
-             number came from a different period has to say so, and there is no
-             room to say it in full under a figure. -->
-        <span v-if="card.hint" class="sum-kpi__hint" tabindex="0" role="note">
-          <svg viewBox="0 0 16 16" aria-hidden="true" class="sum-kpi__icon">
-            <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.4" />
-            <circle cx="8" cy="4.6" r="0.95" fill="currentColor" />
-            <path d="M8 7.2v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-          </svg>
-          <span class="ui-glass ui-glass--pop sum-kpi__tip">{{ card.hint }}</span>
-        </span>
-      </div>
-    </div>
+    <KpiTile
+      v-for="card in cards"
+      :key="card.key"
+      class="sum-kpi"
+      :label="card.label"
+      :value="card.value"
+      :sub="card.note ?? ''"
+      :tone="
+        card.muted ? 'muted' : card.negative ? 'negative' : card.positive ? 'positive' : 'default'
+      "
+      :hint="card.hint ?? ''"
+    />
   </div>
 </template>
 

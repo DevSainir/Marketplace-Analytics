@@ -17,8 +17,8 @@ import DataTable from 'primevue/datatable'
 import { computed, ref } from 'vue'
 
 import DataState from '@/core/components/DataState.vue'
+import InfoHint from '@/core/components/InfoHint.vue'
 import { formatMoney, formatNumber, formatSku } from '@/core/utils/format'
-import AdsInfoHint from '@/modules/advertising/components/AdsInfoHint.vue'
 import AdsSkuZones from '@/modules/advertising/components/AdsSkuZones.vue'
 import { DRR_ALARM, ratioPct } from '@/modules/advertising/adsFormat'
 
@@ -103,7 +103,7 @@ const foot = computed(() => ({
       </Column>
       <Column v-if="showBonus" field="bonus" sortable :footer="foot.bonus">
         <template #header>
-          <span title="Часть рекламы, которую оплатил WB из бонусного пула">Промо-бонусы</span>
+          Промо-бонусы<InfoHint text="Часть рекламы, которую оплатил WB из бонусного пула" />
         </template>
         <template #body="{ data }">
           <span :class="{ 'text-muted': !data.bonus }">
@@ -113,7 +113,7 @@ const foot = computed(() => ({
       </Column>
       <Column field="drr" sortable :footer="foot.drr">
         <template #header>
-          <span title="Реклама за рассчитанные дни ÷ продажи за те же дни">ДРР от продаж</span>
+          ДРР от продаж<InfoHint text="Реклама за рассчитанные дни ÷ продажи за те же дни" />
         </template>
         <template #body="{ data }">
           <span :class="{ 'text-status-negative': showDrr && data.drr > DRR_ALARM }">
@@ -124,7 +124,7 @@ const foot = computed(() => ({
       <Column field="share" sortable :footer="foot.share">
         <template #header>
           <span>Доля</span>
-          <AdsInfoHint text="Доля общих рекламных расходов на этот артикул" />
+          <InfoHint text="Доля общих рекламных расходов на этот артикул" />
         </template>
         <template #body="{ data }">{{ ratioPct(data.share) }}</template>
       </Column>
@@ -134,10 +134,7 @@ const foot = computed(() => ({
       <Column field="sales" sortable :footer="foot.sales">
         <template #header>
           <span>Продажи</span>
-          <AdsInfoHint
-            align="end"
-            text="Продажи (выкупы) минус возвраты по цене продавца, за рассчитанные дни"
-          />
+          <InfoHint text="Продажи (выкупы) минус возвраты по цене продавца, за рассчитанные дни" />
         </template>
         <template #body="{ data }">{{ data.sales === null ? '—' : money(data.sales) }}</template>
       </Column>

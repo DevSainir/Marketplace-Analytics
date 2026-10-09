@@ -22,8 +22,8 @@
  *   withholding, minus any marked SKUs (WB's own name for this total).
  */
 import { computed } from 'vue'
-import { RouterLink } from 'vue-router'
 
+import KpiTile from '@/core/components/KpiTile.vue'
 import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 import { PRICE_BASES, atBase, shareOf, usePriceBase } from '@/modules/finreports/priceBase'
 
@@ -97,26 +97,17 @@ const cards = computed(() => {
   <section
     class="grid grid-cols-2 gap-md phone:grid-cols-1 phone:gap-sm md:grid-cols-3 xl:grid-cols-5"
   >
-    <component
-      :is="card.to ? RouterLink : 'div'"
+    <KpiTile
       v-for="card in cards"
       :key="card.key"
-      :to="card.to ?? undefined"
-      class="rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
-      :class="card.to ? 'transition hover:border-action' : ''"
-    >
-      <div class="text-tiny font-medium uppercase tracking-wide text-muted">{{ card.label }}</div>
-      <div class="mt-xs text-h2 font-bold" :class="card.accent ? 'text-action' : 'text-primary'">
-        {{ card.value }}
-      </div>
-      <div v-if="card.caption" class="mt-xs text-tiny text-muted">{{ card.caption }}</div>
-      <div
-        class="mt-xs text-tiny"
-        :class="card.warn ? 'text-status-warning' : 'text-muted'"
-        :title="card.hint || undefined"
-      >
-        {{ card.sub }}
-      </div>
-    </component>
+      :label="card.label"
+      :value="card.value"
+      :caption="card.caption ?? ''"
+      :sub="card.sub ?? ''"
+      :sub-warn="Boolean(card.warn)"
+      :tone="card.accent ? 'accent' : 'default'"
+      :hint="card.hint ?? ''"
+      :to="card.to ?? null"
+    />
   </section>
 </template>
