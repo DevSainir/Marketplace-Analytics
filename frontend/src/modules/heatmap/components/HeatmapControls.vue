@@ -52,11 +52,12 @@ const PERIODS = [
   { value: 'week', label: 'По неделям' },
   { value: 'month', label: 'По месяцам' },
 ]
+/** What a row is — chips, worded as advertising and the summary word the same cut. */
 const CUTS = [
-  { value: 'sku', label: 'По артикулу' },
-  { value: 'subject', label: 'По предмету' },
-  { value: 'brand', label: 'По бренду' },
-  { value: 'group', label: 'По группе' },
+  { value: 'sku', label: 'Артикулы' },
+  { value: 'subject', label: 'Предметы' },
+  { value: 'brand', label: 'Бренды' },
+  { value: 'group', label: 'Группы' },
 ]
 const MODES = [
   { value: 'row', label: 'По строке' },
@@ -112,6 +113,18 @@ const MODES = [
     </div>
 
     <div class="ml-auto flex flex-wrap items-center gap-sm phone:ml-0 phone:w-full">
+      <div class="flex items-center gap-xs" role="group" aria-label="Строки">
+        <button
+          v-for="option in CUTS"
+          :key="option.value"
+          type="button"
+          class="ui-chip"
+          :class="{ 'is-on': groupBy === option.value }"
+          @click="emit('update:groupBy', option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
       <select
         class="hm-select"
         :value="normMode"
@@ -134,16 +147,6 @@ const MODES = [
         @change="emit('update:period', $event.target.value)"
       >
         <option v-for="option in PERIODS" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </option>
-      </select>
-      <select
-        class="hm-select"
-        :value="groupBy"
-        aria-label="Строки"
-        @change="emit('update:groupBy', $event.target.value)"
-      >
-        <option v-for="option in CUTS" :key="option.value" :value="option.value">
           {{ option.label }}
         </option>
       </select>

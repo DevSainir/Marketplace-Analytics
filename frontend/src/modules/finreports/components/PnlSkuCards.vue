@@ -210,7 +210,7 @@ const { money } = formatters
             <input
               type="checkbox"
               :checked="row.isExcluded"
-              class="h-4 w-4 flex-none cursor-pointer rounded border-border-subtle text-action focus:ring-action/20"
+              class="h-4 w-4 flex-none cursor-pointer accent-action"
               @change="
                 emit('toggle-exclusion', { nmId: row.nmId, excluded: $event.target.checked })
               "

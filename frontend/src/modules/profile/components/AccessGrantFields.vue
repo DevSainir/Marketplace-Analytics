@@ -74,7 +74,7 @@ function toggleModule(key) {
         </span>
         <!-- A real checkbox styled as a switch: it keeps the keyboard and
              screen-reader behaviour a div with a click handler throws away. -->
-        <span class="pf-switch" :class="enabled.has(module.key) ? 'is-on' : ''">
+        <span class="relative inline-flex">
           <input
             type="checkbox"
             class="sr-only"
@@ -82,7 +82,7 @@ function toggleModule(key) {
             :disabled="disabled"
             @change="toggleModule(module.key)"
           />
-          <span class="pf-switch__dot" />
+          <UiSwitch :on="enabled.has(module.key)" />
         </span>
       </label>
     </fieldset>
@@ -125,24 +125,5 @@ function toggleModule(key) {
 
 .is-off {
   @apply cursor-not-allowed opacity-60;
-}
-
-.pf-switch {
-  @apply relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors;
-  background: var(--ui-rule);
-}
-
-.pf-switch.is-on {
-  background: var(--ui-action);
-}
-
-.pf-switch__dot {
-  @apply inline-block h-5 w-5 translate-x-0.5 rounded-full transition-transform;
-  background: #fff;
-  box-shadow: var(--ui-sh-xs);
-}
-
-.pf-switch.is-on .pf-switch__dot {
-  @apply translate-x-5;
 }
 </style>

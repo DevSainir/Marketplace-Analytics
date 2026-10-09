@@ -20,7 +20,7 @@ defineEmits(['change'])
       type="checkbox"
       :checked="checked"
       aria-label="Не включать в общий счёт"
-      class="h-4 w-4 cursor-pointer rounded border-border-subtle text-action focus:ring-action/20"
+      class="h-4 w-4 cursor-pointer accent-action"
       @change="$emit('change', $event.target.checked)"
     />
     <span

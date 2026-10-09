@@ -178,7 +178,7 @@ const option = computed(() => ({
       >
         <input
           type="checkbox"
-          class="h-3.5 w-3.5 cursor-pointer accent-action"
+          class="h-4 w-4 cursor-pointer accent-action"
           :checked="shown(item.key)"
           @change="toggle(item.key)"
         />

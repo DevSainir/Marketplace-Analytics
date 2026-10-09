@@ -203,7 +203,7 @@ async function submit() {
 }
 
 .login-tab--active {
-  @apply bg-surface text-primary shadow-soft;
+  @apply bg-action text-white shadow-soft hover:text-white;
 }
 
 .login-input {

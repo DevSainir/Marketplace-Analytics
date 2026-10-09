@@ -54,12 +54,8 @@ function toggle(key) {
             <button
               type="button"
               :aria-pressed="modelValue.includes(item.key)"
-              class="rounded-btn border px-sm py-1 text-base font-medium transition"
-              :class="
-                modelValue.includes(item.key)
-                  ? 'border-action bg-action text-white'
-                  : 'border-border-subtle text-muted hover:bg-hover hover:text-primary'
-              "
+              class="ui-chip"
+              :class="{ 'is-on': modelValue.includes(item.key) }"
               @click="toggle(item.key)"
             >
               {{ item.name }}

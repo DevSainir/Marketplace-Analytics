@@ -147,12 +147,13 @@ function initialOf(email) {
   color: var(--ui-ink);
 }
 
-/* Risen out of the groove: the one white surface inside it, carrying the same
-   shadow the content cards do, so it reads as the same material as the page. */
+/* Filled with the action colour, the way every chosen item in the app is
+   marked — a chip, a preset, the header's section. It used to rise out of the
+   groove as a white card, the one place a choice looked like a surface. */
 .pf-nav__link.is-active {
-  background: var(--ui-surface);
+  background: var(--ui-action);
   box-shadow: var(--ui-sh-xs);
-  color: var(--ui-ink);
+  color: #fff;
 }
 
 .pf-nav__sub {
