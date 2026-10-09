@@ -1,0 +1,24 @@
+/*
+ * Styles for UiDialog.vue. Kept beside the component; still `scoped`.
+ */
+
+/* Padded by the safe area as well: on a phone held sideways a dialog's edge
+   would otherwise sit under the curve of the screen. */
+.ui-dialog-root {
+  @apply fixed inset-0 z-50 flex items-center justify-center;
+  padding: max(theme('spacing.md'), env(safe-area-inset-top))
+    max(theme('spacing.md'), env(safe-area-inset-right))
+    max(theme('spacing.md'), env(safe-area-inset-bottom))
+    max(theme('spacing.md'), env(safe-area-inset-left));
+}
+
+.ui-dialog-scrim {
+  @apply absolute inset-0;
+  background: var(--ui-scrim);
+}
+
+.ui-dialog {
+  @apply relative flex max-h-full w-full flex-col;
+  border-radius: var(--ui-r-lg);
+  box-shadow: var(--ui-sh-lift);
+}

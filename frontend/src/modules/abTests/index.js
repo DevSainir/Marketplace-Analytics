@@ -6,4 +6,10 @@
  * are fatal ESLint errors.
  */
 export { abTestsRoutes } from '@/modules/abTests/routes'
-export { MAX_VARIANTS, STATUS_LABELS, statusLabel, useAbTestsStore } from '@/modules/abTests/store'
+export {
+  MAX_VARIANTS,
+  STATUS_LABELS,
+  statusLabel,
+  statusTone,
+  useAbTestsStore,
+} from '@/modules/abTests/store'

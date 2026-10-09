@@ -88,13 +88,6 @@
   letter-spacing: -0.02em;
 }
 
-/* The group dialog is a column capped at 85vh: only the article list may give
-   way when it overflows. Without this the flexbox squeezes the inputs instead —
-   the name field rendered 15px tall. */
-.hm-dialog > :not(ul) {
-  flex-shrink: 0;
-}
-
 /* The painted metric, ⇄ and the second metric travel together: inline on a
    desktop, and on a phone the swap sits beside the first metric instead of
    taking a full-width line of its own. */

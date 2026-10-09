@@ -97,11 +97,11 @@ describe('the finish dialog', () => {
 
   it('closes from the backdrop, but not while the finish is in flight', async () => {
     build({ saving: true })
-    click('[data-testid="finish-scrim"]')
+    click('[data-testid="dialog-scrim"]')
     expect(wrapper.emitted('close')).toBeUndefined()
 
     await wrapper.setProps({ saving: false })
-    click('[data-testid="finish-scrim"]')
+    click('[data-testid="dialog-scrim"]')
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
 

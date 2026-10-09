@@ -77,7 +77,7 @@ function onSubmit() {
     <div v-for="field in fields" :key="field.key" class="pf-token">
       <div class="pf-token__head">
         <label :for="`pf-token-${field.key}`" class="pf-token__label">{{ field.label }}</label>
-        <span class="pf-pill" :class="isConfigured(field.key) ? 'is-ok' : 'is-warn'">
+        <span class="ui-badge" :class="isConfigured(field.key) ? 'is-ok' : 'is-warn'">
           {{ isConfigured(field.key) ? 'Задан' : 'Не задан' }}
         </span>
       </div>

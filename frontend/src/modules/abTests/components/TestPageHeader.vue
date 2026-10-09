@@ -17,7 +17,7 @@ import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import { statusLabel } from '@/modules/abTests'
+import { statusLabel, statusTone } from '@/modules/abTests'
 import { triggerLabel } from '@/modules/abTests/trigger'
 
 const props = defineProps({
@@ -68,7 +68,7 @@ const removal = useConfirmClick()
     </div>
 
     <p v-if="test" class="mt-xs flex flex-wrap items-center gap-x-sm text-tiny text-muted">
-      <span>{{ statusLabel(test) }}</span>
+      <span class="ui-badge" :class="statusTone(test)">{{ statusLabel(test) }}</span>
       <span>·</span>
       <span>{{ triggerText }}</span>
       <button

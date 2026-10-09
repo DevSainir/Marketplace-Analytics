@@ -116,6 +116,9 @@
   --ui-sh-md:
     0 0 0 1px rgba(18, 18, 26, 0.05), 0 1px 1px rgba(18, 18, 26, 0.02),
     0 4px 8px -4px rgba(18, 18, 26, 0.04), 0 16px 24px -8px rgba(18, 18, 26, 0.06);
+  /* What a modal dims the page with — dialogs and drawers alike. */
+  --ui-scrim: rgba(18, 18, 26, 0.45);
+
   --ui-sh-lift:
     0 0 0 1px rgba(18, 18, 26, 0.05), 0 2px 4px rgba(18, 18, 26, 0.03),
     0 12px 20px -8px rgba(18, 18, 26, 0.09), 0 28px 44px -18px rgba(18, 18, 26, 0.12);

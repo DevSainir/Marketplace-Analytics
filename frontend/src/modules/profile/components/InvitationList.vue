@@ -93,7 +93,7 @@ function expiry(invitation) {
         </span>
 
         <span class="pf-cell" role="cell">
-          <span class="pf-pill" :class="STATUS[invite.status]?.tone">
+          <span class="ui-badge" :class="STATUS[invite.status]?.tone">
             {{ STATUS[invite.status]?.label ?? invite.status }}
           </span>
         </span>

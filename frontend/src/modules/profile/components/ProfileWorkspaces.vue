@@ -86,15 +86,15 @@ const removal = useConfirmClick()
                  What this marks is the one whose data the rest of the app is
                  currently showing — so it says that, and pairs with the
                  «Выбрать» on every other row. -->
-            <span v-if="ws.id === currentId" class="pf-pill is-on">Выбран</span>
-            <span v-if="ws.is_primary" class="pf-pill is-soft">основной</span>
+            <span v-if="ws.id === currentId" class="ui-badge is-on">Выбран</span>
+            <span v-if="ws.is_primary" class="ui-badge is-soft">основной</span>
           </span>
         </span>
 
         <span v-if="canManage" class="pf-cell" role="cell">
           <template v-if="tokenSummary(ws, tokenStatuses)">
             <span
-              class="pf-pill"
+              class="ui-badge"
               :class="
                 tokenSummary(ws, tokenStatuses).set === 0
                   ? 'is-bad'

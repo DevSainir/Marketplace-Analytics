@@ -93,7 +93,12 @@ defineExpose({ close: () => (open.value = false) })
 
     <div v-if="open" class="fixed inset-0 z-30" @click="open = false"></div>
 
-    <div v-if="open" class="hm-menu ui-pop" role="listbox" aria-multiselectable="true">
+    <div
+      v-if="open"
+      class="hm-menu ui-pop ui-glass ui-glass--pop"
+      role="listbox"
+      aria-multiselectable="true"
+    >
       <input
         v-model="query"
         type="search"
@@ -153,12 +158,12 @@ defineExpose({ close: () => (open.value = false) })
 </template>
 
 <style scoped>
+/* Glass like every other dropdown in the app (`ui-glass--pop`); it was the
+   one solid white menu. */
 .hm-menu {
   top: calc(100% + 6px);
   left: 0;
   width: min(22rem, calc(100vw - 32px));
   padding: 12px;
-  background: var(--ui-surface);
-  box-shadow: var(--ui-sh-md);
 }
 </style>

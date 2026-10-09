@@ -117,7 +117,8 @@ defineExpose({ reset })
       </div>
     </div>
 
-    <div class="mt-lg flex flex-wrap items-center gap-sm">
+    <div class="mt-lg flex flex-wrap items-center justify-end gap-sm">
+      <button type="button" class="ui-btn" @click="emit('cancel')">Отмена</button>
       <button
         type="button"
         class="ui-btn ui-btn--primary"
@@ -127,7 +128,6 @@ defineExpose({ reset })
       >
         {{ saving ? 'Создаём…' : 'Создать' }}
       </button>
-      <button type="button" class="ui-btn" @click="emit('cancel')">Отмена</button>
     </div>
   </section>
 </template>

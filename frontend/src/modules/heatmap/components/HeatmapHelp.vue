@@ -24,7 +24,7 @@ const open = ref(false)
     <div v-if="open" class="fixed inset-0 z-30" @click="open = false"></div>
     <div
       v-if="open"
-      class="ui-pop right-0 mt-xs max-h-[70vh] w-[min(28rem,calc(100vw-32px))] overflow-y-auto bg-surface p-lg text-base text-primary shadow-card"
+      class="ui-pop ui-glass ui-glass--pop right-0 mt-xs max-h-[70vh] w-[min(28rem,calc(100vw-32px))] overflow-y-auto p-lg text-base text-primary"
     >
       <p>
         <b>Цвет.</b> Норма — медиана. Выше нормы — зелёный, ниже — красный; чем ближе к лучшему или

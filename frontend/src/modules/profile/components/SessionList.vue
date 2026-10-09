@@ -106,7 +106,7 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
               {{ new Date(current.started_at).toLocaleDateString('ru-RU') }}
             </span>
           </span>
-          <span class="pf-pill is-on">сейчас здесь</span>
+          <span class="ui-badge is-on">сейчас здесь</span>
         </article>
       </section>
 

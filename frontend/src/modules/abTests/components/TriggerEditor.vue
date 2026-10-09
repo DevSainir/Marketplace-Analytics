@@ -87,6 +87,7 @@ function save() {
         />
       </label>
     </div>
+    <button type="button" class="ui-btn" @click="emit('cancel')">Отмена</button>
     <button
       type="button"
       class="ui-btn ui-btn--primary"
@@ -96,7 +97,6 @@ function save() {
     >
       {{ saving ? 'Сохраняем…' : 'Сохранить' }}
     </button>
-    <button type="button" class="ui-btn" @click="emit('cancel')">Отмена</button>
     <p class="w-full text-tiny text-muted">
       Новый триггер читается ближайшим проходом (в течение 5 минут).
     </p>

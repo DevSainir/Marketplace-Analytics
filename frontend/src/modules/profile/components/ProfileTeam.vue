@@ -69,13 +69,13 @@ function joined(iso) {
         </span>
 
         <span class="pf-cell" role="cell">
-          <span class="pf-pill" :class="manager.access_level === 'read_only' ? 'is-quiet' : ''">
+          <span class="ui-badge" :class="manager.access_level === 'read_only' ? 'is-quiet' : ''">
             {{ levelLabel(manager.access_level) }}
           </span>
         </span>
 
         <span class="pf-cell pf-cell--chips" role="cell">
-          <span v-for="key in manager.modules" :key="key" class="pf-pill is-soft">
+          <span v-for="key in manager.modules" :key="key" class="ui-badge is-soft">
             {{ moduleLabel(key) }}
           </span>
           <span v-if="!manager.modules?.length" class="pf-who__meta">нет доступа</span>

@@ -96,6 +96,42 @@
   }
 
   /*
+   * Badges — a short status beside a name («действует», «Идёт», «основной»).
+   * One shape and one set of tones; the profile had its own `pf-pill`, the
+   * A/B list coloured pills, its test page plain text and its summary
+   * coloured text for the same status. Tones:
+   *   (none) neutral   .is-soft action tint   .is-on action fill
+   *   .is-ok positive   .is-warn warning   .is-bad negative   .is-quiet muted
+   */
+  .ui-badge {
+    @apply inline-flex items-center whitespace-nowrap rounded-full bg-canvas px-sm py-px text-tiny font-semibold text-muted;
+  }
+
+  .ui-badge.is-soft {
+    @apply bg-action/10 text-action;
+  }
+
+  .ui-badge.is-on {
+    @apply bg-action text-white;
+  }
+
+  .ui-badge.is-ok {
+    @apply bg-status-positive/10 text-status-positive;
+  }
+
+  .ui-badge.is-warn {
+    @apply bg-status-warning/10 text-status-warning;
+  }
+
+  .ui-badge.is-bad {
+    @apply bg-status-negative/10 text-status-negative;
+  }
+
+  .ui-badge.is-quiet {
+    @apply bg-transparent text-muted ring-1 ring-inset ring-border-subtle;
+  }
+
+  /*
    * The one shared page/chrome container (design_system.md «Page Chrome &
    * Canvas»): 80rem plus two thirds of the spare viewport, so the header nav
    * and the page content line up their side margins on every route.

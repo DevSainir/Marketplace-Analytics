@@ -34,7 +34,7 @@
 import { computed } from 'vue'
 
 import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
-import { statusLabel as labelOf } from '@/modules/abTests'
+import { statusLabel as labelOf, statusTone } from '@/modules/abTests'
 import { campaignKindLabel } from '@/modules/abTests/campaignKinds'
 import SummaryFacts from '@/modules/abTests/components/SummaryFacts.vue'
 import SummaryMetricTile from '@/modules/abTests/components/SummaryMetricTile.vue'
@@ -159,8 +159,8 @@ function moment(value) {
       <h2 class="text-h3 font-semibold text-primary">Итог по тесту</h2>
       <span
         v-if="statusLabel"
-        class="text-tiny font-semibold"
-        :class="test.status === 'paused' ? 'text-status-warning' : 'text-muted'"
+        class="ui-badge"
+        :class="statusTone(test)"
         data-testid="summary-status"
       >
         {{ statusLabel }}

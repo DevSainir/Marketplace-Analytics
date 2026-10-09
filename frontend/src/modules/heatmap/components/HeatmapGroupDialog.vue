@@ -10,9 +10,10 @@
  * Modal over a dimmed page, like the A/Б finish dialog: Escape and the backdrop
  * close it, except mid-save.
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import SkuThumb from '@/core/components/SkuThumb.vue'
+import UiDialog from '@/core/components/UiDialog.vue'
 import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 import { formatSku } from '@/core/utils/format'
 
@@ -37,7 +38,6 @@ const removal = useConfirmClick()
 watch(
   () => props.open,
   (open) => {
-    document.body.style.overflow = open ? 'hidden' : ''
     if (!open) return
     name.value = props.group?.name ?? ''
     picked.value = new Set(props.group?.nm_ids ?? [])
@@ -86,109 +86,76 @@ function remove() {
 function close() {
   if (!props.busy) emit('close')
 }
-
-function onKey(event) {
-  if (event.key === 'Escape' && props.open) close()
-}
-onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKey)
-  document.body.style.overflow = ''
-})
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center p-md">
-      <div class="absolute inset-0 bg-canvas/70" @click="close" />
+  <UiDialog :open="open" :title="group ? 'Группа' : 'Новая группа'" :busy="busy" @close="close">
+    <label class="block text-tiny font-medium text-muted" for="hm-group-name"> Название </label>
+    <input
+      id="hm-group-name"
+      v-model="name"
+      type="text"
+      maxlength="80"
+      class="ui-input mt-xs w-full"
+      placeholder="Например, спандекс_двойка"
+    />
 
-      <section
-        class="hm-dialog relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-card border border-border-subtle bg-surface p-lg shadow-card"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="hm-group-title"
-      >
-        <h2 id="hm-group-title" class="text-h3 font-semibold text-primary">
-          {{ group ? 'Группа' : 'Новая группа' }}
-        </h2>
-
-        <label class="mt-md block text-tiny font-medium text-muted" for="hm-group-name">
-          Название
-        </label>
-        <input
-          id="hm-group-name"
-          v-model="name"
-          type="text"
-          maxlength="80"
-          class="ui-input mt-xs w-full"
-          placeholder="Например, спандекс_двойка"
-        />
-
-        <div class="mt-md flex items-center justify-between gap-sm">
-          <span class="text-tiny font-medium text-muted">Артикулы</span>
-          <span class="text-tiny text-muted">Выбрано: {{ picked.size }}</span>
-        </div>
-        <input
-          v-model="query"
-          type="search"
-          class="ui-input mt-xs w-full"
-          placeholder="Артикул продавца или WB, название"
-          aria-label="Поиск артикула"
-        />
-
-        <ul class="mt-sm min-h-0 flex-1 overflow-y-auto">
-          <li v-for="card in shown" :key="card.nm_id">
-            <button
-              type="button"
-              class="hm-option"
-              :aria-pressed="picked.has(card.nm_id)"
-              @click="toggle(card.nm_id)"
-            >
-              <span class="hm-check" :class="{ 'is-on': picked.has(card.nm_id) }" aria-hidden="true"
-                >✓</span
-              >
-              <SkuThumb :src="card.photo_url" :label="card.vendor_code" />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-base text-primary">
-                  {{ formatSku(card.vendor_code) ?? `Артикул WB ${card.nm_id}` }}
-                </span>
-                <span class="block truncate text-tiny text-muted">
-                  {{ pickerNote(card) }}
-                </span>
-              </span>
-            </button>
-          </li>
-        </ul>
-        <p v-if="matches.length > shown.length" class="mt-xs text-tiny text-muted">
-          Показано {{ shown.length }} из {{ matches.length }} — уточните поиск.
-        </p>
-
-        <p v-if="error" class="mt-sm text-base text-status-negative">{{ error }}</p>
-
-        <footer class="mt-lg flex flex-wrap items-center gap-sm">
-          <button
-            v-if="group"
-            type="button"
-            class="ui-btn ui-btn--danger"
-            :class="{ 'is-armed': removal.isArmed('group') }"
-            :disabled="busy"
-            @click="remove"
-          >
-            {{ removal.isArmed('group') ? confirmLabel('Удалить') : 'Удалить' }}
-          </button>
-          <button
-            type="button"
-            class="ui-btn ui-btn--ghost ml-auto"
-            :disabled="busy"
-            @click="close"
-          >
-            Отмена
-          </button>
-          <button type="button" class="ui-btn ui-btn--primary" :disabled="!canSave" @click="save">
-            {{ busy ? 'Сохраняем…' : 'Сохранить' }}
-          </button>
-        </footer>
-      </section>
+    <div class="mt-md flex items-center justify-between gap-sm">
+      <span class="text-tiny font-medium text-muted">Артикулы</span>
+      <span class="text-tiny text-muted">Выбрано: {{ picked.size }}</span>
     </div>
-  </Teleport>
+    <input
+      v-model="query"
+      type="search"
+      class="ui-input mt-xs w-full"
+      placeholder="Артикул продавца или WB, название"
+      aria-label="Поиск артикула"
+    />
+
+    <ul class="mt-sm min-h-0 flex-1 overflow-y-auto">
+      <li v-for="card in shown" :key="card.nm_id">
+        <button
+          type="button"
+          class="hm-option"
+          :aria-pressed="picked.has(card.nm_id)"
+          @click="toggle(card.nm_id)"
+        >
+          <span class="hm-check" :class="{ 'is-on': picked.has(card.nm_id) }" aria-hidden="true"
+            >✓</span
+          >
+          <SkuThumb :src="card.photo_url" :label="card.vendor_code" />
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-base text-primary">
+              {{ formatSku(card.vendor_code) ?? `Артикул WB ${card.nm_id}` }}
+            </span>
+            <span class="block truncate text-tiny text-muted">
+              {{ pickerNote(card) }}
+            </span>
+          </span>
+        </button>
+      </li>
+    </ul>
+    <p v-if="matches.length > shown.length" class="mt-xs text-tiny text-muted">
+      Показано {{ shown.length }} из {{ matches.length }} — уточните поиск.
+    </p>
+
+    <p v-if="error" class="mt-sm text-base text-status-negative">{{ error }}</p>
+
+    <template #footer>
+      <button
+        v-if="group"
+        type="button"
+        class="ui-btn ui-btn--danger mr-auto"
+        :class="{ 'is-armed': removal.isArmed('group') }"
+        :disabled="busy"
+        @click="remove"
+      >
+        {{ removal.isArmed('group') ? confirmLabel('Удалить') : 'Удалить' }}
+      </button>
+      <button type="button" class="ui-btn" :disabled="busy" @click="close">Отмена</button>
+      <button type="button" class="ui-btn ui-btn--primary" :disabled="!canSave" @click="save">
+        {{ busy ? 'Сохраняем…' : 'Сохранить' }}
+      </button>
+    </template>
+  </UiDialog>
 </template>

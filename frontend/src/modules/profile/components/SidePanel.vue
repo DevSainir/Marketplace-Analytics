@@ -97,7 +97,7 @@ onBeforeUnmount(() => {
 
 .pf-drawer-scrim {
   @apply absolute inset-0;
-  background: rgba(18, 18, 26, 0.28);
+  background: var(--ui-scrim);
 }
 
 .pf-drawer {

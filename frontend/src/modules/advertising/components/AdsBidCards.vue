@@ -44,9 +44,7 @@ const segmentStyle = (zone) => ({
     >
       <header class="flex items-center justify-between gap-sm">
         <h3 class="text-base font-semibold text-primary">{{ card.label }}</h3>
-        <span
-          class="rounded-full bg-canvas px-sm py-0.5 text-micro font-medium uppercase tracking-wider text-muted"
-        >
+        <span class="ui-badge">
           {{ card.tag }}
         </span>
       </header>

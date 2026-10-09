@@ -197,47 +197,6 @@
  * Atoms
  * ----------------------------------------------------------------------- */
 
-.pf-pill {
-  display: inline-block;
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  white-space: nowrap;
-  background: var(--ui-sunk);
-  color: var(--ui-muted);
-}
-
-.pf-pill.is-soft {
-  background: var(--ui-action-soft);
-  color: var(--ui-action);
-}
-
-.pf-pill.is-on {
-  background: var(--ui-action);
-  color: #fff;
-}
-
-.pf-pill.is-ok {
-  background: rgba(6, 122, 82, 0.1);
-  color: var(--ui-pos);
-}
-
-.pf-pill.is-warn {
-  background: rgba(194, 112, 11, 0.12);
-  color: var(--ui-warn);
-}
-
-.pf-pill.is-bad {
-  background: rgba(217, 58, 43, 0.1);
-  color: var(--ui-neg);
-}
-
-.pf-pill.is-quiet {
-  background: var(--ui-sunk);
-  color: var(--ui-muted);
-}
-
 /* A panel's inline form stacks on a phone; its fields and buttons are 44px
    tall there by themselves (`.ui-input`, `.ui-btn`). */
 @media (max-width: 430px) {

@@ -15,7 +15,7 @@
  */
 import { RouterLink } from 'vue-router'
 
-import { statusLabel } from '@/modules/abTests/store'
+import { statusLabel, statusTone } from '@/modules/abTests/store'
 import { formatSku } from '@/core/utils/format'
 import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 
@@ -28,21 +28,6 @@ defineProps({
   saving: { type: Boolean, default: false },
 })
 const emit = defineEmits(['delete'])
-
-/**
- * Chip colour per status — running is the only one worth highlighting.
- *
- * The neutral statuses sit on `bg-surface` rather than on the hover fill: the
- * row's own hover tint IS that fill, so a «Черновик» chip disappeared into the
- * row the moment the cursor touched it.
- */
-const STATUS_CLASS = {
-  draft: 'bg-surface text-muted shadow-soft',
-  running: 'bg-status-positive/10 text-status-positive',
-  paused: 'bg-status-warning/10 text-status-warning',
-  completed: 'bg-action/10 text-action',
-  cancelled: 'bg-surface text-muted shadow-soft',
-}
 
 // Which row is asking «Точно удалить?» (`confirmClick`): one at a time, so a
 // stray click cannot land on the wrong one.
@@ -90,10 +75,7 @@ function formatDate(value) {
               {{ test.variant_count }}
             </td>
             <td class="px-md py-sm">
-              <span
-                class="inline-block rounded-full px-sm py-px text-micro font-semibold"
-                :class="STATUS_CLASS[test.status]"
-              >
+              <span class="ui-badge" :class="statusTone(test)">
                 {{ statusLabel(test) }}
               </span>
             </td>
@@ -135,10 +117,7 @@ function formatDate(value) {
           >
             {{ test.name }}
           </RouterLink>
-          <span
-            class="flex-none rounded-full px-sm py-px text-micro font-semibold"
-            :class="STATUS_CLASS[test.status]"
-          >
+          <span class="ui-badge flex-none" :class="statusTone(test)">
             {{ statusLabel(test) }}
           </span>
         </div>

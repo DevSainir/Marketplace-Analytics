@@ -168,7 +168,7 @@ function grantedOn(iso) {
               <span class="pf-who__meta">с {{ grantedOn(grant.created_at) }}</span>
             </span>
             <span class="pf-cell">
-              <span class="pf-pill is-soft">{{ grant.workspace_name }}</span>
+              <span class="ui-badge is-soft">{{ grant.workspace_name }}</span>
             </span>
             <span class="pf-cell pf-cell--act">
               <button

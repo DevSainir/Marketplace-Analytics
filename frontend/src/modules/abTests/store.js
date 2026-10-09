@@ -51,6 +51,22 @@ export function statusLabel(test) {
   return STATUS_LABELS[test.status] || test.status
 }
 
+/**
+ * The tone a status badge (`.ui-badge`) is drawn in — one answer for the list,
+ * the test page and its summary, which coloured the same status three ways.
+ * «Завершён» is neutral: in the action colour it read as a link.
+ *
+ * @param {{status: string}} test
+ * @returns {string} A `.ui-badge` modifier, `''` for neutral.
+ */
+export function statusTone(test) {
+  return (
+    { running: 'is-ok', paused: 'is-warn', draft: 'is-quiet', cancelled: 'is-quiet' }[
+      test.status
+    ] ?? ''
+  )
+}
+
 /** Product cap on photos in one rotation; mirrors the backend's own limit. */
 export const MAX_VARIANTS = 10
 
