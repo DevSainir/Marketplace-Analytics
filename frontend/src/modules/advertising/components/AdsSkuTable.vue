@@ -71,7 +71,7 @@ const foot = computed(() => ({
       :sort-order="-1"
       sort-mode="single"
       scrollable
-      scroll-height="560px"
+      scroll-height="min(40rem, 70vh)"
     >
       <template #empty>
         <DataState kind="empty" layout="bare" text="Ничего не найдено" />

@@ -26,6 +26,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 
 import DataState from '@/core/components/DataState.vue'
+import SortIcon from '@/core/components/SortIcon.vue'
 import SkuThumb from '@/core/components/SkuThumb.vue'
 import HeatmapNormInput from '@/modules/heatmap/components/HeatmapNormInput.vue'
 import { formatSku } from '@/core/utils/format'
@@ -68,9 +69,10 @@ watch(
 
 const NAME_HEADERS = { sku: 'Артикул', subject: 'Предмет', brand: 'Бренд', group: 'Группа' }
 
-function arrow(by) {
-  if (props.sort.by !== by) return '↕'
-  return props.sort.dir === 'desc' ? '↓' : '↑'
+/** What `SortIcon` draws for a column: not the sort, or which way it runs. */
+function sortState(by) {
+  if (props.sort.by !== by) return 'none'
+  return props.sort.dir === 'desc' ? 'desc' : 'asc'
 }
 
 function ariaSort(by) {
@@ -96,13 +98,13 @@ const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies,
           <th v-if="normOf" class="hm-grid__norm">{{ normTitle }}</th>
           <th class="hm-grid__total" :aria-sort="ariaSort('total')">
             <button type="button" class="hm-grid__sort" @click="emit('sort', 'total')">
-              Итого <span aria-hidden="true">{{ arrow('total') }}</span>
+              Итого<SortIcon :state="sortState('total')" />
             </button>
           </th>
           <th v-for="(column, index) in columns" :key="column.start" :aria-sort="ariaSort(index)">
             <button type="button" class="hm-grid__sort" @click="emit('sort', index)">
               {{ columnLabel(column, period) }}
-              <span aria-hidden="true">{{ arrow(index) }}</span>
+              <SortIcon :state="sortState(index)" />
             </button>
           </th>
         </tr>

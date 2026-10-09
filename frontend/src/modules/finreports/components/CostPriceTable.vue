@@ -10,6 +10,7 @@
  * Dumb by contract: the parent owns the draft buffer and the save.
  */
 import { formatNumber, formatSku } from '@/core/utils/format'
+import DataState from '@/core/components/DataState.vue'
 import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 
 defineProps({
@@ -27,68 +28,74 @@ const clearing = useConfirmClick()
 </script>
 
 <template>
-  <div class="overflow-x-auto rounded-card border border-border-subtle bg-surface shadow-card">
-    <table class="w-full min-w-[720px] text-base">
-      <thead class="border-b border-border-subtle text-left text-tiny uppercase text-muted">
-        <tr>
-          <th class="px-md py-sm">Артикул</th>
-          <th class="px-md py-sm">Артикул WB</th>
-          <th class="px-md py-sm text-right">Продано, шт</th>
-          <th class="px-md py-sm text-right">Себестоимость</th>
-          <th class="px-md py-sm">Источник</th>
-          <th class="px-md py-sm"></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="row in rows"
-          :key="row.nmId"
-          class="border-b border-border-subtle/60 last:border-0"
-          :class="row.stored === null ? 'bg-status-warning/5' : ''"
-        >
-          <td class="px-md py-sm font-medium text-primary">
-            {{ formatSku(row.vendorCode) || '—' }}
-          </td>
-          <td class="px-md py-sm tabular-nums text-muted">{{ row.nmId }}</td>
-          <td class="px-md py-sm text-right tabular-nums text-primary">
-            {{ formatNumber(row.soldUnits) }}
-          </td>
-          <td class="px-md py-sm text-right">
-            <input
-              type="number"
-              min="0"
-              step="1"
-              inputmode="decimal"
-              class="ui-input ui-input--sm w-28 text-right tabular-nums"
-              :value="value(row)"
-              :placeholder="row.stored === null ? 'не задана' : ''"
-              @input="emit('input', row, $event.target.value)"
-            />
-          </td>
-          <td class="px-md py-sm text-tiny text-muted">
-            {{
-              row.source === 'seed' ? 'со слов продавца' : row.source === 'manual' ? 'вручную' : '—'
-            }}
-          </td>
-          <td class="px-md py-sm text-right">
-            <button
-              v-if="row.stored !== null"
-              type="button"
-              class="ui-btn ui-btn--danger ui-btn--sm"
-              :class="{ 'is-armed': clearing.isArmed(row.nmId) }"
-              :disabled="saving"
-              @click="clearing.press(row.nmId, () => emit('remove', row.nmId))"
-            >
-              {{ clearing.isArmed(row.nmId) ? confirmLabel('Очистить') : 'Очистить' }}
-            </button>
-          </td>
-        </tr>
-        <tr v-if="!rows.length">
-          <td colspan="6" class="px-md py-xl text-center text-muted">
-            Нет проданных SKU за последний год.
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="app-datatable">
+    <div class="overflow-x-auto">
+      <table class="min-w-[720px]">
+        <thead>
+          <tr>
+            <th>Артикул</th>
+            <th>Артикул WB</th>
+            <th class="text-right">Продано, шт</th>
+            <th class="text-right">Себестоимость</th>
+            <th>Источник</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="row in rows"
+            :key="row.nmId"
+            class="border-b border-border-subtle/60 last:border-0"
+            :class="row.stored === null ? 'bg-status-warning/5' : ''"
+          >
+            <td class="font-medium text-primary">
+              {{ formatSku(row.vendorCode) || '—' }}
+            </td>
+            <td class="tabular-nums text-muted">{{ row.nmId }}</td>
+            <td class="text-right tabular-nums text-primary">
+              {{ formatNumber(row.soldUnits) }}
+            </td>
+            <td class="text-right">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputmode="decimal"
+                class="ui-input ui-input--sm w-28 text-right tabular-nums"
+                :value="value(row)"
+                :placeholder="row.stored === null ? 'не задана' : ''"
+                @input="emit('input', row, $event.target.value)"
+              />
+            </td>
+            <td class="text-tiny text-muted">
+              {{
+                row.source === 'seed'
+                  ? 'со слов продавца'
+                  : row.source === 'manual'
+                    ? 'вручную'
+                    : '—'
+              }}
+            </td>
+            <td class="text-right">
+              <button
+                v-if="row.stored !== null"
+                type="button"
+                class="ui-btn ui-btn--danger ui-btn--sm"
+                :class="{ 'is-armed': clearing.isArmed(row.nmId) }"
+                :disabled="saving"
+                @click="clearing.press(row.nmId, () => emit('remove', row.nmId))"
+              >
+                {{ clearing.isArmed(row.nmId) ? confirmLabel('Очистить') : 'Очистить' }}
+              </button>
+            </td>
+          </tr>
+          <tr v-if="!rows.length">
+            <td colspan="6">
+              <DataState kind="empty" layout="bare" text="Нет проданных SKU за последний год." />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>

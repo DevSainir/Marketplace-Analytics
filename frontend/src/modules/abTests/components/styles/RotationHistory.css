@@ -41,11 +41,9 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 8px 12px;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  /* The head every table in the app has (`.app-datatable thead th`): it was
+     9px here, the smallest type on the site. */
+  @apply px-md py-sm text-tiny font-medium uppercase tracking-wider;
   color: var(--ui-muted);
   background: var(--ui-surface);
   border-bottom: 1px solid var(--ui-hairline);

@@ -138,7 +138,8 @@
   --hm-total: 104px;
 
   isolation: isolate;
-  max-height: 70vh;
+  /* The one table height in the app (assets/main.css, PrimeVue tables). */
+  max-height: min(40rem, 70vh);
   overflow: auto;
   border-radius: var(--ui-r-md);
   box-shadow: inset 0 0 0 1px var(--ui-hairline);

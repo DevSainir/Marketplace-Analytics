@@ -168,8 +168,12 @@
     @apply isolate overflow-hidden rounded-card border border-border-subtle bg-surface shadow-card;
   }
 
+  /* One scroll height for every table: 40rem, or 70 % of a short screen. The
+     P&L and advertising each set their own (640px, 560px) over a 28rem
+     default, and the heatmap a fourth. */
   .app-datatable [data-pc-section='tablecontainer'] {
-    @apply max-h-[28rem] overflow-auto;
+    @apply overflow-auto;
+    max-height: min(40rem, 70vh);
   }
 
   .app-datatable table {
@@ -177,7 +181,14 @@
   }
 
   .app-datatable thead th {
-    @apply sticky top-0 z-10 whitespace-nowrap border-b border-border-subtle bg-surface px-md py-sm text-left text-tiny font-medium uppercase tracking-wider text-muted;
+    @apply sticky top-0 z-10 whitespace-nowrap border-b border-border-subtle bg-surface px-md py-sm text-tiny font-medium uppercase tracking-wider text-muted;
+  }
+
+  /* Left by default, at no specificity: a `text-right` on a numeric column's
+     head has to win. Inside the rule above it did not (0,1,2 against 0,1,0),
+     and the cluster table printed its heads left over right-aligned figures. */
+  .app-datatable :where(thead th) {
+    @apply text-left;
   }
 
   .app-datatable thead th svg {

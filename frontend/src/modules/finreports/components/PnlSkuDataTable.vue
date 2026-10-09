@@ -87,7 +87,7 @@ const { money } = usePnlMoney()
     sort-mode="single"
     data-key="nmId"
     scrollable
-    scroll-height="640px"
+    scroll-height="min(40rem, 70vh)"
   >
     <template #empty>
       <div class="px-md py-xl text-center text-base text-muted">Нет продаж за период</div>
