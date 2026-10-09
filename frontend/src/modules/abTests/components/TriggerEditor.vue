@@ -45,7 +45,9 @@ function save() {
 </script>
 
 <template>
-  <div class="mt-md flex flex-wrap items-end gap-md rounded-card bg-surface p-md shadow-card">
+  <div
+    class="mt-md flex flex-wrap items-end gap-md rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
+  >
     <label class="block">
       <span class="block text-tiny font-medium uppercase tracking-wide text-muted"
         >Что меняет фото</span

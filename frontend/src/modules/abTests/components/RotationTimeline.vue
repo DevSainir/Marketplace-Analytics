@@ -158,7 +158,7 @@ onUnmounted(close)
 
 <template>
   <section
-    class="mb-lg rounded-card bg-surface p-lg shadow-card phone:p-md"
+    class="mb-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
     aria-label="Ход теста"
     data-testid="rotation-timeline"
   >

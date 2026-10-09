@@ -11,6 +11,7 @@
  */
 import { computed, onMounted } from 'vue'
 
+import PageHeader from '@/core/components/PageHeader.vue'
 import BusyRegion from '@/core/components/BusyRegion.vue'
 import DataState from '@/core/components/DataState.vue'
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
@@ -32,9 +33,10 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
 
 <template>
   <div class="app-container py-lg">
-    <header class="mb-lg">
-      <h1 class="text-h2 font-bold text-primary">Реклама</h1>
-    </header>
+    <PageHeader
+      title="Реклама"
+      subtitle="Куда ушли деньги на рекламу и что они принесли за выбранный период"
+    />
     <BackfillNotice :lanes="['advertising', 'pnl']" />
 
     <div class="mb-lg flex flex-wrap items-center gap-md">

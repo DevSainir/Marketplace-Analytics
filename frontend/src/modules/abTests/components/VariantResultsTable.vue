@@ -87,7 +87,7 @@ function tone(variant, metric) {
     />
 
     <div
-      class="ab-grid__scroll hidden overflow-hidden rounded-card bg-surface shadow-card sm:block"
+      class="ab-grid__scroll hidden overflow-hidden rounded-card border border-border-subtle bg-surface shadow-card sm:block"
     >
       <table class="ab-grid" data-testid="results">
         <thead>

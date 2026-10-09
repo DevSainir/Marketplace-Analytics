@@ -20,7 +20,10 @@ defineEmits(['select'])
 
 <template>
   <!-- Ambiguous vendor-code deep link: let the user pick the exact SKU -->
-  <section v-if="matches.length" class="mt-lg rounded-card bg-surface p-md shadow-card">
+  <section
+    v-if="matches.length"
+    class="mt-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
+  >
     <p class="text-base font-medium text-primary">
       Найдено артикулов: {{ matches.length }} — выберите нужный:
     </p>

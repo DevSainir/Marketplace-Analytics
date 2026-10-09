@@ -68,9 +68,11 @@ function start() {
 </script>
 
 <template>
-  <section class="mb-lg rounded-card bg-surface p-lg shadow-card phone:p-md">
+  <section
+    class="mb-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
+  >
     <div class="flex flex-wrap items-center gap-md">
-      <span class="text-base font-semibold text-primary">
+      <span class="text-h3 font-semibold text-primary">
         Фото в ротации: {{ uploadedCount }} из {{ MAX_VARIANTS }}
       </span>
       <!-- Tinted and first, because it is the one photo the whole table is

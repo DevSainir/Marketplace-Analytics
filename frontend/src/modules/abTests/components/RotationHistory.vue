@@ -67,9 +67,12 @@ function minutes(row) {
 </script>
 
 <template>
-  <section class="rounded-card bg-surface shadow-card" aria-label="История действий">
+  <section
+    class="rounded-card border border-border-subtle bg-surface shadow-card"
+    aria-label="История действий"
+  >
     <header class="flex items-baseline justify-between gap-md px-lg pb-sm pt-lg phone:px-md">
-      <h2 class="text-base font-semibold text-primary">История действий</h2>
+      <h2 class="text-h3 font-semibold text-primary">История действий</h2>
       <span class="text-tiny text-muted">
         {{ formatNumber(rows.length) }} {{ rows.length === 1 ? 'установка' : 'установок' }}
       </span>

@@ -83,10 +83,10 @@
   flex-wrap: wrap;
 }
 
+/* A block heading at the app's one block size (`text-h3 font-semibold`); it
+   was 1.25rem/700 here — a page title's weight on every panel. */
 .pf-panel__title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--ui-ink);
+  @apply text-h3 font-semibold text-primary;
 }
 
 .pf-panel__note {

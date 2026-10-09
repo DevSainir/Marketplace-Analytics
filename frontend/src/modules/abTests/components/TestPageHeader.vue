@@ -44,7 +44,7 @@ const removal = useConfirmClick()
   <header class="mb-lg">
     <RouterLink
       :to="{ name: 'ab-tests' }"
-      class="text-tiny font-medium text-action hover:underline"
+      class="text-base font-medium text-action hover:underline"
     >
       ← Ко всем A/Б-тестам
     </RouterLink>

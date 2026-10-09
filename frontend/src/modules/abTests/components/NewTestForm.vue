@@ -54,7 +54,7 @@ defineExpose({ reset })
 
 <template>
   <section
-    class="mb-lg rounded-card bg-surface p-lg shadow-card phone:p-md"
+    class="mb-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
     aria-label="Новый A/Б-тест"
   >
     <h2 class="text-h3 font-semibold text-primary">Новый тест</h2>

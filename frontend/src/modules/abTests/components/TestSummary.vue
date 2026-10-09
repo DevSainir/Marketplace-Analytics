@@ -151,7 +151,7 @@ function moment(value) {
 
 <template>
   <section
-    class="mb-lg rounded-card bg-surface p-lg shadow-card phone:p-md"
+    class="mb-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
     aria-label="Итог по тесту"
     data-testid="test-summary"
   >

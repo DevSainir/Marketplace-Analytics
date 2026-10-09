@@ -55,11 +55,13 @@ function formatDate(value) {
 </script>
 
 <template>
-  <section class="overflow-hidden rounded-card bg-surface shadow-card">
+  <!-- The section is the table's card (`.app-datatable`); on the <table> itself
+       the skin drew a second card inside the first. -->
+  <section class="app-datatable">
     <div class="overflow-x-auto phone:hidden">
-      <table class="app-datatable w-full" data-testid="tests-table">
+      <table class="w-full" data-testid="tests-table">
         <thead>
-          <tr class="text-left text-micro font-semibold uppercase tracking-wide text-muted">
+          <tr>
             <th class="px-md py-sm">Тест</th>
             <th class="px-md py-sm">Фото</th>
             <th class="px-md py-sm">Статус</th>

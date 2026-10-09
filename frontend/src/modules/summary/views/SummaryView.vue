@@ -13,6 +13,7 @@
  */
 import { computed, onMounted } from 'vue'
 
+import PageHeader from '@/core/components/PageHeader.vue'
 import BusyRegion from '@/core/components/BusyRegion.vue'
 import DataState from '@/core/components/DataState.vue'
 import { CUTS, SORTS } from '@/modules/summary/categories'
@@ -44,10 +45,7 @@ onMounted(() => store.init())
 
 <template>
   <div class="app-container py-lg">
-    <header class="mb-lg">
-      <h1 class="text-h2 font-bold text-primary">Сводка</h1>
-      <p class="mt-xs text-base text-muted">Сводные показатели по кабинету за выбранный период</p>
-    </header>
+    <PageHeader title="Сводка" subtitle="Сводные показатели по кабинету за выбранный период" />
     <BackfillNotice :lanes="['pnl']" />
 
     <SummaryControls

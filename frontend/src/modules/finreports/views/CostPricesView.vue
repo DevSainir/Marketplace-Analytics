@@ -8,8 +8,8 @@
  * meaningful as the share of sold units these figures cover.
  */
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
 
+import PageHeader from '@/core/components/PageHeader.vue'
 import BusyRegion from '@/core/components/BusyRegion.vue'
 import DataState from '@/core/components/DataState.vue'
 import { formatNumber, formatPercent } from '@/core/utils/format'
@@ -118,16 +118,11 @@ onMounted(() => {
 
 <template>
   <!-- `.app-container` is the shared canvas width + safe-area gutter (main.css). -->
-  <main class="app-container py-xl phone:py-lg">
-    <header class="mb-lg">
-      <RouterLink
-        :to="{ name: 'finreports' }"
-        class="text-base font-medium text-action hover:underline"
-      >
-        ← К отчёту о прибылях и убытках
-      </RouterLink>
-      <h1 class="mt-sm text-h2 font-bold text-primary">Себестоимость</h1>
-    </header>
+  <div class="app-container py-lg">
+    <PageHeader
+      title="Себестоимость"
+      :back="{ to: { name: 'finreports' }, label: 'К отчёту о прибылях и убытках' }"
+    />
 
     <section
       v-if="coverage.totalUnits"
@@ -189,5 +184,5 @@ onMounted(() => {
         />
       </BusyRegion>
     </template>
-  </main>
+  </div>
 </template>

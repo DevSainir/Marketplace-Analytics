@@ -11,6 +11,7 @@
 import { onMounted, ref, useTemplateRef } from 'vue'
 import { useRouter } from 'vue-router'
 
+import PageHeader from '@/core/components/PageHeader.vue'
 import BusyRegion from '@/core/components/BusyRegion.vue'
 import DataState from '@/core/components/DataState.vue'
 
@@ -49,19 +50,23 @@ async function submit(payload) {
 </script>
 
 <template>
-  <main class="app-container py-xl phone:py-lg">
-    <header class="mb-md flex flex-wrap items-center justify-between gap-md">
-      <h1 class="text-h2 font-bold text-primary">A/Б-тесты</h1>
-      <button type="button" class="ui-btn ui-btn--primary" data-testid="new-test" @click="openForm">
-        {{ creating ? 'Свернуть' : '+ Новый тест' }}
-      </button>
-    </header>
-
-    <p class="mb-lg max-w-3xl text-tiny text-muted">
-      Фото меняется автоматически — либо когда вариант наберёт свои <b>рекламные показы</b>, либо
-      через заданное <b>время</b>.<br />
-      А/Б-тесты работают только со включённой рекламой.
-    </p>
+  <div class="app-container py-lg">
+    <PageHeader title="A/Б-тесты">
+      <p class="mt-xs max-w-3xl text-base text-muted">
+        Фото меняется автоматически — либо когда вариант наберёт свои <b>рекламные показы</b>, либо
+        через заданное <b>время</b>. А/Б-тесты работают только со включённой рекламой.
+      </p>
+      <template #actions>
+        <button
+          type="button"
+          class="ui-btn ui-btn--primary"
+          data-testid="new-test"
+          @click="openForm"
+        >
+          {{ creating ? 'Свернуть' : '+ Новый тест' }}
+        </button>
+      </template>
+    </PageHeader>
 
     <NewTestForm
       v-if="creating"
@@ -102,5 +107,5 @@ async function submit(payload) {
         />
       </BusyRegion>
     </template>
-  </main>
+  </div>
 </template>

@@ -103,7 +103,7 @@ onBeforeUnmount(() => {
       <div class="absolute inset-0 bg-canvas/70" @click="close" />
 
       <section
-        class="hm-dialog relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-card bg-surface p-lg shadow-card"
+        class="hm-dialog relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-card border border-border-subtle bg-surface p-lg shadow-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby="hm-group-title"

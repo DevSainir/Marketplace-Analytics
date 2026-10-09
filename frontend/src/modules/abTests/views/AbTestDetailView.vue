@@ -146,7 +146,7 @@ async function onMainFile(event) {
 </script>
 
 <template>
-  <main class="app-container py-xl phone:py-lg">
+  <div class="app-container py-lg">
     <TestPageHeader
       :test="test"
       :saving="store.saving"
@@ -243,5 +243,5 @@ async function onMainFile(event) {
       :text="`Загрузите до ${MAX_VARIANTS} вариантов главного фото — они будут сменять друг друга по мере набора показов, и здесь появится их сравнение.`"
       hint="Начните с «Главного»: это то фото, которое сейчас стоит на карточке, и именно с ним сравниваются остальные."
     />
-  </main>
+  </div>
 </template>

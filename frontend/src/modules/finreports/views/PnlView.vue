@@ -12,6 +12,7 @@
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
+import PageHeader from '@/core/components/PageHeader.vue'
 import BusyRegion from '@/core/components/BusyRegion.vue'
 import DataState from '@/core/components/DataState.vue'
 
@@ -80,13 +81,9 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
 
 <template>
   <!-- `.app-container` is the shared canvas width + safe-area gutter (main.css). -->
-  <main class="app-container py-xl phone:py-lg">
-    <header class="mb-lg flex flex-wrap items-end justify-between gap-md">
-      <div>
-        <h1 class="text-h2 font-bold text-primary">P&amp;L</h1>
-        <p class="mt-xs max-w-3xl text-base text-muted">По финансовым отчётам WB, построчно.</p>
-      </div>
-      <div class="flex items-center gap-sm phone:w-full">
+  <div class="app-container py-lg">
+    <PageHeader title="P&L" subtitle="По финансовым отчётам WB, построчно.">
+      <template #actions>
         <!--
           The schedule asks WB hourly; this covers the hours it cannot — a report
           published overnight, or an hour the worker was down for.
@@ -116,8 +113,8 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
         >
           Себестоимость
         </RouterLink>
-      </div>
-    </header>
+      </template>
+    </PageHeader>
 
     <!--
       Why the statement stops where it does, on every load rather than only
@@ -183,5 +180,5 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
 
       <BalanceSection />
     </template>
-  </main>
+  </div>
 </template>

@@ -69,7 +69,7 @@ function tone(metric) {
 <template>
   <section
     v-if="current"
-    class="overflow-hidden rounded-card bg-surface shadow-card"
+    class="overflow-hidden rounded-card border border-border-subtle bg-surface shadow-card"
     data-testid="variant-pager"
   >
     <header class="flex items-center gap-md border-b border-border-subtle p-md">

@@ -13,6 +13,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
+import PageHeader from '@/core/components/PageHeader.vue'
 import BusyRegion from '@/core/components/BusyRegion.vue'
 import DataState from '@/core/components/DataState.vue'
 import { useHistoryKeys } from '@/core/utils/historyKeys'
@@ -113,10 +114,12 @@ onMounted(() => norms.load().catch((err) => (norms.error = extractErrorMessage(e
 
 <template>
   <div class="app-container py-lg">
-    <header class="mb-lg flex flex-wrap items-center justify-between gap-md">
-      <h1 class="text-h2 font-bold text-primary">Тепловая карта</h1>
-      <HeatmapHelp />
-    </header>
+    <PageHeader
+      title="Тепловая карта"
+      subtitle="Артикулы по дням: где показатель вырос, а где просел"
+    >
+      <template #actions><HeatmapHelp /></template>
+    </PageHeader>
     <BackfillNotice :lanes="['funnel', 'advertising', 'pnl']" />
 
     <HeatmapFilters
@@ -132,7 +135,9 @@ onMounted(() => norms.load().catch((err) => (norms.error = extractErrorMessage(e
       @edit-group="openGroup"
     />
 
-    <section class="rounded-card bg-surface p-lg shadow-card phone:p-md">
+    <section
+      class="rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
+    >
       <HeatmapControls
         v-model:metric="store.metric"
         v-model:metric2="store.metric2"
