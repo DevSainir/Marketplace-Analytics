@@ -246,11 +246,16 @@ class AnalyticsService:
         )
 
     async def set_day_action(
-        self, *, nm_id: int, action_date: date, action: DayActionState
+        self,
+        *,
+        nm_id: int,
+        action_date: date,
+        action: DayActionState,
+        changed_by: uuid.UUID,
     ) -> DayActionResponse:
         """Delegate to :meth:`DayAnnotationAnalytics.set_day_action`."""
         return await self._annotations.set_day_action(
-            nm_id=nm_id, action_date=action_date, action=action
+            nm_id=nm_id, action_date=action_date, action=action, changed_by=changed_by
         )
 
     # ------------------------------------------------------------------ #

@@ -1,7 +1,8 @@
 """Data access for per-day SKU action rows («Действия» under the matrix).
 
-Sole owner of SQL for ``monitoring.sku_day_action`` — services depend on this
-repository and never issue queries themselves. One row per SKU-day that has at
+Sole owner of SQL for ``monitoring.sku_day_action`` and its append-only
+``sku_day_action_history`` — services depend on this repository and never
+issue queries themselves. One row per SKU-day that has at
 least one answered field; the service deletes a row whose every answer is
 cleared, so an untouched day is simply absent from
 :meth:`SkuDayActionRepository.map_for_window`. All writes are idempotent.
@@ -9,12 +10,15 @@ cleared, so an untouched day is simply absent from
 
 from __future__ import annotations
 
+import uuid
 from datetime import date
+from typing import Any
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.modules.monitoring.models.day_action_history import SkuDayActionHistory
 from src.modules.monitoring.models.day_actions import SkuDayAction
 
 
@@ -49,6 +53,22 @@ class SkuDayActionRepository:
         )
         rows = (await self._session.execute(stmt)).scalars().all()
         return {row.action_date: row for row in rows}
+
+    async def get(self, *, nm_id: int, action_date: date) -> SkuDayAction | None:
+        """Return one day's action row, or ``None`` when the day has none.
+
+        Args:
+            nm_id: WB SKU identifier.
+            action_date: The day to read.
+
+        Returns:
+            The stored row, or ``None``.
+        """
+        stmt = select(SkuDayAction).where(
+            SkuDayAction.nm_id == nm_id,
+            SkuDayAction.action_date == action_date,
+        )
+        return (await self._session.execute(stmt)).scalar_one_or_none()
 
     async def set(
         self,
@@ -107,4 +127,33 @@ class SkuDayActionRepository:
             SkuDayAction.action_date == action_date,
         )
         await self._session.execute(stmt)
+        await self._session.flush()
+
+    async def record_change(
+        self,
+        *,
+        nm_id: int,
+        action_date: date,
+        changed_by: uuid.UUID,
+        before: dict[str, Any] | None,
+        after: dict[str, Any] | None,
+    ) -> None:
+        """Append one change to the day's history (never updated or deleted).
+
+        Args:
+            nm_id: WB SKU identifier.
+            action_date: The day the change was saved to.
+            changed_by: The account that saved it.
+            before: The answers before the save, ``None`` for a new day.
+            after: The answers after the save, ``None`` for a cleared day.
+        """
+        self._session.add(
+            SkuDayActionHistory(
+                nm_id=nm_id,
+                action_date=action_date,
+                changed_by=changed_by,
+                before=before,
+                after=after,
+            )
+        )
         await self._session.flush()

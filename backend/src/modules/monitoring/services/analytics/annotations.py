@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import date
 
 from src.core.config import settings
@@ -99,7 +100,12 @@ class DayAnnotationAnalytics:
         )
 
     async def set_day_action(
-        self, *, nm_id: int, action_date: date, action: DayActionState
+        self,
+        *,
+        nm_id: int,
+        action_date: date,
+        action: DayActionState,
+        changed_by: uuid.UUID,
     ) -> DayActionResponse:
         """Save one SKU-day's action row (full state, last write wins).
 
@@ -108,28 +114,53 @@ class DayAnnotationAnalytics:
         day's row instead of storing an all-``NULL`` one. Actions are global —
         shared by every account, keyed by ``(nm_id, action_date)``.
 
+        Every save that changes the day is also appended to its history, in the
+        same transaction, with the account and the answers before and after —
+        the action row alone keeps only the last state, which is not enough to
+        tell who changed a day or what it held before. A save that changes
+        nothing (a blur on an untouched field) is not recorded.
+
         Args:
             nm_id: WB SKU identifier.
             action_date: The day the actions describe.
             action: The full desired state of the day's answers.
+            changed_by: The account saving it, for the history.
 
         Returns:
             The stored state (``action`` is ``None`` after a full clear).
         """
-        if action.is_empty():
-            await self._day_actions.clear(nm_id=nm_id, action_date=action_date)
-            return DayActionResponse(nm_id=nm_id, action_date=action_date, action=None)
-        await self._day_actions.set(
-            nm_id=nm_id,
-            action_date=action_date,
-            first_rk_type=action.first_rk_type,
-            first_rk_budget=action.first_rk_budget,
-            second_rk_type=action.second_rk_type,
-            second_rk_budget=action.second_rk_budget,
-            price_change=action.price_change,
-            price_change_amount=action.price_change_amount,
+        stored = await self._day_actions.get(nm_id=nm_id, action_date=action_date)
+        before = (
+            None
+            if stored is None
+            else DayActionState.model_validate(stored, from_attributes=True).model_dump(mode="json")
         )
-        return DayActionResponse(nm_id=nm_id, action_date=action_date, action=action)
+        after = None if action.is_empty() else action.model_dump(mode="json")
+
+        if after is None:
+            await self._day_actions.clear(nm_id=nm_id, action_date=action_date)
+        else:
+            await self._day_actions.set(
+                nm_id=nm_id,
+                action_date=action_date,
+                first_rk_type=action.first_rk_type,
+                first_rk_budget=action.first_rk_budget,
+                second_rk_type=action.second_rk_type,
+                second_rk_budget=action.second_rk_budget,
+                price_change=action.price_change,
+                price_change_amount=action.price_change_amount,
+            )
+        if before != after:
+            await self._day_actions.record_change(
+                nm_id=nm_id,
+                action_date=action_date,
+                changed_by=changed_by,
+                before=before,
+                after=after,
+            )
+        return DayActionResponse(
+            nm_id=nm_id, action_date=action_date, action=None if after is None else action
+        )
 
 
 def _refuse_a_meaningless_date(comment_date: date) -> None:

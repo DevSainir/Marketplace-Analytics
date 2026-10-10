@@ -20,8 +20,9 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.monitoring.models import ProductCard
+from src.modules.monitoring.models import ProductCard, SkuDayActionHistory
 from src.modules.monitoring.models.sku_day_comment import SkuDayComment
+from src.modules.monitoring.repos.day_actions import SkuDayActionRepository
 from src.modules.monitoring.repos.products import ProductCardRepository
 from src.modules.monitoring.repos.sku_day_comment import SkuDayCommentRepository
 
@@ -253,3 +254,52 @@ async def test_the_carry_covers_every_sku_in_one_statement(
     carried = await repo.carry_headers_to_day(source_day=YESTERDAY, target_day=TODAY)
 
     assert carried == 3
+
+
+# --------------------------------------------------------------------------- #
+# Day-action history
+# --------------------------------------------------------------------------- #
+async def test_a_day_action_history_outlives_the_cleared_day(db_session: AsyncSession) -> None:
+    """The change log is append-only and independent of the action row.
+
+    Clearing the day deletes its ``sku_day_action`` row; the history of what
+    it held, and who saved it, has to survive that — it is exactly what a
+    dispute about the day needs.
+    """
+    repo = SkuDayActionRepository(db_session)
+    manager = uuid.uuid4()
+    state = {"first_rk_type": "uni", "first_rk_budget": 4000.0}
+    await repo.set(
+        nm_id=1001,
+        action_date=TODAY,
+        first_rk_type="uni",
+        first_rk_budget=4000.0,
+        second_rk_type=None,
+        second_rk_budget=None,
+        price_change=None,
+        price_change_amount=None,
+    )
+    await repo.record_change(
+        nm_id=1001, action_date=TODAY, changed_by=manager, before=None, after=state
+    )
+
+    await repo.clear(nm_id=1001, action_date=TODAY)
+    await repo.record_change(
+        nm_id=1001, action_date=TODAY, changed_by=manager, before=state, after=None
+    )
+
+    rows = (
+        (
+            await db_session.execute(
+                sa.select(SkuDayActionHistory)
+                .where(SkuDayActionHistory.nm_id == 1001)
+                .order_by(SkuDayActionHistory.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert await repo.get(nm_id=1001, action_date=TODAY) is None
+    assert [(r.before, r.after) for r in rows] == [(None, state), (state, None)]
+    assert {r.changed_by for r in rows} == {manager}
+    assert all(r.changed_at is not None for r in rows)

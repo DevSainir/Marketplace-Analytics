@@ -11,7 +11,9 @@ it is exercised against a real database rather than mocked here.
 
 from __future__ import annotations
 
+import uuid
 from datetime import date, datetime
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -29,6 +31,7 @@ from src.modules.monitoring.services.matrix import build_matrix_from_base
 from tests.support.matrix_rows import _ad_bucket
 
 NM_ID = 111
+MANAGER = uuid.UUID("019f0000-0000-7000-8000-000000000001")
 
 
 class _Row:
@@ -56,16 +59,24 @@ class _FakeCommentRepo:
 
 
 class _FakeActionRepo:
-    """In-memory stand-in for ``SkuDayActionRepository``."""
+    """In-memory stand-in for ``SkuDayActionRepository`` and its history."""
 
     def __init__(self) -> None:
         self.rows: dict[date, dict[str, Any]] = {}
+        self.history: list[dict[str, Any]] = []
+
+    async def get(self, *, nm_id: int, action_date: date) -> SimpleNamespace | None:
+        fields = self.rows.get(action_date)
+        return None if fields is None else SimpleNamespace(**fields)
 
     async def set(self, *, nm_id: int, action_date: date, **fields: Any) -> None:
         self.rows[action_date] = fields
 
     async def clear(self, *, nm_id: int, action_date: date) -> None:
         self.rows.pop(action_date, None)
+
+    async def record_change(self, **change: Any) -> None:
+        self.history.append(change)
 
 
 def _service(
@@ -159,15 +170,82 @@ async def test_day_action_save_and_full_clear() -> None:
         nm_id=NM_ID,
         action_date=day,
         action=DayActionState(first_rk_type="uni", first_rk_budget=1500.0, price_change="down"),
+        changed_by=MANAGER,
     )
     assert saved.action is not None
     assert saved.action.first_rk_type == "uni"
     assert repo.rows[day]["first_rk_budget"] == 1500.0
     assert repo.rows[day]["second_rk_type"] is None
 
-    cleared = await service.set_day_action(nm_id=NM_ID, action_date=day, action=DayActionState())
+    cleared = await service.set_day_action(
+        nm_id=NM_ID, action_date=day, action=DayActionState(), changed_by=MANAGER
+    )
     assert cleared.action is None
     assert day not in repo.rows
+
+
+@pytest.mark.asyncio
+async def test_every_day_action_change_is_kept_with_who_and_what_was_there() -> None:
+    """Creating, changing and clearing a day each leave a before/after record.
+
+    The action row keeps only the last state, so without this a day saved to
+    the wrong column (11.09 for 09.10, 2026-10-09) left no trace of what that
+    column held before or who overwrote it.
+    """
+    repo = _FakeActionRepo()
+    service = _service(actions=repo)
+    day = date(2026, 10, 9)
+    other = uuid.UUID("019f0000-0000-7000-8000-000000000002")
+
+    await service.set_day_action(
+        nm_id=NM_ID,
+        action_date=day,
+        action=DayActionState(first_rk_type="uni", first_rk_budget=1200.0),
+        changed_by=MANAGER,
+    )
+    await service.set_day_action(
+        nm_id=NM_ID,
+        action_date=day,
+        action=DayActionState(first_rk_type="uni", first_rk_budget=4000.0),
+        changed_by=other,
+    )
+    await service.set_day_action(
+        nm_id=NM_ID, action_date=day, action=DayActionState(), changed_by=MANAGER
+    )
+
+    created, changed, cleared = repo.history
+    assert created["before"] is None
+    assert created["after"]["first_rk_budget"] == 1200.0
+    assert created["changed_by"] == MANAGER
+    assert changed["before"]["first_rk_budget"] == 1200.0
+    assert changed["after"]["first_rk_budget"] == 4000.0
+    assert changed["changed_by"] == other
+    assert cleared["before"]["first_rk_budget"] == 4000.0
+    assert cleared["after"] is None
+    assert {entry["action_date"] for entry in repo.history} == {day}
+
+
+@pytest.mark.asyncio
+async def test_a_save_that_changes_nothing_is_not_recorded() -> None:
+    """Re-sending the stored state (a blur on an untouched field) adds no record."""
+    repo = _FakeActionRepo()
+    service = _service(actions=repo)
+    day = date(2026, 10, 9)
+    state = DayActionState(first_rk_type="uni", first_rk_budget=1200.0)
+
+    await service.set_day_action(nm_id=NM_ID, action_date=day, action=state, changed_by=MANAGER)
+    await service.set_day_action(nm_id=NM_ID, action_date=day, action=state, changed_by=MANAGER)
+    await service.set_day_action(
+        nm_id=NM_ID, action_date=day, action=DayActionState(), changed_by=MANAGER
+    )
+    await service.set_day_action(
+        nm_id=NM_ID, action_date=day, action=DayActionState(), changed_by=MANAGER
+    )
+
+    assert [(e["before"] is None, e["after"] is None) for e in repo.history] == [
+        (True, False),
+        (False, True),
+    ]
 
 
 def test_the_two_rk_slots_cannot_hold_the_same_type() -> None:

@@ -22,6 +22,7 @@ from src.modules.monitoring.models.campaigns import (
     normalize_status,
     normalize_type,
 )
+from src.modules.monitoring.models.day_action_history import SkuDayActionHistory
 from src.modules.monitoring.models.day_actions import SkuDayAction
 from src.modules.monitoring.models.fbs_warehouses import LABEL_MAX_LENGTH, FbsWarehouse
 from src.modules.monitoring.models.fx import CbrRate, FxConverted
@@ -70,6 +71,7 @@ __all__ = [
     "SaleRecord",
     "SalesFunnelDaily",
     "SkuDayAction",
+    "SkuDayActionHistory",
     "SkuDayComment",
     "StockSnapshot",
     "normalize_status",

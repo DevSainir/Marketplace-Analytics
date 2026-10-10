@@ -315,7 +315,7 @@ async def set_day_comment(
     },
 )
 async def set_day_action(
-    _writer: WritingAccess,
+    writer: WritingAccess,
     nm_id: WorkspaceSku,
     action_date: date,
     body: DayActionState,
@@ -324,9 +324,12 @@ async def set_day_action(
     """Save one day's «Действия» row on a SKU (shared by everyone).
 
     The body is the WHOLE day state (last write wins); a body with every
-    answer null clears the day's row.
+    answer null clears the day's row. The writer is recorded in the day's
+    history alongside the answers before and after.
     """
-    return await service.set_day_action(nm_id=nm_id, action_date=action_date, action=body)
+    return await service.set_day_action(
+        nm_id=nm_id, action_date=action_date, action=body, changed_by=writer.user_id
+    )
 
 
 @router.post(
