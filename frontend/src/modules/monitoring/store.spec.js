@@ -8,6 +8,7 @@ import {
   lookupSkus,
   refreshAllSkus,
   refreshSku,
+  setDayAction,
 } from '@/modules/monitoring/api'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 
@@ -19,6 +20,7 @@ vi.mock('@/modules/monitoring/api', () => ({
   lookupSkus: vi.fn(),
   refreshAllSkus: vi.fn(),
   refreshSku: vi.fn(),
+  setDayAction: vi.fn(),
 }))
 
 const DETAIL = {
@@ -629,5 +631,75 @@ describe('refreshAllFromWb', () => {
     expect(store.allRefreshError).toBeTruthy()
     expect(store.actionError).toBeNull()
     expect(store.allRefreshing).toBe(false)
+  })
+})
+
+describe('saveDayAction while the same day is already saving', () => {
+  const DAY = '2026-10-09'
+
+  /** A PUT that stays in flight until the test resolves it, echoing the body. */
+  function heldSave() {
+    let release
+    const held = new Promise((resolve) => {
+      release = resolve
+    })
+    setDayAction.mockImplementationOnce(async (_nmId, _iso, body) => {
+      await held
+      return { action: body }
+    })
+    return () => release()
+  }
+
+  beforeEach(() => {
+    setDayAction.mockImplementation(async (_nmId, _iso, body) => ({ action: body }))
+    store.currentProduct = { nm_id: 1948347102, day_actions: {} }
+  })
+
+  it('sends a change made mid-save once that save lands, on top of it', async () => {
+    const release = heldSave()
+
+    const first = store.saveDayAction(DAY, { first_rk_type: 'uni', first_rk_budget: 4000 })
+    await store.saveDayAction(DAY, { second_rk_type: 'manual_search' })
+    release()
+    await first
+
+    expect(setDayAction).toHaveBeenCalledTimes(2)
+    expect(setDayAction).toHaveBeenLastCalledWith(1948347102, DAY, {
+      first_rk_type: 'uni',
+      first_rk_budget: 4000,
+      second_rk_type: 'manual_search',
+    })
+    expect(store.currentProduct.day_actions[DAY].second_rk_type).toBe('manual_search')
+    expect(store.actionSavingDays.has(DAY)).toBe(false)
+  })
+
+  it('merges several mid-save changes into one follow-up request', async () => {
+    const release = heldSave()
+
+    const first = store.saveDayAction(DAY, { first_rk_type: 'uni' })
+    await store.saveDayAction(DAY, { second_rk_type: 'manual_search' })
+    await store.saveDayAction(DAY, { second_rk_budget: 8000 })
+    release()
+    await first
+
+    expect(setDayAction).toHaveBeenCalledTimes(2)
+    expect(store.currentProduct.day_actions[DAY]).toEqual({
+      first_rk_type: 'uni',
+      second_rk_type: 'manual_search',
+      second_rk_budget: 8000,
+    })
+  })
+
+  it('still sends the queued change when the SKU on screen changed mid-save', async () => {
+    const release = heldSave()
+
+    const first = store.saveDayAction(DAY, { first_rk_type: 'uni' })
+    store.currentProduct = { nm_id: 1944299862, day_actions: {} }
+    await store.saveDayAction(DAY, { price_change: 'up' })
+    release()
+    await first
+
+    expect(setDayAction).toHaveBeenLastCalledWith(1944299862, DAY, { price_change: 'up' })
+    expect(store.currentProduct.day_actions[DAY]).toEqual({ price_change: 'up' })
   })
 })

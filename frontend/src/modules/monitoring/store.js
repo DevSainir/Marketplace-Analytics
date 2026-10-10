@@ -363,32 +363,54 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   // only); each change PUTs the merged FULL day state (last write wins).
   /** ISO days with an action save (PUT) in flight — their controls disable. */
   const actionSavingDays = ref(new Set())
+  /**
+   * Changes that arrived while their day's save was in flight, merged per day
+   * and sent as soon as that save lands. They used to be dropped: a blur commits
+   * the budget, the click that caused it picks a dropdown a moment later, and
+   * the dropdown kept showing a choice the server never received.
+   * @type {Map<string, {nmId: number, patch: object}>}
+   */
+  const queuedActionPatches = new Map()
 
   /** Merge one day's partial change into its stored state and persist it. */
   async function saveDayAction(iso, patch) {
     const nmId = currentProduct.value?.nm_id
-    if (!nmId || actionSavingDays.value.has(iso)) return
+    if (!nmId) return
+    if (actionSavingDays.value.has(iso)) {
+      const queued = queuedActionPatches.get(iso)
+      queuedActionPatches.set(iso, { nmId, patch: { ...queued?.patch, ...patch } })
+      return
+    }
     const next = { ...(currentProduct.value.day_actions?.[iso] ?? {}), ...patch }
     // A new Set per mutation: Vue tracks the ref's value, not the Set's writes.
     actionSavingDays.value = new Set(actionSavingDays.value).add(iso)
     actionError.value = null
     try {
       const result = await setDayAction(nmId, iso, next)
-      // Apply only while the same SKU is displayed (SKU-switch race guard).
-      if (currentProduct.value?.nm_id !== nmId) return
-      const actions = { ...(currentProduct.value.day_actions ?? {}) }
-      if (result.action == null) {
-        delete actions[iso]
-      } else {
-        actions[iso] = result.action
+      // Apply only while the same SKU is displayed (SKU-switch race guard). Not
+      // an early return: the queue below must still be drained.
+      if (currentProduct.value?.nm_id === nmId) {
+        const actions = { ...(currentProduct.value.day_actions ?? {}) }
+        if (result.action == null) {
+          delete actions[iso]
+        } else {
+          actions[iso] = result.action
+        }
+        currentProduct.value.day_actions = actions
       }
-      currentProduct.value.day_actions = actions
     } catch (err) {
       actionError.value = extractErrorMessage(err)
     } finally {
       const pending = new Set(actionSavingDays.value)
       pending.delete(iso)
       actionSavingDays.value = pending
+    }
+    // Sent on top of the state the save above stored, so neither change is lost.
+    // A queue left by a SKU that is no longer on screen has nowhere to go.
+    const queued = queuedActionPatches.get(iso)
+    queuedActionPatches.delete(iso)
+    if (queued && currentProduct.value?.nm_id === queued.nmId) {
+      await saveDayAction(iso, queued.patch)
     }
   }
 
