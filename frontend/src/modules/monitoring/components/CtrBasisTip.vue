@@ -9,6 +9,8 @@
  *
  * Teleported and placed like AssocBreakdownTip, by the same delegated hover.
  */
+import { vFitInside } from '@/core/utils/tipFit'
+
 defineProps({
   /** @type {{x: number, y: number, above: boolean, clicks: string, views: string, ctr: string} | null} */
   tip: { type: Object, default: null },
@@ -19,6 +21,7 @@ defineProps({
   <Teleport to="body">
     <div
       v-if="tip"
+      v-fit-inside="tip.area"
       class="fixed z-50 w-72 rounded-card border border-border-subtle bg-surface px-sm py-xs text-tiny leading-snug text-primary shadow-card"
       :style="{
         left: `${tip.x}px`,

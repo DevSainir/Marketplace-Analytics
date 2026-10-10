@@ -16,6 +16,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import { visibleArea } from '@/core/utils/tipFit'
 import { formatNumber, formatPercent, formatSku } from '@/core/utils/format'
 
 const ASSOC_METRICS = new Set(['carts', 'orders'])
@@ -74,7 +75,7 @@ export function useAssocHover(rows) {
       TIP_EDGE_GAP_PX,
       Math.min(rect.left, window.innerWidth - TIP_WIDTH_PX - TIP_EDGE_GAP_PX),
     )
-    const place = { x, y: above ? rect.top - 6 : rect.bottom + 6, above }
+    const place = { x, y: above ? rect.top - 6 : rect.bottom + 6, above, area: visibleArea(el) }
     if (cell.ctrBasis) {
       assocTip.value = null
       ctrTip.value = {

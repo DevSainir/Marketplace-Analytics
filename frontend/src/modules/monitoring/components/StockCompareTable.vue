@@ -9,6 +9,7 @@ import {
   pivotWarehouses,
   sizeShare,
 } from '@/modules/monitoring/stockPivot'
+import { vFitInside } from '@/core/utils/tipFit'
 import { useStockRibbonLayout } from '@/modules/monitoring/useStockRibbonLayout'
 import { useWarehouseNameTip } from '@/modules/monitoring/useWarehouseNameTip'
 
@@ -228,6 +229,7 @@ const { root, scroll, groupWidth } = useStockRibbonLayout({
     <Teleport to="body">
       <div
         v-if="hoverTip"
+        v-fit-inside="hoverTip.area"
         class="fixed z-50 rounded-card border border-border-subtle bg-surface px-sm py-xs text-tiny text-primary shadow-card"
         :style="{ left: `${hoverTip.x}px`, top: `${hoverTip.y}px` }"
       >

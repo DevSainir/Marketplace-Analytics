@@ -12,6 +12,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import { visibleArea } from '@/core/utils/tipFit'
 import { formatNumber, formatSku } from '@/core/utils/format'
 
 const ASSOC_METRICS = new Set(['carts', 'orders'])
@@ -58,6 +59,7 @@ export function useAssocHover(rows) {
     assocTip.value = {
       x: rect.left,
       y: above ? rect.top - 6 : rect.bottom + 6,
+      area: visibleArea(el),
       above,
       associated: formatNumber(cell.assoc.associated),
       exact: cell.assoc.exact,

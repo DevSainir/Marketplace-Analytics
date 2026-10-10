@@ -14,6 +14,7 @@
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
+import { visibleArea } from '@/core/utils/tipFit'
 import { campaignUrl } from '@/modules/labs/wbLinks'
 
 /** The backend buckets each campaign group of TRAFFIC_GROUPS delivers into. */
@@ -74,7 +75,7 @@ export function useCampaignLinks(campaigns, days) {
   function showTip(event, id) {
     keepTip()
     const rect = event.currentTarget.getBoundingClientRect()
-    tip.value = { id, x: rect.left, y: rect.bottom + 4 }
+    tip.value = { id, x: rect.left, y: rect.bottom + 4, area: visibleArea(event.currentTarget) }
   }
 
   function hideTip() {

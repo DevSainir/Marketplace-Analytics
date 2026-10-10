@@ -10,13 +10,20 @@
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
+import { visibleArea } from '@/core/utils/tipFit'
+
 export function useWarehouseNameTip() {
-  const hoverTip = ref(null) // { name: string, x: number, y: number } | null
+  const hoverTip = ref(null) // { name, x, y, area } | null
 
   function showNameTip(event, name) {
     if (name.length <= 8) return // nothing truncated — nothing to reveal
     const rect = event.currentTarget.getBoundingClientRect()
-    hoverTip.value = { name, x: rect.left, y: rect.bottom + 4 }
+    hoverTip.value = {
+      name,
+      x: rect.left,
+      y: rect.bottom + 4,
+      area: visibleArea(event.currentTarget),
+    }
   }
 
   function hideNameTip() {

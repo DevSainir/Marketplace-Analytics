@@ -13,6 +13,8 @@
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
+import { visibleArea } from '@/core/utils/tipFit'
+
 /**
  * @param {object} options
  * @param {(mark: {kind: string, value: string, pinned: boolean}) => void} options.onMark
@@ -57,12 +59,17 @@ export function useBalanceMarks({ onMark }) {
   }
 
   // --- the truncated-name tooltip -------------------------------------------
-  const hoverTip = ref(null) // { name, x, y } | null
+  const hoverTip = ref(null) // { name, x, y, area } | null
 
   function showNameTip(event, name, limit) {
     if (name.length <= limit) return // nothing truncated — nothing to reveal
     const rect = event.currentTarget.getBoundingClientRect()
-    hoverTip.value = { name, x: rect.left, y: rect.bottom + 4 }
+    hoverTip.value = {
+      name,
+      x: rect.left,
+      y: rect.bottom + 4,
+      area: visibleArea(event.currentTarget),
+    }
   }
 
   function hideNameTip() {

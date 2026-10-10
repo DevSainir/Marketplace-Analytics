@@ -10,10 +10,13 @@
  * exist on touch — «навожу, ничего нет». Why teleported: the labels it sits on
  * live inside table scrollers, and `overflow: auto` clips a child bubble on
  * both axes, so the bubble leaves the table for `<body>` and is placed in
- * fixed coordinates. A `<button>`, so it is focusable and a tap opens it on a
- * phone, where hover does not exist.
+ * fixed coordinates — and then kept inside the part of the table that is on
+ * screen (`core/utils/tipFit`), or it hangs past the card's edge. A `<button>`,
+ * so it is focusable and a tap opens it on a phone, where hover does not exist.
  */
 import { computed, onUnmounted, ref } from 'vue'
+
+import { vFitInside, visibleArea } from '@/core/utils/tipFit'
 
 defineProps({
   /** The explanation, in the seller's language. */
@@ -23,6 +26,7 @@ defineProps({
 const anchor = ref(null)
 const open = ref(false)
 const position = ref({ top: 0, left: 0, width: 288 })
+const area = ref(null)
 
 const style = computed(() => ({
   top: `${position.value.top}px`,
@@ -30,17 +34,12 @@ const style = computed(() => ({
   width: `${position.value.width}px`,
 }))
 
-/** Measure the ⓘ and place the bubble under it, nudged to stay on screen. */
+/** Measure the ⓘ and place the bubble under it; `v-fit-inside` keeps it in the table. */
 function show() {
   const rect = anchor.value?.getBoundingClientRect()
   if (!rect) return
-  const margin = 8
-  const width = Math.min(288, window.innerWidth - 2 * margin)
-  position.value = {
-    top: rect.bottom + 6,
-    left: Math.min(Math.max(margin, rect.left - 12), window.innerWidth - width - margin),
-    width,
-  }
+  position.value = { top: rect.bottom + 6, left: rect.left - 12, width: 288 }
+  area.value = visibleArea(anchor.value)
   open.value = true
 }
 
@@ -74,6 +73,7 @@ onUnmounted(hide)
   <Teleport to="body">
     <span
       v-if="open"
+      v-fit-inside="area"
       class="ui-glass ui-glass--pop pointer-events-none fixed z-50 whitespace-normal rounded-input px-sm py-xs text-left text-tiny font-normal normal-case tracking-normal text-primary"
       role="tooltip"
       :style="style"

@@ -11,6 +11,8 @@
  * and out of every total while leaving it on screen — the seller still wants to
  * see stock they have stopped counting.
  */
+import { vFitInside } from '@/core/utils/tipFit'
+
 defineProps({
   /** `{kind, value, label, uncounted, x, y}` or `null`. */
   menu: { type: Object, default: null },
@@ -25,6 +27,7 @@ const emit = defineEmits(['toggle-uncounted'])
   <Teleport to="body">
     <div
       v-if="tip"
+      v-fit-inside="tip.area"
       class="fixed z-50 rounded-card border border-border-subtle bg-surface px-sm py-xs text-tiny text-primary shadow-card"
       :style="{ left: `${tip.x}px`, top: `${tip.y}px` }"
     >

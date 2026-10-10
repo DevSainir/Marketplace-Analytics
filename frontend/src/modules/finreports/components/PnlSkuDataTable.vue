@@ -116,7 +116,7 @@ const { money } = usePnlMoney()
     <Column field="buyoutPct" class="col-num" sortable :footer="foot.buyoutPct">
       <template #header>
         Выкуп, %<InfoHint
-          text="Как «Процент выкупа» в кабинете WB: выкупы ÷ (выкупы + отказы) по заказам, сделанным за период. Последние ~3 недели ещё дозревают."
+          text="Как в кабинете WB: сколько заказов выкупили. Последние 3 недели ещё меняются."
         />
       </template>
       <template #body="{ data }">
@@ -125,9 +125,7 @@ const { money } = usePnlMoney()
     </Column>
     <Column field="returnPct" class="col-num" sortable :footer="foot.returnPct">
       <template #header>
-        Возвраты, %<InfoHint
-          text="Выкупленные товары, которые покупатель затем вернул (не отмены заказов): доля от выкупленных штук."
-        />
+        Возвраты, %<InfoHint text="Сколько проданных штук покупатели потом вернули." />
       </template>
       <template #body="{ data }">
         <span :class="toneClass('returnPct', data.returnPct)">{{ pct(data.returnPct) }}</span>
@@ -187,7 +185,9 @@ const { money } = usePnlMoney()
       <template #body="{ data }">{{ money(data.advertising) }}</template>
     </Column>
     <Column field="advertisingPct" class="col-num" sortable :footer="foot.advertisingPct">
-      <template #header>ДРР от продаж<InfoHint text="Реклама ÷ продажи" /></template>
+      <template #header
+        >ДРР от продаж<InfoHint text="Какая доля продаж ушла на рекламу."
+      /></template>
       <template #body="{ data }">
         <span :class="toneClass('advertisingPct', data.advertisingPct, data.priceBase)">
           {{ pct(data.advertisingPct) }}

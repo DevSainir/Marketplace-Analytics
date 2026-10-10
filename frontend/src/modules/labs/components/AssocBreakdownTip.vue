@@ -11,6 +11,8 @@
  * cannot clip it; the parent decides the coordinates and whether to flip it
  * above the cell (near the viewport floor a downward list runs off-screen).
  */
+import { vFitInside } from '@/core/utils/tipFit'
+
 defineProps({
   /**
    * @type {{x: number, y: number, above: boolean, associated: string,
@@ -24,6 +26,7 @@ defineProps({
   <Teleport to="body">
     <div
       v-if="tip"
+      v-fit-inside="tip.area"
       class="fixed z-50 w-72 rounded-card border border-border-subtle bg-surface px-sm py-xs text-tiny leading-snug text-primary shadow-card"
       :style="{
         left: `${tip.x}px`,

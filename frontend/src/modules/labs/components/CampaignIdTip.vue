@@ -7,6 +7,8 @@
  */
 import { ref, watch } from 'vue'
 
+import { vFitInside } from '@/core/utils/tipFit'
+
 const props = defineProps({
   /** @type {{id: number, x: number, y: number}|null} */
   tip: { type: Object, default: null },
@@ -54,6 +56,7 @@ const LABEL = { '': 'Копировать', copied: 'Скопировано', se
   <Teleport to="body">
     <div
       v-if="tip"
+      v-fit-inside="tip.area"
       class="fixed z-50 flex items-center gap-sm rounded-card border border-border-subtle bg-surface px-sm py-xs text-tiny text-primary shadow-card"
       :style="{ left: `${tip.x}px`, top: `${tip.y}px` }"
       @mouseenter="$emit('keep')"
