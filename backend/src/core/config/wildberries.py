@@ -54,21 +54,19 @@ class WildberriesSettings(BaseSettings):
     # Search clusters («Поиск по кластерам»): the per-cluster grain of the SAME
     # ``normquery`` response the search-ZONE split is built from, so switching
     # it off saves no WB request — only the writes into
-    # ``monitoring.advertising_cluster_stat_daily``. DORMANT since 2026-09-09:
-    # the UI that read the table was hidden (see the DORMANT headers in
-    # monitoring/routers/clusters.py and the frontend cluster block), and the
-    # ingest is off with it.
+    # ``monitoring.advertising_cluster_stat_daily``. On for EVERY кабинет, not
+    # only the ones whose ``search_clusters_enabled`` shows the block: the rows
+    # are what is read from the database directly, and a кабинет that gets the
+    # block later finds its history already there.
     #
-    # This used to say the dormant days were lost forever, because WB serves no
-    # cluster history. **That was wrong.** Probed on prod 2026-09-12: WB
-    # returned full daily cluster stats for 2025-10-01 — about 347 days back —
-    # for a (campaign, SKU) pair that provably delivered SEARCH traffic then. So
-    # the days this stays ``False`` are recoverable, bounded by the 31-day
-    # window and the limiter rather than by WB's memory. Why the old reading
-    # looked true is in `references/advertising.md`: the endpoint answers
-    # "nothing" in two different shapes and neither is an error.
-    # ``True`` here is the only line needed to resume accruing it live.
-    wb_search_cluster_harvest_enabled: bool = False
+    # It was off from 2026-09-09 to 2026-10-10 — hidden with the UI, then left
+    # off by mistake when the block came back for NEVA on 2026-09-26, so NEVA saw
+    # a block with nothing after 08.09. Those days were walked back from WB on
+    # 2026-10-10: WB serves cluster history (full daily stats ~347 days back,
+    # probed 2026-09-12), bounded by the 31-day window rather than its memory.
+    # Why it once looked unbackfillable is in `references/advertising.md`: the
+    # endpoint answers "nothing" in two different shapes and neither is an error.
+    wb_search_cluster_harvest_enabled: bool = True
     # Column headers by warehouse id, written «<точка> - <город> (FBS)»: the
     # warehouse's own name first, because that is what distinguishes it from
     # its neighbours, then the city. The header is truncated to its first

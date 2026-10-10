@@ -1,17 +1,12 @@
 """«Поиск по кластерам» — the SKU's advertising clusters.
 
-**The SPA no longer calls this.** «Рекламные кластеры» was hidden from the UI on
-2026-09-09 as a product decision, and the block behind it is dormant, not
-deleted — see the note in ``frontend/src/modules/monitoring/views/MonitoringView.vue``.
-The route and the analytics service stay live on purpose — dormant, not dead —
-so the block can be switched back on without rebuilding them. The INGEST that
-fills ``advertising_cluster_stat_daily`` was switched off with it on the same
-day (``wb_search_cluster_harvest_enabled`` in ``src/core/config/wildberries.py``,
-gated in the ingestion service): the harvest no longer writes cluster rows.
-Know the cost before flipping either half back — WB serves no cluster history,
-so the table only holds what was accrued up to 2026-09-09 plus whatever accrues
-after the flag goes back to ``True``; the gap between cannot be backfilled.
-Do not remove any of it in a cleanup pass.
+The SPA calls this only for кабинеты whose ``search_clusters_enabled`` is set
+(NEVA since 2026-09-26); the block was hidden for everyone from 2026-09-09. The
+INGEST that fills ``advertising_cluster_stat_daily`` runs for every кабинет
+regardless (``wb_search_cluster_harvest_enabled`` in
+``src/core/config/wildberries.py``). It was off 2026-09-09..2026-10-10 and that
+gap was walked back from WB, which does serve cluster history. Do not remove any
+of it in a cleanup pass.
 
 One route: the per-cluster history, two indexed aggregates that load with the
 SKU. It takes its ``nm_id`` through the :data:`WorkspaceSku` guard, so another

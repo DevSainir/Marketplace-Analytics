@@ -294,12 +294,9 @@ class IngestionService:
             # docstring): the zone aggregate above sums the cluster texts away,
             # and «Поиск по кластерам» needs them.
             #
-            # DORMANT (2026-09-09): gated off with the UI that read it. The
-            # ingest costs no extra WB request — the payload is already in
-            # hand — so the flag only decides whether the per-cluster rows are
-            # written. Re-reading the flag's comment in core/config/
-            # wildberries.py before flipping it is worth the minute: the
-            # cluster series cannot be backfilled.
+            # The flag is a kill switch, on by default; the ingest costs no
+            # extra WB request — the payload is already in hand — so it only
+            # decides whether the per-cluster rows are written.
             if settings.wb_search_cluster_harvest_enabled:
                 cluster_count = await self.ingest_search_clusters(
                     search_stats,
