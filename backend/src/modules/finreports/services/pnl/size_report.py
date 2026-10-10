@@ -1,7 +1,6 @@
 """Composition of one article's per-size P&L rows.
 
-Pure, like :mod:`.sku_report`: size aggregates in,
-:class:`~src.modules.finreports.schemas.size_report.PnlSizesResponse` out. The
+Pure, like :mod:`.sku_report`: size aggregates in, size rows out. The
 withholding formula is deliberately the SAME one
 :func:`~.sku_report.build_sku_row` applies, so the column that matters — «К
 перечислению» — sums over the sizes back to the article's own figure rather
@@ -32,7 +31,7 @@ def _pct(part: Decimal, whole: Decimal) -> Decimal | None:
     return (part / whole * _HUNDRED).quantize(_CENTS)
 
 
-def _build_row(size: SizeSettlement, *, label: str | None = None) -> PnlSizeRow:
+def _build_row(size: SizeSettlement) -> PnlSizeRow:
     """Compose one size's row from its summed settlement columns."""
     revenue_paid = size.sales_gross - size.returns_gross
     revenue_seller = size.sales_before_spp - size.returns_before_spp
@@ -53,7 +52,7 @@ def _build_row(size: SizeSettlement, *, label: str | None = None) -> PnlSizeRow:
 
     buyout = _pct(Decimal(size.sold_units), Decimal(size.delivered_units))
     return PnlSizeRow(
-        ts_name=label if label is not None else (size.ts_name or NO_SIZE_LABEL),
+        ts_name=size.ts_name or NO_SIZE_LABEL,
         sold_units=size.sold_units,
         returned_units=size.returned_units,
         delivered_units=size.delivered_units,
@@ -71,53 +70,18 @@ def _build_row(size: SizeSettlement, *, label: str | None = None) -> PnlSizeRow:
     )
 
 
-def _merge(sizes: list[SizeSettlement]) -> SizeSettlement:
-    """Sum every size back into one aggregate — the article, re-derived."""
+def build_size_rows(sizes: list[SizeSettlement]) -> list[PnlSizeRow]:
+    """Compose the size rows.
 
-    def total(pick: str) -> Decimal:
-        return sum((getattr(s, pick) for s in sizes), _ZERO)
-
-    def count(pick: str) -> int:
-        return sum(getattr(s, pick) for s in sizes)
-
-    return SizeSettlement(
-        ts_name="",
-        sold_units=count("sold_units"),
-        returned_units=count("returned_units"),
-        delivered_units=count("delivered_units"),
-        sales_gross=total("sales_gross"),
-        returns_gross=total("returns_gross"),
-        sales_before_spp=total("sales_before_spp"),
-        returns_before_spp=total("returns_before_spp"),
-        payout_sales=total("payout_sales"),
-        payout_returns=total("payout_returns"),
-        payout_other=total("payout_other"),
-        logistics_forward=total("logistics_forward"),
-        logistics_return=total("logistics_return"),
-        logistics_unlegged=total("logistics_unlegged"),
-        penalties=total("penalties"),
-        storage=total("storage"),
-        acceptance=total("acceptance"),
-        deductions=total("deductions"),
-        additional_payments=total("additional_payments"),
-        rebill_logistic_cost=total("rebill_logistic_cost"),
-        rows=count("rows"),
-    )
-
-
-def build_size_rows(sizes: list[SizeSettlement]) -> tuple[list[PnlSizeRow], PnlSizeRow]:
-    """Compose the size rows and the article-level row they add up to.
-
-    The totals row is built from the SUMMED aggregate rather than by adding the
-    composed rows: a ratio is not the sum of ratios.
+    There is no totals row: the sizes sum to the article's own row exactly
+    (``test_sizes_match_the_article``), and a second «Итого» under it only
+    repeated that row — except for «Выкуп», which is measured differently
+    here and so made the two look as if they disagreed.
 
     Args:
         sizes: One entry per ``ts_name``, as the repository returns them.
 
     Returns:
-        ``(rows, totals)``, rows in WB's size-label order.
+        The rows, in WB's size-label order.
     """
-    merged = _merge(sizes)
-    totals = _build_row(merged, label="Итого")
-    rows = [_build_row(size) for size in sizes]
-    return rows, totals
+    return [_build_row(size) for size in sizes]

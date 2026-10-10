@@ -9,6 +9,7 @@
  * buyout. The rest stay on the desktop table.
  *
  * Fed the same `/sizes` response as the table: one answer, two projections.
+ * No «Итого»: the sizes sum to the article card they open under.
  */
 import BusyBar from '@/core/components/BusyBar.vue'
 import { pct, units, usePnlMoney } from '@/modules/finreports/pnlFormat'
@@ -46,10 +47,6 @@ const revenue = (size) => sizeAtBase(size, base()).revenue
           }}</span>
         </p>
       </div>
-      <div class="size-list__line size-list__total">
-        <span>Итого по размерам</span>
-        <span class="tabular-nums">{{ money(revenue(state.data.totals)) }}</span>
-      </div>
     </template>
   </div>
 </template>
@@ -74,9 +71,5 @@ const revenue = (size) => sizeAtBase(size, base()).revenue
 
 .size-list__line {
   @apply flex items-baseline justify-between gap-sm text-tiny;
-}
-
-.size-list__total {
-  @apply border-t border-border-subtle pt-xs font-semibold text-primary;
 }
 </style>

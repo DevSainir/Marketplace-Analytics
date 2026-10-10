@@ -7,7 +7,7 @@ only rows without are the 126 account-level «Хранение»/«Удержа�
 belong to no article either. So a size cut of one article is a regrouping of the
 rows the article's own row is already built from, not an allocation: Σ sizes =
 the article, exactly, and that is what
-``test_sizes_sum_to_the_article`` holds us to.
+``test_sizes_match_the_article`` holds us to.
 
 Deliberately NOT a :class:`~.aggregate.SettlementAggregate`. That dataclass is
 sliced by position into the rollup's column order

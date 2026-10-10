@@ -67,8 +67,6 @@ class PnlSizesResponse(BaseModel):
     date_from: date
     date_to: date
     currency: str
-    #: One row per size, by WB's size label.
+    #: One row per size, by WB's size label. No totals row: the sizes sum to
+    #: the article's own row, which the drill-down opens under.
     rows: list[PnlSizeRow]
-    #: The same shape over all of them — what the article's own row says, cut
-    #: to the columns a size row carries.
-    totals: PnlSizeRow

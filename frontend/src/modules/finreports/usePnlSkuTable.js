@@ -4,12 +4,14 @@
  * Вынесено из `PnlSkuDataTable.vue` по той же причине, по которой из него уже
  * вынесены карточки: два десятка определений колонок и так занимают файл
  * целиком, и любая логика рядом с ними перестаёт читаться. Здесь — какие
- * артикулы раскрыты и как выглядит строка «Итого»; там — только колонки.
+ * артикулы раскрыты, порядок и страница с размерами под артикулами и как
+ * выглядит строка «Итого»; там — только колонки.
  */
 import { computed, ref, watch } from 'vue'
 
 import { formatNumber } from '@/core/utils/format'
 import { pct, usePnlMoney } from '@/modules/finreports/pnlFormat'
+import { sortRows, treeRows } from '@/modules/finreports/pnlSkuTree'
 
 /**
  * Which articles are expanded, in the shape PrimeVue expects (a map by
@@ -78,4 +80,45 @@ export function useFooterCells(totals) {
       payout: money(t.payout),
     }
   })
+}
+
+/**
+ * Сортировка, страница и размеры под артикулами — то, что раньше делал сам
+ * PrimeVue (почему больше не он — в `pnlSkuTree`).
+ *
+ * @param {object} src
+ * @param {import('vue').Ref<Array>} src.rows Артикулы после фильтров.
+ * @param {() => number} src.perPage Строк на странице.
+ * @param {import('vue').Ref<object>} src.expanded Открытые артикулы.
+ * @param {() => object} src.sizes Размеры из стора.
+ * @param {() => string} src.base База цены страницы.
+ */
+export function useSkuTreePage({ rows, perPage, expanded, sizes, base }) {
+  const sortField = ref(null)
+  const sortOrder = ref(null)
+  /** Первый артикул страницы — счёт по артикулам, не по строкам. */
+  const first = ref(0)
+
+  // Фильтр сузил выборку — страница за её концом показала бы пустую таблицу.
+  watch(
+    () => rows.value.length,
+    (length) => {
+      if (first.value >= length) first.value = 0
+    },
+  )
+  // Новый порядок — с первой страницы, как это делал PrimeVue.
+  watch([sortField, sortOrder], () => {
+    first.value = 0
+  })
+
+  const sorted = computed(() => sortRows(rows.value, sortField.value, sortOrder.value))
+  const view = computed(() =>
+    treeRows(
+      sorted.value.slice(first.value, first.value + perPage()),
+      expanded.value,
+      sizes(),
+      base(),
+    ),
+  )
+  return { sortField, sortOrder, first, view }
 }

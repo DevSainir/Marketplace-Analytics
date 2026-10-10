@@ -127,7 +127,7 @@ class SkuReportService:
             date_to: Inclusive settlement-date end.
 
         Returns:
-            The size rows and the article-level row they sum to. An article
+            The size rows; they sum to the article's own row. An article
             with no settlement row in the window comes back with no rows, not
             an error — the window is the seller's to choose.
         """
@@ -137,7 +137,7 @@ class SkuReportService:
         sizes = await self._pnl.sizes(
             workspace_id=workspace_id, nm_id=nm_id, date_from=date_from, date_to=date_to
         )
-        rows, totals = build_size_rows(sizes)
+        rows = build_size_rows(sizes)
         return PnlSizesResponse(
             nm_id=nm_id,
             sa_name=sa_name,
@@ -145,7 +145,6 @@ class SkuReportService:
             date_to=date_to,
             currency=currency or "KGS",
             rows=rows,
-            totals=totals,
         )
 
     async def get_report(

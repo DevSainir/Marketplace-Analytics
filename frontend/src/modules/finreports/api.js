@@ -30,7 +30,7 @@ export async function fetchSkuPnl(params = {}, signal) {
  * @param {number} nmId Артикул WB.
  * @param {{date_from?: string, date_to?: string}} [params]
  * @param {AbortSignal} [signal] Отменяет запрос, если начался более свежий.
- * @returns {Promise<object>} `{ nm_id, sa_name, currency, rows, totals }`
+ * @returns {Promise<object>} `{ nm_id, sa_name, currency, rows }`
  */
 export async function fetchSkuSizes(nmId, params = {}, signal) {
   const { data } = await apiClient.get(`/v1/finreports/pnl/skus/${nmId}/sizes`, {

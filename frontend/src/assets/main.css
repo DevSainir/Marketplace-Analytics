@@ -273,17 +273,71 @@
     @apply sticky bottom-0 z-10 whitespace-nowrap border-t border-border-subtle bg-surface px-md pb-sm pt-md text-base font-semibold text-primary;
   }
 
+  /* Закреплённая колонка (`frozen` у PrimeVue `<Column>`). В режиме без стилей
+     PrimeVue ставит ячейке только `left: 0` и атрибут, а `sticky` — нет, и
+     до 10.10.2026 «Артикул» уезжал вместе с таблицей. Фон непрозрачный, иначе
+     под ней видны проезжающие цифры; z выше обычных ячеек, у шапки — выше
+     строки «Итого» и прочего закреплённого. */
+  .app-datatable td[data-p-frozen-column='true'] {
+    @apply sticky z-0 bg-surface;
+  }
+
+  .app-datatable th[data-p-frozen-column='true'] {
+    @apply z-20;
+  }
+
+  .app-datatable td[data-pc-section='footercell'][data-p-frozen-column='true'] {
+    @apply z-20;
+  }
+
+  .app-datatable tbody tr:hover td[data-p-frozen-column='true'] {
+    background: var(--ui-action-soft);
+  }
+
   /* Треугольник, раскрывающий размеры артикула. Живёт в той же ячейке, что и
      артикул: отдельная колонка уехала бы от строки, которую открывает. */
   .app-datatable .pnl-expander {
     @apply inline-flex h-4 w-4 shrink-0 items-center justify-center text-micro leading-none text-muted transition hover:text-action;
   }
 
-  /* Ячейка раскрытой подтаблицы. Родительский `td` запрещает перенос и держит
-     свой вертикальный ритм — подтаблице нужны оба, иначе размеры вырастают на
-     два экрана и не переносятся. */
-  .app-datatable tbody td[data-pc-section='rowexpansioncell'] {
-    @apply whitespace-normal p-0;
+  /* Размеры под артикулом — строки той же таблицы, в тех же колонках (см.
+     `pnlSkuTree.js`). Читаются как часть артикула над ними: без линий между
+     собой, на подложке холста, мельче и с фиолетовой чертой слева; линия
+     таблицы — только после последнего размера. Подложка у ВСЕХ ячеек, включая
+     закреплённую: прозрачная пропускала бы под себя прокручиваемые цифры. */
+  .app-datatable tbody tr.pnl-tree-parent td {
+    @apply border-b-0;
+  }
+
+  .app-datatable tbody tr.pnl-tree-child td {
+    @apply border-b-0 bg-canvas py-xs text-tiny;
+  }
+
+  .app-datatable tbody tr.pnl-tree-child td:first-child {
+    box-shadow: inset 3px 0 0 rgb(var(--ui-action-rgb) / 0.55);
+  }
+
+  .app-datatable tbody tr.pnl-tree-last td {
+    @apply border-b border-border-subtle pb-sm;
+  }
+
+  .app-datatable tbody tr.pnl-tree-child:hover td {
+    @apply bg-canvas;
+  }
+
+  /* Размер — плашкой точно под фото артикула, а не текстом: столбик размеров
+     читается как отдельная от артикулов колонка. */
+  .app-datatable .pnl-size-pill {
+    @apply ml-lg inline-flex min-w-8 justify-center rounded-btn bg-surface px-xs py-0.5 text-tiny font-semibold text-primary ring-1 ring-border-subtle;
+  }
+
+  /* Доля размера в артикуле — полоска под цифрой «Продажи» и «Продажи, шт». */
+  .app-datatable .pnl-size-bar {
+    @apply mt-0.5 block h-0.5 w-full overflow-hidden rounded-full bg-action/10;
+  }
+
+  .app-datatable .pnl-size-bar > span {
+    @apply ml-auto block h-full rounded-full bg-action/60;
   }
 
   .app-datatable [data-pc-name='pcpaginator'],
