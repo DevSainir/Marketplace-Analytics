@@ -36,6 +36,7 @@ export const MODULES = [
   // opens only for somebody who has both. Said here because a manager given
   // one of the two would otherwise wonder where the page went.
   { key: 'ab_tests', label: 'A/Б-тесты', hint: 'Ротация фото' },
+  { key: 'advertising', label: 'Реклама', hint: 'Расход, ДРР от продаж, бонусы' },
 ]
 
 export const useMembersStore = defineStore('members', () => {

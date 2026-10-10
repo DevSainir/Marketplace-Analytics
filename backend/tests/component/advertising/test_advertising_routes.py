@@ -1,7 +1,7 @@
 """Component tests for the «Реклама» HTTP surface.
 
 The arithmetic is covered in ``tests/unit/advertising``; what is proved here is
-the transport contract — who may reach the page while it is being built, that
+the transport contract — who may reach the page, that
 the caller's active workspace scopes the read, and that the window is bounded
 before it reaches a query.
 """
@@ -90,9 +90,9 @@ def _wire(
 
 
 @pytest.fixture(autouse=True)
-def _internal_caller(login_as: Callable[..., None]) -> None:
-    """An owner in the primary organisation: the page is ours alone until it ships."""
-    login_as(is_primary_org=True)
+def _customer(login_as: Callable[..., None]) -> None:
+    """An ordinary paying owner: the page is open to every subscriber."""
+    login_as(is_primary_org=False)
 
 
 @pytest.fixture
@@ -102,15 +102,30 @@ def headers(user: Any, workspace: Workspace) -> dict[str, str]:
 
 
 @pytest.mark.parametrize("path", ["/api/v1/advertising", "/api/v1/advertising/span"])
-async def test_a_paying_customer_cannot_reach_the_page_yet(
+async def test_a_paying_customer_reaches_the_page(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    path: str,
+) -> None:
+    """Shipped to every subscriber on 2026-10-10: no internal gate any more."""
+    response = await client.get(path, headers=headers)
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize("path", ["/api/v1/advertising", "/api/v1/advertising/span"])
+async def test_a_manager_without_the_advertising_grant_cannot_reach_it(
     client: httpx.AsyncClient,
     headers: dict[str, str],
     login_as: Callable[..., None],
     advertising: _StubAdvertisingService,
     path: str,
 ) -> None:
-    """Internal-only while it is being built: its figures are unchecked on customers' кабинеты."""
-    login_as(is_primary_org=False)
+    """«Реклама» is its own grant: every other module does not open it."""
+    login_as(
+        role=EffectiveRole.MANAGER,
+        modules=tuple(m for m in ALL_MODULES if m != "advertising"),
+    )
 
     response = await client.get(path, headers=headers)
 
@@ -118,42 +133,15 @@ async def test_a_paying_customer_cannot_reach_the_page_yet(
     assert advertising.calls == []
 
 
-async def test_a_manager_without_monitoring_cannot_reach_it(
-    client: httpx.AsyncClient,
-    headers: dict[str, str],
-    login_as: Callable[..., None],
-    advertising: _StubAdvertisingService,
-) -> None:
-    """Advertising is «Мониторинг»'s data: without that grant the page is a 403."""
-    login_as(
-        role=EffectiveRole.MANAGER,
-        is_primary_org=True,
-        modules=tuple(m for m in ALL_MODULES if m != "monitoring"),
-    )
-
-    response = await client.get("/api/v1/advertising", headers=headers)
-
-    assert response.status_code == 403
-    assert advertising.calls == []
-
-
 @pytest.mark.parametrize("path", ["/api/v1/advertising", "/api/v1/advertising/span"])
-async def test_a_manager_of_ours_without_finreports_reads_the_whole_page(
+async def test_the_advertising_grant_alone_opens_the_whole_page(
     client: httpx.AsyncClient,
     headers: dict[str, str],
     login_as: Callable[..., None],
     path: str,
 ) -> None:
-    """Every member of our organisation reads it — the owner's decision of 2026-10-07.
-
-    Three of the primary organisation's managers hold monitoring alone; the
-    page, sales and ДРР included, is open to them all the same.
-    """
-    login_as(
-        role=EffectiveRole.MANAGER,
-        is_primary_org=True,
-        modules=tuple(m for m in ALL_MODULES if m != "finreports"),
-    )
+    """Neither «Мониторинг» nor «Отчёты» is asked for: the owner decided on this grant."""
+    login_as(role=EffectiveRole.MANAGER, modules=("advertising",))
 
     response = await client.get(path, headers=headers)
 

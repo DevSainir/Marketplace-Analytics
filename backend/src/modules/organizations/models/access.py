@@ -153,7 +153,7 @@ class Invitation(Base):
     modules: Mapped[list[str]] = mapped_column(
         JSONB,
         nullable=False,
-        server_default=text("""'["monitoring", "finreports", "ab_tests"]'::jsonb"""),
+        server_default=text("""'["monitoring", "finreports", "ab_tests", "advertising"]'::jsonb"""),
     )
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True

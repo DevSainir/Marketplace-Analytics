@@ -1,32 +1,26 @@
 """HTTP presentation layer for the ``advertising`` module.
 
-Two guards on the aggregating router, so no route here can forget one:
+One guard on the aggregating router, so no route here can forget it:
+``require_advertising`` — the «Реклама» grant, open to every subscriber since
+2026-10-10.
 
-* ``require_internal`` — the page is being built and lives only for us until it
-  ships; the next-weaker guard (any paying member) would show customers a page
-  whose figures have not been checked on their кабинеты.
-* ``require_monitoring`` — advertising is monitoring's data.
-
-The finreports grant is NOT a guard here, by the owner's decision of
-2026-10-07: every member of our own organisation reads the whole page, sales
-and ДРР included, though three of its managers hold monitoring alone. That is
-an exception to the «Сводка» rule (a manager not granted «Отчёты» sees no
-sale) made for this page only; re-read it before the page ships to customers,
-whose owners grant modules expecting that rule to hold.
+It is a switch of its own rather than «Мониторинг»'s, by the owner's decision
+of that day. The page shows sales and ДРР от продаж, so under the «Сводка» rule
+a manager holding monitoring alone could not have read it; a separate grant lets
+an owner decide about this page directly. It is on by default — the migration
+that introduced it backfilled every membership and invitation — so nobody who
+read the page lost it, and narrowing is something an owner does deliberately.
 """
 
 from fastapi import APIRouter, Depends
 
 from src.modules.advertising.routers.advertising import router as advertising_router
-from src.modules.organizations.contract import require_internal, require_monitoring
+from src.modules.organizations.contract import require_advertising
 
 router = APIRouter(
     prefix="/v1",
     tags=["Advertising"],
-    dependencies=[
-        Depends(require_internal),
-        Depends(require_monitoring),
-    ],
+    dependencies=[Depends(require_advertising)],
 )
 router.include_router(advertising_router)
 

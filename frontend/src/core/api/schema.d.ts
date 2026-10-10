@@ -4983,7 +4983,7 @@ export interface components {
      *     set them apart.
      * @enum {string}
      */
-    ModuleKey: 'monitoring' | 'finreports' | 'ab_tests'
+    ModuleKey: 'monitoring' | 'finreports' | 'ab_tests' | 'advertising'
     /**
      * OrganizationRead
      * @description The caller's own organisation.

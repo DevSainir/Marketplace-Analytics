@@ -103,6 +103,10 @@ class ModuleKey(enum.StrEnum):
     FINREPORTS = "finreports"
     #: A/Б-тесты.
     AB_TESTS = "ab_tests"
+    #: Реклама — where the advertising money went. Its own switch rather than
+    #: «Мониторинг»'s, because the page shows sales and ДРР от продаж: an owner
+    #: who grants it is deciding about money, not about cards.
+    ADVERTISING = "advertising"
 
 
 #: Everything there is to grant. The default for a new manager and the value
@@ -213,7 +217,7 @@ class Membership(Base):
     modules: Mapped[list[str]] = mapped_column(
         JSONB,
         nullable=False,
-        server_default=text("""'["monitoring", "finreports", "ab_tests"]'::jsonb"""),
+        server_default=text("""'["monitoring", "finreports", "ab_tests", "advertising"]'::jsonb"""),
     )
     invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True

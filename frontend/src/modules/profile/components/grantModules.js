@@ -12,6 +12,7 @@ export const GRANT_MODULES = [
   // «Сводка» needs BOTH of the above — it shows the P&L's money beside
   // monitoring's demand — so it is not a switch of its own.
   { key: 'ab_tests', label: 'A/Б-тесты', hint: 'Ротация фото' },
+  { key: 'advertising', label: 'Реклама', hint: 'Расход, ДРР от продаж, бонусы' },
 ]
 
 export const GRANT_LEVELS = [

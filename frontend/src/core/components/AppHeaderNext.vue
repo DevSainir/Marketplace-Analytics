@@ -42,8 +42,9 @@ const NAV = [
   { to: '/ab-tests', label: 'A/Б-тесты', module: 'ab_tests' },
   // Monitoring's page; its money metrics alone also need P&L.
   { to: '/heatmap', label: 'Тепловая карта', module: 'monitoring' },
-  // Internal while it is being built; the monitoring grant, like its route and API.
-  { to: '/advertising', label: 'Реклама', internal: true, module: 'monitoring' },
+  // Its own grant, like its route and API: the page shows sales, so an owner
+  // decides about it directly rather than through «Мониторинг».
+  { to: '/advertising', label: 'Реклама', module: 'advertising' },
 ]
 
 // Hiding the link is cosmetic — `installInternalGuard` is what actually

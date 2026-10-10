@@ -78,16 +78,25 @@ describe('a page built from two module grants', () => {
 })
 
 describe('«Реклама»', () => {
-  it('is offered to every member of our organisation who holds monitoring', () => {
-    // A manager of ours without «Отчёты» reads the whole page — the owner's
-    // decision of 2026-10-07.
+  it('is offered to any subscriber who holds the «Реклама» grant', () => {
+    const wrapper = mountHeader({
+      isAuthenticated: true,
+      authResolved: true,
+      internalFeatures: false,
+      modules: ['advertising'],
+    })
+
+    expect(labels(wrapper)).toContain('Реклама')
+  })
+
+  it('is not offered on «Мониторинг» alone', () => {
     const wrapper = mountHeader({
       isAuthenticated: true,
       authResolved: true,
       internalFeatures: true,
-      modules: ['monitoring'],
+      modules: ['monitoring', 'finreports'],
     })
 
-    expect(labels(wrapper)).toContain('Реклама')
+    expect(labels(wrapper)).not.toContain('Реклама')
   })
 })

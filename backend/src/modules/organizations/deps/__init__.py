@@ -308,6 +308,7 @@ def require_module(
 require_monitoring = require_module(ModuleKey.MONITORING)
 require_finreports = require_module(ModuleKey.FINREPORTS)
 require_ab_tests = require_module(ModuleKey.AB_TESTS)
+require_advertising = require_module(ModuleKey.ADVERTISING)
 
 MonitoringAccess = Annotated[OrganizationAccess, Depends(require_monitoring)]
 FinreportsAccess = Annotated[OrganizationAccess, Depends(require_finreports)]
@@ -472,6 +473,7 @@ __all__ = [
     "get_current_access",
     "get_unauthenticated_audit_recorder",
     "require_ab_tests",
+    "require_advertising",
     "require_dev",
     "require_finreports",
     "require_internal",
