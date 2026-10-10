@@ -41,7 +41,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
-from src.modules.finreports.constants import SALE_OPERS
+from src.modules.finreports.constants import LOGISTICS_OPER, SALE_OPERS
 
 _SCHEMA: str = "finreports"
 
@@ -119,6 +119,17 @@ class LogisticsTransaction(Base):
             postgresql_where=text(
                 "supplier_oper_name IN ({})".format(", ".join(f"'{oper}'" for oper in SALE_OPERS))
             ),
+        ),
+        # 1.6 GB heap: 26 k pages read off disk, 8.9 s, the largest part of a
+        # whole-history recompute (measured 2026-10-10). Everything it reads is
+        # in the index. The predicate is checked against LOGISTICS_OPER by the
+        # same test as the sale index.
+        Index(
+            "workspace_id",
+            "nm_id",
+            "rr_dt",
+            postgresql_include=["delivery_rub"],
+            postgresql_where=text(f"supplier_oper_name = '{LOGISTICS_OPER}'"),
         ),
         {"schema": _SCHEMA},
     )

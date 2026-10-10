@@ -14,16 +14,12 @@ import re
 
 import pytest
 
-from src.modules.finreports.constants import SALE_OPERS
+from src.modules.finreports.constants import LOGISTICS_OPER, SALE_OPERS
 
 pytestmark = pytest.mark.unit
 
-MIGRATION = (
-    pathlib.Path(__file__).resolve().parents[3]
-    / "alembic"
-    / "versions"
-    / "b3d7f18c05ae_pnl_partial_indexes.py"
-)
+VERSIONS = pathlib.Path(__file__).resolve().parents[3] / "alembic" / "versions"
+MIGRATION = VERSIONS / "b3d7f18c05ae_pnl_partial_indexes.py"
 
 
 def test_the_sale_index_covers_every_operation_the_report_counts() -> None:
@@ -33,3 +29,8 @@ def test_the_sale_index_covers_every_operation_the_report_counts() -> None:
     indexed = {value.strip().strip("'") for value in predicate.group(1).split(",")}
 
     assert indexed == set(SALE_OPERS)
+
+
+    assert predicate is not None
+
+    assert predicate.group(1) == LOGISTICS_OPER
