@@ -1,8 +1,8 @@
 <script setup>
 /**
- * The per-article table's controls: search, the grain (артикулы / предметы /
- * бренды / группы) and the «Предметы» / «Бренды» / «Группы» filters — the
- * app's `FilterMenu`, several choices each, as on the heatmap.
+ * The per-article table's filters: search and «Предметы» / «Бренды» /
+ * «Группы» — the app's `FilterMenu`, several choices each, as on the heatmap.
+ * The grain is `GroupingChips`, at the top right of the section.
  *
  * Presentational: every value is a `v-model` owned by `useAdsSource`, which is
  * what filters the rows. Wraps rather than shrinks, so on a phone each control
@@ -10,7 +10,6 @@
  */
 import FilterMenu from '@/core/components/FilterMenu.vue'
 import SearchField from '@/core/components/SearchField.vue'
-import { AD_GROUPS } from '@/modules/advertising/skuModel'
 import { GroupsFilter } from '@/modules/heatmap'
 
 defineProps({
@@ -19,7 +18,6 @@ defineProps({
   subjects: { type: Array, default: () => [] },
   brands: { type: Array, default: () => [] },
   groupIds: { type: Array, default: () => [] },
-  group: { type: String, required: true },
   /** `filterOptions` — what the menus offer. */
   subjectOptions: { type: Array, default: () => [] },
   brandOptions: { type: Array, default: () => [] },
@@ -32,7 +30,6 @@ const emit = defineEmits([
   'update:subjects',
   'update:brands',
   'update:groupIds',
-  'update:group',
   'clear',
 ])
 
@@ -47,20 +44,6 @@ const options = (values) => values.map((value) => ({ value, label: value }))
       class="w-72 phone:w-full"
       @update:model-value="emit('update:query', $event)"
     />
-
-    <div class="flex flex-wrap items-center gap-xs" role="group" aria-label="Группировка">
-      <button
-        v-for="g in AD_GROUPS"
-        :key="g.id"
-        type="button"
-        class="ui-chip"
-        :class="{ 'is-on': group === g.id }"
-        :aria-pressed="group === g.id"
-        @click="emit('update:group', g.id)"
-      >
-        {{ g.name }}
-      </button>
-    </div>
 
     <FilterMenu
       label="Предметы"

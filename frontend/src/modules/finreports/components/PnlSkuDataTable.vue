@@ -7,10 +7,9 @@
  * ratios (Выкуп, Средний чек, ROI). «Продажи» is shown NET of returns at the
  * page's price base (`priceBase.js`); the percentages are shares of it.
  *
- * The «Штрафы» cell carries its categories inline (tiny second line) — the
- * category is what tells a seller whether a fine is disputable. The rightmost
- * column is the «Не включать в общий счёт» mark; toggling it emits upward so the
- * store can persist it and reload the backend-computed dashboard.
+ * «Штрафы» carry their categories inline — what tells a seller whether a fine
+ * is disputable. The last column is the «Не включать» mark, emitted upward.
+ * Rows cut by subject, brand or group (`isGroup`) are sums: no WB id, no mark.
  *
  * Three things beyond plain columns:
  *
@@ -22,12 +21,9 @@
  * * **Строка «Итого».** Закреплена внизу области прокрутки, считается по всему
  *   текущему фильтру, а не по странице пагинации.
  *
- * PrimeVue for the sorting and the frozen article column; split out of
- * `PnlSkuTable` when the phone cards joined it there. Figure columns carry
- * `col-num` and read from the right.
- *
- * The money is the backend's; the shares are re-divided by `toRow` at the
- * chosen price base, and this only formats.
+ * PrimeVue for the sorting and the frozen first column. Figure columns carry
+ * `col-num` and read from the right. The money is the backend's; the shares
+ * are re-divided by `toRow` at the chosen price base, and this only formats.
  */
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -50,6 +46,8 @@ const props = defineProps({
   /** @type {object} `nm_id -> {loading, error, data}` for the opened size tables. */
   sizes: { type: Object, default: () => ({}) },
   rowsPerPage: { type: Number, default: 50 },
+  /** «Артикул», or «Предмет» / «Бренд» / «Группа» when the rows are sums. */
+  firstHeader: { type: String, default: 'Артикул' },
 })
 
 const emit = defineEmits(['toggle-exclusion', 'load-sizes'])
@@ -90,14 +88,14 @@ const { money } = usePnlMoney()
 
     <!-- Фото и треугольник размеров живут в этой же закреплённой ячейке —
          почему именно так, написано в `PnlSkuRowIdentity`. -->
-    <Column field="saName" header="Артикул" sortable frozen :footer="foot.saName">
+    <Column field="saName" :header="firstHeader" sortable frozen :footer="foot.saName">
       <template #body="{ data }">
         <PnlSkuRowIdentity :row="data" :open="!!expanded[data.nmId]" @toggle="toggle(data.nmId)" />
       </template>
     </Column>
     <Column field="nmId" header="Артикул WB" sortable>
       <template #body="{ data }">
-        <span class="tabular-nums text-muted">{{ data.isBucket ? '—' : data.nmId }}</span>
+        <span class="tabular-nums text-muted">{{ data.isSku ? data.nmId : '—' }}</span>
       </template>
     </Column>
     <Column field="subject" header="Предмет" sortable>
@@ -235,7 +233,7 @@ const { money } = usePnlMoney()
     <Column field="isExcluded" header="" :sortable="false">
       <template #body="{ data }">
         <PnlExclusionToggle
-          v-if="!data.isBucket"
+          v-if="data.isSku"
           :checked="data.isExcluded"
           @change="emit('toggle-exclusion', { nmId: data.nmId, excluded: $event })"
         />

@@ -87,7 +87,7 @@ function toggle(nmId) {
 // after a report reload has dropped them (see `useExpandedSkus`).
 watch([expanded, () => props.sizes], ([open, sizes]) => {
   for (const nmId of open) {
-    if (nmId && !sizes[nmId]) emit('load-sizes', nmId)
+    if (typeof nmId === 'number' && !sizes[nmId]) emit('load-sizes', nmId)
   }
 })
 
@@ -131,13 +131,13 @@ const { money } = formatters
           :aria-expanded="expanded.has(row.nmId)"
           @click="toggle(row.nmId)"
         >
-          <SkuThumb v-if="!row.isBucket" :src="row.photoUrl" :label="row.saName" size="sm" />
+          <SkuThumb v-if="row.isSku" :src="row.photoUrl" :label="row.saName" size="sm" />
           <span class="record-main">
             <span class="record-title" :class="row.isBucket && 'font-normal text-muted'">
               {{ row.saName }}
             </span>
             <span class="record-sub">
-              {{ row.isBucket ? 'на весь счёт' : row.nmId }}
+              {{ row.isBucket ? 'на весь счёт' : row.isGroup ? `артикулов: ${row.n}` : row.nmId }}
               <template v-if="row.subject"> · {{ row.subject }}</template>
             </span>
           </span>
@@ -201,8 +201,8 @@ const { money } = formatters
               </span>
             </span>
           </div>
-          <PnlSkuSizeList v-if="!row.isBucket" :state="sizes[row.nmId] ?? null" />
-          <label v-if="!row.isBucket" class="record-row cursor-pointer">
+          <PnlSkuSizeList v-if="row.isSku" :state="sizes[row.nmId] ?? null" />
+          <label v-if="row.isSku" class="record-row cursor-pointer">
             <span class="record-label">Не включать в общий счёт</span>
             <input
               type="checkbox"

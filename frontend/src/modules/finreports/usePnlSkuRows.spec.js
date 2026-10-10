@@ -1,5 +1,5 @@
 import { sizeAtBase } from '@/modules/finreports/priceBase'
-import { subsetDashboard, sumRows, toRow } from '@/modules/finreports/usePnlSkuRows'
+import { groupPnlRows, subsetDashboard, sumRows, toRow } from '@/modules/finreports/usePnlSkuRows'
 
 /** A raw PnlSkuRow-shaped object (only the fields subsetDashboard reads). */
 function row(overrides = {}) {
@@ -262,5 +262,51 @@ describe('ДРР артикула, который вернули больше, �
     const r = toRow(row({ revenue_seller_price: '-200', revenue_paid: '-180' }), false, 'seller')
 
     expect(r.advertisingPct).toBeNull()
+  })
+})
+
+describe('groupPnlRows', () => {
+  const flat = (over) => toRow(row({ subject_name: 'Брюки', ...over }))
+
+  it('sums the articles of a subject into one row, with no WB id or mark of its own', () => {
+    const rows = [flat({ nm_id: 1 }), flat({ nm_id: 2 }), flat({ nm_id: 3, subject_name: 'Шорты' })]
+
+    const [trousers, shorts] = groupPnlRows(rows, 'subject', [])
+
+    expect(trousers).toMatchObject({ saName: 'Брюки', n: 2, isGroup: true, isSku: false })
+    expect(trousers.sales).toBe(2000)
+    expect(trousers.logisticsPct).toBe(20) // re-divided, not averaged
+    expect(shorts).toMatchObject({ saName: 'Шорты', n: 1, sales: 1000 })
+  })
+
+  it('leaves the «Не включать» articles out of a sum, and a bucket of only those out entirely', () => {
+    const rows = [
+      flat({ nm_id: 1 }),
+      flat({ nm_id: 2, is_excluded: true }),
+      flat({ nm_id: 3, subject_name: 'Шорты', is_excluded: true }),
+    ]
+
+    const out = groupPnlRows(rows, 'subject', [])
+
+    expect(out.map((r) => [r.saName, r.sales])).toEqual([['Брюки', 1000]])
+  })
+
+  it('counts an article in every group it is in', () => {
+    const groups = [
+      { id: 'a', name: 'Лето', nm_ids: [1, 2] },
+      { id: 'b', name: 'Хиты', nm_ids: [2] },
+    ]
+
+    const out = groupPnlRows(
+      [flat({ nm_id: 1 }), flat({ nm_id: 2 }), flat({ nm_id: 3 })],
+      'group',
+      groups,
+    )
+
+    expect(out.map((r) => [r.saName, r.n])).toEqual([
+      ['Лето', 2],
+      ['Хиты', 1],
+      ['Без группы', 1],
+    ])
   })
 })

@@ -46,8 +46,11 @@ const {
   subjectFilter,
   brandFilter,
   groupFilter,
+  cut,
+  groupsReadable,
   subjects,
   brands,
+  articleRows,
   tableRows,
   filtered,
   isFiltering,
@@ -67,13 +70,18 @@ watchEffect(() => {
  * Строка «Итого» — сумма того, что сейчас в таблице.
  *
  * Считается здесь, а не в проекции: карточки и таблица должны показывать одну
- * и ту же выборку, а выборку знает этот компонент. Счета WB за рекламу
+ * и ту же выборку, а выборку знает этот компонент. Складываются артикулы, а не
+ * строки на экране: в разбивке по группам артикул стоит в каждой своей группе,
+ * и сумма строк посчитала бы его дважды. Счета WB за рекламу
  * передаются отдельно — из них складывается поправка, без которой «Итого»
  * списало бы рекламу дважды (подробности в `sumRows`).
  */
 const totals = computed(() =>
-  sumRows(tableRows.value, Number(props.baseDashboard?.advertising ?? 0)),
+  sumRows(articleRows.value, Number(props.baseDashboard?.advertising ?? 0)),
 )
+
+/** The first column's head follows the cut. */
+const FIRST_HEADERS = { sku: 'Артикул', subject: 'Предмет', brand: 'Бренд', group: 'Группа' }
 
 const table = ref(null)
 const rowsPerPage = ref(PAGE_SIZES[0])
@@ -93,6 +101,8 @@ function setPageSize(value) {
       v-model:subject="subjectFilter"
       v-model:brand="brandFilter"
       v-model:group-ids="groupFilter"
+      v-model:cut="cut"
+      :groups-readable="groupsReadable"
       :page-size="rowsPerPage"
       :page-sizes="PAGE_SIZES"
       :subjects="subjects"
@@ -120,6 +130,7 @@ function setPageSize(value) {
         :totals="totals"
         :sizes="sizes"
         :rows-per-page="rowsPerPage"
+        :first-header="FIRST_HEADERS[cut]"
         @toggle-exclusion="emit('toggle-exclusion', $event)"
         @load-sizes="emit('load-sizes', $event)"
       />

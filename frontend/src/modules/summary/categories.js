@@ -6,20 +6,14 @@
  * trip over the whole settlement window — seconds, for arithmetic over a few
  * dozen rows the browser already holds.
  *
+ * Cut by «Группы» it follows the heatmap: an article sits in every group it
+ * is in, the rest under «Без группы» (`splitBy`).
+ *
  * One rule carries through: a bar reports no margin at all as soon as one of
  * its articles has none. Letting the costed half stand would rank a group above
  * fully-costed ones for being less well documented.
  */
-
-/** Label for an article WB never gave a subject or a brand. */
-const UNNAMED = '(не указан)'
-
-/** How the block may be cut. */
-export const CUTS = [
-  { key: 'sku', label: 'Артикулы' },
-  { key: 'subject', label: 'Предметы' },
-  { key: 'brand', label: 'Бренды' },
-]
+import { splitBy } from '@/modules/heatmap'
 
 /** What the bars may be ranked by. */
 export const SORTS = [
@@ -44,43 +38,41 @@ export function revenueOf(row, base) {
   return Number(base === 'seller' ? row.revenue_seller : row.revenue_paid)
 }
 
-/** The `(key, label)` a row falls under for the requested cut. */
-function bucketOf(row, cut) {
-  if (cut === 'subject') return [row.subject || UNNAMED, row.subject || UNNAMED]
-  if (cut === 'brand') return [row.brand || UNNAMED, row.brand || UNNAMED]
-  return [String(row.nm_id), row.code]
+/** The article rows a bar is made of — one bar per article, or per subject, brand or group. */
+function bucketsOf(rows, cut, groups) {
+  if (cut === 'sku')
+    return rows.map((row) => ({ key: String(row.nm_id), label: row.code, items: [row] }))
+  return splitBy(rows, cut, {
+    nmId: (row) => row.nm_id,
+    subject: (row) => row.subject,
+    brand: (row) => row.brand,
+    groups,
+  })
 }
 
 /**
  * Fold the rows into ranked bars.
  *
  * @param {Array<object>} rows Per-article rows from the API.
- * @param {{cut: string, base: string, sort: string}} options
+ * @param {{cut: string, base: string, sort: string, groups?: Array<object>}} options
+ *   `groups` — the кабинет's «Группы», for the `group` cut.
  * @returns {Array<object>} Bars, largest first by the chosen metric, each with
  *   its share of the visible total and its own margin percentage.
  */
-export function buildCategories(rows, { cut, base, sort }) {
-  const grouped = new Map()
-  for (const row of rows) {
-    const [key, label] = bucketOf(row, cut)
-    const bucket = grouped.get(key) ?? {
-      key,
-      label,
-      revenue: 0,
-      margin: 0,
-      costed: true,
-      soldUnits: 0,
-      skuCount: 0,
+export function buildCategories(rows, { cut, base, sort, groups = [] }) {
+  const grouped = bucketsOf(rows, cut, groups).map(({ key, label, items }) => {
+    const bucket = { key, label, revenue: 0, margin: 0, costed: true, soldUnits: 0, skuCount: 0 }
+    for (const row of items) {
+      bucket.revenue += revenueOf(row, base)
+      bucket.soldUnits += Number(row.sold_units)
+      bucket.skuCount += 1
+      if (row.margin === null || row.margin === undefined) bucket.costed = false
+      else bucket.margin += Number(row.margin)
     }
-    bucket.revenue += revenueOf(row, base)
-    bucket.soldUnits += Number(row.sold_units)
-    bucket.skuCount += 1
-    if (row.margin === null || row.margin === undefined) bucket.costed = false
-    else bucket.margin += Number(row.margin)
-    grouped.set(key, bucket)
-  }
+    return bucket
+  })
 
-  const bars = [...grouped.values()].map((bucket) => ({
+  const bars = grouped.map((bucket) => ({
     ...bucket,
     margin: bucket.costed ? bucket.margin : null,
   }))
@@ -88,8 +80,20 @@ export function buildCategories(rows, { cut, base, sort }) {
   // Shares are of the block's own totals, so the column adds up to 100 % for a
   // reader who checks. Account-level money is not in these rows at all — it has
   // no article, subject or brand — and so is not in the denominator either.
-  const revenueTotal = bars.reduce((sum, bar) => sum + bar.revenue, 0)
-  const marginTotal = bars.reduce((sum, bar) => sum + (bar.margin ?? 0), 0)
+  // By group an article can sit in two bars, so there the totals are the
+  // articles' own, and the shares are each group's part of the whole — they
+  // can add up to more than 100 %, as overlapping groups do.
+  const byArticle = cut === 'group'
+  const revenueTotal = byArticle
+    ? rows.reduce((sum, row) => sum + revenueOf(row, base), 0)
+    : bars.reduce((sum, bar) => sum + bar.revenue, 0)
+  const marginTotal = byArticle
+    ? rows.reduce(
+        (sum, row) =>
+          sum + (row.margin === null || row.margin === undefined ? 0 : Number(row.margin)),
+        0,
+      )
+    : bars.reduce((sum, bar) => sum + (bar.margin ?? 0), 0)
 
   for (const bar of bars) {
     bar.revenueShare = revenueTotal ? (bar.revenue / revenueTotal) * 100 : 0

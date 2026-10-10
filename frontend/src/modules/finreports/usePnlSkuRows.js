@@ -12,6 +12,7 @@ import { computed, ref } from 'vue'
 import { formatSku } from '@/core/utils/format'
 import { atBase, drrShare, shareOf } from '@/modules/finreports/priceBase'
 import { useSkuFilters } from '@/modules/finreports/skuFilters'
+import { splitBy, useGroupCut } from '@/modules/heatmap'
 
 const num = (value) => (value === null || value === undefined ? null : Number(value))
 
@@ -45,6 +46,8 @@ export function toRow(r, isBucket = false, base = 'seller') {
     subject: r.subject_name || '',
     brand: r.brand_name || '',
     isBucket,
+    // A real article — the only row with a WB id, sizes and a «Не включать» mark.
+    isSku: !isBucket,
     isExcluded: !!r.is_excluded,
     orders: num(r.orders_units),
     sold: r.sold_units,
@@ -90,6 +93,8 @@ export function toRow(r, isBucket = false, base = 'seller') {
 export function usePnlSkuRows(rows, unallocated, base = () => 'seller') {
   const query = ref('')
   const { subjectFilter, brandFilter, groupFilter, active, apply } = useSkuFilters()
+  const cut = ref('sku')
+  const { groups, readable: groupsReadable } = useGroupCut(cut)
 
   const distinct = (key) =>
     [...new Set(rows.value.map((r) => r[key]).filter(Boolean))].sort((a, b) =>
@@ -115,7 +120,8 @@ export function usePnlSkuRows(rows, unallocated, base = () => 'seller') {
     return list
   })
 
-  const tableRows = computed(() => {
+  /** One row per article, plus the account-level bucket — what «Итого» sums. */
+  const articleRows = computed(() => {
     const mapped = filtered.value.map((r) => toRow(r, false, base()))
     // The account-level bucket has no SKU identity to filter on — show it only
     // when the list is unfiltered, so a search never strands an orphan row.
@@ -125,17 +131,66 @@ export function usePnlSkuRows(rows, unallocated, base = () => 'seller') {
     return mapped
   })
 
+  /** What the table shows: the articles, or their sums by the chosen cut. */
+  const tableRows = computed(() => {
+    if (cut.value === 'sku') return articleRows.value
+    const articles = articleRows.value.filter((r) => !r.isBucket)
+    const bucket = articleRows.value.filter((r) => r.isBucket)
+    return [...groupPnlRows(articles, cut.value, groups.value), ...bucket]
+  })
+
   return {
     query,
     subjectFilter,
     brandFilter,
     groupFilter,
+    cut,
+    groupsReadable,
     subjects,
     brands,
+    articleRows,
     tableRows,
     filtered,
     isFiltering,
   }
+}
+
+/**
+ * The table's rows by subject, brand or group: each one the {@link sumRows}
+ * of its articles, so a group row reads exactly as an «Итого» of those
+ * articles would — shares re-divided, nothing averaged. Like «Итого», it
+ * leaves out the articles marked «Не включать»; a bucket of nothing but marked
+ * ones has no row. By group an article counts in every group it is in.
+ *
+ * @param {Array<object>} rows Flat article rows from {@link toRow}, no bucket.
+ * @param {'subject'|'brand'|'group'} cut
+ * @param {Array<object>} groups The кабинет's «Группы».
+ */
+export function groupPnlRows(rows, cut, groups) {
+  return splitBy(rows, cut, {
+    nmId: (r) => r.nmId,
+    subject: (r) => r.subject,
+    brand: (r) => r.brand,
+    groups,
+  })
+    .map(({ key, label, items }) => {
+      const sum = sumRows(items)
+      if (!sum) return null
+      return {
+        ...sum,
+        nmId: key,
+        saName: label,
+        isTotals: false,
+        isGroup: true,
+        isSku: false,
+        n: items.length,
+        priceBase: items[0].priceBase,
+        photoUrl: null,
+        subject: '',
+        brand: '',
+      }
+    })
+    .filter(Boolean)
 }
 
 /**

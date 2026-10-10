@@ -40,6 +40,14 @@ import { moneyFormatter, useBalanceRows } from '@/modules/finreports/useBalanceR
 
 import { formatNumber } from '@/core/utils/format'
 
+/** The first column's head and the right panel's title follow the cut. */
+const HEADS = {
+  sku: ['Артикул', 'Итого по артикулу'],
+  subject: ['Предмет', 'Итого по предмету'],
+  brand: ['Бренд', 'Итого по бренду'],
+  group: ['Группа', 'Итого по группе'],
+}
+
 const props = defineProps({
   /** The `/finreports/balance` payload; `null` while it loads. */
   balance: { type: Object, default: null },
@@ -54,6 +62,8 @@ const {
   subjectFilter,
   brandFilter,
   groupFilter,
+  cut,
+  groupsReadable,
   subjects,
   brands,
   columns,
@@ -107,6 +117,8 @@ function forwardWheel(event) {
         v-model:subject="subjectFilter"
         v-model:brand="brandFilter"
         v-model:group-ids="groupFilter"
+        v-model:cut="cut"
+        :groups-readable="groupsReadable"
         :subjects="subjects"
         :brands="brands"
         :page-sizes="[]"
@@ -144,6 +156,7 @@ function forwardWheel(event) {
           :ordinary-count="ordinaryCount"
           :is-group-boundary="isGroupBoundary"
           :is-row-boundary="isRowBoundary"
+          :first-header="HEADS[cut][0]"
           @scroll="syncPanels"
           @open-menu="openMenu($event.event, $event.target)"
           @show-tip="showNameTip($event.event, $event.name, $event.limit)"
@@ -155,6 +168,7 @@ function forwardWheel(event) {
           :rows="tableRows"
           :money="money"
           :is-row-boundary="isRowBoundary"
+          :title="HEADS[cut][1]"
           @wheel="forwardWheel"
         />
 

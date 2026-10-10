@@ -24,6 +24,8 @@ defineProps({
   money: { type: Function, required: true },
   /** `(index) => boolean` — true on the first row after the pinned ones. */
   isRowBoundary: { type: Function, required: true },
+  /** «Итого по артикулу», or by subject, brand or group when the rows are sums. */
+  title: { type: String, default: 'Итого по артикулу' },
 })
 
 const scroller = ref(null)
@@ -42,7 +44,7 @@ defineExpose({ scroller })
       </colgroup>
       <thead>
         <tr>
-          <th colspan="3" class="panel-title">Итого по артикулу</th>
+          <th colspan="3" class="panel-title">{{ title }}</th>
         </tr>
         <tr>
           <th class="col-qty">По остаткам</th>

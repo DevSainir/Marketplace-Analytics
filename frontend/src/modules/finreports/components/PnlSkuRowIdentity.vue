@@ -21,7 +21,7 @@ defineEmits(['toggle'])
 <template>
   <span class="flex items-center gap-sm">
     <button
-      v-if="!row.isBucket"
+      v-if="row.isSku"
       type="button"
       class="pnl-expander"
       :aria-expanded="open"
@@ -30,10 +30,12 @@ defineEmits(['toggle'])
     >
       <span class="inline-block transition" :class="open && 'rotate-90'">▶</span>
     </button>
-    <!-- Строка счёта не раскрывается: у неё нет ни артикула, ни размеров. -->
+    <!-- Строка счёта и строка-сумма (предмет, бренд, группа) не раскрываются:
+         у них нет ни артикула, ни размеров. -->
     <span v-else class="w-4"></span>
 
-    <SkuThumb v-if="!row.isBucket" :src="row.photoUrl" :label="row.saName" size="sm" />
+    <SkuThumb v-if="row.isSku" :src="row.photoUrl" :label="row.saName" size="sm" />
     <span :class="row.isBucket ? 'text-muted' : 'font-medium text-primary'">{{ row.saName }}</span>
+    <span v-if="row.isGroup" class="text-muted">· {{ row.n }}</span>
   </span>
 </template>

@@ -12,6 +12,8 @@
  *   whatever the filter: «доля общих рекламных расходов».
  */
 
+import { splitBy } from '@/modules/heatmap'
+
 /** The cuts the table offers; `col` heads the first column, `by` ends the title. */
 export const AD_GROUPS = [
   { id: 'sku', name: 'Артикулы', col: 'Артикул', by: 'артикулам' },
@@ -20,8 +22,7 @@ export const AD_GROUPS = [
   { id: 'group', name: 'Группы', col: 'Группа', by: 'группам' },
 ]
 
-/** The row of articles in none of the groups, as the heatmap names it. */
-export const UNGROUPED = 'Без группы'
+export { UNGROUPED } from '@/modules/heatmap'
 
 /** What a missing subject or brand reads as — and groups under. */
 const NONE = '—'
@@ -157,7 +158,11 @@ function withRatios(row, cabinetSpend) {
  */
 export function groupRows(rows, group, cabinetSpend, groups = []) {
   if (group === 'sku') return rows.map((row) => withRatios(row, cabinetSpend))
-  if (group === 'group') return byGroup(rows, groups, cabinetSpend)
+  if (group === 'group') {
+    return splitBy(rows, 'group', { nmId: (row) => row.nmId, groups }).map((bucket) =>
+      withRatios(sum(bucket.items, bucket.label), cabinetSpend),
+    )
+  }
   const byKey = new Map()
   for (const row of rows) {
     const key = row[group]
@@ -165,21 +170,6 @@ export function groupRows(rows, group, cabinetSpend, groups = []) {
     byKey.get(key).push(row)
   }
   return [...byKey].map(([key, members]) => withRatios(sum(members, key), cabinetSpend))
-}
-
-function byGroup(rows, groups, cabinetSpend) {
-  const grouped = new Set()
-  const out = []
-  for (const group of groups) {
-    const members = new Set(group.nm_ids)
-    const inside = rows.filter((row) => members.has(row.nmId))
-    if (!inside.length) continue
-    for (const row of inside) grouped.add(row)
-    out.push(withRatios(sum(inside, group.name), cabinetSpend))
-  }
-  const rest = rows.filter((row) => !grouped.has(row))
-  if (rest.length) out.push(withRatios(sum(rest, UNGROUPED), cabinetSpend))
-  return out
 }
 
 /** The «Итого» of the given article rows — the picked ones, not the grouped. */

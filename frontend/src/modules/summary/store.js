@@ -20,6 +20,7 @@ import { presetWindow } from '@/core/utils/calendarModel'
 import { isoDaysAgo } from '@/core/utils/dates'
 import { recallPeriod, rememberPeriod } from '@/core/utils/periodMemory'
 import { fetchSummary, fetchSummarySpan } from '@/modules/summary/api'
+import { useGroupCut } from '@/modules/heatmap'
 import { buildCategories } from '@/modules/summary/categories'
 
 /** Default window, matching the backend's own: the last week. */
@@ -47,6 +48,7 @@ export const useSummaryStore = defineStore('summary', () => {
   const revenueBase = ref('seller')
   const cut = ref('sku')
   const sort = ref('revenue')
+  const { groups, readable: groupsReadable } = useGroupCut(cut)
 
   // Shallow: the payload is only ever replaced whole, never edited in place,
   // and a deep proxy over every row is work done on the page's own thread
@@ -68,6 +70,7 @@ export const useSummaryStore = defineStore('summary', () => {
       cut: cut.value,
       base: revenueBase.value,
       sort: sort.value,
+      groups: groups.value,
     }),
   )
 
@@ -156,6 +159,7 @@ export const useSummaryStore = defineStore('summary', () => {
     dateTo,
     revenueBase,
     cut,
+    groupsReadable,
     sort,
     data,
     span,

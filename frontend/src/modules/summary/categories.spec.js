@@ -111,3 +111,23 @@ describe('buildCategories', () => {
     expect(buildCategories([], { cut: 'sku', base: 'paid', sort: 'revenue' })).toEqual([])
   })
 })
+
+describe('buildCategories by «Группы»', () => {
+  it('sums each group, and shares each against the articles, not the overlapping bars', () => {
+    const rows = [
+      row({ nm_id: 1, revenue_seller: '100', margin: '10' }),
+      row({ nm_id: 2, revenue_seller: '300', margin: '30' }),
+    ]
+    const groups = [
+      { id: 'a', name: 'Лето', nm_ids: [1, 2] },
+      { id: 'b', name: 'Хиты', nm_ids: [2] },
+    ]
+
+    const bars = buildCategories(rows, { cut: 'group', base: 'seller', sort: 'revenue', groups })
+
+    expect(bars.map((b) => [b.label, b.revenue, b.revenueShare])).toEqual([
+      ['Лето', 400, 100],
+      ['Хиты', 300, 75],
+    ])
+  })
+})

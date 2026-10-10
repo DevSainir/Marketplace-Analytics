@@ -13,11 +13,12 @@
  * A кабинет switch reloads the whole app, so nothing here is keyed by кабинет.
  */
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
 import { isoDaysAgo } from '@/core/utils/dates'
 import * as api from '@/modules/heatmap/api'
+import { useMembersStore } from '@/modules/profile'
 
 /** The window the group editor ranks articles by when the page has none of its own. */
 const CARDS_DAYS = 30
@@ -91,4 +92,79 @@ export function articlesOfGroups(groups, ids) {
   if (!ids.length) return null
   const chosen = new Set(ids)
   return new Set(groups.filter((group) => chosen.has(group.id)).flatMap((group) => group.nm_ids))
+}
+
+/** The bucket of articles in none of the groups — the heatmap's own words. */
+export const UNGROUPED = 'Без группы'
+
+/** The bucket of articles WB left without a subject or a brand. */
+export const UNNAMED = '(не указан)'
+
+/**
+ * Split items by subject, brand or group — the cuts `GroupingChips` offers
+ * beyond «Артикулы», which is no split at all.
+ *
+ * By group an item lands in EVERY group it is in, and the rest share one
+ * «Без группы» bucket: the heatmap's rule. The buckets can then hold more
+ * items between them than there are, so a page's «Итого» is summed over the
+ * items, never over the buckets.
+ *
+ * @template T
+ * @param {T[]} items
+ * @param {'subject'|'brand'|'group'} cut
+ * @param {{nmId: (item: T) => number, subject: (item: T) => string,
+ *   brand: (item: T) => string, groups: Array<{id: string, name: string, nm_ids: number[]}>}} how
+ * @returns {Array<{key: string, label: string, items: T[]}>} In first-seen
+ *   order for a subject or a brand, in the groups' order for a group.
+ */
+export function splitBy(items, cut, how) {
+  if (cut === 'group') {
+    const placed = new Set()
+    const buckets = []
+    for (const group of how.groups) {
+      const members = new Set(group.nm_ids)
+      const inside = items.filter((item) => members.has(how.nmId(item)))
+      if (!inside.length) continue
+      inside.forEach((item) => placed.add(item))
+      buckets.push({ key: `group:${group.id}`, label: group.name, items: inside })
+    }
+    const rest = items.filter((item) => !placed.has(item))
+    if (rest.length) buckets.push({ key: 'group:none', label: UNGROUPED, items: rest })
+    return buckets
+  }
+  const byName = new Map()
+  for (const item of items) {
+    const name = how[cut](item) || UNNAMED
+    if (!byName.has(name)) byName.set(name, [])
+    byName.get(name).push(item)
+  }
+  return [...byName].map(([name, inside]) => ({
+    key: `${cut}:${name}`,
+    label: name,
+    items: inside,
+  }))
+}
+
+/**
+ * What a page cutting by «Группы» needs: the list, loaded when the cut is
+ * chosen, and whether the caller may have it at all. A caller who may not
+ * (no monitoring grant — see `GroupsFilter`) is put back on «Артикулы»
+ * rather than shown a cut that can only say «Без группы».
+ *
+ * @param {import('vue').Ref<string>} cut The page's cut.
+ */
+export function useGroupCut(cut) {
+  const store = useGroupsStore()
+  const members = useMembersStore()
+  const readable = computed(() => members.canReach('monitoring'))
+  watch(
+    [cut, readable],
+    ([value, ok]) => {
+      if (value !== 'group') return
+      if (!ok) cut.value = 'sku'
+      else store.load().catch(() => {})
+    },
+    { immediate: true },
+  )
+  return { groups: computed(() => store.groups), readable }
 }

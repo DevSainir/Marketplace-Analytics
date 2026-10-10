@@ -11,6 +11,7 @@
  */
 import { computed } from 'vue'
 
+import GroupingChips from '@/core/components/GroupingChips.vue'
 import AdsSkuCards from '@/modules/advertising/components/AdsSkuCards.vue'
 import AdsSkuTable from '@/modules/advertising/components/AdsSkuTable.vue'
 import AdsSkuToolbar from '@/modules/advertising/components/AdsSkuToolbar.vue'
@@ -49,13 +50,15 @@ const filtering = computed(() => {
 
 <template>
   <section>
-    <h2 class="mb-md text-h3 font-semibold text-primary">Реклама по {{ groupDef.by }}</h2>
+    <div class="mb-md flex flex-wrap items-center justify-between gap-md">
+      <h2 class="text-h3 font-semibold text-primary">Реклама по {{ groupDef.by }}</h2>
+      <GroupingChips v-model="store.group" />
+    </div>
     <AdsSkuToolbar
       v-model:query="store.filters.query"
       v-model:subjects="store.filters.subjects"
       v-model:brands="store.filters.brands"
       v-model:group-ids="store.filters.groupIds"
-      v-model:group="store.group"
       :subject-options="options.subjects"
       :brand-options="options.brands"
       :filtering="filtering"

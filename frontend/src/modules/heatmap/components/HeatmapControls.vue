@@ -1,13 +1,14 @@
 <script setup>
 /**
- * The grid's own controls: what is painted, and how the grid is cut.
+ * The grid's own controls: what is painted, and how.
  *
  * Left: the painted metric, ⇄, and an optional second metric — when one is
  * chosen every cell carries two numbers, the painted one on top. Each select
  * is as wide as its longest option, no wider. Right: where the norm comes
  * from (the median, or a number typed per article), the column width (день /
- * неделя / месяц), what a row stands for, and whether a row is compared with
- * its own days or with every other row.
+ * неделя / месяц), and whether a row is compared with its own days or with
+ * every other row. What a row stands for is `GroupingChips`, above the card
+ * like on every other page.
  *
  * Native selects, as everywhere in this app: they are the accessible picker on
  * a phone, and the list of twenty-five metrics is exactly what one is for.
@@ -30,7 +31,6 @@ const emit = defineEmits([
   'update:metric',
   'update:metric2',
   'update:period',
-  'update:groupBy',
   'update:mode',
   'update:normMode',
   'swap',
@@ -51,13 +51,6 @@ const PERIODS = [
   { value: 'day', label: 'По дням' },
   { value: 'week', label: 'По неделям' },
   { value: 'month', label: 'По месяцам' },
-]
-/** What a row is — chips, worded as advertising and the summary word the same cut. */
-const CUTS = [
-  { value: 'sku', label: 'Артикулы' },
-  { value: 'subject', label: 'Предметы' },
-  { value: 'brand', label: 'Бренды' },
-  { value: 'group', label: 'Группы' },
 ]
 const MODES = [
   { value: 'row', label: 'По строке' },
@@ -113,18 +106,6 @@ const MODES = [
     </div>
 
     <div class="ml-auto flex flex-wrap items-center gap-sm phone:ml-0 phone:w-full">
-      <div class="flex items-center gap-xs" role="group" aria-label="Строки">
-        <button
-          v-for="option in CUTS"
-          :key="option.value"
-          type="button"
-          class="ui-chip"
-          :class="{ 'is-on': groupBy === option.value }"
-          @click="emit('update:groupBy', option.value)"
-        >
-          {{ option.label }}
-        </button>
-      </div>
       <select
         class="ui-select ui-select--sm phone:w-full"
         :value="normMode"

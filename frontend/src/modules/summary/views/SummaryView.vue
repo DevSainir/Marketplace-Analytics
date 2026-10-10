@@ -16,7 +16,8 @@ import { computed, onMounted } from 'vue'
 import PageHeader from '@/core/components/PageHeader.vue'
 import BusyRegion from '@/core/components/BusyRegion.vue'
 import DataState from '@/core/components/DataState.vue'
-import { CUTS, SORTS } from '@/modules/summary/categories'
+import GroupingChips from '@/core/components/GroupingChips.vue'
+import { SORTS } from '@/modules/summary/categories'
 import SummaryCategoryBars from '@/modules/summary/components/SummaryCategoryBars.vue'
 import SummaryControls from '@/modules/summary/components/SummaryControls.vue'
 import SummaryKpis from '@/modules/summary/components/SummaryKpis.vue'
@@ -126,18 +127,7 @@ onMounted(() => store.init())
                   {{ option.label }}
                 </button>
               </div>
-              <div class="flex items-center gap-xs">
-                <button
-                  v-for="option in CUTS"
-                  :key="option.key"
-                  type="button"
-                  class="ui-chip"
-                  :class="{ 'is-on': store.cut === option.key }"
-                  @click="store.cut = option.key"
-                >
-                  {{ option.label }}
-                </button>
-              </div>
+              <GroupingChips v-model="store.cut" :groups="store.groupsReadable" />
             </div>
           </div>
           <div class="sum-card mt-md">

@@ -1,7 +1,8 @@
 <script setup>
 /**
  * The row above the grid: the period and the three filters that decide WHICH
- * articles the heatmap covers — «Предметы», «Группы», «Артикулы».
+ * articles the heatmap covers — «Предметы», «Группы», «Артикулы» — and, at its
+ * right end, what a row of the grid stands for (`GroupingChips`).
  *
  * They combine by intersection, and an empty filter means «все». «Группы» is
  * the app's shared `GroupsFilter`, where groups are also made and edited.
@@ -11,6 +12,7 @@
 import { computed } from 'vue'
 
 import FilterMenu from '@/core/components/FilterMenu.vue'
+import GroupingChips from '@/core/components/GroupingChips.vue'
 import PeriodSelector from '@/core/components/PeriodSelector.vue'
 import { isoDaysAgo } from '@/core/utils/dates'
 import { formatSku } from '@/core/utils/format'
@@ -25,8 +27,16 @@ const props = defineProps({
   subjects: { type: Array, default: () => [] },
   groupIds: { type: Array, default: () => [] },
   nmIds: { type: Array, default: () => [] },
+  /** What a row stands for — the chips at the right end of this row. */
+  groupBy: { type: String, required: true },
 })
-const emit = defineEmits(['period', 'update:subjects', 'update:groupIds', 'update:nmIds'])
+const emit = defineEmits([
+  'period',
+  'update:subjects',
+  'update:groupIds',
+  'update:nmIds',
+  'update:groupBy',
+])
 
 // The presets end yesterday, like the default window: today's funnel is still
 // filling, and a half-day painted red beside whole ones reads as a collapse.
@@ -83,6 +93,12 @@ const skuItems = computed(() =>
       :model-value="nmIds"
       placeholder="Артикул продавца или WB, название"
       @update:model-value="emit('update:nmIds', $event)"
+    />
+
+    <GroupingChips
+      class="ml-auto phone:ml-0"
+      :model-value="groupBy"
+      @update:model-value="emit('update:groupBy', $event)"
     />
   </div>
 </template>

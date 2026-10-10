@@ -93,7 +93,7 @@ function stocked(row) {
               {{ row.saName }}
             </span>
             <span class="record-sub">
-              {{ row.nmId }}
+              {{ row.isGroup ? `артикулов: ${row.n}` : row.nmId }}
               <template v-if="row.subject"> · {{ row.subject }}</template>
             </span>
           </span>

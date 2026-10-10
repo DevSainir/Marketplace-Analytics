@@ -2,7 +2,8 @@
 /**
  * The per-SKU table's toolbar: the search, the «Предметы» / «Бренды» /
  * «Группы» filters (the app's `FilterMenu`, several choices each, as on the
- * heatmap), a «Сбросить фильтр» while any is set, and the page-size picker.
+ * heatmap), a «Сбросить фильтр» while any is set, and on the right how the
+ * table is cut (`GroupingChips`) and then the page-size picker.
  *
  * Presentational — the query and filter values are `v-model`s the table owns, because the table is what
  * actually filters its rows against them. Split out of PnlSkuTable to keep that
@@ -15,6 +16,7 @@
 import { computed } from 'vue'
 
 import FilterMenu from '@/core/components/FilterMenu.vue'
+import GroupingChips from '@/core/components/GroupingChips.vue'
 import SearchField from '@/core/components/SearchField.vue'
 import { GroupsFilter } from '@/modules/heatmap'
 
@@ -28,6 +30,10 @@ const props = defineProps({
   subject: { type: Array, default: () => [] },
   brand: { type: Array, default: () => [] },
   groupIds: { type: Array, default: () => [] },
+  /** How the table is cut — `GroupingChips`, at the right end, before the page size. */
+  cut: { type: String, required: true },
+  /** Whether the «Группы» cut is offered — see `useGroupCut`. */
+  groupsReadable: { type: Boolean, default: true },
   pageSize: { type: Number, default: 50 },
   pageSizes: { type: Array, default: () => [] },
 })
@@ -37,6 +43,7 @@ const emit = defineEmits([
   'update:subject',
   'update:brand',
   'update:groupIds',
+  'update:cut',
   'update:pageSize',
 ])
 
@@ -56,7 +63,8 @@ function clear() {
 
 <template>
   <!-- The app's one table toolbar, the same row advertising has: above the
-       table's card, search → filters → «Сбросить фильтр» → page size right. -->
+       table's card, search → filters → «Сбросить фильтр» → the cut and the
+       page size right. -->
   <div class="mb-sm flex flex-wrap items-center gap-sm">
     <SearchField
       :model-value="query"
@@ -85,7 +93,13 @@ function clear() {
     <!-- Page size belongs to the DataTable's paginator; the phone card list
          grows with its own «Показать ещё», so this control would do nothing
          there and reads as broken. -->
-    <div v-if="pageSizes.length" class="ml-auto hidden items-center gap-sm sm:flex">
+    <GroupingChips
+      class="ml-auto phone:ml-0"
+      :model-value="cut"
+      :groups="groupsReadable"
+      @update:model-value="emit('update:cut', $event)"
+    />
+    <div v-if="pageSizes.length" class="hidden items-center gap-sm sm:flex">
       <label class="text-tiny text-muted" for="sku-page-size">Строк на странице:</label>
       <select
         id="sku-page-size"

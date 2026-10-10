@@ -30,6 +30,8 @@ defineProps({
   isGroupBoundary: { type: Function, required: true },
   /** `(index) => boolean` — true on the first «не считается» row. */
   isRowBoundary: { type: Function, required: true },
+  /** «Артикул», or «Предмет» / «Бренд» / «Группа» when the rows are sums. */
+  firstHeader: { type: String, default: 'Артикул' },
 })
 
 const emit = defineEmits(['open-menu', 'show-tip', 'hide-tip'])
@@ -52,7 +54,7 @@ defineExpose({ scroller })
       </colgroup>
       <thead>
         <tr>
-          <th rowspan="2" class="col-sku">Артикул</th>
+          <th rowspan="2" class="col-sku">{{ firstHeader }}</th>
           <th v-if="ordinaryCount > 0" :colspan="ordinaryCount" class="wh-group">
             <span class="wh-group-label">Склады</span>
           </th>
@@ -109,6 +111,7 @@ defineExpose({ scroller })
           <td class="cell-sku" :title="row.saName">
             <span class="sku-header">
               <button
+                v-if="!row.isGroup"
                 type="button"
                 class="mark-menu-btn"
                 :aria-label="`Действия с артикулом ${row.saName}`"
@@ -127,6 +130,7 @@ defineExpose({ scroller })
                 ⋮
               </button>
               <span class="sku-name">{{ row.saName }}</span>
+              <span v-if="row.isGroup" class="text-muted">· {{ row.n }}</span>
             </span>
           </td>
           <td

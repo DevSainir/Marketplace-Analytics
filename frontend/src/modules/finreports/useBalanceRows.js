@@ -14,6 +14,7 @@ import { computed, ref } from 'vue'
 
 import { formatMoney, formatSku } from '@/core/utils/format'
 import { useSkuFilters } from '@/modules/finreports/skuFilters'
+import { splitBy, useGroupCut } from '@/modules/heatmap'
 
 const num = (value) => (value === null || value === undefined ? null : Number(value))
 
@@ -126,6 +127,51 @@ export function subtotals(rows, columns) {
 }
 
 /**
+ * The grid's rows by subject, brand or group: each one the sum of its
+ * articles, warehouse by warehouse. Like the panels, a sum leaves out the
+ * articles marked «Не считать» — they are out of every count — and a bucket of
+ * nothing but marked ones has no row. By group an article counts in every
+ * group it is in.
+ *
+ * @param {Array<object>} rows Flattened rows from {@link toRow}.
+ * @param {'subject'|'brand'|'group'} cut
+ * @param {Array<object>} groups The кабинет's «Группы».
+ */
+export function groupBalanceRows(rows, cut, groups) {
+  const how = { nmId: (r) => r.nmId, subject: (r) => r.subject, brand: (r) => r.brand, groups }
+  return splitBy(rows, cut, how)
+    .map(({ key, label, items }) => {
+      const counted = items.filter((r) => !r.isUncounted)
+      if (!counted.length) return null
+      const byWarehouse = {}
+      for (const row of counted) {
+        for (const [name, cell] of Object.entries(row.byWarehouse)) {
+          const into = (byWarehouse[name] ??= { quantity: 0, balance: null })
+          into.quantity += cell.quantity
+          if (cell.balance !== null) into.balance = (into.balance ?? 0) + cell.balance
+        }
+      }
+      const money = counted.filter((r) => r.totalBalance !== null)
+      return {
+        nmId: key,
+        saName: label,
+        isGroup: true,
+        n: items.length,
+        subject: '',
+        brand: '',
+        costPrice: null,
+        isUncounted: false,
+        byWarehouse,
+        totalQuantity: counted.reduce((sum, r) => sum + r.totalQuantity, 0),
+        totalInWay: counted.reduce((sum, r) => sum + r.totalInWay, 0),
+        // Unknown only when no article of it has a cost price — see `toRow`.
+        totalBalance: money.length ? money.reduce((sum, r) => sum + r.totalBalance, 0) : null,
+      }
+    })
+    .filter(Boolean)
+}
+
+/**
  * Search + Тип предмета / Бренд filtering over one loaded balance response.
  *
  * @param {import('vue').Ref<object|null>} balance The `/finreports/balance` payload.
@@ -133,6 +179,8 @@ export function subtotals(rows, columns) {
 export function useBalanceRows(balance) {
   const query = ref('')
   const { subjectFilter, brandFilter, groupFilter, active, apply } = useSkuFilters()
+  const cut = ref('sku')
+  const { groups, readable: groupsReadable } = useGroupCut(cut)
 
   const rawRows = computed(() => balance.value?.rows ?? [])
   const uncounted = computed(() => new Set(balance.value?.uncounted_warehouses ?? []))
@@ -178,7 +226,8 @@ export function useBalanceRows(balance) {
 
   const isFiltering = computed(() => !!query.value.trim() || active.value)
 
-  const tableRows = computed(() => {
+  /** One row per article — what the panels sum, whatever the cut. */
+  const articleRows = computed(() => {
     const needle = query.value.trim().toLowerCase()
     let list = rawRows.value
     list = apply(list)
@@ -196,8 +245,18 @@ export function useBalanceRows(balance) {
       .sort((a, b) => a.isUncounted - b.isUncounted)
   })
 
-  /** The bottom «Итого по складу» panel and the bottom-right corner. */
-  const totals = computed(() => subtotals(tableRows.value, columns.value))
+  /** What the grid shows: the articles, or their sums by the chosen cut. */
+  const tableRows = computed(() =>
+    cut.value === 'sku'
+      ? articleRows.value
+      : groupBalanceRows(articleRows.value, cut.value, groups.value),
+  )
+
+  /**
+   * The bottom «Итого по складу» panel and the bottom-right corner — over the
+   * articles, not the rows: by group one article can sit in two rows.
+   */
+  const totals = computed(() => subtotals(articleRows.value, columns.value))
 
   // The columns fall into two contiguous groups — ordinary and «не считается» —
   // so the header can title each one and a rule can sit on the seam. The rows
@@ -216,6 +275,8 @@ export function useBalanceRows(balance) {
     subjectFilter,
     brandFilter,
     groupFilter,
+    cut,
+    groupsReadable,
     subjects,
     brands,
     columns,

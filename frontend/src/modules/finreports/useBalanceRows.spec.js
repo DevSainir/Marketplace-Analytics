@@ -14,7 +14,12 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ref } from 'vue'
 
-import { moneyFormatter, useBalanceRows } from '@/modules/finreports/useBalanceRows'
+import {
+  groupBalanceRows,
+  moneyFormatter,
+  toRow,
+  useBalanceRows,
+} from '@/modules/finreports/useBalanceRows'
 
 beforeEach(() => setActivePinia(createPinia()))
 
@@ -186,5 +191,29 @@ describe('moneyFormatter', () => {
   it('prints no sign when the currency is unknown, and a dash for a missing figure', () => {
     expect(plain(moneyFormatter('')(57600))).toBe('57 600')
     expect(moneyFormatter('KGS')(null)).toBe('—')
+  })
+})
+
+describe('groupBalanceRows', () => {
+  const flat = (r, uncountedSkus = new Set()) => toRow(r, new Set(), uncountedSkus)
+
+  it('sums a subject warehouse by warehouse, money unknown only when no article has a cost', () => {
+    const rows = [flat(BRUKI), flat({ ...SHORTS, subject_name: 'Брюки' })]
+
+    const [trousers] = groupBalanceRows(rows, 'subject', [])
+
+    expect(trousers).toMatchObject({ saName: 'Брюки', n: 2, isGroup: true })
+    expect(trousers.byWarehouse['Тула']).toEqual({ quantity: 112, balance: 57600 })
+    expect(trousers.totalQuantity).toBe(125)
+    expect(trousers.totalBalance).toBe(72000)
+    expect(groupBalanceRows([flat(SHORTS)], 'subject', [])[0].totalBalance).toBeNull()
+  })
+
+  it('leaves a «Не считать» article out of its group', () => {
+    const rows = [flat(BRUKI, new Set([BRUKI.nm_id])), flat(SHORTS)]
+
+    const out = groupBalanceRows(rows, 'brand', [])
+
+    expect(out.map((r) => r.saName)).toEqual(['OTHER'])
   })
 })
