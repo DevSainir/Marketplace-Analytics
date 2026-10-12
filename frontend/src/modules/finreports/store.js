@@ -45,6 +45,10 @@ const PERIOD_PAGE = 'finreports'
 export const useFinReportsStore = defineStore('finreports', () => {
   // --- period selection ---------------------------------------------------
   const weeks = ref([])
+  // Last day the provisional daily reports cover, when it runs past the newest
+  // weekly report. The statement shows those days, so the picker has to reach
+  // them: bounded by the weeks alone it locked the days a seller opens it for.
+  const dailyThrough = ref(null)
   const weeksLoading = ref(false)
   const dateFrom = ref('')
   const dateTo = ref('')
@@ -89,12 +93,13 @@ export const useFinReportsStore = defineStore('finreports', () => {
   const costsError = ref('')
   const costsSaving = ref(false)
 
-  /** The full harvested span, for the «вся история» preset. */
+  /** The full span the statement covers, weekly reports and the daily tail after them. */
   const fullSpan = computed(() => {
     if (!weeks.value.length) return null
+    const settled = weeks.value.reduce((a, w) => (a > w.date_to ? a : w.date_to), '0000')
     return {
       date_from: weeks.value.reduce((a, w) => (a < w.date_from ? a : w.date_from), '9999'),
-      date_to: weeks.value.reduce((a, w) => (a > w.date_to ? a : w.date_to), '0000'),
+      date_to: dailyThrough.value && dailyThrough.value > settled ? dailyThrough.value : settled,
     }
   })
 
@@ -134,7 +139,9 @@ export const useFinReportsStore = defineStore('finreports', () => {
   async function loadWeeks() {
     weeksLoading.value = true
     try {
-      weeks.value = (await fetchWeeks()).weeks ?? []
+      const answer = await fetchWeeks()
+      weeks.value = answer.weeks ?? []
+      dailyThrough.value = answer.provisional_through ?? null
       // On a fresh load (page reload resets the store): restore the period the
       // seller last chose, so a reload keeps their view instead of snapping back
       // to a default — for an hour, and moved forward if it meant «the latest

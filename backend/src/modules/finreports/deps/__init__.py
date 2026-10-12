@@ -62,6 +62,11 @@ def get_report_repo(session: DbSession) -> FinancialReportRepository:
     return FinancialReportRepository(session)
 
 
+def get_daily_repo(session: DbSession) -> DailySettlementRepository:
+    """Provide a :class:`DailySettlementRepository` for the request."""
+    return DailySettlementRepository(session)
+
+
 
 
 
@@ -88,6 +93,7 @@ def get_balance_pin_repo(session: DbSession) -> BalancePinRepository:
 
 TransactionRepoDep = Annotated[LogisticsTransactionRepository, Depends(get_transaction_repo)]
 ReportRepoDep = Annotated[FinancialReportRepository, Depends(get_report_repo)]
+DailyRepoDep = Annotated[DailySettlementRepository, Depends(get_daily_repo)]
 PnlRepoDep = Annotated[PnlRepository, Depends(get_pnl_repo)]
 CostRepoDep = Annotated[CostPriceRepository, Depends(get_cost_repo)]
 ExclusionRepoDep = Annotated[SkuExclusionRepository, Depends(get_exclusion_repo)]
@@ -115,12 +121,14 @@ BalancePinRepoDep = Annotated[BalancePinRepository, Depends(get_balance_pin_repo
     report_repo: ReportRepoDep,
     penalty_repo: PenaltyRepoDep,
     measurement_repo: MeasurementRepoDep,
+    daily_repo: DailyRepoDep,
         transaction_repo=transaction_repo,
         billed_repo=billed_repo,
         report_repo=report_repo,
         penalty_repo=penalty_repo,
         measurement_repo=measurement_repo,
         summary_cache=_summary_cache(),
+        daily_repo=daily_repo,
     )
 
 

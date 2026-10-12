@@ -83,6 +83,17 @@ describe('period selection', () => {
     expect(store.dateFrom).toBe('2026-07-13') // 7 days inclusive
   })
 
+  it('reaches the days the daily reports cover past the last weekly one', async () => {
+    // 12.10.2026: data to 11.10, the newest weekly report to 04.10 — and a
+    // picker bounded by the weeks alone locked exactly the days a seller wanted.
+    fetchWeeks.mockResolvedValue({ weeks: WEEKS, provisional_through: '2026-07-26' })
+
+    await store.loadWeeks()
+
+    expect(store.fullSpan.date_to).toBe('2026-07-26')
+    expect(store.dateTo).toBe('2026-07-26')
+  })
+
   it('restores the last chosen period on reload instead of the default', async () => {
     await store.loadWeeks()
     store.setPeriod('2025-03-04', '2025-11-17')
