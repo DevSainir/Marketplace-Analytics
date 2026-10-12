@@ -245,6 +245,12 @@
     @apply text-right tabular-nums;
   }
 
+  /* A sortable head is a control: PrimeVue without its styles leaves the
+     arrow cursor on it, and nothing said «нажми». */
+  .app-datatable th[data-p-sortable-column='true'] {
+    @apply cursor-pointer select-none;
+  }
+
   .app-datatable thead th svg {
     @apply ml-1 inline-block h-3 w-3 text-muted;
   }
