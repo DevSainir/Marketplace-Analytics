@@ -13,6 +13,7 @@
  * только артикулы, а размеры вставляются после.
  */
 import { atBase, shareOf } from '@/modules/finreports/priceBase'
+import { perSale } from '@/modules/finreports/usePnlSkuRows'
 
 const num = (value) => (value === null || value === undefined ? null : Number(value))
 
@@ -64,6 +65,7 @@ function toSizeRow(size, whole, base) {
     averageCheque: net ? sales / net : null,
     logistics: num(size.logistics_total),
     logisticsPct: shareOf(num(size.logistics_total), sales),
+    logisticsPerSale: perSale(num(size.logistics_total), sold),
     penalties: num(size.penalties_total),
     payout: num(size.payout_net),
     soldShare: whole.sold ? sold / whole.sold : 0,

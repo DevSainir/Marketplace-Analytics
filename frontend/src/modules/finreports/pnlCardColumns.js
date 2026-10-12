@@ -50,6 +50,7 @@ export const DETAILS = [
     sub: (r) => pct(r.logisticsPct),
     subTone: (r) => toneClass('logisticsPct', r.logisticsPct, r.priceBase),
   },
+  { label: 'Логистика на 1 выкуп', get: (r, f) => f.money(r.logisticsPerSale) },
   { label: 'Себестоимость', get: (r, f) => f.money(r.cogs) },
   { label: 'Реклама', get: (r, f) => f.money(r.advertising) },
   {

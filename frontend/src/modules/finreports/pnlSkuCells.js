@@ -89,6 +89,14 @@ export const COLUMNS = [
     size: (s, money) => withShare(money, s.logistics, s.logisticsPct, 'logisticsPct', s.priceBase),
   },
   {
+    field: 'logisticsPerSale',
+    header: 'Логистика на 1 выкуп',
+    num: true,
+    hint: 'Вся логистика (туда и обратно) ÷ проданные штуки.',
+    art: (r, money) => ({ text: money(r.logisticsPerSale) }),
+    size: (s, money) => ({ text: money(s.logisticsPerSale) }),
+  },
+  {
     field: 'penalties',
     header: 'Штрафы',
     num: true,

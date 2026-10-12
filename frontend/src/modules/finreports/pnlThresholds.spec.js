@@ -13,6 +13,12 @@ describe('рамки подсветки и база цены', () => {
     expect(tone('returnPct', 25, 'paid')).toBe('negative')
   })
 
+  it('ROI красный только ниже 30 %: выше нуля партия уже окупилась', () => {
+    expect(tone('roi', 29)).toBe('negative')
+    expect(tone('roi', 80)).toBe('')
+    expect(tone('roi', 200)).toBe('positive')
+  })
+
   it('у выкупа размера свои рамки — это другая мера, чем выкуп WB', () => {
     expect(tone('buyoutPct', 32)).toBe('positive')
     expect(tone('sizeBuyoutPct', 32)).toBe('')

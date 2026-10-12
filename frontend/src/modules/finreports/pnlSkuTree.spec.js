@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { childRows, sortRows, treeRows } from '@/modules/finreports/pnlSkuTree'
+import { perSale, sumRows } from '@/modules/finreports/usePnlSkuRows'
 
 const article = (nmId, sales, extra = {}) => ({ nmId, sales, isSku: true, ...extra })
 
@@ -64,10 +65,29 @@ describe('childRows', () => {
     expect(m.salesShare).toBe(0.75)
   })
 
+  it('prices the size’s logistics per unit sold, failed deliveries included', () => {
+    // 100 of logistics over 4 sold, whatever the deliveries were.
+    const [s] = childRows(1, loaded([size('S', 4, 0, 100)]), 'seller')
+
+    expect(s.logisticsPerSale).toBe(25)
+  })
+
   it('takes «Продажи» and the price at the page’s price base', () => {
     const [s] = childRows(1, loaded([size('S', 3, 1, 1000, 800)]), 'paid')
 
     expect(s.sales).toBe(800)
     expect(s.averageCheque).toBe(400)
+  })
+})
+
+describe('«Логистика на 1 выкуп» у артикула и в «Итого»', () => {
+  it('делит всю логистику на проданные штуки, а «Итого» — суммы, не средние', () => {
+    const a = { logistics: 600, sold: 2, returned: 0, isExcluded: false }
+    const b = { logistics: 400, sold: 8, returned: 0, isExcluded: false }
+
+    expect(perSale(600, 2)).toBe(300)
+    expect(perSale(600, 0)).toBeNull()
+    // 1 000 / 10, а не среднее из 300 и 50.
+    expect(sumRows([a, b]).logisticsPerSale).toBe(100)
   })
 })

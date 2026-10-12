@@ -71,6 +71,7 @@ export function useFooterCells(totals) {
       averageCheque: money(t.averageCheque),
       sppPct: pct(t.sppPct),
       logistics: `${money(t.logistics)} (${pct(t.logisticsPct)})`,
+      logisticsPerSale: money(t.logisticsPerSale),
       penalties: money(t.penalties),
       cogs: money(t.cogs),
       advertising: money(t.advertising),

@@ -28,6 +28,17 @@ const num = (value) => (value === null || value === undefined ? null : Number(va
  * @param {boolean} [isBucket] The account-level «Без привязки к артикулу» row.
  * @param {string} [base] `'seller'` or `'paid'` — see `priceBase.js`.
  */
+/**
+ * «Логистика на 1 выкуп»: вся логистика — туда, обратно и прочая — на одну
+ * проданную штуку. Делится на продажи, а не на доставки: поездки, которые
+ * кончились отказом, оплачивает тот, кто купил, поэтому плохой выкуп размера
+ * здесь виден в сомах. На продажи без вычета возвратов — как считает выкуп WB.
+ * Без продаж — `null`, не бесконечность.
+ */
+export function perSale(logistics, sold) {
+  return logistics === null || !Number(sold) ? null : logistics / Number(sold)
+}
+
 export function toRow(r, isBucket = false, base = 'seller') {
   const seller = num(r.revenue_seller_price)
   const paid = num(r.revenue_paid)
@@ -67,6 +78,7 @@ export function toRow(r, isBucket = false, base = 'seller') {
     sppPct: num(r.spp_pct),
     logistics: num(r.logistics_total),
     logisticsPct: shareOf(num(r.logistics_total), sales),
+    logisticsPerSale: perSale(num(r.logistics_total), r.sold_units),
     penalties: num(r.penalties_total),
     penaltyReasons: (r.penalties ?? []).map((p) => ({ reason: p.reason, amount: num(p.amount) })),
     cogs: num(r.cogs),
@@ -315,6 +327,7 @@ export function sumRows(rows, adInvoices = 0) {
     sppPct: share(seller - paid, seller),
     logistics,
     logisticsPct: share(logistics, sales),
+    logisticsPerSale: perSale(logistics, sold),
     penalties: sum('penalties'),
     penaltyReasons: [],
     cogs,
