@@ -62,6 +62,7 @@ class _StubHarvestControl:
         self.last_check: FreshnessVerdict | None = LAST_CHECK
         #: Seconds WB's settlement bucket says to wait; 0 means "ask now".
         self.retry_after = 0.0
+        self.awaited_period: tuple[date, date] | None = None
 
     async def settlement_retry_after(self, **kwargs: Any) -> float:
         """Echo the canned WB rate-limit wait."""
@@ -76,6 +77,7 @@ class _StubHarvestControl:
             latest_settled=SETTLED_THROUGH,
             latest_report=self.latest_report,
             last_check=self.last_check,
+            awaited_period=self.awaited_period,
         )
 
 
@@ -326,6 +328,34 @@ async def test_the_poll_carries_what_we_hold_and_when_we_last_asked(
         "probe_from": "2026-08-10",
         "probe_to": "2026-08-11",
     }
+
+
+async def test_the_poll_names_the_report_wb_has_formed_and_not_yet_served(
+    client: httpx.AsyncClient, headers: dict[str, str], control: _StubHarvestControl
+) -> None:
+    """The page can say «сформирован, ждём API» only if the period reaches it.
+
+    WB shows the report on its own site hours before the API lists it; without
+    the period the seller sees a report there and none here, and reads a broken
+    harvest.
+    """
+    control.awaited_period = (date(2026, 8, 10), date(2026, 8, 16))
+
+    response = await client.get("/api/v1/finreports/harvest", headers=headers)
+
+    assert response.json()["awaited_report"] == {
+        "date_from": "2026-08-10",
+        "date_to": "2026-08-16",
+    }
+
+
+async def test_no_formed_report_reads_as_null(
+    client: httpx.AsyncClient, headers: dict[str, str]
+) -> None:
+    """Mid-week there is nothing to wait for, and the page must not invent it."""
+    response = await client.get("/api/v1/finreports/harvest", headers=headers)
+
+    assert response.json()["awaited_report"] is None
 
 
 async def test_a_failed_probe_travels_as_a_failure(

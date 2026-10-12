@@ -13,6 +13,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import InfoHint from '@/core/components/InfoHint.vue'
 import { describeFreshness } from '@/modules/finreports/reportFreshness'
 
 const props = defineProps({
@@ -45,6 +46,6 @@ const line = computed(() => describeFreshness(props.state, now.value))
     class="text-tiny"
     :class="line.tone === 'warning' ? 'text-status-warning' : 'text-muted'"
   >
-    {{ line.text }}
+    {{ line.text }}<InfoHint v-if="line.hint" :text="line.hint" />
   </p>
 </template>

@@ -33,6 +33,13 @@ class LatestReportOut(BaseModel):
     )
 
 
+class AwaitedReportOut(BaseModel):
+    """A weekly report WB has formed by its calendar and we do not hold yet."""
+
+    date_from: date = Field(description="First day of the period the report will cover.")
+    date_to: date = Field(description="Last day of that period.")
+
+
 class FreshnessCheckOut(BaseModel):
     """What the hourly gate found the last time it asked WB for something newer."""
 
@@ -98,6 +105,16 @@ class HarvestStateResponse(BaseModel):
             "into it."
         ),
     )
+    awaited_report: AwaitedReportOut | None = Field(
+        default=None,
+        description=(
+            "The weekly period after the newest report on file, once WB's calendar "
+            "says its report is formed (the morning after the period ends); null "
+            "while that period is still running. Derived from the calendar, not "
+            "asked of WB: WB shows a report on its site hours before the API "
+            "serves it, and this is what lets the page say so."
+        ),
+    )
     last_check: FreshnessCheckOut | None = Field(
         default=None,
         description=(
@@ -134,6 +151,7 @@ class HarvestTriggerResponse(BaseModel):
 
 
 __all__ = [
+    "AwaitedReportOut",
     "FreshnessCheckOut",
     "HarvestStateResponse",
     "HarvestTriggerResponse",

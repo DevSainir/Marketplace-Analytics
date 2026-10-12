@@ -34,6 +34,15 @@
 /** Genitive short month names, WB's own shape in «10–16 авг». */
 const MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
 
+/**
+ * The ⓘ beside «сформирован, ждём API». WB shows the report in the seller's own
+ * кабинет hours before its API serves it (12.10.2026: on the site by 08:00,
+ * absent from the API at 08:05), and a seller who sees it there and not here
+ * reads a broken harvest unless the page says why.
+ */
+export const AWAITED_HINT =
+  'WB сначала показывает отчёт у себя в кабинете и только потом отдаёт его нам — обычно через несколько часов. Проверяем каждые 15 минут и загрузим сразу.'
+
 /** Past this age the last check is stale, and the line says when it ran. */
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -168,7 +177,9 @@ function describeCheck(check, heldThrough, now, running) {
  *   provisional_through: string|null}|null} state
  *   `GET /v1/finreports/harvest`, or `null` when it could not be fetched.
  * @param {Date} [now] Reference time; injected so the result is testable.
- * @returns {{text: string, tone: 'muted'|'warning'}|null} The line, or `null`
+ * @returns {{text: string, tone: 'muted'|'warning', hint?: string}|null} The
+ *   line, with `hint` for the ⓘ when it names a report WB has formed and not yet
+ *   served — or `null`
  *   when there is nothing honest to say — in which case the page shows nothing
  *   at all. A footnote must not shout over the statement it annotates.
  */
@@ -204,7 +215,20 @@ export function describeFreshness(state, now = new Date()) {
     now,
     Boolean(state.running),
   )
-  if (said) parts.push(said)
+  // A report WB's calendar says is formed outranks «WB ещё не выложил»: the
+  // seller can see it on WB's site, so «not out yet» would read as a lie. Only
+  // «загружаем» says more, and an unanswered or blocked check is still news.
+  const awaited = formatPeriod(state.awaited_report ?? {})
+  const loading = check.outcome === 'wb_has_new' && said
+  const quiet = check.outcome === 'wb_empty' || check.outcome === 'up_to_date'
+  let hint
+  if (awaited && !loading) {
+    if (said && !quiet) parts.push(said)
+    parts.push(`Отчёт за ${awaited} сформирован, ждём API`)
+    hint = AWAITED_HINT
+  } else if (said) {
+    parts.push(said)
+  }
 
   const checkedAt = new Date(check.checked_at)
   const stale = Number.isNaN(checkedAt.getTime()) || now.getTime() - checkedAt.getTime() >= DAY_MS
@@ -217,5 +241,6 @@ export function describeFreshness(state, now = new Date()) {
       check.outcome === 'probe_failed' || check.outcome === 'rate_blocked' || stale
         ? 'warning'
         : 'muted',
+    ...(hint ? { hint } : {}),
   }
 }

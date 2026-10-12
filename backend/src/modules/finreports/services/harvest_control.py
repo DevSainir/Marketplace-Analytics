@@ -38,6 +38,7 @@ from redis.asyncio import Redis
 
 from src.core.config import settings
 from src.core.locks import is_held
+from src.core.timeutils import moscow_today
 from src.integrations.wildberries.endpoints import SALES_REPORTS_DETAILED_PATH
 from src.integrations.wildberries.rate_limit import finance_reports_rate_gate
 from src.modules.finreports.constants import HARVEST_LOCK_KEY, SETTLEMENT_BLOCK_THRESHOLD_SECONDS
@@ -50,6 +51,7 @@ from src.modules.finreports.services.freshness_record import (
     FreshnessRecordStore,
     FreshnessVerdict,
 )
+from src.modules.finreports.services.settlement_calendar import next_formed_period
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 
@@ -84,6 +86,15 @@ class HarvestState:
     #: claiming a settlement document WB has not issued. The two claims are
     #: different and are reported as two.
     provisional_through: date | None = None
+    #: The weekly period after the newest one we hold, once WB's calendar says
+    #: its report is formed — ``(date_from, date_to)`` — otherwise ``None``.
+    #:
+    #: WB shows a report on its own site hours before the API lists it (12.10.2026:
+    #: on the site by 08:00, absent from ``sales-reports/list`` at 08:05). A seller
+    #: looking at both sees «WB has it, we don't» and reads a broken harvest; this
+    #: is what lets the page say «сформирован, ждём API» instead. Derived from the
+    #: calendar, never from a WB request — see :mod:`.settlement_calendar`.
+    awaited_period: tuple[date, date] | None = None
 
 
 class HarvestControlService:
@@ -181,6 +192,9 @@ class HarvestControlService:
             latest_report=latest,
             last_check=await self._freshness_records.get(workspace_id),
             provisional_through=tail if tail and (settled is None or tail > settled) else None,
+            awaited_period=(
+                next_formed_period(after=settled, today=moscow_today()) if settled else None
+            ),
         )
 
 

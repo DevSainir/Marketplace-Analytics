@@ -26,6 +26,7 @@ from fastapi import APIRouter, status
 
 from src.modules.finreports.deps import HarvestControlServiceDep
 from src.modules.finreports.schemas import (
+    AwaitedReportOut,
     FreshnessCheckOut,
     HarvestStateResponse,
     HarvestTriggerResponse,
@@ -77,6 +78,11 @@ async def get_harvest_state(
         running=state.running,
         latest_settled=state.latest_settled,
         provisional_through=state.provisional_through,
+        awaited_report=(
+            AwaitedReportOut(date_from=state.awaited_period[0], date_to=state.awaited_period[1])
+            if state.awaited_period is not None
+            else None
+        ),
         latest_report=(
             LatestReportOut(
                 report_id=report.report_id,

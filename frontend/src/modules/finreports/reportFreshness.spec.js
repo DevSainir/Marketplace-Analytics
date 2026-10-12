@@ -259,3 +259,65 @@ describe('a WB rate block', () => {
     expect(line.tone).toBe('warning')
   })
 })
+
+describe('describeFreshness — a report WB has formed and not yet served', () => {
+  // 12.10.2026: report 992915233 (05.10–11.10) was on WB's site by 08:00 and
+  // absent from the API at 08:05. The seller sees it there; the line says why
+  // it is not here yet instead of «WB ещё не выложил».
+  const MONDAY = new Date('2026-10-12T05:10:00Z')
+  const state = (fields = {}) => ({
+    latest_report: report({ date_from: '2026-10-01', date_to: '2026-10-04' }),
+    provisional_through: '2026-10-11',
+    awaited_report: { date_from: '2026-10-05', date_to: '2026-10-11' },
+    last_check: check({ outcome: 'up_to_date', checked_at: '2026-10-12T04:55:00Z' }),
+    ...fields,
+  })
+
+  it('names the period and says it is waiting on the API, with the reason behind ⓘ', () => {
+    const line = describeFreshness(state(), MONDAY)
+
+    expect(line.text).toBe(
+      'Последний еженедельный отчёт WB: 1–4 окт · ежедневные — по 11 окт · Отчёт за 5–11 окт сформирован, ждём API',
+    )
+    expect(line.hint).toContain('обычно через несколько часов')
+    expect(line.tone).toBe('muted')
+  })
+
+  it('replaces «WB ещё не выложил», which the seller can see is untrue', () => {
+    const line = describeFreshness(
+      state({ last_check: check({ outcome: 'wb_empty', checked_at: '2026-10-12T04:55:00Z' }) }),
+      MONDAY,
+    )
+
+    expect(line.text).not.toContain('не выложил')
+    expect(line.text).toContain('Отчёт за 5–11 окт сформирован, ждём API')
+  })
+
+  it('gives way to «загружаем» once the API has served it', () => {
+    const line = describeFreshness(
+      state({ running: true, last_check: check({ outcome: 'wb_has_new' }) }),
+      MONDAY,
+    )
+
+    expect(line.text).toContain('WB выложил новый отчёт — загружаем')
+    expect(line.text).not.toContain('ждём API')
+    expect(line.hint).toBeUndefined()
+  })
+
+  it('keeps an unanswered check visible beside it — waiting is not reassurance', () => {
+    const line = describeFreshness(
+      state({ last_check: check({ outcome: 'probe_failed', checked_at: '2026-10-12T04:55:00Z' }) }),
+      MONDAY,
+    )
+
+    expect(line.text).toContain('WB не ответил — возможно, есть отчёты новее')
+    expect(line.text).toContain('ждём API')
+    expect(line.tone).toBe('warning')
+  })
+
+  it('has no ⓘ when there is nothing to wait for', () => {
+    const line = describeFreshness(state({ awaited_report: null }), MONDAY)
+
+    expect(line.hint).toBeUndefined()
+  })
+})

@@ -24,6 +24,7 @@ from src.modules.finreports.schemas.currency import SettlementCurrencyResponse
     WeeksResponse,
 )
 from src.modules.finreports.schemas.harvest import (
+    AwaitedReportOut,
     FreshnessCheckOut,
     HarvestStateResponse,
     HarvestTriggerResponse,
@@ -49,6 +50,7 @@ from src.modules.finreports.schemas.sku_report import (
 )
 
 __all__ = [
+    "AwaitedReportOut",
     "BalanceCell",
     "BalancePinInput",
     "BalanceResponse",
