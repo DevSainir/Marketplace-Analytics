@@ -30,10 +30,12 @@
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import Paginator from 'primevue/paginator'
-import { toRefs } from 'vue'
+import { ref, toRefs } from 'vue'
 
 import InfoHint from '@/core/components/InfoHint.vue'
+import { visibleArea } from '@/core/utils/tipFit'
 import PnlExclusionToggle from '@/modules/finreports/components/PnlExclusionToggle.vue'
+import PnlPenaltyReasons from '@/modules/finreports/components/PnlPenaltyReasons.vue'
 import PnlSkuCell from '@/modules/finreports/components/PnlSkuCell.vue'
 import PnlSkuRowIdentity from '@/modules/finreports/components/PnlSkuRowIdentity.vue'
 import { COLUMNS, cellOf } from '@/modules/finreports/pnlSkuCells'
@@ -85,6 +87,24 @@ const rowClass = (data) => [
 
 const foot = useFooterCells(toRefs(props).totals)
 const { money } = usePnlMoney()
+
+/** The one «Причины штрафов» card: under the clicked «N причин», ending at its right edge. */
+const reasons = ref(null)
+const CARD_WIDTH_PX = 384
+function toggleReasons(anchor, row, cell) {
+  if (reasons.value?.key === row.rowKey) {
+    reasons.value = null
+    return
+  }
+  const rect = anchor.getBoundingClientRect()
+  reasons.value = {
+    key: row.rowKey,
+    reasons: cell.reasons,
+    top: rect.bottom + 6,
+    left: rect.right - CARD_WIDTH_PX,
+    area: visibleArea(anchor),
+  }
+}
 </script>
 
 <template>
@@ -131,7 +151,10 @@ const { money } = usePnlMoney()
           {{ column.header }}<InfoHint :text="column.hint" />
         </template>
         <template #body="{ data }">
-          <PnlSkuCell :cell="cellOf(column, data, money)" />
+          <PnlSkuCell
+            :cell="cellOf(column, data, money)"
+            @reasons="toggleReasons($event, data, cellOf(column, data, money))"
+          />
         </template>
       </Column>
       <Column field="profit" class="col-num" header="Чистая прибыль" sortable>
@@ -155,6 +178,7 @@ const { money } = usePnlMoney()
         </template>
       </Column>
     </DataTable>
+    <PnlPenaltyReasons :open="reasons" @close="reasons = null" />
     <Paginator
       v-if="rows.length > rowsPerPage"
       v-model:first="first"

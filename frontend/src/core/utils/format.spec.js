@@ -5,6 +5,7 @@ import {
   formatNumber,
   formatPercent,
   formatSku,
+  plural,
 } from '@/core/utils/format'
 
 /** Intl groups thousands with a no-break space; the assertions read plain ones. */
@@ -113,5 +114,22 @@ describe('formatNumber', () => {
     // copies this replaced turned every null into «0».
     expect(formatNumber(null)).toBe('—')
     expect(formatNumber(undefined)).toBe('—')
+  })
+})
+
+describe('plural', () => {
+  const forms = ['причина', 'причины', 'причин']
+
+  it.each([
+    [1, 'причина'],
+    [2, 'причины'],
+    [5, 'причин'],
+    [11, 'причин'],
+    [12, 'причин'],
+    [21, 'причина'],
+    [24, 'причины'],
+    [111, 'причин'],
+  ])('%i → %s', (n, word) => {
+    expect(plural(n, forms)).toBe(word)
   })
 })

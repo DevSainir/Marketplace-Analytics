@@ -162,6 +162,7 @@ extends the shared one rather than growing a local copy.
 | A headline figure | `core/components/KpiTile.vue` |
 | An explanation on a label | `core/components/InfoHint.vue` — never a `title` attribute. One short plain sentence, no formulas |
 | Any floating tip over a table | Teleported, and kept inside the table's visible area: `visibleArea(anchor)` on open + `v-fit-inside` on the bubble (`core/utils/tipFit.js`). A tip that hangs past the card's edge is a bug |
+| A list behind one cell (an article's penalty reasons) | Never extra lines in the cell — a table row is one line high. A count pill («5 причин») beside the figure, and ONE card per table, opened on click, owned by the table rather than the cell (PrimeVue re-renders a cell on a row click and would close it): `finreports/components/PnlPenaltyReasons.vue` |
 | Child rows under a row (an article's sizes) | Rows of the SAME table, in the same columns, under their parent: tinted, smaller, a size pill in the frozen column, blank where the child has no such figure, no «Итого» of their own (the parent row is it). Never a nested table — see `finreports/pnlSkuTree.js` |
 | A modal question | `core/components/UiDialog.vue` («Отмена» before the main action) |
 | Loading, empty, failed | `core/components/DataState.vue`; a reload keeps the figures in `BusyRegion.vue` |

@@ -331,6 +331,14 @@
     @apply ml-lg inline-flex min-w-8 justify-center rounded-btn bg-surface px-xs py-0.5 text-tiny font-semibold text-primary ring-1 ring-border-subtle;
   }
 
+  /* «N причин» перед суммой штрафов — открывает карточку причин
+     (`PnlPenaltyReasons`). В одну линию с цифрой и слева от неё: строка со
+     штрафами той же высоты, что и без них, а цифры колонки по-прежнему стоят
+     ровно по правому краю. */
+  .app-datatable .pnl-penalty-more {
+    @apply mr-xs rounded-btn bg-canvas px-xs py-0.5 align-middle text-micro leading-none text-muted transition hover:bg-action/10 hover:text-action;
+  }
+
   /* Доля размера в артикуле — полоска под цифрой «Продажи» и «Продажи, шт». */
   .app-datatable .pnl-size-bar {
     @apply mt-0.5 block h-0.5 w-full overflow-hidden rounded-full bg-action/10;

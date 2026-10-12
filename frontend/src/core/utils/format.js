@@ -162,3 +162,19 @@ export function formatPercent(value, fractionDigits = 2) {
   }
   return `${percentFormats.get(fractionDigits).format(amount)}%`
 }
+
+/**
+ * The Russian word for a count: `plural(5, ['причина', 'причины', 'причин'])`
+ * → «причин». One, few (2–4), many — with 11–14 always «many».
+ *
+ * @param {number} n
+ * @param {[string, string, string]} forms
+ */
+export function plural(n, [one, few, many]) {
+  const tens = Math.abs(n) % 100
+  const last = tens % 10
+  if (tens > 10 && tens < 20) return many
+  if (last === 1) return one
+  if (last >= 2 && last <= 4) return few
+  return many
+}

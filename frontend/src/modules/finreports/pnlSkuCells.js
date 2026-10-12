@@ -4,7 +4,7 @@
  *
  * Описанием, а не двадцатью шаблонами в разметке: у размера своя версия почти
  * каждой ячейки, и вдвоём они не помещались в `.vue` файл. Ячейка — это
- * `{text, cls, sub, subCls, lines, bar}`, рисует её `PnlSkuCell`.
+ * `{text, cls, sub, subCls, reasons, bar}`, рисует её `PnlSkuCell`.
  *
  * Колонки без `size` у размера пустые, а не «—»: рекламы, себестоимости и
  * прибыли у размера нет вовсе (WB не делит рекламу по размерам, PNL.md §17.1),
@@ -92,9 +92,15 @@ export const COLUMNS = [
     field: 'penalties',
     header: 'Штрафы',
     num: true,
+    // Причины — не строками в ячейке (строка вырастала на пять строк текста),
+    // а «N причин» с карточкой по клику; крупные сверху, сторно внизу.
     art: (r, money) => ({
       text: money(r.penalties),
-      lines: r.penalties ? r.penaltyReasons.map((p) => `${p.reason}: ${money(p.amount)}`) : [],
+      reasons: r.penalties
+        ? [...r.penaltyReasons]
+            .sort((a, b) => b.amount - a.amount)
+            .map((p) => ({ reason: p.reason, amount: money(p.amount) }))
+        : [],
     }),
     size: (s, money) => ({ text: money(s.penalties) }),
   },
