@@ -27,6 +27,7 @@ from src.modules.finreports.constants import (
     SETTLEMENT_PUBLICATION_GRACE_DAYS,
 )
 from src.modules.finreports.repos import FinancialReportRepository
+from src.modules.finreports.services.settlement_calendar import last_due_settlement_day
 from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 logger = get_logger(__name__)
@@ -70,8 +71,10 @@ async def survey_settlement_gaps(
     # matters most sits: a week WB published and nobody harvested is not between
     # two reports, it is after the last one. Bounded by the survey's own scan
     # end, the 07.09-13.09 week missing from three workspaces on 2026-09-14 was
-    # reported as a sound history.
-    through = today - timedelta(days=SETTLEMENT_PUBLICATION_GRACE_DAYS)
+    # reported as a sound history. The grace runs from the end of a day's
+    # PERIOD, since one report settles the whole week: counted from the day,
+    # every Monday morning reported the previous Monday as lost.
+    through = last_due_settlement_day(today=today, grace_days=SETTLEMENT_PUBLICATION_GRACE_DAYS)
     gaps: dict[uuid.UUID, list[date]] = {}
     async with AsyncSessionLocal() as session:
         repo = FinancialReportRepository(session)

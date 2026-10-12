@@ -66,6 +66,12 @@ RECONCILE_LOOKBACK_DAYS: int = 14
 #: and still answered 204 on 09-06, and alerting on that would have been an
 #: alarm about WB's schedule rather than about our harvest. A day still
 #: uncovered a week later is ours.
+#:
+#: Counted from the end of the day's settlement PERIOD, not from the day: the
+#: Monday of a week can only be covered by the report formed after its Sunday.
+#: Counted from the day, the survey called the previous Monday lost every
+#: Monday morning, hours before WB served the report (05.10 and 12.10.2026) —
+#: see :func:`~src.modules.finreports.services.settlement_calendar.last_due_settlement_day`.
 SETTLEMENT_PUBLICATION_GRACE_DAYS: int = 7
 
 #: Longest wait on the settlement detail bucket that is still the bucket
