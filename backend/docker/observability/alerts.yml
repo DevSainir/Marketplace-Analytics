@@ -271,6 +271,25 @@ groups:
             считаем с другим знаком — см. docs/finreports/PNL.md, раздел про
             знак выплаты.
 
+      # A weekly report the seller uploaded by hand disagrees with WB's API —
+      # found at upload (we hold the period and it differs; nothing written) or
+      # when the API serves the report (its rows replace the file's anyway, so
+      # the week is not counted twice). Both are WB's documents, so either is a
+      # question for a person, not a number to average away.
+      - alert: SettlementUploadDisagreesWithWb
+        expr: increase(finreports_settlement_upload_divergence_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Загруженный вручную отчёт WB не совпадает с отчётом из API."
+          description: >-
+            Продавец загрузил файл недельного отчёта, и его строки разошлись с
+            тем, что отдал API WB. В логе worker ищите «uploaded report … differs»
+            — там номер отчёта, кабинет и обе суммы «к перечислению». Сверьте
+            файл с кабинетом WB: файл могли отредактировать, или WB переиздал
+            отчёт. См. finreports/services/settlement_upload/.
+
       # `card-prices` is left out on purpose. Since 2026-09-22 the storefront
       # answers 498 (the wbaas captcha) to every address we hold, so every
       # кабинет loses it on every nightly pass — four partials an hour, one

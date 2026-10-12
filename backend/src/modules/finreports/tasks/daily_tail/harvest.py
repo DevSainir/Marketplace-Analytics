@@ -35,6 +35,7 @@ from src.modules.finreports.tasks.settlement import (
     MissingReport,
     walk_settlement_reports,
 )
+from src.modules.finreports.tasks.settlement_upload import standing_upload_days
 from src.modules.finreports.tasks.warmup import warm_settlement_rollup
 from src.modules.workspaces.contract import (
     WorkspaceTokenBundle,
@@ -133,6 +134,9 @@ async def _fetch_tail(
         held = await DailySettlementRepository(session).held_ids(
             workspace_id=tokens.workspace_id, since=span[0]
         )
+        # A week the seller uploaded is in the P&L already; its daily reports
+        # would count it twice. The API's weekly report replaces the upload.
+        uploaded = await standing_upload_days(session, workspace_id=tokens.workspace_id)
 
     try:
         listed = await list_daily(tokens=tokens, span=span)
@@ -158,7 +162,9 @@ async def _fetch_tail(
         # a daily report, but the walk keys everything off `date_to` and a
         # report that ever disagreed must not be silently placed by the other
         # end.
-        if header.report_id not in held and span[0] <= header.date_to <= span[1]
+        if header.report_id not in held
+        and span[0] <= header.date_to <= span[1]
+        and header.date_to not in uploaded
     )
     if not missing:
         logger.debug(

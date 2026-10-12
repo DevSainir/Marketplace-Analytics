@@ -46,6 +46,7 @@ from src.modules.finreports.repos import (
     DailySettlementRepository,
     FinancialReportRepository,
     LatestReportHeader,
+    SettlementUploadRepository,
 )
 from src.modules.finreports.services.freshness_record import (
     FreshnessRecordStore,
@@ -95,6 +96,10 @@ class HarvestState:
     #: is what lets the page say «сформирован, ждём API» instead. Derived from the
     #: calendar, never from a WB request — see :mod:`.settlement_calendar`.
     awaited_period: tuple[date, date] | None = None
+    #: The newest hand-uploaded report standing in the statement, if any —
+    #: ``(date_from, date_to)``. Its rows are WB's own document, but not yet
+    #: checked against the API's, and the page says so.
+    uploaded_period: tuple[date, date] | None = None
 
 
 class HarvestControlService:
@@ -108,6 +113,7 @@ class HarvestControlService:
         redis: Redis,
         freshness_records: FreshnessRecordStore,
         load_tokens: Callable[[uuid.UUID], Awaitable[WorkspaceTokenBundle | None]],
+        upload_repo: SettlementUploadRepository | None = None,
     ) -> None:
         """Wire the service to its sources.
 
@@ -119,12 +125,14 @@ class HarvestControlService:
             load_tokens: Resolves a workspace's WB credentials. Only the
                 «Финансы» token is used, and only to name the rate bucket —
                 see :meth:`settlement_retry_after`.
+            upload_repo: Source of the hand-uploaded report standing in, if any.
         """
         self._report_repo = report_repo
         self._daily_repo = daily_repo
         self._redis = redis
         self._freshness_records = freshness_records
         self._load_tokens = load_tokens
+        self._uploads = upload_repo
 
     async def settlement_retry_after(self, *, workspace_id: uuid.UUID) -> float:
         """Seconds before WB would accept a settlement request for this workspace.
@@ -186,6 +194,10 @@ class HarvestControlService:
         # history. Once the weekly report covering those days lands, the tail is
         # behind it and saying so would be noise — the same day, announced twice.
         tail = await self._daily_repo.covered_through(workspace_id=workspace_id)
+        standing = await self._uploads.standing(workspace_id=workspace_id) if self._uploads else []
+        uploaded = next(
+            ((u.date_from, u.date_to) for u in standing if u.date_from and u.date_to), None
+        )
         return HarvestState(
             running=await is_held(HARVEST_LOCK_KEY, redis=self._redis),
             latest_settled=settled,
@@ -195,6 +207,7 @@ class HarvestControlService:
             awaited_period=(
                 next_formed_period(after=settled, today=moscow_today()) if settled else None
             ),
+            uploaded_period=uploaded,
         )
 
 

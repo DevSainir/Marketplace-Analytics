@@ -128,6 +128,19 @@ SETTLEMENT_GAP_DAYS: Final[Gauge] = Gauge(
 )
 
 
+#: A hand-uploaded weekly report that disagrees with WB's API — counted where it
+#: is found: at upload, when we already hold the period and it differs, and when
+#: the API later serves the report and its rows are not the file's.
+#:
+#: Unlabelled for the usual reason (`/metrics` names no tenant): this answers
+#: «did anyone's upload disagree», the log line names whose and by how much.
+#: Both are WB's own documents, so a difference is never resolved silently —
+#: see `services/settlement_upload/`.
+SETTLEMENT_UPLOAD_DIVERGENCES: Final[Counter] = Counter(
+    "finreports_settlement_upload_divergence_total",
+    "Hand-uploaded weekly reports whose rows differ from WB's API.",
+)
+
 #: Funnel days the nightly cohort pass no longer reads that are still missing
 #: WB's money or its matured cohort — summed over every workspace.
 #:

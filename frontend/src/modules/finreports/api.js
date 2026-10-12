@@ -212,6 +212,38 @@ export async function importCostPricesXlsx(file) {
 }
 
 /**
+ * POST /v1/finreports/settlement-uploads — hand WB's weekly report to the backend.
+ *
+ * The file the seller downloads from WB's кабинет («Еженедельный
+ * детализированный отчет №…»): the zip, or the .xlsx inside it. Answered at
+ * once with `status: 'queued'`; the worker reads it and
+ * {@link fetchSettlementUpload} says how it ended.
+ *
+ * @param {File} file
+ * @returns {Promise<{id: string, status: string, message: string}>}
+ */
+export async function uploadSettlementReport(file) {
+  const form = new FormData()
+  form.append('file', file)
+  // Multipart, not the client's JSON default — see importCostPricesXlsx.
+  const { data } = await apiClient.post('/v1/finreports/settlement-uploads', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
+/**
+ * GET /v1/finreports/settlement-uploads/{id} — where an upload stands.
+ *
+ * @param {string} id
+ * @returns {Promise<{id: string, status: string, message: string, rows_written: number}>}
+ */
+export async function fetchSettlementUpload(id) {
+  const { data } = await apiClient.get(`/v1/finreports/settlement-uploads/${id}`)
+  return data
+}
+
+/**
  * GET /v1/finreports/weeks — the WB weekly report periods (newest first) that
  *
  * @param {AbortSignal} [signal]

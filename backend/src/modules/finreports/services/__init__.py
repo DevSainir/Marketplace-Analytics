@@ -27,6 +27,7 @@ from src.modules.finreports.services.harvest_control import (
 )
 from src.modules.finreports.services.ingestion import IngestionService
 from src.modules.finreports.services.pnl import PnlService, SkuReportService
+from src.modules.finreports.services.settlement_upload import SettlementUploadService
 
 __all__ = [
     "BalanceService",
@@ -35,6 +36,7 @@ __all__ = [
     "HarvestState",
     "IngestionService",
     "PnlService",
+    "SettlementUploadService",
     "SkuReportService",
     "build_balance",
 ]

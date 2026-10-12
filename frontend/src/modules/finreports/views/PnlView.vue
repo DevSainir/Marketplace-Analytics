@@ -10,7 +10,6 @@
  * carries ad spend only as account-level invoices).
  */
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
 
 import PageHeader from '@/core/components/PageHeader.vue'
 import BusyRegion from '@/core/components/BusyRegion.vue'
@@ -22,6 +21,7 @@ import ReportFreshnessLine from '@/modules/finreports/components/ReportFreshness
 import { providePnlCurrencies } from '@/modules/finreports/pnlFormat'
 import { providePriceBase } from '@/modules/finreports/priceBase'
 import { useFinReportsStore } from '@/modules/finreports/store'
+import { useReportUpload } from '@/modules/finreports/useReportUpload'
 
 import { useMembersStore } from '@/modules/profile'
 
@@ -45,6 +45,21 @@ const BalanceSection = defineAsyncComponent(
 
 const store = useFinReportsStore()
 const members = useMembersStore()
+
+// «Загрузить отчёт»: WB's weekly report, picked from the seller's disk.
+const {
+  busy: uploadBusy,
+  notice: uploadNotice,
+  error: uploadError,
+  upload: uploadReport,
+} = useReportUpload(store)
+const reportFile = ref(null)
+function pickReport(event) {
+  const [file] = event.target.files ?? []
+  // Cleared so picking the same file again still fires `change`.
+  event.target.value = ''
+  uploadReport(file)
+}
 
 // The price every revenue figure on the page is shown at — a re-render, not a
 // request: each row already carries both. See `priceBase.js`.
@@ -94,10 +109,11 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           WB rate-limit block meant seven minutes of «Обновляем…» over a walk
           that was doing nothing but waiting.
 
-          A secondary button beside a filled «Себестоимость» on purpose — the
-          same «Обновить» monitoring has: the hourly
-          schedule makes a manual refresh rarely needed, and inside a WB block
-          an extra press lengthens it. Filling in costs is the seller's own job.
+          A secondary button beside a filled «Загрузить отчёт» on purpose — the
+          same «Обновить» monitoring has: the hourly schedule makes a manual
+          refresh rarely needed, and inside a WB block an extra press lengthens
+          it. Two buttons, not three: «Себестоимость» lives on its own card,
+          which says «Заполнить →» / «Изменить →» in so many words.
         -->
         <button
           type="button"
@@ -107,12 +123,29 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
         >
           {{ store.harvestBusy ? 'Обновляем…' : 'Обновить' }}
         </button>
-        <RouterLink
-          :to="{ name: 'finreports-cost-prices' }"
-          class="ui-btn ui-btn--primary phone:flex-1"
-        >
-          Себестоимость
-        </RouterLink>
+        <!--
+          The weekly report WB shows in its кабинет hours before its API serves
+          it: the seller downloads it there and hands it over here. Hidden for a
+          read-only member, whom the route would refuse.
+        -->
+        <template v-if="members.canWrite">
+          <button
+            type="button"
+            :disabled="uploadBusy"
+            class="ui-btn ui-btn--primary phone:flex-1"
+            @click="reportFile?.click()"
+          >
+            {{ uploadBusy ? 'Загружаем…' : 'Загрузить отчёт' }}
+          </button>
+          <input
+            ref="reportFile"
+            type="file"
+            accept=".zip,.xlsx"
+            class="hidden"
+            data-testid="report-file"
+            @change="pickReport"
+          />
+        </template>
       </template>
     </PageHeader>
 
@@ -123,6 +156,13 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
       without this line the page shows the two identically.
     -->
     <ReportFreshnessLine :state="store.harvestState" class="mb-md" />
+
+    <p v-if="uploadError" class="mb-md text-base text-status-negative">
+      {{ uploadError }}
+    </p>
+    <p v-else-if="uploadNotice" class="mb-md text-base text-muted">
+      {{ uploadNotice }}
+    </p>
 
     <p v-if="store.harvestError" class="mb-md text-base text-status-negative">
       {{ store.harvestError }}

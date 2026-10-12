@@ -24,6 +24,7 @@ from src.modules.finreports.repos import (
     FinancialReportRepository,
     LogisticsTransactionRepository,
     PnlRepository,
+    SettlementUploadRepository,
     SkuExclusionRepository,
 )
 from src.modules.finreports.services import (
@@ -32,6 +33,7 @@ from src.modules.finreports.services import (
     HarvestControlService,
     IngestionService,
     PnlService,
+    SettlementUploadService,
     SkuReportService,
 )
 )
@@ -122,6 +124,7 @@ BalancePinRepoDep = Annotated[BalancePinRepository, Depends(get_balance_pin_repo
     penalty_repo: PenaltyRepoDep,
     measurement_repo: MeasurementRepoDep,
     daily_repo: DailyRepoDep,
+    session: DbSession,
         transaction_repo=transaction_repo,
         billed_repo=billed_repo,
         report_repo=report_repo,
@@ -129,6 +132,7 @@ BalancePinRepoDep = Annotated[BalancePinRepository, Depends(get_balance_pin_repo
         measurement_repo=measurement_repo,
         summary_cache=_summary_cache(),
         daily_repo=daily_repo,
+        upload_repo=SettlementUploadRepository(session),
     )
 
 
@@ -234,7 +238,13 @@ def get_harvest_control_service(
             get_redis(), ttl_seconds=FRESHNESS_RECORD_TTL_SECONDS
         ),
         load_tokens=_load_tokens,
+        upload_repo=SettlementUploadRepository(session),
     )
+
+
+def get_settlement_upload_service(session: DbSession) -> SettlementUploadService:
+    """Compose the :class:`SettlementUploadService` behind «Загрузить отчёт»."""
+    return SettlementUploadService(upload_repo=SettlementUploadRepository(session))
 
 
 IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
@@ -243,6 +253,9 @@ SkuReportServiceDep = Annotated[SkuReportService, Depends(get_sku_report_service
 CostPriceServiceDep = Annotated[CostPriceService, Depends(get_cost_price_service)]
 BalanceServiceDep = Annotated[BalanceService, Depends(get_balance_service)]
 HarvestControlServiceDep = Annotated[HarvestControlService, Depends(get_harvest_control_service)]
+SettlementUploadServiceDep = Annotated[
+    SettlementUploadService, Depends(get_settlement_upload_service)
+]
 
 __all__ = [
     "BalancePinRepoDep",

@@ -41,7 +41,7 @@ const MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'и�
  * reads a broken harvest unless the page says why.
  */
 export const AWAITED_HINT =
-  'WB сначала показывает отчёт у себя в кабинете и только потом отдаёт его нам — обычно через несколько часов. Загрузим сразу, как только WB его отдаст.'
+  'WB сначала показывает отчёт у себя в кабинете и только потом отдаёт его нам — обычно через несколько часов. Загрузим сразу, как только WB его отдаст. Можно не ждать: скачайте отчёт в кабинете WB и нажмите «Загрузить отчёт».'
 
 /** Past this age the last check is stale, and the line says when it ran. */
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -177,9 +177,10 @@ function describeCheck(check, heldThrough, now, running) {
  *   provisional_through: string|null}|null} state
  *   `GET /v1/finreports/harvest`, or `null` when it could not be fetched.
  * @param {Date} [now] Reference time; injected so the result is testable.
- * @returns {{text: string, tone: 'muted'|'warning', hint?: string}|null} The
- *   line, with `hint` for the ⓘ when it names a report WB has formed and not yet
- *   served — or `null`
+ * @returns {{text: string, tone: 'muted'|'warning', notes: Array<{text: string, hint?: string}>}|null}
+ *   The line, plus `notes` — each a line of its own under it, with an optional
+ *   ⓘ: a report the seller uploaded by hand, a report WB has formed and not yet
+ *   served. Or `null`
  *   when there is nothing honest to say — in which case the page shows nothing
  *   at all. A footnote must not shout over the statement it annotates.
  */
@@ -221,11 +222,20 @@ export function describeFreshness(state, now = new Date()) {
   const awaited = formatPeriod(state.awaited_report ?? {})
   const loading = check.outcome === 'wb_has_new' && said
   const quiet = check.outcome === 'wb_empty' || check.outcome === 'up_to_date'
-  let hint
+  // Each on a line of its own: appended to the first, the sentence ran past
+  // what a reader takes in at a glance.
+  const notes = []
+  const uploaded = formatPeriod(state.uploaded_report ?? {})
+  if (uploaded) {
+    notes.push({
+      text: `Отчёт за ${uploaded} загружен из файла — сверим с WB, когда он придёт по API`,
+    })
+  }
   if (awaited && !loading) {
     if (said && !quiet) parts.push(said)
-    parts.push(`Отчёт за ${awaited} сформирован, ждём API`)
-    hint = AWAITED_HINT
+    if (awaited !== uploaded) {
+      notes.push({ text: `Отчёт за ${awaited} сформирован, ждём API`, hint: AWAITED_HINT })
+    }
   } else if (said) {
     parts.push(said)
   }
@@ -241,6 +251,6 @@ export function describeFreshness(state, now = new Date()) {
       check.outcome === 'probe_failed' || check.outcome === 'rate_blocked' || stale
         ? 'warning'
         : 'muted',
-    ...(hint ? { hint } : {}),
+    notes,
   }
 }

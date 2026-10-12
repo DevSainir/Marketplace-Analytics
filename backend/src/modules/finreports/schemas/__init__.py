@@ -24,11 +24,11 @@ from src.modules.finreports.schemas.currency import SettlementCurrencyResponse
     WeeksResponse,
 )
 from src.modules.finreports.schemas.harvest import (
-    AwaitedReportOut,
     FreshnessCheckOut,
     HarvestStateResponse,
     HarvestTriggerResponse,
     LatestReportOut,
+    ReportPeriodOut,
 )
 from src.modules.finreports.schemas.pnl import (
     PnlResponse,
@@ -36,6 +36,7 @@ from src.modules.finreports.schemas.pnl import (
     PnlStatement,
     ReasonShare,
 )
+from src.modules.finreports.schemas.settlement_upload import SettlementUploadOut
 from src.modules.finreports.schemas.size_report import (
     PnlSizeRow,
     PnlSizesResponse,
@@ -50,7 +51,6 @@ from src.modules.finreports.schemas.sku_report import (
 )
 
 __all__ = [
-    "AwaitedReportOut",
     "BalanceCell",
     "BalancePinInput",
     "BalanceResponse",
@@ -79,7 +79,9 @@ __all__ = [
     "PnlSkuRow",
     "PnlStatement",
     "ReasonShare",
+    "ReportPeriodOut",
     "SettlementCurrencyResponse",
+    "SettlementUploadOut",
     "SkuExclusionInput",
     "SkuPenalty",
     "WeekPeriod",

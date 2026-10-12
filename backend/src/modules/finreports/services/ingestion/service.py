@@ -25,6 +25,7 @@ from src.integrations.wildberries.schemas import (
 from src.modules.finreports.repos import (
     FinancialReportRepository,
     LogisticsTransactionRepository,
+    SettlementUploadRepository,
 )
 from src.modules.finreports.services.ingestion.columns import (
     BASELINE_UPDATE,
@@ -39,6 +40,7 @@ from src.modules.finreports.services.ingestion.rows import (
     number_units,
     settlement_row,
 )
+from src.modules.finreports.services.settlement_upload.reconcile import settle_upload_on_booking
 
 
 class IngestionService:
@@ -48,14 +50,20 @@ class IngestionService:
         *,
         transaction_repo: LogisticsTransactionRepository,
         report_repo: FinancialReportRepository,
+        upload_repo: SettlementUploadRepository | None = None,
     ) -> None:
-        """Wire the ingestion service from the finreports repositories."""
+        """Wire the ingestion service from the finreports repositories.
+
+        ``upload_repo`` lets a booked header retire the hand-uploaded file that
+        stood in for its report — see :mod:`..settlement_upload.reconcile`.
+        """
         self._transactions = transaction_repo
         self._reports = report_repo
         self._baselines = baseline_repo
         self._billed = billed_repo
         self._penalties = penalty_repo
         self._measurements = measurement_repo
+        self._uploads = upload_repo
 
     async def record_report_header(
         self, header: WBFinanceReportHeader, *, workspace_id: uuid.UUID
@@ -132,6 +140,10 @@ class IngestionService:
             conflict_columns=["report_id"],
             update_columns=REPORT_UPDATE,
         )
+        if self._uploads is not None:
+            await settle_upload_on_booking(
+                self._uploads, workspace_id=workspace_id, report_id=header.report_id
+            )
         return True
 
     async def ingest_settlement_rows(

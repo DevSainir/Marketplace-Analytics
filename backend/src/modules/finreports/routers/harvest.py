@@ -26,11 +26,11 @@ from fastapi import APIRouter, status
 
 from src.modules.finreports.deps import HarvestControlServiceDep
 from src.modules.finreports.schemas import (
-    AwaitedReportOut,
     FreshnessCheckOut,
     HarvestStateResponse,
     HarvestTriggerResponse,
     LatestReportOut,
+    ReportPeriodOut,
 )
 from src.modules.finreports.tasks import harvest_daily_tail, harvest_finance
 from src.modules.organizations.contract import WritingAccess
@@ -79,8 +79,13 @@ async def get_harvest_state(
         latest_settled=state.latest_settled,
         provisional_through=state.provisional_through,
         awaited_report=(
-            AwaitedReportOut(date_from=state.awaited_period[0], date_to=state.awaited_period[1])
+            ReportPeriodOut(date_from=state.awaited_period[0], date_to=state.awaited_period[1])
             if state.awaited_period is not None
+            else None
+        ),
+        uploaded_report=(
+            ReportPeriodOut(date_from=state.uploaded_period[0], date_to=state.uploaded_period[1])
+            if state.uploaded_period is not None
             else None
         ),
         latest_report=(

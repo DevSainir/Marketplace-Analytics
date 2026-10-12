@@ -33,8 +33,8 @@ class LatestReportOut(BaseModel):
     )
 
 
-class AwaitedReportOut(BaseModel):
-    """A weekly report WB has formed by its calendar and we do not hold yet."""
+class ReportPeriodOut(BaseModel):
+    """The settlement period of one weekly report."""
 
     date_from: date = Field(description="First day of the period the report will cover.")
     date_to: date = Field(description="Last day of that period.")
@@ -105,7 +105,7 @@ class HarvestStateResponse(BaseModel):
             "into it."
         ),
     )
-    awaited_report: AwaitedReportOut | None = Field(
+    awaited_report: ReportPeriodOut | None = Field(
         default=None,
         description=(
             "The weekly period after the newest report on file, once WB's calendar "
@@ -113,6 +113,14 @@ class HarvestStateResponse(BaseModel):
             "while that period is still running. Derived from the calendar, not "
             "asked of WB: WB shows a report on its site hours before the API "
             "serves it, and this is what lets the page say so."
+        ),
+    )
+    uploaded_report: ReportPeriodOut | None = Field(
+        default=None,
+        description=(
+            "The newest weekly report whose rows the seller uploaded by hand and "
+            "WB's API has not yet served; null when none stands. Its rows are in "
+            "the statement and are compared with the API's when it serves them."
         ),
     )
     last_check: FreshnessCheckOut | None = Field(
@@ -151,9 +159,9 @@ class HarvestTriggerResponse(BaseModel):
 
 
 __all__ = [
-    "AwaitedReportOut",
     "FreshnessCheckOut",
     "HarvestStateResponse",
     "HarvestTriggerResponse",
     "LatestReportOut",
+    "ReportPeriodOut",
 ]

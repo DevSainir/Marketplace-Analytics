@@ -41,11 +41,12 @@ const line = computed(() => describeFreshness(props.state, now.value))
 </script>
 
 <template>
-  <p
-    v-if="line"
-    class="text-tiny"
-    :class="line.tone === 'warning' ? 'text-status-warning' : 'text-muted'"
-  >
-    {{ line.text }}<InfoHint v-if="line.hint" :text="line.hint" />
-  </p>
+  <div v-if="line" class="flex flex-col gap-xs text-tiny">
+    <p :class="line.tone === 'warning' ? 'text-status-warning' : 'text-muted'">
+      {{ line.text }}
+    </p>
+    <p v-for="note in line.notes" :key="note.text" class="text-muted">
+      {{ note.text }}<InfoHint v-if="note.hint" :text="note.hint" />
+    </p>
+  </div>
 </template>

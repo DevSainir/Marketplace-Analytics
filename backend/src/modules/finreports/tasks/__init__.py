@@ -20,6 +20,9 @@
   the weekly lane cannot reach for one to eight days. Provisional by
   construction: it writes rows and its own bookkeeping, never a weekly header
   and never the watermark. See :mod:`.daily_tail`.
+* ``finreports.process_settlement_upload`` — enqueued by the upload route; read
+  a weekly report the seller uploaded and write what it adds. See
+  :mod:`.settlement_upload`.
 * ``finreports.verify_daily_tail`` — daily; re-read each of those reports a day
   after harvesting it and record whether WB served the same rows. The one thing
   not yet known about the daily lane, measured rather than assumed.
@@ -46,6 +49,12 @@ from src.modules.finreports.tasks.daily_tail import (
     verify_daily_tail as _verify_daily_tail,
 )
 from src.modules.finreports.tasks.harvest import harvest_all_workspaces
+from src.modules.finreports.tasks.settlement_upload import (
+    UploadNotReadyError,
+)
+from src.modules.finreports.tasks.settlement_upload import (
+    process_settlement_upload as _process_settlement_upload,
+)
 from src.modules.finreports.tasks.warmup import warm_every_settlement_rollup
 
 
@@ -115,6 +124,31 @@ def verify_daily_tail() -> dict[str, int]:
     return run_task(_verify_daily_tail())
 
 
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="finreports.process_settlement_upload",
+    autoretry_for=(UploadNotReadyError,),
+    max_retries=10,
+    default_retry_delay=2,
+    soft_time_limit=600,
+    time_limit=660,
+)
+def process_settlement_upload(upload_id: str) -> str:
+    """Read one uploaded weekly report and write what it adds to the P&L.
+
+    Retried briefly on :class:`UploadNotReadyError`: the route enqueues this before
+    its own transaction commits, so the first delivery can arrive to an upload
+    that is not there yet. Nothing else is retried — a file that fails to read
+    fails the same way twice, and the seller is told why.
+
+    Args:
+        upload_id: The upload's UUID as a string; Celery serializes JSON only.
+
+    Returns:
+        The status the upload ended in.
+    """
+    return run_task(_process_settlement_upload(uuid.UUID(upload_id)))
+
+
 
     A task of its own since 2026-09-19, and the separation is the point rather
     than tidiness. It used to be awaited inside `harvest_workspace`, which made
@@ -161,6 +195,7 @@ __all__ = [
     "backfill_pnl",
     "harvest_daily_tail",
     "harvest_finance",
+    "process_settlement_upload",
     "verify_daily_tail",
     "warm_settlement_rollups",
 ]

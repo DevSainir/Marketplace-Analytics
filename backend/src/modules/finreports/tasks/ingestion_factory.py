@@ -12,6 +12,7 @@ from __future__ import annotations
 from src.modules.finreports.repos import (
     FinancialReportRepository,
     LogisticsTransactionRepository,
+    SettlementUploadRepository,
 )
 from src.modules.finreports.services import IngestionService
 
@@ -21,6 +22,7 @@ def build_ingestion(session: object) -> IngestionService:
     return IngestionService(
         transaction_repo=LogisticsTransactionRepository(session),  # type: ignore[arg-type]
         report_repo=FinancialReportRepository(session),  # type: ignore[arg-type]
+        upload_repo=SettlementUploadRepository(session),  # type: ignore[arg-type]
     )
 
 

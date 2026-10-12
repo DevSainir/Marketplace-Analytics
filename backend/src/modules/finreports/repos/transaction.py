@@ -182,9 +182,19 @@ class LogisticsTransactionRepository(BaseRepository):
         return written
 
     async def holds_report(self, *, workspace_id: uuid.UUID, report_id: int) -> bool:
-        """Whether any settlement row of this report is on file for the workspace."""
+        """Whether any row of this report that WB's API served is on file.
+
+        Rows from a hand-uploaded file carry the report's number too, with a
+        negative ``rrd_id``; they must not let the header be booked over a report
+        the API has not served — booked, it would count as held and never be
+        fetched.
+        """
         txn = LogisticsTransaction
-        stmt = select(exists().where(txn.workspace_id == workspace_id, txn.report_id == report_id))
+        stmt = select(
+            exists().where(
+                txn.workspace_id == workspace_id, txn.report_id == report_id, txn.rrd_id > 0
+            )
+        )
         return bool((await self._session.execute(stmt)).scalar())
 
     async def aggregate_by_sku(

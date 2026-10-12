@@ -273,13 +273,16 @@ describe('describeFreshness — a report WB has formed and not yet served', () =
     ...fields,
   })
 
-  it('names the period and says it is waiting on the API, with the reason behind ⓘ', () => {
+  it('names the period on a second line, with the reason behind ⓘ', () => {
     const line = describeFreshness(state(), MONDAY)
 
-    expect(line.text).toBe(
-      'Последний еженедельный отчёт WB: 1–4 окт · ежедневные — по 11 окт · Отчёт за 5–11 окт сформирован, ждём API',
-    )
-    expect(line.hint).toContain('обычно через несколько часов')
+    expect(line.text).toBe('Последний еженедельный отчёт WB: 1–4 окт · ежедневные — по 11 окт')
+    expect(line.notes).toEqual([
+      {
+        text: 'Отчёт за 5–11 окт сформирован, ждём API',
+        hint: expect.stringContaining('обычно через несколько часов'),
+      },
+    ])
     expect(line.tone).toBe('muted')
   })
 
@@ -290,7 +293,7 @@ describe('describeFreshness — a report WB has formed and not yet served', () =
     )
 
     expect(line.text).not.toContain('не выложил')
-    expect(line.text).toContain('Отчёт за 5–11 окт сформирован, ждём API')
+    expect(line.notes[0].text).toBe('Отчёт за 5–11 окт сформирован, ждём API')
   })
 
   it('gives way to «загружаем» once the API has served it', () => {
@@ -300,8 +303,7 @@ describe('describeFreshness — a report WB has formed and not yet served', () =
     )
 
     expect(line.text).toContain('WB выложил новый отчёт — загружаем')
-    expect(line.text).not.toContain('ждём API')
-    expect(line.hint).toBeUndefined()
+    expect(line.notes).toEqual([])
   })
 
   it('keeps an unanswered check visible beside it — waiting is not reassurance', () => {
@@ -311,13 +313,28 @@ describe('describeFreshness — a report WB has formed and not yet served', () =
     )
 
     expect(line.text).toContain('WB не ответил — возможно, есть отчёты новее')
-    expect(line.text).toContain('ждём API')
+    expect(line.notes[0].text).toContain('ждём API')
     expect(line.tone).toBe('warning')
   })
 
-  it('has no ⓘ when there is nothing to wait for', () => {
+  it('has no second line when there is nothing to wait for', () => {
     const line = describeFreshness(state({ awaited_report: null }), MONDAY)
 
-    expect(line.hint).toBeUndefined()
+    expect(line.notes).toEqual([])
+  })
+
+  it('says a week the seller uploaded is in, and will be checked, instead of waiting for it', () => {
+    const line = describeFreshness(
+      state({ uploaded_report: { date_from: '2026-10-05', date_to: '2026-10-11' } }),
+      MONDAY,
+    )
+
+    expect(line.notes).toEqual([
+      { text: 'Отчёт за 5–11 окт загружен из файла — сверим с WB, когда он придёт по API' },
+    ])
+  })
+
+  it('points to «Загрузить отчёт» in the ⓘ — the seller need not wait for the API', () => {
+    expect(describeFreshness(state(), MONDAY).notes[0].hint).toContain('«Загрузить отчёт»')
   })
 })

@@ -6,6 +6,8 @@
   with the fingerprint that proves whether WB revises a day after serving it.
 * :class:`ReportPublication` — when WB's API first named each report, kept
   so the lag behind WB's own site is measured rather than guessed.
+* :class:`SettlementUpload` — a weekly report file the seller uploaded, whose
+  rows stand in for the API's until it serves the same report.
 * :class:`SettlementWatermark` — how far each workspace's settlement walk has
   actually got, which is NOT what the newest report claims to cover.
 * :class:`SettlementDailyRollup` — the same rows pre-summed per день / артикул.
@@ -32,10 +34,16 @@ from src.modules.finreports.models.financial_report import FinancialReport
 from src.modules.finreports.models.logistics_transaction import LogisticsTransaction
 from src.modules.finreports.models.report_publication import ReportPublication
 from src.modules.finreports.models.settlement_rollup import SettlementDailyRollup
+from src.modules.finreports.models.settlement_upload import (
+    UPLOAD_ROW_SEQUENCE,
+    SettlementUpload,
+    UploadStatus,
+)
 from src.modules.finreports.models.settlement_watermark import SettlementWatermark
 from src.modules.finreports.models.sku_exclusion import PnlSkuExclusion
 
 __all__ = [
+    "UPLOAD_ROW_SEQUENCE",
     "BalancePin",
     "BalancePinKind",
     "DailyReportVerdict",
@@ -46,5 +54,7 @@ __all__ = [
     "ProductCostPrice",
     "ReportPublication",
     "SettlementDailyRollup",
+    "SettlementUpload",
     "SettlementWatermark",
+    "UploadStatus",
 ]
