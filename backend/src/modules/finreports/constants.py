@@ -141,6 +141,16 @@ GAP_REPAIR_COOLDOWN_PREFIX: str = "finreports:gap-repair:"
 #: that simply has no such feature.
 FRESHNESS_RECORD_TTL_SECONDS: int = 30 * 24 * 60 * 60
 
+#: Redis key holding when ``sales-reports/list`` last answered for one workspace
+#: and period — the lower bound the publication log writes beside a report's
+#: first sighting. Formatted with ``period`` and ``workspace_id``.
+LIST_ANSWERED_KEY: str = "finreports:list_answered:{period}:{workspace_id}"
+
+#: How long that mark may bound a first sighting. Past a week the previous
+#: answer is no bound worth keeping — a report «appeared some time this week»
+#: tells the statistics nothing — so the log writes ``null`` instead.
+LIST_ANSWERED_TTL_SECONDS: int = 7 * 24 * 60 * 60
+
 #: WB ``supplier_oper_name`` for a logistics (delivery) charge.
 LOGISTICS_OPER: str = "Логистика"
 

@@ -97,6 +97,7 @@ DECLARE
         'finreports.logistics_transaction',
         'finreports.pnl_sku_exclusion',
         'finreports.product_cost_price',
+        'finreports.report_publication',
         'finreports.settlement_daily_rollup',
         'finreports.settlement_watermark',
         'guide.guide_record',

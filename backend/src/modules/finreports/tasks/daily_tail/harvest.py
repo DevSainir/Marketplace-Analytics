@@ -30,6 +30,7 @@ from src.modules.finreports.tasks.daily_tail.common import (
     settled_frontier,
 )
 from src.modules.finreports.tasks.ingestion_factory import build_ingestion
+from src.modules.finreports.tasks.publication_log import log_first_listings
 from src.modules.finreports.tasks.settlement import (
     MissingReport,
     walk_settlement_reports,
@@ -142,6 +143,13 @@ async def _fetch_tail(
             exc,
         )
         return dict(_EMPTY, workspaces_skipped=1)
+    await log_first_listings(
+        workspace_id=tokens.workspace_id,
+        name=tokens.name,
+        period="daily",
+        listed=listed,
+        held=held,
+    )
 
     missing = tuple(
         MissingReport(report_id=header.report_id, date_to=header.date_to)

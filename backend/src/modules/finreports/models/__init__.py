@@ -4,6 +4,8 @@
 * :class:`FinancialReport` — one WB weekly realization report header.
 * :class:`DailySettlementReport` — the provisional per-day tail in front of it,
   with the fingerprint that proves whether WB revises a day after serving it.
+* :class:`ReportPublication` — when WB's API first named each report, kept
+  so the lag behind WB's own site is measured rather than guessed.
 * :class:`SettlementWatermark` — how far each workspace's settlement walk has
   actually got, which is NOT what the newest report claims to cover.
 * :class:`SettlementDailyRollup` — the same rows pre-summed per день / артикул.
@@ -28,6 +30,7 @@ from src.modules.finreports.models.daily_settlement_report import (
 )
 from src.modules.finreports.models.financial_report import FinancialReport
 from src.modules.finreports.models.logistics_transaction import LogisticsTransaction
+from src.modules.finreports.models.report_publication import ReportPublication
 from src.modules.finreports.models.settlement_rollup import SettlementDailyRollup
 from src.modules.finreports.models.settlement_watermark import SettlementWatermark
 from src.modules.finreports.models.sku_exclusion import PnlSkuExclusion
@@ -41,6 +44,7 @@ __all__ = [
     "LogisticsTransaction",
     "PnlSkuExclusion",
     "ProductCostPrice",
+    "ReportPublication",
     "SettlementDailyRollup",
     "SettlementWatermark",
 ]

@@ -51,6 +51,7 @@ from src.modules.finreports.tasks.harvest.ledger import (
     reports_to_re_walk,
 )
 from src.modules.finreports.tasks.harvest.workspace import harvest_workspace
+from src.modules.finreports.tasks.publication_log import log_first_listings
 from src.modules.finreports.tasks.repair import gap_repair_due
 from src.modules.finreports.tasks.spans import (
     settlement_frontier,
@@ -355,6 +356,15 @@ async def _harvest_one(
     # only figure the P&L can be checked against that is not our own
     # arithmetic. A tick that finds nothing new still finds newer numbers.
     await record_wb_totals(workspace_id=bundle.workspace_id, listed=listed)
+    # And when the API first named each report — only off an answer WB gave.
+    if verdict and verdict.outcome in (FreshnessOutcome.UP_TO_DATE, FreshnessOutcome.WB_HAS_NEW):
+        await log_first_listings(
+            workspace_id=bundle.workspace_id,
+            name=bundle.name,
+            period="weekly",
+            listed=listed,
+            held=held[bundle.workspace_id],
+        )
     # The one remaining way to learn nothing: no «Финансы» token, so no
     # request was made and none can be. Recording a verdict here would
     # claim a check that cannot happen. (The caller skips such workspaces
