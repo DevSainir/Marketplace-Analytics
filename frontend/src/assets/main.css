@@ -308,7 +308,8 @@
 
   /* Размеры под артикулом — строки той же таблицы, в тех же колонках (см.
      `pnlSkuTree.js`). Читаются как часть артикула над ними: без линий между
-     собой, на подложке холста, мельче и с фиолетовой чертой слева; линия
+     собой, на холодной сланцевой подложке (`--ui-nest`), мельче и со
+     стальной чертой слева; линия
      таблицы — только после последнего размера. Подложка у ВСЕХ ячеек, включая
      закреплённую: прозрачная пропускала бы под себя прокручиваемые цифры. */
   .app-datatable tbody tr.pnl-tree-parent td {
@@ -316,11 +317,12 @@
   }
 
   .app-datatable tbody tr.pnl-tree-child td {
-    @apply border-b-0 bg-canvas py-xs text-tiny;
+    @apply border-b-0 py-xs text-tiny;
+    background: var(--ui-nest);
   }
 
   .app-datatable tbody tr.pnl-tree-child td:first-child {
-    box-shadow: inset 3px 0 0 rgb(var(--ui-action-rgb) / 0.55);
+    box-shadow: inset 3px 0 0 var(--ui-nest-bar);
   }
 
   .app-datatable tbody tr.pnl-tree-last td {
@@ -328,13 +330,14 @@
   }
 
   .app-datatable tbody tr.pnl-tree-child:hover td {
-    @apply bg-canvas;
+    background: var(--ui-nest);
   }
 
   /* Размер — плашкой точно под фото артикула, а не текстом: столбик размеров
      читается как отдельная от артикулов колонка. */
   .app-datatable .pnl-size-pill {
-    @apply ml-lg inline-flex min-w-8 justify-center rounded-btn bg-surface px-xs py-0.5 text-tiny font-semibold text-primary ring-1 ring-border-subtle;
+    @apply ml-lg inline-flex min-w-8 justify-center rounded-btn bg-surface px-xs py-0.5 text-tiny font-semibold text-primary;
+    box-shadow: 0 0 0 1px var(--ui-nest-ring);
   }
 
   /* «N причин» перед суммой штрафов — открывает карточку причин

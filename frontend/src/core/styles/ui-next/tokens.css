@@ -66,6 +66,14 @@
      step lighter than the hover fill so a hovered row above it still reads. */
   --ui-inset-rgb: 249 248 255;
   --ui-inset: rgb(var(--ui-inset-rgb));
+  /* Rows nested under a row — an article's sizes. Canvas grey read as a hole
+     and the violet inset as a washed-out hover; owner's pick 12.10.2026 was
+     Stripe's cool slate, with a steel bar on the left and a matching ring on
+     the size pill. */
+  --ui-nest-rgb: 246 249 252;
+  --ui-nest: rgb(var(--ui-nest-rgb));
+  --ui-nest-bar: #a9bcd6;
+  --ui-nest-ring: #dde6f1;
 
   /* --- ink --------------------------------------------------------------- */
   --ui-ink-rgb: 18 18 26;
