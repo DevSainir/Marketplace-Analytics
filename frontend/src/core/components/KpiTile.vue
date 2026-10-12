@@ -28,6 +28,12 @@ const props = defineProps({
   hint: { type: String, default: '' },
   /** A route: the whole tile becomes a link to it. */
   to: { type: [String, Object], default: null },
+  /**
+   * What following the link does, in the action colour — «Заполнить →». A
+   * hover border alone did not read as clickable, and on a phone there is no
+   * hover at all.
+   */
+  action: { type: String, default: '' },
 })
 
 const TONES = {
@@ -56,6 +62,7 @@ const toneClass = computed(() => TONES[props.tone] ?? TONES.default)
     <div v-if="sub" class="mt-xs text-tiny" :class="subWarn ? 'text-status-warning' : 'text-muted'">
       {{ sub }}
     </div>
+    <div v-if="action" class="mt-sm text-tiny font-medium text-action">{{ action }}</div>
     <slot />
   </component>
 </template>

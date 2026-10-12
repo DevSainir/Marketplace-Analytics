@@ -17,7 +17,8 @@
  * - «Прочие удержания» — WB's own «Прочие удержания» line (Σ deduction), with
  *   the advertising (ВБ.Продвижение) share it is mostly made of.
  * - «Себестоимость» — the seller's own cost of the sold units; flags how many
- *   SKUs still have no cost, because the profit is understated by exactly them.
+ *   SKUs still have no cost, because the profit is understated by exactly them,
+ *   and says «Заполнить →» / «Изменить →» — it is the way into the cost editor.
  * - «Итого к оплате» — what actually reaches the bank account after every
  *   withholding, minus any marked SKUs (WB's own name for this total).
  */
@@ -73,9 +74,10 @@ const cards = computed(() => {
       key: 'cogs',
       label: 'Себестоимость',
       value: money(d.cogs),
-      sub:
-        d.uncosted_count > 0 ? `без себестоимости: ${d.uncosted_count} SKU →` : 'все SKU покрыты',
+      sub: d.uncosted_count > 0 ? `без себестоимости: ${d.uncosted_count} SKU` : 'все SKU покрыты',
       to: { name: 'finreports-cost-prices' },
+      // The editor's only entrance since «Себестоимость» left the page header.
+      action: d.uncosted_count > 0 ? 'Заполнить →' : 'Изменить →',
       warn: d.uncosted_count > 0,
     },
     {
@@ -108,6 +110,7 @@ const cards = computed(() => {
       :tone="card.accent ? 'accent' : 'default'"
       :hint="card.hint ?? ''"
       :to="card.to ?? null"
+      :action="card.action ?? ''"
     />
   </section>
 </template>
